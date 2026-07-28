@@ -1135,7 +1135,7 @@ _GFF_TEXT = ("##gff-version 3\n"
 
 def _gff(tmp_path):
     path = tmp_path / "seed.gff"
-    path.write_text(_GFF_TEXT)
+    path.write_text(_GFF_TEXT, encoding="utf-8")
     return path
 
 
@@ -1651,7 +1651,7 @@ _ALL_OUTPUTS = ("events", "blocks", "genes", "chromosome_events")
 
 
 def _read(path):
-    lines = path.read_text().splitlines()
+    lines = path.read_text(encoding="utf-8").splitlines()
     cols = lines[0].split("\t")
     rows = [dict(zip(cols, row.split("\t"))) for row in lines[1:] if row]
     for row in lines[1:]:
@@ -1696,7 +1696,7 @@ def test_every_resolution_writes_the_same_genome_events_table(tmp_path):
     for name, r in runs.items():
         d = tmp_path / name
         r.write(d, outputs=("events",))
-        text = (d / "genome_events.tsv").read_text()
+        text = (d / "genome_events.tsv").read_text(encoding="utf-8")
         # the genealogy columns are a prefix of every resolution's header — that is the contract
         # `events_from_tsv` relies on, and what lets one reader serve all three
         assert tuple(text.splitlines()[0].split("\t"))[:len(_COLS)] == _COLS, name
@@ -1794,7 +1794,7 @@ def test_written_genes_match_the_declared_spans(tmp_path):
 def test_genes_file_is_header_only_when_none_were_declared(tmp_path):
     sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=3, seed=1)
     simulate_genomes_nucleotide(sp, root_length=200, seed=1).write(tmp_path, outputs=("genes",))
-    assert (tmp_path / "genes.tsv").read_text() == "family\tname\tsource\tstart\tend\tstrand\n"
+    assert (tmp_path / "genes.tsv").read_text(encoding="utf-8") == "family\tname\tsource\tstart\tend\tstrand\n"
 
 
 def test_written_rearrangements_share_the_event_table(tmp_path):
@@ -1839,7 +1839,7 @@ def test_block_trees_cover_the_whole_genome_and_agree_with_the_gene_trees(tmp_pa
     gff.write_text("##gff-version 3\n##sequence-region c 1 3000\n"
                    "c\tt\tgene\t1\t300\t.\t+\t.\tID=a\n"
                    "c\tt\tgene\t601\t900\t.\t+\t.\tID=b\n"
-                   "c\tt\tgene\t1201\t1500\t.\t-\t.\tID=c\n")
+                   "c\tt\tgene\t1201\t1500\t.\t-\t.\tID=c\n", encoding="utf-8")
     g = simulate_genomes_nucleotide(sp, gff=gff, duplication=0.2, loss=0.2, inversion=0.3, seed=1)
 
     assert len(g.block_trees) == len(g.root_blocks)          # every block, not just the genes
@@ -1936,12 +1936,12 @@ def test_gff_and_bed_are_written_for_every_genome_and_name_the_fasta_records(tmp
            {f"genome_{lab}" for lab in labels}
     for lab in labels:
         fasta = {ln[1:] for ln in
-                 (tmp_path / "genomes" / f"genome_{lab}.fasta").read_text().splitlines()
+                 (tmp_path / "genomes" / f"genome_{lab}.fasta").read_text(encoding="utf-8").splitlines()
                  if ln.startswith(">")}
         bed = {ln.split("\t")[0]
-               for ln in (tmp_path / "bed" / f"genome_{lab}.bed").read_text().splitlines()}
+               for ln in (tmp_path / "bed" / f"genome_{lab}.bed").read_text(encoding="utf-8").splitlines()}
         gff = {ln.split("\t")[0]
-               for ln in (tmp_path / "gff" / f"genome_{lab}.gff").read_text().splitlines()
+               for ln in (tmp_path / "gff" / f"genome_{lab}.gff").read_text(encoding="utf-8").splitlines()
                if not ln.startswith("#")}
         assert bed == fasta and gff <= fasta
 
@@ -1950,7 +1950,7 @@ def test_bed_tiles_the_genome_and_names_each_block_by_its_ancestry(tmp_path):
     g = _export_run(tmp_path)
     for node_id, genome in g.genomes.items():
         rows = [ln.split("\t") for ln in
-                (tmp_path / "bed" / f"genome_{node_label(node_id)}.bed").read_text().splitlines()]
+                (tmp_path / "bed" / f"genome_{node_label(node_id)}.bed").read_text(encoding="utf-8").splitlines()]
         assert len(rows) == sum(len(c.blocks) for c in genome.chromosomes)
         at = collections.defaultdict(int)
         for (chrom, start, end, name, _score, strand) in rows:
@@ -1968,7 +1968,7 @@ def test_gff_gives_every_gene_unique_id_right_coordinates_and_the_strand_it_now_
     flipped = 0
     for node_id, genome in g.genomes.items():
         rows = [ln.split("\t") for ln in
-                (tmp_path / "gff" / f"genome_{node_label(node_id)}.gff").read_text().splitlines()
+                (tmp_path / "gff" / f"genome_{node_label(node_id)}.gff").read_text(encoding="utf-8").splitlines()
                 if not ln.startswith("#")]
         genes = [(c, at, b) for c in genome.chromosomes
                  for at, b in [(sum(x.length for x in c.blocks[:i]), c.blocks[i])

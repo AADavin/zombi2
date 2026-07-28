@@ -56,6 +56,28 @@ class RateSyntaxError(ValueError):
     reports the rate classes' own domain errors reports this the same way."""
 
 
+def _paths_are_literal(text: str) -> str:
+    """Double every backslash inside a quoted string, so a path in a rate expression means itself.
+
+    The strings in a rate are file paths and state labels — an escape sequence is never wanted in one
+    — but the expression is read by Python's own parser, which sees ``DrivenBy('C:\\Users\\me\\t.tsv')``
+    and reports a truncated ``\\UXXXXXXXX`` escape. A Windows user pasting a path from Explorer got
+    that, from a rate that is perfectly well formed. Doubling first makes the backslash a backslash.
+
+    A UNC path survives it (``\\\\server\\share`` doubles to four and parses back to two), and only the
+    inside of a literal is touched, so the expression's own syntax is untouched."""
+    out, quote = [], None
+    for ch in text:
+        if quote is None:
+            quote = ch if ch in "\"'" else None
+        elif ch == "\\":
+            out.append("\\")                 # keep it as the character it is, not as an escape
+        elif ch == quote:
+            quote = None
+        out.append(ch)
+    return "".join(out)
+
+
 def _fail(message: str, text: str) -> RateSyntaxError:
     return RateSyntaxError(f"{message}\n  in the rate {text!r}")
 
@@ -175,7 +197,7 @@ def parse_rate(text: object):
     if not text.strip():
         raise RateSyntaxError("a rate cannot be empty")
     try:
-        tree = ast.parse(text, mode="eval")
+        tree = ast.parse(_paths_are_literal(text), mode="eval")
     except SyntaxError as e:
         raise _fail(f"could not read the expression ({e.msg})", text) from None
     value = _node(tree.body, text)

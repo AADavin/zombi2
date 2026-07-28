@@ -407,7 +407,7 @@ def run(args, parser):
     # unsampled tips are read from the record rather than guessed from tip depth
     tip_fates = _read_tip_fates(args.tip_fates) if args.tip_fates else sibling_fates(tree_path)
     try:
-        with open(tree_path) as f:
+        with open(tree_path, encoding="utf-8") as f:
             tree, names = read_newick(f.read(), tip_fates=tip_fates)
         warn_if_fates_were_inferred(tree, args)
     except FileNotFoundError:
@@ -477,17 +477,17 @@ def run(args, parser):
     species_dir = level_dir(args.run, "species", args.flat)
     canonical = os.path.join(species_dir, "species_complete.nwk")
     if not os.path.exists(canonical):
-        with open(canonical, "w") as f:
+        with open(canonical, "w", encoding="utf-8") as f:
             f.write(complete_tree.to_newick() + "\n")
         # write the fate table beside the canonical tree too, so a later level on this run reads each
         # tip's fate from the record instead of guessing it from depth (matching a species run's output)
         fate_rows = ["lineage\tfate"] + [f"n{n.id}\t{n.fate}"
                                          for n in sorted(complete_tree.leaves(), key=lambda x: x.id)]
-        with open(os.path.join(species_dir, "species_fates.tsv"), "w") as f:
+        with open(os.path.join(species_dir, "species_fates.tsv"), "w", encoding="utf-8") as f:
             f.write("\n".join(fate_rows) + "\n")
     if names:  # an external tree: map ZOMBI's n<id> back to the user's labels (join on profiles cols)
         rows = ["node\tname"] + [f"n{i}\t{lbl}" for i, lbl in sorted(names.items())]
-        with open(os.path.join(out, "names.tsv"), "w") as f:
+        with open(os.path.join(out, "names.tsv"), "w", encoding="utf-8") as f:
             f.write("\n".join(rows) + "\n")
 
     if streaming:                               # a StreamedRun carries counts, not the run in memory

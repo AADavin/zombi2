@@ -352,7 +352,7 @@ def _conditioned_on(run: str, level: str) -> set:
     p = os.path.join(run, level, _CONDITIONED_ON_FILE)
     if not os.path.exists(p):
         return set()
-    with open(p) as f:
+    with open(p, encoding="utf-8") as f:
         return {ln.strip() for ln in f if ln.strip()}
 
 
@@ -389,7 +389,7 @@ def record_conditioning(level_out: str, driver_levels) -> None:
     driver_levels = sorted(set(driver_levels))
     p = os.path.join(level_out, _CONDITIONED_ON_FILE)
     if driver_levels:
-        with open(p, "w") as f:
+        with open(p, "w", encoding="utf-8") as f:
             f.write("\n".join(driver_levels) + "\n")
     elif os.path.exists(p):
         os.remove(p)
@@ -519,7 +519,7 @@ def _read_tip_fates(path: str) -> dict:
     are checked against the tree by `read_newick()`."""
     fates = {}
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             for lineno, raw in enumerate(f, 1):
                 line = raw.strip()
                 if not line or line.startswith("#"):
@@ -628,7 +628,7 @@ def _write_params_log(path: str, args: argparse.Namespace, summary: str, effecti
     for key, value in sorted({**vars(args), **(effective or {})}.items()):
         lines.append(f"{key}\t{_log_value(value)}")
     lines.append(f"result\t{summary}")
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 
 

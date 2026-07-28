@@ -247,7 +247,7 @@ def run(args, parser):
         parser.error(f"these options don't apply to --model {args.model}: {', '.join(stray)}")
 
     handoff, tree_path = resolve_genomes(args.source or args.run)
-    with open(tree_path) as f:
+    with open(tree_path, encoding="utf-8") as f:
         tree, _ = read_newick(f.read())
 
     # Which resolution wrote this handoff? blocks.tsv is the nucleotide resolution's and no other's,
@@ -267,7 +267,7 @@ def run(args, parser):
     else:
         events_path = os.path.join(handoff, "genome_events.tsv")
         try:
-            with open(events_path) as f:
+            with open(events_path, encoding="utf-8") as f:
                 events = events_from_tsv(f.read())
         except FileNotFoundError:
             raise FileNotFoundError(

@@ -11,7 +11,7 @@ from zombi2.genomes.gff import GffGene, read_gff, trim_overlapping_genes
 
 def _write(tmp_path, text):
     path = tmp_path / "genes.gff"
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     return path
 
 
@@ -119,7 +119,7 @@ def test_trim_overlapping_genes_shortens_and_is_idempotent():
 def test_read_gff_can_trim_instead_of_raising(tmp_path):
     text = (HEADER + "chrom1\t.\tgene\t101\t200\t.\t+\t.\tID=a\n"
                      "chrom1\t.\tgene\t150\t300\t.\t+\t.\tID=b\n")
-    path = tmp_path / "ov.gff"; path.write_text(text)
+    path = tmp_path / "ov.gff"; path.write_text(text, encoding="utf-8")
     with pytest.raises(ValueError, match="trim_overlaps=True"):
         read_gff(path)
     _lengths, genes = read_gff(path, trim_overlaps=True)

@@ -383,7 +383,7 @@ def test_write_emits_phylogram_newick(tmp_path):
     _, r = _small_run()
     r.write(tmp_path, outputs=("phylograms", "species_phylogram"))
     fam0 = tmp_path / "phylograms" / "phylogram_fam0_complete.nwk"
-    assert fam0.exists() and fam0.read_text().rstrip().endswith(";")
+    assert fam0.exists() and fam0.read_text(encoding="utf-8").rstrip().endswith(";")
     assert (tmp_path / "clock_species_tree_complete.nwk").exists()
 
 
@@ -411,7 +411,7 @@ def test_write_emits_fasta_per_family(tmp_path):
     r = simulate_sequences(_pair_run(1.0, 2.0), model=jc69(), length=20, seed=1)
     r.write(tmp_path)
     aln = tmp_path / "alignments" / "fam0.fasta"
-    assert aln.exists() and ">n1_g1" in aln.read_text()
+    assert aln.exists() and ">n1_g1" in aln.read_text(encoding="utf-8")
     r.write(tmp_path, outputs=("ancestral",))
     assert (tmp_path / "ancestral" / "sequences_ancestral_fam0.fasta").exists()
     with pytest.raises(ValueError):

@@ -85,7 +85,7 @@ def load_driver(path, tree) -> DriverTrajectory:
     in the log is lineage 7 here. (``tree`` is the run's own species tree, always in hand where a
     conditioned rate is resolved.)"""
     try:
-        text = pathlib.Path(path).read_text()
+        text = pathlib.Path(path).read_text(encoding="utf-8")
     except FileNotFoundError:
         raise FileNotFoundError(
             f"DrivenBy driver file not found: {str(path)!r}. A conditioned rate points at this file, but "

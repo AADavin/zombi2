@@ -179,14 +179,14 @@ class SequencesResult:
         if "phylograms" in outputs and self.phylograms:
             into = grouped_dir(d, "phylograms", flat)
             for fam, ph in self.phylograms.items():
-                (into / f"phylogram_{u}{fam}_complete.nwk").write_text(ph["complete"] + "\n")
+                (into / f"phylogram_{u}{fam}_complete.nwk").write_text(ph["complete"] + "\n", encoding="utf-8")
                 if ph["extant"] is not None:
-                    (into / f"phylogram_{u}{fam}_extant.nwk").write_text(ph["extant"] + "\n")
+                    (into / f"phylogram_{u}{fam}_extant.nwk").write_text(ph["extant"] + "\n", encoding="utf-8")
         if "species_phylogram" in outputs:
             sp = self.species_phylogram
-            (d / "clock_species_tree_complete.nwk").write_text(sp["complete"] + "\n")
+            (d / "clock_species_tree_complete.nwk").write_text(sp["complete"] + "\n", encoding="utf-8")
             if sp["extant"] is not None:
-                (d / "clock_species_tree_extant.nwk").write_text(sp["extant"] + "\n")
+                (d / "clock_species_tree_extant.nwk").write_text(sp["extant"] + "\n", encoding="utf-8")
         # every genome is written the same way and named by whose it is — a node label, or "initial"
         for token, genomes in (("genomes", self.genomes),
                                ("initial_genome",
@@ -254,7 +254,7 @@ def _write_fasta(path, records: dict[str, str], width: int = 70) -> None:
     streaming one record at a time straight to the file so a whole-genome sequence is never first
     copied into one big string (nor a list of every wrapped line). Byte-for-byte what building the
     text and writing it produced — including the lone ``"\\n"`` an empty record set wrote."""
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         if not records:
             f.write("\n")                       # the degenerate case "\n".join([]) + "\n" produced
             return

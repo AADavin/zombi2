@@ -99,7 +99,7 @@ def test_genomes_reads_the_runs_fate_table_so_unsampled_tips_are_not_extant(tmp_
     run = tmp_path / "run"
     main(["species", str(run), "--birth", "1.0", "--death", "0.4", "--n-extant", "20",
           "--sampling", "0.5", "--seed", "7"])
-    fates = (run / "species" / "species_fates.tsv").read_text().splitlines()[1:]
+    fates = (run / "species" / "species_fates.tsv").read_text(encoding="utf-8").splitlines()[1:]
     n_extant = sum(ln.endswith("\textant") for ln in fates)
     assert 0 < n_extant < 20                                     # sampling really thinned the survivors
     capsys.readouterr()
@@ -153,7 +153,7 @@ def test_species_run_writes_the_expected_files(tmp_path, capsys):
             "species.log"} <= written
     assert "extant" in capsys.readouterr().out
     # the reproducibility log records the resolved parameters
-    log = (tmp_path / "species.log").read_text()
+    log = (tmp_path / "species.log").read_text(encoding="utf-8")
     assert "birth\t1.0" in log and "n_extant\t20" in log
 
 
@@ -167,7 +167,7 @@ def test_species_is_deterministic_given_the_seed(tmp_path):
     a, b = tmp_path / "a", tmp_path / "b"
     for out in (a, b):
         main(["species", str(out), "--birth", "1", "--death", "0.3", "--n-extant", "30", "--seed", "13", "--flat"])
-    assert (a / "species_complete.nwk").read_text() == (b / "species_complete.nwk").read_text()
+    assert (a / "species_complete.nwk").read_text(encoding="utf-8") == (b / "species_complete.nwk").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("argv", [
@@ -195,7 +195,7 @@ def test_engine_error_is_respelt_in_flags(tmp_path, capsys, tree_file):
     gff = tmp_path / "overlapping.gff"
     gff.write_text("##sequence-region c1 1 900\n"
                    "c1\t.\tgene\t100\t400\t.\t+\t.\tID=a\n"
-                   "c1\t.\tgene\t300\t600\t.\t+\t.\tID=b\n")
+                   "c1\t.\tgene\t300\t600\t.\t+\t.\tID=b\n", encoding="utf-8")
     rc = main(["genomes", str(tmp_path / "g"), "--from", str(tree_file),
                "--resolution", "nucleotide", "--gff", str(gff), "--flat"])
     assert rc == 1
@@ -247,7 +247,7 @@ def test_genomes_ordered_events_carry_where_each_one_happened(tmp_path, tree_fil
     rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "ordered", "--duplication", "0.3", "--loss", "0.2", "--origination", "0.6", "--inversion", "0.4", "--seed", "42", "--write", "events", "--flat"])
     assert rc == 0
     assert not list(out.glob("rearrangements.tsv")) and not list(out.glob("genome_event_*.tsv"))
-    rows = (out / "genome_events.tsv").read_text().splitlines()
+    rows = (out / "genome_events.tsv").read_text(encoding="utf-8").splitlines()
     cols = rows[0].split("\t")
     assert cols == ["time", "kind", "lineage", "family", "copy", "parent", "recipient",
                     "donor", "event", "dest_lineage", "chromosome", "position", "length",
@@ -280,14 +280,14 @@ def test_genomes_nucleotide_runs_and_writes_its_own_outputs(tmp_path, tree_file)
     # the nucleotide default is events + genes; blocks is opt-in
     written = {p.name for p in out.iterdir()}
     assert {"genome_events.tsv", "genes.tsv", "species_complete.nwk", "genomes.log"} <= written
-    assert len((out / "genes.tsv").read_text().splitlines()) > 1
+    assert len((out / "genes.tsv").read_text(encoding="utf-8").splitlines()) > 1
 
 
 def test_genomes_nucleotide_write_selects_blocks(tmp_path, tree_file):
     out = tmp_path / "g"
     rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "nucleotide", "--root-length", "400", "--genes", "2", "--inversion", "1.0", "--seed", "1", "--write", "blocks", "events", "--flat"])
     assert rc == 0
-    head = (out / "blocks.tsv").read_text().splitlines()[0].split("\t")
+    head = (out / "blocks.tsv").read_text(encoding="utf-8").splitlines()[0].split("\t")
     assert head == ["lineage", "chromosome", "position", "source", "start", "end", "strand",
                     "copy", "gene"]
 
@@ -297,11 +297,11 @@ def test_genomes_nucleotide_seeds_from_a_gff(tmp_path, tree_file):
     gff.write_text("##gff-version 3\n"
                    "##sequence-region chrom1 1 900\n"
                    "chrom1\tZOMBI2\tgene\t101\t200\t.\t+\t.\tID=dnaA\n"
-                   "chrom1\tZOMBI2\tgene\t401\t500\t.\t-\t.\tID=recA\n")
+                   "chrom1\tZOMBI2\tgene\t401\t500\t.\t-\t.\tID=recA\n", encoding="utf-8")
     out = tmp_path / "g"
     rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "nucleotide", "--gff", str(gff), "--inversion", "1.0", "--seed", "1", "--flat"])
     assert rc == 0
-    rows = [r.split("\t") for r in (out / "genes.tsv").read_text().splitlines()[1:]]
+    rows = [r.split("\t") for r in (out / "genes.tsv").read_text(encoding="utf-8").splitlines()[1:]]
     assert [r[1] for r in rows] == ["dnaA", "recA"]          # names survive to the output
     assert [r[5] for r in rows] == ["1", "-1"]               # ...and so does the coding strand
 
@@ -310,7 +310,7 @@ def test_genomes_is_deterministic_across_resolutions(tmp_path, tree_file):
     def run(tag):
         out = tmp_path / tag
         main(["genomes", str(out), "--from", str(tree_file), "--resolution", "nucleotide", "--root-length", "500", "--genes", "2", "--inversion", "1.0", "--duplication", "0.4", "--seed", "7", "--write", "events", "blocks", "--flat"])
-        return {p.name: p.read_text() for p in out.iterdir() if p.suffix == ".tsv"}
+        return {p.name: p.read_text(encoding="utf-8") for p in out.iterdir() if p.suffix == ".tsv"}
     assert run("a") == run("b")
 
 
@@ -368,9 +368,9 @@ def test_genomes_on_ultrametric_external_tree_writes_a_name_map(tmp_path):
     rc = main(["genomes", str(out), "--from", str(tmp_path / "ext.nwk"), "--duplication", "0.3", "--origination", "1.0", "--seed", "1", "--flat"])
     assert rc == 0
     # all four tips are observed, so the profile matrix has four columns
-    assert len((out / "profiles.tsv").read_text().splitlines()[0].split("\t")) == 1 + 4
+    assert len((out / "profiles.tsv").read_text(encoding="utf-8").splitlines()[0].split("\t")) == 1 + 4
     # names.tsv maps ZOMBI's n<id> back to the user's labels
-    mapped = dict(row.split("\t") for row in (out / "names.tsv").read_text().splitlines()[1:])
+    mapped = dict(row.split("\t") for row in (out / "names.tsv").read_text(encoding="utf-8").splitlines()[1:])
     assert sorted(mapped.values()) == ["chimp", "human", "mouse", "rat"]
 
 
@@ -383,12 +383,12 @@ def test_genomes_on_nonultrametric_tree_needs_tip_fates(tmp_path, capsys):
 
 def test_genomes_nonultrametric_tree_runs_with_tip_fates_file(tmp_path):
     (tmp_path / "ext.nwk").write_text("((a:1,b:1):1,c:1.5);\n")
-    (tmp_path / "fates.tsv").write_text("a\textant\nb\textant\nc\textinct\n")
+    (tmp_path / "fates.tsv").write_text("a\textant\nb\textant\nc\textinct\n", encoding="utf-8")
     out = tmp_path / "g"
     rc = main(["genomes", str(out), "--from", str(tmp_path / "ext.nwk"), "--tip-fates", str(tmp_path / "fates.tsv"), "--duplication", "0.3", "--origination", "1.0", "--seed", "1", "--flat"])
     assert rc == 0
     # c is extinct, so only a and b are observed → two profile columns
-    assert len((out / "profiles.tsv").read_text().splitlines()[0].split("\t")) == 1 + 2
+    assert len((out / "profiles.tsv").read_text(encoding="utf-8").splitlines()[0].split("\t")) == 1 + 2
 
 
 # ── zombi2 sequences ────────────────────────────────────────────────────────────────
@@ -431,7 +431,7 @@ def test_sequences_relaxed_clock_runs_and_is_logged(tmp_path, genomes_dir):
     out = tmp_path / "s"
     rc = main(["sequences", str(out), "--from", str(genomes_dir), "--model", "gtr", "--frequencies", "0.3", "0.2", "0.2", "0.3", "--substitution", "1.0 * ByLineage(spread=0.4, dist='gamma')", "--seed", "1", "--flat"])
     assert rc == 0
-    log = (out / "sequences.log").read_text()
+    log = (out / "sequences.log").read_text(encoding="utf-8")
     assert "gamma lineage clock, spread 0.4" in log
     # the rate is logged in its written form, so the log line pastes back into --substitution
     assert "substitution\t1.0 * ByLineage(spread=0.4, dist='gamma')" in log
@@ -449,7 +449,7 @@ def test_sequences_protein_models_write_amino_acid_alignments(tmp_path, genomes_
     rc = main(["sequences", str(out), "--from", str(genomes_dir), "--model", model, "--length", "60", "--seed", "1", "--flat"])
     assert rc == 0
     fasta = next(p for p in out.iterdir() if p.name.startswith("fam"))
-    residues = set("".join(ln for ln in fasta.read_text().splitlines() if not ln.startswith(">")))
+    residues = set("".join(ln for ln in fasta.read_text(encoding="utf-8").splitlines() if not ln.startswith(">")))
     assert residues <= set(AMINO_ACIDS) and not residues <= set("ACGT")
 
 
@@ -470,7 +470,7 @@ def test_sequences_is_deterministic_given_the_seed(tmp_path, genomes_dir):
 
 
 def _dir_seq_text(d):
-    return {p.name: p.read_text() for p in d.iterdir() if p.suffix in (".fasta", ".nwk")}
+    return {p.name: p.read_text(encoding="utf-8") for p in d.iterdir() if p.suffix in (".fasta", ".nwk")}
 
 
 def test_sequences_missing_genomes_dir_is_reported_cleanly(tmp_path, capsys):
@@ -496,7 +496,7 @@ def test_traits_continuous_writes_values_and_tree(tmp_path, tree_file):
     rc = main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0", "--seed", "1", "--flat"])
     assert rc == 0
     assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_tree.nwk", "traits.log"}
-    header, first = (out / "trait_values.tsv").read_text().splitlines()[:2]
+    header, first = (out / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[:2]
     assert header == "node\ttrait"
     assert first.split("\t")[0].startswith("n")          # n<id>, matching the Newick
     float(first.split("\t")[1])                          # a continuous trait is a number
@@ -508,7 +508,7 @@ def test_traits_ou_and_threshold_run(tmp_path, tree_file):
     # the threshold model: a discrete state read off a continuous liability
     out = tmp_path / "th"
     assert main(["traits", str(out), "--from", str(tree_file), "--kind", "discrete", "--states", "absent,present", "--liability", "1.0", "--threshold", "0.0", "--seed", "1", "--flat"]) == 0
-    states = {ln.split("\t")[1] for ln in (out / "trait_values.tsv").read_text().splitlines()[1:]}
+    states = {ln.split("\t")[1] for ln in (out / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[1:]}
     assert states <= {"absent", "present"}
 
 
@@ -518,7 +518,7 @@ def test_traits_discrete_writes_the_event_log(tmp_path, tree_file):
     assert rc == 0
     assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_events.tsv",
                                                "trait_tree.nwk", "traits.log"}
-    lines = (out / "trait_events.tsv").read_text().splitlines()
+    lines = (out / "trait_events.tsv").read_text(encoding="utf-8").splitlines()
     assert lines[0] == "time\tkind\tlineage\tfrom\tto"
     assert lines[1].split("\t")[1] == "root"          # the origin row, the conditioning file's anchor
 
@@ -526,7 +526,7 @@ def test_traits_discrete_writes_the_event_log(tmp_path, tree_file):
 def test_traits_at_speciation_logs_on_speciation_changes(tmp_path, tree_file):
     out = tmp_path / "t"
     main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0", "--at-speciation", "0.5", "--seed", "1", "--write", "events", "--flat"])
-    rows = (out / "trait_events.tsv").read_text().splitlines()[1:]
+    rows = (out / "trait_events.tsv").read_text(encoding="utf-8").splitlines()[1:]
     kinds = [r.split("\t")[1] for r in rows]
     assert kinds[0] == "root"                                                 # the origin, then jumps
     assert kinds[1:] and all(k == "on_speciation" for k in kinds[1:])         # a diffusion has no
@@ -553,7 +553,7 @@ def test_traits_is_deterministic_given_the_seed(tmp_path, tree_file):
     for name in ("a", "b"):
         out = tmp_path / name
         main(["traits", str(out), "--from", str(tree_file), "--kind", "discrete", "--states", "a,b", "--switch", "0.4", "--seed", "99", "--flat"])
-        written.append((out / "trait_values.tsv").read_text())
+        written.append((out / "trait_values.tsv").read_text(encoding="utf-8"))
     assert written[0] == written[1]
 
 
@@ -568,10 +568,10 @@ def test_traits_on_external_tree_writes_a_name_map(tmp_path):
     out = tmp_path / "t"
     rc = main(["traits", "--kind", "continuous", str(out), "--from", str(tmp_path / "ext.nwk"), "--rate", "1.0", "--seed", "1", "--flat"])
     assert rc == 0
-    names = dict(ln.split("\t") for ln in (out / "names.tsv").read_text().splitlines()[1:])
+    names = dict(ln.split("\t") for ln in (out / "names.tsv").read_text(encoding="utf-8").splitlines()[1:])
     assert sorted(names.values()) == ["chimp", "human", "mouse", "rat"]
     # the name map joins the values table on its node column
-    nodes = {ln.split("\t")[0] for ln in (out / "trait_values.tsv").read_text().splitlines()[1:]}
+    nodes = {ln.split("\t")[0] for ln in (out / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[1:]}
     assert nodes <= set(names)
 
 
@@ -579,20 +579,20 @@ def test_traits_params_file_drives_the_run_and_cli_overrides(tmp_path, tree_file
     # a [traits] table scopes one file to this command (so one file can drive a whole pipeline)
     (tmp_path / "p.toml").write_text('[traits]\nkind = "discrete"\n'
                                      'states = "marine,terrestrial"\nswitch = 0.15\n'
-                                     'write = ["values", "events"]\nseed = 7\n')
+                                     'write = ["values", "events"]\nseed = 7\n', encoding="utf-8")
     argv = ["traits", "--params", str(tmp_path / "p.toml"), "--from", str(tree_file)]
     out = tmp_path / "a"
     # --kind is required, but the file supplies it — that is why it is validated in run() rather
     # than marked argparse-`required`, which no default could satisfy
     assert main(["traits", str(out), *argv[1:], "--flat"]) == 0
     assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_events.tsv", "traits.log"}
-    states = {ln.split("\t")[1] for ln in (out / "trait_values.tsv").read_text().splitlines()[1:]}
+    states = {ln.split("\t")[1] for ln in (out / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[1:]}
     assert states <= {"marine", "terrestrial"}          # the file's states reached the engine
 
     # a flag given on the command line still wins over the file
     other = tmp_path / "b"
     assert main([*argv, str(other), "--seed", "8", "--flat"]) == 0
-    assert (other / "trait_values.tsv").read_text() != (out / "trait_values.tsv").read_text()
+    assert (other / "trait_values.tsv").read_text(encoding="utf-8") != (out / "trait_values.tsv").read_text(encoding="utf-8")
 
 
 # ── --params ────────────────────────────────────────────────────────────────────────
@@ -606,10 +606,10 @@ def test_the_log_records_the_input_tree_by_content_not_only_by_name(tmp_path):
         main(["species", str(sp), "--birth", "1", "--death", "0.3", "--n-extant", "10",
               "--seed", str(seed), "--flat", "--quiet"])
         tree = tmp_path / "tree.nwk"                  # the SAME name, twice, holding two trees
-        tree.write_text((sp / "species_complete.nwk").read_text())
+        tree.write_text((sp / "species_complete.nwk").read_text(encoding="utf-8"))
         main(["genomes", str(gn), "--from", str(tree), "--duplication", "0.2", "--loss", "0.2",
               "--seed", "7", "--flat", "--quiet"])
-        logs.append([ln for ln in (gn / "genomes.log").read_text().splitlines()
+        logs.append([ln for ln in (gn / "genomes.log").read_text(encoding="utf-8").splitlines()
                      if not ln.startswith(("timestamp", "command_line", "run\t", "source\t"))])
     digests = [[ln for ln in log if ln.startswith("input\t")] for log in logs]
     assert len(digests[0]) == 1 and digests[0] != digests[1]     # the tree, and it is not the same tree
@@ -627,24 +627,24 @@ def test_the_log_records_a_driver_file_as_an_input(tmp_path):
     driver = str(run / "traits" / "trait_events.tsv")
     main(["genomes", str(run), "--duplication", "0.2", "--seed", "1", "--quiet",
           "--loss", f"0.25 * DrivenBy({driver!r}, {{'cave': 4.0, 'surface': 1.0}})"])
-    inputs = [ln.split("\t")[2] for ln in (run / "genomes" / "genomes.log").read_text().splitlines()
+    inputs = [ln.split("\t")[2] for ln in (run / "genomes" / "genomes.log").read_text(encoding="utf-8").splitlines()
               if ln.startswith("input\t")]
     assert driver in inputs
 
 
 def test_params_file_supplies_defaults_and_cli_overrides(tmp_path):
-    (tmp_path / "p.toml").write_text("birth = 2.0\ndeath = 0.3\nn-extant = 12\n")
+    (tmp_path / "p.toml").write_text("birth = 2.0\ndeath = 0.3\nn-extant = 12\n", encoding="utf-8")
     out = tmp_path / "o"
     # birth comes from the file; the command line still overrides it
     main(["species", str(out), "--params", str(tmp_path / "p.toml"), "--birth", "1.0", "--seed", "1", "--flat"])
-    log = (out / "species.log").read_text()
+    log = (out / "species.log").read_text(encoding="utf-8")
     assert "birth\t1.0" in log and "n_extant\t12" in log
 
 
 def test_params_file_scopes_by_command_table(tmp_path):
     (tmp_path / "pipeline.toml").write_text(
         "[species]\nbirth = 1.0\nn-extant = 15\n\n[genomes]\nduplication = 0.2\nwrite = "
-        '["profiles"]\n')
+        '["profiles"]\n', encoding="utf-8")
     sp, gn = tmp_path / "sp", tmp_path / "gn"
     main(["species", str(sp), "--params", str(tmp_path / "pipeline.toml"), "--seed", "1", "--flat"])
     main(["genomes", str(gn), "--params", str(tmp_path / "pipeline.toml"), "--from", str(sp / "species_complete.nwk"), "--seed", "1", "--flat"])
@@ -653,7 +653,7 @@ def test_params_file_scopes_by_command_table(tmp_path):
 
 
 def test_params_unknown_key_errors(tmp_path):
-    (tmp_path / "bad.toml").write_text("birth = 1.0\nbogus = 3\n")
+    (tmp_path / "bad.toml").write_text("birth = 1.0\nbogus = 3\n", encoding="utf-8")
     with pytest.raises(SystemExit) as e:
         main(["species", str(tmp_path / "o"), "--params", str(tmp_path / "bad.toml"), "--n-extant", "5", "--flat"])
     assert e.value.code == 2
@@ -661,7 +661,7 @@ def test_params_unknown_key_errors(tmp_path):
 
 def test_params_mistyped_section_errors(tmp_path, capsys):
     # a typo'd [table] must not be silently dropped (which would run every rate at its default)
-    (tmp_path / "typo.toml").write_text("[speces]\nbirth = 1.0\nn-extant = 10\n")
+    (tmp_path / "typo.toml").write_text("[speces]\nbirth = 1.0\nn-extant = 10\n", encoding="utf-8")
     with pytest.raises(SystemExit):
         main(["species", str(tmp_path / "o"), "--params", str(tmp_path / "typo.toml"), "--seed", "1", "--flat"])
     err = capsys.readouterr().err
@@ -670,45 +670,45 @@ def test_params_mistyped_section_errors(tmp_path, capsys):
 
 def test_params_top_level_key_broadcasts_under_a_table(tmp_path):
     # a top-level scalar is a shared base for every command; a [command] table overrides on conflict
-    (tmp_path / "p.toml").write_text("seed = 99\n[species]\nbirth = 1.0\nn-extant = 8\n")
+    (tmp_path / "p.toml").write_text("seed = 99\n[species]\nbirth = 1.0\nn-extant = 8\n", encoding="utf-8")
     out = tmp_path / "o"
     main(["species", str(out), "--params", str(tmp_path / "p.toml"), "--flat"])
-    assert "seed\t99" in (out / "species.log").read_text()      # the shared seed was applied, not dropped
+    assert "seed\t99" in (out / "species.log").read_text(encoding="utf-8")      # the shared seed was applied, not dropped
 
 
 def test_params_command_table_overrides_the_shared_base(tmp_path):
     # on conflict the [command] table wins over a top-level key of the same name
-    (tmp_path / "p.toml").write_text("seed = 1\nn-extant = 5\n[species]\nbirth = 1.0\nn-extant = 12\n")
+    (tmp_path / "p.toml").write_text("seed = 1\nn-extant = 5\n[species]\nbirth = 1.0\nn-extant = 12\n", encoding="utf-8")
     out = tmp_path / "o"
     main(["species", str(out), "--params", str(tmp_path / "p.toml"), "--flat"])
-    log = (out / "species.log").read_text()
+    log = (out / "species.log").read_text(encoding="utf-8")
     assert "n_extant\t12" in log and "seed\t1" in log
 
 
 def test_params_append_option_is_overridden_by_the_command_line(tmp_path):
     # --mass-extinction is an 'append' action: a params default plus a CLI flag must NOT concatenate
     (tmp_path / "p.toml").write_text(
-        "[species]\nbirth = 1.0\ntotal-time = 5.0\nmass-extinction = [[2.0, 0.9]]\n")
+        "[species]\nbirth = 1.0\ntotal-time = 5.0\nmass-extinction = [[2.0, 0.9]]\n", encoding="utf-8")
     out = tmp_path / "o"
     main(["species", str(out), "--params", str(tmp_path / "p.toml"),
           "--mass-extinction", "3.0", "0.1", "--seed", "3", "--flat"])
-    log = (out / "species.log").read_text()
+    log = (out / "species.log").read_text(encoding="utf-8")
     assert "mass_extinction\t[[3.0, 0.1]]" in log              # only the command line's pulse, not both
 
 
 def test_params_last_of_two_files_wins(tmp_path):
     # two --params: the last file's values are used (and it is the one the log names)
-    (tmp_path / "a.toml").write_text("[species]\nbirth = 1.0\nn-extant = 5\n")
-    (tmp_path / "b.toml").write_text("[species]\nbirth = 1.0\nn-extant = 40\n")
+    (tmp_path / "a.toml").write_text("[species]\nbirth = 1.0\nn-extant = 5\n", encoding="utf-8")
+    (tmp_path / "b.toml").write_text("[species]\nbirth = 1.0\nn-extant = 40\n", encoding="utf-8")
     out = tmp_path / "o"
     main(["species", str(out), "--params", str(tmp_path / "a.toml"),
           "--params", str(tmp_path / "b.toml"), "--seed", "1", "--flat"])
-    assert "n_extant\t40" in (out / "species.log").read_text()
+    assert "n_extant\t40" in (out / "species.log").read_text(encoding="utf-8")
 
 
 def test_params_invalid_choice_errors_cleanly(tmp_path, genomes_dir):
     # a bad choices= value in --params must be a clean error, not a KeyError deep in the command
-    (tmp_path / "bad.toml").write_text('[genomes]\nresolution = "unordred"\nduplication = 0.1\n')
+    (tmp_path / "bad.toml").write_text('[genomes]\nresolution = "unordred"\nduplication = 0.1\n', encoding="utf-8")
     with pytest.raises(SystemExit):
         main(["genomes", str(tmp_path / "o"), "--from", str(genomes_dir / "species_complete.nwk"),
               "--params", str(tmp_path / "bad.toml"), "--seed", "1", "--flat"])
@@ -716,7 +716,7 @@ def test_params_invalid_choice_errors_cleanly(tmp_path, genomes_dir):
 
 def test_params_can_supply_the_sequences_model(tmp_path, genomes_dir):
     # --model is not argparse-required, so a --params file can supply it (like --birth on species)
-    (tmp_path / "seq.toml").write_text('[sequences]\nmodel = "hky85"\nlength = 200\n')
+    (tmp_path / "seq.toml").write_text('[sequences]\nmodel = "hky85"\nlength = 200\n', encoding="utf-8")
     main(["sequences", str(genomes_dir), "--params", str(tmp_path / "seq.toml"), "--seed", "1"])
     assert (genomes_dir / "sequences" / "sequences.log").exists()
 
@@ -736,7 +736,7 @@ def test_species_takes_a_rate_expression_and_it_bends_the_tree(tmp_path):
     flat, skyline = tmp_path / "flat", tmp_path / "sky"
     main(["species", str(flat), "--birth", "1.0", "--death", "0.2", "--total-time", "6", "--seed", "2", "--flat"])
     main(["species", str(skyline), "--birth", "1.0 * OnTime({0: 1.0, 2: 0.05})", "--death", "0.2", "--total-time", "6", "--seed", "2", "--flat"])
-    n = {d: len(read_newick((d / "species_complete.nwk").read_text())[0].nodes)
+    n = {d: len(read_newick((d / "species_complete.nwk").read_text(encoding="utf-8"))[0].nodes)
          for d in (flat, skyline)}
     assert n[skyline] < n[flat]
 
@@ -746,14 +746,14 @@ def test_species_takes_a_scope_wrapper(tmp_path):
     out = tmp_path / "g"
     rc = main(["species", str(out), "--birth", "Global(2.0)", "--total-time", "5", "--seed", "1", "--flat"])
     assert rc == 0
-    assert "birth\tGlobal(2.0)" in (out / "species.log").read_text()
+    assert "birth\tGlobal(2.0)" in (out / "species.log").read_text(encoding="utf-8")
 
 
 def test_species_records_the_rate_in_its_written_form(tmp_path):
     # the log line is the flag value again — a reproducibility record you can paste back
     out = tmp_path / "o"
     main(["species", str(out), "--birth", "1.0 * OnTime({0: 1.0, 3: 0.3})", "--total-time", "4", "--seed", "1", "--flat"])
-    assert "birth\t1.0 * OnTime({0: 1, 3: 0.3})" in (out / "species.log").read_text()
+    assert "birth\t1.0 * OnTime({0: 1, 3: 0.3})" in (out / "species.log").read_text(encoding="utf-8")
 
 
 def test_species_refuses_a_modifier_it_does_not_wire(tmp_path, capsys):
@@ -781,7 +781,7 @@ def test_genomes_takes_a_rate_expression(tmp_path, tree_file):
     out = tmp_path / "g"
     rc = main(["genomes", str(out), "--from", str(tree_file), "--duplication", "0.2", "--loss", "0.25 * OnTime({0: 1.0, 2: 3.0})", "--origination", "0.5", "--seed", "42", "--flat"])
     assert rc == 0
-    assert "loss\t0.25 * OnTime({0: 1, 2: 3})" in (out / "genomes.log").read_text()
+    assert "loss\t0.25 * OnTime({0: 1, 2: 3})" in (out / "genomes.log").read_text(encoding="utf-8")
 
 
 @pytest.fixture
@@ -798,7 +798,7 @@ def test_genomes_transfer_can_be_driven_from_the_cli(tmp_path, driver_file, tree
     rc = main(["genomes", str(out), "--from", str(tree_file), "--initial-families", "5", "--transfer", f"0.2 * DrivenBy('{driver_file}', {{'competent': 4.0, 'normal': 1.0}})", "--seed", "2", "--flat"])
     assert rc == 0
     assert f"transfer\t0.2 * DrivenBy('{driver_file}', Table({{'competent': 4, 'normal': 1}}))" \
-        in (out / "genomes.log").read_text()
+        in (out / "genomes.log").read_text(encoding="utf-8")
 
 
 def test_genomes_transfer_to_takes_a_driven_recipient_weight(tmp_path, driver_file, tree_file):
@@ -807,7 +807,7 @@ def test_genomes_transfer_to_takes_a_driven_recipient_weight(tmp_path, driver_fi
     rc = main(["genomes", str(out), "--from", str(tree_file), "--initial-families", "5", "--transfer", "0.5", "--transfer-to", f"DrivenBy('{driver_file}', {{'competent': 2.0, 'normal': 1.0}})", "--seed", "2", "--flat"])
     assert rc == 0
     assert f"transfer_to\tDrivenBy('{driver_file}', Table({{'competent': 2, 'normal': 1}}))" \
-        in (out / "genomes.log").read_text()
+        in (out / "genomes.log").read_text(encoding="utf-8")
 
 
 def test_genomes_transfer_to_rejects_a_rate_expression(tmp_path, tree_file, capsys):
@@ -827,39 +827,42 @@ def test_genomes_transfer_to_names_its_rules_for_a_misspelt_one(tmp_path, tree_f
 
 def test_genomes_params_file_carries_a_driven_transfer_to(tmp_path, driver_file, tree_file):
     # the written form is the same text in the file as on the flag — one notation (SPEC §5)
+    # a TOML *literal* string ('''), so the driver path is taken as written — a basic
+    # "..." string processes backslash escapes, which eats a Windows path before ZOMBI2 sees it
     (tmp_path / "p.toml").write_text(
-        f'transfer = 0.5\ninitial-families = 5\n'
-        f'transfer-to = "DrivenBy(\'{driver_file}\', {{\'competent\': 2.0, \'normal\': 1.0}})"\n')
+        "transfer = 0.5\ninitial-families = 5\n"
+        "transfer-to = \'\'\'DrivenBy(\'%s\', {\'competent\': 2.0, \'normal\': 1.0})\'\'\'\n" % driver_file,
+        encoding="utf-8")
     out = tmp_path / "g"
     rc = main(["genomes", str(out), "--params", str(tmp_path / "p.toml"), "--from", str(tree_file), "--seed", "2", "--flat"])
     assert rc == 0
-    assert "transfer_to\tDrivenBy(" in (out / "genomes.log").read_text()
+    assert "transfer_to\tDrivenBy(" in (out / "genomes.log").read_text(encoding="utf-8")
 
 
 def test_traits_takes_a_rate_expression(tmp_path, tree_file):
     out = tmp_path / "t"
     rc = main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0 * FromParent(spread=0.2)", "--seed", "1", "--flat"])
     assert rc == 0
-    assert "rate\t1.0 * FromParent(spread=0.2)" in (out / "traits.log").read_text()
+    assert "rate\t1.0 * FromParent(spread=0.2)" in (out / "traits.log").read_text(encoding="utf-8")
 
 
 def test_params_file_takes_a_rate_expression(tmp_path):
     # the same text as the flag, quoted as a TOML string — no second notation for a rate
     (tmp_path / "p.toml").write_text(
-        'birth = "1.0 * OnTime({0: 1.0, 3: 0.3})"\ndeath = 0.3\ntotal-time = 5\n')
+        'birth = "1.0 * OnTime({0: 1.0, 3: 0.3})"\ndeath = 0.3\ntotal-time = 5\n', encoding="utf-8")
     out = tmp_path / "o"
     rc = main(["species", str(out), "--params", str(tmp_path / "p.toml"), "--seed", "2", "--flat"])
     assert rc == 0
-    assert "birth\t1.0 * OnTime({0: 1, 3: 0.3})" in (out / "species.log").read_text()
+    assert "birth\t1.0 * OnTime({0: 1, 3: 0.3})" in (out / "species.log").read_text(encoding="utf-8")
 
 
 def test_params_file_rate_expression_matches_the_flag(tmp_path):
-    (tmp_path / "p.toml").write_text('birth = "1.0 * OnTotalDiversity(cap=20)"\n')
+    (tmp_path / "p.toml").write_text('birth = "1.0 * OnTotalDiversity(cap=20)"\n', encoding="utf-8")
     viafile, viaflag = tmp_path / "f", tmp_path / "c"
     main(["species", str(viafile), "--params", str(tmp_path / "p.toml"), "--total-time", "5", "--seed", "3", "--flat"])
     main(["species", str(viaflag), "--birth", "1.0 * OnTotalDiversity(cap=20)", "--total-time", "5", "--seed", "3", "--flat"])
-    assert (viafile / "species_complete.nwk").read_text() == \
-        (viaflag / "species_complete.nwk").read_text()
+    assert (viafile / "species_complete.nwk").read_text(encoding="utf-8") == \
+        (viaflag / "species_complete.nwk").read_text(encoding="utf-8")
 
 
 def test_the_rates_help_lists_only_what_the_level_wires(capsys):
@@ -985,8 +988,8 @@ def test_from_reads_one_run_and_writes_another(tmp_path):
         assert main(["genomes", str(tmp_path / name), "--from", str(src),
                      "--initial-families", "4", "--duplication", "0.3", "--seed", seed]) == 0
     assert not (src / "genomes").exists()                    # the source run is untouched
-    a = (tmp_path / "rep1" / "genomes" / "genome_events.tsv").read_text()
-    b = (tmp_path / "rep2" / "genomes" / "genome_events.tsv").read_text()
+    a = (tmp_path / "rep1" / "genomes" / "genome_events.tsv").read_text(encoding="utf-8")
+    b = (tmp_path / "rep2" / "genomes" / "genome_events.tsv").read_text(encoding="utf-8")
     assert a != b                                            # different seeds, same tree
 
     # and sequences the same way, reading a genomes run and writing elsewhere
@@ -1017,8 +1020,8 @@ def test_the_directory_and_the_file_give_the_same_run(tmp_path):
           "--duplication", "0.3", "--seed", "9"])
     main(["genomes", str(b), "--from", str(tmp_path / "species" / "species_complete.nwk"),
           "--initial-families", "4", "--duplication", "0.3", "--seed", "9"])
-    assert (a / "genomes" / "genome_events.tsv").read_text() == \
-           (b / "genomes" / "genome_events.tsv").read_text()
+    assert (a / "genomes" / "genome_events.tsv").read_text(encoding="utf-8") == \
+           (b / "genomes" / "genome_events.tsv").read_text(encoding="utf-8")
 
 
 # ── zombi2 joint ────────────────────────────────────────────────────────────────────────────
@@ -1034,7 +1037,7 @@ def test_joint_trait_writes_both_levels(tmp_path):
     assert {p.name for p in (tmp_path / "traits").iterdir()} == {
         "trait_values.tsv", "trait_events.tsv", "trait_tree.nwk"}
     states = {ln.split("\t")[1] for ln in
-              (tmp_path / "traits" / "trait_values.tsv").read_text().splitlines()[1:]}
+              (tmp_path / "traits" / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[1:]}
     assert states <= {"small", "large"}
 
 
@@ -1055,8 +1058,8 @@ def test_joint_is_deterministic_given_the_seed(tmp_path):
             "--states", "a,b", "--switch", "0.3", "--n-extant", "20", "--seed", "5"]
     for name in ("x", "y"):
         main(["joint", str(tmp_path / name), *argv])
-    assert (tmp_path / "x" / "species" / "species_complete.nwk").read_text() == \
-           (tmp_path / "y" / "species" / "species_complete.nwk").read_text()
+    assert (tmp_path / "x" / "species" / "species_complete.nwk").read_text(encoding="utf-8") == \
+           (tmp_path / "y" / "species" / "species_complete.nwk").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("argv, msg", [
@@ -1110,7 +1113,7 @@ def test_sequences_runs_on_a_nucleotide_handoff_and_assembles_the_genomes(tmp_pa
     assert len(genomes) == 9                                  # one FASTA per node of the tree
     assert not [p for p in out.iterdir() if p.name.startswith("genome_n")]   # none left flat
     for name in genomes:
-        text = (gdir / name).read_text()
+        text = (gdir / name).read_text(encoding="utf-8")
         assert text.startswith(">") and set("".join(text.splitlines()[1:])) <= set("ACGT")
 
 
@@ -1118,13 +1121,13 @@ def test_sequences_writes_a_genome_for_every_node_and_the_initial_one(tmp_path):
     # all of them by default, named by whose they are: no node is a special case, and the one that
     # belongs to no node is called "initial"
     out = _nucleotide_run(tmp_path)
-    tree, _ = read_newick((tmp_path / "run" / "species" / "species_complete.nwk").read_text())
+    tree, _ = read_newick((tmp_path / "run" / "species" / "species_complete.nwk").read_text(encoding="utf-8"))
     gdir = out / "genomes"
     names = {p.name for p in gdir.iterdir()}
     assert {f"genome_n{i}.fasta" for i in tree.nodes} <= names
     assert "genome_initial.fasta" in names                    # the initial genome joins them here
     assert not [n for n in names if "ancestral" in n]
-    initial = "".join((gdir / "genome_initial.fasta").read_text().splitlines()[1:])
+    initial = "".join((gdir / "genome_initial.fasta").read_text(encoding="utf-8").splitlines()[1:])
     assert len(initial) == 2000                               # the genome the run was seeded with
 
 
@@ -1140,7 +1143,7 @@ def test_sequences_matches_the_python_api_on_a_nucleotide_run(tmp_path):
                                     inversion_extent=250, duplication=1.0, loss=1.0, seed=3)
     r = simulate_sequences(g, model=hky85(kappa=3.0), substitution=0.05, seed=3)
     for lineage, chroms in r.genomes.items():
-        text = (out / "genomes" / f"genome_{lineage}.fasta").read_text()
+        text = (out / "genomes" / f"genome_{lineage}.fasta").read_text(encoding="utf-8")
         assert "".join(text.splitlines()[1:]) == "".join(chroms.values())
 
 
@@ -1199,7 +1202,7 @@ def test_tools_format_writes_homology_tables(tmp_path, capsys):
     assert table_fams == extant_fams
     letters = set()
     for t in tables:
-        _, grid = _check_table(t.read_text())
+        _, grid = _check_table(t.read_text(encoding="utf-8"))
         letters |= {c for row in grid for c in row}
     # a DTL run exercises every combination: orthologs, paralogs, and both with transfer in between
     assert {"O", "P", "Ox", "Px"} <= letters
@@ -1230,14 +1233,14 @@ def test_tools_format_matches_the_python_api(tmp_path):
 
     run = _dtl_run(tmp_path)
     main(["tools", "format", str(run)])
-    tree, _ = read_newick((run / "species" / "species_complete.nwk").read_text())
-    events = events_from_tsv((run / "genomes" / "genome_events.tsv").read_text())
+    tree, _ = read_newick((run / "species" / "species_complete.nwk").read_text(encoding="utf-8"))
+    events = events_from_tsv((run / "genomes" / "genome_events.tsv").read_text(encoding="utf-8"))
     trees = gene_trees_from_events(events, tree)
     written = 0
     for fam, gt in trees.items():
         if gt.extant is None:
             continue
-        on_disk = (run / "genomes" / "homology" / f"homology_fam{fam}.tsv").read_text()
+        on_disk = (run / "genomes" / "homology" / f"homology_fam{fam}.tsv").read_text(encoding="utf-8")
         assert on_disk == homology_tsv(gt.complete)
         written += 1
     assert written == len(list((run / "genomes" / "homology").glob("*.tsv")))
@@ -1274,7 +1277,7 @@ def test_tools_format_on_a_nucleotide_run_writes_one_table_per_declared_gene(tmp
     run = _nucleotide_gene_run(tmp_path)
     assert main(["tools", "format", str(run)]) == 0
     tables = sorted((run / "genomes" / "homology").glob("homology_fam*.tsv"))
-    tree, _ = read_newick((run / "species" / "species_complete.nwk").read_text())
+    tree, _ = read_newick((run / "species" / "species_complete.nwk").read_text(encoding="utf-8"))
     genome = read_nucleotide_genomes(run / "genomes", tree)
     # one table per DECLARED gene some node still carries — never the intergenic spacer
     declared = {f for f, gt in genome.gene_trees.items() if gt.extant is not None}
@@ -1282,8 +1285,8 @@ def test_tools_format_on_a_nucleotide_run_writes_one_table_per_declared_gene(tmp
     assert declared <= set(genome.gene_spans)                  # every keyed family is a declared gene
     for p in tables:
         fam = int(p.stem.removeprefix("homology_fam"))
-        _check_table(p.read_text())
-        assert p.read_text() == homology_tsv(genome.gene_trees[fam].complete)
+        _check_table(p.read_text(encoding="utf-8"))
+        assert p.read_text(encoding="utf-8") == homology_tsv(genome.gene_trees[fam].complete)
 
 
 def test_tools_format_refuses_a_nucleotide_run_with_no_declared_genes(tmp_path, capsys):
@@ -1392,7 +1395,7 @@ def _conditioned_pipeline(run):
 def test_conditioning_records_which_level_drove_a_rate(tmp_path):
     run = tmp_path / "run"
     _conditioned_pipeline(run)
-    assert (run / "genomes" / "conditioned_on").read_text().split() == ["traits"]
+    assert (run / "genomes" / "conditioned_on").read_text(encoding="utf-8").split() == ["traits"]
 
 
 def test_rerunning_a_trait_a_genome_was_conditioned_on_refuses(tmp_path, capsys):
@@ -1468,7 +1471,7 @@ def test_sequences_log_records_effective_model_params(tmp_path):
     main(["genomes", str(run), "--duplication", "0.2", "--initial-families", "3", "--seed", "3",
           "--quiet"])
     main(["sequences", str(run), "--model", "hky85", "--length", "20", "--seed", "1", "--quiet"])
-    log = (run / "sequences" / "sequences.log").read_text()
+    log = (run / "sequences" / "sequences.log").read_text(encoding="utf-8")
     # the resolved values the run used, not the bare `None` that was on the command line
     assert "kappa\t2.0" in log
     assert "frequencies\t[0.25, 0.25, 0.25, 0.25]" in log
@@ -1484,7 +1487,7 @@ def test_max_family_size_bounds_a_run(tmp_path, tree_file):
     main(["genomes", str(out), "--from", str(tree_file), "--duplication", "1.2", "--loss", "0.1",
           "--origination", "0.3", "--initial-families", "6", "--max-family-size", "Global(3)",
           "--seed", "1", "--flat", "--quiet"])
-    header, *rows = (out / "genomes.tsv").read_text().splitlines()
+    header, *rows = (out / "genomes.tsv").read_text(encoding="utf-8").splitlines()
     cols = header.split("\t")
     lineage, family = cols.index("lineage"), cols.index("family")
     per_genome = collections.defaultdict(collections.Counter)
@@ -1502,7 +1505,7 @@ def test_max_family_size_none_removes_the_cap(tmp_path, tree_file):
                "--loss", "0.2", "--initial-families", "4", "--max-family-size", "none",
                "--seed", "1", "--flat", "--quiet"])
     assert rc == 0
-    assert "max_family_size\tNone" in (tmp_path / "u" / "genomes.log").read_text()
+    assert "max_family_size\tNone" in (tmp_path / "u" / "genomes.log").read_text(encoding="utf-8")
 
 
 def test_max_family_size_rejects_a_non_number(tmp_path, tree_file):
@@ -1547,21 +1550,21 @@ def test_an_unseeded_run_records_the_seed_it_drew(tmp_path):
     assert main(["species", str(out), "--birth", "1", "--death", "0.3", "--n-extant", "12",
                  "--quiet"]) == 0
     logged = dict(line.split("\t", 1) for line in
-                  (out / "species" / "species.log").read_text().splitlines() if "\t" in line)
+                  (out / "species" / "species.log").read_text(encoding="utf-8").splitlines() if "\t" in line)
     assert logged["seed"] not in ("None", ""), "an unseeded run still records no seed"
 
     # and replaying that seed reproduces the run exactly
     again = tmp_path / "replay"
     assert main(["species", str(again), "--birth", "1", "--death", "0.3", "--n-extant", "12",
                  "--seed", logged["seed"], "--quiet"]) == 0
-    assert ((out / "species" / "species_complete.nwk").read_text()
-            == (again / "species" / "species_complete.nwk").read_text())
+    assert ((out / "species" / "species_complete.nwk").read_text(encoding="utf-8")
+            == (again / "species" / "species_complete.nwk").read_text(encoding="utf-8"))
 
     # a second unseeded run still draws fresh randomness — the point is that it is recorded, not fixed
     third = tmp_path / "other"
     main(["species", str(third), "--birth", "1", "--death", "0.3", "--n-extant", "12", "--quiet"])
-    assert ((third / "species" / "species_complete.nwk").read_text()
-            != (out / "species" / "species_complete.nwk").read_text())
+    assert ((third / "species" / "species_complete.nwk").read_text(encoding="utf-8")
+            != (out / "species" / "species_complete.nwk").read_text(encoding="utf-8"))
 
 
 def test_treedist_refuses_a_repeated_tip_label(tmp_path):

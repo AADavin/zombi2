@@ -40,6 +40,22 @@ pip install zombi2
 
 `zombi2 --version` confirms the install, and `zombi2 -h` lists the commands, one per level.
 
+ZOMBI2 is pure Python over NumPy, with no compiled part to build, and the test suite runs on **Linux,
+macOS and Windows** on every change — so the same command does the same thing on all three. Two
+things differ on Windows and are worth knowing before they bite:
+
+- **Paths in a rate expression.** A driver path goes inside the rate, and ZOMBI2 reads the
+  backslashes as written, so `DrivenBy('C:\Users\me\trait_events.tsv', {...})` works as pasted.
+  Forward slashes work too, and Windows accepts them everywhere.
+- **Paths in a `--params` file.** TOML, not ZOMBI2, reads that file, and TOML's ordinary `"…"` string
+  treats a backslash as an escape — so `C:\Users` fails there with a message about a hex value. Put a
+  value containing a path in a TOML **literal** string instead, `'''…'''`, which is taken exactly as
+  written:
+
+  ```toml
+  transfer-to = '''DrivenBy('C:\Users\me\trait_events.tsv', {'competent': 2.0})'''
+  ```
+
 ## For the impatient
 
 Two commands: build a species tree, then evolve gene families along it.

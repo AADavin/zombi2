@@ -150,7 +150,7 @@ def run(args, parser):
     # unsampled tips are read from the record rather than guessed from tip depth
     tip_fates = _read_tip_fates(args.tip_fates) if args.tip_fates else sibling_fates(tree_path)
     try:
-        with open(tree_path) as f:
+        with open(tree_path, encoding="utf-8") as f:
             tree, names = read_newick(f.read(), tip_fates=tip_fates)
     except FileNotFoundError:
         raise FileNotFoundError(f"tree file not found: {tree_path}") from None
@@ -182,7 +182,7 @@ def run(args, parser):
     result.write(out, outputs=outputs)
     if names:  # an external tree: map ZOMBI's n<id> back to the user's labels (join on the node col)
         rows = ["node\tname"] + [f"n{i}\t{lbl}" for i, lbl in sorted(names.items())]
-        with open(os.path.join(out, "names.tsv"), "w") as f:
+        with open(os.path.join(out, "names.tsv"), "w", encoding="utf-8") as f:
             f.write("\n".join(rows) + "\n")
 
     n_tips = len(result.values)
