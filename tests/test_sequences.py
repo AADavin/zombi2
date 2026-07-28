@@ -466,3 +466,20 @@ def _mean_identity(result):
             B = np.frombuffer(b[:n].encode(), dtype=np.uint8)
             match += int((A == B).sum()); tot += n
     return match / tot if tot else 0.0
+
+
+def test_the_reported_identity_is_not_rounded_to_a_whole_percent(tmp_path, capsys):
+    # 32% and 32.4% are different alignments, and the whole point of reporting it is that the rate
+    # says nothing about what came out
+    from zombi2.cli.main import main
+
+    run = tmp_path / "r"
+    main(["species", str(run), "--birth", "1", "--n-extant", "6", "--seed", "1", "--quiet"])
+    main(["genomes", str(run), "--duplication", "0.2", "--loss", "0.2", "--seed", "1", "--quiet"])
+    capsys.readouterr()
+    main(["sequences", str(run), "--model", "jc69", "--length", "200", "--substitution", "0.1",
+          "--seed", "1", "--quiet"])
+    out = capsys.readouterr().out
+    import re
+    m = re.search(r"mean identity (\d+\.\d)%", out)
+    assert m, out

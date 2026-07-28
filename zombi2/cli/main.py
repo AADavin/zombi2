@@ -9,6 +9,7 @@ entry here.
 from __future__ import annotations
 
 import argparse
+import difflib
 import re
 import sys
 
@@ -176,7 +177,7 @@ def main(argv: list[str] | None = None) -> int:
     args, extra = parser.parse_known_args(argv)   # the banner shows on --help only, not on every run
     command = sub.choices[args.command]
     if extra:
-        command.error(f"unrecognized arguments: {' '.join(extra)}")
+        command.error(f"unrecognized arguments: {' '.join(extra)}{_did_you_mean(extra, command)}")
     try:
         return _RUN[args.command](args, command)
     except (ValueError, RuntimeError, FileNotFoundError, OSError) as e:
@@ -184,6 +185,24 @@ def main(argv: list[str] | None = None) -> int:
         # the surface the user is standing on, not the one underneath it.
         print(f"zombi2: error: {_in_flags(str(e), command)}", file=sys.stderr)
         return 1
+
+
+def _did_you_mean(extra: list[str], command: argparse.ArgumentParser) -> str:
+    """A ``— did you mean --x?`` for the first stray token that is nearly one of this command's flags.
+
+    Every long option is its level's keyword name, so the near-misses are the plural (``--transfers``),
+    the other spelling (``--duplications``) and the flag that belongs to a neighbouring level. The
+    rate parser already answers an unknown *modifier* this way; an unknown *flag* is the same
+    question one layer out."""
+    flags = [o for a in command._actions for o in a.option_strings if o.startswith("--")]
+    for token in extra:
+        if token.startswith("--"):
+            # 0.8, not difflib's default 0.6: a real typo is a letter or two out (--lenght scores
+            # 0.88) and a lower bar starts offering --write for --wibble, which is noise
+            close = difflib.get_close_matches(token, flags, n=1, cutoff=0.8)
+            if close:
+                return f" — did you mean {close[0]}?"
+    return ""
 
 
 #: a keyword argument named in a library message — ``trim_overlaps=True``, ``switch=``,
