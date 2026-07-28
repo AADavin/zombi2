@@ -797,8 +797,12 @@ def test_genomes_transfer_can_be_driven_from_the_cli(tmp_path, driver_file, tree
     out = tmp_path / "g"
     rc = main(["genomes", str(out), "--from", str(tree_file), "--initial-families", "5", "--transfer", f"0.2 * DrivenBy('{driver_file}', {{'competent': 4.0, 'normal': 1.0}})", "--seed", "2", "--flat"])
     assert rc == 0
-    assert f"transfer\t0.2 * DrivenBy('{driver_file}', Table({{'competent': 4, 'normal': 1}}))" \
-        in (out / "genomes.log").read_text(encoding="utf-8")
+    # the log records the rate in its written form, which is what pastes back into the flag — so
+    # compare against that rather than a hand-built string (a Windows path is escaped in it)
+    from zombi2.rates.parse import parse_rate, written_form
+    written = written_form(parse_rate(f"0.2 * DrivenBy('{driver_file}', "
+                                      f"{{'competent': 4.0, 'normal': 1.0}})"))
+    assert f"transfer\t{written}" in (out / "genomes.log").read_text(encoding="utf-8")
 
 
 def test_genomes_transfer_to_takes_a_driven_recipient_weight(tmp_path, driver_file, tree_file):
@@ -806,8 +810,10 @@ def test_genomes_transfer_to_takes_a_driven_recipient_weight(tmp_path, driver_fi
     out = tmp_path / "g"
     rc = main(["genomes", str(out), "--from", str(tree_file), "--initial-families", "5", "--transfer", "0.5", "--transfer-to", f"DrivenBy('{driver_file}', {{'competent': 2.0, 'normal': 1.0}})", "--seed", "2", "--flat"])
     assert rc == 0
-    assert f"transfer_to\tDrivenBy('{driver_file}', Table({{'competent': 2, 'normal': 1}}))" \
-        in (out / "genomes.log").read_text(encoding="utf-8")
+    from zombi2.cli.genomes import _transfer_to
+    written = repr(_transfer_to(f"DrivenBy('{driver_file}', "
+                                f"{{'competent': 2.0, 'normal': 1.0}})"))
+    assert f"transfer_to\t{written}" in (out / "genomes.log").read_text(encoding="utf-8")
 
 
 def test_genomes_transfer_to_rejects_a_rate_expression(tmp_path, tree_file, capsys):

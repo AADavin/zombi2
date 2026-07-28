@@ -200,3 +200,22 @@ def test_a_windows_path_in_a_rate_is_taken_as_written():
 
     posix = parse_rate("0.1 * DrivenBy('/home/me/trait.tsv', {'a': 2.0})")
     assert next(m for m in posix.modifiers if isinstance(m, DrivenBy)).source == "/home/me/trait.tsv"
+
+
+def test_an_already_escaped_path_is_left_as_written():
+    # repr() of a path is the natural way to build an expression in Python, and it escapes the
+    # backslashes properly — reading those literally as well would double them.
+    from zombi2.rates.modifiers import DrivenBy
+
+    path = r"C:\Users\me\trait_events.tsv"
+    rate = parse_rate(f"0.1 * DrivenBy({path!r}, {{'a': 2.0}})")
+    assert next(m for m in rate.modifiers if isinstance(m, DrivenBy)).source == path
+
+
+def test_a_path_whose_every_backslash_is_a_valid_escape_still_means_itself():
+    # the dangerous one: \t \n \f are all real escapes, so this PARSES and silently becomes control
+    # characters. A path never contains one, which is how it is caught.
+    from zombi2.rates.modifiers import DrivenBy
+
+    rate = parse_rate(r"0.1 * DrivenBy('C:\temp\new\file.tsv', {'a': 2.0})")
+    assert next(m for m in rate.modifiers if isinstance(m, DrivenBy)).source == r"C:\temp\new\file.tsv"

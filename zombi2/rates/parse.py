@@ -25,6 +25,7 @@ the rest, with a message naming the alternatives.
 from __future__ import annotations
 
 import ast
+import warnings
 import difflib
 
 from . import mapping as _mapping
@@ -59,13 +60,9 @@ class RateSyntaxError(ValueError):
 def _paths_are_literal(text: str) -> str:
     """Double every backslash inside a quoted string, so a path in a rate expression means itself.
 
-    The strings in a rate are file paths and state labels — an escape sequence is never wanted in one
-    — but the expression is read by Python's own parser, which sees ``DrivenBy('C:\\Users\\me\\t.tsv')``
-    and reports a truncated ``\\UXXXXXXXX`` escape. A Windows user pasting a path from Explorer got
-    that, from a rate that is perfectly well formed. Doubling first makes the backslash a backslash.
-
-    A UNC path survives it (``\\\\server\\share`` doubles to four and parses back to two), and only the
-    inside of a literal is touched, so the expression's own syntax is untouched."""
+    Only the inside of a literal is touched, so the expression's own syntax is untouched. See
+    `parse_rate()` for when this is applied — never unconditionally, because an expression whose
+    backslashes are *already* escaped (what ``repr()`` of a path gives) must be left as written."""
     out, quote = [], None
     for ch in text:
         if quote is None:
@@ -196,10 +193,31 @@ def parse_rate(text: object):
         raise RateSyntaxError(f"a rate must be a number or an expression, got {text!r}")
     if not text.strip():
         raise RateSyntaxError("a rate cannot be empty")
-    try:
-        tree = ast.parse(_paths_are_literal(text), mode="eval")
-    except SyntaxError as e:
-        raise _fail(f"could not read the expression ({e.msg})", text) from None
+    # A backslash in a path is not an escape. `DrivenBy('C:\\Users\\me\\t.tsv', …)` is well formed to
+    # the person who pasted it and a truncated \\UXXXXXXXX escape to Python's parser, and `C:\\temp`
+    # is worse — it parses, silently, as a tab. But an expression may equally have its backslashes
+    # already escaped, which is what repr() of a path gives, and that must be left alone. There is no
+    # telling the two apart from the text, so: read it as written first, and fall back to reading the
+    # backslashes literally when that fails, or when it succeeded and produced a control character —
+    # which a file path and a state label never contain, and an eaten escape always does.
+    with warnings.catch_warnings():
+        # an unknown escape (\\s of a UNC \\\\server\\share) is a SyntaxWarning on the first reading and
+        # nothing to tell the user about, since the literal reading below is the one that is kept
+        warnings.simplefilter("ignore", SyntaxWarning)
+        try:
+            tree = ast.parse(text, mode="eval")
+        except SyntaxError as first:
+            try:
+                tree = ast.parse(_paths_are_literal(text), mode="eval")
+            except SyntaxError:
+                raise _fail(f"could not read the expression ({first.msg})", text) from None
+        else:
+            if any(isinstance(n, ast.Constant) and isinstance(n.value, str)
+                   and any(c < " " for c in n.value) for n in ast.walk(tree)):
+                try:
+                    tree = ast.parse(_paths_are_literal(text), mode="eval")
+                except SyntaxError:
+                    pass                        # keep the first reading; _node will report on it
     value = _node(tree.body, text)
     if isinstance(value, str):
         raise _fail("a rate is a number, not text", text)
