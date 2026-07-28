@@ -402,6 +402,41 @@ def test_a_conditioned_rate_realises_the_multiplier_it_was_given():
             f"base × {factor} = {expected:.4f}")
 
 
+def test_the_parallel_engine_realises_a_driven_multiplier_too():
+    """The same check on the **per-family** engine, which computes the driven rate a different way.
+
+    The serial loop sums a driven rate over every living lineage at once; the parallel engine evolves
+    one family at a time and sums it over that family's footprint — the lineages that family happens
+    to occupy. Those are two different arithmetics for the same process, and only one of them was
+    ever checked. If the footprint version attached the driver to the wrong branch, or missed a
+    switch because the horizon only looks at occupied lineages, the run would still be a well-formed
+    genome and only the coupling *strength* would be wrong.
+
+    Origination again, for the same reason: the compensator is plain lineage-time."""
+    factors, base = {"hot": 5.0, "cold": 1.0}, 1.4
+    tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=25, seed=1).complete_tree
+    seen, lineage_time = Counter(), Counter()
+
+    for s in range(60):
+        habitat = simulate_discrete(tree, states=list(factors), switch=0.5, start="hot", seed=s)
+        for segments in habitat.history.values():
+            for state, duration in segments:
+                lineage_time[state] += duration
+        run = simulate_genomes_family(tree, initial_families=0, seed=s, parallel=1,
+                                      origination=base * DrivenBy(habitat, factors))
+        for e in run.events:
+            if e.kind == "origination":
+                seen[_state_at(habitat.history, e.lineage, tree, e.time)] += 1
+
+    for state, factor in factors.items():
+        realised = seen[state] / lineage_time[state]
+        expected = base * factor
+        se = math.sqrt(seen[state]) / lineage_time[state]
+        assert abs((realised - expected) / se) < Z_MAX, (
+            f"{state}: the parallel engine originated at {realised:.4f} per unit time, but was told "
+            f"to run at base × {factor} = {expected:.4f}")
+
+
 def test_a_joint_rate_realises_the_multiplier_it_was_given():
     """The same check on the joint path, where the driver is growing at the same time.
 
