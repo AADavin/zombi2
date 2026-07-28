@@ -102,8 +102,7 @@ from ..rates.driver import check_mapping_fires, resolve_driver
 from ..rates.modifiers import DrivenBy, OnTime
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerLineage
-from ..species import SpeciesResult
-from ..tree import Tree
+from ..tree import Tree, as_tree
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
@@ -720,6 +719,11 @@ class NucleotideGenomesResult:
     #: :attr:`genomes` (which is pure ancestry) — the sequence level reads them as each block's
     #: founding sequence, and an assembled genome then descends from exactly this input.
     initial_sequence: dict[int, str] = field(default_factory=dict)
+
+    def __repr__(self) -> str:
+        return (f"NucleotideGenomesResult({len(self.complete_tree.extant())} extant genomes, "
+                f"{len(self.genomes)} nodes, {len(self.gene_spans)} genes, "
+                f"{len(self.events)} events, seed={self.seed})")
 
     def mosaic(self, node_id: int) -> dict[int, list[tuple[int, int, int, int]]]:
         return self.genomes[node_id].mosaic()
@@ -1789,7 +1793,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     of the initial sequence (each ancestral position at most once, monotonically down every path);
     origination further adds fresh sources beyond the root. Deterministic given ``seed``. (Transfer is
     always additive.)"""
-    tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
+    tree = as_tree(tree, level="genomes")
     # Every rate takes the written form (SPEC §5). The scopes here are **per lineage** for the gene
     # events — the rate says how often a lineage does the event and the extent says how much DNA it
     # touches, so the number reads the same whatever the genome's size — and **per chromosome** for the

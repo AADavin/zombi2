@@ -55,6 +55,11 @@ class JointResult:
     trait: TraitsResult | None = None
     genome: FamilyGenomesResult | None = None
 
+    def __repr__(self) -> str:
+        driver = "trait" if self.trait is not None else "genome"
+        return (f"JointResult({self.n_extant} extant tips grown with a {driver}, "
+                f"seed={self.seed})")
+
     @property
     def complete_tree(self) -> Tree:
         return self.species.complete_tree

@@ -36,6 +36,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ### Fixed
 - The saturation warning said `--substitution` "is currently None" on a run that had defaulted it. It
   now names the rate the run actually used.
+- **A result printed its whole contents.** Typing a result's name in a session or a notebook rendered
+  the dataclass repr — 4.5 MB for a 40-tip genome run. Every result and the tree now repr as a
+  one-line summary of what the run produced.
+- **Handing a level the wrong thing raised an `AttributeError` from inside an engine.** Passing a
+  Newick *string* or a *path* where a tree belongs — the easy mistake, since both are a tree to the
+  person holding one — now says so, and says how to parse it. One shared `as_tree` at every level's
+  entry, so what a level accepts is decided in one place.
+- **The package shipped no `py.typed` marker**, so a type checker in someone else's project ignored
+  every annotation in ZOMBI2 and treated the whole package as `Any` (PEP 561).
 
 ## [0.12.0] - 2026-07-28
 

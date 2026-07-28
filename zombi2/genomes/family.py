@@ -34,8 +34,7 @@ from ..rates.mapping import Between, check_kernel_fires
 from ..rates.modifiers import ByFamily, DrivenBy, OnTime
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import Global, PerCopy, PerLineage, Scope
-from ..species import SpeciesResult
-from ..tree import Tree
+from ..tree import Tree, as_tree
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import Clades, Distance, mean_root_to_tip, recipient_index, resolve_groups
 
@@ -85,6 +84,10 @@ class FamilyGenomesResult:
     #: of its branch: the root branch is real simulated time, so ``genomes[root]`` is this genome plus
     #: whatever happened along the stem. The same reason ``GeneTree.origination`` is its own field.
     initial_genome: tuple[GeneCopy, ...] = ()
+
+    def __repr__(self) -> str:
+        return (f"FamilyGenomesResult({len(self.complete_tree.extant())} extant genomes, "
+                f"{len(self.genomes)} nodes, {len(self.events)} events, seed={self.seed})")
 
     def family_counts(self, node_id: int) -> collections.Counter:
         """A multiset view of one node's genome: ``family id → copy count``."""
@@ -440,7 +443,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     driven rate **raises** here rather than falling back (that would defeat the point), and ``outputs``
     without ``stream_to`` is an error.
     """
-    tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
+    tree = as_tree(tree, level="genomes")
     dup = as_rate(duplication, default_scope=PerCopy)
     tra = as_rate(transfer, default_scope=PerCopy)
     los = as_rate(loss, default_scope=PerCopy)

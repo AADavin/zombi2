@@ -45,8 +45,7 @@ from ..rates.extent import as_extent
 from ..rates.modifiers import ByFamily, OnTime
 from ..rates.rate import as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
-from ..species import SpeciesResult
-from ..tree import Tree
+from ..tree import Tree, as_tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from .family import resolve_max_family_size
 from ._live import enter, retire, weighted_index, without_cyclic_gc
@@ -221,6 +220,11 @@ class OrderedGenomesResult:
     #: of its branch: the root branch is real simulated time, so ``genomes[root]`` is this genome plus
     #: whatever happened along the stem.
     initial_genome: tuple[Chromosome, ...] = ()
+
+    def __repr__(self) -> str:
+        return (f"OrderedGenomesResult({len(self.complete_tree.extant())} extant genomes, "
+                f"{len(self.genomes)} nodes, {len(self.events)} events, "
+                f"{len(self.rearrangements)} rearrangements, seed={self.seed})")
 
     def family_counts(self, node_id: int) -> collections.Counter:
         """A multiset view of one node's genome: ``family id → copy count`` (across all chromosomes)."""
@@ -838,7 +842,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     every event that reshapes them — so ``chromosome_events`` is the true reticulating chromosome
     genealogy, rooted at the initial and de-novo originations. Deterministic given ``seed``.
     """
-    tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
+    tree = as_tree(tree, level="genomes")
     labels = _topologies(chromosomes, topology)
     n_initial_chrom = chromosomes
     dup = as_rate(duplication, default_scope=PerCopy)

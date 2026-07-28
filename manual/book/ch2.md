@@ -176,6 +176,8 @@ Every command takes one positional argument, the **run directory**. It is both w
 
 Because the levels share one directory, a command refuses to re-run a level in place when a later level was built from it — that would leave the later output out of step. `--force` re-runs anyway and removes the now-stale downstream. The CLI covers all four levels; the coupled models are run from Python until their commands land.
 
+For a script driving the commands, the exit status separates the two ways a run can fail, in the usual convention: **2** is a usage error — an unknown flag, a missing required one, a value the parser cannot read — and **1** is a run that started and could not finish, such as a tree file that will not parse or a condition the model cannot meet. **0** is success. Warnings go to stderr and do not change the status; a warned run succeeded.
+
 ## Output in ZOMBI2
 
 Every run can be written with `result.write("out/", outputs=[...])`; with no `outputs` it writes that level's **default** set. The formats are uniform — **trees** in Newick, **tables and event logs** in TSV, **sequences** in FASTA. Branch lengths are in time everywhere except the sequence phylograms, which are in substitutions per site.
