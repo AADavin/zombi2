@@ -964,17 +964,17 @@ class NucleotideGenomesResult:
             # is this resolution's own interval record, which has no counterpart elsewhere. They used
             # to share the first name, which made a nucleotide log look readable to the family reader
             # while meaning something else in the same columns.
-            (d / "genome_events.tsv").write_text(events_tsv(self.genealogy))
+            (d / "genome_events.tsv").write_text(events_tsv(self.genealogy), encoding="utf-8")
             (d / "block_events.tsv").write_text(
-                _nucleotide_events_tsv(self.events, self.rearrangements))
+                _nucleotide_events_tsv(self.events, self.rearrangements), encoding="utf-8")
         if "blocks" in outputs:
-            (d / "blocks.tsv").write_text(self._blocks_tsv())
+            (d / "blocks.tsv").write_text(self._blocks_tsv(), encoding="utf-8")
         if "genes" in outputs:
-            (d / "genes.tsv").write_text(self._genes_tsv())
+            (d / "genes.tsv").write_text(self._genes_tsv(), encoding="utf-8")
         if "initial_genome" in outputs:
-            (d / "initial_genome.tsv").write_text(self._initial_genome_tsv())
+            (d / "initial_genome.tsv").write_text(self._initial_genome_tsv(), encoding="utf-8")
         if "chromosome_events" in outputs:
-            (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events))
+            (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events), encoding="utf-8")
         if "gene_trees" in outputs:
             write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat))
         if "initial_sequence" in outputs and self.initial_sequence:
@@ -985,7 +985,7 @@ class NucleotideGenomesResult:
             if token in outputs:
                 into = grouped_dir(d, token, flat)
                 for label, genome in self._every_genome():
-                    (into / f"genome_{label}.{ext}").write_text(render(label, genome))
+                    (into / f"genome_{label}.{ext}").write_text(render(label, genome), encoding="utf-8")
 
     def _every_genome(self):
         """``(label, genome)`` for every genome the run holds — each node, and the initial one. The
@@ -1316,7 +1316,7 @@ def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
 
     def read(name):
         try:
-            return (d / name).read_text()
+            return (d / name).read_text(encoding="utf-8")
         except FileNotFoundError:
             raise FileNotFoundError(
                 f"{d / name} not found — re-run 'zombi2 genomes --resolution nucleotide' with "

@@ -473,7 +473,7 @@ def _stream_chunk(task):
     want = {name: name in outputs for name in ("events", "genomes", "profiles", "gene_trees")}
     trees_dir = os.path.join(out_dir, "gene_trees")
 
-    files = {name: open(os.path.join(shard_dir, f"{name}_{chunk_index}.tsv"), "w")
+    files = {name: open(os.path.join(shard_dir, f"{name}_{chunk_index}.tsv"), "w", encoding="utf-8")
              for name in ("events", "genomes", "profiles") if want[name]}
     n_events = 0
     try:
@@ -626,16 +626,16 @@ def _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_
                "profiles": "family\t" + "\t".join(f"n{s}" for s in extant_ids)}
     for name, header in headers.items():
         if name in outputs:
-            with open(os.path.join(out_dir, _STREAM_FILENAMES[name]), "w") as out:
+            with open(os.path.join(out_dir, _STREAM_FILENAMES[name]), "w", encoding="utf-8") as out:
                 out.write(header + "\n")
                 for ci in range(n_chunks):
                     shard = os.path.join(shard_dir, f"{name}_{ci}.tsv")
                     if os.path.exists(shard):
-                        with open(shard) as sf:
+                        with open(shard, encoding="utf-8") as sf:
                             shutil.copyfileobj(sf, out)
     if "initial_genome" in outputs:
         n_seeded = initial_families + len(family_names)
-        with open(os.path.join(out_dir, _STREAM_FILENAMES["initial_genome"]), "w") as out:
+        with open(os.path.join(out_dir, _STREAM_FILENAMES["initial_genome"]), "w", encoding="utf-8") as out:
             out.write("family\tcopy\n")
             for fid in range(n_seeded):
                 out.write(f"{fid}\t{gene_label(_copy_base(fid))}\n")

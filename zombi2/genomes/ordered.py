@@ -293,15 +293,15 @@ class OrderedGenomesResult:
         d.mkdir(parents=True, exist_ok=True)
         if "events" in outputs:
             (d / "genome_events.tsv").write_text(
-                _events_tsv(self.events, self.event_positions, self.rearrangements))
+                _events_tsv(self.events, self.event_positions, self.rearrangements), encoding="utf-8")
         if "profiles" in outputs:
-            (d / "profiles.tsv").write_text(self.profiles.to_tsv())
+            (d / "profiles.tsv").write_text(self.profiles.to_tsv(), encoding="utf-8")
         if "gene_order" in outputs:
-            (d / "gene_order.tsv").write_text(self._gene_order_tsv())
+            (d / "gene_order.tsv").write_text(self._gene_order_tsv(), encoding="utf-8")
         if "initial_genome" in outputs:
-            (d / "initial_genome.tsv").write_text(self._initial_genome_tsv())
+            (d / "initial_genome.tsv").write_text(self._initial_genome_tsv(), encoding="utf-8")
         if "chromosome_events" in outputs:
-            (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events))
+            (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events), encoding="utf-8")
         if "gene_trees" in outputs:
             write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat))
 

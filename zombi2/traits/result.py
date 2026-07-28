@@ -92,11 +92,11 @@ class TraitsResult:
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
         if "values" in outputs:
-            (d / "trait_values.tsv").write_text(_values_tsv(self.values))
+            (d / "trait_values.tsv").write_text(_values_tsv(self.values), encoding="utf-8")
         if "events" in outputs:
-            (d / "trait_events.tsv").write_text(_events_tsv(self.events))
+            (d / "trait_events.tsv").write_text(_events_tsv(self.events), encoding="utf-8")
         if "tree" in outputs:
-            (d / "trait_tree.nwk").write_text(_trait_newick(self.complete_tree, self.node_values) + "\n")
+            (d / "trait_tree.nwk").write_text(_trait_newick(self.complete_tree, self.node_values) + "\n", encoding="utf-8")
 
 
 

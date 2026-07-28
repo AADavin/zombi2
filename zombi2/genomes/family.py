@@ -136,13 +136,13 @@ class FamilyGenomesResult:
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
         if "events" in outputs:
-            (d / "genome_events.tsv").write_text(events_tsv(self.events))
+            (d / "genome_events.tsv").write_text(events_tsv(self.events), encoding="utf-8")
         if "profiles" in outputs:
-            (d / "profiles.tsv").write_text(self.profiles.to_tsv())
+            (d / "profiles.tsv").write_text(self.profiles.to_tsv(), encoding="utf-8")
         if "genomes" in outputs:
-            (d / "genomes.tsv").write_text(self._genomes_tsv())
+            (d / "genomes.tsv").write_text(self._genomes_tsv(), encoding="utf-8")
         if "initial_genome" in outputs:
-            (d / "initial_genome.tsv").write_text(self._initial_genome_tsv())
+            (d / "initial_genome.tsv").write_text(self._initial_genome_tsv(), encoding="utf-8")
         if "gene_trees" in outputs:
             write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat))
 

@@ -232,7 +232,7 @@ def test_protein_run_over_a_real_genome_history(tmp_path):
     # the outputs are the same files as for a nucleotide run — only the residues differ
     r.write(tmp_path)
     fasta = next(p for p in (tmp_path / "alignments").iterdir() if p.name.startswith("fam"))
-    assert re.match(r">n\d+_g\d+\n", fasta.read_text())      # the header is a copy label
+    assert re.match(r">n\d+_g\d+\n", fasta.read_text(encoding="utf-8"))      # the header is a copy label
     assert (tmp_path / "phylograms" / "phylogram_fam0_complete.nwk").exists()
 
 

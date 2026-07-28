@@ -459,7 +459,7 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
         pytest.skip("manual/book/appendix-a.md not present")
     # scope the search to the modifier table — an earlier table in the same appendix lists scopes
     # and also has a "| Species |" row
-    text = appendix.read_text().split("### Which level accepts which", 1)[-1]
+    text = appendix.read_text(encoding="utf-8").split("### Which level accepts which", 1)[-1]
 
     for row, wired in (("Species", SPECIES),
                        ("Genomes — family, ordered", GENOMES),

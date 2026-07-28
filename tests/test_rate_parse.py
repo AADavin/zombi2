@@ -183,3 +183,20 @@ def test_written_form_round_trips(text):
 def test_written_form_keeps_full_precision():
     # the run log is a reproducibility record, so a base must not be rounded on its way in
     assert written_form(parse_rate("0.123456789")) == "0.123456789"
+
+
+def test_a_windows_path_in_a_rate_is_taken_as_written():
+    # the strings in a rate are paths and state labels, never escape sequences — but the expression
+    # is read by Python's own parser, which sees C:\Users and reports a truncated \UXXXXXXXX escape.
+    # A pasted path is the normal way to write one, so it has to mean itself.
+    from zombi2.rates.modifiers import DrivenBy
+
+    rate = parse_rate(r"0.1 * DrivenBy('C:\Users\me\trait_events.tsv', {'a': 2.0})")
+    driver = next(m for m in rate.modifiers if isinstance(m, DrivenBy))
+    assert driver.source == r"C:\Users\me\trait_events.tsv"
+
+    unc = parse_rate(r"0.1 * DrivenBy('\\server\share\trait.tsv', {'a': 2.0})")
+    assert next(m for m in unc.modifiers if isinstance(m, DrivenBy)).source == r"\\server\share\trait.tsv"
+
+    posix = parse_rate("0.1 * DrivenBy('/home/me/trait.tsv', {'a': 2.0})")
+    assert next(m for m in posix.modifiers if isinstance(m, DrivenBy)).source == "/home/me/trait.tsv"

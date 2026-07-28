@@ -211,7 +211,7 @@ _STREAM_KW = dict(duplication=0.5, transfer=0.3, loss=0.4, origination=0.2, init
 
 
 def _lines(path):
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return f.read().splitlines()
 
 
@@ -236,7 +236,7 @@ def test_stream_files_carry_the_same_content_as_the_in_memory_run(species_for_ge
     for f in mem_trees:
         assert _lines(tmp_path / "mem/gene_trees" / f) == _lines(tmp_path / "str/gene_trees" / f)
     # the streamed event log replays (the disk handoff the sequence level uses)
-    assert len(events_from_tsv(open(run.path("events")).read())) == run.n_events
+    assert len(events_from_tsv(open(run.path("events"), encoding="utf-8").read())) == run.n_events
 
 
 def test_stream_output_selection(species_for_genomes, tmp_path):

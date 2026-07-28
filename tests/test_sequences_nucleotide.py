@@ -145,7 +145,7 @@ def test_write_emits_one_fasta_per_extant_lineage(tmp_path):
     r.write(tmp_path, outputs=("genomes",))
     for leaf in genomes.complete_tree.extant():
         label = node_label(leaf.id)
-        lines = (tmp_path / "genomes" / f"genome_{label}.fasta").read_text().splitlines()
+        lines = (tmp_path / "genomes" / f"genome_{label}.fasta").read_text(encoding="utf-8").splitlines()
         headers = [ln for ln in lines if ln.startswith(">")]
         assert headers == [f">{label}_chr{c.id}" for c in genomes.genomes[leaf.id].chromosomes]
         assert sum(len(ln) for ln in lines if not ln.startswith(">")) == genomes.genomes[leaf.id].length
@@ -182,7 +182,7 @@ def test_the_rebuilt_root_is_the_genome_the_gff_seeded(tmp_path):
     gff.write_text("##gff-version 3\n##sequence-region c 1 3000\n"
                    "c\tt\tgene\t201\t500\t.\t+\t.\tID=dnaA\n"
                    "c\tt\tgene\t1001\t1300\t.\t-\t.\tID=recA\n"
-                   "c\tt\tgene\t2001\t2200\t.\t+\t.\tID=gyrB\n")
+                   "c\tt\tgene\t2001\t2200\t.\t+\t.\tID=gyrB\n", encoding="utf-8")
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
     g = simulate_genomes_nucleotide(sp, gff=gff, inversion=2.0, inversion_extent=400,
                                     duplication=0.4, duplication_extent=300, loss=0.4,
@@ -225,7 +225,7 @@ def test_write_emits_a_genome_for_every_node_by_default(tmp_path):
     assert {p.name for p in (tmp_path / "genomes").glob("genome_n*.fasta")} == \
            {f"genome_{node_label(i)}.fasta" for i in genomes.complete_tree.nodes}
     for label, chroms in r.genomes.items():
-        lines = (tmp_path / "genomes" / f"genome_{label}.fasta").read_text().splitlines()
+        lines = (tmp_path / "genomes" / f"genome_{label}.fasta").read_text(encoding="utf-8").splitlines()
         assert [ln for ln in lines if ln.startswith(">")] == [f">{label}_chr{c}" for c in chroms]
 
 
@@ -243,7 +243,7 @@ def test_a_nucleotide_run_names_its_files_blocks_not_families(tmp_path):
     assert not [n for n in names if "fam" in n]
     assert "block0.fasta" in names and "phylogram_block0_complete.nwk" in names
     assert any(n.startswith("sequences_ancestral_block") for n in names)
-    assert ">block0\n" in (tmp_path / "sequences_founding.fasta").read_text()
+    assert ">block0\n" in (tmp_path / "sequences_founding.fasta").read_text(encoding="utf-8")
 
 
 def test_an_unordered_run_still_names_them_families(tmp_path):
@@ -369,7 +369,7 @@ def test_the_initial_genome_is_what_the_run_was_seeded_with(tmp_path):
         assert seq[a:b] == r.founding[genomes.block_of(fam)]
 
     r.write(tmp_path, outputs=("initial_genome",))
-    text = (tmp_path / "genomes" / "genome_initial.fasta").read_text()
+    text = (tmp_path / "genomes" / "genome_initial.fasta").read_text(encoding="utf-8")
     assert f">initial_chr{chrom.id}\n" in text
     assert "".join(text.split(">")[1].splitlines()[1:]) == seq
 
@@ -377,11 +377,11 @@ def test_the_initial_genome_is_what_the_run_was_seeded_with(tmp_path):
 def test_the_genome_level_writes_the_initial_mosaic_in_its_own_file(tmp_path):
     genomes = _run(seed=3, n_extant=4)
     genomes.write(tmp_path, outputs=("initial_genome", "blocks"))
-    rows = (tmp_path / "initial_genome.tsv").read_text().splitlines()
+    rows = (tmp_path / "initial_genome.tsv").read_text(encoding="utf-8").splitlines()
     assert rows[0] == "chromosome\tposition\tsource\tstart\tend\tstrand\tcopy\tgene"
     assert len(rows) - 1 == sum(len(c.blocks) for c in genomes.initial_genome.chromosomes)
     # and it is not smuggled into blocks.tsv, whose every lineage is a real node
-    labels = {ln.split("\t")[0] for ln in (tmp_path / "blocks.tsv").read_text().splitlines()[1:]}
+    labels = {ln.split("\t")[0] for ln in (tmp_path / "blocks.tsv").read_text(encoding="utf-8").splitlines()[1:]}
     assert labels == {node_label(i) for i in genomes.genomes}
 
 
@@ -404,7 +404,7 @@ def test_a_written_run_reads_back_to_the_same_recovery(tmp_path):
     out = tmp_path / "again"
     back.write(out, outputs=("events", "blocks", "genes", "initial_genome"))
     for name in ("genome_events.tsv", "blocks.tsv", "genes.tsv", "initial_genome.tsv"):
-        assert (out / name).read_text() == (tmp_path / name).read_text(), name
+        assert (out / name).read_text(encoding="utf-8") == (tmp_path / name).read_text(encoding="utf-8"), name
 
 
 def test_reading_back_regroups_multi_row_events_correctly(tmp_path):
@@ -432,8 +432,8 @@ def _seeded(tmp_path, root_seq, *, seed=4, **kw):
     ``root_seq`` as the root DNA."""
     (tmp_path / "g.gff").write_text(
         f"##gff-version 3\n##sequence-region c 1 {len(root_seq)}\n"
-        "c\tt\tgene\t11\t40\t.\t+\t.\tID=a\nc\tt\tgene\t61\t90\t.\t-\t.\tID=b\n")
-    (tmp_path / "g.fasta").write_text(f">c\n{root_seq}\n")
+        "c\tt\tgene\t11\t40\t.\t+\t.\tID=a\nc\tt\tgene\t61\t90\t.\t-\t.\tID=b\n", encoding="utf-8")
+    (tmp_path / "g.fasta").write_text(f">c\n{root_seq}\n", encoding="utf-8")
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=seed)
     params = dict(inversion=2.0, inversion_extent=20, duplication=0.6, loss=0.6, transfer=0.6, seed=seed)
     params.update(kw)
@@ -497,22 +497,22 @@ def test_a_de_novo_gene_falls_back_to_the_model(tmp_path):
 
 def test_fasta_length_and_seqid_must_match_the_gff(tmp_path):
     (tmp_path / "g.gff").write_text("##gff-version 3\n##sequence-region c 1 100\n"
-                                    "c\tt\tgene\t11\t40\t.\t+\t.\tID=a\n")
+                                    "c\tt\tgene\t11\t40\t.\t+\t.\tID=a\n", encoding="utf-8")
     sp = simulate_species_tree(birth=1.0, n_extant=4, seed=1)
-    (tmp_path / "short.fasta").write_text(">c\n" + "A" * 90 + "\n")
+    (tmp_path / "short.fasta").write_text(">c\n" + "A" * 90 + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="100 bp in the GFF but 90"):
         simulate_genomes_nucleotide(sp, gff=tmp_path / "g.gff", fasta=tmp_path / "short.fasta", seed=1)
-    (tmp_path / "wrongid.fasta").write_text(">other\n" + "A" * 100 + "\n")
+    (tmp_path / "wrongid.fasta").write_text(">other\n" + "A" * 100 + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="do not match the GFF"):
         simulate_genomes_nucleotide(sp, gff=tmp_path / "g.gff", fasta=tmp_path / "wrongid.fasta", seed=1)
-    (tmp_path / "bad.fasta").write_text(">c\n" + "A" * 99 + "N\n")
+    (tmp_path / "bad.fasta").write_text(">c\n" + "A" * 99 + "N\n", encoding="utf-8")
     with pytest.raises(ValueError, match="non-ACGT"):
         simulate_genomes_nucleotide(sp, gff=tmp_path / "g.gff", fasta=tmp_path / "bad.fasta", seed=1)
 
 
 def test_fasta_needs_a_gff(tmp_path):
     sp = simulate_species_tree(birth=1.0, n_extant=4, seed=1)
-    (tmp_path / "g.fasta").write_text(">c\n" + "A" * 100 + "\n")
+    (tmp_path / "g.fasta").write_text(">c\n" + "A" * 100 + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="fasta= needs gff="):
         simulate_genomes_nucleotide(sp, fasta=tmp_path / "g.fasta", root_length=100, seed=1)
 

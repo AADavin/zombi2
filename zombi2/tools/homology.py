@@ -155,6 +155,6 @@ def write_homology(gene_trees: dict[int, GeneTree], tree, directory) -> str:
     n = 0
     for fam, gt in sorted(gene_trees.items()):
         if gt.extant is not None:                    # i.e. the family left at least one survivor
-            (d / f"homology_fam{fam}.tsv").write_text(homology_tsv(gt.complete))
+            (d / f"homology_fam{fam}.tsv").write_text(homology_tsv(gt.complete), encoding="utf-8")
             n += 1
     return f"{n} table(s)"

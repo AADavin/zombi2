@@ -133,7 +133,7 @@ def write_recphylo(gene_trees: dict[int, GeneTree], tree, directory) -> str:
     d = pathlib.Path(directory)
     d.mkdir(parents=True, exist_ok=True)
     for fam, gt in sorted(gene_trees.items()):
-        (d / f"recphylo_fam{fam}.xml").write_text(recphylo_xml({fam: gt}, tree))
+        (d / f"recphylo_fam{fam}.xml").write_text(recphylo_xml({fam: gt}, tree), encoding="utf-8")
     return f"{len(gene_trees)} file(s)"
 
 
