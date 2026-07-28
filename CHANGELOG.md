@@ -9,6 +9,22 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+- **The genome level is no longer superlinear in genome size.** `max_family_size` asks "does this
+  family already fill its quota here?" on every duplication and every arriving transfer, and it was
+  answered by scanning the lineage's whole genome — an O(genome) step in the inner loop of a run
+  whose genome is the thing that grows. It was 70% of a 4000-family run, and it was the *entire*
+  superlinear term: with the cap removed the same run was linear. A per-lineage counter answers it by
+  lookup, and the cost per event is now flat (2.0 µs at 1000 families and at 8000). Byte-identical —
+  integers in, integers out, so the cap binds exactly where it bound before; verified across 48
+  configurations of cap, replacement, transfer and self-transfer.
+
+  | families | before | after |
+  |---:|---:|---:|
+  | 1,000 | 0.59 s | 0.36 s |
+  | 4,000 | 6.44 s | 1.24 s |
+  | 8,000 | 29.33 s | 2.45 s |
+
 ### Fixed
 - **`--params` on a missing file printed a raw `[Errno 2]`**, and a broken one printed tomllib's
   position with no mention of the file. Both now name the file, and a backslash inside an ordinary
