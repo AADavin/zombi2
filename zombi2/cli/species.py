@@ -11,7 +11,7 @@ import os
 import time
 
 from zombi2.species import WIRED_MODIFIERS, _WRITE_OUTPUTS, simulate_species_tree
-from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_params_arg,
+from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_params_arg,
                                   _add_run_arg, _rate, _rates_help, _write_params_log,
                                   check_stale_downstream, clear_stale_downstream, defaults_used, guidance,
                                   level_dir, warn)
@@ -87,6 +87,7 @@ def run(args, parser):
         warn(defaulted)
 
     # refuse up front if re-running would orphan a later level already in the run (unless --force)
+    resolve_seed(args)                      # a run must be reproducible from its own log
     check_stale_downstream(args, "species")
 
     # [(time, fraction), ...] pulses, or None — the API places them on the timeline and needs a

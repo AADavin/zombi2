@@ -22,12 +22,13 @@ from zombi2.genomes.nucleotide import WIRED_MODIFIERS as _NUC_WIRED
 from zombi2.rates.parse import parse_rate, written_form
 from zombi2.rates.scope import Global, PerLineage
 from zombi2.tree import read_newick
-from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
+from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
                                   _read_tip_fates, _write_params_log, check_stale_downstream,
                                   clear_stale_downstream, conditioned_levels, default_outputs,
                                   defaults_used, guidance, level_dir, parallel_from_args,
-                                  record_conditioning, resolve_tree, sibling_fates, warn)
+                                  record_conditioning, resolve_tree, sibling_fates, warn,
+                                  warn_if_fates_were_inferred)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -80,7 +81,7 @@ _DEFAULT_INITIAL_FAMILIES = 100
 #: is bounded unless you ask otherwise; `--max-family-size none` is that ask.
 _DEFAULT_MAX_FAMILY_SIZE = PerLineage(10)
 
-_NOT_IN_NUCLEOTIDE = (("initial_families", _DEFAULT_INITIAL_FAMILIES), ("replacement", False),
+_NOT_IN_NUCLEOTIDE = (("initial_families", None), ("replacement", False),
                       ("max_family_size", _DEFAULT_MAX_FAMILY_SIZE), ("family_speed", None))
 
 
@@ -124,7 +125,7 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    help="a transfer overwrites a homologous copy in the recipient (replacing HGT)")
     g.add_argument("--self-transfer", action="store_true", dest="self_transfer",
                    help="allow a lineage to transfer to itself")
-    g.add_argument("--initial-families", type=int, default=_DEFAULT_INITIAL_FAMILIES, metavar="N",
+    g.add_argument("--initial-families", type=int, default=None, metavar="N",
                    dest="initial_families",
                    help=f"number of gene families the root genome starts with (default "
                         f"{_DEFAULT_INITIAL_FAMILIES}); 0 starts empty, so every family must then "
@@ -327,6 +328,12 @@ def run(args, parser):
     # is for: with every rate left at zero it would only inherit, which demonstrates nothing. But
     # defaulting a rate the caller left out *beside* ones they set would be a surprise —
     # `--duplication 0.3` alone plainly means no transfer — so this applies only when none was given.
+    # Filled after the resolution checks above, so the nucleotide engine can still tell "not given"
+    # from "given as the default" — passing --initial-families 100 to a nucleotide run used to slip
+    # past the stray check and be silently ignored while the log recorded it as if it applied.
+    if args.initial_families is None and args.resolution != "nucleotide":
+        args.initial_families = _DEFAULT_INITIAL_FAMILIES
+
     _CORE = ("duplication", "transfer", "loss", "origination")
     # "gave no rate" means no rate of *any* kind, structural ones included: a run given --inversion
     # has had its model described, and silently adding gene turnover to it would be the surprise.
@@ -392,15 +399,17 @@ def run(args, parser):
                          f"{args.resolution}; choose from: {', '.join(vocab)}")
 
     # refuse up front if re-running would orphan a later level already in the run (unless --force)
+    resolve_seed(args)                      # a run must be reproducible from its own log
     check_stale_downstream(args, "genomes")
 
-    tree_path = resolve_tree(args.source or args.run)
+    tree_path = resolve_tree(args.source or args.run, is_run_dir=args.source is None)
     # an explicit --tip-fates wins; otherwise pick up the run's own species_fates.tsv so extinct and
     # unsampled tips are read from the record rather than guessed from tip depth
     tip_fates = _read_tip_fates(args.tip_fates) if args.tip_fates else sibling_fates(tree_path)
     try:
         with open(tree_path) as f:
             tree, names = read_newick(f.read(), tip_fates=tip_fates)
+        warn_if_fates_were_inferred(tree, args)
     except FileNotFoundError:
         raise FileNotFoundError(f"tree file not found: {tree_path}") from None
 
@@ -499,9 +508,11 @@ def run(args, parser):
         summary = f"{n_families} gene families across {n_species} extant genomes ({args.resolution})"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
     guidance(args, f"genomes and gene trees under {out}/")
+    if names:
+        guidance(args, f"your tree's tip labels, mapped to ZOMBI's n<id>: {os.path.join(out, 'names.tsv')}")
     if not args.flat:                             # record which same-run levels drove a rate (if any),
         record_conditioning(out, conditioned_levels(   # so re-running one of them knows it orphans this
             args.run, (args.duplication, args.transfer, args.loss, args.origination, args.transfer_to)))
     _write_params_log(os.path.join(out, "genomes.log"),
-                      args, summary)
+                      args, summary, effective={"write": list(wanted)})
     return 0

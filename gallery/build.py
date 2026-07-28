@@ -137,6 +137,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,-app
 .masthead h1{font-size:clamp(2rem,4.4vw,2.7rem);line-height:1.06;letter-spacing:-.02em;margin:0 0 12px;text-wrap:balance;font-weight:700}
 .masthead .lede{margin:0;max-width:60ch;color:var(--muted);font-size:1.05rem}
 .masthead .lede b{color:var(--ink);font-weight:600}
+.masthead .gallery-note{margin-top:14px}
+.masthead .gallery-install{display:inline-block;margin:10px 0 0;padding:8px 14px;border:1px solid var(--line);border-radius:8px;background:var(--code-bg);font-family:var(--mono,ui-monospace,monospace);font-size:.92rem;color:var(--code-ink)}
 .note{margin:18px 0 0;display:inline-flex;gap:9px;align-items:center;font-size:.82rem;color:var(--faint);border:1px dashed var(--line);border-radius:8px;padding:7px 12px}
 .note b{color:var(--accent-ink);font-weight:600}
 .level{margin-top:52px}
@@ -188,6 +190,10 @@ _PAGE_OPEN = """
   </div>
   <header class="masthead">
     <h1>Examples gallery</h1>
+    <p class="lede gallery-note">Click any figure for the code that produces it. Every example
+      simulates with ZOMBI2 and plots with <a href="https://pypi.org/project/phylustrator/">Phylustrator</a>,
+      a separate package &mdash; so to run one you need both:</p>
+    <pre class="gallery-install">pip install zombi2 phylustrator</pre>
   </header>
 """
 

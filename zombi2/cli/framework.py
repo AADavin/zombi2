@@ -9,6 +9,8 @@ import shutil
 import sys
 import textwrap
 
+import numpy as np
+
 from zombi2 import __version__
 
 
@@ -265,6 +267,46 @@ def defaults_used(args, **fallbacks) -> str:
             f"to keep")
 
 
+def warn_if_fates_were_inferred(tree, args) -> None:
+    """Say so when a tree read from ``--from`` had its tip fates *guessed* and some came out extinct.
+
+    A tree whose nodes all carry labels is taken to be a ZOMBI tree, so its tip depths are trusted:
+    a tip sitting below the present is read as an extinct lineage. That is right for a complete tree
+    ZOMBI wrote, and quietly wrong for one that has been re-estimated, re-dated or edited since,
+    where the depths differ by *noise* — every tip then reads as extinct, and the run continues on a
+    handful of survivors, or one, without complaint. That is not recoverable from the outputs unless
+    you happen to count the genomes.
+
+    So it is announced rather than refused: refusing would reject the complete trees this heuristic
+    exists to serve. Passing ``--tip-fates`` states the fates instead of inferring them, and silences
+    this — a species run's own ``species_fates.tsv`` is already in that format."""
+    if getattr(args, "tip_fates", None) or not getattr(args, "source", None):
+        return
+    tips = [n for n in tree.nodes.values() if n.children is None]
+    dead = [n for n in tips if n.fate != "extant"]
+    if dead and len(dead) > len(tips) // 2:
+        warn(f"{len(dead)} of {len(tips)} tips in this tree sit below the present, so they were read "
+             f"as extinct lineages and only {len(tips) - len(dead)} genome(s) will be simulated. That "
+             f"is what a complete ZOMBI tree looks like — but if this tree was re-estimated, re-dated "
+             f"or edited, the depths differ by noise rather than by extinction and the fates are "
+             f"wrong. Declare them with --tip-fates FILE to be sure.")
+
+
+def resolve_seed(args) -> None:
+    """Draw a seed when the caller did not give one, so the run can be regenerated from its own log.
+
+    Every run is seeded — leaving ``--seed`` out only meant the seed came from the OS and was then
+    thrown away, so the ``.log`` recorded ``seed None`` and the dataset could never be reproduced by
+    anyone, its author included. Nothing warned them. Drawing it here costs nothing and makes the log
+    a complete record: re-running the command it contains reproduces the run exactly.
+
+    A run that wants fresh randomness still gets it — this draws from the OS each time. What changes
+    is only that the draw is written down."""
+    if getattr(args, "seed", None) is None:
+        # a 32-bit value, so the number in the log is one a reader can retype as --seed
+        args.seed = int(np.random.SeedSequence().entropy % (2 ** 31))
+
+
 def warn(message: str) -> None:
     """A diagnostic about the *result* — the run succeeded, but something about what came out is
     likely not what was wanted. Unlike :func:`guidance` it goes to **stderr** and survives
@@ -440,12 +482,22 @@ _TREE_IN_RUN = (os.path.join("species", "species_complete.nwk"), "species_comple
 _GENOMES_IN_RUN = ("genomes", "")
 
 
-def resolve_tree(path: str) -> str:
+def resolve_tree(path: str, *, is_run_dir: bool = False) -> str:
     """Give back the species-tree file to open, from either a Newick file or a **run directory**.
 
     Spelling out ``out/species/species_complete.nwk`` is a detour through a layout the command
     already knows; the run directory says the same thing. A path that is not a directory is returned
-    untouched, so any tree from anywhere still works."""
+    untouched, so any tree from anywhere still works.
+
+    ``is_run_dir`` says the path came from the run argument rather than ``--from``, which changes
+    what a missing path means: not "your tree file is not there" but "this run has no species tree
+    yet". That is the first mistake anyone makes — typing the genomes command before the species
+    one — and it used to fall through to a bare ``tree file not found``."""
+    if is_run_dir and not os.path.exists(path):
+        raise FileNotFoundError(
+            f"{path} does not exist yet, so it holds no species tree to evolve along. Run "
+            f"'zombi2 species {path} ...' first to grow one, or point --from at a Newick file or "
+            f"another run.")
     if not os.path.isdir(path):
         return path
     for candidate in _TREE_IN_RUN:

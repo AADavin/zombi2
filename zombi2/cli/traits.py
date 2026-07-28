@@ -18,7 +18,7 @@ import argparse
 import os
 import time
 
-from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_from_arg,
+from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _read_tip_fates,
                                   _write_params_log, check_stale_downstream, clear_stale_downstream,
                                   guidance, level_dir, resolve_tree, sibling_fates)
@@ -142,9 +142,10 @@ def run(args, parser):
                          "--liability/--threshold (the threshold model)")
 
     # refuse up front if re-running would orphan a level conditioned on this trait (unless --force)
+    resolve_seed(args)                      # a run must be reproducible from its own log
     check_stale_downstream(args, "traits")
 
-    tree_path = resolve_tree(args.source or args.run)
+    tree_path = resolve_tree(args.source or args.run, is_run_dir=args.source is None)
     # an explicit --tip-fates wins; otherwise pick up the run's own species_fates.tsv so extinct and
     # unsampled tips are read from the record rather than guessed from tip depth
     tip_fates = _read_tip_fates(args.tip_fates) if args.tip_fates else sibling_fates(tree_path)
@@ -189,6 +190,8 @@ def run(args, parser):
     summary = f"a {result.kind} trait ({detail}) over {n_tips} extant tips"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
     guidance(args, f"trait values: {os.path.join(out, 'trait_values.tsv')}")
+    if names:
+        guidance(args, f"your tree's tip labels, mapped to ZOMBI's n<id>: {os.path.join(out, 'names.tsv')}")
     _write_params_log(os.path.join(out, "traits.log"),
                       args, summary)
     return 0

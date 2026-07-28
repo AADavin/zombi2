@@ -31,10 +31,10 @@ from zombi2.sequences.substitution_models import (
     dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
 )
 from zombi2.tree import read_newick
-from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
+from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _write_params_log,
                                   default_outputs, guidance, level_dir, parallel_from_args,
-                                  defaults_used, resolve_genomes, warn)
+                                  defaults_used, resolve_genomes, resolve_seed, warn)
 
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -137,6 +137,7 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     _add_flat_arg(g)
     _add_parallel_arg(g)
     _add_quiet_arg(g)
+    _add_force_arg(g)
 
 
 def _resolve_model_knobs(args) -> dict:
@@ -155,10 +156,13 @@ def _effective_substitution(args, genome_run) -> dict:
     rate that ran — and a log recording the flag rather than the resolved value would be a provenance
     record that disagrees with the run. Calls the same :func:`~zombi2.sequences._calibrate` the engine
     does, so the logged number cannot drift from the one used."""
-    if args.divergence is None:
-        return {}
-    return {"substitution": _calibrate(args.substitution, args.divergence,
-                                       genome_run.complete_tree)}
+    if args.divergence is not None:
+        return {"substitution": _calibrate(args.substitution, args.divergence,
+                                           genome_run.complete_tree)}
+    # No divergence: the flag may still have been left out, in which case the run used 1.0 and the
+    # log should say so. A field logged None because a default applied is a field that stops meaning
+    # anything the day the default changes — which is the whole reason to dump every parameter.
+    return {} if args.substitution is not None else {"substitution": 1.0}
 
 
 def _effective_model_params(args) -> dict:
@@ -230,6 +234,7 @@ def run(args, parser):
     if args.model is None:
         # jc69 has no free parameters, so a bare run needs nothing else to be well defined
         warn(defaults_used(args, model="jc69"))
+    resolve_seed(args)                     # a run must be reproducible from its own log
     # reject a physical parameter given for a model that doesn't read it (e.g. --kappa with jc69),
     # so a silently-ignored flag can't give a misleading run — the genomes command's discipline
     allowed = set(_MODEL_KNOBS[args.model])
@@ -335,14 +340,18 @@ def run(args, parser):
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
     if identity is not None and _saturation_signal(identity, model) < _SATURATED_BELOW:
         floor = float(np.sum(np.asarray(model.stationary) ** 2))
+        # Name the rate that ran, not the flag: --substitution is None when it was left out, and
+        # "currently None" tells a reader nothing. And point at --divergence first — it is the
+        # answer to "what should I put instead", which lowering a rate by guesswork is not.
+        used = "the default 1.0" if args.substitution is None else f"{args.substitution}"
         warn(f"these sequences are close to saturated — mean pairwise identity is {identity:.0%}, "
              f"against {floor:.0%} for unrelated sequences under {model.name}. The substitution "
              f"rate is per unit time, so a tall tree accrues many substitutions per site and the "
              f"alignments keep little history: homology search and tree inference will both do "
-             f"poorly on them. Consider lowering --substitution (it is currently "
-             f"{args.substitution}) or shortening the tree.")
+             f"poorly on them. Say how diverged you want them instead — --divergence 0.2 is a "
+             f"readable alignment on any tree — or lower the rate yourself (it ran at {used}).")
     guidance(args, f"alignments under {out}/")
     _write_params_log(os.path.join(out, "sequences.log"),
-                      args, summary, effective={**_effective_model_params(args),
+                      args, summary, effective={"write": list(wanted), **_effective_model_params(args),
                                  **_effective_substitution(args, genome_run)})
     return 0
