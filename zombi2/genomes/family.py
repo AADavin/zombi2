@@ -492,9 +492,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     to disk as it finishes — no whole-run merge, no run held in memory (a run that fills gigabytes in
     memory streams in tens of megabytes) — and a light `StreamedRun` handle comes
     back instead of a ``FamilyGenomesResult``. ``outputs=`` picks which files, exactly as
-    `FamilyGenomesResult.write()` takes them (default: all of them). It is the per-family engine, so a
-    driven rate **raises** here rather than falling back (that would defeat the point), and ``outputs``
-    without ``stream_to`` is an error.
+    `FamilyGenomesResult.write()` takes them (default: all of them). It is the per-family engine, and
+    ``outputs`` without ``stream_to`` is an error.
     """
     tree = as_tree(tree, level="genomes")
     dup = as_rate(duplication, default_scope=PerCopy)
@@ -586,14 +585,54 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # truncated run. ``None`` removes it.
     cap = resolve_max_family_size(max_family_size, len(tree.nodes))
 
+    # A Clades rule paints every lineage with its clade once (membership is a fact about the tree, not
+    # a driver, so it is constant along a branch and adds no Gillespie breakpoints). A kernel naming
+    # only absent groups weights every candidate at its default — secretly uniform — so refuse it here.
+    group_of = resolve_groups(tree, transfer_to.groups) if isinstance(transfer_to, Clades) else None
+    if group_of is not None:
+        check_kernel_fires(transfer_to.between, set(group_of.values()), source_label="clades")
+
+    # conditioning: a rate carrying DrivenBy reads a driver per lineage. Resolve each driver once into
+    # a DriverTrajectory (value + next-switch lookups, keyed by the shared species node id) — from a
+    # file (str source) or an in-memory trait result (object source). No driven rate ⇒ this is empty
+    # and the loop stays byte-identical to an uncoupled run.
+    dup_mods, los_mods = _driven_mods(dup), _driven_mods(los)
+    org_mods, tra_mods = _driven_mods(org), _driven_mods(tra)
+    by_key = {}  # driver key → its source (deduped, so a driver shared across rates resolves once)
+    for m in (*dup_mods, *los_mods, *org_mods, *tra_mods):
+        by_key.setdefault(m.key, m.source)
+    rate_keys = list(by_key)     # the drivers that move a RATE: they alone set the Gillespie horizon
+    to_mod = transfer_to if isinstance(transfer_to, DrivenBy) else None
+    if to_mod is not None:       # the transfer_to driver is read only at the instant a transfer fires
+        by_key.setdefault(to_mod.key, to_mod.source)
+    resolved = {}
+    if by_key:
+        from ..rates.driver import check_mapping_fires, resolve_driver
+        resolved = {key: resolve_driver(src, tree) for key, src in by_key.items()}
+        # a mapping whose states never occur in the driver leaves every lineage at the default factor,
+        # so the rate is never driven and the run is secretly the uncoupled model — refuse it here,
+        # naming the driver, rather than let it pass as a coupled run
+        for m in (*dup_mods, *los_mods, *org_mods, *tra_mods, *( (to_mod,) if to_mod else () )):
+            label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
+            check_mapping_fires(m.mapping, resolved[m.key].states(), source_label=label)
+    # a driven transfer_to changes no rate — the weights are evaluated when a transfer fires, so the
+    # recipient driver deliberately stays OUT of trajs (no per-lineage rate weights, no extra horizon
+    # breakpoints for it). Only the rate drivers make the loop per-lineage.
+    trajs = {key: resolved[key] for key in rate_keys}
+    to_traj = resolved[to_mod.key] if to_mod is not None else None
+    if to_mod is not None and isinstance(to_mod.mapping, Between):  # a donor-conditioned trait kernel:
+        label = to_mod.source if isinstance(to_mod.source, str) else f"<{type(to_mod.source).__name__}>"
+        check_kernel_fires(to_mod.mapping, to_traj.states(), source_label=label)
+
     # Parallel is a *separate* engine (opt-in): families are independent, so it evolves them one per
     # process (SPEC-style — serial by default). `stream_to` takes the same engine one step further —
     # each family is written straight to disk and a light StreamedRun handle comes back, so a run of a
-    # million families never has to fit in memory (`outputs` picks which files, as `.write` does). Both
-    # handle everything but a driven rate / recipient; there the parallel path prints why and returns
-    # None so this serial reference loop runs unchanged (decision A), while a streamed run raises (it
-    # cannot fall back without pulling the whole thing into memory). Everything above is shared
-    # validation, so bad input still raises the same way.
+    # million families never has to fit in memory (`outputs` picks which files, as `.write` does). The
+    # drivers and clade painting above are resolved once, before the split, and handed to whichever
+    # engine runs — they are shared validation and shared input, not one engine's business. A
+    # configuration neither engine covers still returns None there, so this serial reference loop runs
+    # unchanged (decision A); a streamed run raises instead, being unable to fall back without pulling
+    # the whole thing into memory.
     if outputs is not None and stream_to is None:
         raise ValueError(
             "outputs applies to a streamed run (stream_to=DIR), which writes the files itself; for an "
@@ -604,7 +643,10 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             tree, dup=dup, tra=tra, los=los, org=org, transfer_to=transfer_to,
             replacement=replacement, self_transfer=self_transfer, initial_families=initial_families,
             family_names=family_names, family_speed=family_speed, cap=cap, seed=seed, parallel=parallel,
-            progress=progress, stream_to=stream_to, outputs=outputs)
+            progress=progress, stream_to=stream_to, outputs=outputs,
+            trajs=trajs, to_traj=to_traj, group_of=group_of,
+            driven={"duplication": bool(dup_mods), "transfer": bool(tra_mods),
+                    "loss": bool(los_mods), "origination": bool(org_mods)})
         if result is not None:
             return result
 
@@ -648,9 +690,6 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # a Clades rule paints every lineage with its clade once (membership is a fact about the tree, not
     # a driver, so it is constant along a branch and adds no Gillespie breakpoints). A kernel naming
     # only absent groups weights every candidate at its default — secretly uniform — so refuse it here.
-    group_of = resolve_groups(tree, transfer_to.groups) if isinstance(transfer_to, Clades) else None
-    if group_of is not None:
-        check_kernel_fires(transfer_to.between, set(group_of.values()), source_label="clades")
     schedule = sorted((tree.nodes[i].end_time, i) for i in tree.nodes)  # (end_time, node_id)
 
     root = tree.nodes[tree.root]
@@ -673,37 +712,6 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     total_copies = len(gen[0])
     initial_genome = tuple(gen[0])   # the run's starting genome: a snapshot before the stem runs
 
-    # conditioning: a rate carrying DrivenBy reads a driver per lineage. Resolve each driver once into
-    # a DriverTrajectory (value + next-switch lookups, keyed by the shared species node id) — from a
-    # file (str source) or an in-memory trait result (object source). No driven rate ⇒ this is empty
-    # and the loop stays byte-identical to an uncoupled run.
-    dup_mods, los_mods = _driven_mods(dup), _driven_mods(los)
-    org_mods, tra_mods = _driven_mods(org), _driven_mods(tra)
-    by_key = {}  # driver key → its source (deduped, so a driver shared across rates resolves once)
-    for m in (*dup_mods, *los_mods, *org_mods, *tra_mods):
-        by_key.setdefault(m.key, m.source)
-    rate_keys = list(by_key)     # the drivers that move a RATE: they alone set the Gillespie horizon
-    to_mod = transfer_to if isinstance(transfer_to, DrivenBy) else None
-    if to_mod is not None:       # the transfer_to driver is read only at the instant a transfer fires
-        by_key.setdefault(to_mod.key, to_mod.source)
-    resolved = {}
-    if by_key:
-        from ..rates.driver import check_mapping_fires, resolve_driver
-        resolved = {key: resolve_driver(src, tree) for key, src in by_key.items()}
-        # a mapping whose states never occur in the driver leaves every lineage at the default factor,
-        # so the rate is never driven and the run is secretly the uncoupled model — refuse it here,
-        # naming the driver, rather than let it pass as a coupled run
-        for m in (*dup_mods, *los_mods, *org_mods, *tra_mods, *( (to_mod,) if to_mod else () )):
-            label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
-            check_mapping_fires(m.mapping, resolved[m.key].states(), source_label=label)
-    # a driven transfer_to changes no rate — the weights are evaluated when a transfer fires, so the
-    # recipient driver deliberately stays OUT of trajs (no per-lineage rate weights, no extra horizon
-    # breakpoints for it). Only the rate drivers make the loop per-lineage.
-    trajs = {key: resolved[key] for key in rate_keys}
-    to_traj = resolved[to_mod.key] if to_mod is not None else None
-    if to_mod is not None and isinstance(to_mod.mapping, Between):  # a donor-conditioned trait kernel:
-        label = to_mod.source if isinstance(to_mod.source, str) else f"<{type(to_mod.source).__name__}>"
-        check_kernel_fires(to_mod.mapping, to_traj.states(), source_label=label)
     any_driven = bool(rate_keys)
     # the per-family weight sums, carried across events rather than rebuilt each time (see the class)
     weights = _FamilyWeights(fam_mult, gen) if any_family else None

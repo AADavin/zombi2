@@ -9,8 +9,8 @@ The contract, level-independent (SPEC: serial by default, parallel a separate op
   (decision A: the default path is left untouched, which the rest of the suite pins down);
 - **still a valid run** — the per-family genome engine reproduces the strong invariants of the global
   one (its statistical equivalence is checked separately, offline, by a KS panel over many seeds);
-- **loud, never silent** — an unsupported configuration falls back to the serial engine with a note,
-  and a resolution with no per-family engine rejects the flag.
+- **loud, never silent** — a resolution with no per-family engine rejects the flag, and a
+  configuration the engine could not cover would fall back with a note rather than degrade quietly.
 """
 
 import os
@@ -168,34 +168,67 @@ def test_genomes_parallel_named_families_survive(species_for_genomes):
     assert all(fid in {c.family for g in r.genomes.values() for c in g} for fid in r.family_names.values())
 
 
-def test_genomes_parallel_falls_back_on_driven_rate(species_for_genomes, capsys):
-    # a driven rate has no per-family engine yet: the run must announce the fallback and return the
-    # *serial* result unchanged, not a quietly-degraded parallel one.
+def test_a_driven_rate_runs_in_parallel_rather_than_falling_back(species_for_genomes, capsys):
+    # Conditioning does not couple families — the driver was grown before this run and is an input to
+    # it — so the per-family decomposition survives it and there is nothing to fall back from.
     sp = species_for_genomes
     habitat = simulate_discrete(sp, states=["a", "b"], switch=0.8, seed=2)
     kw = dict(duplication=0.5, loss=0.25 * mod.DrivenBy(habitat, {"a": 2.0, "b": 1.0}),
               origination=0.2, initial_families=25, seed=5)
     par = simulate_genomes_family(sp, parallel=4, **kw)
-    note = capsys.readouterr().out
-    assert "not applied" in note and "driven" in note
-    serial = simulate_genomes_family(sp, **kw)
-    assert _gen_fingerprint(par) == _gen_fingerprint(serial)
+    assert "not applied" not in capsys.readouterr().out
+    assert par.events and {e.kind for e in par.events} >= {"origination", "duplication", "loss"}
+    # ...and it is the per-family engine's own draw, not the serial loop's (decision A)
+    assert _gen_fingerprint(par) != _gen_fingerprint(simulate_genomes_family(sp, **kw))
 
 
-def test_genomes_parallel_falls_back_on_clades(species_for_genomes, capsys):
-    # a Clades recipient weight needs per-lineage clade membership the per-family workers do not thread
-    # yet, so the run must announce the fallback and return the *serial* result unchanged.
+def test_every_driven_slot_runs_in_parallel(species_for_genomes, capsys):
+    # each of the four rates, and the recipient rule, threads its driver to the workers
+    sp = species_for_genomes
+    habitat = simulate_discrete(sp, states=["a", "b"], switch=0.8, seed=2)
+    driver = mod.DrivenBy(habitat, {"a": 3.0, "b": 1.0})
+    for slot in ("duplication", "transfer", "loss", "origination", "transfer_to"):
+        kw = dict(duplication=0.3, transfer=0.3, loss=0.3, origination=0.3,
+                  initial_families=15, seed=5)
+        kw[slot] = driver if slot == "transfer_to" else kw[slot] * driver
+        run = simulate_genomes_family(sp, parallel=2, **kw)
+        assert "not applied" not in capsys.readouterr().out, slot
+        assert run.events, slot
+
+
+def test_a_clades_recipient_runs_in_parallel(species_for_genomes, capsys):
+    # clade membership is a fact about the tree, painted once and shipped with the rest of the context
     from zombi2.genomes import Between, Clades
     sp = species_for_genomes
     kid = sp.complete_tree.nodes[sp.complete_tree.root].children
-    kw = dict(transfer=0.4, loss=0.3, origination=0.2, initial_families=25, seed=5,
-              transfer_to=Clades({"A": kid[0], "B": kid[1]},
-                                 Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)))
-    par = simulate_genomes_family(sp, parallel=4, **kw)
-    note = capsys.readouterr().out
-    assert "not applied" in note and "clades" in note.lower()
-    serial = simulate_genomes_family(sp, **kw)
-    assert _gen_fingerprint(par) == _gen_fingerprint(serial)
+    run = simulate_genomes_family(
+        sp, transfer=0.4, loss=0.3, origination=0.2, initial_families=25, seed=5, parallel=4,
+        transfer_to=Clades({"A": kid[0], "B": kid[1]},
+                           Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)))
+    assert "not applied" not in capsys.readouterr().out
+    assert any(e.kind == "transfer" for e in run.events)
+
+
+def test_a_driven_parallel_run_is_worker_count_invariant(species_for_genomes):
+    # the engine's core guarantee has to survive the driver: each family still draws from its own
+    # spawned stream, and the driver is a lookup, not a shared mutable
+    sp = species_for_genomes
+    habitat = simulate_discrete(sp, states=["a", "b"], switch=0.8, seed=2)
+    kw = dict(duplication=0.3, transfer=0.2, origination=0.3, initial_families=20, seed=11,
+              loss=0.3 * mod.DrivenBy(habitat, {"a": 4.0, "b": 1.0}))
+    one, four = (simulate_genomes_family(sp, parallel=w, **kw) for w in (1, 4))
+    assert _gen_fingerprint(one) == _gen_fingerprint(four)
+
+
+def test_a_driven_streamed_run_no_longer_raises(species_for_genomes, tmp_path):
+    # streaming needs the per-family engine, so it used to refuse a driver outright
+    sp = species_for_genomes
+    habitat = simulate_discrete(sp, states=["a", "b"], switch=0.8, seed=2)
+    run = simulate_genomes_family(
+        sp, duplication=0.3, origination=0.3, initial_families=15, seed=5, parallel=2,
+        loss=0.3 * mod.DrivenBy(habitat, {"a": 4.0, "b": 1.0}),
+        stream_to=tmp_path / "s", outputs=("events", "profiles"))
+    assert isinstance(run, StreamedRun) and run.n_events > 0
 
 
 def test_genomes_parallel_true_uses_all_cores(species_for_genomes):
@@ -255,14 +288,6 @@ def test_stream_is_worker_count_invariant(species_for_genomes, tmp_path):
     simulate_genomes_family(species_for_genomes, parallel=4, stream_to=tmp_path / "w4", **_STREAM_KW)
     for name in ("genome_events.tsv", "genomes.tsv", "profiles.tsv", "initial_genome.tsv"):
         assert _lines(tmp_path / "w1" / name) == _lines(tmp_path / "w4" / name)
-
-
-def test_stream_rejects_driven_rate(species_for_genomes, tmp_path):
-    habitat = simulate_discrete(species_for_genomes, states=["a", "b"], switch=0.8, seed=2)
-    with pytest.raises(ValueError, match="streamed run cannot handle this"):
-        simulate_genomes_family(species_for_genomes, parallel=2, stream_to=tmp_path,
-                                duplication=0.5, loss=0.25 * mod.DrivenBy(habitat, {"a": 2.0, "b": 1.0}),
-                                origination=0.2, initial_families=20, seed=5)
 
 
 def test_stream_outputs_arg_needs_stream_to(species_for_genomes):
