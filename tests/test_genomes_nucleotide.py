@@ -1726,7 +1726,9 @@ def test_write_defaults_to_every_table(tmp_path):
     written = {p.name for p in tmp_path.iterdir()}
     assert {"genome_events.tsv", "block_events.tsv", "genes.tsv", "blocks.tsv",
             "initial_genome.tsv", "chromosome_events.tsv"} <= written
-    assert any(p.name.startswith("gene_tree_fam") for p in tmp_path.iterdir())
+    # gene trees, gff and bed are one file per family or per node, so each gets its own directory
+    assert any(p.name.startswith("gene_tree_fam") for p in (tmp_path / "gene_trees").iterdir())
+    assert {"gene_trees", "gff", "bed"} <= written
 
 
 def test_written_blocks_tile_every_chromosome_of_every_node(tmp_path):
@@ -1928,13 +1930,18 @@ def test_gff_and_bed_are_written_for_every_genome_and_name_the_fasta_records(tmp
     g = _export_run(tmp_path)
     simulate_sequences(g, model=jc69(), substitution=0.05, seed=5).write(tmp_path)
     labels = [node_label(i) for i in g.genomes] + ["initial"]
-    assert {p.stem for p in tmp_path.glob("genome_*.gff")} == {f"genome_{lab}" for lab in labels}
-    assert {p.stem for p in tmp_path.glob("genome_*.bed")} == {f"genome_{lab}" for lab in labels}
+    assert {p.stem for p in (tmp_path / "gff").glob("genome_*.gff")} == \
+           {f"genome_{lab}" for lab in labels}
+    assert {p.stem for p in (tmp_path / "bed").glob("genome_*.bed")} == \
+           {f"genome_{lab}" for lab in labels}
     for lab in labels:
-        fasta = {ln[1:] for ln in (tmp_path / f"genome_{lab}.fasta").read_text().splitlines()
+        fasta = {ln[1:] for ln in
+                 (tmp_path / "genomes" / f"genome_{lab}.fasta").read_text().splitlines()
                  if ln.startswith(">")}
-        bed = {ln.split("\t")[0] for ln in (tmp_path / f"genome_{lab}.bed").read_text().splitlines()}
-        gff = {ln.split("\t")[0] for ln in (tmp_path / f"genome_{lab}.gff").read_text().splitlines()
+        bed = {ln.split("\t")[0]
+               for ln in (tmp_path / "bed" / f"genome_{lab}.bed").read_text().splitlines()}
+        gff = {ln.split("\t")[0]
+               for ln in (tmp_path / "gff" / f"genome_{lab}.gff").read_text().splitlines()
                if not ln.startswith("#")}
         assert bed == fasta and gff <= fasta
 
@@ -1943,7 +1950,7 @@ def test_bed_tiles_the_genome_and_names_each_block_by_its_ancestry(tmp_path):
     g = _export_run(tmp_path)
     for node_id, genome in g.genomes.items():
         rows = [ln.split("\t") for ln in
-                (tmp_path / f"genome_{node_label(node_id)}.bed").read_text().splitlines()]
+                (tmp_path / "bed" / f"genome_{node_label(node_id)}.bed").read_text().splitlines()]
         assert len(rows) == sum(len(c.blocks) for c in genome.chromosomes)
         at = collections.defaultdict(int)
         for (chrom, start, end, name, _score, strand) in rows:
@@ -1961,7 +1968,7 @@ def test_gff_gives_every_gene_unique_id_right_coordinates_and_the_strand_it_now_
     flipped = 0
     for node_id, genome in g.genomes.items():
         rows = [ln.split("\t") for ln in
-                (tmp_path / f"genome_{node_label(node_id)}.gff").read_text().splitlines()
+                (tmp_path / "gff" / f"genome_{node_label(node_id)}.gff").read_text().splitlines()
                 if not ln.startswith("#")]
         genes = [(c, at, b) for c in genome.chromosomes
                  for at, b in [(sum(x.length for x in c.blocks[:i]), c.blocks[i])
@@ -1986,7 +1993,7 @@ def test_a_gff_we_wrote_reads_back_through_our_own_gff_reader(tmp_path):
     from zombi2.genomes.gff import read_gff
 
     g = _export_run(tmp_path, inversion=0.0, duplication=0.0, loss=0.0)   # nothing moved yet
-    lengths, genes = read_gff(tmp_path / "genome_initial.gff")
+    lengths, genes = read_gff(tmp_path / "gff" / "genome_initial.gff")
     chrom = g.initial_genome.chromosomes[0]
     assert lengths == {f"initial_chr{chrom.id}": chrom.length}
     declared = sorted((a, b) for (_src, a, b) in g.gene_spans.values())

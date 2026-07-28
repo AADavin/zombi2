@@ -26,9 +26,9 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
                                   _read_tip_fates, _write_params_log, check_stale_downstream,
                                   clear_stale_downstream, conditioned_levels, default_outputs,
-                                  defaults_used, guidance, level_dir, parallel_from_args,
-                                  record_conditioning, resolve_tree, sibling_fates, warn,
-                                  warn_if_fates_were_inferred)
+                                  defaults_used, guidance, input_digests, level_dir,
+                                  parallel_from_args, record_conditioning, resolve_tree,
+                                  sibling_fates, warn, warn_if_fates_were_inferred)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -465,16 +465,11 @@ def run(args, parser):
     # one, so read it from `tree` there. The rest of the CLI's bookkeeping is identical either way.
     complete_tree = tree if streaming else result.complete_tree
     if not streaming:
-        # the many-files-per-run outputs each get their own subdirectory (unless --flat): gene trees are
-        # one Newick per family, and gff/bed are one file per node — a hundred families or nodes is a
-        # hundred files, which would bury the handful of TSVs otherwise
-        grouped = ("gene_trees", "gff", "bed")
+        # The many-files-per-run outputs (gene trees, gff, bed) get a subdirectory apiece, and
+        # `write` is where that is decided — so a run written from Python has this layout too, and
+        # --flat is simply passed through rather than being a second layout the CLI knows about.
         wanted = tuple(args.write) if args.write else default_outputs(result)
-        if rest := [o for o in wanted if o not in grouped]:
-            result.write(out, outputs=rest)
-        for sub in grouped:
-            if sub in wanted:
-                result.write(level_dir(out, sub, args.flat), outputs=(sub,))
+        result.write(out, outputs=wanted, flat=args.flat)
     # The events index against the tree canonicalised to n<id> labels, so the run needs that exact
     # tree to be replayable. A run grown here already has it — `zombi2 species` wrote the identical
     # file — so only a run reading its tree from elsewhere (--from) needs a copy, and it goes where
@@ -513,6 +508,11 @@ def run(args, parser):
     if not args.flat:                             # record which same-run levels drove a rate (if any),
         record_conditioning(out, conditioned_levels(   # so re-running one of them knows it orphans this
             args.run, (args.duplication, args.transfer, args.loss, args.origination, args.transfer_to)))
-    _write_params_log(os.path.join(out, "genomes.log"),
-                      args, summary, effective={"write": list(wanted)})
+    _write_params_log(os.path.join(out, "genomes.log"), args, summary,
+                      effective={"write": list(wanted)},
+                      inputs=input_digests(tree_path, args.tip_fates,
+                                           os.path.join(os.path.dirname(tree_path),
+                                                        "species_fates.tsv"),
+                                           args.duplication, args.transfer, args.loss,
+                                           args.origination, args.transfer_to))
     return 0

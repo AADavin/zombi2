@@ -72,7 +72,8 @@ def test_write_produces_events_and_profiles(tmp_path):
     # and a gene tree per family
     written = {p.name for p in tmp_path.iterdir()}
     assert {"genome_events.tsv", "profiles.tsv", "genomes.tsv"} <= written
-    assert any(n.startswith("gene_tree_fam") for n in written)
+    # the gene trees are two files per family, so they get a directory of their own
+    assert [p.name for p in (tmp_path / "gene_trees").iterdir() if p.name.startswith("gene_tree_fam")]
     ev = (tmp_path / "genome_events.tsv").read_text().splitlines()
     assert ev[0].split("\t") == ["time", "kind", "lineage", "family", "copy", "parent", "recipient",
                                  "donor", "event"]

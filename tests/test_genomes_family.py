@@ -502,9 +502,9 @@ def test_write_gene_trees_emits_one_newick_per_family():
         out = pathlib.Path(d)
         g.write(out, outputs=("gene_trees",))
         for fam, gt in g.gene_trees.items():
-            complete = out / f"gene_tree_fam{fam}_complete.nwk"
+            complete = out / "gene_trees" / f"gene_tree_fam{fam}_complete.nwk"
             assert complete.read_text().strip() == gt.to_newick("complete")
-            extant = out / f"gene_tree_fam{fam}_extant.nwk"
+            extant = out / "gene_trees" / f"gene_tree_fam{fam}_extant.nwk"
             # a family with no survivor has no extant tree, and writes no file for it
             assert extant.exists() == (gt.to_newick("extant") is not None)
 
@@ -565,6 +565,33 @@ def test_family_speed_moves_every_rate_of_a_family_together():
     sx = sum((a - mx) ** 2 for a in xs) ** 0.5
     sy = sum((b - my) ** 2 for b in ys) ** 0.5
     assert cov / (sx * sy) > 0.3          # a fast family is fast at everything
+
+
+def test_the_carried_family_weights_match_a_full_recompute(monkeypatch):
+    # The per-lineage multiplier sums are carried across events and only the touched lineage is
+    # rebuilt, which is what keeps the weighted path off a quadratic. That is only sound while the
+    # carried arrays say what a full recompute would say — so check exactly that, on every event of
+    # a real run, with every mutation in play (duplication, loss, origination, transfer with
+    # replacement, and a cap that makes some events no-ops).
+    from zombi2.genomes.family import _FamilyWeights, _sum_mult   # (the module, not genomes.family)
+
+    real, checked = _FamilyWeights.current, []
+
+    def current(self, gen):
+        out = real(self, gen)
+        for m, _keys, arr in self._groups:
+            assert arr == [_sum_mult(m, g) for g in gen]
+        checked.append(len(gen))
+        return out
+
+    monkeypatch.setattr(_FamilyWeights, "current", current)
+    sp = _tree(seed=4, n_extant=16, death=0.3)
+    g = simulate_genomes_family(sp, duplication=0.3, transfer=0.2, loss=0.3, origination=0.4,
+                                family_speed=mod.ByFamily(spread=0.7), replacement=True,
+                                max_family_size=Global(4), initial_families=40, seed=6)
+    assert len(checked) > 500                      # the run really did exercise the loop
+    assert {e.kind for e in g.events} == {"origination", "duplication", "loss", "transfer",
+                                          "speciation"}
 
 
 def test_by_family_is_refused_on_origination():

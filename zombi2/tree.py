@@ -37,6 +37,12 @@ class Tree:
     nodes: dict[int, Node]
     root: int
 
+    def __repr__(self) -> str:
+        # a summary, not the nodes: a dataclass repr of a 40-tip tree runs to thousands of characters
+        # and of a big one to megabytes, which is what an interactive session gets for typing its name
+        return (f"Tree({len(self.extant())} extant tips, {len(self.nodes)} nodes, "
+                f"rooted at n{self.root})")
+
     def leaves(self) -> list[Node]:
         """Every lineage with no descendants — extant **and** extinct."""
         return [n for n in self.nodes.values() if n.children is None]
@@ -168,6 +174,32 @@ def _assign_external_fates(leaves: list[Node], names: dict[int, str],
             "extinct lineages from early samples — declare each tip's fate with --tip-fates FILE "
             "(a 'tip_name<TAB>extant|extinct|unsampled' row per tip)")
     _assign_fates_from_map(leaves, names, tip_fates, source="--tip-fates")
+
+
+def as_tree(tree, *, level: str) -> Tree:
+    """The complete :class:`Tree` a level runs on, from a ``Tree`` or a
+    :class:`~zombi2.species.SpeciesResult`.
+
+    Every level opens with this, so what a level accepts is decided in one place — and anything else
+    is refused *here*, where the caller can see it, instead of surfacing later as an ``AttributeError``
+    about ``.nodes`` from inside an engine. A Newick string or a path to one is the mistake worth
+    naming: both are a tree to the person holding one, and neither is one until it is parsed."""
+    from .species import SpeciesResult                    # deferred: species is built on Tree
+
+    if isinstance(tree, SpeciesResult):
+        return tree.complete_tree
+    if isinstance(tree, Tree):
+        return tree
+    hint = ""
+    if isinstance(tree, str):
+        hint = (". That is a Newick string: parse it first with "
+                "tree, _ = zombi2.tree.read_newick(text)"
+                if ";" in tree or "(" in tree else
+                ". That looks like a path: read the file first, then "
+                "tree, _ = zombi2.tree.read_newick(text)")
+    raise TypeError(
+        f"the {level} level runs on a species tree, got {type(tree).__name__} — pass a "
+        f"zombi2.tree.Tree, or the SpeciesResult that simulate_species_tree returned{hint}")
 
 
 def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,

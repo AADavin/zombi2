@@ -60,6 +60,11 @@ class SpeciesResult:
     #: only when ``fossils`` was set; the fossil's lineage is not removed and is not in the extant tree
     fossils: list[tuple[int, float]] = field(default_factory=list)
 
+    def __repr__(self) -> str:
+        fossils = f", {len(self.fossils)} fossils" if self.fossils else ""
+        return (f"SpeciesResult({self.n_extant} extant tips, "
+                f"{len(self.complete_tree.nodes)} nodes{fossils}, seed={self.seed})")
+
     @property
     def n_extant(self) -> int:
         """The number of **observed** survivors — the extant tips. Under ``sampling < 1`` this is

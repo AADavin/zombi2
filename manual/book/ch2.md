@@ -176,8 +176,22 @@ Every command takes one positional argument, the **run directory**. It is both w
 
 Because the levels share one directory, a command refuses to re-run a level in place when a later level was built from it — that would leave the later output out of step. `--force` re-runs anyway and removes the now-stale downstream. The CLI covers all four levels; the coupled models are run from Python until their commands land.
 
+For a script driving the commands, the exit status separates the two ways a run can fail, in the usual convention: **2** is a usage error — an unknown flag, a missing required one, a value the parser cannot read — and **1** is a run that started and could not finish, such as a tree file that will not parse or a condition the model cannot meet. **0** is success. Warnings go to stderr and do not change the status; a warned run succeeded.
+
 ## Output in ZOMBI2
 
 Every run can be written with `result.write("out/", outputs=[...])`; with no `outputs` it writes that level's **default** set. The formats are uniform — **trees** in Newick, **tables and event logs** in TSV, **sequences** in FASTA. Branch lengths are in time everywhere except the sequence phylograms, which are in substitutions per site.
 
 At every level the **event log** (`*_events.tsv`) is the true, ordered history the run followed: the source of truth the summaries are derived from. Appendix B lists every file, level by level.
+
+## Reproducing a run
+
+One pseudo-random stream drives a whole run, and `seed` starts it. The same seed with the same parameters gives the same run, event for event. A run given no seed draws one and records it, so a run you did not think to seed can still be repeated — read the seed out of the log.
+
+A seed alone is not enough to identify a run, and it is worth being exact about what else is needed:
+
+- **The same ZOMBI2 version.** A seed names a position in a stream of draws, not a history, so anything that changes how many draws a run makes, or in what order, changes everything after it. Fixing a bug or adding an event does that. Optimisations are checked seed by seed against the code they replace, so a change that only makes a run faster does not move it — but across versions the realisation is not promised. The version is the first line of every run log, and `pip install zombi2==<that version>` is how to get an old run back.
+- **The same inputs, by content.** A run that reads a species tree, a `--tip-fates` table, or a `DrivenBy` driver file is reproducible only with those files. The log records each of them by SHA-256 as well as by name, so two runs from two different trees are never mistaken for each other.
+- **Serial or parallel.** `parallel=` is a separate engine, so a parallel run and a serial run of the same seed differ; both are valid draws of the same process. A parallel run is identical for any worker count (Chapter 4).
+
+The machine is not on that list. The generator is numpy's PCG64, whose stream follows from the seed and not from the operating system or the processor, and every draw ZOMBI2 makes comes from it.

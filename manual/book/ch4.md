@@ -225,9 +225,12 @@ out/profiles.tsv         family × extant-species copy counts
 Two more come with them, one row per gene copy and one Newick per family:
 
 ```
-out/genomes.tsv                    every node's genes, ancestors included
-out/gene_tree_fam<f>_*.nwk         each family's genealogy, complete and extant
+out/genomes.tsv                       every node's genes, ancestors included
+out/gene_trees/gene_tree_fam<f>_*.nwk each family's genealogy, complete and extant
 ```
+
+The gene trees are two files per family, so they get a directory of their own — from `.write()` as
+much as from the command, which is why the path above is the same either way.
 
 `genomes.tsv` is one row per gene copy, so a lineage carrying six genes has six rows:
 
