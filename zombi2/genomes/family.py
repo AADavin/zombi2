@@ -187,6 +187,60 @@ def _pick_copy_by_family(rng, genome, mult: dict[int, float]) -> int:
     return len(genome) - 1                    # float guard: r == total lands on the last copy
 
 
+def _sum_mult(mult: dict[int, float], genome) -> float:
+    """A lineage's per-family multipliers, summed over its live copies."""
+    return sum(mult[c.family] for c in genome)
+
+
+class _FamilyWeights:
+    """Each lineage's summed per-family multipliers, held as arrays parallel to ``gen``.
+
+    With per-family multipliers a per-copy rate is the unit rate times the sum of those multipliers
+    over a lineage's live copies, so the Gillespie loop needs that sum for **every** living lineage
+    on **every** event. Recomputing all of them each time costs the whole live gene pool per event,
+    which is quadratic in genome size — and it is nearly all waste, because one event changes one
+    lineage by one copy and leaves the rest untouched. So the sums are kept here across events and
+    only the lineage an event actually touched is rebuilt. Rates that share a multiplier table
+    (:func:`simulate_genomes_family` hands the same dict to each rate carrying no ``ByFamily`` of its
+    own) share the array too, and so are summed once between them rather than once each.
+
+    A rebuilt sum is the same expression over the same list in the same order, so it is the same
+    float to the last bit: a run is byte-for-byte what recomputing everything gave."""
+
+    def __init__(self, mult: dict[str, dict[int, float]], gen) -> None:
+        by_table: dict[int, tuple[dict[int, float], list[str]]] = {}
+        for key, m in mult.items():
+            by_table.setdefault(id(m), (m, []))[1].append(key)
+        #: (multipliers, the rates using them, their shared per-lineage sums)
+        self._groups = [(m, keys, [_sum_mult(m, g) for g in gen]) for m, keys in by_table.values()]
+        #: rate → its sums; the arrays are only ever mutated in place, so this stays valid
+        self._view = {key: arr for _m, keys, arr in self._groups for key in keys}
+        self._dirty: set[int] = set()
+
+    def current(self, gen) -> dict[str, list[float]]:
+        """The sums, with any lineage marked by :meth:`touched` rebuilt first."""
+        for k in self._dirty:
+            for m, _keys, arr in self._groups:
+                arr[k] = _sum_mult(m, gen[k])
+        self._dirty.clear()
+        return self._view
+
+    def touched(self, k: int) -> None:
+        """Lineage ``k``'s genome changed: rebuild its sums on the next :meth:`current`."""
+        self._dirty.add(k)
+
+    # enter/retire arrive only from the schedule, and the event branch always loops back through
+    # current() before reaching it, so these two never see a pending mark.
+    def entered(self, genome) -> None:
+        for m, _keys, arr in self._groups:
+            arr.append(_sum_mult(m, genome))
+
+    def retired(self, k: int) -> None:
+        for _m, _keys, arr in self._groups:
+            arr[k] = arr[-1]            # mirror _live.retire's swap-remove, or the arrays desync
+            arr.pop()
+
+
 def _driven_mods(rate) -> list:
     """The :class:`~zombi2.rates.modifiers.DrivenBy` modifiers a rate carries, or ``[]`` when it is a
     plain number/scope/OnTime. A non-empty list means the rate is *per-lineage*: each lineage's factor
@@ -273,11 +327,12 @@ def _at_cap(genome, family: int, cap: int | None) -> bool:
 
 def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
                  transfer_to, replacement, self_transfer, depth, to_traj=None, cap=None,
-                 groups=None) -> int:
+                 groups=None) -> tuple[int, int | None]:
     """The copy ``jd`` of the donor lineage ``kd`` transfers to a contemporaneous recipient lineage.
     The donor is picked by the caller (uniformly across the copy pool, or weighted by lineage when
     the transfer rate is driven), the recipient by ``transfer_to``. Returns the change in total copy
-    count: +1 additive, 0 replacement (the arriving copy displaces a resident).
+    count (+1 additive, 0 replacement — the arriving copy displaces a resident) and **which** lineage
+    received it, or ``None`` when nothing happened.
 
     **No eligible recipient ⇒ nothing happens.** Under a driven ``transfer_to`` a candidate mapped to
     weight 0 cannot receive, and at some instants that is every candidate. The event is then dropped
@@ -288,15 +343,17 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
     cand = [k for k in range(len(alive)) if self_transfer or k != kd]
     kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_traj, groups)
     if kr is None:                                     # every candidate weighs 0 — no-op (see above)
-        return 0
+        return 0, None
     src = gen[kd][jd]
     fam = src.family
     recipient = alive[kr]
     rg = gen[kr]
     if _at_cap(rg, fam, cap):     # the recipient is full of this family: same thinning as above
-        return 0
+        return 0, None
     # the donor gene ends; two fresh copies descend from it (ZOMBI1 re-id): the continuation on the
     # donor branch and the transferred copy on the recipient branch — a horizontal edge in the gene tree.
+    # The donor swaps one copy for another of the same family, so only the recipient's genome changes
+    # composition — which is what the caller has to mark for the per-family weights.
     cont, xfer = new_copy(fam), new_copy(fam)
     gen[kd][jd] = cont
     delta = 1
@@ -313,7 +370,7 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
     events.append(Event(t, "transfer", donor, fam, cont.id, parent=src.id, donor=donor))
     events.append(Event(t, "transfer", recipient, fam, xfer.id, parent=src.id, recipient=recipient,
                         donor=donor))
-    return delta
+    return delta, kr
 
 
 @without_cyclic_gc
@@ -514,7 +571,12 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
               "transfer": next((m for m in tra.modifiers if isinstance(m, ByFamily)), None),
               "loss": next((m for m in los.modifiers if isinstance(m, ByFamily)), None)}
     any_family = family_speed is not None or any(fam_by.values())
-    fam_mult: dict[str, dict[int, float]] = {key: {} for key in fam_by}
+    # A rate with no ByFamily of its own carries family_speed and nothing else, so every such rate
+    # holds the same multiplier for the same family: one table shared between them, which is what
+    # lets _FamilyWeights sum them once rather than once per rate.
+    speed_only: dict[int, float] = {}
+    fam_mult: dict[str, dict[int, float]] = {
+        key: ({} if m is not None else speed_only) for key, m in fam_by.items()}
 
     def new_family() -> int:
         nonlocal family_counter
@@ -587,6 +649,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         label = to_mod.source if isinstance(to_mod.source, str) else f"<{type(to_mod.source).__name__}>"
         check_kernel_fires(to_mod.mapping, to_traj.states(), source_label=label)
     any_driven = bool(rate_keys)
+    # the per-family weight sums, carried across events rather than rebuilt each time (see the class)
+    weights = _FamilyWeights(fam_mult, gen) if any_family else None
 
     # the species tree's schedule is the run's spine: one entry per speciation/extinction, so how
     # far through it we are is how far through the tree the genomes have got
@@ -609,8 +673,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             # unit rate times the sum of those multipliers over the live copies — and the copy has
             # to be drawn with the same weights, or the rates would say one thing and the picking
             # another. Summed per lineage, so the existing weighted-lineage pick can be reused.
-            fw = {key: [sum(fam_mult[key][c.family] for c in gen[k]) for k in range(k_alive)]
-                  for key in fam_mult}
+            fw = weights.current(gen)
             unit = {"duplication": dup.effective(copies=1, lineages=1, time=t),
                     "loss": los.effective(copies=1, lineages=1, time=t),
                     "transfer": tra.effective(copies=1, lineages=1, time=t) if can_xfer else 0.0}
@@ -661,6 +724,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     if not _at_cap(gen[k], gen[k][j].family, cap):
                         _duplicate(gen[k], j, tree.nodes[alive[k]], t, events, new_copy)
                         total_copies += 1
+                        if weights is not None:
+                            weights.touched(k)
                 elif r < r_dup + r_los:
                     if w_los is not None:
                         k = weighted_index(rng, w_los, r_los)
@@ -670,11 +735,15 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                         k, j = _pick_copy(rng, gen, n)
                     _lose_at(gen[k], j, tree.nodes[alive[k]], t, events)
                     total_copies -= 1
+                    if weights is not None:
+                        weights.touched(k)
                 elif r < r_dup + r_los + r_org:
                     k = (weighted_index(rng, w_org, r_org) if w_org is not None
                          else int(rng.integers(k_alive)))  # origination is per lineage
                     _originate(gen[k], tree.nodes[alive[k]], t, events, new_copy, new_family)
                     total_copies += 1
+                    if weights is not None:
+                        weights.touched(k)
                 else:
                     if w_tra is not None:  # driven: weighted DONOR lineage, then a uniform copy in it
                         kd = weighted_index(rng, w_tra, r_tra)
@@ -685,19 +754,25 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                               if any_family else int(rng.integers(len(gen[kd]))))
                     else:
                         kd, jd = _pick_copy(rng, gen, n)
-                    total_copies += _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
-                                                 transfer_to, replacement, self_transfer, depth,
-                                                 to_traj, cap, group_of)
+                    delta, kr = _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
+                                             transfer_to, replacement, self_transfer, depth,
+                                             to_traj, cap, group_of)
+                    total_copies += delta
+                    if weights is not None and kr is not None:
+                        weights.touched(kr)   # only the recipient's composition changed (see there)
                 continue
 
         if horizon == next_species:  # advance to the tree's next event(s); process the whole tie-batch
             t = next_species
             while si < len(schedule) and schedule[si][0] == t:
                 i = schedule[si][1]
-                g = gen[pos[i]]
+                k_out = pos[i]
+                g = gen[k_out]
                 genomes[i] = tuple(g)  # finalise this lineage (extant, extinct, or unsampled)
                 total_copies -= len(g)
-                retire(alive, gen, pos, pos[i])
+                retire(alive, gen, pos, k_out)
+                if weights is not None:
+                    weights.retired(k_out)
                 node = tree.nodes[i]
                 if node.children is not None:  # a speciation: each gene re-ids into each daughter
                     for c in node.children:
@@ -707,6 +782,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                             child_genome.append(nc)
                             events.append(Event(t, "speciation", c, old.family, nc.id, parent=old.id))
                         enter(alive, gen, pos, c, child_genome)
+                        if weights is not None:
+                            weights.entered(child_genome)
                         total_copies += len(child_genome)
                 si += 1
         else:
