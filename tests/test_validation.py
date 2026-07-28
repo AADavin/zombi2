@@ -16,7 +16,10 @@ So each test here computes a quantity with a **closed form** and checks the run 
   branch length;
 - duplication, transfer and loss are counted **per copy**, so by the compensator identity their
   expected counts are the rate times the total gene-copy-time — one test that pins the units *and*
-  the scope of all three at once.
+  the scope of all three at once;
+- inversion breakpoints fall **uniformly** around a chromosome, which on a ring is the statement that
+  the arcs they cut are ``Dirichlet(1, …, 1)``, and their extent has the geometric *shape* its mean
+  implies rather than merely the right average.
 
 **Every test is deterministic.** The seeds are fixed, so a "statistical" test here cannot flake: it
 computes one number and compares it to one expectation. The tolerances are wide (``|z| < 4``) because
@@ -37,7 +40,8 @@ import math
 
 import numpy as np
 
-from zombi2.genomes import simulate_genomes_family
+from zombi2.genomes import simulate_genomes_family, simulate_genomes_ordered
+from zombi2.genomes.ordered import Inversion
 from zombi2.species import simulate_species_tree
 
 #: How far an observation may sit from its closed form before the test fails, in standard errors.
@@ -161,6 +165,52 @@ def test_origination_is_counted_per_lineage():
         # Poisson: variance equals the mean
         assert 0.7 < counts.var(ddof=1) / expected < 1.4, (
             f"origination={rate}: variance {counts.var(ddof=1):.2f} against mean {expected:.2f}")
+
+
+def test_inversion_breakpoints_are_uniform_around_the_chromosome():
+    """Where an inversion lands, and how much it takes.
+
+    A rearrangement model is only neutral if its breakpoints fall **uniformly**: a sampler that
+    favoured the middle of the array, or its ends, would still produce plausible-looking genomes
+    while quietly making some gene orders unreachable, and no invariant on the resulting genome would
+    notice. Uniform breakpoints on a ring are the statement that the arcs they cut are
+    ``Dirichlet(1, …, 1)``; the chromosome here is discrete, so the same statement is that the counts
+    per starting position are multinomial with equal probabilities — a chi-square.
+
+    The **extent** is checked for its shape rather than its mean, which
+    ``test_realised_extent_on_a_circle_matches_the_nominal_one`` already pins: a geometric of mean M
+    puts ``1/M`` of its weight on 1 and ``(1-1/M)/M`` on 2, and a distribution with the right average
+    but the wrong spread would pass on the mean alone and fail here.
+
+    Circular, and with no duplication or loss, so the gene count stays fixed and every position is
+    equally available for the whole run."""
+    genes, mean_extent = 60, 6.0
+    tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=10, seed=1).complete_tree
+    starts, lengths = [], []
+    for s in range(6):
+        run = simulate_genomes_ordered(tree, initial_families=genes, chromosomes=1,
+                                       topology="circular", inversion=3.0,
+                                       inversion_extent=mean_extent, seed=s)
+        for r in run.rearrangements:
+            if isinstance(r, Inversion):
+                starts.append(r.start)
+                lengths.append(r.length)
+    starts, lengths = np.array(starts), np.array(lengths)
+    assert len(starts) > 5000, "too few inversions to say anything"
+
+    observed = np.bincount(starts, minlength=genes)
+    assert len(observed) == genes, "an inversion started outside the chromosome"
+    expected = len(starts) / genes
+    chi2 = float(((observed - expected) ** 2 / expected).sum())
+    df = genes - 1
+    assert abs((chi2 - df) / math.sqrt(2 * df)) < Z_MAX, (
+        f"breakpoints are not uniform around the ring: chi2 {chi2:.1f} on {df} df")
+
+    for k, p in ((1, 1 / mean_extent), (2, (1 - 1 / mean_extent) / mean_extent)):
+        seen = (lengths == k).mean()
+        se = math.sqrt(p * (1 - p) / len(lengths))
+        assert abs((seen - p) / se) < Z_MAX, (
+            f"P(extent = {k}) is {seen:.4f}, expected {p:.4f} for a geometric of mean {mean_extent}")
 
 
 def test_duplication_transfer_and_loss_are_counted_per_copy():
