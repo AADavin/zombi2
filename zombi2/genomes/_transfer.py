@@ -7,9 +7,9 @@ the numbers in it are per-candidate weights, normalised across the contemporaneo
 change neither how fast nor how many transfers happen, only **who** receives. Three rules:
 
 - ``"uniform"`` — every contemporaneous lineage gets equal weight;
-- :class:`Distance` — weight by relatedness (closer relatives likelier), which needs the tree's mean
+- `Distance` — weight by relatedness (closer relatives likelier), which needs the tree's mean
   root-to-tip time to stay scale-free;
-- :class:`~zombi2.rates.modifiers.DrivenBy` — weight by **another level**: candidate ``k``'s weight is
+- `DrivenBy` — weight by **another level**: candidate ``k``'s weight is
   the mapping of the driver's value on lineage ``k`` at this instant (a trait that makes a lineage
   competent to take DNA up). Wired for the family resolution only.
 """
@@ -42,10 +42,10 @@ class Distance:
 @dataclass
 class Clades:
     """A ``transfer_to`` weighting by **named clades** — the topological, *donor-conditioned* sibling of
-    :class:`Distance`. Each group is a clade of the species tree, and a
-    :class:`~zombi2.rates.mapping.Between` kernel weights a candidate recipient by the **pair** (donor's
+    `Distance`. Each group is a clade of the species tree, and a
+    `Between` kernel weights a candidate recipient by the **pair** (donor's
     clade, recipient's clade), so a transfer can be steered to run *between* two clades rather than
-    within them — which the per-recipient weight of a :class:`~zombi2.rates.modifiers.DrivenBy` cannot
+    within them — which the per-recipient weight of a `DrivenBy` cannot
     express::
 
         transfer_to = Clades({"A": ["n12", "n27"], "B": 40},
@@ -162,17 +162,17 @@ def resolve_groups(tree, groups) -> dict:
 def recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_traj=None, groups=None):
     """Pick a recipient lineage index (into ``alive``) from the candidate indices ``cand`` by the
     ``transfer_to`` rule: ``"uniform"`` gives every contemporaneous lineage equal weight; a
-    :class:`Distance` weights by relatedness (closer relatives likelier); a :class:`Clades` weights by
+    `Distance` weights by relatedness (closer relatives likelier); a `Clades` weights by
     the kernel on (donor's clade, candidate's clade), read from the precomputed ``groups`` map; a
-    :class:`~zombi2.rates.modifiers.DrivenBy` weights by the driver's value on each candidate, read
+    `DrivenBy` weights by the driver's value on each candidate, read
     from ``to_traj`` (the trajectory the engine resolved for that source) — and, with a
-    :class:`~zombi2.rates.mapping.Between` mapping, by the donor's value too.
+    `Between` mapping, by the donor's value too.
 
     Returns ``None`` — "nobody can receive" — when a driven weighting gives **every** candidate a
     weight of 0. The caller must then make the event a **no-op**: leaving it unrecorded is exactly the
     model in which the transfer rate itself drops to zero while no eligible recipient exists, because
     rejecting an event whose acceptance depends only on the current state is Poisson thinning, and a
-    rejected event changes nothing (see :func:`~zombi2.genomes._do_transfer`)."""
+    rejected event changes nothing (see `_do_transfer()`)."""
     if transfer_to == "uniform":
         return cand[int(rng.integers(len(cand)))]
     if isinstance(transfer_to, Clades):
@@ -221,7 +221,7 @@ def recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_tra
 
 
 def mean_root_to_tip(tree) -> float:
-    """The tree's mean root-to-tip time — the timescale that makes :class:`Distance` decay scale-free.
+    """The tree's mean root-to-tip time — the timescale that makes `Distance` decay scale-free.
     Over the extant tips (all leaves if none survive); 1.0 for a degenerate zero-height tree."""
     root_t = tree.nodes[tree.root].birth_time
     tips = tree.extant() or tree.leaves()

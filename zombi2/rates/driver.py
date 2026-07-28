@@ -1,4 +1,4 @@
-"""A conditioned :class:`~zombi2.rates.modifiers.DrivenBy`'s file-backing (SPEC §2).
+"""A conditioned `DrivenBy`'s file-backing (SPEC §2).
 
 When ``DrivenBy``'s ``source`` is a **filename**, the coupling is *conditioned*: the driver was grown
 first and written to a file, and two ordinary runs in order do the rest
@@ -9,13 +9,13 @@ own: it *folds into the target level's* run; only genuinely-joint models get a d
 ``zombi2.joint``.)
 
 The driver file is the trait **event log** (``trait_events.tsv``, written by
-:meth:`zombi2.traits.TraitsResult.write` with ``outputs=("events",)``): a ``root`` row giving the
+`zombi2.traits.TraitsResult.write()` with ``outputs=("events",)``): a ``root`` row giving the
 initial state, then every switch — ``time · kind · lineage · from · to``. The driver ran on the same
 complete tree the target now runs on, so replaying the log **against that tree** rebuilds each
 lineage's branch as constant stretches (a discrete driver switches *mid-branch*, so this is the exact
-stochastic character map, not one value per branch). :class:`DriverTrajectory` then answers both
-*what is the driver on this lineage now?* (:meth:`~DriverTrajectory.value`) and *when does it next
-change?* (:meth:`~DriverTrajectory.next_change`, so the target's Gillespie steps at each switch).
+stochastic character map, not one value per branch). `DriverTrajectory` then answers both
+*what is the driver on this lineage now?* (`value()`) and *when does it next
+change?* (`next_change()`, so the target's Gillespie steps at each switch).
 
 The join key is the **species node id**: ``node n7`` in the log is lineage 7 in the target run.
 """
@@ -29,11 +29,11 @@ import pathlib
 
 class DriverTrajectory:
     """A driver's value along every lineage, as a piecewise-constant function of time — the
-    per-lineage lookup a conditioned :class:`~zombi2.rates.modifiers.DrivenBy` reads.
+    per-lineage lookup a conditioned `DrivenBy` reads.
 
     Built from segments ``{node_id: [(start_time, state), …]}`` (each lineage's branch cut into
-    constant stretches, sorted by start). The engine calls :meth:`value` to get a lineage's driver
-    state at the current instant and :meth:`next_change` to learn when it next switches (a horizon
+    constant stretches, sorted by start). The engine calls `value()` to get a lineage's driver
+    state at the current instant and `next_change()` to learn when it next switches (a horizon
     breakpoint, so the Gillespie re-evaluates the driven rate exactly at each switch)."""
 
     def __init__(self, segments: dict[int, list[tuple[float, object]]]) -> None:
@@ -75,7 +75,7 @@ class DriverTrajectory:
 
 def load_driver(path, tree) -> DriverTrajectory:
     """Read a trait **event log** (``trait_events.tsv``: ``time · kind · lineage · from · to``, a
-    ``root`` row then the switches) and **replay it against ``tree``** into a :class:`DriverTrajectory`.
+    ``root`` row then the switches) and **replay it against ``tree``** into a `DriverTrajectory`.
 
     The log alone is not enough — a switch says *when* the state changed, not what each branch started
     in — so the tree supplies branch birth/end times and the topology, and the reconstruction walks
@@ -154,8 +154,8 @@ def _replay(tree, root_state, clado, switches) -> dict[int, list[tuple[float, ob
 
 
 def driver_from_result(result) -> DriverTrajectory:
-    """Build a :class:`DriverTrajectory` **directly from a discrete trait result** — the same
-    per-lineage lookup :func:`load_driver` builds from a file, but skipping the file round-trip. This
+    """Build a `DriverTrajectory` **directly from a discrete trait result** — the same
+    per-lineage lookup `load_driver()` builds from a file, but skipping the file round-trip. This
     is how a conditioned ``DrivenBy(habitat, …)`` reads a trait grown in the same Python session: still
     conditioning (the driver was grown first and is held fixed), just handed over in memory rather than
     written out. Needs a **discrete** trait (its stochastic character map cuts each branch into the
@@ -180,7 +180,7 @@ def driver_from_result(result) -> DriverTrajectory:
 
 
 def check_mapping_fires(mapping, available_states, *, source_label: str, exhaustive: bool = False) -> None:
-    """Raise if a **discrete** (:class:`~zombi2.rates.mapping.Table`) mapping's states do not line up
+    """Raise if a **discrete** (`Table`) mapping's states do not line up
     with the states the driver can take. Such a mismatch leaves lineages at the table's default factor —
     a rate that is never touched — so the run drifts from the model the log records. It is almost always
     a typo or a stale / mismatched driver, so it is refused. Continuous mappings (Curve / Scalar) apply
@@ -220,9 +220,9 @@ def check_mapping_fires(mapping, available_states, *, source_label: str, exhaust
 
 
 def resolve_driver(source, tree) -> DriverTrajectory:
-    """Resolve a conditioned ``DrivenBy`` ``source`` into a :class:`DriverTrajectory` — a **filename**
-    (str) via :func:`load_driver` (replayed against ``tree``, the target run's own species tree), or an
-    **in-memory** discrete trait result via :func:`driver_from_result` (which carries its own tree).
+    """Resolve a conditioned ``DrivenBy`` ``source`` into a `DriverTrajectory` — a **filename**
+    (str) via `load_driver()` (replayed against ``tree``, the target run's own species tree), or an
+    **in-memory** discrete trait result via `driver_from_result()` (which carries its own tree).
     Both are conditioning (the driver grown first); the object form just spares you the ``write``/read
     step in a single session."""
     if isinstance(source, str):

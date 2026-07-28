@@ -1,7 +1,7 @@
 """The gene-genealogy event log — the shared source of truth every resolution writes.
 
-An :class:`Event` records one moment in a gene family's history; the per-family gene trees are
-*derived* from a run's events (see :mod:`.gene_trees`), identically whether the genome was an
+An `Event` records one moment in a gene family's history; the per-family gene trees are
+*derived* from a run's events (see `gene_trees`), identically whether the genome was an
 multiset of families or an ordered set of chromosomes. Position and orientation are **not** here —
 they live in the genome snapshots and the rearrangement log — because an event is about gene
 *identity and descent*, which is resolution-blind. So this module is imported by both the family
@@ -69,7 +69,7 @@ _NODE_COLS = frozenset({"lineage", "recipient", "donor"})
 
 #: Columns holding a gene copy, written as ``g<id>``. This table names the species in its own column,
 #: so the copy cell carries the copy alone; a file with no such column names it
-#: ``n<species>_g<copy>`` instead (:func:`copy_label`). Either way the ``g<id>`` half is the same
+#: ``n<species>_g<copy>`` instead (`copy_label()`). Either way the ``g<id>`` half is the same
 #: token, so a copy joins across every file without translation. ``parent`` is a gene copy too (the
 #: source copy a duplication/transfer descends from), so it is g-labelled; the species columns are not.
 _GENE_COLS = frozenset({"copy", "parent", "event"})
@@ -82,7 +82,7 @@ def node_label(node_id: int | None) -> str:
 
 
 def node_from_label(cell: str) -> int:
-    """The inverse of :func:`node_label`. A bare integer is accepted too, so a log written before the
+    """The inverse of `node_label()`. A bare integer is accepted too, so a log written before the
     node columns carried their ``n`` still replays."""
     return int(cell[1:] if cell[:1] == "n" else cell)
 
@@ -92,7 +92,7 @@ def gene_label(copy_id: int | None) -> str:
 
     A table names the copy's species in a column of its own, so this is the whole cell. Where there is
     no such column — a Newick leaf, a FASTA record — the copy is written ``n<species>_g<copy>``
-    (:func:`copy_label`), which embeds this unchanged, so a copy still joins across files without
+    (`copy_label()`), which embeds this unchanged, so a copy still joins across files without
     translation. The ``g`` also keeps a copy id from being read as a bare number in a Newick leaf,
     where that is ambiguous with a support value or a branch length."""
     return "" if copy_id is None else f"g{copy_id}"
@@ -113,7 +113,7 @@ def copy_label(species: int | None, copy_id: int | None) -> str:
 
 
 def gene_from_label(cell: str) -> int:
-    """The inverse of :func:`gene_label`. A bare integer is accepted too, so a table written before
+    """The inverse of `gene_label()`. A bare integer is accepted too, so a table written before
     the copy columns carried their ``g`` still replays."""
     return int(cell[1:] if cell[:1] == "g" else cell)
 
@@ -136,8 +136,8 @@ def _cell(e: Event, col: str) -> str:
 
 def event_rows(events: list[Event]) -> list[str]:
     """The event rows **without** the header — one tab-joined line per event. The one row format, so a
-    streamed per-worker shard and :func:`events_tsv` cannot drift; the shard writes only rows and the
-    finalize prepends :data:`EVENTS_HEADER` once."""
+    streamed per-worker shard and `events_tsv()` cannot drift; the shard writes only rows and the
+    finalize prepends `EVENTS_HEADER` once."""
     return ["\t".join(_cell(e, c) for c in _COLS) for e in events]
 
 
@@ -147,9 +147,9 @@ def events_tsv(events: list[Event]) -> str:
 
 
 def events_from_tsv(text: str) -> list[Event]:
-    """Parse the TSV :func:`events_tsv` writes back into a ``list[Event]`` — the deserializer twin, so
+    """Parse the TSV `events_tsv()` writes back into a ``list[Event]`` — the deserializer twin, so
     a written ``genome_events.tsv`` can be replayed (a downstream level's gene trees are derived from
-    the log by :func:`~zombi2.genomes.gene_trees.gene_trees_from_events`). ``time`` is a float, the
+    the log by `gene_trees_from_events()`). ``time`` is a float, the
     id columns are ints, and the optional ``parent`` / ``recipient`` are ints or ``None`` (empty)."""
     lines = text.splitlines()
     if not lines:
@@ -187,7 +187,7 @@ _GENEALOGY = frozenset({"origination", "duplication", "loss", "transfer", "speci
 def _parse(lines: list[str], header: list[str]) -> list[Event]:
     """Read the rows by column **name**, so a table carrying more than the canonical columns parses
     unchanged and only the genealogy rows come back. ``event`` is derived from ``parent``/``copy``,
-    so it is written but never read back: there is one definition of it, on :class:`Event`."""
+    so it is written but never read back: there is one definition of it, on `Event`."""
     at = {c: i for i, c in enumerate(header)}
     events: list[Event] = []
     for lineno, raw in enumerate(lines[1:], 2):

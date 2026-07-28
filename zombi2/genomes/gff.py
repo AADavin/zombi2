@@ -72,9 +72,9 @@ def read_gff(source, *, trim_overlaps: bool = False) -> tuple[dict[str, int], li
 
     Genes are indivisible blocks laid end to end, so they may **touch but never overlap**. Real
     annotations do overlap, so pass ``trim_overlaps=True`` to shorten them instead of raising (see
-    :func:`trim_overlapping_genes`).
+    `trim_overlapping_genes()`).
 
-    Raises :class:`ValueError` on a malformed line, a gene outside its replicon, or — unless
+    Raises `ValueError` on a malformed line, a gene outside its replicon, or — unless
     ``trim_overlaps`` — two genes that overlap."""
     if isinstance(source, (str, pathlib.Path)):
         lines = pathlib.Path(source).read_text().splitlines()

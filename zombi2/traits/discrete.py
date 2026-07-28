@@ -192,12 +192,12 @@ def _simulate_threshold(tree, states, liability, threshold, start, correlation, 
 def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, threshold=None,
                       correlation=None, at_speciation=None, seed=None,
                       progress=False) -> TraitsResult:
-    """Evolve a discrete-state trait down a tree and return a :class:`TraitsResult`. Two mechanisms:
+    """Evolve a discrete-state trait down a tree and return a `TraitsResult`. Two mechanisms:
 
     - **Mk** (``switch=``) — a continuous-time Markov chain over the ``states``, simulated **exactly**
       by Gillespie along every branch, so each node's ``(state, duration)`` segments *are* the realized
       history (``.history``) and ``.events`` reads off the transitions. ``switch`` is a symmetric rate
-      (``0.1``), a ``{"marine->terrestrial": 0.1}`` dict, or a ``k×k`` matrix (see :func:`_q_matrix`).
+      (``0.1``), a ``{"marine->terrestrial": 0.1}`` dict, or a ``k×k`` matrix (see `_q_matrix()`).
       ``start`` is the root state (a label in ``states``; ``None`` draws one uniformly).
     - **Threshold** (``liability=`` + ``threshold=``) — the Wright–Felsenstein model: a discrete state
       read off an underlying continuous Brownian **liability** (variance-rate ``liability``), cut into
@@ -207,8 +207,8 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
       liabilities diffuse together (``Σ = D R D``) and each is cut by the shared thresholds. A threshold
       trait has no Gillespie map, so ``.history`` is ``None`` and ``.events`` empty.
 
-    ``tree`` is the **complete** species tree (a :class:`~zombi2.species.Tree` or
-    :class:`~zombi2.species.SpeciesResult`); the trait evolves on every lineage (convention B: the root
+    ``tree`` is the **complete** species tree (a `Tree` or
+    `SpeciesResult`); the trait evolves on every lineage (convention B: the root
     diffuses over its own branch), and ``.values`` reads the extant tips. On an Mk trait,
     ``at_speciation`` (a probability in ``[0, 1]``) adds an **on-speciation** shift — each daughter hops
     to a uniformly-chosen other state with that chance at every speciation. Deterministic given ``seed``.
@@ -281,7 +281,7 @@ class DiscreteTrait:
     ``simulate_discrete(tree, ...)`` is the runner that grows this on a *fixed*
     tree; a **joint** model instead takes this spec and grows the trait *with* the tree it drives
     (``joint.simulate_joint(trait=traits.discrete(...))``), so neither can be simulated first. Same
-    parameters as :func:`simulate_discrete` (the Mk half): ``states``, ``switch`` (the rate spec),
+    parameters as `simulate_discrete()` (the Mk half): ``states``, ``switch`` (the rate spec),
     ``start`` (the root state, ``None`` = uniform), ``at_speciation`` (the on-speciation shift
     probability)."""
 
@@ -292,7 +292,7 @@ class DiscreteTrait:
 
     def _resolve(self, rng):
         """Build the concrete CTMC the engine grows: ``(states_list, Q, start_index, shift_prob)`` —
-        the same setup :func:`simulate_discrete` does, so a joint run and a fixed-tree run share one
+        the same setup `simulate_discrete()` does, so a joint run and a fixed-tree run share one
         trait model. ``rng`` draws the root state when ``start`` is ``None``."""
         states = list(self.states)
         Q = _q_matrix(states, self.switch)
@@ -312,9 +312,9 @@ class DiscreteTrait:
 
 
 def discrete(*, states, switch=None, start=None, at_speciation=None) -> DiscreteTrait:
-    """A discrete-trait **process spec** — :class:`DiscreteTrait`, unexecuted — for a joint model to
+    """A discrete-trait **process spec** — `DiscreteTrait`, unexecuted — for a joint model to
     grow with the tree it drives (``joint.simulate_joint(trait=traits.discrete(states=[...], switch=...))``).
-    A thin bundle of :func:`simulate_discrete`'s Mk parameters; validated when the joint run resolves
+    A thin bundle of `simulate_discrete()`'s Mk parameters; validated when the joint run resolves
     it. (Threshold traits are not a driving process; there is no ``discrete`` spec for them.)"""
     states = list(states)
     if len(states) < 2:

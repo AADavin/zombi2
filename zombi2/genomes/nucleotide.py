@@ -160,8 +160,8 @@ _MISSING = object()
 class _CutsGene(Exception):
     """Raised when a breakpoint would fall **strictly inside a gene** — a **guard, not a control flow**.
 
-    Every breakpoint is now drawn from the legal set to begin with (:meth:`Chromosome._pick_legal_cut`,
-    :meth:`Chromosome._pick_arc_extent`), so this should never fire; if it does, a caller invented a
+    Every breakpoint is now drawn from the legal set to begin with (`Chromosome._pick_legal_cut()`,
+    `Chromosome._pick_arc_extent()`), so this should never fire; if it does, a caller invented a
     position instead of picking one, and failing loudly beats silently mangling a gene."""
 
 
@@ -179,10 +179,10 @@ def _split_block(b: Block, o: int) -> list[Block]:
 
 @dataclass
 class Chromosome:
-    """One replicon: an ordered list of :class:`Block`\\ s over a nucleotide coordinate axis, with an
+    """One replicon: an ordered list of `Block`\\ s over a nucleotide coordinate axis, with an
     ``id`` and a ``topology`` — ``"circular"`` (a ring, where coordinate ``length`` wraps to ``0`` and
     an arc may cross the origin) or ``"linear"`` (two ends, no wrap). Owns the per-chromosome
-    operations. Blocks are **not** merged after an event (see :class:`Block`): an event only ever
+    operations. Blocks are **not** merged after an event (see `Block`): an event only ever
     *splits*, so its endpoints stay as breakpoints and the copy lineages are never fused."""
 
     id: int
@@ -204,7 +204,7 @@ class Chromosome:
         return sum(1 for b in self.blocks if b.is_gene)
 
     def _check_cut(self, c: int) -> None:
-        """Raise :class:`_CutsGene` if a breakpoint at ``c`` would fall **strictly inside a gene**.
+        """Raise `_CutsGene` if a breakpoint at ``c`` would fall **strictly inside a gene**.
         Pure — mutates nothing — so a caller can test both ends of an arc *before* splitting either."""
         if c <= 0:
             return
@@ -221,7 +221,7 @@ class Chromosome:
     def _split_at(self, c: int) -> None:
         """Ensure a block boundary at physical coordinate ``c`` (``0 <= c <= length``). A no-op at the
         ends or an existing boundary; otherwise the block straddling ``c`` is split — unless that block
-        is a **gene**, which is indivisible, in which case :class:`_CutsGene` is raised (and nothing is
+        is a **gene**, which is indivisible, in which case `_CutsGene` is raised (and nothing is
         mutated) so the event redraws."""
         if c <= 0:
             return
@@ -272,7 +272,7 @@ class Chromosome:
         return out
 
     def _pick_legal_cut(self, rng) -> int:
-        """A **uniform** position from :meth:`_legal_cuts`."""
+        """A **uniform** position from `_legal_cuts()`."""
         cuts = self._legal_cuts()
         total = sum(hi - lo + 1 for lo, hi in cuts)
         if not total:
@@ -289,7 +289,7 @@ class Chromosome:
         ``start + d`` is **legal** (never strictly inside a gene), drawn with weight ``exp(-d/mean)``.
 
         This is the extent distribution you asked for, **restricted to the ends that exist** — sampled
-        directly from :meth:`_legal_cuts` rather than drawn and rejected, so nothing is ever wasted and
+        directly from `_legal_cuts()` rather than drawn and rejected, so nothing is ever wasted and
         no event silently vanishes because its retries ran out. On a gene-dense genome the realised
         extent therefore comes out *shorter* than ``mean``: a long stretch ending exactly where you
         asked often simply does not exist, so the arc stops at the nearest legal breakpoint instead.
@@ -394,7 +394,7 @@ class Chromosome:
 
         Each distinct copy lineage in the arc begets one fresh child (minted by ``new_copy``), so the
         tandem copy is new material of the same ancestry. Returns the ``(parent copy, child copy,
-        source, start, end)`` record per block — what a :class:`Duplication` carries — or ``None`` if
+        source, start, end)`` record per block — what a `Duplication` carries — or ``None`` if
         the arc is empty."""
         span = self._arc_range(start, length)
         if span is None:
@@ -412,7 +412,7 @@ class Chromosome:
 
     def delete(self, start: int, length: int) -> tuple | None:
         """Remove the arc ``[start, start+length)``. Returns the ``(copy, source, start, end)`` record
-        per block removed — what a :class:`Loss` carries — or ``None`` when the deletion does not
+        per block removed — what a `Loss` carries — or ``None`` when the deletion does not
         happen: an empty arc, a chromosome of under two nucleotides, or a cut that would strip the
         chromosome of its last gene (a chromosome never exists without one)."""
         if self.length < 2:
@@ -430,7 +430,7 @@ class Chromosome:
 
     def originate(self, at: int, length: int, source: int, copy: int, family: int) -> None:
         """Lay down a new ``length``-nucleotide **gene** of its own fresh ``source`` at position
-        ``at``. Indivisible from birth, like a declared gene. Raises :class:`_CutsGene` if ``at``
+        ``at``. Indivisible from birth, like a declared gene. Raises `_CutsGene` if ``at``
         falls inside an existing gene."""
         self._split_at(at)
         k = self._index_at(at)
@@ -438,7 +438,7 @@ class Chromosome:
 
     def excise(self, start: int, length: int) -> list | None:
         """Lift the arc ``[start, start+length)`` out of the chromosome and return its blocks (or
-        ``None`` for an empty arc). The other half of a transposition — see :meth:`place`."""
+        ``None`` for an empty arc). The other half of a transposition — see `place()`."""
         span = self._arc_range(start, length)
         if span is None:
             return None
@@ -451,7 +451,7 @@ class Chromosome:
         """Insert ``arc`` at position ``at``, reversed and strand-flipped if ``flipped``.
 
         ``at`` is a position in the chromosome **as it stands now** — for a transposition, that is
-        the genome *after* the arc was excised, which is shorter. Raises :class:`_CutsGene` if ``at``
+        the genome *after* the arc was excised, which is shorter. Raises `_CutsGene` if ``at``
         falls inside a gene."""
         if flipped:
             arc = [Block(b.source, b.start, b.end, -b.strand, b.copy, b.gene) for b in reversed(arc)]
@@ -460,8 +460,8 @@ class Chromosome:
         self.blocks[k:k] = arc
 
     def transpose(self, start: int, length: int, dest: int, flipped: bool = False) -> bool:
-        """Move the arc ``[start, start+length)`` to ``dest``, flipped or not — :meth:`excise` then
-        :meth:`place`, with the chromosome restored if the landing is not a legal cut.
+        """Move the arc ``[start, start+length)`` to ``dest``, flipped or not — `excise()` then
+        `place()`, with the chromosome restored if the landing is not a legal cut.
 
         ``dest`` is a position in the **remainder**, after the arc is lifted out (the engine picks it
         that way round, so a scripted call means the same thing an engine-drawn one does). Returns
@@ -496,7 +496,7 @@ class Chromosome:
 
 @dataclass
 class NucleotideGenome:
-    """A **karyotype**: an ordered list of :class:`Chromosome`\\ s. Its :attr:`length` is the total
+    """A **karyotype**: an ordered list of `Chromosome`\\ s. Its `length` is the total
     over all chromosomes; a length-scaled event lands on a chromosome in proportion to its bp."""
 
     chromosomes: list[Chromosome]
@@ -517,7 +517,7 @@ class NucleotideGenome:
 
     def _pick_legal_cut(self, rng) -> tuple[Chromosome, int] | None:
         """A uniform pick over the **whole genome's** legal breakpoints → ``(chromosome, physical
-        position)``. :meth:`Chromosome._legal_cuts` one scope up: it is where an event *starts*, as
+        position)``. `Chromosome._legal_cuts()` one scope up: it is where an event *starts*, as
         against where one lands, and both are the same set of positions.
 
         With no genes declared every position is legal and this is a plain uniform pick. ``None`` only
@@ -681,7 +681,7 @@ class Speciation:
 
 @dataclass
 class NucleotideGenomesResult:
-    """What :func:`simulate_genomes_nucleotide` returns: the ``complete_tree`` it ran on, the final
+    """What `simulate_genomes_nucleotide()` returns: the ``complete_tree`` it ran on, the final
     nucleotide ``genomes`` (karyotypes) at **every** node, the **copy-lineage genealogy** ``events``
     (``origination``, ``loss``, ``duplication``, ``transfer``, ``speciation`` — carrying the copy ids
     the gene-tree recovery reads), the ancestry-neutral ``rearrangements`` (inversion, translocation), the
@@ -699,25 +699,25 @@ class NucleotideGenomesResult:
     #: fixed for the whole run and is exactly the root-block that carries its gene tree.
     gene_spans: dict[int, tuple[int, int, int]] = field(default_factory=dict)
     #: ``{name: gene family id}`` for genes declared with a name (a GFF ``ID`` / ``Name``) — the handle
-    #: to look a named gene up in :attr:`gene_spans` / :attr:`gene_trees`. Empty for the even layout.
+    #: to look a named gene up in `gene_spans` / `gene_trees`. Empty for the even layout.
     gene_names: dict[str, int] = field(default_factory=dict)
     #: ``{gene family id: +1 / -1}`` — each declared gene's **coding** strand (which strand carries the
     #: ORF), as given by the GFF. This is annotation, *not* ancestry: it is fixed for the family and is
-    #: unrelated to :attr:`Block.strand`, which records whether a stretch has been inverted since the
+    #: unrelated to `Block.strand`, which records whether a stretch has been inverted since the
     #: root. The even layout declares every gene on ``+1``.
     gene_strands: dict[int, int] = field(default_factory=dict)
     #: The genome the run **started** with — the initial karyotype, laid down at the start of the root branch,
-    #: before any event. It is not in :attr:`genomes`, which holds a genome per *node*, and a node
+    #: before any event. It is not in `genomes`, which holds a genome per *node*, and a node
     #: sits at the **end** of its branch: the root branch is real simulated time, so
     #: ``genomes[root]`` is this genome plus whatever happened along the stem. It votes on the root
     #: partition like every other genome, so it can be reconstructed too — see
-    #: :meth:`initial_assembly`.
+    #: `initial_assembly()`.
     initial_genome: NucleotideGenome = field(default_factory=lambda: NucleotideGenome([]))
     #: ``{source: DNA}`` — the **initial sequence** the run was given, one entry per initial replicon,
     #: from ``fasta=`` paired with ``gff=``. Empty when no FASTA was given (then the sequence level
     #: draws the founding sequence from the model instead). A *de-novo* originated source is never
     #: here: it arose mid-run, so nothing was supplied for it. The letters live here, not in
-    #: :attr:`genomes` (which is pure ancestry) — the sequence level reads them as each block's
+    #: `genomes` (which is pure ancestry) — the sequence level reads them as each block's
     #: founding sequence, and an assembled genome then descends from exactly this input.
     initial_sequence: dict[int, str] = field(default_factory=dict)
 
@@ -741,7 +741,7 @@ class NucleotideGenomesResult:
         return self._recovered
 
     def _recover_blocks(self):
-        """The every-block recovery, cached: :attr:`block_trees` and :meth:`assembly` are two reads of
+        """The every-block recovery, cached: `block_trees` and `assembly()` are two reads of
         the same replay, and it is far too expensive to run twice."""
         if not hasattr(self, "_recovered_blocks"):
             self._recovered_blocks = _recover_gene_trees(self, every_block=True)
@@ -750,30 +750,30 @@ class NucleotideGenomesResult:
     @property
     def root_blocks(self) -> list[tuple[int, int, int]]:
         """The recovered **root partition**: ``(source, start, end)`` for each maximal never-cut
-        interval that some node still carries — one per :attr:`block_trees` entry (by index).
+        interval that some node still carries — one per `block_trees` entry (by index).
 
         Cut at the breakpoints of **every** node's genome, not only the extant leaves', which is what
-        lets any node be reconstructed (:meth:`assembly`) rather than the survivors alone."""
+        lets any node be reconstructed (`assembly()`) rather than the survivors alone."""
         return self._recover()[0]
 
     @property
     def block_trees(self) -> dict[int, GeneTree]:
         """``{root-block index: GeneTree}`` — a tree for **every** recovered root block, spacer as
-        well as genes, keyed by its index in :attr:`root_blocks`.
+        well as genes, keyed by its index in `root_blocks`.
 
-        :attr:`gene_trees` covers the declared genes; this covers the whole genome. A block never
+        `gene_trees` covers the declared genes; this covers the whole genome. A block never
         splits, so its size is fixed and its genealogy is in the event log just as a gene's is — the
         recovery is the same one, pointed at every block instead of a chosen few. That is what makes
         an ancestral genome reconstructable at any node rather than only at the loci you declared.
 
-        A gene's tree here has the **same topology and branch lengths** as its :attr:`gene_trees` one,
+        A gene's tree here has the **same topology and branch lengths** as its `gene_trees` one,
         but not the same ``g<id>`` leaf labels: segment ids are handed out as the recovery walks its
         targets, and walking every block numbers them differently from walking three. Use one accessor
         or the other within a piece of analysis — they are the same genealogy under different names."""
         return self._recover_blocks()[1]
 
     def block_of(self, family: int) -> int:
-        """The index in :attr:`root_blocks` of the block a declared **gene family** occupies — the join
+        """The index in `root_blocks` of the block a declared **gene family** occupies — the join
         between the two numbering schemes this resolution has.
 
         They are both plain ints over overlapping ranges, so mixing them up is silent: ``gene_spans``
@@ -799,18 +799,18 @@ class NucleotideGenomesResult:
     def assembly(self, node_id: int) -> dict[int, list[tuple[int, int, int]]]:
         """How this node's genome is built out of the recovered root blocks:
         ``{chromosome id: [(block, gene, strand), …]}`` in **physical order**, where ``block`` indexes
-        :attr:`root_blocks`, ``gene`` is the gene id that block's tree gives this node's copy (the
-        ``g<id>`` label in :attr:`block_trees`), and ``strand`` is ``+1`` read forward or ``-1``
+        `root_blocks`, ``gene`` is the gene id that block's tree gives this node's copy (the
+        ``g<id>`` label in `block_trees`), and ``strand`` is ``+1`` read forward or ``-1``
         reverse-complemented.
 
         To reconstruct a genome: pair each piece with its block's evolved sequence, flip the
         ``-1``\\ s, and concatenate. The sequence level does exactly that; nothing here knows about
         letters. **Every** node works — an extinct leaf and the root as readily as a surviving tip —
         which is what makes the whole history recoverable rather than only its leaves.
-        :meth:`initial_assembly` does the same for the genome the run started with.
+        `initial_assembly()` does the same for the genome the run started with.
 
         A piece is always a **whole** block, never part of one, because every node votes on where the
-        partition is cut (see :func:`_root_block_partition`): this node's own breakpoints are all in
+        partition is cut (see `_root_block_partition()`): this node's own breakpoints are all in
         it, so each of its blocks is a whole number of root blocks. What a block *is* cut into is one
         piece per root block it spans — and on a reversed block those come out in descending
         coordinate order, since physical order runs *down* the source."""
@@ -833,13 +833,13 @@ class NucleotideGenomesResult:
         return out
 
     def initial_assembly(self) -> dict[int, list[tuple[int, int]]]:
-        """:meth:`assembly` for :attr:`initial_genome`: ``{chromosome id: [(block, strand), …]}``.
+        """`assembly()` for `initial_genome`: ``{chromosome id: [(block, strand), …]}``.
 
-        No gene id here, unlike :meth:`assembly`, and that is the honest shape rather than a saving.
+        No gene id here, unlike `assembly()`, and that is the honest shape rather than a saving.
         The initial genome sits at the **start** of the root branch, before any event, so each of its
         blocks has exactly one sequence — the founding draw the sequence level records as
         ``founding[block]`` — and there is no copy to disambiguate. A gene id would in fact be *wrong*
-        here: the one :meth:`assembly` gives is the **last** gene a copy held, and for an initial copy
+        here: the one `assembly()` gives is the **last** gene a copy held, and for an initial copy
         that is at the far end of the stem. A loss on the stem can even end it, which is the same
         thing said louder."""
         return {cid: [(i, strand) for (i, _copy, strand) in pieces]
@@ -888,27 +888,27 @@ class NucleotideGenomesResult:
         """``{family: GeneTree}`` — the recovered gene trees.
 
         With **genes declared**, one tree per gene, keyed by its **gene family id** (see
-        :attr:`gene_spans`); the intergenic root-blocks keep their block ancestry in the log but are not
+        `gene_spans`); the intergenic root-blocks keep their block ancestry in the log but are not
         built into trees. With **no genes declared** the whole genome is one big intergene, so every
         recovered root-block is a family in its own right and the key is its index in
-        :attr:`root_blocks`. Every node votes on the partition, so a gene surviving only in lineages
+        `root_blocks`. Every node votes on the partition, so a gene surviving only in lineages
         that died still gets a tree — a complete one, with no extant tree to go with it. Only a gene
         lost from *every* node has no root-block and no tree."""
         return self._recover()[1]
 
     @property
     def genealogy(self) -> list[Event]:
-        """The run's genealogy as :class:`~zombi2.genomes.events.Event` — **the same table the family
+        """The run's genealogy as `Event` — **the same table the family
         and ordered resolutions write**, and what lands in ``genome_events.tsv``.
 
-        A nucleotide run's own record, :attr:`events`, is interval-shaped: a copy lineage covers an
+        A nucleotide run's own record, `events`, is interval-shaped: a copy lineage covers an
         *extent*, an event covers a sub-extent, and a duplication there mints a child without ending
         the parent (a split is not a birth). That is the right model for sequence, and the wrong shape
         for a gene tree. This is the translation onto the root-block partition, where a copy either
         covers a block in full or does not touch it — so a duplication *is* a bifurcation, writes two
         rows sharing a ``parent``, and the ids are gene ids: the ones the gene trees, the alignments
         and the homology tables use. It is what the recovery already builds to derive
-        :attr:`gene_trees`; writing it costs nothing extra."""
+        `gene_trees`; writing it costs nothing extra."""
         return self._recover()[3]
 
     def write(self, directory, outputs=("events", "genes", "blocks", "initial_genome",
@@ -917,13 +917,13 @@ class NucleotideGenomesResult:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → **two** tables, because a nucleotide run records two different things.
-          ``genome_events.tsv`` is the genealogy (:attr:`genealogy`) in the format *every* resolution
+          ``genome_events.tsv`` is the genealogy (`genealogy`) in the format *every* resolution
           writes, so one reader serves them all: one row per gene-tree edge, and a duplication,
           transfer or speciation writes two sharing a ``parent``. ``block_events.tsv`` is this
           resolution's own record — the copy-lineage log over **ancestral intervals** plus the
           ancestry-neutral rearrangements, one row per interval an event touched, so an event
           spanning several blocks writes several rows sharing a ``time`` and ``kind``. It is what
-          :func:`read_nucleotide_genomes` replays.
+          `read_nucleotide_genomes()` replays.
         - ``"blocks"`` → ``blocks.tsv``, every node's genome as its block mosaic (ancestors
           included, as for the ordered resolution's ``gene_order``). The one big file here: blocks
           are not kept maximal during a run, so a rearrangement-heavy genome carries far more of
@@ -1090,7 +1090,7 @@ _NUCLEOTIDE_EVENT_COLS = ("time", "kind", "lineage", "chromosome", "copy", "pare
 
 
 def _nucleotide_events_tsv(events, rearrangements=()) -> str:
-    """The run's whole history as one time-ordered table (see :data:`_NUCLEOTIDE_EVENT_COLS`).
+    """The run's whole history as one time-ordered table (see `_NUCLEOTIDE_EVENT_COLS`).
 
     An event here can span several blocks at once (a loss deletes an arc covering many), and each
     carries its own copy lineage and ancestral interval, so a flat table needs one row apiece. Rows
@@ -1204,7 +1204,7 @@ def _blocks_from_tsv(text: str) -> dict[int, NucleotideGenome]:
 
 def _initial_genome_from_tsv(text: str) -> NucleotideGenome:
     """``initial_genome.tsv`` → the genome the run started with. No ``lineage`` column: it is not a
-    node's (see :attr:`NucleotideGenomesResult.initial_genome`)."""
+    node's (see `NucleotideGenomesResult.initial_genome`)."""
     cols = ("chromosome", "position", "source", "start", "end", "strand", "copy", "gene")
     # columns after position: source, start, end, strand (ints), copy (a gene id g<n>), gene (int)
     return _karyotype([(int(c[0]), int(c[2]), int(c[3]), int(c[4]), int(c[5]),
@@ -1227,7 +1227,7 @@ def _genes_from_tsv(text: str):
 
 def _events_from_tsv(text: str) -> tuple[list, list]:
     """The nucleotide ``block_events.tsv`` → ``(genealogy, rearrangements)``, the inverse of
-    :func:`_nucleotide_events_tsv`.
+    `_nucleotide_events_tsv()`.
 
     An event that spanned several ancestral intervals was written as several rows, so the rows have to
     be regrouped. What identifies one event differs by kind, and getting it wrong merges two events or
@@ -1303,7 +1303,7 @@ def _events_from_tsv(text: str) -> tuple[list, list]:
 
 
 def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
-    """Rebuild a :class:`NucleotideGenomesResult` from the files a run wrote, so a later level can
+    """Rebuild a `NucleotideGenomesResult` from the files a run wrote, so a later level can
     replay it from disk. ``tree`` is the species tree it ran on.
 
     Reads ``blocks.tsv``, ``initial_genome.tsv``, ``block_events.tsv`` and ``genes.tsv`` — the four
@@ -1401,7 +1401,7 @@ def _initial_blocks(source, length, cp, intervals, new_family, gene_spans, gene_
 
 
 def _copy_chromosome(c: Chromosome, cid: int, copy_map: dict[int, int]) -> Chromosome:
-    """A daughter chromosome: a fresh id, a deep copy of the blocks (fresh :class:`Block` objects, so
+    """A daughter chromosome: a fresh id, a deep copy of the blocks (fresh `Block` objects, so
     a daughter's inversions never mutate the parent's genome), with every block's copy lineage
     re-minted through ``copy_map`` (parent copy id → this daughter's fresh copy id)."""
     return Chromosome(cid, c.topology,
@@ -1439,7 +1439,7 @@ def _do_duplication(g, node_id, t, duplication_extent, rng, events, new_copy) ->
     """Copy a geometric-length arc of a length-weighted chromosome **in tandem** (the copy inserted
     right after the arc). An ancestry-changing *birth*: the copied material now has an extra copy (same
     source coordinates). Each distinct copy lineage in the arc begets one fresh child lineage, so the
-    tandem copy is a new copy of that material; the parentage is recorded as a :class:`Duplication`.
+    tandem copy is a new copy of that material; the parentage is recorded as a `Duplication`.
     Returns the length added (0 on a no-op)."""
     spot = g._pick_legal_cut(rng)
     if spot is None:
@@ -1458,7 +1458,7 @@ def _do_duplication(g, node_id, t, duplication_extent, rng, events, new_copy) ->
 def _do_transfer(rng, tree, alive, gen, kd, t, transfer_extent, transfer_to, self_transfer, depth,
                  events, new_copy) -> int:
     """Copy a geometric-length arc of the donor lineage ``alive[kd]`` into a **contemporaneous
-    recipient** (chosen by ``transfer_to``: uniform, or a :class:`Distance` weighting): the arc's copy
+    recipient** (chosen by ``transfer_to``: uniform, or a `Distance` weighting): the arc's copy
     lineages beget fresh children that arrive as a block at a random spot on a random recipient
     chromosome (strands travel with them). A horizontal edge in each block's gene tree. **Additive**
     — the donor keeps its copy — so it returns the recipient's length gain (0 on a no-op)."""
@@ -1523,7 +1523,7 @@ def _do_loss(g, node_id, t, loss_extent, rng, events) -> int:
     """Delete a geometric-length arc from a length-weighted chromosome — an ancestry-changing event (a
     death). Never empties a chromosome (leaves at least one nucleotide; whole-chromosome loss is a
     the chromosome tier's own event). Records the deleted material — which copy lineage lost which arc — as a
-    :class:`Loss`. Returns the length removed as a **negative** delta (0 on a no-op)."""
+    `Loss`. Returns the length removed as a **negative** delta (0 on a no-op)."""
     spot = g._pick_legal_cut(rng)
     if spot is None:
         return 0
@@ -1686,7 +1686,7 @@ def _do_chromosome_origination(g, node_id, t, origination_extent, rng, events, c
     """A de-novo replicon (a plasmid): a fresh circular chromosome — a **root** of the chromosome
     network (no parent) — **carrying one new gene**. A chromosome never exists without a gene, so the
     replicon is born with one rather than as an empty shell: its own source, copy lineage and family,
-    exactly like a de-novo :func:`_do_origination`. Returns ``(chromosome delta, length delta)``."""
+    exactly like a de-novo `_do_origination()`. Returns ``(chromosome delta, length delta)``."""
     cid, src, cp, fam = new_chrom_id(), new_source(), new_copy(), new_family()
     length = max(1, int(rng.geometric(1.0 / origination_extent)))
     g.chromosomes.append(Chromosome(cid, "circular", [Block(src, 0, length, 1, cp, fam)]))
@@ -1699,7 +1699,7 @@ def _do_chromosome_origination(g, node_id, t, origination_extent, rng, events, c
 
 def _do_chromosome_loss(g, node_id, t, rng, events, chromosome_events) -> tuple[int, int]:
     """A whole chromosome dies — a **leaf** of the chromosome network (no child): its material dies as
-    one :class:`Loss` (each copy lineage on it ends). No-op if it is the genome's last chromosome (a
+    one `Loss` (each copy lineage on it ends). No-op if it is the genome's last chromosome (a
     lineage never loses its whole genome this way). Returns ``(chromosome delta, length delta)``."""
     if len(g.chromosomes) < 2:
         return (0, 0)
@@ -1726,7 +1726,7 @@ def _pick_lineage_by_chromosomes(rng, gen, total_chromosomes) -> int:
 def _speciate(node, g, new_chrom_id, new_copy, events, chromosome_events):
     """Re-mint a parent's final genome ``g`` into one fresh child karyotype per daughter species:
     every chromosome id and every copy lineage is re-minted (recorded as ``ChromosomeEvent`` /
-    :class:`Speciation` edges). Returns ``{child species id: NucleotideGenome}``."""
+    `Speciation` edges). Returns ``{child species id: NucleotideGenome}``."""
     copy_maps: dict[int, dict[int, int]] = {c: {} for c in node.children}
     for pc in sorted({b.copy for chrom in g.chromosomes for b in chrom.blocks}):
         dcs = []
@@ -1777,7 +1777,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
       in tandem — an ancestry-**changing** *birth*, recorded in ``events``.
     - ``transfer`` (**per lineage**) copies a geometric-length (mean ``transfer_extent``) arc into a
       **contemporaneous recipient** (``transfer_to``: ``"uniform"`` or ``"distance"`` / a
-      :class:`Distance`; ``self_transfer`` allows the donor itself) — a horizontal *birth*, additive
+      `Distance`; ``self_transfer`` allows the donor itself) — a horizontal *birth*, additive
       (the donor keeps its copy). This is what needs the global timeline.
     - ``origination`` (**per lineage**) lays down a **new gene** on a fresh source (geometric length,
       mean ``origination_extent``) — a *birth* of a wholly new family, indivisible from birth.
@@ -1833,7 +1833,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         """An extent in base pairs (SPEC §6): ``base × modifiers``, no scope. A bare number *is* the
         mean, so ``500`` reads the same here as anywhere else.
 
-        The base must be :class:`~zombi2.rates.distributions.Geometric` — this engine draws each arc's
+        The base must be `Geometric` — this engine draws each arc's
         far end **directly from the genome's legal breakpoints** rather than drawing a size and
         clamping it, so an arbitrary shape would have to be re-weighted over that set instead of
         sampled. Refusing beats quietly approximating. The modifiers are the ones this resolution

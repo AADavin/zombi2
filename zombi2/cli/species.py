@@ -1,5 +1,5 @@
 """``zombi2 species`` — the dated species tree (a thin shell over
-:func:`zombi2.species.simulate_species_tree`).
+`zombi2.species.simulate_species_tree()`).
 
 The long options are the API keyword names, and ``--birth`` / ``--death`` take a rate in its written
 form (SPEC §5): a bare number on its natural scope (per lineage), or the same ``scope(base) ×

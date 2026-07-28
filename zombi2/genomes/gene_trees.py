@@ -52,7 +52,7 @@ class GeneTree:
     nodes suppressed), or ``None`` if the family left no extant gene. ``to_newick`` serialises either.
 
     ``origination`` is when the family was founded — the exact time of its origination event, or the
-    root lineage's start for a family declared by ``initial_families``. A :class:`GeneNode` records when
+    root lineage's start for a family declared by ``initial_families``. A `GeneNode` records when
     it *ended*, so this is the one time the tree cannot derive: it is where the root's branch begins."""
 
     family: int

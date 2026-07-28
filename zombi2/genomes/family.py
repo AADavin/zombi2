@@ -7,7 +7,7 @@ duplicates, +1 copy in its family — per copy), **loss** (a gene copy is lost �
 cross-level ``scope(base) × modifiers`` grammar (``SPEC §5``); the defaults are the natural
 "per what?" for each event.
 
-This reads as the genome twin of :mod:`zombi2.species_tree`: one forward Gillespie over the
+This reads as the genome twin of `zombi2.species`: one forward Gillespie over the
 **complete** tree, plain/frozen dataclasses, an event log as the source of truth (per-family gene
 trees are derived from it later), ``as_rate``/``.effective`` for every rate. Because a transfer at
 time ``t`` couples two lineages alive at ``t``, the engine evolves **all lineages alive at once**
@@ -81,7 +81,7 @@ class FamilyGenomesResult:
     #: (a toxin, an operon) that you can look up in the genome; empty when only anonymous families were used.
     family_names: dict[str, int] = field(default_factory=dict)
     #: The genome the run **started** with, at the root lineage's origination — before any event.
-    #: It is not in :attr:`genomes`, which holds a genome per *node*, and a node sits at the **end**
+    #: It is not in `genomes`, which holds a genome per *node*, and a node sits at the **end**
     #: of its branch: the root branch is real simulated time, so ``genomes[root]`` is this genome plus
     #: whatever happened along the stem. The same reason ``GeneTree.origination`` is its own field.
     initial_genome: tuple[GeneCopy, ...] = ()
@@ -105,7 +105,7 @@ class FamilyGenomesResult:
     @cached_property
     def profiles(self) -> Profiles:
         """The phyletic profiles — each gene family's copy count in each extant species — derived
-        from the observed genomes (the classic comparative-genomics matrix). See :mod:`.profiles`."""
+        from the observed genomes (the classic comparative-genomics matrix). See `profiles`."""
         extant = [n.id for n in self.complete_tree.extant()]
         return profiles_from_genomes(self.genomes, extant)
 
@@ -113,7 +113,7 @@ class FamilyGenomesResult:
     def gene_trees(self) -> dict[int, GeneTree]:
         """``{family id: GeneTree}`` — each family's true genealogy inside the complete tree,
         derived from the event log. Each ``GeneTree`` exposes ``.complete`` and ``.extant``. See
-        :mod:`.gene_trees`."""
+        `gene_trees`."""
         return gene_trees_from_events(self.events, self.complete_tree)
 
     def write(self, directory, outputs=("events", "profiles", "genomes", "initial_genome",
@@ -181,7 +181,7 @@ def _pick_copy(rng, gen, total_copies) -> tuple[int, int]:
 def _pick_copy_by_family(rng, genome, mult: dict[int, float]) -> int:
     """A copy index within one lineage, drawn in proportion to each copy's family multiplier.
 
-    The within-lineage twin of :func:`_weighted_index`. Needed whenever families carry different
+    The within-lineage twin of `_weighted_index()`. Needed whenever families carry different
     rates: the totals are summed with those multipliers, so the copy has to be drawn with them too,
     or the rate would say one thing and the picking another."""
     total = sum(mult[c.family] for c in genome)
@@ -208,7 +208,7 @@ class _FamilyWeights:
     which is quadratic in genome size — and it is nearly all waste, because one event changes one
     lineage by one copy and leaves the rest untouched. So the sums are kept here across events and
     only the lineage an event actually touched is rebuilt. Rates that share a multiplier table
-    (:func:`simulate_genomes_family` hands the same dict to each rate carrying no ``ByFamily`` of its
+    (`simulate_genomes_family()` hands the same dict to each rate carrying no ``ByFamily`` of its
     own) share the array too, and so are summed once between them rather than once each.
 
     A rebuilt sum is the same expression over the same list in the same order, so it is the same
@@ -225,7 +225,7 @@ class _FamilyWeights:
         self._dirty: set[int] = set()
 
     def current(self, gen) -> dict[str, list[float]]:
-        """The sums, with any lineage marked by :meth:`touched` rebuilt first."""
+        """The sums, with any lineage marked by `touched()` rebuilt first."""
         for k in self._dirty:
             for m, _keys, arr in self._groups:
                 arr[k] = _sum_mult(m, gen[k])
@@ -233,7 +233,7 @@ class _FamilyWeights:
         return self._view
 
     def touched(self, k: int) -> None:
-        """Lineage ``k``'s genome changed: rebuild its sums on the next :meth:`current`."""
+        """Lineage ``k``'s genome changed: rebuild its sums on the next `current()`."""
         self._dirty.add(k)
 
     # enter/retire arrive only from the schedule, and the event branch always loops back through
@@ -249,7 +249,7 @@ class _FamilyWeights:
 
 
 def _driven_mods(rate) -> list:
-    """The :class:`~zombi2.rates.modifiers.DrivenBy` modifiers a rate carries, or ``[]`` when it is a
+    """The `DrivenBy` modifiers a rate carries, or ``[]`` when it is a
     plain number/scope/OnTime. A non-empty list means the rate is *per-lineage*: each lineage's factor
     depends on the driver value on that branch, so the engine evaluates the rate lineage-by-lineage and
     picks the affected lineage weighted (the ``species_tree._grow`` shape). Each modifier's ``key``
@@ -389,8 +389,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
     origination.
 
-    ``tree`` is the **complete** species tree (a :class:`~zombi2.species_tree.Tree`, or a
-    :class:`~zombi2.species_tree.SpeciesResult` whose ``complete_tree`` is used). Genomes evolve on
+    ``tree`` is the **complete** species tree (a `Tree`, or a
+    `SpeciesResult` whose ``complete_tree`` is used). Genomes evolve on
     **every** lineage, extant and extinct alike, so the true gene-tree history is complete and a
     transfer can arrive "from the dead"; the observed genomes are the extant tips.
 
@@ -424,7 +424,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     (SPEC §5, the choice slot). Candidate lineage ``k`` gets weight ``mapping(driver value on k now)``
     and receives with probability ``w_k / Σw`` — five candidates at weight 1 and five at weight 2 send
     two thirds of transfers to the weight-2 group. Weight 0 means "cannot receive"; when every
-    candidate weighs 0 the transfer does not happen (see :func:`_do_transfer`). The two couplings are
+    candidate weighs 0 the transfer does not happen (see `_do_transfer()`). The two couplings are
     independent and may be used together or apart.
 
     ``parallel`` opts into a **separate** engine that evolves the families concurrently, one per worker
@@ -441,9 +441,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
 
     ``stream_to=DIR`` takes the same engine to the many-families regime: each family is written straight
     to disk as it finishes — no whole-run merge, no run held in memory (a run that fills gigabytes in
-    memory streams in tens of megabytes) — and a light :class:`~zombi2.genomes.StreamedRun` handle comes
+    memory streams in tens of megabytes) — and a light `StreamedRun` handle comes
     back instead of a ``FamilyGenomesResult``. ``outputs=`` picks which files, exactly as
-    :meth:`FamilyGenomesResult.write` takes them (default: all of them). It is the per-family engine, so a
+    `FamilyGenomesResult.write()` takes them (default: all of them). It is the per-family engine, so a
     driven rate **raises** here rather than falling back (that would defeat the point), and ``outputs``
     without ``stream_to`` is an error.
     """
@@ -805,7 +805,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
 @dataclass(frozen=True)
 class FamilyGenome:
     """A family-genome **process** — its D/T/L/O parameters bundled but not yet run (the genome
-    twin of :class:`~zombi2.traits.DiscreteTrait`). ``simulate_genomes_family(tree, ...)`` runs
+    twin of `DiscreteTrait`). ``simulate_genomes_family(tree, ...)`` runs
     this on a *fixed* tree; a **joint** model (``joint.simulate_joint(genome=genomes.family(...))``)
     grows the genome *with* the tree whose speciation its gene content drives. Duplication, loss, and
     origination (each a ``scope(base) × modifiers`` rate, ``OnTime`` allowed) plus ``initial_families``
@@ -820,7 +820,7 @@ class FamilyGenome:
 
     def _resolve(self):
         """Coerce and validate the three rates for the joint engine — ``(duplication, loss,
-        origination)`` as resolved :class:`~zombi2.rates.rate.Rate`s. The genome is the **driver**
+        origination)`` as resolved `Rate`s. The genome is the **driver**
         here, not the target, so its own rates carry no coupling (``OnTime`` is the only modifier)."""
         dup = as_rate(self.duplication, default_scope=PerCopy)
         los = as_rate(self.loss, default_scope=PerCopy)
@@ -843,7 +843,7 @@ class FamilyGenome:
 
 def family(*, duplication=0.0, loss=0.0, origination=0.0, initial_families=100,
               family_names=None) -> FamilyGenome:
-    """A family-genome **process spec** — :class:`FamilyGenome`, unexecuted — for a joint model
+    """A family-genome **process spec** — `FamilyGenome`, unexecuted — for a joint model
     to grow with the tree its gene content drives (``joint.simulate_joint(genome=genomes.family(
     origination=0.2, loss=0.1, family_names=["toxin"]))``). Duplication / loss / origination and named
     ``family_names``; a joint run takes no transfer."""

@@ -7,11 +7,11 @@ transition/transversion structure and base composition — so, unlike the clock,
 collapse to one grammar: they stay a menu of constructors, each taking its own physical parameters
 (``SPEC §4`` — "faking a grammar over the matrices would be worse than a menu").
 
-Two alphabets are on the menu: the four **nucleotide** models (4 states, ``ACGT`` — :func:`jc69` ·
-:func:`k80` · :func:`hky85` · :func:`gtr`) and the five **protein** models (20 states,
-:data:`AMINO_ACIDS` — :func:`poisson` · :func:`jtt` · :func:`dayhoff` · :func:`wag` · :func:`lg`).
+Two alphabets are on the menu: the four **nucleotide** models (4 states, ``ACGT`` — `jc69()` ·
+`k80()` · `hky85()` · `gtr()`) and the five **protein** models (20 states,
+`AMINO_ACIDS` — `poisson()` · `jtt()` · `dayhoff()` · `wag()` · `lg()`).
 The protein models are *empirical*: their exchangeabilities and frequencies were estimated once from
-large alignments and are read off the published matrices (:mod:`._aa_matrices`), so they take **no
+large alignments and are read off the published matrices (`_aa_matrices`), so they take **no
 free parameters** — you pick one, you do not tune it. Codon models and across-site ``+Γ``
 heterogeneity are not in the menu; adding one is a pure extension of it, no refactor.
 
@@ -36,7 +36,7 @@ BASES = "ACGT"
 
 #: the 20-letter amino-acid alphabet, in the PAML column order every empirical protein matrix is
 #: published in (``A R N D C Q E G H I L K M F P S T W Y V``) — the order ``Q`` and ``stationary``
-#: follow for the protein models, and the order :func:`decode` reads them back in.
+#: follow for the protein models, and the order `decode()` reads them back in.
 AMINO_ACIDS = "ARNDCQEGHILKMFPSTWYV"
 
 
@@ -45,8 +45,8 @@ class SubstitutionModel:
     """A ``K``-state reversible model: a normalised ``K×K`` rate matrix ``Q``, its stationary
     frequencies, and the ordered ``alphabet`` whose order ``Q`` / ``stationary`` follow.
 
-    Built through the menu constructors (:func:`jc69`, :func:`k80`, :func:`hky85`, :func:`gtr`),
-    never directly. The reversible eigendecomposition behind :meth:`p_matrix` is precomputed once
+    Built through the menu constructors (`jc69()`, `k80()`, `hky85()`, `gtr()`),
+    never directly. The reversible eigendecomposition behind `p_matrix()` is precomputed once
     in ``__post_init__``.
     """
 
@@ -148,7 +148,7 @@ def gtr(rates=(1, 1, 1, 1, 1, 1), freqs=(0.25, 0.25, 0.25, 0.25)) -> Substitutio
 
 def _lower_triangle(tri, k: int) -> np.ndarray:
     """Expand a flat lower triangle (entry ``(i, j)`` for ``i = 1..k-1``, ``j < i``, row by row — the
-    PAML layout of :mod:`._aa_matrices`) into the symmetric ``k×k`` exchangeability matrix."""
+    PAML layout of `_aa_matrices`) into the symmetric ``k×k`` exchangeability matrix."""
     S = np.zeros((k, k))
     it = iter(tri)
     for i in range(1, k):
@@ -159,7 +159,7 @@ def _lower_triangle(tri, k: int) -> np.ndarray:
 
 def _empirical_protein(name: str, tri, pi) -> SubstitutionModel:
     """Build a 20-state protein model from published lower-triangular exchangeabilities and freqs,
-    both in :data:`AMINO_ACIDS` order — normalised, like every model here, to one expected
+    both in `AMINO_ACIDS` order — normalised, like every model here, to one expected
     substitution per site per unit branch length."""
     return _reversible_model(name, _lower_triangle(tri, 20), pi, AMINO_ACIDS)
 
@@ -191,25 +191,25 @@ def lg() -> SubstitutionModel:
     return _empirical_protein("LG", _LG_EXCH, _LG_PI)
 
 
-#: ASCII lookup tables for :func:`decode`, one per alphabet, built once on first use. The table is
-#: tiny and read-only, so it is safe to reuse across calls — and :func:`decode` runs once per node of
+#: ASCII lookup tables for `decode()`, one per alphabet, built once on first use. The table is
+#: tiny and read-only, so it is safe to reuse across calls — and `decode()` runs once per node of
 #: every gene tree, so rebuilding it each time was pure waste.
 _DECODE_LUT: dict[str, np.ndarray] = {}
 
 
 def decode(states: np.ndarray, alphabet: str = BASES) -> str:
     """Map an array of integer states back to a string over ``alphabet`` — ``ACGT`` by default, or
-    :data:`AMINO_ACIDS` for a protein model (callers pass ``model.alphabet``).
+    `AMINO_ACIDS` for a protein model (callers pass ``model.alphabet``).
 
     ``states`` are indices into ``alphabet``, so the whole array is one numpy gather into an ASCII
     lookup table — ``lut[states]`` — read out in a single ``.tobytes().decode()`` rather than one
     Python step per site. This is called once per node of every gene tree, so the per-site loop it
     replaces was the dominant cost of a sequence run; the result is byte-for-byte the same string. The
-    lookup table itself is cached per alphabet (:data:`_DECODE_LUT`), built once instead of per call.
+    lookup table itself is cached per alphabet (`_DECODE_LUT`), built once instead of per call.
 
     ``states`` may be multi-dimensional: a 2-D ``(rows, length)`` array decodes to the rows' strings
     concatenated back to back (row-major), which lets a caller decode a whole gene tree's nodes in one
-    gather + one ASCII decode and slice the fixed-length rows out — see :func:`_split`."""
+    gather + one ASCII decode and slice the fixed-length rows out — see `_split()`."""
     lut = _DECODE_LUT.get(alphabet)
     if lut is None:
         lut = np.frombuffer(alphabet.encode("ascii"), dtype=np.uint8)
@@ -218,7 +218,7 @@ def decode(states: np.ndarray, alphabet: str = BASES) -> str:
 
 
 def encode(seq: str, alphabet: str = BASES) -> np.ndarray:
-    """The inverse of :func:`decode`: a string over ``alphabet`` to its integer states. Used to found a
+    """The inverse of `decode()`: a string over ``alphabet`` to its integer states. Used to found a
     run's blocks from a real ``fasta=`` — the supplied DNA becomes a block's founding states. A character not in
     ``alphabet`` raises (the FASTA reader already rejects non-``ACGT``, so this is a second guard)."""
     index = {c: i for i, c in enumerate(alphabet)}

@@ -1,11 +1,11 @@
 """``zombi2 genomes`` — evolve gene families along a species tree.
 
 ``--resolution`` picks the model: ``family`` (the D/T/L/O gene-family core,
-:func:`zombi2.genomes.simulate_genomes_family`), ``ordered`` (genes with a position and
+`zombi2.genomes.simulate_genomes_family()`), ``ordered`` (genes with a position and
 orientation on chromosomes — segmental rearrangements and the chromosome tier,
-:func:`~zombi2.genomes.simulate_genomes_ordered`), or ``nucleotide`` (the genome as a nucleotide
+`simulate_genomes_ordered()`), or ``nucleotide`` (the genome as a nucleotide
 sequence of ancestry blocks, with declared indivisible genes and intergenic spacer,
-:func:`~zombi2.genomes.simulate_genomes_nucleotide`). Long options are the API keyword names, and
+`simulate_genomes_nucleotide()`). Long options are the API keyword names, and
 every rate takes the written form (SPEC §5): a bare number on its natural scope, or the same
 ``scope(base) × modifiers`` expression the Python API takes — ``--loss "0.25 * OnTime({0: 1.0, 3:
 2.0})"``. The nucleotide engine wires ``OnTime`` and ``DrivenBy``, so any other modifier is rejected

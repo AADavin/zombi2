@@ -1,4 +1,4 @@
-"""The mapping of a :class:`~zombi2.rates.modifiers.DrivenBy` coupling — how a driver
+"""The mapping of a `DrivenBy` coupling — how a driver
 level's value becomes a rate multiplier (SPEC §2).
 
 A coupling is *a rate that reads its value from another level*. The ``DrivenBy`` modifier
@@ -6,13 +6,13 @@ reads the driver's value on a lineage; the **mapping** turns that value into the
 dimensionless factor the rate is multiplied by. It is the "response" of the old coevolve
 grammar, distilled to the three shapes that **multiply a rate**:
 
-- :class:`Table`  — a **discrete** driver → a dict of factors: ``{"aquatic": 3.0, "terrestrial": 1.0}``.
-- :class:`Curve`  — a **continuous** driver → a function: ``lambda x: math.exp(0.5 * x)``.
-- :class:`Scalar` — a single log-link coefficient: ``multiplier = exp(strength · value)``.
+- `Table`  — a **discrete** driver → a dict of factors: ``{"aquatic": 3.0, "terrestrial": 1.0}``.
+- `Curve`  — a **continuous** driver → a function: ``lambda x: math.exp(0.5 * x)``.
+- `Scalar` — a single log-link coefficient: ``multiplier = exp(strength · value)``.
 
 You rarely name these — pass a raw ``dict`` / callable / number as ``mapping=`` and
-:func:`as_mapping` coerces it (a dict → ``Table``, a callable → ``Curve``, a number →
-``Scalar``), exactly as :func:`~zombi2.rates.rate.as_rate` coerces a rate spec.
+`as_mapping()` coerces it (a dict → ``Table``, a callable → ``Curve``, a number →
+``Scalar``), exactly as `as_rate()` coerces a rate spec.
 
 The fourth grammar shape, **Jump** (a burst fired *at an event*, e.g. a pulse of gene
 change at each split), is **not** a rate multiplier — it changes a state at a moment, not a
@@ -27,9 +27,9 @@ _MAX_EXPONENT = 40.0  # clamp the log-link argument so a large driver value cann
 
 
 class Mapping:
-    """Base for a driver-value → rate-multiplier response. Abstract — use :class:`Table`,
-    :class:`Curve`, or :class:`Scalar` (or pass a raw dict / callable / number, which
-    :func:`as_mapping` coerces). A mapping returns a **dimensionless, non-negative** factor."""
+    """Base for a driver-value → rate-multiplier response. Abstract — use `Table`,
+    `Curve`, or `Scalar` (or pass a raw dict / callable / number, which
+    `as_mapping()` coerces). A mapping returns a **dimensionless, non-negative** factor."""
 
     def multiplier(self, value: object) -> float:
         raise NotImplementedError
@@ -142,18 +142,18 @@ class Scalar(Mapping):
 
 class Between:
     """A weight over ordered **(donor-group, recipient-group)** pairs — the 2-D kernel of the transfer
-    **choice slot** (SPEC §5), the donor-conditioned sibling of :class:`Table`::
+    **choice slot** (SPEC §5), the donor-conditioned sibling of `Table`::
 
         Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)   # A↔B only, nothing else receives
         Between({("A", "B"): 3.0})                                 # A→B 3× baseline, every other pair 1×
 
-    A :class:`Table` weights a candidate recipient by *that candidate's* state alone; a ``Between``
+    A `Table` weights a candidate recipient by *that candidate's* state alone; a ``Between``
     weights it by the **pair** — the donor's group and the recipient's — which is what lets a transfer
     be steered to run *between* two groups rather than within them. It is therefore **not** a
-    :class:`Mapping` (a ``Mapping.multiplier`` reads one value): its :meth:`weight` reads two, and the
+    `Mapping` (a ``Mapping.multiplier`` reads one value): its `weight()` reads two, and the
     choice-slot engine passes both. It is used in ``transfer_to`` — on its own as the kernel of a
-    :class:`~zombi2.genomes.Clades` rule (groups from the tree), or inside a
-    :class:`~zombi2.rates.modifiers.DrivenBy` (groups from a trait). It is **not** a rate multiplier:
+    `Clades` rule (groups from the tree), or inside a
+    `DrivenBy` (groups from a trait). It is **not** a rate multiplier:
     a rate has no donor to condition on, so a ``Between`` in a rate slot is refused.
 
     Keys are ``(from_group, to_group)`` pairs matched by **string form**, exactly like ``Table``'s
@@ -182,7 +182,7 @@ class Between:
 
     def weight(self, from_group: object, to_group: object) -> float:
         """The weight for a transfer from a ``from_group`` donor to a ``to_group`` recipient — the
-        named pair's weight, or :attr:`default` if the pair is unnamed."""
+        named pair's weight, or `default` if the pair is unnamed."""
         return self.per_pair.get((str(from_group), str(to_group)), self.default)
 
     def groups(self) -> set:
@@ -201,9 +201,9 @@ class Between:
 
 
 def check_kernel_fires(kernel: Between, available_groups, *, source_label: str) -> None:
-    """Raise if a :class:`Between` names **no pair whose two groups both occur** among
+    """Raise if a `Between` names **no pair whose two groups both occur** among
     ``available_groups`` — the choice-slot twin of
-    :func:`~zombi2.rates.driver.check_mapping_fires`. Such a kernel weights every candidate at its
+    `check_mapping_fires()`. Such a kernel weights every candidate at its
     ``default``, so the recipient choice is secretly *uniform* while the run records it as steered —
     almost always a typo in a group name or a stale driver. A kernel may still name a pair this
     realisation never realises (a legitimate partial kernel), so only an *empty* overlap is refused."""
@@ -237,11 +237,11 @@ def _numeric(value: object, cls: str) -> float:
 
 
 def as_mapping(spec: object) -> Mapping:
-    """Coerce a ``DrivenBy`` mapping spec into a :class:`Mapping`.
+    """Coerce a ``DrivenBy`` mapping spec into a `Mapping`.
 
-    Accepts an already-built mapping (returned unchanged), a ``dict`` (→ :class:`Table`), a
-    callable (→ :class:`Curve`), or a number (→ :class:`Scalar`). Mirrors
-    :func:`~zombi2.rates.rate.as_rate` / :func:`~zombi2.rates.distributions.as_distribution`.
+    Accepts an already-built mapping (returned unchanged), a ``dict`` (→ `Table`), a
+    callable (→ `Curve`), or a number (→ `Scalar`). Mirrors
+    `as_rate()` / `as_distribution()`.
     """
     if isinstance(spec, (Mapping, Between)):
         return spec  # a Between is a choice-slot kernel, not a rate multiplier; carried through here

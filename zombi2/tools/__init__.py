@@ -2,8 +2,8 @@
 
 The levels *simulate*; the tools *read back* what a run wrote and turn it into something else. Both
 tools here re-express one gene tree's recorded events: **homology** classification, how every gene
-pair diverged and whether transfer is in its history (:mod:`.homology`), and **recPhyloXML**, the gene tree
-written inside the species tree in the community format for that (:mod:`.recphylo`)."""
+pair diverged and whether transfer is in its history (`homology`), and **recPhyloXML**, the gene tree
+written inside the species tree in the community format for that (`recphylo`)."""
 from __future__ import annotations
 
 from zombi2.tools.homology import homology_table, homology_tsv, write_homology

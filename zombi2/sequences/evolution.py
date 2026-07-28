@@ -10,13 +10,13 @@ species tree — and across-site ``+Γ`` are not wired; they would scale this sa
 The engine draws the founding sequence from the model's stationary frequencies **at the family's
 origination**, then walks the tree from root to tips: a child's sequence is sampled site-by-site from
 ``P(bl)[parent_state]``, where
-``P(bl) = exp(Q·bl)`` (the reversible eigendecomposition in :mod:`.substitution_models`). Only the branch
+``P(bl) = exp(Q·bl)`` (the reversible eigendecomposition in `substitution_models`). Only the branch
 *endpoints* are sampled — this gives the sequence at every node (the observable tip alignment and the
 ancestral reconstructions) but not the individual substitution events, which are a later opt-in
 ``record=`` slice. Everything is vectorised over sites; a zero-length branch copies its parent.
 
 The walk is **iterative** (an explicit stack): gene trees run deeper than CPython's C-stack recursion
-guard on high-turnover families — the same reason :func:`~zombi2.genomes.gene_trees._to_newick` is
+guard on high-turnover families — the same reason `_to_newick()` is
 iterative — so recursion would crash on deep trees.
 """
 
@@ -34,7 +34,7 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
                      cdf_cache: "dict[float, np.ndarray] | None" = None
                      ) -> tuple[dict[int, np.ndarray], np.ndarray]:
     """Evolve a sequence of ``length`` sites down the gene tree rooted at ``root`` (a
-    :class:`~zombi2.genomes.gene_trees.GeneNode`), starting at ``origination``.
+    `GeneNode`), starting at ``origination``.
 
     Returns ``({id(node): states}, founding_states)``. The first is **every** node — integer state
     arrays over the model's alphabet, keyed by object identity (gene-tree nodes carry no unique id,
@@ -56,7 +56,7 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
     block from the supplied DNA. It still evolves across the stem; at rate 0 it survives unchanged,
     which is what makes the assembled root genome equal the input.
 
-    ``cdf_cache`` memoises the per-branch-length transition CDF (see :func:`_cdf_for`). It is keyed by
+    ``cdf_cache`` memoises the per-branch-length transition CDF (see `_cdf_for()`). It is keyed by
     branch length alone, so it must hold matrices for **one** model; the caller passes one cache per
     model and shares it across every block that model evolves. Branch lengths recur massively across
     blocks — a block passing straight through a species branch reuses that branch's length — so a
@@ -92,7 +92,7 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
 def _cdf_for(cache: dict, model: SubstitutionModel, bl: float) -> np.ndarray:
     """The transition **CDF** over branch length ``bl`` — ``P(bl)`` cumulated along each row, cached by
     branch length rounded to 12 decimals (identical lengths reuse one matrix). Caching the *cumulated*
-    matrix, not ``P`` itself, means :func:`_sample` never recomputes the cumsum: it is the same for
+    matrix, not ``P`` itself, means `_sample()` never recomputes the cumsum: it is the same for
     every node on a branch of this length, so it is built once here and reused for all of them."""
     key = round(float(bl), 12)
     cum = cache.get(key)
@@ -108,7 +108,7 @@ def _cdf_for(cache: dict, model: SubstitutionModel, bl: float) -> np.ndarray:
 
 def _sample(parent_states: np.ndarray, cum: np.ndarray, rng: np.random.Generator) -> np.ndarray:
     """Draw each site's child state from the transition CDF ``cum[parent_state]`` (vectorised over
-    sites). ``cum`` is the row-cumulated, 1.0-pinned transition matrix from :func:`_cdf_for`."""
+    sites). ``cum`` is the row-cumulated, 1.0-pinned transition matrix from `_cdf_for()`."""
     r = rng.random(parent_states.shape[0])
     return (r[:, None] < cum[parent_states]).argmax(1).astype(np.int8)
 

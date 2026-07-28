@@ -163,7 +163,7 @@ def parse_rate(text: object):
     already a TOML float needs no special case. The result is a number, a scope wrapper, a modifier,
     or a ``Rate`` — all four are what ``as_rate`` accepts, so every level takes it as it is.
 
-    Raises :class:`RateSyntaxError` (a ``ValueError``) for anything outside the grammar, and lets the
+    Raises `RateSyntaxError` (a ``ValueError``) for anything outside the grammar, and lets the
     scope/modifier classes raise their own domain errors (a negative base, an empty schedule, …).
     """
     if isinstance(text, bool):
@@ -187,7 +187,7 @@ def parse_rate(text: object):
 
 
 def written_form(spec: object) -> str:
-    """Render a rate spec back as the expression that produced it — the inverse of :func:`parse_rate`.
+    """Render a rate spec back as the expression that produced it — the inverse of `parse_rate()`.
 
     Used where a run records what it was given (the ``*.log`` every command writes), so the record is
     something you can paste straight back into a flag or a ``--params`` file rather than a repr you
