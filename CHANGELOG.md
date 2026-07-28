@@ -9,6 +9,34 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **recPhyloXML output** — `zombi2 tools format DIR --format recphylo` writes each family's complete
+  gene tree inside the complete species tree, in the community format for a gene tree embedded in a
+  species tree. It is normally what a reconciliation *method* produces; here nothing is reconstructed,
+  so the file is the true history and can be used as the answer key an inference is scored against.
+  Losses, extinct species and transfers-from-the-dead are all in it, which is why the *complete* trees
+  go in. Output validated by round-tripping through the format's own reference parser. In Python,
+  `zombi2.tools.recphylo.recphylo_xml(gene_trees, tree)`.
+- **Every run records the files it read, by content.** One `input<TAB><sha256><TAB><path>` line per
+  input in the run log — the species tree, a `--tip-fates` table, the driver file of a conditioned
+  rate. A path alone does not identify an input: two runs from two different trees could log the same
+  `--from tree.nwk`, the same seed and the same parameters, and nothing told them apart.
+- **A stated reproducibility policy**, in the manual's new *Reproducing a run* (Chapter 2): what a
+  seed pins down within a version, why it is not promised across versions, and why a parallel run
+  differs from a serial one.
+
+### Changed
+- **`--family-speed` and `ByFamily` are no longer quadratic in genome size.** The per-lineage sums of
+  the per-family multipliers were rebuilt from scratch on every event — the whole live gene pool, per
+  event — where one event changes one lineage by one copy. They are now carried across events and
+  only the touched lineage is rebuilt. At 1000 families a `--family-speed` run went from 157× a plain
+  run to 7.9× (86.9 s to 4.0 s); at 300 families, 62× to 3.4×. Byte-identical: every seed gives the
+  run it gave before, verified across seven configurations.
+
+### Fixed
+- The saturation warning said `--substitution` "is currently None" on a run that had defaulted it. It
+  now names the rate the run actually used.
+
 ## [0.12.0] - 2026-07-28
 
 ### Added
