@@ -102,11 +102,11 @@ from ..rates.driver import check_mapping_fires, resolve_driver
 from ..rates.modifiers import DrivenBy, OnTime
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerLineage
-from ..species import SpeciesResult
-from ..tree import Tree
+from ..tree import Tree, as_tree
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
+from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
 from .events import (Event, events_tsv, gene_from_label, gene_label, node_from_label,
                      node_label)
@@ -721,6 +721,11 @@ class NucleotideGenomesResult:
     #: founding sequence, and an assembled genome then descends from exactly this input.
     initial_sequence: dict[int, str] = field(default_factory=dict)
 
+    def __repr__(self) -> str:
+        return (f"NucleotideGenomesResult({len(self.complete_tree.extant())} extant genomes, "
+                f"{len(self.genomes)} nodes, {len(self.gene_spans)} genes, "
+                f"{len(self.events)} events, seed={self.seed})")
+
     def mosaic(self, node_id: int) -> dict[int, list[tuple[int, int, int, int]]]:
         return self.genomes[node_id].mosaic()
 
@@ -906,9 +911,9 @@ class NucleotideGenomesResult:
         :attr:`gene_trees`; writing it costs nothing extra."""
         return self._recover()[3]
 
-    def write(self, directory,
-              outputs=("events", "genes", "blocks", "initial_genome", "initial_sequence",
-                       "gene_trees", "chromosome_events", "gff", "bed")) -> None:
+    def write(self, directory, outputs=("events", "genes", "blocks", "initial_genome",
+                                        "initial_sequence", "gene_trees", "chromosome_events",
+                                        "gff", "bed"), *, flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → **two** tables, because a nucleotide run records two different things.
@@ -937,14 +942,19 @@ class NucleotideGenomesResult:
         - ``"initial_sequence"`` → ``initial_sequence.fasta``, the initial DNA the run was given (``fasta=``),
           one ``>source<n>`` record per replicon. Written only when a FASTA was supplied — it is what
           lets a separate ``zombi2 sequences`` run found its blocks from the real sequence.
-        - ``"gff"`` → ``genome_<lineage>.gff``, that genome's **genes**, in its own coordinates: the
-          annotation to read beside the sequence level's ``genome_<lineage>.fasta``.
-        - ``"bed"`` → ``genome_<lineage>.bed``, that genome's **blocks** — every piece, spacer
-          included, named by the ancestral interval it descends from. The ancestry as a browser track.
+        - ``"gff"`` → ``genome_<lineage>.gff`` under ``gff/``, that genome's **genes**, in its own
+          coordinates: the annotation to read beside the sequence level's ``genome_<lineage>.fasta``.
+        - ``"bed"`` → ``genome_<lineage>.bed`` under ``bed/``, that genome's **blocks** — every piece,
+          spacer included, named by the ancestral interval it descends from. The ancestry as a
+          browser track.
 
         Both name their sequences ``<lineage>_chr<c>``, exactly as the FASTA records are named, so a
         genome and its annotation join without renaming anything. Written for every node and for the
         initial genome, so there are two files per genome.
+
+        ``gene_trees``, ``gff`` and ``bed`` are one file per family or per node — thousands, on a real
+        genome times a real tree — so each gets a subdirectory rather than burying the tables above;
+        ``flat=True`` writes everything into ``directory`` instead.
         """
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
@@ -966,15 +976,16 @@ class NucleotideGenomesResult:
         if "chromosome_events" in outputs:
             (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events))
         if "gene_trees" in outputs:
-            write_gene_trees(self.gene_trees, d)
+            write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat))
         if "initial_sequence" in outputs and self.initial_sequence:
             (d / "initial_sequence.fasta").write_text(
                 "".join(f">source{src}\n{self.initial_sequence[src]}\n"
                         for src in sorted(self.initial_sequence)))
         for token, ext, render in (("gff", "gff", self._gff), ("bed", "bed", self._bed)):
             if token in outputs:
+                into = grouped_dir(d, token, flat)
                 for label, genome in self._every_genome():
-                    (d / f"genome_{label}.{ext}").write_text(render(label, genome))
+                    (into / f"genome_{label}.{ext}").write_text(render(label, genome))
 
     def _every_genome(self):
         """``(label, genome)`` for every genome the run holds — each node, and the initial one. The
@@ -1789,7 +1800,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     of the initial sequence (each ancestral position at most once, monotonically down every path);
     origination further adds fresh sources beyond the root. Deterministic given ``seed``. (Transfer is
     always additive.)"""
-    tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
+    tree = as_tree(tree, level="genomes")
     # Every rate takes the written form (SPEC §5). The scopes here are **per lineage** for the gene
     # events — the rate says how often a lineage does the event and the extent says how much DNA it
     # touches, so the number reads the same whatever the genome's size — and **per chromosome** for the

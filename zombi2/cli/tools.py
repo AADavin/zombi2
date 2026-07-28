@@ -2,10 +2,12 @@
 
 Where the level commands *simulate*, the tools *read back* what a run wrote. Each tool is its own
 sub-subcommand (``zombi2 tools <tool>``); the first is ``format``, which turns a genomes run into
-analysis-ready tables. Its first table is the **homology** matrix: for each gene family, an n×n grid
-(n the extant leaves) of ``O`` / ``P`` / ``X`` — ortholog, paralog, xenolog — read from the event at
-each gene pair's most-recent common ancestor. Exact, because ZOMBI simulated the gene tree's embedding
-rather than inferring it (see :mod:`zombi2.tools.homology`).
+analysis-ready files. Two so far, both derived from the gene trees and both exact rather than
+inferred, because ZOMBI simulated the embedding it is reporting: the **homology** matrix — for each
+family an n×n grid (n the extant leaves) of ``O`` / ``P`` / ``X``, ortholog / paralog / xenolog, read
+from the event at each pair's most-recent common ancestor (:mod:`zombi2.tools.homology`) — and
+**recPhyloXML**, each family's complete gene tree written inside the complete species tree in the
+community format for that (:mod:`zombi2.tools.recphylo`).
 """
 from __future__ import annotations
 
@@ -21,17 +23,21 @@ from zombi2.genomes.gene_trees import gene_trees_from_events
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
 from zombi2.tree import read_newick
 from zombi2.tools.homology import write_homology
+from zombi2.tools.recphylo import write_recphylo
 from zombi2.cli.framework import (
     ZombiHelpFormatter, _add_flat_arg, _add_from_arg, _add_quiet_arg, _add_run_arg, _examples,
     level_dir, resolve_genomes,
 )
 
-#: the tables ``format`` can emit — ``name -> (subdirectory, writer, one-line gloss)``. One today; the
-#: menu is declared so a second table is one entry plus its writer, and the ``--format`` help is built
-#: from it, so it can never advertise a table that is not wired.
+#: what ``format`` can emit — ``name -> (subdirectory, writer, one-line gloss)``. The menu is
+#: declared so a new one is an entry plus its writer, and the ``--format`` help is built from it, so
+#: it can never advertise something that is not wired. A writer takes ``(gene_trees, species tree,
+#: directory)`` and gives back a short description of what it wrote, for the summary line.
 _FORMATS = {
     "homology": ("homology", write_homology,
                  "per-family n×n O/P/X table (ortholog / paralog / xenolog)"),
+    "recphylo": ("recphylo", write_recphylo,
+                 "per-family recPhyloXML — the gene tree drawn inside the species tree"),
 }
 
 #: the tools description carries its own tool list (the house-style formatter hides argparse's auto
@@ -53,15 +59,18 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
     tsub = p.add_subparsers(dest="tools_command", metavar="<tool>", required=True)
     fp = tsub.add_parser(
         "format",
-        help="turn a genomes run into analysis-ready tables (e.g. the homology matrix)",
+        help="turn a genomes run into analysis-ready files (homology tables, recPhyloXML)",
         description=(
-            "Read a finished 'zombi2 genomes' run and write analysis-ready tables derived from its "
-            "gene trees. Today one --format is offered: 'homology' — for each family, an n×n table "
-            "(n the extant leaves) of O/P/X (ortholog / paralog / xenolog), read from the event at "
-            "each pair's most-recent common ancestor. Exact, not inferred: ZOMBI recorded the "
-            "embedding as it simulated it. Works for every resolution; on a nucleotide run it is one "
-            "table per declared gene (the intergenic spacer is not a gene and gets none). Tables land "
-            "in the run's genomes/homology/."
+            "Read a finished 'zombi2 genomes' run and write analysis-ready files derived from its "
+            "gene trees. Two --format choices: 'homology' — for each family, an n×n table (n the "
+            "extant leaves) of O/P/X (ortholog / paralog / xenolog), read from the event at each "
+            "pair's most-recent common ancestor — and 'recphylo' — each family's complete gene tree "
+            "written inside the complete species tree as recPhyloXML, the community format for that, "
+            "ready for a viewer or for scoring a reconciliation method against. Both are exact, not "
+            "inferred: ZOMBI recorded the embedding as it simulated it. Both work at every "
+            "resolution; on a nucleotide run there is one per declared gene (the intergenic spacer is "
+            "not a gene and gets none). Files land in the run's genomes/homology/ and "
+            "genomes/recphylo/."
         ),
         usage="zombi2 tools format DIR [--from PATH] [--format FORMAT ...] [options]",
         formatter_class=ZombiHelpFormatter,
@@ -69,8 +78,11 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
             "  # O/P/X homology tables for a genomes run, written to its genomes/homology/",
             "  zombi2 tools format out/",
             "",
-            "  # read a run that lives elsewhere",
-            "  zombi2 tools format out/ --from other_run/",
+            "  # recPhyloXML instead — one file per family, for a viewer",
+            "  zombi2 tools format out/ --format recphylo",
+            "",
+            "  # both, from a run that lives elsewhere",
+            "  zombi2 tools format out/ --from other_run/ --format homology recphylo",
         ),
     )
     _add_tools_format_args(fp)
@@ -216,15 +228,14 @@ def _run_format(args, parser) -> int:
 
     os.makedirs(args.run, exist_ok=True)
     out = level_dir(args.run, "genomes", args.flat)
-    n_tables = sum(1 for gt in gene_trees.values() if gt.extant is not None)
     wrote = []
     for name in dict.fromkeys(args.formats):            # de-dupe, keep the order given
         subdir, writer, _ = _FORMATS[name]
         directory = level_dir(out, subdir, args.flat)
-        writer(gene_trees, directory)
-        wrote.append(f"{name} → {os.path.relpath(directory, args.run)}/")
+        what = writer(gene_trees, tree, directory)      # each writer says what it wrote
+        wrote.append(f"{name}: {what} → {os.path.relpath(directory, args.run)}/")
     if not args.quiet:
-        print(f"wrote {args.run}/ ({n_tables} table(s) per format: {', '.join(wrote)})")
+        print(f"wrote {args.run}/ ({'; '.join(wrote)})")
     return 0
 
 

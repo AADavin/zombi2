@@ -597,6 +597,41 @@ def test_traits_params_file_drives_the_run_and_cli_overrides(tmp_path, tree_file
 
 # ── --params ────────────────────────────────────────────────────────────────────────
 
+def test_the_log_records_the_input_tree_by_content_not_only_by_name(tmp_path):
+    # two different trees under the same filename give logs that differ nowhere else: same command
+    # line, same seed, same parameters. The digest is what tells the two runs apart.
+    logs = []
+    for seed in (1, 2):
+        sp, gn = tmp_path / f"sp{seed}", tmp_path / f"gn{seed}"
+        main(["species", str(sp), "--birth", "1", "--death", "0.3", "--n-extant", "10",
+              "--seed", str(seed), "--flat", "--quiet"])
+        tree = tmp_path / "tree.nwk"                  # the SAME name, twice, holding two trees
+        tree.write_text((sp / "species_complete.nwk").read_text())
+        main(["genomes", str(gn), "--from", str(tree), "--duplication", "0.2", "--loss", "0.2",
+              "--seed", "7", "--flat", "--quiet"])
+        logs.append([ln for ln in (gn / "genomes.log").read_text().splitlines()
+                     if not ln.startswith(("timestamp", "command_line", "run\t", "source\t"))])
+    digests = [[ln for ln in log if ln.startswith("input\t")] for log in logs]
+    assert len(digests[0]) == 1 and digests[0] != digests[1]     # the tree, and it is not the same tree
+    assert [ln for ln in logs[0] if not ln.startswith("input\t")] == \
+           [ln for ln in logs[1] if not ln.startswith("input\t")]   # nothing else differs at all
+
+
+def test_the_log_records_a_driver_file_as_an_input(tmp_path):
+    # a conditioned run reads the driver as surely as it reads the tree, so it is logged the same way
+    run = tmp_path / "r"
+    main(["species", str(run), "--birth", "1", "--death", "0.2", "--n-extant", "10", "--seed", "1",
+          "--quiet"])
+    main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch", "0.4",
+          "--seed", "1", "--quiet"])
+    driver = str(run / "traits" / "trait_events.tsv")
+    main(["genomes", str(run), "--duplication", "0.2", "--seed", "1", "--quiet",
+          "--loss", f"0.25 * DrivenBy({driver!r}, {{'cave': 4.0, 'surface': 1.0}})"])
+    inputs = [ln.split("\t")[2] for ln in (run / "genomes" / "genomes.log").read_text().splitlines()
+              if ln.startswith("input\t")]
+    assert driver in inputs
+
+
 def test_params_file_supplies_defaults_and_cli_overrides(tmp_path):
     (tmp_path / "p.toml").write_text("birth = 2.0\ndeath = 0.3\nn-extant = 12\n")
     out = tmp_path / "o"

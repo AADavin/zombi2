@@ -145,7 +145,7 @@ def test_write_emits_one_fasta_per_extant_lineage(tmp_path):
     r.write(tmp_path, outputs=("genomes",))
     for leaf in genomes.complete_tree.extant():
         label = node_label(leaf.id)
-        lines = (tmp_path / f"genome_{label}.fasta").read_text().splitlines()
+        lines = (tmp_path / "genomes" / f"genome_{label}.fasta").read_text().splitlines()
         headers = [ln for ln in lines if ln.startswith(">")]
         assert headers == [f">{label}_chr{c.id}" for c in genomes.genomes[leaf.id].chromosomes]
         assert sum(len(ln) for ln in lines if not ln.startswith(">")) == genomes.genomes[leaf.id].length
@@ -222,10 +222,10 @@ def test_write_emits_a_genome_for_every_node_by_default(tmp_path):
     r = simulate_sequences(genomes, model=jc69(), substitution=0.2, seed=6)
     r.write(tmp_path)
     assert not list(tmp_path.glob("*ancestral*"))
-    assert {p.name for p in tmp_path.glob("genome_n*.fasta")} == \
+    assert {p.name for p in (tmp_path / "genomes").glob("genome_n*.fasta")} == \
            {f"genome_{node_label(i)}.fasta" for i in genomes.complete_tree.nodes}
     for label, chroms in r.genomes.items():
-        lines = (tmp_path / f"genome_{label}.fasta").read_text().splitlines()
+        lines = (tmp_path / "genomes" / f"genome_{label}.fasta").read_text().splitlines()
         assert [ln for ln in lines if ln.startswith(">")] == [f">{label}_chr{c}" for c in chroms]
 
 
@@ -238,7 +238,8 @@ def test_a_nucleotide_run_names_its_files_blocks_not_families(tmp_path):
     r = simulate_sequences(genomes, model=jc69(), substitution=0.2, seed=6)
     assert r.unit == "block"
     r.write(tmp_path, outputs=("alignments", "phylograms", "ancestral", "founding"))
-    names = {p.name for p in tmp_path.iterdir()}
+    names = {p.name for sub in ("alignments", "phylograms", "ancestral")
+             for p in (tmp_path / sub).iterdir()} | {p.name for p in tmp_path.iterdir()}
     assert not [n for n in names if "fam" in n]
     assert "block0.fasta" in names and "phylogram_block0_complete.nwk" in names
     assert any(n.startswith("sequences_ancestral_block") for n in names)
@@ -251,7 +252,7 @@ def test_an_unordered_run_still_names_them_families(tmp_path):
     r = simulate_sequences(g, model=jc69(), length=30, seed=1)
     assert r.unit == "family"
     r.write(tmp_path, outputs=("alignments", "phylograms"))
-    names = {p.name for p in tmp_path.iterdir()}
+    names = {p.name for sub in ("alignments", "phylograms") for p in (tmp_path / sub).iterdir()}
     assert "fam1.fasta" in names and "phylogram_fam0_complete.nwk" in names
     assert not [n for n in names if n.startswith("block")]
 
@@ -368,7 +369,7 @@ def test_the_initial_genome_is_what_the_run_was_seeded_with(tmp_path):
         assert seq[a:b] == r.founding[genomes.block_of(fam)]
 
     r.write(tmp_path, outputs=("initial_genome",))
-    text = (tmp_path / "genome_initial.fasta").read_text()
+    text = (tmp_path / "genomes" / "genome_initial.fasta").read_text()
     assert f">initial_chr{chrom.id}\n" in text
     assert "".join(text.split(">")[1].splitlines()[1:]) == seq
 

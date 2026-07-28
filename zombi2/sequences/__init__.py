@@ -46,6 +46,7 @@ from ..rates.modifiers import ByLineage, FromParent, Modifier
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerSite
 from ..tree import Node, Tree, prune
+from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
 from .evolution import evolve_gene_tree
 from .substitution_models import (BASES, SubstitutionModel, dayhoff, decode, encode, gtr,
@@ -121,30 +122,40 @@ class SequencesResult:
     initial_genome: dict[int, str] = field(default_factory=dict)
     unit: str = "family"
 
+    def __repr__(self) -> str:
+        n = sum(len(a) for a in self.alignments.values())
+        return (f"SequencesResult({n} sequences across {len(self.alignments)} {self.unit} "
+                f"alignments, seed={self.seed})")
+
     @property
     def _stem(self) -> str:
         """The filename stem for a per-unit output, so a file never claims to be a family when it is
         a block: ``fam<n>.fasta`` against ``block<n>.fasta``."""
         return {"family": "fam", "block": "block"}[self.unit]
 
-    def write(self, directory,
-              outputs=("alignments", "phylograms", "species_phylogram", "genomes",
-                       "initial_genome")) -> None:
+    def write(self, directory, outputs=("alignments", "phylograms", "species_phylogram", "genomes",
+                                        "initial_genome"), *, flat: bool = False) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed). ``<u>`` below is
         ``fam<family>`` on a family or ordered run and ``block<index>`` on a nucleotide one — the
         integer keys mean different things, so the files say which (see :attr:`unit`):
 
-        - ``"alignments"`` → ``<u>.fasta`` (skipped for empty families).
-        - ``"ancestral"`` → ``sequences_ancestral_<u>.fasta``.
+        - ``"alignments"`` → ``<u>.fasta`` under ``alignments/`` (skipped for empty families).
+        - ``"ancestral"`` → ``sequences_ancestral_<u>.fasta`` under ``ancestral/``.
         - ``"founding"`` → ``sequences_founding.fasta``, one record ``<u>`` apiece: the sequence each
           family originated with, before its stem.
-        - ``"phylograms"`` → ``phylogram_<u>_{complete,extant}.nwk`` (subs/site).
+        - ``"phylograms"`` → ``phylogram_<u>_{complete,extant}.nwk`` (subs/site) under ``phylograms/``.
         - ``"species_phylogram"`` → ``clock_species_tree_{complete,extant}.nwk``: the species tree
           with its branches in substitutions/site — the molecular clock made visible.
-        - ``"genomes"`` → ``genome_<lineage>.fasta``, one file per node — extant, extinct and
-          ancestral alike — with one record per chromosome. Nucleotide runs only; nothing is written
-          otherwise. The big one: a real genome times every node in the tree.
-        - ``"initial_genome"`` → ``genome_initial.fasta``, the genome the run started with.
+        - ``"genomes"`` → ``genome_<lineage>.fasta`` under ``genomes/``, one file per node — extant,
+          extinct and ancestral alike — with one record per chromosome. Nucleotide runs only; nothing
+          is written otherwise. The big one: a real genome times every node in the tree.
+        - ``"initial_genome"`` → ``genome_initial.fasta``, in ``genomes/`` with the rest: it is a
+          whole-genome FASTA like they are, and it belongs beside them.
+
+        Everything that is one file per family or per node gets a subdirectory, or the two trees and
+        the one founding FASTA would be lost among thousands; ``flat=True`` writes everything into
+        ``directory`` instead. Nothing is created for an output this run has none of, so a family run
+        leaves no empty ``genomes/`` behind.
         """
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
         if unknown:
@@ -152,22 +163,25 @@ class SequencesResult:
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
         u = self._stem
-        if "alignments" in outputs:
+        if "alignments" in outputs and any(self.alignments.values()):
+            into = grouped_dir(d, "alignments", flat)
             for fam, aln in self.alignments.items():
                 if aln:
-                    _write_fasta(d / f"{u}{fam}.fasta", aln)
-        if "ancestral" in outputs:
+                    _write_fasta(into / f"{u}{fam}.fasta", aln)
+        if "ancestral" in outputs and any(self.ancestral.values()):
+            into = grouped_dir(d, "ancestral", flat)
             for fam, anc in self.ancestral.items():
                 if anc:
-                    _write_fasta(d / f"sequences_ancestral_{u}{fam}.fasta", anc)
+                    _write_fasta(into / f"sequences_ancestral_{u}{fam}.fasta", anc)
         if "founding" in outputs and self.founding:
             _write_fasta(d / "sequences_founding.fasta",
                          {f"{u}{fam}": seq for fam, seq in sorted(self.founding.items())})
-        if "phylograms" in outputs:
+        if "phylograms" in outputs and self.phylograms:
+            into = grouped_dir(d, "phylograms", flat)
             for fam, ph in self.phylograms.items():
-                (d / f"phylogram_{u}{fam}_complete.nwk").write_text(ph["complete"] + "\n")
+                (into / f"phylogram_{u}{fam}_complete.nwk").write_text(ph["complete"] + "\n")
                 if ph["extant"] is not None:
-                    (d / f"phylogram_{u}{fam}_extant.nwk").write_text(ph["extant"] + "\n")
+                    (into / f"phylogram_{u}{fam}_extant.nwk").write_text(ph["extant"] + "\n")
         if "species_phylogram" in outputs:
             sp = self.species_phylogram
             (d / "clock_species_tree_complete.nwk").write_text(sp["complete"] + "\n")
@@ -177,9 +191,10 @@ class SequencesResult:
         for token, genomes in (("genomes", self.genomes),
                                ("initial_genome",
                                 {"initial": self.initial_genome} if self.initial_genome else {})):
-            if token in outputs:
+            if token in outputs and genomes:   # both land in genomes/: an assembled genome either way
+                into = grouped_dir(d, "genomes", flat)
                 for lineage, chroms in genomes.items():
-                    _write_fasta(d / f"genome_{lineage}.fasta",
+                    _write_fasta(into / f"genome_{lineage}.fasta",
                                  {f"{lineage}_chr{cid}": seq for cid, seq in chroms.items()})
 
 

@@ -9,7 +9,7 @@ import numpy as np
 
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
-from ..species import SpeciesResult
+from ..tree import as_tree
 
 from ._shared import _correlation_matrix, _preorder, _symmetric_sqrt
 from .result import Change, TraitsResult
@@ -213,7 +213,7 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
     ``at_speciation`` (a probability in ``[0, 1]``) adds an **on-speciation** shift — each daughter hops
     to a uniformly-chosen other state with that chance at every speciation. Deterministic given ``seed``.
     """
-    tree = tree.complete_tree if isinstance(tree, SpeciesResult) else tree
+    tree = as_tree(tree, level="traits")
     states = list(states)
     if len(states) < 2:
         raise ValueError(f"a discrete trait needs at least 2 states, got {states!r}")

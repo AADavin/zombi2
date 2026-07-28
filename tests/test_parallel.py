@@ -229,12 +229,12 @@ def test_stream_files_carry_the_same_content_as_the_in_memory_run(species_for_ge
     assert _lines(run.path("initial_genome")) == _lines(tmp_path / "mem/initial_genome.tsv")
     # profiles: same matrix (rows keyed by family; order aside)
     assert sorted(_lines(run.path("profiles"))[1:]) == sorted(_lines(tmp_path / "mem/profiles.tsv")[1:])
-    # gene trees: one Newick pair per family, byte-identical
-    mem_trees = {f for f in os.listdir(tmp_path / "mem") if f.startswith("gene_tree_fam")}
+    # gene trees: one Newick pair per family, byte-identical — and under gene_trees/ either way
+    mem_trees = set(os.listdir(tmp_path / "mem/gene_trees"))
     str_trees = set(os.listdir(tmp_path / "str/gene_trees"))
     assert mem_trees == str_trees and mem_trees
     for f in mem_trees:
-        assert _lines(tmp_path / "mem" / f) == _lines(tmp_path / "str/gene_trees" / f)
+        assert _lines(tmp_path / "mem/gene_trees" / f) == _lines(tmp_path / "str/gene_trees" / f)
     # the streamed event log replays (the disk handoff the sequence level uses)
     assert len(events_from_tsv(open(run.path("events")).read())) == run.n_events
 
