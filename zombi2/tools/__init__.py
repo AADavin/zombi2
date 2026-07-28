@@ -1,8 +1,8 @@
 """``zombi2.tools`` — analyses that read a finished run and derive a new view of it.
 
 The levels *simulate*; the tools *read back* what a run wrote and turn it into something else. Both
-tools here re-express one gene tree's recorded events: **homology** classification, the true ortholog
-/ paralog / xenolog relation of every gene pair (:mod:`.homology`), and **recPhyloXML**, the gene tree
+tools here re-express one gene tree's recorded events: **homology** classification, how every gene
+pair diverged and whether transfer is in its history (:mod:`.homology`), and **recPhyloXML**, the gene tree
 written inside the species tree in the community format for that (:mod:`.recphylo`)."""
 from __future__ import annotations
 

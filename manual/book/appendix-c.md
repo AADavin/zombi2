@@ -17,14 +17,55 @@ intergenic spacer is not a gene, so it gets none. `--from PATH` reads a run that
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
-| Homology matrix | `homology_fam<f>.tsv` | TSV | `--format homology` | one **n×n** table per family (n the extant leaves), in `genomes/homology/`. Row and column headers are the leaves `n<species>\|g<copy>`; each off-diagonal cell is the relation of that pair — `O` ortholog (their MRCA is a speciation), `P` paralog (a duplication), `X` xenolog (a transfer) — and the diagonal is `-`. Symmetric. A family with no surviving copy writes no table |
+| Homology matrix | `homology_fam<f>.tsv` | TSV | `--format homology` | one **n×n** table per family (n the extant leaves), in `genomes/homology/`. Row and column headers are the leaves `n<species>_g<copy>`; each off-diagonal cell is that pair's relation — `O`, `P`, `Ox` or `Px` (see below) — and the diagonal is `-`. Symmetric. A family with no surviving copy writes no table |
 | recPhyloXML | `recphylo_fam<f>.xml` | XML | `--format recphylo` | one file per family, in `genomes/recphylo/`: that family's **complete** gene tree written inside the **complete** species tree, in the recPhyloXML format. Written for every family, extinct ones included |
 
-Both are exact, not inferred. ZOMBI simulated each gene tree's embedding in the species tree, so the
-event at a leaf pair's most-recent common ancestor is **recorded** on the tree rather than
-reconstructed from it: a speciation there makes the pair orthologs, a duplication paralogs, a transfer
-xenologs. That is what makes these files a ground-truth reference to score an inference method
-against.
+Both are exact, not inferred. ZOMBI simulated each gene tree's embedding in the species tree, so
+every event is **recorded** on the tree rather than reconstructed from it. That is what makes these
+files a ground-truth reference to score an inference method against.
+
+### The homology matrix
+
+Two genes are related on **two independent axes**, and a cell carries both.
+
+**How they diverged** — the event at their most-recent common ancestor:
+
+- `O` — a **speciation**: one gene, and the species carrying it split in two. They are **orthologs**.
+- `P` — a **copying**: one gene became two. They are **paralogs**. Either a duplication, which copies
+  within a genome, or a transfer, which copies into another lineage — both leave two genes where
+  there was one, which is what the letter says.
+
+**Whether transfer is in their history** — an `x` suffix, when a transfer sits anywhere on the path
+from that common ancestor down to *either* gene. Those two genes are **xenologs** as well.
+
+So a cell reads `O`, `P`, `Ox` or `Px`.
+
+The two axes are separate because they answer different questions and the answers are not exclusive.
+Divergence is a property of one *node*; xenology is a property of the whole *path*, which is how
+Fitch defined it — a pair can perfectly well have diverged at a speciation and then had one of its
+two genes carried elsewhere by a transfer. Here is the smallest case, species `((a, b), c)`, where
+`c` donates a copy of its gene into `a`, so `a` ends up holding two:
+
+```
+          n3_g1    n4_g2    n2_g3    n3_g4      n3 = a,  n4 = b,  n2 = c
+  n3_g1       -        O        O       Ox      g4 = the copy c sent to a
+  n4_g2       O        -        O       Ox      g3 = the copy c kept
+  n2_g3       O        O        -       Px
+  n3_g4      Ox       Ox       Px        -
+```
+
+Every pair involving `g4`, the arrival, carries the `x`; no other pair does. In particular the copy
+`c` **kept** (`g3`) never went anywhere, so it relates to `a` and `b` by ordinary vertical descent —
+only the gene that moved has transfer in its history. And `n3_g1` against `n3_g4` is a pair of genes
+**in the same genome** reading `Ox`: they diverged when `a` and `c` split, and one of them came back
+by transfer. That is the pattern worth being careful about when scoring an orthology method, because
+no method can ever call two genes of one genome orthologs.
+
+The table is read off each family's **complete** gene tree, not its pruned one. The pairs and the
+divergence letters are the same either way, but the `x` is a fact about the path: a transfer whose
+donor-side copy left no surviving descendant becomes a degree-two node in the pruned tree and is
+suppressed, taking the record of the transfer with it. On an ordinary run that is a fifth of all
+cells.
 
 ### recPhyloXML
 
