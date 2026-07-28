@@ -320,7 +320,11 @@ def resolve_max_family_size(max_family_size, n_lineages: int) -> int | None:
 
 def _at_cap(genome, family: int, cap: int | None) -> bool:
     """Whether ``family`` already fills its quota in this genome — the condition that zeroes the
-    duplication rate, and a transfer's arrival, for that family."""
+    duplication rate, and a transfer's arrival, for that family.
+
+    A plain scan, which is right where a genome is one family's copies (the per-family engine) and
+    wrong where it is the whole genome — see `_FamilyCounts`, which answers the same question
+    for the global loop without walking anything."""
     if cap is None:
         return False
     n = 0
@@ -332,7 +336,50 @@ def _at_cap(genome, family: int, cap: int | None) -> bool:
     return False
 
 
-def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
+class _FamilyCounts:
+    """How many copies of each family every living lineage holds, kept beside ``gen``.
+
+    ``max_family_size`` asks this on **every** duplication and every arriving transfer, and it used
+    to be answered by scanning the lineage's whole genome. That put an O(genome) step in the inner
+    loop of a run whose genome is what grows, and it dominated: 70% of a 4000-family run, and the
+    whole of the level's superlinear scaling — with the cap removed the same run was linear.
+
+    A counter per lineage answers it by lookup. The count is exact (integers in, integers out), so
+    the cap binds where it bound before and a run is byte-for-byte what the scan gave."""
+
+    def __init__(self, gen) -> None:
+        self._counts = [collections.Counter(c.family for c in g) for g in gen]
+
+    def at_cap(self, k: int, family: int, cap: int | None) -> bool:
+        return cap is not None and self._counts[k][family] >= cap
+
+    def added(self, k: int, family: int) -> None:
+        self._counts[k][family] += 1
+
+    def removed(self, k: int, family: int) -> None:
+        counts = self._counts[k]
+        counts[family] -= 1
+        if not counts[family]:
+            del counts[family]                  # or the counter grows a key per family ever held
+
+    def entered(self, genome) -> None:
+        self._counts.append(collections.Counter(c.family for c in genome))
+
+    def entered_like(self, counts) -> None:
+        """Enter a lineage holding the same families in the same numbers as ``counts`` — a daughter
+        at a speciation, whose genome is its parent's re-identified. A copy rather than another walk."""
+        self._counts.append(counts.copy())
+
+    def retired(self, k: int):
+        """Retire lineage ``k`` and give back what it was holding, which is what its daughters
+        inherit (the parent is retired before they enter, so the index is gone by then)."""
+        counts = self._counts[k]
+        self._counts[k] = self._counts[-1]      # mirror _live.retire's swap-remove
+        self._counts.pop()
+        return counts
+
+
+def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
                  transfer_to, replacement, self_transfer, depth, to_traj=None, cap=None,
                  groups=None) -> tuple[int, int | None]:
     """The copy ``jd`` of the donor lineage ``kd`` transfers to a contemporaneous recipient lineage.
@@ -355,7 +402,7 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
     fam = src.family
     recipient = alive[kr]
     rg = gen[kr]
-    if _at_cap(rg, fam, cap):     # the recipient is full of this family: same thinning as above
+    if counts.at_cap(kr, fam, cap):  # the recipient is full of this family: same thinning as above
         return 0, None
     # the donor gene ends; two fresh copies descend from it (ZOMBI1 re-id): the continuation on the
     # donor branch and the transferred copy on the recipient branch — a horizontal edge in the gene tree.
@@ -372,8 +419,10 @@ def _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
             rg[p] = rg[-1]
             rg.pop()
             events.append(Event(t, "loss", recipient, fam, victim.id))
+            counts.removed(kr, fam)
             delta = 0
     rg.append(xfer)
+    counts.added(kr, fam)
     events.append(Event(t, "transfer", donor, fam, cont.id, parent=src.id, donor=donor))
     events.append(Event(t, "transfer", recipient, fam, xfer.id, parent=src.id, recipient=recipient,
                         donor=donor))
@@ -658,6 +707,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     any_driven = bool(rate_keys)
     # the per-family weight sums, carried across events rather than rebuilt each time (see the class)
     weights = _FamilyWeights(fam_mult, gen) if any_family else None
+    counts = _FamilyCounts(gen)      # the family cap's question, answered without walking a genome
 
     # the species tree's schedule is the run's spine: one entry per speciation/extinction, so how
     # far through it we are is how far through the tree the genomes have got
@@ -728,8 +778,10 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                              if any_family else int(rng.integers(len(gen[k]))))
                     else:
                         k, j = _pick_copy(rng, gen, n)
-                    if not _at_cap(gen[k], gen[k][j].family, cap):
+                    fam = gen[k][j].family
+                    if not counts.at_cap(k, fam, cap):
                         _duplicate(gen[k], j, tree.nodes[alive[k]], t, events, new_copy)
+                        counts.added(k, fam)
                         total_copies += 1
                         if weights is not None:
                             weights.touched(k)
@@ -740,6 +792,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                              if any_family else int(rng.integers(len(gen[k]))))
                     else:
                         k, j = _pick_copy(rng, gen, n)
+                    counts.removed(k, gen[k][j].family)      # before the copy leaves the genome
                     _lose_at(gen[k], j, tree.nodes[alive[k]], t, events)
                     total_copies -= 1
                     if weights is not None:
@@ -748,6 +801,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     k = (weighted_index(rng, w_org, r_org) if w_org is not None
                          else int(rng.integers(k_alive)))  # origination is per lineage
                     _originate(gen[k], tree.nodes[alive[k]], t, events, new_copy, new_family)
+                    counts.added(k, gen[k][-1].family)       # the copy _originate just appended
                     total_copies += 1
                     if weights is not None:
                         weights.touched(k)
@@ -761,9 +815,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                               if any_family else int(rng.integers(len(gen[kd]))))
                     else:
                         kd, jd = _pick_copy(rng, gen, n)
-                    delta, kr = _do_transfer(rng, tree, alive, gen, kd, jd, t, events, new_copy,
-                                             transfer_to, replacement, self_transfer, depth,
-                                             to_traj, cap, group_of)
+                    delta, kr = _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events,
+                                             new_copy, transfer_to, replacement, self_transfer,
+                                             depth, to_traj, cap, group_of)
                     total_copies += delta
                     if weights is not None and kr is not None:
                         weights.touched(kr)   # only the recipient's composition changed (see there)
@@ -778,6 +832,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 genomes[i] = tuple(g)  # finalise this lineage (extant, extinct, or unsampled)
                 total_copies -= len(g)
                 retire(alive, gen, pos, k_out)
+                inherited = counts.retired(k_out)   # what the daughters below inherit, if any
                 if weights is not None:
                     weights.retired(k_out)
                 node = tree.nodes[i]
@@ -789,6 +844,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                             child_genome.append(nc)
                             events.append(Event(t, "speciation", c, old.family, nc.id, parent=old.id))
                         enter(alive, gen, pos, c, child_genome)
+                        counts.entered_like(inherited)   # a re-id of the parent: same families
                         if weights is not None:
                             weights.entered(child_genome)
                         total_copies += len(child_genome)
