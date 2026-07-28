@@ -22,7 +22,7 @@ from zombi2.genomes.nucleotide import WIRED_MODIFIERS as _NUC_WIRED
 from zombi2.rates.parse import parse_rate, written_form
 from zombi2.rates.scope import Global, PerLineage
 from zombi2.tree import read_newick
-from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
+from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
                                   _read_tip_fates, _write_params_log, check_stale_downstream,
                                   clear_stale_downstream, conditioned_levels, default_outputs,
@@ -392,6 +392,7 @@ def run(args, parser):
                          f"{args.resolution}; choose from: {', '.join(vocab)}")
 
     # refuse up front if re-running would orphan a later level already in the run (unless --force)
+    resolve_seed(args)                      # a run must be reproducible from its own log
     check_stale_downstream(args, "genomes")
 
     tree_path = resolve_tree(args.source or args.run)

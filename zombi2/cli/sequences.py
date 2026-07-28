@@ -34,7 +34,7 @@ from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _write_params_log,
                                   default_outputs, guidance, level_dir, parallel_from_args,
-                                  defaults_used, resolve_genomes, warn)
+                                  defaults_used, resolve_genomes, resolve_seed, warn)
 
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -230,6 +230,7 @@ def run(args, parser):
     if args.model is None:
         # jc69 has no free parameters, so a bare run needs nothing else to be well defined
         warn(defaults_used(args, model="jc69"))
+    resolve_seed(args)                     # a run must be reproducible from its own log
     # reject a physical parameter given for a model that doesn't read it (e.g. --kappa with jc69),
     # so a silently-ignored flag can't give a misleading run — the genomes command's discipline
     allowed = set(_MODEL_KNOBS[args.model])
