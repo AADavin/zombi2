@@ -65,6 +65,19 @@ parameter. Rates are recorded in their **written form** — `birth<TAB>1.0 * OnT
 so a line pastes straight back into the flag or a `--params` file. It is a CLI artifact, not a
 `result.write()` output, so it has no row in the tables below.
 
+Every tree ZOMBI2 writes is ordinary Newick and opens in **FigTree**, **iTOL**, **Dendroscope** or
+any other viewer; the species and gene trees carry internal-node labels, which most viewers will show
+as node names. To load one in Python, `zombi2.tree.read_newick(text)` returns `(tree, names)` — the
+`Tree` the levels take, and `{node id: your label}` for a tree that came with its own tip names. It is
+the same reader `--from` uses, so an external tree behaves identically from Python and from the
+command line:
+
+```python
+from zombi2.tree import read_newick
+
+tree, names = read_newick(open("mytree.nwk").read())
+```
+
 A run that **read** a file records it too, one `input` line per file, holding its SHA-256 and its
 path:
 
@@ -100,7 +113,7 @@ Chapter 2.
 | Genomes | `genomes.tsv` | TSV | yes | every node's gene content, **ancestors included** — `lineage` · `family` · `copy`. **One row per gene copy**, so a lineage holding six genes has six rows; two rows sharing a `family` are two copies of it. `copy` is the same identifier the event log uses, so a gene can be followed from the genome it sits in back to the event that made it. `profiles.tsv` is the same information counted, and only for the extant tips |
 | Initial genome | `initial_genome.tsv` | TSV | yes | the genome the run **started** with, at the start of the root branch — `family` · `copy`. Its own file, with no `lineage` column, because it belongs to no node: every `lineage` elsewhere is a node, and a node sits at the *end* of its branch |
 | Conditioning | `conditioned_on` | text | conditioned | written **only when a rate was conditioned**: the run's levels this run read via `DrivenBy` (one per line, e.g. `traits`). It records the dependency so re-running a driver level (say the trait) refuses to leave this run silently stale, or clears it under `--force`. A run with no driven rate writes no such file |
-| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | each family's true genealogy, in `genomes/gene_trees/`. A family with no surviving copy writes no `_extant` file |
+| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | each family's true genealogy, in `genomes/gene_trees/`. Leaves are `n<species>_g<copy>`; **internal nodes are labelled `<event>_n<species>`** — `duplication_n45`, `transfer_n45`, `speciation_n45` — the event that ended that gene and the species branch it was on, which is what makes the tree readable on its own. A family with no surviving copy writes no `_extant` file |
 | Tip names | `names.tsv` | TSV | external tree | written **only when the tree came from `--from` with its own tip labels** — `node` · `name`, mapping ZOMBI's `n<id>` back to the labels you supplied. Every other output names nodes `n<id>`, so this is the join back to your taxa; `profiles.tsv`'s columns key on the same ids |
 | Family origination | `.gene_trees[f].origination` | float | Python | when the family was founded — where its gene tree's root branch begins |
 

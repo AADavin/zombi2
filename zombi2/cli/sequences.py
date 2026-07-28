@@ -321,7 +321,7 @@ def run(args, parser):
     # it yields a usable alignment depends on the height of the tree it ran down, which the user has
     # no way to read off the flags. Reporting it turns a silent failure into a visible number.
     identity = _mean_pairwise_identity(result.alignments)
-    realised = "" if identity is None else f", mean identity {identity:.0%}"
+    realised = "" if identity is None else f", mean identity {identity:.1%}"
     if nucleotide:
         # the assembled genome of a node is exactly as long as its block layout (substitution keeps
         # length), so total bp comes from the genome run without assembling every node's sequence —
@@ -345,8 +345,8 @@ def run(args, parser):
         rate = _effective_substitution(args, genome_run).get("substitution", args.substitution)
         used = ("the default 1.0" if args.substitution is None and args.divergence is None
                 else written_form(as_rate(rate, default_scope=PerSite)))
-        warn(f"these sequences are close to saturated — mean pairwise identity is {identity:.0%}, "
-             f"against {floor:.0%} for unrelated sequences under {model.name}. The substitution "
+        warn(f"these sequences are close to saturated — mean pairwise identity is {identity:.1%}, "
+             f"against {floor:.1%} for unrelated sequences under {model.name}. The substitution "
              f"rate is per unit time, so a tall tree accrues many substitutions per site and the "
              f"alignments keep little history: homology search and tree inference will both do "
              f"poorly on them. Say how diverged you want them instead — --divergence 0.2 is a "
