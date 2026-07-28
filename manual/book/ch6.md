@@ -1,6 +1,6 @@
 # Genomes III: nucleotide
 
-At the **nucleotide** resolution a chromosome is a **coordinate axis of DNA** rather than a list of gene tokens, and an event is an arc on it: an inversion reverses 600 bp, a loss deletes 900 bp, a duplication copies 2 kb in tandem. Genes still exist and still get gene trees, but they are stretches of that axis with a start and an end, and the DNA between them is simulated too.
+At the **nucleotide** resolution a chromosome is a **coordinate axis of DNA** rather than a list of gene tokens, and events have an extension measured in base pairs: an inversion reverses 600 bp, a loss deletes 900 bp, a duplication copies 2 kb in tandem. Genes still exist and still get gene trees, but they are stretches of that axis with a start and an end, and the DNA between them is simulated too.
 
 ```python
 from zombi2 import species, genomes
@@ -14,40 +14,15 @@ g = genomes.simulate_genomes_nucleotide(
 
 This starts the run from a 3000 bp circular chromosome carrying three 400 bp genes, evenly spaced, and evolves it down the tree.
 
-## Blocks: genes and intergenes
+## Genes and intergenes
 
-A chromosome is stored as an ordered list of **blocks**. A block is a run of DNA with one unbroken ancestry: the interval `[start, end)` on some ancestral **source**, read forward (`+`) or reverse-complemented (`−`). Events only ever *split* blocks, never merge them, so the block boundaries you see at a leaf are the accumulated breakpoints of its whole history.
 
-Blocks come in two kinds:
+A genome here is DNA, and its DNA is of two kinds:
 
-- a **gene** is a *declared, indivisible* block — one family, one id, **never split**. It carries a gene tree.
-- an **intergene** is the spacer between genes. It fragments freely into as many blocks as events dictate. 
+- a **gene** is *declared* and *indivisible* — one family, one id, never cut in two. It carries a gene tree.
+- an **intergene** is the spacer between genes. Nothing protects it, so events cut it wherever they land.
 
-A genome is therefore an alternating chain of intergenes and genes, and either extreme is legal. Declare no genes and the chromosome is one big intergene — the uniform-sequence model. Fill the replicon with genes and there is no spacer at all; that evolves too, because events break at the joins *between* genes (see *Genes are never split*, below).
-
-Reading two leaves of the run above shows what the events did:
-
-```
-leaf n2, chromosome 2 (circular), 3000 bp        leaf n5, chromosome 5 (circular), 3000 bp
-  [   0,  600) +   600 bp  intergene               [   0,  599) +   599 bp  intergene
-  [ 600, 1000) +   400 bp  gene 1                  [1174, 1374) +   200 bp  intergene
-  [1000, 1144) +   144 bp  intergene               [1000, 1144) −   144 bp  intergene
-  [1144, 1374) −   230 bp  intergene               [ 600, 1000) −   400 bp  gene 1
-  [1374, 1404) +    30 bp  intergene               [ 599,  600) −     1 bp  intergene
-  [2000, 2262) −   262 bp  intergene               [1144, 1174) −    30 bp  intergene
-  [1600, 2000) −   400 bp  gene 2                  [1374, 1600) +   226 bp  intergene
-  [1404, 1600) −   196 bp  intergene               [1600, 2000) +   400 bp  gene 2
-  [2262, 2600) +   338 bp  intergene               [2000, 2021) +    21 bp  intergene
-  [2600, 3000) +   400 bp  gene 3                  [2021, 2319) −   298 bp  intergene
-                                                   [2319, 2600) +   281 bp  intergene
-                                                   [2600, 3000) +   400 bp  gene 3
-```
-
-Both leaves still carry all three genes. In `n2` an inversion covered gene 2, which now reads on the `−` strand with the spacer around it reversed; in `n5` a different inversion covered gene 1 instead. The coordinates are what make this readable: every block still names where it came from in the root, so `[600, 1000)` is gene 1 wherever it turns up and whichever way it points.
-
-## Genes are never split
-
-An event either **engulfs a gene whole** or leaves it alone; a breakpoint never falls strictly inside one. So an event does not pick an arc and then clean up afterwards. Both of its ends are drawn **directly from the positions where a breakpoint is legal**. A genome can therefore be **all gene, with no spacer at all**: ten 100 bp genes in 1000 bp is a legal genome, and it evolves. Its breakpoints simply all fall at the joins between genes, so genes are inverted, moved, duplicated and lost whole. Genes may sit flush; they are not required to leave a gap.
+A genome is an alternating chain of intergenes and genes, and either extreme is legal. Declare no genes and the chromosome is one big intergene — the uniform-sequence model. Fill the replicon with genes and there is no spacer at all; that evolves too, because events break at the joins *between* genes (see *Genes are never split*, below).
 
 ## Extents
 
@@ -100,6 +75,31 @@ loss_extent = 150 * mod.DrivenBy(habitat, {"host": 6.0,  "free": 1.0})   # delet
 The first raises how often a host-restricted lineage deletes, the second how much each deletion takes. Set both and they multiply: the DNA shed per unit time goes up by the product, not the sum.
 
 A modifier on an *extent* is read when an event fires, so unlike the same modifier on a rate it adds no step to the run's clock. Chapter 9 covers what a driver is and how to grow one; anything not wired raises rather than being quietly ignored.
+
+## Genes are never split
+
+An event either **engulfs a gene whole** or leaves it alone; a breakpoint never falls strictly inside one. So an event does not pick an arc and then clean up afterwards. Both of its ends are drawn **directly from the positions where a breakpoint is legal**. A genome can therefore be **all gene, with no spacer at all**: ten 100 bp genes in 1000 bp is a legal genome, and it evolves. Its breakpoints simply all fall at the joins between genes, so genes are inverted, moved, duplicated and lost whole. Genes may sit flush; they are not required to leave a gap.
+
+
+Two leaves of the same run show what those events did. Each line is a **block**: a stretch of DNA with one unbroken ancestry, written as the interval it came from on the initial sequence, read forward (`+`) or reverse-complemented (`−`). A gene is always one block, because nothing may cut it. Spacer is not, so a run of several intergene lines in a row is simply spacer that has been cut apart and rearranged — the accumulated breakpoints of everything that happened to that lineage.
+
+```
+leaf n2, chromosome 2 (circular), 3000 bp        leaf n5, chromosome 5 (circular), 3000 bp
+  [   0,  600) +   600 bp  intergene               [   0,  599) +   599 bp  intergene
+  [ 600, 1000) +   400 bp  gene 1                  [1174, 1374) +   200 bp  intergene
+  [1000, 1144) +   144 bp  intergene               [1000, 1144) −   144 bp  intergene
+  [1144, 1374) −   230 bp  intergene               [ 600, 1000) −   400 bp  gene 1
+  [1374, 1404) +    30 bp  intergene               [ 599,  600) −     1 bp  intergene
+  [2000, 2262) −   262 bp  intergene               [1144, 1174) −    30 bp  intergene
+  [1600, 2000) −   400 bp  gene 2                  [1374, 1600) +   226 bp  intergene
+  [1404, 1600) −   196 bp  intergene               [1600, 2000) +   400 bp  gene 2
+  [2262, 2600) +   338 bp  intergene               [2000, 2021) +    21 bp  intergene
+  [2600, 3000) +   400 bp  gene 3                  [2021, 2319) −   298 bp  intergene
+                                                   [2319, 2600) +   281 bp  intergene
+                                                   [2600, 3000) +   400 bp  gene 3
+```
+
+Both leaves still carry all three genes. In `n2` an inversion covered gene 2, which now reads on the `−` strand with the spacer around it reversed; in `n5` a different inversion covered gene 1 instead. The coordinates are what make this readable: every block still names where it came from in the root, so `[600, 1000)` is gene 1 wherever it turns up and whichever way it points.
 
 ## The initial genome
 

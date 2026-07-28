@@ -53,6 +53,46 @@ The four nucleotide matrices are the standard published ones [@jukes1969evolutio
 
 The rate itself is `substitution`, and it is counted **per site**: a gene-tree branch of Δ*t* time accrues `substitution · Δt` substitutions at every site. Leave it alone and it is `1.0` everywhere — the **strict clock**, one tempo for the whole tree.
 
+This is the one number people most often get wrong, so it is worth doing an example in full. Suppose your tree runs 20 time units from the start of the stem to the leaves, and you leave the rate at `1.0`. Then every site accumulates `1.0 × 20 = 20` substitutions on the way from the origin to a tip.
+
+Twenty substitutions per site is a great many, and this is where the intuition usually breaks: those are twenty *events*, not twenty visible differences. A site has only four states, so once it has been hit a couple of times it starts landing back on bases it already held, and the differences you can actually see stop accumulating long before the events do. Past about one substitution per site, two sequences are as different as two random ones, and the alignment no longer records where they came from. The rate has not stopped working — the history has simply been overwritten.
+
+So the rate that suits a run depends on the height of the tree it runs down, which is why no default can be right for every tree. Read it off backwards instead, from the divergence you want:
+
+$$\text{substitution} = \frac{\text{substitutions per site you want, origin to tip}}{\text{height of the tree}}$$
+
+On the 20-unit tree above, sequences around 80% identical need roughly `0.2 / 20 = 0.01`, not `1.0`. The difference is not subtle: simulated down that tree, `0.01` gives tips about 77% identical, while the default `1.0` gives **25%** — precisely the score of two sequences with no shared history at all. The table below is measured the same way, on simulated JC69 alignments, and holds for any tree, since its first column is already the product of rate and height:
+
+| Substitutions per site, origin to tip | Mean identity between two tips |
+|---|---|
+| 0.02 | 98% |
+| 0.09 | 90% |
+| 0.17 | 81% |
+| 0.34 | 68% |
+| 0.86 | 46% |
+| 1.72 | 34% |
+
+The last row is close to the floor: two unrelated DNA sequences already match at 25% by chance, so 34% is almost no signal at all. Every run reports the identity it actually produced in its summary line, and warns when it comes out this close to the floor, so you never have to work it out from the flags alone.
+
+You can also state the divergence and let ZOMBI2 do the division. `divergence` is that first column — substitutions per site from the root to a tip — and the rate is solved for from the height of the tree the run is about to use:
+
+```python
+sequences.simulate_sequences(genomes, model=hky85(), length=1000, divergence=0.2)
+```
+
+```bash
+zombi2 sequences out/ --model hky85 --length 1000 --divergence 0.2
+```
+
+The two say different things and can be given together. `substitution` says what *kind* of clock — strict, or relaxed by a modifier — and `divergence` says how far it drifts, so a relaxed clock calibrated to a divergence is written with the shape alone and the scale beside it:
+
+```python
+substitution = mod.ByLineage(spread=0.3)      # the shape: an uncorrelated clock
+divergence   = 0.2                            # the scale: 0.2 substitutions per site
+```
+
+Giving `substitution` a base *number* as well is an error rather than an override, because the base is precisely what `divergence` solves for, and a run whose rate came from somewhere other than its own command line is a run you cannot reproduce from it. The resolved rate is written into the run log either way.
+
 A substitution rate that changes from lineage to lineage is what the field calls a **relaxed clock** [@lepage2007general]. It is not a new kind of object here: you multiply the rate by a modifier, exactly as at every other level.
 
 ```python
