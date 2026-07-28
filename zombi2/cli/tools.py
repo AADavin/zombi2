@@ -9,6 +9,8 @@ rather than inferring it (see :mod:`zombi2.tools.homology`).
 """
 from __future__ import annotations
 
+from collections import Counter
+
 import argparse
 import os
 import sys
@@ -287,6 +289,19 @@ def _run_treedist(args, parser) -> int:
         a, na = _tree.read_newick(open(args.a).read(), assume_extant=True)
         b, nb = _tree.read_newick(open(args.b).read(), assume_extant=True)
         la, lb = _leaf_labels(a, na), _leaf_labels(b, nb)
+        # Uniqueness first, and separately from the leaf-set check below — that one compares *sets*,
+        # so a repeated label collapses into it and passes. The relabelling then maps both copies to
+        # one id, and the distance comes back as a plausible number computed on a tree that is not a
+        # tree. A wrong number from a scoring tool is worse than a refusal.
+        for which, labels in (("first", la), ("second", lb)):
+            repeated = sorted({lab for lab, n in Counter(labels.values()).items() if n > 1})
+            if repeated:
+                parser.error(
+                    f"the {which} tree repeats the tip label(s) {', '.join(repeated)} — a distance "
+                    f"between trees is only defined when each taxon appears once, so this cannot be "
+                    f"scored. If these are gene-tree tips, several copies of a family in one genome "
+                    f"share a species: compare gene trees to each other, or pick one copy per species "
+                    f"first.")
         sa, sb = set(la.values()), set(lb.values())
         if sa != sb:
             parser.error(f"the two trees have different leaf sets ({len(sa)} vs {len(sb)} tips, "

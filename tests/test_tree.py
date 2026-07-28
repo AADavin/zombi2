@@ -188,3 +188,21 @@ def test_cli_treedist_matches_external_trees_by_label_not_parse_order(tmp_path, 
     assert capsys.readouterr().out.strip() == "rf\t4"
     assert main(["tools", "treedist", t1, t1, "--metric", "rf"]) == 0
     assert capsys.readouterr().out.strip() == "rf\t0"
+
+
+def test_a_tree_with_no_branch_lengths_is_refused():
+    """A topology-only tree spans no time, so every rate — all of them per unit time — fires zero
+    times. The run used to succeed having simulated nothing: a genome per node, a gene tree per
+    family, and an event log holding only the originations and the speciations the topology forced.
+    That is invisible from the outside, so it is refused at the door."""
+    import pytest
+
+    from zombi2.tree import read_newick
+
+    with pytest.raises(ValueError, match="no branch lengths"):
+        read_newick("(((A,B),C),D);")
+
+    # ...but a geometric caller (treedist, the tree transforms) may still load one: a bare topology
+    # is a perfectly good input to a tree comparison
+    tree, _ = read_newick("(((A,B),C),D);", assume_extant=True)
+    assert len(tree.nodes) == 7

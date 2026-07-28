@@ -347,6 +347,19 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
             n.fate = "extant"
         return Tree(nodes, root_id), names
 
+    # A tree with no time in it cannot carry a timed process. Every rate here is per unit time, so
+    # on a topology-only tree each one fires zero times and the run "succeeds" having simulated
+    # nothing — a genome per node, a gene tree per family, and an event log holding only the
+    # originations and the speciations the topology itself forced. That is a hard failure to notice
+    # from the outside, so it is refused at the door. The geometric callers above are exempt: a
+    # topology with no lengths is a perfectly good input to a tree comparison.
+    if sum(n.end_time - n.birth_time for n in nodes.values()) <= 0.0:
+        raise ValueError(
+            "this tree has no branch lengths, so it spans no time and nothing can evolve along it: "
+            "every rate is per unit time, and on a tree of total length zero every one of them "
+            "fires zero times. Give the tree branch lengths in time units — or simulate one with "
+            "'zombi2 species'.")
+
     if all_labelled:
         if tip_fates is not None:
             # the run's own species_fates.tsv (or a --tip-fates file) states each tip's fate directly,

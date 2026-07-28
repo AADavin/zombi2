@@ -9,6 +9,8 @@ import shutil
 import sys
 import textwrap
 
+import numpy as np
+
 from zombi2 import __version__
 
 
@@ -263,6 +265,21 @@ def defaults_used(args, **fallbacks) -> str:
             f"run used {shown}. Those are illustrative defaults, picked to make a first run work "
             f"rather than to describe any real group — choose them yourself for a run you intend "
             f"to keep")
+
+
+def resolve_seed(args) -> None:
+    """Draw a seed when the caller did not give one, so the run can be regenerated from its own log.
+
+    Every run is seeded — leaving ``--seed`` out only meant the seed came from the OS and was then
+    thrown away, so the ``.log`` recorded ``seed None`` and the dataset could never be reproduced by
+    anyone, its author included. Nothing warned them. Drawing it here costs nothing and makes the log
+    a complete record: re-running the command it contains reproduces the run exactly.
+
+    A run that wants fresh randomness still gets it — this draws from the OS each time. What changes
+    is only that the draw is written down."""
+    if getattr(args, "seed", None) is None:
+        # a 32-bit value, so the number in the log is one a reader can retype as --seed
+        args.seed = int(np.random.SeedSequence().entropy % (2 ** 31))
 
 
 def warn(message: str) -> None:
