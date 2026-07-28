@@ -4,8 +4,9 @@ Where the level commands *simulate*, the tools *read back* what a run wrote. Eac
 sub-subcommand (``zombi2 tools <tool>``); the first is ``format``, which turns a genomes run into
 analysis-ready files. Two so far, both derived from the gene trees and both exact rather than
 inferred, because ZOMBI simulated the embedding it is reporting: the **homology** matrix — for each
-family an n×n grid (n the extant leaves) of ``O`` / ``P`` / ``X``, ortholog / paralog / xenolog, read
-from the event at each pair's most-recent common ancestor (:mod:`zombi2.tools.homology`) — and
+family an n×n grid (n the extant leaves) of ``O`` / ``P`` / ``Ox`` / ``Px``: how the pair diverged
+(ortholog or paralog, from the event at their common ancestor) and whether horizontal transfer is in
+their history (the ``x``) — two separate questions (:mod:`zombi2.tools.homology`) — and
 **recPhyloXML**, each family's complete gene tree written inside the complete species tree in the
 community format for that (:mod:`zombi2.tools.recphylo`).
 """
@@ -35,7 +36,7 @@ from zombi2.cli.framework import (
 #: directory)`` and gives back a short description of what it wrote, for the summary line.
 _FORMATS = {
     "homology": ("homology", write_homology,
-                 "per-family n×n O/P/X table (ortholog / paralog / xenolog)"),
+                 "per-family n×n O/P/Ox/Px table (ortholog / paralog, x = xenolog)"),
     "recphylo": ("recphylo", write_recphylo,
                  "per-family recPhyloXML — the gene tree drawn inside the species tree"),
 }
@@ -46,7 +47,7 @@ _TOOLS_DESCRIPTION = (
     "Analyses that read a finished run and derive a new view of it. Run 'zombi2 tools <tool> -h' "
     "for a tool's options.\n\n"
     "Tools\n"
-    "  format               turn a genomes run into analysis-ready tables (homology O/P/X, …)\n"
+    "  format               turn a genomes run into analysis-ready files (homology, recPhyloXML)\n"
     "  tree                 transform one Newick tree (prune, round, stem, rescale, RED)\n"
     "  treedist             distance between two Newick trees (RF, branch-score)\n"
 )
@@ -63,8 +64,9 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
         description=(
             "Read a finished 'zombi2 genomes' run and write analysis-ready files derived from its "
             "gene trees. Two --format choices: 'homology' — for each family, an n×n table (n the "
-            "extant leaves) of O/P/X (ortholog / paralog / xenolog), read from the event at each "
-            "pair's most-recent common ancestor — and 'recphylo' — each family's complete gene tree "
+            "extant leaves) saying how each pair diverged (O ortholog / P paralog, from the event "
+            "at their common ancestor) and whether transfer is in their history (an x suffix: Ox, "
+            "Px) — and 'recphylo' — each family's complete gene tree "
             "written inside the complete species tree as recPhyloXML, the community format for that, "
             "ready for a viewer or for scoring a reconciliation method against. Both are exact, not "
             "inferred: ZOMBI recorded the embedding as it simulated it. Both work at every "
@@ -75,7 +77,7 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
         usage="zombi2 tools format DIR [--from PATH] [--format FORMAT ...] [options]",
         formatter_class=ZombiHelpFormatter,
         epilog=_examples(
-            "  # O/P/X homology tables for a genomes run, written to its genomes/homology/",
+            "  # O/P/Ox/Px homology tables for a genomes run, written to its genomes/homology/",
             "  zombi2 tools format out/",
             "",
             "  # recPhyloXML instead — one file per family, for a viewer",

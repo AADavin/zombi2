@@ -1182,7 +1182,7 @@ def _check_table(text):
     assert all(grid[i][i] == "-" for i in range(n))            # dashed diagonal
     assert all(grid[i][j] == grid[j][i] for i in range(n) for j in range(n))   # symmetric
     off = {grid[i][j] for i in range(n) for j in range(n) if i != j}
-    assert off <= {"O", "P", "X"}
+    assert off <= {"O", "P", "Ox", "Px"}      # how they diverged, plus x for transfer on the path
     return labels, grid
 
 
@@ -1201,7 +1201,8 @@ def test_tools_format_writes_homology_tables(tmp_path, capsys):
     for t in tables:
         _, grid = _check_table(t.read_text())
         letters |= {c for row in grid for c in row}
-    assert {"O", "P"} <= letters                               # this DTL run exercises real relations
+    # a DTL run exercises every combination: orthologs, paralogs, and both with transfer in between
+    assert {"O", "P", "Ox", "Px"} <= letters
     assert "wrote" in capsys.readouterr().out
 
 
@@ -1237,7 +1238,7 @@ def test_tools_format_matches_the_python_api(tmp_path):
         if gt.extant is None:
             continue
         on_disk = (run / "genomes" / "homology" / f"homology_fam{fam}.tsv").read_text()
-        assert on_disk == homology_tsv(gt.extant)
+        assert on_disk == homology_tsv(gt.complete)
         written += 1
     assert written == len(list((run / "genomes" / "homology").glob("*.tsv")))
 
@@ -1282,7 +1283,7 @@ def test_tools_format_on_a_nucleotide_run_writes_one_table_per_declared_gene(tmp
     for p in tables:
         fam = int(p.stem.removeprefix("homology_fam"))
         _check_table(p.read_text())
-        assert p.read_text() == homology_tsv(genome.gene_trees[fam].extant)
+        assert p.read_text() == homology_tsv(genome.gene_trees[fam].complete)
 
 
 def test_tools_format_refuses_a_nucleotide_run_with_no_declared_genes(tmp_path, capsys):
