@@ -416,3 +416,53 @@ def test_write_emits_fasta_per_family(tmp_path):
     assert (tmp_path / "sequences_ancestral_fam0.fasta").exists()
     with pytest.raises(ValueError):
         r.write(tmp_path, outputs=("bogus",))
+
+
+# --- divergence: state the outcome, let the rate be solved for ---------------
+
+def test_divergence_solves_for_the_rate_from_the_tree_height():
+    """The rate is per unit time, so the same number means different things on trees of different
+    heights. divergence states the outcome instead, and the base falls out of the height."""
+    from zombi2.tree import rescale
+    short = rescale(_tree_for_divergence(), height=2.0)
+    tall = rescale(_tree_for_divergence(), height=20.0)
+    out = []
+    for ct in (short, tall):
+        g = simulate_genomes_family(ct, initial_families=8, seed=1)
+        r = simulate_sequences(g, model=jc69(), length=400, divergence=0.2, seed=7)
+        out.append(_mean_identity(r))
+    # a tenfold difference in height, and the alignments still come out alike
+    assert abs(out[0] - out[1]) < 0.05, out
+    assert 0.6 < out[0] < 0.95, out
+
+
+def test_divergence_composes_with_a_clock_shape_but_refuses_a_base():
+    from zombi2.tree import rescale
+    ct = rescale(_tree_for_divergence(), height=10.0)
+    g = simulate_genomes_family(ct, initial_families=6, seed=1)
+    # the shape alone composes: divergence sets the scale of a relaxed clock
+    r = simulate_sequences(g, model=jc69(), length=200,
+                           divergence=0.2, substitution=mod.ByLineage(spread=0.3), seed=7)
+    assert 0.5 < _mean_identity(r) < 0.98
+    # a base alongside is refused rather than silently overridden
+    for base in (1.0, 0.5, 1.0 * mod.ByLineage(spread=0.3)):
+        with pytest.raises(ValueError, match="names a base"):
+            simulate_sequences(g, model=jc69(), length=50,
+                               divergence=0.2, substitution=base, seed=7)
+
+
+def _tree_for_divergence():
+    return species.simulate_species_tree(birth=1.0, death=0.0, n_extant=10, seed=3).complete_tree
+
+
+def _mean_identity(result):
+    import itertools
+    import numpy as np
+    tot = match = 0
+    for aln in result.alignments.values():
+        for a, b in itertools.combinations(list(aln.values()), 2):
+            n = min(len(a), len(b))
+            A = np.frombuffer(a[:n].encode(), dtype=np.uint8)
+            B = np.frombuffer(b[:n].encode(), dtype=np.uint8)
+            match += int((A == B).sum()); tot += n
+    return match / tot if tot else 0.0
