@@ -42,8 +42,8 @@ import numpy as np
 from ..genomes import FamilyGenomesResult
 from ..genomes.events import copy_label, gene_label, node_label
 from ..genomes.gene_trees import GeneNode, GeneTree
-from ..rates.modifiers import ByLineage, FromParent
-from ..rates.rate import as_rate
+from ..rates.modifiers import ByLineage, FromParent, Modifier
+from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerSite
 from ..tree import Node, Tree, prune
 from .._runtime.progress import progress_bar
@@ -282,6 +282,40 @@ def _split(gene_tree, states_by_id: dict[int, np.ndarray],
     return alignment, ancestral
 
 
+def _calibrate(substitution, divergence: float, tree: Tree) -> Rate:
+    """Turn a wanted **divergence** into the rate that produces it, and keep whatever clock shape
+    ``substitution`` was carrying.
+
+    ``divergence`` is substitutions per site along a root-to-tip path, so the base is simply
+    ``divergence / height``: the rate is per unit time, and the path is ``height`` long. It is the one
+    number a user can judge — 0.2 is a readable alignment, 2.0 is noise — where a rate cannot be
+    judged without knowing the height of a tree they have not measured. The same rate on a tree ten
+    times taller means something completely different, which is why no default rate can be right.
+
+    The two arguments say different things and compose: ``substitution`` says what *kind* of clock
+    (strict, or relaxed by a modifier), ``divergence`` says how far it drifts. A base given alongside
+    is refused rather than overridden — silently replacing a number someone typed is how a run comes
+    to differ from what its command line says.
+    """
+    if not isinstance(divergence, (int, float)) or isinstance(divergence, bool):
+        raise ValueError(f"divergence must be a number of substitutions per site, got {divergence!r}")
+    if not (divergence > 0) or divergence == float("inf"):
+        raise ValueError(f"divergence must be positive and finite, got {divergence!r}")
+    # Judged on what the caller wrote, not on the parsed rate: a bare modifier parses to base 1.0
+    # exactly as a written 1.0 does, so the rate cannot tell "shape only" from "a base I chose".
+    if substitution is not None and not isinstance(substitution, Modifier):
+        raise ValueError(
+            f"substitution names a base, and divergence={divergence} would override it — the base is "
+            f"what divergence solves for. Give the clock's shape alone "
+            f"(substitution=ByLineage(spread=…)) to calibrate a relaxed clock, or drop divergence "
+            f"and set the base yourself.")
+    rate = as_rate(1.0 if substitution is None else substitution, default_scope=PerSite)
+    height = max(n.end_time for n in tree.nodes.values()) - min(n.birth_time for n in tree.nodes.values())
+    if height <= 0:
+        raise ValueError("divergence needs a tree with height to divide by; this one has none")
+    return Rate(base=divergence / height, scope=rate.scope, modifiers=rate.modifiers)
+
+
 def _all_species(gene_trees) -> list[int]:
     """The sorted set of species-branch ids the gene trees touch — the lineages the clock is drawn
     over. Collected from the gene trees rather than the species tree, so the draws depend only on the
@@ -410,7 +444,8 @@ def _scaled_species_tree(tree: Tree, rate_base: float, clock) -> Tree:
 
 def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None = None,
                        intergene_model: SubstitutionModel | None = None, intergene_speed=3.0,
-                       substitution=1.0, seed=None, parallel=False, progress=False) -> SequencesResult:
+                       substitution=None, divergence=None, seed=None, parallel=False,
+                       progress=False) -> SequencesResult:
     """Evolve one sequence down each family's gene tree under a substitution ``model``.
 
     ``genomes`` is a **genome run** — the :class:`~zombi2.genomes.FamilyGenomesResult` that
@@ -534,7 +569,10 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
                 "spacer. A family or ordered run has gene families only, so there is nothing "
                 "for a second model to evolve.")
         per_block = None
-    rate = as_rate(substitution, default_scope=PerSite)
+    if divergence is not None:
+        rate = _calibrate(substitution, divergence, genomes.complete_tree)
+    else:
+        rate = as_rate(1.0 if substitution is None else substitution, default_scope=PerSite)
     if not isinstance(rate.scope, PerSite):
         raise ValueError(
             f"substitution has a {type(rate.scope).__name__} scope, but the sequence engine wires only "
