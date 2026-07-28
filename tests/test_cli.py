@@ -1586,3 +1586,57 @@ def test_treedist_refuses_a_repeated_tip_label(tmp_path):
     ok_a = tmp_path / "ok_a.nwk"; ok_a.write_text("((A:1,B:1):1,(C:1,D:1):1);")
     ok_b = tmp_path / "ok_b.nwk"; ok_b.write_text("((A:1,C:1):1,(B:1,D:1):1);")
     assert main(["tools", "treedist", str(ok_a), str(ok_b), "--metric", "rf"]) == 0
+
+
+# --- the small papercuts a second round of testers reported ----------------
+
+def test_a_missing_params_file_says_so(tmp_path, capsys):
+    with pytest.raises(SystemExit):
+        main(["species", str(tmp_path / "o"), "--params", str(tmp_path / "nope.toml"),
+              "--n-extant", "5"])
+    err = capsys.readouterr().err
+    assert "params file not found" in err and "Errno" not in err
+
+
+def test_a_broken_params_file_names_the_file_and_the_path_trap(tmp_path, capsys):
+    # TOML reads a backslash in a "..." string as an escape, so a Windows path is rejected with a
+    # message about hex values that says nothing about paths
+    bad = tmp_path / "p.toml"
+    bad.write_text('birth = 1.0\ntransfer-to = "DrivenBy(\'C:\\Users\\x\', {})"\n', encoding="utf-8")
+    with pytest.raises(SystemExit):
+        main(["genomes", str(tmp_path / "o"), "--params", str(bad)])
+    err = capsys.readouterr().err
+    assert "p.toml is not valid TOML" in err and "literal string" in err
+
+
+def test_an_unknown_flag_suggests_the_real_one(tmp_path, capsys):
+    with pytest.raises(SystemExit):
+        main(["genomes", str(tmp_path / "o"), "--duplication", "0.2", "--transfers", "0.1"])
+    err = capsys.readouterr().err
+    assert "unrecognized arguments: --transfers 0.1" in err
+    assert "did you mean --transfer?" in err
+    assert "usage: zombi2 genomes" in err          # the COMMAND's usage, not the top level's
+
+
+def test_a_flag_unlike_anything_gets_no_invented_suggestion(tmp_path, capsys):
+    with pytest.raises(SystemExit):
+        main(["species", str(tmp_path / "o"), "--birth", "1", "--n-extant", "5", "--wibble"])
+    assert "did you mean" not in capsys.readouterr().err
+
+
+def test_the_log_records_the_options_this_resolution_has(tmp_path, tree_file):
+    # a family run has no --root-length and no --inversion; logging them at their defaults reads as
+    # though it had them and chose those values
+    fam, nuc = tmp_path / "f", tmp_path / "n"
+    main(["genomes", str(fam), "--from", str(tree_file), "--duplication", "0.2", "--seed", "1",
+          "--flat", "--quiet"])
+    main(["genomes", str(nuc), "--from", str(tree_file), "--resolution", "nucleotide",
+          "--root-length", "200", "--seed", "1", "--flat", "--quiet"])
+    fam_log = (fam / "genomes.log").read_text(encoding="utf-8")
+    nuc_log = (nuc / "genomes.log").read_text(encoding="utf-8")
+    keys = lambda log: {ln.split("\t")[0] for ln in log.splitlines() if "\t" in ln}
+
+    assert not keys(fam_log) & {"root_length", "gene_length", "inversion", "chromosomes", "gff"}
+    assert not keys(nuc_log) & {"initial_families", "replacement", "family_speed"}
+    assert "root_length" in keys(nuc_log)          # ...and it does record what it HAS
+    assert {"duplication", "seed", "resolution"} <= keys(fam_log)

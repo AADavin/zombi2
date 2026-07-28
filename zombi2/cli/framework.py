@@ -613,12 +613,14 @@ def input_digests(*values) -> list[tuple[str, str]]:
 
 
 def _write_params_log(path: str, args: argparse.Namespace, summary: str, effective=None,
-                      inputs=()) -> None:
+                      inputs=(), omit=()) -> None:
     """Write the full set of run parameters to ``path`` — always, for reproducibility. ``effective``
     overrides the logged value of the named args with the **resolved** value the run actually used
     (e.g. a model's default ``kappa`` in place of the bare ``None`` that was on the command line), so
     the log reproduces the run without the reader having to know each default. ``inputs`` are the
-    files the run read, from `input_digests()`, recorded by content as well as by name."""
+    files the run read, from `input_digests()`, recorded by content as well as by name. ``omit`` drops
+    options this run could not have taken — a command whose flags depend on a mode records the ones
+    it *has*, so the log is the run's parameters rather than the parser's."""
     lines = ["# ZOMBI2 run parameters",
              f"zombi2_version\t{__version__}",
              f"timestamp\t{datetime.datetime.now().isoformat(timespec='seconds')}",
@@ -626,7 +628,8 @@ def _write_params_log(path: str, args: argparse.Namespace, summary: str, effecti
     for in_path, digest in inputs:
         lines.append(f"input\t{digest}\t{in_path}")
     for key, value in sorted({**vars(args), **(effective or {})}.items()):
-        lines.append(f"{key}\t{_log_value(value)}")
+        if key not in omit:
+            lines.append(f"{key}\t{_log_value(value)}")
     lines.append(f"result\t{summary}")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")

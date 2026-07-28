@@ -9,6 +9,23 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+- **`--params` on a missing file printed a raw `[Errno 2]`**, and a broken one printed tomllib's
+  position with no mention of the file. Both now name the file, and a backslash inside an ordinary
+  TOML `"…"` string is called out for what it is — a path TOML has eaten before ZOMBI2 saw it.
+- **An unknown flag now suggests the real one** — `--transfers` → `did you mean --transfer?` — and
+  only when the guess is close, so a flag unlike anything gets no invented suggestion.
+- **The run log records the options the run's resolution actually has.** A family run logged
+  `root_length`, `gene_length`, `inversion` and the rest of the nucleotide and ordered knobs at their
+  defaults, which reads as though it had them and chose those values.
+- **Mean alignment identity is reported to a tenth of a percent**, not rounded to a whole one.
+
+### Added
+- Appendix B documents the gene-tree **internal node labels** (`duplication_n45` — the event that
+  ended that gene and the branch it was on), names the viewers a `.nwk` opens in, and gives
+  `zombi2.tree.read_newick`, which had appeared in no user-facing page. `read_newick` and `as_tree`
+  are now on the API reference too.
+
 ## [0.13.0] - 2026-07-28
 
 ### Changed

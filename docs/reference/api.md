@@ -28,6 +28,10 @@ order as the [user guide](../guide/introduction.md).
 
 ::: zombi2.species.prune
 
+::: zombi2.tree.read_newick
+
+::: zombi2.tree.as_tree
+
 ## Genomes
 
 The genome level has three resolutions — family ⊂ ordered ⊂ nucleotide — one entry
