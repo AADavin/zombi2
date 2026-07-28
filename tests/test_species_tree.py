@@ -179,14 +179,14 @@ def test_newick_root_carries_the_stem():
 def test_write_produces_newick_files(tmp_path):
     r = simulate_species_tree(birth=1.0, death=0.2, n_extant=20, seed=5)
     r.write(tmp_path)
-    assert (tmp_path / "species_complete.nwk").read_text().strip().endswith(";")
-    assert (tmp_path / "species_extant.nwk").read_text().strip().endswith(";")
+    assert (tmp_path / "species_complete.nwk").read_text(encoding="utf-8").strip().endswith(";")
+    assert (tmp_path / "species_extant.nwk").read_text(encoding="utf-8").strip().endswith(";")
 
 
 def test_write_records_the_event_log(tmp_path):
     r = simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=5)
     r.write(tmp_path)                                            # events are always written
-    lines = (tmp_path / "species_events.tsv").read_text().splitlines()
+    lines = (tmp_path / "species_events.tsv").read_text(encoding="utf-8").splitlines()
     assert lines[0] == "time\tkind\tlineage\tchildren"
     assert len(lines) == 1 + len(r.events)                      # one row per recorded event
     speciation = next(ln for ln in lines[1:] if "\tspeciation\t" in ln)
@@ -205,7 +205,7 @@ def test_write_records_tip_fates(tmp_path):
     # so a downstream level can build the extant set from fate instead of guessing from tip depth
     r = simulate_species_tree(birth=1.0, death=0.4, n_extant=20, sampling=0.5, seed=5)
     r.write(tmp_path)
-    lines = (tmp_path / "species_fates.tsv").read_text().splitlines()
+    lines = (tmp_path / "species_fates.tsv").read_text(encoding="utf-8").splitlines()
     assert lines[0] == "lineage\tfate"
     fates = dict(ln.split("\t") for ln in lines[1:])
     tips = {f"n{n.id}": n.fate for n in r.complete_tree.leaves()}
@@ -464,7 +464,7 @@ def test_fossils_validation():
 def test_fossils_write_tsv(tmp_path):
     r = simulate_species_tree(birth=1.0, death=0.4, n_extant=30, fossils=0.5, seed=3)
     r.write(tmp_path)
-    lines = (tmp_path / "species_fossils.tsv").read_text().splitlines()
+    lines = (tmp_path / "species_fossils.tsv").read_text(encoding="utf-8").splitlines()
     assert lines[0] == "lineage\ttime"
     assert len(lines) == 1 + len(r.fossils)
     # no fossils file when none were recovered

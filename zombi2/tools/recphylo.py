@@ -40,7 +40,7 @@ from ..genomes.events import copy_label, node_label
 from ..genomes.gene_trees import GeneTree
 
 #: gene-node kind → the recPhyloXML tag that ends its ``<eventsRec>``. Every kind a
-#: :class:`~zombi2.genomes.gene_trees.GeneNode` can carry is here, so an unmapped one is a real gap
+#: `GeneNode` can carry is here, so an unmapped one is a real gap
 #: rather than a silently dropped event.
 _TAG = {"duplication": "duplication", "speciation": "speciation", "transfer": "branchingOut",
         "loss": "loss", "extant": "leaf", "extinct": "leaf", "unsampled": "leaf"}
@@ -109,7 +109,7 @@ def recphylo_xml(gene_trees: dict[int, GeneTree], tree) -> str:
     """One ``<recPhylo>`` document: the species tree once, then one ``<recGeneTree>`` per family.
 
     Handing it every family gives a single file a viewer can draw all of them in at once; handing it
-    one gives that family's own file, which is what :func:`write_recphylo` writes."""
+    one gives that family's own file, which is what `write_recphylo()` writes."""
     lines = ["<recPhylo>", "  <spTree>", "    <phylogeny>"]
     lines += _species_lines(tree, 3)
     lines += ["    </phylogeny>", "  </spTree>"]
@@ -128,12 +128,12 @@ def write_recphylo(gene_trees: dict[int, GeneTree], tree, directory) -> str:
     One file per family, like every other per-family output of a run, so a family can be handed to a
     viewer on its own. Unlike the homology tables these are written for **every** family, extinct
     ones included: the complete tree is the point, and a family that left no survivor still has a
-    history worth looking at. For all of them in one document instead, call :func:`recphylo_xml` with
+    history worth looking at. For all of them in one document instead, call `recphylo_xml()` with
     the whole dictionary."""
     d = pathlib.Path(directory)
     d.mkdir(parents=True, exist_ok=True)
     for fam, gt in sorted(gene_trees.items()):
-        (d / f"recphylo_fam{fam}.xml").write_text(recphylo_xml({fam: gt}, tree))
+        (d / f"recphylo_fam{fam}.xml").write_text(recphylo_xml({fam: gt}, tree), encoding="utf-8")
     return f"{len(gene_trees)} file(s)"
 
 

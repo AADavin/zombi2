@@ -75,7 +75,7 @@ def progress_bar(total: float | None, desc: str, *, unit: str = "it", enabled: b
 
 def track(items, desc: str, *, unit: str = "it", enabled: bool = False):
     """Iterate ``items`` behind a bar — the shape for a loop whose length is known up front, where
-    :func:`progress_bar` would be three lines of bookkeeping around a ``for``."""
+    `progress_bar()` would be three lines of bookkeeping around a ``for``."""
     if not enabled:
         return items
     bar = progress_bar(len(items), desc, unit=unit, enabled=True)

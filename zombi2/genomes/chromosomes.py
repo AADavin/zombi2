@@ -1,7 +1,7 @@
 """The chromosome genealogy — shared by every genome resolution that has chromosomes.
 
 A chromosome carries identity: its id is re-minted at every event that reshapes it, and each such edge
-is recorded as a :class:`ChromosomeEvent`. The resulting edge list *is* the **chromosome network** —
+is recorded as a `ChromosomeEvent`. The resulting edge list *is* the **chromosome network** —
 the middle tier between the species tree and the gene trees. It is resolution-agnostic (the ids are
 just chromosome ids, whether a chromosome holds ordered gene tokens or nucleotide blocks), so it lives
 here, one home, imported by both the ordered and the nucleotide engines.

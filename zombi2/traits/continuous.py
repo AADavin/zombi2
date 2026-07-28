@@ -19,7 +19,7 @@ WIRED_MODIFIERS = (OnTime, FromParent, OnTotalDiversity)  #: the modifiers a con
 
 class _LTT:
     """The tree's lineages-through-time step function — how many lineages are alive at time ``t``
-    (``birth ≤ t < end``), the *standing diversity* a :class:`~zombi2.rates.modifiers.OnTotalDiversity`
+    (``birth ≤ t < end``), the *standing diversity* a `OnTotalDiversity`
     modifier reads. Built once per run and used to integrate a diversity-dependent σ² over each
     branch, stepping at the tree's own speciation / extinction times (where the diversity changes)."""
 
@@ -54,7 +54,7 @@ def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "
     schedule's breakpoints. The same breakpoint walk the species/genome engines use — integrated over
     the branch rather than sampled at a point (σ² is piecewise-constant, so the integral is exact).
 
-    ``inherited`` is the lineage's :class:`~zombi2.rates.modifiers.FromParent` factor (variable-rates
+    ``inherited`` is the lineage's `FromParent` factor (variable-rates
     BM), constant along the branch, threaded in by the caller and passed through to the rate; it
     factors straight out of the integral. A rate with no ``FromParent`` modifier ignores it.
 
@@ -95,7 +95,7 @@ def _at_speciation_jump_sd(at_speciation) -> float:
 def _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciation, seed,
                       progress=False) -> TraitsResult:
     """Multi-optimum OU — the optimum shifts by **regime**, a discrete stochastic map painted on the
-    *same* tree (typically a :func:`simulate_discrete` run). Along each branch the value follows OU
+    *same* tree (typically a `simulate_discrete()` run). Along each branch the value follows OU
     toward the current regime's optimum, integrated **exactly** across the regime's ``(state,
     duration)`` segments (a regime may switch part-way along a branch); convention B paints the root
     branch too. ``reverts_to`` is a dict ``{regime_state: θ}``; ``pull`` (α > 0) and ``rate`` (σ²) are
@@ -202,7 +202,7 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
 def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None,
                         correlation=None, at_speciation=None, regimes=None, seed=None,
                         progress=False) -> TraitsResult:
-    """Evolve a continuous trait down a tree and return a :class:`TraitsResult`. One process, its
+    """Evolve a continuous trait down a tree and return a `TraitsResult`. One process, its
     variants selected by knobs (SPEC §4): **Brownian motion** (bare ``rate``), **Ornstein–Uhlenbeck**
     (add ``reverts_to`` + ``pull``), **early burst** (a ``OnTime`` skyline on ``rate``), and
     **variable-rates BM** (an ``FromParent`` modifier on ``rate``).
@@ -213,8 +213,8 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     ``MVN(0, Σ·dt)`` with ``Σ = D R D`` (``D = diag(σ_i)``, ``R`` the correlation matrix), so at a tip
     the correlation between two traits is exactly their ρ. Correlated **Brownian motion** only, with bare per-trait rates.
 
-    ``tree`` is the **complete** species tree (a :class:`~zombi2.species.Tree`, or a
-    :class:`~zombi2.species.SpeciesResult` whose ``complete_tree`` is used). The trait evolves on
+    ``tree`` is the **complete** species tree (a `Tree`, or a
+    `SpeciesResult` whose ``complete_tree`` is used). The trait evolves on
     **every** lineage, extant and extinct alike, so the ancestral states are exact and complete; the
     observed dataset is the extant tips, ``result.values``.
 
@@ -241,8 +241,8 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
 
     ``at_speciation`` adds an **on-speciation** jump — ``Normal(0, at_speciation)`` on each daughter at
     every speciation (the punctuational mode), layered on top of the along-branch anagenesis.
-    ``regimes`` gives **multi-optimum OU**: pass a discrete :class:`TraitsResult` (a stochastic map
-    painted by :func:`simulate_discrete` on this same tree) and a per-regime ``reverts_to={regime: θ}``,
+    ``regimes`` gives **multi-optimum OU**: pass a discrete `TraitsResult` (a stochastic map
+    painted by `simulate_discrete()` on this same tree) and a per-regime ``reverts_to={regime: θ}``,
     and the value follows OU toward whichever regime's optimum a branch is in. Deterministic given
     ``seed``.
     """

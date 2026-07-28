@@ -1,10 +1,10 @@
 """Sequences — level 3: a sequence evolving inside a gene, along its gene tree.
 
 A sequence lives **inside a gene**, so it sees the species tree only through its gene tree
-(``SPEC §1``): :func:`simulate_sequences` takes a **genome run** (a
-:class:`~zombi2.genomes.FamilyGenomesResult`) and evolves one sequence down each family's *complete* gene
+(``SPEC §1``): `simulate_sequences()` takes a **genome run** (a
+`FamilyGenomesResult`) and evolves one sequence down each family's *complete* gene
 tree under a substitution **model** (the menu — nucleotide ``jc69`` · ``k80`` · ``hky85`` · ``gtr``,
-or protein ``poisson`` · ``jtt`` · ``dayhoff`` · ``wag`` · ``lg``; :mod:`.substitution_models`) and a
+or protein ``poisson`` · ``jtt`` · ``dayhoff`` · ``wag`` · ``lg``; `substitution_models`) and a
 substitution **rate** (``scope(base) × modifiers``; ``SPEC §5``). Sequences are **target-only** in
 v1 — nothing drives *out* of a sequence yet (``SPEC §10``).
 
@@ -21,7 +21,7 @@ i.i.d. rate multiplier drawn per **species lineage** and shared by every gene pa
 parent→child down the species tree so close relatives run at similar rates (``SPEC §5``). Any other
 modifier — ``Markov`` hops, the per-family ``ByFamily`` speed, across-site ``+Γ`` — raises.
 
-The result is a :class:`SequencesResult` bundle mirroring the other levels:
+The result is a `SequencesResult` bundle mirroring the other levels:
 ``.alignments`` (the observable sequence at every **extant** tip), ``.ancestral`` (the reconstructed
 sequence at every **internal** node), ``.phylograms`` (each gene tree with branch lengths in
 substitutions/site — the ground-truth tree behind each alignment), ``.species_phylogram`` (the species
@@ -58,7 +58,7 @@ _WRITE_OUTPUTS = ("alignments", "ancestral", "founding", "phylograms", "species_
 #: complement of each base, for reading a block laid down on the reverse strand
 _COMPLEMENT = str.maketrans("ACGT", "TGCA")
 
-#: The rate grammar this level wires (SPEC §5) — read by the engine gate in :func:`simulate_sequences`
+#: The rate grammar this level wires (SPEC §5) — read by the engine gate in `simulate_sequences()`
 #: and by the CLI's help, so a modifier is never advertised without being implemented. On the
 #: substitution rate these are the two lineage clocks: ``ByLineage`` the uncorrelated ("relaxed")
 #: clock, ``FromParent`` the autocorrelated clock (the rate drifts parent→child down the species tree).
@@ -67,7 +67,7 @@ WIRED_MODIFIERS = (ByLineage, FromParent)
 
 @dataclass
 class SequencesResult:
-    """What :func:`simulate_sequences` returns.
+    """What `simulate_sequences()` returns.
 
     - ``alignments`` — ``{family: {n<species>_g<copy>: sequence}}``: the observable gene alignment, one entry per
       **extant** gene-tree tip, keyed by its (unique, per-segment) gene id — the same labels as the
@@ -107,7 +107,7 @@ class SequencesResult:
       into the genome run's ``root_blocks``) on a nucleotide one, where every block evolves and spacer
       has no family. They are different numbering schemes over the same ints, so a gene family id is
       **not** a key here on a nucleotide run — go through
-      :meth:`~zombi2.genomes.NucleotideGenomesResult.block_of`. It is also what the filenames say.
+      `block_of()`. It is also what the filenames say.
     """
 
     alignments: dict[int, dict[str, str]]
@@ -116,7 +116,7 @@ class SequencesResult:
     phylograms: dict[int, dict[str, str | None]]
     species_phylogram: dict[str, str | None]
     seed: int | None
-    # A nucleotide run's genomes are assembled lazily (see :class:`_AssembledGenomes`) so they do not
+    # A nucleotide run's genomes are assembled lazily (see `_AssembledGenomes`) so they do not
     # all sit in memory at once; the shape a caller sees is unchanged — ``{lineage: {chromosome: seq}}``.
     genomes: "Mapping[str, dict[int, str]]" = field(default_factory=dict)
     initial_genome: dict[int, str] = field(default_factory=dict)
@@ -137,7 +137,7 @@ class SequencesResult:
                                         "initial_genome"), *, flat: bool = False) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed). ``<u>`` below is
         ``fam<family>`` on a family or ordered run and ``block<index>`` on a nucleotide one — the
-        integer keys mean different things, so the files say which (see :attr:`unit`):
+        integer keys mean different things, so the files say which (see `unit`):
 
         - ``"alignments"`` → ``<u>.fasta`` under ``alignments/`` (skipped for empty families).
         - ``"ancestral"`` → ``sequences_ancestral_<u>.fasta`` under ``ancestral/``.
@@ -179,14 +179,14 @@ class SequencesResult:
         if "phylograms" in outputs and self.phylograms:
             into = grouped_dir(d, "phylograms", flat)
             for fam, ph in self.phylograms.items():
-                (into / f"phylogram_{u}{fam}_complete.nwk").write_text(ph["complete"] + "\n")
+                (into / f"phylogram_{u}{fam}_complete.nwk").write_text(ph["complete"] + "\n", encoding="utf-8")
                 if ph["extant"] is not None:
-                    (into / f"phylogram_{u}{fam}_extant.nwk").write_text(ph["extant"] + "\n")
+                    (into / f"phylogram_{u}{fam}_extant.nwk").write_text(ph["extant"] + "\n", encoding="utf-8")
         if "species_phylogram" in outputs:
             sp = self.species_phylogram
-            (d / "clock_species_tree_complete.nwk").write_text(sp["complete"] + "\n")
+            (d / "clock_species_tree_complete.nwk").write_text(sp["complete"] + "\n", encoding="utf-8")
             if sp["extant"] is not None:
-                (d / "clock_species_tree_extant.nwk").write_text(sp["extant"] + "\n")
+                (d / "clock_species_tree_extant.nwk").write_text(sp["extant"] + "\n", encoding="utf-8")
         # every genome is written the same way and named by whose it is — a node label, or "initial"
         for token, genomes in (("genomes", self.genomes),
                                ("initial_genome",
@@ -206,8 +206,8 @@ class _AssembledGenomes(Mapping):
     run's peak memory, on top of the per-block ``alignments``/``ancestral`` where the very same letters
     already live. So this keeps only the cheap **layout** per node —
     ``{chromosome id: [(block, gene, strand), …]}`` from
-    :meth:`~zombi2.genomes.NucleotideGenomesResult.assembly` — and concatenates a node's blocks into
-    its genome string only when that node is asked for. Iterating (as :meth:`SequencesResult.write`
+    `assembly()` — and concatenates a node's blocks into
+    its genome string only when that node is asked for. Iterating (as `SequencesResult.write()`
     does) then builds one node's genome, writes it, and lets it go before the next, so the assembled
     genomes never all coexist.
 
@@ -254,7 +254,7 @@ def _write_fasta(path, records: dict[str, str], width: int = 70) -> None:
     streaming one record at a time straight to the file so a whole-genome sequence is never first
     copied into one big string (nor a list of every wrapped line). Byte-for-byte what building the
     text and writing it produced — including the lone ``"\\n"`` an empty record set wrote."""
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         if not records:
             f.write("\n")                       # the degenerate case "\n".join([]) + "\n" produced
             return
@@ -464,7 +464,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
                        progress=False) -> SequencesResult:
     """Evolve one sequence down each family's gene tree under a substitution ``model``.
 
-    ``genomes`` is a **genome run** — the :class:`~zombi2.genomes.FamilyGenomesResult` that
+    ``genomes`` is a **genome run** — the `FamilyGenomesResult` that
     ``genomes.simulate_genomes_family(...)`` returned. Its ``gene_trees`` are what the sequences
     evolve along and its ``complete_tree`` is the species tree the lineage clock rides; bare gene
     trees are rejected (they would run, but with no clock and no species phylogram — a silent
@@ -472,7 +472,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     ancestral sequences exist for extinct/lost lineages too; the observable ``alignments`` are the
     extant tips.
 
-    ``model`` is a substitution model from the menu (:mod:`.substitution_models`) — nucleotide
+    ``model`` is a substitution model from the menu (`substitution_models`) — nucleotide
     ``jc69`` · ``k80`` · ``hky85`` · ``gtr``, or protein ``poisson`` · ``jtt`` · ``dayhoff`` ·
     ``wag`` · ``lg``; its alphabet is what the sequences are written in (``ACGT`` or the 20 amino
     acids). ``length`` is the number of sites. ``substitution`` is the per-site substitution
@@ -665,7 +665,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     # A nucleotide run evolved every block, so **every** node's genome can be put back together —
     # one map, as at the genome level. Which sequences each node reads is the split the level already
     # makes: an extant tip's genes are tips of their block trees, everything else's are not. The
-    # concatenation is deferred to read-time (see :class:`_AssembledGenomes`): only the cheap per-node
+    # concatenation is deferred to read-time (see `_AssembledGenomes`): only the cheap per-node
     # layout is captured now, so hundreds of megabases of genome do not all sit in memory beside the
     # per-block sequences they are built from.
     assembled: "Mapping[str, dict[int, str]]" = {}

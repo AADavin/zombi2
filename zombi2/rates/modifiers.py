@@ -147,8 +147,8 @@ class FromParent(Modifier):
 
     The per-split factor is lognormal, **mean-corrected** so ``E[factor] = 1``. Without the
     correction the rate inflates down the tree (``E[rate] ≈ e^{σ²/2}`` instead of 1) — a real
-    historical bug. The draw logic (:meth:`initial` / :meth:`descend`) is driven by the engine,
-    which threads each lineage's current factor and passes it back to :meth:`factor` as
+    historical bug. The draw logic (`initial()` / `descend()`) is driven by the engine,
+    which threads each lineage's current factor and passes it back to `factor()` as
     ``inherited``.
     """
 
@@ -179,13 +179,13 @@ class ByLineage(Modifier):
     """The rate varies independently from lineage to lineage — an *uncorrelated* ("relaxed") clock.
 
     Each lineage draws **one** i.i.d. multiplier with **no memory** of its parent (contrast
-    :class:`FromParent`, whose rate drifts parent→child). The draw is **mean-corrected** so
+    `FromParent`, whose rate drifts parent→child). The draw is **mean-corrected** so
     ``E[factor] = 1`` — without it the mean rate inflates down the tree (the historical lognormal-clock
     bug). ``spread`` (σ) sets the width; ``dist`` is ``"lognormal"`` (default; σ = the log-scale) or
     ``"gamma"`` (σ = the coefficient of variation) — the two agree to first order in σ.
 
     At the sequence level this is the lineage clock: the engine draws one value per **species lineage**
-    (via :meth:`draw`) and shares it across every gene family passing through that lineage.
+    (via `draw()`) and shares it across every gene family passing through that lineage.
     It is the lineage-twin of the genome level's ``ByFamily``.
     """
 
@@ -217,7 +217,7 @@ class ByLineage(Modifier):
 class ByFamily(Modifier):
     """The rate varies independently from gene family to gene family.
 
-    The family-twin of :class:`ByLineage`, and the same i.i.d.-heterogeneity idea: each **family**
+    The family-twin of `ByLineage`, and the same i.i.d.-heterogeneity idea: each **family**
     draws one multiplier with no memory, mean-corrected so ``E[factor] = 1`` — so widening ``spread``
     spreads the families out without moving the average one off the base rate. ``dist`` is
     ``"lognormal"`` (default; σ = the log-scale) or ``"gamma"`` (σ = the coefficient of variation).
@@ -284,12 +284,12 @@ class DrivenBy(Modifier):
     - a **level name** (``"trait"``, ``"genomes:count"``) — the driver co-evolves in one run
       (**joint**): neither level can be grown first.
 
-    ``mapping`` says how the driver's value becomes the factor — a :class:`~zombi2.rates.mapping.Table`
-    (a dict, for a discrete driver), a :class:`~zombi2.rates.mapping.Curve` (a callable, continuous),
-    or a :class:`~zombi2.rates.mapping.Scalar` (a log-link coefficient); a raw dict / callable / number
-    is coerced (:func:`~zombi2.rates.mapping.as_mapping`).
+    ``mapping`` says how the driver's value becomes the factor — a `Table`
+    (a dict, for a discrete driver), a `Curve` (a callable, continuous),
+    or a `Scalar` (a log-link coefficient); a raw dict / callable / number
+    is coerced (`as_mapping()`).
 
-    Like :class:`FromParent` (``inherited``) and :class:`ByLineage` (``bylineage``), ``DrivenBy`` reads
+    Like `FromParent` (``inherited``) and `ByLineage` (``bylineage``), ``DrivenBy`` reads
     a value the **engine** threads per lineage — here a ``drivers`` mapping ``{source: value}`` — and
     is otherwise dumb: it just maps the value to a factor. The engine owns *where* the value comes from
     (a file it loaded, or the live level growing beside the tree) and *when* it changes (a discrete

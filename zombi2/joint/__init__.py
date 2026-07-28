@@ -43,11 +43,11 @@ _GENOME_COUNT = "genomes:count"  # the live gene-content driver source for a cou
 
 @dataclass
 class JointResult:
-    """What :func:`simulate_joint` returns — **both** grown levels of a joint run. ``species`` is the
-    grown tree (a :class:`~zombi2.species.SpeciesResult`: ``complete_tree``, ``extant_tree``, the
+    """What `simulate_joint()` returns — **both** grown levels of a joint run. ``species`` is the
+    grown tree (a `SpeciesResult`: ``complete_tree``, ``extant_tree``, the
     speciation/extinction ``events``); the **driver** level that grew with it is either ``trait`` (a
-    :class:`~zombi2.traits.TraitsResult`, for a trait→speciation run) or ``genome`` (a
-    :class:`~zombi2.genomes.FamilyGenomesResult`, for a gene-content→speciation run) — exactly one is set.
+    `TraitsResult`, for a trait→speciation run) or ``genome`` (a
+    `FamilyGenomesResult`, for a gene-content→speciation run) — exactly one is set.
     The tree is an output, grown by the driver it carries, so the levels share one ``complete_tree``."""
 
     species: SpeciesResult
@@ -382,7 +382,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
     The driver is an **unexecuted** process spec, grown with the tree. Stop at exactly ``n_extant``
     living lineages (conditioned on survival — a birth-death tree can die out, so it restarts,
     advancing the same generator) **or** at ``total_time`` — give exactly one. Returns a
-    :class:`JointResult` carrying the grown tree and the driver level (``.trait`` or ``.genome``).
+    `JointResult` carrying the grown tree and the driver level (``.trait`` or ``.genome``).
     Deterministic given ``seed``. Continuous trait→speciation (QuaSSE), clade drift (``FromParent``)
     combined with driving, and gene transfer in a joint run are not available.
     """

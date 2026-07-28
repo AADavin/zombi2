@@ -183,3 +183,39 @@ def test_written_form_round_trips(text):
 def test_written_form_keeps_full_precision():
     # the run log is a reproducibility record, so a base must not be rounded on its way in
     assert written_form(parse_rate("0.123456789")) == "0.123456789"
+
+
+def test_a_windows_path_in_a_rate_is_taken_as_written():
+    # the strings in a rate are paths and state labels, never escape sequences — but the expression
+    # is read by Python's own parser, which sees C:\Users and reports a truncated \UXXXXXXXX escape.
+    # A pasted path is the normal way to write one, so it has to mean itself.
+    from zombi2.rates.modifiers import DrivenBy
+
+    rate = parse_rate(r"0.1 * DrivenBy('C:\Users\me\trait_events.tsv', {'a': 2.0})")
+    driver = next(m for m in rate.modifiers if isinstance(m, DrivenBy))
+    assert driver.source == r"C:\Users\me\trait_events.tsv"
+
+    unc = parse_rate(r"0.1 * DrivenBy('\\server\share\trait.tsv', {'a': 2.0})")
+    assert next(m for m in unc.modifiers if isinstance(m, DrivenBy)).source == r"\\server\share\trait.tsv"
+
+    posix = parse_rate("0.1 * DrivenBy('/home/me/trait.tsv', {'a': 2.0})")
+    assert next(m for m in posix.modifiers if isinstance(m, DrivenBy)).source == "/home/me/trait.tsv"
+
+
+def test_an_already_escaped_path_is_left_as_written():
+    # repr() of a path is the natural way to build an expression in Python, and it escapes the
+    # backslashes properly — reading those literally as well would double them.
+    from zombi2.rates.modifiers import DrivenBy
+
+    path = r"C:\Users\me\trait_events.tsv"
+    rate = parse_rate(f"0.1 * DrivenBy({path!r}, {{'a': 2.0}})")
+    assert next(m for m in rate.modifiers if isinstance(m, DrivenBy)).source == path
+
+
+def test_a_path_whose_every_backslash_is_a_valid_escape_still_means_itself():
+    # the dangerous one: \t \n \f are all real escapes, so this PARSES and silently becomes control
+    # characters. A path never contains one, which is how it is caught.
+    from zombi2.rates.modifiers import DrivenBy
+
+    rate = parse_rate(r"0.1 * DrivenBy('C:\temp\new\file.tsv', {'a': 2.0})")
+    assert next(m for m in rate.modifiers if isinstance(m, DrivenBy)).source == r"C:\temp\new\file.tsv"

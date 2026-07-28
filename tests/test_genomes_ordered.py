@@ -282,13 +282,13 @@ def test_write_emits_the_selected_outputs(tmp_path):
     for name in ("genome_events.tsv", "profiles.tsv", "gene_order.tsv",
                  "chromosome_events.tsv"):
         assert (tmp_path / name).exists()
-    head = (tmp_path / "gene_order.tsv").read_text().splitlines()[0]
+    head = (tmp_path / "gene_order.tsv").read_text(encoding="utf-8").splitlines()[0]
     assert head.split("\t") == ["lineage", "chromosome", "position", "strand", "family", "copy"]
 
 
 def _written_gene_order(path):
     """``gene_order.tsv`` -> ``{node: [(chromosome, position, strand, family, gene), ...]}``."""
-    lines = (path / "gene_order.tsv").read_text().splitlines()[1:]
+    lines = (path / "gene_order.tsv").read_text(encoding="utf-8").splitlines()[1:]
     written = {}
     for row in lines:
         s, *rest = row.split("\t")
@@ -560,7 +560,7 @@ def test_one_table_carries_the_genealogy_its_places_and_the_rearrangements(tmp_p
     ancestry-neutral rearrangements are interleaved by time."""
     _, r = _run(seed=3, inversion=0.3, transposition=0.3, translocation=0.3)
     r.write(tmp_path, outputs=("events",))
-    lines = (tmp_path / "genome_events.tsv").read_text().splitlines()
+    lines = (tmp_path / "genome_events.tsv").read_text(encoding="utf-8").splitlines()
     header = lines[0].split("\t")
     assert header == ["time", "kind", "lineage", "family", "copy", "parent", "recipient", "donor",
                       "event", "dest_lineage", "chromosome", "position", "length",
@@ -833,5 +833,5 @@ def test_the_initial_genome_is_the_layout_the_run_started_with(tmp_path):
                                   for c in g.initial_genome for p, gn in enumerate(c.genes)], \
         "the stem was quiet — pick another seed"
     g.write(tmp_path)
-    rows = (tmp_path / "initial_genome.tsv").read_text().splitlines()
+    rows = (tmp_path / "initial_genome.tsv").read_text(encoding="utf-8").splitlines()
     assert rows[0] == "chromosome\tposition\tstrand\tfamily\tcopy" and len(rows) == 9

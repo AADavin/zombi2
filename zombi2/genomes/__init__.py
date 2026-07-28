@@ -4,13 +4,13 @@ A genome evolves along the species tree by **duplication, transfer, loss and ori
 resolutions share one spine (a forward Gillespie over the complete tree, the same rate grammar, the
 same gene-genealogy event log) and differ only in the state they carry:
 
-- :mod:`.family` — a genome is a **multiset** of gene families (:func:`simulate_genomes_family`);
-- :mod:`.ordered` — genes gain a **position and orientation** on chromosomes
-  (:func:`simulate_genomes_ordered`);
-- :mod:`.nucleotide` — genes and intergenes carry **sequence** (:func:`simulate_genomes_nucleotide`).
+- `family` — a genome is a **multiset** of gene families (`simulate_genomes_family()`);
+- `ordered` — genes gain a **position and orientation** on chromosomes
+  (`simulate_genomes_ordered()`);
+- `nucleotide` — genes and intergenes carry **sequence** (`simulate_genomes_nucleotide()`).
 
 This package's ``__init__`` is only the public surface; each engine lives in its own module, with the
-recipient rules in :mod:`._transfer`, the per-family parallel engine in :mod:`._perfamily`, and the
+recipient rules in `_transfer`, the per-family parallel engine in `_perfamily`, and the
 derived views (gene trees, profiles) in their own modules.
 """
 

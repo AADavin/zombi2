@@ -79,7 +79,7 @@ def _gff(tmp_path, fixture, name="seed.gff"):
     lines += [f"c\tfork\tgene\t{i * stride + 1}\t{i * stride + gene_len}\t.\t+\t.\tID=g{i + 1}"
               for i in range(n)]
     path = tmp_path / name
-    path.write_text("\n".join(lines) + "\n")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
 
 
@@ -427,7 +427,7 @@ def test_an_originated_gene_is_indivisible_like_a_declared_one(tmp_path):
 # Reading the written files
 # --------------------------------------------------------------------------- #
 def _read_tsv(path):
-    lines = path.read_text().splitlines()
+    lines = path.read_text(encoding="utf-8").splitlines()
     cols = lines[0].split("\t")
     return [dict(zip(cols, row.split("\t"))) for row in lines[1:] if row]
 
@@ -705,7 +705,7 @@ def test_excluding_the_run_logs_is_justified_and_narrow(tmp_path):
         root = tmp_path / tag
         root.mkdir()
         main(["species", str(root), "--birth", "1.0", "--death", "0.3", "--n-extant", "10", "--seed", PIPELINE_SEED, "--flat"])
-        runs.append((root / "species.log").read_text().splitlines())
+        runs.append((root / "species.log").read_text(encoding="utf-8").splitlines())
 
     first, second = runs
     assert any(line.startswith("timestamp\t") for line in first), \
@@ -768,7 +768,7 @@ def _render_all_golden():
 
 def test_seeded_runs_match_the_recorded_output():
     assert GOLDEN.exists(), f"missing fixture — regenerate with: python {__file__}"
-    assert _render_all_golden() == GOLDEN.read_text(), (
+    assert _render_all_golden() == GOLDEN.read_text(encoding="utf-8"), (
         "a seeded nucleotide run no longer matches the recorded output. If the engine's sampling "
         "genuinely changed, regenerate the fixture; if not, an rng draw was added, removed or "
         "reordered.")
@@ -777,7 +777,7 @@ def test_seeded_runs_match_the_recorded_output():
 def test_the_fixture_covers_every_mutator():
     # a guard on the fixture: if the runs above stopped firing an event kind, the pin above would
     # still pass while protecting nothing
-    text = GOLDEN.read_text()
+    text = GOLDEN.read_text(encoding="utf-8")
     for kind in ("Duplication", "Loss", "Origination", "Transfer", "Inversion", "Transposition",
                  "Translocation"):
         assert kind in text, f"the fixture fires no {kind} — it is not pinning that mutator"
@@ -787,5 +787,6 @@ def test_the_fixture_covers_every_mutator():
 
 if __name__ == "__main__":
     GOLDEN.parent.mkdir(parents=True, exist_ok=True)
-    GOLDEN.write_text(_render_all_golden())
-    print(f"wrote {GOLDEN} ({len(GOLDEN.read_text().splitlines())} lines)")
+    GOLDEN.write_text(_render_all_golden(), encoding="utf-8")
+    lines = len(GOLDEN.read_text(encoding="utf-8").splitlines())
+    print(f"wrote {GOLDEN} ({lines} lines)")

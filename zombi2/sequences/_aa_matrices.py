@@ -7,7 +7,7 @@ and ``j < i``, row by row) plus the 20 frequencies — both in the amino-acid co
 
     A R N D C Q E G H I L K M F P S T W Y V
 
-which is exactly :data:`~zombi2.sequences.substitution_models.AMINO_ACIDS`, the order every model's
+which is exactly `AMINO_ACIDS`, the order every model's
 ``Q`` and ``stationary`` follow. **The order is the one thing a reader cannot check by eye**: a
 permuted matrix still looks plausible, so ``tests/test_sequences_protein.py`` pins it against the
 published values and against the chemistry (I↔V the most exchangeable LG pair, L the most frequent
@@ -16,7 +16,7 @@ residue, W the rarest).
 The values are transcribed byte-for-byte from the reference PAML data files (Ziheng Yang,
 ``abacus-gene/paml``, directory ``dat/``): ``lg.dat`` (Le & Gascuel 2008), ``wag.dat`` (Whelan &
 Goldman 2001), ``jones.dat`` (Jones, Taylor & Thornton 1992 — "JTT"), and ``dayhoff.dat`` (Dayhoff,
-Schwartz & Orcutt 1978). :mod:`.substitution_models` expands the lower triangle to a symmetric ``S``
+Schwartz & Orcutt 1978). `substitution_models` expands the lower triangle to a symmetric ``S``
 and normalises ``Q`` to one expected substitution per site.
 """
 

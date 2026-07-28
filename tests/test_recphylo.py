@@ -116,7 +116,7 @@ def test_write_recphylo_writes_one_file_per_family(run, tmp_path):
     assert files == sorted(f"recphylo_fam{f}.xml" for f in run.gene_trees)
     assert what == f"{len(run.gene_trees)} file(s)"
     for p in tmp_path.iterdir():                                # each stands alone: tree + one family
-        root = ET.fromstring(p.read_text())
+        root = ET.fromstring(p.read_text(encoding="utf-8"))
         assert root.find("spTree") is not None
         assert len(root.findall("recGeneTree")) == 1
 
@@ -133,4 +133,4 @@ def test_the_cli_writes_recphylo_for_a_run(tmp_path):
     out = run_dir / "genomes" / "recphylo"
     assert out.is_dir() and list(out.glob("recphylo_fam*.xml"))
     for p in out.iterdir():
-        ET.fromstring(p.read_text())                            # every file parses
+        ET.fromstring(p.read_text(encoding="utf-8"))                            # every file parses

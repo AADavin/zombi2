@@ -2,11 +2,11 @@
 
 The CLI is grown from the clean core, one level at a time, exactly like the packages it wraps. Today it exposes the three built levels:
 
-- ``zombi2 species``  → :func:`zombi2.species.simulate_species_tree`
-- ``zombi2 genomes``  → :func:`zombi2.genomes.simulate_genomes_family` /
-  :func:`~zombi2.genomes.simulate_genomes_ordered` (chosen by ``--resolution``)
-- ``zombi2 traits``   → :func:`zombi2.traits.simulate_continuous` /
-  :func:`~zombi2.traits.simulate_discrete` (chosen by ``--kind``)
+- ``zombi2 species``  → `zombi2.species.simulate_species_tree()`
+- ``zombi2 genomes``  → `zombi2.genomes.simulate_genomes_family()` /
+  `simulate_genomes_ordered()` (chosen by ``--resolution``)
+- ``zombi2 traits``   → `zombi2.traits.simulate_continuous()` /
+  `simulate_discrete()` (chosen by ``--kind``)
 
 Each subcommand's long options **are** the API keyword names (one word per concept across the API,
 the CLI, and a ``--params`` file), and rates are bare numbers using their natural scope — the

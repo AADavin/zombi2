@@ -14,7 +14,7 @@ _WRITE_OUTPUTS = ("values", "events", "tree")  # write vocabulary; "events" = th
 @dataclass(frozen=True)
 class Change:
     """A realized trait change — one entry of the event log, the trait twin of the genome level's
-    :class:`~zombi2.genomes.Event`. On lineage ``lineage`` at ``time`` (crown-forward, the species-tree
+    `Event`. On lineage ``lineage`` at ``time`` (crown-forward, the species-tree
     clock) the state went from ``from_state`` to ``to_state``. ``kind`` is ``"on_branch"`` — a switch
     *along* a branch (an Mk transition) — ``"on_speciation"`` — a jump *at* a speciation node (from
     ``at_speciation``; for a continuous trait ``from_state`` / ``to_state`` are the pre- and post-jump
@@ -92,11 +92,11 @@ class TraitsResult:
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
         if "values" in outputs:
-            (d / "trait_values.tsv").write_text(_values_tsv(self.values))
+            (d / "trait_values.tsv").write_text(_values_tsv(self.values), encoding="utf-8")
         if "events" in outputs:
-            (d / "trait_events.tsv").write_text(_events_tsv(self.events))
+            (d / "trait_events.tsv").write_text(_events_tsv(self.events), encoding="utf-8")
         if "tree" in outputs:
-            (d / "trait_tree.nwk").write_text(_trait_newick(self.complete_tree, self.node_values) + "\n")
+            (d / "trait_tree.nwk").write_text(_trait_newick(self.complete_tree, self.node_values) + "\n", encoding="utf-8")
 
 
 
@@ -117,7 +117,7 @@ def _trait_annotation(v) -> str:
 
 def _trait_newick(tree: "Tree", node_values: dict) -> str:
     """The complete tree as Newick with **every** node annotated with its trait value (a *trait
-    tree*). Mirrors :meth:`zombi2.species.Tree.to_newick` — branch length ``end_time − birth_time``,
+    tree*). Mirrors `zombi2.species.Tree.to_newick()` — branch length ``end_time − birth_time``,
     leaves and internals named ``n<id>``, the root carrying its stem — and adds the ``[&trait=…]``
     comment at each node, so the exact ancestral states ride along the tree."""
     def emit(i: int) -> str:

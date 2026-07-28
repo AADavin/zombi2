@@ -33,13 +33,13 @@ from typing import ClassVar
 class Scope:
     """A base rate tagged with the unit it applies to.
 
-    Abstract: use one of :class:`Global`, :class:`PerLineage`, :class:`PerCopy`,
-    :class:`PerSite`, :class:`PerChromosome`.
+    Abstract: use one of `Global`, `PerLineage`, `PerCopy`,
+    `PerSite`, `PerChromosome`.
     """
 
     base: float
 
-    #: the :meth:`total` keyword this wrapper multiplies by; ``None`` = a constant total.
+    #: the `total()` keyword this wrapper multiplies by; ``None`` = a constant total.
     unit: ClassVar[str | None] = None
 
     def __post_init__(self) -> None:
@@ -53,7 +53,7 @@ class Scope:
 
         ``counts`` supplies the units in scope right now (``lineages``, ``copies``,
         ``sites``, ``chromosomes``); each wrapper reads only the one it needs and
-        ignores the rest. :class:`Global` reads none.
+        ignores the rest. `Global` reads none.
         """
         if self.unit is None:
             return self.base

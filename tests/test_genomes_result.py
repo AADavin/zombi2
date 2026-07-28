@@ -74,7 +74,7 @@ def test_write_produces_events_and_profiles(tmp_path):
     assert {"genome_events.tsv", "profiles.tsv", "genomes.tsv"} <= written
     # the gene trees are two files per family, so they get a directory of their own
     assert [p.name for p in (tmp_path / "gene_trees").iterdir() if p.name.startswith("gene_tree_fam")]
-    ev = (tmp_path / "genome_events.tsv").read_text().splitlines()
+    ev = (tmp_path / "genome_events.tsv").read_text(encoding="utf-8").splitlines()
     assert ev[0].split("\t") == ["time", "kind", "lineage", "family", "copy", "parent", "recipient",
                                  "donor", "event"]
     assert len(ev) - 1 == len(g.events)                 # one row per recorded edge
@@ -85,7 +85,7 @@ def test_the_event_column_counts_events_where_counting_rows_counts_edges(tmp_pat
     not: a duplication, transfer or speciation writes one row per descendant."""
     _, g = _run(seed=7)
     g.write(tmp_path)
-    rows = [r.split("\t") for r in (tmp_path / "genome_events.tsv").read_text().splitlines()[1:]]
+    rows = [r.split("\t") for r in (tmp_path / "genome_events.tsv").read_text(encoding="utf-8").splitlines()[1:]]
     at = {c: i for i, c in enumerate(["time", "kind", "lineage", "family", "copy", "parent",
                                       "recipient", "donor", "event"])}
     by_kind: dict[str, list[list[str]]] = {}
@@ -99,7 +99,7 @@ def test_the_event_column_counts_events_where_counting_rows_counts_edges(tmp_pat
         # and it is never empty: every row belongs to some event
         assert all(r[at["event"]] for r in rs), kind
     assert {"duplication", "loss"} <= set(by_kind)       # the seed exercises both arities
-    pr = (tmp_path / "profiles.tsv").read_text().splitlines()
+    pr = (tmp_path / "profiles.tsv").read_text(encoding="utf-8").splitlines()
     assert len(pr) - 1 == len(g.profiles.families)      # one row per family
 
 
@@ -136,7 +136,7 @@ def test_the_initial_genome_is_the_one_the_run_started_with(tmp_path):
     assert g.initial_genome != g.genomes[root], "the stem was quiet — pick another seed"
 
     g.write(tmp_path)
-    rows = (tmp_path / "initial_genome.tsv").read_text().splitlines()
+    rows = (tmp_path / "initial_genome.tsv").read_text(encoding="utf-8").splitlines()
     assert rows[0] == "family\tcopy" and len(rows) == 7    # its own file, no lineage column
     assert "lineage" not in rows[0]
 

@@ -72,12 +72,12 @@ def read_gff(source, *, trim_overlaps: bool = False) -> tuple[dict[str, int], li
 
     Genes are indivisible blocks laid end to end, so they may **touch but never overlap**. Real
     annotations do overlap, so pass ``trim_overlaps=True`` to shorten them instead of raising (see
-    :func:`trim_overlapping_genes`).
+    `trim_overlapping_genes()`).
 
-    Raises :class:`ValueError` on a malformed line, a gene outside its replicon, or — unless
+    Raises `ValueError` on a malformed line, a gene outside its replicon, or — unless
     ``trim_overlaps`` — two genes that overlap."""
     if isinstance(source, (str, pathlib.Path)):
-        lines = pathlib.Path(source).read_text().splitlines()
+        lines = pathlib.Path(source).read_text(encoding="utf-8").splitlines()
     else:
         lines = list(source)
 
@@ -142,7 +142,7 @@ def read_fasta(source) -> dict[str, str]:
     are validated as ``ACGT`` here — the one place letters enter, so a stray character fails loudly
     rather than surfacing as an evolved-sequence bug later."""
     if isinstance(source, (str, pathlib.Path)):
-        lines = pathlib.Path(source).read_text().splitlines()
+        lines = pathlib.Path(source).read_text(encoding="utf-8").splitlines()
     else:
         lines = list(source)
     records: dict[str, list[str]] = {}

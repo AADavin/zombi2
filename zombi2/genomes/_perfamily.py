@@ -1,4 +1,4 @@
-"""The parallel engine for :func:`~zombi2.genomes.simulate_genomes_family` — one gene family at a time.
+"""The parallel engine for `simulate_genomes_family()` — one gene family at a time.
 
 The default engine is a single Gillespie over the whole species tree, because a transfer at time ``t``
 couples two lineages alive at ``t``. But families never mix: no event ever spans two families (a
@@ -14,9 +14,9 @@ family, each under its own spawned RNG stream — so the result is identical for
 family "roams" across lineages: it is inherited by both daughters at a speciation and carried to a new
 lineage by a transfer, but it is always self-contained, which is what makes the decomposition exact.
 
-Pass 2's per-family evolution is :func:`simulate_one_family` — a standalone primitive that, given a
-prepared :class:`FamilyContext` (the run's tree, rates and contemporaneous-lineage schedule, built once
-by :func:`prepare_family_context`), evolves one family from any origination point down the whole tree.
+Pass 2's per-family evolution is `simulate_one_family()` — a standalone primitive that, given a
+prepared `FamilyContext` (the run's tree, rates and contemporaneous-lineage schedule, built once
+by `prepare_family_context()`), evolves one family from any origination point down the whole tree.
 The in-memory and streamed engines are both thin maps over it; the workers only ship that context once
 and read it from module state.
 
@@ -138,14 +138,14 @@ def _copy_base(fid: int) -> int:
 
 @dataclass(frozen=True)
 class FamilyContext:
-    """Everything constant across a run's families — the read-only context :func:`simulate_one_family`
-    evolves each family against. Built once by :func:`prepare_family_context` and, in the parallel
+    """Everything constant across a run's families — the read-only context `simulate_one_family()`
+    evolves each family against. Built once by `prepare_family_context()` and, in the parallel
     engine, shipped to each worker a single time via the pool initializer (never re-pickled per family).
     Holds the tree, the D/T/L rates and their per-family ``ByFamily`` slots, the transfer settings, the
     family cap, and the precomputed contemporaneous-lineage schedule (sorted birth / death times whose
     two pointers give the set alive at any instant, plus the times the "≥ 2 lineages" transfer gate
     flips). Origination is *not* here: a family's origination point is an input to
-    :func:`simulate_one_family`, drawn once for the whole run in Pass 1."""
+    `simulate_one_family()`, drawn once for the whole run in Pass 1."""
 
     tree: object
     dup: object
@@ -167,9 +167,9 @@ class FamilyContext:
 
 def prepare_family_context(tree, *, dup, tra, los, transfer_to, replacement, self_transfer,
                            cap, family_speed) -> FamilyContext:
-    """Precompute the per-run :class:`FamilyContext` — the schedule and rate metadata every family
-    reuses — so :func:`simulate_one_family` can evolve any family from any origination point without
-    recomputing it. ``dup`` / ``tra`` / ``los`` are resolved :class:`~zombi2.rates.rate.Rate`s (per
+    """Precompute the per-run `FamilyContext` — the schedule and rate metadata every family
+    reuses — so `simulate_one_family()` can evolve any family from any origination point without
+    recomputing it. ``dup`` / ``tra`` / ``los`` are resolved `Rate`s (per
     copy)."""
     depth = mean_root_to_tip(tree)
     # which single rate each per-family ByFamily slot sits on (origination is excluded upstream) — drawn
@@ -221,8 +221,8 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
     This is the per-family primitive the parallel engine is built on. The family resolution's D/T/L process is a
     superposition of independent per-family processes (no event ever spans two families), so a family
     born as ``family`` in lineage ``lineage`` at time ``time`` can be evolved on its own, against the
-    contemporaneous-lineage schedule prepared once in ``ctx`` (a :class:`FamilyContext`; see
-    :func:`prepare_family_context`). A transfer may still hand a copy to *any* lineage alive at the
+    contemporaneous-lineage schedule prepared once in ``ctx`` (a `FamilyContext`; see
+    `prepare_family_context()`). A transfer may still hand a copy to *any* lineage alive at the
     instant — the family "roams" — which is why the whole tree's schedule is needed, not just
     ``lineage``'s subtree.
 
@@ -363,7 +363,7 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
 def _evolve_one(family, lineage, birth_time, seedseq):
     """Worker adapter: evolve one family from the shared per-run context under its own spawned RNG
     stream (so the run is identical for any worker count). The pool ships the context once via the
-    initializer; this reads it from module state and hands it to :func:`simulate_one_family`."""
+    initializer; this reads it from module state and hands it to `simulate_one_family()`."""
     return simulate_one_family(_CTX, family=family, lineage=lineage, time=birth_time,
                                rng=np.random.default_rng(seedseq), copy_id_base=_copy_base(family))
 
@@ -377,7 +377,7 @@ def _evolve_family(task):
 
 def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events, new_copy,
                      transfer_to, replacement, self_transfer, depth, cap) -> int:
-    """One transfer for the current family. Mirrors :func:`~zombi2.genomes._do_transfer` exactly (donor
+    """One transfer for the current family. Mirrors `_do_transfer()` exactly (donor
     continuation re-ids, optional homologous replacement, the cap thinning) but over this family's
     footprint: the donor copy is a uniform pick across the family's copies, the recipient is a
     contemporaneous lineage picked by ``transfer_to``, and a recipient the family had not reached is
@@ -443,7 +443,7 @@ _STREAM_CHUNK = 256
 @dataclass(frozen=True)
 class StreamedRun:
     """A genome run written **straight to disk**, family by family — what ``stream_to=`` returns, for a
-    scale where a whole :class:`~zombi2.genomes.FamilyGenomesResult` would not fit in memory. Thin by design:
+    scale where a whole `FamilyGenomesResult` would not fit in memory. Thin by design:
     the outputs *are* the files and the disk is the handoff (the sequences level reads them back), so
     this carries where they are and how big the run was, not the run itself."""
 
@@ -473,7 +473,7 @@ def _stream_chunk(task):
     want = {name: name in outputs for name in ("events", "genomes", "profiles", "gene_trees")}
     trees_dir = os.path.join(out_dir, "gene_trees")
 
-    files = {name: open(os.path.join(shard_dir, f"{name}_{chunk_index}.tsv"), "w")
+    files = {name: open(os.path.join(shard_dir, f"{name}_{chunk_index}.tsv"), "w", encoding="utf-8")
              for name in ("events", "genomes", "profiles") if want[name]}
     n_events = 0
     try:
@@ -507,8 +507,8 @@ def _stream_chunk(task):
 def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, self_transfer,
                         initial_families, family_names, family_speed, cap, seed, parallel,
                         progress, stream_to=None, outputs=None):
-    """Run the per-family engine. Returns a :class:`~zombi2.genomes.FamilyGenomesResult` (the in-memory
-    merge), or a :class:`StreamedRun` when ``stream_to`` is a directory — each family written straight
+    """Run the per-family engine. Returns a `FamilyGenomesResult` (the in-memory
+    merge), or a `StreamedRun` when ``stream_to`` is a directory — each family written straight
     to disk, for a scale a whole result would not hold. Returns ``None`` (a loud fallback to the serial
     loop) only for the in-memory path: a driven rate has no per-family engine, and a streamed run
     **raises** rather than silently pulling the whole thing back into memory.
@@ -585,9 +585,9 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
 
 def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_families, family_names,
                    out_dir, outputs, progress):
-    """The streaming half of :func:`run_parallel_family`: fixed contiguous chunks written to
+    """The streaming half of `run_parallel_family()`: fixed contiguous chunks written to
     per-chunk shards, concatenated in chunk order (so the files are byte-identical for any worker
-    count), then the shards removed. Returns a :class:`StreamedRun`."""
+    count), then the shards removed. Returns a `StreamedRun`."""
     os.makedirs(out_dir, exist_ok=True)
     shard_dir = os.path.join(out_dir, "_shards")
     os.makedirs(shard_dir, exist_ok=True)
@@ -626,16 +626,16 @@ def _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_
                "profiles": "family\t" + "\t".join(f"n{s}" for s in extant_ids)}
     for name, header in headers.items():
         if name in outputs:
-            with open(os.path.join(out_dir, _STREAM_FILENAMES[name]), "w") as out:
+            with open(os.path.join(out_dir, _STREAM_FILENAMES[name]), "w", encoding="utf-8") as out:
                 out.write(header + "\n")
                 for ci in range(n_chunks):
                     shard = os.path.join(shard_dir, f"{name}_{ci}.tsv")
                     if os.path.exists(shard):
-                        with open(shard) as sf:
+                        with open(shard, encoding="utf-8") as sf:
                             shutil.copyfileobj(sf, out)
     if "initial_genome" in outputs:
         n_seeded = initial_families + len(family_names)
-        with open(os.path.join(out_dir, _STREAM_FILENAMES["initial_genome"]), "w") as out:
+        with open(os.path.join(out_dir, _STREAM_FILENAMES["initial_genome"]), "w", encoding="utf-8") as out:
             out.write("family\tcopy\n")
             for fid in range(n_seeded):
                 out.write(f"{fid}\t{gene_label(_copy_base(fid))}\n")

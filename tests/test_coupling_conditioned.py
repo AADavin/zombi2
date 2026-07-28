@@ -194,7 +194,7 @@ def test_a_continuous_log_is_only_its_origin(tmp_path):
     tree = simulate_species_tree(birth=1.0, total_time=1.0, seed=2).complete_tree
     cont = traits.simulate_continuous(tree, rate=1.0, seed=1)
     cont.write(tmp_path, outputs=("events",))
-    lines = (tmp_path / "trait_events.tsv").read_text().splitlines()
+    lines = (tmp_path / "trait_events.tsv").read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2 and lines[1].split("\t")[1] == "root"
 
 
@@ -211,7 +211,7 @@ def _write_driver(path, tree, state_of):
     for i in sorted(tree.nodes):
         if i != root:
             rows.append(f"{tree.nodes[i].birth_time!r}\ton_speciation\tn{i}\t\t{state_of[i]}")
-    path.write_text("\n".join(rows) + "\n")
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
 
 
 def test_zero_factor_lineages_never_lose(tmp_path):
