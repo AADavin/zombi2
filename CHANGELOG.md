@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-28
+
 ### Changed
 - **The homology table says whether transfer is in a pair's history, not only whether it was the
   divergence.** A cell now carries two independent axes: how the pair diverged (`O` a speciation, `P`
