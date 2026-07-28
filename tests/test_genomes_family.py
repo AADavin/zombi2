@@ -567,6 +567,33 @@ def test_family_speed_moves_every_rate_of_a_family_together():
     assert cov / (sx * sy) > 0.3          # a fast family is fast at everything
 
 
+def test_the_carried_family_weights_match_a_full_recompute(monkeypatch):
+    # The per-lineage multiplier sums are carried across events and only the touched lineage is
+    # rebuilt, which is what keeps the weighted path off a quadratic. That is only sound while the
+    # carried arrays say what a full recompute would say — so check exactly that, on every event of
+    # a real run, with every mutation in play (duplication, loss, origination, transfer with
+    # replacement, and a cap that makes some events no-ops).
+    from zombi2.genomes.family import _FamilyWeights, _sum_mult   # (the module, not genomes.family)
+
+    real, checked = _FamilyWeights.current, []
+
+    def current(self, gen):
+        out = real(self, gen)
+        for m, _keys, arr in self._groups:
+            assert arr == [_sum_mult(m, g) for g in gen]
+        checked.append(len(gen))
+        return out
+
+    monkeypatch.setattr(_FamilyWeights, "current", current)
+    sp = _tree(seed=4, n_extant=16, death=0.3)
+    g = simulate_genomes_family(sp, duplication=0.3, transfer=0.2, loss=0.3, origination=0.4,
+                                family_speed=mod.ByFamily(spread=0.7), replacement=True,
+                                max_family_size=Global(4), initial_families=40, seed=6)
+    assert len(checked) > 500                      # the run really did exercise the loop
+    assert {e.kind for e in g.events} == {"origination", "duplication", "loss", "transfer",
+                                          "speciation"}
+
+
 def test_by_family_is_refused_on_origination():
     sp = _tree(seed=1, n_extant=8)
     with pytest.raises(ValueError, match="families are CREATED"):
