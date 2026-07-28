@@ -2,7 +2,7 @@
 
 **This is not part of the public API.** Users write a number (``1.0``), a scope wrapper
 (``scope.PerLineage(0.25)``), or a product (``1.0 * mod.OnTime({...}) * mod.OnTotalDiversity(cap=100)``).
-The ``*`` produces a :class:`Rate` — the glue that *defers* ``base × scope × modifiers`` until
+The ``*`` produces a `Rate` — the glue that *defers* ``base × scope × modifiers`` until
 the engine knows the current moment (time, diversity, the branch, the counts) and can multiply
 it out. There is no user-facing "Rate" concept; it is the thing a rate expression evaluates to.
 """
@@ -35,7 +35,7 @@ class Rate:
 
         ``context`` carries the current state (``time``, ``diversity``, the counts ``lineages`` /
         ``copies`` / …); the scope reads the count it needs and each modifier the keys it needs.
-        Requires a scope — resolve a bare-number rate with :meth:`with_default_scope` first.
+        Requires a scope — resolve a bare-number rate with `with_default_scope()` first.
         """
         if self.scope is None:
             raise ValueError("this rate has no scope yet; resolve it with with_default_scope(...)")
@@ -61,7 +61,7 @@ class Rate:
 
 
 def as_rate(spec: object, *, default_scope: type[Scope]) -> Rate:
-    """Coerce a user rate spec into a resolved :class:`Rate`, filling the level's default scope.
+    """Coerce a user rate spec into a resolved `Rate`, filling the level's default scope.
 
     Accepts a number, a scope wrapper, a modifier (product), or an already-built ``Rate``.
     """

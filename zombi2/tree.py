@@ -1,6 +1,6 @@
 """Trees — the shared dated tree datatype and its toolkit.
 
-``Tree`` is the object every level rides on: the species engine and :func:`read_newick` produce it;
+``Tree`` is the object every level rides on: the species engine and `read_newick()` produce it;
 genomes, sequences and traits consume it. It lives here (not in ``zombi2.species``) so the datatype
 and everything you do to a tree share one home — one import, ``from zombi2 import tree``.
 
@@ -69,7 +69,7 @@ class Tree:
         to the first split. A forward birth–death run starts from one lineage, so that stem is real
         simulated time in which events happen, and writing ``)n0;`` would silently discard it — for a
         tree whose crown comes late, a large fraction of its history. It is emitted as ``)n0:<stem>;``
-        and :func:`read_newick` reads it back."""
+        and `read_newick()` reads it back."""
 
         def emit(i: int) -> str:
             node = self.nodes[i]
@@ -177,8 +177,8 @@ def _assign_external_fates(leaves: list[Node], names: dict[int, str],
 
 
 def as_tree(tree, *, level: str) -> Tree:
-    """The complete :class:`Tree` a level runs on, from a ``Tree`` or a
-    :class:`~zombi2.species.SpeciesResult`.
+    """The complete `Tree` a level runs on, from a ``Tree`` or a
+    `SpeciesResult`.
 
     Every level opens with this, so what a level accepts is decided in one place — and anything else
     is refused *here*, where the caller can see it, instead of surfacing later as an ``AttributeError``
@@ -204,7 +204,7 @@ def as_tree(tree, *, level: str) -> Tree:
 
 def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
                 assume_extant: bool = False) -> tuple[Tree, dict[int, str]]:
-    """Parse a Newick string into a complete :class:`Tree` and a name-map ``{id: user label}``.
+    """Parse a Newick string into a complete `Tree` and a name-map ``{id: user label}``.
 
     This is how the CLI loads a species tree back for the downstream levels. Branch lengths are read
     as **durations**: the root sits at time 0 and each node's ``birth_time`` is its parent's
@@ -225,7 +225,7 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
       - **not ultrametric** → the differing tip depths could mean extinct lineages *or* early
         samples, which ZOMBI cannot tell apart, so it **refuses to guess**: pass ``tip_fates`` — a
         ``{tip label: "extant" | "extinct" | "unsampled"}`` map covering every tip — or a
-        :class:`ValueError` is raised. (The CLI fills ``tip_fates`` from ``--tip-fates FILE``, which
+        `ValueError` is raised. (The CLI fills ``tip_fates`` from ``--tip-fates FILE``, which
         reads the same format a species run writes to ``species_fates.tsv``.)
 
     A root branch length is read when present — ``to_newick`` writes one, so a ZOMBI tree round-trips
@@ -567,7 +567,7 @@ def relative_evolutionary_divergence(tree: Tree) -> dict[int, float]:
 def red_scaled(tree: Tree) -> Tree:
     """Return a copy whose node depths **are** their RED — ultrametric on ``[0, 1]``, root at 0, every
     tip at 1. Branch lengths become RED increments. This is the tree GTDB-style rank normalisation
-    reads (:func:`relative_evolutionary_divergence` gives the raw per-node values)."""
+    reads (`relative_evolutionary_divergence()` gives the raw per-node values)."""
     red = relative_evolutionary_divergence(tree)
     out = _copy(tree)
     for i, nd in out.nodes.items():

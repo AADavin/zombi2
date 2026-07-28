@@ -1,9 +1,9 @@
 """``zombi2 traits`` — evolve a trait along a species tree.
 
 ``--kind`` picks the state space, which is what genuinely differs between the two trait engines:
-``continuous`` (a real value diffusing, :func:`zombi2.traits.simulate_continuous` — Brownian motion,
+``continuous`` (a real value diffusing, `zombi2.traits.simulate_continuous()` — Brownian motion,
 or Ornstein–Uhlenbeck with ``--reverts-to``/``--pull``) or ``discrete`` (a finite state switching,
-:func:`~zombi2.traits.simulate_discrete` — the Mk model with ``--switch``, or the threshold model
+`simulate_discrete()` — the Mk model with ``--switch``, or the threshold model
 with ``--liability``/``--threshold``). Long options are the API keyword names, and ``--rate`` takes
 the written form of a rate (SPEC §5) — a bare number, or the same ``scope(base) × modifiers``
 expression the Python API takes: ``--rate "1.0 * OnTime({0: 4.0, 1: 1.0})"`` is an early burst,

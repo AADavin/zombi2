@@ -6,9 +6,9 @@ analysis-ready files. Two so far, both derived from the gene trees and both exac
 inferred, because ZOMBI simulated the embedding it is reporting: the **homology** matrix — for each
 family an n×n grid (n the extant leaves) of ``O`` / ``P`` / ``Ox`` / ``Px``: how the pair diverged
 (ortholog or paralog, from the event at their common ancestor) and whether horizontal transfer is in
-their history (the ``x``) — two separate questions (:mod:`zombi2.tools.homology`) — and
+their history (the ``x``) — two separate questions (`zombi2.tools.homology`) — and
 **recPhyloXML**, each family's complete gene tree written inside the complete species tree in the
-community format for that (:mod:`zombi2.tools.recphylo`).
+community format for that (`zombi2.tools.recphylo`).
 """
 from __future__ import annotations
 

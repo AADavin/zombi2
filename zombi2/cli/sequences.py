@@ -13,7 +13,7 @@ rate times a ``ByLineage`` modifier — ``--substitution "1.0 * ByLineage(spread
 physical parameters (``--kappa`` / ``--frequencies`` / ``--gtr-rates``) are rejected for a model that
 does not use them — including *every* protein model, which is empirical and takes none — so a
 silently-ignored flag can't give a misleading run. See
-:func:`zombi2.sequences.simulate_sequences`."""
+`zombi2.sequences.simulate_sequences()`."""
 from __future__ import annotations
 
 import argparse
@@ -145,8 +145,8 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
 
 def _resolve_model_knobs(args) -> dict:
     """The nucleotide substitution-model knobs with each default filled in — ``kappa`` (2.0),
-    ``frequencies`` (uniform), ``gtr_rates`` (all 1). Shared by :func:`_build_model`, which uses them,
-    and :func:`_effective_model_params`, which logs them, so the two cannot drift."""
+    ``frequencies`` (uniform), ``gtr_rates`` (all 1). Shared by `_build_model()`, which uses them,
+    and `_effective_model_params()`, which logs them, so the two cannot drift."""
     return {"kappa": 2.0 if args.kappa is None else args.kappa,
             "frequencies": [0.25, 0.25, 0.25, 0.25] if args.frequencies is None else list(args.frequencies),
             "gtr_rates": [1, 1, 1, 1, 1, 1] if args.gtr_rates is None else list(args.gtr_rates)}
@@ -157,7 +157,7 @@ def _effective_substitution(args, genome_run) -> dict:
 
     With ``--divergence`` the base is solved for, so the rate written on the command line is not the
     rate that ran — and a log recording the flag rather than the resolved value would be a provenance
-    record that disagrees with the run. Calls the same :func:`~zombi2.sequences._calibrate` the engine
+    record that disagrees with the run. Calls the same `_calibrate()` the engine
     does, so the logged number cannot drift from the one used."""
     if args.divergence is not None:
         return {"substitution": _calibrate(args.substitution, args.divergence,
@@ -170,7 +170,7 @@ def _effective_substitution(args, genome_run) -> dict:
 
 def _effective_model_params(args) -> dict:
     """The substitution-model params the run actually used, defaults filled — but only the knobs this
-    model has (:data:`_MODEL_KNOBS`), so the ``.log`` reproduces the exact model without the reader
+    model has (`_MODEL_KNOBS`), so the ``.log`` reproduces the exact model without the reader
     knowing each model's defaults. ``jc69`` and the protein models have no free knob, so this is empty."""
     resolved = _resolve_model_knobs(args)
     return {name: resolved[name] for name in _MODEL_KNOBS.get(args.model, ())}

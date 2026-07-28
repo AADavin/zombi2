@@ -163,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
         "zombi2 tools <tool> DIR [options]",
         tools._add_tools_args,
         epilog=_examples(
-            "  # O/P/X homology tables (ortholog / paralog / xenolog) for a genomes run",
+            "  # homology tables (O/P ortholog/paralog, x = transfer in between) for a genomes run",
             "  zombi2 tools format out/",
         ))
 

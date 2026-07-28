@@ -1,7 +1,7 @@
 """Homology classification — the true ortholog / paralog / xenolog relation of every gene pair.
 
 ZOMBI *simulated* each gene tree's embedding in the species tree, so the event at every internal node
-is recorded, not inferred (see :mod:`zombi2.genomes.gene_trees`). Two genes are then related along
+is recorded, not inferred (see `zombi2.genomes.gene_trees`). Two genes are then related along
 **two independent axes**, and a cell carries both:
 
 **How they diverged** — the event at their most-recent common ancestor:
@@ -146,9 +146,9 @@ def write_homology(gene_trees: dict[int, GeneTree], tree, directory) -> str:
     """Write ``homology_fam<family>.tsv`` — one n×n O/P/Ox/Px table per family — into ``directory``.
 
     The rows are the **extant** leaves, the genes a real dataset would hold, so it mirrors
-    :func:`zombi2.genomes.gene_trees.write_gene_trees`: a family with no surviving copy has no extant
+    `zombi2.genomes.gene_trees.write_gene_trees()`: a family with no surviving copy has no extant
     leaves to relate and so writes no table. It is read off the family's *complete* tree, though — see
-    :func:`homology_table` for why the pruned one is not enough. (``tree``, the species tree, is part
+    `homology_table()` for why the pruned one is not enough. (``tree``, the species tree, is part
     of the writer contract every ``--format`` shares; this table needs only the gene tree.)"""
     d = pathlib.Path(directory)
     d.mkdir(parents=True, exist_ok=True)

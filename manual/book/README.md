@@ -1,6 +1,6 @@
 # The manual
 
-Nine chapters and two appendices, one file each:
+Nine chapters and three appendices, one file each:
 
 | file | chapter |
 |---|---|
@@ -13,8 +13,9 @@ Nine chapters and two appendices, one file each:
 | `ch7.md` | Sequence evolution |
 | `ch8.md` | Trait evolution |
 | `ch9.md` | Conditioning and joining |
-| `appendix-a.md` | The Gillespie algorithm |
-| `appendix-b.md` | Output files, in full |
+| `appendix-a.md` | Rates in detail, and the Gillespie algorithm |
+| `appendix-b.md` | Output files |
+| `appendix-c.md` | Tools |
 
 `figures/` holds the chapter figures.
 

@@ -67,7 +67,7 @@ def _pool_would_fail_to_start() -> bool:
 
 def guard_pool_workers(workers: int, *, what: str = "--parallel") -> int:
     """Return ``workers`` unchanged, unless a process pool would crash at startup here (see
-    :func:`_pool_would_fail_to_start`) — then fall back to ``1`` (single-process), warning once. This is
+    `_pool_would_fail_to_start()`) — then fall back to ``1`` (single-process), warning once. This is
     what lets ``parallel=`` be called from a notebook, ``python -c``, or a stdin heredoc without a raw
     ``BrokenProcessPool``: it runs single-process instead of dying. A ``.py`` script (or the CLI) is
     unaffected and keeps every worker. ``what`` names the knob in the message."""
@@ -100,8 +100,8 @@ def flatten_gene_tree(gt: GeneTree) -> tuple[int, float, list[tuple[int, str, in
 
 
 def rebuild_gene_tree(flat: tuple[int, float, list[tuple[int, str, int, float, int]]]) -> GeneTree:
-    """Invert :func:`flatten_gene_tree` — rebuild the :class:`GeneTree` in the worker, iteratively.
-    Children are appended in flat-list order, which is the order :func:`flatten_gene_tree` emitted
+    """Invert `flatten_gene_tree()` — rebuild the `GeneTree` in the worker, iteratively.
+    Children are appended in flat-list order, which is the order `flatten_gene_tree()` emitted
     them, so the reconstructed tree is identical node-for-node (and sibling order is preserved)."""
     from ..genomes.gene_trees import GeneNode, GeneTree     # lazy: avoids a genomes ↔ _parallel cycle
 
