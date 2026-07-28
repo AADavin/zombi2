@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import os
 import shutil
 import sys
@@ -577,15 +578,53 @@ def _log_value(value: object) -> str:
     return str(value)
 
 
-def _write_params_log(path: str, args: argparse.Namespace, summary: str, effective=None) -> None:
+def _sha256(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def input_digests(*values) -> list[tuple[str, str]]:
+    """``(path, sha256)`` for every input file behind ``values``, deduplicated, in the order given.
+
+    What a run *read* is as much a parameter of it as any flag, and the file's **name** does not
+    pin it down: two runs from two different trees log the same ``--from tree.nwk`` and the same
+    seed, and nothing in the log tells them apart. The digest does. A ``value`` is either a path or
+    a rate, whose ``DrivenBy`` file source — the level a conditioned run was driven by — is as much
+    an input as the tree. Anything that is not an existing file is skipped."""
+    from zombi2.rates.modifiers import DrivenBy
+
+    paths: list[str] = []
+    for value in values:
+        if isinstance(value, str):
+            paths.append(value)
+        elif value is not None:
+            mods = getattr(value, "modifiers", (value,))     # a rate's modifiers, or a bare one
+            paths.extend(m.source for m in mods
+                         if isinstance(m, DrivenBy) and isinstance(m.source, str))
+    out, seen = [], set()
+    for path in paths:
+        if path not in seen and os.path.isfile(path):
+            seen.add(path)
+            out.append((path, _sha256(path)))
+    return out
+
+
+def _write_params_log(path: str, args: argparse.Namespace, summary: str, effective=None,
+                      inputs=()) -> None:
     """Write the full set of run parameters to ``path`` — always, for reproducibility. ``effective``
     overrides the logged value of the named args with the **resolved** value the run actually used
     (e.g. a model's default ``kappa`` in place of the bare ``None`` that was on the command line), so
-    the log reproduces the run without the reader having to know each default."""
+    the log reproduces the run without the reader having to know each default. ``inputs`` are the
+    files the run read, from :func:`input_digests`, recorded by content as well as by name."""
     lines = ["# ZOMBI2 run parameters",
              f"zombi2_version\t{__version__}",
              f"timestamp\t{datetime.datetime.now().isoformat(timespec='seconds')}",
              f"command_line\t{' '.join(sys.argv)}"]
+    for in_path, digest in inputs:
+        lines.append(f"input\t{digest}\t{in_path}")
     for key, value in sorted({**vars(args), **(effective or {})}.items()):
         lines.append(f"{key}\t{_log_value(value)}")
     lines.append(f"result\t{summary}")

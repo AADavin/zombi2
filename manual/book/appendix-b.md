@@ -54,6 +54,20 @@ parameter. Rates are recorded in their **written form** — `birth<TAB>1.0 * OnT
 so a line pastes straight back into the flag or a `--params` file. It is a CLI artifact, not a
 `result.write()` output, so it has no row in the tables below.
 
+A run that **read** a file records it too, one `input` line per file, holding its SHA-256 and its
+path:
+
+```
+input	d6db05f110039fac…b52dfc	out/species/species_complete.nwk
+input	cb2f514472da3958…3743f	out/species/species_fates.tsv
+```
+
+The species tree, a `--tip-fates` table, and the driver file of any conditioned rate are all inputs
+in this sense. A path on its own does not pin a run down — two runs from two different trees can
+carry the same `--from tree.nwk`, the same seed, and the same parameters — so the content is what
+tells them apart, and what says a rerun is reading what it read before. See *Reproducing a run* in
+Chapter 2.
+
 ## Species trees — `simulate_species_tree`
 
 | Output | File | Format | Default | Contents |

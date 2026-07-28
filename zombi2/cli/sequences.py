@@ -26,6 +26,9 @@ from zombi2.genomes import FamilyGenomesResult
 from zombi2.genomes.events import events_from_tsv
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
 from zombi2.rates.modifiers import ByLineage, Modifier
+from zombi2.rates.parse import written_form
+from zombi2.rates.rate import as_rate
+from zombi2.rates.scope import PerSite
 from zombi2.sequences import WIRED_MODIFIERS, _calibrate, simulate_sequences
 from zombi2.sequences.substitution_models import (
     dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
@@ -34,7 +37,7 @@ from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _write_params_log,
                                   default_outputs, guidance, level_dir, parallel_from_args,
-                                  defaults_used, resolve_genomes, resolve_seed, warn)
+                                  defaults_used, input_digests, resolve_genomes, resolve_seed, warn)
 
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -340,10 +343,13 @@ def run(args, parser):
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
     if identity is not None and _saturation_signal(identity, model) < _SATURATED_BELOW:
         floor = float(np.sum(np.asarray(model.stationary) ** 2))
-        # Name the rate that ran, not the flag: --substitution is None when it was left out, and
-        # "currently None" tells a reader nothing. And point at --divergence first — it is the
-        # answer to "what should I put instead", which lowering a rate by guesswork is not.
-        used = "the default 1.0" if args.substitution is None else f"{args.substitution}"
+        # Name the rate that RAN, not the flag: --substitution is None when it was left out, and
+        # "currently None" tells a reader nothing — and under --divergence the rate that ran is the
+        # solved-for base, which is not on the command line at all. Then point at --divergence first:
+        # it is the answer to "what should I put instead", which lowering a rate by guesswork is not.
+        rate = _effective_substitution(args, genome_run).get("substitution", args.substitution)
+        used = ("the default 1.0" if args.substitution is None and args.divergence is None
+                else written_form(as_rate(rate, default_scope=PerSite)))
         warn(f"these sequences are close to saturated — mean pairwise identity is {identity:.0%}, "
              f"against {floor:.0%} for unrelated sequences under {model.name}. The substitution "
              f"rate is per unit time, so a tall tree accrues many substitutions per site and the "
@@ -351,7 +357,11 @@ def run(args, parser):
              f"poorly on them. Say how diverged you want them instead — --divergence 0.2 is a "
              f"readable alignment on any tree — or lower the rate yourself (it ran at {used}).")
     guidance(args, f"alignments under {out}/")
-    _write_params_log(os.path.join(out, "sequences.log"),
-                      args, summary, effective={"write": list(wanted), **_effective_model_params(args),
-                                 **_effective_substitution(args, genome_run)})
+    _write_params_log(os.path.join(out, "sequences.log"), args, summary,
+                      effective={"write": list(wanted), **_effective_model_params(args),
+                                 **_effective_substitution(args, genome_run)},
+                      inputs=input_digests(tree_path,
+                                           os.path.join(handoff, "genome_events.tsv"),
+                                           os.path.join(handoff, "blocks.tsv"),
+                                           args.substitution))
     return 0
