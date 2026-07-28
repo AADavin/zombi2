@@ -131,7 +131,7 @@ from zombi2.cli.main import main  # noqa: E402
 
 def _write(tmp_path, name, newick):
     p = tmp_path / name
-    p.write_text(newick)
+    p.write_text(newick, encoding="utf-8")
     return str(p)
 
 
@@ -188,6 +188,47 @@ def test_cli_treedist_matches_external_trees_by_label_not_parse_order(tmp_path, 
     assert capsys.readouterr().out.strip() == "rf\t4"
     assert main(["tools", "treedist", t1, t1, "--metric", "rf"]) == 0
     assert capsys.readouterr().out.strip() == "rf\t0"
+
+
+def test_cli_treedist_compares_a_gene_tree_to_a_species_tree_and_says_so(tmp_path, capsys):
+    # a gene tree's tips are genes and a species tree's are species, so left alone the two share no
+    # labels at all. They ARE comparable on the species each gene sits in — which is the question
+    # "does this family recover the species tree?" — but the reader has to be told that is what
+    # happened, or a number appears from a comparison that was never like-for-like.
+    sp = _write(tmp_path, "sp.nwk", "((n3:1,n4:1)n1:1,(n5:1,n6:1)n2:1)n0;")
+    same = _write(tmp_path, "same.nwk",
+                  "((n3_g1:1,n4_g2:1)x:1,(n5_g3:1,n6_g4:1)y:1)z;")      # same shape, gene tips
+    assert main(["tools", "treedist", same, sp, "--metric", "rf"]) == 0
+    cap = capsys.readouterr()
+    assert cap.out.strip() == "rf\t0"
+    assert "tips are gene copies" in cap.err and "species each gene sits in" in cap.err
+
+    # and it is a real comparison, not one that always answers 0: a transfer-shaped gene tree
+    moved = _write(tmp_path, "moved.nwk",
+                   "((n3_g1:1,n5_g3:1)x:1,(n4_g2:1,n6_g4:1)y:1)z;")
+    assert main(["tools", "treedist", moved, sp, "--metric", "rf"]) == 0
+    assert capsys.readouterr().out.strip() == "rf\t4"
+
+
+def test_cli_treedist_refuses_a_multi_copy_gene_tree_against_a_species_tree(tmp_path, capsys):
+    # two copies in one genome means the gene -> species mapping is not one-to-one, so there is no
+    # well-defined distance. A plausible number would be worse than a refusal.
+    sp = _write(tmp_path, "sp.nwk", "((n3:1,n4:1)n1:1,(n5:1,n6:1)n2:1)n0;")
+    dup = _write(tmp_path, "dup.nwk",
+                 "(((n3_g1:1,n3_g9:1)d:1,n4_g2:1)x:1,(n5_g3:1,n6_g4:1)y:1)z;")
+    with pytest.raises(SystemExit):
+        main(["tools", "treedist", dup, sp, "--metric", "rf"])
+    assert "n3 carry several copies" in capsys.readouterr().err
+
+
+def test_cli_treedist_leaves_two_trees_of_the_same_kind_alone(tmp_path, capsys):
+    # both gene trees: nothing to detect, nothing to say
+    a = _write(tmp_path, "a.nwk", "((n3_g1:1,n4_g2:1)x:1,(n5_g3:1,n6_g4:1)y:1)z;")
+    b = _write(tmp_path, "b.nwk", "((n3_g1:1,n5_g3:1)x:1,(n4_g2:1,n6_g4:1)y:1)z;")
+    assert main(["tools", "treedist", a, b, "--metric", "rf"]) == 0
+    cap = capsys.readouterr()
+    assert cap.out.strip() == "rf\t4"
+    assert "gene copies" not in cap.err
 
 
 def test_a_tree_with_no_branch_lengths_is_refused():

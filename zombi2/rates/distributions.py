@@ -1,7 +1,7 @@
 """Small distribution helpers for per-family sampled rates.
 
 Ships a handful of built-in distributions and also accepts, via
-:func:`as_distribution`, any scipy.stats frozen distribution (anything with an
+`as_distribution()`, any scipy.stats frozen distribution (anything with an
 ``.rvs`` method) or a plain callable ``rng -> float``. No hard scipy dependency.
 
     z.FamilySampledRates(duplication=z.Gamma(2, 0.1),           # built-in

@@ -52,7 +52,7 @@ class GeneTree:
     nodes suppressed), or ``None`` if the family left no extant gene. ``to_newick`` serialises either.
 
     ``origination`` is when the family was founded — the exact time of its origination event, or the
-    root lineage's start for a family declared by ``initial_families``. A :class:`GeneNode` records when
+    root lineage's start for a family declared by ``initial_families``. A `GeneNode` records when
     it *ended*, so this is the one time the tree cannot derive: it is where the root's branch begins."""
 
     family: int
@@ -92,10 +92,10 @@ def write_gene_trees(gene_trees: dict[int, "GeneTree"], directory) -> None:
     d = pathlib.Path(directory)
     d.mkdir(parents=True, exist_ok=True)
     for fam, gt in sorted(gene_trees.items()):
-        (d / f"gene_tree_fam{fam}_complete.nwk").write_text(gt.to_newick("complete") + "\n")
+        (d / f"gene_tree_fam{fam}_complete.nwk").write_text(gt.to_newick("complete") + "\n", encoding="utf-8")
         extant = gt.to_newick("extant")
         if extant is not None:
-            (d / f"gene_tree_fam{fam}_extant.nwk").write_text(extant + "\n")
+            (d / f"gene_tree_fam{fam}_extant.nwk").write_text(extant + "\n", encoding="utf-8")
 
 
 def gene_trees_from_events(events: list, tree) -> dict[int, GeneTree]:

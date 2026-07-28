@@ -1,4 +1,4 @@
-"""The parallel engine for :func:`~zombi2.sequences.simulate_sequences` — one gene tree per process.
+"""The parallel engine for `simulate_sequences()` — one gene tree per process.
 
 Reached only when ``parallel`` is truthy; the serial default lives in the package ``__init__``. Each
 family is evolved under its own RNG stream (spawned from the run seed in the parent), so the result is
@@ -8,7 +8,7 @@ be worth spawning workers is evaluated inline with the *same* streams, giving th
 Why processes and not threads: measured on this codebase, a thread pool barely helps and often hurts —
 numpy releases the GIL too little for the per-site arrays here. So each worker is a real process, the
 shared read-only inputs (the models and the lineage clock) are shipped once via an initializer, and the
-gene tree crosses the boundary in the flat, recursion-free form of :mod:`zombi2._runtime.parallel` (a deep tree
+gene tree crosses the boundary in the flat, recursion-free form of `zombi2._runtime.parallel` (a deep tree
 overflows the pickle recursion limit otherwise).
 """
 

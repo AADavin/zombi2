@@ -443,7 +443,7 @@ def test_distance_decay_validation():
 # --- the written outputs ---------------------------------------------------
 
 def _rows(path):
-    lines = path.read_text().splitlines()
+    lines = path.read_text(encoding="utf-8").splitlines()
     cols = lines[0].split("\t")
     return cols, [dict(zip(cols, ln.split("\t"))) for ln in lines[1:] if ln]
 
@@ -491,7 +491,7 @@ def test_write_genomes_covers_every_node_where_profiles_covers_only_tips():
         assert written & internal, "ancestral genomes must be in there, not just the tips"
         # profiles is the extant-only view
         tips = {f"n{n.id}" for n in sp.complete_tree.extant()}
-        assert set((out / "profiles.tsv").read_text().splitlines()[0].split("\t")[1:]) == tips
+        assert set((out / "profiles.tsv").read_text(encoding="utf-8").splitlines()[0].split("\t")[1:]) == tips
 
 
 def test_write_gene_trees_emits_one_newick_per_family():
@@ -503,7 +503,7 @@ def test_write_gene_trees_emits_one_newick_per_family():
         g.write(out, outputs=("gene_trees",))
         for fam, gt in g.gene_trees.items():
             complete = out / "gene_trees" / f"gene_tree_fam{fam}_complete.nwk"
-            assert complete.read_text().strip() == gt.to_newick("complete")
+            assert complete.read_text(encoding="utf-8").strip() == gt.to_newick("complete")
             extant = out / "gene_trees" / f"gene_tree_fam{fam}_extant.nwk"
             # a family with no survivor has no extant tree, and writes no file for it
             assert extant.exists() == (gt.to_newick("extant") is not None)

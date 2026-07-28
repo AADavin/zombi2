@@ -112,7 +112,7 @@ def test_write_values_tsv(tmp_path):
     sp = _tree(seed=8)
     r = simulate_continuous(sp, rate=0.5, seed=1)
     r.write(tmp_path, outputs=["values"])
-    text = (tmp_path / "trait_values.tsv").read_text()
+    text = (tmp_path / "trait_values.tsv").read_text(encoding="utf-8")
     lines = text.splitlines()
     assert lines[0] == "node\ttrait"
     assert len(lines) - 1 == len(r.values)                    # one row per extant tip
@@ -602,9 +602,9 @@ def test_discrete_write(tmp_path):
     sp = _tree(seed=8)
     r = simulate_discrete(sp, states=["lo", "hi"], switch=0.6, start="lo", seed=1)
     r.write(tmp_path, outputs=["values", "events"])
-    vals = (tmp_path / "trait_values.tsv").read_text().splitlines()
+    vals = (tmp_path / "trait_values.tsv").read_text(encoding="utf-8").splitlines()
     assert vals[0] == "node\ttrait" and set(line.split("\t")[1] for line in vals[1:]) <= {"lo", "hi"}
-    ev = (tmp_path / "trait_events.tsv").read_text().splitlines()
+    ev = (tmp_path / "trait_events.tsv").read_text(encoding="utf-8").splitlines()
     assert ev[0] == "time\tkind\tlineage\tfrom\tto" and len(ev) - 1 == len(r.events)
     assert ev[1].split("\t")[1] == "root"                          # the origin row comes first
 
@@ -676,7 +676,7 @@ def test_correlated_write(tmp_path):
     r = simulate_continuous(tree, start={"size": 0.0, "limb": 0.0}, rate={"size": 1.0, "limb": 1.0},
                             correlation={("size", "limb"): 0.4}, seed=1)
     r.write(tmp_path, outputs=["values"])
-    lines = (tmp_path / "trait_values.tsv").read_text().splitlines()
+    lines = (tmp_path / "trait_values.tsv").read_text(encoding="utf-8").splitlines()
     assert lines[0] == "node\tsize\tlimb"                              # one column per trait
     assert len(lines) - 1 == len(r.values)
 
@@ -770,7 +770,7 @@ def test_correlated_discrete_shape_and_write(tmp_path):
     assert all(set(v) == {"wings", "flight"} for v in r.node_values.values())
     assert r.history is None and r.events == []
     r.write(tmp_path, outputs=["values"])
-    assert (tmp_path / "trait_values.tsv").read_text().splitlines()[0] == "node\twings\tflight"
+    assert (tmp_path / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[0] == "node\twings\tflight"
 
 
 def test_threshold_validation():
@@ -917,7 +917,7 @@ def test_write_trait_tree(tmp_path):
     ]
     for r, marker in cases:
         r.write(tmp_path, outputs=["tree"])
-        nwk = (tmp_path / "trait_tree.nwk").read_text().strip()
+        nwk = (tmp_path / "trait_tree.nwk").read_text(encoding="utf-8").strip()
         assert nwk.count("(") == nwk.count(")") and nwk.endswith(";")   # structurally valid Newick
         assert marker in nwk                                            # the right annotation shape
         ids = {int(m) for m in re.findall(r"n(\d+)\[", nwk)}

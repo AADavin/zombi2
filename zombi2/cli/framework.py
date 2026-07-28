@@ -28,7 +28,7 @@ Coupling
   joint                grow a species tree and the level driving it, together
 
 Tools
-  tools                analyses that read a finished run (homology O/P/X tables, …)
+  tools                analyses that read a finished run (homology tables, recPhyloXML, …)
 """
 
 
@@ -187,7 +187,7 @@ def _add_quiet_arg(g) -> None:
 
 def _add_force_arg(g) -> None:
     """Add ``--force`` — re-run this level even though a later level built from it is already in the run
-    directory, removing that now-stale downstream output (see :func:`check_stale_downstream`)."""
+    directory, removing that now-stale downstream output (see `check_stale_downstream()`)."""
     g.add_argument("--force", action="store_true",
                    help="re-run this level even if a later level in the run was built from its output, "
                         "removing that now-stale downstream. Without it the command refuses, so a run's "
@@ -310,7 +310,7 @@ def resolve_seed(args) -> None:
 
 def warn(message: str) -> None:
     """A diagnostic about the *result* — the run succeeded, but something about what came out is
-    likely not what was wanted. Unlike :func:`guidance` it goes to **stderr** and survives
+    likely not what was wanted. Unlike `guidance()` it goes to **stderr** and survives
     ``--quiet``: a scripted batch is precisely the caller who needs to hear that its data is
     degenerate, and stdout stays clean for the ``wrote …`` line. A healthy run prints nothing here,
     so an empty stderr still means "nothing to report"."""
@@ -320,7 +320,7 @@ def warn(message: str) -> None:
 #: The fixed pipeline edges — a level → the levels that read its output *directly*. ``species`` feeds
 #: ``genomes`` and ``traits`` (both read the species tree); ``genomes`` feeds ``sequences`` (the gene
 #: trees). Re-running a level orphans everything reachable from it here, plus any level that recorded a
-#: DrivenBy *conditioning* on it (a dynamic edge — see :func:`_conditioned_on`).
+#: DrivenBy *conditioning* on it (a dynamic edge — see `_conditioned_on()`).
 _STRUCTURAL = {
     "species": ("genomes", "traits"),
     "genomes": ("sequences",),
@@ -334,25 +334,25 @@ _CONDITIONABLE = ("genomes",)
 _LEVEL_ORDER = ("species", "genomes", "sequences", "traits")
 
 #: The marker a conditioned level writes, naming the levels its rates read via ``DrivenBy`` — the
-#: dynamic half of the staleness graph (the fixed half is :data:`_STRUCTURAL`).
+#: dynamic half of the staleness graph (the fixed half is `_STRUCTURAL`).
 _CONDITIONED_ON_FILE = "conditioned_on"
 
 
 def _level_present(run: str, level: str) -> bool:
     """Whether ``run/<level>/`` holds a level's output — a non-empty grouped sub-directory. (The check
     is grouped-only: ``--flat`` commingles every level in one directory, where they cannot be told
-    apart, so a ``--flat`` run is left to the user — see :func:`check_stale_downstream`.)"""
+    apart, so a ``--flat`` run is left to the user — see `check_stale_downstream()`.)"""
     d = os.path.join(run, level)
     return os.path.isdir(d) and bool(os.listdir(d))
 
 
 def _conditioned_on(run: str, level: str) -> set:
     """The levels ``run/<level>/`` recorded a ``DrivenBy`` conditioning on (its rates read their
-    output), from the :data:`_CONDITIONED_ON_FILE` marker — empty if it conditioned on nothing."""
+    output), from the `_CONDITIONED_ON_FILE` marker — empty if it conditioned on nothing."""
     p = os.path.join(run, level, _CONDITIONED_ON_FILE)
     if not os.path.exists(p):
         return set()
-    with open(p) as f:
+    with open(p, encoding="utf-8") as f:
         return {ln.strip() for ln in f if ln.strip()}
 
 
@@ -383,13 +383,13 @@ def conditioned_levels(run: str, rate_specs) -> set:
 
 
 def record_conditioning(level_out: str, driver_levels) -> None:
-    """Write (or clear) the :data:`_CONDITIONED_ON_FILE` marker in a level's output directory: the
+    """Write (or clear) the `_CONDITIONED_ON_FILE` marker in a level's output directory: the
     same-run levels its rates read via ``DrivenBy``, so the guard knows re-running one of them orphans
     this level. Removes a stale marker when a re-run conditions on nothing."""
     driver_levels = sorted(set(driver_levels))
     p = os.path.join(level_out, _CONDITIONED_ON_FILE)
     if driver_levels:
-        with open(p, "w") as f:
+        with open(p, "w", encoding="utf-8") as f:
             f.write("\n".join(driver_levels) + "\n")
     elif os.path.exists(p):
         os.remove(p)
@@ -397,7 +397,7 @@ def record_conditioning(level_out: str, driver_levels) -> None:
 
 def _stale_downstream(args, level: str) -> list:
     """The downstream levels already present that re-running ``level`` would orphan — everything
-    reachable from it by a 'reads its output' edge (the fixed pipeline :data:`_STRUCTURAL` plus recorded
+    reachable from it by a 'reads its output' edge (the fixed pipeline `_STRUCTURAL` plus recorded
     ``DrivenBy`` conditioning), listed in pipeline order. Empty under ``--flat`` (not guarded)."""
     if getattr(args, "flat", False):
         return []
@@ -420,8 +420,8 @@ def check_stale_downstream(args, level: str) -> None:
     from it: re-running would leave that downstream output silently mismatched with the new one. The
     normal forward pipeline never trips this (each level is run once, downstream not yet there); only a
     re-run does. ``--force`` allows it — the orphaned downstream is removed afterwards by
-    :func:`clear_stale_downstream`, so the run can never end up a stale mix. Raises ``ValueError`` (the
-    CLI reports it as ``zombi2: error: …``); does nothing under ``--flat`` (see :func:`_level_present`)."""
+    `clear_stale_downstream()`, so the run can never end up a stale mix. Raises ``ValueError`` (the
+    CLI reports it as ``zombi2: error: …``); does nothing under ``--flat`` (see `_level_present()`)."""
     if getattr(args, "force", False):
         return
     present = _stale_downstream(args, level)
@@ -516,10 +516,10 @@ def _read_tip_fates(path: str) -> dict:
     ``tip_name<TAB>extant|extinct|unsampled`` row per tip (whitespace also accepted; blank lines and
     ``#`` comments skipped). This is the same shape ``species_fates.tsv`` is written in, so that output
     feeds straight back in — its ``lineage<TAB>fate`` header row is recognised and skipped. The values
-    are checked against the tree by :func:`~zombi2.species.read_newick`."""
+    are checked against the tree by `read_newick()`."""
     fates = {}
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             for lineno, raw in enumerate(f, 1):
                 line = raw.strip()
                 if not line or line.startswith("#"):
@@ -618,7 +618,7 @@ def _write_params_log(path: str, args: argparse.Namespace, summary: str, effecti
     overrides the logged value of the named args with the **resolved** value the run actually used
     (e.g. a model's default ``kappa`` in place of the bare ``None`` that was on the command line), so
     the log reproduces the run without the reader having to know each default. ``inputs`` are the
-    files the run read, from :func:`input_digests`, recorded by content as well as by name."""
+    files the run read, from `input_digests()`, recorded by content as well as by name."""
     lines = ["# ZOMBI2 run parameters",
              f"zombi2_version\t{__version__}",
              f"timestamp\t{datetime.datetime.now().isoformat(timespec='seconds')}",
@@ -628,7 +628,7 @@ def _write_params_log(path: str, args: argparse.Namespace, summary: str, effecti
     for key, value in sorted({**vars(args), **(effective or {})}.items()):
         lines.append(f"{key}\t{_log_value(value)}")
     lines.append(f"result\t{summary}")
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 
 
@@ -638,7 +638,7 @@ def _add_subcommand(sub, name: str, help: str, description: str, usage: str, add
 
     The command list itself is curated (grouped by theme) in the top-level description, so the
     per-command ``help`` is suppressed from argparse's auto listing to avoid a duplicate dump.
-    ``epilog`` (built with :func:`_examples`) adds a worked-example block below the options.
+    ``epilog`` (built with `_examples()`) adds a worked-example block below the options.
     """
     p = sub.add_parser(name, help=help, description=description, usage=usage, epilog=epilog,
                        formatter_class=ZombiHelpFormatter)

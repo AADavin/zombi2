@@ -2,7 +2,7 @@
 
 The ordered resolution layers **position** over the family D/T/L/O core (Chapter 4). A genome is
 no longer a multiset of gene copies but a list of **chromosomes**, each an ordered run of oriented
-:class:`Gene`\\ s.
+`Gene`\\ s.
 
 **Every gene-level event acts on an extent** — a run of consecutive genes (the ZOMBI1 model), its
 length drawn per event from a distribution (default ``Geometric(mean=1)`` — a single gene). The run
@@ -25,11 +25,11 @@ not eNewick).
 
 It is the genome twin of the family core and shares its spine: one forward Gillespie over the
 **complete** species tree, the same ``scope(base) × modifiers`` rate grammar, the same gene-genealogy
-:class:`~zombi2.genomes.events.Event` log (position-blind, so ``gene_trees`` and ``profiles`` are
+`Event` log (position-blind, so ``gene_trees`` and ``profiles`` are
 derived from it unchanged), and the same live-lineage bookkeeping. What differs is the state (a list
 of chromosomes) and the segmental, position-aware mutators, plus the ``rearrangements`` and
 ``chromosome_events`` logs. The nucleotide resolution (genes/intergenes, indels) is
-:func:`~zombi2.genomes.simulate_genomes_nucleotide`.
+`simulate_genomes_nucleotide()`.
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ from .profiles import Profiles, profiles_from_genomes
 class Gene:
     """One gene copy with an **orientation**: a member of family ``family``, identified by a
     globally-unique ``id`` (per segment, the ZOMBI1 model), lying on its chromosome on the ``strand``
-    ``+1`` or ``-1``. It is the family :class:`~zombi2.genomes.GeneCopy` with the one thing that
+    ``+1`` or ``-1``. It is the family `GeneCopy` with the one thing that
     only makes sense once genes are ordered — which way it points. Its position is implicit: the index
     of the gene in its chromosome's ordered list. Birth/death and parentage live in the event log."""
 
@@ -72,7 +72,7 @@ class Gene:
 
 @dataclass
 class Chromosome:
-    """One chromosome: an ordered run of :class:`Gene`\\ s, identified by ``id`` (re-minted at every
+    """One chromosome: an ordered run of `Gene`\\ s, identified by ``id`` (re-minted at every
     speciation, so it names a chromosome *lineage*), with a ``topology`` — ``"circular"`` or
     ``"linear"``.
 
@@ -80,7 +80,7 @@ class Chromosome:
     run that reaches the last gene continues from the first — it wraps position 0 — and is limited
     only by the whole chromosome. A **linear** one has ends, so a run stops at the last gene. Position
     0 is therefore a real boundary on a linear chromosome and pure bookkeeping on a circular one,
-    where it may be re-anchored freely (see :func:`_anchor`). Topology does not yet gate which
+    where it may be re-anchored freely (see `_anchor()`). Topology does not yet gate which
     fissions and fusions are legal."""
 
     id: int
@@ -101,7 +101,7 @@ class Inversion:
     starting at position ``start`` of chromosome ``chromosome`` was reversed and its strands flipped.
     On a circular chromosome the run may wrap position 0 (``start + length`` exceeds the chromosome's
     gene count). Gene ids are untouched — an inversion reshapes order, it does not end lineages — so
-    it is logged here, separate from the gene-genealogy :class:`~zombi2.genomes.events.Event`
+    it is logged here, separate from the gene-genealogy `Event`
     stream."""
 
     time: float
@@ -149,7 +149,7 @@ class Translocation:
 @dataclass(frozen=True)
 class EventPosition:
     """**Where** one gene-genealogy event happened — the positional companion to an
-    :class:`~zombi2.genomes.events.Event`.
+    `Event`.
 
     The event log is position-blind on purpose (it records identity and descent, which is the same
     whatever the resolution), so the ordered engine records position here instead.
@@ -198,8 +198,8 @@ class EventPosition:
 
 @dataclass
 class OrderedGenomesResult:
-    """What :func:`simulate_genomes_ordered` returns: the ``complete_tree`` it ran on, the final
-    ``genomes`` at **every** node as tuples of :class:`Chromosome`\\ s, the shared gene-genealogy
+    """What `simulate_genomes_ordered()` returns: the ``complete_tree`` it ran on, the final
+    ``genomes`` at **every** node as tuples of `Chromosome`\\ s, the shared gene-genealogy
     ``events`` log, the ``rearrangements`` (inversions) and ``chromosome_events`` (the chromosome
     genealogy) logs, and the ``seed``. The observed genomes are the extant tips; ``profiles`` and
     ``gene_trees`` are derived from the (position-blind) genealogy exactly as for the family core;
@@ -213,11 +213,11 @@ class OrderedGenomesResult:
     seed: int | None
     #: ``{name: family id}`` for families declared by ``family_names=[…]`` — the handle to a *named* family.
     family_names: dict[str, int] = field(default_factory=dict)
-    #: where each gene-genealogy :class:`~zombi2.genomes.events.Event` happened — the positional
-    #: companion to :attr:`events`, which is position-blind. See :class:`EventPosition`.
+    #: where each gene-genealogy `Event` happened — the positional
+    #: companion to `events`, which is position-blind. See `EventPosition`.
     event_positions: list[EventPosition] = field(default_factory=list)
     #: The genome the run **started** with, at the root lineage's origination — before any event.
-    #: It is not in :attr:`genomes`, which holds a genome per *node*, and a node sits at the **end**
+    #: It is not in `genomes`, which holds a genome per *node*, and a node sits at the **end**
     #: of its branch: the root branch is real simulated time, so ``genomes[root]`` is this genome plus
     #: whatever happened along the stem.
     initial_genome: tuple[Chromosome, ...] = ()
@@ -256,13 +256,13 @@ class OrderedGenomesResult:
     def profiles(self) -> Profiles:
         """The phyletic profiles — each gene family's copy count in each extant species — derived
         from the observed genomes, flattening across chromosomes (position does not enter). See
-        :mod:`.profiles`."""
+        `profiles`."""
         return profiles_from_genomes(self._extant_genes, self._extant_genes.keys())
 
     @cached_property
     def gene_trees(self) -> dict[int, GeneTree]:
         """``{family id: GeneTree}`` — each family's true genealogy inside the complete tree, derived
-        from the (position-blind) event log exactly as for the family core. See :mod:`.gene_trees`."""
+        from the (position-blind) event log exactly as for the family core. See `gene_trees`."""
         return gene_trees_from_events(self.events, self.complete_tree)
 
     def write(self, directory, outputs=("events", "profiles", "gene_order", "initial_genome",
@@ -293,15 +293,15 @@ class OrderedGenomesResult:
         d.mkdir(parents=True, exist_ok=True)
         if "events" in outputs:
             (d / "genome_events.tsv").write_text(
-                _events_tsv(self.events, self.event_positions, self.rearrangements))
+                _events_tsv(self.events, self.event_positions, self.rearrangements), encoding="utf-8")
         if "profiles" in outputs:
-            (d / "profiles.tsv").write_text(self.profiles.to_tsv())
+            (d / "profiles.tsv").write_text(self.profiles.to_tsv(), encoding="utf-8")
         if "gene_order" in outputs:
-            (d / "gene_order.tsv").write_text(self._gene_order_tsv())
+            (d / "gene_order.tsv").write_text(self._gene_order_tsv(), encoding="utf-8")
         if "initial_genome" in outputs:
-            (d / "initial_genome.tsv").write_text(self._initial_genome_tsv())
+            (d / "initial_genome.tsv").write_text(self._initial_genome_tsv(), encoding="utf-8")
         if "chromosome_events" in outputs:
-            (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events))
+            (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events), encoding="utf-8")
         if "gene_trees" in outputs:
             write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat))
 
@@ -333,8 +333,8 @@ class OrderedGenomesResult:
 #: ``lineage`` (where it came from) and gains ``dest_lineage`` (where it went). ``recipient`` keeps
 #: the genealogy's meaning — the branch the *new* copy is born on — and so is set on the arriving row
 #: only; it is what tells the two sides apart.
-#: The genealogy columns come from :data:`~zombi2.genomes.events._COLS` rather than being repeated,
-#: because :func:`~zombi2.genomes.events.events_from_tsv` reads this table by requiring those columns
+#: The genealogy columns come from `_COLS` rather than being repeated,
+#: because `events_from_tsv()` reads this table by requiring those columns
 #: as a literal **prefix** of the header. Spelling them out twice let the two drift, which broke that
 #: reader silently; deriving them cannot.
 _EVENT_COLS = _COLS + ("dest_lineage",
@@ -343,7 +343,7 @@ _EVENT_COLS = _COLS + ("dest_lineage",
 
 
 def _position_key(kind, lineage, family, recipient):
-    """What pairs one genealogy row with the :class:`EventPosition` of the event it belongs to.
+    """What pairs one genealogy row with the `EventPosition` of the event it belongs to.
 
     A transfer is told apart by which side it is — the row born on the recipient carries one — rather
     than by lineage, so a self-transfer still resolves. An origination needs its ``family`` too: the
@@ -354,7 +354,7 @@ def _position_key(kind, lineage, family, recipient):
 
 
 def _events_tsv(events, event_positions, rearrangements) -> str:
-    """The run's whole history as one time-ordered table (see :data:`_EVENT_COLS`)."""
+    """The run's whole history as one time-ordered table (see `_EVENT_COLS`)."""
     where = {}
     for p in event_positions:
         where[(p.time, *_position_key(p.kind, p.lineage, p.family, None))] = p
@@ -449,7 +449,7 @@ def _run_means(chrom, mult, m) -> list[float]:
     """For each start, the **mean** family weight of the run of ``m`` genes it opens (SPEC §6).
 
     Prefix-summed, so this is one pass over the chromosome rather than one per candidate run. A
-    circular run wraps position 0; a linear one is clamped by its start, exactly as :func:`_extent`
+    circular run wraps position 0; a linear one is clamped by its start, exactly as `_extent()`
     clamps it."""
     w = [mult[g.family] for g in chrom.genes]
     n = len(w)
@@ -532,7 +532,7 @@ def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ctx=None):
     """``(lineage, chromosome index, start, run size)`` for one gene-level event.
 
     Uniform over genes when no per-family weight is set — the plain path, untouched. With one set, the
-    lineage is drawn by its summed weight and the run by :func:`_pick_run_by_family`, so the weight
+    lineage is drawn by its summed weight and the run by `_pick_run_by_family()`, so the weight
     reaches the segment. ``None`` when the drawn lineage has nothing left to act on."""
     if fw is None:
         k, ci, j = _pick_gene(rng, gen, n)
@@ -605,7 +605,7 @@ def _lose_at(chrom, j, m, node, t, events, positions) -> int:
     """The ``m`` genes at ``[j, j+m)`` are lost together, removed in place; the run may wrap position
     0 on a circular chromosome. A run covering the whole chromosome empties it — the chromosome
     itself survives as an empty replicon, exactly as a de-novo one starts out; only
-    :func:`_chromosome_lose` removes a chromosome from the karyotype. Returns the ``m`` removed."""
+    `_chromosome_lose()` removes a chromosome from the karyotype. Returns the ``m`` removed."""
     j = _anchor(chrom, j, m)
     for g in chrom.genes[j:j + m]:
         events.append(Event(t, "loss", node.id, g.family, g.id))

@@ -1,9 +1,11 @@
 """Tests for :mod:`zombi2.tools.homology` — the ortholog / paralog / xenolog classifier.
 
-The relation of two genes is the event at their most-recent common ancestor: a speciation makes them
-orthologs (``O``), a duplication paralogs (``P``), a transfer xenologs (``X``). Because ZOMBI records
-that event on every gene-tree node, the table is exact, so these tests pin the mapping on hand-built
-trees and then cross-check the whole matrix against a naive pairwise-LCA computation on real runs."""
+Two genes are related on two axes. **How they diverged** is the event at their most-recent common
+ancestor: a speciation makes them orthologs (``O``), a duplication or a transfer — both of which turn
+one gene into two — paralogs (``P``). **Whether transfer is in their history** is a fact about the
+whole path: an ``x`` suffix when a transfer sits between the common ancestor and either gene. Because
+ZOMBI records every event on the tree, both are exact, so these tests pin them on hand-built trees and
+then cross-check the whole matrix against a naive pairwise-LCA oracle on real runs."""
 
 import pytest
 
@@ -11,6 +13,14 @@ from zombi2.genomes.gene_trees import GeneNode, gene_trees_from_events
 from zombi2.genomes import simulate_genomes_family
 from zombi2.species import simulate_species_tree
 from zombi2.tools.homology import homology_table, homology_tsv
+
+
+@pytest.fixture(scope="module")
+def seeded_run():
+    """A run with enough transfer and loss to exercise both axes."""
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=14, seed=1)
+    return simulate_genomes_family(sp, duplication=0.3, transfer=0.3, loss=0.3, origination=0.5,
+                                   initial_families=20, seed=1)
 
 
 def _leaf(species: int, copy: int) -> GeneNode:
@@ -38,10 +48,67 @@ def test_mrca_event_maps_to_the_relation():
         return m[idx[a]][idx[b]]
 
     assert rel("n3_g10", "n4_g11") == "O"                         # MRCA is the speciation
-    assert rel("n5_g20", "n6_g21") == "X"                         # MRCA is the transfer
+    # the transfer's own two children: one gene became two (P), and one of them moved (x)
+    assert rel("n5_g20", "n6_g21") == "Px"
     for a in ("n3_g10", "n4_g11"):                                # MRCA of any cross pair is the root
         for b in ("n5_g20", "n6_g21"):
-            assert rel(a, b) == "P"                               # ...a duplication
+            # ...a duplication — and n6_g21 is the copy that moved, so pairs with it carry the x
+            assert rel(a, b) == ("Px" if b == "n6_g21" else "P")
+
+
+def test_a_transferred_gene_is_a_xenolog_of_everything_it_meets():
+    # The case the old table got wrong. Species ((a,b),c); c donates a copy of its gene into a, so a
+    # ends up holding two genes. Every pair involving the ARRIVAL has transfer in its history; no
+    # other pair does — including the copy c kept, which never went anywhere.
+    a1 = _leaf(3, 1)                                  # a's own gene (species n3)
+    b1 = _leaf(4, 2)                                  # b's gene       (species n4)
+    c1 = _leaf(2, 3)                                  # the copy c KEPT (species n2)
+    a2 = _leaf(3, 4)                                  # the copy c SENT to a
+    root = _internal("speciation", 0, [_internal("speciation", 1, [a1, b1]),
+                                       _internal("transfer", 2, [c1, a2])])
+    labels, m = homology_table(root)
+    rel = {(labels[i], labels[j]): m[i][j] for i in range(4) for j in range(4)}
+
+    assert rel[("n3_g1", "n4_g2")] == "O"             # both vertical: plain orthologs
+    assert rel[("n3_g1", "n2_g3")] == "O"             # the kept copy never moved, so this is too
+    assert rel[("n4_g2", "n2_g3")] == "O"
+    assert rel[("n2_g3", "n3_g4")] == "Px"            # kept vs sent: one gene became two, one moved
+    assert rel[("n3_g1", "n3_g4")] == "Ox"            # SAME GENOME — used to read a plain O
+    assert rel[("n4_g2", "n3_g4")] == "Ox"
+
+
+def test_two_genes_in_one_genome_are_never_plain_orthologs(seeded_run):
+    # no orthology method can call two genes of the same genome orthologs, so an answer key that
+    # does scores the method wrong. Same genome ⇒ a duplication or a transfer put them there.
+    plain_O = 0
+    for gt in seeded_run.gene_trees.values():
+        if gt.extant is None:
+            continue
+        labels, m = homology_table(gt.complete)
+        for i in range(len(labels)):
+            for j in range(i + 1, len(labels)):
+                if labels[i].split("_")[0] == labels[j].split("_")[0]:
+                    assert m[i][j] != "O", (labels[i], labels[j])
+                    plain_O += m[i][j] == "Ox"
+    assert plain_O > 0                                # the run really did transfer within a genome
+
+
+def test_pruning_would_lose_transfers_so_the_complete_tree_is_used(seeded_run):
+    # a transfer whose donor-side copy left no extant descendant is a degree-two node in the pruned
+    # tree and is suppressed, taking the record of the transfer with it. Measured at a fifth of all
+    # cells, which is why write_homology reads the complete tree.
+    differs = same = 0
+    for gt in seeded_run.gene_trees.values():
+        if gt.extant is None:
+            continue
+        full_labels, full = homology_table(gt.complete)
+        cut_labels, cut = homology_table(gt.extant)
+        assert full_labels == cut_labels              # the same genes either way...
+        for i in range(len(full_labels)):
+            for j in range(i + 1, len(full_labels)):
+                differs += full[i][j] != cut[i][j]    # ...but not the same history
+                same += full[i][j] == cut[i][j]
+    assert differs > 0.05 * (differs + same), f"only {differs}/{differs + same} cells differ"
 
 
 def test_matrix_is_symmetric_with_a_dashed_diagonal():
@@ -72,12 +139,15 @@ def _naive_matrix(root: GeneNode):
     """A deliberately simple oracle: leaf order + parent pointers, then walk both leaves to the root
     and take the first shared ancestor. Slower and obviously correct — the check the fast set-based
     :func:`homology_table` must agree with."""
-    relation = {"speciation": "O", "duplication": "P", "transfer": "X"}
-    leaves, parent, stack = [], {}, [root]
+    relation = {"speciation": "O", "duplication": "P", "transfer": "P"}
+    leaves, parent, moved, stack = [], {}, set(), [root]
     while stack:
         n = stack.pop()
-        if n.is_leaf:
+        if n.kind == "extant":
             leaves.append(n)
+        if n.kind == "transfer" and n.children:      # which child is the copy that went somewhere
+            arrived = next((c for c in n.children if c.species != n.species), n.children[-1])
+            moved.add(id(arrived))
         for c in reversed(n.children):
             parent[id(c)] = n
             stack.append(c)
@@ -90,10 +160,15 @@ def _naive_matrix(root: GeneNode):
 
     m = [["-"] * len(leaves) for _ in leaves]
     for a in range(len(leaves)):
-        seen = {id(x) for x in ancestors(leaves[a])}
+        chain_a = ancestors(leaves[a])
+        seen = {id(x) for x in chain_a}
         for b in range(a + 1, len(leaves)):
-            lca = next(x for x in ancestors(leaves[b]) if id(x) in seen)
-            m[a][b] = m[b][a] = relation[lca.kind]
+            chain_b = ancestors(leaves[b])
+            lca = next(x for x in chain_b if id(x) in seen)
+            # walk each leaf up to the LCA, counting the transfers it descends through
+            hgt = any(id(x) in moved for chain in (chain_a, chain_b)
+                      for x in chain[:chain.index(lca)])
+            m[a][b] = m[b][a] = relation[lca.kind] + ("x" if hgt else "")
     return m
 
 
@@ -105,10 +180,9 @@ def test_matches_a_naive_pairwise_lca_on_real_runs(seed):
     trees = gene_trees_from_events(g.events, g.complete_tree)
     checked = 0
     for gt in trees.values():
-        root = gt.extant
-        if root is None:
+        if gt.extant is None:
             continue
-        _, fast = homology_table(root)
-        assert fast == _naive_matrix(root)
+        _, fast = homology_table(gt.complete)      # the COMPLETE tree: pruning erases transfers
+        assert fast == _naive_matrix(gt.complete)
         checked += 1
     assert checked > 0                                           # the run actually had extant families

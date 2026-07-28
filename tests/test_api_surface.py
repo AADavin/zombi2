@@ -86,3 +86,18 @@ def test_the_package_ships_a_py_typed_marker():
     # without it a type checker in someone else's project ignores every annotation in ZOMBI2 and
     # treats the whole package as Any (PEP 561) — the annotations are written, so they should count
     assert (pathlib.Path(genomes.__file__).parent.parent / "py.typed").exists()
+
+
+# --- docstrings render on the docs site -------------------------------------
+
+def test_no_docstring_carries_an_unrendered_sphinx_role():
+    # `docs/reference/api.md` is generated from these docstrings by mkdocstrings, which renders
+    # markdown and knows nothing about Sphinx's :func:`x` roles — so one left in a docstring
+    # publishes verbatim, colons and backticks included. Backticks are what both readers want.
+    import re
+
+    root = pathlib.Path(genomes.__file__).parent.parent
+    role = re.compile(r":(func|meth|class|attr|mod|data|obj|exc):`")
+    offenders = [f"{p.relative_to(root)}:{i}" for p in sorted(root.rglob("*.py"))
+                 for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if role.search(line)]
+    assert not offenders, f"Sphinx roles left in {len(offenders)} place(s): {offenders[:5]}"

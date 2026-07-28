@@ -99,24 +99,24 @@ class SpeciesResult:
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
         if "complete" in outputs:
-            (d / "species_complete.nwk").write_text(self.complete_tree.to_newick() + "\n")
+            (d / "species_complete.nwk").write_text(self.complete_tree.to_newick() + "\n", encoding="utf-8")
         if "extant" in outputs and self.extant_tree is not None:
-            (d / "species_extant.nwk").write_text(self.extant_tree.to_newick() + "\n")
+            (d / "species_extant.nwk").write_text(self.extant_tree.to_newick() + "\n", encoding="utf-8")
         if "events" in outputs:
             rows = ["time\tkind\tlineage\tchildren"]
             for e in self.events:
                 kids = ";".join(f"n{c}" for c in e.children) if e.children else ""
                 rows.append(f"{e.time:.6g}\t{e.kind}\tn{e.node}\t{kids}")
-            (d / "species_events.tsv").write_text("\n".join(rows) + "\n")
+            (d / "species_events.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
         if "fossils" in outputs and self.fossils:
             rows = ["lineage\ttime"] + [f"n{i}\t{t:.6g}" for i, t in self.fossils]
-            (d / "species_fossils.tsv").write_text("\n".join(rows) + "\n")
+            (d / "species_fossils.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
         if "fates" in outputs:
             # one row per tip (extant / extinct / unsampled); internal nodes are always speciations
             rows = ["lineage\tfate"]
             for n in sorted(self.complete_tree.leaves(), key=lambda nd: nd.id):
                 rows.append(f"n{n.id}\t{n.fate}")
-            (d / "species_fates.tsv").write_text("\n".join(rows) + "\n")
+            (d / "species_fates.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
 
 
 
@@ -126,7 +126,7 @@ _MAX_ATTEMPTS = 1000  # survival-conditioned retries before giving up on n_extan
 
 
 def _drift(rate) -> FromParent | None:
-    """The :class:`~zombi2.modifiers.FromParent` modifier a rate carries, or ``None``. When present
+    """The `FromParent` modifier a rate carries, or ``None``. When present
     the rate is *per-lineage*: the engine threads each lineage's own inherited factor (clade drift)."""
     for m in rate.modifiers:
         if isinstance(m, FromParent):
@@ -151,7 +151,7 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
     """Grow one forward birth-death tree until it reaches ``n_extant`` living lineages,
     reaches ``total_time``, or dies out. Returns the complete tree and the event log.
 
-    When ``birth`` or ``death`` carries an :class:`~zombi2.modifiers.FromParent` modifier the rate
+    When ``birth`` or ``death`` carries an `FromParent` modifier the rate
     is *per-lineage*: every lineage threads its own inherited factor (its parent's, nudged at the
     split), so the lineage that speciates or dies is drawn **weighted** by its effective rate rather
     than uniformly. Birth and death drift independently. A rate with no ``FromParent`` keeps a factor

@@ -6,7 +6,7 @@ because it is already an absolute quantity and has no "per what?" to answer::
 
     extent  =  base × modifiers
 
-``base`` is a size — a number (the mean) or a :class:`~zombi2.rates.distributions.Distribution` — and
+``base`` is a size — a number (the mean) or a `Distribution` — and
 the modifiers are the same dimensionless multipliers a rate takes, scaling the size::
 
     loss_extent = 800 * mod.DrivenBy(habitat, {"host": 3.0, "free": 1.0})
@@ -31,7 +31,7 @@ __all__ = ["Extent", "as_extent"]
 
 @dataclass(frozen=True)
 class Extent:
-    """``base × modifiers``, not yet drawn. Internal — built by :func:`as_extent`, never by users."""
+    """``base × modifiers``, not yet drawn. Internal — built by `as_extent()`, never by users."""
 
     base: Distribution
     modifiers: tuple[Modifier, ...] = ()
@@ -54,7 +54,7 @@ class Extent:
         """The mean size in this context, for an engine parameterised by the mean rather than by a
         drawn value (the nucleotide one samples an arc's far end from a geometric of this mean).
 
-        Requires a :class:`~zombi2.rates.distributions.Geometric` base, which is the only shape that
+        Requires a `Geometric` base, which is the only shape that
         engine wires; scaling its mean is the same statement in expectation as scaling a draw."""
         if not isinstance(self.base, Geometric):
             raise ValueError(
@@ -76,7 +76,7 @@ def as_extent(spec) -> Extent:
     around three. Write ``Fixed(3)`` for exactly three every time. ``None`` is ``Geometric(mean=1)``,
     a single unit, the default wherever an extent is optional.
 
-    This is where an extent parts company with :func:`~zombi2.rates.distributions.as_distribution`,
+    This is where an extent parts company with `as_distribution()`,
     where a bare number is a *fixed* value. The readings differ because the quantities do: a sampled
     per-family rate given as ``0.1`` means that rate, whereas an extent given as ``500`` means runs of
     about 500 — nobody wants every inversion to be exactly the same size.
