@@ -26,9 +26,9 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
                                   _read_tip_fates, _write_params_log, check_stale_downstream,
                                   clear_stale_downstream, conditioned_levels, default_outputs,
-                                  defaults_used, guidance, level_dir, parallel_from_args,
-                                  record_conditioning, resolve_tree, sibling_fates, warn,
-                                  warn_if_fates_were_inferred)
+                                  defaults_used, guidance, input_digests, level_dir,
+                                  parallel_from_args, record_conditioning, resolve_tree,
+                                  sibling_fates, warn, warn_if_fates_were_inferred)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -513,6 +513,11 @@ def run(args, parser):
     if not args.flat:                             # record which same-run levels drove a rate (if any),
         record_conditioning(out, conditioned_levels(   # so re-running one of them knows it orphans this
             args.run, (args.duplication, args.transfer, args.loss, args.origination, args.transfer_to)))
-    _write_params_log(os.path.join(out, "genomes.log"),
-                      args, summary, effective={"write": list(wanted)})
+    _write_params_log(os.path.join(out, "genomes.log"), args, summary,
+                      effective={"write": list(wanted)},
+                      inputs=input_digests(tree_path, args.tip_fates,
+                                           os.path.join(os.path.dirname(tree_path),
+                                                        "species_fates.tsv"),
+                                           args.duplication, args.transfer, args.loss,
+                                           args.origination, args.transfer_to))
     return 0

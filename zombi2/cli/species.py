@@ -14,6 +14,7 @@ from zombi2.species import WIRED_MODIFIERS, _WRITE_OUTPUTS, simulate_species_tre
 from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_params_arg,
                                   _add_run_arg, _rate, _rates_help, _write_params_log,
                                   check_stale_downstream, clear_stale_downstream, defaults_used, guidance,
+                                  input_digests,
                                   level_dir, warn)
 
 #: the RATES block for ``zombi2 species -h``, built from the level's own declaration
@@ -120,6 +121,6 @@ def run(args, parser):
     guidance(args,
              f"complete tree (with extinct lineages): {os.path.join(out, 'species_complete.nwk')}",
              f"extant tree (sampled tips only): {os.path.join(out, 'species_extant.nwk')}")
-    _write_params_log(os.path.join(out, "species.log"),
-                      args, summary)
+    _write_params_log(os.path.join(out, "species.log"), args, summary,
+                      inputs=input_digests(args.birth, args.death))
     return 0

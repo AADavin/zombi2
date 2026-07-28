@@ -21,7 +21,7 @@ import time
 from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _read_tip_fates,
                                   _write_params_log, check_stale_downstream, clear_stale_downstream,
-                                  guidance, level_dir, resolve_tree, sibling_fates)
+                                  guidance, input_digests, level_dir, resolve_tree, sibling_fates)
 from zombi2.tree import read_newick
 from zombi2.traits import WIRED_MODIFIERS, simulate_continuous, simulate_discrete
 
@@ -192,6 +192,9 @@ def run(args, parser):
     guidance(args, f"trait values: {os.path.join(out, 'trait_values.tsv')}")
     if names:
         guidance(args, f"your tree's tip labels, mapped to ZOMBI's n<id>: {os.path.join(out, 'names.tsv')}")
-    _write_params_log(os.path.join(out, "traits.log"),
-                      args, summary)
+    _write_params_log(os.path.join(out, "traits.log"), args, summary,
+                      inputs=input_digests(tree_path, args.tip_fates,
+                                           os.path.join(os.path.dirname(tree_path),
+                                                        "species_fates.tsv"),
+                                           args.rate, args.switch))
     return 0
