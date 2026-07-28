@@ -335,12 +335,16 @@ def run(args, parser):
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
     if identity is not None and _saturation_signal(identity, model) < _SATURATED_BELOW:
         floor = float(np.sum(np.asarray(model.stationary) ** 2))
+        # Name the rate that ran, not the flag: --substitution is None when it was left out, and
+        # "currently None" tells a reader nothing. And point at --divergence first — it is the
+        # answer to "what should I put instead", which lowering a rate by guesswork is not.
+        used = "the default 1.0" if args.substitution is None else f"{args.substitution}"
         warn(f"these sequences are close to saturated — mean pairwise identity is {identity:.0%}, "
              f"against {floor:.0%} for unrelated sequences under {model.name}. The substitution "
              f"rate is per unit time, so a tall tree accrues many substitutions per site and the "
              f"alignments keep little history: homology search and tree inference will both do "
-             f"poorly on them. Consider lowering --substitution (it is currently "
-             f"{args.substitution}) or shortening the tree.")
+             f"poorly on them. Say how diverged you want them instead — --divergence 0.2 is a "
+             f"readable alignment on any tree — or lower the rate yourself (it ran at {used}).")
     guidance(args, f"alignments under {out}/")
     _write_params_log(os.path.join(out, "sequences.log"),
                       args, summary, effective={**_effective_model_params(args),

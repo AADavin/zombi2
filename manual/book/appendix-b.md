@@ -157,8 +157,8 @@ input trees) and the `.log`, that copy is a CLI artifact, not a `result.write()`
 The `zombi2 sequences` command replays a prior `zombi2 genomes` run — its own run directory, or `--from` another —
 its species tree and its `genome_events.tsv`. Gene outputs are written **one file per gene
 family** (`<f>` = family number); a family with no surviving copy writes none. Every node is labelled
-`g<copy>`, so a phylogram's tips pair with its alignment and its internal nodes with the ancestral
-sequences.
+`n<species>_g<copy>`, so a phylogram's tips pair with its alignment and its internal nodes with the
+ancestral sequences.
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
