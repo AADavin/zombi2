@@ -9,6 +9,38 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+- **The homology table says whether transfer is in a pair's history, not only whether it was the
+  divergence.** A cell now carries two independent axes: how the pair diverged (`O` a speciation, `P`
+  a copying — a duplication or a transfer, both of which turn one gene into two) and whether a
+  transfer sits anywhere on the path since (`x`). So `O`, `P`, `Ox`, `Px`. Reading xenology off the
+  common-ancestor event alone caught only the copy left behind against the copy that left, a sixfold
+  undercount — and called the case that matters most a plain ortholog: two genes in the same genome,
+  one an arrival from a relative, which no orthology method can reproduce, so the answer key scored
+  the method wrong. All 650 such pairs in a measured run now read `Ox`. The table is also now read
+  off each family's **complete** gene tree: pruning suppresses a transfer whose donor-side copy left
+  no survivor, which was a fifth of all cells.
+- **`zombi2 tools treedist` compares a gene tree to a species tree**, on the species each gene sits
+  in, and says on stderr that it has — the two are not the same kind of object and used to fail as
+  "different leaf sets". Refused, naming the genomes at fault, when the family is not single-copy.
+
+### Added
+- **CI runs the suite on Windows and macOS**, not only Linux, so the install instructions can say so.
+
+### Fixed
+- **A driver path could not be written on Windows.** The path sits inside a rate expression, read by
+  Python's own parser, so `DrivenBy('C:\Users\me\trait.tsv', …)` failed as a truncated `\UXXXXXXXX`
+  escape — and `C:\temp` was worse, parsing silently into a tab. A path now means itself, however it
+  was written, escaped or not.
+- **Every file was opened in the platform's default encoding**, which on Windows is cp1252 — so a
+  UTF-8 tip label in an input tree was a decode error there and nowhere else. All 215 text reads and
+  writes are now explicitly UTF-8.
+- **348 Sphinx roles published verbatim to the docs site.** `docs/reference/api.md` is generated from
+  the docstrings by mkdocstrings, which renders markdown and knows nothing about `:func:` — so they
+  appeared as raw markup on the page a Python user is most likely to read. Two dead module names went
+  with them (`zombi2.species_tree`, `zombi2.modifiers`).
+- The manual's index said two appendices and listed two; there are three.
+
 ### Added
 - **recPhyloXML output** — `zombi2 tools format DIR --format recphylo` writes each family's complete
   gene tree inside the complete species tree, in the community format for a gene tree embedded in a
