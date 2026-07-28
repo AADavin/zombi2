@@ -29,6 +29,7 @@ out/species/                species_complete.nwk · species_extant.nwk · specie
 out/genomes/                genome_events.tsv · profiles.tsv · genomes.tsv · genomes.log
 out/genomes/gene_trees/     gene_tree_fam<f>_complete.nwk · …_extant.nwk
 out/genomes/homology/       homology_fam<f>.tsv                          (zombi2 tools format)
+out/genomes/recphylo/       recphylo_fam<f>.xml                          (zombi2 tools format)
 out/sequences/              clock_species_tree_complete.nwk · sequences.log
 out/sequences/alignments/   fam<f>.fasta
 out/sequences/phylograms/   phylogram_fam<f>_*.nwk

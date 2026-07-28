@@ -2,28 +2,59 @@
 
 `zombi2 tools` runs read-back analyses. Where the level commands simulate, the tools re-express what
 already exists: they read files and derive a new view of them. Each tool is a sub-subcommand —
-`zombi2 tools <tool>`. `format` reads a whole genomes run and writes its tables beside the run. `tree`
+`zombi2 tools <tool>`. `format` reads a whole genomes run and writes its derived files beside the run. `tree`
 and `treedist` work on Newick trees instead: they read one or two `.nwk` files and write their result
 to stdout by default, or to a file with `-o`.
 
-## `format` — analysis-ready tables
+## `format` — analysis-ready files
 
-`zombi2 tools format DIR` reads a genomes run and writes tables derived from its gene trees, one
-`--format` at a time, into a directory under `genomes/`. It works for every resolution: family and
-ordered runs rebuild their gene trees from the event log; a nucleotide run recovers them from the
-genome, and there one table is written per **declared gene** — the intergenic spacer is not a gene, so
-it gets none. `--from PATH` reads a run that lives elsewhere; `--flat` writes the tables straight into
-the output directory.
+`zombi2 tools format DIR` reads a genomes run and writes files derived from its gene trees, into a
+directory under `genomes/` per `--format` (several at once is fine: `--format homology recphylo`). It
+works for every resolution: family and ordered runs rebuild their gene trees from the event log; a
+nucleotide run recovers them from the genome, and there it is one file per **declared gene** — the
+intergenic spacer is not a gene, so it gets none. `--from PATH` reads a run that lives elsewhere;
+`--flat` writes straight into the output directory.
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
 | Homology matrix | `homology_fam<f>.tsv` | TSV | `--format homology` | one **n×n** table per family (n the extant leaves), in `genomes/homology/`. Row and column headers are the leaves `n<species>\|g<copy>`; each off-diagonal cell is the relation of that pair — `O` ortholog (their MRCA is a speciation), `P` paralog (a duplication), `X` xenolog (a transfer) — and the diagonal is `-`. Symmetric. A family with no surviving copy writes no table |
+| recPhyloXML | `recphylo_fam<f>.xml` | XML | `--format recphylo` | one file per family, in `genomes/recphylo/`: that family's **complete** gene tree written inside the **complete** species tree, in the recPhyloXML format. Written for every family, extinct ones included |
 
-The homology matrix is exact, not inferred. ZOMBI simulated each gene tree's embedding in the species
-tree, so the event at a leaf pair's most-recent common ancestor is **recorded** on the tree rather than
+Both are exact, not inferred. ZOMBI simulated each gene tree's embedding in the species tree, so the
+event at a leaf pair's most-recent common ancestor is **recorded** on the tree rather than
 reconstructed from it: a speciation there makes the pair orthologs, a duplication paralogs, a transfer
-xenologs. That is what makes these tables a ground-truth reference to score an orthology-inference
-method against.
+xenologs. That is what makes these files a ground-truth reference to score an inference method
+against.
+
+### recPhyloXML
+
+recPhyloXML [@duchemin2018recphyloxml] is the community format for a gene tree embedded in a species tree: every
+gene-tree node carries the species branch it sat on and the event that ended it, so a viewer can draw
+one inside the other. It is normally the output of a reconciliation *method*; here nothing is
+reconstructed, so the file is the true history and can be used as the answer key.
+
+The **complete** gene tree goes in, inside the **complete** species tree, because the events the
+format exists to show are the losses — a gene that died leaves nothing in the extant tree to hang a
+`<loss>` on. Extinct and unsampled species are in the species tree for the same reason: a transfer can
+arrive from a lineage that later died, and that edge has to land somewhere. The mapping from ZOMBI2's
+event log is one gene-tree node to one `<clade>`:
+
+| ZOMBI2 | recPhyloXML |
+|--------|-------------|
+| duplication | `<duplication speciesLocation="n<species>">` |
+| speciation | `<speciation speciesLocation="n<species>">` — the *parent* species, the branch the gene was on when its species split |
+| loss | `<loss speciesLocation="n<species>">` |
+| gene at an extant tip | `<leaf speciesLocation="n<species>">` |
+| gene at an extinct or unsampled tip | `<leaf …>` as well — the gene reached the end of a species branch that happened to die; the species tree says which fate that branch had |
+| transfer | the format's own two steps: `<branchingOut speciesLocation="n<donor>">` on the node the copy left from, and `<transferBack destinationSpecies="n<recipient>">` opening the child that arrived |
+
+Origination has no tag and needs none: a family founded mid-branch is simply a gene tree whose root
+starts there. Branch lengths are left out, as they are in the format's own reference files; the dated
+trees are next door in `genomes/gene_trees/` and `species/species_complete.nwk`.
+
+In Python, `zombi2.tools.recphylo.recphylo_xml(gene_trees, tree)` returns the document as a string —
+hand it every family for a single file a viewer can draw all of them in at once, or one family for
+that family's own file, which is what the command writes.
 
 ## `tree` — one transform on a Newick tree
 

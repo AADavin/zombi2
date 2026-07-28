@@ -88,15 +88,19 @@ def homology_tsv(root: GeneNode) -> str:
     return "\n".join([header, *rows]) + "\n"
 
 
-def write_homology(gene_trees: dict[int, GeneTree], directory) -> None:
+def write_homology(gene_trees: dict[int, GeneTree], tree, directory) -> str:
     """Write ``homology_fam<family>.tsv`` — one n×n O/P/X table per family — into ``directory``.
 
     The table is over the **extant** gene tree, the leaves a real dataset would hold, so it mirrors
     :func:`zombi2.genomes.gene_trees.write_gene_trees`: a family with no surviving copy has no extant
-    leaves to relate and so writes no table."""
+    leaves to relate and so writes no table. (``tree``, the species tree, is part of the writer
+    contract every ``--format`` shares; this table is read off the gene tree alone.)"""
     d = pathlib.Path(directory)
     d.mkdir(parents=True, exist_ok=True)
+    n = 0
     for fam, gt in sorted(gene_trees.items()):
         root = gt.extant
         if root is not None:
             (d / f"homology_fam{fam}.tsv").write_text(homology_tsv(root))
+            n += 1
+    return f"{n} table(s)"
