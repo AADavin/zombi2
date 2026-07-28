@@ -10,6 +10,22 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **`divergence` on the sequence level: state the outcome, and the rate is solved for.** The
+  substitution rate is per unit *time*, so what it produces depends on the height of the tree it runs
+  down — `1.0` is reasonable on a short tree and pure noise on a tall one, which is why no default can
+  be right. `divergence=0.2` instead asks for 0.2 substitutions per site from root to tip, and the
+  base falls out as `divergence / height`. Verified across a tenfold difference in tree height: the
+  same `divergence` gives alignments within 5% identity of each other, where the same *rate* would
+  not be close. It composes with `substitution`, which keeps saying what *kind* of clock: give the
+  shape alone (`ByLineage(spread=0.3)`) and `divergence` sets its scale. A base number alongside is
+  refused rather than overridden, and the run log records the resolved rate, so a run stays
+  reproducible from its own command line.
+
+### Fixed
+- **A relaxed clock reported itself as a strict clock** in the `zombi2 sequences` summary line
+  whenever the modifier was given without a base.
+
+### Added
 - **`zombi2 sequences` reports the alignment divergence it actually produced, and warns when the
   sequences are saturated.** The summary line gains `mean identity NN%`, measured over a bounded
   random sample of within-family pairs. When that identity sits within 15% of the model's own random

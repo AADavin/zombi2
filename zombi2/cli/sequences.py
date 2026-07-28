@@ -25,8 +25,8 @@ import numpy as np
 from zombi2.genomes import FamilyGenomesResult
 from zombi2.genomes.events import events_from_tsv
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
-from zombi2.rates.modifiers import ByLineage
-from zombi2.sequences import WIRED_MODIFIERS, simulate_sequences
+from zombi2.rates.modifiers import ByLineage, Modifier
+from zombi2.sequences import WIRED_MODIFIERS, _calibrate, simulate_sequences
 from zombi2.sequences.substitution_models import (
     dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
 )
@@ -111,10 +111,17 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                    help="[gtr] the six exchangeabilities (default all 1)")
 
     g = p.add_argument_group("substitution rate & clock", "the per-site rate — see RATES below")
-    g.add_argument("--substitution", type=_rate, default=1.0, metavar="RATE",
+    g.add_argument("--substitution", type=_rate, default=None, metavar="RATE",
                    help="per-site substitution rate: a gene-tree branch of Δt time accrues "
                         "substitution·Δt substitutions/site (default 1.0 — the strict clock). A "
                         "ByLineage modifier makes it a relaxed clock: \"1.0 * ByLineage(spread=0.3)\"")
+    g.add_argument("--divergence", type=float, default=None, metavar="D",
+                   help="pick the rate for me, so that a site accrues D substitutions from the root "
+                        "to a tip. The rate is per unit TIME, so what it produces depends on how "
+                        "tall the tree is — 0.2 here is a readable alignment on any tree, where a "
+                        "rate of 1.0 is fine on a short tree and pure noise on a tall one. Composes "
+                        "with --substitution: give the clock's shape alone "
+                        "(\"ByLineage(spread=0.3)\") and this sets its scale")
 
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=_SEQUENCE_OUTPUTS, default=None, metavar="PART",
@@ -139,6 +146,19 @@ def _resolve_model_knobs(args) -> dict:
     return {"kappa": 2.0 if args.kappa is None else args.kappa,
             "frequencies": [0.25, 0.25, 0.25, 0.25] if args.frequencies is None else list(args.frequencies),
             "gtr_rates": [1, 1, 1, 1, 1, 1] if args.gtr_rates is None else list(args.gtr_rates)}
+
+
+def _effective_substitution(args, genome_run) -> dict:
+    """The substitution rate the run actually used, for the log.
+
+    With ``--divergence`` the base is solved for, so the rate written on the command line is not the
+    rate that ran — and a log recording the flag rather than the resolved value would be a provenance
+    record that disagrees with the run. Calls the same :func:`~zombi2.sequences._calibrate` the engine
+    does, so the logged number cannot drift from the one used."""
+    if args.divergence is None:
+        return {}
+    return {"substitution": _calibrate(args.substitution, args.divergence,
+                                       genome_run.complete_tree)}
 
 
 def _effective_model_params(args) -> dict:
@@ -260,6 +280,7 @@ def run(args, parser):
 
     t0 = time.perf_counter()
     result = simulate_sequences(genome_run, model=model, substitution=args.substitution,
+                                divergence=args.divergence,
                                 seed=args.seed, parallel=parallel_from_args(args, parser),
                                 progress=not args.quiet, **extra)
     dt = time.perf_counter() - t0
@@ -285,7 +306,12 @@ def run(args, parser):
     n_families = sum(1 for aln in result.alignments.values() if aln)
     n_seqs = sum(len(aln) for aln in result.alignments.values())
     # the clock is now read off the rate itself: a ByLineage modifier is the relaxed clock
-    clocks = [m for m in getattr(args.substitution, "modifiers", ()) if isinstance(m, ByLineage)]
+    # --substitution may now be a bare modifier (the clock's shape, with --divergence setting its
+    # scale), which carries no `.modifiers` of its own — so look at the modifier itself as well, or a
+    # relaxed run reports itself as strict.
+    _sub = args.substitution
+    _mods = (_sub,) if isinstance(_sub, Modifier) else getattr(_sub, "modifiers", ())
+    clocks = [m for m in _mods if isinstance(m, ByLineage)]
     clock = (f"{clocks[0].dist} lineage clock, spread {clocks[0].spread:g}" if clocks
              else "strict clock")
     # What the run actually produced, not what was asked for: the rate is per unit time, so whether
@@ -317,5 +343,6 @@ def run(args, parser):
              f"{args.substitution}) or shortening the tree.")
     guidance(args, f"alignments under {out}/")
     _write_params_log(os.path.join(out, "sequences.log"),
-                      args, summary, effective=_effective_model_params(args))
+                      args, summary, effective={**_effective_model_params(args),
+                                 **_effective_substitution(args, genome_run)})
     return 0
