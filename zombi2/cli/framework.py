@@ -267,6 +267,31 @@ def defaults_used(args, **fallbacks) -> str:
             f"to keep")
 
 
+def warn_if_fates_were_inferred(tree, args) -> None:
+    """Say so when a tree read from ``--from`` had its tip fates *guessed* and some came out extinct.
+
+    A tree whose nodes all carry labels is taken to be a ZOMBI tree, so its tip depths are trusted:
+    a tip sitting below the present is read as an extinct lineage. That is right for a complete tree
+    ZOMBI wrote, and quietly wrong for one that has been re-estimated, re-dated or edited since,
+    where the depths differ by *noise* — every tip then reads as extinct, and the run continues on a
+    handful of survivors, or one, without complaint. That is not recoverable from the outputs unless
+    you happen to count the genomes.
+
+    So it is announced rather than refused: refusing would reject the complete trees this heuristic
+    exists to serve. Passing ``--tip-fates`` states the fates instead of inferring them, and silences
+    this — a species run's own ``species_fates.tsv`` is already in that format."""
+    if getattr(args, "tip_fates", None) or not getattr(args, "source", None):
+        return
+    tips = [n for n in tree.nodes.values() if n.children is None]
+    dead = [n for n in tips if n.fate != "extant"]
+    if dead and len(dead) > len(tips) // 2:
+        warn(f"{len(dead)} of {len(tips)} tips in this tree sit below the present, so they were read "
+             f"as extinct lineages and only {len(tips) - len(dead)} genome(s) will be simulated. That "
+             f"is what a complete ZOMBI tree looks like — but if this tree was re-estimated, re-dated "
+             f"or edited, the depths differ by noise rather than by extinction and the fates are "
+             f"wrong. Declare them with --tip-fates FILE to be sure.")
+
+
 def resolve_seed(args) -> None:
     """Draw a seed when the caller did not give one, so the run can be regenerated from its own log.
 

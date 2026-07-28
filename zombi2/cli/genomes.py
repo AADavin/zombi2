@@ -27,7 +27,8 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   _read_tip_fates, _write_params_log, check_stale_downstream,
                                   clear_stale_downstream, conditioned_levels, default_outputs,
                                   defaults_used, guidance, level_dir, parallel_from_args,
-                                  record_conditioning, resolve_tree, sibling_fates, warn)
+                                  record_conditioning, resolve_tree, sibling_fates, warn,
+                                  warn_if_fates_were_inferred)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -402,6 +403,7 @@ def run(args, parser):
     try:
         with open(tree_path) as f:
             tree, names = read_newick(f.read(), tip_fates=tip_fates)
+        warn_if_fates_were_inferred(tree, args)
     except FileNotFoundError:
         raise FileNotFoundError(f"tree file not found: {tree_path}") from None
 
