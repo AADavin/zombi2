@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-07-28
+
 ### Added
 - **`divergence` on the sequence level: state the outcome, and the rate is solved for.** The
   substitution rate is per unit *time*, so what it produces depends on the height of the tree it runs
