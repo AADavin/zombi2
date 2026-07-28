@@ -76,6 +76,7 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 | Initial genome | `initial_genome.tsv` | TSV | yes | the genome the run **started** with, at the start of the root branch — `family` · `copy`. Its own file, with no `lineage` column, because it belongs to no node: every `lineage` elsewhere is a node, and a node sits at the *end* of its branch |
 | Conditioning | `conditioned_on` | text | conditioned | written **only when a rate was conditioned**: the run's levels this run read via `DrivenBy` (one per line, e.g. `traits`). It records the dependency so re-running a driver level (say the trait) refuses to leave this run silently stale, or clears it under `--force`. A run with no driven rate writes no such file |
 | Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | each family's true genealogy, in `genomes/gene_trees/`. A family with no surviving copy writes no `_extant` file |
+| Tip names | `names.tsv` | TSV | external tree | written **only when the tree came from `--from` with its own tip labels** — `node` · `name`, mapping ZOMBI's `n<id>` back to the labels you supplied. Every other output names nodes `n<id>`, so this is the join back to your taxa; `profiles.tsv`'s columns key on the same ids |
 | Family origination | `.gene_trees[f].origination` | float | Python | when the family was founded — where its gene tree's root branch begins |
 
 ### One row per gene-tree edge, not per event
@@ -157,8 +158,8 @@ input trees) and the `.log`, that copy is a CLI artifact, not a `result.write()`
 The `zombi2 sequences` command replays a prior `zombi2 genomes` run — its own run directory, or `--from` another —
 its species tree and its `genome_events.tsv`. Gene outputs are written **one file per gene
 family** (`<f>` = family number); a family with no surviving copy writes none. Every node is labelled
-`g<copy>`, so a phylogram's tips pair with its alignment and its internal nodes with the ancestral
-sequences.
+`n<species>_g<copy>`, so a phylogram's tips pair with its alignment and its internal nodes with the
+ancestral sequences.
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
