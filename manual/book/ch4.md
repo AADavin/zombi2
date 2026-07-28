@@ -9,11 +9,9 @@ The **family** resolution is genomes made of gene families and nothing more: no 
 A genome at the family resolution evolves by four kinds of event, applied to every lineage as it runs down the species tree:
 
 - **Duplication** — a gene copy is copied, so its family gains a member in that lineage.
-- **Transfer** — a copy jumps from one lineage to another that is alive at the same moment. This is the only event that crosses lineages, and it gets its own section below.
+- **Transfer** — a copy jumps from one lineage to another that is alive at the same moment. 
 - **Loss** — a gene copy is deleted; a family that loses its last copy is gone from that lineage.
 - **Origination** — a brand-new family appears in a lineage, with one copy.
-
-Duplication, transfer and loss are the three events a reconciliation method infers, and simulating them is how such a method is tested against a history that is actually known [@szollosi2015inference].
 
 You give a rate for each, and the events play out along the tree from the initial genome, speciation handing a lineage's genome down to both children. Out comes the genome of *every* lineage together with the event log that produced it.
 
@@ -26,13 +24,17 @@ g = genomes.simulate_genomes_family(
     tree, duplication=0.2, loss=0.25, origination=0.5, initial_families=20, seed=1)
 ```
 
-The root starts with `initial_families` families of one copy each, recorded as originations at the crown; from there the four rates drive everything.
+The initial genome, at the begining of the stem, starts with `initial_families` families of one copy each; from there the four rates drive everything.
 
-### Families that differ from one another
+### Families can evolve at different paces
 
-A bare rate is shared by every family: give `loss=0.25` and all of them lose at 0.25. Real families do not behave alike, and **`ByFamily`** is how you say so — the family twin of the sequence level's `ByLineage`. Each family draws one multiplier, mean-corrected so `E[factor] = 1`, which lets you widen the spread without moving the average family off the base rate.
+By default, ZOMBI2 simulates gene families with the same rates. In reality, some gene families are more prone to be transferred than others (think of antibiotic resistance); some families are lost more easily (accesory genes); some families are rarely lost (core gene families like ribosomal proteins). There are multiple ways to simulate families that evolve at different paces. Two ways are to vary **one rate** family by family, and to give each family **one tempo** that scales all of its rates.
 
-Where you put it decides what varies *together*:
+The first says that families differ in a particular respect. A resistance gene is transferred more than most, and that says nothing about how often it is duplicated, so `ByFamily` goes on `transfer` alone. Put it on `loss` instead and you separate the accessory families from the core ones, leaving gain untouched.
+
+The second says that families differ overall — some are simply more volatile than others, in every way at once. That is `family_speed`, one draw per family multiplying every rate that family has.
+
+Either way each family draws one multiplier and keeps it for the whole run, and the draw is mean-corrected so `E[factor] = 1`: widening the spread spreads families further apart without moving the average family off the base rate you typed. So where you put it decides what varies *together*:
 
 ```python
 # each rate varies by family on its own — a family that loses fast is not thereby duplicating fast
@@ -56,17 +58,23 @@ The two compose: `family_speed` for a family's overall tempo, and a `ByFamily` o
 
 Growth compounds: a duplication rate above the loss rate multiplies without bound, and with `ByFamily` some families draw a rate well above the one you typed. So a family's copies **within one genome** are capped, and the cap is on by default.
 
+The cap is written with a **scope**, the same word a rate uses to answer the same question: is this number absolute, or does it scale?
+
 ```python
-max_family_size = 10.0     # the default: ten times the lineages in the complete tree
-max_family_size = 50       # an int is that number of copies, whatever the tree
-max_family_size = None     # no ceiling
+from zombi2.rates import scope
+
+max_family_size = scope.PerLineage(10)   # the default: ten copies per lineage in the tree
+max_family_size = scope.Global(50)       # fifty copies, whatever the tree looks like
+max_family_size = None                   # no ceiling
 ```
 
-A float scales with the run, so the same setting means the same thing on a tree of ten species and one of a thousand; an int is absolute. At the cap the family stops duplicating, and the ceiling holds for arrivals too, so a transfer cannot push it past sideways.
+`PerLineage` travels with the run, so one setting means the same thing on a tree of ten species and on one of a thousand; `Global` is fixed. At the cap the family stops duplicating, and the ceiling holds for arrivals too, so a transfer cannot push it past sideways.
+
+A bare number is refused, and deliberately so: the two readings are a factor of the tree's size apart, and `10` and `10.0` are equal in Python, so nothing could have told you which you had written.
 
 ## What the rate depends on
 
-The rates follow the **same grammar as the species level** (`base` optionally wrapped in a scope, optionally multiplied by modifiers). The scope answers *per what*, and the default is the natural one for each event. Duplication, transfer, and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is what you want — more genes, more chances. Origination is counted **per lineage**: acquiring a wholly new family is a property of the lineage, not of any gene it already has.
+The rates follow the **same grammar as the species level** (`base` optionally wrapped in a scope, optionally multiplied by modifiers). The scope answers *per what*, and the default is the natural one for each event. Duplication, transfer, and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is what you want: more genes, more chances. Origination is counted **per lineage** (i.e. per branch of the species tree): acquiring a wholly new family is a property of the lineage, not of any gene it already has.
 
 Rates can also depend on **time**. Multiplying a base rate by an `OnTime` modifier makes it change at set moments — the skyline, or episodic, genome: fast early and slow later, or any schedule you give.
 
@@ -77,7 +85,7 @@ g = genomes.simulate_genomes_family(tree, origination=1.0 * mod.OnTime({0: 1.0, 
 
 ## Lateral gene transfers
 
-Transfer is the one event that couples lineages, and it is what makes the family resolution more than four independent birth–death processes. When a transfer fires, a copy is picked from the whole pool of live genes, and it is delivered to another lineage that is **alive at that same instant**.
+When a transfer fires, a copy is picked from the whole pool of live genes, and it is delivered to another lineage that is **alive at that same instant**.
 
 Three arguments shape what a transfer does:
 
@@ -93,11 +101,11 @@ g = genomes.simulate_genomes_family(
     origination=0.4, initial_families=10, seed=3)
 ```
 
-One consequence is worth stating plainly: a transfer can arrive **from a lineage that later goes extinct** [@szollosi2013lgtdead]. A genome run happens on the complete tree, dead branches included, so a gene can enter a survivor from a donor that leaves no other trace.
+One consequence is worth stating plainly: a transfer can arrive **from a lineage that later goes extinct** [@szollosi2013lgtdead]. A genome run happens on the complete tree, dead branches included, so a gene can enter a survivor from a donor that leaves no other trace. This was in fact the feature that gave originally the name to this software.
 
 ### Transfer between named clades
 
-`"distance"` biases transfer by relatedness, but sometimes you want to name the groups yourself — "let genes flow between these two clades, and nowhere else." `Clades` does that. You name each clade — by a few of its tips (the clade is the subtree below their MRCA) or by a node id — and give a `Between` kernel: a weight for each ordered **(donor clade, recipient clade)** pair.
+`"distance"` biases transfer by relatedness, but sometimes you want to name the groups yourself — "let genes flow between these two clades, and nowhere else." `Clades` does that. You name each clade — by a few of its tips (the clade is the subtree below their MRCA) or by a node id — and give a `Between` table of weights, one for each ordered **(donor clade, recipient clade)** pair.
 
 ```python
 from zombi2 import species, genomes
@@ -110,9 +118,7 @@ g = genomes.simulate_genomes_family(
                                genomes.Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)))
 ```
 
-The kernel is the new part. Each entry is a weight, read the same way `"distance"`'s weights are: normalised over the lineages alive at the instant a transfer fires. Naming only `("A", "B")` and `("B", "A")` and setting `default=0.0` means every other pairing weighs 0 — a clade-A donor can reach clade B but not another clade-A lineage, and the rest of the tree neither sends nor receives. Drop the `default=0.0` and unlisted pairs return to weight 1 (baseline), so `Between({("A", "B"): 5.0})` *enriches* A→B fivefold while leaving everything else to happen normally. A weight of 0 means "cannot receive", exactly as at the end of Chapter 9: when a donor's every candidate weighs 0, the transfer has nowhere to land and does not fire.
-
-A clade here is a fact about the *tree* — which lineage sits in which subtree — so `Clades` reads the tree directly, needs no extra file, and is a sibling of `"distance"`, not a coupling. When the groups are instead an evolved property — a habitat, an ecological guild — the same donor-and-recipient steering is a coupling, written `transfer_to = DrivenBy(trait, Between({...}))`; that is Chapter 9.
+Each entry is a weight, read the same way `"distance"`'s weights are: normalised over the lineages alive at the instant a transfer fires. Naming only `("A", "B")` and `("B", "A")` and setting `default=0.0` means every other pairing weighs 0 — a clade-A donor can reach clade B but not another clade-A lineage, and the rest of the tree neither sends nor receives. Drop the `default=0.0` and unlisted pairs return to weight 1 (baseline), so `Between({("A", "B"): 5.0})` *enriches* A→B fivefold while leaving everything else to happen normally. A weight of 0 means "cannot receive", exactly as at the end of Chapter 9: when a donor's every candidate weighs 0, the transfer has nowhere to land and does not fire.
 
 ## The `FamilyGenomesResult` object
 
@@ -247,9 +253,7 @@ g = genomes.simulate_genomes_family(tree, duplication=0.2, loss=0.25, originatio
 
 `parallel=True` uses every core and an integer sets the worker count; on the command line it is `--parallel` for all cores or `--parallel 8` for eight. It is a **separate engine**, not a faster path through the default one: each family draws from its own random stream, so the result is identical for any worker count, but it differs from a serial run of the same seed — both are valid draws of the same process. A driven rate or `transfer_to` (Chapter 9) is not handled yet; a run that uses one says so and falls back to serial.
 
-The gain is modest and a few workers is the sweet spot: the simulation splits across cores, but stitching the per-family logs back into one run stays serial, so past a handful there is little more to win. It pays off on a large run — many families, or high rates — and costs on a small one. From a script, because it starts worker processes, guard the entry point with `if __name__ == "__main__":`; the `zombi2` command already does.
-
-When the families themselves are the scale — hundreds of thousands, a million — even the parallel run's *result* stops fitting in memory. `stream_to` writes each family to a directory as it finishes and hands back a light path handle instead of a `FamilyGenomesResult`, so memory stays flat however many families you run: 2 GB held in memory streams in about 40 MB. Pick the files with `outputs=`, exactly as `.write` takes them; the disk is then the handoff to the sequence level. On the command line it is `--stream`.
+For very large runs — hundreds of thousands of families, or a million — the difficulty stops being speed and becomes memory: the finished result itself no longer fits. `stream_to` writes each family to a directory the moment it is done, and hands back a light handle holding a path rather than a `FamilyGenomesResult` holding everything. Memory then stays flat however many families you run — a run that would have held 2 GB streams in about 40 MB — and the sequence level reads the families back off the disk afterwards. Choose which files to write with `outputs=`, exactly as `.write` takes them. On the command line this is `--stream`.
 
 ```python
 run = genomes.simulate_genomes_family(tree, origination=2.0, initial_families=5000, seed=1,

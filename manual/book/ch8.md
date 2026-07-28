@@ -14,7 +14,7 @@ result = traits.simulate_discrete(tree, states=["marine", "terrestrial"],
 
 ## Continuous traits
 
-A continuous trait does **Brownian motion**. Give it a starting value and a diffusion rate and it wanders down every branch, its variance growing in proportion to elapsed time:
+A continuous trait **diffuses**. Give it a starting value and a rate, and it wanders down every branch, its variance growing in proportion to elapsed time. On its own that is **Brownian motion**, the null model of continuous trait evolution:
 
 ```python
 # BM — a body size diffusing from 0 at variance-rate σ² = 1.0
@@ -85,6 +85,20 @@ traits.simulate_discrete(tree, states=["absent", "present"],
     liability={"wings": 1.0, "flight": 1.0},
     correlation={("wings", "flight"): 0.7}, threshold=0.0, seed=1)
 ```
+
+## What the modifiers reach
+
+Brownian motion is where this chapter starts, not where it stops, and the way past it is not a longer menu of models. The diffusion rate is a rate like any other in ZOMBI2, so it takes the modifiers of Chapter 2, and most of the named alternatives to BM are one modifier on that rate:
+
+```python
+rate = 1.0 * mod.OnTime({0: 4.0, 1: 1.0})       # fast early, then settling — an early burst
+rate = 1.0 * mod.FromParent(spread=0.3)         # each clade inherits and drifts in tempo
+rate = 1.0 * mod.OnTotalDiversity(cap=100)      # the rate eases off as the clade fills
+```
+
+Two arguments of `simulate_continuous` go further in the same spirit. `reverts_to` and `pull` make the walk revert toward an optimum instead of wandering freely, and `at_speciation` adds a jump at every split, so change concentrates at branching rather than accumulating along branches.
+
+None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one modifier and two arguments, not a model somebody had to implement. The table at the end of the chapter gives each combination its usual name in the literature.
 
 ## Models from the literature
 
