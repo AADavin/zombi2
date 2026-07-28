@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import time
 
 from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
