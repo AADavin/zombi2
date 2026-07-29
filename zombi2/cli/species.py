@@ -46,7 +46,7 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--n-extant", type=int, default=None, metavar="N", dest="n_extant",
                    help="stop at N extant (surviving) lineages — conditioned on survival")
     g.add_argument("--total-time", type=float, default=None, metavar="T", dest="total_time",
-                   help="grow forward for T time units (time runs forward from the crown)")
+                   help="grow forward for T time units (time runs forward from the origin, t=0)")
     g.add_argument("--max-lineages", type=int, default=100_000, metavar="N", dest="max_lineages",
                    help="stop with an error if standing diversity passes N (default 100000). "
                         "A time-conditioned run grows like exp((birth-death)*t), so a rate a "
@@ -63,7 +63,7 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
                    help="fossil (serial) recovery rate along the tree (default 0 = no fossils)")
     g.add_argument("--mass-extinction", action="append", nargs=2, type=float,
                    metavar=("TIME", "FRACTION"), default=None, dest="mass_extinction",
-                   help="a mass-extinction pulse: at TIME (forward from the crown) each standing "
+                   help="a mass-extinction pulse: at TIME (forward from the origin) each standing "
                         "lineage is lost with probability FRACTION. Repeat for several pulses, e.g. "
                         "--mass-extinction 3.0 0.75. Needs --total-time.")
 

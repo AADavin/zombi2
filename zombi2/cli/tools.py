@@ -39,7 +39,8 @@ from zombi2.cli.framework import (
 #: directory)`` and gives back a short description of what it wrote, for the summary line.
 _FORMATS = {
     "homology": ("homology", write_homology,
-                 "per-family n×n table: S/D/T for the event at each pair's ancestor, x = transfer since"),
+                 "per-family n×n table: S/D/T for the event at each pair's ancestor, x if a "
+                 "transfer came after"),
     "recphylo": ("recphylo", write_recphylo,
                  "per-family recPhyloXML — the gene tree drawn inside the species tree"),
     "markers": ("markers", write_markers,
@@ -65,21 +66,21 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
     tsub = p.add_subparsers(dest="tools_command", metavar="<tool>", required=True)
     fp = tsub.add_parser(
         "format",
-        help="turn a genomes run into analysis-ready files (homology tables, recPhyloXML)",
+        help="turn a genomes run into analysis-ready files (homology, markers, recPhyloXML)",
         description=(
             "Read a finished 'zombi2 genomes' run and write analysis-ready files derived from its "
-            "gene trees. Two --format choices: 'homology' — for each family, an n×n table (n the "
+            "gene trees. Three --format choices: 'homology' — for each family, an n×n table (n the "
             "extant leaves) giving the event at each pair's common ancestor (S speciation, D "
             "duplication, T transfer) and whether transfer is in their history since (an x suffix); "
             "'markers' — one row per family: is it single-copy, is it universal, and does its true "
             "tree match the species tree, which is what to read if you are after genes to build a "
             "species tree from — and 'recphylo' — each family's complete gene tree "
             "written inside the complete species tree as recPhyloXML, the community format for that, "
-            "ready for a viewer or for scoring a reconciliation method against. Both are exact, not "
-            "inferred: ZOMBI recorded the embedding as it simulated it. Both work at every "
+            "ready for a viewer or for scoring a reconciliation method against. All three are exact, "
+            "not inferred: ZOMBI recorded the embedding as it simulated it. All three work at every "
             "resolution; on a nucleotide run there is one per declared gene (the intergenic spacer is "
-            "not a gene and gets none). Files land in the run's genomes/homology/ and "
-            "genomes/recphylo/."
+            "not a gene and gets none). Files land in the run's genomes/homology/, genomes/markers/ "
+            "and genomes/recphylo/."
         ),
         usage="zombi2 tools format DIR [--from PATH] [--format FORMAT ...] [options]",
         formatter_class=ZombiHelpFormatter,
@@ -198,7 +199,7 @@ def _add_tools_format_args(p: argparse.ArgumentParser) -> None:
         "--format", nargs="+", choices=sorted(_FORMATS), default=["homology"], metavar="FORMAT",
         dest="formats",
         help="which tables to write (default: homology). " +
-             "  ".join(f"{name}: {gloss}" for name, (_, _, gloss) in sorted(_FORMATS.items())))
+             "; ".join(f"{name}: {gloss}" for name, (_, _, gloss) in sorted(_FORMATS.items())))
     _add_flat_arg(g)
     _add_quiet_arg(g)
 

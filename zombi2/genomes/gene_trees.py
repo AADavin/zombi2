@@ -32,7 +32,7 @@ class GeneNode:
     """One gene in a gene tree. ``kind`` is the event that ended it — ``duplication`` · ``transfer``
     (the two children sit on different species branches) · ``speciation`` internally, or ``loss`` /
     ``extant`` · ``extinct`` · ``unsampled`` at a leaf. ``species`` is the species-tree node the gene
-    lived on; ``time`` is when it ended (crown-forward); ``copy`` is the gene id."""
+    lived on; ``time`` is when it ended (origin-forward); ``copy`` is the gene id."""
 
     kind: str
     species: int

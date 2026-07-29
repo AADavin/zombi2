@@ -255,7 +255,7 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, sources,
     gen: list[list] = [[]]  # each lineage's genome (list of GeneCopy), kept in lock-step with `alive`
     species_events: list[Event] = []
     genome_events: list[GenomeEvent] = []
-    for _ in range(spec.initial_families):  # anonymous crown families
+    for _ in range(spec.initial_families):  # anonymous families at the origin (t = 0)
         _originate(gen[0], nodes[root], 0.0, genome_events, new_copy, new_family)
     named: dict[str, int] = {}              # a minted id per declared name (the DrivenBy("genomes:<name>") handles)
     for name in spec.family_names:

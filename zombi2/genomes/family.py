@@ -455,7 +455,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     overwrites a homologous
     copy in the recipient (additive fallback if it has none); ``self_transfer=True`` lets a lineage
     donate to itself. The root starts with ``initial_families`` families of one copy each, recorded
-    as originations at the crown. ``family_names=["toxin", …]`` additionally declares **named** families —
+    as originations at the origin. ``family_names=["toxin", …]`` additionally declares **named** families —
     each gets a normal (integer) family id, but its name is remembered in ``result.family_names`` so
     you can track a specific family (``result.has_family(node, "toxin")``); this is the handle a joint
     ``DrivenBy("genomes:toxin", …)`` reads. Deterministic given ``seed``.
@@ -702,7 +702,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     genomes: dict[int, tuple[GeneCopy, ...]] = {}
     events: list[Event] = []
     enter(alive, gen, pos, root.id, [])
-    for _ in range(initial_families):  # lay down the crown as originations at t = root.birth_time
+    for _ in range(initial_families):  # lay down the origin's genome as originations at t = root.birth_time
         _originate(gen[0], root, t, events, new_copy, new_family)
     named: dict[str, int] = {}  # a minted id per declared name (so GeneCopy.family stays an int)
     for name in family_names:
