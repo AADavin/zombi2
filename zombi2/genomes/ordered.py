@@ -811,7 +811,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              translocation_extent=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
                              initial_families=100, family_names=None, family_speed=None,
-                             max_family_size=PerLineage(10), seed=None,
+                             max_family_size=1000, seed=None,
                              progress=False) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
     species tree, by the D/T/L/O core plus segmental rearrangements and the chromosome tier.
@@ -937,7 +937,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # above its loss rate — or a family that drew a high ByFamily factor — multiplies without bound
     # unless something stops it. A segment may carry several families, and several copies of one, so
     # the run is refused when it would take *any* of them past the quota (see _run_over_cap).
-    cap = resolve_max_family_size(max_family_size, len(tree.nodes))
+    cap = resolve_max_family_size(max_family_size)
     if family_speed is not None and not isinstance(family_speed, ByFamily):
         raise ValueError(
             f"family_speed must be a ByFamily(...) draw, got {type(family_speed).__name__}.")
