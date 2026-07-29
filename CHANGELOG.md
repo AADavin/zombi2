@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-07-29
+
 ### Changed
 - **A lineage that went extinct is now named `e<id>`** — in the complete species tree, the event
   logs, `genomes.tsv`, the complete gene trees, the trait tree and event log, the ancestral FASTA and
