@@ -1745,6 +1745,8 @@ def test_the_cap_can_be_set_from_a_params_file(tmp_path, tree_file):
     assert counts and max(counts.values()) == 3
 
 
+
+
 def test_a_run_written_from_python_carries_its_species_tree(tmp_path):
     # the README's Python route used to write gene trees and no species tree, so a beginner got a
     # dataset with no ground truth in it and nothing said so
@@ -1812,3 +1814,16 @@ def test_strict_is_satisfied_by_a_params_file(tmp_path):
     params.write_text("[species]\nbirth = 1.0\nn-extant = 8\n", encoding="utf-8")
     assert main(["species", str(tmp_path / "r"), "--params", str(params), "--seed", "1",
                  "--quiet", "--strict"]) == 0
+
+
+def test_stream_is_refused_on_a_nucleotide_sequences_run(tmp_path, tree_file, capsys):
+    # a nucleotide run reassembles every node's genome, which needs every block's sequence at once —
+    # the opposite of keeping nothing. Refused up front rather than half-run.
+    run = tmp_path / "n"
+    assert main(["genomes", str(run), "--from", str(tree_file), "--resolution", "nucleotide",
+                 "--root-length", "400", "--genes", "3", "--seed", "1", "--quiet"]) == 0
+    with pytest.raises(SystemExit) as e:
+        main(["sequences", str(run), "--model", "jc69", "--seed", "1", "--quiet", "--stream"])
+    assert e.value.code == 2
+    err = capsys.readouterr().err
+    assert "--stream" in err and "nucleotide" in err and "--resolution family" in err
