@@ -3,6 +3,7 @@ loads trees with. The CLI is a thin shell over the level ``simulate_*`` function
 exercise argument wiring, output files, ``--params``, and the clean error paths — not the engines
 (which their own suites cover)."""
 
+import collections
 import re
 
 import pytest
@@ -1492,11 +1493,11 @@ def test_sequences_log_records_effective_model_params(tmp_path):
 # ── the family-tier knobs on the command line ───────────────────────────────────────────────────
 
 def test_max_family_size_bounds_a_run(tmp_path, tree_file):
-    """The cap is reachable from the command line, and Global(N) is an absolute copy count."""
+    """The cap is reachable from the command line, as a plain count of copies in one genome."""
     import collections
     out = tmp_path / "capped"
     main(["genomes", str(out), "--from", str(tree_file), "--duplication", "1.2", "--loss", "0.1",
-          "--origination", "0.3", "--initial-families", "6", "--max-family-size", "Global(3)",
+          "--origination", "0.3", "--initial-families", "6", "--max-family-size", "3",
           "--seed", "1", "--flat", "--quiet"])
     header, *rows = (out / "genomes.tsv").read_text(encoding="utf-8").splitlines()
     cols = header.split("\t")
@@ -1702,3 +1703,38 @@ def test_the_summary_accounts_for_every_tip_it_counts(tmp_path, capsys):
     n_tips = int(re.search(r"\((\d+) tips", line).group(1))
     assert counts.get("unsampled", 0) > 0                  # the seed leaves some unobserved...
     assert sum(counts.values()) == n_tips                  # ...and now the parts add up
+def test_the_old_scope_spelling_says_what_the_number_used_to_mean(tmp_path, tree_file, capsys):
+    # PerLineage(10) meant 10 x the node count of the species tree, so a stale command line ran at a
+    # cap it did not read. It fails now, and the message does the arithmetic rather than just saying
+    # the spelling changed.
+    with pytest.raises(SystemExit) as e:
+        main(["genomes", str(tmp_path / "g"), "--from", str(tree_file), "--duplication", "0.2",
+              "--max-family-size", "PerLineage(10)", "--flat"])
+    assert e.value.code == 2
+    err = " ".join(capsys.readouterr().err.split())
+    assert "--max-family-size 10" in err and "nodes in the species tree" in err
+
+    with pytest.raises(SystemExit):                     # Global(N) was exactly N — say so
+        main(["genomes", str(tmp_path / "h"), "--from", str(tree_file), "--duplication", "0.2",
+              "--max-family-size", "Global(10)", "--flat"])
+    assert "--max-family-size 10" in " ".join(capsys.readouterr().err.split())
+
+
+def test_the_cap_can_be_set_from_a_params_file(tmp_path, tree_file):
+    # a TOML integer reaches the engine directly (params seed argparse defaults, bypassing `type`),
+    # so the plain-number form has to be what the engine accepts — under the scope spelling this
+    # route could not set the cap at all
+    params = tmp_path / "p.toml"
+    params.write_text("[genomes]\nmax-family-size = 3\n", encoding="utf-8")
+    out = tmp_path / "g"
+    assert main(["genomes", str(out), "--from", str(tree_file), "--duplication", "1.2",
+                 "--loss", "0.1", "--initial-families", "6", "--params", str(params),
+                 "--seed", "1", "--flat", "--quiet"]) == 0
+    assert "max_family_size\t3" in (out / "genomes.log").read_text(encoding="utf-8")
+    counts = collections.Counter()
+    header, *rows = (out / "genomes.tsv").read_text(encoding="utf-8").splitlines()
+    cols = header.split("\t")
+    for row in rows:
+        cell = dict(zip(cols, row.split("\t")))
+        counts[(cell["lineage"], cell["family"])] += 1
+    assert counts and max(counts.values()) == 3

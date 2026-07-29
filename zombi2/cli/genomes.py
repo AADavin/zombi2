@@ -19,7 +19,7 @@ import time
 from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
                             simulate_genomes_family)
 from zombi2.genomes.nucleotide import WIRED_MODIFIERS as _NUC_WIRED
-from zombi2.rates.parse import parse_rate, written_form
+from zombi2.rates.parse import parse_rate
 from zombi2.rates.scope import Global, PerLineage
 from zombi2.tree import node_label, read_newick
 from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
@@ -77,9 +77,15 @@ _DEFAULT_INITIAL_FAMILIES = 100
 # knobs the nucleotide engine does not have — it starts from a sequence, not from a family count,
 # and its transfers are always additive. Paired with the default, so leaving the flag alone is not
 # mistaken for setting it.
-#: The per-genome family cap, the same default the two engines carry. Duplication compounds, so a run
-#: is bounded unless you ask otherwise; `--max-family-size none` is that ask.
-_DEFAULT_MAX_FAMILY_SIZE = PerLineage(10)
+#: The per-genome family cap, the same default the two engines carry: how many copies of ONE family
+#: one genome may hold. Duplication compounds, so a run is bounded unless you ask otherwise;
+#: `--max-family-size none` is that ask. Ten is a genome-shaped number — most families in a real
+#: genome are single-copy and the big ones run to tens — so the default says what an ordinary genome
+#: looks like rather than merely catching an explosion. Raise it, or lift it with `none`, when the
+#: model is about the large families. (It reads as `PerLineage(10)` did, which is the point: that
+#: spelling resolved to 10 × the node count of the species tree — 1470 on a 147-node tree — so the
+#: number here was never the number that applied.)
+_DEFAULT_MAX_FAMILY_SIZE = 10
 
 _NOT_IN_NUCLEOTIDE = (("initial_families", None), ("replacement", False),
                       ("max_family_size", _DEFAULT_MAX_FAMILY_SIZE), ("family_speed", None))
@@ -132,11 +138,12 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         f"arrive by --origination")
     g.add_argument("--max-family-size", type=_family_cap, default=_DEFAULT_MAX_FAMILY_SIZE,
                    metavar="CAP", dest="max_family_size",
-                   help=f"cap on how many copies of one family a genome may hold, written with a "
-                        f"scope like a rate: Global(N) is N copies outright, PerLineage(N) is N for "
-                        f"every lineage in the tree, so the bound travels with the size of the run "
-                        f"(default {written_form(_DEFAULT_MAX_FAMILY_SIZE)}). 'none' removes it. "
-                        f"Duplication compounds, so a run is bounded unless you ask otherwise")
+                   help=f"cap on how many copies of one family a single genome may hold — a whole "
+                        f"number (default {_DEFAULT_MAX_FAMILY_SIZE}), or 'none' to remove it. "
+                        f"Duplication compounds, so a run is bounded unless you ask otherwise. When "
+                        f"the cap does bite, the duplication or arriving transfer is dropped rather "
+                        f"than retried, so realised rates in a family at the cap sit below the ones "
+                        f"you declared — lower it deliberately, and use 'none' to measure rates")
     g.add_argument("--family-speed", type=_family_speed, default=None, metavar="DRAW",
                    dest="family_speed",
                    help="one per-family tempo scaling every rate that family has, as a ByFamily draw "
@@ -230,12 +237,14 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
 
 
 def _family_cap(text: str):
-    """The argparse ``type`` for ``--max-family-size``: how many copies of one family a genome may hold.
+    """The argparse ``type`` for ``--max-family-size``: how many copies of one family a genome may
+    hold, as a plain whole number, or ``none`` for no cap.
 
-    An **int** is an absolute copy count; a **float** is that multiple of the complete tree's lineages,
-    so the bound travels with the size of the run. ``none`` removes it. The int/float distinction is
-    the model's, not a formatting detail — ``10`` and ``10.0`` mean different things — so it is kept
-    exactly as written.
+    No scope wrapper: the cap is counted inside one genome, so "per what?" has only one answer and
+    saying it out loud only created room to say it wrong. ``PerLineage(N)`` used to be accepted and
+    multiplied N by the size of the *species tree*, which made the real cap depend on something the
+    user had not chosen; it is refused now, with the arithmetic, so a stale command line fails loudly
+    instead of running at a different cap than it reads.
 
     There is a cap by default because duplication **compounds**: a family whose duplication rate sits
     above its loss rate multiplies without bound. ``none`` is how you ask for that on purpose.
@@ -244,15 +253,35 @@ def _family_cap(text: str):
     if s.lower() in ("none", "off"):
         return None
     try:
+        return _positive_int(s)
+    except ValueError:
+        pass
+    try:                                        # a scope wrapper: the old spelling, worth naming
         cap = parse_rate(s)
-    except ValueError as e:
-        raise argparse.ArgumentTypeError(f"--max-family-size: {e}") from None
-    if not isinstance(cap, (Global, PerLineage)):
+    except ValueError:
+        cap = None
+    if isinstance(cap, PerLineage):
         raise argparse.ArgumentTypeError(
-            f"--max-family-size takes Global(N) for that many copies outright, PerLineage(N) for "
-            f"that many per lineage in the tree, or 'none' for no cap. A bare number cannot say "
-            f"which is meant, and the two differ by a factor of the tree's size; got {text!r}")
-    return cap
+            f"--max-family-size is a plain number of copies in one genome now, so write "
+            f"--max-family-size {cap.base:g} (or 'none'). {text!r} used to mean {cap.base:g} × the "
+            f"number of nodes in the species tree, which is why the cap you got depended on how big "
+            f"the tree was")
+    if isinstance(cap, Global):
+        raise argparse.ArgumentTypeError(
+            f"--max-family-size is a plain number of copies in one genome now, so write "
+            f"--max-family-size {cap.base:g} (or 'none') — {text!r} meant exactly that")
+    raise argparse.ArgumentTypeError(
+        f"--max-family-size takes a whole number of copies (e.g. 20) or 'none' for no cap; "
+        f"got {text!r}")
+
+
+def _positive_int(s: str) -> int:
+    """``s`` as a whole number ≥ 1, or ``ValueError``. A float spelling is refused rather than
+    rounded: ``10`` against ``10.0`` is exactly the ambiguity this option has finished with."""
+    n = int(s)                                  # raises on "10.0", which is the point
+    if n < 1:
+        raise ValueError(n)
+    return n
 
 
 def _family_speed(text: str):
