@@ -7,9 +7,22 @@ FASTA. Tree branch lengths are **time** everywhere except the sequence phylogram
 (**yes**), only when you name its token (**no**), or is available in Python but has no file yet
 (**Python**).
 
-A species-tree node is written `n<id>` everywhere it appears, and the column holding one is always
-called `lineage` (or `donor` / `recipient` where a row names two), so a node reads the same in any
-file of a run. A gene copy is written `g<id>` the same way, and the column holding one is always
+A species-tree node is written `n<id>` everywhere it appears — or **`e<id>` when that lineage went
+extinct**. The number is the identity and the letter an annotation: `5` names the lineage wherever it
+appears, and a join can always strip the prefix. The column holding a node is always called `lineage`
+(or `donor` / `recipient` where a row names two), so a node reads the same in any file of a run.
+
+The letter marks the one fact about a branch you cannot recover from the tree's shape. It means a
+complete tree **states its own extinctions**: the file survives being moved, copied or emailed, where
+the sibling `species_fates.tsv` does not, and reading one back needs neither that table nor a guess
+from tip depth. Two things deliberately stay `n`. Internal nodes: a speciation is not a fate. And
+**unsampled** tips, which are alive — being unsampled is a property of the sampling you asked for,
+not of the lineage, so the same branch would be named differently by two runs of the same tree.
+`species_fates.tsv` remains the only place that tells an unsampled tip from an extant one.
+
+Nothing that names only **extant** tips changed, which is most of what a downstream tool reads: the
+extant tree, `profiles.tsv`, the alignments, the homology tables and the extant gene trees are all
+`n<id>` throughout, so a pipeline built on them is unaffected. A gene copy is written `g<id>` the same way, and the column holding one is always
 `copy` (or `parent`, the source copy of a duplication or transfer). Where a copy is named somewhere
 with no column to say which species it sits in — a Newick leaf, a FASTA record, a homology table
 header — it is written **`n<species>_g<copy>`**, both labels joined by a single `_`, so a tip or a

@@ -108,7 +108,7 @@ from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv
 from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
-from .events import (Event, events_tsv, gene_from_label, gene_label, node_from_label,
+from .events import (Event, _name, events_tsv, gene_from_label, gene_label, node_from_label,
                      node_label)
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .gff import read_fasta, read_gff
@@ -958,17 +958,18 @@ class NucleotideGenomesResult:
         """
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
+        names = self.complete_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
         if "events" in outputs:
             # Two tables, because they describe two things. `genome_events.tsv` is the genealogy in
             # the one format every resolution writes, so one reader serves them all; `block_events.tsv`
             # is this resolution's own interval record, which has no counterpart elsewhere. They used
             # to share the first name, which made a nucleotide log look readable to the family reader
             # while meaning something else in the same columns.
-            (d / "genome_events.tsv").write_text(events_tsv(self.genealogy), encoding="utf-8")
+            (d / "genome_events.tsv").write_text(events_tsv(self.genealogy, names), encoding="utf-8")
             (d / "block_events.tsv").write_text(
-                _nucleotide_events_tsv(self.events, self.rearrangements), encoding="utf-8")
+                _nucleotide_events_tsv(self.events, self.rearrangements, names), encoding="utf-8")
         if "blocks" in outputs:
-            (d / "blocks.tsv").write_text(self._blocks_tsv(), encoding="utf-8")
+            (d / "blocks.tsv").write_text(self._blocks_tsv(names), encoding="utf-8")
         if "genes" in outputs:
             (d / "genes.tsv").write_text(self._genes_tsv(), encoding="utf-8")
         if "initial_genome" in outputs:
@@ -976,7 +977,7 @@ class NucleotideGenomesResult:
         if "chromosome_events" in outputs:
             (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events), encoding="utf-8")
         if "gene_trees" in outputs:
-            write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat))
+            write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat), names)
         if "initial_sequence" in outputs and self.initial_sequence:
             (d / "initial_sequence.fasta").write_text(
                 "".join(f">source{src}\n{self.initial_sequence[src]}\n"
@@ -984,14 +985,14 @@ class NucleotideGenomesResult:
         for token, ext, render in (("gff", "gff", self._gff), ("bed", "bed", self._bed)):
             if token in outputs:
                 into = grouped_dir(d, token, flat)
-                for label, genome in self._every_genome():
+                for label, genome in self._every_genome(names):
                     (into / f"genome_{label}.{ext}").write_text(render(label, genome), encoding="utf-8")
 
-    def _every_genome(self):
+    def _every_genome(self, names=None):
         """``(label, genome)`` for every genome the run holds — each node, and the initial one. The
         labels are the ones the sequence level writes its FASTA under, so the files pair up."""
         for node_id in sorted(self.genomes):
-            yield node_label(node_id), self.genomes[node_id]
+            yield _name(names, node_id), self.genomes[node_id]
         yield "initial", self.initial_genome
 
     def _laid_out(self, genome: NucleotideGenome):
@@ -1042,7 +1043,7 @@ class NucleotideGenomesResult:
                        f"{b.source}:{b.start}-{b.end}\t0\t{'+' if b.strand == 1 else '-'}")
         return "\n".join(out) + "\n"
 
-    def _blocks_tsv(self) -> str:
+    def _blocks_tsv(self, names=None) -> str:
         """Every node's genome, block by block. ``position`` is the block's physical offset along its
         chromosome, so the rows of one chromosome tile it end to end from 0."""
         cols = ("lineage", "chromosome", "position", "source", "start", "end", "strand", "copy", "gene")
@@ -1051,7 +1052,7 @@ class NucleotideGenomesResult:
             for c in self.genomes[s].chromosomes:
                 at = 0
                 for b in c.blocks:
-                    rows.append(f"{node_label(s)}\t{c.id}\t{at}\t{b.source}\t{b.start}\t{b.end}\t{b.strand}\t"
+                    rows.append(f"{_name(names, s)}\t{c.id}\t{at}\t{b.source}\t{b.start}\t{b.end}\t{b.strand}\t"
                                 f"{gene_label(b.copy)}\t{b.gene}")
                     at += b.length
         return "\n".join(["\t".join(cols), *rows]) + "\n"
@@ -1089,7 +1090,7 @@ _NUCLEOTIDE_EVENT_COLS = ("time", "kind", "lineage", "chromosome", "copy", "pare
                           "position", "length", "dest_chromosome", "dest_position", "flipped")
 
 
-def _nucleotide_events_tsv(events, rearrangements=()) -> str:
+def _nucleotide_events_tsv(events, rearrangements=(), names=None) -> str:
     """The run's whole history as one time-ordered table (see `_NUCLEOTIDE_EVENT_COLS`).
 
     An event here can span several blocks at once (a loss deletes an arc covering many), and each
@@ -1112,7 +1113,7 @@ def _nucleotide_events_tsv(events, rearrangements=()) -> str:
         if c is None:
             return ""
         if i in node_at:
-            return node_label(c)
+            return _name(names, c)
         if i in gene_at:
             return gene_label(c)
         return str(c)

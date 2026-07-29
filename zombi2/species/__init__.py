@@ -21,7 +21,6 @@ import numpy as np
 
 from ..rates.modifiers import FromParent, OnTime, OnTotalDiversity
 from .._runtime.progress import progress_bar
-from ..tree import node_label
 from ..rates.rate import as_rate
 from ..rates.scope import Global, PerLineage
 from ..tree import Node, Tree, prune
@@ -103,20 +102,22 @@ class SpeciesResult:
             (d / "species_complete.nwk").write_text(self.complete_tree.to_newick() + "\n", encoding="utf-8")
         if "extant" in outputs and self.extant_tree is not None:
             (d / "species_extant.nwk").write_text(self.extant_tree.to_newick() + "\n", encoding="utf-8")
+        name = self.complete_tree.labels()
         if "events" in outputs:
             rows = ["time\tkind\tlineage\tchildren"]
             for e in self.events:
-                kids = ";".join(node_label(c) for c in e.children) if e.children else ""
-                rows.append(f"{e.time:.6g}\t{e.kind}\tn{e.node}\t{kids}")
+                kids = ";".join(name[c] for c in e.children) if e.children else ""
+                rows.append(f"{e.time:.6g}\t{e.kind}\t{name[e.node]}\t{kids}")
             (d / "species_events.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
         if "fossils" in outputs and self.fossils:
-            rows = ["lineage\ttime"] + [f"{node_label(i)}\t{t:.6g}" for i, t in self.fossils]
+            # a fossil is a sampled EXTINCT lineage, so this table is where e<id> shows up most
+            rows = ["lineage\ttime"] + [f"{name[i]}\t{t:.6g}" for i, t in self.fossils]
             (d / "species_fossils.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
         if "fates" in outputs:
             # one row per tip (extant / extinct / unsampled); internal nodes are always speciations
             rows = ["lineage\tfate"]
             for n in sorted(self.complete_tree.leaves(), key=lambda nd: nd.id):
-                rows.append(f"{node_label(n.id)}\t{n.fate}")
+                rows.append(f"{name[n.id]}\t{n.fate}")
             (d / "species_fates.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
 
 

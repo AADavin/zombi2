@@ -26,7 +26,7 @@ import bisect
 import math
 import pathlib
 
-from ..tree import node_from_label
+from ..tree import node_from_label, node_label
 
 
 class DriverTrajectory:
@@ -57,7 +57,8 @@ class DriverTrajectory:
         starts = self._starts.get(node_id)
         if starts is None:
             raise KeyError(
-                f"the driver file has no lineage n{node_id}; the driver must be grown on the SAME "
+                f"the driver file has no lineage {node_label(node_id)}; the driver must be grown "
+                f"on the SAME "
                 f"complete tree the target runs on (node ids must match)."
             )
         i = bisect.bisect_right(starts, time) - 1
@@ -70,7 +71,8 @@ class DriverTrajectory:
         ``inf`` (it stays constant for the rest of the branch). Feeds the target Gillespie's horizon."""
         starts = self._starts.get(node_id)
         if starts is None:
-            raise KeyError(f"the driver file has no lineage n{node_id} (node ids must match the target tree).")
+            raise KeyError(f"the driver file has no lineage {node_label(node_id)} "
+                           "(node ids must match the target tree).")
         i = bisect.bisect_right(starts, time)
         return starts[i] if i < len(starts) else math.inf
 

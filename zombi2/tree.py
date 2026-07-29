@@ -16,23 +16,38 @@ import re
 from dataclasses import dataclass
 
 
-def node_label(node_id: int | None) -> str:
-    """A species-tree node as **every** ZOMBI2 file writes it: ``n<id>``.
+#: what a lineage's name begins with. ``e`` says the lineage **died before the present** — the one
+#: fact about a branch you cannot recover from the tree's shape, and the one ZOMBI exists to keep.
+#: Everything else is ``n``: extant tips, internal nodes (a speciation is never a fate), and
+#: **unsampled** tips, which are alive — being unsampled is a property of the sampling you asked for,
+#: not of the lineage, so the same branch would be named differently by two runs of the same tree.
+_PREFIX = {"extinct": "e"}
+
+
+def node_label(node_id: int | None, fate: str | None = None) -> str:
+    """A species-tree node as **every** ZOMBI2 file writes it: ``n<id>``, or ``e<id>`` when ``fate``
+    says the lineage went extinct.
 
     The one place that spelling is decided. It lives here, beside the `Node` it names, because every
     level writes it — the species Newick and its tables, the genome and trait event logs, the profile
-    headers, the gene-tree labels, the FASTA records — and a helper in one level's package is a helper
-    the other levels quietly reimplement. That is what had happened: the token was minted by an inline
-    f-string in eighteen places, so changing how a node is written meant finding all eighteen.
+    headers, the gene-tree labels, the FASTA records.
 
-    Empty for ``None``, which is how an absent ``recipient`` / ``donor`` writes itself in a table."""
-    return "" if node_id is None else f"n{node_id}"
+    **The number is the identity and the letter is an annotation**: ``5`` names the lineage, and any
+    join can strip the prefix (`node_from_label()` does). That is what keeps the extinct marking free
+    to be a marking rather than an identifier change.
+
+    ``fate`` omitted means ``n``, which is right for every node that cannot be extinct — the extant
+    tips a profile or an alignment names, and the internal nodes — and is what the extant-only writers
+    rely on. Empty for ``None``, which is how an absent ``recipient`` / ``donor`` writes itself."""
+    if node_id is None:
+        return ""
+    return f"{_PREFIX.get(fate, 'n')}{node_id}"
 
 
 def node_from_label(cell: str) -> int:
-    """The inverse of `node_label()`. A bare integer is accepted too, so a log written before the
-    node columns carried their ``n`` still replays."""
-    return int(cell[1:] if cell[:1] == "n" else cell)
+    """The inverse of `node_label()` — the identity, with the fate prefix dropped. A bare integer is
+    accepted too, so a log written before the node columns carried their letter still replays."""
+    return int(cell[1:] if cell[:1].isalpha() else cell)
 
 
 @dataclass
@@ -62,6 +77,15 @@ class Tree:
         return (f"Tree({len(self.extant())} extant tips, {len(self.nodes)} nodes, "
                 f"rooted at n{self.root})")
 
+    def labels(self) -> dict[int, str]:
+        """``{node id: its written name}`` — ``n<id>``, or ``e<id>`` for a lineage that went extinct.
+
+        The tree is the only thing that knows a lineage's fate, so this is where a run's names come
+        from: a writer builds the map once and every id it prints goes through it. Not cached, because
+        fates are assigned after construction when a tree is read back (`read_newick()`), and a map
+        frozen before that would name every tip ``n``."""
+        return {i: node_label(i, n.fate) for i, n in self.nodes.items()}
+
     def leaves(self) -> list[Node]:
         """Every lineage with no descendants — extant **and** extinct."""
         return [n for n in self.nodes.values() if n.children is None]
@@ -82,7 +106,7 @@ class Tree:
     def to_newick(self) -> str:
         """Serialise to Newick (matching ``tree.to_newick()`` elsewhere in the codebase). Each
         branch length is ``end_time - birth_time`` and every node — leaves and internals — is named
-        ``n<id>``.
+        ``n<id>``, or ``e<id>`` for a lineage that went extinct (see `node_label()`).
 
         The root carries a branch length like any other node: its **stem**, the time from the origin
         to the first split. A forward birth–death run starts from one lineage, so that stem is real
@@ -90,19 +114,21 @@ class Tree:
         tree whose crown comes late, a large fraction of its history. It is emitted as ``)n0:<stem>;``
         and `read_newick()` reads it back."""
 
+        name = self.labels()
+
         def emit(i: int) -> str:
             node = self.nodes[i]
             bl = node.end_time - node.birth_time
             if node.children is None:
-                return f"{node_label(i)}:{bl:.7g}"
+                return f"{name[i]}:{bl:.7g}"
             inner = ",".join(emit(c) for c in node.children)
-            return f"({inner})n{i}:{bl:.7g}"
+            return f"({inner}){name[i]}:{bl:.7g}"
 
         root = self.nodes[self.root]
         stem = root.end_time - root.birth_time
         if root.children is None:
-            return f"{node_label(self.root)}:{stem:.7g};"
-        return f"({','.join(emit(c) for c in root.children)})n{self.root}:{stem:.7g};"
+            return f"{name[self.root]}:{stem:.7g};"
+        return f"({','.join(emit(c) for c in root.children)}){name[self.root]}:{stem:.7g};"
 
 
 def prune(tree: Tree, keep: str = "extant") -> Tree | None:
@@ -149,7 +175,9 @@ def prune(tree: Tree, keep: str = "extant") -> Tree | None:
     return Tree(new, ext_root)
 
 
-_ZOMBI_LABEL = re.compile(r"^n(\d+)$")  # the id-bearing label to_newick writes on every node
+#: the id-bearing label ``to_newick`` writes on every node — ``n<id>``, or ``e<id>`` for a lineage
+#: that went extinct, which is how a ZOMBI tree states that fate itself (see `node_label()`)
+_ZOMBI_LABEL = re.compile(r"^([ne])(\d+)$")
 
 
 def _assign_fates_from_map(leaves: list[Node], labels: dict[int, str],
@@ -360,12 +388,13 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
 
     nodes: dict[int, Node] = {}
     names: dict[int, str] = {}  # {minted id: user label} — for external trees; empty for ZOMBI ones
+    written: dict[int, str] = {}  # {id: the label as written} — for ZOMBI trees; empty for external
     counter = 0
 
     def _mint(p: _P) -> int:
         nonlocal counter
         if all_labelled:
-            return int(_ZOMBI_LABEL.match(p.name).group(1))
+            return int(_ZOMBI_LABEL.match(p.name).group(2))
         i_ = counter
         counter += 1
         return i_
@@ -378,7 +407,9 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
         end = birth + p.length
         child_ids = tuple(_build(c, nid, end) for c in p.children) or None
         nodes[nid] = Node(nid, parent, birth, end, child_ids)  # fate filled in below
-        if not all_labelled and p.name:  # external tree: keep the user's label for the name-map
+        if all_labelled:
+            written[nid] = p.name              # the label as the file spells it: n<id> or e<id>
+        elif p.name:                           # external tree: keep the user's label for the name-map
             names[nid] = p.name
         return nid
 
@@ -414,11 +445,20 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
     if all_labelled:
         if tip_fates is not None:
             # the run's own species_fates.tsv (or a --tip-fates file) states each tip's fate directly,
-            # keyed by the same n<id> the tree carries. It is authoritative: depth cannot tell an
-            # unsampled survivor from an extant one (both sit at the present), nor an extinct tip that
-            # died just before the present, so when it is given we use it rather than guess.
-            _assign_fates_from_map(leaves, {n.id: node_label(n.id) for n in leaves}, tip_fates,
+            # keyed by the same label the tree carries — both come from node_label, so they agree.
+            # It is authoritative: it is the only thing that can tell an UNSAMPLED survivor from an
+            # extant one (both sit at the present, and both are written n<id>).
+            _assign_fates_from_map(leaves, {n.id: written[n.id] for n in leaves}, tip_fates,
                                    source="tip fates")
+            return Tree(nodes, root_id), names
+        # An e<id> label IS the fate: to_newick writes it for a lineage that died, so a ZOMBI tree
+        # says so itself and needs neither the sibling fate table nor a guess from tip depth — which
+        # is what makes the file survive being moved, copied or emailed. A tree written before the
+        # letter existed carries none of them and falls through to the depth rule below, where it
+        # behaves exactly as it did.
+        if any(written[n.id][:1] == "e" for n in leaves):
+            for n in leaves:
+                n.fate = "extinct" if written[n.id][:1] == "e" else "extant"
             return Tree(nodes, root_id), names
         # no fate table: a tip is extinct if it ends before the present (the greatest end_time). The
         # tolerance is depth-relative — ``to_newick`` prints 7 significant figures, whose rounding

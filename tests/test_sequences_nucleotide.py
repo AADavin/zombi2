@@ -79,9 +79,10 @@ def test_every_lineage_gets_a_genome_of_the_right_length():
     genomes = _run(seed=5)
     r = simulate_sequences(genomes, model=hky85(kappa=3.0), substitution=0.4, seed=5)
     assert set(r.genomes) == {node_label(i) for i in genomes.complete_tree.nodes}
+    names = genomes.complete_tree.labels()
     for node_id, genome in genomes.genomes.items():
         for chrom in genome.chromosomes:
-            assert len(r.genomes[node_label(node_id)][chrom.id]) == chrom.length
+            assert len(r.genomes[names[node_id]][chrom.id]) == chrom.length
 
 
 def test_a_genes_own_sequence_is_in_the_genome_it_sits_in():
@@ -112,8 +113,9 @@ def test_material_no_extant_leaf_kept_is_still_reconstructed():
     assert doomed, "nothing died out for good in this run — pick another seed"
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=4)
     rebuilt = r.genomes
+    names = genomes.complete_tree.labels()
     for nid in doomed:
-        assert rebuilt[node_label(nid)] == _traced(genomes, r, nid)
+        assert rebuilt[names[nid]] == _traced(genomes, r, nid)
 
 
 # --- every block evolves, at its own length --------------------------------------------------------
@@ -454,8 +456,9 @@ def test_a_seeded_run_descends_from_the_supplied_fasta(tmp_path):
     # handed in, permuted and reverse-complemented by its own history. Base for base.
     genomes = _seeded(tmp_path, "".join("ACGT"[i % 4] for i in range(100)))
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=4)
+    names = genomes.complete_tree.labels()
     for node_id in genomes.genomes:
-        assert r.genomes[node_label(node_id)] == _ref_through_root(genomes, node_id)
+        assert r.genomes[names[node_id]] == _ref_through_root(genomes, node_id)
     chrom = genomes.initial_genome.chromosomes[0]
     assert r.initial_genome[chrom.id] == genomes.initial_sequence[0]        # the input, exactly
 

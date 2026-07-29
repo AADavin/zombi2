@@ -40,7 +40,7 @@ from ._transfer import Clades, Distance, mean_root_to_tip, recipient_index, reso
 
 from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
-from .events import Event, events_tsv, gene_label, node_label
+from .events import Event, events_tsv, gene_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
 
@@ -135,8 +135,9 @@ class FamilyGenomesResult:
         """
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
+        names = self.complete_tree.labels()      # e<id> for a lineage that died; n<id> for the rest
         if "events" in outputs:
-            (d / "genome_events.tsv").write_text(events_tsv(self.events), encoding="utf-8")
+            (d / "genome_events.tsv").write_text(events_tsv(self.events, names), encoding="utf-8")
         if "profiles" in outputs:
             (d / "profiles.tsv").write_text(self.profiles.to_tsv(), encoding="utf-8")
         if "genomes" in outputs:
@@ -144,14 +145,15 @@ class FamilyGenomesResult:
         if "initial_genome" in outputs:
             (d / "initial_genome.tsv").write_text(self._initial_genome_tsv(), encoding="utf-8")
         if "gene_trees" in outputs:
-            write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat))
+            write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat), names)
 
     def _genomes_tsv(self) -> str:
         """Every node's gene content, one row per copy, in the order the genome holds them. The
         family counterpart of the ordered resolution's ``gene_order.tsv`` — without a chromosome
         or a position, because at this resolution a genome is a set, not a sequence."""
         cols = ("lineage", "family", "copy")
-        rows = [f"{node_label(s)}\t{c.family}\t{gene_label(c.id)}"
+        names = self.complete_tree.labels()
+        rows = [f"{names[s]}\t{c.family}\t{gene_label(c.id)}"
                 for s in sorted(self.genomes)
                 for c in sorted(self.genomes[s], key=lambda c: (c.family, c.id))]
         return "\n".join(["\t".join(cols), *rows]) + "\n"
