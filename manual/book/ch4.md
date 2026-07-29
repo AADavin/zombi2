@@ -254,7 +254,9 @@ g = genomes.simulate_genomes_family(tree, duplication=0.2, loss=0.25, originatio
                                     initial_families=1000, seed=1, parallel=8)   # 8 workers
 ```
 
-`parallel=True` uses every core and an integer sets the worker count; on the command line it is `--parallel` for all cores or `--parallel 8` for eight. It is a **separate engine**, not a faster path through the default one: each family draws from its own random stream, so the result is identical for any worker count, but it differs from a serial run of the same seed — both are valid draws of the same process. A driven rate or `transfer_to` (Chapter 9) is not handled yet; a run that uses one says so and falls back to serial.
+`parallel=True` uses every core and an integer sets the worker count; on the command line it is `--parallel` for all cores or `--parallel 8` for eight. It is a **separate engine**, not a faster path through the default one: each family draws from its own random stream, so the result is identical for any worker count, but it differs from a serial run of the same seed — both are valid draws of the same process.
+
+A **conditioned** rate (Chapter 9) runs here too. Conditioning does not couple families: the driver was grown before this run and is an input to it, so a lineage's factor at a given moment is the same number whichever family is asking, and no family can reach another through it. Each worker reads the driver as a lookup, and the decomposition is untouched.
 
 For very large runs — hundreds of thousands of families, or a million — the difficulty stops being speed and becomes memory: the finished result itself no longer fits. `stream_to` writes each family to a directory the moment it is done, and hands back a light handle holding a path rather than a `FamilyGenomesResult` holding everything. Memory then stays flat however many families you run — a run that would have held 2 GB streams in about 40 MB — and the sequence level reads the families back off the disk afterwards. Choose which files to write with `outputs=`, exactly as `.write` takes them. On the command line this is `--stream`.
 

@@ -9,6 +9,24 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **`--parallel` runs conditioned rates.** A `DrivenBy` rate, a driven `transfer_to` and a `Clades`
+  recipient rule used to make the parallel engine announce a fallback and hand the run to the serial
+  loop — so anyone iterating on a coupled model was capped at one core, which is exactly the kind of
+  run that is worth parallelising. **Conditioning does not couple families**, which is what makes the
+  per-family decomposition survive it: the driver was grown *before* this run and is an input to it,
+  so a lineage's factor at a given moment is the same number whichever family is asking, and no
+  family can reach another through it. The workers now thread the driver trajectories with the rest
+  of the run context, and the driven rate is summed over the family's own footprint rather than the
+  whole tree. Measured at 20,000 families with a driven loss: **4.3 s serial → 2.7 s on four cores,
+  2.5 s on eight** — a smaller margin than it would have been a day ago, because the family-cap fix
+  above took most of the serial cost out first. Streaming (`stream_to=`) takes a driven rate too,
+  where it used to raise.
+
+  Verified by compensator, not by comparison: the parallel engine originates and loses at the rates
+  it was *declared* with, to within a standard error, on the same standard the serial engine is held
+  to. Worker-count invariance survives the driver.
+
 ### Changed
 - **The genome level is no longer superlinear in genome size.** `max_family_size` asks "does this
   family already fill its quota here?" on every duplication and every arriving transfer, and it was

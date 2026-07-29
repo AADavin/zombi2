@@ -21,11 +21,13 @@ The in-memory and streamed engines are both thin maps over it; the workers only 
 and read it from module state.
 
 The realisation differs from the serial reference engine for a given seed (a different, equally valid
-draw — the "A" decision), and the engine **loudly falls back** to the serial loop for a configuration
-it does not cover yet: a driven rate or a driven ``transfer_to`` (per-lineage weighting by another
-level). Everything else — duplication / transfer / loss / origination, ``uniform`` / ``distance``
-recipients, skyline ``OnTime``, the family cap, ``ByFamily`` / ``family_speed`` heterogeneity,
-``self_transfer``, ``replacement``, named families — runs here.
+draw — the "A" decision). Everything the family resolution accepts runs here: duplication / transfer /
+loss / origination, every recipient rule, skyline ``OnTime``, the family cap, ``ByFamily`` /
+``family_speed`` heterogeneity, ``self_transfer``, ``replacement``, named families — and a
+**conditioned** rate, which does not couple families either: a ``DrivenBy`` driver was grown before
+this run and is an input to it, so a lineage's factor is the same number whichever family is asking.
+The workers thread the driver trajectories with the rest of the context. The engine still *has* a
+loud fallback, for the next model that genuinely couples families.
 """
 
 from __future__ import annotations
@@ -42,40 +44,38 @@ import numpy as np
 
 from .._runtime.parallel import guard_pool_workers, resolve_workers
 from .._runtime.progress import progress_bar
-from ..rates.modifiers import ByFamily, DrivenBy
-from ._live import enter, retire
-from ._transfer import Clades, mean_root_to_tip, recipient_index
+from ..rates.modifiers import ByFamily
+from ._live import enter, retire, weighted_index
+from ._transfer import mean_root_to_tip, recipient_index
 from .events import EVENTS_HEADER, Event, event_rows, gene_label, node_label
 from .gene_trees import gene_trees_from_events, write_gene_trees
 
 
 def _unsupported_reason(dup, tra, los, org, transfer_to) -> str | None:
     """A one-line reason the parallel engine cannot run this configuration (so it falls back to the
-    serial loop, loudly), or ``None`` when it can. The gaps are per-lineage recipient weightings the
-    per-family workers do not thread: a **driven** rate / recipient (``DrivenBy`` weights by a trait on
-    each branch) and a **clade** recipient (``Clades`` weights by each lineage's subtree membership).
-    Everything else the family engine accepts is covered."""
-    for label, rate in (("duplication", dup), ("transfer", tra), ("loss", los), ("origination", org)):
-        if any(isinstance(m, DrivenBy) for m in rate.modifiers):
-            return (f"{label} is driven by another level (DrivenBy) — the parallel engine does not do "
-                    "per-lineage driven rates yet")
-    if isinstance(transfer_to, DrivenBy):
-        return ("transfer_to is driven by another level (DrivenBy) — the parallel engine does not do "
-                "driven recipient weights yet")
-    if isinstance(transfer_to, Clades):
-        return ("transfer_to weights by named clades (Clades) — the parallel engine does not thread "
-                "per-lineage clade membership yet")
+    serial loop, loudly), or ``None`` when it can.
+
+    Nothing is left in this list. **Conditioning does not couple families**, which is what makes the
+    decomposition survive it: a ``DrivenBy`` rate reads a driver that was grown *before* this run and
+    is an input to it, so a lineage's factor at time ``t`` is the same number whichever family is
+    asking, and no family can influence another through it. The workers thread the driver
+    trajectories, and a ``Clades`` recipient rule threads the same way — clade membership is a fact
+    about the tree, painted once. The function stays because the next model that *does* couple
+    families (an epistatic rate, a genome-wide budget) belongs here rather than in a silent wrong
+    answer."""
     return None
 
 
 # --- Pass 1: enumerate every family and where it originates (serial, cheap) ------------------------
 
-def _enumerate_families(tree, org, initial_families, families_named, rng):
+def _enumerate_families(tree, org, initial_families, families_named, rng, trajs=None, driven=False):
     """``[(family_id, birth_lineage, birth_time), …]`` for every family, and ``{name: family_id}``.
 
     Initial and named families originate at the crown; the rest are drawn by the per-lineage
     origination Poisson walked over the tree schedule — a mini-Gillespie with only origination live,
-    which is exact because origination reads only the number of living lineages and the time."""
+    which is exact because origination reads only the number of living lineages and the time (and,
+    when ``driven``, the driver on each of them — still no genome content, so the split is unaffected;
+    the rate is then summed per lineage and the birth lineage drawn with the same weights)."""
     root = tree.nodes[tree.root]
     t0 = root.birth_time
     families: list[tuple[int, int, float]] = []
@@ -98,14 +98,25 @@ def _enumerate_families(tree, org, initial_families, families_named, rng):
     si = 0
     while si < len(schedule):
         k_alive = len(alive)
-        rate = org.effective(copies=0, lineages=k_alive, time=t)
+        weights = None
+        if driven:
+            weights = [org.effective(copies=0, lineages=1, time=t,
+                                     drivers={key: trajs[key].value(alive[k], t) for key in trajs})
+                       for k in range(k_alive)]
+            rate = sum(weights)
+        else:
+            rate = org.effective(copies=0, lineages=k_alive, time=t)
         next_species = schedule[si][0]
         horizon = min(next_species, org.next_change(t))
+        if driven:      # the driver switching on a branch changes the rate: stop and re-evaluate
+            horizon = min(horizon, min((trajs[key].next_change(alive[k], t) for key in trajs
+                                        for k in range(k_alive)), default=math.inf))
         if rate > 0.0:
             t_ev = t + float(rng.exponential(1.0 / rate))
             if t_ev < horizon:
                 t = t_ev
-                k = int(rng.integers(k_alive))              # origination is per lineage: uniform
+                # origination is per lineage: uniform, or with the driver's weights when conditioned
+                k = int(rng.integers(k_alive)) if weights is None else weighted_index(rng, weights, rate)
                 families.append((fid, alive[k], t)); fid += 1
                 continue
         if horizon == next_species:
@@ -163,10 +174,23 @@ class FamilyContext:
     death_times: list
     death_nodes: list
     cross2: list
+    #: driver key -> DriverTrajectory, for the rates a DrivenBy conditions. Resolved once in
+    #: `simulate_genomes_family()`, before the engines split, and shipped to each worker with the rest
+    #: of the context — a trajectory is per-lineage segment lists, so it pickles like any other data.
+    trajs: dict
+    #: the transfer_to driver, read only at the instant a transfer fires (it changes no rate, so it is
+    #: deliberately not in ``trajs`` and adds no horizon breakpoint)
+    to_traj: object
+    #: lineage -> its named clade, for a Clades recipient rule; ``None`` otherwise
+    group_of: object
+    #: which of duplication / transfer / loss carry a DrivenBy — the per-lineage path is taken only
+    #: for those, so an unconditioned run keeps the pooled arithmetic exactly as it was
+    driven: dict
 
 
 def prepare_family_context(tree, *, dup, tra, los, transfer_to, replacement, self_transfer,
-                           cap, family_speed) -> FamilyContext:
+                           cap, family_speed, trajs=None, to_traj=None, group_of=None,
+                           driven=None) -> FamilyContext:
     """Precompute the per-run `FamilyContext` — the schedule and rate metadata every family
     reuses — so `simulate_one_family()` can evolve any family from any origination point without
     recomputing it. ``dup`` / ``tra`` / ``los`` are resolved `Rate`s (per
@@ -186,7 +210,9 @@ def prepare_family_context(tree, *, dup, tra, los, transfer_to, replacement, sel
         self_transfer=self_transfer, cap=cap, depth=depth, family_speed=family_speed, fam_by=fam_by,
         birth_times=[t for t, _ in births], birth_nodes=[i for _, i in births],
         death_times=[t for t, _ in deaths], death_nodes=[i for _, i in deaths],
-        cross2=_cross2_times(tree))
+        cross2=_cross2_times(tree),
+        trajs=trajs or {}, to_traj=to_traj, group_of=group_of,
+        driven=driven or {"duplication": False, "transfer": False, "loss": False})
 
 
 # The shared context and stream config, shipped once per worker by the initializer (never re-pickled per
@@ -230,7 +256,7 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
     run); ``copy_id_base`` offsets the minted copy ids so several families' logs concatenate without a
     rewrite (the parallel engine passes ``family << 30``). Mirrors the serial loop's inner event
     handling, scoped to this family's footprint (the lineages it occupies)."""
-    from .family import GeneCopy, _at_cap, _duplicate, _lose_at, _pick_copy   # package helpers; no cycle
+    from .family import GeneCopy, _at_cap, _duplicate, _lose_at   # package helpers; no cycle
 
     tree, dup, tra, los = ctx.tree, ctx.dup, ctx.tra, ctx.los
     transfer_to, replacement, self_transfer = ctx.transfer_to, ctx.replacement, ctx.self_transfer
@@ -238,6 +264,8 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
     birth_times, birth_nodes = ctx.birth_times, ctx.birth_nodes
     death_times, death_nodes = ctx.death_times, ctx.death_nodes
     cross2 = ctx.cross2
+    trajs, to_traj, group_of, driven = ctx.trajs, ctx.to_traj, ctx.group_of, ctx.driven
+    any_driven = bool(trajs)
 
     mult = _family_mults(rng, family_speed, fam_by)
     m_dup, m_tra, m_los = mult["duplication"], mult["transfer"], mult["loss"]
@@ -296,14 +324,38 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
         advance_contemp(t)
         k_alive = len(contemp)
         can_xfer = total > 0 and (k_alive >= 2 or self_transfer)
-        r_dup = dup.effective(copies=total, lineages=1, time=t) * m_dup if total else 0.0
-        r_los = los.effective(copies=total, lineages=1, time=t) * m_los if total else 0.0
-        r_tra = tra.effective(copies=total, lineages=1, time=t) * m_tra if can_xfer else 0.0
+        # A driven rate is per lineage: it reads the driver on the branch, so it cannot be pooled over
+        # the family's copies. Summed over the lineages this family occupies — its footprint, not the
+        # whole tree — and the same weights then draw which of them the event lands on, or the rate
+        # would say one thing and the picking another. The undriven rates stay pooled, so a run with
+        # no conditioning does exactly the arithmetic it did before.
+        w_dup = w_los = w_tra = None
+        if any_driven and alive:
+            values = [{key: trajs[key].value(alive[k], t) for key in trajs}
+                      for k in range(len(alive))]
+            if driven["duplication"]:
+                w_dup = [dup.effective(copies=len(gen[k]), lineages=1, time=t, drivers=values[k])
+                         * m_dup for k in range(len(alive))]
+            if driven["loss"]:
+                w_los = [los.effective(copies=len(gen[k]), lineages=1, time=t, drivers=values[k])
+                         * m_los for k in range(len(alive))]
+            if driven["transfer"] and can_xfer:
+                w_tra = [tra.effective(copies=len(gen[k]), lineages=1, time=t, drivers=values[k])
+                         * m_tra for k in range(len(alive))]
+        r_dup = (sum(w_dup) if w_dup is not None else
+                 dup.effective(copies=total, lineages=1, time=t) * m_dup if total else 0.0)
+        r_los = (sum(w_los) if w_los is not None else
+                 los.effective(copies=total, lineages=1, time=t) * m_los if total else 0.0)
+        r_tra = (sum(w_tra) if w_tra is not None else
+                 tra.effective(copies=total, lineages=1, time=t) * m_tra if can_xfer else 0.0)
         rate_total = r_dup + r_los + r_tra
 
         next_struct = next_valid_end()
         horizon = min(next_struct, dup.next_change(t), los.next_change(t), tra.next_change(t),
                       next_cross2(t))
+        if any_driven:   # a driven rate also changes when the driver switches on an occupied branch
+            horizon = min(horizon, min((trajs[key].next_change(alive[k], t) for key in trajs
+                                        for k in range(len(alive))), default=math.inf))
 
         if rate_total > 0.0:
             t_ev = t + float(rng.exponential(1.0 / rate_total))
@@ -311,12 +363,12 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
                 t = t_ev
                 r = float(rng.random()) * rate_total
                 if r < r_dup:
-                    k, j = _pick_copy(rng, gen, total)
+                    k, j = _pick_in(rng, gen, total, w_dup, r_dup)
                     if not _at_cap(gen[k], gen[k][j].family, cap):
                         _duplicate(gen[k], j, tree.nodes[alive[k]], t, events, new_copy)
                         total += 1
                 elif r < r_dup + r_los:
-                    k, j = _pick_copy(rng, gen, total)
+                    k, j = _pick_in(rng, gen, total, w_los, r_los)
                     _lose_at(gen[k], j, tree.nodes[alive[k]], t, events)
                     total -= 1
                     if not gen[k]:                          # the family left this lineage
@@ -327,9 +379,10 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
                     # event time before choosing a recipient — otherwise a dead or unborn lineage could
                     # be picked, and entering one with an end time behind t would rewind the clock.
                     advance_contemp(t)
+                    kd = None if w_tra is None else weighted_index(rng, w_tra, r_tra)
                     total += _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t,
                                               events, new_copy, transfer_to, replacement,
-                                              self_transfer, depth, cap)
+                                              self_transfer, depth, cap, to_traj, group_of, kd)
                 continue
 
         # advance to the horizon: a structural event (an occupied lineage ends) or a rate breakpoint
@@ -375,16 +428,41 @@ def _evolve_family(task):
     return fid, events, node_genomes
 
 
+def _pick_in(rng, gen, total, weights, weight_total):
+    """``(lineage index, copy index)`` for the lineage an event lands on and the copy within it.
+
+    ``weights is None`` — the undriven case — is the uniform pick over the family's whole copy pool,
+    unchanged. Driven, the lineage is drawn with the same per-lineage weights the rate was summed
+    with, and then a copy uniformly inside it, which is what makes the pick agree with the rate."""
+    from .family import _pick_copy
+
+    if weights is None:
+        return _pick_copy(rng, gen, total)
+    k = weighted_index(rng, weights, weight_total)
+    if not gen[k]:                       # only via weighted_index's r == total float guard
+        k = max(range(len(gen)), key=lambda i: weights[i])
+    return k, int(rng.integers(len(gen[k])))
+
+
 def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events, new_copy,
-                     transfer_to, replacement, self_transfer, depth, cap) -> int:
+                     transfer_to, replacement, self_transfer, depth, cap,
+                     to_traj=None, group_of=None, donor_k=None) -> int:
     """One transfer for the current family. Mirrors `_do_transfer()` exactly (donor
     continuation re-ids, optional homologous replacement, the cap thinning) but over this family's
-    footprint: the donor copy is a uniform pick across the family's copies, the recipient is a
-    contemporaneous lineage picked by ``transfer_to``, and a recipient the family had not reached is
-    entered into the footprint. Returns the change in copy count (+1 additive, 0 replacement/no-op)."""
+    footprint: the recipient is a contemporaneous lineage picked by ``transfer_to``, and a recipient
+    the family had not reached is entered into the footprint. Returns the change in copy count
+    (+1 additive, 0 replacement/no-op).
+
+    The donor copy is a uniform pick across the family's copies, except under a **driven** transfer
+    rate, where the caller has already drawn the donor lineage with the rate's own weights and passes
+    it as ``donor_k`` — a driven transfer weights who donates. ``to_traj`` / ``group_of`` are the
+    recipient-side weightings, read here at the instant the transfer fires."""
     from .family import _at_cap, _pick_copy
 
-    kd, jd = _pick_copy(rng, gen, total)                   # a uniform donor copy across the family
+    if donor_k is None:
+        kd, jd = _pick_copy(rng, gen, total)               # a uniform donor copy across the family
+    else:
+        kd, jd = donor_k, int(rng.integers(len(gen[donor_k])))
     donor = alive[kd]
     src = gen[kd][jd]
     fam = src.family
@@ -393,7 +471,8 @@ def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events
     cand = [k for k in range(len(contemp_list)) if self_transfer or contemp_list[k] != donor]
     if not cand:
         return 0
-    kr = recipient_index(rng, tree, contemp_list, cand, donor, t, transfer_to, depth)
+    kr = recipient_index(rng, tree, contemp_list, cand, donor, t, transfer_to, depth,
+                         to_traj, group_of)
     if kr is None:                                         # nobody can receive (weighting thinning)
         return 0
     recipient = contemp_list[kr]
@@ -506,7 +585,8 @@ def _stream_chunk(task):
 
 def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, self_transfer,
                         initial_families, family_names, family_speed, cap, seed, parallel,
-                        progress, stream_to=None, outputs=None):
+                        progress, stream_to=None, outputs=None,
+                        trajs=None, to_traj=None, group_of=None, driven=None):
     """Run the per-family engine. Returns a `FamilyGenomesResult` (the in-memory
     merge), or a `StreamedRun` when ``stream_to`` is a directory — each family written straight
     to disk, for a scale a whole result would not hold. Returns ``None`` (a loud fallback to the serial
@@ -534,14 +614,17 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
             raise ValueError(f"unknown stream outputs {unknown}; choose from {list(_STREAM_OUTPUTS)}")
 
     workers = guard_pool_workers(resolve_workers(parallel))
+    driven = driven or {}
     ctx = prepare_family_context(
         tree, dup=dup, tra=tra, los=los, transfer_to=transfer_to, replacement=replacement,
-        self_transfer=self_transfer, cap=cap, family_speed=family_speed)
+        self_transfer=self_transfer, cap=cap, family_speed=family_speed,
+        trajs=trajs, to_traj=to_traj, group_of=group_of, driven=driven)
 
     # Pass 1: who originates, and where. One reserved stream for it; one per family after.
     root_ss = np.random.SeedSequence(seed)
     families_meta, named = _enumerate_families(
-        tree, org, initial_families, family_names, np.random.default_rng(root_ss.spawn(1)[0]))
+        tree, org, initial_families, family_names, np.random.default_rng(root_ss.spawn(1)[0]),
+        trajs=trajs, driven=driven.get("origination", False))
     n_families = len(families_meta)
     family_seeds = root_ss.spawn(n_families) if n_families else []
     per_family = [(fid, lin, bt, family_seeds[k]) for k, (fid, lin, bt) in enumerate(families_meta)]
