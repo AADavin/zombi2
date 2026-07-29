@@ -187,6 +187,6 @@ def test_the_cap_is_on_by_default(tree):
     real family reaches rather than a biologically tuned one."""
     import inspect
     sig = inspect.signature(genomes.simulate_genomes_ordered)
-    assert sig.parameters["max_family_size"].default == 1000
+    assert sig.parameters["max_family_size"].default == 10
     assert inspect.signature(genomes.simulate_genomes_family).parameters[
-        "max_family_size"].default == 1000
+        "max_family_size"].default == 10

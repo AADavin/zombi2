@@ -79,12 +79,13 @@ _DEFAULT_INITIAL_FAMILIES = 100
 # mistaken for setting it.
 #: The per-genome family cap, the same default the two engines carry: how many copies of ONE family
 #: one genome may hold. Duplication compounds, so a run is bounded unless you ask otherwise;
-#: `--max-family-size none` is that ask. It is a runaway rail, not a modelling choice — the largest
-#: real gene families run to a few hundred copies, so 1000 stops an explosion without shaping an
-#: ordinary run. (It replaces `PerLineage(10)`, which resolved to 10 × the node count of the species
-#: tree — roughly 90 on a five-tip tree and 1470 on a fifty-tip one, i.e. a bound whose value moved
-#: with a number the user never chose. 1000 sits inside the band that occupied on real trees.)
-_DEFAULT_MAX_FAMILY_SIZE = 1000
+#: `--max-family-size none` is that ask. Ten is a genome-shaped number — most families in a real
+#: genome are single-copy and the big ones run to tens — so the default says what an ordinary genome
+#: looks like rather than merely catching an explosion. Raise it, or lift it with `none`, when the
+#: model is about the large families. (It reads as `PerLineage(10)` did, which is the point: that
+#: spelling resolved to 10 × the node count of the species tree — 1470 on a 147-node tree — so the
+#: number here was never the number that applied.)
+_DEFAULT_MAX_FAMILY_SIZE = 10
 
 _NOT_IN_NUCLEOTIDE = (("initial_families", None), ("replacement", False),
                       ("max_family_size", _DEFAULT_MAX_FAMILY_SIZE), ("family_speed", None))
