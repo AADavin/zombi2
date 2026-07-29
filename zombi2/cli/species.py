@@ -111,9 +111,14 @@ def run(args, parser):
     n_total = len(result.complete_tree.nodes)
     n_leaves = len([n for n in result.complete_tree.nodes.values() if n.children is None])
     n_extinct = len(result.complete_tree.extinct())
+    n_unsampled = len(result.complete_tree.unsampled())
     parts = [f"{n_extant} extant"]
     if n_extinct:
         parts.append(f"{n_extinct} extinct")
+    # under --sampling these are survivors the run did not observe; without them the parts do not
+    # add up to the tip count printed beside them, which reads as arithmetic going wrong
+    if n_unsampled:
+        parts.append(f"{n_unsampled} unsampled")
     if result.fossils:
         parts.append(f"{len(result.fossils)} fossils")
     summary = " + ".join(parts) + f" ({n_leaves} tips, {n_total} nodes)"
