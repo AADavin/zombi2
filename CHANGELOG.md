@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-07-29
+
 ### Added
 - **The extant-only reconciliation** — `zombi2 tools format DIR --format recphylo --recphylo extant`
   writes the simulated history projected onto what a *dataset* holds: the extant gene tree inside the
