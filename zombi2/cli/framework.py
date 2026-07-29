@@ -202,8 +202,9 @@ def _add_parallel_arg(g) -> None:
                         "family (genomes) or a gene tree (sequences). Bare --parallel uses every "
                         "core; --parallel N uses N workers; omitted runs serially (the default). It "
                         "is a separate engine: the result is identical for any worker count but "
-                        "differs from a serial run for the same seed (both valid). Worth it for a "
-                        "large run — long sequences, many families — and a loss for a small one")
+                        "differs from a serial run for the same seed (both valid). Conditioned rates "
+                        "(DrivenBy) run here too. Worth it for a large run — long sequences, many "
+                        "families — and a loss for a small one")
 
 
 def parallel_from_args(args, parser):
