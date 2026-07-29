@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from ..rates.mapping import Between
 from ..rates.modifiers import DrivenBy
 from ..species import _weighted_index
+from ..tree import node_label
 
 
 @dataclass(frozen=True)
@@ -105,7 +106,9 @@ def _resolve_node(tree, spec) -> int:
     else:
         raise ValueError(f"a clade reference must be a node id (int) or an 'n<id>' label, got {spec!r}")
     if nid not in tree.nodes:
-        raise ValueError(f"clade reference n{nid} is not a lineage of this tree")
+        raise ValueError(
+            f"clade reference {node_label(nid, tree.nodes[nid].fate if nid in tree.nodes else None)}"
+            f" is not a lineage of this tree")
     return nid
 
 
@@ -152,7 +155,8 @@ def resolve_groups(tree, groups) -> dict:
         for i in _subtree(tree, root):
             if i in claimed and claimed[i] != label:
                 raise ValueError(
-                    f"clades {claimed[i]!r} and {label!r} overlap at n{i}; groups must be disjoint — "
+                    f"clades {claimed[i]!r} and {label!r} overlap at "
+                    f"{node_label(i, tree.nodes[i].fate)}; groups must be disjoint — "
                     f"is one clade nested inside the other?")
             claimed[i] = label
             group_of[i] = label

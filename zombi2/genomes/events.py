@@ -90,7 +90,7 @@ def gene_label(copy_id: int | None) -> str:
     return "" if copy_id is None else f"g{copy_id}"
 
 
-def copy_label(species: int | None, copy_id: int | None) -> str:
+def copy_label(species: int | None, copy_id: int | None, fate: str | None = None) -> str:
     """A gene copy **where it sits**: ``n<species>_g<copy>``, the token every file naming a copy of a
     known species uses — the gene-tree and phylogram leaves, the alignment FASTA records and the
     homology tables.
@@ -101,7 +101,7 @@ def copy_label(species: int | None, copy_id: int | None) -> str:
     the alignments back to ``genomes.tsv`` themselves. The two halves are each still their own label,
     so splitting on the single ``_`` recovers them; ``_`` rather than ``|`` because a FASTA record
     name goes on to be parsed by aligners and tree builders that treat ``|`` as a field separator."""
-    return f"{node_label(species)}_{gene_label(copy_id)}"
+    return f"{node_label(species, fate)}_{gene_label(copy_id)}"
 
 
 def gene_from_label(cell: str) -> int:
@@ -115,27 +115,41 @@ def gene_from_label(cell: str) -> int:
 EVENTS_HEADER = "\t".join(_COLS)
 
 
-def _cell(e: Event, col: str) -> str:
+def _name(names: "dict[int, str] | None", node_id: int | None) -> str:
+    """One node's written name: from the run's ``names`` map when there is one, else plain ``n<id>``.
+
+    The map is the only thing that knows a lineage died, so a writer that can name a dead branch takes
+    it; one that provably cannot (a profile's columns, an alignment's records — extant tips both) does
+    not need to, and gets the same answer without it."""
+    return node_label(node_id) if names is None or node_id is None else names[node_id]
+
+
+def _cell(e: Event, col: str, names: dict[int, str] | None) -> str:
     v = getattr(e, col)
     if v is None:
         return ""
     if col in _NODE_COLS:
-        return node_label(v)
+        return _name(names, v)
     if col in _GENE_COLS:
         return gene_label(v)
     return str(v)
 
 
-def event_rows(events: list[Event]) -> list[str]:
+def event_rows(events: list[Event], names: dict[int, str] | None = None) -> list[str]:
     """The event rows **without** the header — one tab-joined line per event. The one row format, so a
     streamed per-worker shard and `events_tsv()` cannot drift; the shard writes only rows and the
-    finalize prepends `EVENTS_HEADER` once."""
-    return ["\t".join(_cell(e, c) for c in _COLS) for e in events]
+    finalize prepends `EVENTS_HEADER` once.
+
+    ``names`` is the run's node names (`Tree.labels()`) — needed because a lineage that went
+    extinct is written ``e<id>``, and an event log names *every* branch, the dead ones included.
+    Omitting it names them all ``n<id>``, which is right only where no dead branch can appear."""
+    return ["\t".join(_cell(e, c, names) for c in _COLS) for e in events]
 
 
-def events_tsv(events: list[Event]) -> str:
-    """The event log as TSV — one row per event; empty cells for the fields a kind does not use."""
-    return "\n".join([EVENTS_HEADER, *event_rows(events)]) + "\n"
+def events_tsv(events: list[Event], names: dict[int, str] | None = None) -> str:
+    """The event log as TSV — one row per event; empty cells for the fields a kind does not use.
+    ``names`` as in `event_rows()`."""
+    return "\n".join([EVENTS_HEADER, *event_rows(events, names)]) + "\n"
 
 
 def events_from_tsv(text: str) -> list[Event]:
