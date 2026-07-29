@@ -1,11 +1,12 @@
-"""Tests for :mod:`zombi2.tools.homology` — the ortholog / paralog / xenolog classifier.
+"""Tests for :mod:`zombi2.tools.homology` — the event at every gene pair's common ancestor.
 
 Two genes are related on two axes. **How they diverged** is the event at their most-recent common
-ancestor: a speciation makes them orthologs (``O``), a duplication or a transfer — both of which turn
-one gene into two — paralogs (``P``). **Whether transfer is in their history** is a fact about the
-whole path: an ``x`` suffix when a transfer sits between the common ancestor and either gene. Because
-ZOMBI records every event on the tree, both are exact, so these tests pin them on hand-built trees and
-then cross-check the whole matrix against a naive pairwise-LCA oracle on real runs."""
+ancestor: ``S`` speciation, ``D`` duplication, ``T`` transfer. **Whether transfer is in their history
+since** is a fact about the whole path: an ``x`` suffix when a transfer sits between the common
+ancestor and either gene — never on a ``T``, whose divergence *is* a transfer. The table states the
+event rather than reading it as ortholog or paralog, because the readings disagree; see the Tools
+appendix. Because ZOMBI records every event on the tree, both axes are exact, so these tests pin them
+on hand-built trees and then cross-check the whole matrix against a naive pairwise-LCA oracle."""
 
 import pytest
 
@@ -47,13 +48,13 @@ def test_mrca_event_maps_to_the_relation():
     def rel(a, b):
         return m[idx[a]][idx[b]]
 
-    assert rel("n3_g10", "n4_g11") == "O"                         # MRCA is the speciation
-    # the transfer's own two children: one gene became two (P), and one of them moved (x)
-    assert rel("n5_g20", "n6_g21") == "Px"
+    assert rel("n3_g10", "n4_g11") == "S"                         # MRCA is the speciation
+    # the transfer's own two children — the divergence IS the transfer, so no x for it
+    assert rel("n5_g20", "n6_g21") == "T"
     for a in ("n3_g10", "n4_g11"):                                # MRCA of any cross pair is the root
         for b in ("n5_g20", "n6_g21"):
             # ...a duplication — and n6_g21 is the copy that moved, so pairs with it carry the x
-            assert rel(a, b) == ("Px" if b == "n6_g21" else "P")
+            assert rel(a, b) == ("Dx" if b == "n6_g21" else "D")
 
 
 def test_a_transferred_gene_is_a_xenolog_of_everything_it_meets():
@@ -69,17 +70,17 @@ def test_a_transferred_gene_is_a_xenolog_of_everything_it_meets():
     labels, m = homology_table(root)
     rel = {(labels[i], labels[j]): m[i][j] for i in range(4) for j in range(4)}
 
-    assert rel[("n3_g1", "n4_g2")] == "O"             # both vertical: plain orthologs
-    assert rel[("n3_g1", "n2_g3")] == "O"             # the kept copy never moved, so this is too
-    assert rel[("n4_g2", "n2_g3")] == "O"
-    assert rel[("n2_g3", "n3_g4")] == "Px"            # kept vs sent: one gene became two, one moved
-    assert rel[("n3_g1", "n3_g4")] == "Ox"            # SAME GENOME — used to read a plain O
-    assert rel[("n4_g2", "n3_g4")] == "Ox"
+    assert rel[("n3_g1", "n4_g2")] == "S"             # both vertical, diverged at a speciation
+    assert rel[("n3_g1", "n2_g3")] == "S"             # the kept copy never moved, so this is too
+    assert rel[("n4_g2", "n2_g3")] == "S"
+    assert rel[("n2_g3", "n3_g4")] == "T"             # kept vs sent: the transfer itself
+    assert rel[("n3_g1", "n3_g4")] == "Sx"            # SAME GENOME — used to read a plain O
+    assert rel[("n4_g2", "n3_g4")] == "Sx"
 
 
-def test_two_genes_in_one_genome_are_never_plain_orthologs(seeded_run):
-    # no orthology method can call two genes of the same genome orthologs, so an answer key that
-    # does scores the method wrong. Same genome ⇒ a duplication or a transfer put them there.
+def test_two_genes_in_one_genome_never_read_as_a_plain_speciation(seeded_run):
+    # they are in one genome, so a duplication or a transfer put them there — the divergence may
+    # still be a speciation (a gene that left and came back), but then transfer is in the history
     plain_O = 0
     for gt in seeded_run.gene_trees.values():
         if gt.extant is None:
@@ -88,8 +89,8 @@ def test_two_genes_in_one_genome_are_never_plain_orthologs(seeded_run):
         for i in range(len(labels)):
             for j in range(i + 1, len(labels)):
                 if labels[i].split("_")[0] == labels[j].split("_")[0]:
-                    assert m[i][j] != "O", (labels[i], labels[j])
-                    plain_O += m[i][j] == "Ox"
+                    assert m[i][j] != "S", (labels[i], labels[j])
+                    plain_O += m[i][j] == "Sx"
     assert plain_O > 0                                # the run really did transfer within a genome
 
 
@@ -131,15 +132,15 @@ def test_tsv_is_a_square_grid_with_a_blank_corner():
     text = homology_tsv(root)
     lines = text.rstrip("\n").split("\n")
     assert lines[0] == "\tn2_g10\tn3_g11"                         # blank corner, then the headers
-    assert lines[1] == "n2_g10\t-\tO"
-    assert lines[2] == "n3_g11\tO\t-"
+    assert lines[1] == "n2_g10\t-\tS"
+    assert lines[2] == "n3_g11\tS\t-"
 
 
 def _naive_matrix(root: GeneNode):
     """A deliberately simple oracle: leaf order + parent pointers, then walk both leaves to the root
     and take the first shared ancestor. Slower and obviously correct — the check the fast set-based
     :func:`homology_table` must agree with."""
-    relation = {"speciation": "O", "duplication": "P", "transfer": "P"}
+    relation = {"speciation": "S", "duplication": "D", "transfer": "T"}
     leaves, parent, moved, stack = [], {}, set(), [root]
     while stack:
         n = stack.pop()
@@ -166,8 +167,11 @@ def _naive_matrix(root: GeneNode):
             chain_b = ancestors(leaves[b])
             lca = next(x for x in chain_b if id(x) in seen)
             # walk each leaf up to the LCA, counting the transfers it descends through
-            hgt = any(id(x) in moved for chain in (chain_a, chain_b)
-                      for x in chain[:chain.index(lca)])
+            # a transfer AT the divergence is what T already says, so its own arrival child does
+            # not count; the suffix marks a transfer SINCE
+            skip = {id(c) for c in lca.children} if lca.kind == "transfer" else set()
+            hgt = any(id(x) in moved and id(x) not in skip
+                      for chain in (chain_a, chain_b) for x in chain[:chain.index(lca)])
             m[a][b] = m[b][a] = relation[lca.kind] + ("x" if hgt else "")
     return m
 

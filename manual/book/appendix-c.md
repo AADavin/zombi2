@@ -17,7 +17,8 @@ intergenic spacer is not a gene, so it gets none. `--from PATH` reads a run that
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
-| Homology matrix | `homology_fam<f>.tsv` | TSV | `--format homology` | one **n×n** table per family (n the extant leaves), in `genomes/homology/`. Row and column headers are the leaves `n<species>_g<copy>`; each off-diagonal cell is that pair's relation — `O`, `P`, `Ox` or `Px` (see below) — and the diagonal is `-`. Symmetric. A family with no surviving copy writes no table |
+| Homology matrix | `homology_fam<f>.tsv` | TSV | `--format homology` | one **n×n** table per family (n the extant leaves), in `genomes/homology/`. Row and column headers are the leaves `n<species>_g<copy>`; each off-diagonal cell says how that pair diverged and whether transfer is in its history since — `S`, `D` or `T`, each optionally with an `x` (see below) — and the diagonal is `-`. Symmetric. A family with no surviving copy writes no table |
+| Marker table | `markers.tsv` | TSV | `--format markers` | **one row per family** for the whole run, in `genomes/markers/`: is it single-copy, is it universal, and does its true tree match the species tree. The answer to "which families can I build a species tree from?" — see below |
 | recPhyloXML | `recphylo_fam<f>.xml` | XML | `--format recphylo` | one file per family, in `genomes/recphylo/`: that family's **complete** gene tree written inside the **complete** species tree, in the recPhyloXML format. Written for every family, extinct ones included |
 
 Both are exact, not inferred. ZOMBI simulated each gene tree's embedding in the species tree, so
@@ -30,42 +31,104 @@ Two genes are related on **two independent axes**, and a cell carries both.
 
 **How they diverged** — the event at their most-recent common ancestor:
 
-- `O` — a **speciation**: one gene, and the species carrying it split in two. They are **orthologs**.
-- `P` — a **copying**: one gene became two. They are **paralogs**. Either a duplication, which copies
-  within a genome, or a transfer, which copies into another lineage — both leave two genes where
-  there was one, which is what the letter says.
+- `S` — a **speciation**: one gene, and the species carrying it split in two.
+- `D` — a **duplication**: one gene became two inside one genome.
+- `T` — a **transfer**: one gene became two, in two different lineages.
 
-**Whether transfer is in their history** — an `x` suffix, when a transfer sits anywhere on the path
-from that common ancestor down to *either* gene. Those two genes are **xenologs** as well.
+**Whether transfer is in their history since** — an `x` suffix, when a transfer sits on the path from
+that common ancestor down to *either* gene. A pair that diverged **at** a transfer is already `T`, so
+it takes no suffix for that transfer; `Tx` would mean a *second* one further down.
 
-So a cell reads `O`, `P`, `Ox` or `Px`.
+So a cell reads `S`, `D` or `T`, each optionally with an `x`.
 
-The two axes are separate because they answer different questions and the answers are not exclusive.
-Divergence is a property of one *node*; xenology is a property of the whole *path*, which is how
-Fitch defined it — a pair can perfectly well have diverged at a speciation and then had one of its
-two genes carried elsewhere by a transfer. Here is the smallest case, species `((a, b), c)`, where
-`c` donates a copy of its gene into `a`, so `a` ends up holding two:
+The table states **the event, not an interpretation of it**. ZOMBI knows the event exactly, because
+it recorded the history rather than inferring it; "ortholog" and "paralog" are a reading laid over
+that event, and — as the section below sets out — several published definitions read it differently.
+Giving you the event lets you apply whichever definition you work with; giving you a verdict would
+quietly apply ours.
+
+Here is the smallest interesting case: species `((a, b), c)`, where `c` donates a copy of its gene
+into `a`, so `a` ends up holding two.
 
 ```
           n3_g1    n4_g2    n2_g3    n3_g4      n3 = a,  n4 = b,  n2 = c
-  n3_g1       -        O        O       Ox      g4 = the copy c sent to a
-  n4_g2       O        -        O       Ox      g3 = the copy c kept
-  n2_g3       O        O        -       Px
-  n3_g4      Ox       Ox       Px        -
+  n3_g1       -        S        S       Sx      g4 = the copy c sent to a
+  n4_g2       S        -        S       Sx      g3 = the copy c kept
+  n2_g3       S        S        -        T
+  n3_g4      Sx       Sx        T        -
 ```
 
-Every pair involving `g4`, the arrival, carries the `x`; no other pair does. In particular the copy
-`c` **kept** (`g3`) never went anywhere, so it relates to `a` and `b` by ordinary vertical descent —
-only the gene that moved has transfer in its history. And `n3_g1` against `n3_g4` is a pair of genes
-**in the same genome** reading `Ox`: they diverged when `a` and `c` split, and one of them came back
-by transfer. That is the pattern worth being careful about when scoring an orthology method, because
-no method can ever call two genes of one genome orthologs.
+Every pair involving `g4`, the arrival, carries the `x`; no other pair does. The copy `c` **kept**
+(`g3`) never went anywhere, so it relates to `a` and `b` by ordinary vertical descent — only the gene
+that moved has transfer in its history. And `n3_g1` against `n3_g4` — two genes **in the same
+genome** — reads `Sx`: they diverged when `a` and `c` split, and one of them came back by transfer.
 
 The table is read off each family's **complete** gene tree, not its pruned one. The pairs and the
 divergence letters are the same either way, but the `x` is a fact about the path: a transfer whose
 donor-side copy left no surviving descendant becomes a degree-two node in the pruned tree and is
 suppressed, taking the record of the transfer with it. On an ordinary run that is a fifth of all
 cells.
+
+### If you came here looking for orthologs
+
+Reasonably, and this is the section for you — because ZOMBI2 deliberately does not print the word.
+
+When people ask for "the orthologs" they usually want one of three different things:
+
+1. **Genes to build a species tree from** — one copy per genome, with a history that *is* the species
+   history. This is the phylogenomics use, and the one ZOMBI2 answers directly: it is the **marker
+   table** below, not the homology matrix.
+2. **The same gene in another species**, for carrying annotation across. That is a claim about
+   *function*. ZOMBI2 does not model function, so it cannot answer it and does not pretend to.
+3. **Related by descent without duplication** — Fitch's definition, which is what the homology matrix
+   reports, spelled as the event rather than the word.
+
+The reason for spelling it as the event is that the definitions genuinely disagree, and most of them
+need something a pair of genes does not carry. Fitch's relation is not one-to-one: after a
+duplication in one lineage, *both* copies are orthologs of the single gene in the sister lineage — its
+co-orthologs — so "the ortholog of gene X" is usually a set, not a gene. Paralogy is relative to a
+reference speciation: the same two genes are in-paralogs or out-paralogs depending on which split you
+are asking about. The label even depends on the *model* you fit — reconcile a gene tree under
+duplication and loss alone and there is no transfer category at all, so a history that was a transfer
+is explained as a duplication plus losses, and a xenologous pair comes out paralogous. And the
+graph-based definitions the widely used tools implement (reciprocal best hits, clustering) are
+approximations to the phylogenetic one that are known to drift from it.
+
+Every one of those is the event at the common ancestor **plus a choice** — a reference speciation, a
+clade, a model, a threshold. ZOMBI2 gives you the event, which is the part it knows exactly and the
+part that is genuinely a property of the pair; the choice stays yours.
+
+### The marker table
+
+`--format markers` answers the first question above, and it is a question about a **family**, not
+about a pair: *can I put this one in a concatenation and trust the tree that comes out?* One row per
+family that left a surviving copy:
+
+| Column | Meaning |
+|---|---|
+| `family` | the family id |
+| `genomes` · `copies` | how many extant genomes carry it, and how many copies in total |
+| `single_copy` | every genome that has it has exactly one — so there is no choosing which copy to align |
+| `universal` | every extant genome has it (the criterion a BUSCO-style marker set is built on) |
+| `duplications` · `transfers` · `losses` | the family's own history, dead lineages included |
+| `rf` | Robinson–Foulds distance between the family's true gene tree, each gene read as the genome it sits in, and the species tree **restricted to those genomes** — so a family present in half the tree is judged against the half it occupies. Empty where it would mean nothing: several copies in one genome (no one-to-one gene→genome map) or fewer than three genomes (no clade to disagree about) |
+| `congruent` | `rf` is 0 — the family recovers the species tree exactly |
+
+The last two are what the table is for. **A family can be single-copy *and* universal and still give
+the wrong tree** — a duplication followed by loss of the other copy in each descendant, or a transfer
+that replaced the resident gene. That is hidden paralogy, and in real data it is invisible: it passes
+every filter you would apply and quietly poisons the concatenation. Here it is a column. On a
+transfer-rich run with replacing transfers, 111 of 299 families came out single-copy and universal —
+and 106 of those did **not** recover the species tree.
+
+```bash
+# every family that would make a trustworthy marker
+zombi2 tools format out/ --format markers
+awk -F'\t' 'NR==1 || ($4=="yes" && $5=="yes" && $10=="yes")' out/genomes/markers/markers.tsv
+```
+
+`rf` is the same distance `zombi2 tools treedist` reports, on the same rooted-clade convention, so
+the two agree — checked on real families in the test suite.
 
 ### recPhyloXML
 
