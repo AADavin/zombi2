@@ -21,7 +21,7 @@ from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simula
 from zombi2.genomes.nucleotide import WIRED_MODIFIERS as _NUC_WIRED
 from zombi2.rates.parse import parse_rate, written_form
 from zombi2.rates.scope import Global, PerLineage
-from zombi2.tree import read_newick
+from zombi2.tree import node_label, read_newick
 from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
                                   _read_tip_fates, _write_params_log, check_stale_downstream,
@@ -481,12 +481,12 @@ def run(args, parser):
             f.write(complete_tree.to_newick() + "\n")
         # write the fate table beside the canonical tree too, so a later level on this run reads each
         # tip's fate from the record instead of guessing it from depth (matching a species run's output)
-        fate_rows = ["lineage\tfate"] + [f"n{n.id}\t{n.fate}"
+        fate_rows = ["lineage\tfate"] + [f"{node_label(n.id)}\t{n.fate}"
                                          for n in sorted(complete_tree.leaves(), key=lambda x: x.id)]
         with open(os.path.join(species_dir, "species_fates.tsv"), "w", encoding="utf-8") as f:
             f.write("\n".join(fate_rows) + "\n")
     if names:  # an external tree: map ZOMBI's n<id> back to the user's labels (join on profiles cols)
-        rows = ["node\tname"] + [f"n{i}\t{lbl}" for i, lbl in sorted(names.items())]
+        rows = ["node\tname"] + [f"{node_label(i)}\t{lbl}" for i, lbl in sorted(names.items())]
         with open(os.path.join(out, "names.tsv"), "w", encoding="utf-8") as f:
             f.write("\n".join(rows) + "\n")
 

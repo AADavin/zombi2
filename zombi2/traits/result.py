@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from functools import cached_property
 
 
-from ..tree import Tree
+from ..tree import Tree, node_label
 
 _WRITE_OUTPUTS = ("values", "events", "tree")  # write vocabulary; "events" = the trait event log
 
@@ -123,13 +123,13 @@ def _trait_newick(tree: "Tree", node_values: dict) -> str:
     def emit(i: int) -> str:
         node = tree.nodes[i]
         bl = node.end_time - node.birth_time
-        tag = f"n{i}{_trait_annotation(node_values[i])}"
+        tag = f"{node_label(i)}{_trait_annotation(node_values[i])}"
         if node.children is None:
             return f"{tag}:{bl:.7g}"
         return f"({','.join(emit(c) for c in node.children)}){tag}:{bl:.7g}"
 
     root = tree.nodes[tree.root]
-    tag = f"n{tree.root}{_trait_annotation(node_values[tree.root])}"
+    tag = f"{node_label(tree.root)}{_trait_annotation(node_values[tree.root])}"
     stem = root.end_time - root.birth_time
     if root.children is None:
         return f"{tag}:{stem:.7g};"
@@ -145,11 +145,11 @@ def _values_tsv(values: dict[int, object]) -> str:
         cols = list(next(iter(values.values())))
         rows = ["node\t" + "\t".join(str(c) for c in cols)]
         for i in sorted(values):
-            rows.append(f"n{i}\t" + "\t".join(_fmt(values[i][c]) for c in cols))
+            rows.append(f"{node_label(i)}\t" + "\t".join(_fmt(values[i][c]) for c in cols))
         return "\n".join(rows) + "\n"
     rows = ["node\ttrait"]
     for i in sorted(values):
-        rows.append(f"n{i}\t{_fmt(values[i])}")
+        rows.append(f"{node_label(i)}\t{_fmt(values[i])}")
     return "\n".join(rows) + "\n"
 
 
