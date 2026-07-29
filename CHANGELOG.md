@@ -9,6 +9,109 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **The extant-only reconciliation** — `zombi2 tools format DIR --format recphylo --recphylo extant`
+  writes the simulated history projected onto what a *dataset* holds: the extant gene tree inside the
+  extant species tree. The complete recPhyloXML is the truth and is not what a reconciliation method
+  should be scored against, because a method never sees it.
+
+  The projection keeps what is observable and drops what is not. A speciation where the gene followed
+  one daughter becomes **one** loss on the other, standing for however many really happened down
+  inside it, and disappears entirely when that daughter has no surviving descendant. A duplication
+  whose second copy died disappears: both copies sat on one branch. A transfer whose donor left no
+  survivor leaves the arriving copy appearing from nowhere; where it rejoins its surviving relatives
+  *is* the transfer, attributed to the branch they share.
+
+  Two files come out per family and the gap between them is the point. `_true` is rooted where the
+  family really originated, ancestral presence and the losses that narrowed it included — the answer
+  key for ancestral gene content. `_recoverable` is that trimmed back to the surviving copies' common
+  ancestor — the ceiling any method could reach. The first *contains* the second, so a scoring script
+  can grade either way from it, and only one way from the other. `family_origins.tsv` records how each
+  family entered (`origination`, or `transfer` from a lineage nobody can see), which the
+  reconciliation itself cannot show and recPhyloXML has no tag for.
+
+  Verified with a checker written against the trees rather than the builder — every node on a branch
+  the extant tree names, every speciation and duplication child at or below its parent, leaf set
+  identical to the extant gene tree — over three regimes and 71,000 nodes. It earned its keep: it
+  caught the transfer rule twice.
+- **`zombi2 sequences --stream`** writes each family's files as it finishes and keeps nothing. This is
+  the level where a run's memory goes — every alignment and every ancestral sequence live at once — so
+  what you can run was bounded by families × copies × sites rather than by time. At 200 species and
+  640 families: **466 MB in memory against 329 MB streamed at 300 sites, and 1008 MB against 392 MB at
+  1500**. The in-memory run grows with the sequences produced; the streamed one barely moves. It is a
+  memory choice and not a modelling one — the same seed leaves byte-identical files either way, on the
+  serial engine and on a real worker pool. Not available on a nucleotide run, which reassembles whole
+  genomes and so needs every block at once.
+- **`--strict`** on `species`, `genomes` and `sequences` refuses to fall back on an illustrative
+  default. A bare run still works and still warns, because that is what teaches a newcomer the shape
+  of a command — but in a pipeline that warning goes to a log nobody opens, so a dropped config key or
+  a `--params` file that failed to apply gave a *successful* run whose science was not the one asked
+  for.
+- **A genome result writes the species tree it ran along.** `result.write()` wrote gene trees,
+  profiles and events — every one of them indexed by that tree's node labels — and not the tree, so
+  the Python quickstart handed back a dataset with no ground truth in it and said nothing. The CLI
+  still keeps one canonical copy under `species/` rather than one per level.
+
+### Changed
+- **`max_family_size` is a plain number of copies in one genome** (breaking). It limits copies of one
+  family in a *single* genome, but was written with a scope, and `PerLineage(n)` resolved to `n` ×
+  the node count of the *species tree* — so the shipped default of `PerLineage(10)` was **1470 copies
+  in one genome on a 147-node tree**, and more on a bigger one. A per-genome bound that moves when you
+  add species is not a bound the person who set it can predict. Both old spellings are now refused
+  with the arithmetic each implied, so a stale script fails loudly instead of running at a cap
+  different from the one it reads; a float is refused rather than rounded. The default is **10**,
+  which changes nothing for realistic rates — a tuned bacterial run of 3000 families is byte-identical
+  at 10 and at the old effective 1470 — and constrains exactly the runs that were producing genomes
+  with eleven copies of a family.
+- **The `n_extant` stopping rule is written down.** The run stops the first moment that many lineages
+  are alive together, then advances the clock by one more waiting time. Under pure birth that is
+  exactly the general sampling approach (Hartmann, Wong & Stadler 2010, whose entry had been sitting
+  in `references.bib` uncited); **with extinction it is a first-hitting rule and the trees are
+  shallower** than the birth–death process conditioned on that many tips — measured at about a tenth
+  of the tree height at 10 tips with `death/birth = 0.4`, a third to a half at 0.8, and back in the
+  noise by 50 tips. Anyone estimating rates from these trees needs to know that, so the docstring and
+  Chapter 3 now say it.
+- **"Time runs forward from the origin", not "from the crown"** — sixteen places in the code said
+  crown where they meant the origin, contradicting the book's own definition two chapters earlier and
+  the specification. The crown is the first split; `t = 0` is the origin, at the top of the stem.
+- Appendix A no longer claims that mean-correcting a random modifier leaves the tree alone. It fixes
+  the per-split *factor*, not `E[N(t)]`: a branching process is convex in its rate, so standing
+  diversity **rises** with `spread` and a run can grow explosively.
+- `zombi2 tools format` prints its summary line under `--quiet`, like every other command. It alone
+  printed nothing, so a scripted run had to go looking on disk to learn whether it had written
+  anything.
+- `numpy` and `tqdm` gained upper version bounds, so a future major release cannot break an install
+  of a pinned ZOMBI2.
+
+### Fixed
+- **`--stream` crashed on every genome run.** The log's `write` line read a variable only the
+  in-memory branch set, so a streamed run printed its success line and *then* died with
+  `UnboundLocalError`, exit 1, having written no `genomes.log` — a `set -e` pipeline stopped after
+  apparently succeeding. It shipped broken because nothing in the CLI tests mentioned the flag.
+- **A run that sampled none of its survivors exited 0.** `sampling` can observe none of them, and the
+  run then has no present: `zombi2 species` wrote no `species_extant.nwk` and exited 0, after which
+  `zombi2 genomes` produced "0 gene families across 0 extant genomes", also at exit 0. In a batch of
+  replicates that is a silently empty dataset (about 1% of seeds at `--sampling 0.2 --n-extant 20`).
+  It is the same dead end the extinction guard already refuses, so it is refused the same way.
+- **`--force` deleted the downstream run in silence.** Its notice was suppressed by `--quiet` and went
+  to stdout. Every pipeline passes `--force`, because a re-run re-enters a directory that holds its
+  downstream, and most pass `--quiet` too — so the one command that deletes work you already have was
+  muted for exactly the caller who needed to hear it. It is a warning now: stderr, and not silenceable.
+- **Extant gene trees named an extinct lineage `n<id>`.** A transfer node sits on the *donor's* branch
+  and survives into the extant tree whenever the copy that moved has extant descendants, so a transfer
+  out of a lineage that later died was written `n30` where the complete tree says `e30` — a label
+  resolving in neither species tree file, on precisely the ghost-donor transfers a reconciliation
+  benchmark is about.
+- Ctrl-C printed a twenty-line traceback where every other error path gets a sentence. It is
+  `zombi2: interrupted` and exit 130.
+- The species run summary counts unsampled tips, so its parts add up to the tip count printed beside
+  them. `0 extant + 8 extinct (28 tips)` was arithmetic that did not work.
+- `zombi2 tools -h` advertised the homology table as `O`/`P` after 0.15.0 renamed it to the event, and
+  `tools format -h` ran its three format descriptions together into one sentence. The same help said
+  "Two `--format` choices" while listing three.
+- `--help` cited "SPEC §5" at users. The specification does not ship with the package, so the RATES
+  block explains itself instead.
+
 ## [0.15.0] - 2026-07-29
 
 ### Added
