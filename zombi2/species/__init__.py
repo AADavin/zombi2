@@ -74,7 +74,9 @@ class SpeciesResult:
     @functools.cached_property
     def extant_tree(self) -> Tree | None:
         """The survivors' tree — the complete tree pruned to extant lineages with the
-        unifurcations suppressed (dated, bifurcating). ``None`` if nothing survived."""
+        unifurcations suppressed (dated, bifurcating). ``None`` if nothing survived, which
+        ``simulate_species_tree`` refuses to return: a run with no present raises there instead, so a
+        result that came from it always has one."""
         return prune(self.complete_tree, keep="extant")
 
     def write(self, directory, outputs=None) -> None:
@@ -436,7 +438,20 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
 
     def _finish(tree: Tree, events: list[Event]) -> SpeciesResult:
         # observe (sampling relabels survivors) then recover fossils along the grown branches
+        alive = sum(1 for nd in tree.nodes.values() if nd.fate == "extant")
         _apply_sampling(tree, sampling, rng)
+        # Sampling can take none of them, and then the run has no present — the same dead end the
+        # extinction guard above refuses, reached by the other road. Refusing here too keeps the two
+        # "nothing observed" outcomes consistent: neither hands back a result whose extant tree is
+        # None for a downstream level to trip over. Only reachable with sampling < 1, since both
+        # callers guarantee a survivor before this point.
+        if not any(nd.fate == "extant" for nd in tree.nodes.values()):
+            raise RuntimeError(
+                f"sampling={sampling:g} observed none of the {alive} survivor"
+                f"{'' if alive == 1 else 's'}, so the run has no present to grow a genome, sequence "
+                f"or trait along. This is the sampling process, not a bad parameter — it has "
+                f"probability {(1 - sampling) ** alive:.3g} here — so raise sampling, ask for more "
+                f"survivors, or draw another seed.")
         return SpeciesResult(tree, events, seed, _recover_fossils(tree, fossils, rng))
 
     if total_time is not None:
