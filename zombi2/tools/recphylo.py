@@ -38,6 +38,8 @@ import pathlib
 
 from ..genomes.events import gene_label
 from ..genomes.gene_trees import GeneTree
+from ..tree import prune
+from .reconciliation import extant_reconciliation, origins_tsv, visible_branches
 
 #: gene-node kind → the recPhyloXML tag that ends its ``<eventsRec>``. Every kind a
 #: `GeneNode` can carry is here, so an unmapped one is a real gap
@@ -123,19 +125,65 @@ def recphylo_xml(gene_trees: dict[int, GeneTree], tree) -> str:
     return "\n".join(lines) + "\n"
 
 
-def write_recphylo(gene_trees: dict[int, GeneTree], tree, directory) -> str:
-    """Write ``recphylo_fam<family>.xml`` — one family per file — into ``directory``.
+def reconciliation_xml(root, extant_tree, fam: int) -> str:
+    """One ``<recPhylo>`` for an **extant-only** reconciliation: the extant species tree, then the
+    projected gene tree. Same serialiser as the complete case — the projection hands back an ordinary
+    `GeneNode` tree whose species are extant-tree branches, so nothing here is special-cased."""
+    lines = ["<recPhylo>", "  <spTree>", "    <phylogeny>"]
+    lines += _species_lines(extant_tree, 3)
+    lines += ["    </phylogeny>", "  </spTree>",
+              "  <recGeneTree>", "    <phylogeny rooted=\"true\">", f"      <name>fam{fam}</name>"]
+    lines += _gene_lines(root, 3, extant_tree.labels())
+    lines += ["    </phylogeny>", "  </recGeneTree>", "</recPhylo>"]
+    return "\n".join(lines) + "\n"
 
-    One file per family, like every other per-family output of a run, so a family can be handed to a
-    viewer on its own. Unlike the homology tables these are written for **every** family, extinct
-    ones included: the complete tree is the point, and a family that left no survivor still has a
-    history worth looking at. For all of them in one document instead, call `recphylo_xml()` with
-    the whole dictionary."""
+
+def write_recphylo(gene_trees: dict[int, GeneTree], tree, directory, *,
+                   scope: str = "complete") -> str:
+    """Write recPhyloXML into ``directory``, one family per file, as every other per-family output of
+    a run does — so a family can be handed to a viewer on its own.
+
+    ``scope`` picks which history:
+
+    - ``"complete"`` → ``recphylo_fam<family>.xml``, the whole simulated history inside the complete
+      species tree. Written for **every** family, extinct ones included: a family that left no
+      survivor still has a history worth looking at.
+    - ``"extant"`` → ``recphylo_fam<family>_{true,recoverable}.xml`` plus ``family_origins.tsv``, the
+      history projected onto what a dataset can hold. Only families with a surviving copy, because
+      the others are not in a dataset at all. See `zombi2.tools.reconciliation` for the two scopes and
+      why both are written.
+    - ``"both"`` → all of the above.
+    """
+    if scope not in ("complete", "extant", "both"):
+        raise ValueError(f"scope is 'complete', 'extant' or 'both', got {scope!r}")
     d = pathlib.Path(directory)
     d.mkdir(parents=True, exist_ok=True)
-    for fam, gt in sorted(gene_trees.items()):
-        (d / f"recphylo_fam{fam}.xml").write_text(recphylo_xml({fam: gt}, tree), encoding="utf-8")
-    return f"{len(gene_trees)} file(s)"
+    wrote = []
+    if scope in ("complete", "both"):
+        for fam, gt in sorted(gene_trees.items()):
+            (d / f"recphylo_fam{fam}.xml").write_text(recphylo_xml({fam: gt}, tree),
+                                                      encoding="utf-8")
+        wrote.append(f"{len(gene_trees)} file(s)")
+    if scope in ("extant", "both"):
+        extant_tree = prune(tree, keep="extant")
+        if extant_tree is None:
+            raise ValueError("no extant lineages, so there is no extant tree to reconcile against")
+        visible = visible_branches(tree)
+        origins: dict[int, object] = {}
+        n = 0
+        for fam, gt in sorted(gene_trees.items()):
+            for which in ("true", "recoverable"):
+                rec = extant_reconciliation(gt, tree, scope=which, visible=visible)
+                if rec is None:                     # no surviving copy: not in a dataset at all
+                    break
+                (d / f"recphylo_fam{fam}_{which}.xml").write_text(
+                    reconciliation_xml(rec.root, extant_tree, fam), encoding="utf-8")
+                if which == "true":
+                    origins[fam] = rec
+                    n += 1
+        (d / "family_origins.tsv").write_text(origins_tsv(origins), encoding="utf-8")
+        wrote.append(f"{n} extant pair(s) + origins")
+    return ", ".join(wrote)
 
 
-__all__ = ["recphylo_xml", "write_recphylo"]
+__all__ = ["recphylo_xml", "reconciliation_xml", "write_recphylo"]
