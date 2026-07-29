@@ -63,14 +63,18 @@ def _evolve_one(task):
 
 
 def evolve_families(gene_trees, per_block, model, intergene_model, length, rate_base, clock,
-                    founding_seed, family_seeds, workers, progress, names):
+                    founding_seed, family_seeds, workers, progress, names, sink=None):
     """Evolve every family concurrently and assemble the four output maps.
 
     ``family_seeds[i]`` is the spawned RNG stream for the *i*-th family in sorted order, so the family
     a result belongs to is fixed before any worker runs — the assignment is independent of which worker
     finishes when, which is what makes the run worker-count invariant. Genes and spacer are the only two
     models a run uses (``per_block`` maps each nucleotide block to one of them); everything else — the
-    per-block length, rate multiplier and founding seed — travels inside the task."""
+    per-block length, rate multiplier and founding seed — travels inside the task.
+
+    ``sink``, when given, is handed each family the moment its result arrives and the four maps are
+    left empty: that is the streamed run, where nothing family-sized is kept. Results come back in
+    family order either way, so streaming writes the same bytes the in-memory path would."""
     families = sorted(gene_trees)
     models = (model,) if per_block is None else (model, intergene_model)
     tasks = []
@@ -92,8 +96,11 @@ def evolve_families(gene_trees, per_block, model, intergene_model, length, rate_
 
     def _collect(results):
         for family, aln, anc, fnd, phylo in results:
-            alignments[family], ancestral[family] = aln, anc
-            founding[family], phylograms[family] = fnd, phylo
+            if sink is None:
+                alignments[family], ancestral[family] = aln, anc
+                founding[family], phylograms[family] = fnd, phylo
+            else:
+                sink(family, aln, anc, fnd, phylo)   # straight to disk; nothing is kept
             bar.update()
 
     n = len(families)
