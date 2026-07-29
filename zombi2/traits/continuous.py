@@ -218,7 +218,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     **every** lineage, extant and extinct alike, so the ancestral states are exact and complete; the
     observed dataset is the extant tips, ``result.values``.
 
-    ``start`` is the value at ``t = 0`` (the crown origin, ``root.birth_time``): the root lineage
+    ``start`` is the value at ``t = 0`` (the origin, ``root.birth_time``): the root lineage
     diffuses over its own branch ``[0, first split]`` like any other, so a trait and a genome evolve
     over the **same** branch set, and each node's stored value is the trait at that node's
     ``end_time`` (``node_values[root]`` is the value at the first split, not ``start``).

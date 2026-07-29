@@ -125,7 +125,9 @@ def _rates_help(wired, flag: str, *, scopes: str | None = None, note: str | None
 
     header = _BOLD + "RATES" + _RESET if _use_color() else "RATES"
     lines = [header,
-             "  Every rate is scope(base) × modifiers (SPEC §5) — a bare number, or the same",
+             # no cross-reference here: this block IS the explanation, and a reader in --help cannot
+             # follow a citation to a document that does not ship with the package
+             "  Every rate is scope(base) × modifiers — a bare number, or the same",
              "  expression you would write in Python, quoted:",
              "",
              f"    {flag} 1.0"]

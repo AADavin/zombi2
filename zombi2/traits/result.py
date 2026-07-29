@@ -15,11 +15,11 @@ _WRITE_OUTPUTS = ("values", "events", "tree")  # write vocabulary; "events" = th
 @dataclass(frozen=True)
 class Change:
     """A realized trait change — one entry of the event log, the trait twin of the genome level's
-    `Event`. On lineage ``lineage`` at ``time`` (crown-forward, the species-tree
+    `Event`. On lineage ``lineage`` at ``time`` (origin-forward, the species-tree
     clock) the state went from ``from_state`` to ``to_state``. ``kind`` is ``"on_branch"`` — a switch
     *along* a branch (an Mk transition) — ``"on_speciation"`` — a jump *at* a speciation node (from
     ``at_speciation``; for a continuous trait ``from_state`` / ``to_state`` are the pre- and post-jump
-    values) — or ``"root"``, one synthetic entry at the crown giving the **initial state** the run
+    values) — or ``"root"``, one synthetic entry at the origin giving the **initial state** the run
     started in (``from_state`` ``None``, ``time`` the root's ``birth_time``). That row is what lets the
     log stand on its own: the tree plus the root state plus the switches determines the trait on every
     lineage at every instant, so no separate driver file is needed."""
@@ -78,7 +78,7 @@ class TraitsResult:
         """Write chosen ``outputs`` to ``directory`` (created if needed): ``"values"`` →
         ``trait_values.tsv`` (the ``node<TAB>trait`` table over the extant tips); ``"events"`` →
         ``trait_events.tsv``, the event log (``time · kind · lineage · from · to``) — one ``root`` row
-        at the crown giving the initial state, then every switch in time order; ``"tree"`` →
+        at the origin giving the initial state, then every switch in time order; ``"tree"`` →
         ``trait_tree.nwk``, the complete tree as Newick with **every** node annotated ``[&trait=…]``
         (a *trait tree*, carrying the exact ancestral values; opens in FigTree / iTOL).
 

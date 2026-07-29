@@ -178,7 +178,7 @@ class EventPosition:
 
     Together with the genomes (``gene_order``) and the rearrangement log this is **sufficient to
     replay a run**: no join back to the genealogy is needed. A join is still possible — on
-    ``(time, lineage, kind)`` — but is not one-to-one, since the crown's founding originations all
+    ``(time, lineage, kind)`` — but is not one-to-one, since the origin's founding originations all
     fire at the same instant on the same lineage.
 
     Rows sharing a ``time`` apply **in the order written** — a replacing transfer displaces its
@@ -1002,7 +1002,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         cid = new_chromosome()
         initial_chroms.append(Chromosome(cid, label, []))
         chromosome_events.append(ChromosomeEvent(t, "origination", root.id, (), (cid,)))
-    # the crown's initial genome is logged like any other origination — each founding gene appended in turn —
+    # the origin's initial genome is logged like any other origination — each founding gene appended in turn —
     # so the position table is total over gene-content events and a replay of the root branch can
     # start from an empty karyotype (every other branch starts from its parent's gene_order rows)
     for i in range(initial_families):  # deal the founding genes round-robin across the chromosomes
