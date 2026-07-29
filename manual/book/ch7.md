@@ -77,7 +77,7 @@ The last row is close to the floor: two unrelated DNA sequences already match at
 You can also state the divergence and let ZOMBI2 do the division. `divergence` is that first column — substitutions per site from the root to a tip — and the rate is solved for from the height of the tree the run is about to use:
 
 ```python
-sequences.simulate_sequences(genomes, model=hky85(), length=1000, divergence=0.2)
+sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, divergence=0.2)
 ```
 
 ```bash
@@ -176,7 +176,16 @@ It is a memory choice and not a modelling one: the same seed writes the same fil
 
 ## Running on a nucleotide genome
 
-Hand it a **nucleotide** genome run instead you get the full fasta genomes. Genes and spacer get their own models. `model` evolves the genes; `intergene_model` evolves the spacer, at `intergene_speed` times the rate — 3× by default, and `jc69` by default, which is flat and has no free parameters.
+Hand it a **nucleotide** genome run instead you get the full fasta genomes. The genome can be one
+ZOMBI2 drew, as below, or a real annotation you supply:
+
+<!-- doc-test: skip — needs an annotation and its FASTA, which the reader supplies -->
+```python
+my_genomes = genomes.simulate_genomes_nucleotide(
+    tree, gff="ecoli.gff", fasta="ecoli.fasta", inversion=1.0, inversion_extent=5000,
+    duplication=0.3, loss=0.3, seed=1)
+```
+ Genes and spacer get their own models. `model` evolves the genes; `intergene_model` evolves the spacer, at `intergene_speed` times the rate — 3× by default, and `jc69` by default, which is flat and has no free parameters.
 
 ```python
 from zombi2 import species, genomes, sequences
@@ -184,8 +193,8 @@ from zombi2.sequences.substitution_models import hky85
 
 tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=5, seed=1).complete_tree
 my_genomes = genomes.simulate_genomes_nucleotide(
-    tree, gff="ecoli.gff", inversion=1.0, inversion_extent=5000,
-    duplication=0.3, loss=0.3, seed=1)
+    tree, root_length=6000, genes=6, gene_length=400,
+    inversion=1.0, inversion_extent=500, duplication=0.3, loss=0.3, seed=1)
 
 result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=3.0),
                                       intergene_speed=3.0, substitution=0.05, seed=1)
@@ -209,6 +218,7 @@ zombi2 sequences out/ --model hky85 --kappa 3.0 --substitution 0.02 \
 
 So far the founding sequence of each block is *drawn* — from the model's frequencies, random ACGT. Hand the genomes run a **FASTA** alongside the GFF and it starts from the sequence you supply instead:
 
+<!-- doc-test: skip — needs an annotation and its FASTA, which the reader supplies -->
 ```python
 my_genomes = genomes.simulate_genomes_nucleotide(
     tree, gff="ecoli.gff", fasta="ecoli.fasta",     # layout AND letters

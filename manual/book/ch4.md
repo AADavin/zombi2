@@ -58,19 +58,26 @@ The two compose: `family_speed` for a family's overall tempo, and a `ByFamily` o
 
 Growth compounds: a duplication rate above the loss rate multiplies without bound, and with `ByFamily` some families draw a rate well above the one you typed. So a family's copies **within one genome** are capped, and the cap is on by default.
 
-The cap is written with a **scope**, the same word a rate uses to answer the same question: is this number absolute, or does it scale?
+The cap is a plain count of copies **in one genome** — there is no "per what?" left to ask, because it is compared against a single genome's own copies:
 
 ```python
-from zombi2.rates import scope
+from zombi2 import species, genomes
 
-max_family_size = scope.PerLineage(10)   # the default: ten copies per lineage in the tree
-max_family_size = scope.Global(50)       # fifty copies, whatever the tree looks like
-max_family_size = None                   # no ceiling
+tree = species.simulate_species_tree(birth=1.0, n_extant=8, seed=1)
+
+# ten copies of one family in one genome — the default
+g = genomes.simulate_genomes_family(tree, duplication=0.5, loss=0.1,
+                                    initial_families=10, max_family_size=10, seed=1)
+
+# no ceiling: what you want when you are measuring rates, since a cap that bites
+# discards events and pulls the realised rates below the ones you declared
+g = genomes.simulate_genomes_family(tree, duplication=0.5, loss=0.1,
+                                    initial_families=10, max_family_size=None, seed=1)
 ```
 
-`PerLineage` travels with the run, so one setting means the same thing on a tree of ten species and on one of a thousand; `Global` is fixed. At the cap the family stops duplicating, and the ceiling holds for arrivals too, so a transfer cannot push it past sideways.
+At the cap the family stops duplicating, and the ceiling holds for arrivals too, so a transfer cannot push it past sideways.
 
-A bare number is refused, and deliberately so: the two readings are a factor of the tree's size apart, and `10` and `10.0` are equal in Python, so nothing could have told you which you had written.
+It used to be written with a scope, and `scope.PerLineage(n)` multiplied that number by the size of the *species tree* — so the shipped default was over a thousand copies on a fifty-tip tree, and the cap you got moved when you added species. Both scope spellings are refused now, with the arithmetic each used to imply, so an old script fails loudly rather than running at a cap different from the one it reads.
 
 ## What the rate depends on
 
