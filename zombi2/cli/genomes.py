@@ -464,7 +464,12 @@ def run(args, parser):
     # a genome run is on a fixed tree, so its complete tree is the input; a StreamedRun does not carry
     # one, so read it from `tree` there. The rest of the CLI's bookkeeping is identical either way.
     complete_tree = tree if streaming else result.complete_tree
-    if not streaming:
+    if streaming:
+        # A streamed run wrote its own files as it went, so there is nothing to write here — but the
+        # log still has to say which, in the same words as an in-memory run, and the engine already
+        # resolved that (a bare --stream leaves `outputs=None` for it to default).
+        wanted = result.outputs
+    else:
         # The many-files-per-run outputs (gene trees, gff, bed) get a subdirectory apiece, and
         # `write` is where that is decided — so a run written from Python has this layout too, and
         # --flat is simply passed through rather than being a second layout the CLI knows about.
