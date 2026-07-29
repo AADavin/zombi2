@@ -379,8 +379,26 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
 
     Stop at exactly ``n_extant`` living lineages, **or** at ``total_time`` — give exactly
     one. ``n_extant`` is **conditioned on survival**: a birth-death tree can die out, so we
-    restart (advancing the same generator) until one reaches ``n_extant``. ``total_time`` is not
-    conditioned. Deterministic given ``seed``.
+    restart (advancing the same generator) until one reaches ``n_extant``. Deterministic given
+    ``seed``.
+
+    **Where ``n_extant`` puts the present.** The run stops the first moment ``n_extant`` lineages
+    are alive together, then draws one more waiting time and places the present where that next
+    event *would* have fired, without applying it — so the two newest tips get a real branch length
+    rather than a zero-length one. Under pure birth this is exactly the general sampling approach
+    (Hartmann, Wong & Stadler 2010): the tree is the process observed at an instant drawn uniformly
+    over the time it spends holding n lineages. **With extinction it is not.** It is a *first
+    hitting* rule — the run stops the first time it touches n, so an interval at n lineages reached
+    by falling back from n+1 is never sampled — and the trees are correspondingly shallower than the
+    birth-death process conditioned on n tips. The gap grows with turnover and shrinks with n: it is
+    within noise at ``death=0``, around a tenth of the tree height at n=10 with ``death/birth=0.4``,
+    and roughly a third to a half at n=10 with ``death/birth=0.8``; by n=50 at moderate turnover it
+    is back in the noise. If you publish trees grown this way, say which rule made them — a rate
+    estimator applied to them will otherwise look broken for reasons that are not its fault.
+
+    ``total_time`` is not conditioned on survival: it can die out, and then it **raises** rather than
+    handing back a tree with no present. Looping over seeds and skipping the failures is survival
+    conditioning by another name, and changes the distribution of everything downstream.
 
     ``mass_extinctions`` is a list of ``(time, fraction_lost)`` pulses — e.g. ``[(3.0, 0.75)]`` culls
     75% of the lineages alive at time 3.0 (time runs forward from the origin, t=0). It is a point-in-time

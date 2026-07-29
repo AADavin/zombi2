@@ -71,7 +71,7 @@ def _unsupported_reason(dup, tra, los, org, transfer_to) -> str | None:
 def _enumerate_families(tree, org, initial_families, families_named, rng, trajs=None, driven=False):
     """``[(family_id, birth_lineage, birth_time), …]`` for every family, and ``{name: family_id}``.
 
-    Initial and named families originate at the crown; the rest are drawn by the per-lineage
+    Initial and named families originate at the origin; the rest are drawn by the per-lineage
     origination Poisson walked over the tree schedule — a mini-Gillespie with only origination live,
     which is exact because origination reads only the number of living lineages and the time (and,
     when ``driven``, the driver on each of them — still no genome content, so the split is unaffected;

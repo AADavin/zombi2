@@ -22,7 +22,7 @@ class Event:
     """A recorded genome event — the true history every per-family gene tree is derived from. Gene
     ids are **per segment** (the ZOMBI1 model): every event ends a gene and starts fresh ids for its
     descendants, so an id belongs to exactly one species branch and every node's genome has its own
-    ids. ``lineage`` is the species-tree node the event fired on; ``time`` is when (crown-forward,
+    ids. ``lineage`` is the species-tree node the event fired on; ``time`` is when (origin-forward,
     the species tree's clock). By kind:
 
     - ``"origination"`` — ``copy`` is a founding gene of a fresh family (``parent`` ``None``): a root.
