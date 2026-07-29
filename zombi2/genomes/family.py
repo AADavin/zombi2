@@ -440,7 +440,7 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
 def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                             transfer_to="uniform", replacement=False, self_transfer=False,
                             initial_families=100, family_names=None, family_speed=None,
-                            max_family_size=1000, seed=None, parallel=False, stream_to=None,
+                            max_family_size=10, seed=None, parallel=False, stream_to=None,
                             outputs=None, progress=False) -> "FamilyGenomesResult | StreamedRun":
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
     origination.
