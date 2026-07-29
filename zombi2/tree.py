@@ -16,6 +16,25 @@ import re
 from dataclasses import dataclass
 
 
+def node_label(node_id: int | None) -> str:
+    """A species-tree node as **every** ZOMBI2 file writes it: ``n<id>``.
+
+    The one place that spelling is decided. It lives here, beside the `Node` it names, because every
+    level writes it — the species Newick and its tables, the genome and trait event logs, the profile
+    headers, the gene-tree labels, the FASTA records — and a helper in one level's package is a helper
+    the other levels quietly reimplement. That is what had happened: the token was minted by an inline
+    f-string in eighteen places, so changing how a node is written meant finding all eighteen.
+
+    Empty for ``None``, which is how an absent ``recipient`` / ``donor`` writes itself in a table."""
+    return "" if node_id is None else f"n{node_id}"
+
+
+def node_from_label(cell: str) -> int:
+    """The inverse of `node_label()`. A bare integer is accepted too, so a log written before the
+    node columns carried their ``n`` still replays."""
+    return int(cell[1:] if cell[:1] == "n" else cell)
+
+
 @dataclass
 class Node:
     """One lineage segment: born at ``birth_time``, ended at ``end_time`` by a split, a
@@ -75,14 +94,14 @@ class Tree:
             node = self.nodes[i]
             bl = node.end_time - node.birth_time
             if node.children is None:
-                return f"n{i}:{bl:.7g}"
+                return f"{node_label(i)}:{bl:.7g}"
             inner = ",".join(emit(c) for c in node.children)
             return f"({inner})n{i}:{bl:.7g}"
 
         root = self.nodes[self.root]
         stem = root.end_time - root.birth_time
         if root.children is None:
-            return f"n{self.root}:{stem:.7g};"
+            return f"{node_label(self.root)}:{stem:.7g};"
         return f"({','.join(emit(c) for c in root.children)})n{self.root}:{stem:.7g};"
 
 
@@ -398,7 +417,7 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
             # keyed by the same n<id> the tree carries. It is authoritative: depth cannot tell an
             # unsampled survivor from an extant one (both sit at the present), nor an extinct tip that
             # died just before the present, so when it is given we use it rather than guess.
-            _assign_fates_from_map(leaves, {n.id: f"n{n.id}" for n in leaves}, tip_fates,
+            _assign_fates_from_map(leaves, {n.id: node_label(n.id) for n in leaves}, tip_fates,
                                    source="tip fates")
             return Tree(nodes, root_id), names
         # no fate table: a tip is extinct if it ends before the present (the greatest end_time). The

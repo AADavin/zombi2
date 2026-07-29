@@ -12,6 +12,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+# the node spelling belongs to the tree, not to this level — re-exported here because every
+# genome module already reaches for it alongside the gene labels below
+from ..tree import node_from_label, node_label  # noqa: F401
+
 
 @dataclass(frozen=True)
 class Event:
@@ -73,18 +77,6 @@ _NODE_COLS = frozenset({"lineage", "recipient", "donor"})
 #: token, so a copy joins across every file without translation. ``parent`` is a gene copy too (the
 #: source copy a duplication/transfer descends from), so it is g-labelled; the species columns are not.
 _GENE_COLS = frozenset({"copy", "parent", "event"})
-
-
-def node_label(node_id: int | None) -> str:
-    """A species-tree node as every ZOMBI2 table writes it: ``n<id>``, the same token the Newick
-    uses and the species and trait tables already used. Empty for ``None``."""
-    return "" if node_id is None else f"n{node_id}"
-
-
-def node_from_label(cell: str) -> int:
-    """The inverse of `node_label()`. A bare integer is accepted too, so a log written before the
-    node columns carried their ``n`` still replays."""
-    return int(cell[1:] if cell[:1] == "n" else cell)
 
 
 def gene_label(copy_id: int | None) -> str:

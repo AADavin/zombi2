@@ -26,6 +26,8 @@ import bisect
 import math
 import pathlib
 
+from ..tree import node_from_label
+
 
 class DriverTrajectory:
     """A driver's value along every lineage, as a piecewise-constant function of time — the
@@ -111,7 +113,7 @@ def load_driver(path, tree) -> DriverTrajectory:
         if len(parts) != 5:
             raise ValueError(f"driver file {str(path)!r} row is not 5 columns: {line!r}")
         time_s, kind, node_s, _from, to = parts
-        node_id = int(node_s[1:]) if node_s.startswith("n") else int(node_s)
+        node_id = node_from_label(node_s)
         if kind == "root":
             root_state = to
         elif kind == "on_speciation":

@@ -13,6 +13,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ..tree import node_label
+
 
 @dataclass(frozen=True)
 class Profiles:
@@ -48,7 +50,7 @@ class Profiles:
         """The matrix as TSV — a ``family`` column then one column per extant species (``n<id>``),
         one row per family. ``presence=True`` writes 0/1 instead of copy counts."""
         m = self.presence if presence else self.matrix
-        header = "family\t" + "\t".join(f"n{s}" for s in self.species)
+        header = "family\t" + "\t".join(node_label(s) for s in self.species)
         rows = [f"{f}\t" + "\t".join(str(v) for v in m[i]) for i, f in enumerate(self.families)]
         return "\n".join([header, *rows]) + "\n"
 

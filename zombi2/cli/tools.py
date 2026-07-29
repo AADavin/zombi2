@@ -268,7 +268,8 @@ def _run_tree(args, parser) -> int:
                 out = _tree.rescale(t, factor=args.rescale_factor).to_newick()
             elif args.values:                                   # --red --values: the per-node table
                 red = _tree.relative_evolutionary_divergence(t)
-                out = "node\tRED\n" + "\n".join(f"n{i}\t{v:.6g}" for i, v in sorted(red.items()))
+                out = "node\tRED\n" + "\n".join(f"{_tree.node_label(i)}\t{v:.6g}"
+                                                  for i, v in sorted(red.items()))
             else:                                               # --red: the RED-rescaled tree
                 out = _tree.red_scaled(t).to_newick()
     except (ValueError, OSError) as e:
@@ -279,7 +280,8 @@ def _run_tree(args, parser) -> int:
 
 def _leaf_labels(tree, namemap: dict) -> dict:
     """``{leaf id: label}`` — the external name for an external tree, ``n<id>`` for a ZOMBI tree."""
-    return {i: (namemap.get(i) or f"n{i}") for i, n in tree.nodes.items() if n.children is None}
+    return {i: (namemap.get(i) or _tree.node_label(i))
+            for i, n in tree.nodes.items() if n.children is None}
 
 
 #: a ZOMBI gene-copy leaf, ``n<species>_g<copy>`` — the label every gene tree, alignment record and
