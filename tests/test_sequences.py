@@ -483,3 +483,103 @@ def test_the_reported_identity_is_not_rounded_to_a_whole_percent(tmp_path, capsy
     import re
     m = re.search(r"mean identity (\d+\.\d)%", out)
     assert m, out
+
+
+# --- streaming: the same run, written as it goes instead of assembled first -----------------------
+
+def _stream_fixture(seed=42):
+    sp = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=15, seed=1)
+    return simulate_genomes_family(sp, duplication=0.2, transfer=0.1, loss=0.25, origination=0.5,
+                                   initial_families=25, seed=seed)
+
+
+def _tree_of(directory):
+    """Every file under `directory` as {relative path: bytes} — what a streamed run must reproduce."""
+    return {str(p.relative_to(directory)): p.read_bytes()
+            for p in sorted(directory.rglob("*")) if p.is_file()}
+
+
+@pytest.mark.parametrize("parallel", [False, 2])
+def test_a_streamed_run_is_the_same_dataset_as_an_in_memory_one(tmp_path, parallel):
+    # the invariant the whole feature rests on: --stream is a memory choice, not a modelling one, so
+    # the same seed must leave the same bytes on disk whichever way the run was assembled
+    g = _stream_fixture()
+    kw = dict(model=hky85(2.0), length=120, seed=7, parallel=parallel)
+    wanted = ("alignments", "phylograms", "species_phylogram")
+
+    simulate_sequences(g, **kw).write(tmp_path / "mem", outputs=wanted)
+    handle = simulate_sequences(g, **kw, stream_to=tmp_path / "strm")
+    assert _tree_of(tmp_path / "mem") == _tree_of(tmp_path / "strm")
+    assert handle.n_sequences > 0 and handle.n_families > 0
+    assert handle.outputs == wanted
+
+
+def test_the_streamed_handle_counts_what_an_in_memory_run_counts(tmp_path):
+    # a family with no surviving copy writes no alignment, so it must not be counted — otherwise a
+    # streamed run reports more families than the same run in memory
+    g = _stream_fixture()
+    kw = dict(model=jc69(), length=60, seed=3)
+    mem = simulate_sequences(g, **kw)
+    handle = simulate_sequences(g, **kw, stream_to=tmp_path / "s")
+    assert handle.n_families == sum(1 for a in mem.alignments.values() if a)
+    assert handle.n_sequences == sum(len(a) for a in mem.alignments.values())
+
+
+def test_the_streamed_handle_estimates_the_identity_the_cli_reports(tmp_path):
+    # the saturation warning is the most useful thing the CLI says about a sequence run, and the
+    # in-memory way of measuring it needs every alignment at once. The sink samples a pair per
+    # family instead: a different sample of the same quantity, so it must land in the same region.
+    g = _stream_fixture()
+    kw = dict(model=hky85(2.0), length=400, seed=11)
+    from zombi2.cli.sequences import _mean_pairwise_identity
+
+    mem = simulate_sequences(g, **kw)
+    handle = simulate_sequences(g, **kw, stream_to=tmp_path / "s")
+    # against the CLI's own measure, which is what it stands in for. Not the first two sequences of
+    # each family: those are adjacent gene ids, so usually recent duplicates, and comparing them
+    # measures something noticeably more similar than a random pair.
+    assert handle.identity == pytest.approx(_mean_pairwise_identity(mem.alignments), abs=0.05)
+
+
+def test_write_narrows_a_streamed_run(tmp_path):
+    g = _stream_fixture()
+    handle = simulate_sequences(g, model=jc69(), length=60, seed=1, stream_to=tmp_path / "s",
+                                outputs=("alignments",))
+    assert (tmp_path / "s" / "alignments").is_dir()
+    assert not (tmp_path / "s" / "phylograms").exists()
+    assert not (tmp_path / "s" / "clock_species_tree_complete.nwk").exists()
+    assert handle.outputs == ("alignments",)
+
+
+def test_streaming_is_refused_where_it_cannot_work(tmp_path):
+    g = _stream_fixture()
+    with pytest.raises(ValueError, match="outputs applies to a streamed run"):
+        simulate_sequences(g, model=jc69(), length=60, seed=1, outputs=("alignments",))
+    with pytest.raises(ValueError, match="unknown stream outputs"):
+        simulate_sequences(g, model=jc69(), length=60, seed=1, stream_to=tmp_path / "s",
+                           outputs=("wibble",))
+
+
+def test_the_cli_streams_and_reports_the_same_run(tmp_path, capsys):
+    from zombi2.cli.main import main
+
+    def run(where, *extra):
+        assert main(["species", str(where), "--birth", "1", "--death", "0.3", "--n-extant", "12",
+                     "--seed", "1", "--quiet"]) == 0
+        assert main(["genomes", str(where), "--duplication", "0.2", "--transfer", "0.1",
+                     "--initial-families", "15", "--seed", "1", "--quiet"]) == 0
+        capsys.readouterr()
+        assert main(["sequences", str(where), "--model", "hky85", "--length", "90", "--seed", "5",
+                     "--quiet", *extra]) == 0
+        return capsys.readouterr().out
+
+    a, b = tmp_path / "a", tmp_path / "b"
+    line_mem, line_str = run(a), run(b, "--stream")
+    # the same counts and the same model, reported the same way. Identity is sampled differently and
+    # the wall clock is the wall clock, so neither is part of the claim.
+    def strip(s):
+        return re.sub(r"(mean identity [\d.]+%|in [\d.e-]+ s)", "", s.split("(", 1)[1])
+    assert strip(line_mem) == strip(line_str)
+    # and the files themselves are the same run, .log aside (it records the flags and the timestamp)
+    data = lambda d: {k: v for k, v in _tree_of(d).items() if not k.endswith(".log")}
+    assert data(a / "sequences") == data(b / "sequences")

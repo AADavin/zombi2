@@ -139,6 +139,14 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                         "starts)")
     _add_flat_arg(g)
     _add_parallel_arg(g)
+    g.add_argument("--stream", action="store_true",
+                   help="[family/ordered] write each family's sequences straight to disk instead of "
+                        "building the whole run in memory. This is the level where a run's memory "
+                        "goes — every alignment and every ancestral sequence live at once — so this "
+                        "is the dial for a run that would not fit. Composes with --parallel and "
+                        "--write, and writes the same files at the same seed, so a streamed run and "
+                        "an in-memory one are the same dataset. Not available on a nucleotide run, "
+                        "which reassembles whole genomes and so needs every block at once")
     _add_quiet_arg(g)
     _add_strict_arg(g)
     _add_force_arg(g)
@@ -287,15 +295,24 @@ def run(args, parser):
 
     model = _build_model(args)
 
+    os.makedirs(args.run, exist_ok=True)
+    out = level_dir(args.run, "sequences", args.flat)
+    streaming = args.stream and not nucleotide
+    if args.stream and nucleotide:
+        parser.error("--stream is not available on a nucleotide run: it reassembles every node's "
+                     "genome, which needs every block's sequence at once. Drop --stream, or use "
+                     "--resolution family at the genome level")
+
     t0 = time.perf_counter()
     result = simulate_sequences(genome_run, model=model, substitution=args.substitution,
                                 divergence=args.divergence,
                                 seed=args.seed, parallel=parallel_from_args(args, parser),
+                                stream_to=out if streaming else None,
+                                outputs=(tuple(args.write) if args.write else None)
+                                if streaming else None,
+                                flat=args.flat,
                                 progress=not args.quiet, **extra)
     dt = time.perf_counter() - t0
-
-    os.makedirs(args.run, exist_ok=True)
-    out = level_dir(args.run, "sequences", args.flat)
     # the many-files-per-run outputs get a directory apiece (unless --flat): alignments and
     # phylograms are one file per family — per *block* on a nucleotide run, where a real genome has
     # thousands — and the assembled genome FASTAs are one per node. `initial_genome` is a single
@@ -304,11 +321,14 @@ def run(args, parser):
     # subdirectory apiece, and `write` is where that is decided — so a run written from Python has
     # this layout too, and --flat is simply passed through. An output this run has none of writes
     # nothing and creates no directory, so a family run leaves no empty genomes/ behind.
-    wanted = tuple(args.write) if args.write else default_outputs(result)
-    result.write(out, outputs=wanted, flat=args.flat)
-
-    n_families = sum(1 for aln in result.alignments.values() if aln)
-    n_seqs = sum(len(aln) for aln in result.alignments.values())
+    if streaming:                       # the engine wrote its own files and says which
+        wanted = result.outputs
+        n_families, n_seqs = result.n_families, result.n_sequences
+    else:
+        wanted = tuple(args.write) if args.write else default_outputs(result)
+        result.write(out, outputs=wanted, flat=args.flat)
+        n_families = sum(1 for aln in result.alignments.values() if aln)
+        n_seqs = sum(len(aln) for aln in result.alignments.values())
     # the clock is now read off the rate itself: a ByLineage modifier is the relaxed clock
     # --substitution may now be a bare modifier (the clock's shape, with --divergence setting its
     # scale), which carries no `.modifiers` of its own — so look at the modifier itself as well, or a
@@ -321,7 +341,8 @@ def run(args, parser):
     # What the run actually produced, not what was asked for: the rate is per unit time, so whether
     # it yields a usable alignment depends on the height of the tree it ran down, which the user has
     # no way to read off the flags. Reporting it turns a silent failure into a visible number.
-    identity = _mean_pairwise_identity(result.alignments)
+    # a streamed run has no alignments to measure — it accumulated the same statistic as it wrote
+    identity = result.identity if streaming else _mean_pairwise_identity(result.alignments)
     realised = "" if identity is None else f", mean identity {identity:.1%}"
     if nucleotide:
         # the assembled genome of a node is exactly as long as its block layout (substitution keeps
