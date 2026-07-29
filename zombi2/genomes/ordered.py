@@ -266,7 +266,7 @@ class OrderedGenomesResult:
         return gene_trees_from_events(self.events, self.complete_tree)
 
     def write(self, directory, outputs=("events", "profiles", "gene_order", "initial_genome",
-                                        "gene_trees", "chromosome_events"), *,
+                                        "gene_trees", "chromosome_events", "species_tree"), *,
               flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
@@ -307,6 +307,9 @@ class OrderedGenomesResult:
         if "gene_trees" in outputs:
             write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat),
                              self.complete_tree.labels())
+        if "species_tree" in outputs:            # the tree everything here is indexed by: without
+            (d / "species_complete.nwk").write_text(   # it a directory of gene trees is not a dataset
+                self.complete_tree.to_newick() + "\n", encoding="utf-8")
 
     def _initial_genome_tsv(self) -> str:
         """The layout the run started with — ``gene_order.tsv``'s columns without ``lineage``, which
