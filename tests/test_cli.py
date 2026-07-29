@@ -3,6 +3,8 @@ loads trees with. The CLI is a thin shell over the level ``simulate_*`` function
 exercise argument wiring, output files, ``--params``, and the clean error paths — not the engines
 (which their own suites cover)."""
 
+import re
+
 import pytest
 
 from zombi2.cli.main import main
@@ -1643,3 +1645,60 @@ def test_the_log_records_the_options_this_resolution_has(tmp_path, tree_file):
     assert not keys(nuc_log) & {"initial_families", "replacement", "family_speed"}
     assert "root_length" in keys(nuc_log)          # ...and it does record what it HAS
     assert {"duplication", "seed", "resolution"} <= keys(fam_log)
+
+
+def test_stream_writes_the_run_and_logs_what_it_wrote(tmp_path, tree_file, capsys):
+    # --stream had no CLI test at all, and shipped broken: the log's `write` line was read from a
+    # variable only the in-memory branch set, so every streamed run printed its success line and then
+    # died with UnboundLocalError, exit 1, having written no genomes.log.
+    out = tmp_path / "s"
+    assert main(["genomes", str(out), "--from", str(tree_file), "--duplication", "0.2",
+                 "--transfer", "0.1", "--loss", "0.25", "--origination", "0.5",
+                 "--initial-families", "10", "--seed", "1", "--stream", "--flat", "--quiet"]) == 0
+    assert "streamed to disk" in capsys.readouterr().out
+    log = (out / "genomes.log").read_text(encoding="utf-8")          # the log is written at all...
+    write_line = next(ln for ln in log.splitlines() if ln.startswith("write\t"))
+    for name in ("events", "profiles", "genomes", "gene_trees"):     # ...and says what landed
+        assert name in write_line
+        assert (out / "genome_events.tsv").exists()
+    assert (out / "gene_trees").is_dir()
+
+
+def test_stream_logs_only_the_outputs_asked_for(tmp_path, tree_file):
+    # --write narrows a streamed run exactly as it narrows an in-memory one, and the log must record
+    # the narrowed set rather than the default it did not use
+    out = tmp_path / "s"
+    assert main(["genomes", str(out), "--from", str(tree_file), "--duplication", "0.2",
+                 "--initial-families", "10", "--seed", "1", "--stream", "--write", "events",
+                 "profiles", "--flat", "--quiet"]) == 0
+    log = (out / "genomes.log").read_text(encoding="utf-8")
+    write_line = next(ln for ln in log.splitlines() if ln.startswith("write\t"))
+    assert "events" in write_line and "profiles" in write_line
+    assert "gene_trees" not in write_line and not (out / "gene_trees").exists()
+
+
+def test_a_run_that_samples_none_of_its_survivors_is_refused(tmp_path, capsys):
+    # sampling can observe none of the survivors, and the run then has no present at all. It used to
+    # return normally: `zombi2 species` wrote no species_extant.nwk and exited 0, and `zombi2 genomes`
+    # then produced an empty dataset, also at exit 0 — a silent empty replicate in a batch. It is the
+    # same dead end the extinction guard refuses, so it is refused the same way.
+    rc = main(["species", str(tmp_path / "e"), "--birth", "1", "--death", "0.3", "--n-extant", "20",
+               "--sampling", "0.2", "--seed", "16", "--quiet"])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "zombi2: error:" in err and "sampling" in err
+    assert "survivors" in err and "seed" in err            # says what happened and what to do
+    assert not (tmp_path / "e").exists()                   # and leaves nothing behind
+
+
+def test_the_summary_accounts_for_every_tip_it_counts(tmp_path, capsys):
+    # "0 extant + 8 extinct (28 tips)" is arithmetic that does not work: under --sampling the
+    # unsampled survivors are tips too, and leaving them out of the parts reads as a bug
+    assert main(["species", str(tmp_path / "s"), "--birth", "1", "--death", "0.3", "--n-extant", "20",
+                 "--sampling", "0.5", "--seed", "3", "--quiet"]) == 0
+    line = capsys.readouterr().out
+    counts = {word: int(n) for n, word in
+              re.findall(r"(\d+) (extant|extinct|unsampled|fossils)", line)}
+    n_tips = int(re.search(r"\((\d+) tips", line).group(1))
+    assert counts.get("unsampled", 0) > 0                  # the seed leaves some unobserved...
+    assert sum(counts.values()) == n_tips                  # ...and now the parts add up
