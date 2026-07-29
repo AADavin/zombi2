@@ -33,7 +33,7 @@ import numpy as np
 from ..rates.mapping import Between, check_kernel_fires
 from ..rates.modifiers import ByFamily, DrivenBy, OnTime
 from ..rates.rate import Rate, as_rate
-from ..rates.scope import Global, PerCopy, PerLineage, Scope
+from ..rates.scope import PerCopy, PerLineage, Scope
 from ..tree import Tree, as_tree
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import Clades, Distance, mean_root_to_tip, recipient_index, resolve_groups
@@ -288,36 +288,41 @@ def _lose_at(genome, j, node, t, events) -> None:
     events.append(Event(t, "loss", node.id, lost.family, lost.id))
 
 
-def resolve_max_family_size(max_family_size, n_lineages: int) -> int | None:
-    """Resolve the per-genome family cap to a copy count.
+def resolve_max_family_size(max_family_size) -> int | None:
+    """Validate the per-genome family cap — **a plain count of copies in one genome**, or ``None``
+    for no cap.
 
-    The cap is written with a **scope**, the same word a rate uses for the same question: is this
-    number absolute, or does it scale? ``Global(n)`` caps a family at ``n`` copies whatever the tree
-    looks like; ``PerLineage(n)`` allows ``n`` for every lineage in the complete tree, so the bound
-    travels with the size of the run and one setting means the same thing on ten species and on a
-    thousand. ``None`` removes the cap.
+    There is no scope wrapper, because there is no "per what?" left to answer: the cap is compared
+    against one genome's own copy count, so it is per genome by construction. It used to take one,
+    and that was a mistake worth recording. ``PerLineage(n)`` multiplied the number by the size of
+    the *species tree* — so the shipped default of ``PerLineage(10)`` was 1470 copies in one genome
+    on a 147-node tree, and more on a bigger one. A per-genome bound that moves when you add species
+    is not a bound the person who set it can predict, and one genome does not grow because the tree
+    did.
 
-    A bare number is refused. This used to be the whole distinction — ``10`` absolute against
-    ``10.0`` relative — which put a factor of ``n_lineages`` between two values Python considers
-    equal, in a spelling no ``--params`` file or reader could be expected to notice.
+    Migration: ``Global(n)`` is exactly ``n``; ``PerLineage(n)`` was ``n`` × the node count of the
+    complete tree, so match the old number by multiplying it out, or (better) pick the cap you
+    actually want.
     """
     if max_family_size is None:
         return None
-    if not isinstance(max_family_size, Scope):
+    if isinstance(max_family_size, Scope):
+        was = (f"{type(max_family_size).__name__}(n) was n × the size of the species tree"
+               if isinstance(max_family_size, PerLineage) else
+               f"{type(max_family_size).__name__}(n) was exactly n")
         raise ValueError(
-            f"max_family_size must say what its number is per: Global({max_family_size!r}) for that "
-            f"many copies outright, or PerLineage({max_family_size!r}) for that many per lineage in "
-            f"the tree (they differ by a factor of the tree size). None removes the cap. "
-            f"Got {max_family_size!r}")
-    if not isinstance(max_family_size, (Global, PerLineage)):
-        raise ValueError(f"max_family_size takes Global(n) or PerLineage(n), not "
-                         f"{type(max_family_size).__name__}(n): a family cap counts copies in one "
-                         f"genome, so it is either an outright number or one per lineage")
-    if max_family_size.base <= 0:
-        raise ValueError(f"max_family_size must be positive, got {max_family_size!r}")
-    if isinstance(max_family_size, PerLineage):
-        return max(1, round(max_family_size.base * n_lineages))
-    return max(1, round(max_family_size.base))
+            f"max_family_size is a plain count of copies in one genome — write "
+            f"max_family_size={max_family_size.base:g}, not {max_family_size!r}. A cap on copies in "
+            f"one genome has only one 'per what?', so the scope said nothing ({was}). None removes "
+            f"the cap.")
+    # a float is refused rather than rounded: 10 against 10.0 used to mean two different caps, and
+    # that is exactly the ambiguity this parameter is done with
+    if isinstance(max_family_size, bool) or not isinstance(max_family_size, int):
+        raise ValueError(f"max_family_size must be a whole number of copies (or None for no cap), "
+                         f"got {max_family_size!r}")
+    if max_family_size < 1:
+        raise ValueError(f"max_family_size must be at least 1 copy, got {max_family_size!r}")
+    return max_family_size
 
 
 def _at_cap(genome, family: int, cap: int | None) -> bool:
@@ -435,7 +440,7 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
 def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                             transfer_to="uniform", replacement=False, self_transfer=False,
                             initial_families=100, family_names=None, family_speed=None,
-                            max_family_size=PerLineage(10), seed=None, parallel=False, stream_to=None,
+                            max_family_size=10, seed=None, parallel=False, stream_to=None,
                             outputs=None, progress=False) -> "FamilyGenomesResult | StreamedRun":
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
     origination.
@@ -585,7 +590,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # only on the current state is Poisson thinning, so what is kept is exactly the process whose
     # duplication rate is zero for a family already at its quota — a declared ceiling, not a
     # truncated run. ``None`` removes it.
-    cap = resolve_max_family_size(max_family_size, len(tree.nodes))
+    cap = resolve_max_family_size(max_family_size)
 
     # A Clades rule paints every lineage with its clade once (membership is a fact about the tree, not
     # a driver, so it is constant along a branch and adds no Gillespie breakpoints). A kernel naming

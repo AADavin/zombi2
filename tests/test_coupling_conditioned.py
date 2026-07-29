@@ -457,8 +457,12 @@ def test_recipient_weight_splits_transfers_two_to_one(tmp_path):
     """Four candidates at weight 2 and four at weight 1 send 2/3 of transfers to the weight-2 group.
     ``self_transfer`` keeps the donor in the candidate set, so the normaliser is always 4·2 + 4·1."""
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
+    # no cap: a recipient already full of a family turns that arrival away, which at transfer=4.0
+    # thins most of them (429 arrivals instead of 3000+) and biases what is left toward whoever is
+    # not yet full. The cap is a confound for a measurement about the weights, so lift it — the same
+    # move anyone estimating rates from a run has to make.
     res = genomes.simulate_genomes_family(
-        tree, transfer=4.0, initial_families=6, self_transfer=True,
+        tree, transfer=4.0, initial_families=6, self_transfer=True, max_family_size=None,
         transfer_to=mod.DrivenBy(str(driver), {"competent": 2.0, "normal": 1.0}), seed=5)
     arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
     assert len(arrivals) > 1500                        # enough events for a 0.03 tolerance
