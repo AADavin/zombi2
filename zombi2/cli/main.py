@@ -54,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
     _add_subcommand(
         sub, "species", "simulate a dated species tree",
         "Simulate a dated species tree by a per-lineage birth–death process (time runs forward "
-        "from the crown).",
+        "from the origin, t=0).",
         "zombi2 species DIR --birth RATE (--n-extant N | --total-time T) [options]",
         species._add_species_args,
         epilog=_examples(
@@ -164,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
         "zombi2 tools <tool> DIR [options]",
         tools._add_tools_args,
         epilog=_examples(
-            "  # homology tables (O/P ortholog/paralog, x = transfer in between) for a genomes run",
+            "  # homology tables (S/D/T — the event at each pair's ancestor) for a genomes run",
             "  zombi2 tools format out/",
         ))
 

@@ -66,8 +66,16 @@ next two are **random and vary from lineage to lineage**, and they differ in *me
 passed down and drifts, so the rate is autocorrelated along the tree — a slowly wandering clock, or a
 clade that inherits a fast tempo — whereas `ByLineage` is drawn afresh on every branch, so the variation
 is scattered, an uncorrelated ("relaxed") clock. The random modifiers are **mean-corrected**, meaning
-their factors average to 1, so switching on heterogeneity spreads a rate around without secretly speeding
-the whole tree up. `DrivenBy` is neither: its factor is whatever the driver's state says it is.
+their factors average to 1, so a lineage is no likelier to be sped up than slowed down.
+
+Be careful about what that does and does not buy you. It fixes the *factor*, not the *tree*. A birth
+rate that drifts is multiplicative, and a branching process is convex in its rate: the fast lineages
+branch, and their descendants inherit the fast tempo, so they come to dominate the tree while the slow
+ones contribute almost nothing. Standing diversity therefore **rises** as you turn `spread` up, even
+though every individual factor averages to 1 — and at moderate spread a run can grow explosively enough
+to hit the `max_lineages` guard. Mean-correcting keeps the rate honest per lineage; it does not hold
+`E[N(t)]` fixed, and nothing could. `DrivenBy` is neither random nor corrected: its factor is whatever
+the driver's state says it is.
 
 Modifiers **stack by multiplication**, so they combine: `1.0 * mod.OnTime({0: 1, 5: 0.3}) *
 mod.FromParent(spread=0.3)` is a rate that both follows a schedule and drifts between lineages.

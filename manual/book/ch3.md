@@ -14,6 +14,10 @@ You also say when to stop: grow to a fixed **total time** (`total_time`), or to 
 
 They differ in one practical way. `n_extant` bounds the run by construction; `total_time` does not, because standing diversity grows like exp((birth − death) · t), so a rate slightly too high or a time slightly too long is the difference between a thousand lineages and ten million. A run that passes **100,000 standing lineages** therefore stops with an error rather than filling memory. Raise `max_lineages` if that is the size you want, or set it to `None` to lift the guard. It never truncates: a tree cut off at a size is no longer a sample from the process you asked for, so handing one back would be worse than not running at all.
 
+They also differ in a way that matters if you are going to estimate rates from the trees. `n_extant` stops the first moment that many lineages are alive together, then draws one more waiting time and puts the present where the next event would have fired — so the two newest tips have a real branch length instead of a zero-length one. With `death=0` that is exactly the standard way to sample a tree of a given size [@hartmann2010sampling]. With extinction it is not: the run stops the *first* time it touches the target, so a stretch at that many lineages reached by falling back from one more is never sampled, and the trees come out shallower than a birth–death process conditioned on that many tips. How much shallower depends on turnover and on size — nothing measurable at `death=0`, about a tenth of the tree height at 10 tips with `death` at 0.4 of `birth`, a third to a half at 10 tips with `death` at 0.8 of `birth`, and back to nothing by 50 tips at moderate turnover. Use `total_time` if you need the conditioned distribution exactly; otherwise say in your methods which rule made the trees, because a rate estimator applied to them will look biased for a reason that has nothing to do with the estimator.
+
+`total_time` is not conditioned on survival. A run that dies out raises an error rather than handing back a tree with no present — so if you loop over seeds and skip the failures, you are conditioning on survival yourself, and everything downstream inherits that.
+
 ```python
 from zombi2 import species
 # a birth–death tree of 20 surviving lineages
@@ -24,7 +28,7 @@ result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1
 
 A birth or death rate need not be constant. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**, and you express each the same way: multiply the base rate by a **modifier** naming what it depends on.
 
-- **On time** — the rates change at set points in time. This is the skyline, or episodic, tree. `birth = 1.0 * mod.OnTime({0: 1.0, 3: 0.3})` runs at full rate until time 3, then at a third of it.
+- **On time** — the rates change at set points in time. This is the skyline, or episodic, tree. `birth = 1.0 * mod.OnTime({0: 1.0, 3: 0.3})` runs at full rate until time 3, then at a third of it. Each entry holds from its own time up to the next, and the earliest entry also applies *backwards* to the origin — so `OnTime({3: 0.3})`, with no entry at 0, runs at a third of the rate for the whole tree rather than only after time 3. Start the schedule at 0 whenever you mean "full rate until".
 - **On total diversity** — the rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound: `birth = 1.0 * mod.OnTotalDiversity(cap=100)`.
 - **On the parent's rate** — each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * mod.FromParent(spread=0.2)`.
 
@@ -54,6 +58,8 @@ One model does not fit the modifier framework: a **mass extinction**, where at o
 Two more choices decide not how the tree grows, but how much of it you get to see.
 
 By default you see every surviving species. **`sampling`** keeps a random fraction of the extant tips, so `sampling=0.5` gives you half [@stadler2009incomplete]. It thins a tree that has already grown, so it costs nothing.
+
+`n_extant` counts survivors, and sampling happens afterwards, so the two compose rather than cancel: `n_extant=20, sampling=0.5` grows to 20 survivors and then shows you about 10 of them. If you want 20 tips in hand, ask for 40. The rest are not gone — they stay in the complete tree with the fate `unsampled`, which is why the run's summary counts them separately from the extinct.
 
 **`fossils`** does the opposite: it recovers lineages from the past [@heath2014fossilized; @gavryushkina2014sampledancestor]. Fossils are picked up along **every** branch of the complete tree at a rate you set — a surviving lineage's branch as readily as an extinct one — so `fossils=0.1` scatters dated samples through its history. They are a side output, reported alongside the trees; a fossil does not remove its lineage and does not appear in the extant tree.
 

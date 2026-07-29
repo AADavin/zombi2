@@ -73,7 +73,7 @@ def _leaf_label(leaf: GeneNode) -> str:
 
 def homology_table(root: GeneNode) -> tuple[list[str], list[list[str]]]:
     """Classify every pair of **extant** leaves under ``root``. Return ``(labels, matrix)``: ``labels``
-    the leaf headers left-to-right, ``matrix`` the n×n grid of ``O`` / ``P`` / ``Ox`` / ``Px`` with
+    the leaf headers left-to-right, ``matrix`` the n×n grid of ``S`` / ``D`` / ``T``, each optionally ``x``-suffixed, with
     ``-`` on the diagonal.
 
     Give it the family's **complete** root, not its extant one. The pair of leaves is the same either
@@ -140,7 +140,7 @@ def homology_table(root: GeneNode) -> tuple[list[str], list[list[str]]]:
 
 def homology_tsv(root: GeneNode) -> str:
     """The homology table of the **complete** gene tree under ``root`` as TSV: a leading empty corner
-    cell, then the leaf headers; one row per leaf, its label followed by the ``O`` / ``P`` / ``Ox`` / ``Px`` / ``-``
+    cell, then the leaf headers; one row per leaf, its label followed by the ``S`` / ``D`` / ``T`` / ``-``
     cells. The top-left blank keeps it a square matrix a reader can load with the first column as the
     index."""
     labels, matrix = homology_table(root)
@@ -150,7 +150,7 @@ def homology_tsv(root: GeneNode) -> str:
 
 
 def write_homology(gene_trees: dict[int, GeneTree], tree, directory) -> str:
-    """Write ``homology_fam<family>.tsv`` — one n×n O/P/Ox/Px table per family — into ``directory``.
+    """Write ``homology_fam<family>.tsv`` — one n×n S/D/T table per family — into ``directory``.
 
     The rows are the **extant** leaves, the genes a real dataset would hold, so it mirrors
     `zombi2.genomes.gene_trees.write_gene_trees()`: a family with no surviving copy has no extant
