@@ -22,7 +22,7 @@ from zombi2.genomes.nucleotide import WIRED_MODIFIERS as _NUC_WIRED
 from zombi2.rates.parse import parse_rate
 from zombi2.rates.scope import Global, PerLineage
 from zombi2.tree import node_label, read_newick
-from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
+from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_strict_arg, _add_parallel_arg,
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
                                   _read_tip_fates, _write_params_log, check_stale_downstream,
                                   clear_stale_downstream, conditioned_levels, default_outputs,
@@ -233,6 +233,7 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "so for the same seed the run it produces DIFFERS from a serial one (both "
                         "valid samples). Fix the mode alongside the seed to reproduce a run")
     _add_quiet_arg(g)
+    _add_strict_arg(g)
     _add_force_arg(g)
 
 
@@ -502,7 +503,11 @@ def run(args, parser):
         # The many-files-per-run outputs (gene trees, gff, bed) get a subdirectory apiece, and
         # `write` is where that is decided — so a run written from Python has this layout too, and
         # --flat is simply passed through rather than being a second layout the CLI knows about.
-        wanted = tuple(args.write) if args.write else default_outputs(result)
+        # ...minus the species tree. A Result writes it so a directory written from Python is a
+        # dataset on its own; a *run* already keeps one canonical copy under species/, shared by
+        # every level, and a second under genomes/ would be two files for one fact.
+        wanted = tuple(args.write) if args.write else tuple(
+            o for o in default_outputs(result) if o != "species_tree")
         result.write(out, outputs=wanted, flat=args.flat)
     # The events index against the tree canonicalised to n<id> labels, so the run needs that exact
     # tree to be replayable. A run grown here already has it — `zombi2 species` wrote the identical

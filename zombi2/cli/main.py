@@ -185,6 +185,12 @@ def main(argv: list[str] | None = None) -> int:
         # the surface the user is standing on, not the one underneath it.
         print(f"zombi2: error: {_in_flags(str(e), command)}", file=sys.stderr)
         return 1
+    except KeyboardInterrupt:
+        # Ctrl-C is a thing the user did, not a thing that went wrong, so it gets a sentence rather
+        # than the twenty-line traceback every other error path here was already spared. 130 is the
+        # shell's convention for a process ended by SIGINT (128 + 2), which is what a caller checks.
+        print("\nzombi2: interrupted", file=sys.stderr)
+        return 130
 
 
 def _did_you_mean(extra: list[str], command: argparse.ArgumentParser) -> str:
