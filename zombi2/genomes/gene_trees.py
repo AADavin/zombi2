@@ -73,9 +73,14 @@ class GeneTree:
         which genome it came from. With ``annotate`` internal nodes carry ``<kind>_n<species>``;
         branch lengths are time differences.
 
-        ``names`` is the run's node names (`Tree.labels()`), which is how a **complete** tree writes
-        ``e<species>`` for a gene sitting on a lineage that died. The extant tree needs none: every
-        species in it is alive by construction.
+        ``names`` is the run's node names (`Tree.labels()`), which is how a tree writes
+        ``e<species>`` for a gene sitting on a lineage that died. The **extant** tree needs them too,
+        which is not obvious: its *leaves* are all in living species, but a transfer node sits on the
+        **donor's** branch, and a transfer out of a lineage that later died survives into the extant
+        tree whenever the copy that moved has extant descendants. Without ``names`` that node was
+        written ``n<species>`` for a species the extant tree does not contain and the complete tree
+        calls ``e<species>`` — a label that resolved in neither file, on exactly the transfers whose
+        donor is invisible.
 
         The root carries one too, running from ``origination`` to where the root gene ended — the
         stem of the family, real time in which that founding gene existed. On the extant tree the
@@ -100,7 +105,9 @@ def write_gene_trees(gene_trees: dict[int, "GeneTree"], directory,
     for fam, gt in sorted(gene_trees.items()):
         (d / f"gene_tree_fam{fam}_complete.nwk").write_text(
             gt.to_newick("complete", names=names) + "\n", encoding="utf-8")
-        extant = gt.to_newick("extant")            # every species in it is alive: plain n<id>
+        # `names` here too: an extant tree's LEAVES are all in living species, but a transfer node
+        # sits on the donor's branch and can outlive it, so e<id> reaches this file as well
+        extant = gt.to_newick("extant", names=names)
         if extant is not None:
             (d / f"gene_tree_fam{fam}_extant.nwk").write_text(extant + "\n", encoding="utf-8")
 

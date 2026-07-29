@@ -34,7 +34,7 @@ from zombi2.sequences.substitution_models import (
     dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
 )
 from zombi2.tree import read_newick
-from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
+from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_strict_arg, _add_parallel_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _write_params_log,
                                   default_outputs, guidance, level_dir, parallel_from_args,
                                   defaults_used, input_digests, resolve_genomes, resolve_seed, warn)
@@ -140,6 +140,7 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     _add_flat_arg(g)
     _add_parallel_arg(g)
     _add_quiet_arg(g)
+    _add_strict_arg(g)
     _add_force_arg(g)
 
 
