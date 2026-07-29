@@ -458,10 +458,122 @@ def _scaled_species_tree(tree: Tree, rate_base: float, clock) -> Tree:
     return Tree(scaled, tree.root)
 
 
+@dataclass(frozen=True)
+class StreamedSequences:
+    """A sequence run written **straight to disk**, family by family — what ``stream_to=`` returns.
+
+    Thin on purpose: the outputs *are* the files, so this carries where they are and how big the run
+    was, not the run itself. The sequence level is where a run's memory actually goes — every family's
+    alignment plus its ancestral sequences, all live at once — so this is the handle for the size at
+    which a `SequencesResult` would not fit."""
+
+    directory: str
+    seed: int | None
+    n_families: int
+    n_sequences: int
+    outputs: tuple
+    #: mean pairwise identity over one sampled pair per family — what the CLI reports and warns on.
+    #: ``None`` when no family held two sequences to compare.
+    identity: "float | None" = None
+    unit: str = "family"
+
+    def __repr__(self) -> str:
+        return (f"StreamedSequences({self.n_sequences} sequences across {self.n_families} "
+                f"{self.unit} alignments, streamed to {self.directory!r}, seed={self.seed})")
+
+
+class _Sink:
+    """Writes one family's sequences the moment they exist, then forgets them.
+
+    Same files, same names and same contents as `SequencesResult.write` — it has to be, or a streamed
+    run would be a different dataset from an in-memory one at the same seed. The founding sequences
+    are the one output that is not per family: they share a single FASTA, so the handle stays open and
+    each family appends a record, which keeps this flat in memory too."""
+
+    def __init__(self, directory, outputs: tuple, unit: str, flat: bool) -> None:
+        self.dir = pathlib.Path(directory)
+        self.dir.mkdir(parents=True, exist_ok=True)
+        self.outputs, self.unit, self.flat = outputs, unit, flat
+        self.stem = {"family": "fam", "block": "block"}[unit]
+        self.n_families = self.n_sequences = 0
+        self._founding = (open(self.dir / "sequences_founding.fasta", "w", encoding="utf-8")
+                          if "founding" in outputs else None)
+        # Mean pairwise identity, accumulated one sampled pair per family. The CLI reports it and
+        # warns when a run has saturated, which is the single most useful thing it says about a
+        # sequence run — and computing it the in-memory way needs every alignment at once, which is
+        # exactly what is not being kept. One pair per family estimates the same quantity from a
+        # different sample, so the number can differ in the last digit; the alignments cannot.
+        self._rng = np.random.default_rng(0)
+        self._matched = self._compared = 0
+
+    def _into(self, name: str) -> pathlib.Path:
+        return grouped_dir(self.dir, name, self.flat)
+
+    @property
+    def identity(self) -> "float | None":
+        """Mean identity over the sampled pairs, or ``None`` if no family held two sequences."""
+        return self._matched / self._compared if self._compared else None
+
+    def _sample_pair(self, aln: dict) -> None:
+        seqs = list(aln.values())
+        if len(seqs) < 2:
+            return
+        i, j = (int(x) for x in self._rng.choice(len(seqs), size=2, replace=False))
+        n = min(len(seqs[i]), len(seqs[j]))
+        if not n:
+            return
+        a = np.frombuffer(seqs[i][:n].encode(), dtype=np.uint8)
+        b = np.frombuffer(seqs[j][:n].encode(), dtype=np.uint8)
+        self._matched += int(np.count_nonzero(a == b))
+        self._compared += n
+
+    def family(self, fam: int, aln: dict, anc: dict, fnd: str, phylo: dict) -> None:
+        u = f"{self.stem}{fam}"
+        # families with a SURVIVING copy, matching what an in-memory run reports: a family that left
+        # no extant gene has an empty alignment and writes no FASTA, so counting it here would make
+        # a streamed run claim more families than the same run in memory
+        self.n_families += 1 if aln else 0
+        self.n_sequences += len(aln)
+        self._sample_pair(aln)
+        if "alignments" in self.outputs and aln:
+            _write_fasta(self._into("alignments") / f"{u}.fasta", aln)
+        if "ancestral" in self.outputs and anc:
+            _write_fasta(self._into("ancestral") / f"sequences_ancestral_{u}.fasta", anc)
+        if self._founding is not None:
+            self._founding.write(f">{u}\n")
+            for i in range(0, len(fnd), 70):
+                self._founding.write(fnd[i:i + 70] + "\n")
+        if "phylograms" in self.outputs:
+            into = self._into("phylograms")
+            (into / f"phylogram_{u}_complete.nwk").write_text(phylo["complete"] + "\n",
+                                                              encoding="utf-8")
+            if phylo["extant"] is not None:
+                (into / f"phylogram_{u}_extant.nwk").write_text(phylo["extant"] + "\n",
+                                                                encoding="utf-8")
+
+    def finish(self, species_phylogram: dict) -> None:
+        """The run-sized outputs, once every family has gone by."""
+        if self._founding is not None:
+            self._founding.close()
+        if "species_phylogram" in self.outputs:
+            (self.dir / "clock_species_tree_complete.nwk").write_text(
+                species_phylogram["complete"] + "\n", encoding="utf-8")
+            if species_phylogram["extant"] is not None:
+                (self.dir / "clock_species_tree_extant.nwk").write_text(
+                    species_phylogram["extant"] + "\n", encoding="utf-8")
+
+
+#: what a streamed run writes when ``outputs`` is not given — the same set `SequencesResult.write`
+#: defaults to, minus the two a family run never has anyway (a genome is a nucleotide-run output, and
+#: nucleotide runs cannot stream: assembling a genome needs every block at once).
+_DEFAULT_STREAM_OUTPUTS = ("alignments", "phylograms", "species_phylogram")
+
+
 def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None = None,
                        intergene_model: SubstitutionModel | None = None, intergene_speed=3.0,
                        substitution=None, divergence=None, seed=None, parallel=False,
-                       progress=False) -> SequencesResult:
+                       stream_to=None, outputs=None, flat: bool = False,
+                       progress=False) -> "SequencesResult | StreamedSequences":
     """Evolve one sequence down each family's gene tree under a substitution ``model``.
 
     ``genomes`` is a **genome run** — the `FamilyGenomesResult` that
@@ -509,6 +621,15 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     Because it spawns processes, a script that calls it with ``parallel`` set must guard its entry with
     ``if __name__ == "__main__":`` (the standard multiprocessing requirement); the ``zombi2`` CLI
     already does, so ``--parallel`` there needs nothing extra.
+
+    ``stream_to=DIR`` writes each family's files as it finishes and keeps nothing, returning a
+    `StreamedSequences` handle instead of a `SequencesResult`. This is the level where a run's memory
+    actually goes — every alignment and every ancestral sequence live at once — so it is the dial for
+    a run whose result would not fit. The files are the same ones ``.write(DIR)`` would leave, so a
+    streamed run and an in-memory one at the same seed are the same dataset; ``outputs`` picks which,
+    exactly as ``.write`` does, and ``flat`` is passed through the same way. It composes with
+    ``parallel``. A **nucleotide** run cannot stream: it puts whole genomes back together, and that
+    needs every block's sequence at once, which is the opposite of keeping nothing.
     """
     from ..genomes import NucleotideGenomesResult
 
@@ -522,6 +643,15 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             "that gene sits on — one draw per lineage, shared by every family — so the run needs "
             "the species tree too."
         )
+    if stream_to is not None and nucleotide:
+        raise ValueError(
+            "a nucleotide run cannot stream: it reassembles every node's genome, which needs every "
+            "block's sequence in memory at once — the opposite of what streaming does. Run it "
+            "in memory, or use --resolution family at the genome level.")
+    if outputs is not None and stream_to is None:
+        raise ValueError(
+            "outputs applies to a streamed run (stream_to=DIR), which writes the files itself; for "
+            "an in-memory run choose them when you call result.write(outputs=...).")
     species_tree = genomes.complete_tree
     if not isinstance(model, SubstitutionModel):
         raise TypeError(f"model must be a SubstitutionModel (e.g. hky85(kappa=2.0)), got {model!r}")
@@ -610,6 +740,13 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     rate_base = rate.base
 
     names = species_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
+    sink = None
+    if stream_to is not None:
+        chosen = tuple(outputs) if outputs is not None else _DEFAULT_STREAM_OUTPUTS
+        unknown = [o for o in chosen if o not in _WRITE_OUTPUTS]
+        if unknown:
+            raise ValueError(f"unknown stream outputs {unknown}; choose from {list(_WRITE_OUTPUTS)}")
+        sink = _Sink(stream_to, chosen, "family", flat)
     alignments: dict[int, dict[str, str]] = {}
     ancestral: dict[int, dict[str, str]] = {}
     founding: dict[int, str] = {}
@@ -639,12 +776,17 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             states, founding_states = evolve_gene_tree(gt.complete, f_model, f_len, f_rate, clock, rng,
                                                        gt.origination, founding=seed_states,
                                                        cdf_cache=cache)
-            alignments[family], ancestral[family] = _split(gt, states, names, f_model)
-            founding[family] = decode(founding_states, f_model.alphabet)
+            aln, anc = _split(gt, states, names, f_model)
+            fnd = decode(founding_states, f_model.alphabet)
             scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site
             ext = scaled.extant
-            phylograms[family] = {"complete": _gene_newick(scaled.complete, names),
-                                  "extant": _gene_newick(ext, names) if ext is not None else None}
+            phylo = {"complete": _gene_newick(scaled.complete, names),
+                     "extant": _gene_newick(ext, names) if ext is not None else None}
+            if sink is None:
+                alignments[family], ancestral[family] = aln, anc
+                founding[family], phylograms[family] = fnd, phylo
+            else:
+                sink.family(family, aln, anc, fnd, phylo)   # written and forgotten
         bar.close()
     else:
         # Parallel engine (opt-in): one gene tree per process, each under its own spawned RNG stream, so
@@ -657,7 +799,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         clock = _draw_clock(clock_mod, species_tree, gene_trees, np.random.default_rng(spawned[0]))
         alignments, ancestral, founding, phylograms = evolve_families(
             gene_trees, per_block, model, intergene_model, length, rate_base, clock,
-            founding_seed if nucleotide else None, spawned[1:], workers, progress, names)
+            founding_seed if nucleotide else None, spawned[1:], workers, progress, names,
+            sink=None if sink is None else sink.family)
 
     sp_scaled = _scaled_species_tree(species_tree, rate_base, clock)   # the clock made visible
     sp_extant = prune(sp_scaled, keep="extant")
@@ -689,6 +832,10 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
                 founding[block] if strand == 1 else founding[block].translate(_COMPLEMENT)[::-1]
                 for (block, strand) in pieces)
 
+    if sink is not None:
+        sink.finish(species_phylogram)
+        return StreamedSequences(str(stream_to), seed, sink.n_families, sink.n_sequences,
+                                 sink.outputs, sink.identity)
     return SequencesResult(alignments, ancestral, founding, phylograms, species_phylogram, seed,
                            assembled, initial_genome, "block" if nucleotide else "family")
 
@@ -696,7 +843,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
 # The substitution-model menu is reached through its own module — the one canonical path,
 # like `zombi2.rates.scope` / `zombi2.rates.modifiers` — never re-exported here:
 #     from zombi2.sequences import substitution_models as sm;  sm.hky85(2.0)
-__all__ = ["simulate_sequences", "SequencesResult",
+__all__ = ["simulate_sequences", "SequencesResult", "StreamedSequences",
            # the substitution-model menu, re-exported: the TypeError raised for a bad
            # `model=` names these symbols, so they must be importable from the module it names
            "jc69", "k80", "hky85", "gtr", "poisson", "jtt", "dayhoff", "wag", "lg",
