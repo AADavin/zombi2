@@ -200,6 +200,15 @@ def _add_tools_format_args(p: argparse.ArgumentParser) -> None:
         dest="formats",
         help="which tables to write (default: homology). " +
              "; ".join(f"{name}: {gloss}" for name, (_, _, gloss) in sorted(_FORMATS.items())))
+    g.add_argument("--recphylo", choices=("complete", "extant", "both"), default="complete",
+                   metavar="SCOPE",
+                   help="which history --format recphylo writes (default complete). complete: the "
+                        "whole simulated history inside the complete species tree. extant: it "
+                        "projected onto what a dataset can hold — the extant gene tree inside the "
+                        "extant species tree — written twice, 'true' (rooted where the family really "
+                        "began, the answer key for ancestral gene content) and 'recoverable' (rooted "
+                        "at the surviving copies' ancestor, the most any method could recover), plus "
+                        "family_origins.tsv saying how each family entered. both: all of them")
     _add_flat_arg(g)
     _add_quiet_arg(g)
 
@@ -245,7 +254,10 @@ def _run_format(args, parser) -> int:
     for name in dict.fromkeys(args.formats):            # de-dupe, keep the order given
         subdir, writer, _ = _FORMATS[name]
         directory = level_dir(out, subdir, args.flat)
-        what = writer(gene_trees, tree, directory)      # each writer says what it wrote
+        # every writer takes (gene_trees, species tree, directory); recphylo alone has a choice to
+        # make, so it is the one that takes an option too
+        extra = {"scope": args.recphylo} if name == "recphylo" else {}
+        what = writer(gene_trees, tree, directory, **extra)   # each writer says what it wrote
         wrote.append(f"{name}: {what} → {os.path.relpath(directory, args.run)}/")
     # unconditional, like every other command's completion line: --quiet takes away the progress bar,
     # not the one line saying what landed and where. This alone printed nothing under --quiet, so a

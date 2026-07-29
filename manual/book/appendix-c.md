@@ -20,6 +20,7 @@ intergenic spacer is not a gene, so it gets none. `--from PATH` reads a run that
 | Homology matrix | `homology_fam<f>.tsv` | TSV | `--format homology` | one **n×n** table per family (n the extant leaves), in `genomes/homology/`. Row and column headers are the leaves `n<species>_g<copy>`; each off-diagonal cell says how that pair diverged and whether transfer is in its history since — `S`, `D` or `T`, each optionally with an `x` (see below) — and the diagonal is `-`. Symmetric. A family with no surviving copy writes no table |
 | Marker table | `markers.tsv` | TSV | `--format markers` | **one row per family** for the whole run, in `genomes/markers/`: is it single-copy, is it universal, and does its true tree match the species tree. The answer to "which families can I build a species tree from?" — see below |
 | recPhyloXML | `recphylo_fam<f>.xml` | XML | `--format recphylo` | one file per family, in `genomes/recphylo/`: that family's **complete** gene tree written inside the **complete** species tree, in the recPhyloXML format. Written for every family, extinct ones included |
+| extant-only reconciliation | `recphylo_fam<f>_{true,recoverable}.xml`, `family_origins.tsv` | XML + TSV | `--format recphylo --recphylo extant` | the same history projected onto what a dataset holds — the extant gene tree inside the extant species tree — written twice, and a table saying how each family entered |
 
 Both are exact, not inferred. ZOMBI simulated each gene tree's embedding in the species tree, so
 every event is **recorded** on the tree rather than reconstructed from it. That is what makes these
@@ -159,6 +160,48 @@ trees are next door in `genomes/gene_trees/` and `species/species_complete.nwk`.
 In Python, `zombi2.tools.recphylo.recphylo_xml(gene_trees, tree)` returns the document as a string —
 hand it every family for a single file a viewer can draw all of them in at once, or one family for
 that family's own file, which is what the command writes.
+
+### The extant-only reconciliation
+
+The file above is the whole simulated history, and that is not what a reconciliation method should be
+scored against, because a method never sees it. It sees survivors: an extant gene tree, and an extant
+species tree. `--recphylo extant` writes the same history projected onto those, and `--recphylo both`
+writes all of it.
+
+The projection keeps what is observable and drops what is not. A speciation where the gene followed
+one daughter becomes a single loss on the other — however many losses really happened down inside
+that clade, one is all anyone can infer, and one is what you get. The same speciation disappears
+entirely when the abandoned daughter has no surviving descendant, because the extant species tree does
+not contain that split at all. A duplication whose second copy died disappears too: both copies sat on
+one branch, so the data shows one copy and no method could say otherwise.
+
+Transfers are the interesting case. When a copy arrives from a lineage that leaves no survivor, the
+donor is simply not in the extant tree, and the transfer node vanishes with it. What is left is a copy
+that appears from nowhere. If that copy has surviving relatives, the point where it rejoins them is a
+real divergence and is written as a transfer out of the branch they share — the gene demonstrably was
+on that branch, and the copy left from somewhere below it. That is a weaker claim than naming the
+branch it truly left, and it is the strongest one the extant tree can express. If the copy has no
+surviving relatives, the whole family appears to begin where it landed; `family_origins.tsv` records
+that, since the arrival is invisible in the reconciliation itself.
+
+Two files come out per family, and the difference between them is the point:
+
+| | rooted at | what it is for |
+|---|---|---|
+| `recphylo_fam<f>_true.xml` | where the family really originated | the answer key. A family present in an ancestor and surviving in a scattered few genomes is recorded as present in that ancestor, with the losses that narrowed it — which is exactly what an ancestral gene-content reconstruction is trying to recover |
+| `recphylo_fam<f>_recoverable.xml` | the surviving copies' common ancestor | the ceiling. A family that left no trace above that point cannot be placed higher by any method, so nothing here can mark one wrong for missing something invisible |
+
+`true` contains `recoverable`: trimming the ancestral presence back to the surviving copies and
+dropping the losses that go with it is mechanical, and the other direction is impossible. Both are
+written so you can grade either way, and so the gap between them is visible — that gap is precisely
+the part of the history a perfect method still cannot reach.
+
+`family_origins.tsv` sits beside them, one row per family: `entered_by` is `origination` when the
+family really began on the branch it is rooted at, and `transfer` when it arrived there from a lineage
+nobody can see. `losses` counts the loss leaves in the `true` file.
+
+Unsampled survivors are treated exactly as extinct lineages here. A lineage alive but not sampled is,
+for a reconciliation, in the same position as one that died: nothing in the data refers to it.
 
 ## `tree` — one transform on a Newick tree
 
