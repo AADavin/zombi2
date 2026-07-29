@@ -22,7 +22,7 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _read_tip_fates,
                                   _write_params_log, check_stale_downstream, clear_stale_downstream,
                                   guidance, input_digests, level_dir, resolve_tree, sibling_fates)
-from zombi2.tree import read_newick
+from zombi2.tree import node_label, read_newick
 from zombi2.traits import WIRED_MODIFIERS, simulate_continuous, simulate_discrete
 
 #: the RATES block for ``zombi2 traits -h``, built from the level's own declaration
@@ -181,7 +181,7 @@ def run(args, parser):
     outputs = args.write or (_DISCRETE_DEFAULT if discrete else _CONTINUOUS_DEFAULT)
     result.write(out, outputs=outputs)
     if names:  # an external tree: map ZOMBI's n<id> back to the user's labels (join on the node col)
-        rows = ["node\tname"] + [f"n{i}\t{lbl}" for i, lbl in sorted(names.items())]
+        rows = ["node\tname"] + [f"{node_label(i)}\t{lbl}" for i, lbl in sorted(names.items())]
         with open(os.path.join(out, "names.tsv"), "w", encoding="utf-8") as f:
             f.write("\n".join(rows) + "\n")
 

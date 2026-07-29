@@ -101,3 +101,29 @@ def test_no_docstring_carries_an_unrendered_sphinx_role():
     offenders = [f"{p.relative_to(root)}:{i}" for p in sorted(root.rglob("*.py"))
                  for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if role.search(line)]
     assert not offenders, f"Sphinx roles left in {len(offenders)} place(s): {offenders[:5]}"
+
+
+# --- one place decides how a node is written --------------------------------
+
+def test_every_node_label_is_minted_through_the_one_helper():
+    # `n<id>` is the most load-bearing token in the project — the species Newick, every event log,
+    # the profile headers, the gene-tree labels, the FASTA records. It was minted by an inline
+    # f-string in eighteen places, so changing how a node is written meant finding all eighteen.
+    # It now goes through zombi2.tree.node_label, and this is what keeps it that way.
+    import re
+
+    root = pathlib.Path(genomes.__file__).parent.parent
+    inline = re.compile(r'f"n\{|f\'n\{')
+    offenders = [f"{p.relative_to(root)}:{i}" for p in sorted(root.rglob("*.py"))
+                 for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
+                 if inline.search(line) and p.name != "tree.py"]
+    assert not offenders, f"a node label minted by hand in {offenders}"
+
+
+def test_the_node_label_pair_round_trips():
+    from zombi2.tree import node_from_label, node_label
+
+    for i in (0, 7, 12345):
+        assert node_from_label(node_label(i)) == i
+    assert node_label(None) == ""
+    assert node_from_label("12") == 12          # a log written before the columns carried their n

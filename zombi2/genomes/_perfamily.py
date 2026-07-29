@@ -706,7 +706,7 @@ def _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_
     families' base ids, and drop the shard directory."""
     headers = {"events": EVENTS_HEADER,
                "genomes": "lineage\tfamily\tcopy",
-               "profiles": "family\t" + "\t".join(f"n{s}" for s in extant_ids)}
+               "profiles": "family\t" + "\t".join(node_label(s) for s in extant_ids)}
     for name, header in headers.items():
         if name in outputs:
             with open(os.path.join(out_dir, _STREAM_FILENAMES[name]), "w", encoding="utf-8") as out:
