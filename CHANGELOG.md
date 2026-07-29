@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-07-29
+
 ### Added
 - **A marker table** — `zombi2 tools format DIR --format markers` writes one row per family saying
   whether it can be trusted to recover the species tree: `single_copy`, `universal`, the family's own
