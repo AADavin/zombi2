@@ -187,6 +187,14 @@ def _add_quiet_arg(g) -> None:
                         "log file or a script running hundreds of replicates")
 
 
+def _add_strict_arg(g) -> None:
+    """Add ``--strict`` — refuse to fall back on an illustrative default (see `defaults_used`)."""
+    g.add_argument("--strict", action="store_true",
+                   help="refuse to run on illustrative defaults: every scientific parameter must be "
+                        "given, here or in --params. A bare run is a demonstration, and in a "
+                        "pipeline a dropped key would otherwise succeed with numbers nobody chose")
+
+
 def _add_force_arg(g) -> None:
     """Add ``--force`` — re-run this level even though a later level built from it is already in the run
     directory, removing that now-stale downstream output (see `check_stale_downstream()`)."""
@@ -258,12 +266,24 @@ def defaults_used(args, **fallbacks) -> str:
     instead of a list of what they failed to supply — the rates are precisely the part nobody can
     guess on a first run. What a bare run must never do is imply the numbers were chosen: they are
     round, illustrative, and calibrated to nothing. Hence the message, which the ``.log`` then
-    records alongside every other resolved parameter."""
+    records alongside every other resolved parameter.
+
+    ``--strict`` turns that warning into a refusal. The warning goes to stderr, which in a pipeline
+    is a log nobody opens, so a dropped config key, a typo in a rule's parameters, or a ``--params``
+    file that did not apply all give a **successful** run whose science is quietly not the one asked
+    for. Under ``--strict`` there are no illustrative numbers: every scientific parameter is supplied
+    or the command stops."""
     filled = {name: value for name, value in fallbacks.items() if getattr(args, name, None) is None}
-    for name, value in filled.items():
-        setattr(args, name, value)
     if not filled:
         return ""
+    missing = ", ".join("--" + n.replace("_", "-") for n in filled)
+    if getattr(args, "strict", False):
+        raise ValueError(
+            f"--strict: no value given for {missing}, and --strict means no illustrative defaults. "
+            f"Supply {'it' if len(filled) == 1 else 'them'} on the command line or in --params, or "
+            f"drop --strict to run with the demonstration values.")
+    for name, value in filled.items():
+        setattr(args, name, value)
     shown = " ".join(f"--{name.replace('_', '-')} {value}" for name, value in filled.items())
     return (f"no value given for {', '.join('--' + n.replace('_', '-') for n in filled)}, so this "
             f"run used {shown}. Those are illustrative defaults, picked to make a first run work "
@@ -440,14 +460,18 @@ def clear_stale_downstream(args, level: str) -> None:
     """With ``--force``, remove the downstream levels re-running ``level`` has now orphaned, so the run
     is left consistent (this level fresh, nothing stale beneath it). Called after the level's own run
     succeeds, so a failed re-run never deletes the old downstream. A no-op without ``--force`` or under
-    ``--flat``, and quiet unless it actually removed something."""
+    ``--flat``, and silent unless it actually removed something — but never silent when it did."""
     if not getattr(args, "force", False):
         return
     present = _stale_downstream(args, level)
     for d in present:
         shutil.rmtree(os.path.join(args.run, d))
-    if present and not getattr(args, "quiet", False):
-        print(f"note: --force removed the now-stale {', '.join(present)} (rebuilt from the new {level})")
+    if present:
+        # NOT gated on --quiet, and on stderr: this is the one place a command deletes work the user
+        # already has, and --quiet means "no progress bar", not "say nothing when you delete a run".
+        # Every pipeline passes --force (a re-run re-enters a directory that holds its downstream),
+        # so this is exactly the caller who must still hear it.
+        warn(f"--force removed the now-stale {', '.join(present)} — rebuilt from the new {level}")
 
 
 def _run_dir(s: str) -> str:

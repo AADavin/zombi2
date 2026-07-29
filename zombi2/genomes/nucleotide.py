@@ -913,7 +913,7 @@ class NucleotideGenomesResult:
 
     def write(self, directory, outputs=("events", "genes", "blocks", "initial_genome",
                                         "initial_sequence", "gene_trees", "chromosome_events",
-                                        "gff", "bed"), *, flat: bool = False) -> None:
+                                        "gff", "bed", "species_tree"), *, flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → **two** tables, because a nucleotide run records two different things.
@@ -978,6 +978,9 @@ class NucleotideGenomesResult:
             (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events), encoding="utf-8")
         if "gene_trees" in outputs:
             write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat), names)
+        if "species_tree" in outputs:            # the tree everything here is indexed by: without
+            (d / "species_complete.nwk").write_text(   # it a directory of gene trees is not a dataset
+                self.complete_tree.to_newick() + "\n", encoding="utf-8")
         if "initial_sequence" in outputs and self.initial_sequence:
             (d / "initial_sequence.fasta").write_text(
                 "".join(f">source{src}\n{self.initial_sequence[src]}\n"

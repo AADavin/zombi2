@@ -1324,16 +1324,19 @@ def test_completion_message_has_no_double_slash_on_a_trailing_slash_dir(tmp_path
     assert f"wrote {tmp_path}/" in out
 
 
-def test_tools_format_quiet_suppresses_the_summary(tmp_path, capsys):
+def test_tools_format_still_says_what_it_wrote_under_quiet(tmp_path, capsys):
+    # it used to print nothing at all under --quiet, alone among the commands, so a scripted run had
+    # to go looking on disk to find out whether anything had been written. --quiet takes away the
+    # progress bar; the one line naming what landed is not progress.
     run = tmp_path / "run"
     main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1"])
     main(["genomes", str(run), "--duplication", "0.2", "--loss", "0.2", "--origination", "0.5",
           "--initial-families", "5", "--seed", "3"])
     capsys.readouterr()                                   # drop the setup chatter
     assert main(["tools", "format", str(run), "--quiet"]) == 0
-    assert capsys.readouterr().out == ""                  # --quiet: no summary line
-    assert main(["tools", "format", str(run)]) == 0       # without it, the summary prints
-    assert "wrote" in capsys.readouterr().out
+    quiet = capsys.readouterr().out
+    assert main(["tools", "format", str(run)]) == 0
+    assert quiet.startswith("wrote ") and quiet == capsys.readouterr().out   # same line either way
 
 
 # ── the cross-level staleness guard ─────────────────────────────────────────────────
@@ -1703,6 +1706,8 @@ def test_the_summary_accounts_for_every_tip_it_counts(tmp_path, capsys):
     n_tips = int(re.search(r"\((\d+) tips", line).group(1))
     assert counts.get("unsampled", 0) > 0                  # the seed leaves some unobserved...
     assert sum(counts.values()) == n_tips                  # ...and now the parts add up
+
+
 def test_the_old_scope_spelling_says_what_the_number_used_to_mean(tmp_path, tree_file, capsys):
     # PerLineage(10) meant 10 x the node count of the species tree, so a stale command line ran at a
     # cap it did not read. It fails now, and the message does the arithmetic rather than just saying
@@ -1738,3 +1743,72 @@ def test_the_cap_can_be_set_from_a_params_file(tmp_path, tree_file):
         cell = dict(zip(cols, row.split("\t")))
         counts[(cell["lineage"], cell["family"])] += 1
     assert counts and max(counts.values()) == 3
+
+
+def test_a_run_written_from_python_carries_its_species_tree(tmp_path):
+    # the README's Python route used to write gene trees and no species tree, so a beginner got a
+    # dataset with no ground truth in it and nothing said so
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=1)
+    g = simulate_genomes_family(sp, duplication=0.2, transfer=0.1, initial_families=5, seed=2)
+    g.write(tmp_path / "py")
+    written = tmp_path / "py" / "species_complete.nwk"
+    assert written.exists()
+    assert written.read_text(encoding="utf-8") == sp.complete_tree.to_newick() + "\n"
+
+
+def test_the_cli_keeps_one_species_tree_not_one_per_level(tmp_path):
+    # the Result writes it so a Python directory stands alone; a run already has a canonical copy
+    # under species/, and two files for one fact is how they drift apart
+    run = tmp_path / "r"
+    assert main(["species", str(run), "--birth", "1", "--n-extant", "8", "--seed", "1",
+                 "--quiet"]) == 0
+    assert main(["genomes", str(run), "--duplication", "0.2", "--initial-families", "5",
+                 "--seed", "1", "--quiet"]) == 0
+    assert (run / "species" / "species_complete.nwk").exists()
+    assert not (run / "genomes" / "species_complete.nwk").exists()
+    log = (run / "genomes" / "genomes.log").read_text(encoding="utf-8")
+    # the `write` line, not the whole log: the log also records the command line that invoked this
+    write_line = next(ln for ln in log.splitlines() if ln.startswith("write\t"))
+    assert "species_tree" not in write_line        # and it says what it actually wrote
+    assert "gene_trees" in write_line
+
+
+def test_force_says_what_it_deleted_even_under_quiet(tmp_path, capsys):
+    # --force is mandatory in any pipeline that re-runs a level, so its notice was permanently
+    # suppressed by the --quiet those pipelines also pass: 294 files could vanish silently
+    run = tmp_path / "r"
+    for cmd in (["species", str(run), "--birth", "1", "--n-extant", "8", "--seed", "1"],
+                ["genomes", str(run), "--duplication", "0.2", "--initial-families", "5",
+                 "--seed", "1"]):
+        assert main(cmd + ["--quiet"]) == 0
+    assert (run / "genomes").exists()
+    capsys.readouterr()
+    assert main(["species", str(run), "--birth", "1", "--n-extant", "8", "--seed", "2",
+                 "--quiet", "--force"]) == 0
+    captured = capsys.readouterr()
+    assert "genomes" in captured.err and "--force removed" in captured.err
+    assert "--force removed" not in captured.out           # a diagnostic, so stderr not stdout
+    assert not (run / "genomes").exists()                  # and it really did remove it
+
+
+def test_strict_refuses_to_invent_the_science(tmp_path, capsys):
+    # a dropped config key used to give a SUCCESSFUL run with numbers nobody chose, announced only
+    # on a stderr that a pipeline sends to a log nobody opens
+    assert main(["species", str(tmp_path / "loose"), "--seed", "1", "--quiet"]) == 0
+    assert "no value given" in capsys.readouterr().err     # the warning, unchanged, without --strict
+
+    assert main(["species", str(tmp_path / "strict"), "--seed", "1", "--quiet", "--strict"]) == 1
+    err = capsys.readouterr().err
+    assert "--strict" in err and "--birth" in err and "--n-extant" in err
+    assert not (tmp_path / "strict").exists()
+
+    # supplying everything satisfies it — --strict is about silence, not about extra ceremony
+    assert main(["species", str(tmp_path / "given"), "--birth", "1", "--n-extant", "8",
+                 "--seed", "1", "--quiet", "--strict"]) == 0
+
+
+def test_strict_is_satisfied_by_a_params_file(tmp_path):
+    params = tmp_path / "p.toml"
+    params.write_text("[species]\nbirth = 1.0\nn-extant = 8\n", encoding="utf-8")
+    assert main(["species", str(tmp_path / "r"), "--params", str(params), "--seed", "1",
+                 "--quiet", "--strict"]) == 0

@@ -15,8 +15,11 @@ keywords = ["phylogenetics", "simulation", "gene families", "birth-death", "evol
 # commands show while they work, and is optional at runtime — zombi2.progress falls back to a
 # silent no-op without it, so a run behaves the same either way.
 dependencies = [
-    "numpy>=1.24",
-    "tqdm>=4.60",
+    # upper bounds so a future major release cannot break an install of a pinned zombi2:
+    # neither project promises compatibility across one, and this package is not there to
+    # find out during someone's course.
+    "numpy>=1.24,<3",
+    "tqdm>=4.60,<5",
 ]
 license = "MIT"
 license-files = ["LICENSE"]

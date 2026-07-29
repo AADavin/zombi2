@@ -117,7 +117,7 @@ class FamilyGenomesResult:
         return gene_trees_from_events(self.events, self.complete_tree)
 
     def write(self, directory, outputs=("events", "profiles", "genomes", "initial_genome",
-                                        "gene_trees"), *, flat: bool = False) -> None:
+                                        "gene_trees", "species_tree"), *, flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → ``genome_events.tsv``, the event log (the source of truth).
@@ -130,6 +130,12 @@ class FamilyGenomesResult:
         - ``"gene_trees"`` → ``gene_tree_fam<family>_{complete,extant}.nwk`` under ``gene_trees/``,
           each family's true genealogy. A family with no surviving copy writes no ``_extant`` file.
 
+        - ``"species_tree"`` → ``species_complete.nwk``, the tree the run evolved along. Written
+          because a directory of gene trees with no species tree is not a dataset anyone can use:
+          every one of these outputs is *indexed by* that tree's node labels, and the truth a gene
+          tree is compared against is the species tree it grew inside. A run written from Python
+          used to leave it out entirely, so the quickstart handed back gene trees with nothing to
+          compare them to and said nothing about it.
         The gene trees are two files per family, so they get a subdirectory rather than burying the
         tables above; ``flat=True`` writes everything into ``directory`` instead.
         """
@@ -146,6 +152,9 @@ class FamilyGenomesResult:
             (d / "initial_genome.tsv").write_text(self._initial_genome_tsv(), encoding="utf-8")
         if "gene_trees" in outputs:
             write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat), names)
+        if "species_tree" in outputs:
+            (d / "species_complete.nwk").write_text(self.complete_tree.to_newick() + "\n",
+                                                    encoding="utf-8")
 
     def _genomes_tsv(self) -> str:
         """Every node's gene content, one row per copy, in the order the genome holds them. The

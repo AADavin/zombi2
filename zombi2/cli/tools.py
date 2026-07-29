@@ -247,8 +247,10 @@ def _run_format(args, parser) -> int:
         directory = level_dir(out, subdir, args.flat)
         what = writer(gene_trees, tree, directory)      # each writer says what it wrote
         wrote.append(f"{name}: {what} → {os.path.relpath(directory, args.run)}/")
-    if not args.quiet:
-        print(f"wrote {args.run}/ ({'; '.join(wrote)})")
+    # unconditional, like every other command's completion line: --quiet takes away the progress bar,
+    # not the one line saying what landed and where. This alone printed nothing under --quiet, so a
+    # scripted run had to go and find the files to learn whether it had written any.
+    print(f"wrote {args.run}/ ({'; '.join(wrote)})")
     return 0
 
 
