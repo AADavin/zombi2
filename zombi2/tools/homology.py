@@ -1,33 +1,37 @@
-"""Homology classification — the true ortholog / paralog / xenolog relation of every gene pair.
+"""Homology classification — the event at every gene pair's common ancestor, and what came after.
 
 ZOMBI *simulated* each gene tree's embedding in the species tree, so the event at every internal node
-is recorded, not inferred (see `zombi2.genomes.gene_trees`). Two genes are then related along
-**two independent axes**, and a cell carries both:
+is recorded, not inferred (see `zombi2.genomes.gene_trees`). Two genes are then related along **two
+independent axes**, and a cell carries both:
 
-**How they diverged** — the event at their most-recent common ancestor:
+**How they diverged** — the event at their most-recent common ancestor: ``S`` a speciation (the
+species carrying one gene split in two), ``D`` a duplication (one gene became two inside a genome),
+``T`` a transfer (one gene became two, in two lineages).
 
-- a **speciation** — one gene, and the species carrying it split in two, so the two genes are
-  **orthologs** (``O``);
-- a **copying** — one gene became two, so they are **paralogs** (``P``). Either a duplication, which
-  copies within a genome, or a transfer, which copies into another lineage; both leave two genes
-  where there was one, which is what the letter says.
+**Whether transfer is in their history since** — an ``x`` suffix, when a transfer sits on the path
+from that ancestor down to *either* gene. A pair that diverged **at** a transfer is already ``T`` and
+takes no suffix for that one; ``Tx`` would be a second transfer further down.
 
-**Whether horizontal transfer is in their history** — an ``x`` suffix when a transfer sits anywhere on
-the path from that common ancestor down to *either* gene, making them **xenologs** as well.
+So a cell reads ``S``, ``D`` or ``T``, each optionally with an ``x``; the diagonal is ``-``.
 
-So a cell is ``O``, ``P``, ``Ox`` or ``Px``, and the diagonal (a gene against itself) is ``-``.
+**The table states the event, not a reading of it.** It used to say ``O``/``P`` — ortholog and
+paralog — and that was a mistake worth naming, because the readings disagree with each other and most
+of them need something a pair of genes does not carry: Fitch's relation is not one-to-one (both
+copies of a duplication are orthologs of the sister lineage's single gene), paralogy is relative to a
+chosen speciation, and the label even depends on the reconciliation model you fit, since a
+duplication-loss model has no transfer category and explains one as a duplication plus losses. Each
+of those is *this event plus a choice*. ZOMBI knows the event exactly; the choice belongs to the
+reader. Anyone after genes to build a species tree from wants `zombi2.tools.markers` instead — that
+is a question about a family, and no pairwise label adds up to it.
 
-The two axes have to be separate, because they answer different questions and the answers are not
-exclusive. Divergence is a property of one *node*; xenology is a property of the whole *path*, which
-is how Fitch defined it — and a pair can perfectly well have diverged at a speciation and then had
-one of its two genes carried somewhere else by a transfer. Reading xenology off the MRCA event alone,
-as this table used to, catches only the pair whose divergence **is** the transfer — the copy left
-behind and the copy that left — and calls every other transfer-affected pair a plain ortholog. On an
-ordinary run that is a sixfold undercount, and it hides the case that matters most to anyone
-benchmarking against these tables: two genes in the **same genome**, one of them an arrival from a
-relative, whose MRCA is the speciation that separated the two species. That pair used to read ``O``,
-which no orthology method can ever reproduce, so the answer key scored the method wrong. It now reads
-``Ox``.
+The two axes have to be separate for the same reason they had to be separated from each other:
+divergence is a property of one *node*, and transfer-in-the-history is a property of the whole
+*path*, which is how Fitch defined xenology. A pair can perfectly well have diverged at a speciation
+and then had one of its genes carried elsewhere. Reading both off the MRCA event alone, as this table
+originally did, catches only the pair whose divergence **is** the transfer — a sixfold undercount on
+an ordinary run — and it hid the case that matters most: two genes in the **same genome**, one an
+arrival from a relative, whose common ancestor is the speciation that separated the two species. That
+pair used to read ``O``, which no orthology method can ever reproduce. It now reads ``Sx``.
 
 The result is one n×n symmetric table per family, n the extant leaves.
 """
@@ -38,10 +42,10 @@ import pathlib
 from zombi2.genomes.events import copy_label
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
 
-#: the MRCA's event → how the pair **diverged**. A transfer copies a gene into another lineage, so
-#: like a duplication it leaves two genes where there was one: both are ``P``. What tells them apart
-#: is the ``x`` suffix, which those pairs always carry (the transfer is on their path by definition).
-_DIVERGENCE = {"speciation": "O", "duplication": "P", "transfer": "P"}
+#: the MRCA's event → the letter for it. The event is what ZOMBI *knows*; "ortholog" and "paralog"
+#: are an interpretation laid over it, and one that several published definitions disagree about
+#: (see the Tools appendix). So the table states the event and leaves the interpretation to the reader.
+_DIVERGENCE = {"speciation": "S", "duplication": "D", "transfer": "T"}
 
 
 def _arrived(node: GeneNode) -> GeneNode | None:
@@ -122,7 +126,10 @@ def homology_table(root: GeneNode) -> tuple[list[str], list[list[str]]]:
             for b in range(a + 1, len(child_sets)):
                 for i in child_sets[a]:
                     for j in child_sets[b]:
-                        rel = how + "x" if t_leaf[i] + t_leaf[j] > here else how
+                        # `x` marks a transfer SINCE the divergence, so a pair that diverged AT a
+                        # transfer (already `T`) does not get one for that transfer itself
+                        extra = t_leaf[i] + t_leaf[j] - here - (n.kind == "transfer")
+                        rel = how + "x" if extra > 0 else how
                         matrix[i][j] = matrix[j][i] = rel
         merged: list[int] = []
         for s in child_sets:

@@ -9,6 +9,33 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **A marker table** — `zombi2 tools format DIR --format markers` writes one row per family saying
+  whether it can be trusted to recover the species tree: `single_copy`, `universal`, the family's own
+  event counts, and an `rf` distance between its true gene tree and the species tree **restricted to
+  the genomes it occupies** (`rf = 0` is a perfect marker). This is the answer to the question most
+  people are actually asking when they ask for "the orthologs", and it is a question about a *family*,
+  which no pairwise label adds up to.
+
+  Its value is the case that is invisible in real data: **a family can be single-copy *and* universal
+  and still give the wrong tree** — hidden paralogy from a duplication plus reciprocal loss, or a
+  transfer that replaced the resident gene. On a transfer-rich run, 111 of 299 families came out
+  single-copy and universal and 106 of those did *not* recover the species tree. `rf` agrees with
+  `zombi2 tools treedist`, checked against the command itself on real families.
+
+### Changed
+- **The homology table states the event, not a reading of it**: `S` (speciation), `D` (duplication)
+  or `T` (transfer) at the pair's common ancestor, each optionally with `x` for a transfer *since*.
+  It used to say `O`/`P` — ortholog and paralog — and that was worth undoing. The readings disagree
+  with each other and most of them need something a pair of genes does not carry: Fitch's relation is
+  not one-to-one, paralogy is relative to a chosen speciation, and the label even depends on the
+  reconciliation model, since a duplication–loss model has no transfer category and explains one as a
+  duplication plus losses. Each is *this event plus a choice*; ZOMBI knows the event exactly and the
+  choice belongs to the reader. It also retires the absurdity of two genes in one genome being
+  labelled orthologs — that pair now reads `Sx`, which is simply true.
+- The Tools appendix gains an **"If you came here looking for orthologs"** section setting out the
+  three different things people mean by the word and which of them ZOMBI2 answers.
+
 ## [0.14.0] - 2026-07-29
 
 ### Changed

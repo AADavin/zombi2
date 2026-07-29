@@ -1193,7 +1193,8 @@ def _check_table(text):
     assert all(grid[i][i] == "-" for i in range(n))            # dashed diagonal
     assert all(grid[i][j] == grid[j][i] for i in range(n) for j in range(n))   # symmetric
     off = {grid[i][j] for i in range(n) for j in range(n) if i != j}
-    assert off <= {"O", "P", "Ox", "Px"}      # how they diverged, plus x for transfer on the path
+    # the divergence event, plus x for a transfer SINCE — including Tx, a second transfer below a first
+    assert off <= {"S", "D", "T", "Sx", "Dx", "Tx"}
     return labels, grid
 
 
@@ -1212,8 +1213,8 @@ def test_tools_format_writes_homology_tables(tmp_path, capsys):
     for t in tables:
         _, grid = _check_table(t.read_text(encoding="utf-8"))
         letters |= {c for row in grid for c in row}
-    # a DTL run exercises every combination: orthologs, paralogs, and both with transfer in between
-    assert {"O", "P", "Ox", "Px"} <= letters
+    # a DTL run exercises every combination: each divergence event, with and without a transfer since
+    assert {"S", "D", "T", "Sx", "Dx"} <= letters
     assert "wrote" in capsys.readouterr().out
 
 
