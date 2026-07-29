@@ -7,7 +7,8 @@ from dataclasses import dataclass, field
 from functools import cached_property
 
 
-from ..tree import Tree, node_label
+from ..genomes.events import _name
+from ..tree import Tree
 
 _WRITE_OUTPUTS = ("values", "events", "tree")  # write vocabulary; "events" = the trait event log
 
@@ -91,12 +92,15 @@ class TraitsResult:
             raise ValueError(f"unknown write outputs {unknown}; choose from {list(_WRITE_OUTPUTS)}")
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
+        names = self.complete_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
         if "values" in outputs:
-            (d / "trait_values.tsv").write_text(_values_tsv(self.values), encoding="utf-8")
+            # the extant tips only, so every one of them is n<id> — the map is passed for uniformity
+            (d / "trait_values.tsv").write_text(_values_tsv(self.values, names), encoding="utf-8")
         if "events" in outputs:
-            (d / "trait_events.tsv").write_text(_events_tsv(self.events), encoding="utf-8")
+            (d / "trait_events.tsv").write_text(_events_tsv(self.events, names), encoding="utf-8")
         if "tree" in outputs:
-            (d / "trait_tree.nwk").write_text(_trait_newick(self.complete_tree, self.node_values) + "\n", encoding="utf-8")
+            (d / "trait_tree.nwk").write_text(
+                _trait_newick(self.complete_tree, self.node_values) + "\n", encoding="utf-8")
 
 
 
@@ -118,18 +122,21 @@ def _trait_annotation(v) -> str:
 def _trait_newick(tree: "Tree", node_values: dict) -> str:
     """The complete tree as Newick with **every** node annotated with its trait value (a *trait
     tree*). Mirrors `zombi2.species.Tree.to_newick()` — branch length ``end_time − birth_time``,
-    leaves and internals named ``n<id>``, the root carrying its stem — and adds the ``[&trait=…]``
+    leaves and internals named ``n<id>`` (``e<id>`` for a lineage that died), the root carrying its
+    stem — and adds the ``[&trait=…]``
     comment at each node, so the exact ancestral states ride along the tree."""
+    name = tree.labels()
+
     def emit(i: int) -> str:
         node = tree.nodes[i]
         bl = node.end_time - node.birth_time
-        tag = f"{node_label(i)}{_trait_annotation(node_values[i])}"
+        tag = f"{name[i]}{_trait_annotation(node_values[i])}"
         if node.children is None:
             return f"{tag}:{bl:.7g}"
         return f"({','.join(emit(c) for c in node.children)}){tag}:{bl:.7g}"
 
     root = tree.nodes[tree.root]
-    tag = f"{node_label(tree.root)}{_trait_annotation(node_values[tree.root])}"
+    tag = f"{name[tree.root]}{_trait_annotation(node_values[tree.root])}"
     stem = root.end_time - root.birth_time
     if root.children is None:
         return f"{tag}:{stem:.7g};"
@@ -137,7 +144,7 @@ def _trait_newick(tree: "Tree", node_values: dict) -> str:
 
 
 
-def _values_tsv(values: dict[int, object]) -> str:
+def _values_tsv(values: dict[int, object], names: dict | None = None) -> str:
     """The extant-tip values as a ``node<TAB>…`` table, one row per tip in id order (tips named
     ``n<id>`` to match the Newick). A single trait gives a ``node<TAB>trait`` table; correlated traits
     (per-node ``{trait: value}`` dicts) give one column per trait."""
@@ -145,16 +152,16 @@ def _values_tsv(values: dict[int, object]) -> str:
         cols = list(next(iter(values.values())))
         rows = ["node\t" + "\t".join(str(c) for c in cols)]
         for i in sorted(values):
-            rows.append(f"{node_label(i)}\t" + "\t".join(_fmt(values[i][c]) for c in cols))
+            rows.append(f"{_name(names, i)}\t" + "\t".join(_fmt(values[i][c]) for c in cols))
         return "\n".join(rows) + "\n"
     rows = ["node\ttrait"]
     for i in sorted(values):
-        rows.append(f"{node_label(i)}\t{_fmt(values[i])}")
+        rows.append(f"{_name(names, i)}\t{_fmt(values[i])}")
     return "\n".join(rows) + "\n"
 
 
 
-def _events_tsv(changes: list[Change]) -> str:
+def _events_tsv(changes: list[Change], names: dict | None = None) -> str:
     """The event log as ``time<TAB>kind<TAB>lineage<TAB>from<TAB>to`` (``kind`` = root / on_branch /
     on_speciation), the ``root`` row first, then the switches in time order — the trait twin of
     ``genome_events.tsv``, and the conditioning file a driven run replays.
@@ -165,7 +172,7 @@ def _events_tsv(changes: list[Change]) -> str:
     rows = ["time\tkind\tlineage\tfrom\tto"]
     for c in changes:
         frm = "" if c.from_state is None else _fmt(c.from_state)   # the root row leads from nothing
-        rows.append(f"{c.time!r}\t{c.kind}\tn{c.lineage}\t{frm}\t{_fmt(c.to_state)}")
+        rows.append(f"{c.time!r}\t{c.kind}\t{_name(names, c.lineage)}\t{frm}\t{_fmt(c.to_state)}")
     return "\n".join(rows) + "\n"
 
 

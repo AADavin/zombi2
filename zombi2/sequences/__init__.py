@@ -40,7 +40,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..genomes import FamilyGenomesResult
-from ..genomes.events import copy_label, gene_label, node_label
+from ..genomes.events import gene_label
 from ..genomes.gene_trees import GeneNode, GeneTree
 from ..rates.modifiers import ByLineage, FromParent, Modifier
 from ..rates.rate import Rate, as_rate
@@ -265,7 +265,7 @@ def _write_fasta(path, records: dict[str, str], width: int = 70) -> None:
             f.writelines(f"{seq[i:i + width]}\n" for i in range(0, len(seq), width))
 
 
-def _split(gene_tree, states_by_id: dict[int, np.ndarray],
+def _split(gene_tree, states_by_id: dict[int, np.ndarray], names,
            model: SubstitutionModel) -> tuple[dict[str, str], dict[str, str]]:
     """Label one family's evolved nodes by their **gene id** and split them into the **observable**
     half — the extant tips — and everything else. Gene ids are per-segment (each node has a unique
@@ -294,7 +294,7 @@ def _split(gene_tree, states_by_id: dict[int, np.ndarray],
     for i, node in enumerate(nodes):
         seq = flat[i * length:(i + 1) * length]
         observable = node.is_leaf and node.kind == "extant"
-        (alignment if observable else ancestral)[copy_label(node.species, node.copy)] = seq
+        (alignment if observable else ancestral)[f"{names[node.species]}_{gene_label(node.copy)}"] = seq
     return alignment, ancestral
 
 
@@ -409,7 +409,7 @@ def _scaled_gene_tree(gt: GeneTree, rate_base: float, clock) -> GeneTree:
     return GeneTree(gt.family, scaled_root, 0.0)   # origination is the zero of the scaled measure
 
 
-def _gene_newick(root: GeneNode) -> str:
+def _gene_newick(root: GeneNode, names) -> str:
     """Newick of a (scaled) gene tree labelling **every** node — leaf and internal — by its gene id
     ``n<species>_g<copy>``, so the tips match the ``alignments`` keys and the internal nodes match the
     ``ancestral`` keys (both keyed ``n<species>_g<copy>``): the phylogram pairs one-to-one with the sequences.
@@ -426,8 +426,8 @@ def _gene_newick(root: GeneNode) -> str:
             stack.append([node.children[ci], node.time, 0, []])
             continue
         bl = f":{node.time - parent_time:.7g}"
-        s = (f"{copy_label(node.species, node.copy)}{bl}" if node.is_leaf
-             else f"({','.join(parts)}){copy_label(node.species, node.copy)}{bl}")
+        tag = f"{names[node.species]}_{gene_label(node.copy)}"
+        s = f"{tag}{bl}" if node.is_leaf else f"({','.join(parts)}){tag}{bl}"
         stack.pop()
         if stack:
             stack[-1][3].append(s)
@@ -609,6 +609,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             )
     rate_base = rate.base
 
+    names = species_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
     alignments: dict[int, dict[str, str]] = {}
     ancestral: dict[int, dict[str, str]] = {}
     founding: dict[int, str] = {}
@@ -638,12 +639,12 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             states, founding_states = evolve_gene_tree(gt.complete, f_model, f_len, f_rate, clock, rng,
                                                        gt.origination, founding=seed_states,
                                                        cdf_cache=cache)
-            alignments[family], ancestral[family] = _split(gt, states, f_model)
+            alignments[family], ancestral[family] = _split(gt, states, names, f_model)
             founding[family] = decode(founding_states, f_model.alphabet)
             scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site
             ext = scaled.extant
-            phylograms[family] = {"complete": _gene_newick(scaled.complete),
-                                  "extant": _gene_newick(ext) if ext is not None else None}
+            phylograms[family] = {"complete": _gene_newick(scaled.complete, names),
+                                  "extant": _gene_newick(ext, names) if ext is not None else None}
         bar.close()
     else:
         # Parallel engine (opt-in): one gene tree per process, each under its own spawned RNG stream, so
@@ -656,7 +657,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         clock = _draw_clock(clock_mod, species_tree, gene_trees, np.random.default_rng(spawned[0]))
         alignments, ancestral, founding, phylograms = evolve_families(
             gene_trees, per_block, model, intergene_model, length, rate_base, clock,
-            founding_seed if nucleotide else None, spawned[1:], workers, progress)
+            founding_seed if nucleotide else None, spawned[1:], workers, progress, names)
 
     sp_scaled = _scaled_species_tree(species_tree, rate_base, clock)   # the clock made visible
     sp_extant = prune(sp_scaled, keep="extant")
@@ -676,9 +677,9 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         # and `write` emits its files, in exactly the previous order.
         extant_ids = sorted(n.id for n in species_tree.extant())
         extant_id_set = set(extant_ids)
-        extant_labels = {node_label(i) for i in extant_ids}
+        extant_labels = {names[i] for i in extant_ids}
         ordered_ids = extant_ids + [i for i in sorted(species_tree.nodes) if i not in extant_id_set]
-        layouts = {node_label(i): genomes.assembly(i) for i in ordered_ids}
+        layouts = {names[i]: genomes.assembly(i) for i in ordered_ids}
         assembled = _AssembledGenomes(layouts, alignments, ancestral, extant_labels)
         # The genome the run started with. Its blocks were all laid down at the start, so each one's
         # sequence there is its `founding` draw — the state the stem leads *from*. It is not a node,

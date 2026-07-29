@@ -52,7 +52,7 @@ from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
-from .events import _COLS, Event, gene_label, node_label
+from .events import _COLS, Event, _name, gene_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
 
@@ -291,19 +291,22 @@ class OrderedGenomesResult:
         """
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
+        names = self.complete_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
         if "events" in outputs:
             (d / "genome_events.tsv").write_text(
-                _events_tsv(self.events, self.event_positions, self.rearrangements), encoding="utf-8")
+                _events_tsv(self.events, self.event_positions, self.rearrangements, names),
+                encoding="utf-8")
         if "profiles" in outputs:
             (d / "profiles.tsv").write_text(self.profiles.to_tsv(), encoding="utf-8")
         if "gene_order" in outputs:
-            (d / "gene_order.tsv").write_text(self._gene_order_tsv(), encoding="utf-8")
+            (d / "gene_order.tsv").write_text(self._gene_order_tsv(names), encoding="utf-8")
         if "initial_genome" in outputs:
             (d / "initial_genome.tsv").write_text(self._initial_genome_tsv(), encoding="utf-8")
         if "chromosome_events" in outputs:
             (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events), encoding="utf-8")
         if "gene_trees" in outputs:
-            write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat))
+            write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat),
+                             self.complete_tree.labels())
 
     def _initial_genome_tsv(self) -> str:
         """The layout the run started with — ``gene_order.tsv``'s columns without ``lineage``, which
@@ -313,9 +316,9 @@ class OrderedGenomesResult:
                 for chrom in self.initial_genome for pos, g in enumerate(chrom.genes)]
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 
-    def _gene_order_tsv(self) -> str:
+    def _gene_order_tsv(self, names=None) -> str:
         cols = ("lineage", "chromosome", "position", "strand", "family", "copy")
-        rows = [f"{node_label(s)}\t{ch}\t{p}\t{st}\t{fam}\t{gene_label(gid)}"
+        rows = [f"{_name(names, s)}\t{ch}\t{p}\t{st}\t{fam}\t{gene_label(gid)}"
                 for s in sorted(self.genomes)
                 for (ch, p, st, fam, gid) in self.gene_order(s)]
         return "\n".join(["\t".join(cols), *rows]) + "\n"
@@ -353,7 +356,7 @@ def _position_key(kind, lineage, family, recipient):
     return (kind, lineage, family if kind == "origination" else None)
 
 
-def _events_tsv(events, event_positions, rearrangements) -> str:
+def _events_tsv(events, event_positions, rearrangements, names=None) -> str:
     """The run's whole history as one time-ordered table (see `_EVENT_COLS`)."""
     where = {}
     for p in event_positions:
@@ -364,16 +367,16 @@ def _events_tsv(events, event_positions, rearrangements) -> str:
     for e in events:
         key = (e.time, *_position_key(e.kind, e.lineage, e.family, e.recipient))
         p = where.get(key)
-        cells = [e.time, e.kind, node_label(e.lineage), e.family, gene_label(e.copy),
+        cells = [e.time, e.kind, _name(names, e.lineage), e.family, gene_label(e.copy),
                  "" if e.parent is None else gene_label(e.parent),
-                 "" if e.recipient is None else node_label(e.recipient),
-                 "" if e.donor is None else node_label(e.donor),
+                 "" if e.recipient is None else _name(names, e.recipient),
+                 "" if e.donor is None else _name(names, e.donor),
                  gene_label(e.event)]
         # `donor` is on both of a transfer's rows (it comes from the event itself); the row that
         # *left* additionally needs to say where the material went, which its own `recipient` cannot
         # — that field names the branch the new copy is born on, so it is the arriving row's.
         arriving = e.kind == "transfer" and e.recipient is not None
-        cells += ["" if p is None or p.recipient is None or arriving else node_label(p.recipient)]
+        cells += ["" if p is None or p.recipient is None or arriving else _name(names, p.recipient)]
         # The arc belongs to the **event**, not to each copy it touched: a duplication of three genes
         # ends three and starts six, but there is one arc. So it is written on the event's first row
         # and left empty on the rest — filter on a non-empty `position` to get one row per event that
@@ -387,7 +390,7 @@ def _events_tsv(events, event_positions, rearrangements) -> str:
         rows.append((e.time, "\t".join(str(c) for c in cells)))
 
     for r in rearrangements:            # ancestry-neutral: no family, copy, parent or event either
-        head = [r.time, "", node_label(r.lineage), *[""] * (len(_COLS) - 3), ""]
+        head = [r.time, "", _name(names, r.lineage), *[""] * (len(_COLS) - 3), ""]
         if isinstance(r, Inversion):
             tail = ["inversion", r.chromosome, r.start, r.length, "", "", ""]
         elif isinstance(r, Transposition):

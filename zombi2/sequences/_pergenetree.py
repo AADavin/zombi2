@@ -33,11 +33,12 @@ _MIN_FAMILIES_FOR_POOL = 2
 _MODELS: tuple = ()
 _CLOCK = None
 _CACHES: list = []
+_NAMES: dict = {}   # the run's node names — e<id> for a lineage that died
 
 
-def _init_worker(models, clock) -> None:
-    global _MODELS, _CLOCK, _CACHES
-    _MODELS, _CLOCK = models, clock
+def _init_worker(models, clock, names) -> None:
+    global _MODELS, _CLOCK, _CACHES, _NAMES
+    _MODELS, _CLOCK, _NAMES = models, clock, names
     _CACHES = [dict() for _ in models]
 
 
@@ -53,16 +54,16 @@ def _evolve_one(task):
     states, founding_states = evolve_gene_tree(gt.complete, model, length, rate, _CLOCK, rng,
                                                gt.origination, founding=seed_states,
                                                cdf_cache=_CACHES[midx])
-    aln, anc = _split(gt, states, model)
+    aln, anc = _split(gt, states, _NAMES, model)
     scaled = _scaled_gene_tree(gt, rate, _CLOCK)             # branch lengths in subs/site
     ext = scaled.extant
-    phylo = {"complete": _gene_newick(scaled.complete),
-             "extant": _gene_newick(ext) if ext is not None else None}
+    phylo = {"complete": _gene_newick(scaled.complete, _NAMES),
+             "extant": _gene_newick(ext, _NAMES) if ext is not None else None}
     return family, aln, anc, decode(founding_states, model.alphabet), phylo
 
 
 def evolve_families(gene_trees, per_block, model, intergene_model, length, rate_base, clock,
-                    founding_seed, family_seeds, workers, progress):
+                    founding_seed, family_seeds, workers, progress, names):
     """Evolve every family concurrently and assemble the four output maps.
 
     ``family_seeds[i]`` is the spawned RNG stream for the *i*-th family in sorted order, so the family
@@ -99,10 +100,10 @@ def evolve_families(gene_trees, per_block, model, intergene_model, length, rate_
     if workers > 1 and n >= _MIN_FAMILIES_FOR_POOL:
         w = min(workers, n)
         with ProcessPoolExecutor(max_workers=w, initializer=_init_worker,
-                                 initargs=(models, clock)) as ex:
+                                 initargs=(models, clock, names)) as ex:
             _collect(ex.map(_evolve_one, tasks, chunksize=max(1, n // (w * 8))))
     else:
-        _init_worker(models, clock)      # inline: the same worker + per-process caches, no pool
+        _init_worker(models, clock, names)   # inline: the same worker + per-process caches, no pool
         _collect(_evolve_one(t) for t in tasks)
     bar.close()
     return alignments, ancestral, founding, phylograms

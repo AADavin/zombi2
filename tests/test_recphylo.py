@@ -42,7 +42,9 @@ def test_the_document_is_well_formed_and_has_the_expected_skeleton(run):
 def test_the_species_tree_holds_every_node_a_gene_points_at(run):
     root = ET.fromstring(recphylo_xml(run.gene_trees, run.complete_tree))
     named = {c.find("name").text for c in _clades(root.find("spTree"))}
-    assert named == {f"n{i}" for i in run.complete_tree.nodes}      # complete: extinct species too
+    # complete: extinct species too — and they are named e<id>, which is how the file says so
+    assert named == set(run.complete_tree.labels().values())
+    assert any(lab[0] == "e" for lab in named), "the run should have lost a lineage"
     pointed_at = set()
     for rgt in root.findall("recGeneTree"):
         for clade in _clades(rgt):

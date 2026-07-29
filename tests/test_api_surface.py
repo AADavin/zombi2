@@ -113,7 +113,8 @@ def test_every_node_label_is_minted_through_the_one_helper():
     import re
 
     root = pathlib.Path(genomes.__file__).parent.parent
-    inline = re.compile(r'f"n\{|f\'n\{')
+    # `f"n{i}"`, and `f"...\tn{e.node}\t..."` too — but not the `\n{` of an escaped newline
+    inline = re.compile(r'(?<![\\\w])n\{')
     offenders = [f"{p.relative_to(root)}:{i}" for p in sorted(root.rglob("*.py"))
                  for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
                  if inline.search(line) and p.name != "tree.py"]

@@ -9,6 +9,27 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+- **A lineage that went extinct is now named `e<id>`** — in the complete species tree, the event
+  logs, `genomes.tsv`, the complete gene trees, the trait tree and event log, the ancestral FASTA and
+  phylograms, recPhyloXML, and the gff/bed and assembled-genome filenames. The number is the identity
+  and the letter an annotation: `5` names the lineage wherever it appears and a join can always strip
+  the prefix, which is what keeps this a marking rather than an identifier change.
+
+  It marks the one fact about a branch you cannot recover from the tree's shape, and it means a
+  complete tree **states its own extinctions**: the file survives being moved, copied or emailed,
+  where the sibling `species_fates.tsv` does not, and `read_newick` no longer needs that table or a
+  guess from tip depth to recover them.
+
+  Two things deliberately stay `n`. Internal nodes — a speciation is not a fate. And **unsampled**
+  tips, which are alive: being unsampled is a property of the sampling you asked for, not of the
+  lineage, so the same branch would be named differently by two runs of the same tree.
+  `species_fates.tsv` remains the only thing that tells an unsampled tip from an extant one.
+
+  **Nothing that names only extant tips changed** — the extant tree, `profiles.tsv`, the alignments,
+  the homology tables and the extant gene trees are `n<id>` throughout, so the ALE-ready trees, the
+  FASTA joins and `treedist` are all unaffected.
+
 ### Added
 - **`--parallel` runs conditioned rates.** A `DrivenBy` rate, a driven `transfer_to` and a `Clades`
   recipient rule used to make the parallel engine announce a fallback and hand the run to the serial
