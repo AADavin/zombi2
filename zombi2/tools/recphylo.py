@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import pathlib
 
-from ..genomes.events import copy_label, node_label
+from ..genomes.events import gene_label
 from ..genomes.gene_trees import GeneTree
 
 #: gene-node kind → the recPhyloXML tag that ends its ``<eventsRec>``. Every kind a
@@ -54,6 +54,7 @@ def _species_lines(tree, indent: int) -> list[str]:
     """The complete species tree as nested ``<clade><name>n<id></name>`` — every node named, because
     that name is what every ``speciesLocation`` in the gene trees points at."""
     out: list[str] = []
+    name = tree.labels()
     stack: list[tuple[int | None, int]] = [(tree.root, indent)]
     while stack:
         node_id, depth = stack.pop()
@@ -63,14 +64,14 @@ def _species_lines(tree, indent: int) -> list[str]:
             continue
         node = tree.nodes[node_id]
         out.append(f"{pad}<clade>")
-        out.append(f"{pad}  <name>{node_label(node_id)}</name>")
+        out.append(f"{pad}  <name>{name[node_id]}</name>")
         stack.append((None, depth))
         for child in reversed(node.children or ()):          # reversed: the stack restores the order
             stack.append((child, depth + 1))
     return out
 
 
-def _gene_lines(root, indent: int) -> list[str]:
+def _gene_lines(root, indent: int, name) -> list[str]:
     """One gene tree as nested ``<clade>``, each with the ``<eventsRec>`` its node's event calls for.
 
     Iterative because gene-tree depth is unbounded — a duplication ladder runs past the interpreter's
@@ -86,12 +87,12 @@ def _gene_lines(root, indent: int) -> list[str]:
             continue
         tag = _TAG[node.kind]
         out.append(f"{pad}<clade>")
-        out.append(f"{pad}  <name>{_escape(copy_label(node.species, node.copy))}</name>")
+        out.append(f"{pad}  <name>{_escape(name[node.species])}_{gene_label(node.copy)}</name>")
         out.append(f"{pad}  <eventsRec>")
         if arrived_in is not None:   # the format's two-step transfer: where it landed, then what it did
-            out.append(f"{pad}    <transferBack destinationSpecies=\"{node_label(arrived_in)}\">"
+            out.append(f"{pad}    <transferBack destinationSpecies=\"{name[arrived_in]}\">"
                        f"</transferBack>")
-        out.append(f"{pad}    <{tag} speciesLocation=\"{node_label(node.species)}\"></{tag}>")
+        out.append(f"{pad}    <{tag} speciesLocation=\"{name[node.species]}\"></{tag}>")
         out.append(f"{pad}  </eventsRec>")
         stack.append((None, None, depth))
         # A transfer's children are the copy that stayed and the copy that left, and the one that
@@ -116,7 +117,7 @@ def recphylo_xml(gene_trees: dict[int, GeneTree], tree) -> str:
     for fam, gt in sorted(gene_trees.items()):
         # the family id as the phylogeny's own name, so a file holding several says which is which
         lines += ["  <recGeneTree>", "    <phylogeny rooted=\"true\">", f"      <name>fam{fam}</name>"]
-        lines += _gene_lines(gt.complete, 3)
+        lines += _gene_lines(gt.complete, 3, tree.labels())
         lines += ["    </phylogeny>", "  </recGeneTree>"]
     lines.append("</recPhylo>")
     return "\n".join(lines) + "\n"

@@ -40,10 +40,11 @@ def test_read_newick_zombi_tree_honours_an_authoritative_fate_table():
     # here a present-day survivor is declared unsampled and must come back unsampled, not extant.
     r = simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=4)
     survivors = [n.id for n in r.complete_tree.extant()]
-    fates = {f"n{i}": "extant" for i in survivors}
-    fates[f"n{survivors[0]}"] = "unsampled"                       # override one survivor
+    names = r.complete_tree.labels()          # the table keys on the same label the tree carries
+    fates = {names[i]: "extant" for i in survivors}
+    fates[names[survivors[0]]] = "unsampled"                      # override one survivor
     for n in r.complete_tree.extinct():
-        fates[f"n{n.id}"] = "extinct"
+        fates[names[n.id]] = "extinct"
     back, _ = read_newick(r.complete_tree.to_newick(), tip_fates=fates)
     assert back.nodes[survivors[0]].fate == "unsampled"          # the table won, not the depth-guess
     assert len(back.extant()) == len(survivors) - 1              # the unsampled one is no longer extant
@@ -90,7 +91,8 @@ def test_species_fates_file_is_a_valid_tip_fates_input(tmp_path):
     parsed = _read_tip_fates(str(tmp_path / "species_fates.tsv"))
     assert "lineage" not in parsed                               # the header row did not leak in as a tip
     assert "unsampled" in set(parsed.values())                   # sampling<1 produced unsampled tips, kept
-    assert parsed == {f"n{n.id}": n.fate for n in r.complete_tree.leaves()}
+    names = r.complete_tree.labels()
+    assert parsed == {names[n.id]: n.fate for n in r.complete_tree.leaves()}
 
 
 def test_genomes_reads_the_runs_fate_table_so_unsampled_tips_are_not_extant(tmp_path, capsys):

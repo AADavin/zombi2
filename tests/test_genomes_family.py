@@ -448,9 +448,10 @@ def _rows(path):
     return cols, [dict(zip(cols, ln.split("\t"))) for ln in lines[1:] if ln]
 
 
-def test_written_node_columns_carry_the_n_label():
+def test_written_node_columns_carry_a_lineage_label():
     # species_events.tsv and trait_values.tsv have always written n<id>; the genome tables used to
-    # write bare ints, so the same node read two ways in one output directory.
+    # write bare ints, so the same node read two ways in one output directory. A lineage that went
+    # extinct is e<id>, so the test is that a node column carries a LETTER, not that it carries "n".
     sp = _tree(seed=2)
     g = simulate_genomes_family(sp, duplication=0.3, transfer=0.3, loss=0.2, origination=0.5,
                                 initial_families=4, seed=7)
@@ -458,13 +459,13 @@ def test_written_node_columns_carry_the_n_label():
         out = pathlib.Path(d)
         g.write(out, outputs=("events", "genomes"))
         _, events = _rows(out / "genome_events.tsv")
-        assert events and all(r["lineage"].startswith("n") for r in events)
-        assert any(r["recipient"].startswith("n") for r in events if r["recipient"])
+        assert events and all(r["lineage"][:1] in "ne" for r in events)
+        assert any(r["recipient"][:1] in "ne" for r in events if r["recipient"])
         # gene-copy columns are NOT lineages and stay bare
-        assert all(not r["copy"].startswith("n") for r in events)
-        assert all(not r["parent"].startswith("n") for r in events if r["parent"])
+        assert all(r["copy"][:1] not in "ne" for r in events)
+        assert all(r["parent"][:1] not in "ne" for r in events if r["parent"])
         _, genomes = _rows(out / "genomes.tsv")
-        assert genomes and all(r["lineage"].startswith("n") for r in genomes)
+        assert genomes and all(r["lineage"][:1] in "ne" for r in genomes)
 
 
 def test_written_log_round_trips_through_the_reader():
@@ -486,11 +487,12 @@ def test_write_genomes_covers_every_node_where_profiles_covers_only_tips():
         g.write(out, outputs=("genomes", "profiles"))
         _, rows = _rows(out / "genomes.tsv")
         written = {r["lineage"] for r in rows}
-        assert written == {f"n{s}" for s in g.genomes if g.genomes[s]}
-        internal = {f"n{n.id}" for n in sp.complete_tree.nodes.values() if n.children is not None}
+        names = sp.complete_tree.labels()
+        assert written == {names[s] for s in g.genomes if g.genomes[s]}
+        internal = {names[n.id] for n in sp.complete_tree.nodes.values() if n.children is not None}
         assert written & internal, "ancestral genomes must be in there, not just the tips"
         # profiles is the extant-only view
-        tips = {f"n{n.id}" for n in sp.complete_tree.extant()}
+        tips = {names[n.id] for n in sp.complete_tree.extant()}
         assert set((out / "profiles.tsv").read_text(encoding="utf-8").splitlines()[0].split("\t")[1:]) == tips
 
 
@@ -503,7 +505,9 @@ def test_write_gene_trees_emits_one_newick_per_family():
         g.write(out, outputs=("gene_trees",))
         for fam, gt in g.gene_trees.items():
             complete = out / "gene_trees" / f"gene_tree_fam{fam}_complete.nwk"
-            assert complete.read_text(encoding="utf-8").strip() == gt.to_newick("complete")
+            # the written tree names a dead lineage e<id>, which needs the run's tree to know
+            assert complete.read_text(encoding="utf-8").strip() == \
+                gt.to_newick("complete", names=sp.complete_tree.labels())
             extant = out / "gene_trees" / f"gene_tree_fam{fam}_extant.nwk"
             # a family with no survivor has no extant tree, and writes no file for it
             assert extant.exists() == (gt.to_newick("extant") is not None)

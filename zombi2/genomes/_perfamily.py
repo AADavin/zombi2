@@ -554,6 +554,7 @@ def _stream_chunk(task):
 
     files = {name: open(os.path.join(shard_dir, f"{name}_{chunk_index}.tsv"), "w", encoding="utf-8")
              for name in ("events", "genomes", "profiles") if want[name]}
+    names = tree.labels()   # e<id> for a lineage that died; once per chunk, not once per family
     n_events = 0
     try:
         for (fid, lineage, birth_time, seedseq) in family_list:
@@ -561,12 +562,12 @@ def _stream_chunk(task):
             n_events += len(events)
             if want["events"]:
                 f = files["events"]
-                for row in event_rows(events):
+                for row in event_rows(events, names):
                     f.write(row); f.write("\n")
             if want["genomes"]:
                 f = files["genomes"]
                 for node_id, copies in node_genomes.items():
-                    label = node_label(node_id)
+                    label = names[node_id]
                     for cp in copies:
                         f.write(f"{label}\t{cp.family}\t{gene_label(cp.id)}\n")
             if want["profiles"]:
@@ -574,7 +575,7 @@ def _stream_chunk(task):
                 if any(counts):                             # a family absent from every extant tip: no row
                     files["profiles"].write(f"{fid}\t" + "\t".join(map(str, counts)) + "\n")
             if want["gene_trees"]:
-                write_gene_trees(gene_trees_from_events(events, tree), trees_dir)
+                write_gene_trees(gene_trees_from_events(events, tree), trees_dir, names)
     finally:
         for f in files.values():
             f.close()
@@ -706,6 +707,7 @@ def _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_
     families' base ids, and drop the shard directory."""
     headers = {"events": EVENTS_HEADER,
                "genomes": "lineage\tfamily\tcopy",
+               # extant tips only, so every column is n<id>: a profile never names a dead lineage
                "profiles": "family\t" + "\t".join(node_label(s) for s in extant_ids)}
     for name, header in headers.items():
         if name in outputs:

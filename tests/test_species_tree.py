@@ -191,7 +191,8 @@ def test_write_records_the_event_log(tmp_path):
     assert len(lines) == 1 + len(r.events)                      # one row per recorded event
     speciation = next(ln for ln in lines[1:] if "\tspeciation\t" in ln)
     kids = speciation.split("\t")[-1]
-    assert ";" in kids and kids.count("n") == 2                 # a speciation lists its two children
+    # a speciation lists its two children; each is n<id>, or e<id> when that lineage went extinct
+    assert ";" in kids and len(kids.split(";")) == 2
 
 
 def test_write_is_selective(tmp_path):
@@ -201,14 +202,17 @@ def test_write_is_selective(tmp_path):
 
 
 def test_write_records_tip_fates(tmp_path):
-    # the tip-fate table is one row per tip, resolved on the same n<id> that keys every other file,
+    # the tip-fate table is one row per tip, resolved on the same label that keys every other file,
     # so a downstream level can build the extant set from fate instead of guessing from tip depth
     r = simulate_species_tree(birth=1.0, death=0.4, n_extant=20, sampling=0.5, seed=5)
     r.write(tmp_path)
     lines = (tmp_path / "species_fates.tsv").read_text(encoding="utf-8").splitlines()
     assert lines[0] == "lineage\tfate"
     fates = dict(ln.split("\t") for ln in lines[1:])
-    tips = {f"n{n.id}": n.fate for n in r.complete_tree.leaves()}
+    names = r.complete_tree.labels()
+    tips = {names[n.id]: n.fate for n in r.complete_tree.leaves()}
+    # ...and an extinct lineage is named e<id>, so the table states the fate twice over
+    assert any(k[0] == "e" for k, v in tips.items() if v == "extinct")
     assert fates == tips                                          # every tip, its exact fate
     assert set(fates.values()) <= {"extant", "extinct", "unsampled"}
     # the table's extant rows are exactly the observed survivors
@@ -555,3 +559,40 @@ def test_an_explicit_n_extant_is_never_blocked_by_the_default_guard():
     # asking for more tips than the default ceiling is asking for them, not a runaway
     r = simulate_species_tree(birth=1.0, death=0.2, n_extant=120_000, seed=2)
     assert len(r.complete_tree.extant()) == 120_000
+
+
+# --- a lineage that died says so in its name -------------------------------
+
+def test_an_extinct_lineage_is_named_e_and_everything_else_n():
+    # the one fact about a branch you cannot recover from the tree's shape. Unsampled tips stay n:
+    # being unsampled is a property of the sampling you asked for, not of the lineage, so the same
+    # branch would be named differently by two runs of the same tree.
+    r = simulate_species_tree(birth=1.0, death=0.6, n_extant=10, sampling=0.7, seed=11)
+    t = r.complete_tree
+    names = t.labels()
+    assert any(n.fate == "extinct" for n in t.leaves()) and any(n.fate == "unsampled" for n in t.leaves())
+    for n in t.nodes.values():
+        assert names[n.id] == ("e" if n.fate == "extinct" else "n") + str(n.id)
+    # the number is the identity and the letter an annotation: a join can always strip it
+    from zombi2.tree import node_from_label
+    assert {node_from_label(lab) for lab in names.values()} == set(t.nodes)
+
+
+def test_a_tree_states_its_own_extinctions_when_read_back():
+    # the point of putting it in the name: the file survives being moved, copied or emailed, where a
+    # sibling species_fates.tsv does not — and read_newick no longer has to guess from tip depth
+    from zombi2.tree import read_newick
+
+    r = simulate_species_tree(birth=1.0, death=0.6, n_extant=10, seed=11)
+    back, _ = read_newick(r.complete_tree.to_newick())      # no fate table, no --tip-fates
+    before = {n.id: n.fate for n in r.complete_tree.leaves()}
+    after = {n.id: n.fate for n in back.leaves()}
+    assert before == after and "extinct" in before.values()
+    assert back.to_newick() == r.complete_tree.to_newick()  # and it round-trips unchanged
+
+
+def test_the_extant_tree_never_names_a_dead_lineage():
+    # every extant-only output rides on this: the alignments, the homology tables, the profiles and
+    # the ALE-ready gene trees all name extant tips, so none of them changed
+    r = simulate_species_tree(birth=1.0, death=0.6, n_extant=10, sampling=0.7, seed=11)
+    assert "e" not in r.extant_tree.to_newick()

@@ -24,7 +24,7 @@ from __future__ import annotations
 import collections
 from dataclasses import dataclass, field
 
-from .events import copy_label
+from .events import gene_label, node_label
 
 
 @dataclass
@@ -65,12 +65,17 @@ class GeneTree:
             self._extant = _prune_to_extant(self.complete)
         return self._extant
 
-    def to_newick(self, which: str = "extant", *, annotate: bool = True) -> str | None:
+    def to_newick(self, which: str = "extant", *, annotate: bool = True,
+                  names: "dict[int, str] | None" = None) -> str | None:
         """Newick of the ``"extant"`` (default) or ``"complete"`` tree; ``None`` if it is empty.
         Leaves are ``n<species>_g<copy>`` — the copy and the branch it sits on, the same name the
         alignment FASTA records and the homology tables use, so a tip needs no translation to say
         which genome it came from. With ``annotate`` internal nodes carry ``<kind>_n<species>``;
         branch lengths are time differences.
+
+        ``names`` is the run's node names (`Tree.labels()`), which is how a **complete** tree writes
+        ``e<species>`` for a gene sitting on a lineage that died. The extant tree needs none: every
+        species in it is alive by construction.
 
         The root carries one too, running from ``origination`` to where the root gene ended — the
         stem of the family, real time in which that founding gene existed. On the extant tree the
@@ -79,10 +84,11 @@ class GeneTree:
         root = self.extant if which == "extant" else self.complete
         if root is None:
             return None
-        return _to_newick(root, annotate, self.origination) + ";"
+        return _to_newick(root, annotate, self.origination, names) + ";"
 
 
-def write_gene_trees(gene_trees: dict[int, "GeneTree"], directory) -> None:
+def write_gene_trees(gene_trees: dict[int, "GeneTree"], directory,
+                     names: "dict[int, str] | None" = None) -> None:
     """Write ``gene_tree_fam<family>_complete.nwk`` and ``…_extant.nwk``, one pair per family, into
     ``directory``. Every resolution writes them the same way, so the writer lives here rather than
     three times over. A family with no surviving copy has no extant tree and writes no ``_extant``
@@ -92,8 +98,9 @@ def write_gene_trees(gene_trees: dict[int, "GeneTree"], directory) -> None:
     d = pathlib.Path(directory)
     d.mkdir(parents=True, exist_ok=True)
     for fam, gt in sorted(gene_trees.items()):
-        (d / f"gene_tree_fam{fam}_complete.nwk").write_text(gt.to_newick("complete") + "\n", encoding="utf-8")
-        extant = gt.to_newick("extant")
+        (d / f"gene_tree_fam{fam}_complete.nwk").write_text(
+            gt.to_newick("complete", names=names) + "\n", encoding="utf-8")
+        extant = gt.to_newick("extant")            # every species in it is alive: plain n<id>
         if extant is not None:
             (d / f"gene_tree_fam{fam}_extant.nwk").write_text(extant + "\n", encoding="utf-8")
 
@@ -176,7 +183,8 @@ def _prune_to_extant(root: GeneNode) -> GeneNode | None:
     return pruned[id(root)]
 
 
-def _to_newick(root: GeneNode, annotate: bool, origination: float) -> str:
+def _to_newick(root: GeneNode, annotate: bool, origination: float,
+               names: "dict[int, str] | None" = None) -> str:
     """Serialise iteratively (gene trees run deeper than CPython's C-stack recursion guard). The root
     is given ``origination`` as its parent time, so it gets a branch length like every other
     node instead of the bare label that would drop the family's stem."""
@@ -190,10 +198,11 @@ def _to_newick(root: GeneNode, annotate: bool, origination: float) -> str:
             stack.append([node.children[ci], node.time, 0, []])
             continue
         bl = f":{node.time - parent_time:.7g}"             # the root's parent time is `origination`
+        sp = names[node.species] if names is not None else node_label(node.species)
         if node.is_leaf:
-            s = f"{copy_label(node.species, node.copy)}{bl}"
+            s = f"{sp}_{gene_label(node.copy)}{bl}"
         else:
-            label = f"{node.kind}_n{node.species}" if annotate else ""
+            label = f"{node.kind}_{sp}" if annotate else ""
             s = f"({','.join(parts)}){label}{bl}"
         stack.pop()
         if stack:
