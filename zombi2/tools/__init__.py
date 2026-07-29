@@ -7,6 +7,8 @@ written inside the species tree in the community format for that (`recphylo`).""
 from __future__ import annotations
 
 from zombi2.tools.homology import homology_table, homology_tsv, write_homology
+from zombi2.tools.markers import marker_row, markers_tsv, write_markers
 from zombi2.tools.recphylo import recphylo_xml, write_recphylo
 
-__all__ = ["homology_table", "homology_tsv", "write_homology", "recphylo_xml", "write_recphylo"]
+__all__ = ["homology_table", "homology_tsv", "write_homology", "recphylo_xml", "write_recphylo",
+           "marker_row", "markers_tsv", "write_markers"]

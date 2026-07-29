@@ -2,13 +2,14 @@
 
 Where the level commands *simulate*, the tools *read back* what a run wrote. Each tool is its own
 sub-subcommand (``zombi2 tools <tool>``); the first is ``format``, which turns a genomes run into
-analysis-ready files. Two so far, both derived from the gene trees and both exact rather than
-inferred, because ZOMBI simulated the embedding it is reporting: the **homology** matrix — for each
-family an n×n grid (n the extant leaves) of ``O`` / ``P`` / ``Ox`` / ``Px``: how the pair diverged
-(ortholog or paralog, from the event at their common ancestor) and whether horizontal transfer is in
-their history (the ``x``) — two separate questions (`zombi2.tools.homology`) — and
-**recPhyloXML**, each family's complete gene tree written inside the complete species tree in the
-community format for that (`zombi2.tools.recphylo`).
+analysis-ready files, all derived from the gene trees and all exact rather than inferred, because
+ZOMBI simulated the embedding it is reporting: the **homology** matrix — for each family an n×n grid
+(n the extant leaves) of ``S`` / ``D`` / ``T`` (+ ``x``), the event at each pair's common ancestor and
+whether transfer is in their history since (`zombi2.tools.homology`); the **marker table**, one row
+per family saying whether it can be trusted to recover the species tree, which is what to read if you
+came looking for orthologs (`zombi2.tools.markers`); and **recPhyloXML**, each family's complete gene
+tree written inside the complete species tree in the community format for that
+(`zombi2.tools.recphylo`).
 """
 from __future__ import annotations
 
@@ -25,6 +26,7 @@ from zombi2.genomes.gene_trees import gene_trees_from_events
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
 from zombi2.tree import read_newick
 from zombi2.tools.homology import write_homology
+from zombi2.tools.markers import write_markers
 from zombi2.tools.recphylo import write_recphylo
 from zombi2.cli.framework import (
     ZombiHelpFormatter, _add_flat_arg, _add_from_arg, _add_quiet_arg, _add_run_arg, _examples,
@@ -37,9 +39,11 @@ from zombi2.cli.framework import (
 #: directory)`` and gives back a short description of what it wrote, for the summary line.
 _FORMATS = {
     "homology": ("homology", write_homology,
-                 "per-family n×n O/P/Ox/Px table (ortholog / paralog, x = xenolog)"),
+                 "per-family n×n table: S/D/T for the event at each pair's ancestor, x = transfer since"),
     "recphylo": ("recphylo", write_recphylo,
                  "per-family recPhyloXML — the gene tree drawn inside the species tree"),
+    "markers": ("markers", write_markers,
+                "one row per family: single-copy, universal, and does its tree match the species tree"),
 }
 
 #: the tools description carries its own tool list (the house-style formatter hides argparse's auto
@@ -65,9 +69,11 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
         description=(
             "Read a finished 'zombi2 genomes' run and write analysis-ready files derived from its "
             "gene trees. Two --format choices: 'homology' — for each family, an n×n table (n the "
-            "extant leaves) saying how each pair diverged (O ortholog / P paralog, from the event "
-            "at their common ancestor) and whether transfer is in their history (an x suffix: Ox, "
-            "Px) — and 'recphylo' — each family's complete gene tree "
+            "extant leaves) giving the event at each pair's common ancestor (S speciation, D "
+            "duplication, T transfer) and whether transfer is in their history since (an x suffix); "
+            "'markers' — one row per family: is it single-copy, is it universal, and does its true "
+            "tree match the species tree, which is what to read if you are after genes to build a "
+            "species tree from — and 'recphylo' — each family's complete gene tree "
             "written inside the complete species tree as recPhyloXML, the community format for that, "
             "ready for a viewer or for scoring a reconciliation method against. Both are exact, not "
             "inferred: ZOMBI recorded the embedding as it simulated it. Both work at every "
@@ -78,7 +84,10 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
         usage="zombi2 tools format DIR [--from PATH] [--format FORMAT ...] [options]",
         formatter_class=ZombiHelpFormatter,
         epilog=_examples(
-            "  # O/P/Ox/Px homology tables for a genomes run, written to its genomes/homology/",
+            "  # which families make trustworthy species-tree markers",
+            "  zombi2 tools format out/ --format markers",
+            "",
+            "  # the per-pair table: the event at each pair's common ancestor",
             "  zombi2 tools format out/",
             "",
             "  # recPhyloXML instead — one file per family, for a viewer",
