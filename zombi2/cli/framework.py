@@ -252,26 +252,20 @@ def guidance(args, *looks: str) -> None:
 
 
 def signpost(args, report_path, *level_dirs) -> None:
-    """Point the user at what the run just wrote: every data output with a one-line note (a per-family
-    directory folded to a count), then the run report last. It is the same list the report's OUTPUT FILES
-    section carries — read from `zombi2._runtime.report.output_signposts` — so the terminal and
-    ``run.zombi2`` never disagree. Record files (the ``.log`` and ``_summary.json``) are left out; they
-    are named in the report. Suppressed by ``--quiet``; the ``wrote …`` line above it still prints."""
+    """Point the user at what the run just wrote: one line per output directory listing the files it
+    holds (a per-family directory named as itself), then the run report. The file-by-file descriptions
+    live in ``run.zombi2`` — the names it lists come from the same place (`output_signposts`), so the
+    terminal and the report never disagree. Record files (``.log`` / ``_summary.json``) are left out;
+    they are named in the report. Suppressed by ``--quiet``; the ``wrote …`` line still prints."""
     if getattr(args, "quiet", False):
         return
     from zombi2._runtime.report import output_signposts
-    width = 0
-    rows = []
     for d in dict.fromkeys(level_dirs):              # dedup: --flat collapses every level into one dir
-        for name, gloss in output_signposts(d):
-            path = os.path.join(d, name)
-            rows.append((path, gloss))
-            width = max(width, len(path))
-    for path, gloss in rows:
-        print(f"  → {path.ljust(width)}   {gloss}" if gloss else f"  → {path}")
+        names = [name for name, _gloss in output_signposts(d)]
+        if names:
+            print(f"  → {d}/  " + " · ".join(names))
     if report_path:
-        print(f"  → {str(report_path).ljust(width)}   the run report — every file it wrote, and how "
-              f"to reproduce")
+        print(f"  → {report_path}  (run report — every file it wrote, and how to reproduce)")
 
 
 def defaults_used(args, **fallbacks) -> str:
