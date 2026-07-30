@@ -338,12 +338,13 @@ def test_drivenby_accepts_traits_result_object(tmp_path):
     assert key(by_object) == key(by_file)
 
 
-def test_drivenby_object_must_be_discrete(tmp_path):
+def test_drivenby_object_must_be_a_trait_result(tmp_path):
+    # a conditioned driver object must be a grown trait result (discrete or continuous), carrying its
+    # own complete tree — anything else (here a bare object) is refused
     tree = simulate_species_tree(birth=1.0, total_time=1.5, seed=2).complete_tree
-    cont = traits.simulate_continuous(tree, rate=1.0, seed=1)   # a diffusion has no stochastic map
-    with pytest.raises(ValueError, match="DISCRETE"):
+    with pytest.raises(ValueError, match="grown trait result"):
         genomes.simulate_genomes_family(
-            tree, loss=0.5 * mod.DrivenBy(cont, {"a": 2.0}), initial_families=3, seed=1)
+            tree, loss=0.5 * mod.DrivenBy(object(), {"a": 2.0}), initial_families=3, seed=1)
 
 
 # --- a trait drives transfer, side 1: the DONOR rate ----------------------------------------------
@@ -670,3 +671,69 @@ def test_nucleotide_refuses_a_mapping_that_never_fires():
     with pytest.raises(ValueError):
         genomes.simulate_genomes_nucleotide(
             tree, root_length=3000, loss=0.5 * mod.DrivenBy(habitat, {"aquatic": 3.0}), seed=7)
+
+
+# --- a CONTINUOUS trait as the driver (approximate: each branch cut into constant sub-steps) --------
+
+def test_continuous_driver_trajectory_interpolates():
+    """`driver_from_continuous_result` cuts each branch into ``steps`` constant stretches whose value
+    is the trait linearly interpolated from the parent's value to the node's, sampled at each
+    stretch's midpoint — so `value()` returns exactly that, and `next_change()` steps within a branch."""
+    from zombi2.rates.driver import driver_from_continuous_result
+    ct = simulate_species_tree(birth=1.0, n_extant=6, seed=1).complete_tree
+    met = traits.simulate_continuous(ct, start=0.0, rate=1.0, seed=2)
+    traj = driver_from_continuous_result(met, steps=10)
+
+    node = next(n for n in ct.nodes.values() if n.parent is not None and n.end_time > n.birth_time)
+    start_v, end_v = met.node_values[node.parent], met.node_values[node.id]
+    dt = node.end_time - node.birth_time
+    for k in (0, 3, 9):                                  # the value in the k-th stretch = its midpoint
+        expected = start_v + (end_v - start_v) * (k + 0.5) / 10
+        assert traj.value(node.id, node.birth_time + k * dt / 10) == pytest.approx(expected)
+    nxt = traj.next_change(node.id, node.birth_time)     # a within-branch breakpoint, not inf
+    assert node.birth_time < nxt <= node.end_time
+
+
+def test_continuous_driver_couples_a_rate_and_is_deterministic():
+    """A continuous trait drives the duplication rate through a Curve: the coupled run differs from an
+    otherwise-identical uncoupled one (the driver is threaded and the mapping applied), and repeats
+    exactly under the same seed."""
+    ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
+    met = traits.simulate_continuous(ct, start=0.0, rate=1.2, seed=3)
+
+    def run(fn):
+        return genomes.simulate_genomes_family(
+            ct, initial_families=15, loss=0.04,
+            duplication=0.06 * mod.DrivenBy(met, Curve(fn)), seed=9)
+
+    coupled = run(lambda v: 3.0 ** v)
+    control = run(lambda v: 1.0)                          # a flat Curve == the uncoupled model
+    tips = list(ct.extant_leaves())
+    assert any(len(coupled.genomes[n.id]) != len(control.genomes[n.id]) for n in tips)
+    again = run(lambda v: 3.0 ** v)
+    assert all(len(coupled.genomes[n.id]) == len(again.genomes[n.id]) for n in tips)
+
+
+def test_continuous_driver_takes_a_scalar_link():
+    ct = simulate_species_tree(birth=1.0, n_extant=12, seed=1).complete_tree
+    met = traits.simulate_continuous(ct, start=0.0, rate=1.0, seed=2)
+    genomes.simulate_genomes_family(                      # Scalar (log-link) is a valid continuous mapping
+        ct, initial_families=10, duplication=0.05 * mod.DrivenBy(met, Scalar(0.5)), seed=1)
+
+
+def test_discrete_table_on_continuous_driver_is_refused():
+    """A ``{state: factor}`` table names discrete states a continuous value never equals — refuse it
+    with a message that points at Curve / Scalar, rather than silently leaving the rate undriven."""
+    ct = simulate_species_tree(birth=1.0, n_extant=12, seed=1).complete_tree
+    met = traits.simulate_continuous(ct, start=0.0, rate=1.0, seed=2)
+    with pytest.raises(ValueError, match="CONTINUOUS"):
+        genomes.simulate_genomes_family(
+            ct, initial_families=10, duplication=0.05 * mod.DrivenBy(met, {"hi": 2.0}), seed=1)
+
+
+def test_multitrait_continuous_driver_is_refused():
+    from zombi2.rates.driver import driver_from_continuous_result
+    ct = simulate_species_tree(birth=1.0, n_extant=8, seed=1).complete_tree
+    two = traits.simulate_continuous(ct, start={"x": 0.0, "y": 0.0}, rate={"x": 1.0, "y": 1.0}, seed=2)
+    with pytest.raises(ValueError, match="SINGLE-trait"):
+        driver_from_continuous_result(two)
