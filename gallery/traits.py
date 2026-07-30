@@ -78,26 +78,22 @@ def correlated(out):
 
 
 def dependent_characters(out):
-    sp = simulate_species_tree(birth=1.0, n_extant=35, seed=7)             # Yule, all lineages extant
+    sp = simulate_species_tree(birth=1.0, n_extant=55, seed=7)             # Yule, all lineages extant
     ct = sp.complete_tree
-    tree = ph.trees.loads(ct.to_newick())
     res = simulate_discrete(ct, states=_DEP_STATES, switch=_DEP_RATES, start="00", seed=3)
     raw = res.history                                                      # {id: [(compound, dur), …]}
     xh = {f"n{i}": [(s[0], d) for s, d in segs] for i, segs in raw.items()}   # project onto X …
     yh = {f"n{i}": [(s[1], d) for s, d in segs] for i, segs in raw.items()}   # … and onto Y
-    tips = list(ct.extant_leaves())
-    M = ph.genomes.Matrix(rows=[f"n{n.id}" for n in tips], cols=["X", "Y"],
-                          values=[list(res.node_values[n.id]) for n in tips])   # "01" -> ["0","1"]
-    realization = out.replace(".png", "_real.png")
-    # no base skeleton — the lanes paint each branch as a two-tone band and carry the coloured joints
-    fig = (ph.trees.plot(tree, style=ph.Style(width=820, height=1000, margin=62, branch_width=6.5),
-                         skeleton=False)
-           + ph.trees.color_lanes([(xh, _XPAL), (yh, _YPAL)], gap=1.0)
-           + ph.trees.time_axis("time", tick_size=20, label_size=26))
-    ph.beside(fig, ph.genomes.states(M, col_palettes=[_XPAL, _YPAL], legend=False),
-              width=1080, tree_fraction=0.82, footer=24).save(realization)
-    h.composite_model_realization(realization, out,
-                                  lambda ax: h.draw_grid_markov(ax, _DEP_RATES, _XPAL, _YPAL))
+    # two trees, coloured by each character's history (like the continuous "correlated" figure) — you
+    # can see Y (purple) tends to be present where X (green) is; the model panel says why.
+    px, py = out.replace(".png", "_x.png"), out.replace(".png", "_y.png")
+    for png, hist, pal in ((px, xh, _XPAL), (py, yh, _YPAL)):
+        (ph.trees.plot(ph.trees.loads(ct.to_newick()),
+                       style=ph.Style(width=1000, height=520, margin=45, branch_width=2.6),
+                       skeleton=False)
+         + ph.trees.color_history(hist, palette=pal)).save(png)
+    h.composite_two_trees_panel(px, py, lambda ax: h.draw_grid_markov(ax, _DEP_RATES, _XPAL, _YPAL),
+                                out, x_label="character X", y_label="character Y")
 
 
 _C_BM = '''\
@@ -192,22 +188,22 @@ sp = simulate_species_tree(birth=1.0, n_extant=35, seed=7)
 ct = sp.complete_tree
 res = simulate_discrete(ct, states=("00", "01", "10", "11"), switch=rates, start="00", seed=3)
 
-### plot  —  the two traits as two lanes on each branch, beside a matching tip matrix
+### plot  —  two trees (coloured by each character's history) + the 2x2 model chain, like "correlated"
 import phylustrator as ph
+import helpers as h                           # gallery helper: two trees + a side panel
 
 xpal = {"0": "#c2cac8", "1": "#3C8D6E"}       # X: absent / present (green)
 ypal = {"0": "#c2cac8", "1": "#8B6B9E"}       # Y: absent / present (muted purple)
-tree = ph.trees.loads(ct.to_newick())
 raw = res.history                             # {id: [(compound_state, dur), …]}
 xh = {f"n{i}": [(s[0], d) for s, d in segs] for i, segs in raw.items()}   # project onto X
 yh = {f"n{i}": [(s[1], d) for s, d in segs] for i, segs in raw.items()}   # project onto Y
-tips = list(ct.extant_leaves())
-M = ph.genomes.Matrix(rows=[f"n{n.id}" for n in tips], cols=["X", "Y"],
-                      values=[list(res.node_values[n.id]) for n in tips])   # "01" -> ["0","1"]
-# no base skeleton: color_lanes paints each branch as a two-tone band (X | Y) and the coloured joints
-fig = (ph.trees.plot(tree, skeleton=False)
-       + ph.trees.color_lanes([(xh, xpal), (yh, ypal)], gap=1.0))
-ph.beside(fig, ph.genomes.states(M, col_palettes=[xpal, ypal], legend=False)).save("dependent.png")'''
+for png, hist, pal in (("tree_x.png", xh, xpal), ("tree_y.png", yh, ypal)):
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False)
+     + ph.trees.color_history(hist, palette=pal)).save(png)
+# right panel = the 2x2 CTMC (the model), kept as the key; Y present tends to track X present
+h.composite_two_trees_panel("tree_x.png", "tree_y.png",
+                            lambda ax: h.draw_grid_markov(ax, rates, xpal, ypal),
+                            "dependent.png", x_label="character X", y_label="character Y")'''
 
 
 EXAMPLES = [
@@ -223,8 +219,9 @@ EXAMPLES = [
             "tip scatter.",
             "continuous · +&nbsp;scatter", correlated, code=_C_CORRELATED),
     Example("dependent", "Dependent discrete traits",
-            "Two binary characters where one's flip rate depends on the other's state — the model as a "
-            "2×2 chain (arrow width = rate), and a run: the tree painted by compound state, beside the "
-            "presence/absence tips. <code>simulate_discrete(states=(&quot;00&quot;,…),&nbsp;switch={…})</code>.",
+            "Two binary characters where one's flip rate depends on the other's state. Two trees, "
+            "coloured by each character (X green, Y purple), so you can see Y is present where X is; "
+            "the 2×2 chain (arrow width&nbsp;=&nbsp;rate) is the model. "
+            "<code>simulate_discrete(states=(&quot;00&quot;,…),&nbsp;switch={…})</code>.",
             "discrete · dependent", dependent_characters, code=_C_DEPENDENT),
 ]

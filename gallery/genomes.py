@@ -17,8 +17,9 @@ from helpers import Example
 
 import phylustrator as ph
 
-# a square style for the ring figures
-_RING = ph.Style(width=560, height=560, margin=42, gene_stroke_width=0.8)
+# a square style for the ring figures — the classic thin genes on a solid backbone (Adrián's preference
+# for the dense real-genome-style rings; the chunky "arrow" style is reserved for the sparse inversion figure)
+_RING = ph.Style(width=560, height=560, margin=42, gene_stroke_width=0.8, gene_style="wedge")
 
 
 def _fullest(genomes: dict):

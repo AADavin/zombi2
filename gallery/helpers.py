@@ -186,7 +186,7 @@ def draw_grid_markov(ax, rates, xpal, ypal, *, labels=("00", "01", "10", "11")) 
     curve = 0.32
 
     def lw(r):
-        return 1.7 + 3.8 * (r / mx)
+        return 1.2 + 2.3 * (r / mx)          # arrow width ~ rate (slimmer than before)
 
     for key, r in rates.items():                     # every directed transition, bowed to its left
         a, b = key.split("->")
@@ -245,6 +245,25 @@ def composite_markov(tree_png: str, out: str, draw_fn, *, loc=(0.02, 0.09, 0.34,
     draw_fn(inset)
     inset.set_axis_off()
     fig.savefig(out, dpi=150)
+    plt.close(fig)
+
+
+def composite_two_trees_panel(tree_x_png: str, tree_y_png: str, draw_panel, out: str, *,
+                              x_label: str = "trait x", y_label: str = "trait y") -> None:
+    """Two trees stacked on the left (one per character), a custom panel spanning both rows on the
+    right — the two-trees layout of ``composite_two_trees_scatter`` but with the right panel drawn by
+    ``draw_panel(ax)`` (e.g. the model's Markov chain) instead of a scatter."""
+    fig = plt.figure(figsize=(12, 9))
+    gs = fig.add_gridspec(2, 2, width_ratios=[2.4, 1.25], hspace=0.10, wspace=0.08)
+    for row, png, name in ((0, tree_x_png, x_label), (1, tree_y_png, y_label)):
+        ax = fig.add_subplot(gs[row, 0])
+        ax.imshow(mpimg.imread(png))
+        ax.set_axis_off()
+        ax.set_title(name, fontsize=15, loc="left")
+    axp = fig.add_subplot(gs[:, 1])
+    draw_panel(axp)
+    axp.set_axis_off()
+    fig.savefig(out, dpi=125, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -428,12 +447,14 @@ def rearranged_pair(genomes: dict) -> tuple:
 
 # --- the conditioning diagram (driver · modifier · target), the manual's figure -----------
 
-def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_base,
-                      symbol="×", target_run="genome", state_colors=None):
+def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_base=None,
+                      target_sub=None, symbol="×", target_run="genome", state_colors=None):
     """Reproduce the manual's driver→modifier→target diagram. ``switch`` is a {"a->b": rate} dict (an
     arrow is drawn for each positive rate, so an irreversible trait shows one arrow); ``mapping`` is the
     per-state multiplier; ``state_colors`` tints the state nodes to match the tree's palette. The state
-    names sit *outside* (below) their circles."""
+    names sit *outside* (below) their circles. ``target_base`` is the rate's base value (``None`` for a
+    target that is not a rate, e.g. a recipient-choice slot); ``target_sub`` overrides the italic
+    caption under TARGET."""
     from matplotlib.patches import Circle, FancyArrowPatch, Rectangle
 
     ax.set_xlim(0, 660)
@@ -446,8 +467,8 @@ def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_bas
         ax.text(x, 30, t, ha="center", va="center", color=dim, fontsize=12.5, fontweight="bold")
     ax.text(345, 49, "what it does to the rate", ha="center", va="center", color=faint,
             fontsize=11.5, style="italic")
-    ax.text(566, 49, f"a rate in the {target_run} run", ha="center", va="center", color=faint,
-            fontsize=11.5, style="italic")
+    ax.text(566, 49, target_sub or f"a rate in the {target_run} run", ha="center", va="center",
+            color=faint, fontsize=11.5, style="italic")
 
     ax.add_patch(Rectangle((45, 96), 150, 60, fill=True, facecolor="#f2f2f0", edgecolor=ink,
                            lw=1.6, joinstyle="round"))
@@ -486,8 +507,11 @@ def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_bas
 
     ax.add_patch(Rectangle((496, 96), 140, 60, fill=True, facecolor="#f2f2f0", edgecolor=ink,
                            lw=1.6, joinstyle="round"))
-    ax.text(566, 120, target, ha="center", va="center", color=ink, fontsize=15)
-    ax.text(566, 142, f"base {target_base}", ha="center", va="center", color=dim, fontsize=13)
+    if target_base is None:
+        ax.text(566, 126, target, ha="center", va="center", color=ink, fontsize=15)
+    else:
+        ax.text(566, 120, target, ha="center", va="center", color=ink, fontsize=15)
+        ax.text(566, 142, f"base {target_base}", ha="center", va="center", color=dim, fontsize=13)
 
 
 def conditioning_png(path, **kw):
