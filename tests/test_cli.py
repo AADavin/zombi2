@@ -280,7 +280,7 @@ def test_genomes_rejects_write_output_foreign_to_resolution(tmp_path, tree_file)
 
 def test_genomes_nucleotide_runs_and_writes_its_own_outputs(tmp_path, tree_file):
     out = tmp_path / "g"
-    rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "nucleotide", "--root-length", "600", "--genes", "3", "--inversion", "1.0", "--duplication", "0.5", "--loss", "0.4", "--seed", "1", "--flat"])
+    rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "nucleotide", "--root-length", "600", "--genes", "3", "--gene-length", "100", "--inversion", "1.0", "--duplication", "0.5", "--loss", "0.4", "--seed", "1", "--flat"])
     assert rc == 0
     # the nucleotide default is events + genes; blocks is opt-in
     written = {p.name for p in out.iterdir()}
@@ -290,7 +290,7 @@ def test_genomes_nucleotide_runs_and_writes_its_own_outputs(tmp_path, tree_file)
 
 def test_genomes_nucleotide_write_selects_blocks(tmp_path, tree_file):
     out = tmp_path / "g"
-    rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "nucleotide", "--root-length", "400", "--genes", "2", "--inversion", "1.0", "--seed", "1", "--write", "blocks", "events", "--flat"])
+    rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "nucleotide", "--root-length", "400", "--genes", "2", "--gene-length", "100", "--inversion", "1.0", "--seed", "1", "--write", "blocks", "events", "--flat"])
     assert rc == 0
     head = (out / "blocks.tsv").read_text(encoding="utf-8").splitlines()[0].split("\t")
     assert head == ["lineage", "chromosome", "position", "source", "start", "end", "strand",
@@ -314,7 +314,7 @@ def test_genomes_nucleotide_seeds_from_a_gff(tmp_path, tree_file):
 def test_genomes_is_deterministic_across_resolutions(tmp_path, tree_file):
     def run(tag):
         out = tmp_path / tag
-        main(["genomes", str(out), "--from", str(tree_file), "--resolution", "nucleotide", "--root-length", "500", "--genes", "2", "--inversion", "1.0", "--duplication", "0.4", "--seed", "7", "--write", "events", "blocks", "--flat"])
+        main(["genomes", str(out), "--from", str(tree_file), "--resolution", "nucleotide", "--root-length", "500", "--genes", "2", "--gene-length", "100", "--inversion", "1.0", "--duplication", "0.4", "--seed", "7", "--write", "events", "blocks", "--flat"])
         return {p.name: p.read_text(encoding="utf-8") for p in out.iterdir() if p.suffix == ".tsv"}
     assert run("a") == run("b")
 
@@ -337,7 +337,7 @@ def test_genomes_nucleotide_accepts_a_skyline(tmp_path, tree_file):
     """The nucleotide resolution speaks the rate grammar now, so a skyline is written the same way
     there as anywhere else — one notation across the levels, not a per-resolution dialect."""
     rc = main(["genomes", str(tmp_path / "g"), "--from", str(tree_file), "--resolution", "nucleotide",
-               "--root-length", "800", "--genes", "2",
+               "--root-length", "800", "--genes", "2", "--gene-length", "100",
                "--inversion", "3.0 * OnTime({0: 1.0, 1.0: 0.0})", "--seed", "1", "--flat", "--quiet"])
     assert rc == 0
 
@@ -353,7 +353,7 @@ def test_sequences_reads_a_nucleotide_handoff_through_from(tmp_path, tree_file):
     # --from a nucleotide run works like any other: the handoff says which resolution wrote it (only
     # that one writes blocks.tsv), so nothing has to be repeated from the genomes command
     out = tmp_path / "g"
-    main(["genomes", str(out), "--from", str(tree_file), "--resolution", "nucleotide", "--root-length", "400", "--genes", "2", "--seed", "1", "--flat"])
+    main(["genomes", str(out), "--from", str(tree_file), "--resolution", "nucleotide", "--root-length", "400", "--genes", "2", "--gene-length", "100", "--seed", "1", "--flat"])
     s = tmp_path / "s"
     rc = main(["sequences", str(s), "--from", str(out), "--model", "jc69", "--seed", "1", "--flat"])
     assert rc == 0
@@ -1311,8 +1311,8 @@ def test_tools_format_refuses_a_nucleotide_run_with_no_declared_genes(tmp_path, 
     run = tmp_path / "spacer"
     main(["species", str(run), "--birth", "1", "--death", "0.2", "--n-extant", "5", "--seed", "1",
           "--quiet"])
-    main(["genomes", str(run), "--resolution", "nucleotide", "--root-length", "2000",
-          "--duplication", "0.5", "--loss", "0.4", "--seed", "1", "--quiet"])       # no --genes
+    main(["genomes", str(run), "--resolution", "nucleotide", "--root-length", "2000", "--genes", "0",
+          "--duplication", "0.5", "--loss", "0.4", "--seed", "1", "--quiet"])   # --genes 0: all-intergenic
     assert main(["tools", "format", str(run)]) == 1
     assert "declared no genes" in capsys.readouterr().err
 
@@ -1819,7 +1819,7 @@ def test_stream_is_refused_on_a_nucleotide_sequences_run(tmp_path, tree_file, ca
     # the opposite of keeping nothing. Refused up front rather than half-run.
     run = tmp_path / "n"
     assert main(["genomes", str(run), "--from", str(tree_file), "--resolution", "nucleotide",
-                 "--root-length", "400", "--genes", "3", "--seed", "1", "--quiet"]) == 0
+                 "--root-length", "400", "--genes", "3", "--gene-length", "100", "--seed", "1", "--quiet"]) == 0
     with pytest.raises(SystemExit) as e:
         main(["sequences", str(run), "--model", "jc69", "--seed", "1", "--quiet", "--stream"])
     assert e.value.code == 2
