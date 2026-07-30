@@ -51,7 +51,7 @@ def state_extinction(out):
         n_extant=35, seed=1)
     ct = r.complete_tree
     tree = ph.trees.loads(ct.to_newick())
-    dashed = h.dashed_extinct(tree, {f"n{n.id}" for n in ct.extinct()})
+    dashed = h.dashed_extinct(tree, {f"n{n.id}" for n in ct.extinct_leaves()})
     tree_png = out.replace(".png", "_tree.png")
     (ph.trees.plot(tree, style=_style(), skeleton=False)
      + ph.trees.color_history(_history(r), palette=_SSE, dashed=dashed)     # dead lineages: dashed + coloured
@@ -69,7 +69,7 @@ def musse(out):
         n_extant=50, seed=2)
     ct = r.complete_tree
     tree = ph.trees.loads(ct.to_newick())
-    dashed = h.dashed_extinct(tree, {f"n{n.id}" for n in ct.extinct()})
+    dashed = h.dashed_extinct(tree, {f"n{n.id}" for n in ct.extinct_leaves()})
     tree_png = out.replace(".png", "_tree.png")
     (ph.trees.plot(tree, style=_style(), skeleton=False)
      + ph.trees.color_history(_history(r), palette=_MUSSE, dashed=dashed)
@@ -91,7 +91,7 @@ def genome_reduction(out):
             loss=0.08 * mod.DrivenBy(hab, {"endosymbiont": 12.0, "free-living": 1.0}), seed=9)
     tree = ph.trees.loads(ct.to_newick())
     history = {f"n{i}": segs for i, segs in hab.history.items()}
-    tips = list(ct.extant())
+    tips = list(ct.extant_leaves())
     sizes = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}
     tipcol = {f"n{n.id}": _HAB[hab.values[n.id]] for n in tips}
     fig = (ph.trees.plot(tree, style=ph.Style(width=900, height=1000, margin=98, branch_width=3.0),
@@ -145,7 +145,7 @@ import helpers as h
 
 palette = {"doomed": "#B0413E", "safe": "#2A9D8F"}
 tree = ph.trees.loads(ct.to_newick())
-dashed = {f"n{n.id}" for n in ct.extinct()}                 # (+ their all-extinct ancestors)
+dashed = {f"n{n.id}" for n in ct.extinct_leaves()}                 # (+ their all-extinct ancestors)
 history = {f"n{i}": segs for i, segs in r.trait.history.items()}
 (ph.trees.plot(tree, skeleton=False)
  + ph.trees.color_history(history, palette=palette, dashed=dashed)
@@ -171,7 +171,7 @@ import helpers as h
 
 palette = {"slow": "#3A7CA5", "medium": "#F2A541", "fast": "#E4572E"}
 tree = ph.trees.loads(ct.to_newick())
-dashed = {f"n{n.id}" for n in ct.extinct()}
+dashed = {f"n{n.id}" for n in ct.extinct_leaves()}
 history = {f"n{i}": segs for i, segs in r.trait.history.items()}
 (ph.trees.plot(tree, skeleton=False)
  + ph.trees.color_history(history, palette=palette, dashed=dashed)
@@ -204,7 +204,7 @@ import phylustrator as ph
 pal = {"free-living": "#2E8B6F", "endosymbiont": "#C25A3C"}
 tree = ph.trees.loads(ct.to_newick())
 history = {f"n{i}": segs for i, segs in hab.history.items()}
-tips = list(ct.extant())
+tips = list(ct.extant_leaves())
 sizes  = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}          # gene count per tip
 colors = {f"n{n.id}": pal[hab.values[n.id]] for n in tips}         # bar colour = lifestyle
 fig = (ph.trees.plot(tree, skeleton=False)

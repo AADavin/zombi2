@@ -71,7 +71,7 @@ def correlated(out):
     for png, vals in ((px, vx), (py, vy)):
         h.render_tree_for_composite(ph.trees.loads(ct.to_newick()), png, vals,
                                     width=1000, height=520, branch_width=1.2)
-    tips = list(ct.extant())
+    tips = list(ct.extant_leaves())
     xs = [res.node_values[n.id]["x"] for n in tips]
     ys = [res.node_values[n.id]["y"] for n in tips]
     h.composite_two_trees_scatter(px, py, xs, ys, out)
@@ -85,7 +85,7 @@ def dependent_characters(out):
     raw = res.history                                                      # {id: [(compound, dur), …]}
     xh = {f"n{i}": [(s[0], d) for s, d in segs] for i, segs in raw.items()}   # project onto X …
     yh = {f"n{i}": [(s[1], d) for s, d in segs] for i, segs in raw.items()}   # … and onto Y
-    tips = list(ct.extant())
+    tips = list(ct.extant_leaves())
     M = ph.genomes.Matrix(rows=[f"n{n.id}" for n in tips], cols=["X", "Y"],
                           values=[list(res.node_values[n.id]) for n in tips])   # "01" -> ["0","1"]
     realization = out.replace(".png", "_real.png")
@@ -173,7 +173,7 @@ vx = {f"n{i}": v["x"] for i, v in res.node_values.items()}
 vy = {f"n{i}": v["y"] for i, v in res.node_values.items()}
 h.render_tree_for_composite(ph.trees.loads(ct.to_newick()), "tree_x.png", vx)
 h.render_tree_for_composite(ph.trees.loads(ct.to_newick()), "tree_y.png", vy)
-tips = list(ct.extant())
+tips = list(ct.extant_leaves())
 xs = [res.node_values[n.id]["x"] for n in tips]
 ys = [res.node_values[n.id]["y"] for n in tips]
 h.composite_two_trees_scatter("tree_x.png", "tree_y.png", xs, ys, "correlated.png")'''
@@ -201,7 +201,7 @@ tree = ph.trees.loads(ct.to_newick())
 raw = res.history                             # {id: [(compound_state, dur), …]}
 xh = {f"n{i}": [(s[0], d) for s, d in segs] for i, segs in raw.items()}   # project onto X
 yh = {f"n{i}": [(s[1], d) for s, d in segs] for i, segs in raw.items()}   # project onto Y
-tips = list(ct.extant())
+tips = list(ct.extant_leaves())
 M = ph.genomes.Matrix(rows=[f"n{n.id}" for n in tips], cols=["X", "Y"],
                       values=[list(res.node_values[n.id]) for n in tips])   # "01" -> ["0","1"]
 # no base skeleton: color_lanes paints each branch as a two-tone band (X | Y) and the coloured joints

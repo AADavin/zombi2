@@ -21,7 +21,7 @@ def extinct_lineages(out):
     sp = simulate_species_tree(birth=1.0, death=0.6, n_extant=50, seed=3)
     ct = sp.complete_tree
     tree = ph.trees.loads(ct.to_newick())
-    dashed = h.dashed_extinct(tree, {f"n{n.id}" for n in ct.extinct()})
+    dashed = h.dashed_extinct(tree, {f"n{n.id}" for n in ct.extinct_leaves()})
     style = ph.Style(width=1400, height=760, margin=88, branch_width=2.0)   # ~40% wider than tall
     (ph.trees.plot(tree, dashed=dashed, style=style)
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(out)
@@ -32,7 +32,7 @@ def mass_extinction(out):
                                mass_extinctions=[(3.0, 0.75)], seed=2)   # 85 extant + 56 extinct
     ct = sp.complete_tree
     tree = ph.trees.loads(ct.to_newick())
-    dashed = h.dashed_extinct(tree, {f"n{n.id}" for n in ct.extinct()})
+    dashed = h.dashed_extinct(tree, {f"n{n.id}" for n in ct.extinct_leaves()})
     present = max(n.end_time for n in ct.nodes.values())
     tree_png = out.replace(".png", "_tree.png")
     TW, TM = 1320, 70
@@ -83,7 +83,7 @@ def diversity_dependent(out):
 # --- copy-paste-reproducible snippets shown on the detail view --------------
 _DASH = '''
 tree = ph.trees.loads(ct.to_newick())
-extinct = {f"n{n.id}" for n in ct.extinct()}
+extinct = {f"n{n.id}" for n in ct.extinct_leaves()}
 dashed = set()                              # dash a branch whose whole subtree is extinct
 for node in tree.walk("postorder"):
     if node.is_leaf and node.name in extinct:
