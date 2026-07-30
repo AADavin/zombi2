@@ -16,7 +16,7 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   _add_run_arg, _rate, _rates_help, _write_params_log,
                                   check_stale_downstream, clear_stale_downstream, defaults_used, signpost,
                                   input_digests,
-                                  level_dir, warn)
+                                  level_dir)
 
 #: the RATES block for ``zombi2 species -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -34,16 +34,16 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
 
     # --birth and the stop condition are filled in run(), not marked argparse-`required`, so a
     # --params file can supply them (a required argument is never satisfied by a default) and so a
-    # bare run can fall back to a default it then announces.
+    # bare run can fall back to an illustrative default (recorded in the log and the report).
     g = p.add_argument_group("diversification", "the per-lineage birth–death rates (see RATES below)")
     g.add_argument("--birth", type=_rate, default=None, metavar="RATE",
-                   help="speciation rate (per lineage). Defaults to 1.0, announced when used")
+                   help="speciation rate (per lineage). Defaults to an illustrative 1.0")
     g.add_argument("--death", type=_rate, default=0.0, metavar="RATE",
                    help="extinction rate (per lineage); 0 = a pure-birth (Yule) tree (default 0)")
 
     g = p.add_argument_group("stop condition",
                             "grow the tree until one of these — at most one; "
-                            "defaults to --n-extant 20, announced when used")
+                            "defaults to an illustrative --n-extant 20")
     g.add_argument("--n-extant", type=int, default=None, metavar="N", dest="n_extant",
                    help="stop at N extant (surviving) lineages — conditioned on survival")
     g.add_argument("--total-time", type=float, default=None, metavar="T", dest="total_time",
@@ -81,12 +81,10 @@ def run(args, parser):
     # validated here (not as argparse `required`) so a --params file can supply either
     if args.n_extant is not None and args.total_time is not None:
         parser.error("give exactly one stop condition: --n-extant N or --total-time T")
-    # A bare `zombi2 species out/` runs. Refusing taught nobody the shape of the command, and the
-    # numbers are the part a newcomer has no way to guess. It says which values it chose, though:
-    # a default is a demonstration, not a calibration, and the difference has to be visible.
-    if defaulted := defaults_used(args, birth=1.0, **({} if args.total_time is not None
-                                                      else {"n_extant": 20})):
-        warn(defaulted)
+    # A bare `zombi2 species out/` runs: refusing taught nobody the shape of the command, and the
+    # numbers are the part a newcomer has no way to guess. The chosen values are recorded in the log
+    # and the report, so an invented default is visible there rather than shouted on the terminal.
+    defaults_used(args, birth=1.0, **({} if args.total_time is not None else {"n_extant": 20}))
 
     # refuse up front if re-running would orphan a later level already in the run (unless --force)
     resolve_seed(args)                      # a run must be reproducible from its own log

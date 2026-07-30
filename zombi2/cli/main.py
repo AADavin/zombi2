@@ -182,6 +182,9 @@ def main(argv: list[str] | None = None) -> int:
     command = sub.choices[args.command]
     if extra:
         command.error(f"unrecognized arguments: {' '.join(extra)}{_did_you_mean(extra, command)}")
+    # the command as typed, so the log records the real invocation and the report can list only the
+    # flags the user actually gave (sys.argv would be pytest's when a test calls main([...]) directly)
+    args._argv = list(argv) if argv is not None else sys.argv[1:]
     try:
         return _RUN[args.command](args, command)
     except (ValueError, RuntimeError, FileNotFoundError, OSError) as e:

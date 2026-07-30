@@ -225,15 +225,34 @@ def _params_phrase(params: dict) -> str:
     return " · ".join(f"{_label(k)} {v}" for k, v in _visible_params(params, drop_zeros=True))
 
 
-def _reproduce(command: str, run: str, params: dict, seed: str | None, source: str | None) -> str:
+def _given_flags(log: dict) -> set | None:
+    """The long-option flags the user actually typed, from the recorded command line — or ``None`` when
+    it is unavailable (an old log) or a ``--params`` file was used (then the reproduce lists every
+    resolved parameter, so it stands alone without the file)."""
+    cl = log.get("command_line")
+    if not cl:
+        return None
+    tokens = cl.split()
+    if any(t == "--params" or t.startswith("--params=") for t in tokens):
+        return None
+    return {t.split("=", 1)[0] for t in tokens if t.startswith("--")}
+
+
+def _reproduce(command: str, run: str, params: dict, seed: str | None, source: str | None,
+               given: set | None = None) -> str:
     """A clean, copy-pasteable command that reproduces this level — rebuilt from the resolved parameters
     (not the raw command line, whose shell quoting is already lost), so a rate expression comes back
-    correctly quoted."""
+    correctly quoted. ``given`` is the flags the user actually typed: when set, only those are emitted,
+    so a run left on its defaults reproduces as the short bare command it was — re-running it fills the
+    same defaults. When ``None``, every resolved parameter is shown (an old log, or a --params run)."""
     parts = [f"zombi2 {command} {shlex.quote(run)}"]
     if source:
         parts.append(f"--from {shlex.quote(source)}")
     for k, v in _visible_params(params, for_reproduce=True):
-        flag, val = f"--{k.replace('_', '-')}", _flag_value(v)
+        flag = f"--{k.replace('_', '-')}"
+        if given is not None and flag not in given:
+            continue                                         # a default the user did not type
+        val = _flag_value(v)
         parts.append(f"{flag} {val}" if val else flag)       # a store-true flag takes no value
     if seed not in (None, "None"):
         parts.append(f"--seed {seed}")
@@ -429,7 +448,7 @@ def build_run_report(run: str) -> str | None:
     for sec in sections:
         seed = sec["log"].get("params", {}).get("seed") or sec["summary"].get("seed")
         lines.append("  " + _reproduce(sec["command"], run, sec["log"].get("params", {}),
-                                       seed, _source_of(sec)))
+                                       seed, _source_of(sec), _given_flags(sec["log"])))
     lines.append("")
     return "\n".join(lines)
 

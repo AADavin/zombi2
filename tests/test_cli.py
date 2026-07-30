@@ -1800,19 +1800,18 @@ def test_force_says_what_it_deleted_even_under_quiet(tmp_path, capsys):
 
 
 def test_a_bare_run_announces_the_demo_values_it_invented(tmp_path, capsys):
-    # a bare run fills the rates it was not given with round demonstration values, and says so on
-    # stderr and in the log. Those numbers are invented, exactly as `death=0.5` or `n_extant=20`
-    # would be — the point is not to refuse them but to make them visible, so the warning stays.
+    # a bare run fills the rates it was not given with round demonstration values. It no longer warns
+    # on stderr (a paragraph on every bare run was noise); the invented values are recorded instead — in
+    # the log and run.zombi2 — visible where they are useful rather than shouted where they are not.
     assert main(["species", str(tmp_path / "bare"), "--seed", "1", "--quiet"]) == 0
-    err = capsys.readouterr().err
-    assert "no value given" in err and "--birth" in err and "illustrative" in err
+    assert capsys.readouterr().err == ""                     # silent now
     log = (tmp_path / "bare" / "species" / "species.log").read_text(encoding="utf-8")
-    assert "birth\t1.0" in log and "n_extant\t20" in log      # and the chosen values are recorded
+    assert "birth\t1.0" in log and "n_extant\t20" in log     # but the invented values are recorded
 
-    # supplying them yourself is silent — nothing was invented, so there is nothing to announce
+    # supplying them yourself is likewise silent
     assert main(["species", str(tmp_path / "given"), "--birth", "1", "--n-extant", "8",
                  "--seed", "1", "--quiet"]) == 0
-    assert "no value given" not in capsys.readouterr().err
+    assert capsys.readouterr().err == ""
 
 
 def test_stream_is_refused_on_a_nucleotide_sequences_run(tmp_path, tree_file, capsys):
