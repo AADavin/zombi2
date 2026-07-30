@@ -64,8 +64,26 @@ def _blocks(path: pathlib.Path) -> list[tuple[int, str, str]]:
     return out
 
 
+#: docs/ pages are mostly one-line `--8<--` includes of a manual chapter, and testing those twice
+#: would be pointless. A page with real prose in it is its own source, though, and gets checked here
+#: like a chapter — otherwise "move it out of the book" quietly means "stop testing it".
+DOCS = pathlib.Path(__file__).resolve().parent.parent / "docs"
+
+
+def _standalone_docs() -> list[pathlib.Path]:
+    """Pages the **site publishes** that are their own source, rather than an include of a chapter.
+
+    ``docs/design/`` is out of scope, as it is for mkdocs: SPEC is a design document, and it names dead
+    flags on purpose — it keeps a table of retired vocabulary, so a check for "every flag named here
+    exists" is precisely wrong about it."""
+    return sorted(p for p in DOCS.rglob("*.md")
+                  if "design" not in p.parts
+                  and "--8<--" not in p.read_text(encoding="utf-8"))
+
+
 def _chapters() -> list[pathlib.Path]:
-    return sorted(p for p in MANUAL.glob("*.md") if p.name != "README.md")
+    """Everything with prose to check: the book, plus any docs page that is its own source."""
+    return sorted(p for p in MANUAL.glob("*.md") if p.name != "README.md") + _standalone_docs()
 
 
 def _zombi2_lines(source: str) -> list[list[str]]:
@@ -226,6 +244,39 @@ def test_the_harness_sees_the_manual():
     """A guard on the guard: if the glob or the fence regex breaks, every test above turns green by
     finding nothing. This is the tripwire for that."""
     assert len(_chapters()) >= 10
+    assert _standalone_docs(), "docs/ pages are all includes — or the include check has broken"
     total = sum(len(_blocks(p)) for p in _chapters())
     assert total >= 60, f"expected the manual's ~80 code blocks, found {total}"
     assert os.environ.get("ZOMBI2_SKIP_MANUAL") is None
+
+
+def test_every_flag_the_manual_names_in_prose_exists():
+    """Flags mentioned in **prose** are checked too, not only ones inside a bash block.
+
+    The migration appendix is mostly tables mapping a ZOMBI v1 key to a v2 flag, and a table is prose:
+    the command-line check above never sees it. A mapping document whose right-hand column has rotted
+    is worse than no mapping document, because a reader trusts it and then goes hunting for a flag that
+    was renamed two releases ago — which is exactly how chapter 4 came to document an API that had been
+    removed."""
+    import contextlib as _c
+    import io as _io
+
+    from zombi2.cli import main as cli_main
+
+    declared: set[str] = set()
+    for argv in (["species"], ["genomes"], ["sequences"], ["traits"], ["joint"],
+                 ["tools"], ["tools", "tree"], ["tools", "treedist"], ["tools", "format"]):
+        buf = _io.StringIO()
+        with _c.suppress(SystemExit), _c.redirect_stdout(buf), _c.redirect_stderr(buf):
+            cli_main.main([*argv, "--help"])
+        declared |= set(re.findall(r"(--[a-z][a-z0-9-]+)", buf.getvalue()))
+    assert "--n-extant" in declared, "the help scrape found nothing; this test would pass vacuously"
+
+    missing = []
+    for chapter in _chapters():
+        text = chapter.read_text(encoding="utf-8")
+        for flag in sorted(set(re.findall(r"`(--[a-z][a-z0-9-]+)", text))):
+            if flag not in declared:
+                missing.append(f"{chapter.name}: {flag}")
+    assert not missing, ("the manual names flags no command declares — renamed, or never existed:\n  "
+                         + "\n  ".join(missing))
