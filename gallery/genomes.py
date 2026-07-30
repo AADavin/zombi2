@@ -73,8 +73,8 @@ def circular_nucleotide(out):
 # --- one inversion, before -> after (Phylustrator's chunky circular arrows) ------------------
 
 def _family_palette(n):
-    cmap = matplotlib.colormaps["tab20"]
-    return {str(i): matplotlib.colors.to_hex(cmap((i % 20) / 19)) for i in range(n)}
+    cmap = matplotlib.colormaps["viridis"]
+    return {str(i): matplotlib.colors.to_hex(cmap(i / max(n - 1, 1))) for i in range(n)}
 
 
 def _to_ph_genome(zchrom, name):
@@ -116,7 +116,9 @@ def _first_clean_inversion(n):
 
 
 def _ring_png(genome, path, palette, *, highlight=None, size=620):
-    style = ph.Style(width=size, height=size, margin=int(size * 0.14), gene_stroke_width=1.0)
+    # slimmer bodies so the flared head reads: each gene is an arrow, not a chunky pentagon
+    style = ph.Style(width=size, height=size, margin=int(size * 0.14), gene_stroke_width=1.0,
+                     ring_gene_frac=0.18)
     fig = ph.genomes.plot(genome, layout="circular", style=style)
     if highlight is not None:
         fig = fig + ph.genomes.highlight(genome, start=highlight[0], end=highlight[1])  # behind the genes
