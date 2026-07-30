@@ -7,9 +7,9 @@ to see what a run *is* you open four files across two sub-directories, and none 
 together or says what ``profiles.tsv`` holds.
 
 This builds the missing single view. It is a **derived projection** of those per-level records, never a
-source of truth: ``write_run_report`` reads whatever records the directory currently holds and
-rewrites ``run.zombi2`` from them, so running a new level, or re-running one, just refreshes it — there
-is no document the levels take turns appending to. ``zombi2 report DIR`` rebuilds it on demand.
+source of truth: every ``zombi2 <level>`` run calls ``write_run_report``, which reads whatever records
+the directory currently holds and rewrites ``run.zombi2`` from them — so running a new level, or
+re-running one, just refreshes it, and there is no document the levels take turns appending to.
 
 It reports, per level: the parameters, the inputs it was computed on, the result, and **every file it
 wrote** (a per-family directory is summarised by count, not enumerated). Because it records the input
@@ -95,7 +95,7 @@ _GLOSS = {
     "phylograms": "gene trees with branch lengths in substitutions/site, one per family",
     # traits/
     "trait_tree.nwk": "the tree with every node's trait annotated ([&trait=…])",
-    "trait_values.tsv": "the trait value (or state) at each extant tip",
+    "trait_values.tsv": "the trait value (or state) at every node (tips, extinct lineages, internal)",
     "trait_events.tsv": "each discrete state change along a branch (time, lineage, from→to)",
 }
 
@@ -518,11 +518,4 @@ def write_run_report(run: str) -> str | None:
     return path
 
 
-def stale_warnings(run: str) -> list[str]:
-    """The staleness warnings for a run — one per downstream level computed on an upstream file that has
-    since changed. Empty when the run is self-consistent (or holds no records). Lets a caller gate a
-    pipeline on the run agreeing with itself (see ``zombi2 report --check``)."""
-    return _stale_notes(run, _collect_sections(run))
-
-
-__all__ = ["RUN_REPORT_NAME", "build_run_report", "write_run_report", "stale_warnings"]
+__all__ = ["RUN_REPORT_NAME", "build_run_report", "write_run_report"]

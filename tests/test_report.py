@@ -93,16 +93,6 @@ def test_a_changed_upstream_is_flagged_as_stale(tmp_path):
     assert "changed since" in text and "GENOMES was computed on" in text
 
 
-def test_report_command_rebuilds_and_refuses_an_empty_run(tmp_path):
-    _pipeline(tmp_path)
-    (tmp_path / RUN_REPORT_NAME).unlink()
-    assert main(["report", str(tmp_path)]) == 0
-    assert (tmp_path / RUN_REPORT_NAME).exists()
-    empty = tmp_path / "empty"
-    empty.mkdir()
-    assert main(["report", str(empty)]) == 1        # a clean error (no records), not a crash
-
-
 def test_no_report_for_a_flat_or_empty_run(tmp_path):
     assert build_run_report(str(tmp_path)) is None      # nothing there yet
     flat = tmp_path / "flat"
@@ -129,9 +119,8 @@ def test_ordered_and_nucleotide_outputs_are_documented(tmp_path):
 
 
 def test_staleness_survives_a_move_and_a_different_cwd(tmp_path, monkeypatch):
-    """Staleness must hold when the report is regenerated from another working directory, or after the
-    run directory is moved — the inputs are located relative to the run dir, not the current CWD."""
-    from zombi2._runtime.report import stale_warnings
+    """The staleness warning must hold when the report is regenerated from another working directory, or
+    after the run directory is moved — the inputs are located relative to the run dir, not the CWD."""
     monkeypatch.chdir(tmp_path)                              # record with a RELATIVE run-arg
     main(["species", "run", "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1"])
     main(["genomes", "run", "--initial-families", "4", "--duplication", "0.2", "--seed", "1"])
@@ -139,19 +128,9 @@ def test_staleness_survives_a_move_and_a_different_cwd(tmp_path, monkeypatch):
     tree.write_text(tree.read_text(encoding="utf-8") + "\n", encoding="utf-8")   # change the upstream
     moved = tmp_path / "moved"
     (tmp_path / "run").rename(moved)                         # move the whole run
-    monkeypatch.chdir(tmp_path.parent)                       # and check from a different cwd
-    warnings = stale_warnings(str(moved))
-    assert any("GENOMES" in w and "changed" in w for w in warnings), \
+    monkeypatch.chdir(tmp_path.parent)                       # and rebuild from a different cwd
+    assert "GENOMES was computed on" in build_run_report(str(moved)), \
         "a changed upstream must be flagged even after a move / from another cwd"
-
-
-def test_report_check_gates_on_staleness(tmp_path):
-    from zombi2.cli.main import main as _main
-    _pipeline(tmp_path)
-    assert _main(["report", str(tmp_path), "--check"]) == 0        # a consistent run passes
-    tree = tmp_path / "species" / "species_complete.nwk"
-    tree.write_text(tree.read_text(encoding="utf-8") + "\n", encoding="utf-8")
-    assert _main(["report", str(tmp_path), "--check"]) == 1        # a stale run fails, for CI to gate on
 
 
 def test_a_joint_run_reports_species_and_its_driver(tmp_path):

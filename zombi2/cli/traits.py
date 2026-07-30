@@ -100,7 +100,8 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=_DISCRETE_OUTPUTS, default=None, metavar="PART",
                    help="which outputs to write (default: values, tree [+ events when discrete]). "
-                        "values: the tip table. events: the event log — a root row giving the "
+                        "values: the value at every node (tips, extinct lineages, internal). events: "
+                        "the event log — a root row giving the "
                         "initial state then every switch; this is also the file a conditioned "
                         "genome/sequence run reads with DrivenBy('trait_events.tsv', ...). tree: "
                         "the trait tree (annotated Newick).")

@@ -14,14 +14,14 @@ import re
 import sys
 
 from zombi2 import __version__
-from zombi2.cli import genomes, joint, report, sequences, species, tools, traits
+from zombi2.cli import genomes, joint, sequences, species, tools, traits
 from zombi2.cli.framework import (
     _DESCRIPTION, ZombiHelpFormatter, _add_subcommand, _apply_params_file, _banner, _examples,
 )
 
 #: command name -> handler; the single source of dispatch
 _RUN = {"species": species.run, "genomes": genomes.run, "sequences": sequences.run,
-        "traits": traits.run, "joint": joint.run, "tools": tools.run, "report": report.run}
+        "traits": traits.run, "joint": joint.run, "tools": tools.run}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -166,19 +166,6 @@ def main(argv: list[str] | None = None) -> int:
         epilog=_examples(
             "  # homology tables (S/D/T — the event at each pair's ancestor) for a genomes run",
             "  zombi2 tools format out/",
-        ))
-
-    _add_subcommand(
-        sub, "report", "(re)write run.zombi2, a run's one-page report",
-        "Rewrite run.zombi2 — the one-page, human-readable report of a run directory — from the level "
-        "records it already holds. Every level command writes it on the way out, so this is only for a "
-        "run made before the report existed, assembled by hand, or whose report was deleted. It reads "
-        "the existing records and simulates nothing.",
-        "zombi2 report DIR",
-        report._add_report_args,
-        epilog=_examples(
-            "  # rebuild the report for an existing run",
-            "  zombi2 report out/",
         ))
 
     _apply_params_file(sub, argv)               # --params FILE seeds defaults; CLI flags override
