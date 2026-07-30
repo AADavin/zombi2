@@ -76,7 +76,7 @@ def test_every_node_valued_including_extinct():
     sp = _tree(seed=3, death=0.6)
     r = simulate_continuous(sp, rate=0.5, seed=1)
     assert set(r.node_values) == set(sp.complete_tree.nodes)  # every node has a value
-    extinct = {n.id for n in sp.complete_tree.extinct()}
+    extinct = {n.id for n in sp.complete_tree.extinct_leaves()}
     assert extinct and extinct <= set(r.node_values)          # extinct lineages included
 
 
@@ -92,7 +92,7 @@ def test_accepts_a_result_or_a_bare_tree():
 def test_values_are_the_extant_tips():
     sp = _tree(seed=8)
     r = simulate_continuous(sp, rate=0.5, seed=1)
-    extant = {n.id for n in sp.complete_tree.extant()}
+    extant = {n.id for n in sp.complete_tree.extant_leaves()}
     assert set(r.values) == extant
     assert all(r.values[i] == r.node_values[i] for i in extant)
 
@@ -166,7 +166,7 @@ def test_bm_tip_law_variance_and_covariance():
     # Var(tip) = σ²·(root-to-tip depth) and Cov(tip_a, tip_b) = σ²·(shared root-to-MRCA path).
     sp = _tree(seed=11, n_extant=6, death=0.0)  # Yule → clean ultrametric extant tips
     tree = sp.complete_tree
-    tips = sorted(n.id for n in tree.extant())
+    tips = sorted(n.id for n in tree.extant_leaves())
     depth = tree.nodes[tips[0]].end_time        # ultrametric: every extant tip shares this depth
     assert all(np.isclose(tree.nodes[i].end_time, depth) for i in tips)
     sigma2 = 2.0
@@ -197,7 +197,7 @@ def test_bm_tip_law_variance_and_covariance():
 def test_bm_trend_free_mean_is_flat():
     # with no trend the tip mean stays at `start` regardless of depth — the walk is unbiased
     sp = _tree(seed=13, n_extant=5, death=0.0)
-    tips = sorted(n.id for n in sp.complete_tree.extant())
+    tips = sorted(n.id for n in sp.complete_tree.extant_leaves())
     n_rep = 4000
     vals = np.array([
         [simulate_continuous(sp, start=1.5, rate=1.0, seed=s).node_values[i] for i in tips]
@@ -219,7 +219,7 @@ def test_ou_tip_law():
     # σ²/(2α)·(1−e^{−2αT})). This is the correctness-critical check on the OU transition + composition.
     sp = _tree(seed=11, n_extant=6, death=0.0)
     tree = sp.complete_tree
-    tips = sorted(n.id for n in tree.extant())
+    tips = sorted(n.id for n in tree.extant_leaves())
     T = tree.nodes[tips[0]].end_time
     theta, alpha, sigma2, start = 5.0, 1.2, 2.0, 0.0
 
@@ -288,7 +288,7 @@ def test_eb_tip_variance_and_covariance_match_the_integral():
     # base·∫_0^s over the shared path to their MRCA split s. This pins the skyline integral.
     sp = _tree(seed=11, n_extant=6, death=0.0)
     tree = sp.complete_tree
-    tips = sorted(n.id for n in tree.extant())
+    tips = sorted(n.id for n in tree.extant_leaves())
     T = tree.nodes[tips[0]].end_time
     base, c = 2.0, 0.25
     tau = 0.4 * T                                  # guaranteed inside (0, T) so the branch crosses it
@@ -331,7 +331,7 @@ def _kurtosis(col):
 def _vrbm_tips(spread, n_rep=2500):
     """Extant-tip values over `n_rep` variable-rates-BM replicates on a fixed 8-tip Yule tree."""
     tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=8, seed=11).complete_tree
-    tips = sorted(n.id for n in tree.extant())
+    tips = sorted(n.id for n in tree.extant_leaves())
     depth = tree.nodes[tips[0]].end_time
     data = np.array([
         [simulate_continuous(tree, start=0.0, rate=2.0 * mod.FromParent(spread=spread),
@@ -362,7 +362,7 @@ def test_variable_rates_composes_with_time():
     # FromParent ∘ OnTime: the drift factor (E=1) rides on top of the early-burst integral, so
     # E[tip variance] equals the plain EB integral ∫σ²(t)dt.
     tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=8, seed=11).complete_tree
-    tips = sorted(n.id for n in tree.extant())
+    tips = sorted(n.id for n in tree.extant_leaves())
     T = tree.nodes[tips[0]].end_time
     base, c, tau = 2.0, 0.25, 0.4 * T
     rate = base * mod.OnTime({0.0: 1.0, tau: c}) * mod.FromParent(spread=0.8)
@@ -430,7 +430,7 @@ def test_diversity_dependence_matches_the_ltt_integral():
     # MRCA. Verified against an independent LTT integrator; suppressed below plain BM's σ²·depth.
     sp = _tree(seed=11, n_extant=8, death=0.0)
     tree = sp.complete_tree
-    tips = sorted(n.id for n in tree.extant())
+    tips = sorted(n.id for n in tree.extant_leaves())
     T = tree.nodes[tips[0]].end_time
     base, cap = 2.0, 6.0
     data = np.array([
@@ -451,7 +451,7 @@ def test_diversity_dependence_freezes_at_a_small_cap():
     # cap the tree never approaches.
     sp = _tree(seed=11, n_extant=8, death=0.0)
     tree = sp.complete_tree
-    tips = sorted(n.id for n in tree.extant())
+    tips = sorted(n.id for n in tree.extant_leaves())
 
     def tip_var(cap):
         d = np.array([[simulate_continuous(tree, rate=1.0 * mod.OnTotalDiversity(cap=cap), seed=s).node_values[i]
@@ -466,7 +466,7 @@ def test_diversity_composes_with_inherited():
     # E[tip variance] equals the plain diversity integral.
     sp = _tree(seed=11, n_extant=8, death=0.0)
     tree = sp.complete_tree
-    tips = sorted(n.id for n in tree.extant())
+    tips = sorted(n.id for n in tree.extant_leaves())
     T = tree.nodes[tips[0]].end_time
     base, cap = 2.0, 6.0
     rate = base * mod.OnTotalDiversity(cap=cap) * mod.FromParent(spread=0.6)
@@ -518,7 +518,7 @@ def test_discrete_result_shape():
     sp = _tree(seed=8)
     r = simulate_discrete(sp, states=["marine", "terrestrial"], switch=0.3, start="marine", seed=1)
     assert r.kind == "discrete"
-    assert set(r.values) == {n.id for n in sp.complete_tree.extant()}
+    assert set(r.values) == {n.id for n in sp.complete_tree.extant_leaves()}
     assert set(r.values.values()) <= {"marine", "terrestrial"}     # labels, not indices
     assert set(r.history) == set(sp.complete_tree.nodes)            # a branch history for every node
 
@@ -640,7 +640,7 @@ def test_correlated_tip_correlation_matches_rho():
     # trait correlation of exactly ρ (independent of the rates and the tree), and each trait's
     # marginal variance is σ²_i·depth (plain BM). ρ=0 recovers independence.
     tree = _corr_tree()
-    tip = sorted(n.id for n in tree.extant())[0]
+    tip = sorted(n.id for n in tree.extant_leaves())[0]
     depth = tree.nodes[tip].end_time
     for rho in (0.6, -0.5, 0.0):
         a = np.empty(4000)
@@ -667,7 +667,7 @@ def test_correlated_result_shape():
                             correlation={("x", "y"): 0.5}, seed=1)
     assert set(r.node_values) == set(tree.nodes)                       # every node valued
     assert all(set(v) == {"x", "y"} for v in r.node_values.values())   # each value a per-trait dict
-    assert set(r.values) == {n.id for n in tree.extant()}
+    assert set(r.values) == {n.id for n in tree.extant_leaves()}
     assert r.kind == "continuous" and r.events == [] and r.history is None
 
 
@@ -723,7 +723,7 @@ def test_threshold_state_frequency_law():
     # a 2-state threshold trait: the liability ~ Normal(start, σ²·depth), so the fraction of tips in
     # the upper state is Φ((start − cut)/√(σ²·depth)) — the exact Wright–Felsenstein law.
     tree = _corr_tree()
-    tip = sorted(n.id for n in tree.extant())[0]
+    tip = sorted(n.id for n in tree.extant_leaves())[0]
     depth = tree.nodes[tip].end_time
     for start, cut, s2 in [(0.0, 0.0, 1.0), (0.5, 0.0, 1.0), (0.0, -0.4, 2.0)]:
         n = 6000
@@ -752,7 +752,7 @@ def test_correlated_discrete_agreement_matches_tetrachoric():
     # correlated liabilities (symmetric, cut at 0): the fraction of tips where the two states agree is
     # 1/2 + asin(ρ)/π (the tetrachoric law) — 0.5 when independent, → 1 as ρ → 1, < 0.5 for ρ < 0.
     tree = _corr_tree()
-    tip = sorted(n.id for n in tree.extant())[0]
+    tip = sorted(n.id for n in tree.extant_leaves())[0]
     for rho in (0.0, 0.8, -0.6):
         n = 5000
         agree = sum(
@@ -805,7 +805,7 @@ def test_at_speciation_continuous_adds_jump_variance():
     # a Normal(0, at_speciation) jump at each speciation: a tip's variance is σ²·depth (anagenesis)
     # plus at_speciation·(number of splits on its path) — the punctuational contribution, verified.
     tree = _corr_tree()
-    tips = sorted(n.id for n in tree.extant())
+    tips = sorted(n.id for n in tree.extant_leaves())
     depth = tree.nodes[tips[0]].end_time
     for jump in (0.0, 1.5):
         vals = np.array([[simulate_continuous(tree, start=0.0, rate=1.0, at_speciation=jump,
@@ -826,7 +826,7 @@ def test_at_speciation_discrete_flips_at_every_split():
     # tip is `start` flipped once per split, so it equals start iff its path has an even split count.
     tree = _corr_tree()
     r = simulate_discrete(tree, states=["a", "b"], switch=0.0, at_speciation=1.0, start="a", seed=1)
-    for i in sorted(n.id for n in tree.extant()):
+    for i in sorted(n.id for n in tree.extant_leaves()):
         assert r.values[i] == ("a" if _n_splits(tree, i) % 2 == 0 else "b")
 
 
@@ -868,7 +868,7 @@ def test_regimes_track_their_optima():
     tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=12, seed=5).complete_tree
     regime = simulate_discrete(tree, states=["lo", "hi"], switch=0.8, seed=1)
     r = simulate_continuous(tree, rate=0.3, pull=6.0, reverts_to={"lo": 0.0, "hi": 10.0}, regimes=regime, seed=2)
-    tips = sorted(n.id for n in tree.extant())
+    tips = sorted(n.id for n in tree.extant_leaves())
     lo = [r.values[i] for i in tips if regime.values[i] == "lo"]
     hi = [r.values[i] for i in tips if regime.values[i] == "hi"]
     if lo:

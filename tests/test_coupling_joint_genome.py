@@ -105,7 +105,7 @@ def test_gene_count_drives_diversification():
         sizes = []
         for s in (1, 2, 3):
             r = _count_joint(curve, seed=s)
-            sizes.append(statistics.mean(len(r.genome.genomes[n.id]) for n in r.complete_tree.extant()))
+            sizes.append(statistics.mean(len(r.genome.genomes[n.id]) for n in r.complete_tree.extant_leaves()))
         return statistics.mean(sizes)
     coupled = mean_size(lambda n: 1.0 + 0.3 * n)
     neutral = mean_size(lambda n: 2.0)              # flat curve: driven but no effect = neutral null
@@ -117,7 +117,7 @@ def test_named_family_presence_drives_diversification():
         r = joint.simulate_joint(birth=birth, death=0.1,
             genome=genomes.family(duplication=0.4, loss=0.4, origination=0.1, family_names=["toxin"]),
             n_extant=200, seed=seed)
-        tips = [n.id for n in r.complete_tree.extant()]
+        tips = [n.id for n in r.complete_tree.extant_leaves()]
         return sum(r.genome.has_family(i, "toxin") for i in tips) / len(tips)
     coupled = statistics.mean(
         frac_toxin(1.0 * mod.DrivenBy("genomes:toxin", {"present": 5.0, "absent": 1.0}), s) for s in (1, 2, 3))
@@ -131,7 +131,7 @@ def test_total_time_mode():
         birth=1.0 * mod.DrivenBy("genomes:count", lambda n: 1.0 + 0.1 * n), death=0.1,
         genome=genomes.family(origination=0.4, loss=0.2, initial_families=2),
         total_time=3.0, seed=4)
-    assert all(n.end_time == pytest.approx(3.0) for n in res.complete_tree.extant())
+    assert all(n.end_time == pytest.approx(3.0) for n in res.complete_tree.extant_leaves())
 
 
 # --- validation -----------------------------------------------------------------------------------

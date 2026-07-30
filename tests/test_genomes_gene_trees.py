@@ -93,7 +93,7 @@ def test_a_family_that_never_splits_is_one_node_with_its_lifespan():
 def test_extant_leaves_equal_the_extant_copy_total():
     # the strongest invariant: a family's surviving gene-tree leaves == its copies across extant tips
     sp, g = _run(seed=5, death=0.5)
-    extant_sp = {n.id for n in sp.complete_tree.extant()}
+    extant_sp = {n.id for n in sp.complete_tree.extant_leaves()}
     for fam, tree in g.gene_trees.items():
         n_leaves = len(_leaves(tree.extant, {"extant"}))
         copies = sum(g.profiles.counts.get((fam, s), 0) for s in extant_sp)
@@ -102,14 +102,14 @@ def test_extant_leaves_equal_the_extant_copy_total():
 
 def test_every_extant_leaf_sits_on_an_extant_species():
     sp, g = _run(seed=6)
-    extant_sp = {n.id for n in sp.complete_tree.extant()}
+    extant_sp = {n.id for n in sp.complete_tree.extant_leaves()}
     for tree in g.gene_trees.values():
         assert all(lf.species in extant_sp for lf in _leaves(tree.extant, {"extant"}))
 
 
 def test_extant_is_none_iff_the_family_left_no_extant_copy():
     sp, g = _run(seed=3, death=0.7)                 # high death -> some families fully extinct
-    extant_sp = {n.id for n in sp.complete_tree.extant()}
+    extant_sp = {n.id for n in sp.complete_tree.extant_leaves()}
     saw_none = False
     for fam, tree in g.gene_trees.items():
         copies = sum(g.profiles.counts.get((fam, s), 0) for s in extant_sp)
@@ -132,7 +132,7 @@ def test_self_transfer_is_allowed_on_the_same_branch_and_still_balances():
     # self-transfer lands on the donor's own branch, so a transfer node CAN have same-branch children;
     # the extant-leaf-count invariant must still hold
     sp, g = _run(seed=2, self_transfer=True)
-    extant_sp = {n.id for n in sp.complete_tree.extant()}
+    extant_sp = {n.id for n in sp.complete_tree.extant_leaves()}
     for fam, tree in g.gene_trees.items():
         assert len(_leaves(tree.extant, {"extant"})) == sum(g.profiles.counts.get((fam, s), 0) for s in extant_sp)
 

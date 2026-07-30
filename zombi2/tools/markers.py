@@ -91,7 +91,7 @@ def marker_row(family: int, gt: GeneTree, tree) -> dict:
 
     per_genome = collections.Counter(n.species for n in leaves)
     single = bool(per_genome) and max(per_genome.values()) == 1
-    n_extant = sum(1 for _ in tree.extant())
+    n_extant = sum(1 for _ in tree.extant_leaves())
     row = {"family": family,
            "genomes": len(per_genome),
            "copies": len(leaves),

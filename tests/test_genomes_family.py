@@ -39,7 +39,7 @@ def test_genomes_on_every_node_including_extinct():
     sp = _tree(seed=3, death=0.5)
     g = simulate_genomes_family(sp, duplication=0.2, loss=0.2, origination=0.5, initial_families=4, seed=1)
     assert set(g.genomes) == set(sp.complete_tree.nodes)          # every node has a genome
-    extinct = {n.id for n in sp.complete_tree.extinct()}
+    extinct = {n.id for n in sp.complete_tree.extinct_leaves()}
     assert extinct and extinct <= set(g.genomes)                 # extinct lineages included
 
 
@@ -492,7 +492,7 @@ def test_write_genomes_covers_every_node_where_profiles_covers_only_tips():
         internal = {names[n.id] for n in sp.complete_tree.nodes.values() if n.children is not None}
         assert written & internal, "ancestral genomes must be in there, not just the tips"
         # profiles is the extant-only view
-        tips = {names[n.id] for n in sp.complete_tree.extant()}
+        tips = {names[n.id] for n in sp.complete_tree.extant_leaves()}
         assert set((out / "profiles.tsv").read_text(encoding="utf-8").splitlines()[0].split("\t")[1:]) == tips
 
 

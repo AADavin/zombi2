@@ -62,6 +62,12 @@ class Node:
     children: tuple[int, int] | None = None
     fate: str = "alive"  # alive → "extant" | "extinct" | "unsampled"; internal splits are "speciation"
 
+    @property
+    def is_leaf(self) -> bool:
+        """No descendants — a tip. (`GeneNode` spells this the same way; the two node types diverge
+        in how they store children, but "is this a tip" reads identically on both.)"""
+        return self.children is None
+
 
 
 @dataclass
@@ -74,7 +80,7 @@ class Tree:
     def __repr__(self) -> str:
         # a summary, not the nodes: a dataclass repr of a 40-tip tree runs to thousands of characters
         # and of a big one to megabytes, which is what an interactive session gets for typing its name
-        return (f"Tree({len(self.extant())} extant tips, {len(self.nodes)} nodes, "
+        return (f"Tree({len(self.extant_leaves())} extant tips, {len(self.nodes)} nodes, "
                 f"rooted at n{self.root})")
 
     def labels(self) -> dict[int, str]:
@@ -90,15 +96,16 @@ class Tree:
         """Every lineage with no descendants — extant **and** extinct."""
         return [n for n in self.nodes.values() if n.children is None]
 
-    def extant(self) -> list[Node]:
-        """The lineages alive at the present."""
+    def extant_leaves(self) -> list[Node]:
+        """The lineages alive at the present. (A *tip* list, not a tree — the pruned survivors' tree
+        is `SpeciesResult.extant_tree`.)"""
         return [n for n in self.nodes.values() if n.fate == "extant"]
 
-    def extinct(self) -> list[Node]:
+    def extinct_leaves(self) -> list[Node]:
         """The lineages that died before the present."""
         return [n for n in self.nodes.values() if n.fate == "extinct"]
 
-    def unsampled(self) -> list[Node]:
+    def unsampled_leaves(self) -> list[Node]:
         """Survivors not observed under incomplete ``sampling`` — kept in the complete tree (told
         apart by their fate) but pruned from the extant tree."""
         return [n for n in self.nodes.values() if n.fate == "unsampled"]
