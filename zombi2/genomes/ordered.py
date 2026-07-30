@@ -681,8 +681,18 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, ne
     donor = alive[kd]
     jd = _anchor(gen[kd][cdi], jd, m)
     segment = gen[kd][cdi].genes[jd:jd + m]
-    cand = [k for k in range(len(alive)) if self_transfer or k != kd]
-    kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth)
+    if transfer_to == "uniform":
+        # O(1) uniform recipient — the same single draw as recipient_index's
+        # cand[rng.integers(len(cand))] over every alive lineage but the donor; the donor-skip is a
+        # +1 index shift, so no O(alive) candidate list is built per transfer (see family._do_transfer).
+        npool = len(alive) if self_transfer else len(alive) - 1
+        if npool <= 0:
+            return 0
+        i = int(rng.integers(npool))
+        kr = i if (self_transfer or i < kd) else i + 1
+    else:  # a Distance weighting must weigh every candidate — inherently O(alive)
+        cand = [k for k in range(len(alive)) if self_transfer or k != kd]
+        kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth)
     recipient = alive[kr]
     rgenome = gen[kr]
     if _run_over_cap(rgenome, gen[kd][cdi], jd, m, cap):   # the recipient is full: same thinning
