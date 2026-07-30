@@ -48,11 +48,12 @@ from ..rates.scope import PerSite
 from ..tree import Node, Tree, prune
 from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
+from .._runtime.summary import write_summary
 from .evolution import evolve_gene_tree
 from .substitution_models import (BASES, SubstitutionModel, dayhoff, decode, encode, gtr,
                                   hky85, jc69, jtt, k80, lg, poisson, wag)
 
-_WRITE_OUTPUTS = ("alignments", "ancestral", "founding", "phylograms", "species_phylogram",
+_WRITE_OUTPUTS = ("summary", "alignments", "ancestral", "founding", "phylograms", "species_phylogram",
                   "genomes", "initial_genome")
 
 #: complement of each base, for reading a block laid down on the reverse strand
@@ -133,8 +134,29 @@ class SequencesResult:
         a block: ``fam<n>.fasta`` against ``block<n>.fasta``."""
         return {"family": "fam", "block": "block"}[self.unit]
 
+    def summary(self) -> dict:
+        """What this run produced, as a plain dict — the payload of ``sequences_summary.json``.
+
+        The identity is the number worth having: it is what says whether the alignments carry signal,
+        and it depends on the height of the tree the run went down, which no flag shows you. The run
+        prints it and warns when it is near the floor; this is the machine-readable copy of that."""
+        aligned = {k: v for k, v in self.alignments.items() if v}
+        sites = sorted({len(s) for aln in aligned.values() for s in aln.values()})
+        return {
+            "level": "sequences",
+            "seed": self.seed,
+            "unit": self.unit,
+            {"family": "families", "block": "blocks"}[self.unit] + "_with_sequences": len(aligned),
+            "sequences": sum(len(a) for a in aligned.values()),
+            "ancestral_sequences": sum(len(a) for a in self.ancestral.values()),
+            # one length on a family run; a nucleotide run gives every block its own, so report the span
+            "sites": {"min": sites[0], "max": sites[-1]} if sites else {"min": None, "max": None},
+            "mean_pairwise_identity": mean_pairwise_identity(aligned),
+            "assembled_genomes": len(self.genomes),
+        }
+
     def write(self, directory, outputs=("alignments", "phylograms", "species_phylogram", "genomes",
-                                        "initial_genome"), *, flat: bool = False) -> None:
+                                        "initial_genome", "summary"), *, flat: bool = False) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed). ``<u>`` below is
         ``fam<family>`` on a family or ordered run and ``block<index>`` on a nucleotide one — the
         integer keys mean different things, so the files say which (see `unit`):
@@ -182,6 +204,8 @@ class SequencesResult:
                 (into / f"phylogram_{u}{fam}_complete.nwk").write_text(ph["complete"] + "\n", encoding="utf-8")
                 if ph["extant"] is not None:
                     (into / f"phylogram_{u}{fam}_extant.nwk").write_text(ph["extant"] + "\n", encoding="utf-8")
+        if "summary" in outputs:
+            write_summary(d / "sequences_summary.json", self.summary())
         if "species_phylogram" in outputs:
             sp = self.species_phylogram
             (d / "clock_species_tree_complete.nwk").write_text(sp["complete"] + "\n", encoding="utf-8")
@@ -247,6 +271,31 @@ class _AssembledGenomes(Mapping):
 
     def __len__(self) -> int:
         return len(self._layouts)
+
+
+def mean_pairwise_identity(alignments, max_pairs: int = 2000) -> float | None:
+    """Mean identity over a bounded random sample of within-family sequence pairs, or ``None`` when
+    no family holds two sequences to compare.
+
+    Sampled rather than exhaustive because the pair count is quadratic in family size — a run with
+    thousands of copies would otherwise spend longer measuring itself than it spent simulating. The
+    draw is from a fixed stream, so the number printed for a given run is reproducible."""
+    families = [list(a.values()) for a in alignments.values() if len(a) >= 2]
+    if not families:
+        return None
+    rng = np.random.default_rng(0)
+    matched = compared = 0
+    for _ in range(max_pairs):
+        seqs = families[int(rng.integers(len(families)))]
+        i, j = (int(x) for x in rng.choice(len(seqs), size=2, replace=False))
+        n = min(len(seqs[i]), len(seqs[j]))
+        if not n:
+            continue
+        a = np.frombuffer(seqs[i][:n].encode(), dtype=np.uint8)
+        b = np.frombuffer(seqs[j][:n].encode(), dtype=np.uint8)
+        matched += int(np.count_nonzero(a == b))
+        compared += n
+    return matched / compared if compared else None
 
 
 def _write_fasta(path, records: dict[str, str], width: int = 70) -> None:
@@ -475,11 +524,34 @@ class StreamedSequences:
     #: mean pairwise identity over one sampled pair per family — what the CLI reports and warns on.
     #: ``None`` when no family held two sequences to compare.
     identity: "float | None" = None
+    #: the site count every alignment carries (one length on a family run)
+    sites: "int | None" = None
+    #: how many ancestral sequences went by — the sink sees them whether or not they were written
+    n_ancestral: int = 0
     unit: str = "family"
 
     def __repr__(self) -> str:
         return (f"StreamedSequences({self.n_sequences} sequences across {self.n_families} "
                 f"{self.unit} alignments, streamed to {self.directory!r}, seed={self.seed})")
+
+    def summary(self) -> dict:
+        """The same payload `SequencesResult.summary()` builds, from what the sink counted as it wrote.
+
+        A streamed run has to produce the same files as an in-memory one at the same seed — that is
+        the whole contract — so it produces this one too. Two fields it cannot know: the ancestral
+        count and the assembled genomes, neither of which a streamed family run writes."""
+        return {
+            "level": "sequences",
+            "seed": self.seed,
+            "unit": self.unit,
+            {"family": "families", "block": "blocks"}[self.unit] + "_with_sequences":
+                self.n_families,
+            "sequences": self.n_sequences,
+            "ancestral_sequences": self.n_ancestral,
+            "sites": {"min": self.sites, "max": self.sites},
+            "mean_pairwise_identity": self.identity,
+            "assembled_genomes": 0,
+        }
 
 
 class _Sink:
@@ -505,6 +577,8 @@ class _Sink:
         # different sample, so the number can differ in the last digit; the alignments cannot.
         self._rng = np.random.default_rng(0)
         self._matched = self._compared = 0
+        self.sites: "int | None" = None
+        self.n_ancestral = 0
 
     def _into(self, name: str) -> pathlib.Path:
         return grouped_dir(self.dir, name, self.flat)
@@ -534,6 +608,9 @@ class _Sink:
         # a streamed run claim more families than the same run in memory
         self.n_families += 1 if aln else 0
         self.n_sequences += len(aln)
+        self.n_ancestral += len(anc)
+        if self.sites is None and aln:
+            self.sites = len(next(iter(aln.values())))
         self._sample_pair(aln)
         if "alignments" in self.outputs and aln:
             _write_fasta(self._into("alignments") / f"{u}.fasta", aln)
@@ -566,7 +643,7 @@ class _Sink:
 #: what a streamed run writes when ``outputs`` is not given — the same set `SequencesResult.write`
 #: defaults to, minus the two a family run never has anyway (a genome is a nucleotide-run output, and
 #: nucleotide runs cannot stream: assembling a genome needs every block at once).
-_DEFAULT_STREAM_OUTPUTS = ("alignments", "phylograms", "species_phylogram")
+_DEFAULT_STREAM_OUTPUTS = ("alignments", "phylograms", "species_phylogram", "summary")
 
 
 def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None = None,
@@ -834,8 +911,11 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
 
     if sink is not None:
         sink.finish(species_phylogram)
-        return StreamedSequences(str(stream_to), seed, sink.n_families, sink.n_sequences,
-                                 sink.outputs, sink.identity)
+        handle = StreamedSequences(str(stream_to), seed, sink.n_families, sink.n_sequences,
+                                   sink.outputs, sink.identity, sink.sites, sink.n_ancestral)
+        if "summary" in sink.outputs:
+            write_summary(pathlib.Path(stream_to) / "sequences_summary.json", handle.summary())
+        return handle
     return SequencesResult(alignments, ancestral, founding, phylograms, species_phylogram, seed,
                            assembled, initial_genome, "block" if nucleotide else "family")
 
@@ -844,6 +924,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
 # like `zombi2.rates.scope` / `zombi2.rates.modifiers` — never re-exported here:
 #     from zombi2.sequences import substitution_models as sm;  sm.hky85(2.0)
 __all__ = ["simulate_sequences", "SequencesResult", "StreamedSequences",
+           "mean_pairwise_identity",
            # the substitution-model menu, re-exported: the TypeError raised for a bad
            # `model=` names these symbols, so they must be importable from the module it names
            "jc69", "k80", "hky85", "gtr", "poisson", "jtt", "dayhoff", "wag", "lg",

@@ -42,9 +42,10 @@ RATES_HELP = _rates_help(
          "included.")
 
 # the write vocabularies, mirroring each Result.write (there is no exported constant to import)
-_FAMILY_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees")
+_FAMILY_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees",
+                   "summary")
 _ORDERED_OUTPUTS = ("events", "profiles", "gene_order", "initial_genome", "gene_trees",
-                    "chromosome_events")
+                    "chromosome_events", "summary")
 _NUCLEOTIDE_OUTPUTS = ("events", "genes", "blocks", "initial_genome", "gene_trees",
                        "chromosome_events", "gff", "bed")
 _OUTPUTS = {"family": _FAMILY_OUTPUTS, "ordered": _ORDERED_OUTPUTS,

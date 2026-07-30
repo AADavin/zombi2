@@ -40,6 +40,7 @@ from ._transfer import Clades, Distance, mean_root_to_tip, recipient_index, reso
 
 from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
+from .._runtime.summary import _stats, write_summary
 from .events import Event, events_tsv, gene_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
@@ -85,6 +86,11 @@ class FamilyGenomesResult:
     #: of its branch: the root branch is real simulated time, so ``genomes[root]`` is this genome plus
     #: whatever happened along the stem. The same reason ``GeneTree.origination`` is its own field.
     initial_genome: tuple[GeneCopy, ...] = ()
+    #: The per-genome family cap this run actually ran under, resolved (``None`` for no cap). Kept
+    #: because the cap is otherwise invisible in the output: when it binds it discards duplications
+    #: and arriving transfers, so realised rates fall below the declared ones, and `summary()` is
+    #: where a reader finds out that happened to them.
+    max_family_size: int | None = None
 
     def __repr__(self) -> str:
         return (f"FamilyGenomesResult({len(self.complete_tree.extant())} extant genomes, "
@@ -116,8 +122,80 @@ class FamilyGenomesResult:
         `gene_trees`."""
         return gene_trees_from_events(self.events, self.complete_tree)
 
+    def summary(self) -> dict:
+        """What this run produced, as a plain dict — the payload of ``genome_summary.json``.
+
+        **Every event count here is deduplicated.** The event log holds one row per gene-tree *edge*,
+        so a duplication, a transfer and a speciation each write two rows: counting by row inflates
+        them exactly 2×, which is the first mistake a reader of that file makes. A duplication's two
+        rows share the ``parent`` gene they descend from, and a gene ends at exactly one event, so
+        distinct parents *are* the events.
+
+        The family counts are the other thing nobody could reconcile: ``gene_trees/`` holds a file pair
+        per family that ever existed, while the run's summary line counts the ones that survived, so
+        "96 gene families" sat next to 213 files with nothing to explain the gap. Both numbers are
+        here, named.
+
+        ``origination`` counts only the families that arose *during* the run: the initial genome is
+        logged as origination at the root's own start time, so a bare count of that kind is de-novo
+        arrivals plus ``initial_families``, which is a number nobody asked for. They are separate here.
+
+        And the cap, which was invisible. When ``max_family_size`` binds it discards duplications and
+        arriving transfers, so realised rates fall below the declared ones — so this reports which
+        families are sitting at it, because that is the signal a reader can act on."""
+        per_kind: dict[str, set] = collections.defaultdict(set)
+        singles: collections.Counter = collections.Counter()
+        for e in self.events:
+            if e.parent is None:                  # origination and loss: one row apiece already
+                singles[e.kind] += 1
+            else:
+                per_kind[e.kind].add(e.parent)    # two rows, one parent, one event
+        events = {k: len(v) for k, v in sorted(per_kind.items())}
+        events.update(sorted(singles.items()))
+        # the initial genome is logged as origination at the root's own start time, so a bare count of
+        # "origination" is the de-novo families PLUS `initial_families` — over-counting new arrivals by
+        # however many the run began with. Split them: they are different things to a reader.
+        t0 = self.complete_tree.nodes[self.complete_tree.root].birth_time
+        initial = sum(1 for e in self.events if e.kind == "origination" and e.time <= t0)
+
+        extant = [n.id for n in self.complete_tree.extant()]
+        born = {e.family for e in self.events}
+        surviving = {c.family for i in extant for c in self.genomes.get(i, ())}
+        genes_per_genome = [len(self.genomes.get(i, ())) for i in extant]
+        cells = [collections.Counter(c.family for c in self.genomes.get(i, ())) for i in extant]
+        copies = [n for cell in cells for n in cell.values()]
+
+        cap = self.max_family_size
+        at_cap = sorted({fam for cell in cells for fam, n in cell.items()
+                         if cap is not None and n >= cap})
+        return {
+            "level": "genomes",
+            "seed": self.seed,
+            # deduplicated: one number per EVENT, not per row of genome_events.tsv
+            "events": {"initial": initial,
+                       "origination": events.get("origination", 0) - initial,
+                       **{k: events.get(k, 0) for k in
+                          ("duplication", "transfer", "loss", "speciation")}},
+            "event_rows": len(self.events),        # what a naive `wc -l` on the log would give
+            "families": {"born": len(born), "surviving": len(surviving),
+                         "died_out": len(born) - len(surviving),
+                         "named": len(self.family_names)},
+            "extant_genomes": len(extant),
+            "genes_per_genome": _stats(genes_per_genome),
+            "copies_per_family_per_genome": _stats(copies),
+            # the cap made visible. `families_at_cap` is what to look at: a family sitting at the
+            # ceiling had events discarded, so its realised rates are below the ones you declared.
+            "family_size_cap": {
+                "cap": cap,
+                "families_at_cap": len(at_cap),
+                "cells_at_cap": sum(1 for cell in cells for n in cell.values()
+                                    if cap is not None and n >= cap),
+                "family_ids_at_cap": at_cap},
+        }
+
     def write(self, directory, outputs=("events", "profiles", "genomes", "initial_genome",
-                                        "gene_trees", "species_tree"), *, flat: bool = False) -> None:
+                                        "gene_trees", "species_tree", "summary"), *,
+              flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → ``genome_events.tsv``, the event log (the source of truth).
@@ -155,6 +233,8 @@ class FamilyGenomesResult:
         if "species_tree" in outputs:
             (d / "species_complete.nwk").write_text(self.complete_tree.to_newick() + "\n",
                                                     encoding="utf-8")
+        if "summary" in outputs:
+            write_summary(d / "genome_summary.json", self.summary())
 
     def _genomes_tsv(self) -> str:
         """Every node's gene content, one row per copy, in the order the genome holds them. The
@@ -877,7 +957,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
     bar.close()
-    return FamilyGenomesResult(tree, genomes, events, seed, named, initial_genome)
+    return FamilyGenomesResult(tree, genomes, events, seed, named, initial_genome, cap)
 
 
 # --- process spec: a genome bundled but UNEXECUTED, for a joint model to grow with the tree --------

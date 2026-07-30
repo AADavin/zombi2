@@ -78,6 +78,38 @@ parameter. Rates are recorded in their **written form** — `birth<TAB>1.0 * OnT
 so a line pastes straight back into the flag or a `--params` file. It is a CLI artifact, not a
 `result.write()` output, so it has no row in the tables below.
 
+## The run summary
+
+Beside each log sits a **summary**: `species_summary.json`, `genome_summary.json`,
+`sequences_summary.json`. The log is what the run was *asked* for; the summary is what *happened*. They
+are separate files so that a script reading outcomes does not have to step over parameters, and it is
+JSON because the people who wanted it were writing collectors.
+
+Unlike the log, it is a `result.write()` output — `outputs=("summary",)` from Python, `--write summary`
+on the command line — so a run from either side has one, and `result.summary()` gives the same payload
+as a dict without touching the disk.
+
+**Every event count in it is deduplicated**: one number per event, not per row of the event log (see
+the section below on why those differ). It also answers two questions the rest of the output leaves
+open:
+
+| Field | The question it answers |
+|---|---|
+| `events` | how many duplications, transfers, losses and speciations, counted **once each** — and `initial` separated from `origination`, since the starting genome is logged as origination too |
+| `event_rows` | what a plain `wc -l` on the event log gives, so the difference is visible rather than a trap |
+| `families.born` / `.surviving` | why `gene_trees/` holds more file pairs than the run reported families: the run reports the survivors |
+| `family_size_cap` | whether `max_family_size` **bit**, and which families are sitting at it. A family at the ceiling had duplications and arriving transfers discarded, so its realised rates are below the ones you declared. This is the only place that says so |
+| `realised_rates` (species) | speciations and extinctions per unit of branch length — the cheapest check there is that a tree came out at the rates you asked for |
+| `mean_pairwise_identity` (sequences) | the number the run prints and warns on, in machine-readable form |
+
+```python
+from zombi2 import species
+
+run = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
+run.summary()["realised_rates"]      # {'birth': …, 'death': …}
+run.write("out/species/", outputs=("complete", "summary"))
+```
+
 Every tree ZOMBI2 writes is ordinary Newick and opens in **FigTree**, **iTOL**, **Dendroscope** or
 any other viewer; the species and gene trees carry internal-node labels, which most viewers will show
 as node names. To load one in Python, `zombi2.tree.read_newick(text)` returns `(tree, names)` — the
@@ -143,6 +175,9 @@ one:
 | `speciation` | **2** | the parent copy ends at the split; one copy begins in each daughter species |
 | `loss` | 1 | the copy ends with no descendant |
 | `origination` | 1 | a founding copy begins with no parent |
+
+You do not have to do this arithmetic: `genome_summary.json` carries the deduplicated counts, and
+`event_rows` beside them, so the two numbers are both named rather than one of them being a trap.
 
 **Counting rows by kind therefore counts edges, not events, and doubles duplications, transfers and
 speciations.** The `event` column is there so you never have to: it names the gene copy whose fate
