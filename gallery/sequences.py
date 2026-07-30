@@ -208,14 +208,25 @@ from zombi2.genomes import simulate_genomes_family
 from zombi2.sequences import simulate_sequences, jc69
 
 sp = simulate_species_tree(birth=1.0, n_extant=20, seed=12)
-g = simulate_genomes_family(sp.complete_tree, initial_families=1, seed=5)
+ct = sp.complete_tree
+g = simulate_genomes_family(ct, initial_families=1, seed=5)
 seqs = simulate_sequences(g, model=jc69(), length=24, seed=7)
-
-### the reconstructed sequence at every internal node, keyed to the phylogram
+fam = next(iter(seqs.ancestral))
 seqs.founding[fam]              # the INITIAL genome (node 0), at the start of the stem
 seqs.ancestral[fam]["n0_g0"]    # the CROWN (node 1); n1_g1, n2_g2, ... the other internal nodes
-# plotted: the tree with numbered internal nodes, beside one coloured row per node
-# — the rows are NOT tip-aligned, they belong to internal nodes'''
+
+### plot  —  the tree with internal nodes numbered, beside the ancestral sequence at each
+import phylustrator as ph
+
+internal = sorted((i for i in ct.nodes if ct.nodes[i].children), key=lambda i: ct.nodes[i].birth_time)
+number = {i: k + 1 for k, i in enumerate(internal)}     # root (crown) = 1, then by depth
+tree = ph.trees.loads(ct.to_newick())
+for n in tree.walk():                                   # relabel internal nodes with their number
+    if n.name and n.name.startswith("n"):
+        n.name = "" if n.is_leaf else str(number[int(n.name[1:])])
+(ph.trees.plot(tree) + ph.trees.node_labels() + ph.trees.time_axis("time")).save("tree.png")
+# beside it, a matplotlib colour grid: one free-floating row per numbered node — the founding sequence
+# (node 0) and each seqs.ancestral[fam][...] — NOT tip-aligned (they belong to internal nodes)'''
 
 _C_PHYLO = '''\
 ### simulate  —  a relaxed clock, so branch lengths are substitutions (non-ultrametric)
