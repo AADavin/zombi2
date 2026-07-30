@@ -676,7 +676,7 @@ def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_fam
     os.makedirs(out_dir, exist_ok=True)
     shard_dir = os.path.join(out_dir, "_shards")
     os.makedirs(shard_dir, exist_ok=True)
-    extant_ids = sorted(n.id for n in tree.extant())
+    extant_ids = sorted(n.id for n in tree.extant_leaves())
     stream_cfg = {"out_dir": out_dir, "outputs": set(outputs), "extant_ids": extant_ids,
                   "shard_dir": shard_dir}
 

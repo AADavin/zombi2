@@ -56,7 +56,7 @@ def test_joint_result_carries_both_levels():
     assert isinstance(res.trait, TraitsResult) and res.trait.kind == "discrete"
     # trait state recorded at EVERY node (extant, extinct, internal), tips readable
     assert set(res.trait.node_values) == set(res.complete_tree.nodes)
-    assert set(res.trait.values) == {n.id for n in res.complete_tree.extant()}
+    assert set(res.trait.values) == {n.id for n in res.complete_tree.extant_leaves()}
     # the derived stochastic map reconstructs from the switch log (durations sum to branch lengths)
     hist = res.trait.history
     for i, node in res.complete_tree.nodes.items():
@@ -125,7 +125,7 @@ def test_total_time_mode():
         total_time=4.0, seed=6,
     )
     # every extant lineage reaches the present at total_time
-    assert all(n.end_time == pytest.approx(4.0) for n in res.complete_tree.extant())
+    assert all(n.end_time == pytest.approx(4.0) for n in res.complete_tree.extant_leaves())
 
 
 # --- validation -----------------------------------------------------------------------------------

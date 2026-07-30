@@ -223,7 +223,7 @@ class OrderedGenomesResult:
     initial_genome: tuple[Chromosome, ...] = ()
 
     def __repr__(self) -> str:
-        return (f"OrderedGenomesResult({len(self.complete_tree.extant())} extant genomes, "
+        return (f"OrderedGenomesResult({len(self.complete_tree.extant_leaves())} extant genomes, "
                 f"{len(self.genomes)} nodes, {len(self.events)} events, "
                 f"{len(self.rearrangements)} rearrangements, seed={self.seed})")
 
@@ -249,7 +249,7 @@ class OrderedGenomesResult:
     def _extant_genes(self) -> dict[int, tuple[Gene, ...]]:
         """The observed genomes flattened to gene multisets (chromosomes dropped) — the view the
         genealogy-derived, position-blind outputs read."""
-        extant = [n.id for n in self.complete_tree.extant()]
+        extant = [n.id for n in self.complete_tree.extant_leaves()]
         return {s: tuple(g for chrom in self.genomes[s] for g in chrom.genes) for s in extant}
 
     @cached_property

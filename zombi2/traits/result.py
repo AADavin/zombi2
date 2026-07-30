@@ -64,7 +64,7 @@ class TraitsResult:
         """The observed trait dataset — the value at each **extant** tip (the comparative-data
         vector). Internal and extinct nodes keep their exact ancestral / lineage values in
         ``node_values``."""
-        return {n.id: self.node_values[n.id] for n in self.complete_tree.extant()}
+        return {n.id: self.node_values[n.id] for n in self.complete_tree.extant_leaves()}
 
     @cached_property
     def history(self) -> dict[int, list] | None:
