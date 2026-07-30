@@ -168,8 +168,9 @@ zombi2 genomes out/ --duplication 0.2 --loss 0.25 --origination 0.5 --seed 42
 A rate flag takes a rate **written exactly as you would write it in Python** — a bare number, or a scope wrapper and modifiers composed with `*`, quoted so the shell keeps it in one piece:
 
 ```bash
-# speciation drops to a third of its rate at time 3 (a skyline)
-zombi2 species out/ --birth "1.0 * OnTime({0: 1.0, 3: 0.3})" --death 0.3 --total-time 5 --seed 1
+# speciation drops to a third of its rate at time 3 (a skyline). --n-extant is conditioned on
+# survival, so it runs for any seed; a --total-time run can go extinct and stop with an error.
+zombi2 species skyline/ --birth "1.0 * OnTime({0: 1.0, 3: 0.3})" --death 0.3 --n-extant 30 --seed 1
 ```
 
 Every command takes one positional argument, the **run directory**. It is both where that command writes and where it reads the level before it, so a pipeline is the same directory named once per command and nothing is passed by hand. `--from` overrides the reading half, for a tree from elsewhere or a run you would rather not write into; a `--params` TOML file can hold a whole pipeline's settings.
