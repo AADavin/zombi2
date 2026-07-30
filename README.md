@@ -94,14 +94,6 @@ other. Both are one mechanism, `DrivenBy(source, mapping)`, on any rate. See
 
 ---
 
-## Coming from ZOMBI v1?
-
-ZOMBI2 is a rewrite: different commands, a different parameter format, and every output path moved.
-[**Coming from ZOMBI v1**](https://aadavin.github.io/zombi2/docs/guide/from-zombi1/) is the mapping —
-every v1 parameter key to its v2 flag, where each output file went, what changed in the event logs, and
-which v1 features have no v2 equivalent yet. A v1 seed does not reproduce a v1 run in v2, so anything
-you published has to be regenerated.
-
 ## Citation
 
 A dedicated ZOMBI2 paper is in preparation. Until then, cite the original
