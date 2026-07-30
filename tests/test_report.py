@@ -51,7 +51,7 @@ def test_end_of_command_signposts_every_file_it_wrote(tmp_path, capsys):
     for token in ("profiles.tsv", "genomes.tsv", "genome_events.tsv", "gene_trees/", RUN_REPORT_NAME):
         assert token in out, f"the signpost omitted {token}"
     last = out.rstrip().splitlines()[-1]
-    assert RUN_REPORT_NAME in last and "run report" in last                # the run report is the last pointer
+    assert RUN_REPORT_NAME in last and "reproduce" in last                 # the run report is the last pointer
     assert "genomes.log" not in out and "genome_summary.json" not in out   # records named only in the report
 
 

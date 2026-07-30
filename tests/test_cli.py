@@ -503,9 +503,9 @@ def test_traits_continuous_writes_values_and_tree(tmp_path, tree_file):
     assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_tree.nwk", "traits.log",
                                                "trait_summary.json"}
     header, first = (out / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[:2]
-    assert header == "node\ttrait"
+    assert header == "node\tkind\ttrait"
     assert first.split("\t")[0].startswith("n")          # n<id>, matching the Newick
-    float(first.split("\t")[1])                          # a continuous trait is a number
+    float(first.split("\t")[2])                          # a continuous trait is a number (3rd column)
 
 
 def test_traits_ou_and_threshold_run(tmp_path, tree_file):
@@ -514,7 +514,7 @@ def test_traits_ou_and_threshold_run(tmp_path, tree_file):
     # the threshold model: a discrete state read off a continuous liability
     out = tmp_path / "th"
     assert main(["traits", str(out), "--from", str(tree_file), "--kind", "discrete", "--states", "absent,present", "--liability", "1.0", "--threshold", "0.0", "--seed", "1", "--flat"]) == 0
-    states = {ln.split("\t")[1] for ln in (out / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[1:]}
+    states = {ln.split("\t")[2] for ln in (out / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[1:]}
     assert states <= {"absent", "present"}
 
 
@@ -592,7 +592,7 @@ def test_traits_params_file_drives_the_run_and_cli_overrides(tmp_path, tree_file
     # than marked argparse-`required`, which no default could satisfy
     assert main(["traits", str(out), *argv[1:], "--flat"]) == 0
     assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_events.tsv", "traits.log"}
-    states = {ln.split("\t")[1] for ln in (out / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[1:]}
+    states = {ln.split("\t")[2] for ln in (out / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[1:]}
     assert states <= {"marine", "terrestrial"}          # the file's states reached the engine
 
     # a flag given on the command line still wins over the file
@@ -1053,7 +1053,7 @@ def test_joint_trait_writes_both_levels(tmp_path):
     # the trait is written the way `zombi2 traits` writes it, not TraitsResult.write's bare default
     assert {p.name for p in (tmp_path / "traits").iterdir()} == {
         "trait_values.tsv", "trait_events.tsv", "trait_tree.nwk", "trait_summary.json"}
-    states = {ln.split("\t")[1] for ln in
+    states = {ln.split("\t")[2] for ln in
               (tmp_path / "traits" / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[1:]}
     assert states <= {"small", "large"}
 

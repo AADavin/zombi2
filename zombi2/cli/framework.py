@@ -265,7 +265,7 @@ def signpost(args, report_path, *level_dirs) -> None:
         if names:
             print(f"  → {d}/  " + " · ".join(names))
     if report_path:
-        print(f"  → {report_path}  (run report — every file it wrote, and how to reproduce)")
+        print(f"  → {report_path}  ← open this first: a report of every file, and how to reproduce")
 
 
 def defaults_used(args, **fallbacks) -> str:
