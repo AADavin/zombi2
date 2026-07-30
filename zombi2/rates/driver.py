@@ -157,21 +157,34 @@ def _replay(tree, root_state, clado, switches) -> dict[int, list[tuple[float, ob
     return segments
 
 
-def driver_from_result(result) -> DriverTrajectory:
-    """Build a `DriverTrajectory` **directly from a discrete trait result** — the same
-    per-lineage lookup `load_driver()` builds from a file, but skipping the file round-trip. This
-    is how a conditioned ``DrivenBy(habitat, …)`` reads a trait grown in the same Python session: still
-    conditioning (the driver was grown first and is held fixed), just handed over in memory rather than
-    written out. Needs a **discrete** trait (its stochastic character map cuts each branch into the
-    constant segments a driver needs); a continuous / threshold trait has no such map."""
-    history = getattr(result, "history", None)
+#: default per-branch resolution for a continuous driver — how many constant stretches each branch is
+#: cut into. Higher is a finer approximation of the continuous path (and more Gillespie breakpoints).
+CONTINUOUS_DRIVER_STEPS = 8
+
+
+def driver_from_result(result, *, steps: int = CONTINUOUS_DRIVER_STEPS) -> DriverTrajectory:
+    """Build a `DriverTrajectory` **directly from a grown trait result** — the same per-lineage lookup
+    `load_driver()` builds from a file, but skipping the file round-trip. This is how a conditioned
+    ``DrivenBy(trait, …)`` reads a trait grown in the same Python session: still conditioning (the
+    driver was grown first and is held fixed), just handed over in memory.
+
+    A **discrete** trait (`traits.simulate_discrete`) has a stochastic character map, so each branch is
+    cut into its exact constant segments. A **continuous** trait (`traits.simulate_continuous`) has no
+    such map, so it is handled by `driver_from_continuous_result()` — a piecewise-constant
+    approximation (``steps`` per branch)."""
     tree = getattr(result, "complete_tree", None)
-    if history is None or tree is None:
+    history = getattr(result, "history", None)
+    if tree is None:
         raise ValueError(
-            "a conditioned driver object must be a DISCRETE trait result (from traits.simulate_discrete), "
-            "whose stochastic character map cuts each branch into constant segments; got "
-            f"{type(result).__name__} with no such map. Driving with a continuous trait is a later slice."
-        )
+            "a conditioned driver object must be a grown trait result (from traits.simulate_discrete or "
+            f"simulate_continuous), carrying its complete tree; got {type(result).__name__}.")
+    if history is None:                                       # no character map -> continuous (or threshold)
+        if getattr(result, "node_values", None) is not None:
+            return driver_from_continuous_result(result, steps=steps)
+        raise ValueError(
+            "a conditioned driver object must be a DISCRETE trait result (with a stochastic character "
+            "map) or a CONTINUOUS one (with per-node values); got "
+            f"{type(result).__name__} with neither.")
     segments: dict[int, list[tuple[float, object]]] = {}
     for i, node in tree.nodes.items():
         t = node.birth_time
@@ -180,6 +193,43 @@ def driver_from_result(result) -> DriverTrajectory:
             segs.append((t, state))
             t += dur
         segments[i] = segs
+    return DriverTrajectory(segments)
+
+
+def driver_from_continuous_result(result, *, steps: int = CONTINUOUS_DRIVER_STEPS) -> DriverTrajectory:
+    """Build a `DriverTrajectory` from a **continuous** trait result (`traits.simulate_continuous`).
+
+    A continuous trait has no discrete switches, so there is no exact stochastic map. Instead each
+    branch is cut into ``steps`` equal stretches whose value is the trait **linearly interpolated** from
+    the branch's start (its parent's node value) to its end (this node's value), sampled at each
+    stretch's midpoint — a piecewise-constant approximation of the continuous path that the same engine
+    consumes, converging as ``steps`` grows. It adds ``steps`` breakpoints per branch, so a
+    continuously-driven run steps its Gillespie more often than a discrete one.
+
+    The driver's values are **floats**, so its `DrivenBy` needs a continuous mapping (a
+    `~zombi2.rates.mapping.Curve` or `~zombi2.rates.mapping.Scalar`), not a discrete
+    ``{state: factor}`` `~zombi2.rates.mapping.Table` (which would match no float and never fire)."""
+    tree = result.complete_tree
+    values = result.node_values
+    if not values:
+        raise ValueError("continuous driver result has no node values to interpolate")
+    sample = next(iter(values.values()))
+    if isinstance(sample, dict):
+        raise ValueError(
+            "a continuous driver must be a SINGLE-trait result; got multi-trait node values "
+            f"({sorted(sample)}). Grow one trait as the driver, or select a component before conditioning.")
+    steps = max(1, int(steps))
+    segments: dict[int, list[tuple[float, object]]] = {}
+    for i, node in tree.nodes.items():
+        end_v = float(values[i])
+        start_v = float(values[node.parent]) if node.parent is not None else end_v  # root: no earlier value
+        t0 = node.birth_time
+        dt = node.end_time - node.birth_time
+        if dt <= 0:
+            segments[i] = [(t0, end_v)]
+            continue
+        segments[i] = [(t0 + k * dt / steps, start_v + (end_v - start_v) * (k + 0.5) / steps)
+                       for k in range(steps)]
     return DriverTrajectory(segments)
 
 
@@ -205,6 +255,12 @@ def check_mapping_fires(mapping, available_states, *, source_label: str, exhaust
 
     if not isinstance(mapping, Table):
         return
+    if available_states and all(isinstance(s, (int, float)) and not isinstance(s, bool)
+                                for s in available_states):
+        raise ValueError(
+            f"DrivenBy on {source_label}: the driver is CONTINUOUS (its values are numbers), so its "
+            "mapping must be a Curve (value -> factor) or a Scalar (a log-link), not a {state: factor} "
+            "table — a table names discrete states, which a continuous value never equals.")
     named = set(mapping.per_state)
     have = {str(s) for s in available_states}
     if exhaustive:
