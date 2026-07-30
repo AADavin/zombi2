@@ -56,6 +56,6 @@ sp = species.simulate_species_tree(
   [nucleotide](guide/genomes-nucleotide.md) resolutions),
   [**Sequence evolution**](guide/sequences.md), and [**Trait evolution**](guide/traits.md).
 - [**Conditioning and joining**](guide/conditioning-and-joining.md) — letting one level drive another.
-- Reference: the [**API**](reference/api.md), [**rates and the Gillespie algorithm**](reference/rates-and-gillespie.md),
-  the [**output files**](reference/output-files.md) each run writes, and the [**tools**](reference/tools.md)
+- Reference: the [**API**](api.md), [**rates and the Gillespie algorithm**](rates-and-gillespie.md),
+  the [**output files**](output-files.md) each run writes, and the [**tools**](tools.md)
   that read a finished run.
