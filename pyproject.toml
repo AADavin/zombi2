@@ -56,15 +56,18 @@ reconparser = ["pandas>=2.0.0"]
 # executor plugin is only needed to run on a cluster.
 bench = ["snakemake>=8", "snakemake-executor-plugin-slurm", "matplotlib", "pyyaml"]
 # The examples gallery (gallery/) — simulates with zombi2 and plots with Phylustrator. Not a runtime
-# dependency of the library; only needed to regenerate web/gallery.html. Phylustrator draws the
-# figures, matplotlib the companion panels, and pillow embeds them.
+# dependency of the library, and not what guards the examples in CI (that is tests/test_gallery_api.py,
+# which runs them with Phylustrator mocked so only the zombi2 calls execute — no rendering, no extra
+# dependency). This extra is for regenerating web/gallery.html locally: Phylustrator draws the figures,
+# matplotlib the companion panels, pillow embeds them, and cairosvg is the SVG->PNG rasterizer
+# Phylustrator needs (it declares it only as an optional "export" extra, so without it .save("x.png")
+# silently writes nothing and the composite examples crash reading a PNG that was never produced).
 #
-# Phylustrator is PINNED, not floored. The gallery is a canary in CI for a zombi2 API rename breaking
-# the examples — so it must be deterministic, and its failures must mean "zombi2 changed", not
-# "Phylustrator changed". It renders cleanly on 0.1.0; on 0.1.2 the composite step (the mass-extinction
-# panel) no longer writes its intermediate PNG, a Phylustrator-side change. Bump this pin deliberately,
-# with a gallery pass, when adopting a newer Phylustrator — do not let it float.
-gallery = ["phylustrator==0.1.0", "matplotlib", "pillow"]
+# Caveat, deliberately not pinned around: the examples call Phylustrator's *development* API (e.g.
+# time_axis(bold=...)), so no released Phylustrator renders the whole gallery yet — a full local
+# regenerate needs a checkout of Phylustrator, not a pip install. The pin below is the floor that
+# renders the parts that do work; raise it to a release that carries the gallery's API when there is one.
+gallery = ["phylustrator==0.1.0", "cairosvg>=2.5", "matplotlib", "pillow"]
 
 # The `zombi2` CLI is grown from the clean core, one level at a time. It
 # currently exposes the four built levels — `species`, `genomes`, `sequences`, `traits`; the coupled

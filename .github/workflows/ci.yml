@@ -95,29 +95,14 @@ jobs:
       - name: Build the documentation (strict)
         run: mkdocs build --strict
 
-  gallery:
-    name: gallery (examples render)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: pyproject.toml
-
-      # The gallery is where a zombi2 API rename hides: its example scripts call the library, but
-      # nothing ran them, so `extant()` -> `extant_leaves()` broke every gallery figure and CI stayed
-      # green. Rendering them here means the published examples can never silently drift from the API.
-      - name: Install ZOMBI2 (gallery extra)
-        run: pip install -e ".[gallery]"
-
-      - name: Render every gallery example
-        env:
-          MPLBACKEND: Agg          # headless: no display on the runner
-        run: cd gallery && python build.py
+  # The gallery is where a zombi2 API rename hides: its example scripts call the library, but nothing
+  # ran them, so `extant()` -> `extant_leaves()` broke every gallery figure and CI stayed green. That
+  # canary is now tests/test_gallery_api.py — it runs each example with Phylustrator mocked so only the
+  # zombi2 calls execute, catching a rename deterministically. It needs no Phylustrator, no rendering
+  # and no extra dependency, so it rides in the `test` job above rather than a job of its own. Rendering
+  # the gallery for real is deliberately not in CI: the examples target Phylustrator's development API,
+  # so no pip-installable Phylustrator draws them, and a render job would go red for a sibling package's
+  # release, not for a zombi2 change.
 
   # The RED benchmark (examples/red_benchmark) exercised zombi2.tools.red and the old CLI, now
   # quarantined in legacy/. Its CI job returns when the tools layer is rebuilt on the clean core.
