@@ -94,6 +94,19 @@ other. Both are one mechanism, `DrivenBy(source, mapping)`, on any rate. See
 
 ---
 
+## Performance
+
+ZOMBI2 is pure Python and runs on a laptop. The **species tree** is O(N) and reaches millions
+of tips (one million in about 9 s). The **genome** step is the heavier level — a few thousand
+tips in seconds, tens of thousands in about a minute — and runs at three resolutions:
+gene-family content, content + gene order, and full nucleotide sequence. On the same
+gene-family task, ZOMBI2 simulates roughly **180× faster than the legacy ZOMBI v1** (both pure
+Python) and keeps scaling well past v1's practical ceiling.
+
+<p align="center">
+  <img alt="ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at three resolutions — family content, plus gene order, plus nucleotide sequence; (c) ZOMBI2 versus the legacy ZOMBI 1 on one shared 1,000-tip tree" src="assets/performance-overview.svg" width="840">
+</p>
+
 ## Citation
 
 A dedicated ZOMBI2 paper is in preparation. Until then, cite the original
