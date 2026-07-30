@@ -490,8 +490,18 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
     condition that depends only on the current state is Poisson thinning, so the kept transfers are
     exactly the process whose transfer rate is zero while no recipient is eligible."""
     donor = alive[kd]
-    cand = [k for k in range(len(alive)) if self_transfer or k != kd]
-    kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_traj, groups)
+    if transfer_to == "uniform":
+        # O(1) uniform recipient: the same single draw recipient_index makes as
+        # ``cand[rng.integers(len(cand))]``, where ``cand`` is every alive lineage except the donor
+        # (unless self_transfer). Skipping the donor's slot is a +1 index shift, so this returns the
+        # identical recipient without allocating the candidate list every transfer — a small, byte-
+        # identical simplification of the uncoupled hot path.
+        m = len(alive) if self_transfer else len(alive) - 1
+        i = int(rng.integers(m))
+        kr = i if (self_transfer or i < kd) else i + 1
+    else:  # weighted rules (Distance / Clades / DrivenBy) weigh every candidate — inherently O(alive)
+        cand = [k for k in range(len(alive)) if self_transfer or k != kd]
+        kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_traj, groups)
     if kr is None:                                     # every candidate weighs 0 — no-op (see above)
         return 0, None
     src = gen[kd][jd]
