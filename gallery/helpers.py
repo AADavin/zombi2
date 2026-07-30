@@ -424,3 +424,77 @@ def rearranged_pair(genomes: dict) -> tuple:
         if best is None or inv > best[0]:
             best = (inv, a, b)
     return best[1], best[2]
+
+
+# --- the conditioning diagram (driver · modifier · target), the manual's figure -----------
+
+def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_base,
+                      symbol="×", target_run="genome", state_colors=None):
+    """Reproduce the manual's driver→modifier→target diagram. ``switch`` is a {"a->b": rate} dict (an
+    arrow is drawn for each positive rate, so an irreversible trait shows one arrow); ``mapping`` is the
+    per-state multiplier; ``state_colors`` tints the state nodes to match the tree's palette. The state
+    names sit *outside* (below) their circles."""
+    from matplotlib.patches import Circle, FancyArrowPatch, Rectangle
+
+    ax.set_xlim(0, 660)
+    ax.set_ylim(250, 0)                       # y grows downward, like the SVG
+    ax.set_aspect("auto")
+    ax.set_axis_off()
+    ink, dim, faint = "#1a1a1a", "#6e6e6e", "#8a8a8a"
+
+    for x, t in ((120, "DRIVER"), (345, "MODIFIER"), (566, "TARGET")):
+        ax.text(x, 30, t, ha="center", va="center", color=dim, fontsize=12.5, fontweight="bold")
+    ax.text(345, 49, "what it does to the rate", ha="center", va="center", color=faint,
+            fontsize=11.5, style="italic")
+    ax.text(566, 49, f"a rate in the {target_run} run", ha="center", va="center", color=faint,
+            fontsize=11.5, style="italic")
+
+    ax.add_patch(Rectangle((45, 96), 150, 60, fill=True, facecolor="#f2f2f0", edgecolor=ink,
+                           lw=1.6, joinstyle="round"))
+    ax.text(120, 126, driver, ha="center", va="center", color=ink, fontsize=16)
+
+    n = len(states)
+    r_st = 15
+    xs = [72 + (168 - 72) * (k / (n - 1) if n > 1 else 0.5) for k in range(n)]
+    pos = dict(zip(states, xs))
+    for k, s in enumerate(states):
+        x = xs[k]
+        col = (state_colors or {}).get(s, "#c9c9c9")
+        ax.add_patch(Circle((x, 202), r_st, facecolor=col, edgecolor=ink, lw=1.2))
+        ax.text(x, 202 + r_st + 11, s, ha="center", va="top", color=ink, fontsize=10.5)
+    for key, rate in switch.items():
+        if rate <= 0:
+            continue
+        a, b = key.split("->")
+        xa, xb = pos[a], pos[b]
+        inner_l, inner_r = min(xa, xb) + r_st, max(xa, xb) - r_st
+        if xa < xb:
+            ax.add_patch(FancyArrowPatch((inner_l, 196), (inner_r, 196),
+                                         connectionstyle="arc3,rad=-0.6", arrowstyle="-|>",
+                                         mutation_scale=9, lw=1.1, color=ink))
+        else:
+            ax.add_patch(FancyArrowPatch((inner_r, 208), (inner_l, 208),
+                                         connectionstyle="arc3,rad=-0.6", arrowstyle="-|>",
+                                         mutation_scale=9, lw=1.1, color=ink))
+
+    ax.add_patch(FancyArrowPatch((203, 126), (486, 126), arrowstyle="-|>", mutation_scale=15,
+                                 lw=1.7, color=ink))
+    ax.text(345, 112, "DrivenBy", ha="center", va="center", color=ink, fontsize=14.5, style="italic")
+    for i, s in enumerate(states):
+        ax.text(345, 152 + i * 19, f"{s} {symbol} {mapping.get(s, 1)}", ha="center", va="center",
+                color=dim, fontsize=13.5)
+
+    ax.add_patch(Rectangle((496, 96), 140, 60, fill=True, facecolor="#f2f2f0", edgecolor=ink,
+                           lw=1.6, joinstyle="round"))
+    ax.text(566, 120, target, ha="center", va="center", color=ink, fontsize=15)
+    ax.text(566, 142, f"base {target_base}", ha="center", va="center", color=dim, fontsize=13)
+
+
+def conditioning_png(path, **kw):
+    """Render :func:`draw_conditioning` to its own (transparent) PNG, so it can be placed small and
+    undistorted above a realization."""
+    fig, ax = plt.subplots(figsize=(9.5, 3.5))
+    draw_conditioning(ax, **kw)
+    fig.savefig(path, dpi=180, bbox_inches="tight", transparent=True)
+    plt.close(fig)
+    return path

@@ -5,6 +5,9 @@ state Markov chain (the model) as an inset, bottom-left."""
 
 from __future__ import annotations
 
+import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
+
 import helpers as h
 from helpers import Example
 
@@ -94,14 +97,29 @@ def genome_reduction(out):
     tips = list(ct.extant_leaves())
     sizes = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}
     tipcol = {f"n{n.id}": _HAB[hab.values[n.id]] for n in tips}
-    fig = (ph.trees.plot(tree, style=ph.Style(width=900, height=1000, margin=98, branch_width=3.0),
+    real = out.replace(".png", "_real.png")
+    fig = (ph.trees.plot(tree, style=ph.Style(width=900, height=900, margin=92, branch_width=3.0),
                          skeleton=False)
-           + ph.trees.color_history(history, palette=_HAB)
-           + ph.trees.legend("lifestyle", size=25)
-           + ph.trees.time_axis("time", tick_size=22, label_size=28, bold=False))
+           + ph.trees.color_history(history, palette=_HAB)      # no legend — the diagram is the key
+           + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False))
     ph.beside(fig, ph.genomes.bars(sizes, colors=tipcol, label="genome size (genes)",
-                                   tick_size=22, label_size=28),
-              width=1150, tree_fraction=0.58, footer=36).save(out)
+                                   tick_size=20, label_size=26),
+              width=1150, tree_fraction=0.58, footer=36).save(real)
+    # the manual's driver·modifier·target diagram, small, on top
+    diag = h.conditioning_png(out.replace(".png", "_diag.png"), driver="lifestyle",
+                              states=["free-living", "endosymbiont"],
+                              switch={"free-living->endosymbiont": 0.09},   # irreversible → one arrow
+                              mapping={"endosymbiont": 12, "free-living": 1}, target="loss",
+                              target_base=0.08, state_colors=_HAB)
+    fig2 = plt.figure(figsize=(12, 9.6))
+    axr = fig2.add_axes([0.0, 0.0, 1.0, 0.80])
+    axr.imshow(mpimg.imread(real))
+    axr.set_axis_off()
+    axd = fig2.add_axes([0.30, 0.80, 0.40, 0.185])
+    axd.imshow(mpimg.imread(diag))
+    axd.set_axis_off()
+    fig2.savefig(out, dpi=140, bbox_inches="tight")
+    plt.close(fig2)
 
 
 _C_BISSE = '''\
@@ -209,9 +227,9 @@ sizes  = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}          # gene count 
 colors = {f"n{n.id}": pal[hab.values[n.id]] for n in tips}         # bar colour = lifestyle
 fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
-       + ph.trees.legend("lifestyle")
        + ph.trees.time_axis("time", bold=False))
-ph.beside(fig, ph.genomes.bars(sizes, colors=colors, label="genome size (genes)")).save("reduction.png")'''
+ph.beside(fig, ph.genomes.bars(sizes, colors=colors, label="genome size (genes)")).save("reduction.png")
+# the figure then composites the manual's driver->modifier->target diagram (lifestyle -> loss) on top'''
 
 
 EXAMPLES = [
