@@ -367,8 +367,20 @@ g = simulate_genomes_family(ct, initial_families=50, transfer=0.4, duplication=0
         transfer_to=Clades({"A": nodeA, "B": nodeB},
                            Between({("A","B"): 10, ("B","A"): 10}, default=1)), seed=7)
 
-### plot  —  tree coloured by clade; a barplot of transfer counts by clade pair
-# A<->B towers over within-clade: the highway. (g.events carries donor/recipient per transfer.)'''
+### plot  —  tree coloured by clade (A, B, rest); a barplot of transfer counts by clade pair
+import phylustrator as ph
+from zombi2.genomes._transfer import resolve_groups
+from collections import Counter
+
+grp = resolve_groups(ct, {"A": nodeA, "B": nodeB})              # each lineage's clade (A / B / rest)
+labels = {f"n{i}": grp[i] for i in ct.nodes}
+(ph.trees.plot(ph.trees.loads(ct.to_newick()))
+ + ph.trees.color_branches(labels, palette={"A": "#2C6E9E", "B": "#D1642F", "rest": "#c9c9c9"})
+ + ph.trees.highlight_clade(f"n{nodeA}") + ph.trees.highlight_clade(f"n{nodeB}")
+ + ph.trees.time_axis("time")).save("tree.png")
+# beside it, a matplotlib barplot of transfer counts by (donor, recipient) clade — A<->B towers:
+transfers = [e for e in g.events if e.kind == "transfer" and e.recipient is not None]
+counts = Counter((grp[e.donor], grp[e.recipient]) for e in transfers)'''
 
 
 EXAMPLES = [
