@@ -22,6 +22,8 @@ _BISSE = {"fast": "#E4572E", "slow": "#3A7CA5"}
 _SSE = {"doomed": "#B0413E", "safe": "#2A9D8F"}
 _MUSSE = {"slow": "#3A7CA5", "medium": "#F2A541", "fast": "#E4572E"}
 _HAB = {"free-living": "#2E8B6F", "endosymbiont": "#C25A3C"}
+_SEL = {"purifying": "#3A7CA5", "relaxed": "#C25A3C"}       # relaxed selection → duplicates accumulate
+_COMP = {"quiet": "#8f99a3", "competent": "#2E8B6F"}        # competent → takes up more DNA
 
 
 def _style():
@@ -82,35 +84,21 @@ def musse(out):
         symbol="λ"), loc=(0.02, 0.075, 0.35, 0.40))
 
 
-def genome_reduction(out):
-    sp = simulate_species_tree(birth=1.0, n_extant=36, seed=4)
-    ct = sp.complete_tree
-    # an irreversible lifestyle: once a lineage turns endosymbiont it stays (Dollo-ish)
-    hab = simulate_discrete(ct, states=["free-living", "endosymbiont"], start="free-living", seed=8,
-                            switch={"free-living->endosymbiont": 0.09, "endosymbiont->free-living": 0.0})
-    # the trait CONDITIONS the genome: endosymbionts shed genes fast and gain almost none
-    g = simulate_genomes_family(ct, initial_families=55, duplication=0.1,
-            origination=3.0 * mod.DrivenBy(hab, {"endosymbiont": 0.1, "free-living": 1.0}),
-            loss=0.08 * mod.DrivenBy(hab, {"endosymbiont": 12.0, "free-living": 1.0}), seed=9)
+def _conditioned_genome(out, ct, trait, palette, sizes, tipcol, diagram):
+    """The shared conditioning-figure layout: the tree coloured by the driver trait, beside per-tip
+    genome-size bars, with the manual's driver·modifier·target diagram (``draw_conditioning``) small
+    on top. ``diagram`` is the kwargs for :func:`helpers.conditioning_png`."""
     tree = ph.trees.loads(ct.to_newick())
-    history = {f"n{i}": segs for i, segs in hab.history.items()}
-    tips = list(ct.extant_leaves())
-    sizes = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}
-    tipcol = {f"n{n.id}": _HAB[hab.values[n.id]] for n in tips}
+    history = {f"n{i}": segs for i, segs in trait.history.items()}
     real = out.replace(".png", "_real.png")
     fig = (ph.trees.plot(tree, style=ph.Style(width=900, height=900, margin=92, branch_width=3.0),
                          skeleton=False)
-           + ph.trees.color_history(history, palette=_HAB)      # no legend — the diagram is the key
+           + ph.trees.color_history(history, palette=palette)   # no legend — the diagram is the key
            + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False))
     ph.beside(fig, ph.genomes.bars(sizes, colors=tipcol, label="genome size (genes)",
                                    tick_size=20, label_size=26),
               width=1150, tree_fraction=0.58, footer=36).save(real)
-    # the manual's driver·modifier·target diagram, small, on top
-    diag = h.conditioning_png(out.replace(".png", "_diag.png"), driver="lifestyle",
-                              states=["free-living", "endosymbiont"],
-                              switch={"free-living->endosymbiont": 0.09},   # irreversible → one arrow
-                              mapping={"endosymbiont": 12, "free-living": 1}, target="loss",
-                              target_base=0.08, state_colors=_HAB)
+    diag = h.conditioning_png(out.replace(".png", "_diag.png"), **diagram)
     fig2 = plt.figure(figsize=(12, 9.6))
     axr = fig2.add_axes([0.0, 0.0, 1.0, 0.80])
     axr.imshow(mpimg.imread(real))
@@ -120,6 +108,59 @@ def genome_reduction(out):
     axd.set_axis_off()
     fig2.savefig(out, dpi=140, bbox_inches="tight")
     plt.close(fig2)
+
+
+def _sizes(ct, g, trait, palette):
+    tips = list(ct.extant_leaves())
+    sizes = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}
+    tipcol = {f"n{n.id}": palette[trait.values[n.id]] for n in tips}
+    return sizes, tipcol
+
+
+def genome_reduction(out):
+    ct = simulate_species_tree(birth=1.0, n_extant=36, seed=4).complete_tree
+    # an irreversible lifestyle: once a lineage turns endosymbiont it stays (Dollo-ish)
+    hab = simulate_discrete(ct, states=["free-living", "endosymbiont"], start="free-living", seed=8,
+                            switch={"free-living->endosymbiont": 0.09, "endosymbiont->free-living": 0.0})
+    # the trait CONDITIONS the genome: endosymbionts shed genes fast and gain almost none
+    g = simulate_genomes_family(ct, initial_families=55, duplication=0.1,
+            origination=3.0 * mod.DrivenBy(hab, {"endosymbiont": 0.1, "free-living": 1.0}),
+            loss=0.08 * mod.DrivenBy(hab, {"endosymbiont": 12.0, "free-living": 1.0}), seed=9)
+    sizes, tipcol = _sizes(ct, g, hab, _HAB)
+    _conditioned_genome(out, ct, hab, _HAB, sizes, tipcol, dict(
+        driver="lifestyle", states=["free-living", "endosymbiont"],
+        switch={"free-living->endosymbiont": 0.09},               # irreversible → one arrow
+        mapping={"endosymbiont": 12, "free-living": 1}, target="loss", target_base=0.08,
+        state_colors=_HAB))
+
+
+def genome_expansion(out):
+    ct = simulate_species_tree(birth=1.0, n_extant=32, seed=4).complete_tree
+    # the mirror of reduction: under relaxed selection (irreversible here) duplicates pile up
+    sel = simulate_discrete(ct, states=["purifying", "relaxed"], start="purifying", seed=8,
+                            switch={"purifying->relaxed": 0.09, "relaxed->purifying": 0.0})
+    g = simulate_genomes_family(ct, initial_families=25, loss=0.07,
+            duplication=0.05 * mod.DrivenBy(sel, {"relaxed": 11.0, "purifying": 1.0}), seed=9)
+    sizes, tipcol = _sizes(ct, g, sel, _SEL)
+    _conditioned_genome(out, ct, sel, _SEL, sizes, tipcol, dict(
+        driver="selection", states=["purifying", "relaxed"], switch={"purifying->relaxed": 0.09},
+        mapping={"relaxed": 11, "purifying": 1}, target="duplication", target_base=0.05,
+        state_colors=_SEL))
+
+
+def hgt_uptake(out):
+    ct = simulate_species_tree(birth=1.0, n_extant=30, seed=4).complete_tree
+    comp = simulate_discrete(ct, states=["quiet", "competent"], start="quiet", seed=8,
+                             switch={"quiet->competent": 0.12, "competent->quiet": 0.05})
+    # competence conditions WHO RECEIVES a transfer (the choice slot) — competent lineages take up more
+    g = simulate_genomes_family(ct, initial_families=35, transfer=0.5, loss=0.05, duplication=0.03,
+            transfer_to=mod.DrivenBy(comp, {"competent": 8.0, "quiet": 1.0}), seed=3)
+    sizes, tipcol = _sizes(ct, g, comp, _COMP)
+    _conditioned_genome(out, ct, comp, _COMP, sizes, tipcol, dict(
+        driver="competence", states=["quiet", "competent"],
+        switch={"quiet->competent": 0.12, "competent->quiet": 0.05},
+        mapping={"competent": 8, "quiet": 1}, target="transfer\nuptake", target_base=None,
+        target_sub="who receives a transfer", state_colors=_COMP))
 
 
 _C_BISSE = '''\
@@ -231,6 +272,37 @@ fig = (ph.trees.plot(tree, skeleton=False)
 ph.beside(fig, ph.genomes.bars(sizes, colors=colors, label="genome size (genes)")).save("reduction.png")
 # the figure then composites the manual's driver->modifier->target diagram (lifestyle -> loss) on top'''
 
+_C_EXPANSION = '''\
+### simulate  —  the mirror of reduction: a trait conditions DUPLICATION, so genomes grow
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_discrete
+from zombi2.genomes import simulate_genomes_family
+from zombi2.rates import modifiers as mod
+
+ct = simulate_species_tree(birth=1.0, n_extant=32, seed=4).complete_tree
+sel = simulate_discrete(ct, states=["purifying", "relaxed"], start="purifying", seed=8,
+                        switch={"purifying->relaxed": 0.09, "relaxed->purifying": 0.0})  # irreversible
+# under relaxed selection, duplicates pile up: the same DrivenBy, now on the duplication rate
+g = simulate_genomes_family(ct, initial_families=25, loss=0.07,
+        duplication=0.05 * mod.DrivenBy(sel, {"relaxed": 11.0, "purifying": 1.0}), seed=9)
+# plot = tree coloured by selection + per-tip genome-size bars + the diagram (selection -> duplication)'''
+
+_C_UPTAKE = '''\
+### simulate  —  competence conditions WHO RECEIVES a transfer (uptake), not a rate
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_discrete
+from zombi2.genomes import simulate_genomes_family
+from zombi2.rates import modifiers as mod
+
+ct = simulate_species_tree(birth=1.0, n_extant=30, seed=4).complete_tree
+comp = simulate_discrete(ct, states=["quiet", "competent"], start="quiet", seed=8,
+                         switch={"quiet->competent": 0.12, "competent->quiet": 0.05})
+# DrivenBy on transfer_to (the choice slot) makes competent lineages likelier recipients — the
+# trait-driven twin of the topological Clades highway. Competent genomes take up more DNA.
+g = simulate_genomes_family(ct, initial_families=35, transfer=0.5, loss=0.05, duplication=0.03,
+        transfer_to=mod.DrivenBy(comp, {"competent": 8.0, "quiet": 1.0}), seed=3)
+# plot = tree coloured by competence + per-tip genome-size bars + the diagram (competence -> uptake)'''
+
 
 EXAMPLES = [
     Example("bisse", "BiSSE",
@@ -248,5 +320,15 @@ EXAMPLES = [
             "The same coupling, aimed at the genome instead of the tree: an irreversible endosymbiont "
             "lifestyle drives fast gene loss and near-zero gene gain, so those lineages' genomes "
             "collapse. Tree coloured by lifestyle; bars are per-tip genome size.",
-            "trait → genome", genome_reduction, code=_C_REDUCTION),
+            "trait → loss", genome_reduction, code=_C_REDUCTION),
+    Example("genome_expansion", "Genome expansion",
+            "The mirror image: a trait conditions the <b>duplication</b> rate, so under relaxed "
+            "selection duplicates pile up and those genomes grow. Same figure as reduction, run the "
+            "other way. <code>duplication&nbsp;=&nbsp;base&nbsp;*&nbsp;DrivenBy(sel,&nbsp;{…})</code>.",
+            "trait → duplication", genome_expansion, code=_C_EXPANSION),
+    Example("hgt_uptake", "HGT uptake by competence",
+            "A trait conditions <b>who receives</b> a transfer, not a rate — competent lineages take "
+            "up DNA more readily and their genomes swell. The trait-driven twin of the topological "
+            "clade highway. <code>transfer_to&nbsp;=&nbsp;DrivenBy(competence,&nbsp;{…})</code>.",
+            "trait → transfer uptake", hgt_uptake, code=_C_UPTAKE),
 ]
