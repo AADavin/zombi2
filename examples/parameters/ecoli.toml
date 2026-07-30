@@ -56,5 +56,6 @@ origination-extent   = 5000
 # ---------------------------------------------------------------------------
 [sequences]                     # DNA down each gene tree
 model  = "hky85"                # substitution model in genes
+divergence = 0.2                # target divergence (subs/site) — keeps the alignments from saturating
 intergene-model = "jc69"        # model the spacer between genes evolves under
 intergene-speed = 3.0           # how much faster the spacer evolves than the genes

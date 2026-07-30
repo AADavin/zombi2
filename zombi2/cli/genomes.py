@@ -46,7 +46,7 @@ RATES_HELP = _rates_help(
 _FAMILY_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees",
                    "summary")
 _ORDERED_OUTPUTS = ("events", "profiles", "gene_order", "initial_genome", "gene_trees",
-                    "chromosome_events", "summary")
+                    "chromosome_events")
 _NUCLEOTIDE_OUTPUTS = ("events", "genes", "blocks", "initial_genome", "gene_trees",
                        "chromosome_events", "gff", "bed")
 _OUTPUTS = {"family": _FAMILY_OUTPUTS, "ordered": _ORDERED_OUTPUTS,
@@ -61,9 +61,14 @@ _STRUCTURED_ONLY = (
     ("inversion_probability", 0.0),
 )
 
-# knobs only the nucleotide engine has — rejected under the family and ordered resolutions
+# knobs only the nucleotide engine has — rejected under the family and ordered resolutions.
+# The paired default here MUST track the argparse default below: _stray() rejects a nucleotide-only
+# flag on a family/ordered run by testing arg != this default, so a mismatch would read a bare
+# family run's value as "the user asked for it" and refuse. `genes` is None (a sentinel) rather than
+# its illustrative 10, because 10 is resolved in run() only on a bare nucleotide run — a --gff run
+# takes its genes from the file, and the two are mutually exclusive.
 _NUCLEOTIDE_ONLY = (
-    ("root_length", 1000), ("genes", 0), ("gene_length", 100), ("gff", None),
+    ("root_length", 10000), ("genes", None), ("gene_length", 500), ("gff", None),
     ("trim_overlaps", False),
     ("inversion_extent", 50.0), ("transposition_extent", 50.0), ("translocation_extent", 50.0),
     ("loss_extent", 50.0), ("duplication_extent", 50.0), ("transfer_extent", 50.0),
@@ -180,13 +185,14 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    help="probability a transposed/translocated block lands inverted (default 0)")
 
     g = p.add_argument_group("nucleotide genome", "only with --resolution nucleotide")
-    g.add_argument("--root-length", type=int, default=1000, metavar="BP", dest="root_length",
-                   help="length in bp of each initial replicon (default 1000)")
-    g.add_argument("--genes", type=int, default=0, metavar="N",
-                   help="number of evenly-spaced genes to declare on each initial replicon (default 0 "
-                        "— an all-intergenic genome). Use --gff instead to declare real ones")
-    g.add_argument("--gene-length", type=int, default=100, metavar="BP", dest="gene_length",
-                   help="length in bp of each evenly-spaced gene (default 100)")
+    g.add_argument("--root-length", type=int, default=10000, metavar="BP", dest="root_length",
+                   help="length in bp of each initial replicon (default 10000, a 10 kb toy genome)")
+    g.add_argument("--genes", type=int, default=None, metavar="N",
+                   help="number of evenly-spaced genes to declare on each initial replicon (default 10, "
+                        "a 10 kb / 10-gene toy genome; pass 0 for an all-intergenic genome). Ignored "
+                        "with --gff, which declares real genes at exact coordinates")
+    g.add_argument("--gene-length", type=int, default=500, metavar="BP", dest="gene_length",
+                   help="length in bp of each evenly-spaced gene (default 500)")
     g.add_argument("--gff", metavar="FILE",
                    help="a GFF3 declaring the initial genome's replicons and genes at exact "
                         "coordinates — the 'start from a real genome' path (excludes --genes)")
@@ -408,6 +414,13 @@ def run(args, parser):
                                    for f in stray))
         if args.gff and args.genes:
             parser.error("pass either --gff or --genes, not both — a GFF already declares the genes")
+        # a bare nucleotide run gets an illustrative ~half-genic toy genome — 10 genes of 500 bp in the
+        # default 10 kb replicon (recorded in the log, like the species rates). A --gff run takes its
+        # genes from the file, so the synthetic count stays 0 there. Resolved from the None sentinel so
+        # an explicit --genes 0 is left untouched — and capped to what actually fits, so a small
+        # --root-length still runs (400 bp → 0 genes) instead of erroring on the demo default.
+        if args.genes is None:
+            args.genes = 0 if args.gff else min(10, args.root_length // args.gene_length)
         if args.fasta and not args.gff:
             parser.error("--fasta needs --gff: the FASTA's records are matched to the GFF's "
                          "replicons by id, so there is nothing to lay down without one")
