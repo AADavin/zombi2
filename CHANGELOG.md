@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-07-30
+
 ### Added
 - **A run report, `run.zombi2`.** Every command now writes one human-readable page at the run root,
   in the spirit of IQ-TREE's `.iqtree`: the parameters each level ran with, the input files it was
