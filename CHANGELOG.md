@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-07-30
+
 ### Added
 - A **FAQ** (in the docs) answering the handful of things that surprise newcomers — the `n`/`e`/`g`
   ids, the skipping family numbers, `_complete` vs `_extant` trees, how to view a tree, and the
