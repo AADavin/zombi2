@@ -12,7 +12,7 @@ result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1
 ```
 
 The reference below is generated from the source docstrings, level by level, in the same
-order as the [user guide](../guide/introduction.md).
+order as the [user guide](guide/introduction.md).
 
 ## Species trees
 
