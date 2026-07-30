@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import collections
 import pathlib
 from dataclasses import dataclass, field
 from functools import cached_property
 
 
+from .._runtime.summary import _stats, write_summary
 from ..genomes.events import _name
 from ..tree import Tree
 
-_WRITE_OUTPUTS = ("values", "events", "tree")  # write vocabulary; "events" = the trait event log
+_WRITE_OUTPUTS = ("values", "events", "tree", "summary")  # write vocabulary; "events" = the trait event log
 
 @dataclass(frozen=True)
 class Change:
@@ -74,6 +76,45 @@ class TraitsResult:
             return None
         return _history_from_events(self.complete_tree, self.node_values, self.events)
 
+    def summary(self) -> dict:
+        """What this run produced, as a plain dict — the payload of ``trait_summary.json``.
+
+        A trait's shape depends on its kind, so the summary does too. A **discrete** trait — and a
+        **threshold** one, which reads a discrete state off a continuous liability — is described
+        by its switches: how many, and how the tips ended up distributed over the states — which is the
+        thing you look at first, because a run whose tips are all in one state has told you nothing.
+        A **continuous** one is described by where the values got to, since there are no along-branch
+        events to count; its log holds only the on-speciation jumps, and that count is here so an
+        empty one is visibly empty rather than ambiguous."""
+        values = list(self.values.values())
+        switches = sum(1 for e in self.events if e.kind == "on_branch")
+        jumps = sum(1 for e in self.events if e.kind == "on_speciation")
+        out = {
+            "level": "traits",
+            "seed": self.seed,
+            "kind": self.kind,
+            "tips": len(values),
+            "nodes": len(self.node_values),
+            "events": {"on_branch": switches, "on_speciation": jumps},
+        }
+        # continuous is the only NUMERIC kind. A threshold trait reads a discrete state off a
+        # continuous liability, so its values are states like a discrete trait's — taking a mean of
+        # them is what the first version of this tried to do.
+        if self.kind != "continuous":
+            counts = collections.Counter(str(v) for v in values)
+            out["states"] = dict(sorted(counts.items()))
+            out["states_at_tips"] = len(counts)
+            # a run whose tips all share one state is degenerate, and the number that says so
+            out["most_common_share"] = (round(counts.most_common(1)[0][1] / len(values), 6)
+                                        if values else None)
+        else:
+            numeric = [float(v) for v in values]
+            out["values"] = _stats(numeric)
+            # the root NODE, i.e. after diffusing along the stem — not the value the run started
+            # from, which is `start` and belongs to no node
+            out["value_at_root_node"] = float(self.node_values[self.complete_tree.root])
+        return out
+
     def write(self, directory, outputs=("values",)) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed): ``"values"`` →
         ``trait_values.tsv`` (the ``node<TAB>trait`` table over the extant tips); ``"events"`` →
@@ -98,6 +139,8 @@ class TraitsResult:
             (d / "trait_values.tsv").write_text(_values_tsv(self.values, names), encoding="utf-8")
         if "events" in outputs:
             (d / "trait_events.tsv").write_text(_events_tsv(self.events, names), encoding="utf-8")
+        if "summary" in outputs:
+            write_summary(d / "trait_summary.json", self.summary())
         if "tree" in outputs:
             (d / "trait_tree.nwk").write_text(
                 _trait_newick(self.complete_tree, self.node_values) + "\n", encoding="utf-8")

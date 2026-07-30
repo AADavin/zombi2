@@ -81,7 +81,9 @@ so a line pastes straight back into the flag or a `--params` file. It is a CLI a
 ## The run summary
 
 Beside each log sits a **summary**: `species_summary.json`, `genome_summary.json`,
-`sequences_summary.json`. The log is what the run was *asked* for; the summary is what *happened*. They
+`sequences_summary.json`, `trait_summary.json`, and `joint_summary.json` for a joint run — that last
+one at the run root rather than under a level, because it describes both levels a joint run grew and
+belongs to neither. The log is what the run was *asked* for; the summary is what *happened*. They
 are separate files so that a script reading outcomes does not have to step over parameters, and it is
 JSON because the people who wanted it were writing collectors.
 
@@ -101,6 +103,11 @@ open:
 | `family_size_cap` | whether `max_family_size` **bit**, and which families are sitting at it. A family at the ceiling had duplications and arriving transfers discarded, so its realised rates are below the ones you declared. This is the only place that says so |
 | `realised_rates` (species) | speciations and extinctions per unit of branch length — the cheapest check there is that a tree came out at the rates you asked for |
 | `mean_pairwise_identity` (sequences) | the number the run prints and warns on, in machine-readable form |
+| `states` / `most_common_share` (traits) | how the tips ended up spread over the states — a discrete run whose tips all share one state has told you nothing, and this is the number that says so |
+| `values` / `value_at_root_node` (traits) | for a continuous trait, where the values got to. The root **node** sits at the end of the stem, so that value is not the one the run started from |
+
+A discrete trait is summarised by its states, and so is a **threshold** one, which reads a discrete
+state off a continuous liability. Only `--kind continuous` is summarised as numbers.
 
 ```python
 from zombi2 import species
