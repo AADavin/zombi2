@@ -111,6 +111,49 @@ def test_no_report_for_a_flat_or_empty_run(tmp_path):
     assert not (flat / RUN_REPORT_NAME).exists()
 
 
+def test_ordered_and_nucleotide_outputs_are_documented(tmp_path):
+    """The other two genome resolutions write different files (gene_order, chromosome_events; blocks,
+    genes, bed/, gff/) and nucleotide writes no summary. Every file must still be documented, and the
+    section must still render — from the log's result line when there is no summary."""
+    for res, extra in (("ordered", ["--initial-families", "8", "--inversion", "0.2", "--chromosomes", "2"]),
+                       ("nucleotide", ["--root-length", "400"])):
+        run = tmp_path / res
+        main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "6", "--seed", "1"])
+        main(["genomes", str(run), "--resolution", res, "--duplication", "0.1", "--loss", "0.1",
+              "--origination", "0.3", "--seed", "3", *extra])
+        text = (run / RUN_REPORT_NAME).read_text(encoding="utf-8")
+        assert "GENOMES" in text, f"{res}: no genomes section in the report"
+        undocumented = [f"genomes/{e}" for e in os.listdir(run / "genomes")
+                        if e != RUN_REPORT_NAME and not e.endswith(_RECORD_SUFFIXES) and e not in _GLOSS]
+        assert not undocumented, f"{res}: undocumented outputs {undocumented}"
+
+
+def test_staleness_survives_a_move_and_a_different_cwd(tmp_path, monkeypatch):
+    """Staleness must hold when the report is regenerated from another working directory, or after the
+    run directory is moved — the inputs are located relative to the run dir, not the current CWD."""
+    from zombi2._runtime.report import stale_warnings
+    monkeypatch.chdir(tmp_path)                              # record with a RELATIVE run-arg
+    main(["species", "run", "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1"])
+    main(["genomes", "run", "--initial-families", "4", "--duplication", "0.2", "--seed", "1"])
+    tree = tmp_path / "run" / "species" / "species_complete.nwk"
+    tree.write_text(tree.read_text(encoding="utf-8") + "\n", encoding="utf-8")   # change the upstream
+    moved = tmp_path / "moved"
+    (tmp_path / "run").rename(moved)                         # move the whole run
+    monkeypatch.chdir(tmp_path.parent)                       # and check from a different cwd
+    warnings = stale_warnings(str(moved))
+    assert any("GENOMES" in w and "changed" in w for w in warnings), \
+        "a changed upstream must be flagged even after a move / from another cwd"
+
+
+def test_report_check_gates_on_staleness(tmp_path):
+    from zombi2.cli.main import main as _main
+    _pipeline(tmp_path)
+    assert _main(["report", str(tmp_path), "--check"]) == 0        # a consistent run passes
+    tree = tmp_path / "species" / "species_complete.nwk"
+    tree.write_text(tree.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    assert _main(["report", str(tmp_path), "--check"]) == 1        # a stale run fails, for CI to gate on
+
+
 def test_a_joint_run_reports_species_and_its_driver(tmp_path):
     main(["joint", str(tmp_path), "--birth", "1.0 * DrivenBy('trait', {'a': 1.0, 'b': 2.0})",
           "--death", "0.2", "--states", "a,b", "--switch", "0.3", "--n-extant", "20", "--seed", "1"])
