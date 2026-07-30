@@ -163,16 +163,20 @@ g = genomes.simulate_genomes_nucleotide(
     fission=0.2, fusion=0.2, chromosome_origination=0.05, chromosome_loss=0.05,
     inversion=1.0, seed=5)
 
-# a real annotation as the initial genome
-g = genomes.simulate_genomes_nucleotide(
-    tree, gff="ecoli.gff", inversion=2.0, inversion_extent=5000,
-    loss=1.0, loss_extent=3000, seed=1)
-
 # the outputs
 g.gene_spans                            # where each gene sits, in initial coordinates
 family = min(g.gene_trees)              # gene_trees holds only the families that survive
 g.gene_trees[family].to_newick("extant")
 leaf = next(n.id for n in g.complete_tree.extant())
+```
+
+A real annotation can be the initial genome instead of a drawn one:
+
+<!-- doc-test: skip — needs an annotation and its FASTA, which the reader supplies -->
+```python
+g = genomes.simulate_genomes_nucleotide(
+    tree, gff="ecoli.gff", inversion=2.0, inversion_extent=5000,
+    loss=1.0, loss_extent=3000, seed=1)
 g.mosaic(leaf)                          # that leaf's genome, block by block
 g.chromosome_events                     # the chromosome network
 ```
