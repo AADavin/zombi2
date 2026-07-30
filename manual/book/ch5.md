@@ -21,7 +21,7 @@ Each gene is written as its family with the strand as `+` or `−` (the strand i
 
 ```python
 g.gene_trees[0].to_newick("extant")
-# (((g24:0.0396561,g28:0.0396561)speciation_n3:0.405992,g19:0.445648)speciation_n1:0.2334,g9:0.679048)speciation_n0:0.118056;
+# (((n5_g24:0.03965611,n6_g28:0.03965611)speciation_n3:0.4059919,n4_g19:0.445648)speciation_n1:0.2333995,n2_g9:0.6790475)speciation_n0:0.1180556;
 ```
 
 ![Leaf `n2`, the same chromosome `[ 0+ 1+ 3+ 3+ 4− ]` drawn as the ring it is. Each gene is an arrow that points the way its strand reads, and its shade marks its family. The two copies of family `3` are a tandem duplication — one shade, side by side; family `4`, left backward by an inversion, is the one arrow pointing against the flow.](figures/ordered_chromosome.pdf){width=58%}
