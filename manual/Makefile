@@ -29,7 +29,7 @@ endif
 # explicit, a missing or renamed file stops the build.
 BOOK      := book
 CHAP_MDS  := ch1.md ch2.md ch3.md ch4.md ch5.md ch6.md ch7.md ch8.md ch9.md \
-             appendix-a.md appendix-b.md appendix-c.md appendix-d.md
+             appendix-a.md appendix-b.md appendix-c.md
 CHAPTERS  := $(addprefix $(BOOK)/,$(CHAP_MDS))
 CHAP_PDFS := $(patsubst $(BOOK)/%.md,build/%.pdf,$(CHAPTERS))
 SVGS      := $(wildcard $(IMG)/*.svg)

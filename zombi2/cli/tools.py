@@ -42,7 +42,8 @@ _FORMATS = {
                  "per-family n×n table: S/D/T for the event at each pair's ancestor, x if a "
                  "transfer came after"),
     "recphylo": ("recphylo", write_recphylo,
-                 "per-family recPhyloXML — the gene tree drawn inside the species tree"),
+                 "per-family recPhyloXML (the format; this value is spelled recphylo) — the "
+                 "gene tree drawn inside the species tree"),
     "markers": ("markers", write_markers,
                 "one row per family: single-copy, universal, and does its tree match the species tree"),
 }
@@ -53,7 +54,8 @@ _TOOLS_DESCRIPTION = (
     "Analyses that read a finished run and derive a new view of it. Run 'zombi2 tools <tool> -h' "
     "for a tool's options.\n\n"
     "Tools\n"
-    "  format               turn a genomes run into analysis-ready files (homology, recPhyloXML)\n"
+    "  format               turn a genomes run into analysis-ready files "
+    "(--format homology | markers | recphylo)\n"
     "  tree                 transform one Newick tree (prune, round, stem, rescale, RED)\n"
     "  treedist             distance between two Newick trees (RF, branch-score)\n"
 )
@@ -66,7 +68,7 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
     tsub = p.add_subparsers(dest="tools_command", metavar="<tool>", required=True)
     fp = tsub.add_parser(
         "format",
-        help="turn a genomes run into analysis-ready files (homology, markers, recPhyloXML)",
+        help="turn a genomes run into analysis-ready files (--format homology | markers | recphylo)",
         description=(
             "Read a finished 'zombi2 genomes' run and write analysis-ready files derived from its "
             "gene trees. Three --format choices: 'homology' — for each family, an n×n table (n the "
