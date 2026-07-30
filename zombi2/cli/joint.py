@@ -18,11 +18,12 @@ import os
 import time
 
 from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_params_arg, _add_quiet_arg, _add_run_arg,
-                                  _rate, _rates_help, _write_params_log, default_outputs,
+                                  _rate, _rates_help, _write_params_log, default_outputs, guidance,
                                   level_dir)
 from zombi2.cli.traits import _DISCRETE_DEFAULT as TRAITS_DEFAULT
 from zombi2.genomes import family
 from zombi2.joint import simulate_joint
+from zombi2._runtime.report import write_run_report
 from zombi2._runtime.summary import write_summary
 from zombi2.rates.modifiers import DrivenBy
 from zombi2.traits import discrete
@@ -156,4 +157,6 @@ def run(args, parser):
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
     _write_params_log(os.path.join(level_dir(args.run, "species", args.flat), "joint.log"),
                       args, summary)
+    if path := write_run_report(args.run):     # refresh the run's one-page report (grouped layout only)
+        guidance(args, f"run report: {path}")
     return 0

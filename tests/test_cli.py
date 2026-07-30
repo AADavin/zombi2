@@ -923,8 +923,9 @@ def test_each_level_writes_into_its_own_directory(tmp_path):
     for level, log in (("species", "species.log"), ("genomes", "genomes.log"),
                        ("sequences", "sequences.log"), ("traits", "traits.log")):
         assert (tmp_path / level / log).exists()
-    # and nothing loose at the top
-    assert not [p for p in tmp_path.iterdir() if p.is_file()]
+    # the one file at the top is the run report — it spans every level, so it belongs to the run, not
+    # to any one level's directory
+    assert [p.name for p in tmp_path.iterdir() if p.is_file()] == ["run.zombi2"]
 
 
 def test_flat_puts_everything_in_one_directory(tmp_path):
@@ -961,7 +962,11 @@ def test_the_two_layouts_write_the_same_files(tmp_path):
         tree = root / ("species_complete.nwk" if extra else "species/species_complete.nwk")
         main(["genomes", str(root), "--from", str(tree), "--initial-families", "4", "--duplication", "0.3", "--seed", "2", "--write", "events", "profiles", "gene_trees", *extra])
         outs[name] = {p.name for p in root.rglob("*") if p.is_file()}
-    assert outs["grouped"] == outs["flat"]      # same files, only the directories differ
+    # the data files match — only the directories differ. The one extra is run.zombi2: the grouped
+    # layout writes a report over its per-level records, which --flat (one commingled directory, no
+    # per-level records to read) has no way to build.
+    assert outs["grouped"] - {"run.zombi2"} == outs["flat"]
+    assert "run.zombi2" in outs["grouped"] and "run.zombi2" not in outs["flat"]
 
 
 def test_a_run_directory_is_read_as_well_as_written(tmp_path):

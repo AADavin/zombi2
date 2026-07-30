@@ -6,6 +6,7 @@ import argparse
 import datetime
 import hashlib
 import os
+import platform
 import shutil
 import sys
 import textwrap
@@ -29,6 +30,7 @@ Coupling
 
 Tools
   tools                analyses that read a finished run (homology, markers, recphylo, …)
+  report               (re)write run.zombi2, a run's one-page human-readable report
 """
 
 
@@ -633,6 +635,11 @@ def _write_params_log(path: str, args: argparse.Namespace, summary: str, effecti
     it *has*, so the log is the run's parameters rather than the parser's."""
     lines = ["# ZOMBI2 run parameters",
              f"zombi2_version\t{__version__}",
+             # the software environment, so the record says what produced the run, not only with which
+             # flags — a bug report or an irreproducible result usually turns on one of these three.
+             f"python_version\t{platform.python_version()}",
+             f"numpy_version\t{np.__version__}",
+             f"platform\t{platform.system()} {platform.machine()}",
              f"timestamp\t{datetime.datetime.now().isoformat(timespec='seconds')}",
              f"command_line\t{' '.join(sys.argv)}"]
     for in_path, digest in inputs:

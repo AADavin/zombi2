@@ -22,6 +22,7 @@ from zombi2.genomes.nucleotide import WIRED_MODIFIERS as _NUC_WIRED
 from zombi2.rates.parse import parse_rate
 from zombi2.rates.scope import Global, PerLineage
 from zombi2.tree import node_label, read_newick
+from zombi2._runtime.report import write_run_report
 from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
                                   _read_tip_fates, _write_params_log, check_stale_downstream,
@@ -561,4 +562,6 @@ def run(args, parser):
                                                         "species_fates.tsv"),
                                            args.duplication, args.transfer, args.loss,
                                            args.origination, args.transfer_to))
+    if path := write_run_report(args.run):     # refresh the run's one-page report (grouped layout only)
+        guidance(args, f"run report: {path}")
     return 0
