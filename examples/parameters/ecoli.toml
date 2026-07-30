@@ -45,13 +45,13 @@ fusion  = 0.05                  # two chromosomes merge
 
 # EVENT EXTENTS — mean bp per event (geometric). Bumped up from the 50 bp default
 # so the rearrangements are chunky enough to see against a 4.6 Mbp genome.
-inversion-length    = 20000
-loss-length         = 5000
-duplication-length  = 10000
-transposition-length = 20000
-translocation-length = 20000
-transfer-length     = 10000
-origination-length  = 5000
+inversion-extent     = 20000
+loss-extent          = 5000
+duplication-extent   = 10000
+transposition-extent = 20000
+translocation-extent = 20000
+transfer-extent      = 10000
+origination-extent   = 5000
 
 # ---------------------------------------------------------------------------
 [sequences]                     # DNA down each gene tree

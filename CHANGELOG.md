@@ -14,6 +14,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   files in it (a per-family directory named as itself), then the run report. It was a two-line pointer
   at a couple of the files; the rest you had to find. The file-by-file descriptions live in
   `run.zombi2`, which the terminal names from the same source, so the two never disagree.
+- **`trait_values.tsv` gains a `kind` column** (`leaf` for a tip, `ancestor` for an internal node), so
+  a tip-only comparative vector is one filter away from the all-nodes table.
+
+### Fixed
+- **The bundled E. coli example ran with stale option names.** `examples/parameters/ecoli.toml` used
+  the old `*-length` keys for the seven event extents (the CLI renamed them `*-extent`), so
+  `zombi2 genomes --params parameters/ecoli.toml` refused the file with an unknown-parameter error.
 
 ## [0.17.0] - 2026-07-30
 
