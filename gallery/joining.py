@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
+from matplotlib import cm, colors
 
 import helpers as h
 from helpers import Example
@@ -15,8 +16,9 @@ import phylustrator as ph
 from zombi2 import joint, traits
 from zombi2.genomes import simulate_genomes_family
 from zombi2.rates import modifiers as mod
+from zombi2.rates.mapping import Curve
 from zombi2.species import simulate_species_tree
-from zombi2.traits import simulate_discrete
+from zombi2.traits import simulate_continuous, simulate_discrete
 
 _BISSE = {"fast": "#E4572E", "slow": "#3A7CA5"}
 _SSE = {"doomed": "#B0413E", "safe": "#2A9D8F"}
@@ -163,6 +165,48 @@ def hgt_uptake(out):
         target_sub="who receives a transfer", state_colors=_COMP))
 
 
+def continuous_conditioning(out):
+    """A CONTINUOUS trait conditions a genome rate. A diffusing "activity" trait drives gene gain
+    through a Curve (high activity → more originations), so genome size tracks the trait — the tree is
+    coloured by the continuous value and the scatter shows the driver→target relationship directly."""
+    ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
+    act = simulate_continuous(ct, start=0.0, rate=1.8, seed=3)
+    g = simulate_genomes_family(ct, initial_families=12, loss=0.05,
+            origination=0.6 * mod.DrivenBy(act, Curve(lambda v: 2.0 ** v)), seed=9)
+    tips = list(ct.extant_leaves())
+    vals = {f"n{i}": act.node_values[i] for i in ct.nodes}       # the continuous trait, per node
+    tv = [act.node_values[n.id] for n in tips]
+    sz = [len(g.genomes[n.id]) for n in tips]
+    cmap, norm = cm.viridis, colors.Normalize(min(tv), max(tv))
+    sizes = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}
+    tipcol = {f"n{n.id}": colors.to_hex(cmap(norm(act.node_values[n.id]))) for n in tips}
+
+    real = out.replace(".png", "_real.png")
+    fig = (ph.trees.plot(ph.trees.loads(ct.to_newick()),
+                         style=ph.Style(width=900, height=900, margin=92, branch_width=3.0))
+           + ph.trees.color_branches(vals, cmap="viridis")
+           + ph.trees.colorbar("activity (continuous trait)", loc="bottom-left", size=18)
+           + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False))
+    ph.beside(fig, ph.genomes.bars(sizes, colors=tipcol, label="genome size (genes)",
+                                   tick_size=20, label_size=26),
+              width=1150, tree_fraction=0.58, footer=36).save(real)
+
+    fig2 = plt.figure(figsize=(13, 8))
+    gs = fig2.add_gridspec(1, 2, width_ratios=[2.5, 1.0], wspace=0.12)
+    axr = fig2.add_subplot(gs[0, 0])
+    axr.imshow(mpimg.imread(real))
+    axr.set_axis_off()
+    axs = fig2.add_subplot(gs[0, 1])
+    axs.scatter(tv, sz, c=tv, cmap="viridis", s=42, edgecolors="white", linewidths=0.5)
+    axs.set_xlabel("activity (tip value)", fontsize=14)
+    axs.set_ylabel("genome size (genes)", fontsize=14)
+    axs.set_title("driver → target", fontsize=14, loc="left")
+    for sp in ("top", "right"):
+        axs.spines[sp].set_visible(False)
+    fig2.savefig(out, dpi=140, bbox_inches="tight")
+    plt.close(fig2)
+
+
 _C_BISSE = '''\
 ### simulate  —  a 2-state trait drives speciation (BiSSE)
 from zombi2 import joint, traits
@@ -303,6 +347,22 @@ g = simulate_genomes_family(ct, initial_families=35, transfer=0.5, loss=0.05, du
         transfer_to=mod.DrivenBy(comp, {"competent": 8.0, "quiet": 1.0}), seed=3)
 # plot = tree coloured by competence + per-tip genome-size bars + the diagram (competence -> uptake)'''
 
+_C_CONTINUOUS = '''\
+### simulate  —  a CONTINUOUS trait drives a genome rate (via a Curve, not a state table)
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_continuous
+from zombi2.genomes import simulate_genomes_family
+from zombi2.rates import modifiers as mod
+from zombi2.rates.mapping import Curve
+
+ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
+act = simulate_continuous(ct, start=0.0, rate=1.8, seed=3)          # a diffusing "activity" trait
+# a continuous driver maps its VALUE to a factor with a Curve; here high activity -> more gene gain.
+# (Each branch is cut into constant sub-steps internally, so the same engine consumes it.)
+g = simulate_genomes_family(ct, initial_families=12, loss=0.05,
+        origination=0.6 * mod.DrivenBy(act, Curve(lambda v: 2.0 ** v)), seed=9)
+# plot = tree coloured by the continuous trait + genome-size bars + a tip trait-vs-size scatter'''
+
 
 EXAMPLES = [
     Example("bisse", "BiSSE",
@@ -331,4 +391,9 @@ EXAMPLES = [
             "up DNA more readily and their genomes swell. The trait-driven twin of the topological "
             "clade highway. <code>transfer_to&nbsp;=&nbsp;DrivenBy(competence,&nbsp;{…})</code>.",
             "trait → transfer uptake", hgt_uptake, code=_C_UPTAKE),
+    Example("continuous_conditioning", "A continuous driver",
+            "The driver need not be discrete: a diffusing <b>continuous</b> trait scales a genome rate "
+            "through a <code>Curve</code> (value&nbsp;→&nbsp;factor), so genome size tracks the trait. "
+            "Tree coloured by the trait; the scatter shows the driver→target trend.",
+            "continuous → genome", continuous_conditioning, code=_C_CONTINUOUS),
 ]
