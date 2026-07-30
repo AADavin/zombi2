@@ -109,7 +109,7 @@ def test_shared_params_are_a_subset_of_the_ordered_signature():
 def test_extant_gene_tree_leaves_equal_the_extant_copy_total():
     # the strongest invariant, inherited from the family core: surviving gene-tree leaves == copies
     sp, r = _run(seed=5, death=0.5)
-    extant_sp = {n.id for n in sp.complete_tree.extant()}
+    extant_sp = {n.id for n in sp.complete_tree.extant_leaves()}
     for fam, tree in r.gene_trees.items():
         copies = sum(r.profiles.counts.get((fam, s), 0) for s in extant_sp)
         assert _extant_leaves(tree.extant) == copies
@@ -226,7 +226,7 @@ def test_no_transfer_events_when_transfer_is_zero():
 def test_replacement_run_stays_consistent():
     # replacement overwrites a homologous copy; the strong invariant must still hold
     sp, r = _run(seed=2, replacement=True)
-    extant_sp = {n.id for n in sp.complete_tree.extant()}
+    extant_sp = {n.id for n in sp.complete_tree.extant_leaves()}
     for fam, tree in r.gene_trees.items():
         assert _extant_leaves(tree.extant) == sum(r.profiles.counts.get((fam, s), 0) for s in extant_sp)
 
@@ -360,7 +360,7 @@ def test_strong_invariant_survives_the_tier():
     # leaves — so the surviving-leaves == profile-copies invariant must still hold under heavy tier
     for seed in range(5):
         sp, r = _tier(seed=seed)
-        extant = {n.id for n in sp.complete_tree.extant()}
+        extant = {n.id for n in sp.complete_tree.extant_leaves()}
         for fam, tree in r.gene_trees.items():
             assert _extant_leaves(tree.extant) == sum(r.profiles.counts.get((fam, s), 0) for s in extant)
 
@@ -549,7 +549,7 @@ def test_strong_invariant_holds_under_segmental_everything():
                      transposition=0.2, translocation=0.2, inversion_probability=0.5,
                      duplication_extent=Geometric(mean=3), loss_extent=Geometric(mean=3),
                      transfer_extent=Geometric(mean=2))
-        extant = {n.id for n in sp.complete_tree.extant()}
+        extant = {n.id for n in sp.complete_tree.extant_leaves()}
         for fam, tree in r.gene_trees.items():
             assert _extant_leaves(tree.extant) == sum(r.profiles.counts.get((fam, s), 0) for s in extant)
 
@@ -739,7 +739,7 @@ def test_the_strong_invariant_survives_wrapped_runs():
                                      transposition=0.2, translocation=0.2, chromosomes=3,
                                      initial_families=9, inversion_probability=0.5, seed=seed,
                                      **exts)
-        extant = {n.id for n in sp.complete_tree.extant()}
+        extant = {n.id for n in sp.complete_tree.extant_leaves()}
         for fam, tree in r.gene_trees.items():
             assert _extant_leaves(tree.extant) == sum(r.profiles.counts.get((fam, s), 0)
                                                       for s in extant)

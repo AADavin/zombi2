@@ -25,8 +25,8 @@ def test_read_newick_round_trips_a_complete_tree():
     assert names == {}                                           # a ZOMBI tree: labels ARE the ids
     assert set(back.nodes) == set(t.nodes)
     assert back.root == t.root
-    assert len(back.extant()) == len(t.extant())
-    assert len(back.extinct()) == len(t.extinct())
+    assert len(back.extant_leaves()) == len(t.extant_leaves())
+    assert len(back.extinct_leaves()) == len(t.extinct_leaves())
     # every branch length (duration) survives to Newick's 6 significant figures — the root's
     # included, so the stem is not silently dropped and the round-tripped tree keeps its full height
     for i, n in t.nodes.items():
@@ -42,22 +42,22 @@ def test_read_newick_zombi_tree_honours_an_authoritative_fate_table():
     # the present) from an extant one. When the run's species_fates.tsv is passed, it is authoritative:
     # here a present-day survivor is declared unsampled and must come back unsampled, not extant.
     r = simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=4)
-    survivors = [n.id for n in r.complete_tree.extant()]
+    survivors = [n.id for n in r.complete_tree.extant_leaves()]
     names = r.complete_tree.labels()          # the table keys on the same label the tree carries
     fates = {names[i]: "extant" for i in survivors}
     fates[names[survivors[0]]] = "unsampled"                      # override one survivor
-    for n in r.complete_tree.extinct():
+    for n in r.complete_tree.extinct_leaves():
         fates[names[n.id]] = "extinct"
     back, _ = read_newick(r.complete_tree.to_newick(), tip_fates=fates)
     assert back.nodes[survivors[0]].fate == "unsampled"          # the table won, not the depth-guess
-    assert len(back.extant()) == len(survivors) - 1              # the unsampled one is no longer extant
-    assert len(back.unsampled()) == 1
+    assert len(back.extant_leaves()) == len(survivors) - 1              # the unsampled one is no longer extant
+    assert len(back.unsampled_leaves()) == 1
 
 
 def test_read_newick_ultrametric_external_tree_is_all_extant_with_a_name_map():
     # ultrametric (every tip at depth 2) → every tip extant, and the user's labels come back mapped
     t, names = read_newick("((human:1,chimp:1):1,(mouse:0.8,rat:0.8):1.2);")
-    assert len(t.extant()) == 4 and not t.extinct()
+    assert len(t.extant_leaves()) == 4 and not t.extinct_leaves()
     assert all(n.fate == "speciation" for n in t.nodes.values() if n.children is not None)
     assert sorted(names.values()) == ["chimp", "human", "mouse", "rat"]
     assert t.nodes[t.root].birth_time == 0.0
@@ -134,7 +134,7 @@ def test_read_newick_output_feeds_the_genomes_engine():
     r = simulate_species_tree(birth=1.0, death=0.3, n_extant=25, seed=5)
     back, _ = read_newick(r.complete_tree.to_newick())
     g = simulate_genomes_family(back, duplication=0.2, loss=0.2, origination=0.5, seed=9)
-    assert g.profiles.shape[1] == len(back.extant())            # one column per extant tip
+    assert g.profiles.shape[1] == len(back.extant_leaves())            # one column per extant tip
 
 
 @pytest.mark.parametrize("bad, msg", [

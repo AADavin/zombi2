@@ -722,7 +722,7 @@ class NucleotideGenomesResult:
     initial_sequence: dict[int, str] = field(default_factory=dict)
 
     def __repr__(self) -> str:
-        return (f"NucleotideGenomesResult({len(self.complete_tree.extant())} extant genomes, "
+        return (f"NucleotideGenomesResult({len(self.complete_tree.extant_leaves())} extant genomes, "
                 f"{len(self.genomes)} nodes, {len(self.gene_spans)} genes, "
                 f"{len(self.events)} events, seed={self.seed})")
 

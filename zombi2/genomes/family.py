@@ -71,7 +71,7 @@ class FamilyGenomesResult:
     """What ``simulate_genomes_family`` returns: the ``complete_tree`` it ran on, the final
     ``genomes`` at **every** node (extant and extinct), the ``events`` log (the compact source of
     truth), and the ``seed``. The observed genomes are the extant tips —
-    ``{n.id: genomes[n.id] for n in complete_tree.extant()}``. The phyletic ``profiles`` are derived
+    ``{n.id: genomes[n.id] for n in complete_tree.extant_leaves()}``. The phyletic ``profiles`` are derived
     from those tips on access, and ``write`` materialises the chosen outputs to disk."""
 
     complete_tree: Tree
@@ -93,7 +93,7 @@ class FamilyGenomesResult:
     max_family_size: int | None = None
 
     def __repr__(self) -> str:
-        return (f"FamilyGenomesResult({len(self.complete_tree.extant())} extant genomes, "
+        return (f"FamilyGenomesResult({len(self.complete_tree.extant_leaves())} extant genomes, "
                 f"{len(self.genomes)} nodes, {len(self.events)} events, seed={self.seed})")
 
     def family_counts(self, node_id: int) -> collections.Counter:
@@ -112,7 +112,7 @@ class FamilyGenomesResult:
     def profiles(self) -> Profiles:
         """The phyletic profiles — each gene family's copy count in each extant species — derived
         from the observed genomes (the classic comparative-genomics matrix). See `profiles`."""
-        extant = [n.id for n in self.complete_tree.extant()]
+        extant = [n.id for n in self.complete_tree.extant_leaves()]
         return profiles_from_genomes(self.genomes, extant)
 
     @cached_property
@@ -158,7 +158,7 @@ class FamilyGenomesResult:
         t0 = self.complete_tree.nodes[self.complete_tree.root].birth_time
         initial = sum(1 for e in self.events if e.kind == "origination" and e.time <= t0)
 
-        extant = [n.id for n in self.complete_tree.extant()]
+        extant = [n.id for n in self.complete_tree.extant_leaves()]
         born = {e.family for e in self.events}
         surviving = {c.family for i in extant for c in self.genomes.get(i, ())}
         genes_per_genome = [len(self.genomes.get(i, ())) for i in extant]

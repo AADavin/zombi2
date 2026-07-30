@@ -32,7 +32,7 @@ g = genomes.simulate_genomes_family(sp, duplication=0.2, transfer=0.1, loss=0.25
                                     origination=0.5, initial_families=20, seed=42)
 
 # the genomes you observe are the extant tips
-observed = {n.id: g.genomes[n.id] for n in sp.complete_tree.extant()}
+observed = {n.id: g.genomes[n.id] for n in sp.complete_tree.extant_leaves()}
 ```
 
 Every rate is written the same way — a **scope** around a base, optionally times **modifiers**

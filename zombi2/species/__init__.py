@@ -70,7 +70,7 @@ class SpeciesResult:
     def n_extant(self) -> int:
         """The number of **observed** survivors — the extant tips. Under ``sampling < 1`` this is
         the sampled subset (the rest are ``unsampled``), so it matches the extant tree's tip count."""
-        return len(self.complete_tree.extant())
+        return len(self.complete_tree.extant_leaves())
 
     @functools.cached_property
     def extant_tree(self) -> Tree | None:
@@ -88,7 +88,7 @@ class SpeciesResult:
         that generated them, which is what a declared per-lineage rate means."""
         nodes = self.complete_tree.nodes
         tips = [n for n in nodes.values() if n.children is None]
-        extant = self.complete_tree.extant()
+        extant = self.complete_tree.extant_leaves()
         speciations = sum(1 for e in self.events if e.kind == "speciation")
         extinctions = sum(1 for e in self.events if e.kind == "extinction")
         # total branch length: every node's own branch, which is the exposure a per-lineage rate ran on
@@ -98,8 +98,8 @@ class SpeciesResult:
         return {
             "level": "species",
             "seed": self.seed,
-            "tips": {"extant": len(extant), "extinct": len(self.complete_tree.extinct()),
-                     "unsampled": len(self.complete_tree.unsampled()), "total": len(tips)},
+            "tips": {"extant": len(extant), "extinct": len(self.complete_tree.extinct_leaves()),
+                     "unsampled": len(self.complete_tree.unsampled_leaves()), "total": len(tips)},
             "nodes": len(nodes),
             "events": {"speciation": speciations, "extinction": extinctions},
             "fossils": len(self.fossils),
