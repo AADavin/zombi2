@@ -164,7 +164,9 @@ footer code{font:600 .82rem ui-monospace,monospace;color:var(--muted)}
 .det-close{position:absolute;top:12px;right:12px;z-index:2;appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--muted);width:34px;height:34px;border-radius:9px;cursor:pointer;font-size:15px;line-height:1;transition:.15s}
 .det-close:hover{color:var(--ink);border-color:var(--accent)}
 .det-fig{background:var(--mat);display:flex;align-items:center;justify-content:center;padding:22px;border-bottom:1px solid var(--line)}
-.det-fig img{max-width:100%;max-height:58vh;object-fit:contain;display:block}
+.det-fig img{max-width:100%;max-height:58vh;object-fit:contain;display:block;cursor:zoom-in}
+.det-fig{position:relative}
+.det-zoomhint{position:absolute;bottom:10px;right:12px;font:600 10px/1 ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 8px;pointer-events:none;opacity:.85}
 .det-meta{padding:20px 26px 4px}
 .det-meta .tag{margin:0}
 .det-meta h2{margin:.4rem 0 .5rem;font-size:1.4rem;letter-spacing:-.01em;font-weight:650}
@@ -179,6 +181,13 @@ footer code{font:600 .82rem ui-monospace,monospace;color:var(--muted)}
 .hl-s{color:#93d2a1}
 .hl-n{color:#e3ab60}
 .hl-k{color:#6cb7d7}
+.lightbox{position:fixed;inset:0;background:rgba(6,12,10,.95);display:none;z-index:80;overflow:auto;cursor:zoom-out}
+.lightbox.open{display:block}
+.lightbox img{display:block;margin:auto;max-width:100%;max-height:100vh;object-fit:contain}
+.lightbox.actual{cursor:grab}
+.lightbox.actual img{max-width:none;max-height:none;margin:24px auto;cursor:zoom-out}
+.lb-close{position:fixed;top:14px;right:16px;z-index:81;appearance:none;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.35);color:#fff;width:38px;height:38px;border-radius:9px;cursor:pointer;font-size:16px;line-height:1}
+.lb-close:hover{background:rgba(0,0,0,.6)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>"""
 
@@ -206,7 +215,7 @@ _PAGE_CLOSE = """
 <div class="detail" id="detail" aria-hidden="true">
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="det-title">
     <button class="det-close" id="det-close" aria-label="Close">✕</button>
-    <div class="det-fig"><img id="det-img" alt=""></div>
+    <div class="det-fig"><img id="det-img" alt=""><span class="det-zoomhint">click to zoom</span></div>
     <div class="det-meta">
       <span class="tag" id="det-tag"></span>
       <h2 id="det-title"></h2>
@@ -217,6 +226,10 @@ _PAGE_CLOSE = """
       <pre class="det-code"><code id="det-code"></code></pre>
     </div>
   </div>
+</div>
+<div class="lightbox" id="lightbox" aria-hidden="true">
+  <button class="lb-close" id="lb-close" aria-label="Close zoom">✕</button>
+  <img id="lb-img" alt="">
 </div>
 """
 
@@ -261,10 +274,24 @@ _JS = """<script>
   });
   document.getElementById("det-close").addEventListener("click",close);
   det.addEventListener("click",function(e){if(e.target===det)close();});
-  document.addEventListener("keydown",function(e){if(e.key==="Escape")close();});
   dCopy.addEventListener("click",function(){
     navigator.clipboard&&navigator.clipboard.writeText(dCode.textContent).then(function(){
       dCopy.textContent="copied";setTimeout(function(){dCopy.textContent="copy";},1400);});
+  });
+
+  // --- click-to-zoom lightbox: fit-to-screen, click again for actual size (scrollable) ---
+  var lb=document.getElementById("lightbox"), lbImg=document.getElementById("lb-img");
+  function openLB(){lbImg.src=dImg.src;lbImg.alt=dImg.alt;lb.classList.remove("actual");
+    lb.classList.add("open");lb.setAttribute("aria-hidden","false");lb.scrollTop=0;}
+  function closeLB(){lb.classList.remove("open","actual");lb.setAttribute("aria-hidden","true");lbImg.src="";}
+  dImg.addEventListener("click",openLB);
+  lbImg.addEventListener("click",function(e){e.stopPropagation();  // toggle fit <-> actual size
+    lb.classList.toggle("actual");lb.scrollTop=0;lb.scrollLeft=0;});
+  lb.addEventListener("click",closeLB);   // click the backdrop closes
+  document.getElementById("lb-close").addEventListener("click",function(e){e.stopPropagation();closeLB();});
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="Escape")return;
+    if(lb.classList.contains("open"))closeLB(); else close();   // zoom first, then the detail sheet
   });
 })();
 </script>"""
