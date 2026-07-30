@@ -118,10 +118,13 @@ def test_write_values_tsv(tmp_path):
     assert len(lines) - 1 == len(r.node_values)               # one row per node: tips, extinct, internal
     ids = {int(line.split("\t")[0][1:]) for line in lines[1:]}  # strip the n/e prefix
     assert ids == set(r.node_values)
-    kinds = [line.split("\t")[1] for line in lines[1:]]        # a leaf/ancestor flag to filter tips on
-    assert set(kinds) <= {"leaf", "ancestor"} and "leaf" in kinds and "ancestor" in kinds
+    kinds = [line.split("\t")[1] for line in lines[1:]]        # extant/extinct[/unsampled]/ancestor
+    assert set(kinds) <= {"extant", "extinct", "unsampled", "ancestor"} and "ancestor" in kinds
     n_leaves = len([n for n in sp.complete_tree.nodes.values() if n.is_leaf])
-    assert kinds.count("leaf") == n_leaves                    # the leaf rows are exactly the tree's tips
+    assert len(kinds) - kinds.count("ancestor") == n_leaves   # every non-ancestor row is a tip
+    n_extant = len(sp.complete_tree.extant_leaves())          # and `kind == "extant"` isolates the
+    assert kinds.count("extant") == n_extant                  # observed tips a comparative method wants
+    assert "extinct" in kinds                                 # this tree (death=0.3) has extinct tips too
 
 
 def test_write_rejects_unknown_output(tmp_path):

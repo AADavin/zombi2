@@ -19,8 +19,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   files in it (a per-family directory named as itself), then the run report. It was a two-line pointer
   at a couple of the files; the rest you had to find. The file-by-file descriptions live in
   `run.zombi2`, which the terminal names from the same source, so the two never disagree.
-- **`trait_values.tsv` gains a `kind` column** (`leaf` for a tip, `ancestor` for an internal node), so
-  a tip-only comparative vector is one filter away from the all-nodes table.
+- **`trait_values.tsv` gains a `kind` column** — a tip's fate (`extant` / `extinct`, and `unsampled`
+  under incomplete sampling) or `ancestor` for an internal node — so the observed tips a comparative
+  method wants are one `kind == "extant"` filter away from the all-nodes table.
+- **A bare nucleotide genome now starts from a 10 kb replicon with ten 500 bp genes** (it was a 1 kb
+  all-intergenic replicon), so a first `--resolution nucleotide` run has real genes — and so gene
+  trees, GFF/BED and a downstream `sequences` run — without having to know `--genes` and `--gene-length`
+  first. The count is capped to what fits, so a smaller `--root-length` still runs.
 - **A bare run no longer warns about its illustrative defaults.** The values it fills in are still
   recorded — in the `.log` and `run.zombi2` — but the paragraph-long stderr warning on every default
   run is gone.
@@ -32,6 +37,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 - **The bundled E. coli example ran with stale option names.** `examples/parameters/ecoli.toml` used
   the old `*-length` keys for the seven event extents (the CLI renamed them `*-extent`), so
   `zombi2 genomes --params parameters/ecoli.toml` refused the file with an unknown-parameter error.
+  Its `[sequences]` step also gained `divergence = 0.2`, so the example's alignments no longer saturate.
+- **`run.zombi2` claimed "machine-readable stats" for genome resolutions that write none.** The
+  ordered and nucleotide resolutions drop only a `.log`, not a `_summary.json`, so their `records:`
+  line now reads `(run parameters)`; the label appears only when a summary is actually present.
+- **`--write summary` was a silent no-op on `--resolution ordered`** (it writes no summary file). It is
+  no longer an accepted output there, so asking for it is a clear error rather than a file that never
+  appears.
+- **The log's `command_line` is now shell-quoted**, so a recorded rate expression
+  (`--birth "1.0 * OnTime({0: 1.0})"`) pastes back into a shell intact rather than globbing on the `*`.
 
 ## [0.17.0] - 2026-07-30
 

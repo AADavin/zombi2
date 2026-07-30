@@ -650,7 +650,7 @@ def _pipeline(root):
 
     assert main(["genomes", str(root / "g_unordered"), "--from", tree, "--duplication", "0.3", "--loss", "0.25", "--origination", "0.6", "--seed", PIPELINE_SEED, "--flat"]) == 0
     assert main(["genomes", str(root / "g_ordered"), "--from", tree, "--resolution", "ordered", "--duplication", "0.3", "--loss", "0.25", "--origination", "0.6", "--transfer", "0.2", "--inversion", "0.4", "--transposition", "0.3", "--chromosomes", "2", "--seed", PIPELINE_SEED, "--write", "events", "profiles", "gene_order", "chromosome_events", "--flat"]) == 0
-    assert main(["genomes", str(root / "g_nucleotide"), "--from", tree, "--resolution", "nucleotide", "--root-length", "600", "--genes", "4", "--inversion", "0.8", "--duplication", "0.4", "--loss", "0.3", "--seed", PIPELINE_SEED, "--write", "events", "genes", "blocks", "--flat"]) == 0
+    assert main(["genomes", str(root / "g_nucleotide"), "--from", tree, "--resolution", "nucleotide", "--root-length", "600", "--genes", "4", "--gene-length", "100", "--inversion", "0.8", "--duplication", "0.4", "--loss", "0.3", "--seed", PIPELINE_SEED, "--write", "events", "genes", "blocks", "--flat"]) == 0
 
     assert main(["sequences", str(root / "s"), "--from", str(root / "g_unordered"), "--model", "hky85", "--length", "150", "--seed", PIPELINE_SEED, "--write", "alignments", "phylograms", "ancestral", "species_phylogram", "--flat"]) == 0
     assert main(["traits", "--kind", "continuous", str(root / "t"), "--from", tree, "--rate", "1.0", "--seed", PIPELINE_SEED, "--flat"]) == 0

@@ -10,7 +10,7 @@ from functools import cached_property
 
 from .._runtime.summary import _stats, write_summary
 from ..genomes.events import _name
-from ..tree import Tree
+from ..tree import Node, Tree
 
 _WRITE_OUTPUTS = ("values", "events", "tree", "summary")  # write vocabulary; "events" = the trait event log
 
@@ -118,7 +118,9 @@ class TraitsResult:
     def write(self, directory, outputs=("values",)) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed): ``"values"`` →
         ``trait_values.tsv`` (the ``node<TAB>kind<TAB>trait`` table over **every** node — tips, extinct
-        lineages and internal nodes; ``kind`` marks each ``leaf`` or ``ancestor``); ``"events"`` →
+        lineages and internal nodes; ``kind`` is the tip's fate — ``extant`` / ``extinct`` (/ ``unsampled``
+        under incomplete sampling) — or ``ancestor`` for an internal node, so the extant tips filter out
+        with ``kind == "extant"``); ``"events"`` →
         ``trait_events.tsv``, the event log (``time · kind · lineage · from · to``) — one ``root`` row
         at the origin giving the initial state, then every switch in time order; ``"tree"`` →
         ``trait_tree.nwk``, the complete tree as Newick with **every** node annotated ``[&trait=…]``
@@ -137,9 +139,10 @@ class TraitsResult:
         names = self.complete_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
         if "values" in outputs:
             # every node — extant tips, extinct lineages (e<id>) and internal nodes (n<id>) alike, each
-            # with its exact value and a `kind` column (leaf/ancestor) so a tip-only vector is one filter
-            leaves = {i for i, n in self.complete_tree.nodes.items() if n.is_leaf}
-            (d / "trait_values.tsv").write_text(_values_tsv(self.node_values, names, leaves),
+            # with its exact value and a `kind` column (the tip's fate, or `ancestor`) so a comparative
+            # vector of exactly the extant tips is one `kind == "extant"` filter
+            kinds = {i: _node_kind(n) for i, n in self.complete_tree.nodes.items()}
+            (d / "trait_values.tsv").write_text(_values_tsv(self.node_values, names, kinds),
                                                 encoding="utf-8")
         if "events" in outputs:
             (d / "trait_events.tsv").write_text(_events_tsv(self.events, names), encoding="utf-8")
@@ -191,14 +194,25 @@ def _trait_newick(tree: "Tree", node_values: dict) -> str:
 
 
 
+def _node_kind(node: "Node") -> str:
+    """A node's ``kind`` for the values table: an internal node is an ``ancestor``; a tip is labelled
+    by its fate — ``extant``, ``extinct``, or ``unsampled`` (a survivor not observed under incomplete
+    sampling). A present-day tip whose fate was never resolved (the bare ``"alive"`` default) reads as
+    ``extant``. So ``kind == "extant"`` isolates exactly the observed tips a comparative method wants."""
+    if not node.is_leaf:
+        return "ancestor"
+    return node.fate if node.fate in ("extinct", "unsampled") else "extant"
+
+
 def _values_tsv(values: dict[int, object], names: dict | None = None,
-                leaves: set | None = None) -> str:
+                kinds: dict | None = None) -> str:
     """Node values as a ``node<TAB>kind<TAB>…`` table, one row per node in id order (``n<id>``, or
-    ``e<id>`` for a lineage that died, to match the Newick). ``kind`` is ``leaf`` (a tip — extant or
-    extinct) or ``ancestor`` (an internal node), so a tip-only comparative vector can be filtered from
-    the all-nodes table. A single trait gives one ``trait`` column; correlated traits give one per trait."""
-    leaves = leaves or set()
-    kind = lambda i: "leaf" if i in leaves else "ancestor"
+    ``e<id>`` for a lineage that died, to match the Newick). ``kind`` (from ``kinds``, keyed by node id)
+    is a tip's fate — ``extant`` / ``extinct`` / ``unsampled`` — or ``ancestor`` for an internal node,
+    so the extant tips filter out of the all-nodes table with ``kind == "extant"``. A single trait gives
+    one ``trait`` column; correlated traits give one per trait."""
+    kinds = kinds or {}
+    kind = lambda i: kinds.get(i, "ancestor")
     if values and isinstance(next(iter(values.values())), dict):  # correlated / multi-trait
         cols = list(next(iter(values.values())))
         rows = ["node\tkind\t" + "\t".join(str(c) for c in cols)]

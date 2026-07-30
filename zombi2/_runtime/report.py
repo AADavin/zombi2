@@ -508,7 +508,11 @@ def _render_section(run: str, sec: dict, i: int, n: int) -> list[str]:
     data, records = _gather_outputs(sec)
     file_lines = [f"{name:<28}  {gloss}".rstrip() for name, gloss in data]
     if records:
-        file_lines.append(f"records: {', '.join(records)}  (run parameters + machine-readable stats)")
+        # the .log is always here; only some resolutions also drop a _summary.json — don't advertise
+        # machine-readable stats for one (ordered/nucleotide genomes) that wrote only the log.
+        has_stats = any(r.endswith("_summary.json") for r in records)
+        gloss = "run parameters + machine-readable stats" if has_stats else "run parameters"
+        file_lines.append(f"records: {', '.join(records)}  ({gloss})")
     lines += _field("files", file_lines)
     lines.append("")
     return lines

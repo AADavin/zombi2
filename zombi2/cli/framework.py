@@ -7,6 +7,7 @@ import datetime
 import hashlib
 import os
 import platform
+import shlex
 import shutil
 import sys
 import textwrap
@@ -271,13 +272,16 @@ def signpost(args, report_path, *level_dirs) -> None:
 def defaults_used(args, **fallbacks) -> None:
     """Fill any of ``fallbacks`` the caller left unset on ``args`` (silently).
 
-    Every level runs bare, so that ``zombi2 species out/`` shows a newcomer the shape of a command
-    instead of a list of what they failed to supply — the rates are precisely the part nobody can
-    guess on a first run, and they are round, illustrative values calibrated to nothing. They are not
-    announced on stderr — a paragraph-long warning on every bare run was noise — but they are not
-    hidden either: the ``.log`` and ``run.zombi2`` record every resolved value, and the report's
-    parameters and TO REPRODUCE block make the run reconstructable. The number is visible where it is
-    useful (in the record) rather than shouted where it is not (on the terminal)."""
+    A bare ``zombi2 species out/`` runs, so it shows a newcomer the shape of a command instead of a
+    list of what they failed to supply — the rates are precisely the part nobody can guess on a first
+    run, and they are round, illustrative values calibrated to nothing. They are not announced on
+    stderr — a paragraph-long warning on every bare run was noise — but they are not hidden either: the
+    ``.log`` and ``run.zombi2`` record every resolved value, and the report's parameters and
+    TO REPRODUCE block make the run reconstructable. The number is visible where it is useful (in the
+    record) rather than shouted where it is not (on the terminal).
+
+    Not every level runs bare: ``traits`` still requires ``--kind``, because it decides which options
+    apply at all, so there is nothing sensible to default it to."""
     for name, value in fallbacks.items():
         if getattr(args, name, None) is None:
             setattr(args, name, value)
@@ -634,9 +638,13 @@ def input_digests(*values) -> list[tuple[str, str]]:
 def _command_line(args) -> str:
     """The command as typed — ``zombi2 <argv>`` — from the argv `main()` captured on ``args._argv``.
     That is the real invocation both from a shell and from a test that calls ``main([...])`` directly
-    (where ``sys.argv`` would be pytest's). Lets the report list only the flags the user actually gave."""
+    (where ``sys.argv`` would be pytest's). Lets the report list only the flags the user actually gave.
+    Each token is shell-quoted, so a rate expression (``--birth "1.0 * OnTime({0: 1.0})"``) pastes back
+    intact rather than globbing on the ``*`` or breaking on the braces."""
     argv = getattr(args, "_argv", None)
-    return "zombi2 " + " ".join(argv) if argv is not None else " ".join(sys.argv)
+    if argv is None:
+        return " ".join(sys.argv)
+    return "zombi2 " + " ".join(shlex.quote(tok) for tok in argv)
 
 
 def _write_params_log(path: str, args: argparse.Namespace, summary: str, effective=None,
