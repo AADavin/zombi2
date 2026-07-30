@@ -16,11 +16,13 @@ while every drawing call is a no-op on the mock. A mock cannot raise ``Attribute
 those two exception types escaping a render *are* a zombi2 API break — deterministically, with no
 rendering and no Phylustrator installed. It is the lean canary the bug needed.
 
-Scope: the species / traits / joining examples, which call zombi2's **Python API** directly. The
-genome and sequence examples reach zombi2 through its **CLI** (``h.ordered_run()`` and friends shell
-out to ``zombi2 ... run``) and read the results back through Phylustrator — that path is guarded by
-``test_cli.py``, and mocking Phylustrator underneath it would only feed mock objects into the glue and
-manufacture failures. One of those helpers also downloads a genome, which must not run in CI.
+Scope: the species / traits / joining examples, which call zombi2's **Python API** directly, **plus
+the genome / sequence examples that also drive the Python API in-process** (the inversion, the transfer
+highway, the autocorrelated phylogram, the ancestral-sequence figure — see ``_PYTHON_EXTRAS``). The
+*other* genome and sequence examples reach zombi2 through its **CLI** (``h.ordered_run()`` and friends
+shell out to ``zombi2 ... run``) and read the results back through Phylustrator — that path is guarded
+by ``test_cli.py``, and mocking Phylustrator underneath it would only feed mock objects into the glue
+and manufacture failures. One of those helpers also downloads a genome, which must not run in CI.
 """
 
 from __future__ import annotations
@@ -37,6 +39,11 @@ GALLERY = pathlib.Path(__file__).resolve().parent.parent / "gallery"
 # / sequences). This is where the extant()->extant_leaves() rename bit, and where a mock cleanly
 # isolates the zombi2 calls.
 _MODULES = ("species", "traits", "joining")
+# The genome / sequence examples that drive the zombi2 Python API in-process (simulate_* called
+# directly, not via the CLI). Named explicitly because their sibling examples in the same modules go
+# through the CLI (and one downloads a genome) and must NOT run mocked here — see the module docstring.
+_PYTHON_EXTRAS = {"sequences": {"seq_phylogram_autocorr", "seq_ancestral"},
+                  "genomes": {"genome_inversion", "genome_transfer_highway"}}
 # A zombi2 rename surfaces as one of these on a real result object; a mocked Phylustrator call cannot
 # raise them. Anything else out of a render (a FileNotFoundError from a composite reading back a PNG
 # the mock never wrote, say) is the drawing layer, not our concern.
@@ -64,18 +71,21 @@ def gallery_examples(monkeypatch, tmp_path):
     # helpers itself stays real — it defines the Example/EXAMPLES the test iterates and the compute
     # helpers (LTT, node_values, ...) that run on the real zombi2 objects.
     for name in ("phylustrator", "phylustrator.trees", "phylustrator.genomes", "phylustrator.zombi",
-                 "matplotlib", "matplotlib.pyplot", "matplotlib.image", "matplotlib.cm",
-                 "matplotlib.colors"):
+                 "matplotlib", "matplotlib.pyplot", "matplotlib.image", "matplotlib.patches",
+                 "matplotlib.cm", "matplotlib.colors"):
         monkeypatch.setitem(sys.modules, name, _Draw())
     monkeypatch.syspath_prepend(str(GALLERY))
     monkeypatch.chdir(tmp_path)                       # any file a render writes lands here, not the repo
 
     examples = []
-    for name in (*_MODULES, "helpers"):
+    for name in (*_MODULES, *_PYTHON_EXTRAS, "helpers"):
         sys.modules.pop(name, None)                  # fresh import so the mock is the one bound
     for name in _MODULES:
         module = importlib.import_module(name)
         examples += [(name, ex) for ex in module.EXAMPLES]
+    for name, ids in _PYTHON_EXTRAS.items():         # only the in-process examples of these modules
+        module = importlib.import_module(name)
+        examples += [(name, ex) for ex in module.EXAMPLES if ex.id in ids]
     return examples
 
 
@@ -92,6 +102,9 @@ def _break(render, out) -> str | None:
 
 def test_every_gallery_example_calls_a_current_zombi2_api(gallery_examples, tmp_path):
     assert len(gallery_examples) >= 9, "the gallery shrank — is the import finding the examples?"
+    present = {ex.id for _, ex in gallery_examples}
+    expected = {i for ids in _PYTHON_EXTRAS.values() for i in ids}
+    assert expected <= present, "the in-process genome/sequence examples fell out of the canary"
 
     failures = [f"{mod}.{ex.id}: {msg}"
                 for mod, ex in gallery_examples
