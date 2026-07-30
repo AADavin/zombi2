@@ -576,9 +576,9 @@ def test_traits_on_external_tree_writes_a_name_map(tmp_path):
     assert rc == 0
     names = dict(ln.split("\t") for ln in (out / "names.tsv").read_text(encoding="utf-8").splitlines()[1:])
     assert sorted(names.values()) == ["chimp", "human", "mouse", "rat"]
-    # the name map joins the values table on its node column
+    # trait_values now carries every node; the name map covers the tips, so each named tip is among them
     nodes = {ln.split("\t")[0] for ln in (out / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[1:]}
-    assert nodes <= set(names)
+    assert set(names) <= nodes
 
 
 def test_traits_params_file_drives_the_run_and_cli_overrides(tmp_path, tree_file):

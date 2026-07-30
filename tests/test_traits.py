@@ -115,9 +115,9 @@ def test_write_values_tsv(tmp_path):
     text = (tmp_path / "trait_values.tsv").read_text(encoding="utf-8")
     lines = text.splitlines()
     assert lines[0] == "node\ttrait"
-    assert len(lines) - 1 == len(r.values)                    # one row per extant tip
-    ids = {int(line.split("\t")[0][1:]) for line in lines[1:]}  # strip the "n" prefix
-    assert ids == set(r.values)
+    assert len(lines) - 1 == len(r.node_values)               # one row per node: tips, extinct, internal
+    ids = {int(line.split("\t")[0][1:]) for line in lines[1:]}  # strip the n/e prefix
+    assert ids == set(r.node_values)
 
 
 def test_write_rejects_unknown_output(tmp_path):
@@ -604,6 +604,7 @@ def test_discrete_write(tmp_path):
     r.write(tmp_path, outputs=["values", "events"])
     vals = (tmp_path / "trait_values.tsv").read_text(encoding="utf-8").splitlines()
     assert vals[0] == "node\ttrait" and set(line.split("\t")[1] for line in vals[1:]) <= {"lo", "hi"}
+    assert len(vals) - 1 == len(r.node_values)                    # every node, not only the extant tips
     ev = (tmp_path / "trait_events.tsv").read_text(encoding="utf-8").splitlines()
     assert ev[0] == "time\tkind\tlineage\tfrom\tto" and len(ev) - 1 == len(r.events)
     assert ev[1].split("\t")[1] == "root"                          # the origin row comes first
@@ -678,7 +679,7 @@ def test_correlated_write(tmp_path):
     r.write(tmp_path, outputs=["values"])
     lines = (tmp_path / "trait_values.tsv").read_text(encoding="utf-8").splitlines()
     assert lines[0] == "node\tsize\tlimb"                              # one column per trait
-    assert len(lines) - 1 == len(r.values)
+    assert len(lines) - 1 == len(r.node_values)                        # every node
 
 
 def test_correlated_needs_psd():

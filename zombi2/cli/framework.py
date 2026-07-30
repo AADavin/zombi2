@@ -30,7 +30,6 @@ Coupling
 
 Tools
   tools                analyses that read a finished run (homology, markers, recphylo, …)
-  report               (re)write run.zombi2, a run's one-page human-readable report
 """
 
 
