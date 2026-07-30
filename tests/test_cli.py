@@ -500,7 +500,8 @@ def test_traits_continuous_writes_values_and_tree(tmp_path, tree_file):
     out = tmp_path / "t"
     rc = main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0", "--seed", "1", "--flat"])
     assert rc == 0
-    assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_tree.nwk", "traits.log"}
+    assert {p.name for p in out.iterdir()} == {"trait_values.tsv", "trait_tree.nwk", "traits.log",
+                                               "trait_summary.json"}
     header, first = (out / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[:2]
     assert header == "node\ttrait"
     assert first.split("\t")[0].startswith("n")          # n<id>, matching the Newick
@@ -1046,7 +1047,7 @@ def test_joint_trait_writes_both_levels(tmp_path):
     assert (tmp_path / "species" / "species_complete.nwk").exists()
     # the trait is written the way `zombi2 traits` writes it, not TraitsResult.write's bare default
     assert {p.name for p in (tmp_path / "traits").iterdir()} == {
-        "trait_values.tsv", "trait_events.tsv", "trait_tree.nwk"}
+        "trait_values.tsv", "trait_events.tsv", "trait_tree.nwk", "trait_summary.json"}
     states = {ln.split("\t")[1] for ln in
               (tmp_path / "traits" / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[1:]}
     assert states <= {"small", "large"}

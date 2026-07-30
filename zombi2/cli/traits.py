@@ -33,12 +33,12 @@ RATES_HELP = _rates_help(
 
 # the write vocabularies, mirroring TraitsResult.write. The event log IS the conditioning file now
 # (a driven run replays it against the tree), so there is no separate driver output.
-_CONTINUOUS_OUTPUTS = ("values", "events", "tree")
-_DISCRETE_OUTPUTS = ("values", "events", "tree")
+_CONTINUOUS_OUTPUTS = ("values", "events", "tree", "summary")
+_DISCRETE_OUTPUTS = ("values", "events", "tree", "summary")
 
 # what each kind writes when --write is not given
-_CONTINUOUS_DEFAULT = ("values", "tree")
-_DISCRETE_DEFAULT = ("values", "events", "tree")
+_CONTINUOUS_DEFAULT = ("values", "tree", "summary")
+_DISCRETE_DEFAULT = ("values", "events", "tree", "summary")
 
 # kind-specific knobs — (attribute, default) pairs — rejected under the other kind
 _CONTINUOUS_ONLY = (("rate", 1.0), ("reverts_to", None), ("pull", None))

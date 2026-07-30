@@ -21,6 +21,7 @@ import numpy as np
 
 from ..rates.modifiers import FromParent, OnTime, OnTotalDiversity
 from .._runtime.progress import progress_bar
+from .._runtime.summary import write_summary
 from ..rates.rate import as_rate
 from ..rates.scope import Global, PerLineage
 from ..tree import Node, Tree, prune
@@ -44,7 +45,7 @@ class Event:
 
 
 
-_WRITE_OUTPUTS = ("complete", "extant", "events", "fossils", "fates")  # the write vocabulary the CLI reuses
+_WRITE_OUTPUTS = ("complete", "extant", "events", "fossils", "fates", "summary")  # the write vocabulary the CLI reuses
 
 
 @dataclass
@@ -78,6 +79,38 @@ class SpeciesResult:
         ``simulate_species_tree`` refuses to return: a run with no present raises there instead, so a
         result that came from it always has one."""
         return prune(self.complete_tree, keep="extant")
+
+    def summary(self) -> dict:
+        """What this run produced, as a plain dict — the payload of ``species_summary.json``.
+
+        Counts, not parameters: the log already says what was asked for. The realised rates are here
+        because they are the cheapest check anyone can make on a tree — events divided by the exposure
+        that generated them, which is what a declared per-lineage rate means."""
+        nodes = self.complete_tree.nodes
+        tips = [n for n in nodes.values() if n.children is None]
+        extant = self.complete_tree.extant()
+        speciations = sum(1 for e in self.events if e.kind == "speciation")
+        extinctions = sum(1 for e in self.events if e.kind == "extinction")
+        # total branch length: every node's own branch, which is the exposure a per-lineage rate ran on
+        exposure = sum((n.end_time or 0.0) - n.birth_time for n in nodes.values())
+        height = max((n.end_time or 0.0) for n in extant) if extant else None
+        root = nodes[self.complete_tree.root]
+        return {
+            "level": "species",
+            "seed": self.seed,
+            "tips": {"extant": len(extant), "extinct": len(self.complete_tree.extinct()),
+                     "unsampled": len(self.complete_tree.unsampled()), "total": len(tips)},
+            "nodes": len(nodes),
+            "events": {"speciation": speciations, "extinction": extinctions},
+            "fossils": len(self.fossils),
+            "tree": {"height": height, "stem_length": (root.end_time or 0.0) - root.birth_time,
+                     "total_branch_length": exposure},
+            # events per lineage per unit time, as declared rates are counted. A sanity check, not a
+            # parameter: it is what the run realised, which a conditioned stop condition can bias.
+            "realised_rates": {
+                "birth": round(speciations / exposure, 6) if exposure else None,
+                "death": round(extinctions / exposure, 6) if exposure else None},
+        }
 
     def write(self, directory, outputs=None) -> None:
         """Write outputs to ``directory``, each file prefixed ``species_``; ``outputs`` selects which
@@ -115,6 +148,8 @@ class SpeciesResult:
             # a fossil is a sampled EXTINCT lineage, so this table is where e<id> shows up most
             rows = ["lineage\ttime"] + [f"{name[i]}\t{t:.6g}" for i, t in self.fossils]
             (d / "species_fossils.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
+        if "summary" in outputs:
+            write_summary(d / "species_summary.json", self.summary())
         if "fates" in outputs:
             # one row per tip (extant / extinct / unsampled); internal nodes are always speciations
             rows = ["lineage\tfate"]
