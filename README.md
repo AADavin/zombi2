@@ -28,15 +28,14 @@ pip install zombi2
 
 ## Quickstart
 
-Each level is its own subcommand. Here a dated species tree, then gene families evolving along it
-under duplication, transfer, loss and origination, then sequences down each gene tree, then a trait
-evolving along the tree:
+Each level is its own subcommand, and each reads the run the last one wrote. Here a dated species
+tree, then gene families evolving along it under duplication, transfer and loss, then sequences down
+each gene tree — all into one `out/`:
 
 ```bash
 zombi2 species   out/ --birth 1 --death 0.3 --n-extant 20 --seed 1
-zombi2 genomes   out/ --duplication 0.2 --transfer 0.1 --loss 0.25 --origination 0.5 --seed 42
+zombi2 genomes   out/ --duplication 0.2 --transfer 0.1 --loss 0.25 --seed 1
 zombi2 sequences out/ --model hky85 --length 1000 --divergence 0.2 --seed 1
-zombi2 traits    out/ --kind continuous --rate 1.0 --seed 1
 ```
 
 Each command says where it wrote and refreshes **`out/run.zombi2`** — a one-page, plain-text report of
@@ -47,13 +46,15 @@ reproduce it. **Open that first.** `zombi2 <command> -h` documents each of `spec
 From Python, each level is one function, and the result object carries the history:
 
 ```python
-from zombi2 import species, genomes
+from zombi2 import species, genomes, sequences
+from zombi2.sequences.substitution_models import hky85
 
 sp = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-g  = genomes.simulate_genomes_family(sp, duplication=0.2, transfer=0.1, seed=42)
+g  = genomes.simulate_genomes_family(sp, duplication=0.2, transfer=0.1, loss=0.25, seed=1)
+s  = sequences.simulate_sequences(g, model=hky85(), length=1000, divergence=0.2, seed=1)
 
 g.gene_trees                    # the true gene tree of every family
-g.write("run/")                 # the event log and the copy-number profiles
+s.write("out/")                 # alignments, phylograms and ancestral sequences on disk
 ```
 
 ---
