@@ -1794,27 +1794,20 @@ def test_force_says_what_it_deleted_even_under_quiet(tmp_path, capsys):
     assert not (run / "genomes").exists()                  # and it really did remove it
 
 
-def test_strict_refuses_to_invent_the_science(tmp_path, capsys):
-    # a dropped config key used to give a SUCCESSFUL run with numbers nobody chose, announced only
-    # on a stderr that a pipeline sends to a log nobody opens
-    assert main(["species", str(tmp_path / "loose"), "--seed", "1", "--quiet"]) == 0
-    assert "no value given" in capsys.readouterr().err     # the warning, unchanged, without --strict
-
-    assert main(["species", str(tmp_path / "strict"), "--seed", "1", "--quiet", "--strict"]) == 1
+def test_a_bare_run_announces_the_demo_values_it_invented(tmp_path, capsys):
+    # a bare run fills the rates it was not given with round demonstration values, and says so on
+    # stderr and in the log. Those numbers are invented, exactly as `death=0.5` or `n_extant=20`
+    # would be — the point is not to refuse them but to make them visible, so the warning stays.
+    assert main(["species", str(tmp_path / "bare"), "--seed", "1", "--quiet"]) == 0
     err = capsys.readouterr().err
-    assert "--strict" in err and "--birth" in err and "--n-extant" in err
-    assert not (tmp_path / "strict").exists()
+    assert "no value given" in err and "--birth" in err and "illustrative" in err
+    log = (tmp_path / "bare" / "species" / "species.log").read_text(encoding="utf-8")
+    assert "birth\t1.0" in log and "n_extant\t20" in log      # and the chosen values are recorded
 
-    # supplying everything satisfies it — --strict is about silence, not about extra ceremony
+    # supplying them yourself is silent — nothing was invented, so there is nothing to announce
     assert main(["species", str(tmp_path / "given"), "--birth", "1", "--n-extant", "8",
-                 "--seed", "1", "--quiet", "--strict"]) == 0
-
-
-def test_strict_is_satisfied_by_a_params_file(tmp_path):
-    params = tmp_path / "p.toml"
-    params.write_text("[species]\nbirth = 1.0\nn-extant = 8\n", encoding="utf-8")
-    assert main(["species", str(tmp_path / "r"), "--params", str(params), "--seed", "1",
-                 "--quiet", "--strict"]) == 0
+                 "--seed", "1", "--quiet"]) == 0
+    assert "no value given" not in capsys.readouterr().err
 
 
 def test_stream_is_refused_on_a_nucleotide_sequences_run(tmp_path, tree_file, capsys):
