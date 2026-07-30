@@ -374,7 +374,7 @@ def aln_run() -> str:
         _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 45,
                "--duplication", 0.04, "--loss", 0.0, "--transfer", 0.0, "--seed", 6)
         # --divergence keeps the alignment from saturating (else every column varies — no signal)
-        _zombi("sequences", run, "--model", "jc69", "--length", 60, "--divergence", 0.25, "--seed", 7)
+        _zombi("sequences", run, "--model", "jc69", "--length", 60, "--divergence", 0.4, "--seed", 7)
     return run
 
 
