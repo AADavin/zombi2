@@ -121,6 +121,7 @@ nav:
       - Sequence evolution: guide/sequences.md
       - Trait evolution: guide/traits.md
       - Conditioning and joining: guide/conditioning-and-joining.md
+  - FAQ: faq.md
   - Coming from ZOMBI v1: from-zombi1.md
   - API reference: api.md
   - Rates and the Gillespie algorithm: rates-and-gillespie.md
