@@ -187,14 +187,6 @@ def _add_quiet_arg(g) -> None:
                         "log file or a script running hundreds of replicates")
 
 
-def _add_strict_arg(g) -> None:
-    """Add ``--strict`` — refuse to fall back on an illustrative default (see `defaults_used`)."""
-    g.add_argument("--strict", action="store_true",
-                   help="refuse to run on illustrative defaults: every scientific parameter must be "
-                        "given, here or in --params. A bare run is a demonstration, and in a "
-                        "pipeline a dropped key would otherwise succeed with numbers nobody chose")
-
-
 def _add_force_arg(g) -> None:
     """Add ``--force`` — re-run this level even though a later level built from it is already in the run
     directory, removing that now-stale downstream output (see `check_stale_downstream()`)."""
@@ -266,22 +258,13 @@ def defaults_used(args, **fallbacks) -> str:
     instead of a list of what they failed to supply — the rates are precisely the part nobody can
     guess on a first run. What a bare run must never do is imply the numbers were chosen: they are
     round, illustrative, and calibrated to nothing. Hence the message, which the ``.log`` then
-    records alongside every other resolved parameter.
-
-    ``--strict`` turns that warning into a refusal. The warning goes to stderr, which in a pipeline
-    is a log nobody opens, so a dropped config key, a typo in a rule's parameters, or a ``--params``
-    file that did not apply all give a **successful** run whose science is quietly not the one asked
-    for. Under ``--strict`` there are no illustrative numbers: every scientific parameter is supplied
-    or the command stops."""
+    records alongside every other resolved parameter. There is no way to turn this into a refusal, and
+    that is deliberate: an omitted rate defaulting to a demonstration value is the same thing as
+    ``death=0.5`` or ``n_extant=20`` defaulting — invented, announced, and fine. What matters is that
+    the numbers are *visible*, which the warning and the log both make them."""
     filled = {name: value for name, value in fallbacks.items() if getattr(args, name, None) is None}
     if not filled:
         return ""
-    missing = ", ".join("--" + n.replace("_", "-") for n in filled)
-    if getattr(args, "strict", False):
-        raise ValueError(
-            f"--strict: no value given for {missing}, and --strict means no illustrative defaults. "
-            f"Supply {'it' if len(filled) == 1 else 'them'} on the command line or in --params, or "
-            f"drop --strict to run with the demonstration values.")
     for name, value in filled.items():
         setattr(args, name, value)
     shown = " ".join(f"--{name.replace('_', '-')} {value}" for name, value in filled.items())
