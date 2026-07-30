@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shlex
 
 from zombi2._runtime.summary import read_summary
 
@@ -33,10 +34,16 @@ _LEVELS = ("species", "genomes", "sequences", "traits")
 #: together on one line so nothing is undocumented.
 _RECORD_SUFFIXES = (".log", "_summary.json")
 
-#: Parameters that are plumbing, not model: how the run was driven, not what was simulated. Dropped from
-#: the parameters line and the reproduce command (the ``.log`` keeps the complete set either way).
-_SKIP_PARAMS = frozenset({"command", "run", "seed", "params", "flat", "force", "quiet", "write",
-                          "parallel", "stream", "max_lineages", "source", "fasta", "tip_fates"})
+#: Plumbing, not model — dropped from both the parameters line and the reproduce command: how the run
+#: was driven or laid out (never what was simulated), or handled elsewhere (``seed`` is appended,
+#: ``source`` becomes ``--from``). The ``.log`` keeps the complete set regardless.
+_PLUMBING = frozenset({"command", "run", "seed", "params", "flat", "force", "quiet", "write",
+                       "parallel", "stream", "source"})
+
+#: Additionally hidden from the *display* only — inputs shown on the "computed on" line (``tip_fates``,
+#: ``fasta``) and the ``max_lineages`` guard rail. The reproduce command keeps them, so a run that used
+#: ``--tip-fates`` or a raised ``--max-lineages`` still reproduces from the printed command alone.
+_DISPLAY_EXTRA = frozenset({"max_lineages", "fasta", "tip_fates"})
 
 #: A readable order for the parameters that do show — model choice first, then rates, then the rest
 #: (anything unlisted follows, alphabetically). Only affects display order.
@@ -66,20 +73,29 @@ _GLOSS = {
     "species_complete.nwk": "Newick — the whole tree, all nodes including extinct lineages",
     "species_events.tsv": "one row per speciation/extinction (time, kind, lineage, children)",
     "species_fates.tsv": "each tip's fate: extant / extinct / unsampled",
-    # genomes/
+    # genomes/ (family resolution)
     "genomes.tsv": "gene content of every genome — one row per gene copy (lineage, family, copy)",
     "profiles.tsv": "family × extant-genome copy-number matrix",
     "initial_genome.tsv": "the genome present at t=0, that the initial families started from",
     "genome_events.tsv": "every duplication / transfer / loss / origination, per gene copy",
     "gene_trees": "gene trees, one per family — complete (all copies) and extant (survivors), Newick",
+    # genomes/ (ordered resolution adds gene order and chromosome-level events)
+    "gene_order.tsv": "the gene arrangement of every genome (lineage, chromosome, position, strand, family, copy)",
+    "chromosome_events.tsv": "chromosome-level events — originations, inversions, fusions/fissions (time, kind, lineage)",
+    # genomes/ (nucleotide resolution: the genome as ancestry blocks along a sequence)
+    "blocks.tsv": "the ancestry blocks of every genome (chromosome, position, source, start, end, strand, copy, gene)",
+    "block_events.tsv": "every block-level event along the genomes (duplication / transfer / loss / inversion, per block)",
+    "genes.tsv": "the genes annotated on the initial genome (family, name, source, start, end, strand)",
+    "bed": "per-genome gene annotations in BED format",
+    "gff": "per-genome gene annotations in GFF format",
     # sequences/
     "clock_species_tree_complete.nwk": "the species tree rescaled to substitutions by the clock, all nodes",
     "clock_species_tree_extant.nwk": "the clock-rescaled tree, sampled tips only",
     "alignments": "one FASTA alignment per family (the extant sequences)",
     "phylograms": "gene trees with branch lengths in substitutions/site, one per family",
     # traits/
-    "trait_tree.nwk": "the tree with each node's trait annotated ([&trait=…])",
-    "trait_values.tsv": "the trait value (or state) at every node",
+    "trait_tree.nwk": "the tree with every node's trait annotated ([&trait=…])",
+    "trait_values.tsv": "the trait value (or state) at each extant tip",
     "trait_events.tsv": "each discrete state change along a branch (time, lineage, from→to)",
 }
 
@@ -147,8 +163,10 @@ def _stat_lines(summary: dict) -> list[str]:
     flagged, because a truncated genome is the one summary number a reader most needs to see."""
     lines = []
     for key, value in summary.items():
-        if key in ("level", "seed"):
+        if key in ("level", "seed", "unit"):        # level/seed are in the header; unit is plumbing
             continue
+        if key == "assembled_genomes" and value == 0:
+            continue                                 # assembly is nucleotide-only; 0 here reads as failure
         if key == "mean_pairwise_identity":
             lines.append(f"mean pairwise identity {float(value) * 100:.1f}%")
         elif key == "family_size_cap":
@@ -180,32 +198,39 @@ def _dict_phrase(d: dict) -> str:
     return " · ".join(f"{_label(k)} {_num(v)}" for k, v in d.items())
 
 
-def _visible_params(params: dict) -> list[tuple[str, str]]:
+def _visible_params(params: dict, *, for_reproduce: bool = False,
+                    drop_zeros: bool = False) -> list[tuple[str, str]]:
     """The parameters worth showing, in reading order — the model parameters, dropping plumbing
     (`_SKIP_PARAMS`), anything left unset (``None`` / ``False`` / blank), and ``substitution`` when
     ``divergence`` is set (the two are mutually exclusive on the command line, and divergence is the one
-    the user chose — the log keeps the substitution rate it solved to)."""
-    drop = set(_SKIP_PARAMS)
+    the user chose — the log keeps the substitution rate it solved to).
+
+    ``for_reproduce`` keeps the inputs and guards that display hides (`_DISPLAY_EXTRA`), so the printed
+    command pins the run completely. ``drop_zeros`` hides rates left at zero — a process that is not
+    happening — to declutter the display (the nucleotide model has a dozen such knobs); reproduce keeps
+    them."""
+    drop = set(_PLUMBING) if for_reproduce else set(_PLUMBING | _DISPLAY_EXTRA)
     if params.get("divergence") not in (None, "None", ""):
         drop.add("substitution")
-    items = [(k, v) for k, v in params.items() if k not in drop and v not in ("None", "False", "")]
+    items = [(k, v) for k, v in params.items() if k not in drop and v not in ("None", "False", "")
+             and not (drop_zeros and v in ("0", "0.0"))]
     items.sort(key=lambda kv: (_PARAM_ORDER.index(kv[0]) if kv[0] in _PARAM_ORDER else len(_PARAM_ORDER),
                                kv[0]))
     return items
 
 
 def _params_phrase(params: dict) -> str:
-    return " · ".join(f"{_label(k)} {v}" for k, v in _visible_params(params))
+    return " · ".join(f"{_label(k)} {v}" for k, v in _visible_params(params, drop_zeros=True))
 
 
 def _reproduce(command: str, run: str, params: dict, seed: str | None, source: str | None) -> str:
     """A clean, copy-pasteable command that reproduces this level — rebuilt from the resolved parameters
     (not the raw command line, whose shell quoting is already lost), so a rate expression comes back
     correctly quoted."""
-    parts = [f"zombi2 {command} {run}"]
+    parts = [f"zombi2 {command} {shlex.quote(run)}"]
     if source:
-        parts.append(f"--from {source}")
-    for k, v in _visible_params(params):
+        parts.append(f"--from {shlex.quote(source)}")
+    for k, v in _visible_params(params, for_reproduce=True):
         flag, val = f"--{k.replace('_', '-')}", _flag_value(v)
         parts.append(f"{flag} {val}" if val else flag)       # a store-true flag takes no value
     if seed not in (None, "None"):
@@ -216,16 +241,17 @@ def _reproduce(command: str, run: str, params: dict, seed: str | None, source: s
 def _flag_value(value: str) -> str:
     """One parameter as it goes back on the command line. A list the log rendered as ``[a, b, c]`` (a
     multi-value flag like ``--frequencies``) becomes space-separated bare values; ``True`` (a store-true
-    flag) drops its value; anything with shell-significant characters is quoted."""
+    flag) drops its value; anything else is shell-quoted so a rate expression, a path with spaces, or any
+    shell metacharacter survives a copy-paste intact."""
     if value == "True":
         return ""
     if value.startswith("[") and value.endswith("]"):
         import ast
         try:
-            return " ".join(_flatten(ast.literal_eval(value)))
+            return " ".join(shlex.quote(x) for x in _flatten(ast.literal_eval(value)))
         except (ValueError, SyntaxError):
             pass
-    return f'"{value}"' if any(c in value for c in " *(){},'") else value
+    return shlex.quote(value)
 
 
 def _flatten(seq) -> list[str]:
@@ -261,19 +287,38 @@ def _list_outputs(level_dir: str) -> tuple[list[tuple[str, str]], list[str]]:
 
 def _stale_notes(run: str, sections: list[dict]) -> list[str]:
     """Warnings for any level computed on a file inside this run that has since changed — the input's
-    recorded hash no longer matches the file on disk, so an upstream level was re-run without this one."""
-    run_abs = os.path.abspath(run)
+    recorded hash no longer matches the file on disk, so an upstream level was re-run without this one.
+
+    Each input is located by its path *relative to the run directory as the recording command named it*
+    and then re-resolved against ``run`` as it is now — so the check holds regardless of the working
+    directory the report is regenerated from, or a move/rename of the whole run directory. (Resolving
+    the recorded path against the current CWD instead would silently miss both.)"""
     notes = []
     for sec in sections:
-        for path, recorded in sec["log"].get("inputs", []):
-            abspath = os.path.abspath(path)
-            if os.path.commonpath([run_abs, abspath]) != run_abs or not os.path.isfile(abspath):
-                continue                                    # an input from outside the run, or now gone
-            if _sha256(abspath) != recorded:
-                rel = os.path.relpath(abspath, run_abs)
+        recorded_run = sec["log"].get("params", {}).get("run")
+        for path, recorded_hash in sec["log"].get("inputs", []):
+            rel = _intra_run_rel(path, recorded_run)
+            if rel is None:
+                continue                                    # an input from outside this run
+            current = os.path.join(run, rel)
+            if os.path.isfile(current) and _sha256(current) != recorded_hash:
                 notes.append(f"⚠ {sec['title']} was computed on {rel}, which has changed since — "
                              f"re-run {sec['command']} so the run agrees with itself")
     return notes
+
+
+def _intra_run_rel(input_path: str, recorded_run: str | None) -> str | None:
+    """An input's path relative to the run directory as the recording command named it, or ``None`` if it
+    lies outside the run (an external tree). ``os.path.relpath`` cancels the working directory shared by
+    the two recorded paths, so the result is the same string whether they were recorded relative or
+    absolute — which is what makes the staleness check independent of where it is later run."""
+    if not recorded_run:
+        return None
+    try:
+        rel = os.path.relpath(input_path, recorded_run)
+    except ValueError:                                      # different drives on Windows
+        return None
+    return None if rel.startswith("..") or os.path.isabs(rel) else rel
 
 
 # ── assembling the report ───────────────────────────────────────────────────────────────────────
@@ -292,10 +337,13 @@ def _collect_sections(run: str) -> list[dict]:
     for level in _LEVELS:
         level_dir = os.path.join(run, level)
         log = _read_log(os.path.join(level_dir, f"{level}.log"))
+        if log is None:
+            continue                                     # this level was not run into this directory
+        # the summary is the numbers; a level that writes none (nucleotide genomes today) still gets a
+        # section from its log, falling back to the log's own result line.
         summary_path = os.path.join(level_dir, _SUMMARY_FILE.get(level, f"{level}_summary.json"))
-        if log is not None and os.path.isfile(summary_path):
-            sections.append(_section(run, level.upper(), level, level_dir, log,
-                                     read_summary(summary_path)))
+        summary = read_summary(summary_path) if os.path.isfile(summary_path) else {}
+        sections.append(_section(run, level.upper(), level, level_dir, log, summary))
     return sections
 
 
@@ -316,18 +364,21 @@ def _joint_section(run: str, summary: dict) -> dict:
 
 
 def _one_liner(sections: list[dict]) -> str:
-    """A single sentence for the top of the report, synthesised from the sections present."""
+    """A single sentence for the top of the report, synthesised from the sections present. Every summary
+    lookup is guarded — a level that wrote no summary (nucleotide genomes) still contributes a phrase."""
     by = {s["command"]: s["summary"] for s in sections}
     if "joint" in by:
-        sp = by["joint"].get("species", {}).get("tips", {})
-        return (f"A species tree of {sp.get('extant', '?')} tips, its diversification driven by "
+        n = by["joint"].get("species", {}).get("tips", {}).get("extant", "?")
+        return (f"A species tree of {n} tips, its diversification driven by "
                 f"a {by['joint'].get('driver', 'trait')}.")
     bits = []
     if "species" in by:
-        bits.append(f"A species tree of {by['species']['tips']['extant']} sampled tips")
+        n = by["species"].get("tips", {}).get("extant")
+        bits.append(f"A species tree of {n} sampled tips" if n is not None else "A species tree")
     if "genomes" in by:
-        bits.append(f"{by['genomes']['families']['surviving']} gene families evolved along it"
-                    if bits else "gene families along a species tree")
+        surv = by["genomes"].get("families", {}).get("surviving")
+        bits.append(f"{surv} gene families evolved along it" if (surv is not None and bits)
+                    else ("gene families evolved along it" if bits else "gene families"))
     if "sequences" in by:
         bits.append("sequences down each gene tree")
     if "traits" in by:
@@ -362,6 +413,10 @@ def build_run_report(run: str) -> str | None:
         lines += _render_section(run, sec, i, len(sections))
 
     lines += ["TO REPRODUCE", _RULE]
+    if built:
+        # the RNG stream is numpy's, so byte-identical output is only guaranteed on the same versions —
+        # say so, rather than let a run silently fail to reproduce on a different machine.
+        lines.append(f"  # recorded under {built} — byte-identical output requires the same environment")
     for sec in sections:
         seed = sec["log"].get("params", {}).get("seed") or sec["summary"].get("seed")
         lines.append("  " + _reproduce(sec["command"], run, sec["log"].get("params", {}),
@@ -393,16 +448,22 @@ def _render_section(run: str, sec: dict, i: int, n: int) -> list[str]:
     params = _params_phrase(log.get("params", {}))
     if params:
         lines += _field("parameters", _wrap(params))
-    lines += _field("computed on", [os.path.relpath(p, run) if _within(run, p) else p
-                                    for p, _ in log.get("inputs", [])])
+    recorded_run = log.get("params", {}).get("run")
+    lines += _field("computed on", [f"{_intra_run_rel(p, recorded_run) or p}  sha256 {sha[:8]}…"
+                                    for p, sha in log.get("inputs", [])])
 
-    stats = _stat_lines(summary if sec["command"] != "joint" else _flatten_joint(summary))
+    if sec["command"] == "joint":
+        stats = _stat_lines(_flatten_joint(summary))
+    elif summary:
+        stats = _stat_lines(summary)
+    else:                                                # a level that wrote no summary: its result line
+        stats = [s for s in (log.get("result", ""),) if s]
     lines += _field("result", stats)
 
     data, records = _gather_outputs(sec)
     file_lines = [f"{name:<28}  {gloss}".rstrip() for name, gloss in data]
     if records:
-        file_lines.append(f"records: {', '.join(records)}")
+        file_lines.append(f"records: {', '.join(records)}  (run parameters + machine-readable stats)")
     lines += _field("files", file_lines)
     lines.append("")
     return lines
@@ -427,11 +488,6 @@ def _flatten_joint(summary: dict) -> dict:
     sp.pop("level", None)
     sp.pop("seed", None)
     return {"driver": summary.get("driver", "trait"), **sp}
-
-
-def _within(run: str, path: str) -> bool:
-    run_abs, p_abs = os.path.abspath(run), os.path.abspath(path)
-    return os.path.commonpath([run_abs, p_abs]) == run_abs
 
 
 def _wrap(phrase: str, width: int = 64) -> list[str]:
@@ -462,4 +518,11 @@ def write_run_report(run: str) -> str | None:
     return path
 
 
-__all__ = ["RUN_REPORT_NAME", "build_run_report", "write_run_report"]
+def stale_warnings(run: str) -> list[str]:
+    """The staleness warnings for a run — one per downstream level computed on an upstream file that has
+    since changed. Empty when the run is self-consistent (or holds no records). Lets a caller gate a
+    pipeline on the run agreeing with itself (see ``zombi2 report --check``)."""
+    return _stale_notes(run, _collect_sections(run))
+
+
+__all__ = ["RUN_REPORT_NAME", "build_run_report", "write_run_report", "stale_warnings"]

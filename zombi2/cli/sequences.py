@@ -157,9 +157,11 @@ def _resolve_model_knobs(args) -> dict:
     """The nucleotide substitution-model knobs with each default filled in — ``kappa`` (2.0),
     ``frequencies`` (uniform), ``gtr_rates`` (all 1). Shared by `_build_model()`, which uses them,
     and `_effective_model_params()`, which logs them, so the two cannot drift."""
+    # floats, not ints: --gtr-rates parses as float, so a default logged as [1, 1, …] would not match
+    # the [1.0, …] a reproduced run logs — and the run report is meant to reproduce byte-for-byte.
     return {"kappa": 2.0 if args.kappa is None else args.kappa,
             "frequencies": [0.25, 0.25, 0.25, 0.25] if args.frequencies is None else list(args.frequencies),
-            "gtr_rates": [1, 1, 1, 1, 1, 1] if args.gtr_rates is None else list(args.gtr_rates)}
+            "gtr_rates": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0] if args.gtr_rates is None else list(args.gtr_rates)}
 
 
 def _effective_substitution(args, genome_run) -> dict:
@@ -358,5 +360,5 @@ def run(args, parser):
                                            os.path.join(handoff, "blocks.tsv"),
                                            args.substitution))
     if path := write_run_report(args.run):     # refresh the run's one-page report (grouped layout only)
-        guidance(args, f"run report: {path}")
+        guidance(args, f"run report (one-page summary of the whole run): {path}")
     return 0

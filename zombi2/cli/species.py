@@ -130,5 +130,5 @@ def run(args, parser):
     _write_params_log(os.path.join(out, "species.log"), args, summary,
                       inputs=input_digests(args.birth, args.death))
     if path := write_run_report(args.run):     # refresh the run's one-page report (grouped layout only)
-        guidance(args, f"run report: {path}")
+        guidance(args, f"run report (one-page summary of the whole run): {path}")
     return 0

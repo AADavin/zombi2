@@ -563,5 +563,5 @@ def run(args, parser):
                                            args.duplication, args.transfer, args.loss,
                                            args.origination, args.transfer_to))
     if path := write_run_report(args.run):     # refresh the run's one-page report (grouped layout only)
-        guidance(args, f"run report: {path}")
+        guidance(args, f"run report (one-page summary of the whole run): {path}")
     return 0

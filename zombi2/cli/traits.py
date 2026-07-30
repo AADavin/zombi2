@@ -203,5 +203,5 @@ def run(args, parser):
                                                         "species_fates.tsv"),
                                            args.rate, args.switch))
     if path := write_run_report(args.run):     # refresh the run's one-page report (grouped layout only)
-        guidance(args, f"run report: {path}")
+        guidance(args, f"run report (one-page summary of the whole run): {path}")
     return 0
