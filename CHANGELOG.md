@@ -9,6 +9,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+- **Each command now ends by listing every file it wrote** — each data output with a one-line
+  description, per-family directories folded to a count, and the run report last. It was a two-line
+  pointer at a couple of the files; the rest you had to find. The list is the same one `run.zombi2`
+  carries, so the terminal and the report never disagree.
+
 ## [0.17.0] - 2026-07-30
 
 ### Added

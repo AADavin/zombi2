@@ -27,7 +27,7 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
                                   _read_tip_fates, _write_params_log, check_stale_downstream,
                                   clear_stale_downstream, conditioned_levels, default_outputs,
-                                  defaults_used, guidance, input_digests, level_dir,
+                                  defaults_used, signpost, input_digests, level_dir,
                                   parallel_from_args, record_conditioning, resolve_tree,
                                   sibling_fates, warn, warn_if_fates_were_inferred)
 
@@ -542,9 +542,6 @@ def run(args, parser):
         n_families, n_species = result.profiles.shape
         summary = f"{n_families} gene families across {n_species} extant genomes ({args.resolution})"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
-    guidance(args, f"genomes and gene trees under {out}/")
-    if names:
-        guidance(args, f"your tree's tip labels, mapped to ZOMBI's n<id>: {os.path.join(out, 'names.tsv')}")
     if not args.flat:                             # record which same-run levels drove a rate (if any),
         record_conditioning(out, conditioned_levels(   # so re-running one of them knows it orphans this
             args.run, (args.duplication, args.transfer, args.loss, args.origination, args.transfer_to)))
@@ -562,6 +559,5 @@ def run(args, parser):
                                                         "species_fates.tsv"),
                                            args.duplication, args.transfer, args.loss,
                                            args.origination, args.transfer_to))
-    if path := write_run_report(args.run):     # refresh the run's one-page report (grouped layout only)
-        guidance(args, f"run report (one-page summary of the whole run): {path}")
+    signpost(args, write_run_report(args.run), out)   # every file it wrote, then the run report
     return 0

@@ -21,7 +21,7 @@ import time
 from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _read_tip_fates,
                                   _write_params_log, check_stale_downstream, clear_stale_downstream,
-                                  guidance, input_digests, level_dir, resolve_tree, sibling_fates)
+                                  signpost, input_digests, level_dir, resolve_tree, sibling_fates)
 from zombi2.tree import node_label, read_newick
 from zombi2._runtime.report import write_run_report
 from zombi2.traits import WIRED_MODIFIERS, simulate_continuous, simulate_discrete
@@ -191,9 +191,6 @@ def run(args, parser):
     detail = f"{len(states)} states" if discrete else "diffusing"
     summary = f"a {result.kind} trait ({detail}) over {n_tips} extant tips"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
-    guidance(args, f"trait values: {os.path.join(out, 'trait_values.tsv')}")
-    if names:
-        guidance(args, f"your tree's tip labels, mapped to ZOMBI's n<id>: {os.path.join(out, 'names.tsv')}")
     # the log is the run's parameters, not the parser's: a discrete run has no --rate and a continuous
     # one no --switch, so drop the other kind's knobs (the same set rejected as stray above) — recording
     # them at their defaults would read as though the run had them and chose those values.
@@ -203,6 +200,5 @@ def run(args, parser):
                                            os.path.join(os.path.dirname(tree_path),
                                                         "species_fates.tsv"),
                                            args.rate, args.switch))
-    if path := write_run_report(args.run):     # refresh the run's one-page report (grouped layout only)
-        guidance(args, f"run report (one-page summary of the whole run): {path}")
+    signpost(args, write_run_report(args.run), out)   # every file it wrote, then the run report
     return 0

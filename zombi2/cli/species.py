@@ -14,7 +14,7 @@ from zombi2.species import WIRED_MODIFIERS, _WRITE_OUTPUTS, simulate_species_tre
 from zombi2._runtime.report import write_run_report
 from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_params_arg,
                                   _add_run_arg, _rate, _rates_help, _write_params_log,
-                                  check_stale_downstream, clear_stale_downstream, defaults_used, guidance,
+                                  check_stale_downstream, clear_stale_downstream, defaults_used, signpost,
                                   input_digests,
                                   level_dir, warn)
 
@@ -124,11 +124,7 @@ def run(args, parser):
         parts.append(f"{len(result.fossils)} fossils")
     summary = " + ".join(parts) + f" ({n_leaves} tips, {n_total} nodes)"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
-    guidance(args,
-             f"complete tree (with extinct lineages): {os.path.join(out, 'species_complete.nwk')}",
-             f"extant tree (sampled tips only): {os.path.join(out, 'species_extant.nwk')}")
     _write_params_log(os.path.join(out, "species.log"), args, summary,
                       inputs=input_digests(args.birth, args.death))
-    if path := write_run_report(args.run):     # refresh the run's one-page report (grouped layout only)
-        guidance(args, f"run report (one-page summary of the whole run): {path}")
+    signpost(args, write_run_report(args.run), out)   # every file it wrote, then the run report
     return 0

@@ -97,6 +97,8 @@ _GLOSS = {
     "trait_tree.nwk": "the tree with every node's trait annotated ([&trait=…])",
     "trait_values.tsv": "the trait value (or state) at every node (tips, extinct lineages, internal)",
     "trait_events.tsv": "each discrete state change along a branch (time, lineage, from→to)",
+    # written by genomes / traits when the input tree came from elsewhere and carries its own labels
+    "names.tsv": "your tree's tip labels, mapped to ZOMBI's n<id> node ids",
 }
 
 _RULE = "─" * 80
@@ -281,6 +283,13 @@ def _list_outputs(level_dir: str) -> tuple[list[tuple[str, str]], list[str]]:
         else:
             data.append((name, _GLOSS.get(name, "")))
     return data, records
+
+
+def output_signposts(level_dir: str) -> list[tuple[str, str]]:
+    """The data files a level wrote, as ``(name, one-line description)`` — a per-family directory folded
+    to a count, record files (``.log`` / ``_summary.json``) left out. The end-of-command signpost and
+    the report's OUTPUT FILES section both read this, so the terminal and ``run.zombi2`` never disagree."""
+    return _list_outputs(level_dir)[0]
 
 
 # ── staleness ───────────────────────────────────────────────────────────────────────────────────
@@ -535,4 +544,4 @@ def write_run_report(run: str) -> str | None:
     return path
 
 
-__all__ = ["RUN_REPORT_NAME", "build_run_report", "write_run_report"]
+__all__ = ["RUN_REPORT_NAME", "build_run_report", "write_run_report", "output_signposts"]

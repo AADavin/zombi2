@@ -41,6 +41,19 @@ def test_a_full_pipeline_writes_one_report_at_the_run_root(tmp_path):
     assert [p.name for p in tmp_path.iterdir() if p.is_file()] == [RUN_REPORT_NAME]
 
 
+def test_end_of_command_signposts_every_file_it_wrote(tmp_path, capsys):
+    """After a command the terminal lists every data file it wrote (per-family directories by count) and
+    ends with the run report — the same list run.zombi2 carries. Records stay out of the terminal."""
+    main(["species", str(tmp_path), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1"])
+    capsys.readouterr()                                  # drop the species output
+    main(["genomes", str(tmp_path), "--initial-families", "5", "--duplication", "0.2", "--seed", "1"])
+    out = capsys.readouterr().out
+    for token in ("profiles.tsv", "genomes.tsv", "genome_events.tsv", "gene_trees/", RUN_REPORT_NAME):
+        assert token in out, f"the signpost omitted {token}"
+    assert out.rstrip().endswith("how to reproduce")     # the run report is the last pointer
+    assert "genomes.log" not in out and "genome_summary.json" not in out   # records named only in the report
+
+
 def test_every_output_file_is_documented(tmp_path):
     """The report must account for every file a run writes — the guarantee this feature was asked for.
     A new output with no gloss in ``_GLOSS`` (and that is not a record) fails here, so the report can
