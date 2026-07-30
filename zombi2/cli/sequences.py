@@ -28,6 +28,7 @@ from zombi2.genomes.nucleotide import read_nucleotide_genomes
 from zombi2.rates.modifiers import ByLineage, Modifier
 from zombi2.rates.parse import written_form
 from zombi2.rates.rate import as_rate
+from zombi2._runtime.report import write_run_report
 from zombi2.rates.scope import PerSite
 from zombi2.sequences import (WIRED_MODIFIERS, _calibrate, mean_pairwise_identity,
                               simulate_sequences)
@@ -356,4 +357,6 @@ def run(args, parser):
                                            os.path.join(handoff, "genome_events.tsv"),
                                            os.path.join(handoff, "blocks.tsv"),
                                            args.substitution))
+    if path := write_run_report(args.run):     # refresh the run's one-page report (grouped layout only)
+        guidance(args, f"run report: {path}")
     return 0
