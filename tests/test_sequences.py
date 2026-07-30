@@ -3,6 +3,7 @@ strict clock, endpoint P-matrix sampling → SequencesResult(.alignments, .ances
 
 from __future__ import annotations
 
+import json
 import re
 
 import numpy as np
@@ -505,11 +506,23 @@ def test_a_streamed_run_is_the_same_dataset_as_an_in_memory_one(tmp_path, parall
     # the same seed must leave the same bytes on disk whichever way the run was assembled
     g = _stream_fixture()
     kw = dict(model=hky85(2.0), length=120, seed=7, parallel=parallel)
-    wanted = ("alignments", "phylograms", "species_phylogram")
+    wanted = ("alignments", "phylograms", "species_phylogram", "summary")
 
     simulate_sequences(g, **kw).write(tmp_path / "mem", outputs=wanted)
-    handle = simulate_sequences(g, **kw, stream_to=tmp_path / "strm")
-    assert _tree_of(tmp_path / "mem") == _tree_of(tmp_path / "strm")
+    handle = simulate_sequences(g, **kw, stream_to=tmp_path / "strm", outputs=wanted)
+
+    # every DATA file byte-for-byte. The summary is held out of that comparison for one field and one
+    # reason: a streamed run estimates mean identity from one sampled pair per family, because the
+    # in-memory way of measuring it needs every alignment at once, which is exactly what streaming
+    # does not keep. Same quantity, different sample — so it is compared on its own terms below.
+    mem, strm = _tree_of(tmp_path / "mem"), _tree_of(tmp_path / "strm")
+    summary = "sequences_summary.json"
+    assert {k: v for k, v in mem.items() if k != summary} == \
+           {k: v for k, v in strm.items() if k != summary}
+    a, b = (json.loads(t[summary]) for t in (mem, strm))
+    assert a.pop("mean_pairwise_identity") == pytest.approx(b.pop("mean_pairwise_identity"),
+                                                           abs=0.05)
+    assert a == b, "the summaries may differ only in how identity was sampled"
     assert handle.n_sequences > 0 and handle.n_families > 0
     assert handle.outputs == wanted
 
@@ -531,14 +544,14 @@ def test_the_streamed_handle_estimates_the_identity_the_cli_reports(tmp_path):
     # family instead: a different sample of the same quantity, so it must land in the same region.
     g = _stream_fixture()
     kw = dict(model=hky85(2.0), length=400, seed=11)
-    from zombi2.cli.sequences import _mean_pairwise_identity
+    from zombi2.sequences import mean_pairwise_identity
 
     mem = simulate_sequences(g, **kw)
     handle = simulate_sequences(g, **kw, stream_to=tmp_path / "s")
     # against the CLI's own measure, which is what it stands in for. Not the first two sequences of
     # each family: those are adjacent gene ids, so usually recent duplicates, and comparing them
     # measures something noticeably more similar than a random pair.
-    assert handle.identity == pytest.approx(_mean_pairwise_identity(mem.alignments), abs=0.05)
+    assert handle.identity == pytest.approx(mean_pairwise_identity(mem.alignments), abs=0.05)
 
 
 def test_write_narrows_a_streamed_run(tmp_path):
@@ -581,5 +594,8 @@ def test_the_cli_streams_and_reports_the_same_run(tmp_path, capsys):
         return re.sub(r"(mean identity [\d.]+%|in [\d.e-]+ s)", "", s.split("(", 1)[1])
     assert strip(line_mem) == strip(line_str)
     # and the files themselves are the same run, .log aside (it records the flags and the timestamp)
-    data = lambda d: {k: v for k, v in _tree_of(d).items() if not k.endswith(".log")}
+    # .log records the flags and a timestamp; the summary's identity is sampled differently when
+    # streaming (see the byte-identity test above), so neither is part of the data claim
+    data = lambda d: {k: v for k, v in _tree_of(d).items()
+                      if not k.endswith((".log", "_summary.json"))}
     assert data(a / "sequences") == data(b / "sequences")

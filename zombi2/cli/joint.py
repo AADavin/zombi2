@@ -23,6 +23,7 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_params_arg, 
 from zombi2.cli.traits import _DISCRETE_DEFAULT as TRAITS_DEFAULT
 from zombi2.genomes import family
 from zombi2.joint import simulate_joint
+from zombi2._runtime.summary import write_summary
 from zombi2.rates.modifiers import DrivenBy
 from zombi2.traits import discrete
 
@@ -138,6 +139,9 @@ def run(args, parser):
     # write it: same directory, same default outputs, gene trees in their own subdirectory. Reaching
     # for Result.write's bare default here would quietly give a joint run fewer files than the two
     # commands it stands in for.
+    # the joint summary sits at the run root, not under a level: it describes both of them, and a
+    # joint run's whole point is that neither was grown first
+    write_summary(os.path.join(args.run, "joint_summary.json"), result.summary())
     result.species.write(level_dir(args.run, "species", args.flat))
     if result.trait is not None:
         result.trait.write(level_dir(args.run, "traits", args.flat), outputs=TRAITS_DEFAULT)

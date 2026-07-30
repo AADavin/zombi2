@@ -29,7 +29,8 @@ from zombi2.rates.modifiers import ByLineage, Modifier
 from zombi2.rates.parse import written_form
 from zombi2.rates.rate import as_rate
 from zombi2.rates.scope import PerSite
-from zombi2.sequences import WIRED_MODIFIERS, _calibrate, simulate_sequences
+from zombi2.sequences import (WIRED_MODIFIERS, _calibrate, mean_pairwise_identity,
+                              simulate_sequences)
 from zombi2.sequences.substitution_models import (
     dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
 )
@@ -50,7 +51,7 @@ RATES_HELP = _rates_help(
 # The last two exist only for a nucleotide handoff, which is the only run with coordinates to lay a
 # genome out in; asking for one otherwise writes nothing rather than failing.
 _SEQUENCE_OUTPUTS = ("alignments", "phylograms", "ancestral", "founding", "species_phylogram",
-                     "genomes", "initial_genome")
+                     "genomes", "initial_genome", "summary")
 
 # the menu, by alphabet: the no-argument protein models are empirical (their exchangeabilities and
 # frequencies come from the published matrices), so each is just its constructor.
@@ -207,31 +208,6 @@ def _build_model(args: argparse.Namespace):
 _SATURATED_BELOW = 0.15
 
 
-def _mean_pairwise_identity(alignments, max_pairs: int = 2000) -> float | None:
-    """Mean identity over a bounded random sample of within-family sequence pairs, or ``None`` when
-    no family holds two sequences to compare.
-
-    Sampled rather than exhaustive because the pair count is quadratic in family size — a run with
-    thousands of copies would otherwise spend longer measuring itself than it spent simulating. The
-    draw is from a fixed stream, so the number printed for a given run is reproducible."""
-    families = [list(a.values()) for a in alignments.values() if len(a) >= 2]
-    if not families:
-        return None
-    rng = np.random.default_rng(0)
-    matched = compared = 0
-    for _ in range(max_pairs):
-        seqs = families[int(rng.integers(len(families)))]
-        i, j = (int(x) for x in rng.choice(len(seqs), size=2, replace=False))
-        n = min(len(seqs[i]), len(seqs[j]))
-        if not n:
-            continue
-        a = np.frombuffer(seqs[i][:n].encode(), dtype=np.uint8)
-        b = np.frombuffer(seqs[j][:n].encode(), dtype=np.uint8)
-        matched += int(np.count_nonzero(a == b))
-        compared += n
-    return matched / compared if compared else None
-
-
 def _saturation_signal(identity: float, model) -> float:
     """How far the realised identity sits from random, as a fraction of the distance from the model's
     own random floor to identical. Two sequences related only by chance still match at ``Σπ²`` — 25%
@@ -342,7 +318,7 @@ def run(args, parser):
     # it yields a usable alignment depends on the height of the tree it ran down, which the user has
     # no way to read off the flags. Reporting it turns a silent failure into a visible number.
     # a streamed run has no alignments to measure — it accumulated the same statistic as it wrote
-    identity = result.identity if streaming else _mean_pairwise_identity(result.alignments)
+    identity = result.identity if streaming else mean_pairwise_identity(result.alignments)
     realised = "" if identity is None else f", mean identity {identity:.1%}"
     if nucleotide:
         # the assembled genome of a node is exactly as long as its block layout (substitution keeps

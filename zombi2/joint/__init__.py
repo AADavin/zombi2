@@ -24,10 +24,12 @@ Driving *both* birth and death recovers full state-dependent diversification (Bi
 from __future__ import annotations
 
 import math
+import pathlib
 from dataclasses import dataclass
 
 import numpy as np
 
+from .._runtime.summary import write_summary
 from ..genomes import Event as GenomeEvent, GeneCopy, FamilyGenomesResult, FamilyGenome
 from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
 from ..rates.modifiers import DrivenBy, FromParent
@@ -78,12 +80,30 @@ class JointResult:
         ``trait.events`` / ``genome.events``."""
         return self.species.events
 
+    def summary(self) -> dict:
+        """What this run produced, as a plain dict — the payload of ``joint_summary.json``.
+
+        A joint run grew two levels at once, so this holds both of their summaries under one roof
+        rather than inventing a third vocabulary: ``species`` is the tree that came out, and exactly
+        one of ``trait`` / ``genome`` is the driver that shaped it. The tree is an *output* here, which
+        is the whole point of the command, so its realised birth and death rates are the numbers worth
+        reading — they are what the driver did."""
+        out = {"level": "joint", "seed": self.seed,
+               "driver": "trait" if self.trait is not None else "genome",
+               "species": self.species.summary()}
+        if self.trait is not None:
+            out["trait"] = self.trait.summary()
+        if self.genome is not None:
+            out["genome"] = self.genome.summary()
+        return out
+
     def write(self, directory, *, flat: bool = False) -> None:
         """Write both levels to ``directory``: the species files (``species_complete.nwk`` /
         ``species_extant.nwk`` / ``species_events.tsv``) and the driver level's — for a trait,
         ``trait_values.tsv`` / ``trait_events.tsv`` / ``trait_tree.nwk``; for a genome,
         ``genome_events.tsv`` / ``profiles.tsv``. ``flat`` is passed to the driver level, which is
         the only one of the two with a many-files-per-run output."""
+        write_summary(pathlib.Path(directory) / "joint_summary.json", self.summary())
         self.species.write(directory, outputs=("complete", "extant", "events"))
         if self.trait is not None:
             self.trait.write(directory, outputs=("values", "events", "tree"))
