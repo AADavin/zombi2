@@ -64,8 +64,26 @@ def _blocks(path: pathlib.Path) -> list[tuple[int, str, str]]:
     return out
 
 
+#: docs/ pages are mostly one-line `--8<--` includes of a manual chapter, and testing those twice
+#: would be pointless. A page with real prose in it is its own source, though, and gets checked here
+#: like a chapter — otherwise "move it out of the book" quietly means "stop testing it".
+DOCS = pathlib.Path(__file__).resolve().parent.parent / "docs"
+
+
+def _standalone_docs() -> list[pathlib.Path]:
+    """Pages the **site publishes** that are their own source, rather than an include of a chapter.
+
+    ``docs/design/`` is out of scope, as it is for mkdocs: SPEC is a design document, and it names dead
+    flags on purpose — it keeps a table of retired vocabulary, so a check for "every flag named here
+    exists" is precisely wrong about it."""
+    return sorted(p for p in DOCS.rglob("*.md")
+                  if "design" not in p.parts
+                  and "--8<--" not in p.read_text(encoding="utf-8"))
+
+
 def _chapters() -> list[pathlib.Path]:
-    return sorted(p for p in MANUAL.glob("*.md") if p.name != "README.md")
+    """Everything with prose to check: the book, plus any docs page that is its own source."""
+    return sorted(p for p in MANUAL.glob("*.md") if p.name != "README.md") + _standalone_docs()
 
 
 def _zombi2_lines(source: str) -> list[list[str]]:
@@ -226,6 +244,7 @@ def test_the_harness_sees_the_manual():
     """A guard on the guard: if the glob or the fence regex breaks, every test above turns green by
     finding nothing. This is the tripwire for that."""
     assert len(_chapters()) >= 10
+    assert _standalone_docs(), "docs/ pages are all includes — or the include check has broken"
     total = sum(len(_blocks(p)) for p in _chapters())
     assert total >= 60, f"expected the manual's ~80 code blocks, found {total}"
     assert os.environ.get("ZOMBI2_SKIP_MANUAL") is None

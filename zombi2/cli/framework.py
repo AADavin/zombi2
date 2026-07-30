@@ -28,7 +28,7 @@ Coupling
   joint                grow a species tree and the level driving it, together
 
 Tools
-  tools                analyses that read a finished run (homology tables, recPhyloXML, …)
+  tools                analyses that read a finished run (homology, markers, recphylo, …)
 """
 
 
