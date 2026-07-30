@@ -38,7 +38,7 @@ from zombi2.sequences.substitution_models import (
 from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _write_params_log,
-                                  default_outputs, guidance, level_dir, parallel_from_args,
+                                  default_outputs, signpost, level_dir, parallel_from_args,
                                   defaults_used, input_digests, resolve_genomes, resolve_seed, warn)
 
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
@@ -351,7 +351,6 @@ def run(args, parser):
              f"alignments keep little history: homology search and tree inference will both do "
              f"poorly on them. Say how diverged you want them instead — --divergence 0.2 is a "
              f"readable alignment on any tree — or lower the rate yourself (it ran at {used}).")
-    guidance(args, f"alignments under {out}/")
     _write_params_log(os.path.join(out, "sequences.log"), args, summary,
                       effective={"write": list(wanted), **_effective_model_params(args),
                                  **_effective_substitution(args, genome_run)},
@@ -359,6 +358,5 @@ def run(args, parser):
                                            os.path.join(handoff, "genome_events.tsv"),
                                            os.path.join(handoff, "blocks.tsv"),
                                            args.substitution))
-    if path := write_run_report(args.run):     # refresh the run's one-page report (grouped layout only)
-        guidance(args, f"run report (one-page summary of the whole run): {path}")
+    signpost(args, write_run_report(args.run), out)   # every file it wrote, then the run report
     return 0

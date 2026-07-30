@@ -18,7 +18,7 @@ import os
 import time
 
 from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_params_arg, _add_quiet_arg, _add_run_arg,
-                                  _rate, _rates_help, _write_params_log, default_outputs, guidance,
+                                  _rate, _rates_help, _write_params_log, default_outputs, signpost,
                                   level_dir)
 from zombi2.cli.traits import _DISCRETE_DEFAULT as TRAITS_DEFAULT
 from zombi2.genomes import family
@@ -143,20 +143,20 @@ def run(args, parser):
     # the joint summary sits at the run root, not under a level: it describes both of them, and a
     # joint run's whole point is that neither was grown first
     write_summary(os.path.join(args.run, "joint_summary.json"), result.summary())
-    result.species.write(level_dir(args.run, "species", args.flat))
+    species_dir = level_dir(args.run, "species", args.flat)
+    result.species.write(species_dir)
     if result.trait is not None:
-        result.trait.write(level_dir(args.run, "traits", args.flat), outputs=TRAITS_DEFAULT)
+        driver_dir = level_dir(args.run, "traits", args.flat)
+        result.trait.write(driver_dir, outputs=TRAITS_DEFAULT)
         detail = "a discrete trait driving speciation"
     else:
-        out = level_dir(args.run, "genomes", args.flat)
-        result.genome.write(out, outputs=default_outputs(result.genome), flat=args.flat)
+        driver_dir = level_dir(args.run, "genomes", args.flat)
+        result.genome.write(driver_dir, outputs=default_outputs(result.genome), flat=args.flat)
         detail = "gene content driving speciation"
 
     n_extant = len(result.species.complete_tree.extant_leaves())
     summary = f"{n_extant} extant tips, {detail}"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
-    _write_params_log(os.path.join(level_dir(args.run, "species", args.flat), "joint.log"),
-                      args, summary)
-    if path := write_run_report(args.run):     # refresh the run's one-page report (grouped layout only)
-        guidance(args, f"run report (one-page summary of the whole run): {path}")
+    _write_params_log(os.path.join(species_dir, "joint.log"), args, summary)
+    signpost(args, write_run_report(args.run), species_dir, driver_dir)   # both levels' files, then report
     return 0
