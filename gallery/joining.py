@@ -329,7 +329,20 @@ sel = simulate_discrete(ct, states=["purifying", "relaxed"], start="purifying", 
 # under relaxed selection, duplicates pile up: the same DrivenBy, now on the duplication rate
 g = simulate_genomes_family(ct, initial_families=25, loss=0.07,
         duplication=0.05 * mod.DrivenBy(sel, {"relaxed": 11.0, "purifying": 1.0}), seed=9)
-# plot = tree coloured by selection + per-tip genome-size bars + the diagram (selection -> duplication)'''
+### plot  —  tree coloured by selection, beside per-tip genome-size bars (relaxed clades grow)
+import phylustrator as ph
+
+pal = {"purifying": "#3A7CA5", "relaxed": "#C25A3C"}
+tree = ph.trees.loads(ct.to_newick())
+history = {f"n{i}": segs for i, segs in sel.history.items()}
+tips = list(ct.extant_leaves())
+sizes  = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}
+colors = {f"n{n.id}": pal[sel.values[n.id]] for n in tips}
+fig = (ph.trees.plot(tree, skeleton=False)
+       + ph.trees.color_history(history, palette=pal)
+       + ph.trees.time_axis("time", bold=False))
+ph.beside(fig, ph.genomes.bars(sizes, colors=colors, label="genome size (genes)")).save("expansion.png")
+# the figure then composites the driver->modifier->target diagram (selection -> duplication) on top'''
 
 _C_UPTAKE = '''\
 ### simulate  —  competence conditions WHO RECEIVES a transfer (uptake), not a rate
@@ -345,7 +358,20 @@ comp = simulate_discrete(ct, states=["quiet", "competent"], start="quiet", seed=
 # trait-driven twin of the topological Clades highway. Competent genomes take up more DNA.
 g = simulate_genomes_family(ct, initial_families=35, transfer=0.5, loss=0.05, duplication=0.03,
         transfer_to=mod.DrivenBy(comp, {"competent": 8.0, "quiet": 1.0}), seed=3)
-# plot = tree coloured by competence + per-tip genome-size bars + the diagram (competence -> uptake)'''
+### plot  —  tree coloured by competence, beside per-tip genome-size bars (competent take up more)
+import phylustrator as ph
+
+pal = {"quiet": "#8f99a3", "competent": "#2E8B6F"}
+tree = ph.trees.loads(ct.to_newick())
+history = {f"n{i}": segs for i, segs in comp.history.items()}
+tips = list(ct.extant_leaves())
+sizes  = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}
+colors = {f"n{n.id}": pal[comp.values[n.id]] for n in tips}
+fig = (ph.trees.plot(tree, skeleton=False)
+       + ph.trees.color_history(history, palette=pal)
+       + ph.trees.time_axis("time", bold=False))
+ph.beside(fig, ph.genomes.bars(sizes, colors=colors, label="genome size (genes)")).save("uptake.png")
+# the figure then composites the driver->modifier->target diagram (competence -> uptake) on top'''
 
 _C_CONTINUOUS = '''\
 ### simulate  —  a CONTINUOUS trait drives a genome rate (via a Curve, not a state table)
@@ -361,7 +387,22 @@ act = simulate_continuous(ct, start=0.0, rate=1.8, seed=3)          # a diffusin
 # (Each branch is cut into constant sub-steps internally, so the same engine consumes it.)
 g = simulate_genomes_family(ct, initial_families=12, loss=0.05,
         origination=0.6 * mod.DrivenBy(act, Curve(lambda v: 2.0 ** v)), seed=9)
-# plot = tree coloured by the continuous trait + genome-size bars + a tip trait-vs-size scatter'''
+### plot  —  tree coloured by the continuous trait, beside genome-size bars, + a tip scatter
+import phylustrator as ph
+from matplotlib import cm, colors as mcolors
+
+tree = ph.trees.loads(ct.to_newick())
+vals = {f"n{i}": act.node_values[i] for i in ct.nodes}          # the continuous value, per node
+tips = list(ct.extant_leaves())
+sizes = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}
+norm = mcolors.Normalize(min(vals.values()), max(vals.values()))
+bar_c = {f"n{n.id}": mcolors.to_hex(cm.viridis(norm(act.node_values[n.id]))) for n in tips}
+fig = (ph.trees.plot(tree)
+       + ph.trees.color_branches(vals, cmap="viridis")
+       + ph.trees.colorbar("activity (continuous trait)", loc="bottom-left")
+       + ph.trees.time_axis("time", bold=False))
+ph.beside(fig, ph.genomes.bars(sizes, colors=bar_c, label="genome size (genes)")).save("cont.png")
+# beside it, a matplotlib scatter of each tip's trait value vs its genome size shows the driver->target trend'''
 
 
 EXAMPLES = [
