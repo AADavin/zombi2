@@ -133,6 +133,19 @@ def test_staleness_survives_a_move_and_a_different_cwd(tmp_path, monkeypatch):
         "a changed upstream must be flagged even after a move / from another cwd"
 
 
+def test_ancestral_count_shows_only_when_the_file_is_written(tmp_path):
+    """The ancestral reconstruction is computed always but written only on --write ancestral; a count
+    for a file that is not on disk reads as a dangling reference, so it appears only when written."""
+    main(["species", str(tmp_path), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1"])
+    main(["genomes", str(tmp_path), "--initial-families", "5", "--duplication", "0.2", "--seed", "1"])
+    main(["sequences", str(tmp_path), "--model", "jc69", "--length", "40", "--seed", "1"])
+    # match the stat label, not the bare word: the tmp_path itself can contain "ancestral"
+    assert "ancestral sequences" not in (tmp_path / RUN_REPORT_NAME).read_text(encoding="utf-8")
+    main(["sequences", str(tmp_path), "--model", "jc69", "--length", "40", "--seed", "1", "--force",
+          "--write", "alignments", "ancestral", "summary"])
+    assert "ancestral sequences" in (tmp_path / RUN_REPORT_NAME).read_text(encoding="utf-8")  # written
+
+
 def test_a_joint_run_reports_species_and_its_driver(tmp_path):
     main(["joint", str(tmp_path), "--birth", "1.0 * DrivenBy('trait', {'a': 1.0, 'b': 2.0})",
           "--death", "0.2", "--states", "a,b", "--switch", "0.3", "--n-extant", "20", "--seed", "1"])

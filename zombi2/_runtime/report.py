@@ -436,8 +436,25 @@ def _field(label: str, contents: list[str]) -> list[str]:
     return [f"  {(label if k == 0 else ''):<11}  {c}" for k, c in enumerate(contents)]
 
 
+def _written(log: dict) -> set:
+    """The output tokens a level's log records having written (its effective ``--write`` list)."""
+    raw = log.get("params", {}).get("write", "")
+    if isinstance(raw, str) and raw.startswith("["):
+        import ast
+        try:
+            return set(ast.literal_eval(raw))
+        except (ValueError, SyntaxError):
+            pass
+    return set()
+
+
 def _render_section(run: str, sec: dict, i: int, n: int) -> list[str]:
     log, summary = sec["log"], sec["summary"]
+    # a count for a file the run did not write reads as a dangling reference: the ancestral-sequence
+    # reconstruction is computed always but written only on --write ancestral, so drop its count unless
+    # the ancestral output is actually on disk.
+    if summary.get("ancestral_sequences") and "ancestral" not in _written(log):
+        summary = {k: v for k, v in summary.items() if k != "ancestral_sequences"}
     seed = summary.get("seed", log.get("params", {}).get("seed", "?"))
     tag = f"level {i}/{n}"
     lines = [f"{sec['title']}{' ' * max(1, 80 - len(sec['title']) - len(tag))}{tag}", _RULE]

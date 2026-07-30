@@ -38,6 +38,7 @@ output — one per gene family, or one per node — a directory of its own, so t
 only its handful of tables and logs:
 
 ```
+out/run.zombi2              the run report — one human-readable page for the whole run (see below)
 out/species/                species_complete.nwk · species_extant.nwk · species_events.tsv · species_fates.tsv
 out/genomes/                genome_events.tsv · profiles.tsv · genomes.tsv · genomes.log
 out/genomes/gene_trees/     gene_tree_fam<f>_complete.nwk · …_extant.nwk
@@ -90,6 +91,25 @@ JSON because the people who wanted it were writing collectors.
 Unlike the log, it is a `result.write()` output — `outputs=("summary",)` from Python, `--write summary`
 on the command line — so a run from either side has one, and `result.summary()` gives the same payload
 as a dict without touching the disk.
+
+## The run report
+
+At the run root sits `run.zombi2` — one human-readable page for the whole run, in the spirit of
+IQ-TREE's `.iqtree` file. It is a **view** over the per-level logs and summaries above, not a new
+output: every `zombi2` command rewrites it on the way out from the records the directory already
+holds, so it always reflects the run as it now stands, and running a new level — or re-running one —
+just refreshes it.
+
+It reports, for each level: the parameters, the input files the level was computed on (with their
+content hashes), the result, and every file the level wrote — a per-family directory summarised by its
+count, not listed one file at a time. It ends with a `TO REPRODUCE` block: one command per level,
+rebuilt from the resolved parameters so a rate expression comes back correctly quoted, that reruns the
+pipeline. And because the inputs are recorded by hash, it warns when a downstream level was computed on
+an upstream one that has since changed — a run that no longer agrees with itself.
+
+Being derived, it is written only for the grouped layout — a `--flat` run keeps no per-level records to
+build it from — and deleting it costs nothing, since the next command writes it again. It has no row in
+the tables below for the same reason the log does not: it is not a `result.write()` output.
 
 **Every event count in it is deduplicated**: one number per event, not per row of the event log (see
 the section below on why those differ). It also answers two questions the rest of the output leaves
