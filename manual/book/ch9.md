@@ -251,7 +251,7 @@ zombi2 joint out/ --birth "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})
 
 # gene content drives it: carrying the 'toxin' family triples the speciation rate
 zombi2 joint out/ --birth "1.0 * DrivenBy('genomes:toxin', {'present': 3.0, 'absent': 1.0})" \
-    --origination 0.2 --loss 0.1 --families toxin --n-extant 60 --seed 1
+    --origination 0.2 --loss 0.1 --family-names toxin --n-extant 60 --seed 1
 ```
 
 One driver per run. `--states` builds the trait driver; the gene-content flags build the genome one; giving flags from both is an error rather than a silent choice between them.

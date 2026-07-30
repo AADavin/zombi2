@@ -193,6 +193,7 @@ rate, apply it to the state, record it, and go round again.
 
 As pseudocode, the whole engine is short:
 
+<!-- doc-test: skip — pseudocode, deliberately not the real engine -->
 ```python
 t = 0.0
 state = initial_state
