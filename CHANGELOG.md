@@ -9,6 +9,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- A **FAQ** (in the docs) answering the handful of things that surprise newcomers — the `n`/`e`/`g`
+  ids, the skipping family numbers, `_complete` vs `_extant` trees, how to view a tree, and the
+  saturation warning.
+
 ### Changed
 - **Each command now ends by listing every file it wrote** — one line per output directory naming the
   files in it (a per-family directory named as itself), then the run report. It was a two-line pointer
@@ -16,6 +21,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   `run.zombi2`, which the terminal names from the same source, so the two never disagree.
 - **`trait_values.tsv` gains a `kind` column** (`leaf` for a tip, `ancestor` for an internal node), so
   a tip-only comparative vector is one filter away from the all-nodes table.
+- **A bare run no longer warns about its illustrative defaults.** The values it fills in are still
+  recorded — in the `.log` and `run.zombi2` — but the paragraph-long stderr warning on every default
+  run is gone.
+- **The TO REPRODUCE block lists only the flags you actually typed** (plus the seed), so a run left on
+  its defaults reproduces as the short command it was — and a family/ordered sequences run no longer
+  prints nucleotide-only knobs (`--intergene-speed`) that never applied.
 
 ### Fixed
 - **The bundled E. coli example ran with stale option names.** `examples/parameters/ecoli.toml` used

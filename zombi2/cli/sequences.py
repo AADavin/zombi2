@@ -92,8 +92,7 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                    help="substitution model. nucleotide (4 states, ACGT): jc69 (equal rates), "
                         "k80 (--kappa), hky85 (--kappa, --frequencies), gtr (--gtr-rates, "
                         "--frequencies). protein (20 states): poisson (equal rates), jtt, dayhoff, "
-                        "wag, lg — empirical matrices, no parameters to give. Defaults to jc69, "
-                        "announced when used")
+                        "wag, lg — empirical matrices, no parameters to give. Defaults to jc69")
     g.add_argument("--length", type=int, default=None, metavar="N",
                    help="alignment length in sites — residues under a protein model (default 1000). "
                         "Not for a nucleotide genome run: there every block carries its own length "
@@ -223,7 +222,7 @@ def run(args, parser):
     # validated here (not as argparse `required`) so a --params file can supply it
     if args.model is None:
         # jc69 has no free parameters, so a bare run needs nothing else to be well defined
-        warn(defaults_used(args, model="jc69"))
+        defaults_used(args, model="jc69")
     resolve_seed(args)                     # a run must be reproducible from its own log
     # reject a physical parameter given for a model that doesn't read it (e.g. --kappa with jc69),
     # so a silently-ignored flag can't give a misleading run — the genomes command's discipline
@@ -351,7 +350,11 @@ def run(args, parser):
              f"alignments keep little history: homology search and tree inference will both do "
              f"poorly on them. Say how diverged you want them instead — --divergence 0.2 is a "
              f"readable alignment on any tree — or lower the rate yourself (it ran at {used}).")
+    # the log is the run's parameters, not the parser's: the intergene knobs are for a nucleotide
+    # handoff only (there is a spacer between genes to evolve); on a family/ordered run they never
+    # applied, so recording them — and printing them in the reproduce command — is misleading.
     _write_params_log(os.path.join(out, "sequences.log"), args, summary,
+                      omit=() if nucleotide else ("intergene_speed", "intergene_model"),
                       effective={"write": list(wanted), **_effective_model_params(args),
                                  **_effective_substitution(args, genome_run)},
                       inputs=input_digests(tree_path,

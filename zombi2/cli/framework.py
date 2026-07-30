@@ -268,28 +268,19 @@ def signpost(args, report_path, *level_dirs) -> None:
         print(f"  → {report_path}  ← open this first: a report of every file, and how to reproduce")
 
 
-def defaults_used(args, **fallbacks) -> str:
-    """Fill any of ``fallbacks`` the caller left unset on ``args``, and return a message naming what
-    was filled (empty when the caller set everything).
+def defaults_used(args, **fallbacks) -> None:
+    """Fill any of ``fallbacks`` the caller left unset on ``args`` (silently).
 
     Every level runs bare, so that ``zombi2 species out/`` shows a newcomer the shape of a command
     instead of a list of what they failed to supply — the rates are precisely the part nobody can
-    guess on a first run. What a bare run must never do is imply the numbers were chosen: they are
-    round, illustrative, and calibrated to nothing. Hence the message, which the ``.log`` then
-    records alongside every other resolved parameter. There is no way to turn this into a refusal, and
-    that is deliberate: an omitted rate defaulting to a demonstration value is the same thing as
-    ``death=0.5`` or ``n_extant=20`` defaulting — invented, announced, and fine. What matters is that
-    the numbers are *visible*, which the warning and the log both make them."""
-    filled = {name: value for name, value in fallbacks.items() if getattr(args, name, None) is None}
-    if not filled:
-        return ""
-    for name, value in filled.items():
-        setattr(args, name, value)
-    shown = " ".join(f"--{name.replace('_', '-')} {value}" for name, value in filled.items())
-    return (f"no value given for {', '.join('--' + n.replace('_', '-') for n in filled)}, so this "
-            f"run used {shown}. Those are illustrative defaults, picked to make a first run work "
-            f"rather than to describe any real group — choose them yourself for a run you intend "
-            f"to keep")
+    guess on a first run, and they are round, illustrative values calibrated to nothing. They are not
+    announced on stderr — a paragraph-long warning on every bare run was noise — but they are not
+    hidden either: the ``.log`` and ``run.zombi2`` record every resolved value, and the report's
+    parameters and TO REPRODUCE block make the run reconstructable. The number is visible where it is
+    useful (in the record) rather than shouted where it is not (on the terminal)."""
+    for name, value in fallbacks.items():
+        if getattr(args, name, None) is None:
+            setattr(args, name, value)
 
 
 def warn_if_fates_were_inferred(tree, args) -> None:
@@ -640,6 +631,14 @@ def input_digests(*values) -> list[tuple[str, str]]:
     return out
 
 
+def _command_line(args) -> str:
+    """The command as typed — ``zombi2 <argv>`` — from the argv `main()` captured on ``args._argv``.
+    That is the real invocation both from a shell and from a test that calls ``main([...])`` directly
+    (where ``sys.argv`` would be pytest's). Lets the report list only the flags the user actually gave."""
+    argv = getattr(args, "_argv", None)
+    return "zombi2 " + " ".join(argv) if argv is not None else " ".join(sys.argv)
+
+
 def _write_params_log(path: str, args: argparse.Namespace, summary: str, effective=None,
                       inputs=(), omit=()) -> None:
     """Write the full set of run parameters to ``path`` — always, for reproducibility. ``effective``
@@ -657,11 +656,11 @@ def _write_params_log(path: str, args: argparse.Namespace, summary: str, effecti
              f"numpy_version\t{np.__version__}",
              f"platform\t{platform.system()} {platform.machine()}",
              f"timestamp\t{datetime.datetime.now().isoformat(timespec='seconds')}",
-             f"command_line\t{' '.join(sys.argv)}"]
+             f"command_line\t{_command_line(args)}"]
     for in_path, digest in inputs:
         lines.append(f"input\t{digest}\t{in_path}")
     for key, value in sorted({**vars(args), **(effective or {})}.items()):
-        if key not in omit:
+        if key not in omit and not key.startswith("_"):     # `_argv` etc. are bookkeeping, not parameters
             lines.append(f"{key}\t{_log_value(value)}")
     lines.append(f"result\t{summary}")
     with open(path, "w", encoding="utf-8") as f:

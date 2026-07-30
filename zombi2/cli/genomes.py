@@ -29,7 +29,7 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   clear_stale_downstream, conditioned_levels, default_outputs,
                                   defaults_used, signpost, input_digests, level_dir,
                                   parallel_from_args, record_conditioning, resolve_tree,
-                                  sibling_fates, warn, warn_if_fates_were_inferred)
+                                  sibling_fates, warn_if_fates_were_inferred)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -369,7 +369,7 @@ def run(args, parser):
     # "gave no rate" means no rate of *any* kind, structural ones included: a run given --inversion
     # has had its model described, and silently adding gene turnover to it would be the surprise.
     if not _stray(args, _RATE_FLAGS):
-        warn(defaults_used(args, duplication=0.2, transfer=0.1, loss=0.25, origination=0.5))
+        defaults_used(args, duplication=0.2, transfer=0.1, loss=0.25, origination=0.5)
     else:
         for r in _CORE:                        # unset beside a set one means off, not defaulted
             if getattr(args, r) is None:

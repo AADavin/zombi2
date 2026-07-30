@@ -710,9 +710,10 @@ def test_excluding_the_run_logs_is_justified_and_narrow(tmp_path):
     first, second = runs
     assert any(line.startswith("timestamp\t") for line in first), \
         "no timestamp in the run log — the exclusion would be unnecessary"
-    # `run` differs by construction: the two runs write to different directories
+    # `run` and `command_line` differ by construction: the two runs write to (and so name on the
+    # command line) different directories
     differing = [(a, b) for a, b in zip(first, second, strict=True) if a != b]
-    assert all(a.startswith(("timestamp\t", "run\t")) for a, _ in differing), \
+    assert all(a.startswith(("timestamp\t", "run\t", "command_line\t")) for a, _ in differing), \
         f"a run log differs by more than its timestamp and path: {differing}"
 
 # ==================================================================================================
