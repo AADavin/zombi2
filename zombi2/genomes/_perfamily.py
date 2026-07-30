@@ -664,7 +664,8 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
     # before the stem — the snapshot the serial engine takes as `initial_genome`.
     n_seeded = initial_families + len(family_names)
     initial_genome = tuple(GeneCopy(_copy_base(fid), fid) for fid in range(n_seeded))
-    return FamilyGenomesResult(tree, genomes_final, events, seed, named, initial_genome)
+    return FamilyGenomesResult(tree, genomes_final, events, seed, named, initial_genome,
+                               ctx.cap if hasattr(ctx, 'cap') else None)
 
 
 def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_families, family_names,
