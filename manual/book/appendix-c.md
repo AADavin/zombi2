@@ -277,9 +277,3 @@ zombi2 tools treedist true.nwk inferred.nwk --metric rf
 # every metric at once
 zombi2 tools treedist true.nwk inferred.nwk --metric all
 ```
-
-## The rest
-
-The remaining scoring and reconciliation commands (reconciliation-accuracy, the undated simulator, the
-ALE likelihood) are quarantined during the clean-core rebuild; their files are documented here as each
-returns.
