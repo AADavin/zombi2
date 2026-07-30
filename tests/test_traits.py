@@ -114,10 +114,14 @@ def test_write_values_tsv(tmp_path):
     r.write(tmp_path, outputs=["values"])
     text = (tmp_path / "trait_values.tsv").read_text(encoding="utf-8")
     lines = text.splitlines()
-    assert lines[0] == "node\ttrait"
+    assert lines[0] == "node\tkind\ttrait"
     assert len(lines) - 1 == len(r.node_values)               # one row per node: tips, extinct, internal
     ids = {int(line.split("\t")[0][1:]) for line in lines[1:]}  # strip the n/e prefix
     assert ids == set(r.node_values)
+    kinds = [line.split("\t")[1] for line in lines[1:]]        # a leaf/ancestor flag to filter tips on
+    assert set(kinds) <= {"leaf", "ancestor"} and "leaf" in kinds and "ancestor" in kinds
+    n_leaves = len([n for n in sp.complete_tree.nodes.values() if n.is_leaf])
+    assert kinds.count("leaf") == n_leaves                    # the leaf rows are exactly the tree's tips
 
 
 def test_write_rejects_unknown_output(tmp_path):
@@ -603,7 +607,8 @@ def test_discrete_write(tmp_path):
     r = simulate_discrete(sp, states=["lo", "hi"], switch=0.6, start="lo", seed=1)
     r.write(tmp_path, outputs=["values", "events"])
     vals = (tmp_path / "trait_values.tsv").read_text(encoding="utf-8").splitlines()
-    assert vals[0] == "node\ttrait" and set(line.split("\t")[1] for line in vals[1:]) <= {"lo", "hi"}
+    assert vals[0] == "node\tkind\ttrait"
+    assert set(line.split("\t")[2] for line in vals[1:]) <= {"lo", "hi"}   # the trait is the 3rd column
     assert len(vals) - 1 == len(r.node_values)                    # every node, not only the extant tips
     ev = (tmp_path / "trait_events.tsv").read_text(encoding="utf-8").splitlines()
     assert ev[0] == "time\tkind\tlineage\tfrom\tto" and len(ev) - 1 == len(r.events)
@@ -678,7 +683,7 @@ def test_correlated_write(tmp_path):
                             correlation={("size", "limb"): 0.4}, seed=1)
     r.write(tmp_path, outputs=["values"])
     lines = (tmp_path / "trait_values.tsv").read_text(encoding="utf-8").splitlines()
-    assert lines[0] == "node\tsize\tlimb"                              # one column per trait
+    assert lines[0] == "node\tkind\tsize\tlimb"                        # kind, then one column per trait
     assert len(lines) - 1 == len(r.node_values)                        # every node
 
 
@@ -771,7 +776,7 @@ def test_correlated_discrete_shape_and_write(tmp_path):
     assert all(set(v) == {"wings", "flight"} for v in r.node_values.values())
     assert r.history is None and r.events == []
     r.write(tmp_path, outputs=["values"])
-    assert (tmp_path / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[0] == "node\twings\tflight"
+    assert (tmp_path / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[0] == "node\tkind\twings\tflight"
 
 
 def test_threshold_validation():
