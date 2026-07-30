@@ -151,7 +151,7 @@ def run(args, parser):
         result.genome.write(out, outputs=default_outputs(result.genome), flat=args.flat)
         detail = "gene content driving speciation"
 
-    n_extant = len(result.species.complete_tree.extant())
+    n_extant = len(result.species.complete_tree.extant_leaves())
     summary = f"{n_extant} extant tips, {detail}"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
     _write_params_log(os.path.join(level_dir(args.run, "species", args.flat), "joint.log"),

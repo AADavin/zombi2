@@ -533,7 +533,7 @@ def run(args, parser):
         summary = (f"{result.n_families} gene families, {result.n_events} events, streamed to disk "
                    f"(family)")
     elif args.resolution == "nucleotide":       # no phyletic profiles here: the unit is a base pair
-        extant = [n.id for n in result.complete_tree.extant()]
+        extant = [n.id for n in result.complete_tree.extant_leaves()]
         bp = sum(result.genomes[s].length for s in extant)
         summary = (f"{len(result.gene_spans)} genes and {bp} bp across {len(extant)} extant "
                    f"genomes (nucleotide)")

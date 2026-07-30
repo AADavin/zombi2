@@ -167,7 +167,7 @@ g = genomes.simulate_genomes_nucleotide(
 g.gene_spans                            # where each gene sits, in initial coordinates
 family = min(g.gene_trees)              # gene_trees holds only the families that survive
 g.gene_trees[family].to_newick("extant")
-leaf = next(n.id for n in g.complete_tree.extant())
+leaf = next(n.id for n in g.complete_tree.extant_leaves())
 ```
 
 A real annotation can be the initial genome instead of a drawn one:

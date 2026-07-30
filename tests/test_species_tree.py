@@ -20,12 +20,12 @@ def test_birth_death_has_extinctions_and_survivors():
     r = simulate_species_tree(birth=1.0, death=0.4, n_extant=60, seed=7)
     assert r.n_extant == 60
     assert "extinction" in {e.kind for e in r.events}
-    assert len(r.complete_tree.extinct()) > 0
+    assert len(r.complete_tree.extinct_leaves()) > 0
 
 
 def test_total_time_stop_ends_extant_lineages_at_the_present():
     r = simulate_species_tree(birth=1.0, death=0.2, total_time=4.0, seed=3)
-    for n in r.complete_tree.extant():
+    for n in r.complete_tree.extant_leaves():
         assert n.end_time == pytest.approx(4.0)
 
 
@@ -272,7 +272,7 @@ def test_death_can_drift_independently():
     # drift lives on death, not birth; birth and death are bent independently
     r = simulate_species_tree(birth=1.0, death=0.4 * mod.FromParent(spread=0.5), n_extant=50, seed=4)
     assert r.n_extant == 50
-    assert len(r.complete_tree.extinct()) > 0
+    assert len(r.complete_tree.extinct_leaves()) > 0
 
 
 def test_clade_drift_composes_with_diversity_cap():
@@ -479,13 +479,13 @@ def test_fossils_write_tsv(tmp_path):
 # --- incomplete sampling (rho): observe a fraction of the survivors ---
 
 def _survivor_ids(result):
-    return {n.id for n in result.complete_tree.extant()} | {n.id for n in result.complete_tree.unsampled()}
+    return {n.id for n in result.complete_tree.extant_leaves()} | {n.id for n in result.complete_tree.unsampled_leaves()}
 
 
 def test_sampling_relabels_not_removes():
     # n_extant stops at 40 SURVIVORS; sampling then splits them into extant + unsampled
     r = simulate_species_tree(birth=1.0, death=0.3, n_extant=40, sampling=0.5, seed=3)
-    assert len(r.complete_tree.extant()) + len(r.complete_tree.unsampled()) == 40
+    assert len(r.complete_tree.extant_leaves()) + len(r.complete_tree.unsampled_leaves()) == 40
     assert 0 < r.n_extant < 40                       # some observed, some not
 
 
@@ -499,7 +499,7 @@ def test_extant_tree_is_the_sampled_survivors():
 
 def test_sampling_one_observes_everyone():
     r = simulate_species_tree(birth=1.0, death=0.3, n_extant=40, sampling=1.0, seed=3)
-    assert r.complete_tree.unsampled() == []
+    assert r.complete_tree.unsampled_leaves() == []
     assert r.n_extant == 40
 
 
@@ -522,8 +522,8 @@ def test_sampling_fraction_matches_rho():
 
 def test_sampling_is_deterministic():
     kw = dict(birth=1.0, death=0.3, n_extant=40, sampling=0.5, seed=9)
-    a = {n.id for n in simulate_species_tree(**kw).complete_tree.extant()}
-    b = {n.id for n in simulate_species_tree(**kw).complete_tree.extant()}
+    a = {n.id for n in simulate_species_tree(**kw).complete_tree.extant_leaves()}
+    b = {n.id for n in simulate_species_tree(**kw).complete_tree.extant_leaves()}
     assert a == b
 
 
@@ -545,20 +545,20 @@ def test_a_runaway_time_conditioned_run_raises_rather_than_truncating():
 
 def test_the_guard_leaves_an_ordinary_run_alone():
     r = simulate_species_tree(birth=1.0, death=0.2, total_time=10, seed=2)
-    assert len(r.complete_tree.extant()) > 100          # a big tree, well under the ceiling
+    assert len(r.complete_tree.extant_leaves()) > 100          # a big tree, well under the ceiling
 
 
 def test_the_guard_can_be_lowered_and_lifted():
     with pytest.raises(RuntimeError, match="passed 50 standing lineages"):
         simulate_species_tree(birth=1.0, death=0.2, total_time=10, seed=2, max_lineages=50)
     r = simulate_species_tree(birth=1.0, death=0.2, total_time=10, seed=2, max_lineages=None)
-    assert len(r.complete_tree.extant()) > 100          # None removes it entirely
+    assert len(r.complete_tree.extant_leaves()) > 100          # None removes it entirely
 
 
 def test_an_explicit_n_extant_is_never_blocked_by_the_default_guard():
     # asking for more tips than the default ceiling is asking for them, not a runaway
     r = simulate_species_tree(birth=1.0, death=0.2, n_extant=120_000, seed=2)
-    assert len(r.complete_tree.extant()) == 120_000
+    assert len(r.complete_tree.extant_leaves()) == 120_000
 
 
 # --- a lineage that died says so in its name -------------------------------

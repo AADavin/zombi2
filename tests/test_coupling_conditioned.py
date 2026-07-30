@@ -294,8 +294,8 @@ def test_end_to_end_trait_drives_loss(tmp_path):
         origination=0.2, initial_families=5, seed=2,
     )
     # compare mean copy count of extant tips by their (end-of-branch) habitat
-    cave = [len(res.genomes[n.id]) for n in tree.extant() if hab.node_values[n.id] == "cave"]
-    surface = [len(res.genomes[n.id]) for n in tree.extant() if hab.node_values[n.id] == "surface"]
+    cave = [len(res.genomes[n.id]) for n in tree.extant_leaves() if hab.node_values[n.id] == "cave"]
+    surface = [len(res.genomes[n.id]) for n in tree.extant_leaves() if hab.node_values[n.id] == "surface"]
     assert cave and surface, "need both habitats represented among the tips"
     assert sum(cave) / len(cave) < sum(surface) / len(surface)
 

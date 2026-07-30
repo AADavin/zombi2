@@ -199,7 +199,7 @@ g = genomes.simulate_genomes_family(
     origination=0.4, initial_families=10, seed=3)
 
 # the genomes you observe are the extant tips
-observed = {n.id: g.genomes[n.id] for n in g.complete_tree.extant()}
+observed = {n.id: g.genomes[n.id] for n in g.complete_tree.extant_leaves()}
 
 # and the outputs, derived from that history
 g.profiles.matrix                                # family × extant-species copy counts

@@ -110,8 +110,8 @@ def run(args, parser):
     n_extant = result.n_extant
     n_total = len(result.complete_tree.nodes)
     n_leaves = len([n for n in result.complete_tree.nodes.values() if n.children is None])
-    n_extinct = len(result.complete_tree.extinct())
-    n_unsampled = len(result.complete_tree.unsampled())
+    n_extinct = len(result.complete_tree.extinct_leaves())
+    n_unsampled = len(result.complete_tree.unsampled_leaves())
     parts = [f"{n_extant} extant"]
     if n_extinct:
         parts.append(f"{n_extinct} extinct")

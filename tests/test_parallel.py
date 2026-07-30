@@ -154,7 +154,7 @@ def test_genomes_parallel_is_a_valid_run(species_for_genomes):
     born = [e.copy for e in r.events
             if e.kind in ("origination", "duplication", "transfer", "speciation")]
     assert len(born) == len(set(born))                       # copy ids globally unique
-    extant_sp = {n.id for n in sp.complete_tree.extant()}
+    extant_sp = {n.id for n in sp.complete_tree.extant_leaves()}
     for fam, gt in r.gene_trees.items():                     # builds without collision + strong invariant
         copies = sum(r.profiles.counts.get((fam, s), 0) for s in extant_sp)
         assert _extant_leaves(gt.extant) == copies

@@ -181,7 +181,7 @@ def test_heterogeneous_seeding_sizes_and_shapes():
     specs = [(100, "circular"), (40, "circular"), (25, "linear")]
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=4, seed=5)
     r = simulate_genomes_nucleotide(sp, inversion=0, chromosomes=specs, seed=5)
-    tip = sorted(n.id for n in sp.complete_tree.extant())[0]
+    tip = sorted(n.id for n in sp.complete_tree.extant_leaves())[0]
     chroms = r.genomes[tip].chromosomes
     assert [c.topology for c in chroms] == ["circular", "circular", "linear"]
     assert sorted(c.length for c in chroms) == [25, 40, 100]     # the three sizes, preserved
@@ -650,7 +650,7 @@ def test_recovery_ancestry_neutral_is_the_species_tree():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
     r = simulate_genomes_nucleotide(sp, inversion=2.5, inversion_extent=12, translocation=1.5,
                                     fission=0.1, fusion=0.1, chromosomes=[(60, "circular")], seed=1)
-    leaves = {n.id for n in r.complete_tree.extant()}
+    leaves = {n.id for n in r.complete_tree.extant_leaves()}
     assert r.root_blocks                                       # inversions leave surviving breakpoints
     for fam, _blk in enumerate(r.root_blocks):
         ex = r.gene_trees[fam].extant
@@ -670,7 +670,7 @@ def test_recovered_extant_leaves_match_observed_copies():
                                         fusion=0.1, chromosomes=specs, seed=seed)
         assert any(isinstance(e, Duplication) for e in r.events)
         assert any(isinstance(e, Loss) for e in r.events)
-        leaves = [n.id for n in r.complete_tree.extant()]
+        leaves = [n.id for n in r.complete_tree.extant_leaves()]
         for fam, (s, a, b) in enumerate(r.root_blocks):
             ex = r.gene_trees[fam].extant
             recovered = collections.Counter(t.species for t in (_tips(ex) if ex else [])
@@ -754,7 +754,7 @@ def test_recovery_cross_check_holds_with_transfer():
                                         loss=1.5, inversion=1.5, translocation=1, fission=0.1,
                                         fusion=0.1, chromosomes=_XFER_SPECS, seed=seed)
         assert any(isinstance(e, Transfer) for e in r.events)
-        leaves = [n.id for n in r.complete_tree.extant()]
+        leaves = [n.id for n in r.complete_tree.extant_leaves()]
         for fam, (s, a, b) in enumerate(r.root_blocks):
             ex = r.gene_trees[fam].extant
             recovered = collections.Counter(t.species for t in (_tips(ex) if ex else [])
@@ -887,7 +887,7 @@ def test_recovery_cross_check_holds_with_origination():
                                         duplication=1.5, inversion=1.5, transposition=1,
                                         chromosomes=specs, seed=seed)
         assert any(isinstance(e, Origination) and e.source >= len(specs) for e in r.events)
-        leaves = [n.id for n in r.complete_tree.extant()]
+        leaves = [n.id for n in r.complete_tree.extant_leaves()]
         assert r.gene_trees
         for fam, gt in r.gene_trees.items():
             s, a, b = r.gene_spans[fam]
@@ -975,7 +975,7 @@ def test_recovery_cross_check_holds_with_chromosome_tier():
                                         loss=1.5, duplication=1.5, transfer=1.5, inversion=1.5,
                                         fission=0.1, fusion=0.1, chromosomes=specs, seed=seed)
         saw_chromosome_loss = saw_chromosome_loss or any(e.kind == "loss" for e in r.chromosome_events)
-        leaves = [n.id for n in r.complete_tree.extant()]
+        leaves = [n.id for n in r.complete_tree.extant_leaves()]
         for fam, gt in r.gene_trees.items():               # de-novo replicons carry genes: genic mode
             s, a, b = r.gene_spans[fam]
             recovered = collections.Counter(t.species for t in (_tips(gt.extant) if gt.extant else [])
@@ -1100,7 +1100,7 @@ def test_recovery_cross_check_holds_with_genes():
         r = simulate_genomes_nucleotide(
             sp, inversion=1.0, transposition=0.5, loss=1.0, duplication=1.0, transfer=0.5,
             inversion_extent=20, loss_extent=20, duplication_extent=20, seed=seed, **_GENIC)
-        leaves = [n.id for n in r.complete_tree.extant()]
+        leaves = [n.id for n in r.complete_tree.extant_leaves()]
         assert r.gene_trees
         for fam, gt in r.gene_trees.items():
             s, a, b = r.gene_spans[fam]
@@ -1270,7 +1270,7 @@ def test_with_no_events_the_genome_is_exactly_what_was_declared(tmp_path):
     strand is the gene's coding strand, which is annotation and lives in `gene_strands`."""
     sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
     r = simulate_genomes_nucleotide(sp, gff=_gff(tmp_path), seed=1)          # no events at all
-    for lid in (n.id for n in r.complete_tree.extant()):
+    for lid in (n.id for n in r.complete_tree.extant_leaves()):
         chrom1, plasmid = r.genomes[lid].chromosomes
         assert (chrom1.length, plasmid.length) == (3000, 800)
         assert chrom1.trace_back() == [(0, i, 1) for i in range(3000)]       # the identity map
@@ -1284,7 +1284,7 @@ def test_with_no_events_the_genome_is_exactly_what_was_declared(tmp_path):
 def test_the_even_layout_also_round_trips():
     sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=2)
     r = simulate_genomes_nucleotide(sp, genes=5, gene_length=40, chromosomes=1, root_length=500, seed=2)
-    for lid in (n.id for n in r.complete_tree.extant()):
+    for lid in (n.id for n in r.complete_tree.extant_leaves()):
         chrom, = r.genomes[lid].chromosomes
         assert chrom.trace_back() == [(0, i, 1) for i in range(500)]
     assert set(r.gene_strands.values()) == {1}
@@ -1331,7 +1331,7 @@ def test_inversions_along_the_tree_match_an_independent_replay():
                 stack.append((c, arr))
 
     full = sorted((0, i) for i in range(length))
-    for leaf in tree.extant():                               # nothing gained, nothing lost
+    for leaf in tree.extant_leaves():                               # nothing gained, nothing lost
         assert r.ancestry(leaf.id) == full
         seen = {b.gene for b in r.genomes[leaf.id].chromosomes[0].blocks if b.is_gene}
         assert len(seen) == n_genes                          # every gene still there, still whole
@@ -1361,19 +1361,19 @@ def test_two_chromosomes_ancestry_neutral_tier_conserves_everything():
     for node_id in r.genomes:                                  # nothing gained, nothing lost, anywhere
         assert r.ancestry(node_id) == _TWO_FULL
 
-    karyotypes = {len(r.genomes[leaf.id].chromosomes) for leaf in r.complete_tree.extant()}
+    karyotypes = {len(r.genomes[leaf.id].chromosomes) for leaf in r.complete_tree.extant_leaves()}
     assert len(karyotypes) > 1 and karyotypes != {2}           # the karyotype diverged across leaves
 
     # translocation/fusion mix the two replicons: a chromosome ends up carrying both sources
     assert any(len({b.source for b in c.blocks}) == 2
-               for leaf in r.complete_tree.extant()
+               for leaf in r.complete_tree.extant_leaves()
                for c in r.genomes[leaf.id].chromosomes)
 
     spans = _gene_spans(r)
     assert len(spans) == 16                                    # 8 genes on each replicon
     for fam, seen in spans.items():
         assert seen == {r.gene_spans[fam]}                     # every gene whole, where it was declared
-    for leaf in r.complete_tree.extant():                      # ...and every gene still present
+    for leaf in r.complete_tree.extant_leaves():                      # ...and every gene still present
         present = {b.gene for c in r.genomes[leaf.id].chromosomes for b in c.blocks if b.is_gene}
         assert present == set(r.gene_spans)
 
@@ -1411,7 +1411,7 @@ def test_two_chromosomes_with_the_whole_event_set():
     for fam, seen in _gene_spans(r).items():                   # genes survive the tier intact
         assert seen == {r.gene_spans[fam]}
 
-    leaves = [n.id for n in r.complete_tree.extant()]          # the cross-check, per gene
+    leaves = [n.id for n in r.complete_tree.extant_leaves()]          # the cross-check, per gene
     assert len(r.gene_trees) > 10                              # most genes survive: a real check
     for fam, gt in r.gene_trees.items():
         s, a, b = r.gene_spans[fam]
@@ -1432,7 +1432,7 @@ def test_extinct_lineages_evolve_donate_and_are_pruned():
     import collections
     sp = simulate_species_tree(birth=1.4, death=0.7, n_extant=5, seed=4)
     tree = sp.complete_tree
-    extant = {n.id for n in tree.extant()}
+    extant = {n.id for n in tree.extant_leaves()}
 
     def doomed(nid):                                          # no extant descendant anywhere below
         node = tree.nodes[nid]
@@ -1499,7 +1499,7 @@ def _invariants_hold(r):
     import collections
     spans = _gene_spans(r)
     assert all(v == {r.gene_spans[f]} for f, v in spans.items())
-    extant = [n.id for n in r.complete_tree.extant()]
+    extant = [n.id for n in r.complete_tree.extant_leaves()]
     for fam, gt in r.gene_trees.items():
         s, a, b = r.gene_spans[fam]
         recovered = collections.Counter(t.species for t in (_tips(gt.extant) if gt.extant else [])
@@ -1541,7 +1541,7 @@ def test_a_single_leaf_tree():
     sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=1, seed=1)
     r = simulate_genomes_nucleotide(sp, chromosomes=1, root_length=500, genes=4, gene_length=50,
                                     seed=1, **_HOT)
-    assert len(list(r.complete_tree.extant())) == 1
+    assert len(list(r.complete_tree.extant_leaves())) == 1
     _invariants_hold(r)
 
 
@@ -1885,7 +1885,7 @@ def test_assembly_tiles_every_node_exactly_as_its_trace_back():
                                     seed=4)
     for node_id in sorted(g.genomes):                    # no node is skipped and none refuses
         assert _expand(g, node_id) == g.trace_back(node_id)
-    assert len(g.genomes) > len(g.complete_tree.extant()), "the tree has no ancestors to check"
+    assert len(g.genomes) > len(g.complete_tree.extant_leaves()), "the tree has no ancestors to check"
 
 
 def test_the_partition_is_at_least_as_fine_as_every_nodes_blocks():

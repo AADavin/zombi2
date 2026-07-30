@@ -55,7 +55,7 @@ def test_rf_is_left_empty_where_it_would_mean_nothing():
 def test_universal_means_present_in_every_extant_genome():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=1)
     g = simulate_genomes_family(sp, loss=0.4, origination=0.5, initial_families=30, seed=2)
-    n_extant = len(sp.complete_tree.extant())
+    n_extant = len(sp.complete_tree.extant_leaves())
     for family, gt in g.gene_trees.items():
         if gt.extant is None:
             continue
@@ -121,7 +121,7 @@ def test_congruence_agrees_with_treedist(seed, tmp_path, capsys):
                                 seed=seed * 3)
     species_file = tmp_path / "sp.nwk"
     species_file.write_text(sp.extant_tree.to_newick() + "\n", encoding="utf-8")
-    n_extant = len(sp.complete_tree.extant())
+    n_extant = len(sp.complete_tree.extant_leaves())
     checked, disagreeing = 0, 0
     for family, gt in g.gene_trees.items():
         if gt.extant is None:
