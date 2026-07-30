@@ -11,7 +11,7 @@ import os
 import time
 
 from zombi2.species import WIRED_MODIFIERS, _WRITE_OUTPUTS, simulate_species_tree
-from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_strict_arg, _add_params_arg,
+from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_params_arg,
                                   _add_run_arg, _rate, _rates_help, _write_params_log,
                                   check_stale_downstream, clear_stale_downstream, defaults_used, guidance,
                                   input_digests,
@@ -73,7 +73,6 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
                         f"{', '.join(_WRITE_OUTPUTS)}. Files are prefixed 'species_'.")
     _add_flat_arg(g)
     _add_quiet_arg(g)
-    _add_strict_arg(g)
     _add_force_arg(g)
 
 

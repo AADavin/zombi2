@@ -22,7 +22,7 @@ from zombi2.genomes.nucleotide import WIRED_MODIFIERS as _NUC_WIRED
 from zombi2.rates.parse import parse_rate
 from zombi2.rates.scope import Global, PerLineage
 from zombi2.tree import node_label, read_newick
-from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_strict_arg, _add_parallel_arg,
+from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
                                   _read_tip_fates, _write_params_log, check_stale_downstream,
                                   clear_stale_downstream, conditioned_levels, default_outputs,
@@ -234,7 +234,6 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "so for the same seed the run it produces DIFFERS from a serial one (both "
                         "valid samples). Fix the mode alongside the seed to reproduce a run")
     _add_quiet_arg(g)
-    _add_strict_arg(g)
     _add_force_arg(g)
 
 
