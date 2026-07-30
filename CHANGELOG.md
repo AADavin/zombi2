@@ -9,6 +9,26 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **A run report, `run.zombi2`.** Every command now writes one human-readable page at the run root,
+  in the spirit of IQ-TREE's `.iqtree`: the parameters each level ran with, the input files it was
+  computed on (by content hash), what came out, and every file it wrote — ending with a
+  `TO REPRODUCE` block, one command per level rebuilt from the resolved parameters, that reruns the
+  pipeline byte-for-byte. Because it records inputs by hash, it warns when a downstream level was
+  computed on an upstream one that has since changed. It is a derived view of the per-level logs and
+  summaries, rewritten on every run, so it always reflects the run as it stands; a `--flat` run keeps
+  no per-level records and so has none. The run log now also records the Python, NumPy and platform
+  versions — the environment a reproduction or a bug report turns on.
+
+### Changed
+- **`trait_values.tsv` now carries every node** — the extant tips, the extinct lineages and the
+  internal nodes alike, each with its exact value, the same ones `trait_tree.nwk` annotates. It was
+  the extant tips only. (The Python `TraitsResult.values` property is unchanged: still the extant-tip
+  comparative dataset.)
+
+### Fixed
+- **Three manual tour/reference examples** a first-time reader hit now run as written (#287).
+
 ## [0.16.0] - 2026-07-29
 
 ### Added
