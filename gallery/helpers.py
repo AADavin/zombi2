@@ -186,7 +186,7 @@ def draw_grid_markov(ax, rates, xpal, ypal, *, labels=("00", "01", "10", "11")) 
     curve = 0.32
 
     def lw(r):
-        return 1.7 + 3.8 * (r / mx)
+        return 1.2 + 2.3 * (r / mx)          # arrow width ~ rate (slimmer than before)
 
     for key, r in rates.items():                     # every directed transition, bowed to its left
         a, b = key.split("->")
@@ -245,6 +245,25 @@ def composite_markov(tree_png: str, out: str, draw_fn, *, loc=(0.02, 0.09, 0.34,
     draw_fn(inset)
     inset.set_axis_off()
     fig.savefig(out, dpi=150)
+    plt.close(fig)
+
+
+def composite_two_trees_panel(tree_x_png: str, tree_y_png: str, draw_panel, out: str, *,
+                              x_label: str = "trait x", y_label: str = "trait y") -> None:
+    """Two trees stacked on the left (one per character), a custom panel spanning both rows on the
+    right — the two-trees layout of ``composite_two_trees_scatter`` but with the right panel drawn by
+    ``draw_panel(ax)`` (e.g. the model's Markov chain) instead of a scatter."""
+    fig = plt.figure(figsize=(12, 9))
+    gs = fig.add_gridspec(2, 2, width_ratios=[2.4, 1.25], hspace=0.10, wspace=0.08)
+    for row, png, name in ((0, tree_x_png, x_label), (1, tree_y_png, y_label)):
+        ax = fig.add_subplot(gs[row, 0])
+        ax.imshow(mpimg.imread(png))
+        ax.set_axis_off()
+        ax.set_title(name, fontsize=15, loc="left")
+    axp = fig.add_subplot(gs[:, 1])
+    draw_panel(axp)
+    axp.set_axis_off()
+    fig.savefig(out, dpi=125, bbox_inches="tight")
     plt.close(fig)
 
 
