@@ -447,12 +447,14 @@ def rearranged_pair(genomes: dict) -> tuple:
 
 # --- the conditioning diagram (driver · modifier · target), the manual's figure -----------
 
-def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_base,
-                      symbol="×", target_run="genome", state_colors=None):
+def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_base=None,
+                      target_sub=None, symbol="×", target_run="genome", state_colors=None):
     """Reproduce the manual's driver→modifier→target diagram. ``switch`` is a {"a->b": rate} dict (an
     arrow is drawn for each positive rate, so an irreversible trait shows one arrow); ``mapping`` is the
     per-state multiplier; ``state_colors`` tints the state nodes to match the tree's palette. The state
-    names sit *outside* (below) their circles."""
+    names sit *outside* (below) their circles. ``target_base`` is the rate's base value (``None`` for a
+    target that is not a rate, e.g. a recipient-choice slot); ``target_sub`` overrides the italic
+    caption under TARGET."""
     from matplotlib.patches import Circle, FancyArrowPatch, Rectangle
 
     ax.set_xlim(0, 660)
@@ -465,8 +467,8 @@ def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_bas
         ax.text(x, 30, t, ha="center", va="center", color=dim, fontsize=12.5, fontweight="bold")
     ax.text(345, 49, "what it does to the rate", ha="center", va="center", color=faint,
             fontsize=11.5, style="italic")
-    ax.text(566, 49, f"a rate in the {target_run} run", ha="center", va="center", color=faint,
-            fontsize=11.5, style="italic")
+    ax.text(566, 49, target_sub or f"a rate in the {target_run} run", ha="center", va="center",
+            color=faint, fontsize=11.5, style="italic")
 
     ax.add_patch(Rectangle((45, 96), 150, 60, fill=True, facecolor="#f2f2f0", edgecolor=ink,
                            lw=1.6, joinstyle="round"))
@@ -505,8 +507,11 @@ def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_bas
 
     ax.add_patch(Rectangle((496, 96), 140, 60, fill=True, facecolor="#f2f2f0", edgecolor=ink,
                            lw=1.6, joinstyle="round"))
-    ax.text(566, 120, target, ha="center", va="center", color=ink, fontsize=15)
-    ax.text(566, 142, f"base {target_base}", ha="center", va="center", color=dim, fontsize=13)
+    if target_base is None:
+        ax.text(566, 126, target, ha="center", va="center", color=ink, fontsize=15)
+    else:
+        ax.text(566, 120, target, ha="center", va="center", color=ink, fontsize=15)
+        ax.text(566, 142, f"base {target_base}", ha="center", va="center", color=dim, fontsize=13)
 
 
 def conditioning_png(path, **kw):
