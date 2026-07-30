@@ -185,7 +185,7 @@ def continuous_conditioning(out):
     fig = (ph.trees.plot(ph.trees.loads(ct.to_newick()),
                          style=ph.Style(width=900, height=900, margin=92, branch_width=3.0))
            + ph.trees.color_branches(vals, cmap="viridis")
-           + ph.trees.colorbar("activity (continuous trait)", loc="bottom-left", size=18)
+           + ph.trees.colorbar("activity (continuous trait)", loc="top-left", size=18)
            + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False))
     ph.beside(fig, ph.genomes.bars(sizes, colors=tipcol, label="genome size (genes)",
                                    tick_size=20, label_size=26),
@@ -399,7 +399,7 @@ norm = mcolors.Normalize(min(vals.values()), max(vals.values()))
 bar_c = {f"n{n.id}": mcolors.to_hex(cm.viridis(norm(act.node_values[n.id]))) for n in tips}
 fig = (ph.trees.plot(tree)
        + ph.trees.color_branches(vals, cmap="viridis")
-       + ph.trees.colorbar("activity (continuous trait)", loc="bottom-left")
+       + ph.trees.colorbar("activity (continuous trait)", loc="top-left")
        + ph.trees.time_axis("time", bold=False))
 ph.beside(fig, ph.genomes.bars(sizes, colors=bar_c, label="genome size (genes)")).save("cont.png")
 # beside it, a matplotlib scatter of each tip's trait value vs its genome size shows the driver->target trend'''

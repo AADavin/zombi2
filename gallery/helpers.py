@@ -373,7 +373,8 @@ def aln_run() -> str:
         # no loss so every family survives in every genome — a full one-row-per-tip alignment
         _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 45,
                "--duplication", 0.04, "--loss", 0.0, "--transfer", 0.0, "--seed", 6)
-        _zombi("sequences", run, "--model", "jc69", "--length", 60, "--seed", 7)
+        # --divergence keeps the alignment from saturating (else every column varies — no signal)
+        _zombi("sequences", run, "--model", "jc69", "--length", 60, "--divergence", 0.25, "--seed", 7)
     return run
 
 
@@ -461,14 +462,10 @@ def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_bas
     ax.set_ylim(250, 0)                       # y grows downward, like the SVG
     ax.set_aspect("auto")
     ax.set_axis_off()
-    ink, dim, faint = "#1a1a1a", "#6e6e6e", "#8a8a8a"
+    ink, dim = "#1a1a1a", "#6e6e6e"
 
     for x, t in ((120, "DRIVER"), (345, "MODIFIER"), (566, "TARGET")):
         ax.text(x, 30, t, ha="center", va="center", color=dim, fontsize=12.5, fontweight="bold")
-    ax.text(345, 49, "what it does to the rate", ha="center", va="center", color=faint,
-            fontsize=11.5, style="italic")
-    ax.text(566, 49, target_sub or f"a rate in the {target_run} run", ha="center", va="center",
-            color=faint, fontsize=11.5, style="italic")
 
     ax.add_patch(Rectangle((45, 96), 150, 60, fill=True, facecolor="#f2f2f0", edgecolor=ink,
                            lw=1.6, joinstyle="round"))

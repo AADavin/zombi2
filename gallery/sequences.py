@@ -117,7 +117,7 @@ def numbered_ancestral(out):
     sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=20, seed=12)   # a longer stem
     ct = sp.complete_tree
     g = simulate_genomes_family(ct, initial_families=1, duplication=0.0, loss=0.0, seed=5)
-    seqs = simulate_sequences(g, model=jc69(), length=24, seed=7)
+    seqs = simulate_sequences(g, model=jc69(), length=24, divergence=0.2, seed=7)  # keep it unsaturated
     fam = next(iter(seqs.ancestral))
 
     internal = sorted((i for i in ct.nodes if ct.nodes[i].children),
@@ -210,7 +210,7 @@ from zombi2.sequences import simulate_sequences, jc69
 sp = simulate_species_tree(birth=1.0, n_extant=20, seed=12)
 ct = sp.complete_tree
 g = simulate_genomes_family(ct, initial_families=1, seed=5)
-seqs = simulate_sequences(g, model=jc69(), length=24, seed=7)
+seqs = simulate_sequences(g, model=jc69(), length=24, divergence=0.2, seed=7)   # unsaturated
 fam = next(iter(seqs.ancestral))
 seqs.founding[fam]              # the INITIAL genome (node 0), at the start of the stem
 seqs.ancestral[fam]["n0_g0"]    # the CROWN (node 1); n1_g1, n2_g2, ... the other internal nodes
@@ -249,7 +249,7 @@ _C_ALN = '''\
 zombi2 species   run --birth 1.0 --death 0.25 --n-extant 20 --seed 4
 zombi2 genomes   run --resolution ordered --initial-families 45 \\
                      --duplication 0.04 --loss 0.0 --transfer 0.0 --seed 6
-zombi2 sequences run --model jc69 --length 60 --seed 7
+zombi2 sequences run --model jc69 --length 60 --divergence 0.25 --seed 7   # --divergence: don't saturate
 
 ### plot  —  Phylustrator (ph.trees for the tree, ph.genomes for the alignment)
 import phylustrator as ph
