@@ -4,7 +4,8 @@
 
 Renders figures/ (local, regenerated) and writes the page to ../web/gallery.html, which the site
 deploy copies to the root so it publishes at /gallery.html. Adding a level = a new module with an
-EXAMPLES list, added to LEVELS (each entry carries a URL slug used as the section anchor).
+EXAMPLES list, added to LEVELS (each entry carries a URL slug used as the section anchor). One module
+may feed more than one section: joining.py supplies both the conditioning and the joining lists.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ FIGDIR = os.path.join(HERE, "figures")
 OUT = os.path.abspath(os.path.join(HERE, "..", "web", "gallery.html"))   # published at /gallery.html
 
 # (slug, title, blurb, examples) — the slug is the section id the landing-page cards link to.
+# The first section is the one that starts open; every other section starts folded.
 LEVELS = [
     ("species", "Species trees",
      "Forward birth–death trees — the whole history, survivors and extinctions, with the diversification model made visible.",
@@ -42,9 +44,12 @@ LEVELS = [
     ("traits", "Trait evolution",
      "A trait evolving down the tree — branches coloured by its value; some paired with a companion panel.",
      traits.EXAMPLES),
-    ("joining", "Joining and conditioning",
-     "One level drives another through one mechanism: a trait drives diversification so its state shapes the tree, or a trait conditions the genome — driving gene loss — so its state shapes genome size.",
-     joining.EXAMPLES),
+    ("conditioning", "Conditioning",
+     "Two runs, in order: a trait is grown on the tree and held fixed, then a genome run reads it. The trait's state sets a genome rate, so genome size follows the trait.",
+     joining.CONDITIONING),
+    ("joining", "Joining",
+     "One run makes both. The trait sets the speciation or extinction rate of the lineage carrying it, so the trait and the tree are produced together.",
+     joining.JOINING),
 ]
 
 
@@ -96,14 +101,16 @@ def _cards(examples):
 
 def build_html():
     sections, detail = [], {}
-    for slug, name, blurb, examples in LEVELS:
+    for i, (slug, name, blurb, examples) in enumerate(LEVELS):
         _detail_data(examples, detail)
-        sections.append(f"""  <section class="level" id="{slug}">
-    <div class="level-head"><h2>{name}</h2><span class="count">{len(examples)}</span><p>{blurb}</p></div>
+        # <details>/<summary>: folding works with JavaScript off, and the count and blurb stay in the
+        # summary, so a folded section still says what is inside it. Only the first section opens.
+        sections.append(f"""  <details class="level" id="{slug}"{" open" if i == 0 else ""}>
+    <summary class="level-head"><h2>{name}</h2><span class="count">{len(examples)}</span><span class="blurb">{blurb}</span></summary>
     <div class="grid">
 {_cards(examples)}
     </div>
-  </section>""")
+  </details>""")
     data = "<script>window.EX = " + json.dumps(detail) + ";</script>"
     # A minimal standards-mode head so the page stands on its own at /gallery.html.
     head = ('<!doctype html>\n<meta charset="utf-8">\n'
@@ -142,10 +149,17 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,-app
 .note{margin:18px 0 0;display:inline-flex;gap:9px;align-items:center;font-size:.82rem;color:var(--faint);border:1px dashed var(--line);border-radius:8px;padding:7px 12px}
 .note b{color:var(--accent-ink);font-weight:600}
 .level{margin-top:52px}
-.level-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding-bottom:14px;margin-bottom:24px;border-bottom:1px solid var(--line)}
+summary.level-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line);cursor:pointer;list-style:none;-webkit-tap-highlight-color:transparent;transition:border-color .18s}
+summary.level-head::-webkit-details-marker{display:none}
+summary.level-head::marker{content:""}
+summary.level-head:hover{border-color:var(--accent)}
+summary.level-head:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:4px}
 .level-head h2{margin:0;font-size:1.4rem;letter-spacing:-.01em;font-weight:650}
 .level-head .count{font:600 12px/1 ui-monospace,monospace;color:var(--faint);padding:4px 9px;border:1px solid var(--line);border-radius:20px}
-.level-head p{margin:0;color:var(--muted);font-size:.95rem;flex:1;min-width:200px}
+.level-head .blurb{margin:0;color:var(--muted);font-size:.95rem;flex:1;min-width:200px}
+summary.level-head::after{content:"";flex:none;align-self:center;width:9px;height:9px;margin-left:4px;border-right:2px solid var(--faint);border-bottom:2px solid var(--faint);transform:rotate(45deg) translate(-2px,-2px);transition:transform .2s}
+.level[open]>summary.level-head::after{transform:rotate(-135deg) translate(-2px,-2px)}
+.level>.grid{margin-top:24px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(315px,1fr));gap:22px}
 .card{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s;display:flex;flex-direction:column}
 .card:hover,.card:focus-visible{transform:translateY(-3px);box-shadow:var(--shadow);border-color:var(--accent);outline:none}
@@ -293,6 +307,16 @@ _JS = """<script>
     if(e.key!=="Escape")return;
     if(lb.classList.contains("open"))closeLB(); else close();   // zoom first, then the detail sheet
   });
+
+  // --- deep links: gallery.html#genomes must unfold a section that starts closed ---
+  function openHash(){
+    var id=(location.hash||"").slice(1); if(!id)return;
+    var el=document.getElementById(id); if(!el)return;
+    var d=el.closest("details"); if(d)d.open=true;              // the section itself, or one above it
+    el.scrollIntoView();
+  }
+  openHash();
+  window.addEventListener("hashchange",openHash);
 })();
 </script>"""
 

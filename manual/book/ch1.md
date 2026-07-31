@@ -98,5 +98,3 @@ gen = genomes.simulate_genomes_family(sp, duplication=0.2, transfer=0.1,
 sp.write("out/species/")
 gen.write("out/genomes/")
 ```
-
-Everything the run produced is on `sp` and `gen` already — `sp.complete_tree`, `gen.events`, `gen.gene_trees` — so `write` is for keeping it, not for reading it. It writes the files of one level into whatever directory you hand it, without the per-family subdirectory or the run log the command line adds.

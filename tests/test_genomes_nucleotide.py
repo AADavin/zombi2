@@ -14,6 +14,7 @@ import collections
 import numpy as np
 import pytest
 
+from zombi2.genomes.chromosomes import chromosome_from_label
 from zombi2.genomes.events import gene_from_label, node_from_label, node_label
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_nucleotide
@@ -204,9 +205,9 @@ def test_chromosome_identity_network_is_well_formed():
     r = simulate_genomes_nucleotide(sp, inversion=1,
                                     chromosomes=[(80, "circular"), (30, "linear")], seed=4)
     ce = r.chromosome_events
-    roots = [e for e in ce if e.kind == "origination"]
+    roots = [e for e in ce if e.kind == "initial"]         # `initial`: the run started with them
     spec = [e for e in ce if e.kind == "speciation"]
-    assert len(roots) == 2                                    # one origination per seed replicon
+    assert len(roots) == 2                                    # one root per initial replicon
     assert all(e.parents == () and len(e.children) == 1 for e in roots)
     assert spec and all(len(e.parents) == 1 and len(e.children) == 2 for e in spec)
     born = {}
@@ -428,8 +429,9 @@ def test_fusion_merges_a_same_topology_pair():
 
 def test_tier_fires_with_the_right_arity():
     _sp, r = _tier(seed=5)
-    assert {"origination", "speciation", "fission", "fusion"} <= {e.kind for e in r.chromosome_events}
-    shape = {"origination": (0, 1), "speciation": (1, 2), "fission": (1, 2), "fusion": (2, 1)}
+    assert {"initial", "speciation", "fission", "fusion"} <= {e.kind for e in r.chromosome_events}
+    shape = {"initial": (0, 1), "origination": (0, 1), "speciation": (1, 2), "fission": (1, 2),
+             "fusion": (2, 1)}
     for e in r.chromosome_events:
         assert (len(e.parents), len(e.children)) == shape[e.kind]
 
@@ -916,7 +918,7 @@ def test_chromosome_origination_adds_a_replicon_carrying_a_gene():
     r = simulate_genomes_nucleotide(sp, chromosome_origination=0.4, origination_extent=25,
                                     chromosomes=specs, seed=3)
     orig_edges = [e for e in r.chromosome_events if e.kind == "origination"]
-    assert len(orig_edges) > len(specs)                            # de-novo replicons beyond the seeds
+    assert orig_edges                          # de-novo replicons beyond the `initial` ones
     assert all(e.parents == () and len(e.children) == 1 for e in orig_edges)   # ...are network roots
     # a de-novo replicon is never born empty: it carries one new gene on a fresh source of its own
     # (the seeded replicons here were declared with no genes at all, so they legitimately have none)
@@ -954,7 +956,7 @@ def test_chromosome_tier_network_is_well_formed_with_de_novo_and_death():
     minted = [cid for e in ev for cid in e.children]
     assert len(minted) == len(set(minted))                         # every chromosome id minted once
     for e in ev:
-        if e.kind == "origination":
+        if e.kind in ("initial", "origination"):
             assert e.parents == () and len(e.children) == 1        # a root (no parent)
         elif e.kind == "loss":
             assert e.children == () and len(e.parents) == 1        # a leaf (no child)
@@ -962,7 +964,7 @@ def test_chromosome_tier_network_is_well_formed_with_de_novo_and_death():
             assert len(e.parents) == 2 and len(e.children) == 1    # the only reticulation
         else:                                                       # speciation / fission
             assert len(e.parents) == 1 and len(e.children) == 2
-    assert {"origination", "loss", "speciation"} <= {e.kind for e in ev}
+    assert {"initial", "origination", "loss", "speciation"} <= {e.kind for e in ev}
 
 
 def test_recovery_cross_check_holds_with_chromosome_tier():
@@ -1391,7 +1393,7 @@ def test_two_chromosomes_with_the_whole_event_set():
         transfer=2.0, transfer_extent=250, seed=1, **_TWO)
 
     kinds = collections.Counter(e.kind for e in r.chromosome_events)
-    assert {"fission", "fusion", "origination", "loss", "speciation"} <= set(kinds)
+    assert {"fission", "fusion", "initial", "origination", "loss", "speciation"} <= set(kinds)
     assert all(len(g.chromosomes) >= 1 for g in r.genomes.values())    # never the last chromosome
     # no chromosome is ever left without a gene, so none is ever empty
     assert all(c.n_genes >= 1 for g in r.genomes.values() for c in g.chromosomes)
@@ -1399,7 +1401,7 @@ def test_two_chromosomes_with_the_whole_event_set():
     minted = [cid for e in r.chromosome_events for cid in e.children]  # the network stays well-formed
     assert len(minted) == len(set(minted))
     for e in r.chromosome_events:
-        if e.kind == "origination":
+        if e.kind in ("initial", "origination"):
             assert e.parents == () and len(e.children) == 1
         elif e.kind == "loss":
             assert e.children == () and len(e.parents) == 1
@@ -1671,15 +1673,20 @@ def _written(tmp_path, **kw):
 def test_write_emits_the_selected_outputs(tmp_path):
     _written(tmp_path)
     assert {p.name for p in tmp_path.iterdir()} == {
-        "genome_events.tsv", "block_events.tsv", "blocks.tsv", "genes.tsv",
-        "chromosome_events.tsv"}
+        "genome_events.tsv", "block_events.tsv", "rearrangement_events.tsv", "blocks.tsv",
+        "genes.tsv", "chromosome_events.tsv"}
 
 
 def test_every_resolution_writes_the_same_genome_events_table(tmp_path):
-    """One filename, one format, one reader. `genome_events.tsv` used to mean two different things:
-    at the nucleotide resolution its rows were ancestral intervals, and `lineage` on a transfer named
-    the *donor* rather than the branch the copy is born on. The columns looked close enough that the
-    family reader would have accepted one and built silently wrong gene trees."""
+    """One filename, one reader. `genome_events.tsv` used to mean two different things: at the
+    nucleotide resolution its rows were ancestral intervals, and `lineage` on a transfer named the
+    *donor* rather than the branch the copy is born on. The columns looked close enough that the
+    family reader would have accepted one and built silently wrong gene trees.
+
+    Every resolution now writes one row per **event** (`_COLS`); the ordered one adds the coordinates
+    of that event beside them, which is what "a prefix of the header" is for. Either way
+    `events_from_tsv` reads it and gives back the same edges, which is the contract this test is
+    about."""
     from zombi2.genomes import simulate_genomes_family, simulate_genomes_ordered
     from zombi2.genomes.events import _COLS, events_from_tsv
 
@@ -1697,19 +1704,19 @@ def test_every_resolution_writes_the_same_genome_events_table(tmp_path):
         d = tmp_path / name
         r.write(d, outputs=("events",))
         text = (d / "genome_events.tsv").read_text(encoding="utf-8")
-        # the genealogy columns are a prefix of every resolution's header — that is the contract
-        # `events_from_tsv` relies on, and what lets one reader serve all three
+        # the columns are a prefix of the header — a resolution may write more beside them, and that
+        # prefix is the contract `events_from_tsv` dispatches on
         assert tuple(text.splitlines()[0].split("\t"))[:len(_COLS)] == _COLS, name
 
-        events = events_from_tsv(text)                   # the family reader, on all three
+        events = events_from_tsv(text)                   # the one reader, on all three
         assert events, name
         by_kind: dict[str, list] = {}
         for e in events:
             by_kind.setdefault(e.kind, []).append(e)
         for kind, es in by_kind.items():
-            rows_per_event = 2 if kind in ("duplication", "transfer", "speciation") else 1
-            assert len(es) == rows_per_event * len({e.event for e in es}), (name, kind)
-        # a transfer is a horizontal edge everywhere: both rows name the donor, and the arriving row
+            edges_per_event = 2 if kind in ("duplication", "transfer", "speciation") else 1
+            assert len(es) == edges_per_event * len({e.event for e in es}), (name, kind)
+        # a transfer is a horizontal edge everywhere: both edges name the donor, and the arriving one
         # alone names the recipient — the branch the new copy is born on, which is its own `lineage`
         for e in by_kind.get("transfer", ()):
             assert e.donor is not None, name
@@ -1770,9 +1777,8 @@ def test_written_events_account_for_every_recorded_event(tmp_path):
         n = {"loss": len(getattr(e, "lost", ())), "duplication": len(getattr(e, "copied", ())),
              "transfer": len(getattr(e, "transferred", ())),
              "speciation": len(getattr(e, "children", ()))}.get(kind, 1)
-        expected[kind] += n
-    for r_ in r.rearrangements:                      # they share the table; count them too
-        expected[type(r_).__name__.lower()] += 1
+        # a speciation re-mints one copy lineage into one child per daughter: one row, both in it
+        expected[kind] += 1 if kind == "speciation" else n
     assert collections.Counter(row["kind"] for row in rows) == expected
     assert {"initial", "origination", "loss", "duplication", "transfer", "speciation"} <= set(expected), \
         f"the fixture should exercise every event kind, got {sorted(expected)}"
@@ -1797,22 +1803,24 @@ def test_genes_file_is_header_only_when_none_were_declared(tmp_path):
     assert (tmp_path / "genes.tsv").read_text(encoding="utf-8") == "family\tname\tsource\tstart\tend\tstrand\n"
 
 
-def test_written_rearrangements_share_the_event_table(tmp_path):
-    """They used to be their own file. They end no gene lineage — which is why they were apart — but
-    they are events on the same branches at the same clock, and a reader replaying one has to
-    interleave them anyway. So: same table, their own kinds, and no ancestral columns."""
+def test_rearrangements_are_their_own_table(tmp_path):
+    """A rearrangement begins and ends no lineage, so it has no parents and no children — in the
+    genealogy table those were empty columns on every one of its rows, and the ancestral interval
+    columns were empty too. It gets its own file, whose columns are the coordinates it does have."""
     r = _written(tmp_path, chromosomes=3, translocation=1.5, transposition=3.0)
     assert not (tmp_path / "rearrangements.tsv").exists()
-    _, rows = _read(tmp_path / "block_events.tsv")
+    cols, rows = _read(tmp_path / "rearrangement_events.tsv")
+    assert cols == ["time", "kind", "lineage", "chromosome", "start", "length",
+                    "dest_chromosome", "dest_position", "flipped"]
     kinds = {"inversion", "transposition", "translocation"}
-    rear = [row for row in rows if row["kind"] in kinds]
-    assert len(rear) == len(r.rearrangements) and {row["kind"] for row in rear} == kinds
-    for row, rec in zip(rear, sorted(r.rearrangements, key=lambda x: x.time), strict=True):
+    assert len(rows) == len(r.rearrangements) and {row["kind"] for row in rows} == kinds
+    for row, rec in zip(rows, r.rearrangements, strict=True):
         assert float(row["time"]) == rec.time and node_from_label(row["lineage"]) == rec.lineage
-        assert int(row["length"]) == rec.length and int(row["position"]) == rec.start
-        # physical, not ancestral: a rearrangement moves material without changing where it came from
-        assert row["source"] == row["start"] == row["end"] == row["copy"] == ""
+        assert int(row["length"]) == rec.length and int(row["start"]) == rec.start
     assert [float(row["time"]) for row in rows] == sorted(float(row["time"]) for row in rows)
+    # and no rearrangement leaks into the genealogy table
+    _, genealogy = _read(tmp_path / "block_events.tsv")
+    assert not [row for row in genealogy if row["kind"] in kinds]
 
 
 def test_both_resolutions_write_the_same_chromosome_network_format(tmp_path):
@@ -1826,7 +1834,12 @@ def test_both_resolutions_write_the_same_chromosome_network_format(tmp_path):
 
     nt_cols, _ = _read(tmp_path / "nt" / "chromosome_events.tsv")
     ord_cols, _ = _read(tmp_path / "ord" / "chromosome_events.tsv")
-    assert nt_cols == ord_cols == ["time", "kind", "lineage", "parents", "children"]
+    assert nt_cols == ord_cols == ["time", "kind", "parents", "children"]
+    # every chromosome carries its own branch in its token, so no row needs a lineage column
+    _, nt_rows = _read(tmp_path / "nt" / "chromosome_events.tsv")
+    for row in nt_rows:
+        for tok in (row["parents"] + ";" + row["children"]).split(";"):
+            assert not tok or chromosome_from_label(tok)
 
 
 def test_block_trees_cover_the_whole_genome_and_agree_with_the_gene_trees(tmp_path):
@@ -2007,7 +2020,7 @@ def test_an_unwired_modifier_is_still_refused_cleanly():
     has; it is not wired here."""
     from zombi2.rates import modifiers as mod
     sp = simulate_species_tree(birth=1.0, n_extant=4, seed=1)
-    with pytest.raises(ValueError, match="does not support yet"):
+    with pytest.raises(ValueError, match="does not support"):
         simulate_genomes_nucleotide(sp, root_length=200,
                                     inversion=2.0 * mod.ByFamily(spread=0.5), seed=1)
     # a plain number is of course fine

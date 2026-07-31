@@ -97,12 +97,12 @@ def test_values_are_the_extant_tips():
     assert all(r.values[i] == r.node_values[i] for i in extant)
 
 
-def test_continuous_events_are_only_the_root_marker():
+def test_continuous_events_are_only_the_initial_marker():
     sp = _tree(seed=8)
     r = simulate_continuous(sp, rate=0.5, seed=1)
-    # a diffusion has no along-branch events; the one row is the origin marker (state at t=0), which
-    # every trait log now carries so it defines where the run started
-    assert [e.kind for e in r.events] == ["root"]
+    # a diffusion has no along-branch events; the one row is the t=0 marker (the initial state),
+    # which every trait log now carries so it defines where the run started
+    assert [e.kind for e in r.events] == ["initial"]
     assert r.events[0].lineage == sp.complete_tree.root and r.events[0].from_state is None
     assert r.kind == "continuous"
     assert r.history is None
@@ -273,7 +273,7 @@ def test_ou_pull_must_be_positive():
 
 def test_ou_with_time_is_deferred():
     sp = _tree(seed=1)
-    with pytest.raises(ValueError, match="not wired yet"):
+    with pytest.raises(ValueError, match="not implemented yet"):
         simulate_continuous(sp, rate=1.0 * mod.OnTime({0: 1.0, 3: 0.2}),
                             reverts_to=2.0, pull=0.5, seed=1)
 
@@ -389,7 +389,7 @@ def test_variable_rates_deterministic():
 
 def test_variable_rates_rejects_ou_combo():
     sp = _tree(seed=1)
-    with pytest.raises(ValueError, match="not wired yet"):
+    with pytest.raises(ValueError, match="not implemented yet"):
         simulate_continuous(sp, rate=1.0 * mod.FromParent(spread=0.3),
                             reverts_to=2.0, pull=0.5, seed=1)
 
@@ -493,7 +493,7 @@ def test_diversity_deterministic():
 
 def test_diversity_rejects_ou_combo():
     sp = _tree(seed=1)
-    with pytest.raises(ValueError, match="not wired yet"):
+    with pytest.raises(ValueError, match="not implemented yet"):
         simulate_continuous(sp, rate=1.0 * mod.OnTotalDiversity(cap=10.0), reverts_to=2.0, pull=0.5, seed=1)
 
 
@@ -516,7 +516,7 @@ def test_discrete_zero_switch_is_constant():
     sp = _tree(seed=3, death=0.5)
     r = simulate_discrete(sp, states=["x", "y"], switch=0.0, start="x", seed=1)
     assert all(v == "x" for v in r.node_values.values())   # no rate → never leaves the start state
-    assert [e.kind for e in r.events] == ["root"]          # only the origin marker, no transitions
+    assert [e.kind for e in r.events] == ["initial"]       # only the t=0 marker, no transitions
     assert r.events[0].to_state == "x"
     assert all(len(segs) == 1 for segs in r.history.values())
 
@@ -542,13 +542,13 @@ def test_discrete_history_segments_sum_to_branch_length():
 def test_discrete_events_track_the_stochastic_map():
     sp = _tree(seed=6)
     r = simulate_discrete(sp, states=["a", "b", "c"], switch=0.8, start="a", seed=3)
-    # one event per jump between consecutive segments, across all branches (excluding the origin row)
+    # one event per jump between consecutive segments, across all branches (excluding the t=0 row)
     n_jumps = sum(len(segs) - 1 for segs in r.history.values())
-    switches = [e for e in r.events if e.kind != "root"]
+    switches = [e for e in r.events if e.kind != "initial"]
     assert len(switches) == n_jumps and n_jumps > 0
     assert all(isinstance(e, Change) and e.from_state != e.to_state for e in switches)
-    assert r.events == sorted(r.events, key=lambda e: e.time)      # time-ordered, root at t=0 first
-    assert r.events[0].kind == "root"
+    assert r.events == sorted(r.events, key=lambda e: e.time)      # time-ordered, initial row first
+    assert r.events[0].kind == "initial"
     for e in switches:                                            # each change sits on its branch
         node = sp.complete_tree.nodes[e.lineage]
         assert node.birth_time <= e.time <= node.end_time + 1e-9
@@ -615,7 +615,7 @@ def test_discrete_write(tmp_path):
     assert len(vals) - 1 == len(r.node_values)                    # every node, not only the extant tips
     ev = (tmp_path / "trait_events.tsv").read_text(encoding="utf-8").splitlines()
     assert ev[0] == "time\tkind\tlineage\tfrom\tto" and len(ev) - 1 == len(r.events)
-    assert ev[1].split("\t")[1] == "root"                          # the origin row comes first
+    assert ev[1].split("\t")[1] == "initial"                       # the t=0 row comes first
 
 
 def test_discrete_validation():
@@ -714,7 +714,7 @@ def test_correlated_validation():
         simulate_continuous(tree, start={"a": 0.0}, rate={"a": 1.0}, seed=1)
     with pytest.raises(ValueError, match="dicts keyed by trait"):
         simulate_continuous(tree, start=0.0, rate=1.0, correlation={("a", "b"): 0.5}, seed=1)
-    with pytest.raises(ValueError, match="not wired yet"):
+    with pytest.raises(ValueError, match="not implemented yet"):
         simulate_continuous(tree, **good, correlation={("a", "b"): 0.5}, reverts_to=1.0, pull=0.5, seed=1)
     with pytest.raises(ValueError, match="later slice"):
         simulate_continuous(tree, start={"a": 0.0, "b": 0.0},
@@ -851,12 +851,12 @@ def test_at_speciation_validation():
     tree = _corr_tree()
     with pytest.raises(ValueError, match="non-negative"):
         simulate_continuous(tree, rate=1.0, at_speciation=-1.0, seed=1)
-    with pytest.raises(ValueError, match="not wired yet"):
+    with pytest.raises(ValueError, match="not implemented yet"):
         simulate_continuous(tree, start={"a": 0.0, "b": 0.0}, rate={"a": 1.0, "b": 1.0},
                             correlation={("a", "b"): 0.5}, at_speciation=0.5, seed=1)
     with pytest.raises(ValueError, match="probability in"):
         simulate_discrete(tree, states=["a", "b"], switch=0.1, at_speciation=1.5, seed=1)
-    with pytest.raises(ValueError, match="not wired for threshold"):
+    with pytest.raises(ValueError, match="not implemented for threshold"):
         simulate_discrete(tree, states=["a", "b"], liability=1.0, threshold=0.0, at_speciation=0.5, seed=1)
 
 
@@ -938,14 +938,14 @@ def test_write_trait_tree(tmp_path):
 def test_events_log_records_speciation_changes():
     # on-speciation jumps/shifts now live in the event log (kind="on_speciation"); a plain run has none
     tree = _corr_tree()
-    plain = [e for e in simulate_continuous(tree, rate=1.0, seed=1).events if e.kind != "root"]
+    plain = [e for e in simulate_continuous(tree, rate=1.0, seed=1).events if e.kind != "initial"]
     assert plain == []                                                         # pure BM: no switches
     jumps = [e for e in simulate_continuous(tree, rate=1.0, at_speciation=0.5, seed=1).events
-             if e.kind != "root"]
+             if e.kind != "initial"]
     assert jumps and all(e.kind == "on_speciation" for e in jumps)
     assert isinstance(jumps[0].from_state, float) and isinstance(jumps[0].to_state, float)
     d = [e for e in simulate_discrete(tree, states=["a", "b", "c"], switch=1.5, at_speciation=0.4,
-                                      seed=2).events if e.kind != "root"]
+                                      seed=2).events if e.kind != "initial"]
     assert {e.kind for e in d} == {"on_branch", "on_speciation"}                 # both in the log
     assert all(e.from_state != e.to_state for e in d)
 

@@ -22,12 +22,12 @@ Simulate each level of evolution on its own. Run 'zombi2 <command> -h' for a com
 
 Levels
   species              simulate a dated species tree
-  genomes              evolve gene families along a species tree (family or ordered)
+  genomes              evolve gene families along a species tree (family, ordered, nucleotide)
   sequences            evolve sequences down each gene tree (a prior genomes run)
   traits               evolve a trait along a species tree (continuous or discrete)
 
-Coupling
-  joint                grow a species tree and the level driving it, together
+Joint
+  joint                grow a species tree and the level driving it, in one pass
 
 Tools
   tools                analyses that read a finished run (homology, markers, recphylo, …)
@@ -100,13 +100,17 @@ def _rate(text: str):
 
 
 #: one gloss and one worked snippet per modifier, for the RATES help block. A modifier with no entry
-#: still lists (by name), so the help can never fall behind a level's ``WIRED_MODIFIERS`` declaration.
+#: still lists (by name), so the help can never fall behind a level's ``WIRED_MODIFIERS`` declaration
+#: of what it supports.
+#: ``DrivenBy`` carries no snippet: its source is a *file* on a conditioned level and a *live level*
+#: name on ``joint``, so one snippet would be wrong on one of the two screens (it was — the joint help
+#: showed a filename, which ``joint`` rejects). A command that wants one passes ``example=``.
 _MODIFIER_HELP = {
     "OnTime": ("OnTime({0: 1.0, 3: 0.3})", "the rate changes in time — a skyline"),
     "OnTotalDiversity": ("OnTotalDiversity(cap=100)", "the rate slows as the clade fills up"),
     "FromParent": ("FromParent(spread=0.2)", "the rate drifts down the tree"),
     "ByLineage": ("ByLineage(spread=0.3)", "one draw per lineage — the uncorrelated clock"),
-    "DrivenBy": ("DrivenBy('habitat.tsv', {'aquatic': 3.0})", "the rate is driven by another level"),
+    "DrivenBy": (None, "the rate is driven by another level"),
 }
 
 
@@ -114,61 +118,46 @@ def _wrap_note(note: str, width: int = 86) -> list[str]:
     return textwrap.wrap(note, width=width, initial_indent="  ", subsequent_indent="  ")
 
 
-def _rates_help(wired, flag: str, *, scopes: str | None = None, note: str | None = None) -> str:
+def _rates_help(supported, flag: str, *, scopes: str | None = None, note: str | None = None,
+                example: str | None = None) -> str:
     """The ``RATES`` epilog block for a command, built from that level's ``WIRED_MODIFIERS``.
 
     Listing what the engine *declares* (rather than a hand-kept list) is what keeps the help honest:
-    a modifier the level does not wire is rejected by the engine, so it must not be advertised here
-    either — and the worked example is drawn from the same list, so it is always a modifier that runs.
+    a modifier the level does not support is rejected by the engine, so it must not be advertised
+    here either — and the worked example is drawn from the same list, so it is always a modifier that
+    runs. ``example`` overrides that snippet for a level whose form differs (see `_MODIFIER_HELP`).
     """
-    examples = [_MODIFIER_HELP[m.__name__][0] for m in wired if m.__name__ in _MODIFIER_HELP]
-    shown = examples[0] if examples else None
-    key = flag.lstrip("-").replace("-", "_")
+    snippets = [_MODIFIER_HELP[m.__name__][0] for m in supported if m.__name__ in _MODIFIER_HELP]
+    shown = example or next((s for s in snippets if s), None)
 
     header = _BOLD + "RATES" + _RESET if _use_color() else "RATES"
-    lines = [header,
-             # no cross-reference here: this block IS the explanation, and a reader in --help cannot
-             # follow a citation to a document that does not ship with the package
-             "  Every rate is scope(base) × modifiers — a bare number, or the same",
-             "  expression you would write in Python, quoted:",
-             "",
-             f"    {flag} 1.0"]
+    intro = "  A rate is a number, or a quoted expression — the same text Python takes"
+    lines = [header, intro + (":" if shown or scopes else ".")]
     if shown:
         lines.append(f'    {flag} "1.0 * {shown}"')
     if scopes:
         lines.append(f'    {flag} "{scopes}"')
-    lines += ["", "  Modifiers wired for this level (anything else is an error, never ignored):"]
-    for m in wired:
+    lines.append("  Modifiers this level takes (anything else is an error):")
+    for m in supported:
         name = m.__name__
         entry = _MODIFIER_HELP.get(name)
         lines.append(f"    {name:<20}{entry[1]}" if entry else f"    {name}")
-    lines.append("")
     if note:
         lines += _wrap_note(note)
-        lines.append("")
-    if shown:
-        lines.append(f'  A --params file takes the same text:  {key} = "1.0 * {shown}"')
     return "\n".join(lines)
 
 
 def _add_params_arg(g) -> None:
     """Add ``--params FILE`` (a TOML parameters file) to a subcommand's ``general`` group."""
     g.add_argument("--params", metavar="FILE",
-                   help="a TOML parameters file whose keys are this command's long option names "
-                        "(hyphens or underscores); applied as defaults, so any flag given on the "
-                        "command line overrides it. A '[<command>]' table scopes keys to one command, "
-                        "so one file can serve a whole pipeline; top-level keys outside any table are "
-                        "a shared base for every command, which its table overrides. The run "
-                        "directory stays on the command line.")
+                   help="a TOML parameters file; keys are long option names, overridden by any "
+                        "flag you also pass")
 
 
 def _add_flat_arg(g) -> None:
     """Add ``--flat`` (write everything into one directory) to a subcommand's ``outputs`` group."""
     g.add_argument("--flat", action="store_true",
-                   help="write every file straight into the output directory instead of grouping "
-                        "them by level. A run of a hundred families writes hundreds of files, so "
-                        "the grouped layout is the default; use this when another tool expects one "
-                        "flat directory")
+                   help="write every file straight into DIR, not grouped by level")
 
 
 def default_outputs(result) -> tuple[str, ...]:
@@ -184,31 +173,26 @@ def default_outputs(result) -> tuple[str, ...]:
 
 def _add_quiet_arg(g) -> None:
     """Add ``--quiet`` — no progress bar, for a log file or a batch of runs."""
-    g.add_argument("--quiet", action="store_true",
-                   help="no progress bar. A command shows one while it works, which is noise in a "
-                        "log file or a script running hundreds of replicates")
+    g.add_argument("--quiet", action="store_true", help="no progress bar")
 
 
 def _add_force_arg(g) -> None:
     """Add ``--force`` — re-run this level even though a later level built from it is already in the run
     directory, removing that now-stale downstream output (see `check_stale_downstream()`)."""
     g.add_argument("--force", action="store_true",
-                   help="re-run this level even if a later level in the run was built from its output, "
-                        "removing that now-stale downstream. Without it the command refuses, so a run's "
-                        "levels can never silently disagree")
+                   help="re-run this level even if a later level in the run was built from its "
+                        "output, deleting that now-stale downstream (without it, the command "
+                        "refuses)")
 
 
 def _add_parallel_arg(g) -> None:
     """Add ``--parallel [N]`` — evolve the run's independent units concurrently. Opt-in: omitting it
     runs serially, the default."""
     g.add_argument("--parallel", nargs="?", const="__all__", default=None, metavar="N",
-                   help="evolve independent units concurrently, one per worker process — a gene "
-                        "family (genomes) or a gene tree (sequences). Bare --parallel uses every "
-                        "core; --parallel N uses N workers; omitted runs serially (the default). It "
-                        "is a separate engine: the result is identical for any worker count but "
-                        "differs from a serial run for the same seed (both valid). Conditioned rates "
-                        "(DrivenBy) run here too. Worth it for a large run — long sequences, many "
-                        "families — and a loss for a small one")
+                   help="evolve independent units — a gene family (genomes), a gene tree "
+                        "(sequences) — one per worker process: bare = every core, N = N workers "
+                        "(default: serial). A separate engine, so the result is the same for any "
+                        "worker count but differs from a serial run of the same seed (both valid)")
 
 
 def parallel_from_args(args, parser):
@@ -478,23 +462,23 @@ def _run_dir(s: str) -> str:
     return s.rstrip("/") or "/"
 
 
-def _add_run_arg(p, what: str) -> None:
+def _add_run_arg(p, what: str = "") -> None:
     """Add the run directory — the one positional every command takes.
 
-    A run accumulates in one directory: each level reads what the level before it left there and
-    writes its own beside it. Naming that directory once, positionally, is the whole invocation's
-    shape; ``--from`` is the exception for when the input lives somewhere else."""
-    p.add_argument("run", metavar="DIR", type=_run_dir,
-                   help=f"the run directory: {what}. Created if needed, and read from as well as "
-                        f"written to, so a pipeline names it once per command")
+    ``what`` (a per-command gloss) is accepted but not shown: the help line is the same three words
+    on every screen. What a run directory *is* — written to and read from, named once per command —
+    is the manual's job (Ch2), not ten repetitions of it in ``--help``."""
+    p.add_argument("run", metavar="DIR", type=_run_dir, help="the run directory")
 
 
-def _add_from_arg(g, what: str) -> None:
-    """Add ``--from`` — where to read the previous level, when it is not the run directory."""
+def _add_from_arg(g, what: str, detail: str = "") -> None:
+    """Add ``--from`` — where to read the previous level, when it is not the run directory.
+
+    ``what`` is a bare noun phrase and ``detail`` a parenthetical. They are separate because the two
+    read badly fused: an appositive inside ``what`` landed mid-sentence ("read the species tree — a
+    Newick file, or another run's directory from here instead of...")."""
     g.add_argument("--from", dest="source", default=None, metavar="PATH",
-                   help=f"read {what} from here instead of from the run directory. Use it for a "
-                        f"tree or a run that came from somewhere else, or to write a run separate "
-                        f"from the one it reads")
+                   help=f"read {what} from PATH" + (f" ({detail})" if detail else ""))
 
 
 #: What a species tree resolves to inside a run directory, in the order tried: the grouped layout

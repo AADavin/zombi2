@@ -29,8 +29,7 @@ from zombi2.traits import WIRED_MODIFIERS, simulate_continuous, simulate_discret
 #: the RATES block for ``zombi2 traits -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
     WIRED_MODIFIERS, "--rate",
-    note="These bend a continuous trait's variance-rate (--rate). The discrete switching rate "
-         "(--switch) and the liability rate (--liability) are bare numbers this slice.")
+    note="Only --rate takes an expression; --switch and --liability are bare numbers.")
 
 # the write vocabularies, mirroring TraitsResult.write. The event log IS the conditioning file now
 # (a driven run replays it against the tree), so there is no separate driver output.
@@ -50,61 +49,48 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
     _add_run_arg(p, "the trait rides the species tree it already holds")
     g = p.add_argument_group("general")
     _add_params_arg(g)
-    _add_from_arg(g, "the tree the trait rides — a Newick file, or another run's directory")
+    _add_from_arg(g, "the tree the trait rides", "a Newick file, or another run's directory")
     # validated in run() rather than argparse-`required`, so a --params file can supply it
     g.add_argument("--kind", choices=("continuous", "discrete"), default=None, metavar="KIND",
-                   help="continuous (a real value diffusing) or discrete (a finite state "
-                        "switching) — required. It is the first thing to decide, because it "
-                        "settles which of the options below apply")
+                   help="the state space — continuous or discrete (required)")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("--tip-fates", metavar="FILE", dest="tip_fates",
-                   help="[external non-ultrametric trees] a TSV 'tip_name<TAB>extant|extinct|unsampled' "
-                        "declaring each tip's fate; required when the input tree is not ultrametric "
-                        "(ZOMBI won't guess extinct lineages from early-sampled tips). A species run's "
-                        "own species_fates.tsv is in this format and can be passed directly.")
+                   help="a TSV 'tip_name<TAB>extant|extinct|unsampled'; required when the input "
+                        "tree is not ultrametric")
 
     g = p.add_argument_group("continuous trait", "only with --kind continuous")
     g.add_argument("--rate", type=_rate, default=1.0, metavar="RATE",
-                   help="the Brownian variance-rate σ² — how fast the value diffuses (default 1.0; "
-                        "see RATES below)")
+                   help="the Brownian variance-rate σ² (default 1.0; see RATES below)")
     g.add_argument("--reverts-to", type=float, default=None, metavar="VALUE", dest="reverts_to",
                    help="[OU] the optimum the value is pulled toward (needs --pull)")
     g.add_argument("--pull", type=float, default=None, metavar="STRENGTH",
-                   help="[OU] how strongly the value is pulled to --reverts-to (needs --reverts-to)")
+                   help="[OU] the strength of that pull (needs --reverts-to)")
 
     g = p.add_argument_group("discrete trait", "only with --kind discrete")
     g.add_argument("--states", metavar="A,B,...", default=None,
-                   help="the state space, comma-separated (e.g. marine,terrestrial). Required for "
-                        "--kind discrete")
+                   help="the state space (required), e.g. marine,terrestrial")
     g.add_argument("--switch", type=float, default=None, metavar="RATE",
-                   help="[Mk] the symmetric switching rate between states — a bare number this "
-                        "slice (an asymmetric rate matrix needs the Python API)")
+                   help="[Mk] the symmetric switching rate between states")
     g.add_argument("--liability", type=float, default=None, metavar="RATE",
-                   help="[threshold] the variance-rate of the underlying continuous liability — a "
-                        "bare number this slice")
+                   help="[threshold] the variance-rate of the underlying liability")
     g.add_argument("--threshold", type=float, default=None, metavar="CUT",
                    help="[threshold] the liability value the state flips at")
 
     g = p.add_argument_group("both kinds")
     g.add_argument("--start", default=None, metavar="VALUE",
-                   help="the value at time 0 — a number when --kind continuous (default 0), a "
-                        "state label when --kind discrete (default: one of --states drawn "
-                        "uniformly, so the root state varies with --seed)")
+                   help="the value at time 0 — a number when continuous (default 0), a state "
+                        "label when discrete (default: uniform over --states)")
     g.add_argument("--at-speciation", type=float, default=None, metavar="X",
                    dest="at_speciation",
-                   help="add a change at each speciation node: the jump width (Normal(0, X)) when "
-                        "--kind continuous, the probability of hopping to another state when "
-                        "--kind discrete")
+                   help="a change at each speciation node — jump width Normal(0, X) when "
+                        "continuous, hop probability when discrete")
 
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=_DISCRETE_OUTPUTS, default=None, metavar="PART",
-                   help="which outputs to write (default: values, tree [+ events when discrete]). "
-                        "values: the value at every node (tips, extinct lineages, internal). events: "
-                        "the event log — a root row giving the "
-                        "initial state then every switch; this is also the file a conditioned "
-                        "genome/sequence run reads with DrivenBy('trait_events.tsv', ...). tree: "
-                        "the trait tree (annotated Newick).")
+                   help="which outputs to write: values (every node), events (the root state "
+                        "then every switch — what a conditioned run reads), tree (annotated "
+                        "Newick), summary. Default: all but events, and events too when discrete")
     _add_flat_arg(g)
     _add_quiet_arg(g)
     _add_force_arg(g)
@@ -112,9 +98,8 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
 
 def run(args, parser):
     if args.kind is None:
-        parser.error("--kind is required: continuous (a real value diffusing) or discrete (a finite "
-                     "state switching). It decides which of the other options apply, so there is no "
-                     "sensible default — a trait is one or the other before it is anything else")
+        parser.error("--kind is required: continuous (a real value diffusing) or discrete (a "
+                     "finite state switching)")
     discrete = args.kind == "discrete"
 
     # reject the other kind's knobs, so a silently-ignored flag can't give a misleading run

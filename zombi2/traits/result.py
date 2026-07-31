@@ -21,10 +21,10 @@ class Change:
     clock) the state went from ``from_state`` to ``to_state``. ``kind`` is ``"on_branch"`` — a switch
     *along* a branch (an Mk transition) — ``"on_speciation"`` — a jump *at* a speciation node (from
     ``at_speciation``; for a continuous trait ``from_state`` / ``to_state`` are the pre- and post-jump
-    values) — or ``"root"``, one synthetic entry at the origin giving the **initial state** the run
+    values) — or ``"initial"``, one synthetic entry at t=0 giving the **initial state** the run
     started in (``from_state`` ``None``, ``time`` the root's ``birth_time``). That row is what lets the
-    log stand on its own: the tree plus the root state plus the switches determines the trait on every
-    lineage at every instant, so no separate driver file is needed."""
+    log stand on its own: the tree plus the initial state plus the switches determines the trait on
+    every lineage at every instant, so no separate driver file is needed."""
 
     time: float
     kind: str
@@ -121,16 +121,16 @@ class TraitsResult:
         lineages and internal nodes; ``kind`` is the tip's fate — ``extant`` / ``extinct`` (/ ``unsampled``
         under incomplete sampling) — or ``ancestor`` for an internal node, so the extant tips filter out
         with ``kind == "extant"``); ``"events"`` →
-        ``trait_events.tsv``, the event log (``time · kind · lineage · from · to``) — one ``root`` row
-        at the origin giving the initial state, then every switch in time order; ``"tree"`` →
+        ``trait_events.tsv``, the event log (``time · kind · lineage · from · to``) — one ``initial``
+        row at t=0 giving the initial state, then every switch in time order; ``"tree"`` →
         ``trait_tree.nwk``, the complete tree as Newick with **every** node annotated ``[&trait=…]``
         (a *trait tree*, carrying the exact ancestral values; opens in FigTree / iTOL).
 
         ``trait_events.tsv`` is also the **conditioning file**: a genome / sequence run drives a rate
         with ``mod.DrivenBy("trait_events.tsv", …)``, replaying it against the shared tree. A
         **discrete** trait's log reconstructs its state on every lineage exactly (that is what the
-        ``root`` row and the switch times are for); a continuous trait's diffusion cannot be rebuilt
-        from events, so it carries only the ``root`` row and any on-speciation jumps."""
+        ``initial`` row and the switch times are for); a continuous trait's diffusion cannot be rebuilt
+        from events, so it carries only the ``initial`` row and any on-speciation jumps."""
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
         if unknown:
             raise ValueError(f"unknown write outputs {unknown}; choose from {list(_WRITE_OUTPUTS)}")
@@ -227,16 +227,19 @@ def _values_tsv(values: dict[int, object], names: dict | None = None,
 
 
 def _events_tsv(changes: list[Change], names: dict | None = None) -> str:
-    """The event log as ``time<TAB>kind<TAB>lineage<TAB>from<TAB>to`` (``kind`` = root / on_branch /
-    on_speciation), the ``root`` row first, then the switches in time order — the trait twin of
+    """The event log as ``time<TAB>kind<TAB>lineage<TAB>from<TAB>to`` (``kind`` = initial / on_branch /
+    on_speciation), the ``initial`` row first, then the switches in time order — the trait twin of
     ``genome_events.tsv``, and the conditioning file a driven run replays.
+
+    ``lineage · from · to`` is the shape a *state change* wants, not the ``parents`` / ``children`` of
+    a birth: nothing is born or dies here, one lineage's trait simply moves from one value to another.
 
     Times are written at **full float precision** (``repr``), not rounded: a driven run steps its
     Gillespie exactly at each switch, so a rounded time would make the file-driven run diverge from the
-    in-memory one. The ``root`` row's ``from`` is empty."""
+    in-memory one. The ``initial`` row's ``from`` is empty."""
     rows = ["time\tkind\tlineage\tfrom\tto"]
     for c in changes:
-        frm = "" if c.from_state is None else _fmt(c.from_state)   # the root row leads from nothing
+        frm = "" if c.from_state is None else _fmt(c.from_state)   # the initial row leads from nothing
         rows.append(f"{c.time!r}\t{c.kind}\t{_name(names, c.lineage)}\t{frm}\t{_fmt(c.to_state)}")
     return "\n".join(rows) + "\n"
 
@@ -250,8 +253,8 @@ def _history_from_events(tree: "Tree", node_values: dict, events: list) -> dict:
     ana: dict[int, list] = {i: [] for i in tree.nodes}
     clado_to: dict[int, object] = {}
     for e in events:
-        if e.kind == "root":
-            continue                               # the origin marker; node_values covers it here
+        if e.kind == "initial":
+            continue                               # the t=0 marker; node_values covers it here
         if e.kind == "on_speciation":
             clado_to[e.lineage] = e.to_state
         else:

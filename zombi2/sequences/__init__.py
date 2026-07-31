@@ -59,7 +59,7 @@ _WRITE_OUTPUTS = ("summary", "alignments", "ancestral", "founding", "phylograms"
 #: complement of each base, for reading a block laid down on the reverse strand
 _COMPLEMENT = str.maketrans("ACGT", "TGCA")
 
-#: The rate grammar this level wires (SPEC §5) — read by the engine gate in `simulate_sequences()`
+#: The rate grammar this level supports (SPEC §5) — read by the engine gate in `simulate_sequences()`
 #: and by the CLI's help, so a modifier is never advertised without being implemented. On the
 #: substitution rate these are the two lineage clocks: ``ByLineage`` the uncorrelated ("relaxed")
 #: clock, ``FromParent`` the autocorrelated clock (the rate drifts parent→child down the species tree).
@@ -798,7 +798,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         rate = as_rate(1.0 if substitution is None else substitution, default_scope=PerSite)
     if not isinstance(rate.scope, PerSite):
         raise ValueError(
-            f"substitution has a {type(rate.scope).__name__} scope, but the sequence engine wires only "
+            f"substitution has a {type(rate.scope).__name__} scope, but the sequence engine takes only "
             f"PerSite (the default) this slice — drop the scope wrapper or use PerSite(...)."
         )
     clock_mod = None
@@ -810,9 +810,9 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
                                           if not isinstance(m, (ByLineage, FromParent))})
                                   or ["a second clock"])
             raise ValueError(
-                f"substitution carries {offenders}, but this slice wires a single lineage clock — one "
+                f"substitution carries {offenders}, but this slice takes a single lineage clock — one "
                 "ByLineage (uncorrelated) or one FromParent (autocorrelated). The Markov clock, the "
-                "ByFamily per-family speed, and +Γ across-site heterogeneity are not wired."
+                "ByFamily per-family speed, and +Γ across-site heterogeneity are not implemented."
             )
     rate_base = rate.base
 

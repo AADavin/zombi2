@@ -25,7 +25,7 @@ Species → Genomes → Sequences      (a genome lives on the species tree; a se
 Species → Traits                   (a trait lives on the species tree)
 ```
 
-These "lives-on" connections are always present; they are **not** couplings you add. Because a sequence
+These "lives-on" connections are always present; they are **not** a relation you add. Because a sequence
 lives inside a gene, it sees the species tree only through its gene tree, so its notation conditions on
 Genomes, not Species.
 
@@ -49,14 +49,14 @@ two factors collapse into one term, so do their runs.
 - **Independent** — neither reads the other (independent *of each other*, not of the tree).
 - **Conditioned** — one reads the other; the driver can be grown first and held fixed, so it is two runs
   in order, the driver passed as a file.
-- **Joint** — neither can go first, so one run makes both; when the coupling feeds back into the species
+- **Joint** — neither can go first, so one run makes both; when a level feeds back into the species
   tree, the tree becomes an **output** and crosses the bar (`P(Species, Traits)`).
 
 ---
 
 ## 3. Which pairs can be conditioned or joined
 
-Not every pair of levels can carry every kind of coupling. What a pair allows depends only on whether
+Not every pair of levels can be conditioned or joined. What a pair allows depends only on whether
 one level lives on the other or they sit on separate branches:
 
 | Level pair | Can be **conditioned**? | Can be **joined**? |
@@ -154,18 +154,24 @@ qualifiers Python needs are optional in the other two, so a manual snippet paste
 is **no second notation** — no per-modifier flags, no nested parameter tables; adding a modifier must
 never add a flag. (Read by `rates/parse.py`; it parses the expression, it does not evaluate code.)
 
-**A level rejects the modifiers it does not wire.** A modifier a level has not implemented must
-**raise**, never be silently ignored — an unwired modifier that returns a factor of 1.0 is a run that
-is quietly not the model the user asked for. Each level therefore declares what it wires
-(`WIRED_MODIFIERS`), the CLI's help is **built from that declaration** rather than hand-listed, and
-the engine's own gate may be stricter still where a rate is wired more narrowly than the level.
+**A level rejects the modifiers it does not support.** A modifier a level does not support must
+**raise**, never be silently ignored — a modifier that returns a factor of 1.0 because nothing reads
+it is a run that is quietly not the model the user asked for. Each level therefore declares what it
+takes (`WIRED_MODIFIERS`), the CLI's help is **built from that declaration** rather than hand-listed,
+and the engine's own gate may be stricter still where a rate takes less than the level does.
 
-**A driver's number is not always a rate multiplier.** `DrivenBy(source, mapping)` is the one coupling
-mechanism (§2), and the **slot** it sits in decides what the mapping's number means. In a rate it is an
-ordinary modifier: dimensionless, multiplying, changing *how fast*. In a **choice slot** it is a
-**weight**, normalised across the candidates the choice is made over, so it changes neither how fast
-nor how many — only **who**. Today the one choice slot is the genome level's `transfer_to`, the "who
-receives" of a horizontal transfer:
+Two different things get rejected, and the message must say which. A few combinations are
+**meaningless** — `ByFamily` on a species or trait rate, where there are no gene families to draw a
+factor per — and no implementation would make them mean anything; say so, and name the slot the
+modifier does belong in. The rest are **not implemented yet**, which is a statement about the code
+and not about the model; say that plainly and do not dress it up as a rule.
+
+**A driver's number is not always a rate multiplier.** `DrivenBy(source, mapping)` is the one mechanism
+for both conditioning and joining (§2), and the **slot** it sits in decides what the mapping's number
+means. In a rate it is an ordinary modifier: dimensionless, multiplying, changing *how fast*. In a
+**choice slot** it is a **weight**, normalised across the candidates the choice is made over, so it
+changes neither how fast nor how many — only **who**. Today the one choice slot is the genome level's
+`transfer_to`, the "who receives" of a horizontal transfer:
 
 ```
 transfer    = 0.1 * DrivenBy(habitat, {"competent": 3.0, "normal": 1.0})   # a rate:   how much transfer
@@ -180,9 +186,10 @@ all, so the event does not fire.
 The weight may read **both** ends — a **kernel** over `(donor group, recipient group)` pairs
 (`Between({...})`) rather than one factor per recipient — so transfer can be steered *between* groups,
 not only *into* one. The groups partition the lineages, and come from the tree (named clades — a
-topological `transfer_to` rule like `distance`, no coupling) or from a trait (`DrivenBy(trait,
-Between(...))` — a coupling). It is still a choice slot: a kernel only redistributes who receives, so a
-kernel in a *rate* slot is refused (a rate has no donor to condition on).
+topological `transfer_to` rule like `distance`, reading no other level) or from a trait
+(`DrivenBy(trait, Between(...))` — conditioned on Traits). It is still a choice slot: a kernel only
+redistributes who receives, so a kernel in a *rate* slot is refused (a rate has no donor to condition
+on).
 
 **Banned rate words:** "propensity" (say *rate*); "opportunity" as a noun (say **scope**, or ask **"per
 what?"**); "clock" for the scope (reserve **clock** strictly for the by-lineage substitution-rate
@@ -238,7 +245,7 @@ never the position the event started from. Weighting the start applies a family'
 *neighbours*, and the neighbourhood is reshuffled by every rearrangement, so the parameter would not
 even mean a fixed thing over a run.
 
-A resolution that has not wired an extent, or a modifier on one, **raises** — the §5 rule, unchanged.
+A resolution that does not support an extent, or a modifier on one, **raises** — the §5 rule, unchanged.
 
 **Banned:** "extension" and "length" for this quantity (say **extent**); "size" for the same.
 
@@ -255,6 +262,7 @@ Left column is correct; right column is a fossil to purge.
 | resolution — family / ordered / nucleotide | "level" for the genome sub-axis; "unordered"; `--genome-model` |
 | independent / conditioned / joint | pipeline / coevolution (as the framing) |
 | conditioning; joining; a joint model | coevolution (as a category) |
+| conditioning and joining (when the pair needs one name) | coupling (as the framing, a category or a level); the verb stays — "a transfer couples two lineages" |
 | rate; effective rate = scope(base) × modifiers | propensity |
 | scope; "per what?" | opportunity |
 | extent — how much a segmental event takes | extension; length (for this quantity); size |
@@ -295,7 +303,7 @@ since the CLI is one command per level.
 separate folder or command, no `gallery`/`sandbox`. It is Python-first and reaches the CLI only once you
 promise to keep it; half-built work stays on a branch, not in the package.
 
-**Graduation moves nothing:** drop the tag, wire the flag, write the manual section, add the outputs to
+**Graduation moves nothing:** drop the tag, add the flag, write the manual section, add the outputs to
 Appendix B — the file was in the level's package all along.
 
 A model that **breaks independence** — the level's units stop being independent (families that affect

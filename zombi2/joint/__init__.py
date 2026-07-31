@@ -134,7 +134,7 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
     # birth/death are driven by the trait; the trait's declared states are known up front, so the check
     # is exhaustive — every mapping key must be one of them. A key outside the alphabet is a state that
     # can never occur (a typo whose factor would silently never apply), and a mapping matching none of
-    # them would be a silently uncoupled run; both are refused here rather than run as if coupled.
+    # them would be a silently undriven run; both are refused here rather than run as if driven.
     from ..rates.driver import check_mapping_fires
     for label, rate in (("birth", birth_rate), ("death", death_rate)):
         for m in rate.modifiers:

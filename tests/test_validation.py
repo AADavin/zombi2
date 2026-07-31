@@ -24,7 +24,7 @@ So each test here computes a quantity with a **closed form** and checks the run 
   given;
 - a transfer picks its recipient uniformly among the lineages alive at that instant;
 - **a driven rate realises the multiplier it was declared with** — on the conditioned path and on the
-  joint one. These matter most and are checked last, because a mis-wired coupling is the one error
+  joint one. These matter most and are checked last, because a mis-wired driver is the one error
   that leaves every output well formed: a tree, a genome and a log that are all internally consistent,
   with only the strength of the association wrong, which is precisely what the run was made to
   measure.
@@ -36,7 +36,7 @@ the hypotheses these rule out are rejected by tens of standard deviations, not b
 
 What that buys, measured by mutating the model rather than assumed. Scaling a rate by 1.15 behind the
 engine's back fails these; by 1.02 it does not. Biasing 10% of inversions toward one half of the ring
-fails; 3% does not. Mis-wiring the coupling strength by 5% is caught on the conditioned path and by
+fails; 3% does not. Mis-wiring the driver strength by 5% is caught on the conditioned path and by
 10% on the joint one. So resolution sits between a few and ten percent, depending on the check.
 
 That figure is a property of *these* trees and replicate counts, not of the method: more material, or
@@ -352,7 +352,7 @@ def test_transfer_picks_its_recipient_uniformly():
         f"recipients are not uniform: chi2 {chi2:.1f} on {df} df")
 
 
-# --- the coupled models: a rate that reads another level ------------------------------------------
+# --- driven rates: a rate that reads another level ------------------------------------------------
 
 def _state_at(history, node, tree, when):
     """Which state a lineage held at ``when``, walking its own segment history."""
@@ -366,7 +366,7 @@ def _state_at(history, node, tree, when):
 
 
 def test_a_conditioned_rate_realises_the_multiplier_it_was_given():
-    """The coupling mechanism itself, on the conditioned path (the driver is a finished level).
+    """The driving mechanism itself, on the conditioned path (the driver is a finished level).
 
     This is the one a downstream invariant cannot catch. If ``DrivenBy`` attached its factors to the
     wrong branches, or applied them a step late, every output would still be well formed — a tree, a
@@ -410,7 +410,7 @@ def test_the_parallel_engine_realises_a_driven_multiplier_too():
     to occupy. Those are two different arithmetics for the same process, and only one of them was
     ever checked. If the footprint version attached the driver to the wrong branch, or missed a
     switch because the horizon only looks at occupied lineages, the run would still be a well-formed
-    genome and only the coupling *strength* would be wrong.
+    genome and only the driver *strength* would be wrong.
 
     Origination again, for the same reason: the compensator is plain lineage-time."""
     factors, base = {"hot": 5.0, "cold": 1.0}, 1.4

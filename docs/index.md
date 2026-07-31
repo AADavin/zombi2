@@ -1,14 +1,16 @@
 # ZOMBI2
 
+**[Manual (pdf)](https://aadavin.github.io/zombi2/zombi2-manual.pdf)**
+
 **ZOMBI2** simulates the evolution of **species trees**, **genomes**, **sequences** and **traits** —
 each on its own, conditioned on another, or jointly — and records the true history behind every
-dataset. It is a ground-up redesign of [ZOMBI](https://github.com/AADavin/Zombi), built as a clean core grown
-level by level from a single specification.
+dataset.
 
 ## The four levels
 
 Species, genomes and sequences form a chain of ancestry — a genome lives on the species tree, a
-sequence inside a gene. Traits branch to the side, because a trait can ride any species tree.
+sequence inside a gene. Traits are separate: a trait attaches directly to the species tree, so it
+does not depend on genomes or sequences.
 
 <figure markdown="span">
   ![The four levels of ZOMBI2](img/fig-2-1-four-levels.svg){ width="330" }
@@ -35,6 +37,7 @@ g = genomes.simulate_genomes_family(sp, duplication=0.2, transfer=0.1, loss=0.25
 observed = {n.id: g.genomes[n.id] for n in sp.complete_tree.extant_leaves()}
 ```
 
+ZOMBI2 lets you describe very specific evolutionary scenarios, and rates are how you do it.
 Every rate is written the same way — a **scope** around a base, optionally times **modifiers**
 (a rate that changes in time, saturates with diversity, or drifts along the tree):
 
@@ -56,6 +59,5 @@ sp = species.simulate_species_tree(
   [nucleotide](guide/genomes-nucleotide.md) resolutions),
   [**Sequence evolution**](guide/sequences.md), and [**Trait evolution**](guide/traits.md).
 - [**Conditioning and joining**](guide/conditioning-and-joining.md) — letting one level drive another.
-- Reference: the [**API**](api.md), [**rates and the Gillespie algorithm**](rates-and-gillespie.md),
-  the [**output files**](output-files.md) each run writes, and the [**tools**](tools.md)
-  that read a finished run.
+- Reference: the [**API**](api.md), the [**output files**](output-files.md) each run writes, and the
+  [**tools**](tools.md) that read a finished run.

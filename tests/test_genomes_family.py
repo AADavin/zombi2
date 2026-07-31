@@ -451,7 +451,9 @@ def _rows(path):
 def test_written_node_columns_carry_a_lineage_label():
     # species_events.tsv and trait_values.tsv have always written n<id>; the genome tables used to
     # write bare ints, so the same node read two ways in one output directory. A lineage that went
-    # extinct is e<id>, so the test is that a node column carries a LETTER, not that it carries "n".
+    # extinct is e<id>, so the test is that a node carries a LETTER, not that it carries "n".
+    # The event log has no lineage column any more: a participant is n<species>_g<copy>, carrying
+    # the branch it lived on inside the token, so the letter has to be there.
     sp = _tree(seed=2)
     g = simulate_genomes_family(sp, duplication=0.3, transfer=0.3, loss=0.2, origination=0.5,
                                 initial_families=4, seed=7)
@@ -459,23 +461,29 @@ def test_written_node_columns_carry_a_lineage_label():
         out = pathlib.Path(d)
         g.write(out, outputs=("events", "genomes"))
         _, events = _rows(out / "genome_events.tsv")
-        assert events and all(r["lineage"][:1] in "ne" for r in events)
-        assert any(r["recipient"][:1] in "ne" for r in events if r["recipient"])
-        # gene-copy columns are NOT lineages and stay bare
-        assert all(r["copy"][:1] not in "ne" for r in events)
-        assert all(r["parent"][:1] not in "ne" for r in events if r["parent"])
+        copies = [tok for r in events for col in ("parents", "children")
+                  for tok in r[col].split(";") if tok]
+        assert copies
+        for tok in copies:
+            species, _, gene = tok.partition("_")
+            assert species[:1] in "ne" and species[1:].isdigit(), tok
+            assert gene[:1] == "g" and gene[1:].isdigit(), tok
         _, genomes = _rows(out / "genomes.tsv")
         assert genomes and all(r["lineage"][:1] in "ne" for r in genomes)
 
 
 def test_written_log_round_trips_through_the_reader():
+    # the written row is one EVENT and an Event is one gene-tree EDGE, so the reader has to expand
+    # them again — exactly, or a downstream level replaying the log builds a different history
     from zombi2.genomes.events import events_from_tsv, events_tsv
     sp = _tree(seed=2)
-    g = simulate_genomes_family(sp, duplication=0.3, transfer=0.3, loss=0.2, origination=0.5,
-                                initial_families=4, seed=7)
-    back = events_from_tsv(events_tsv(g.events))
-    assert [(e.time, e.kind, e.lineage, e.recipient) for e in back] == \
-           [(e.time, e.kind, e.lineage, e.recipient) for e in g.events]
+    for kw in ({}, {"replacement": True}, {"replacement": True, "self_transfer": True}):
+        g = simulate_genomes_family(sp, duplication=0.3, transfer=0.3, loss=0.2, origination=0.5,
+                                    initial_families=4, seed=7, **kw)
+        kinds = {e.kind for e in g.events}
+        assert kinds == {"origination", "duplication", "loss", "transfer", "speciation"}, kw
+        names = sp.complete_tree.labels()
+        assert events_from_tsv(events_tsv(g.events, names)) == g.events, kw
 
 
 def test_write_genomes_covers_every_node_where_profiles_covers_only_tips():

@@ -1,7 +1,7 @@
 """``zombi2`` command-line entry point — assembles the subcommand parser and dispatches.
 
 Each subcommand lives in its own module and mirrors one level's ``simulate_*`` function; this
-module wires them into one argparse parser via the shared framework and routes ``args.command`` to
+module assembles them into one argparse parser via the shared framework and routes ``args.command`` to
 the module's ``run``. Adding a command is: write a module with an ``_add_*_args`` argument builder
 and a ``run(args, parser)`` handler, then add one ``_add_subcommand(...)`` call and one ``_RUN``
 entry here.
@@ -46,10 +46,6 @@ def main(argv: list[str] | None = None) -> int:
             "",
             "Each command refreshes out/run.zombi2 — a one-page report of the whole run; open that first.",
             "Run 'zombi2 <command> -h' for a command's options and its own examples.",
-            "",
-            "Coupling — CONDITION a level on another by pointing a rate at what that level wrote:",
-            "  zombi2 genomes out/ --loss \"0.25 * DrivenBy('out/traits/trait_events.tsv', {'cave': 4.0})\"",
-            "JOINT (zombi2 joint) is for when neither level can be grown first, because each drives the other.",
         ),
     )
     parser.add_argument("--version", action="version", version=f"ZOMBI2 {__version__}")
@@ -67,17 +63,17 @@ def main(argv: list[str] | None = None) -> int:
             "",
             "  # grow for a fixed time, with a mass-extinction pulse at t=3",
             "  zombi2 species out/ --birth 1 --death 0.4 --total-time 5 "
-            "--mass-extinction 3 0.75 --seed 1",
+            "--mass-extinction 3 0.75 --seed 2",
             "",
             "  # a skyline: speciation drops to a third at time 3 (see RATES)",
             "  zombi2 species out/ --birth \"1.0 * OnTime({0: 1.0, 3: 0.3})\" --death 0.3 "
-            "--total-time 5 --seed 1",
+            "--total-time 5 --seed 2",
         ) + "\n\n" + species.RATES_HELP)
 
     _add_subcommand(
         sub, "genomes", "evolve gene families along a species tree",
-        "Evolve gene families along a species tree, at the family (gene-family counts) or "
-        "ordered (genes positioned on chromosomes) resolution.",
+        "Evolve gene families along a species tree, at the family (gene-family counts), ordered "
+        "(genes positioned on chromosomes) or nucleotide (real DNA) resolution.",
         "zombi2 genomes DIR [--from PATH] [--resolution RESOLUTION] [options]",
         genomes._add_genomes_args,
         epilog=_examples(
@@ -138,7 +134,7 @@ def main(argv: list[str] | None = None) -> int:
         ) + "\n\n" + traits.RATES_HELP)
 
     _add_subcommand(
-        sub, "joint", "grow a species tree and the level driving it, together",
+        sub, "joint", "grow a species tree and the level driving it, in one pass",
         "Grow a species tree and the level that drives its diversification in one pass, for when "
         "neither can be simulated first because each depends on the other. The driver is named in "
         "the rate — DrivenBy('trait', ...) or DrivenBy('genomes:<name>', ...) — and is a live level, "
@@ -159,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
             "  # gene content drives it: carrying the 'toxin' family triples the speciation rate",
             "  zombi2 joint out/ --birth \"1.0 * DrivenBy('genomes:toxin', "
             "{'present': 3.0, 'absent': 1.0})\" \\",
-            "      --origination 0.2 --loss 0.1 --families toxin --n-extant 60 --seed 1",
+            "      --origination 0.2 --loss 0.1 --family-names toxin --n-extant 60 --seed 1",
         ) + "\n\n" + joint.RATES_HELP)
 
     _add_subcommand(
@@ -169,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
         tools._add_tools_args,
         epilog=_examples(
             "  # homology tables (S/D/T — the event at each pair's ancestor) for a genomes run",
-            "  zombi2 tools format out/",
+            "  zombi2 tools format out/ --format markers",
         ))
 
     _apply_params_file(sub, argv)               # --params FILE seeds defaults; CLI flags override
