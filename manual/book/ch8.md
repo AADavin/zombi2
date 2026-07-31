@@ -35,7 +35,7 @@ traits.simulate_continuous(tree, start=0.0,
 
 The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root; it is written with the same `mod.OnTime` that gives the species tree its skyline.
 
-The rest of the modifier vocabulary applies to `rate` unchanged, each with a name in the comparative-methods literature: `mod.FromParent(spread=…)` makes σ² drift from parent to daughter (variable-rates BM, the trait twin of ClaDS), `mod.OnTotalDiversity(cap=…)` slows σ² as the clade fills. Two knobs sit alongside `rate`: `regimes=` paints a multi-optimum OU, where clades pull toward different optima (a discrete trait supplies the painting and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches.
+The rest of the modifier vocabulary applies to `rate` unchanged, each with a name in the comparative-methods literature: `mod.FromParent(spread=…)` makes σ² drift from parent to daughter (variable-rates BM, the trait twin of ClaDS), `mod.OnTotalDiversity(cap=…)` slows σ² as the clade fills. Two knobs sit alongside `rate`: `regimes=` paints a multi-optimum OU, where clades pull toward different optima (a discrete trait supplies the painting and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches. These are not alternatives to each other. `regimes=` and `at_speciation=` combine, and both combine with the modifiers on `rate`, so nothing here is a knob you have to give up to use another. The one exception is stated where it bites: `regimes=` takes a plain σ², not a modified one.
 
 ## Discrete traits
 
@@ -80,6 +80,20 @@ traits.simulate_continuous(tree,
 
 The overlay is a dimensionless number in `[−1, 1]`, not a covariance matrix. Under `correlation=` the per-trait rates are plain numbers.
 
+The overlay carries the reversion and the speciation jumps as well. Add `reverts_to` and `pull` and each trait reverts to its own optimum at its own strength; add `at_speciation` and the jump at each split is drawn under the same correlation the diffusion uses. Each argument takes one value shared across the traits, or a dict giving one per trait:
+
+```python
+traits.simulate_continuous(tree,
+    start={"size": 0.0, "limb": 0.0},
+    rate={"size": 1.0, "limb": 0.8},
+    correlation={("size", "limb"): 0.6},
+    reverts_to={"size": 3.0, "limb": -1.0},   # each trait its own optimum
+    pull={"size": 1.5, "limb": 0.4},          # and its own strength
+    at_speciation=0.5, seed=1)
+```
+
+The restriction is worth stating, because the literature's multivariate OU is larger. Here the reversion is **diagonal**: a trait's deviation pulls that trait back and no other, and everything the traits share lives in the diffusion. A drift matrix, where size being above its optimum pulls limb along with it, is a different model; passing one is refused by name rather than read as its diagonal.
+
 The same overlay handles *discrete* correlation with no extra machinery, through the threshold model: give each trait a liability, correlate the liabilities, and put the thresholds on top. Correlated presence/absence characters, the setting Pagel's method was built for, are then one call:
 
 ```python
@@ -107,7 +121,15 @@ The last is one trait driving another, which is the conditioning of Chapter 9: t
 
 Two arguments of `simulate_continuous` go further in the same spirit. `reverts_to` and `pull` make the walk revert toward an optimum instead of wandering freely, and `at_speciation` adds a jump at every split, so change concentrates at branching rather than accumulating along branches.
 
-None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one modifier and two arguments, not a model somebody had to implement. The table at the end of the chapter gives each combination its usual name in the literature.
+None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one modifier and two arguments, not a model somebody had to implement.
+
+```python
+# a burst that decays, under a pull toward an optimum of 2
+traits.simulate_continuous(tree, start=0.0, reverts_to=2.0, pull=0.5, seed=1,
+                           rate=1.0 * mod.OnTime({0: 4.0, 1: 1.0}))
+```
+
+The combination is exact, not an approximation of one. A branch running from `t₀` to `t₁` ends normally distributed around `θ + (x−θ)·e^{−α(t₁−t₀)}` with variance `∫ e^{−2α(t₁−s)}·σ²(s) ds`, integrated across every point where the schedule, the standing diversity or a driver changes σ². The weight inside that integral is what mean reversion does to old variance: what the trait accrued early has been pulled back toward the optimum by the time the branch ends, so it counts for less than what it accrued late. Dropping the weight and using Brownian motion's `∫ σ²(s) ds` would overstate the variance by an order of magnitude on a typical branch. The table at the end of the chapter gives each combination its usual name in the literature.
 
 ## Models from the literature
 
@@ -123,6 +145,7 @@ Trait models arrive under a thicket of names, and a reader who wants "an OU mode
 | the optimum differs between painted clades | `simulate_continuous(regimes=…, reverts_to={…}, pull=…)` | Multi-optimum OU (OUM) [@beaulieu2012ouwie] |
 | the value jumps at each split | `at_speciation=…` (either kind) | Cladogenetic / punctuational change |
 | traits evolving together | one `simulate_continuous(rate={…}, correlation={…})` call | Multivariate BM |
+| traits reverting together, each to its own optimum | `simulate_continuous(rate={…}, correlation={…}, reverts_to={…}, pull=…)` | Multivariate OU, diagonal drift [@clavel2015mvmorph] |
 | a discrete state switching | `simulate_discrete(states=…, switch=…)` | Mk (k-state Markov) |
 | discrete driven by continuous liability | `simulate_discrete(liability=…, threshold=…)` | Threshold / liability (Wright–Felsenstein) [@felsenstein2012threshold] |
 | discrete traits evolving together | `simulate_discrete(liability={…}, correlation={…})` | Correlated binary / Pagel [@pagel1994correlated] |
