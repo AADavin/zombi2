@@ -148,7 +148,16 @@ class FamilyGenomesResult:
 
         And the cap, which was invisible. When ``max_family_size`` binds it discards duplications and
         arriving transfers, so realised rates fall below the declared ones — so this reports which
-        families are sitting at it, because that is the signal a reader can act on."""
+        families are sitting at it, because that is the signal a reader can act on.
+
+        ``empty_genomes`` is the other end of the same story. There is **no floor** at this
+        resolution: loss is counted per gene copy and the last copy is a copy like any other, so a
+        high loss rate can strip a lineage of every gene it has. That is a real outcome of the model,
+        not a failure — but it is invisible in the outputs, because a genome with no genes writes no
+        row in ``profiles.tsv`` and leaves no gene tree for a sequence to run down. This is the
+        number that says it happened, before a reader wonders why the matrix is short. (The ordered
+        and nucleotide resolutions do have a floor, but it is a statement about what a chromosome is
+        — a loss never takes a chromosome below its last gene — not a bound on genome size.)"""
         per_kind: dict[str, set] = collections.defaultdict(set)
         singles: collections.Counter = collections.Counter()
         for e in self.events:
@@ -186,6 +195,7 @@ class FamilyGenomesResult:
                          "died_out": len(born) - len(surviving),
                          "named": len(self.family_names)},
             "extant_genomes": len(extant),
+            "empty_genomes": sum(1 for i in extant if not self.genomes.get(i, ())),
             "genes_per_genome": _stats(genes_per_genome),
             "copies_per_family_per_genome": _stats(copies),
             # the cap made visible. `families_at_cap` is what to look at: a family sitting at the

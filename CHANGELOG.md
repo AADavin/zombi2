@@ -19,6 +19,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   and nothing else. The classes are normalised to mean one, so a phylogram's branch lengths are
   still substitutions per site, now the mean over them, and a run with variation and one without are
   directly comparable. Works on every model on the menu, nucleotide and protein alike.
+- **A genome run says when it emptied a genome.** There is no floor at the family resolution — loss
+  is counted per copy, and the last copy is a copy like any other — so a high loss rate can strip a
+  lineage of every gene. The run now reports how many extant genomes came out empty, on stderr and
+  as `empty_genomes` in `genome_summary.json`, instead of leaving a reader to work it out from
+  `profiles.tsv` having no rows.
 - **Relaxed (per-lineage) diversification rates** — `birth = 1.0 * mod.ByLineage(spread=σ)`. The
   species level already took the *inherited* form of rate variation (`FromParent`, ClaDS) and
   refused the independent one, which left the model with no null: `ByLineage` spreads lineage rates
@@ -28,6 +33,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   refused rather than letting one of them silently win: they are two answers to the same question.
 
 ### Fixed
+- **A circular chromosome no longer fuses with a linear one.** At the ordered resolution `fusion`
+  drew its partner from every other chromosome and gave the fused child whichever topology was
+  picked first, so a ring and a molecule with two ends silently became one molecule — on a
+  two-topology karyotype it collapsed almost every genome. The partner is drawn from the
+  same-topology chromosomes only, the rule the nucleotide resolution already enforced; a genome of a
+  single topology draws exactly as it did before.
+- **`zombi2 sequences` no longer crashes on a run with no gene families.** A run whose genomes
+  emptied, or one started with `--initial-families 0`, has no alignments, so mean pairwise identity
+  is undefined; the run report tried to render it as a percentage and raised.
 - **A joint run no longer accepts a per-lineage rate it does not thread.** `simulate_joint` rejected
   `FromParent` and checked `DrivenBy`, but let every other modifier through and ignored it, so
   `birth = 1.0 * ByLineage(...)` returned a tree grown without the rate variation asked for. It now

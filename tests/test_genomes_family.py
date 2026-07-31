@@ -1,6 +1,7 @@
 """Tests for the D/L/O gene-family core (zombi2.genomes.family)."""
 
 import collections
+import math
 import pathlib
 import tempfile
 
@@ -11,6 +12,7 @@ from zombi2.rates.scope import Global, PerCopy, PerLineage
 from zombi2.rates import modifiers as mod
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_family
+from zombi2.tree import Node, Tree
 
 
 def _tree(seed=1, n_extant=12, death=0.3):
@@ -115,6 +117,33 @@ def test_loss_can_shrink_and_empty_a_genome():
     sizes = [len(g.genomes[i]) for i in g.genomes]
     assert min(sizes) < 4                                          # at least one node shrank
     assert any(e.kind == "loss" for e in g.events)
+
+
+def test_summary_counts_the_genomes_that_emptied():
+    # An emptied genome writes no row in profiles.tsv and leaves no gene tree, so nothing in the
+    # outputs says it happened; `empty_genomes` is where a reader finds out.
+    g = simulate_genomes_family(_tree(seed=6), loss=5.0, initial_families=10, seed=3)
+    s = g.summary()
+    assert s["empty_genomes"] == s["extant_genomes"] == 12          # every one of them
+    assert s["families"]["surviving"] == 0 and s["genes_per_genome"]["max"] == 0
+    # ... and the process itself is untouched: all ten founding families really were lost, no event
+    # was refused. This is what tells "we made it visible" apart from "we added a floor".
+    assert sum(1 for e in g.events if e.kind == "loss") == 10
+
+
+def test_no_floor_means_a_last_copy_is_an_ordinary_copy():
+    # A statistical guard against a floor being added here by accident. Loss is per copy and the
+    # last copy is a copy like any other, so on a lone branch of length T a single gene survives
+    # with probability exp(-λT) — exactly the survival of a pure death process, with no reflecting
+    # boundary at one copy. A floor would push the empty fraction to zero; a partial one would pull
+    # it below this.
+    T, lam, n = 1.0, 0.5, 400
+    tree = Tree({0: Node(0, None, 0.0, T, None, "extant")}, 0)
+    empty = sum(1 for s in range(n)
+                if not simulate_genomes_family(tree, loss=lam, initial_families=1, seed=s).genomes[0])
+    p = 1 - math.exp(-lam * T)
+    sd = math.sqrt(p * (1 - p) / n)                                # binomial, n independent runs
+    assert abs(empty / n - p) < 4 * sd
 
 
 def test_duplication_bifurcates_into_two_same_family_children():

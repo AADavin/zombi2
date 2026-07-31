@@ -79,6 +79,21 @@ At the cap the family stops duplicating, and the ceiling holds for arrivals too,
 
 It used to be written with a scope, and `scope.PerLineage(n)` multiplied that number by the size of the *species tree* — so the shipped default was over a thousand copies on a fifty-tip tree, and the cap you got moved when you added species. Both scope spellings are refused now, with the arithmetic each used to imply, so an old script fails loudly rather than running at a cap different from the one it reads.
 
+### When a genome empties
+
+There is a ceiling but no floor. Loss is counted per copy, and the last copy is a copy like any other, so a loss rate well above the duplication and origination rates strips a lineage of every gene it has:
+
+```python
+g = genomes.simulate_genomes_family(tree, loss=5.0, initial_families=10, seed=3)
+g.summary()["empty_genomes"]            # 8 — every extant genome came out with none
+```
+
+That is a real outcome of the model, not a failure. The lineage carries an empty genome to the tip: `profiles.tsv` has no row for it, and there is no gene tree for a sequence to run down.
+
+It is easy to miss, because an empty genome shows up as an absence. So the run says so. `genome_summary.json` reports `empty_genomes`, the number of extant genomes that came out with no genes at all, and `zombi2 genomes` prints a line on standard error when it happens. Lower `loss`, raise `origination`, or start with more `initial_families` if that is not the model you meant.
+
+The chromosome-based resolutions do have a floor: a loss never takes a chromosome below its last gene. That is a statement about what a chromosome is, not a bound on genome size — see Chapter 5.
+
 ## What the rate depends on
 
 The rates follow the **same grammar as the species level** (`base` optionally wrapped in a scope, optionally multiplied by modifiers). The scope answers *per what*, and the default is the natural one for each event. Duplication, transfer, and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is what you want: more genes, more chances. Origination is counted **per lineage** (i.e. per branch of the species tree): acquiring a wholly new family is a property of the lineage, not of any gene it already has.

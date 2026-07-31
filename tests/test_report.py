@@ -9,8 +9,8 @@ from __future__ import annotations
 import os
 import shlex
 
-from zombi2._runtime.report import (RUN_REPORT_NAME, _GLOSS, _RECORD_SUFFIXES, build_run_report,
-                                    write_run_report)
+from zombi2._runtime.report import (RUN_REPORT_NAME, _GLOSS, _RECORD_SUFFIXES, _stat_lines,
+                                    build_run_report, write_run_report)
 from zombi2.cli.main import main
 
 _LEVELS = ("species", "genomes", "sequences", "traits")
@@ -158,6 +158,24 @@ def test_ancestral_count_shows_only_when_the_file_is_written(tmp_path):
     main(["sequences", str(tmp_path), "--model", "jc69", "--length", "40", "--seed", "1", "--force",
           "--write", "alignments", "ancestral", "summary"])
     assert "ancestral sequences" in (tmp_path / RUN_REPORT_NAME).read_text(encoding="utf-8")  # written
+
+
+def test_a_summary_with_no_sequences_still_renders():
+    """Mean pairwise identity is declared ``float | None``, and it is ``None`` when there is nothing to
+    compare — a run whose genomes emptied, or one started with --initial-families 0. The report used to
+    render it regardless and raise `TypeError: float() ... not 'NoneType'`, which turned a legitimately
+    empty run into a crash after every file had already been written."""
+    lines = _stat_lines({"level": "sequences", "families_with_sequences": 0,
+                         "mean_pairwise_identity": None})
+    assert not any("identity" in line for line in lines)
+    assert _stat_lines({"mean_pairwise_identity": 0.9}) == ["mean pairwise identity 90.0%"]
+
+
+def test_empty_genomes_is_reported_only_when_it_happened():
+    """A count of zero emptied genomes is the healthy case and would be a line of noise on every run;
+    a non-zero one is the thing a reader has to see."""
+    assert _stat_lines({"extant_genomes": 8, "empty_genomes": 0}) == ["extant genomes 8"]
+    assert "empty genomes 3" in _stat_lines({"extant_genomes": 8, "empty_genomes": 3})
 
 
 def test_a_joint_run_reports_species_and_its_driver(tmp_path):
