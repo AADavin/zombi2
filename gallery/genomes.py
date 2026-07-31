@@ -298,14 +298,18 @@ import phylustrator as ph
 
 tree = ph.trees.read("run/species/species_extant.nwk")
 events = []
+branch = lambda tok: tok.split("_", 1)[0]      # n3_g467 -> n3: the copy carries its own branch
 for r in csv.DictReader(open("run/genomes/genome_events.tsv"), delimiter="\\t"):
     if r["family"] != "1":
         continue
-    if r["kind"] == "transfer" and r["recipient"]:      # the recipient row carries donor + recipient
-        events.append({"kind": "transfer", "donor": r["donor"],
-                       "recipient": r["recipient"], "x": float(r["time"])})
-    elif r["kind"] in ("duplication", "loss"):
-        events.append({"kind": r["kind"], "node": r["lineage"], "x": float(r["time"])})
+    kids = [t for t in r["children"].split(";") if t]
+    if r["kind"].startswith("transfer"):               # children are donor-side first
+        events.append({"kind": "transfer", "donor": branch(kids[0]),
+                       "recipient": branch(kids[1]), "x": float(r["time"])})
+    elif r["kind"] == "duplication":
+        events.append({"kind": "duplication", "node": branch(kids[0]), "x": float(r["time"])})
+    elif r["kind"] == "loss":
+        events.append({"kind": "loss", "node": branch(r["parents"]), "x": float(r["time"])})
 (ph.trees.plot(tree, style=ph.Style(width=1500, height=1150, branch_width=1.5))
  + ph.trees.branch_events(events, legend_title="events", legend_loc="top-left", legend_size=23, size=8)
  + ph.trees.tip_labels() + ph.trees.time_axis("time", tick_size=22, label_size=28)).save("events.png")'''

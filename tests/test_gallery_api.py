@@ -27,9 +27,11 @@ and manufacture failures. One of those helpers also downloads a genome, which mu
 
 from __future__ import annotations
 
+import contextlib
 import importlib
 import pathlib
 import sys
+from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
@@ -60,6 +62,37 @@ class _Draw(MagicMock):
 
     def __iter__(self):
         return iter(())
+
+
+class _StubNode:
+    """A parsed-tree leaf, for the naming test below: only ``name`` / ``is_leaf`` are read."""
+
+    def __init__(self, name: str) -> None:
+        self.name, self.is_leaf, self.children = name, True, None
+
+
+class _StubTree:
+    def __init__(self, nodes) -> None:
+        self._nodes = nodes
+
+    def walk(self, _order):
+        return self._nodes
+
+
+@contextlib.contextmanager
+def _phylustrator_mocked():
+    """Import ``helpers`` without Phylustrator or matplotlib installed — it draws, we only compute."""
+    names = ("phylustrator", "phylustrator.trees", "phylustrator.genomes", "phylustrator.zombi",
+             "matplotlib", "matplotlib.pyplot", "matplotlib.image", "matplotlib.patches",
+             "matplotlib.cm", "matplotlib.colors")
+    with mock.patch.dict(sys.modules, {n: _Draw() for n in names}):
+        sys.path.insert(0, str(GALLERY))
+        sys.modules.pop("helpers", None)
+        try:
+            yield
+        finally:
+            sys.path.remove(str(GALLERY))
+            sys.modules.pop("helpers", None)
 
 
 @pytest.fixture
@@ -111,6 +144,45 @@ def test_every_gallery_example_calls_a_current_zombi2_api(gallery_examples, tmp_
                 if (msg := _break(ex.render, str(tmp_path / f"{ex.id}.png"))) is not None]
     assert not failures, ("gallery examples call a zombi2 API that no longer exists — the published "
                           "figures would traceback for anyone who copied them:\n  " + "\n  ".join(failures))
+
+
+def test_extinct_lineages_are_named_the_way_the_gallery_draws_them():
+    """The gallery dashes extinct branches by **name**, and a lineage that went extinct is written
+    ``e<id>``. When that prefix arrived, every gallery site kept building ``n<id>``: the set matched
+    nothing, four figures silently lost their dashing, and two also lost the colouring of those
+    branches. The canary above cannot see it — an empty set is a legal argument, so nothing raises.
+    This pins the invariant instead: the names the gallery derives are the names in the Newick."""
+    from zombi2.species import simulate_species_tree
+
+    ct = simulate_species_tree(birth=1.0, death=0.6, n_extant=50, seed=3).complete_tree
+    extinct = ct.extinct_leaves()
+    assert extinct, "the fixture needs a tree that actually loses lineages"
+
+    newick, labels = ct.to_newick(), ct.labels()
+    missing = sorted(labels[n.id] for n in extinct if f"{labels[n.id]}:" not in newick)
+    assert not missing, f"extinct lineages the gallery would look for are not in the tree: {missing}"
+
+    stale = sorted(f"n{n.id}" for n in extinct if f"n{n.id}:" in newick)
+    assert not stale, f"extinct lineages are still written with the pre-rename n prefix: {stale}"
+
+    # ...and the helper the figures call must derive those same names from the tree. A stub stands in
+    # for the parsed Phylustrator tree — only the naming is under test, not the subtree walk.
+    with _phylustrator_mocked():
+        dashed_extinct = importlib.import_module("helpers").dashed_extinct
+    leaves = [_StubNode(labels[n.id]) for n in extinct]
+    assert dashed_extinct(_StubTree(leaves), ct) == {labels[n.id] for n in extinct}, \
+        "dashed_extinct did not recover the extinct lineages — the figures would draw them solid"
+
+
+def test_no_gallery_file_spells_the_extinct_prefix_itself():
+    """The companion guard: the prefix is decided in ``zombi2.tree`` and read back through
+    ``Tree.labels()``. A gallery file that builds the name from ``extinct_leaves()`` by hand is how
+    the rename slipped through last time, so fail on the pattern rather than on its consequences."""
+    offenders = [f"{path.name}:{i}" for path in sorted(GALLERY.glob("*.py"))
+                 for i, line in enumerate(path.read_text().splitlines(), 1)
+                 if 'f"n{n.id}"' in line and "extinct_leaves()" in line]
+    assert not offenders, ("a gallery file spells the n prefix for an extinct lineage — use "
+                           f"ct.labels() so zombi2.tree stays the one place that decides: {offenders}")
 
 
 def test_the_guard_catches_a_renamed_zombi2_method(gallery_examples, tmp_path, monkeypatch):
