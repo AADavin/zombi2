@@ -10,6 +10,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **`zombi2 traits --name NAME`** — a run directory holds one slot per level, which is wrong for
+  traits: a tree can carry several, and now one can drive another. `--name` writes each to
+  `traits/NAME/`, so a driver's files are still there when the trait that reads them is written, and
+  the run report gives each its own section. Without a name the plain `traits/` slot is unchanged.
 - **A trait can drive another trait.** `DrivenBy` now works on a trait rate, in both the continuous and
   the discrete engine, so one trait's state can set another's variance-rate or switch rate. Driving is
   one thing driving another: with both participants at the same level it is still conditioning, and
