@@ -30,6 +30,11 @@ the model, where the field puts it. ``model=hky85(2.0).across_sites(gamma_shape=
 is ``HKY85+I+G4``, and the classes are normalised to mean 1, so a branch length stays the mean
 substitutions per site (`substitution_models`).
 
+A family's sites may also be split into **partitions**, each under its own model —
+``partitions=[(hky85(kappa=2.0), 600), (jc69(), 400)]`` in place of ``model=`` and ``length=`` — on a
+family or ordered run. They share one alphabet and one substitution rate, so the family keeps its one
+phylogram. Experimental (``SPEC §9``): Python API, no CLI flag yet.
+
 The result is a `SequencesResult` bundle mirroring the other levels:
 ``.alignments`` (the observable sequence at every **extant** tip), ``.ancestral`` (the reconstructed
 sequence at every **internal** node), ``.phylograms`` (each gene tree with branch lengths in
@@ -639,7 +644,131 @@ class _Sink:
 _DEFAULT_STREAM_OUTPUTS = ("alignments", "phylograms", "species_phylogram", "summary")
 
 
-def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None = None,
+def _resolve_partitions(model, partitions, length) -> tuple[tuple[SubstitutionModel, int], ...]:
+    """The **site blocks** one family evolves, as ``((model, sites), …)``.
+
+    One entry for the ordinary ``model=`` + ``length=`` run, several for a partitioned one — so the
+    engine below has a single shape to walk and the un-partitioned case is literally the
+    one-partition case, not a branch beside it.
+
+    Everything else this owns is a refusal. Giving ``model=`` or ``length=`` *alongside*
+    ``partitions`` is a second answer to a question the partitions already answer, and two answers
+    are worse than none. Mixing alphabets across partitions is the one refusal that is a statement
+    about the **model** rather than about the call: it is meaningless in ``SPEC §5``'s sense, not
+    unimplemented, because the partitions concatenate into one sequence per gene copy and there is
+    no string that is half DNA and half protein.
+    """
+    if partitions is None:
+        if length is None:
+            raise ValueError("length is required: the number of sites each family evolves")
+        if isinstance(length, bool) or not isinstance(length, int) or length < 1:
+            raise ValueError(f"length must be a positive integer, got {length!r}")
+        return ((model, length),)
+
+    if model is not None:
+        raise ValueError(
+            f"model={model.name if isinstance(model, SubstitutionModel) else model!r} was given "
+            "alongside partitions, and each partition already carries its own model — so this would "
+            "be a second answer to the same question, and nothing here could say which one a site "
+            "should follow. Drop one: partitions=[(model, sites), …] for a split sequence, or "
+            "model=… with length=… for one model over all of it.")
+    if length is not None:
+        raise ValueError(
+            f"length={length!r} was given alongside partitions, but a family's length is the sum of "
+            "the partitions' site counts, so one number here would contradict them. Drop it — the "
+            "partitions set the length.")
+
+    listed = list(partitions)
+    if not listed:
+        raise ValueError(
+            "partitions is empty, so a family would evolve no sites at all. Give at least one "
+            "(model, sites) pair, or drop partitions and use model=… with length=….")
+    parts: list[tuple[SubstitutionModel, int]] = []
+    for i, item in enumerate(listed):
+        pair = tuple(item) if isinstance(item, (tuple, list)) else ()
+        if len(pair) != 2:
+            # a bare model is the likely slip, and a model's repr is a whole rate matrix — name it
+            if isinstance(item, SubstitutionModel):
+                shown = f"the model {item.name} on its own"
+            elif pair and isinstance(pair[0], SubstitutionModel):
+                shown = f"{len(pair)} values starting with the model {pair[0].name}"
+            else:
+                shown = repr(item)
+            raise ValueError(
+                f"partition {i} is {shown}: every partition is a (model, sites) pair — which "
+                "substitution model that stretch of the sequence evolves under, and how many sites "
+                "it covers. For example partitions=[(hky85(kappa=2.0), 600), (jc69(), 400)].")
+        m, n = pair
+        if not isinstance(m, SubstitutionModel):
+            raise ValueError(
+                f"partition {i}'s model is {m!r}, which is not a SubstitutionModel — take one from "
+                "the menu (jc69(), hky85(kappa=2.0), lg(), …) or build your own with "
+                "substitution_models.reversible(S, freqs).")
+        if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+            raise ValueError(
+                f"partition {i} ({m.name}) covers {n!r} sites: a partition's site count must be a "
+                "positive whole number of sites. A partition of zero sites is not a partition — "
+                "leave it out.")
+        parts.append((m, n))
+
+    first = parts[0][0]
+    if any(m.alphabet != first.alphabet for m, _ in parts):
+        j, mj = next((i, m) for i, (m, _) in enumerate(parts) if m.alphabet != first.alphabet)
+        raise ValueError(
+            f"partition 0 is {first.name} over {first.alphabet!r} and partition {j} is {mj.name} "
+            f"over {mj.alphabet!r}, but the partitions are concatenated into one sequence per "
+            "gene copy and a sequence has one alphabet. That is meaningless rather than "
+            "unimplemented: there is no string a half-nucleotide, half-protein gene could be "
+            "written in. Use models over the same alphabet — all nucleotide, or all protein. To "
+            "evolve a DNA gene and a protein gene, run the level twice.")
+    return tuple(parts)
+
+
+def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=None):
+    """Evolve one gene tree partition by partition and hand back the family's whole sequences:
+    ``(alignment, ancestral, founding_string)``, each sequence the partitions concatenated in order.
+
+    Every partition is evolved down the **same** tree at the **same** rate, so the family has one
+    phylogram and that phylogram is exact for all of it: every model is normalised to one expected
+    substitution per site per unit branch length (`substitution_models._reversible_model`) and every
+    set of across-site rate classes to a mean of 1, so a branch of ``Δt`` accrues ``rate · Δt``
+    substitutions per site in each partition alike. Give the partitions relative *speeds* and that
+    stops being true — one phylogram would then be a weighted average of the trees the partitions
+    were actually drawn along — which is why there is no per-partition rate here.
+
+    The random draws are consumed **partition by partition**, in the order given, so a run is
+    reproducible from its seed; and with a single partition the sequence of draws is exactly what an
+    un-partitioned run always took, which is what keeps the default path byte-identical. That case
+    also returns its dicts untouched rather than rebuilding them, so the common run does no
+    concatenation work at all.
+
+    ``founding`` (a nucleotide run's supplied DNA) is sliced per partition at the same offsets, so
+    each block founds from its own stretch.
+    """
+    pieces = []
+    at = 0
+    for model, n in parts:
+        # one CDF cache per model, shared across every family and every partition that model
+        # evolves: branch lengths recur massively, and the cache is keyed by length alone, so it
+        # must never be shared between two matrices
+        cache = cdf_caches.setdefault(id(model), {})
+        states, founding_states = evolve_gene_tree(
+            gt.complete, model, n, rate, clock, rng, gt.origination,
+            founding=None if founding is None else founding[at:at + n], cdf_cache=cache)
+        at += n
+        aln, anc = _split(gt, states, names, model)
+        pieces.append((aln, anc, decode(founding_states, model.alphabet)))
+    if len(pieces) == 1:
+        return pieces[0]
+    # The node keys are the same in every partition — they come from the same tree, walked the same
+    # way — so partition 0's keys are the whole set, and joining in partition order is the sequence.
+    alignment = {key: "".join(p[0][key] for p in pieces) for key in pieces[0][0]}
+    ancestral = {key: "".join(p[1][key] for p in pieces) for key in pieces[0][1]}
+    return alignment, ancestral, "".join(p[2] for p in pieces)
+
+
+def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
+                       length: int | None = None, partitions=None,
                        intergene_model: SubstitutionModel | None = None, intergene_speed=3.0,
                        substitution=None, divergence=None, seed=None, parallel=False,
                        stream_to=None, outputs=None, flat: bool = False,
@@ -683,6 +812,27 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     ``model=hky85(2.0).across_sites(gamma_shape=0.5, invariant=0.1)`` sorts the sites into a
     discretised-Gamma set of rate classes plus a class that never changes. The two axes are
     orthogonal and compose — the clock says which *lineages* run fast, the model which *sites* do.
+
+    ``partitions`` splits a family's sites into blocks each under **its own** model, in place of
+    ``model=`` and ``length=``::
+
+        partitions=[(hky85(kappa=2.0), 600), (jc69(), 400)]
+
+    — a 1000-site gene whose first 600 sites evolve under HKY85 and whose last 400 evolve under
+    JC69, concatenated in that order into one sequence per gene copy. Each partition's model may
+    carry its own ``across_sites`` classes, which is how the field usually spells a codon-position
+    split. Giving ``model=`` or ``length=`` alongside is refused rather than merged: the partitions
+    already answer both, and the length is their site counts summed. Every partition must be over the
+    **same alphabet**, because they concatenate into one sequence.
+
+    All the partitions share the run's one substitution rate, and so the family keeps its one
+    phylogram — exactly, not approximately: every model is normalised to one expected substitution
+    per site per unit branch length, and every set of rate classes to a mean of 1, so a branch of
+    ``Δt`` accrues ``rate · Δt`` substitutions per site in each partition alike. There is
+    deliberately no per-partition speed; it would make one phylogram a weighted average of the trees
+    the partitions were really drawn along. Family and ordered runs only — a **nucleotide** run's
+    blocks already carry their own lengths and their own gene/spacer models, so it refuses
+    ``partitions``. Experimental (SPEC §9): Python API, no CLI flag yet.
 
     On a **nucleotide** genome run every root block is evolved — spacer as well as genes — each at its
     own length in bp, so ``length`` does not apply and is rejected. ``model`` evolves the genes and
@@ -741,7 +891,15 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             "outputs applies to a streamed run (stream_to=DIR), which writes the files itself; for "
             "an in-memory run choose them when you call result.write(outputs=...).")
     species_tree = genomes.complete_tree
-    if not isinstance(model, SubstitutionModel):
+    # With partitions the models arrive inside them, and `_resolve_partitions` checks each one; this
+    # is the plain path, where `model` is the whole answer and the common mistake is worth naming
+    # exactly as it always was.
+    if partitions is None and not isinstance(model, SubstitutionModel):
+        if model is None:
+            raise ValueError(
+                "no model: give model=… (one substitution model for every site of every family) "
+                "together with length=…, or partitions=[(model, sites), …] to split a family's "
+                "sites into blocks each under its own model.")
         raise TypeError(f"model must be a SubstitutionModel (e.g. hky85(kappa=2.0)), got {model!r}")
     if intergene_model is not None and not isinstance(intergene_model, SubstitutionModel):
         raise TypeError(f"intergene_model must be a SubstitutionModel, got {intergene_model!r}")
@@ -750,6 +908,14 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         # Every recovered root block evolves — spacer as well as genes — so the run reconstructs the
         # whole genome rather than the declared loci. Each block brings its own length in bp, which
         # is why a single `length` would contradict the coordinates the genome recorded.
+        if partitions is not None:
+            raise ValueError(
+                "partitions do not apply to a nucleotide genome run: every block already carries "
+                "its own length in bp and its own model — `model` for a gene, `intergene_model` for "
+                "the spacer — so the genome has already said which stretch takes which. Drop "
+                "partitions; the genome sets both the lengths and the split. Partitions are for a "
+                "family or ordered run, where a family is one undivided sequence until you divide "
+                "it.")
         if length is not None:
             raise ValueError(
                 "length does not apply to a nucleotide genome run: every block carries its own "
@@ -791,12 +957,10 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
                     f"the run was founded from a FASTA (DNA), but {f_model.name} is a protein model — "
                     "a nucleotide sequence cannot found an amino-acid alignment")
             founding_seed[i] = encode(root[a:b], f_model.alphabet)
+        parts = None                # a nucleotide block's model and length come from `per_block`
     else:
         gene_trees = genomes.gene_trees
-        if length is None:
-            raise ValueError("length is required: the number of sites each family evolves")
-        if isinstance(length, bool) or not isinstance(length, int) or length < 1:
-            raise ValueError(f"length must be a positive integer, got {length!r}")
+        parts = _resolve_partitions(model, partitions, length)
         if intergene_model is not None:
             raise ValueError(
                 "intergene_model applies to a nucleotide genome run, where blocks are genes or "
@@ -905,17 +1069,13 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             bar.update()
             gt = gene_trees[family]
             if per_block is None:
-                f_len, f_model, f_rate = length, model, rate_base
+                f_parts, f_rate = parts, rate_base
             else:                       # a nucleotide block: its own length, and spacer runs faster
                 f_len, f_model, speed = per_block[family]
-                f_rate = rate_base * speed
+                f_parts, f_rate = ((f_model, f_len),), rate_base * speed
             seed_states = None if per_block is None else founding_seed[family]
-            cache = cdf_caches.setdefault(id(f_model), {})
-            states, founding_states = evolve_gene_tree(gt.complete, f_model, f_len, f_rate, clock, rng,
-                                                       gt.origination, founding=seed_states,
-                                                       cdf_cache=cache)
-            aln, anc = _split(gt, states, names, f_model)
-            fnd = decode(founding_states, f_model.alphabet)
+            aln, anc, fnd = _evolve_partitions(gt, f_parts, f_rate, clock, rng, cdf_caches, names,
+                                               founding=seed_states)
             scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site
             ext = scaled.extant
             phylo = {"complete": _gene_newick(scaled.complete, names),
@@ -939,7 +1099,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         alignments, ancestral, founding, phylograms = evolve_families(
             gene_trees, per_block, model, intergene_model, length, rate_base, clock,
             founding_seed if nucleotide else None, spawned[1:], workers, progress, names,
-            sink=None if sink is None else sink.family)
+            sink=None if sink is None else sink.family, partitions=parts)
 
     sp_scaled = _scaled_species_tree(species_tree, rate_base, clock)   # the clock made visible
     sp_extant = prune(sp_scaled, keep="extant")

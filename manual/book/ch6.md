@@ -76,6 +76,21 @@ The first raises how often a host-restricted lineage deletes, the second how muc
 
 A modifier on an *extent* is read when an event fires, so unlike the same modifier on a rate it adds no step to the run's clock. Chapter 9 covers what a driver is and how to grow one; anything the level does not accept raises rather than being quietly ignored.
 
+## Who receives a transfer
+
+`transfer_to` is Chapter 4's recipient rule, and it works here unchanged: `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or a `DrivenBy` weight read off a trait. It is not a rate — the numbers are weights normalised over the lineages alive when a transfer fires — so it says who receives and never how much transfer happens.
+
+```python
+tree6 = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=6)
+flows = genomes.Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)
+g = genomes.simulate_genomes_nucleotide(
+    tree6, root_length=6000, genes=6, gene_length=400,
+    transfer=2.0, transfer_extent=900, seed=6,
+    transfer_to=genomes.Clades({"A": ["n49", "n50"], "B": ["n30", "n36"]}, flows))
+```
+
+A transfer here is always **additive** — the donor keeps its copy — so steering changes only which lineage the arc lands on. Nothing is taken from anyone, and a transfer whose every candidate weighs 0 simply does not fire.
+
 ## Genes are never split
 
 An event either **engulfs a gene whole** or leaves it alone; a breakpoint never falls strictly inside one. So an event does not pick an arc and then clean up afterwards. Both of its ends are drawn **directly from the positions where a breakpoint is legal**. A genome can therefore be **all gene, with no spacer at all**: ten 100 bp genes in 1000 bp is a legal genome, and it evolves. Its breakpoints simply all fall at the joins between genes, so genes are inverted, moved, duplicated and lost whole. Genes may sit flush; they are not required to leave a gap.

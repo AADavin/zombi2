@@ -26,6 +26,7 @@ matrices, so they stay a **menu** of constructors rather than one grammar.
         - k80
         - hky85
         - gtr
+        - reversible
         - poisson
         - jtt
         - dayhoff

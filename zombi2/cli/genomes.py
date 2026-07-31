@@ -10,7 +10,8 @@ every rate takes the written form (SPEC §5): a bare number on its natural scope
 ``scope(base) × modifiers`` expression the Python API takes — ``--loss "0.25 * OnTime({0: 1.0, 3:
 2.0})"``. Each resolution declares which modifiers it reads (its ``WIRED_MODIFIERS``) and rejects the
 rest rather than silently ignoring them; the two structured resolutions both take ``DrivenBy``, so a
-trait can drive a rearrangement rate at either."""
+trait can drive a rearrangement rate at either. ``--transfer-to`` is the one **choice slot** (SPEC §5)
+and works at all three: the weight it takes says who receives, never how much transfer happens."""
 from __future__ import annotations
 
 import argparse
@@ -43,7 +44,8 @@ RATES_HELP = _rates_help(
     WIRED_MODIFIERS, "--loss",
     note="Rates keep their natural scope here (D/T/L per copy, origination per lineage), so there "
          "is no scope wrapper to write. On --transfer, DrivenBy drives how often a lineage DONATES; "
-         "--transfer-to takes one on its own as a recipient weight (family resolution only). "
+         "--transfer-to takes one on its own as a recipient weight, at every resolution — it is a "
+         "choice slot, not a rate, so the numbers are normalised weights over the candidates. "
          "--resolution ordered takes " + ", ".join(m.__name__ for m in _ORDERED_WIRED) +
          ", though not ByFamily and DrivenBy in one run; nucleotide, " +
          ", ".join(m.__name__ for m in _NUC_WIRED) + ".")
@@ -131,8 +133,8 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("transfer & content")
     g.add_argument("--transfer-to", type=_transfer_to, default="uniform",
                    metavar="RULE", dest="transfer_to",
-                   help="recipient rule: uniform (any contemporaneous lineage, default), distance "
-                        "(closer relatives likelier), or a DrivenBy weight (family resolution only)")
+                   help="recipient rule, at any resolution: uniform (any contemporaneous lineage, "
+                        "default), distance (closer relatives likelier), or a DrivenBy weight")
     g.add_argument("--replacement", action="store_true",
                    help="a transfer overwrites a homologous copy (replacing HGT)")
     g.add_argument("--self-transfer", action="store_true", dest="self_transfer",
