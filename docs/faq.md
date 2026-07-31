@@ -1,8 +1,5 @@
 # FAQ
 
-Short answers to the things that surprise newcomers first — the moments that look like a bug and
-aren't. For everything else, see the guide and the reference.
-
 ## What do `n5`, `e14`, `g203` mean?
 
 ZOMBI gives every node and gene copy a short id:
@@ -33,11 +30,13 @@ A gene tree is the same idea: `_complete` has every copy ever, `_extant` only th
 ## How do I actually look at a tree? The `.nwk` files are just text.
 
 They are **Newick**, the standard tree format. Plot them with **Phylustrator**, ZOMBI2's companion
-command-line tool for figures: `pip install phylustrator`, then its `phyl` command draws the trees —
-and the genomes — a run produces, straight from the files above.
+plotting library: `pip install phylustrator`, then `phyl species_extant.nwk` draws any tree a run
+produces. Its Python API draws the genomes too.
 
 ## `sequences` printed a warning about "saturated" alignments — did it fail?
 
-No — it succeeded; that is a *warning*, not an error (the exit status is still 0). It means the default
-substitution rate diverged the sequences so far that the alignments keep little history. Say how
-diverged you want them instead: **`--divergence 0.2`** gives a readable alignment on any tree.
+No — it succeeded; that is a *warning*, not an error (the exit status is still 0). It compares the mean
+identity of the alignments with the identity unrelated sequences already have under that model — 25%
+for DNA with equal base frequencies. Close to that floor, the alignments have kept little history. The
+substitution rate is per unit time, so at the default a tall tree saturates. Say how diverged you want
+the sequences instead: **`--divergence 0.2`**.

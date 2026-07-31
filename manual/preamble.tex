@@ -31,6 +31,30 @@
 \newunicodechar{σ}{\ensuremath{\sigma}}
 \newunicodechar{⁻}{\textsuperscript{\textminus}}
 
+% --- Long lines in code blocks ----------------------------------------------
+% A verbatim line wider than the text block is not shrunk and not hyphenated:
+% it runs off the page, and the characters past the paper edge are not printed
+% at all. Pandoc sets a highlighted block (```python, ```bash) in fancyvrb's
+% Verbatim, which reports nothing when this happens; a fence with no language
+% (```) becomes the kernel's verbatim, which at least logs an Overfull \hbox.
+% Either way the reader is shown a command with its tail missing.
+%
+% fvextra adds line breaking to fancyvrb, so an over-long line wraps instead.
+% breakanywhere is needed because the longest lines in the book are Newick
+% strings, which have no spaces to break at; breaknonspaceingroup extends the
+% same permission inside the groups the highlighter wraps each token in. The
+% kernel's verbatim is not a fancyvrb environment and fvextra does not reach
+% it, so it is redefined to be one. A wrapped line carries a hooked arrow at
+% the start of its continuation, so it reads as one line and not as two.
+%
+% The redefinition waits for \AtBeginDocument because tcolorbox, further down
+% this file, loads verbatim.sty, which defines the environment again and would
+% otherwise take the last word.
+\usepackage{fvextra}
+\fvset{breaklines=true,breakanywhere=true,breaknonspaceingroup=true,
+       breaksymbolleft=\footnotesize\ensuremath{\hookrightarrow}}
+\AtBeginDocument{\RecustomVerbatimEnvironment{verbatim}{Verbatim}{}}
+
 % --- Long file names in tables ----------------------------------------------
 % Appendix B's tables carry names like `sequences_species_phylogram_complete.nwk`,
 % which LaTeX treats as one unbreakable box and pushes out past the right margin.

@@ -9,7 +9,7 @@ from zombi2.rates import modifiers as mod
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 result = traits.simulate_continuous(tree, start=0.0, rate=1.0, seed=1)   # a real value
 result = traits.simulate_discrete(tree, states=["marine", "terrestrial"],
-                                  switch=0.1, seed=1)                     # a discrete state
+                                  switch=0.1, seed=1)   # a discrete state
 ```
 
 ## Continuous traits
@@ -91,7 +91,7 @@ traits.simulate_discrete(tree, states=["absent", "present"],
 Brownian motion is where this chapter starts, not where it stops, and the way past it is not a longer menu of models. The diffusion rate is a rate like any other in ZOMBI2, so it takes the modifiers of Chapter 2, and most of the named alternatives to BM are one modifier on that rate:
 
 ```python
-rate = 1.0 * mod.OnTime({0: 4.0, 1: 1.0})       # fast early, then settling — an early burst
+rate = 1.0 * mod.OnTime({0: 4.0, 1: 1.0})       # fast early, then settling — early burst
 rate = 1.0 * mod.FromParent(spread=0.3)         # each clade inherits and drifts in tempo
 rate = 1.0 * mod.OnTotalDiversity(cap=100)      # the rate eases off as the clade fills
 ```
@@ -137,7 +137,8 @@ from zombi2.rates import modifiers as mod
 
 # a species tree from the previous chapters, then a trait riding along it
 # (the complete tree — a trait evolves on extinct lineages too)
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=1).complete_tree
+tree = species.simulate_species_tree(
+    birth=1.0, death=0.3, n_extant=30, seed=1).complete_tree
 
 # continuous: body size under Brownian motion
 size = traits.simulate_continuous(tree, start=0.0, rate=1.0, seed=1)
@@ -183,6 +184,13 @@ The trait evolves on the **complete** tree, extinct lineages included, so `speci
 
 ## Outputs
 
-A run writes the **trait values** at every node (`trait_values.tsv` — the value at each tip, extinct lineage and internal node; the extant tips among them are the observable comparative-data vector) and the **trait tree** (`trait_tree.nwk`, the complete tree with every node annotated `[&trait=…]`, which opens in FigTree or iTOL). Because the value at every node comes from the same process that produced the tips, both files carry the *exact* ancestral states, not a reconstruction.
+| File | What it holds |
+|---|---|
+| `trait_values.tsv` | the value at every node — extant tips, extinct lineages and internal nodes |
+| `trait_events.tsv` | a `root` row for the state at t=0, then every realized switch with its time (discrete traits) |
+| `trait_tree.nwk` | the complete tree with every node annotated `[&trait=…]`, which opens in FigTree or iTOL |
 
-For a discrete trait the command also writes the **event log** (`trait_events.tsv`): a `root` row giving the state at t=0, then every realized transition with its time — the ground truth against which an ancestral-state or stochastic-mapping method would be scored. That one file is *also* what a conditioned genome run reads to let a trait drive its rates: given the shared tree, the root state plus the switches reconstruct the trait on every lineage at every instant, so no separate driver file is needed. The full list of files lives in Appendix B.
+Because the value at every node comes from the same process that produced the tips, these carry the
+*exact* ancestral states, not a reconstruction. `trait_events.tsv` is also the driver file a
+conditioned genome run reads (Chapter 9) — given the shared tree, the root state plus the switches
+rebuild the trait on every lineage at every instant; Appendix B gives the columns and the formats.

@@ -37,7 +37,10 @@ import pytest
 MANUAL = pathlib.Path(__file__).resolve().parent.parent / "manual" / "book"
 
 #: blocks whose *language* is not something we can run
-_RUNNABLE = ("python", "bash")
+#: Fenced languages the tests read. ``toml`` is here because a page that documents ``--params`` shows
+#: the file as a toml block, and the command test writes it to disk so the flag resolves against the
+#: real file; each test filters to the language it wants.
+_FENCED = ("python", "bash", "toml")
 
 _FENCE = re.compile(r"^```(\w+)?\s*$")
 _SKIP = re.compile(r"<!--\s*doc-test:\s*skip")
@@ -49,7 +52,7 @@ def _blocks(path: pathlib.Path) -> list[tuple[int, str, str]]:
     out, i = [], 0
     while i < len(lines):
         m = _FENCE.match(lines[i])
-        if not m or m.group(1) not in _RUNNABLE:
+        if not m or m.group(1) not in _FENCED:
             i += 1
             continue
         lang, start = m.group(1), i
@@ -143,6 +146,15 @@ def test_the_zombi2_commands_in_the_manual_parse(chapter, tmp_path, monkeypatch)
         pytest.skip(f"no zombi2 command lines in {chapter.name}")
     monkeypatch.setattr(cli_main, "_RUN", {k: (lambda args, parser: 0) for k in cli_main._RUN})
     monkeypatch.chdir(tmp_path)
+    # A page that shows a --params file writes it as a ```toml block whose first line names it. Put
+    # those on disk so the commands below read the very file the page shows: --params is resolved by
+    # the parser, so this checks the file's keys against the real options rather than eyeballing them.
+    for _, lang, src in _blocks(chapter):
+        if lang != "toml":
+            continue
+        first = src.splitlines()[0].strip() if src.strip() else ""
+        if first.startswith("#") and first.endswith(".toml"):
+            (tmp_path / first.lstrip("#").strip()).write_text(src, encoding="utf-8")
     for line, tokens in cmds:
         try:
             rc = cli_main.main(tokens)

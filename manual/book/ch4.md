@@ -37,7 +37,7 @@ The second says that families differ overall — some are simply more volatile t
 Either way each family draws one multiplier and keeps it for the whole run, and the draw is mean-corrected so `E[factor] = 1`: widening the spread spreads families further apart without moving the average family off the base rate you typed. So where you put it decides what varies *together*:
 
 ```python
-# each rate varies by family on its own — a family that loses fast is not thereby duplicating fast
+# each rate varies by family on its own — losing fast is not duplicating fast
 g = genomes.simulate_genomes_family(
     tree,
     duplication = 0.2  * mod.ByFamily(spread=0.6),
@@ -87,7 +87,8 @@ Rates can also depend on **time**. Multiplying a base rate by an `OnTime` modifi
 
 ```python
 # lots of new families early, then origination shuts off after time 2
-g = genomes.simulate_genomes_family(tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
+g = genomes.simulate_genomes_family(
+    tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
 ```
 
 ## Lateral gene transfers
@@ -96,7 +97,7 @@ When a transfer fires, a copy is picked from the whole pool of live genes, and i
 
 Three arguments shape what a transfer does:
 
-- **`transfer_to`** — who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier, weighting recipients by how far they sit from the donor on the tree. The distance version is *scale-free*. `Clades(...)` weights recipients by **named clades of the tree** — see below.
+- **`transfer_to`** — who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier, weighting recipients by how far they sit from the donor on the tree. The distance version is *scale-free*. A third rule, `Clades(...)`, weights recipients by **named clades of the tree** — see below.
 - **`replacement`** — what happens on arrival. By default the incoming copy is **additive**: the recipient simply gains a copy. With `replacement=True` it **overwrites** a copy of the same family already present, and falls back to additive when the recipient has none.
 - **`self_transfer`** — whether a lineage may donate to itself. Off by default. With additive arrival the lineage gains a copy, so the gene content changes as it would under a duplication, but the event is recorded as a transfer. 
 
@@ -119,13 +120,15 @@ from zombi2 import species, genomes
 
 sp = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1)
 # genes flow only BETWEEN clade A and clade B — never within either, never to the rest
+flows = genomes.Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)
 g = genomes.simulate_genomes_family(
     sp, transfer=1.0, initial_families=20, seed=2,
-    transfer_to=genomes.Clades({"A": ["n27", "n28"], "B": ["n21", "n26"]},
-                               genomes.Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)))
+    transfer_to=genomes.Clades({"A": ["n27", "n28"], "B": ["n21", "n26"]}, flows))
 ```
 
 Each entry is a weight, read the same way `"distance"`'s weights are: normalised over the lineages alive at the instant a transfer fires. Naming only `("A", "B")` and `("B", "A")` and setting `default=0.0` means every other pairing weighs 0 — a clade-A donor can reach clade B but not another clade-A lineage, and the rest of the tree neither sends nor receives. Drop the `default=0.0` and unlisted pairs return to weight 1 (baseline), so `Between({("A", "B"): 5.0})` *enriches* A→B fivefold while leaving everything else to happen normally. A weight of 0 means "cannot receive", exactly as at the end of Chapter 9: when a donor's every candidate weighs 0, the transfer has nowhere to land and does not fire.
+
+`Clades` is written in Python. On the command line `--transfer-to` takes `uniform`, `distance`, or a `DrivenBy` recipient weight (Chapter 9).
 
 ## The `FamilyGenomesResult` object
 
@@ -142,12 +145,12 @@ Each entry is a weight, read the same way `"distance"`'s weights are: normalised
 and two methods:
 
 - `.family_counts(node_id)` — a `Counter` collapsing a node's genome to `family → number of copies`, when you want the multiset rather than the individual copies.
-- `.write(dir)` — materialise the outputs to disk: the event log (`genome_events.tsv`) and the profiles (`profiles.tsv`).
+- `.write(dir, outputs=[...])` — materialise the outputs to disk, listed under *Outputs* below.
 
 ```python
 n5 = g.genomes[5]                    # the gene copies in node n5
 counts = g.family_counts(5)          # {family: copies} for the same node
-g.write("out/")                      # genome_events.tsv + profiles.tsv
+g.write("out/")                      # the run's files, on disk
 ```
 
 ## Profiles and gene trees
@@ -191,7 +194,8 @@ g = genomes.simulate_genomes_family(
 g = genomes.simulate_genomes_family(tree, origination=0.6, seed=1)
 
 # a skyline: new families pour in early, then origination shuts off after time 2
-g = genomes.simulate_genomes_family(tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
+g = genomes.simulate_genomes_family(
+    tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
 
 # horizontal transfer, biased toward close relatives, overwriting resident copies
 g = genomes.simulate_genomes_family(
@@ -205,7 +209,7 @@ observed = {n.id: g.genomes[n.id] for n in g.complete_tree.extant_leaves()}
 g.profiles.matrix                                # family × extant-species copy counts
 some_family = next(iter(g.gene_trees))
 g.gene_trees[some_family].to_newick("extant")    # that family's surviving gene tree
-g.write("out/")                                  # the event log + profiles, on disk
+g.write("out/")                                  # the run's files, on disk
 ```
 
 ## Usage from the CLI
@@ -217,48 +221,32 @@ g.write("out/")                                  # the event log + profiles, on 
 zombi2 genomes out/ --duplication 0.2 --loss 0.25 --origination 0.5 --seed 1
 
 # horizontal transfer biased toward close relatives, overwriting resident copies
-zombi2 genomes out/ --transfer 0.5 --transfer-to distance --replacement --origination 0.4 --seed 3
+zombi2 genomes out/ --transfer 0.5 --transfer-to distance --replacement \
+    --origination 0.4 --seed 3
 ```
 
 ## Outputs
 
-A run writes the event log and the profiles:
+| File | What it holds |
+|---|---|
+| `genome_events.tsv` | the gene genealogy — every event with its time and lineage |
+| `profiles.tsv` | family × extant-species copy counts |
+| `genomes.tsv` | every node's gene content, ancestors included, one row per copy |
+| `initial_genome.tsv` | the genome the run started with |
+| `gene_trees/` | one Newick per family, complete and extant |
 
-```
-out/genome_events.tsv    the gene genealogy (the source of truth)
-out/profiles.tsv         family × extant-species copy counts
-```
-
-Two more come with them, one row per gene copy and one Newick per family:
-
-```
-out/genomes.tsv                       every node's genes, ancestors included
-out/gene_trees/gene_tree_fam<f>_*.nwk each family's genealogy, complete and extant
-```
-
-The gene trees are two files per family, so they get a directory of their own — from `.write()` as
-much as from the command, which is why the path above is the same either way.
-
-`genomes.tsv` is one row per gene copy, so a lineage carrying six genes has six rows:
-
-```
-lineage  family  copy
-n0       0       g0
-n0       1       g1
-n0       2       g2
-n1       0       g3
-n1       0       g8
-```
-
-Read a list of rows sharing a `lineage` and you have that lineage's genome. `family` says which gene family a copy belongs to, so the two `n1` rows above are two copies of family `0`, one of them a duplicate. `copy` is the individual gene, written `g<id>` — the same token the gene-tree leaf and the alignment header carry, so a row joins straight onto a tree or a sequence — and it is the same identifier the event log uses, so any gene here can be traced back to the event that made it. `profiles.tsv` is this same information counted rather than listed, and only for the extant tips; `genomes.tsv` keeps the ancestors, the root included, which is what you want if you are scoring a reconstruction of ancestral gene content.
+A gene copy is written `g<id>`, the same token the gene-tree leaf and the alignment header carry, so a
+row of `genomes.tsv` joins straight onto a tree or a sequence, and onto the event that made it.
+Appendix B gives the columns and the formats.
 
 ## Evolving families in parallel
 
 Because families are independent — a transfer moves a copy between lineages, but no event ever mixes two families — a run can evolve them **concurrently**, one family per worker process. It is off by default; `parallel` turns it on.
 
 ```python
-g = genomes.simulate_genomes_family(tree, duplication=0.2, loss=0.25, origination=0.5,
-                                    initial_families=1000, seed=1, parallel=8)   # 8 workers
+g = genomes.simulate_genomes_family(
+    tree, duplication=0.2, loss=0.25, origination=0.5,
+    initial_families=1000, seed=1, parallel=8)      # 8 workers
 ```
 
 `parallel=True` uses every core and an integer sets the worker count; on the command line it is `--parallel` for all cores or `--parallel 8` for eight. It is a **separate engine**, not a faster path through the default one: each family draws from its own random stream, so the result is identical for any worker count, but it differs from a serial run of the same seed — both are valid draws of the same process.
@@ -268,8 +256,9 @@ A **conditioned** rate (Chapter 9) runs here too. Conditioning does not couple f
 For very large runs — hundreds of thousands of families, or a million — the difficulty stops being speed and becomes memory: the finished result itself no longer fits. `stream_to` writes each family to a directory the moment it is done, and hands back a light handle holding a path rather than a `FamilyGenomesResult` holding everything. Memory then stays flat however many families you run — a run that would have held 2 GB streams in about 40 MB — and the sequence level reads the families back off the disk afterwards. Choose which files to write with `outputs=`, exactly as `.write` takes them. On the command line this is `--stream`.
 
 ```python
-run = genomes.simulate_genomes_family(tree, origination=2.0, initial_families=5000, seed=1,
-                                      parallel=8, stream_to="out/", outputs=("events", "profiles"))
+run = genomes.simulate_genomes_family(
+    tree, origination=2.0, initial_families=5000, seed=1,
+    parallel=8, stream_to="out/", outputs=("events", "profiles"))
 run.path("events")            # out/genome_events.tsv — the log, ready to replay
 ```
 
