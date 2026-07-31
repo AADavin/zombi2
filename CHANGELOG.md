@@ -19,6 +19,21 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   and nothing else. The classes are normalised to mean one, so a phylogram's branch lengths are
   still substitutions per site, now the mean over them, and a run with variation and one without are
   directly comparable. Works on every model on the menu, nucleotide and protein alike.
+- **Ornstein–Uhlenbeck takes a modified variance-rate.** `reverts_to` / `pull` now compose with
+  `OnTime`, `FromParent`, `OnTotalDiversity` and `DrivenBy` on `rate`, so a trait that bursts early
+  *and* reverts to an optimum is one rate with one modifier and two arguments — which is what
+  Chapter 8 has said all along and the code refused. The per-branch variance is the exact weighted
+  integral `∫ e^{−2α(t₁−s)} σ²(s) ds`, stepping where the schedule, the standing diversity or the
+  driver steps; the Brownian `∫ σ²(s) ds` is a different number, larger by an order of magnitude on
+  a typical branch.
+- **Multivariate Ornstein–Uhlenbeck** — `reverts_to` and `pull` alongside `correlation=`, each
+  taking one value shared across the traits or one per trait. Each trait reverts to its own optimum
+  at its own strength and the correlation rides in the diffusion. The drift is **diagonal**: one
+  trait's deviation does not pull another, and a full drift matrix is refused by name rather than
+  quietly approximated.
+- **Jumps at speciation combine with correlated traits and with regimes.** A correlated jump is
+  drawn under the same `correlation=` overlay the diffusion uses, and a multi-optimum OU (`regimes=`)
+  run now jumps at each split like any other continuous trait.
 - **A genome run says when it emptied a genome.** There is no floor at the family resolution — loss
   is counted per copy, and the last copy is a copy like any other — so a high loss rate can strip a
   lineage of every gene. The run now reports how many extant genomes came out empty, on stderr and
@@ -48,6 +63,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   raises, which matters more since the same expression started working on `zombi2 species`.
 
 ### Changed
+- **A `regimes=` trait run writes the event log every other continuous run writes** — the `initial`
+  row at t=0 and one `on_speciation` row per jump. It previously returned an empty log and wrote a
+  header-only `trait_events.tsv`.
+- **Clearer refusals at the traits level.** The combinations that stay blocked — a modified
+  variance-rate with `regimes=`, per-trait modifiers with `correlation=`, a per-regime jump size, a
+  modified liability variance-rate, a full drift matrix — now say plainly that they are not
+  implemented yet and name the modifier actually given, instead of referring to an internal "slice".
 - **The API reference is one page per level**, and each entry is stamped with what kind of thing it
   is — module, class, function, method, attribute — beside its heading and again in the contents
   column, so the reference reads as an index of each package rather than one long scroll. The
