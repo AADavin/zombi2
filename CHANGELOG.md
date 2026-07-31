@@ -21,6 +21,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   They replace the two phylogram examples.
 
 ### Fixed
+- **`--write` offers everything a result can write.** Its choices were hand-copied from each
+  `write()`, with a comment saying so, and they had drifted: `species_tree` and `initial_sequence`
+  were writable from Python and unnameable on the command line. Each result now declares its write
+  vocabulary and the CLI reads it, so the two cannot disagree.
 - **A run with an autocorrelated clock reported itself as `strict clock`.** The summary line only
   recognised `ByLineage`, so `FromParent` — and now its binned form — fell through to the default.
 

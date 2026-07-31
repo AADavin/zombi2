@@ -198,6 +198,13 @@ class FamilyGenomesResult:
                 "family_ids_at_cap": at_cap},
         }
 
+    #: Every token ``write()`` honours — the write vocabulary, declared rather than left
+    #: implicit in the method body. The CLI builds ``--write``'s choices from this, so the two
+    #: cannot drift: they did, and `initial_sequence` and `species_tree` were writable from
+    #: Python and unnameable on the command line.
+    OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees",
+               "species_tree", "summary")
+
     def write(self, directory, outputs=("events", "profiles", "genomes", "initial_genome",
                                         "gene_trees", "species_tree", "summary"), *,
               flat: bool = False) -> None:

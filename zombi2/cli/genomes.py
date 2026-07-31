@@ -18,6 +18,9 @@ import time
 
 from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
                             simulate_genomes_family)
+from zombi2.genomes.family import FamilyGenomesResult
+from zombi2.genomes.ordered import OrderedGenomesResult
+from zombi2.genomes.nucleotide import NucleotideGenomesResult
 from zombi2.genomes.nucleotide import WIRED_MODIFIERS as _NUC_WIRED
 from zombi2.rates.parse import parse_rate
 from zombi2.rates.scope import Global, PerLineage
@@ -39,15 +42,14 @@ RATES_HELP = _rates_help(
          "--transfer-to takes one on its own as a recipient weight. --resolution ordered takes "
          "OnTime and ByFamily; nucleotide, OnTime and DrivenBy.")
 
-# the write vocabularies, mirroring each Result.write (there is no exported constant to import)
-_FAMILY_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees",
-                   "summary")
-_ORDERED_OUTPUTS = ("events", "profiles", "gene_order", "initial_genome", "gene_trees",
-                    "chromosome_events")
-_NUCLEOTIDE_OUTPUTS = ("events", "genes", "blocks", "initial_genome", "gene_trees",
-                       "chromosome_events", "gff", "bed")
-_OUTPUTS = {"family": _FAMILY_OUTPUTS, "ordered": _ORDERED_OUTPUTS,
-            "nucleotide": _NUCLEOTIDE_OUTPUTS}
+# The write vocabularies, read off the results themselves. They used to be hand-copied here, with a
+# comment saying so, and they drifted: `species_tree` and `initial_sequence` were writable from
+# Python and unnameable on the command line, and `summary` went missing from three screens.
+_OUTPUTS = {"family": FamilyGenomesResult.OUTPUTS,
+            "ordered": OrderedGenomesResult.OUTPUTS,
+            "nucleotide": NucleotideGenomesResult.OUTPUTS}
+_FAMILY_OUTPUTS, _ORDERED_OUTPUTS, _NUCLEOTIDE_OUTPUTS = (
+    _OUTPUTS["family"], _OUTPUTS["ordered"], _OUTPUTS["nucleotide"])
 
 # knobs that need a *structured* genome — (attribute, default) pairs — rejected under the family resolution
 _STRUCTURED_ONLY = (
