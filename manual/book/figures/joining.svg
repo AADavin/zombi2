@@ -6,7 +6,7 @@
      parent's trait state to both daughters — so the tree is the third thing in the cycle, and an
      arrow straight from speciation back to body size would state something false. That is also the
      contrast with conditioning, where the tree is a fixed input and can be left out.
-     Colours are presentation ATTRIBUTES and literals, never var(--ink): GitHub's sanitiser drops the
+     Colours are presentation ATTRIBUTES and literals, never a CSS custom property: GitHub's sanitiser drops the
      style element and librsvg resolves no custom properties, so either renders black-on-black. -->
 <style>
   @media (prefers-color-scheme: dark) {

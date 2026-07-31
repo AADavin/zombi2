@@ -292,3 +292,23 @@ def test_every_flag_the_manual_names_in_prose_exists():
                 missing.append(f"{chapter.name}: {flag}")
     assert not missing, ("the manual names flags no command declares — renamed, or never existed:\n  "
                          + "\n  ".join(missing))
+
+def test_every_figure_is_well_formed_xml():
+    """An SVG that is not well-formed XML does not render — the browser refuses the whole file.
+
+    `conditioning.svg` and `joining.svg` both shipped broken for exactly this reason: a comment
+    explaining the colour convention mentioned ``var(-``\u2011``ink)``, and a double hyphen is illegal
+    inside an XML comment. Nothing complained; the images were simply blank in the README, which is
+    the sort of thing only a reader notices."""
+    import xml.etree.ElementTree as ET
+
+    figures = sorted((MANUAL / "figures").glob("*.svg")) + sorted(
+        (pathlib.Path(__file__).resolve().parent.parent / "assets").glob("*.svg"))
+    assert figures, "no figures found — has the layout moved?"
+    broken = []
+    for svg in figures:
+        try:
+            ET.parse(svg)
+        except ET.ParseError as e:
+            broken.append(f"{svg.name}: {e}")
+    assert not broken, "these figures will not render:\n  " + "\n  ".join(broken)
