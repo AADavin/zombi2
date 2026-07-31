@@ -187,12 +187,17 @@ def test_write_records_the_event_log(tmp_path):
     r = simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=5)
     r.write(tmp_path)                                            # events are always written
     lines = (tmp_path / "species_events.tsv").read_text(encoding="utf-8").splitlines()
-    assert lines[0] == "time\tkind\tlineage\tchildren"
+    assert lines[0] == "time\tkind\tparents\tchildren"
     assert len(lines) == 1 + len(r.events)                      # one row per recorded event
     speciation = next(ln for ln in lines[1:] if "\tspeciation\t" in ln)
-    kids = speciation.split("\t")[-1]
-    # a speciation lists its two children; each is n<id>, or e<id> when that lineage went extinct
+    parents, kids = speciation.split("\t")[2:]
+    # a speciation is one parent — the lineage that split — and its two children; each is n<id>, or
+    # e<id> when that lineage went extinct
+    assert ";" not in parents
     assert ";" in kids and len(kids.split(";")) == 2
+    # an extinction is the dying lineage as the parent, with nothing produced
+    extinction = next(ln for ln in lines[1:] if "\textinction\t" in ln)
+    assert extinction.split("\t")[2] and extinction.split("\t")[3] == ""
 
 
 def test_write_is_selective(tmp_path):

@@ -1,6 +1,6 @@
 """A conditioned `DrivenBy`'s file-backing (SPEC §2).
 
-When ``DrivenBy``'s ``source`` is a **filename**, the coupling is *conditioned*: the driver was grown
+When ``DrivenBy``'s ``source`` is a **filename**, the relation is *conditioned*: the driver was grown
 first and written to a file, and two ordinary runs in order do the rest
 (``loss = 0.25 * mod.DrivenBy("habitat.tsv", {...})``). This module — living beside ``DrivenBy`` in
 ``rates`` because it is that modifier's file end — turns the written driver into the per-lineage lookup
@@ -9,8 +9,8 @@ own: it *folds into the target level's* run; only genuinely-joint models get a d
 ``zombi2.joint``.)
 
 The driver file is the trait **event log** (``trait_events.tsv``, written by
-`zombi2.traits.TraitsResult.write()` with ``outputs=("events",)``): a ``root`` row giving the
-initial state, then every switch — ``time · kind · lineage · from · to``. The driver ran on the same
+`zombi2.traits.TraitsResult.write()` with ``outputs=("events",)``): an ``initial`` row giving the
+state at t=0, then every switch — ``time · kind · lineage · from · to``. The driver ran on the same
 complete tree the target now runs on, so replaying the log **against that tree** rebuilds each
 lineage's branch as constant stretches (a discrete driver switches *mid-branch*, so this is the exact
 stochastic character map, not one value per branch). `DriverTrajectory` then answers both
@@ -78,12 +78,12 @@ class DriverTrajectory:
 
 
 def load_driver(path, tree) -> DriverTrajectory:
-    """Read a trait **event log** (``trait_events.tsv``: ``time · kind · lineage · from · to``, a
-    ``root`` row then the switches) and **replay it against ``tree``** into a `DriverTrajectory`.
+    """Read a trait **event log** (``trait_events.tsv``: ``time · kind · lineage · from · to``, an
+    ``initial`` row then the switches) and **replay it against ``tree``** into a `DriverTrajectory`.
 
     The log alone is not enough — a switch says *when* the state changed, not what each branch started
     in — so the tree supplies branch birth/end times and the topology, and the reconstruction walks
-    parent-before-child: the root begins in the ``root`` row's state, every other lineage in its own
+    parent-before-child: the root begins in the ``initial`` row's state, every other lineage in its own
     ``on_speciation`` state if it has one else its parent's ending state, and ``on_branch`` rows cut
     the branch into constant stretches. This is the same tree the target level runs on, so ``node n7``
     in the log is lineage 7 here. (``tree`` is the run's own species tree, always in hand where a
@@ -107,7 +107,7 @@ def load_driver(path, tree) -> DriverTrajectory:
             f"{header} — write it with TraitsResult.write(dir, outputs=('events',)). (The old "
             "node·start·end·state driver table was retired: the event log is the driver now.)"
         )
-    root_state = None
+    initial_state = None
     clado: dict[int, object] = {}                       # lineage -> its on-speciation start state
     switches: dict[int, list[tuple[float, object]]] = {}   # lineage -> [(time, to_state), …]
     for line in rows[1:]:
@@ -116,21 +116,22 @@ def load_driver(path, tree) -> DriverTrajectory:
             raise ValueError(f"driver file {str(path)!r} row is not 5 columns: {line!r}")
         time_s, kind, node_s, _from, to = parts
         node_id = node_from_label(node_s)
-        if kind == "root":
-            root_state = to
+        if kind == "initial":
+            initial_state = to
         elif kind == "on_speciation":
             clado[node_id] = to
         else:
             switches.setdefault(node_id, []).append((float(time_s), to))
-    if root_state is None:
+    if initial_state is None:
         raise ValueError(
-            f"driver file {str(path)!r} has no 'root' row, so the initial state is unknown and the "
-            "trajectory cannot be reconstructed. Re-write it with a current ZOMBI2."
+            f"driver file {str(path)!r} has no 'initial' row, so the state at t=0 is unknown and the "
+            "trajectory cannot be reconstructed. Re-write it with a current ZOMBI2 (the t=0 row used "
+            "to be spelled 'root')."
         )
-    return DriverTrajectory(_replay(tree, root_state, clado, switches))
+    return DriverTrajectory(_replay(tree, initial_state, clado, switches))
 
 
-def _replay(tree, root_state, clado, switches) -> dict[int, list[tuple[float, object]]]:
+def _replay(tree, initial_state, clado, switches) -> dict[int, list[tuple[float, object]]]:
     """Rebuild each lineage's constant stretches ``{node: [(start_time, state), …]}`` from the tree and
     the parsed log. Parent before child, so a lineage can read its parent's ending state."""
     segments: dict[int, list[tuple[float, object]]] = {}
@@ -140,7 +141,7 @@ def _replay(tree, root_state, clado, switches) -> dict[int, list[tuple[float, ob
         i = stack.pop()
         node = tree.nodes[i]
         if node.parent is None:
-            start = root_state
+            start = initial_state
         elif i in clado:
             start = clado[i]
         else:
@@ -274,7 +275,7 @@ def check_mapping_fires(mapping, available_states, *, source_label: str, exhaust
     if not (named & have):
         raise ValueError(
             f"DrivenBy on {source_label}: the mapping's states {sorted(named)} match none of the "
-            f"driver's states {sorted(have)}, so the coupling would silently do nothing — every "
+            f"driver's states {sorted(have)}, so the mapping would silently do nothing — every "
             f"lineage falls to the default factor and the rate is never driven. Check for a typo in "
             f"the state names, or a stale or mismatched driver file.")
 

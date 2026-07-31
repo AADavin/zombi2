@@ -75,30 +75,33 @@ def test_write_produces_events_and_profiles(tmp_path):
     # the gene trees are two files per family, so they get a directory of their own
     assert [p.name for p in (tmp_path / "gene_trees").iterdir() if p.name.startswith("gene_tree_fam")]
     ev = (tmp_path / "genome_events.tsv").read_text(encoding="utf-8").splitlines()
-    assert ev[0].split("\t") == ["time", "kind", "lineage", "family", "copy", "parent", "recipient",
-                                 "donor", "event"]
-    assert len(ev) - 1 == len(g.events)                 # one row per recorded edge
+    assert ev[0].split("\t") == ["time", "kind", "family", "parents", "children"]
+    # one row per EVENT, where an `Event` is one gene-tree edge: a duplication, a transfer and a
+    # speciation each end one gene and start two, so there are fewer rows than edges
+    assert len(ev) - 1 == len({(e.kind, e.event) for e in g.events}) < len(g.events)
 
 
-def test_the_event_column_counts_events_where_counting_rows_counts_edges(tmp_path):
-    """The column exists so `sort -u` on it answers "how many transfers", which counting rows does
-    not: a duplication, transfer or speciation writes one row per descendant."""
+def test_one_row_per_event_with_the_participants_in_it(tmp_path):
+    """A row is an event, and it names everyone it touched: an origination has one child and no
+    parent, a loss one parent and no child, everything else one parent and two children. Counting
+    rows used to count gene-tree edges, so a duplication read as two duplications."""
     _, g = _run(seed=7)
     g.write(tmp_path)
-    rows = [r.split("\t") for r in (tmp_path / "genome_events.tsv").read_text(encoding="utf-8").splitlines()[1:]]
-    at = {c: i for i, c in enumerate(["time", "kind", "lineage", "family", "copy", "parent",
-                                      "recipient", "donor", "event"])}
-    by_kind: dict[str, list[list[str]]] = {}
+    rows = [dict(zip(["time", "kind", "family", "parents", "children"], r.split("\t")))
+            for r in (tmp_path / "genome_events.tsv").read_text(encoding="utf-8").splitlines()[1:]]
+    arity = {"origination": (0, 1), "loss": (1, 0), "duplication": (1, 2), "speciation": (1, 2),
+             "transfer_additive": (1, 2), "transfer_replacing": (2, 2)}
+    seen: set[str] = set()
     for r in rows:
-        by_kind.setdefault(r[at["kind"]], []).append(r)
-    for kind, rs in by_kind.items():
-        events = {r[at["event"]] for r in rs}
-        # within a kind the column is exactly unique — a copy ends once, so it keys one event
-        expected = 2 if kind in ("duplication", "transfer", "speciation") else 1
-        assert len(rs) == expected * len(events), kind
-        # and it is never empty: every row belongs to some event
-        assert all(r[at["event"]] for r in rs), kind
-    assert {"duplication", "loss"} <= set(by_kind)       # the seed exercises both arities
+        parents = [c for c in r["parents"].split(";") if c]
+        children = [c for c in r["children"].split(";") if c]
+        assert (len(parents), len(children)) == arity[r["kind"]], r
+        seen.add(r["kind"])
+    assert {"origination", "duplication", "loss", "speciation"} <= seen  # the seed exercises them
+    # every copy the run minted appears exactly once as a child (its birth) — the row it is born on
+    # is where the log says which branch it lived on
+    born = [c for r in rows for c in r["children"].split(";") if c]
+    assert len(born) == len(set(born)) == len({e.copy for e in g.events})
     pr = (tmp_path / "profiles.tsv").read_text(encoding="utf-8").splitlines()
     assert len(pr) - 1 == len(g.profiles.families)      # one row per family
 

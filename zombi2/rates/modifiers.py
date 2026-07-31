@@ -266,10 +266,11 @@ class ByFamily(Modifier):
 
 
 class DrivenBy(Modifier):
-    """The rate is **driven by another level** — the one coupling mechanism (SPEC §2).
+    """The rate is **driven by another level** — the one mechanism behind both conditioning and
+    joining (SPEC §2).
 
-    A coupling is Ch2's definition made literal: *a parameter that reads its value from another
-    level instead of a number you type*. ``DrivenBy`` reads the driver's value on each lineage and
+    It is Ch2's definition made literal: *a rate that reads the state of another level instead of
+    being a fixed number*. ``DrivenBy`` reads the driver's value on each lineage and
     multiplies the base rate by the mapped factor::
 
         loss = 0.25 * mod.DrivenBy("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})
@@ -314,7 +315,7 @@ class DrivenBy(Modifier):
         """The mapped multiplier for this lineage's driver value — the engine threads the value under
         ``drivers[key]`` (``key`` is the source string, or the identity of an in-memory driver). No
         ``drivers`` (or this source absent) ⇒ 1.0, so an unthreaded rate is inert (the engine is
-        responsible for supplying the value where the coupling is supported)."""
+        responsible for supplying the value where a driven rate is supported)."""
         if drivers is None:
             return 1.0
         value = drivers.get(self.key)

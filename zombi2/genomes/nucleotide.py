@@ -105,16 +105,18 @@ from ..rates.scope import PerChromosome, PerLineage
 from ..tree import Tree, as_tree
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
-from .chromosomes import ChromosomeEvent, chromosome_events_tsv
+from .chromosomes import (REARRANGEMENT_COLS, ChromosomeEvent, chromosome_events_tsv,
+                          chromosome_from_label, chromosome_label, rearrangement_events_tsv)
 from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
-from .events import (Event, _name, events_tsv, gene_from_label, gene_label, node_from_label,
-                     node_label)
+from .events import (Event, _copy_cell, _name, events_tsv, gene_from_label, gene_label,
+                     node_from_label, node_label)
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .gff import read_fasta, read_gff
 
-#: The rate grammar this engine wires (SPEC §5). Only the skyline this slice: a modifier it has not
-#: wired raises rather than being silently ignored, so a run is never quietly not the model asked for.
+#: The rate grammar this engine supports (SPEC §5). Only the skyline this slice: a modifier it does
+#: not support raises rather than being silently ignored, so a run is never quietly not the model
+#: asked for.
 WIRED_MODIFIERS = (OnTime, DrivenBy)
 
 
@@ -916,13 +918,14 @@ class NucleotideGenomesResult:
                                         "gff", "bed", "species_tree"), *, flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
-        - ``"events"`` → **two** tables, because a nucleotide run records two different things.
+        - ``"events"`` → **three** tables, because a nucleotide run records three different things.
           ``genome_events.tsv`` is the genealogy (`genealogy`) in the format *every* resolution
-          writes, so one reader serves them all: one row per gene-tree edge, and a duplication,
-          transfer or speciation writes two sharing a ``parent``. ``block_events.tsv`` is this
-          resolution's own record — the copy-lineage log over **ancestral intervals** plus the
-          ancestry-neutral rearrangements, one row per interval an event touched, so an event
-          spanning several blocks writes several rows sharing a ``time`` and ``kind``. It is what
+          writes, so one reader serves them all: one row per event, its participants named
+          ``n<species>_g<copy>``. ``block_events.tsv`` is this resolution's own record — the
+          copy-lineage log over **ancestral intervals**, one row per interval an event touched, so an
+          event spanning several blocks writes several rows sharing a ``time`` and ``kind``.
+          ``rearrangement_events.tsv`` is the ancestry-neutral rearrangements, which begin and end no
+          lineage and so have nothing to put in ``parents`` and ``children``. The last two are what
           `read_nucleotide_genomes()` replays.
         - ``"blocks"`` → ``blocks.tsv``, every node's genome as its block mosaic (ancestors
           included, as for the ordered resolution's ``gene_order``). The one big file here: blocks
@@ -960,14 +963,18 @@ class NucleotideGenomesResult:
         d.mkdir(parents=True, exist_ok=True)
         names = self.complete_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
         if "events" in outputs:
-            # Two tables, because they describe two things. `genome_events.tsv` is the genealogy in
-            # the one format every resolution writes, so one reader serves them all; `block_events.tsv`
-            # is this resolution's own interval record, which has no counterpart elsewhere. They used
-            # to share the first name, which made a nucleotide log look readable to the family reader
-            # while meaning something else in the same columns.
+            # Three tables, because they describe three things. `genome_events.tsv` is the genealogy
+            # in the one format every resolution writes, so one reader serves them all;
+            # `block_events.tsv` is this resolution's own interval record, which has no counterpart
+            # elsewhere; `rearrangement_events.tsv` is what moved without ending anything. The first
+            # two used to share a name, which made a nucleotide log look readable to the family reader
+            # while meaning something else in the same columns; the third used to be rows inside the
+            # second, with its copy and interval columns empty on every one of them.
             (d / "genome_events.tsv").write_text(events_tsv(self.genealogy, names), encoding="utf-8")
             (d / "block_events.tsv").write_text(
-                _nucleotide_events_tsv(self.events, self.rearrangements, names), encoding="utf-8")
+                _nucleotide_events_tsv(self.events, self.complete_tree, names), encoding="utf-8")
+            (d / "rearrangement_events.tsv").write_text(
+                rearrangement_events_tsv(self.rearrangements, names), encoding="utf-8")
         if "blocks" in outputs:
             (d / "blocks.tsv").write_text(self._blocks_tsv(names), encoding="utf-8")
         if "genes" in outputs:
@@ -975,7 +982,9 @@ class NucleotideGenomesResult:
         if "initial_genome" in outputs:
             (d / "initial_genome.tsv").write_text(self._initial_genome_tsv(), encoding="utf-8")
         if "chromosome_events" in outputs:
-            (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events), encoding="utf-8")
+            (d / "chromosome_events.tsv").write_text(
+                chromosome_events_tsv(self.chromosome_events, self.complete_tree, names),
+                encoding="utf-8")
         if "gene_trees" in outputs:
             write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat), names)
         if "species_tree" in outputs:            # the tree everything here is indexed by: without
@@ -1083,80 +1092,84 @@ class NucleotideGenomesResult:
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 
 
-#: One table for the whole history of a run: the copy-lineage genealogy and the ancestry-neutral
-#: rearrangements, interleaved by time. ``source`` / ``start`` / ``end`` are **ancestral** coordinates
-#: — which stretch of which source — while ``position`` / ``length`` are **physical** ones on
-#: the chromosome named by ``chromosome``, as ``blocks.tsv`` numbers it. They are different frames,
-#: so they are different columns.
-_NUCLEOTIDE_EVENT_COLS = ("time", "kind", "lineage", "chromosome", "copy", "parent", "recipient",
-                          "source", "start", "end",
-                          "position", "length", "dest_chromosome", "dest_position", "flipped")
+#: ``block_events.tsv`` — this resolution's own record of the copy-lineage genealogy, keyed by
+#: **ancestral interval**. Same shape as every other log here: when, what, what ended, what began, and
+#: then the coordinates. ``parents`` / ``children`` are copy lineages written ``n<species>_g<copy>``,
+#: so a transfer's row says who donated and who received by naming the two copies where they sit, and
+#: the ``lineage`` / ``recipient`` columns the table used to need are gone. ``chromosome`` is
+#: ``n<species>_c<chromosome>`` for the same reason.
+#:
+#: ``source`` / ``start`` / ``end`` are **ancestral** coordinates — which stretch of which source. The
+#: *physical* coordinates that used to sit beside them belong to the rearrangements, which are now
+#: ``rearrangement_events.tsv``; they are a different frame and were empty on every row here.
+_NUCLEOTIDE_EVENT_COLS = ("time", "kind", "parents", "children", "chromosome",
+                          "source", "start", "end")
 
 
-def _nucleotide_events_tsv(events, rearrangements=(), names=None) -> str:
-    """The run's whole history as one time-ordered table (see `_NUCLEOTIDE_EVENT_COLS`).
+def _copy_branches(events, tree) -> dict[int, int]:
+    """``{copy lineage: the species branch it lived on}``, read off the log itself — the nucleotide
+    twin of `events._branches()`, and what lets a participant be written ``n2_g34``.
 
-    An event here can span several blocks at once (a loss deletes an arc covering many), and each
-    carries its own copy lineage and ancestral interval, so a flat table needs one row apiece. Rows
-    of the same event share ``time``, ``kind`` and ``lineage``. Empty cells for the fields a kind
-    does not use; a speciation re-mints a copy lineage without touching sequence, so it names only
-    ``parent`` and ``copy``.
-
-    The **rearrangements** are here too, as their own kinds. They end no gene lineage, which is why
-    they used to be a separate file, but they are events on the same branches at the same clock and a
-    reader replaying one has to interleave them anyway.
-    """
-    rows = []
-    # the columns holding a species-tree node, labelled n<id> like every other table
-    node_at = {i for i, c in enumerate(_NUCLEOTIDE_EVENT_COLS) if c in ("lineage", "recipient")}
-    # the columns holding a gene copy, labelled g<id> like every other table
-    gene_at = {i for i, c in enumerate(_NUCLEOTIDE_EVENT_COLS) if c in ("copy", "parent")}
-
-    def _fmt(i, c):
-        if c is None:
-            return ""
-        if i in node_at:
-            return _name(names, c)
-        if i in gene_at:
-            return gene_label(c)
-        return str(c)
-
-    def row(*cells):
-        cells = cells + ("",) * (len(_NUCLEOTIDE_EVENT_COLS) - len(cells))
-        rows.append((cells[0], "\t".join(_fmt(i, c) for i, c in enumerate(cells))))
-
+    A copy is minted once and re-minted at every speciation, so it belongs to exactly one branch. It
+    is born on the branch its event fired on, except the two that cross branches: a **transfer**'s
+    child is born on the recipient, and a **speciation**'s children on the daughters (in the tree's
+    own child order, which is the order they are minted in)."""
+    where: dict[int, int] = {}
     for e in events:
         if isinstance(e, Origination):
-            row(e.time, "initial" if e.initial else "origination", e.lineage, e.chromosome, e.copy,
-                None, None, e.source, e.start, e.end)
+            where[e.copy] = e.lineage
+        elif isinstance(e, Duplication):
+            for (_parent, child, *_arc) in e.copied:
+                where[child] = e.lineage
+        elif isinstance(e, Transfer):
+            for (_parent, child, *_arc) in e.transferred:
+                where[child] = e.recipient
+        elif isinstance(e, Speciation):
+            for daughter, child in zip(tree.nodes[e.lineage].children or (), e.children):
+                where[child] = daughter
+    return where
+
+
+def _nucleotide_events_tsv(events, tree, names=None) -> str:
+    """The copy-lineage genealogy over ancestral intervals (see `_NUCLEOTIDE_EVENT_COLS`).
+
+    An event here can span several blocks at once (a loss deletes an arc covering many), and each
+    carries its own copy lineage and ancestral interval, so a flat table needs one row apiece: rows of
+    the same event share ``time``, ``kind`` and ``chromosome``. A **speciation** is the exception —
+    it re-mints one copy lineage into one child per daughter without touching sequence, so it has no
+    interval to spread over and writes a single row with both daughters in ``children``."""
+    where = _copy_branches(events, tree)
+    rows = []
+
+    def copies(ids) -> str:
+        return ";".join(_copy_cell(_name(names, where[c]), c) for c in ids)
+
+    def row(time, kind, parents, children, chromosome=None, arc=(None, None, None)):
+        rows.append("\t".join([str(time), kind, copies(parents), copies(children),
+                               "" if chromosome is None else chromosome,
+                               *("" if a is None else str(a) for a in arc)]))
+
+    for e in events:
+        chrom = None
+        if isinstance(e, (Origination, Loss, Duplication)):
+            chrom = chromosome_label(e.lineage, e.chromosome, names)
+        if isinstance(e, Origination):
+            row(e.time, "initial" if e.initial else "origination", (), (e.copy,), chrom,
+                (e.source, e.start, e.end))
         elif isinstance(e, Loss):
             for (copy, source, start, end) in e.lost:
-                row(e.time, "loss", e.lineage, e.chromosome, copy, None, None, source, start, end)
+                row(e.time, "loss", (copy,), (), chrom, (source, start, end))
         elif isinstance(e, Duplication):
             for (parent, child, source, start, end) in e.copied:
-                row(e.time, "duplication", e.lineage, e.chromosome, child, parent, None,
-                    source, start, end)
+                row(e.time, "duplication", (parent,), (child,), chrom, (source, start, end))
         elif isinstance(e, Transfer):
             for (parent, child, source, start, end) in e.transferred:
-                row(e.time, "transfer", e.lineage, None, child, parent, e.recipient,
-                    source, start, end)
+                row(e.time, "transfer", (parent,), (child,), None, (source, start, end))
         elif isinstance(e, Speciation):
-            for child in e.children:
-                row(e.time, "speciation", e.lineage, None, child, e.parent, None, None, None, None)
+            row(e.time, "speciation", (e.parent,), e.children)
         else:
             raise AssertionError(f"unhandled event {type(e).__name__}")
-    for r in rearrangements:                      # ancestry-neutral: no copy, no ancestral interval
-        if isinstance(r, Inversion):
-            row(r.time, "inversion", r.lineage, r.chromosome, None, None, None, None, None, None,
-                r.start, r.length, None, None, None)
-        elif isinstance(r, Transposition):
-            row(r.time, "transposition", r.lineage, r.chromosome, None, None, None, None, None, None,
-                r.start, r.length, None, r.dest, int(r.flipped))
-        else:
-            row(r.time, "translocation", r.lineage, r.source, None, None, None, None, None, None,
-                r.start, r.length, r.dest, None, int(r.flipped))
-    rows.sort(key=lambda tr: tr[0])               # one stream, in the order it happened
-    return "\n".join(["\t".join(_NUCLEOTIDE_EVENT_COLS), *[r for _t, r in rows]]) + "\n"
+    return "\n".join(["\t".join(_NUCLEOTIDE_EVENT_COLS), *rows]) + "\n"
 
 
 def _rows(text: str, cols: tuple[str, ...], what: str):
@@ -1229,21 +1242,34 @@ def _genes_from_tsv(text: str):
     return spans, names, strands
 
 
-def _events_from_tsv(text: str) -> tuple[list, list]:
-    """The nucleotide ``block_events.tsv`` → ``(genealogy, rearrangements)``, the inverse of
+def _copies_cell(cell: str) -> list[tuple[int, int]]:
+    """One ``parents`` / ``children`` cell as ``[(species, copy), …]`` — the branch each participant
+    lived on and its id, which is everything the ``lineage`` and ``recipient`` columns used to say."""
+    if not cell:
+        return []
+    out = []
+    for token in cell.split(";"):
+        species, sep, gene = token.rpartition("_")
+        if not sep:
+            raise ValueError(f"block_events.tsv: {token!r} is not a copy of the form "
+                             f"n<species>_g<copy>")
+        out.append((node_from_label(species), gene_from_label(gene)))
+    return out
+
+
+def _events_from_tsv(text: str) -> list:
+    """The nucleotide ``block_events.tsv`` → the copy-lineage genealogy, the inverse of
     `_nucleotide_events_tsv()`.
 
     An event that spanned several ancestral intervals was written as several rows, so the rows have to
-    be regrouped. What identifies one event differs by kind, and getting it wrong merges two events or
-    splits one: a **speciation** writes one row per daughter and every copy re-minted at a node shares
-    its time and lineage, so the *parent copy* is what tells two apart; a **loss** / **duplication** /
-    **transfer** writes one row per interval, and those rows differ in parent copy but share the
-    event's time, lineage, chromosome and recipient; an **origination** is always a single row."""
+    be regrouped, and getting the key wrong merges two events or splits one. Those rows share the
+    event's ``time`` and ``chromosome`` and the branches of the copies they name — a transfer has no
+    chromosome and is told apart by its donor and recipient — while an **origination** and a
+    **speciation** are always a single row apiece."""
     def num(cell):
         return int(cell) if cell else None
 
     events: list = []
-    rearrangements: list = []
     pending: list = []
     key = None
 
@@ -1251,51 +1277,43 @@ def _events_from_tsv(text: str) -> tuple[list, list]:
         nonlocal key
         if not pending:
             return
-        kind, time, lineage, chrom, recipient = pending[0][:5]
+        kind, time, chrom, lineage, recipient = pending[0][:5]
         if kind in ("origination", "initial"):
-            (_k, _t, _l, _c, _r, copy, _p, src, start, end) = pending[0]
-            events.append(Origination(time, lineage, chrom, copy, src, start, end, initial=kind == "initial"))
+            (*_h, _p, copy, src, start, end) = pending[0]
+            events.append(Origination(time, lineage, chrom, copy, src, start, end,
+                                      initial=kind == "initial"))
         elif kind == "loss":
             events.append(Loss(time, lineage, chrom,
-                               tuple((c, s, a, b) for (*_h, c, _p, s, a, b) in pending)))
+                               tuple((p, s, a, b) for (*_h, p, _c, s, a, b) in pending)))
         elif kind == "duplication":
             events.append(Duplication(time, lineage, chrom,
-                                      tuple((p, c, s, a, b) for (*_h, c, p, s, a, b) in pending)))
+                                      tuple((p, c, s, a, b) for (*_h, p, c, s, a, b) in pending)))
         elif kind == "transfer":
             events.append(Transfer(time, lineage, recipient,
-                                   tuple((p, c, s, a, b) for (*_h, c, p, s, a, b) in pending)))
-        elif kind == "speciation":
-            events.append(Speciation(time, lineage, pending[0][6],
-                                     tuple(row[5] for row in pending)))
+                                   tuple((p, c, s, a, b) for (*_h, p, c, s, a, b) in pending)))
         else:
             raise ValueError(f"block_events.tsv: unknown event kind {kind!r}")
         pending.clear()
         key = None
 
     for cells in _rows(text, _NUCLEOTIDE_EVENT_COLS, "block_events.tsv"):
-        (time, kind, lineage, chrom, copy, parent, recipient, source, start, end,
-         *_physical) = cells
+        (time, kind, parents, children, chrom, source, start, end) = cells
         if kind not in ("origination", "initial", "loss", "duplication", "transfer", "speciation"):
-            flush()                                  # a rearrangement: it ends no copy lineage
-            t, ln = float(time), node_from_label(lineage)
-            at, ell, dc, dp, fl = (num(c) for c in _physical)
-            if kind == "inversion":
-                rearrangements.append(Inversion(t, ln, num(chrom), at, ell))
-            elif kind == "transposition":
-                rearrangements.append(Transposition(t, ln, num(chrom), at, ell, dp, bool(fl)))
-            elif kind == "translocation":
-                rearrangements.append(Translocation(t, ln, num(chrom), dc, at, ell, bool(fl)))
-            else:
-                raise ValueError(f"block_events.tsv: unknown event kind {kind!r}")
+            raise ValueError(f"block_events.tsv: unknown event kind {kind!r}")
+        ps, cs = _copies_cell(parents), _copies_cell(children)
+        if kind == "speciation":
+            # one row, both daughters in `children`; the copies carry the branches they were minted on
+            flush()                                     # whatever is buffered happened before this
+            events.append(Speciation(float(time), ps[0][0], ps[0][1], tuple(c for _s, c in cs)))
             continue
-        row = (kind, float(time), node_from_label(lineage), num(chrom),
-               node_from_label(recipient) if recipient else None,
-               gene_from_label(copy) if copy else None,
-               gene_from_label(parent) if parent else None,
+        # the branch this row's coordinates are in: the one the *material* was on, which is the
+        # parent's for everything that ends a copy and the child's for an origination
+        lineage = ps[0][0] if ps else cs[0][0]
+        row = (kind, float(time), chromosome_from_label(chrom)[1] if chrom else None, lineage,
+               cs[0][0] if kind == "transfer" else None,
+               ps[0][1] if ps else None, cs[0][1] if cs else None,
                num(source), num(start), num(end))
-        # what makes this row part of the *same* event as the last one
-        row_key = (None if kind in ("origination", "initial") else
-                   (*row[:3], row[6]) if kind == "speciation" else row[:5])
+        row_key = None if kind in ("origination", "initial") else row[:5]
         if pending and row_key != key:
             flush()
         pending.append(row)
@@ -1303,16 +1321,40 @@ def _events_from_tsv(text: str) -> tuple[list, list]:
         if kind in ("origination", "initial"):
             flush()
     flush()
-    return events, rearrangements
+    return events
+
+
+def _rearrangements_from_tsv(text: str) -> list:
+    """``rearrangement_events.tsv`` → this resolution's rearrangement records. The file is written by
+    `rearrangement_events_tsv()`, which both resolutions share; the records it comes back as are this
+    one's, since the coordinates are in base pairs here."""
+    def num(cell):
+        return int(cell) if cell else None
+
+    out: list = []
+    for (time, kind, lineage, chrom, start, length, dest_chrom, dest, flipped) in _rows(
+            text, REARRANGEMENT_COLS, "rearrangement_events.tsv"):
+        t, ln = float(time), node_from_label(lineage)
+        at, ell = int(start), int(length)
+        if kind == "inversion":
+            out.append(Inversion(t, ln, int(chrom), at, ell))
+        elif kind == "transposition":
+            out.append(Transposition(t, ln, int(chrom), at, ell, num(dest), bool(num(flipped))))
+        elif kind == "translocation":
+            out.append(Translocation(t, ln, int(chrom), num(dest_chrom), at, ell,
+                                     bool(num(flipped))))
+        else:
+            raise ValueError(f"rearrangement_events.tsv: unknown kind {kind!r}")
+    return out
 
 
 def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
     """Rebuild a `NucleotideGenomesResult` from the files a run wrote, so a later level can
     replay it from disk. ``tree`` is the species tree it ran on.
 
-    Reads ``blocks.tsv``, ``initial_genome.tsv``, ``block_events.tsv`` and ``genes.tsv`` — the four
-    the recovery needs — and ``initial_sequence.fasta`` if present, so a run given real DNA still
-    founds its blocks from it. The rearrangements come back too, since they share the event table now.
+    Reads ``blocks.tsv``, ``initial_genome.tsv``, ``block_events.tsv``,
+    ``rearrangement_events.tsv`` and ``genes.tsv`` — the five the recovery needs — and
+    ``initial_sequence.fasta`` if present, so a run given real DNA still founds its blocks from it.
     ``chromosome_events.tsv`` is not read: it records how the karyotype got its shape, and the shape
     itself is already in ``blocks.tsv``. What comes back reconstructs and writes exactly as the
     original did; it is not for evolving further."""
@@ -1328,7 +1370,8 @@ def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
             ) from None
 
     spans, names, strands = _genes_from_tsv(read("genes.tsv"))
-    events, rearrangements = _events_from_tsv(read("block_events.tsv"))
+    events = _events_from_tsv(read("block_events.tsv"))
+    rearrangements = _rearrangements_from_tsv(read("rearrangement_events.tsv"))
     initial_sequence: dict[int, str] = {}
     fpath = d / "initial_sequence.fasta"
     if fpath.exists():                               # a run given real DNA; keyed by source id
@@ -1834,14 +1877,13 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         r = as_rate(spec, default_scope=want)
         if not isinstance(r.scope, want):
             raise ValueError(
-                f"{label} has a {type(r.scope).__name__} scope, but the nucleotide engine wires only "
+                f"{label} has a {type(r.scope).__name__} scope, but the nucleotide engine takes only "
                 f"{want.__name__} for {label} this slice — scope overrides are a later slice.")
         for m in r.modifiers:
             if not isinstance(m, WIRED_MODIFIERS):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the nucleotide genome engine does not "
-                    f"support yet — only {', '.join(w.__name__ for w in WIRED_MODIFIERS)} is wired. "
-                    f"Driving a nucleotide rate with a trait is the next slice.")
+                    f"support. It takes {', '.join(w.__name__ for w in WIRED_MODIFIERS)}.")
         _rates[label] = r
     def _as_bp_extent(spec, label):
         """An extent in base pairs (SPEC §6): ``base × modifiers``, no scope. A bare number *is* the
@@ -1851,14 +1893,14 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         far end **directly from the genome's legal breakpoints** rather than drawing a size and
         clamping it, so an arbitrary shape would have to be re-weighted over that set instead of
         sampled. Refusing beats quietly approximating. The modifiers are the ones this resolution
-        wires on a rate, and they scale the mean: an extent's modifier is read when an event fires, so
-        it changes how much that event takes without touching any rate."""
+        supports on a rate, and they scale the mean: an extent's modifier is read when an event fires,
+        so it changes how much that event takes without touching any rate."""
         if isinstance(spec, (int, float)) and not isinstance(spec, bool) and spec < 1:
             raise ValueError(f"{label} must be >= 1 bp, got {spec}")
         e = as_extent(spec)
         if not isinstance(e.base, Geometric):
             raise ValueError(
-                f"{label} has a {type(e.base).__name__} base, but the nucleotide engine wires a "
+                f"{label} has a {type(e.base).__name__} base, but the nucleotide engine takes a "
                 f"geometric extent only — it draws each arc's far end directly from the legal "
                 f"breakpoints, so another shape would have to be re-weighted over that set rather "
                 f"than drawn. Pass a number (the mean in bp) or Geometric(mean=...).")
@@ -1866,7 +1908,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
             if not isinstance(m, WIRED_MODIFIERS):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the nucleotide genome engine does not "
-                    f"support yet — an extent takes the same modifiers a rate does here "
+                    f"support — an extent takes the same modifiers a rate does here "
                     f"({', '.join(w.__name__ for w in WIRED_MODIFIERS)}).")
         return e
 
@@ -1929,7 +1971,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     # one number for the whole live set and become one per lineage. Same machinery as the family
     # resolution — each source resolves once into a DriverTrajectory keyed by the shared species node
     # id, from a file or an in-memory trait result. With no driven rate this is empty and the loop
-    # stays exactly the pooled one, so an uncoupled run is untouched.
+    # stays exactly the pooled one, so an undriven run is untouched.
     driven = {label: [m for m in r.modifiers if isinstance(m, DrivenBy)] for label, r in _rates.items()}
     ext_driven = {label: [m for m in e.modifiers if isinstance(m, DrivenBy)]
                   for label, e in _extents.items()}
@@ -1941,7 +1983,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     if by_key:
         resolved = {key: resolve_driver(src, tree) for key, src in by_key.items()}
         # a mapping whose states never occur leaves every lineage on the default factor, so the run
-        # would secretly be the uncoupled model — refuse it here, naming the driver
+        # would secretly be the undriven model — refuse it here, naming the driver
         for mods in (*driven.values(), *ext_driven.values()):
             for m in mods:
                 label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
@@ -2008,7 +2050,9 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         initial_chroms.append(Chromosome(cid, top, _initial_blocks(source, length, cp, intervals, new_family,
                                                              gene_spans, gene_names,
                                                              gene_strands)))
-        chromosome_events.append(ChromosomeEvent(root.birth_time, "origination", root.id, (), (cid,)))
+        # `initial`, as the copy lineage below is: a replicon the run *starts* with is not something
+        # it did, so counting `origination` in either log gives the de-novo ones alone
+        chromosome_events.append(ChromosomeEvent(root.birth_time, "initial", root.id, (), (cid,)))
         events.append(Origination(root.birth_time, root.id, cid, cp, source, 0, length, initial=True))
 
     # the run's starting genome: a deep snapshot, so the live genome's events never reach it
@@ -2038,7 +2082,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         # A driven rate differs from lineage to lineage, so it is summed **over the living lineages**,
         # each read with its own driver value and its own chromosome count — and the weights are kept,
         # because the affected lineage must then be drawn with them too. An undriven rate stays pooled
-        # (one .effective, uniform pick), so a run with no coupling is byte-identical to before.
+        # (one .effective, uniform pick), so a run with no driver is byte-identical to before.
         w: dict[str, list[float]] = {}
         if any_driven:
             drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(nlin)]

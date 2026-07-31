@@ -1,9 +1,9 @@
-"""The mapping of a `DrivenBy` coupling — how a driver
+"""The mapping of a `DrivenBy` rate — how a driver
 level's value becomes a rate multiplier (SPEC §2).
 
-A coupling is *a rate that reads its value from another level*. The ``DrivenBy`` modifier
-reads the driver's value on a lineage; the **mapping** turns that value into the
-dimensionless factor the rate is multiplied by. It is the "response" of the old coevolve
+A driven rate *reads the state of another level instead of being a fixed number*. The
+``DrivenBy`` modifier reads the driver's value on a lineage; the **mapping** turns that value
+into the dimensionless factor the rate is multiplied by. It is the "response" of the old coevolve
 grammar, distilled to the three shapes that **multiply a rate**:
 
 - `Table`  — a **discrete** driver → a dict of factors: ``{"aquatic": 3.0, "terrestrial": 1.0}``.
@@ -119,8 +119,8 @@ class Scalar(Mapping):
         Scalar(0.7)    # a binary 0/1 driver gives factor 1 (off) or exp(0.7) ≈ 2.0 (on)
 
     The natural response when the driver is already a 0/1 indicator or a single continuous
-    covariate: one knob, ``strength`` (0 ⇒ no coupling). The exponent is clamped so a large
-    value cannot overflow."""
+    covariate: one knob, ``strength`` (0 ⇒ the driver does not change the rate). The exponent is
+    clamped so a large value cannot overflow."""
 
     def __init__(self, strength: float) -> None:
         if isinstance(strength, bool) or not isinstance(strength, (int, float)) \

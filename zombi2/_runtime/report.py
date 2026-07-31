@@ -81,10 +81,11 @@ _GLOSS = {
     "gene_trees": "gene trees, one per family — complete (all copies) and extant (survivors), Newick",
     # genomes/ (ordered resolution adds gene order and chromosome-level events)
     "gene_order.tsv": "the gene arrangement of every genome (lineage, chromosome, position, strand, family, copy)",
-    "chromosome_events.tsv": "chromosome-level events — originations, inversions, fusions/fissions (time, kind, lineage)",
+    "chromosome_events.tsv": "the chromosome network's edges — initial / origination / speciation / fission / fusion / loss (time, kind, parents, children)",
+    "rearrangement_events.tsv": "every inversion / transposition / translocation — the segment moved and where it went",
     # genomes/ (nucleotide resolution: the genome as ancestry blocks along a sequence)
     "blocks.tsv": "the ancestry blocks of every genome (chromosome, position, source, start, end, strand, copy, gene)",
-    "block_events.tsv": "every block-level event along the genomes (duplication / transfer / loss / inversion, per block)",
+    "block_events.tsv": "every block-level event along the genomes (duplication / transfer / loss / origination, per ancestral interval)",
     "genes.tsv": "the genes annotated on the initial genome (family, name, source, start, end, strand)",
     "bed": "per-genome gene annotations in BED format",
     "gff": "per-genome gene annotations in GFF format",

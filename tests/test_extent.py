@@ -184,7 +184,7 @@ def test_ordered_refuses_a_driven_extent(tree):
     """The ordered engine wires no DrivenBy on a rate, and none on an extent either — the message
     points at the resolution that does."""
     from zombi2.rates import modifiers as mod
-    with pytest.raises(ValueError, match="does not wire on an extent"):
+    with pytest.raises(ValueError, match="does not support on an extent"):
         simulate_genomes_ordered(tree, duplication=0.3,
                                  duplication_extent=2 * mod.DrivenBy("t.tsv", {"a": 2.0}), seed=1)
 

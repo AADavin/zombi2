@@ -14,7 +14,7 @@ def _preorder(tree: Tree, progress: bool = False):
     forward engine always gives a child a higher id than its parent, so ascending id order suffices
     — the same monotonic-id fact ``genomes.prune`` relies on in reverse. No recursion needed.
 
-    Every trait engine walks the tree exactly this way, so ``progress`` is wired here once rather
+    Every trait engine walks the tree exactly this way, so ``progress`` is handled here once rather
     than around each of their loops."""
     return track(sorted(tree.nodes), "traits", unit="node", enabled=progress)
 

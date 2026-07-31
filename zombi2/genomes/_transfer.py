@@ -11,7 +11,7 @@ change neither how fast nor how many transfers happen, only **who** receives. Th
   root-to-tip time to stay scale-free;
 - `DrivenBy` — weight by **another level**: candidate ``k``'s weight is
   the mapping of the driver's value on lineage ``k`` at this instant (a trait that makes a lineage
-  competent to take DNA up). Wired for the family resolution only.
+  competent to take DNA up). Implemented for the family resolution only.
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ class Clades:
     Groups must be disjoint; a lineage in none of them is in the implicit group ``"rest"``, usable as a
     kernel key. Membership is read from the **tree** (a clade is a fact about the tree, not another
     level), so this is a topological rule like ``"distance"``, resolved once per run — **not** a
-    ``DrivenBy`` coupling and needing no driver file."""
+    ``DrivenBy`` driver and needing no driver file."""
 
     groups: dict
     between: object

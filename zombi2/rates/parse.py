@@ -18,7 +18,7 @@ a parameters file from a colleague cannot run code.
 
 Only ``*`` composes, because that is the only operation the grammar defines: a rate is ``time⁻¹`` and
 a modifier dimensionless, so ``+`` and ``/`` between them mean nothing (SPEC §5). Whether a given
-modifier is *supported* is not this module's business — each level declares what it wires and rejects
+modifier is *supported* is not this module's business — each level declares what it takes and rejects
 the rest, with a message naming the alternatives.
 """
 

@@ -19,15 +19,15 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..rates.modifiers import FromParent, OnTime, OnTotalDiversity
+from ..rates.modifiers import ByFamily, FromParent, OnTime, OnTotalDiversity
 from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
 from ..rates.rate import as_rate
 from ..rates.scope import Global, PerLineage
 from ..tree import Node, Tree, prune
 
-#: The rate grammar this level wires (SPEC §5). Both the engine's gate below and the CLI's help read
-#: this, so a modifier can never be advertised without being implemented — or silently ignored.
+#: The rate grammar this level supports (SPEC §5). Both the engine's gate below and the CLI's help
+#: read this, so a modifier can never be advertised without being implemented — or silently ignored.
 WIRED_SCOPES = (PerLineage, Global)
 WIRED_MODIFIERS = (OnTime, OnTotalDiversity, FromParent)
 
@@ -116,8 +116,14 @@ class SpeciesResult:
         """Write outputs to ``directory``, each file prefixed ``species_``; ``outputs`` selects which
         (default = all applicable): ``"complete"`` → ``species_complete.nwk``, ``"extant"`` →
         ``species_extant.nwk`` (if any survived), ``"events"`` → ``species_events.tsv`` (the
-        always-recorded true history), ``"fossils"`` → ``species_fossils.tsv`` (if any recovered),
+        always-recorded true history, ``time`` · ``kind`` · ``parents`` · ``children``),
+        ``"fossils"`` → ``species_fossils.tsv`` (if any recovered),
         ``"fates"`` → ``species_fates.tsv`` (each tip's resolved fate).
+
+        ``species_events.tsv`` names the lineages an event consumed and the lineages it produced, the
+        same ``parents`` / ``children`` pair every event file uses: a ``speciation`` row is one parent
+        and its two children (``;``-packed), an ``extinction`` row is the dying lineage as the parent
+        with no children.
 
         ``species_fates.tsv`` is the tip-fate table: one ``lineage<TAB>fate`` row per tip, with fate
         one of ``extant`` / ``extinct`` / ``unsampled``. Fate is resolved once, at the end of the run,
@@ -139,7 +145,9 @@ class SpeciesResult:
             (d / "species_extant.nwk").write_text(self.extant_tree.to_newick() + "\n", encoding="utf-8")
         name = self.complete_tree.labels()
         if "events" in outputs:
-            rows = ["time\tkind\tlineage\tchildren"]
+            # parents / children, not lineage / children: the lineage an event consumed IS its parent
+            # (the one that split, or the one that died), so one column pair reads right for both kinds
+            rows = ["time\tkind\tparents\tchildren"]
             for e in self.events:
                 kids = ";".join(name[c] for c in e.children) if e.children else ""
                 rows.append(f"{e.time:.6g}\t{e.kind}\t{name[e.node]}\t{kids}")
@@ -463,11 +471,18 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                 f"Global(...) for one shared budget."
             )
         for m in rate.modifiers:
+            if isinstance(m, ByFamily):
+                # not a missing feature: there is nothing here for it to mean
+                raise ValueError(
+                    f"{label} carries ByFamily, but a species tree has no gene families — ByFamily "
+                    f"belongs on a genomes rate. For per-lineage heterogeneity here use FromParent "
+                    f"(inherited) at the species level."
+                )
             if not isinstance(m, WIRED_MODIFIERS):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the species engine does not "
-                    f"support — OnTime (skyline), OnTotalDiversity (diversity-dependent) and "
-                    f"FromParent (clade drift, ClaDS) are wired."
+                    f"support. It takes OnTime (skyline), OnTotalDiversity (diversity-dependent) "
+                    f"and FromParent (clade drift, ClaDS)."
                 )
         if _drift(rate) is not None and not isinstance(rate.scope, PerLineage):
             raise ValueError(
