@@ -87,7 +87,7 @@ accept rather than silently ignoring it. This is what each accepts today:
 
 | Level | The modifiers it accepts |
 |---|---|
-| Species | `OnTime` · `OnTotalDiversity` · `FromParent` |
+| Species | `OnTime` · `OnTotalDiversity` · `FromParent` · `ByLineage` |
 | Genomes — family, ordered | `OnTime` · `DrivenBy` · `ByFamily` |
 | Genomes — nucleotide | `OnTime` · `DrivenBy` |
 | Sequences | `ByLineage` · `FromParent` |

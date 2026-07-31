@@ -215,3 +215,22 @@ def test_joint_speciation_jump_is_off_by_default():
         trait=traits.discrete(states=["small", "large"], switch=0.3),
         n_extant=30, seed=1)
     assert collections.Counter(e.kind for e in res.trait.events)["on_speciation"] == 0
+
+
+def test_joint_refuses_per_lineage_rate_variation():
+    """The species level takes ByLineage; the joint engine does not thread it.
+
+    Accepting it here would run a model without the rate variation that was asked for — and because
+    the same ``--birth`` expression works on ``zombi2 species``, silently ignoring it is a trap rather
+    than merely a gap. It used to be accepted (SPEC §5's rejection rule was applied to FromParent and
+    DrivenBy but not to this one)."""
+    import pytest
+
+    from zombi2 import joint, traits
+    from zombi2.rates import modifiers as mod
+
+    with pytest.raises(ValueError, match="ByLineage"):
+        joint.simulate_joint(
+            birth=1.0 * mod.ByLineage(spread=0.5) * mod.DrivenBy("trait", {"small": 1.0, "large": 2.0}),
+            death=0.1, n_extant=8, seed=1,
+            trait=traits.DiscreteTrait(states=("small", "large"), switch=0.3))

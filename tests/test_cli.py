@@ -769,8 +769,11 @@ def test_species_records_the_rate_in_its_written_form(tmp_path):
 
 
 def test_species_refuses_a_modifier_it_does_not_wire(tmp_path, capsys):
-    # ByLineage would return a factor of 1.0 at this level — a run quietly not the model asked for
-    rc = main(["species", str(tmp_path / "o"), "--birth", "1.0 * ByLineage(spread=0.3)", "--total-time", "3", "--seed", "1", "--flat"])
+    # DrivenBy would return a factor of 1.0 at this level — a run quietly not the model asked for.
+    # (Driving speciation is a *joint* model, so it is `zombi2 joint`'s business, not this command's.)
+    rc = main(["species", str(tmp_path / "o"), "--birth",
+               "1.0 * DrivenBy('habitat.tsv', Table({'a': 2.0}))", "--total-time", "3",
+               "--seed", "1", "--flat"])
     assert rc == 1
     assert "does not support" in capsys.readouterr().err
 
@@ -886,7 +889,7 @@ def test_params_file_rate_expression_matches_the_flag(tmp_path):
 def test_the_rates_help_lists_only_what_the_level_wires(capsys):
     # the help is built from each level's WIRED_MODIFIERS, so it cannot advertise the unwired
     for command, present, absent in [
-            ("species", ["FromParent"], ["ByLineage"]),
+            ("species", ["FromParent", "ByLineage"], ["ByFamily"]),   # both per-lineage forms wired
             ("sequences", ["ByLineage", "FromParent"], ["OnTotalDiversity"])]:  # both clocks wired
         with pytest.raises(SystemExit):
             main([command, "--help", "--flat"])

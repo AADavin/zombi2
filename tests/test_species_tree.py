@@ -303,8 +303,7 @@ def test_drifting_birth_with_non_drifting_global_death_is_allowed():
 
 # --- the level rejects what it does not wire (SPEC §5) --------------------
 
-@pytest.mark.parametrize("modifier", [mod.ByLineage(spread=0.3),
-                                      mod.DrivenBy("habitat.tsv", {"a": 2.0})])
+@pytest.mark.parametrize("modifier", [mod.DrivenBy("habitat.tsv", {"a": 2.0})])
 def test_an_unwired_modifier_raises_rather_than_being_ignored(modifier):
     # an unthreaded modifier returns its default factor of 1.0, so silently accepting one would run
     # a model the user did not ask for — the whole point of declaring WIRED_MODIFIERS
@@ -343,6 +342,88 @@ def test_clade_drift_is_more_imbalanced_than_yule():
     drift = [_colless(simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.9), death=0.0, n_extant=64, seed=s))
              for s in seeds]
     assert statistics.mean(drift) > 1.5 * statistics.mean(yule)   # observed ≈ 2.7× (margin to spare)
+
+
+# --- relaxed (independent) per-lineage rates: ByLineage ------------------------------------------
+
+def test_relaxed_rates_run_and_are_reproducible():
+    a = simulate_species_tree(birth=1.0 * mod.ByLineage(spread=0.5), n_extant=20, seed=7)
+    b = simulate_species_tree(birth=1.0 * mod.ByLineage(spread=0.5), n_extant=20, seed=7)
+    assert a.complete_tree.to_newick() == b.complete_tree.to_newick()
+    assert a.n_extant == 20
+
+
+def test_zero_spread_is_the_plain_process_again():
+    """``spread=0`` draws 1.0 for every lineage, so the model is the plain birth-death process.
+
+    Not the same *realisation*, though, and the distinction is worth pinning: any per-lineage
+    modifier switches the engine from picking a lineage uniformly to picking it weighted by its own
+    rate, which consumes the generator differently. So the trees differ seed by seed while the
+    process does not — checked here on tree height, which is what a rate sets."""
+    import statistics
+    seeds = range(60)
+    plain = [simulate_species_tree(birth=1.0, death=0.2, n_extant=16, seed=s) for s in seeds]
+    flat = [simulate_species_tree(birth=1.0 * mod.ByLineage(spread=0.0), death=0.2, n_extant=16,
+                                  seed=s) for s in seeds]
+    assert flat[0].complete_tree.to_newick() != plain[0].complete_tree.to_newick()
+
+    def height(r):
+        return max(n.end_time for n in r.complete_tree.nodes.values())
+
+    h_plain, h_flat = [height(r) for r in plain], [height(r) for r in flat]
+    # same process ⇒ same mean height up to sampling noise (two-sample z on the difference)
+    n = len(seeds)
+    se = ((statistics.variance(h_plain) + statistics.variance(h_flat)) / n) ** 0.5
+    assert abs(statistics.mean(h_plain) - statistics.mean(h_flat)) < 3 * se
+
+
+def test_relaxed_rates_change_the_tree():
+    a = simulate_species_tree(birth=1.0 * mod.ByLineage(spread=0.0), n_extant=25, seed=3)
+    b = simulate_species_tree(birth=1.0 * mod.ByLineage(spread=0.8), n_extant=25, seed=3)
+    assert a.complete_tree.to_newick() != b.complete_tree.to_newick()
+
+
+def test_relaxed_rates_are_not_heritable_so_the_tree_stays_balanced():
+    """The point of having both: the same rate heterogeneity, with and without inheritance.
+
+    `FromParent` and `ByLineage` spread lineage rates the same way — both draws are mean-corrected
+    lognormals of the same width — and differ only in whether a daughter keeps its parent's. That
+    difference is visible in tree *shape*: heritable variation lets a fast clade stay fast and hoard
+    the tips, so the tree is lopsided, while independent variation reshuffles every split and leaves
+    imbalance near Yule's. Comparing them at one tip count is what says the modifier is wired to the
+    inheritance and not merely to the rate."""
+    import statistics
+    seeds = range(40)
+    yule = [_colless(simulate_species_tree(birth=1.0, death=0.0, n_extant=64, seed=s)) for s in seeds]
+    relaxed = [_colless(simulate_species_tree(birth=1.0 * mod.ByLineage(spread=0.9), death=0.0,
+                                              n_extant=64, seed=s)) for s in seeds]
+    drift = [_colless(simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.9), death=0.0,
+                                            n_extant=64, seed=s)) for s in seeds]
+    # independent draws stay near Yule; inherited ones are far more lopsided than either
+    assert statistics.mean(relaxed) < 1.3 * statistics.mean(yule)
+    assert statistics.mean(drift) > 1.5 * statistics.mean(relaxed)
+
+
+def test_relaxed_death_is_independent_of_relaxed_birth():
+    # the two rates vary independently of each other, exactly as the two drifts do
+    r = simulate_species_tree(birth=1.0 * mod.ByLineage(spread=0.4),
+                              death=0.3 * mod.ByLineage(spread=0.4), n_extant=30, seed=5)
+    assert r.n_extant == 30
+
+
+def test_relaxed_rate_requires_per_lineage_scope():
+    # a per-lineage factor on a Global (tree-wide) budget is contradictory — the same rejection
+    # FromParent gets, for the same reason
+    with pytest.raises(ValueError, match="per lineage"):
+        simulate_species_tree(birth=scope.Global(1.0) * mod.ByLineage(spread=0.2), n_extant=10, seed=1)
+
+
+def test_inherited_and_independent_together_are_refused():
+    # SPEC §5: one memory structure per axis. Both modifiers answer "where does a lineage's rate come
+    # from", so a rate carrying both has no model behind it — whichever won would be silent.
+    with pytest.raises(ValueError, match="Pick one"):
+        simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.2) * mod.ByLineage(spread=0.2),
+                              n_extant=10, seed=1)
 
 
 # --- mass extinctions: (time, fraction_lost) survival pulses, time forward from the crown, total_time mode ---

@@ -32,7 +32,7 @@ import numpy as np
 from .._runtime.summary import write_summary
 from ..genomes import Event as GenomeEvent, GeneCopy, FamilyGenomesResult, FamilyGenome
 from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
-from ..rates.modifiers import DrivenBy, FromParent
+from ..rates.modifiers import ByLineage, DrivenBy, FromParent
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..species import Event, SpeciesResult
@@ -425,6 +425,16 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 raise ValueError(
                     f"{label} carries FromParent (clade drift); drift and a driven rate are not available "
                     f"together — use one or the other."
+                )
+            if isinstance(m, ByLineage):
+                # The species level takes this; the joint engine does not thread it, so accepting it
+                # here would run the model without the rate variation the user asked for — and the
+                # same `--birth` expression working on `zombi2 species` makes that a trap rather than
+                # merely a gap (SPEC §5: reject, never silently ignore).
+                raise ValueError(
+                    f"{label} carries ByLineage (independent per-lineage rates); per-lineage rate "
+                    f"variation and a driven rate are not available together in a joint run — use "
+                    f"one or the other. On its own, ByLineage works at the species level."
                 )
             if isinstance(m, DrivenBy):
                 if not isinstance(m.source, str):

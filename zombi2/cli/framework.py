@@ -109,7 +109,9 @@ _MODIFIER_HELP = {
     "OnTime": ("OnTime({0: 1.0, 3: 0.3})", "the rate changes in time — a skyline"),
     "OnTotalDiversity": ("OnTotalDiversity(cap=100)", "the rate slows as the clade fills up"),
     "FromParent": ("FromParent(spread=0.2)", "the rate drifts down the tree"),
-    "ByLineage": ("ByLineage(spread=0.3)", "one draw per lineage — the uncorrelated clock"),
+    # "clock" is reserved for the sequences by-lineage substitution modifier (SPEC §7), and this
+    # string now prints on `zombi2 species -h` and `zombi2 genomes -h` too
+    "ByLineage": ("ByLineage(spread=0.3)", "one independent draw per lineage — uncorrelated"),
     "DrivenBy": (None, "the rate is driven by another level"),
 }
 
