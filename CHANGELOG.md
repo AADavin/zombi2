@@ -9,6 +9,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+- **The API reference is one page per level**, and each entry is stamped with what kind of thing it
+  is — module, class, function, method, attribute — beside its heading and again in the contents
+  column, so the reference reads as an index of each package rather than one long scroll. The
+  overview page gains a table of the entry points: which function starts a run at each level and
+  each genome resolution, what it returns, and which chapter covers it.
+- **The docs site has the favicon the main site has been using**, rather than the theme's default
+  mark.
+
 ## [0.20.0] - 2026-07-31
 
 ### Added
