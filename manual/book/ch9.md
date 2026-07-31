@@ -1,14 +1,14 @@
-# Conditioning and joining
+# Conditioning
 
-The book has so far run the levels one at a time: species tree, then genomes, then sequences. They already depend on the tree, but sometimes you want more than that background dependency. There are two ways: conditioning and joining.
+The book has so far run the levels one at a time: species tree, then genomes, then sequences. They already depend on the tree, but sometimes you want more than that background dependency. There are two ways — conditioning, in this chapter, and joining, in the next.
 
-**Conditioning** takes a value of one level and makes it drive a rate in another. Three examples:
+**Conditioning** takes a value that has already evolved and makes it drive a rate in the run that comes next. Three examples:
 
 - **Cave fish lose their eyes.** A habitat trait, cave or surface, has already evolved down the species tree. Wherever a lineage sits in the dark, its genes are lost four times faster than on the surface.
 - **Endosymbionts shed their genomes.** A lifestyle trait, free-living or host-restricted, drives gene loss across the board, so the lineages that moved inside a host are the ones that end up with the small genomes.
 - **Competent bacteria pick genes up.** A trait for natural competence raises the rate at which new gene families appear in a lineage, so the trait leaves its mark on gene *gain* rather than on loss.
 
-In each case one level's value is read by another level's rate. The value read is the **driver**; the rate reading it is the **target**. They are not interchangeable, and the asymmetry is the point: a driver is a *value* that already varies from lineage to lineage — a habitat state, a gene count — while a target is a *rate*, a "how often", multiplied by a factor the driver's value picks out. The arrow runs one way, and nothing flows back.
+In each case one evolved value is read by another rate. The value read is the **driver**; the rate reading it is the **target**. They are not interchangeable, and the asymmetry is the point: a driver is a *value* that already varies from lineage to lineage — a habitat state, a gene count — while a target is a *rate*, a "how often", multiplied by a factor the driver's value picks out. The arrow runs one way, and nothing flows back.
 
 
 ![The shape of a conditioned run. The **driver** is a level already simulated — a habitat trait here, its two states shown below it. The **target** is a rate in the run that comes next. The **modifier** is what joins them: `DrivenBy` carries one multiplier per state of the driver, so a branch's habitat sets that branch's loss rate. The driver is finished and written to a file before the second run starts, which is what lets this be two ordinary commands.](figures/conditioning_print.png){width=95%}
@@ -17,14 +17,11 @@ That one-wayness is what makes conditioning cheap. The habitat is unaffected by 
 
 **Joining** simulates two levels **at once**, because that ordering is no longer available. Suppose a trait drives **speciation** itself: large-bodied lineages split twice as fast as small ones. You cannot grow the trait first, because a trait is grown *along a tree* and the tree is what this trait shapes. Nor the tree first, because its branching rate needs a trait value that does not exist yet. Neither can be finished before the other starts, so neither can be a file handed on. They are grown together, in one run whose Gillespie races speciation, extinction and trait change against one another, each event reading the other level's current state.
 
-
-![The shape of a joint run, and why the ordering is gone. Body size drives speciation through the same `DrivenBy`, but the rate it drives is what creates the tree — and that tree is the one the trait is evolving along, so the arrow returns. It returns from the *tree*, not from the rate: a speciation rate does not change a body size, it decides which lineages split, and each split hands the parent's trait state to both daughters. Compare the previous figure, where the tree is a fixed input and so does not appear at all.](figures/joining_print.png){width=95%}
-
-So the whole chapter turns on one question:
+Both of these chapters turn on one question:
 
 > **Can the driver be grown first, on its own, and handed over?**
 
-If yes, it is **conditioning**: two runs, and the modifier's `source` is a file. If no, it is **joining**: one run, and the `source` is the name of a level growing beside it. Underneath, both are the same single mechanism — a modifier, `mod.DrivenBy` — and only the `source` differs.
+If yes, it is **conditioning**, and this chapter. If no, it is **joining**, and the next one. Underneath, both are the same single mechanism — a modifier, `mod.DrivenBy` — and only the `source` differs.
 
 ```python
 from zombi2.rates import modifiers as mod
@@ -36,7 +33,7 @@ loss  = 0.25 * mod.DrivenBy("trait_events.tsv", {"cave": 4.0, "surface": 1.0})
 birth = 1.0  * mod.DrivenBy("trait",            {"small": 1.0, "large": 2.0})
 ```
 
-## Conditioning
+## The mechanism
 
 `mod.DrivenBy` takes two things: a `source` and a `mapping`. The `source` we have just split into file versus live level. The `mapping` is the other half, and it answers a separate question: once you know the driver's value on a lineage, what factor does the rate get multiplied by? It comes in three shapes:
 
@@ -46,7 +43,7 @@ birth = 1.0  * mod.DrivenBy("trait",            {"small": 1.0, "large": 2.0})
 
 The `source` says where the driver lives; the `mapping` says how its value is read. Whatever the shape, the factor it returns is dimensionless and non-negative, because it is going to multiply a rate.
 
-Conditioning goes in exactly one direction today: **a trait drives gene gain or loss** (Traits → Genomes). The cave example is the canonical one — lineages in the dark lose genes faster than lineages in the light — and it takes two runs:
+The canonical case is **a trait driving gene gain or loss** (Traits → Genomes) — lineages in the dark lose genes faster than lineages in the light — and it takes two runs:
 
 ```python
 from zombi2 import species, traits, genomes
@@ -71,7 +68,7 @@ genomes.simulate_genomes_family(tree,
     duplication=0.2, origination=0.5, seed=2)
 ```
 
-That is the whole of conditioning today, and it fits in four rows:
+What a trait can drive in a genome run fits in four rows:
 
 | The driver | What it drives | Written like this | Mapping |
 |---|---|---|---|
@@ -134,17 +131,35 @@ This is the trait-driven twin of Chapter 4's `Clades`. There the groups are clad
 
 Combining a driven `transfer_to` with the `"distance"` rule of Chapter 4 is not supported: `transfer_to` takes one rule.
 
-Everything outside those two rows raises an error. The driver has to be a discrete trait: only a discrete trait carries the character map that cuts a branch into constant segments, so a continuous trait is refused as a driver. That is the discipline everywhere in ZOMBI2 — a modifier a level cannot honour raises an error rather than being silently dropped.
+Everything outside those rows raises an error. That is the discipline everywhere in ZOMBI2 — a modifier a level cannot honour raises an error rather than being silently dropped.
+
+### A trait can drive another trait
+
+Both ends of the arrow can sit at the same level, and nothing changes. The question is the same one — can the driver be grown first? — and a trait grown along a fixed tree can, so this is conditioning, written with the same `DrivenBy`. The target is `rate` for a continuous trait, its variance-rate σ², and `switch` for a discrete one:
+
+```python
+depth = traits.simulate_discrete(tree, states=["deep", "shallow"], switch=0.3, seed=3)
+
+# a body size that diffuses four times faster in the deep
+size = traits.simulate_continuous(tree, start=0.0,
+    rate = 1.0 * mod.DrivenBy(depth, {"deep": 4.0, "shallow": 1.0}), seed=4)
+
+# a diet that switches five times faster there
+diet = traits.simulate_discrete(tree, states=["carnivore", "herbivore"],
+    switch = 0.2 * mod.DrivenBy(depth, {"deep": 5.0, "shallow": 1.0}), seed=5)
+```
+
+A `switch` written per transition drives only the transitions you name — `{"carnivore->herbivore": 0.2 * mod.DrivenBy(depth, {…}), "herbivore->carnivore": 0.2}`. Either way the driver is read wherever it changes rather than once per branch, so a lineage that moves into the deep halfway down a branch evolves at one rate before the move and another after it.
 
 ### What can be conditioned, and what cannot yet
 
-Conditioning works at two of the three genome resolutions. At the **family** resolution it covers the four gene-family rates in the table above, plus `transfer_to`. At the **nucleotide** resolution it covers *every* rate the engine has — the rearrangements included — so a trait can speed up inversion, transposition and translocation, and can drive how much DNA a lineage sheds. That last one is genome reduction as it is usually meant: a lifestyle trait raising `loss`, on a genome measured in base pairs rather than in family tokens.
+A trait's own rate takes a driver, as above. In a genome run conditioning works at two of the three resolutions. At the **family** resolution it covers the four gene-family rates in the table above, plus `transfer_to`. At the **nucleotide** resolution it covers *every* rate the engine has — the rearrangements included — so a trait can speed up inversion, transposition and translocation, and can drive how much DNA a lineage sheds. That last one is genome reduction as it is usually meant: a lifestyle trait raising `loss`, on a genome measured in base pairs rather than in family tokens.
 
 What is not implemented yet:
 
 - **The ordered resolution does not take a `DrivenBy` on its rates.** It takes `OnTime` (a skyline that varies in *time*) and `ByFamily` (per-family heterogeneity, applied to the segment an event covers), but not a driver. If you want a trait to drive rearrangement, use the nucleotide resolution, where an event is an arc of DNA rather than a run of gene tokens.
 - **`transfer_to` — where a transfer lands — is family-resolution only.** A nucleotide transfer's *rate* can be driven; its recipient rule cannot.
-- **Sequence evolution and trait runs** take no `DrivenBy` on their own rates.
+- **Sequence evolution** takes no `DrivenBy` on its substitution rate, which takes the two lineage clocks and nothing else.
 
 These are limits of the implementation, not of the model — the rate grammar (`SPEC §5`) is the same everywhere, so teaching the ordered engine to read `DrivenBy` is a pure addition when it comes. Until then, a driven rate an engine cannot honour raises rather than being silently dropped.
 
@@ -176,115 +191,23 @@ zombi2 genomes comp_genomes/ --from out/ --initial-families 10 --seed 2 \
     --transfer-to "DrivenBy('$driver', {'competent': 3.0, 'normal': 1.0})"
 ```
 
-## Joining
-
-When the driver cannot be grown first, there is nothing to write to a file, because the file would have to be written onto a tree that does not exist yet. Instead both levels are grown in one Gillespie that races every kind of event against every other: a speciation event reads the current trait state to set its rate, a trait-change event evolves the trait on the tree as it has grown so far, and a speciation hands the parent's state down to both daughters. Out come both levels at once. Because these drivers only change *at* events, the rate is constant between them and the race is exact — no thinning, no approximation.
-
-Version 1 ships two joint pairs, and in both a level reaches back into the species tree, so the tree itself is an output rather than an input:
-
-**A trait drives speciation** — `P(Species, Traits)`. A body-size state makes large lineages speciate twice as fast as small ones. The trait enters as a **process spec**, `traits.discrete(...)`, rather than as a finished run: it is a description of a process to be grown with the tree, not a result:
-
-```python
-from zombi2 import joint, traits, genomes
-from zombi2.rates import modifiers as mod
-
-joint.simulate_joint(
-    birth = 1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": 2.0}),
-    death = 0.2,
-    trait = traits.discrete(states=["small", "large"], switch=0.1),
-    n_extant = 100, seed = 1)
-```
-
-Driving `death` with the same modifier makes extinction state-dependent too, and a birth *and* death that both read the trait is the model the literature calls BiSSE — with more than two states, MuSSE.
-
-### A trait that also changes at the split
-
-The trait spec keeps its own options in a joint run, and one of them changes the model. `at_speciation=` gives the trait a chance of jumping *at* each speciation rather than only along branches, and combined with driving that speciation it says something different from either piece alone: the split itself is where the daughters diverge, and how fast a lineage splits depends on the state it is in.
-
-```python
-joint.simulate_joint(
-    birth = 1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": 2.5}),
-    death = 0.2,
-    trait = traits.discrete(states=["small", "large"], switch=0.3,
-                            at_speciation=0.4),   # a 0.4 chance of a jump at each split
-    n_extant = 100, seed = 1)
-```
-
-The trait's event log tells the two apart: a jump at a split is recorded as `on_speciation`, a change along a branch as `on_branch`, so a method can be scored against which kind actually happened.
-
-**Gene content drives speciation** — `P(Species, Genomes)`. The presence of a key gene, a toxin or a transporter, lifts a lineage's speciation rate, and the genome and the tree grow together. The genome enters as a process spec in the same way, and the family whose presence does the driving has to be declared in the initial genome:
-
-```python
-joint.simulate_joint(
-    birth  = 1.0 * mod.DrivenBy("genomes:toxin", {"present": 1.8, "absent": 1.0}),
-    death  = 0.2,
-    genome = genomes.family(duplication=0.2, loss=0.25, origination=0.5,
-                            family_names=["toxin"]),
-    n_extant = 100, seed = 1)
-```
-
-The live `source` names either the family, `"genomes:toxin"`, or the lineage's total gene count, `"genomes:count"` — and a count is a number, so that is where a **Curve** earns its place: `mod.DrivenBy("genomes:count", lambda n: math.exp(0.02 * n))` makes gene-rich lineages speciate faster along a smooth response rather than a lookup table.
-
-The three live sources in full:
-
-| The driver | The rates it can drive | `source` | Mapping |
-|---|---|---|---|
-| a discrete trait | `birth`, `death` | `"trait"` | Table |
-| a named family's presence | `birth`, `death` | `"genomes:<family>"` | Table on `present`/`absent` |
-| a lineage's gene count | `birth`, `death` | `"genomes:count"` | Curve, or Scalar |
-
-Give one driver per run, `trait=` or `genome=`, not both, and drive `birth`, `death`, or both with it.
-
-Stop the run at a size with `n_extant=` or at an age with `total_time=`, exactly as in Chapter 3, and give one or the other. What comes back is a `JointResult` carrying **both** grown levels: `.species` always, and then either `.trait` or `.genome`, the same result objects the standalone commands return. They share one `complete_tree`, because there was only ever one tree — the one they grew between them.
-
-### Usage from the CLI
-
-Conditioning folds into the target level's own command, as above. Joining cannot: there is no level to run first, so it has its own command, `zombi2 joint`. The driver is named in the rate exactly as in Python — `DrivenBy('trait', …)` rather than a path, because it names a level being grown rather than a file already written — and the flags that build the driver are the ones you would pass to `zombi2 traits` or `zombi2 genomes`.
+A trait target reads that same file the same way. Only the continuous `--rate` takes an expression here: `--switch` is a bare number, so a driven switch rate is written in Python.
 
 ```bash
-# BiSSE: 'large' lineages speciate three times as fast as 'small' ones
-zombi2 joint out/ --death 0.2 --states small,large --switch 0.3 \
-    --n-extant 100 --seed 1 \
-    --birth "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})"
-
-# state-dependent extinction too, by driving --death as well
-zombi2 joint out/ --states small,large --switch 0.3 --n-extant 100 --seed 1 \
-    --birth "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})" \
-    --death "0.2 * DrivenBy('trait', {'small': 2.0, 'large': 1.0})"
-
-# gene content drives it: carrying the 'toxin' family triples the speciation rate
-zombi2 joint out/ --origination 0.2 --loss 0.1 --family-names toxin \
-    --n-extant 60 --seed 1 \
-    --birth "1.0 * DrivenBy('genomes:toxin', {'present': 3.0, 'absent': 1.0})"
+zombi2 traits size/ --from out/ --kind continuous --start 0.0 --seed 4 \
+    --rate "1.0 * DrivenBy('out/traits/trait_events.tsv', {'cave': 4.0, 'surface': 1.0})"
 ```
-
-One driver per run. `--states` builds the trait driver; the gene-content flags build the genome one; giving flags from both is an error rather than a silent choice between them.
-
-### Not everything that looks like a connection is one
-
-One distinction keeps this chapter from swallowing material that belongs elsewhere. A trait that jumps at a speciation event, or a genome that changes only at splits, looks like conditioning on the species level, but it is not. It is the level reading the tree it *already lives on*, which every level does for free. A cladogenetic trait shift and a punctuational burst of gene change are options of the trait's and the genome's own models, and they stay in Chapters 8 and 6 respectively. Conditioning and joining both read a *different* level. When in doubt, ask whether the rate reads a value that some *other* level produced; if it only reads the tree, it is not here.
-
-## Literature
-
-The state-dependent models arrive under a wall of acronyms, and a reader who wants "a BiSSE model" should be able to find the door. The names live here, in one table, and organise nothing else in the chapter.
-
-| What it does | ZOMBI2 | From the literature |
-|---|---|---|
-| a binary trait drives speciation (and extinction) | `simulate_joint`: `birth`, `death` `= … * mod.DrivenBy("trait", {…})` | BiSSE [@maddison2007bisse] |
-| a multi-state trait drives speciation | the same, with more states in the Table | MuSSE [@fitzjohn2012diversitree] |
-| a trait drives speciation **and** jumps at the split | the same, plus `traits.discrete(at_speciation=…)` | ClaSSE [@goldberg2012classe] |
 
 ## Outputs
 
-Neither relation adds a format. A conditioned run writes the target level's own files plus a
-`conditioned_on` record naming the levels its rates read, and the driver's `trait_events.tsv` sits in
-the same run directory, so the pairing that produced the pattern is kept on disk; a joint run writes
-both the levels it grew, each as its own command would:
+Conditioning adds no format. A conditioned run writes the target level's own files, plus a
+`conditioned_on` record naming the levels its rates read; the driver's own files sit in the same
+run directory, so the pairing that produced the pattern is kept on disk.
 
 | File | What it holds |
 |---|---|
-| `species_complete.nwk` · `species_extant.nwk` · `species_events.tsv` | the tree it grew — complete, so the extinct lineages whose fate the driver decided are kept |
-| `trait_values.tsv` · `trait_events.tsv` · `trait_tree.nwk` | the trait it grew, when the driver was a trait |
-| `genome_events.tsv` · `profiles.tsv` · `genomes.tsv` · `gene_trees/` | the genomes it grew, when the driver was gene content |
+| the target level's usual outputs | whatever that level writes — see its own chapter |
+| `conditioned_on` | the levels this run's rates read, one per line |
+| `trait_values.tsv` · `trait_events.tsv` · `trait_tree.nwk` | the driver, when it was a trait |
 
 Appendix B gives the columns and the formats.

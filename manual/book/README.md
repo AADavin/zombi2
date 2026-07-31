@@ -12,7 +12,8 @@ Nine chapters and three appendices, one file each:
 | `ch6.md` | Genomes III: nucleotide |
 | `ch7.md` | Sequence evolution |
 | `ch8.md` | Trait evolution |
-| `ch9.md` | Conditioning and joining |
+| `ch9.md` | Conditioning |
+| `ch10.md` | Joining |
 | `appendix-a.md` | Rates in detail, and the Gillespie algorithm |
 | `appendix-b.md` | Output files |
 | `appendix-c.md` | Tools |

@@ -969,3 +969,197 @@ def test_history_is_derived_from_events():
     from_hist = sorted((i, segs[k][0], segs[k + 1][0])
                        for i, segs in d.history.items() for k in range(len(segs) - 1))
     assert on_branch == from_hist
+
+
+# --- DrivenBy: one trait driving another, on the same tree ----------------------
+
+def _write_driver(tmp_path, rows, name="driver.tsv"):
+    """A trait event log written by hand — the file a conditioned ``DrivenBy`` names. Rows are
+    ``(time, kind, lineage, from, to)``, exactly what ``TraitsResult.write(outputs=("events",))``
+    puts on disk, so a test can place a driver switch at an exact time."""
+    path = tmp_path / name
+    text = "time\tkind\tlineage\tfrom\tto\n" + "".join(
+        f"{t}\t{kind}\t{lin}\t{frm}\t{to}\n" for t, kind, lin, frm, to in rows)
+    path.write_text(text, encoding="utf-8")
+    return str(path)
+
+
+def test_a_driven_variance_integrates_across_the_drivers_mid_branch_switch(tmp_path):
+    # THE crux of a driven rate. One branch, [0, 2]: the driver is 'slow' over its first half and
+    # 'fast' over its second, so the accrued variance is the integral across the two pieces —
+    # 1.0×1 + 9.0×1 = 10 — not the 1.0×2 = 2 a single sample at the branch start would give (nor the
+    # 9.0×2 = 18 a sample at the end would). A per-branch sample is not merely coarse here: it is a
+    # different model, and on this branch it is off by a factor of five.
+    from zombi2.rates.driver import resolve_driver
+    from zombi2.rates.rate import as_rate
+    from zombi2.rates.scope import PerLineage
+    from zombi2.traits.continuous import _accrued_variance
+
+    tree = _one_branch(2.0).complete_tree
+    src = _write_driver(tmp_path, [(0.0, "initial", "n0", "", "slow"),
+                                   (1.0, "on_branch", "n0", "slow", "fast")])
+    rate = 1.0 * mod.DrivenBy(src, {"slow": 1.0, "fast": 9.0})
+    r = as_rate(rate, default_scope=PerLineage)
+    trajs = {rate.modifiers[0].key: resolve_driver(src, tree)}
+
+    stepped = _accrued_variance(r, 0.0, 2.0, trajs=trajs, node_id=0)
+    assert stepped == pytest.approx(1.0 * 1.0 + 9.0 * 1.0)
+    at_start = r.effective(lineages=1, time=0.0, drivers={rate.modifiers[0].key: "slow"}) * 2.0
+    assert at_start == pytest.approx(2.0) and abs(stepped - at_start) > 1.0   # the sample misses it
+
+    # and the engine realises exactly that variance over the branch
+    drawn = np.array([simulate_continuous(tree, rate=rate, seed=s).node_values[0] for s in range(1500)])
+    assert drawn.std() == pytest.approx(math.sqrt(10.0), rel=0.06)
+
+
+def test_a_driven_switch_rate_breaks_where_the_driver_breaks(tmp_path):
+    # the discrete twin of the crux: the driver turns the switch rate ON half-way along a single
+    # branch (factor 0 then 5). Every switch must therefore fall in the branch's second half — and a
+    # generator sampled once at the branch start would be the zero matrix, so nothing would ever
+    # switch at all.
+    tree = _one_branch(2.0).complete_tree
+    src = _write_driver(tmp_path, [(0.0, "initial", "n0", "", "off"),
+                                   (1.0, "on_branch", "n0", "off", "on")])
+    switch = 1.0 * mod.DrivenBy(src, {"off": 0.0, "on": 5.0})
+    times = [e.time for s in range(60)
+             for e in simulate_discrete(tree, states=["x", "y"], switch=switch, start="x",
+                                        seed=s).events if e.kind == "on_branch"]
+    assert times, "the driver switched the rate on, so the trait must switch somewhere"
+    assert min(times) > 1.0, f"a switch fired while the driver held the rate at zero: t={min(times)}"
+    # the realised rate over the live half is the 5.0 asked for (60 runs × 1 time unit of exposure)
+    assert len(times) / 60.0 == pytest.approx(5.0, rel=0.2)
+
+
+def test_a_driver_that_never_switches_leaves_a_run_byte_identical(tmp_path):
+    # the undriven guarantee, from the inside: a driver that holds one state everywhere, mapped to
+    # 1.0, adds no breakpoint and no draw — so both engines return exactly the numbers they return
+    # with no driver at all, value for value.
+    tree = _tree(seed=5, n_extant=14)
+    flat = simulate_discrete(tree, states=["one", "two"], switch=0.0, start="one", seed=3)
+    table = {"one": 1.0, "two": 1.0}
+
+    plain = simulate_continuous(tree, rate=1.0, seed=17)
+    driven = simulate_continuous(tree, rate=1.0 * mod.DrivenBy(flat, table), seed=17)
+    assert driven.node_values == plain.node_values
+
+    plain_d = simulate_discrete(tree, states=["a", "b", "c"], switch=0.4, start="a", seed=19)
+    driven_d = simulate_discrete(tree, states=["a", "b", "c"], start="a", seed=19,
+                                 switch=0.4 * mod.DrivenBy(flat, table))
+    assert driven_d.node_values == plain_d.node_values
+    assert driven_d.history == plain_d.history
+    assert [(e.time, e.lineage, e.to_state) for e in driven_d.events] == \
+           [(e.time, e.lineage, e.to_state) for e in plain_d.events]
+
+
+def test_a_trait_diffuses_faster_where_its_driver_says_so():
+    # the model, end to end: grow a two-state trait A, then a continuous trait B whose variance-rate
+    # is 6× on the lineages where A is 'fast'. Measured on the branches that lie WHOLLY in one state,
+    # the per-branch step sd must be √6 times larger in 'fast' than in 'slow'.
+    tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=300, seed=4).complete_tree
+    A = simulate_discrete(tree, states=["slow", "fast"], switch=0.5, start="slow", seed=7)
+    B = simulate_continuous(tree, rate=1.0 * mod.DrivenBy(A, {"slow": 1.0, "fast": 6.0}), seed=11)
+
+    steps = {"slow": [], "fast": []}
+    for i, node in tree.nodes.items():
+        dt = node.end_time - node.birth_time
+        if dt <= 0 or len(A.history[i]) != 1:      # only branches spent wholly in one state
+            continue
+        parent = 0.0 if node.parent is None else B.node_values[node.parent]
+        steps[A.history[i][0][0]].append((B.node_values[i] - parent) / math.sqrt(dt))
+
+    assert len(steps["slow"]) > 100 and len(steps["fast"]) > 100
+    ratio = np.std(steps["fast"]) / np.std(steps["slow"])
+    assert ratio == pytest.approx(math.sqrt(6.0), rel=0.1), (
+        f"σ² was told to be 6× on 'fast' branches, so the step sd should be √6 = {math.sqrt(6.0):.3f}× "
+        f"larger there; measured {ratio:.3f}")
+
+
+def test_a_trait_switches_faster_where_its_driver_says_so():
+    # the discrete twin: B's switch rate is 8× on the stretches where A is 'fast'. Counted against
+    # the time B actually spends under each of A's states, the realised rates are the asked-for ones.
+    tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=400, seed=4).complete_tree
+    A = simulate_discrete(tree, states=["slow", "fast"], switch=0.5, start="slow", seed=7)
+    B = simulate_discrete(tree, states=["x", "y"], start="x", seed=13,
+                          switch=0.2 * mod.DrivenBy(A, {"slow": 1.0, "fast": 8.0}))
+
+    exposure = {"slow": 0.0, "fast": 0.0}
+    switches = {"slow": 0, "fast": 0}
+    for i, node in tree.nodes.items():
+        spans, t = [], node.birth_time
+        for state, dur in A.history[i]:
+            spans.append((t, t + dur, state))
+            t += dur
+        t = node.birth_time
+        for k, (_state, dur) in enumerate(B.history[i]):
+            for lo, hi, a in spans:
+                overlap = min(t + dur, hi) - max(t, lo)
+                if overlap > 0:
+                    exposure[a] += overlap
+            t += dur
+            if k + 1 < len(B.history[i]):                       # B switched at time t
+                switches[next(a for lo, hi, a in spans if lo <= t < hi)] += 1
+
+    slow = switches["slow"] / exposure["slow"]
+    fast = switches["fast"] / exposure["fast"]
+    assert slow == pytest.approx(0.2, rel=0.25), f"B switched at {slow:.4f} where A is slow (asked 0.2)"
+    assert fast == pytest.approx(1.6, rel=0.15), f"B switched at {fast:.4f} where A is fast (asked 1.6)"
+
+
+def test_a_grown_result_and_its_written_log_drive_identically(tmp_path):
+    # the two conditioned sources are the same conditioning: the in-memory result is the file's
+    # shortcut, so driving by either must give the same run, node for node.
+    tree = _tree(seed=6, n_extant=20)
+    A = simulate_discrete(tree, states=["dry", "wet"], switch=0.6, start="dry", seed=2)
+    A.write(tmp_path, outputs=["events"])
+    table = {"dry": 1.0, "wet": 4.0}
+    by_object = simulate_continuous(tree, rate=1.0 * mod.DrivenBy(A, table), seed=8)
+    by_file = simulate_continuous(
+        tree, rate=1.0 * mod.DrivenBy(str(tmp_path / "trait_events.tsv"), table), seed=8)
+    assert by_file.node_values == by_object.node_values
+
+
+def test_driven_trait_validation(tmp_path):
+    tree = _tree(seed=6, n_extant=12)
+    A = simulate_discrete(tree, states=["dry", "wet"], switch=0.6, start="dry", seed=2)
+
+    # a mapping that names none of the driver's states would leave every lineage at the default
+    # factor — the undriven model wearing a driven rate — so it is refused, not run
+    with pytest.raises(ValueError, match="match none of"):
+        simulate_continuous(tree, rate=1.0 * mod.DrivenBy(A, {"marine": 3.0}), seed=1)
+    with pytest.raises(ValueError, match="match none of"):
+        simulate_discrete(tree, states=["x", "y"], seed=1,
+                          switch=0.5 * mod.DrivenBy(A, {"marine": 3.0}))
+
+    # a driver grown on a different tree: the join key is the species node id, so a lineage the
+    # driver never saw has no value to read and the run stops instead of inventing one
+    other = simulate_species_tree(birth=1.0, death=0.0, n_extant=3, seed=9).complete_tree
+    B = simulate_discrete(other, states=["dry", "wet"], switch=0.6, start="dry", seed=2)
+    with pytest.raises(KeyError, match="SAME|node ids"):
+        simulate_continuous(tree, rate=1.0 * mod.DrivenBy(B, {"dry": 1.0, "wet": 2.0}), seed=1)
+
+    # OU is exact only for a σ² that is constant along the branch, so a DRIVEN σ² falls under the
+    # same guard the other modifiers do — and the message names the one actually given
+    with pytest.raises(ValueError, match="DrivenBy.*not implemented yet"):
+        simulate_continuous(tree, rate=1.0 * mod.DrivenBy(A, {"dry": 1.0, "wet": 2.0}),
+                            reverts_to=0.0, pull=0.5, seed=1)
+
+    # DrivenBy is the only modifier a switch rate takes; anything else on it would be read by nothing
+    with pytest.raises(ValueError, match="switch rate carries OnTime"):
+        simulate_discrete(tree, states=["x", "y"], switch=0.5 * mod.OnTime({0: 1.0, 1: 0.5}), seed=1)
+    with pytest.raises(ValueError, match="per lineage"):
+        simulate_discrete(tree, states=["x", "y"], seed=1,
+                          switch=scope.Global(0.5) * mod.DrivenBy(A, {"dry": 1.0, "wet": 2.0}))
+
+
+def test_a_driven_switch_rate_can_be_written_per_transition(tmp_path):
+    # the {'from->to': rate} form takes a driven rate on any subset of its transitions: here only
+    # x→y is driven, so the driver makes the trait fall into y and stay there where it is 'wet'
+    tree = _one_branch(4.0).complete_tree
+    src = _write_driver(tmp_path, [(0.0, "initial", "n0", "", "dry"),
+                                   (2.0, "on_branch", "n0", "dry", "wet")])
+    switch = {"x->y": 1.0 * mod.DrivenBy(src, {"dry": 0.0, "wet": 3.0}), "y->x": 0.05}
+    times = [e.time for s in range(40)
+             for e in simulate_discrete(tree, states=["x", "y"], switch=switch, start="x",
+                                        seed=s).events
+             if e.kind == "on_branch" and e.from_state == "x"]
+    assert times and min(times) > 2.0    # x→y is off until the driver turns it on at t=2

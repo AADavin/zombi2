@@ -10,7 +10,7 @@ manual into context. That is the whole point of this layout.
 
 ```
 manual/
-  book/ch1.md … ch9.md   the chapters
+  book/ch1.md … ch10.md  the chapters
   book/appendix-a.md     the appendices
   book/appendix-b.md
   book/figures/          chapter figures, as web SVGs (see Figures below)

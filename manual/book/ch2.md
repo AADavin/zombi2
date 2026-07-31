@@ -126,7 +126,7 @@ Because neither is finished first, neither can be written out and handed over. T
 
 $$P(\text{Species}, \text{Traits})$$
 
-The test is one question: can the driver be grown first, on its own, and handed over? If it can, condition. If it cannot, join. Chapter 9 works through both.
+The test is one question: can the driver be grown first, on its own, and handed over? If it can, condition. If it cannot, join. Chapter 9 works through conditioning and Chapter 10 through joining.
 
 ## Using ZOMBI2 in Python
 

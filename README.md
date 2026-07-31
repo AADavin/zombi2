@@ -83,7 +83,8 @@ reproducible run.
 
 Levels do not have to run side by side: one can drive another. Both ways of doing it are the same
 mechanism, `DrivenBy(source, mapping)`, written on any rate. See
-[conditioning and joining](https://aadavin.github.io/zombi2/docs/guide/conditioning-and-joining/).
+[conditioning](https://aadavin.github.io/zombi2/docs/guide/conditioning/) and
+[joining](https://aadavin.github.io/zombi2/docs/guide/joining/).
 
 ### Conditioning
 

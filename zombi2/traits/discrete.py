@@ -1,4 +1,4 @@
-"""Traits — the discrete engine: the Mk state-switching model (Gillespie) and the threshold model (simulate_discrete), plus the DiscreteTrait process spec for joint runs."""
+"""Traits — the discrete engine: the Mk state-switching model (Gillespie, its switch rate optionally driven by another trait) and the threshold model (simulate_discrete), plus the DiscreteTrait process spec for joint runs."""
 
 from __future__ import annotations
 
@@ -7,11 +7,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..rates.rate import as_rate
+from ..rates.modifiers import DrivenBy, Modifier
+from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerLineage
 from ..tree import as_tree
 
-from ._shared import _correlation_matrix, _preorder, _symmetric_sqrt
+from ._shared import _correlation_matrix, _preorder, _resolve_drivers, _symmetric_sqrt
 from .result import Change, TraitsResult
 
 
@@ -88,6 +89,119 @@ def _gillespie(state: int, dt: float, Q: np.ndarray, rng) -> tuple[int, list]:
         probs[current] = 0.0
         probs /= rate_out  # the embedded jump chain: where to, given a jump happened
         current = int(rng.choice(k, p=probs))
+
+
+# --- a driven switch rate: the generator reads another trait -------------------------------------
+
+def _switch_specs(switch) -> list:
+    """The per-transition rate specs a ``switch`` carries — the values of a ``{'from->to': rate}``
+    dict, or the single symmetric spec. (A ``k×k`` matrix is numbers by construction, so it has
+    none: a matrix entry cannot carry a modifier.)"""
+    if isinstance(switch, dict):
+        return list(switch.values())
+    return [switch]
+
+
+def _switch_drivers(switch) -> list:
+    """The `DrivenBy` modifiers the switch rates carry — a switch rate written as a rate expression
+    (``0.4 * mod.DrivenBy(habitat, {"aquatic": 3.0})``) rather than as a bare number, so the trait
+    switches faster on the lineages where the driver is in one state than another.
+
+    ``DrivenBy`` is the only modifier a switch rate takes; anything else on it would be read by no
+    part of this engine, so it is refused by name rather than silently ignored."""
+    mods = []
+    for spec in _switch_specs(switch):
+        if not isinstance(spec, (Rate, Modifier)):
+            continue                       # a bare number (or a matrix): nothing to drive
+        r = as_rate(spec, default_scope=PerLineage)
+        if not isinstance(r.scope, PerLineage):
+            raise ValueError(
+                f"a switch rate has a {type(r.scope).__name__} scope, but a discrete trait switches "
+                f"per lineage — drop the scope wrapper (per lineage is the default).")
+        for m in r.modifiers:
+            if not isinstance(m, DrivenBy):
+                raise ValueError(
+                    f"a switch rate carries {type(m).__name__}, which the discrete trait engine does "
+                    f"not support. It takes DrivenBy (the switch rate driven by another trait).")
+            mods.append(m)
+    return mods
+
+
+def _driven_entries(states, switch) -> list:
+    """The off-diagonal switch rates as ``[(i, j, Rate)]`` — the driven twin of `_q_matrix()`, whose
+    entries are rate *specs* rather than settled numbers, so the generator can be rebuilt wherever
+    the driver switches. The same two shapes a driven rate can be written in: one symmetric rate
+    (every ``i → j`` alike) or a ``{'from->to': rate}`` dict (only the named transitions, the rest
+    zero). Validation mirrors `_q_matrix()`'s, the rate itself being checked by its scope wrapper."""
+    k = len(states)
+    idx = {s: i for i, s in enumerate(states)}
+    if isinstance(switch, dict):
+        entries = []
+        for key, spec in switch.items():
+            parts = [p.strip() for p in str(key).split("->")]
+            if len(parts) != 2:
+                raise ValueError(f"switch keys must read 'from->to', got {key!r}")
+            frm, to = parts
+            if frm not in idx or to not in idx:
+                raise ValueError(f"switch key {key!r} names a state not in states={list(states)}")
+            if frm == to:
+                raise ValueError(f"switch key {key!r} is a self-transition; only i→j (i≠j) is a rate")
+            entries.append((idx[frm], idx[to], as_rate(spec, default_scope=PerLineage)))
+        return entries
+    r = as_rate(switch, default_scope=PerLineage)
+    return [(i, j, r) for i in range(k) for j in range(k) if i != j]
+
+
+def _driven_q(entries, k: int, drivers: dict, time: float) -> np.ndarray:
+    """The generator at one instant — each off-diagonal entry evaluated against the driver values on
+    this lineage right now, the diagonal then set to minus its row sum (rows sum to zero)."""
+    Q = np.zeros((k, k))
+    for i, j, r in entries:
+        Q[i, j] = r.effective(lineages=1, time=time, drivers=drivers)
+    np.fill_diagonal(Q, -Q.sum(axis=1))
+    return Q
+
+
+def _merge_runs(segments: list) -> list:
+    """Adjacent equal-state stretches summed into one. Cutting a branch at the driver's switches can
+    leave two pieces of the same state either side of a cut the trait never crossed; merging them
+    keeps ``.history`` and the event log reading exactly as the undriven walk writes them (only real
+    transitions recorded)."""
+    merged: list[tuple[int, float]] = []
+    for state, dur in segments:
+        if merged and merged[-1][0] == state:
+            merged[-1] = (state, merged[-1][1] + dur)
+        else:
+            merged.append((state, dur))
+    return merged
+
+
+def _gillespie_driven(state: int, node, node_id: int, entries, k: int, trajs: dict,
+                      rng) -> tuple[int, list]:
+    """Exact CTMC along one branch whose switch rates are **driven** by another trait.
+
+    The driver is piecewise-constant along the branch, so the generator is too: the branch is cut at
+    the driver's own switches (`~zombi2.rates.driver.DriverTrajectory.next_change`) and the plain
+    `_gillespie()` runs over each stretch under that stretch's ``Q``, carrying the state across.
+    Memorylessness makes the concatenation exactly the CTMC with the time-varying generator. Reading
+    the driver once per branch would be wrong — a driver that flips half-way would have the whole
+    branch run at whichever state happened to be read.
+
+    Returns the same ``(end_state, segments)`` `_gillespie()` returns."""
+    t0, t1 = node.birth_time, node.end_time
+    if t1 <= t0:
+        return state, [(state, 0.0)]
+    segments: list[tuple[int, float]] = []
+    t, cur = t0, state
+    while t < t1:
+        nxt = t1
+        for traj in trajs.values():
+            nxt = min(nxt, traj.next_change(node_id, t))
+        drivers = {key: traj.value(node_id, t) for key, traj in trajs.items()}
+        cur, segs = _gillespie(cur, nxt - t, _driven_q(entries, k, drivers, t), rng)
+        segments.extend(segs)
+        t = nxt
+    return cur, _merge_runs(segments)
 
 
 
@@ -198,7 +312,13 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
       by Gillespie along every branch, so each node's ``(state, duration)`` segments *are* the realized
       history (``.history``) and ``.events`` reads off the transitions. ``switch`` is a symmetric rate
       (``0.1``), a ``{"marine->terrestrial": 0.1}`` dict, or a ``k×k`` matrix (see `_q_matrix()`).
-      ``start`` is the root state (a label in ``states``; ``None`` draws one uniformly).
+      ``start`` is the root state (a label in ``states``; ``None`` draws one uniformly). A switch rate
+      may be **driven by another trait** grown first on this same tree — write it as a rate
+      expression, ``switch=0.4 * mod.DrivenBy(habitat, {"aquatic": 3.0})`` or per transition,
+      ``switch={"a->b": 0.2 * mod.DrivenBy(habitat, {"aquatic": 3.0}), "b->a": 0.2}``. The driver
+      switches mid-branch, so the generator is rebuilt at each of its switches and the branch is
+      simulated piece by piece — the exact CTMC with a time-varying generator, not one sample per
+      branch.
     - **Threshold** (``liability=`` + ``threshold=``) — the Wright–Felsenstein model: a discrete state
       read off an underlying continuous Brownian **liability** (variance-rate ``liability``), cut into
       ``states`` by the ``threshold`` cut point(s) (``k−1`` increasing cuts for ``k`` states). ``start``
@@ -230,7 +350,13 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
         raise ValueError("correlation= on a discrete trait needs the threshold model — give liability= and threshold=")
     if switch is None:
         raise ValueError("give switch= — the transition rate(s) between the discrete states.")
-    Q = _q_matrix(states, switch)
+    # conditioning: a switch rate carrying DrivenBy reads another trait, grown first on this same
+    # tree. The generator is then a function of the driver, so it is built per stretch rather than
+    # once. No DrivenBy ⇒ `trajs` is empty and the walk below is exactly the walk it was.
+    sw_mods = _switch_drivers(switch)
+    entries = _driven_entries(states, switch) if sw_mods else None
+    Q = None if sw_mods else _q_matrix(states, switch)
+    trajs = _resolve_drivers(sw_mods, tree)
     if at_speciation is not None and (isinstance(at_speciation, bool)
             or not isinstance(at_speciation, (int, float)) or not 0.0 <= at_speciation <= 1.0):
         raise ValueError(f"at_speciation must be a probability in [0, 1] (the shift chance), got {at_speciation!r}")
@@ -262,7 +388,10 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
             new = j if j < cur else j + 1
             events.append(Change(node.birth_time, "on_speciation", i, states[cur], states[new]))
             cur = new
-        end_i, segs = _gillespie(cur, node.end_time - node.birth_time, Q, rng)
+        if Q is not None:
+            end_i, segs = _gillespie(cur, node.end_time - node.birth_time, Q, rng)
+        else:  # a driven switch rate: no constant generator — cut the branch where the driver switches
+            end_i, segs = _gillespie_driven(cur, node, i, entries, len(states), trajs, rng)
         t = node.birth_time  # the transitions between the Gillespie segments are the on-branch events
         for (s1, d1), (s2, _d) in zip(segs, segs[1:]):
             t += d1
