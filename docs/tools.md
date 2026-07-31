@@ -1,3 +1,8 @@
-<!-- Single source: this reference page IS the manual's Appendix C, included verbatim so the book and
-     the site never drift. Correct the appendix; both update. -->
---8<-- "manual/book/appendix-c.md"
+<!-- Single source: the manual's Appendix C is one chapter; on the site it is one page per tool. This
+     is the section landing page and includes only the appendix's opening. Correct the appendix; both
+     update. -->
+--8<-- "manual/book/appendix-c.md:intro"
+
+- [`format`](tools/format.md) — analysis-ready files from a genomes run
+- [`tree`](tools/tree.md) — one transform on a Newick tree
+- [`treedist`](tools/treedist.md) — distance between two trees

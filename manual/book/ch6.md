@@ -68,13 +68,13 @@ loss = 0.8 * mod.DrivenBy(habitat, {"host": 20.0, "free": 0.5})
 **The extent takes the same modifiers**, and that is a different statement:
 
 ```python
-loss        = 0.8 * mod.DrivenBy(habitat, {"host": 20.0, "free": 0.5})   # deletes more often
-loss_extent = 150 * mod.DrivenBy(habitat, {"host": 6.0,  "free": 1.0})   # deletes in bigger chunks
+loss        = 0.8 * mod.DrivenBy(habitat, {"host": 20.0, "free": 0.5})  # more often
+loss_extent = 150 * mod.DrivenBy(habitat, {"host": 6.0,  "free": 1.0})  # bigger chunks
 ```
 
 The first raises how often a host-restricted lineage deletes, the second how much each deletion takes. Set both and they multiply: the DNA shed per unit time goes up by the product, not the sum.
 
-A modifier on an *extent* is read when an event fires, so unlike the same modifier on a rate it adds no step to the run's clock. Chapter 9 covers what a driver is and how to grow one; anything not wired raises rather than being quietly ignored.
+A modifier on an *extent* is read when an event fires, so unlike the same modifier on a rate it adds no step to the run's clock. Chapter 9 covers what a driver is and how to grow one; anything the level does not accept raises rather than being quietly ignored.
 
 ## Genes are never split
 
@@ -131,10 +131,10 @@ The **initial genome** — the genome the run starts from, at time 0, before any
 and four ways to read one node's genome, at four grains:
 
 ```python
-g.mosaic(2)        # per block:      {chromosome: [(source, start, end, strand), ...]}
-g.trace_back(2)    # per nucleotide: {chromosome: [(source, position, strand), ...]}
-g.ancestry(2)      # the multiset of ancestral (source, position) it still carries
-g.assembly(2)      # per piece:      {chromosome: [(block, gene, start, end, strand), ...]}
+g.mosaic(2)      # per block:      {chromosome: [(source, start, end, strand), ...]}
+g.trace_back(2)  # per nucleotide: {chromosome: [(source, position, strand), ...]}
+g.ancestry(2)    # the multiset of ancestral (source, position) it still carries
+g.assembly(2)    # per piece:      {chromosome: [(block, gene, start, end, strand), ...]}
 ```
 
 `ancestry` is the invariant worth knowing: rearrangements conserve it exactly, so an inversion-only run leaves every leaf holding a permutation of the initial sequence. Loss makes it a subset, and duplication, transfer and origination add to it.
@@ -188,7 +188,7 @@ A family lost in **every** extant lineage still gets a complete tree — it is s
 `--resolution nucleotide` takes the same event rates as Chapter 5 and adds two things: how to set up the initial genome, and how long an event is in base pairs.
 
 ```bash
-# an evenly spaced initial genome: 5 kb, six genes of 300 bp, with inversions averaging 400 bp
+# an evenly spaced initial genome: 5 kb, six 300 bp genes, inversions averaging 400 bp
 zombi2 genomes out/ --resolution nucleotide \
   --root-length 5000 --genes 6 --gene-length 300 \
   --inversion 1.0 --inversion-extent 400 --duplication 0.3 --loss 0.3 --seed 1
@@ -196,26 +196,24 @@ zombi2 genomes out/ --resolution nucleotide \
 # or start from a real genome: the GFF declares the replicons and the genes,
 # and a paired FASTA supplies the actual DNA those coordinates hold
 zombi2 genomes out/ --resolution nucleotide \
-  --gff ecoli.gff --fasta ecoli.fasta --inversion 0.5 --loss 0.4 --loss-extent 900 --seed 1
+  --gff ecoli.gff --fasta ecoli.fasta \
+  --inversion 0.5 --loss 0.4 --loss-extent 900 --seed 1
 ```
 
 Every event kind has its own `--<event>-extent`, the mean of a geometric draw in base pairs: `--inversion-extent`, `--loss-extent`, `--duplication-extent`, `--transfer-extent`, `--transposition-extent`, `--translocation-extent`, `--origination-extent`.
 
 ## Outputs
 
-```bash
-zombi2 genomes out/ --resolution nucleotide --root-length 5000
-```
+| File | What it holds |
+|---|---|
+| `genome_events.tsv` | the gene genealogy, in the format every resolution writes |
+| `block_events.tsv` | this resolution's own log — the copy lineages over ancestral intervals, plus the rearrangements |
+| `blocks.tsv` | every node's genome as its block mosaic |
+| `genes.tsv` | where each declared gene sits in initial coordinates, and on which strand |
+| `initial_genome.tsv` | the genome the run started with |
+| `initial_sequence.fasta` | the initial DNA, when a `--fasta` supplied it |
+| `chromosome_events.tsv` | the chromosome network, one row per edge |
+| `gene_trees/` | one Newick per family, complete and extant |
+| `gff/`, `bed/` | `genome_<lineage>.gff` (the genes) and `genome_<lineage>.bed` (the blocks), one file per node |
 
-```
-out/genome_events.tsv    the whole history: the copy-lineage genealogy and the
-                         rearrangements — in time order
-out/genes.tsv            where each gene sits in the root, and on which strand
-out/blocks.tsv           every node's genome as its block mosaic
-out/initial_genome.tsv   the genome the run started with
-out/gene_trees/          one Newick per family, complete and extant
-out/genome_<lineage>.gff · .bed   every genome's genes and blocks
-out/chromosome_events.tsv  the chromosome network's edges
-```
-
-Everything is written by default.
+Everything is written by default. Appendix B gives the columns and the formats.

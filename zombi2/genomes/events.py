@@ -6,6 +6,18 @@ multiset of families or an ordered set of chromosomes. Position and orientation 
 they live in the genome snapshots and the rearrangement log — because an event is about gene
 *identity and descent*, which is resolution-blind. So this module is imported by both the family
 core and the ordered engine, and neither owns it.
+
+**The file is one row per event**, five columns wide — ``time kind family parents children``. An
+event that ends one gene and starts two writes one row with one parent and two children, not a row
+per descendant. The participants are written ``n<species>_g<copy>``, each carrying the branch it
+lived on inside the token, which is what lets the ``lineage`` / ``recipient`` / ``donor`` columns go:
+a transfer's row says who donated and who received by naming the two copies where they sit.
+
+**In memory an `Event` is still one gene-tree edge.** That is what the engines emit and what
+`gene_trees_from_events()` reads — a gene tree is a parent→children graph, so the edge is the natural
+object. The aggregation happens here, at write time, and `events_from_tsv()` undoes it exactly, so
+the file and the objects can each have the shape that suits them without either being a translation
+of the other everywhere else.
 """
 
 from __future__ import annotations
@@ -27,17 +39,21 @@ class Event:
 
     - ``"origination"`` — ``copy`` is a founding gene of a fresh family (``parent`` ``None``): a root.
     - ``"duplication"`` — the gene ``parent`` ends; ``copy`` is one of its **two** descendants (the
-      continuation and the new copy — two rows, same ``parent``), both on ``lineage``.
+      continuation and the new copy — two of these, same ``parent``), both on ``lineage``.
     - ``"transfer"`` — the donor gene ``parent`` ends; ``copy`` is one of its two descendants: the
       continuation on the donor ``lineage``, or the transferred copy on the ``recipient`` lineage (a
-      horizontal edge). Two rows, same ``parent``, and **both name ``donor``** — the branch the
-      material left. Without it the arriving row said only where the copy landed (twice over:
+      horizontal edge). Two of these, same ``parent``, and **both name ``donor``** — the branch the
+      material left. Without it the arriving edge said only where the copy landed (twice over:
       ``lineage`` and ``recipient`` are the same branch there), so reading who donated to whom meant
-      pairing the two rows on ``(time, parent)``. A transfer is an edge; each of its rows names both
-      ends.
+      pairing the two on ``(time, parent)``.
     - ``"speciation"`` — the gene ``parent`` ends at a split; ``copy`` is its descendant in daughter
-      species ``lineage`` (one row per daughter — two, same ``parent``).
+      species ``lineage`` (one per daughter — two, same ``parent``).
     - ``"loss"`` — the gene ``copy`` ends with no descendant (``parent`` ``None``).
+
+    These are the objects, one per gene-tree **edge**, which is the shape a gene tree is read in. The
+    written log gathers them into one row per event (see the module docstring) and splits ``transfer``
+    by ``replaced``: ``transfer_additive`` when the arriving copy joined the recipient's genome,
+    ``transfer_replacing`` when it overwrote a resident there.
     """
 
     time: float
@@ -50,50 +66,71 @@ class Event:
     #: transfer only: the species lineage the material left. Set on **both** rows, so either names
     #: the whole edge; on the donor's own row it repeats ``lineage``, which is the price of that.
     donor: int | None = None
+    #: replacing transfer only: the resident copy the arriving one overwrote, on **both** rows (as
+    #: ``donor`` is). That copy dies, so it also has its own ``loss`` event — this names it, which is
+    #: what lets the writer fold the two into one ``transfer_replacing`` row and the reader put them
+    #: back. The alternative was to recognise the pair by their shared timestamp, and pairing rows on
+    #: a float is exactly the bug this field exists to avoid.
+    replaced: int | None = None
 
     @property
     def event(self) -> int:
         """Which event this row belongs to: **the gene copy whose fate the event is**.
 
-        A row is a gene-tree *edge*, so an event that leaves two descendants writes two rows. Those
+        A row is a gene-tree *edge*, so an event that leaves two descendants is two of them. Those
         rows agree here and nowhere else that is safe to group on — ``time`` is a float, and pairing
         on it invites both false joins and float-equality bugs. A copy ends exactly once, so within a
-        kind this is unique: ``sort -u`` on it counts events rather than edges, which counting rows
-        does not. For the kinds that end a copy (duplication, transfer, speciation) that copy is
-        ``parent``; a loss ends ``copy`` itself, and an origination begins one with no parent, so
-        those name ``copy``. Both are already one row per event — the column exists so a single rule
-        works for every kind and no reader has to know which of the two to group on."""
+        kind this is unique: it is what `event_rows()` groups the edges by to write one row per event.
+        For the kinds that end a copy (duplication, transfer, speciation) that copy is ``parent``; a
+        loss ends ``copy`` itself, and an origination begins one with no parent, so those name
+        ``copy``. Both are already one event apiece — the property exists so a single rule works for
+        every kind and no reader has to know which of the two to group on."""
         return self.copy if self.parent is None else self.parent
 
 
-_COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient", "donor", "event")
+_COLS = ("time", "kind", "family", "parents", "children")
 
-#: Columns holding a species-tree node, written as ``n<id>``.
-_NODE_COLS = frozenset({"lineage", "recipient", "donor"})
+#: TRANSITIONAL — the columns of the old log, one row per gene-tree **edge**, with the branch of each
+#: participant in a column of its own. The ordered resolution still writes them (its table carries
+#: every event's position beside the genealogy, and moving it is the next change), so `events_from_tsv`
+#: reads them as well as `_COLS`. Nothing writes them from here.
+_EDGE_COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient", "donor", "event")
 
-#: Columns holding a gene copy, written as ``g<id>``. This table names the species in its own column,
-#: so the copy cell carries the copy alone; a file with no such column names it
-#: ``n<species>_g<copy>`` instead (`copy_label()`). Either way the ``g<id>`` half is the same
-#: token, so a copy joins across every file without translation. ``parent`` is a gene copy too (the
-#: source copy a duplication/transfer descends from), so it is g-labelled; the species columns are not.
-_GENE_COLS = frozenset({"copy", "parent", "event"})
+#: what separates the copies inside the ``parents`` / ``children`` cells. A cell is a *list*, so it
+#: needs a separator that is neither the column separator nor part of a copy token — and ``;`` reads
+#: as a list to a person and splits in one call in every language a reader might use.
+_PACK = ";"
+
+#: the kinds the log is written with. ``transfer`` is split by whether the arriving copy replaced a
+#: resident, because the two are different events to anyone counting: an additive transfer grows the
+#: recipient's genome, a replacing one does not, and only the second kills a gene.
+_ADDITIVE, _REPLACING = "transfer_additive", "transfer_replacing"
+_WRITTEN_KINDS = frozenset({"origination", "duplication", "loss", "speciation",
+                            _ADDITIVE, _REPLACING})
 
 
 def gene_label(copy_id: int | None) -> str:
     """A gene copy as every ZOMBI2 **table** writes it: ``g<id>``. Empty for ``None``.
 
-    A table names the copy's species in a column of its own, so this is the whole cell. Where there is
-    no such column — a Newick leaf, a FASTA record — the copy is written ``n<species>_g<copy>``
-    (`copy_label()`), which embeds this unchanged, so a copy still joins across files without
-    translation. The ``g`` also keeps a copy id from being read as a bare number in a Newick leaf,
-    where that is ambiguous with a support value or a branch length."""
+    Where a table names the copy's species in a column of its own this is the whole cell. Where there
+    is none — a Newick leaf, a FASTA record, this log's ``parents`` / ``children`` — the copy is
+    written ``n<species>_g<copy>`` (`copy_label()`), which embeds this unchanged, so a copy still
+    joins across files without translation. The ``g`` also keeps a copy id from being read as a bare
+    number in a Newick leaf, where that is ambiguous with a support value or a branch length."""
     return "" if copy_id is None else f"g{copy_id}"
+
+
+def _copy_cell(node_name: str, copy_id: int | None) -> str:
+    """`copy_label()`'s spelling, from a node name already written. The one place the two halves are
+    joined, so the log (whose names come from the run's ``labels()`` map) and the trees (whose names
+    come from a fate) cannot spell a copy differently."""
+    return f"{node_name}_{gene_label(copy_id)}"
 
 
 def copy_label(species: int | None, copy_id: int | None, fate: str | None = None) -> str:
     """A gene copy **where it sits**: ``n<species>_g<copy>``, the token every file naming a copy of a
-    known species uses — the gene-tree and phylogram leaves, the alignment FASTA records and the
-    homology tables.
+    known species uses — the gene-tree and phylogram leaves, the alignment FASTA records, the homology
+    tables, and this log's ``parents`` and ``children``.
 
     The copy id alone is unique, so the species is redundant for joining; it is here because a
     sequence or a tip is read by people and by tools that never see the rest of the run, and ``g2179``
@@ -101,7 +138,7 @@ def copy_label(species: int | None, copy_id: int | None, fate: str | None = None
     the alignments back to ``genomes.tsv`` themselves. The two halves are each still their own label,
     so splitting on the single ``_`` recovers them; ``_`` rather than ``|`` because a FASTA record
     name goes on to be parsed by aligners and tree builders that treat ``|`` as a field separator."""
-    return f"{node_label(species, fate)}_{gene_label(copy_id)}"
+    return _copy_cell(node_label(species, fate), copy_id)
 
 
 def gene_from_label(cell: str) -> int:
@@ -124,15 +161,60 @@ def _name(names: "dict[int, str] | None", node_id: int | None) -> str:
     return node_label(node_id) if names is None or node_id is None else names[node_id]
 
 
-def _cell(e: Event, col: str, names: dict[int, str] | None) -> str:
-    v = getattr(e, col)
-    if v is None:
-        return ""
-    if col in _NODE_COLS:
-        return _name(names, v)
-    if col in _GENE_COLS:
-        return gene_label(v)
-    return str(v)
+def _branches(events: list[Event]) -> dict[int, int]:
+    """``{copy id: the species branch it lived on}``, read off the log itself.
+
+    A copy is born exactly once, on the branch it spends its whole life on, and its birth is some
+    event's ``copy`` on that event's ``lineage`` — so the log already carries this and no engine has
+    to pass it in. It is what lets a participant be written ``n2_g34``: the row a copy *dies* in
+    (a speciation's parent, most of all) names the daughter branches, not the branch the parent
+    lived on."""
+    return {e.copy: e.lineage for e in events}
+
+
+def _grouped(events: list[Event]) -> list[tuple[float, str, int, list[int], list[int]]]:
+    """The edges gathered into ``(time, kind, family, parents, children)``, one per event, in the
+    order the events were recorded.
+
+    The key is `Event.event` — the copy whose fate the event is — paired with the kind, because a
+    copy that an origination *begins* is the same id a later duplication *ends*. Grouping on ids
+    rather than on ``time`` is the point: the two edges of one event carry the same copy id, and
+    pairing them on a float is a bug waiting for the run that produces two events in the same
+    microsecond.
+
+    A replacing transfer's displaced copy is folded in here: it is named by ``replaced`` on the
+    transfer, so its own ``loss`` edge is skipped and becomes the transfer's second parent. That is
+    the whole of what the ``transfer_replacing`` kind means — one event, one row, two parents (the
+    donor's copy and the copy it overwrote), and no phantom loss a reader would have to tell from a
+    real one by matching timestamps."""
+    folded = {e.replaced for e in events if e.replaced is not None}
+    rows: dict[tuple[str, int], tuple[float, str, int, list[int], list[int]]] = {}
+    for e in events:
+        if e.kind == "loss" and e.copy in folded:
+            continue                            # its death IS the replacing transfer (see above)
+        key = (e.kind, e.event)
+        row = rows.get(key)
+        if row is None:
+            kind, parents = e.kind, []
+            if e.kind == "loss":
+                parents.append(e.copy)          # a loss ends the copy it names: that is its parent
+            elif e.parent is not None:
+                parents.append(e.parent)
+            if e.kind == "transfer":
+                kind = _REPLACING if e.replaced is not None else _ADDITIVE
+                if e.replaced is not None:
+                    parents.append(e.replaced)
+            rows[key] = row = (e.time, kind, e.family, parents, [])
+        if e.kind == "loss":
+            continue                            # nothing descends from it
+        # a transfer reads donor → recipient: the copy left on the donor's branch leads, whichever
+        # order the engine happened to emit the two edges in. `recipient` is set on the arriving row
+        # alone, which is what tells the two sides apart.
+        if e.kind == "transfer" and e.recipient is None:
+            row[4].insert(0, e.copy)
+        else:
+            row[4].append(e.copy)
+    return list(rows.values())
 
 
 def event_rows(events: list[Event], names: dict[int, str] | None = None) -> list[str]:
@@ -143,61 +225,142 @@ def event_rows(events: list[Event], names: dict[int, str] | None = None) -> list
     ``names`` is the run's node names (`Tree.labels()`) — needed because a lineage that went
     extinct is written ``e<id>``, and an event log names *every* branch, the dead ones included.
     Omitting it names them all ``n<id>``, which is right only where no dead branch can appear."""
-    return ["\t".join(_cell(e, c, names) for c in _COLS) for e in events]
+    where = _branches(events)
+
+    def cell(copies: list[int]) -> str:
+        return _PACK.join(_copy_cell(_name(names, where[c]), c) for c in copies)
+
+    return [f"{time}\t{kind}\t{family}\t{cell(parents)}\t{cell(children)}"
+            for time, kind, family, parents, children in _grouped(events)]
 
 
 def events_tsv(events: list[Event], names: dict[int, str] | None = None) -> str:
-    """The event log as TSV — one row per event; empty cells for the fields a kind does not use.
-    ``names`` as in `event_rows()`."""
+    """The event log as TSV — one row per event; an empty cell where a kind has no parents (an
+    origination) or no children (a loss). ``names`` as in `event_rows()`."""
     return "\n".join([EVENTS_HEADER, *event_rows(events, names)]) + "\n"
 
 
 def events_from_tsv(text: str) -> list[Event]:
     """Parse the TSV `events_tsv()` writes back into a ``list[Event]`` — the deserializer twin, so
     a written ``genome_events.tsv`` can be replayed (a downstream level's gene trees are derived from
-    the log by `gene_trees_from_events()`). ``time`` is a float, the
-    id columns are ints, and the optional ``parent`` / ``recipient`` are ints or ``None`` (empty)."""
+    the log by `gene_trees_from_events()`). Each row is expanded back into one `Event` per gene-tree
+    edge, which is what every reader downstream of here expects."""
     lines = text.splitlines()
     if not lines:
         raise ValueError("empty genome event log — is the file empty?")
     header = lines[0].split("\t")
     if tuple(header[:len(_COLS)]) == _COLS:
-        # the ordered resolution writes the same genealogy with each event's position beside it, and
-        # its rearrangements in the same table. The extra columns are ignored here and the
-        # rearrangement rows skipped: this reader is about identity and descent, which they do not
-        # touch. (A genome level that needs the positions reads them itself.)
+        # a resolution may write more beside the genealogy — its events' positions, its
+        # rearrangements in the same table. The extra columns are ignored here and rows of a kind
+        # this log does not know are skipped: this reader is about identity and descent, which they
+        # do not touch. (A genome level that needs the positions reads them itself.)
         return _parse(lines, header)
-    if tuple(header) != _COLS:
-        # `block_events.tsv` — a nucleotide run's own record, keyed by ancestral interval. Every
-        # resolution writes its genealogy here in one format, so that file is the only table left
-        # that looks like this one and is not; naming it saves reading the columns to find out.
-        hint = ("; this looks like a nucleotide run's block_events.tsv, whose rows are ancestral "
-                "intervals rather than gene-tree edges. Read one with "
-                "zombi2.genomes.nucleotide.read_nucleotide_genomes. That run's genome_events.tsv is "
-                "the genealogy, in this format, and is what this reader wants"
-                if "source" in header and "family" not in header else "")
-        if not hint and set(header) < set(_COLS):
-            # a genuinely short header: every column it has is one of ours, so it is a log this
-            # version no longer reads rather than a different table
-            hint = (f"; it is missing {', '.join(c for c in _COLS if c not in header)}. Re-run "
+    if tuple(header[:len(_EDGE_COLS)]) == _EDGE_COLS:
+        return _parse_edges(lines, header)      # the pre-aggregation table (see `_EDGE_COLS`)
+    # `block_events.tsv` — a nucleotide run's own record, keyed by ancestral interval. Every
+    # resolution writes its genealogy in one format, so that file is the only table left that looks
+    # like this one and is not; naming it saves reading the columns to find out.
+    hint = ("; this looks like a nucleotide run's block_events.tsv, whose rows are ancestral "
+            "intervals rather than genome events. Read one with "
+            "zombi2.genomes.nucleotide.read_nucleotide_genomes. That run's genome_events.tsv is "
+            "the genealogy, in this format, and is what this reader wants"
+            if "source" in header and "family" not in header else "")
+    for cols in () if hint else (_COLS, _EDGE_COLS):
+        # a genuinely short header: every column it has is one of a log's, so it is a log this
+        # version no longer reads rather than a different table. Named against the current columns
+        # first, since that is what a truncated file of this schema is missing.
+        if set(header) < set(cols):
+            hint = (f"; it is missing {', '.join(c for c in cols if c not in header)}. Re-run "
                     f"'zombi2 genomes' to write a log this version reads")
-        raise ValueError(f"unexpected genome-event columns {header}; expected {list(_COLS)}{hint}")
-    return _parse(lines, header)
+            break
+    raise ValueError(f"unexpected genome-event columns {header}; expected {list(_COLS)}{hint}")
 
 
-#: the kinds this log records about gene identity and descent. A wider table may also carry the
-#: ancestry-**neutral** rearrangements; they end no gene lineage, so they are not events here.
+#: the kinds the pre-aggregation log recorded about gene identity and descent. A wider table may also
+#: carry the ancestry-**neutral** rearrangements; they end no gene lineage, so they are not events here.
 _GENEALOGY = frozenset({"origination", "duplication", "loss", "transfer", "speciation"})
+
+
+def _copies(cell: str, lineno: int, col: str) -> list[tuple[int, int]]:
+    """One ``parents`` / ``children`` cell as ``[(species, copy), …]`` — the branch each participant
+    lived on and its id, which is everything the columns this log dropped used to say."""
+    if not cell:
+        return []
+    out = []
+    for token in cell.split(_PACK):
+        species, sep, gene = token.rpartition("_")
+        if not sep:
+            raise ValueError(f"genome event log line {lineno}: {col} entry {token!r} is not a copy "
+                             f"of the form n<species>_g<copy>")
+        out.append((node_from_label(species), gene_from_label(gene)))
+    return out
+
+
+def _need(what: list, n: int, lineno: int, kind: str, col: str) -> None:
+    if len(what) != n:
+        raise ValueError(f"genome event log line {lineno}: a {kind} has {n} {col}, got {len(what)}")
 
 
 def _parse(lines: list[str], header: list[str]) -> list[Event]:
     """Read the rows by column **name**, so a table carrying more than the canonical columns parses
-    unchanged and only the genealogy rows come back. ``event`` is derived from ``parent``/``copy``,
-    so it is written but never read back: there is one definition of it, on `Event`."""
+    unchanged and only the genealogy rows come back, and expand each into its gene-tree edges — the
+    exact inverse of `_grouped()`, down to the order the edges come back in."""
     at = {c: i for i, c in enumerate(header)}
     events: list[Event] = []
     for lineno, raw in enumerate(lines[1:], 2):
         if not raw:                                     # tolerate a trailing blank line
+            continue
+        cells = raw.split("\t")
+        if len(cells) != len(header):
+            raise ValueError(f"genome event log line {lineno}: expected {len(header)} columns, "
+                             f"got {len(cells)}")
+        kind = cells[at["kind"]]
+        if kind not in _WRITTEN_KINDS:
+            continue
+        t, fam = float(cells[at["time"]]), int(cells[at["family"]])
+        parents = _copies(cells[at["parents"]], lineno, "parents")
+        children = _copies(cells[at["children"]], lineno, "children")
+        if kind == "origination":
+            _need(parents, 0, lineno, kind, "parents")
+            _need(children, 1, lineno, kind, "children")
+            (lineage, copy), = children
+            events.append(Event(t, kind, lineage, fam, copy))
+        elif kind == "loss":
+            _need(parents, 1, lineno, kind, "parents")
+            _need(children, 0, lineno, kind, "children")
+            (lineage, copy), = parents
+            events.append(Event(t, kind, lineage, fam, copy))
+        elif kind in ("duplication", "speciation"):
+            _need(parents, 1, lineno, kind, "parents")
+            _need(children, 2, lineno, kind, "children")
+            (_, source), = parents
+            events.extend(Event(t, kind, lineage, fam, copy, parent=source)
+                          for lineage, copy in children)
+        else:                                           # a transfer, additive or replacing
+            _need(parents, 2 if kind == _REPLACING else 1, lineno, kind, "parents")
+            _need(children, 2, lineno, kind, "children")
+            (donor, cont), (recipient, arrived) = children   # donor's own copy leads (see `_grouped`)
+            (_, source), *rest = parents
+            replaced = rest[0][1] if rest else None
+            if replaced is not None:
+                # the copy the arriving one overwrote: it dies here, and its death is an edge of the
+                # gene tree like any other, so it comes back as the `loss` the file no longer spends
+                # a row on. Written first, which is where the engines record it.
+                events.append(Event(t, "loss", recipient, fam, replaced))
+            events.append(Event(t, "transfer", donor, fam, cont, parent=source, donor=donor,
+                                replaced=replaced))
+            events.append(Event(t, "transfer", recipient, fam, arrived, parent=source,
+                                recipient=recipient, donor=donor, replaced=replaced))
+    return events
+
+
+def _parse_edges(lines: list[str], header: list[str]) -> list[Event]:
+    """The pre-aggregation table (`_EDGE_COLS`): every row is already one edge, so this is a
+    field-by-field read. Kept until the ordered resolution's writer moves to `_COLS`."""
+    at = {c: i for i, c in enumerate(header)}
+    events: list[Event] = []
+    for lineno, raw in enumerate(lines[1:], 2):
+        if not raw:
             continue
         cells = raw.split("\t")
         if len(cells) != len(header):

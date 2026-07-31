@@ -55,11 +55,11 @@ class Extent:
         drawn value (the nucleotide one samples an arc's far end from a geometric of this mean).
 
         Requires a `Geometric` base, which is the only shape that
-        engine wires; scaling its mean is the same statement in expectation as scaling a draw."""
+        engine supports; scaling its mean is the same statement in expectation as scaling a draw."""
         if not isinstance(self.base, Geometric):
             raise ValueError(
                 f"this extent's base is {type(self.base).__name__}, which has no mean to scale — an "
-                f"engine parameterised by the mean wires a geometric extent only.")
+                f"engine parameterised by the mean takes a geometric extent only.")
         return self.base.mean * self._factor(**context)
 
     @property

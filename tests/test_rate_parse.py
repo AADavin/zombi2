@@ -69,7 +69,7 @@ def test_the_python_qualifiers_are_optional():
     assert parse_rate("scope.Global(1.0)") == parse_rate("Global(1.0)")
 
 
-def test_a_driver_reads_as_a_coupling():
+def test_a_driver_reads_as_a_drivenby():
     r = parse_rate("0.25 * DrivenBy('habitat.tsv', {'aquatic': 3.0, 'terrestrial': 1.0})")
     assert r == 0.25 * mod.DrivenBy("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})
 

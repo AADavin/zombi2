@@ -4,6 +4,7 @@ exercise argument wiring, output files, ``--params``, and the clean error paths 
 (which their own suites cover)."""
 
 import collections
+import os
 import re
 
 import pytest
@@ -243,27 +244,32 @@ def test_genomes_ordered_writes_structured_outputs(tmp_path, tree_file):
     rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "ordered", "--duplication", "0.2", "--loss", "0.2", "--origination", "0.5", "--inversion", "0.3", "--chromosomes", "3", "--seed", "42", "--write", "gene_order", "events", "--flat"])
     assert rc == 0
     assert {p.name for p in out.iterdir()} == {"gene_order.tsv", "genome_events.tsv",
-                                               "species_complete.nwk", "species_fates.tsv", "genomes.log"}
+                                               "rearrangement_events.tsv", "species_complete.nwk",
+                                               "species_fates.tsv", "genomes.log"}
 
 
 def test_genomes_ordered_events_carry_where_each_one_happened(tmp_path, tree_file):
-    # the genealogy, the positions and the rearrangements are one table now, not three
+    # the genealogy and its positions are one table; the rearrangements are their own
     out = tmp_path / "g"
     rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", "ordered", "--duplication", "0.3", "--loss", "0.2", "--origination", "0.6", "--inversion", "0.4", "--seed", "42", "--write", "events", "--flat"])
     assert rc == 0
     assert not list(out.glob("rearrangements.tsv")) and not list(out.glob("genome_event_*.tsv"))
     rows = (out / "genome_events.tsv").read_text(encoding="utf-8").splitlines()
     cols = rows[0].split("\t")
-    assert cols == ["time", "kind", "lineage", "family", "copy", "parent", "recipient",
-                    "donor", "event", "dest_lineage", "chromosome", "position", "length",
-                    "dest_chromosome", "dest_position", "flipped"]
+    assert cols == ["time", "kind", "family", "parents", "children",
+                    "chromosome", "start", "length", "dest_chromosome", "dest_position"]
     at = {c: i for i, c in enumerate(cols)}               # by name: a new column cannot shift these
     body = [r.split("\t") for r in rows[1:]]
-    assert {r[at["kind"]] for r in body} >= {"origination", "duplication", "loss", "inversion"}
-    assert [r for r in body if r[at["position"]]], "no event carries the place it happened"
-    # a duplication writes one row per descendant, and both name the one event
+    assert {r[at["kind"]] for r in body} >= {"origination", "duplication", "loss"}
+    assert "inversion" not in {r[at["kind"]] for r in body}   # it ends no lineage: its own file
+    assert [r for r in body if r[at["start"]]], "no event carries the place it happened"
+    # a duplication is ONE row that ends one copy and starts two
     dups = [r for r in body if r[at["kind"]] == "duplication"]
-    assert len(dups) == 2 * len({r[at["event"]] for r in dups})
+    assert dups and all(len(r[at["parents"]].split(";")) == 1
+                        and len(r[at["children"]].split(";")) == 2 for r in dups)
+    rear = (out / "rearrangement_events.tsv").read_text(encoding="utf-8").splitlines()
+    assert rear[0].split("\t")[:3] == ["time", "kind", "lineage"]
+    assert {r.split("\t")[1] for r in rear[1:]} == {"inversion"}
 
 
 def test_genomes_rejects_ordered_only_flag_under_unordered(tmp_path, tree_file):
@@ -526,7 +532,7 @@ def test_traits_discrete_writes_the_event_log(tmp_path, tree_file):
                                                "trait_tree.nwk", "traits.log"}
     lines = (out / "trait_events.tsv").read_text(encoding="utf-8").splitlines()
     assert lines[0] == "time\tkind\tlineage\tfrom\tto"
-    assert lines[1].split("\t")[1] == "root"          # the origin row, the conditioning file's anchor
+    assert lines[1].split("\t")[1] == "initial"       # the t=0 row, the conditioning file's anchor
 
 
 def test_traits_at_speciation_logs_on_speciation_changes(tmp_path, tree_file):
@@ -534,7 +540,7 @@ def test_traits_at_speciation_logs_on_speciation_changes(tmp_path, tree_file):
     main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0", "--at-speciation", "0.5", "--seed", "1", "--write", "events", "--flat"])
     rows = (out / "trait_events.tsv").read_text(encoding="utf-8").splitlines()[1:]
     kinds = [r.split("\t")[1] for r in rows]
-    assert kinds[0] == "root"                                                 # the origin, then jumps
+    assert kinds[0] == "initial"                                              # t=0, then the jumps
     assert kinds[1:] and all(k == "on_speciation" for k in kinds[1:])         # a diffusion has no
     #                                                    along-branch events, only the split jumps
 
@@ -1209,7 +1215,7 @@ def _check_table(text):
 
 def test_tools_format_writes_homology_tables(tmp_path, capsys):
     run = _dtl_run(tmp_path)
-    assert main(["tools", "format", str(run)]) == 0
+    assert main(["tools", "format", str(run), "--format", "homology"]) == 0
     hdir = run / "genomes" / "homology"
     tables = sorted(hdir.glob("homology_fam*.tsv"))
     assert tables, "no homology tables written"
@@ -1229,7 +1235,7 @@ def test_tools_format_writes_homology_tables(tmp_path, capsys):
 
 def test_tools_format_flat_writes_into_the_run_directory(tmp_path):
     run = _dtl_run(tmp_path)
-    assert main(["tools", "format", str(run), "--flat"]) == 0
+    assert main(["tools", "format", str(run), "--format", "homology", "--flat"]) == 0
     assert (run / "homology_fam0.tsv").exists()                # straight in, no homology/ subdir
     assert not (run / "genomes" / "homology").exists()
 
@@ -1237,7 +1243,7 @@ def test_tools_format_flat_writes_into_the_run_directory(tmp_path):
 def test_tools_format_reads_another_run_with_from(tmp_path):
     src = _dtl_run(tmp_path, name="src")
     dest = tmp_path / "analysis"
-    assert main(["tools", "format", str(dest), "--from", str(src)]) == 0
+    assert main(["tools", "format", str(dest), "--from", str(src), "--format", "homology"]) == 0
     assert sorted((dest / "genomes" / "homology").glob("homology_fam*.tsv"))
     assert not (src / "genomes" / "homology").exists()         # the source run is left untouched
 
@@ -1250,7 +1256,7 @@ def test_tools_format_matches_the_python_api(tmp_path):
     from zombi2.tools.homology import homology_tsv
 
     run = _dtl_run(tmp_path)
-    main(["tools", "format", str(run)])
+    main(["tools", "format", str(run), "--format", "homology"])
     tree, _ = read_newick((run / "species" / "species_complete.nwk").read_text(encoding="utf-8"))
     events = events_from_tsv((run / "genomes" / "genome_events.tsv").read_text(encoding="utf-8"))
     trees = gene_trees_from_events(events, tree)
@@ -1266,7 +1272,7 @@ def test_tools_format_matches_the_python_api(tmp_path):
 
 def test_tools_format_on_a_directory_without_a_run_errors_cleanly(tmp_path, capsys):
     (tmp_path / "empty").mkdir()
-    assert main(["tools", "format", str(tmp_path / "empty")]) == 1
+    assert main(["tools", "format", str(tmp_path / "empty"), "--format", "homology"]) == 1
     assert "holds no genomes run" in capsys.readouterr().err
 
 
@@ -1274,6 +1280,33 @@ def test_tools_format_rejects_an_unknown_format(tmp_path):
     run = _dtl_run(tmp_path)
     with pytest.raises(SystemExit):
         main(["tools", "format", str(run), "--format", "bogus"])
+
+
+def test_tools_format_requires_a_format_and_names_the_choices(tmp_path, capsys):
+    # no default: the three answer different questions, so picking one silently would answer a
+    # question nobody asked. Bare, it must say so and name what is on offer.
+    run = _dtl_run(tmp_path)
+    with pytest.raises(SystemExit):
+        main(["tools", "format", str(run)])
+    err = capsys.readouterr().err
+    assert "required: --format" in err
+    assert all(name in err for name in ("homology", "markers", "recphylo"))
+    assert not (run / "genomes" / "homology").exists()          # and nothing was written
+
+
+def test_tools_format_reports_one_complete_path_per_output(tmp_path, capsys):
+    # the line has to be pasteable as it stands: a whole path, not a base plus a fragment to compose
+    run = _dtl_run(tmp_path)
+    capsys.readouterr()                                         # drop the setup chatter
+    assert main(["tools", "format", str(run), "--format", "homology", "markers"]) == 0
+    lines = capsys.readouterr().out.strip().split("\n")
+    n = len(list((run / "genomes" / "homology").glob("*.tsv")))
+    # built with os.path.join/os.sep, not literal slashes: the point of the line is that it pastes,
+    # so it has to be the platform's own separator all the way through (this caught a "/" on Windows)
+    homology = os.path.join(str(run), "genomes", "homology") + os.sep
+    markers = os.path.join(str(run), "genomes", "markers.tsv")
+    assert lines == [f"wrote {n} table(s) in {homology}", f"wrote 1 table in {markers}"]
+    assert (run / "genomes" / "markers.tsv").exists()           # one file needs no folder of its own
 
 
 def _nucleotide_gene_run(tmp_path, *, name="nucrun"):
@@ -1293,7 +1326,7 @@ def test_tools_format_on_a_nucleotide_run_writes_one_table_per_declared_gene(tmp
     from zombi2.tools.homology import homology_tsv
 
     run = _nucleotide_gene_run(tmp_path)
-    assert main(["tools", "format", str(run)]) == 0
+    assert main(["tools", "format", str(run), "--format", "homology"]) == 0
     tables = sorted((run / "genomes" / "homology").glob("homology_fam*.tsv"))
     tree, _ = read_newick((run / "species" / "species_complete.nwk").read_text(encoding="utf-8"))
     genome = read_nucleotide_genomes(run / "genomes", tree)
@@ -1313,7 +1346,7 @@ def test_tools_format_refuses_a_nucleotide_run_with_no_declared_genes(tmp_path, 
           "--quiet"])
     main(["genomes", str(run), "--resolution", "nucleotide", "--root-length", "2000", "--genes", "0",
           "--duplication", "0.5", "--loss", "0.4", "--seed", "1", "--quiet"])   # --genes 0: all-intergenic
-    assert main(["tools", "format", str(run)]) == 1
+    assert main(["tools", "format", str(run), "--format", "homology"]) == 1
     assert "declared no genes" in capsys.readouterr().err
 
 
@@ -1339,9 +1372,9 @@ def test_tools_format_still_says_what_it_wrote_under_quiet(tmp_path, capsys):
     main(["genomes", str(run), "--duplication", "0.2", "--loss", "0.2", "--origination", "0.5",
           "--initial-families", "5", "--seed", "3"])
     capsys.readouterr()                                   # drop the setup chatter
-    assert main(["tools", "format", str(run), "--quiet"]) == 0
+    assert main(["tools", "format", str(run), "--format", "homology", "--quiet"]) == 0
     quiet = capsys.readouterr().out
-    assert main(["tools", "format", str(run)]) == 0
+    assert main(["tools", "format", str(run), "--format", "homology"]) == 0
     assert quiet.startswith("wrote ") and quiet == capsys.readouterr().out   # same line either way
 
 

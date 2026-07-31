@@ -1,4 +1,4 @@
-"""Coupling slice 2 — a discrete trait drives speciation, grown jointly (BiSSE/MuSSE).
+"""Joint slice 2 — a discrete trait drives speciation, grown jointly (BiSSE/MuSSE).
 
 The joint half of the one mechanism: `mod.DrivenBy("trait", mapping)` with the live level name
 "trait" instead of a file, grown by `joint.simulate`. Covers the process spec, the result shape,
@@ -163,7 +163,7 @@ def test_fromparent_rejected():
 
 def test_mapping_matching_no_trait_state_is_refused():
     # a driving mapping whose states are none of the trait's would leave every lineage at the default
-    # factor — a silently uncoupled run — so it is refused rather than run as if it were coupled. The
+    # factor — a silently undriven run — so it is refused rather than run as if it were driven. The
     # trait's alphabet is known up front, so the exhaustive check names the offending key precisely.
     with pytest.raises(ValueError, match="not among the driver's states"):
         joint.simulate_joint(birth=1.0 * mod.DrivenBy("trait", {"tiny": 2.0}),   # trait is small/large
@@ -174,7 +174,7 @@ def test_mapping_matching_no_trait_state_is_refused():
 def test_mapping_naming_a_non_trait_state_is_refused():
     # the trait's declared states are known up front, so the joint check is exhaustive: even when some
     # keys match, a key outside the alphabet ('tiny' ∉ small/large) is a state that can never occur — a
-    # typo whose factor would silently never apply — so the whole mapping is refused, not run as coupled
+    # typo whose factor would silently never apply — so the whole mapping is refused, not run as driven
     with pytest.raises(ValueError, match="not among the driver's states"):
         joint.simulate_joint(birth=1.0 * mod.DrivenBy("trait", {"small": 2.0, "tiny": 3.0}),
                        death=0.2, trait=traits.discrete(states=["small", "large"], switch=0.15),

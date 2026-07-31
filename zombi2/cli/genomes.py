@@ -8,7 +8,7 @@ sequence of ancestry blocks, with declared indivisible genes and intergenic spac
 `simulate_genomes_nucleotide()`). Long options are the API keyword names, and
 every rate takes the written form (SPEC §5): a bare number on its natural scope, or the same
 ``scope(base) × modifiers`` expression the Python API takes — ``--loss "0.25 * OnTime({0: 1.0, 3:
-2.0})"``. The nucleotide engine wires ``OnTime`` and ``DrivenBy``, so any other modifier is rejected
+2.0})"``. The nucleotide engine takes ``OnTime`` and ``DrivenBy``, so any other modifier is rejected
 there rather than silently ignored."""
 from __future__ import annotations
 
@@ -34,13 +34,10 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
     WIRED_MODIFIERS, "--loss",
-    note="Each rate keeps its natural scope here (D/T/L per copy, origination per lineage), so "
-         "there is no scope wrapper to write. DrivenBy is wired for all four gene-family rates "
-         "(on --transfer it drives how often a lineage DONATES); --transfer-to takes the same "
-         "DrivenBy, on its own, as a recipient weight. --resolution ordered wires OnTime and "
-         "ByFamily (the weight lands on the segment an event covers, not on the gene it started "
-         "from); --resolution nucleotide wires OnTime and DrivenBy — every rate there, rearrangements "
-         "included.")
+    note="Rates keep their natural scope here (D/T/L per copy, origination per lineage), so there "
+         "is no scope wrapper to write. On --transfer, DrivenBy drives how often a lineage DONATES; "
+         "--transfer-to takes one on its own as a recipient weight. --resolution ordered takes "
+         "OnTime and ByFamily; nucleotide, OnTime and DrivenBy.")
 
 # the write vocabularies, mirroring each Result.write (there is no exported constant to import)
 _FAMILY_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees",
@@ -102,21 +99,18 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     _add_run_arg(p, "genomes evolve along the species tree it already holds")
     g = p.add_argument_group("general")
     _add_params_arg(g)
-    _add_from_arg(g, "the species tree — a Newick file, or another run's directory")
+    _add_from_arg(g, "the species tree", "a Newick file, or another run's directory")
     g.add_argument("--resolution", choices=("family", "ordered", "nucleotide"),
                    default="family", metavar="RESOLUTION",
-                   help="family (gene-family counts, default), ordered (genes positioned on "
-                        "chromosomes, with rearrangements), or nucleotide (the genome as a "
-                        "sequence of ancestry blocks, with indivisible genes)")
+                   help="family (gene-family counts, default), ordered (genes on chromosomes), "
+                        "or nucleotide (the genome as base pairs)")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("--tip-fates", metavar="FILE", dest="tip_fates",
-                   help="[external non-ultrametric trees] a TSV 'tip_name<TAB>extant|extinct|unsampled' "
-                        "declaring each tip's fate; required when the input tree is not ultrametric "
-                        "(ZOMBI won't guess extinct lineages from early-sampled tips). A species run's "
-                        "own species_fates.tsv is in this format and can be passed directly.")
+                   help="a TSV 'tip_name<TAB>extant|extinct|unsampled'; required when the input "
+                        "tree is not ultrametric (a species run's species_fates.tsv fits)")
 
-    g = p.add_argument_group("gene-family events (D/T/L/O)", "rates on their natural scope — see RATES below")
+    g = p.add_argument_group("gene-family events (D/T/L/O)")
     g.add_argument("--duplication", type=_rate, default=None, metavar="RATE",
                    help="gene duplication rate (per copy)")
     g.add_argument("--transfer", type=_rate, default=None, metavar="RATE",
@@ -129,117 +123,86 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("transfer & content")
     g.add_argument("--transfer-to", type=_transfer_to, default="uniform",
                    metavar="RULE", dest="transfer_to",
-                   help="recipient rule for a transfer: uniform (any contemporaneous lineage, "
-                        "default), distance (closer relatives likelier), or a DrivenBy weight — "
-                        "\"DrivenBy('trait_events.tsv', {'competent': 2.0, 'normal': 1.0})\" — "
-                        "which redistributes transfers without changing how many there are "
-                        "(family resolution only)")
+                   help="recipient rule: uniform (any contemporaneous lineage, default), distance "
+                        "(closer relatives likelier), or a DrivenBy weight (family resolution only)")
     g.add_argument("--replacement", action="store_true",
-                   help="a transfer overwrites a homologous copy in the recipient (replacing HGT)")
+                   help="a transfer overwrites a homologous copy (replacing HGT)")
     g.add_argument("--self-transfer", action="store_true", dest="self_transfer",
                    help="allow a lineage to transfer to itself")
     g.add_argument("--initial-families", type=int, default=None, metavar="N",
                    dest="initial_families",
-                   help=f"number of gene families the root genome starts with (default "
-                        f"{_DEFAULT_INITIAL_FAMILIES}); 0 starts empty, so every family must then "
-                        f"arrive by --origination")
+                   help=f"families the initial genome starts with (default "
+                        f"{_DEFAULT_INITIAL_FAMILIES}); 0 starts empty")
     g.add_argument("--max-family-size", type=_family_cap, default=_DEFAULT_MAX_FAMILY_SIZE,
                    metavar="CAP", dest="max_family_size",
-                   help=f"cap on how many copies of one family a single genome may hold — a whole "
-                        f"number (default {_DEFAULT_MAX_FAMILY_SIZE}), or 'none' to remove it. "
-                        f"Duplication compounds, so a run is bounded unless you ask otherwise. When "
-                        f"the cap does bite, the duplication or arriving transfer is dropped rather "
-                        f"than retried, so realised rates in a family at the cap sit below the ones "
-                        f"you declared — lower it deliberately, and use 'none' to measure rates")
+                   help=f"cap on copies of one family in one genome (default "
+                        f"{_DEFAULT_MAX_FAMILY_SIZE}), or 'none' for no cap")
     g.add_argument("--family-speed", type=_family_speed, default=None, metavar="DRAW",
                    dest="family_speed",
-                   help="one per-family tempo scaling every rate that family has, as a ByFamily draw "
-                        "— \"ByFamily(spread=0.5)\" — so a fast family is fast at everything (a "
-                        "ByFamily on a single rate varies that rate alone)")
+                   help="one per-family tempo on every rate that family has, as a ByFamily draw — "
+                        "\"ByFamily(spread=0.5)\"")
 
     g = p.add_argument_group("structured genome", "only with --resolution ordered or nucleotide")
     g.add_argument("--inversion", type=_rate, default=0.0, metavar="RATE",
                    help="segmental inversion rate (per copy)")
     g.add_argument("--transposition", type=_rate, default=0.0, metavar="RATE",
-                   help="segmental transposition rate — move a run within a chromosome "
-                        "(per copy)")
+                   help="segmental move within a chromosome (per copy)")
     g.add_argument("--translocation", type=_rate, default=0.0, metavar="RATE",
-                   help="segmental translocation rate — move a run to another chromosome (per copy)")
+                   help="segmental move to another chromosome (per copy)")
     g.add_argument("--chromosomes", type=int, default=1, metavar="N",
                    help="number of chromosomes at the origin (default 1)")
     g.add_argument("--topology", choices=("circular", "linear"), default="circular", metavar="TOPO",
-                   help="chromosome topology (default circular) — a segmental run wraps past the "
-                        "origin on a circular chromosome, stops at the end on a linear one")
+                   help="chromosome topology: circular (default) or linear")
     g.add_argument("--fission", type=_rate, default=0.0, metavar="RATE",
-                   help="chromosome fission rate — split one in two (per chromosome)")
+                   help="chromosome fission rate (per chromosome)")
     g.add_argument("--fusion", type=_rate, default=0.0, metavar="RATE",
-                   help="chromosome fusion rate — merge two into one (per chromosome)")
+                   help="chromosome fusion rate (per chromosome)")
     g.add_argument("--chromosome-origination", type=_rate, default=0.0, metavar="RATE",
                    dest="chromosome_origination",
-                   help="new-chromosome origination rate — a de-novo plasmid (per lineage)")
+                   help="de-novo chromosome (plasmid) rate (per lineage)")
     g.add_argument("--chromosome-loss", type=_rate, default=0.0, metavar="RATE",
                    dest="chromosome_loss",
                    help="whole-chromosome loss rate, never the last one (per chromosome)")
     g.add_argument("--inversion-probability", type=float, default=0.0, metavar="P",
                    dest="inversion_probability",
-                   help="probability a transposed/translocated block lands inverted (default 0)")
+                   help="probability a moved block lands inverted (default 0)")
 
-    g = p.add_argument_group("nucleotide genome", "only with --resolution nucleotide")
+    g = p.add_argument_group("nucleotide genome",
+                             "only with --resolution nucleotide; extents are geometric means")
     g.add_argument("--root-length", type=int, default=10000, metavar="BP", dest="root_length",
-                   help="length in bp of each initial replicon (default 10000, a 10 kb toy genome)")
+                   help="length in bp of each initial replicon (default 10000)")
     g.add_argument("--genes", type=int, default=None, metavar="N",
-                   help="number of evenly-spaced genes to declare on each initial replicon (default 10, "
-                        "a 10 kb / 10-gene toy genome; pass 0 for an all-intergenic genome). Ignored "
-                        "with --gff, which declares real genes at exact coordinates")
+                   help="evenly-spaced genes on each initial replicon (default 10, or as many as "
+                        "fit; 0 for none). Excludes --gff")
     g.add_argument("--gene-length", type=int, default=500, metavar="BP", dest="gene_length",
                    help="length in bp of each evenly-spaced gene (default 500)")
     g.add_argument("--gff", metavar="FILE",
                    help="a GFF3 declaring the initial genome's replicons and genes at exact "
-                        "coordinates — the 'start from a real genome' path (excludes --genes)")
+                        "coordinates (excludes --genes)")
     g.add_argument("--trim-overlaps", action="store_true", dest="trim_overlaps",
-                   help="[--gff] shorten overlapping gene annotations instead of refusing the file")
+                   help="[--gff] shorten overlapping genes, not refuse")
     g.add_argument("--fasta", metavar="FILE",
-                   help="[--gff] the initial genome's DNA — one >seqid record per GFF ##sequence-region, "
-                        "each exactly its declared length. The sequence level then founds every block "
-                        "from this DNA, so an assembled genome descends from exactly what you supply; "
-                        "without it the run is pure ancestry and letters come from the model")
-    for knob, what in (("inversion", "inverted"), ("transposition", "moved within a chromosome"),
-                       ("translocation", "moved to another chromosome"), ("loss", "deleted"),
-                       ("duplication", "copied in tandem"), ("transfer", "copied to a recipient"),
-                       ("origination", "laid down as new material")):
+                   help="[--gff] the initial genome's DNA — one >seqid record per GFF "
+                        "##sequence-region, each exactly its declared length")
+    for knob, what in (("inversion", "inverted"), ("transposition", "transposed"),
+                       ("translocation", "translocated"), ("loss", "deleted"),
+                       ("duplication", "copied in tandem"), ("transfer", "transferred"),
+                       ("origination", "of new material")):
         g.add_argument(f"--{knob}-extent", type=float, default=50.0, metavar="BP",
                        dest=f"{knob}_extent",
-                       help=f"mean bp {what} per event — the extent (geometric, default 50)")
+                       help=f"mean bp {what} per event (default 50)")
 
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=sorted({o for v in _OUTPUTS.values() for o in v}),
                    default=None, metavar="PART",
-                   help="which outputs to write (default: each resolution's own, which is all of "
-                        "them). family: events, profiles, genomes, initial_genome, gene_trees. "
-                        "ordered: those with gene_order for genomes, plus chromosome_events. "
-                        "nucleotide: events, genes, blocks, initial_genome, gene_trees, "
-                        "chromosome_events, gff, bed. "
-                        "'events' is the whole history in one time-ordered "
-                        "table — the genealogy, where each event happened, and the rearrangements, "
-                        "which used to be three files; 'genomes' is every node's gene content, "
-                        "ancestors included, where "
-                        "'profiles' counts only the extant tips; 'initial_genome' is the genome the "
-                        "run started with, at the start of the root branch, which belongs to no node "
-                        "and so gets its own file; 'gene_trees' writes one Newick per family, "
-                        "complete and extant; 'gff' and 'bed' annotate every genome in its own "
-                        "coordinates — the genes and the blocks respectively — named to join the "
-                        "FASTA the sequence level writes.")
+                   help="which outputs to write (default: everything the resolution writes). "
+                        + "; ".join(f"{res}: {', '.join(outs)}" for res, outs in _OUTPUTS.items()))
     _add_flat_arg(g)
     _add_parallel_arg(g)
     g.add_argument("--stream", action="store_true",
-                   help="[family] write each gene family straight to disk instead of building the "
-                        "whole run in memory — for a very large number of families, where the "
-                        "in-memory result would not fit. Composes with --parallel and --write; the "
-                        "same files are written and the disk is the handoff to the sequence level "
-                        "(gene trees are grouped under gene_trees/ regardless of --flat). Like "
-                        "--parallel it is a separate engine: it draws families in a different order, "
-                        "so for the same seed the run it produces DIFFERS from a serial one (both "
-                        "valid samples). Fix the mode alongside the seed to reproduce a run")
+                   help="[family] write each family to disk as it finishes rather than hold the "
+                        "run in memory; gene trees stay under gene_trees/ even with --flat. A "
+                        "separate engine, like --parallel: same seed, a different (valid) run")
     _add_quiet_arg(g)
     _add_force_arg(g)
 
@@ -409,7 +372,7 @@ def run(args, parser):
                    "--max-family-size": "a quota counts copies of a family, and here an event takes "
                                         "an arc of DNA that may cover several families or none",
                    "--family-speed": "a per-family tempo has to reach the arc an event covers, which "
-                                     "is per-family weighting this resolution does not wire"}
+                                     "is per-family weighting this resolution does not support"}
             parser.error("; ".join(f"the nucleotide resolution has no {f} ({why[f]})"
                                    for f in stray))
         if args.gff and args.genes:
@@ -431,7 +394,7 @@ def run(args, parser):
                      if not isinstance(getattr(args, n), float)
                      and any(not isinstance(m, _NUC_WIRED) for m in getattr(args, n).modifiers)]
         if modulated:
-            parser.error(f"--resolution nucleotide wires only "
+            parser.error(f"--resolution nucleotide takes only "
                          f"{', '.join(w.__name__ for w in _NUC_WIRED)}, but "
                          f"{', '.join(modulated)} carries another modifier")
 

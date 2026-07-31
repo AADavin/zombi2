@@ -34,10 +34,10 @@ from zombi2.sequences.substitution_models import (jc69, k80, hky85, gtr,
                                                   poisson, dayhoff, jtt, wag, lg)
 
 # --- nucleotide models (4 states, ACGT) ---
-model = jc69()                    # equal rates, equal base frequencies — no free parameters
+model = jc69()                    # equal rates, equal base frequencies — no parameters
 model = k80(kappa=2.0)            # a transition/transversion bias
-model = hky85(kappa=2.0, freqs=(0.3, 0.2, 0.2, 0.3))            # bias + unequal frequencies
-model = gtr(rates=(1,2,1,1,2,1), freqs=(0.25,0.25,0.25,0.25))   # six exchangeabilities + freqs
+model = hky85(kappa=2.0, freqs=(0.3, 0.2, 0.2, 0.3))            # bias + unequal freqs
+model = gtr(rates=(1,2,1,1,2,1), freqs=(0.25,0.25,0.25,0.25))   # six exchangeabilities
 
 # --- protein models (20 states, amino acids) ---
 model = poisson()                 # equal rates, equal frequencies — the JC69 of proteins
@@ -102,9 +102,14 @@ substitution = 1.0
 # relaxed — each lineage draws its own rate, independently of its neighbours
 substitution = 1.0 * mod.ByLineage(spread=0.3)                 # lognormal (the default)
 substitution = 1.0 * mod.ByLineage(spread=0.3, dist="gamma")   # or gamma
+
+# relaxed — each lineage inherits its parent's rate and drifts from it
+substitution = 1.0 * mod.FromParent(spread=0.3)
 ```
 
 **`ByLineage`** has *no memory*: each lineage is an independent draw, so a lineage's rate tells you nothing about its neighbours'. The distribution it draws from (`dist="lognormal"` or `"gamma"`) is a parameter of the modifier.
+
+**`FromParent`** has memory: a daughter starts at its parent's rate and multiplies it by one lognormal step, so close relatives evolve at similar rates. That is the **autocorrelated** clock. Both draws are mean-corrected, so widening `spread` spreads the lineages apart without moving the average rate off the number you typed. Those are the two the sequence level accepts; any other modifier on `substitution` raises.
 
 One important point: **the clock belongs to the species tree, not to the gene trees.**
 
@@ -117,7 +122,7 @@ A reference table that can be handy to people who want to implement a specific m
 | one rate everywhere | `substitution = 1.0` (default) | Strict / global clock |
 | each lineage i.i.d. lognormal | `1.0 * mod.ByLineage(spread=…)` | Uncorrelated lognormal (UCLN) |
 | each lineage i.i.d. gamma | `1.0 * mod.ByLineage(spread=…, dist="gamma")` | Uncorrelated gamma (UGAM) |
-| each lineage i.i.d. — that *is* white-noise | `1.0 * mod.ByLineage(spread=…)` | White-noise clock |
+| the rate drifts parent to daughter | `1.0 * mod.FromParent(spread=…)` | Autocorrelated lognormal |
 
 ## The objects
 
@@ -145,7 +150,8 @@ from zombi2 import species, genomes, sequences
 from zombi2.rates import modifiers as mod
 from zombi2.sequences.substitution_models import hky85, gtr, lg
 
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1).complete_tree
+tree = species.simulate_species_tree(
+    birth=1.0, death=0.3, n_extant=20, seed=1).complete_tree
 my_genomes = genomes.simulate_genomes_family(tree, duplication=0.2, transfer=0.1,
                                              loss=0.25, origination=0.5, seed=1)
 
@@ -191,7 +197,8 @@ my_genomes = genomes.simulate_genomes_nucleotide(
 from zombi2 import species, genomes, sequences
 from zombi2.sequences.substitution_models import hky85
 
-tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=5, seed=1).complete_tree
+tree = species.simulate_species_tree(
+    birth=1.0, death=0.2, n_extant=5, seed=1).complete_tree
 my_genomes = genomes.simulate_genomes_nucleotide(
     tree, root_length=6000, genes=6, gene_length=400,
     inversion=1.0, inversion_extent=500, duplication=0.3, loss=0.3, seed=1)
@@ -201,7 +208,7 @@ result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=3.0),
 
 result.genomes["n5"]             # {chromosome: sequence} — a whole assembled genome
 result.genomes["n0"]             # the same at an ancestor — reconstructed, not estimated
-result.initial_genome            # the genome the run started with, before anything happened
+result.initial_genome            # the genome the run started with
 ```
 
 From the command line it is the same two commands as any other run:
@@ -223,7 +230,8 @@ So far the founding sequence of each block is *drawn* — from the model's frequ
 my_genomes = genomes.simulate_genomes_nucleotide(
     tree, gff="ecoli.gff", fasta="ecoli.fasta",     # layout AND letters
     inversion=1.0, loss=0.3, seed=1)
-result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=3.0), substitution=0.05, seed=1)
+result = sequences.simulate_sequences(
+    my_genomes, model=hky85(kappa=3.0), substitution=0.05, seed=1)
 ```
 
 The FASTA has one `>seqid` record per GFF `##sequence-region`, each exactly its declared length. Every block is then founded from the real DNA at its own initial coordinates, so an assembled genome descends from exactly what you gave. A gene that origination invents mid-run has no supplied DNA (it did not exist initially), so its block still draws from the model.
@@ -259,6 +267,14 @@ Because a protein model has no parameters, passing one is an error rather than a
 
 ## Outputs
 
-A run writes, by default, one **alignment** per gene family in FASTA, with the extant gene copies as the aligned rows, and the **phylograms** those sequences were drawn along — each family's gene tree in Newick, with branch lengths in substitutions per site rather than time, so the ground-truth tree behind every alignment is kept beside it.
+| File | What it holds |
+|---|---|
+| `alignments/fam<f>.fasta` | one row per extant gene copy — the observable data |
+| `phylograms/phylogram_fam<f>_*.nwk` | the gene tree those sequences were drawn along, in substitutions per site |
+| `clock_species_tree_complete.nwk` · `…_extant.nwk` | the species tree under the same conversion, where the clock becomes visible |
+| `genomes/genome_<lineage>.fasta` | the assembled genome of every node — nucleotide runs only |
+| `ancestral/sequences_ancestral_fam<f>.fasta` | the sequence at every node that is not an extant tip |
 
-The **clock species tree** (`clock_species_tree_complete.nwk`, and `…_extant.nwk`) comes with them: the species tree under the same conversion, and where the clock becomes visible — a fast-evolving lineage has a longer branch there than its age alone would give it. One output is written only on request: the **ancestral sequences** (`--write ancestral`) give the sequence at every internal node, which is what you need to score an ancestral-reconstruction method against the truth.
+Everything but the last is written by default. `--write ancestral` adds the ancestral sequences, which
+is what you need to score an ancestral-reconstruction method against the truth; Appendix B gives the
+columns and the formats.

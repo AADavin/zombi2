@@ -102,8 +102,9 @@ def test_the_cli_writes_one_table_for_the_whole_run(tmp_path):
     assert main(["genomes", str(run), "--duplication", "0.2", "--transfer", "0.1",
                  "--initial-families", "10", "--seed", "1", "--quiet"]) == 0
     assert main(["tools", "format", str(run), "--format", "markers", "--quiet"]) == 0
-    out = run / "genomes" / "markers" / "markers.tsv"
+    out = run / "genomes" / "markers.tsv"
     assert out.exists()                                    # one file, not one per family
+    assert not (run / "genomes" / "markers").exists()      # and so no directory of its own
     rows = _rows(out.read_text(encoding="utf-8"))
     assert rows and set(rows[0]) == {"family", "genomes", "copies", "single_copy", "universal",
                                      "duplications", "transfers", "losses", "rf", "congruent"}

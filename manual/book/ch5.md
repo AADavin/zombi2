@@ -81,7 +81,7 @@ from zombi2.rates.distributions import Geometric
 tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=27)
 g = genomes.simulate_genomes_ordered(
     tree, duplication=0.35, loss=0.3,
-    duplication_extent=Geometric(mean=3),      # duplications copy ~3 adjacent genes at once
+    duplication_extent=Geometric(mean=3),      # ~3 adjacent genes copied at once
     chromosomes=1, initial_families=5, seed=27)
 ```
 
@@ -152,7 +152,7 @@ with the methods `.family_counts(node_id)` (the multiset view), `.gene_order(nod
 g.genomes[2]                     # the chromosomes of node n2
 g.gene_order(2)                  # its layout, gene by gene
 g.chromosome_events              # the chromosome network, as an edge list
-g.gene_trees[0].to_newick()      # a family's gene tree — unchanged from the family resolution
+g.gene_trees[0].to_newick()      # a family's gene tree — as at the family resolution
 ```
 
 ## Usage from Python
@@ -209,7 +209,8 @@ zombi2 genomes out/ --resolution ordered \
 
 # segmental duplications, losses and inversions on three chromosomes
 zombi2 genomes out/ --resolution ordered \
-    --duplication 0.2 --loss 0.2 --origination 0.5 --inversion 0.3 --chromosomes 3 --seed 1
+    --duplication 0.2 --loss 0.2 --origination 0.5 \
+    --inversion 0.3 --chromosomes 3 --seed 1
 
 # segments relocate and move between chromosomes, sometimes inverting
 zombi2 genomes out/ --resolution ordered \
@@ -221,21 +222,15 @@ zombi2 genomes out/ --resolution ordered \
 
 ## Outputs
 
-`.write(dir, outputs=[...])` materialises the chosen products to disk:
+| File | What it holds |
+|---|---|
+| `genome_events.tsv` | the whole history — the genealogy, where each event happened, and the rearrangements, in time order |
+| `profiles.tsv` | family × extant-species copy counts |
+| `gene_order.tsv` | every node's layout, one row per gene |
+| `initial_genome.tsv` | the genome the run started with |
+| `chromosome_events.tsv` | the chromosome network, one row per edge — `time · kind · lineage · parents · children` |
+| `gene_trees/` | one Newick per family, complete and extant |
 
-```python
-g.write("out/", outputs=("events", "profiles", "gene_order",
-                         "rearrangements", "chromosome_events"))
-```
-
-```
-out/genome_events.tsv        the whole history: the genealogy, where each event
-                             happened, and the rearrangements — in time order
-out/profiles.tsv             family × extant-species copy counts
-out/gene_order.tsv           every node's layout, one row per gene
-out/chromosome_events.tsv    the chromosome network (edge list)
-```
-
-chromosome_events.tsv` is the network's ground truth, its columns the edge list above — `time · kind · lineage · parents · children`, one row per event.
-
-The full list of files lives in Appendix B.
+`.write(dir, outputs=[...])` picks which of these go to disk, by the tokens `events`, `profiles`,
+`gene_order`, `initial_genome`, `chromosome_events` and `gene_trees`. Appendix B gives the columns and
+the formats.

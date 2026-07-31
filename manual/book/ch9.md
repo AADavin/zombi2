@@ -24,13 +24,16 @@ So the whole chapter turns on one question:
 
 > **Can the driver be grown first, on its own, and handed over?**
 
-If yes, it is **conditioning**: two runs, and the coupling's `source` is a file. If no, it is **joining**: one run, and the `source` is the name of a level growing beside it. Underneath, both are the same single mechanism — a modifier, `mod.DrivenBy` — and only the `source` differs.
+If yes, it is **conditioning**: two runs, and the modifier's `source` is a file. If no, it is **joining**: one run, and the `source` is the name of a level growing beside it. Underneath, both are the same single mechanism — a modifier, `mod.DrivenBy` — and only the `source` differs.
 
 ```python
 from zombi2.rates import modifiers as mod
 
-loss  = 0.25 * mod.DrivenBy("trait_events.tsv", {"cave": 4.0, "surface": 1.0})   # conditioned
-birth = 1.0  * mod.DrivenBy("trait",            {"small": 1.0, "large": 2.0})    # joint
+# conditioned
+loss  = 0.25 * mod.DrivenBy("trait_events.tsv", {"cave": 4.0, "surface": 1.0})
+
+# joint
+birth = 1.0  * mod.DrivenBy("trait",            {"small": 1.0, "large": 2.0})
 ```
 
 ## Conditioning
@@ -81,7 +84,7 @@ The middle two rows are the pair worth holding apart. Driving a **rate** makes a
 
 `source` in both rows is the grown `TraitsResult`, or the path to the `trait_events.tsv` it wrote — the trait event log, which a driven run replays against the shared tree.
 
-The driver file is the trait event log from Chapter 8: a `root` row for the state at t=0, then every switch with its time. Replayed against the shared species tree, that rebuilds each branch's constant stretches, which is what lets the genome engine step its Gillespie at every switch — so a lineage that changes habitat halfway down a branch loses genes at one rate before the switch and another after it. The coupling is exact, not a per-branch average.
+The driver file is the trait event log from Chapter 8: a `root` row for the state at t=0, then every switch with its time. Replayed against the shared species tree, that rebuilds each branch's constant stretches, which is what lets the genome engine step its Gillespie at every switch — so a lineage that changes habitat halfway down a branch loses genes at one rate before the switch and another after it. The driven rate follows the trait exactly, not as a per-branch average.
 
 ### Two ways a trait can drive transfer
 
@@ -97,7 +100,7 @@ That is why `transfer_to` takes the modifier on its own, with no number in front
 
 A weight of 0 means the lineage cannot receive, which is often the point: only a competent lineage takes DNA up. That has one consequence worth stating plainly. If at some instant every candidate weighs 0, the transfer has nowhere to land, so it does not happen. While no eligible recipient is alive, the run's transfer rate is 0.
 
-The two couplings are independent, and a run may use either or both:
+Driving the rate and driving `transfer_to` are independent, and a run may use either or both:
 
 ```python
 competence = traits.simulate_discrete(tree, states=["competent", "normal"],
@@ -117,17 +120,17 @@ The `transfer_to` above reads the driver on the *recipient* only. So it can say 
 from zombi2.rates.mapping import Between
 
 habitat = traits.simulate_discrete(tree, states=["marine", "soil"], switch=0.3, seed=1)
+within = Between({("marine", "marine"): 1.0, ("soil", "soil"): 1.0}, default=0.0)
 
 genomes.simulate_genomes_family(tree,
     transfer    = 0.5,
-    transfer_to = mod.DrivenBy(habitat, Between({("marine", "marine"): 1.0,
-                                                 ("soil",   "soil"):   1.0}, default=0.0)),
+    transfer_to = mod.DrivenBy(habitat, within),
     initial_families=10, seed=2)
 ```
 
 Every transfer now stays within one habitat: a marine donor can only reach a marine recipient, a soil donor only a soil one, because every cross-habitat pair weighs 0. The numbers are weights, read exactly as before — normalised over the candidates, so they redistribute transfers without changing how many happen. `default` (1.0) is the weight of any pair you leave out, so `Between({("marine", "soil"): 3.0})` *enriches* one direction against a baseline rather than forbidding the rest; `default=0.0` is the "only the flows I name" idiom. A `Between` is a recipient weight, never a rate: driving a rate with one is refused, because a rate has no donor to condition on.
 
-This is the trait-driven twin of Chapter 4's `Clades`. There the groups are clades — a fact about the tree — so no coupling is involved; here they are an evolved trait, so it is. Same kernel, same steering; only where the groups come from differs.
+This is the trait-driven twin of Chapter 4's `Clades`. There the groups are clades — a fact about the tree — so no other level is read; here they are an evolved trait, so one is. Same kernel, same steering; only where the groups come from differs.
 
 Combining a driven `transfer_to` with the `"distance"` rule of Chapter 4 is not supported: `transfer_to` takes one rule.
 
@@ -135,17 +138,17 @@ Everything outside those two rows raises an error. The driver has to be a discre
 
 ### What can be conditioned, and what cannot yet
 
-Conditioning is wired at two of the three genome resolutions. At the **family** resolution it covers the four gene-family rates in the table above, plus `transfer_to`. At the **nucleotide** resolution it covers *every* rate the engine has — the rearrangements included — so a trait can speed up inversion, transposition and translocation, and can drive how much DNA a lineage sheds. That last one is genome reduction as it is usually meant: a lifestyle trait raising `loss`, on a genome measured in base pairs rather than in family tokens.
+Conditioning works at two of the three genome resolutions. At the **family** resolution it covers the four gene-family rates in the table above, plus `transfer_to`. At the **nucleotide** resolution it covers *every* rate the engine has — the rearrangements included — so a trait can speed up inversion, transposition and translocation, and can drive how much DNA a lineage sheds. That last one is genome reduction as it is usually meant: a lifestyle trait raising `loss`, on a genome measured in base pairs rather than in family tokens.
 
-What is not wired yet:
+What is not implemented yet:
 
-- **The ordered resolution does not take a `DrivenBy` on its rates.** It wires `OnTime` (a skyline that varies in *time*) and `ByFamily` (per-family heterogeneity, applied to the segment an event covers), but not a driver. If you want a trait to drive rearrangement, use the nucleotide resolution, where an event is an arc of DNA rather than a run of gene tokens.
+- **The ordered resolution does not take a `DrivenBy` on its rates.** It takes `OnTime` (a skyline that varies in *time*) and `ByFamily` (per-family heterogeneity, applied to the segment an event covers), but not a driver. If you want a trait to drive rearrangement, use the nucleotide resolution, where an event is an arc of DNA rather than a run of gene tokens.
 - **`transfer_to` — where a transfer lands — is family-resolution only.** A nucleotide transfer's *rate* can be driven; its recipient rule cannot.
 - **Sequence evolution and trait runs** take no `DrivenBy` on their own rates.
 
-These are limits of the implementation, not of the model — the coupling grammar (`SPEC §5`) is the same everywhere, so wiring `DrivenBy` into the ordered engine is a pure addition when it comes. Until then, a driven rate an engine cannot honour raises rather than being silently dropped.
+These are limits of the implementation, not of the model — the rate grammar (`SPEC §5`) is the same everywhere, so teaching the ordered engine to read `DrivenBy` is a pure addition when it comes. Until then, a driven rate an engine cannot honour raises rather than being silently dropped.
 
-Notice too that the coupling **folds into the target level's own command**. There is no separate coupling step and no coupling object to build; you grow the driver, then make an ordinary genome run whose `loss` happens to be `DrivenBy` instead of a bare number. That holds on the command line as well, where the rate keeps its written form:
+Notice too that conditioning **folds into the target level's own command**. There is no conditioning command and no object to build; you grow the driver, then make an ordinary genome run whose `loss` happens to be `DrivenBy` instead of a bare number. That holds on the command line as well, where the rate keeps its written form:
 
 ```bash
 # 1. a species tree
@@ -156,9 +159,8 @@ zombi2 traits out/ --kind discrete \
     --states cave,surface --switch 0.1 --seed 1 --write values tree events
 
 # 3. the target: genomes whose loss reads that trait
-zombi2 genomes out/ \
-    --loss "0.25 * DrivenBy('out/traits/trait_events.tsv', {'cave': 4.0, 'surface': 1.0})" \
-    --duplication 0.2 --origination 0.5 --seed 2
+zombi2 genomes out/ --duplication 0.2 --origination 0.5 --seed 2 \
+    --loss "0.25 * DrivenBy('out/traits/trait_events.tsv', {'cave': 4.0, 'surface': 1.0})"
 ```
 
 Both halves of transfer take that same text: the rate with a base number in front of it, the recipient weight without one.
@@ -168,10 +170,10 @@ Both halves of transfer take that same text: the rate with a base number in fron
 zombi2 traits comp/ --kind discrete --from out/ \
     --states competent,normal --switch 0.3 --seed 1 --write events
 
-zombi2 genomes comp_genomes/ --from out/ --initial-families 10 \
-    --transfer    "0.1 * DrivenBy('comp/traits/trait_events.tsv', {'competent': 3.0, 'normal': 1.0})" \
-    --transfer-to "DrivenBy('comp/traits/trait_events.tsv', {'competent': 3.0, 'normal': 1.0})" \
-    --seed 2
+driver=comp/traits/trait_events.tsv
+zombi2 genomes comp_genomes/ --from out/ --initial-families 10 --seed 2 \
+    --transfer    "0.1 * DrivenBy('$driver', {'competent': 3.0, 'normal': 1.0})" \
+    --transfer-to "DrivenBy('$driver', {'competent': 3.0, 'normal': 1.0})"
 ```
 
 ## Joining
@@ -241,24 +243,26 @@ Conditioning folds into the target level's own command, as above. Joining cannot
 
 ```bash
 # BiSSE: 'large' lineages speciate three times as fast as 'small' ones
-zombi2 joint out/ --birth "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})" --death 0.2 \
-    --states small,large --switch 0.3 --n-extant 100 --seed 1
+zombi2 joint out/ --death 0.2 --states small,large --switch 0.3 \
+    --n-extant 100 --seed 1 \
+    --birth "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})"
 
 # state-dependent extinction too, by driving --death as well
-zombi2 joint out/ --birth "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})" \
-    --death "0.2 * DrivenBy('trait', {'small': 2.0, 'large': 1.0})" \
-    --states small,large --switch 0.3 --n-extant 100 --seed 1
+zombi2 joint out/ --states small,large --switch 0.3 --n-extant 100 --seed 1 \
+    --birth "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})" \
+    --death "0.2 * DrivenBy('trait', {'small': 2.0, 'large': 1.0})"
 
 # gene content drives it: carrying the 'toxin' family triples the speciation rate
-zombi2 joint out/ --birth "1.0 * DrivenBy('genomes:toxin', {'present': 3.0, 'absent': 1.0})" \
-    --origination 0.2 --loss 0.1 --family-names toxin --n-extant 60 --seed 1
+zombi2 joint out/ --origination 0.2 --loss 0.1 --family-names toxin \
+    --n-extant 60 --seed 1 \
+    --birth "1.0 * DrivenBy('genomes:toxin', {'present': 3.0, 'absent': 1.0})"
 ```
 
 One driver per run. `--states` builds the trait driver; the gene-content flags build the genome one; giving flags from both is an error rather than a silent choice between them.
 
 ### Not everything that looks like a connection is one
 
-One distinction keeps this chapter from swallowing material that belongs elsewhere. A trait that jumps at a speciation event, or a genome that changes only at splits, looks like a coupling to the species level, but it is not one. It is the level reading the tree it *already lives on*, which every level does for free. A cladogenetic trait shift and a punctuational burst of gene change are options of the trait's and the genome's own models, and they stay in Chapters 8 and 6 respectively. A coupling, in this chapter's sense, always reads a *different* level. When in doubt, ask whether the rate reads a value that some *other* level produced; if it only reads the tree, it is not here.
+One distinction keeps this chapter from swallowing material that belongs elsewhere. A trait that jumps at a speciation event, or a genome that changes only at splits, looks like conditioning on the species level, but it is not. It is the level reading the tree it *already lives on*, which every level does for free. A cladogenetic trait shift and a punctuational burst of gene change are options of the trait's and the genome's own models, and they stay in Chapters 8 and 6 respectively. Conditioning and joining both read a *different* level. When in doubt, ask whether the rate reads a value that some *other* level produced; if it only reads the tree, it is not here.
 
 ## Literature
 
@@ -272,4 +276,15 @@ The state-dependent models arrive under a wall of acronyms, and a reader who wan
 
 ## Outputs
 
-A conditioned run writes what any ordinary level run writes — its genome or trait output — plus the trait **event log** that fed it (`trait_events.tsv`), so the pairing that produced the pattern is kept on disk alongside the result. A joint run writes **both** levels from one call: the grown species tree (`species_complete.nwk`, `species_extant.nwk`, `species_events.tsv`) together with the trait it grew (`trait_values.tsv`, `trait_events.tsv`, `trait_tree.nwk`) or the genomes it grew (`genome_events.tsv`, `profiles.tsv`), each in the format it would have had from its own command. Because a joint run grows the tree, the tree it writes is a *complete* tree in the sense of Chapter 3, with the extinct lineages that shaped the trait or gene distribution still in place — which matters here more than anywhere, since those are exactly the lineages whose fate the coupling decided. The full list of files lives in Appendix B.
+Neither relation adds a format. A conditioned run writes the target level's own files plus a
+`conditioned_on` record naming the levels its rates read, and the driver's `trait_events.tsv` sits in
+the same run directory, so the pairing that produced the pattern is kept on disk; a joint run writes
+both the levels it grew, each as its own command would:
+
+| File | What it holds |
+|---|---|
+| `species_complete.nwk` · `species_extant.nwk` · `species_events.tsv` | the tree it grew — complete, so the extinct lineages whose fate the driver decided are kept |
+| `trait_values.tsv` · `trait_events.tsv` · `trait_tree.nwk` | the trait it grew, when the driver was a trait |
+| `genome_events.tsv` · `profiles.tsv` · `genomes.tsv` · `gene_trees/` | the genomes it grew, when the driver was gene content |
+
+Appendix B gives the columns and the formats.

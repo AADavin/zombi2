@@ -21,8 +21,7 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
 #: the RATES block for ``zombi2 species -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
     WIRED_MODIFIERS, "--birth", scopes="Global(1.0)",
-    note="Global(base) is one shared budget for the whole tree (linear, not exponential, growth); "
-         "a bare number is per lineage.")
+    note="Global(base) is one budget for the tree (linear growth); a bare number is per lineage.")
 
 
 def _add_species_args(p: argparse.ArgumentParser) -> None:
@@ -35,43 +34,34 @@ def _add_species_args(p: argparse.ArgumentParser) -> None:
     # --birth and the stop condition are filled in run(), not marked argparse-`required`, so a
     # --params file can supply them (a required argument is never satisfied by a default) and so a
     # bare run can fall back to an illustrative default (recorded in the log and the report).
-    g = p.add_argument_group("diversification", "the per-lineage birth–death rates (see RATES below)")
+    g = p.add_argument_group("diversification")
     g.add_argument("--birth", type=_rate, default=None, metavar="RATE",
-                   help="speciation rate (per lineage). Defaults to an illustrative 1.0")
+                   help="speciation rate, per lineage (default 1.0)")
     g.add_argument("--death", type=_rate, default=0.0, metavar="RATE",
-                   help="extinction rate (per lineage); 0 = a pure-birth (Yule) tree (default 0)")
+                   help="extinction rate, per lineage (default 0 = pure birth)")
 
-    g = p.add_argument_group("stop condition",
-                            "grow the tree until one of these — at most one; "
-                            "defaults to an illustrative --n-extant 20")
+    g = p.add_argument_group("stop condition", "at most one; default --n-extant 20")
     g.add_argument("--n-extant", type=int, default=None, metavar="N", dest="n_extant",
-                   help="stop at N extant (surviving) lineages — conditioned on survival")
+                   help="stop at N extant lineages (conditioned on survival)")
     g.add_argument("--total-time", type=float, default=None, metavar="T", dest="total_time",
-                   help="grow forward for T time units (time runs forward from the origin, t=0)")
+                   help="grow forward for T time units from the origin (t=0)")
     g.add_argument("--max-lineages", type=int, default=100_000, metavar="N", dest="max_lineages",
-                   help="stop with an error if standing diversity passes N (default 100000). "
-                        "A time-conditioned run grows like exp((birth-death)*t), so a rate a "
-                        "little too high runs to millions of lineages; this catches it instead of "
-                        "filling memory. Raise it if that is the size you want, or pass 0 to lift "
-                        "the guard. It never truncates a tree — a tree cut off at a size is no "
-                        "longer a sample from the process you asked for"),
+                   help="stop with an error if standing diversity passes N "
+                        "(default 100000; 0 lifts the guard)"),
 
     g = p.add_argument_group("sampling & fossils")
     g.add_argument("--sampling", type=float, default=1.0, metavar="RHO",
-                   help="incomplete extant sampling ρ, 0<ρ≤1: each survivor is observed with "
-                        "probability ρ (default 1.0 = all observed)")
+                   help="extant sampling probability ρ, 0<ρ≤1 (default 1.0 = all)")
     g.add_argument("--fossils", type=float, default=0.0, metavar="RATE",
-                   help="fossil (serial) recovery rate along the tree (default 0 = no fossils)")
+                   help="fossil (serial) recovery rate along the tree (default 0)")
     g.add_argument("--mass-extinction", action="append", nargs=2, type=float,
                    metavar=("TIME", "FRACTION"), default=None, dest="mass_extinction",
-                   help="a mass-extinction pulse: at TIME (forward from the origin) each standing "
-                        "lineage is lost with probability FRACTION. Repeat for several pulses, e.g. "
-                        "--mass-extinction 3.0 0.75. Needs --total-time.")
+                   help="at TIME, lose each standing lineage with probability FRACTION; "
+                        "repeatable; needs --total-time")
 
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=_WRITE_OUTPUTS, default=None, metavar="PART",
-                   help=f"which outputs to write (default all applicable): "
-                        f"{', '.join(_WRITE_OUTPUTS)}. Files are prefixed 'species_'.")
+                   help=f"outputs to write (default all applicable): {', '.join(_WRITE_OUTPUTS)}")
     _add_flat_arg(g)
     _add_quiet_arg(g)
     _add_force_arg(g)

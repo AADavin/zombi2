@@ -223,7 +223,7 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
         if switch is not None:
             raise ValueError("give switch= (an Mk trait) OR liability=/threshold= (a threshold trait), not both")
         if at_speciation is not None:
-            raise ValueError("at_speciation is not wired for threshold traits yet — it applies to Mk (switch=) traits")
+            raise ValueError("at_speciation is not implemented for threshold traits yet — it applies to Mk (switch=) traits")
         return _simulate_threshold(tree, states, liability, threshold, start, correlation, seed,
                                    progress)
     if correlation is not None:
@@ -251,7 +251,7 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
     root = tree.nodes[tree.root]
     # the initial state at t=0 — the origin the log reconstructs from: tree + this + the switches give
     # the driver on every lineage, so the event log is the conditioning file (no separate driver).
-    events: list[Change] = [Change(root.birth_time, "root", tree.root, None, states[start_i])]
+    events: list[Change] = [Change(root.birth_time, "initial", tree.root, None, states[start_i])]
     for i in _preorder(tree, progress):
         node = tree.nodes[i]
         # the root starts from `start` at t=0 and evolves over its own branch; every other node from

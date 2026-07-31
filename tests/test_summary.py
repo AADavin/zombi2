@@ -3,15 +3,15 @@
 Three things nobody could get from a run's output, each of which a reader reconstructed by hand and
 one of them wrongly:
 
-- the event log holds one row per gene-tree **edge**, so duplications, transfers and speciations each
-  write two. Counting by row inflates them exactly 2×;
+- how many events there were. The log now writes one row per event, so counting rows answers it —
+  and the summary must agree with those rows, which is what the first test checks;
 - ``gene_trees/`` holds a pair of files per family that *ever existed* while the summary line counts
   the families that **survived**, and neither number explained the other;
 - the family-size cap was invisible: when it binds it discards events, so realised rates fall below
   the declared ones, and nothing said so.
 
 The first is the one that matters most, because it produces a plausible wrong number rather than an
-error, so it is checked against the log's own ``event`` column rather than against itself.
+error, so it is checked against the log itself rather than against the summary's own logic.
 """
 
 import collections
@@ -33,27 +33,31 @@ def _run(**kw):
                                               "seed": 1, **kw})
 
 
-def test_the_event_counts_are_deduplicated_against_the_logs_own_event_column(tmp_path):
-    # the whole point. A duplication, a transfer and a speciation each write TWO rows, so a reader
-    # counting by row doubles them — the mistake that produces a wrong number instead of a crash.
-    # Checked against the `event` column the log itself writes, not against the summary's own logic.
-    sp, g = _run()
+@pytest.mark.parametrize("replacement", [False, True])
+def test_the_event_counts_agree_with_the_logs_rows(tmp_path, replacement):
+    # the whole point. The log is one row per event, so the summary's counts and a `cut -f2 | sort |
+    # uniq -c` on the file are the same numbers — checked against the file, not against the summary's
+    # own logic, because a wrong count here is a plausible number rather than a crash.
+    sp, g = _run(replacement=replacement)
     g.write(tmp_path, outputs=("events", "summary"))
     rows = list(csv.DictReader((tmp_path / "genome_events.tsv").read_text(
         encoding="utf-8").splitlines(), delimiter="\t"))
-    from_log = collections.defaultdict(set)
-    for r in rows:
-        from_log[r["kind"]].add(r["event"])
+    from_log = collections.Counter(r["kind"] for r in rows)
 
     s = json.loads((tmp_path / "genome_summary.json").read_text(encoding="utf-8"))
-    for kind in ("duplication", "transfer", "loss", "speciation"):
-        assert s["events"][kind] == len(from_log[kind]), kind
+    assert s["events"]["duplication"] == from_log["duplication"]
+    assert s["events"]["speciation"] == from_log["speciation"]
+    # a transfer is written as one kind or the other by whether the arriving copy replaced a resident
+    assert s["events"]["transfer"] == from_log["transfer_additive"] + from_log["transfer_replacing"]
+    # ...and a replacing transfer kills the copy it overwrote without spending a `loss` row on it:
+    # that death is the row's second parent, and the summary counts it, because the gene tree has it
+    assert s["events"]["loss"] == from_log["loss"] + from_log["transfer_replacing"]
+    assert bool(from_log["transfer_replacing"]) is replacement
     # origination is split: the initial genome is logged as origination at the root's own start time,
     # so a bare count of that kind is de-novo arrivals PLUS initial_families
-    assert s["events"]["initial"] + s["events"]["origination"] == len(from_log["origination"])
+    assert s["events"]["initial"] + s["events"]["origination"] == from_log["origination"]
     assert s["events"]["initial"] == 15                      # what --initial-families asked for
-    # and the row count is reported too, so the 2x is visible rather than a trap
-    assert s["event_rows"] == len(rows) > sum(s["events"].values())
+    assert len(rows) == sum(s["events"].values()) - from_log["transfer_replacing"]
 
 
 def test_the_family_counts_explain_the_gene_tree_file_count(tmp_path):

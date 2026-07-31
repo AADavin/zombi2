@@ -4,7 +4,7 @@ site_url: https://aadavin.github.io/zombi2/docs/
 repo_url: https://github.com/AADavin/zombi2
 repo_name: AADavin/zombi2
 docs_dir: docs
-# Never publish LaTeX/BibTeX source (e.g. coupling_explained.tex) — MkDocs would
+# Never publish LaTeX/BibTeX source (e.g. docs/references.bib) — MkDocs would
 # otherwise copy them verbatim into the built site and serve them publicly.
 exclude_docs: |
   *.tex
@@ -124,6 +124,10 @@ nav:
   - FAQ: faq.md
   - Coming from ZOMBI v1: from-zombi1.md
   - API reference: api.md
-  - Rates and the Gillespie algorithm: rates-and-gillespie.md
   - Output files: output-files.md
-  - Tools: tools.md
+  - Performance: performance.md
+  - Tools:
+      - Overview: tools.md
+      - "format": tools/format.md
+      - "tree": tools/tree.md
+      - "treedist": tools/treedist.md

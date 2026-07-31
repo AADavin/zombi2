@@ -1,19 +1,6 @@
 # Coming from ZOMBI v1
 
-ZOMBI2 is a rewrite, not a new release of ZOMBI. Nothing carries over automatically: the commands are
-different, the parameter files are a different format, every output path has moved, and the event logs
-use words where v1 used letter codes. This page is the mapping, so that porting a pipeline is
-mechanical rather than archaeological.
-
-Two things to know before you start.
-
-**A v1 seed reproduces nothing in v2.** The two are different programs drawing from different streams
-in a different order. Anything you published from v1 has to be regenerated, not re-derived — see
-*Reproducibility* in Chapter 2 for what a seed does and does not fix.
-
-**Pin the version you port against.** ZOMBI2 is pre-1.0 and a minor bump may rename an output or a
-keyword. `pip install zombi2==0.16.0` and the run logs (which record the version) are what make a port
-stay ported.
+ZOMBI2 is a rewrite, not a new release of ZOMBI. Nothing carries over automatically.
 
 ## The commands
 
@@ -25,13 +12,44 @@ python3 Zombi.py G ./Parameters/GenomeParameters.tsv     ./Output_folder
 python3 Zombi.py S ./Parameters/SequenceParameters.tsv   ./Output_folder
 ```
 
-v2 names the *run directory* once per command, and each level finds the previous one in it. There is no
-parameters file to pass, though `--params` takes one if you want it:
+v2 names the *run directory* once per command, and each level finds the previous one in it. v1's three
+`*Parameters.tsv` files become one TOML file, with a table named for each command. A key outside any
+table is shared by every command; the command's own table overrides it.
+
+```toml
+# zombi2.toml
+seed = 1
+
+[species]
+birth    = 1.0
+death    = 0.2
+n-extant = 20
+
+[genomes]
+duplication = 0.1
+transfer    = 0.2
+loss        = 0.3
+origination = 0.2
+
+[sequences]
+model      = "wag"
+length     = 100
+divergence = 0.2
+```
+
+```bash
+zombi2 species   out/ --params zombi2.toml
+zombi2 genomes   out/ --params zombi2.toml
+zombi2 sequences out/ --params zombi2.toml
+```
+
+Every key is a long option of that command, hyphens or underscores alike, so the same run can be
+written as flags with no file at all. A flag on the command line overrides the file.
 
 ```bash
 zombi2 species   out/ --birth 1.0 --death 0.2 --n-extant 20 --seed 1
 zombi2 genomes   out/ --duplication 0.1 --transfer 0.2 --loss 0.3 --origination 0.2 --seed 1
-zombi2 sequences out/ --model wag --length 100 --seed 1
+zombi2 sequences out/ --model wag --length 100 --divergence 0.2 --seed 1
 ```
 
 There are no mode letters and no aliases for them: `zombi2 T` is an error naming the six commands. The
@@ -39,8 +57,7 @@ levels are `species`, `genomes`, `sequences`, `traits`, plus `joint` and `tools`
 
 ## Parameters: species trees
 
-Every long option is also a `--params` key (hyphens or underscores), and every rate takes the same
-written form in the flag, in the file and in Python.
+Every rate takes the same written form in the flag, in the file and in Python.
 
 | v1 key | v2 |
 |---|---|
@@ -85,7 +102,7 @@ species.simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.2), n_extant=2
 | `RECONCILED_TREES` | `zombi2 tools format DIR --format recphylo` — **recPhyloXML, not Newick**, so this needs a new parser |
 | `RATE_FILE` · `SCALE_RATES` | the rate grammar again: `--loss "0.25 * OnTime({0: 1.0, 3: 2.0})"`, or `DrivenBy` to read another level |
 | `GENE_LENGTH` · `INTERGENE_LENGTH` | `--gene-length` · the spacer is what lies between genes on `--resolution nucleotide` |
-| `MIN_GENOME_SIZE` | **no equivalent.** A high loss rate can empty a genome completely, and nothing stops it |
+| `MIN_GENOME_SIZE` | **not a setting.** On `--resolution ordered` and `nucleotide` a loss never takes a chromosome below its last gene: the run that would empty it does not fire. On `--resolution family` there is no floor, and a high loss rate empties a genome completely |
 | `ALPHA` | **no equivalent** as a genome parameter |
 | `PSEUDOGENIZATION` | **not in v2** |
 
@@ -95,7 +112,7 @@ species.simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.2), n_extant=2
 |---|---|
 | `SEQUENCE_SIZE` | `--length` |
 | `AA_MODEL` | `--model wag` (also `jtt`, `dayhoff`, `lg`, `poisson`) |
-| the `AC`…`TG` and `A`/`C`/`G`/`T` keys | `--model gtr --rates … --frequencies …`, or `hky85` / `k80` / `jc69` |
+| the `AC`…`TG` and `A`/`C`/`G`/`T` keys | `--model gtr --gtr-rates … --frequencies …`, or `hky85` / `k80` / `jc69` |
 | `KAPPA` | `--kappa` |
 | `ST_RATE_MULTIPLIERS` · `GF_RATE_MULTIPLIERS` | the lineage clock: `--substitution "1.0 * ByLineage(spread=0.3)"` (uncorrelated) or `FromParent` (autocorrelated) |
 | `SHIFT_SUBSTITUTION_RATE` · `SHIFT_CATEGORIES` · `BASE_RATE` | the same clock. No category count |
@@ -127,30 +144,59 @@ compatibility mode.
 
 ## What will break in your parsing code
 
-This is the part that takes the time. Four changes each break a script silently or loudly:
+This is the part that takes the time. Six changes each break a script silently or loudly:
 
 **Event vocabulary.** v1 wrote letter codes; v2 writes words — `speciation`, `extinction`,
-`duplication`, `transfer`, `loss`, `origination`.
+`duplication`, `loss`, `origination`, and **two** transfer kinds, `transfer_additive` and
+`transfer_replacing`.
 
-**Column names.** v1's genome log was positional, with a `NODES` field whose meaning depended on the
-event type. v2 has nine named columns: `time`, `kind`, `lineage`, `family`, `copy`, `parent`,
-`recipient`, `donor`, `event`.
+**One row per event.** Every v2 event log opens with `time` and `kind` and then carries payload
+columns that are the same on every row of that file. v1's genome log was positional, with a `NODES`
+field whose meaning depended on the event type; `genome_events.tsv` is now five columns, and one row
+is one thing that happened (real rows from a real run, padded here to line the columns up):
 
-**One row per gene-tree edge, not per event.** A duplication, a transfer and a speciation each write
-**two** rows, so counting rows inflates them exactly 2×. Group on the `event` column, or read the
-deduplicated counts out of `<level>_summary.json`. This is the change that gives a plausible wrong
-number instead of an error, so it is the one to fix first.
+```
+time                 kind                family  parents        children
+0.0                  origination         0                      n0_g0
+0.281867             speciation          14      n0_g14         n1_g15;n2_g29
+0.2959603504961474   duplication         4       n1_g19         n1_g43;n1_g44
+0.11415202408218499  loss                0       n0_g0
+1.2866954826434076   transfer_additive   8       n1_g23         n1_g255;n5_g256
+0.36393613420080373  transfer_replacing  1       n2_g30;n1_g16  n2_g47;n1_g48
+```
+
+The file itself is tab-separated. `parents` is what the event ended, `children` what it began, packed
+with `;` where there are two; an origination has no parents and a loss no children, so those cells
+are empty. Counting rows by kind now counts events, so a `grep -c` gives the number of events of that
+kind. `species_events.tsv` and `chromosome_events.tsv` are the same shape, with their own entities in
+the two cells. One exception: a nucleotide run's `block_events.tsv` is keyed by *ancestral interval*,
+so an event spanning several blocks writes a row per block.
+
+**Participants carry their own lineage.** A gene copy is written `n<species>_g<copy>`: `n2_g30` is
+copy 30 on branch `n2`. So the `lineage`, `recipient` and `donor` columns are gone — split a token
+on its single `_` and you have both halves. `species_events.tsv` names lineages the same way (`n0` →
+`n1;n2`) and `chromosome_events.tsv` names chromosomes `n<species>_c<id>`. A transfer's `children`
+read **donor first, recipient second**, so one row says which way the material went without pairing
+anything.
+
+**A replacing transfer writes no loss row.** `transfer_replacing` carries two parents — the
+donor's copy, then the copy it overwrote on the recipient branch — and writes **no separate `loss`
+row** for the copy it displaced. A script that counts losses straight out of the log therefore comes
+up short by exactly the number of replacing transfers. `genome_summary.json` counts the biology
+instead: `transfer` as one number over both kinds, each displaced copy under `loss`, and the
+families the run started with as `initial` rather than `origination`. This is the change that gives
+a plausible wrong number instead of an error, so it is the one to check first.
+
+**Rearrangements are their own file.** An inversion, a transposition or a translocation begins and
+ends no gene lineage, so it has nothing to put in `parents` and `children`. At the ordered and
+nucleotide resolutions they are in `rearrangement_events.tsv`, not in `genome_events.tsv`, and that
+file is the one place a branch is still a column (`lineage`) — a segment has no id to carry one.
 
 **Label prefixes.** A lineage that went extinct is `e<id>`, not `n<id>`, in the complete tree and the
-event logs — so a `n\d+` pattern silently drops the extinct lineages. Gene copies are `g<id>`, and a
-gene-tree leaf is `n<species>_g<copy>`. Everything that names only extant tips — the extant tree,
-`profiles.tsv`, the alignments — is `n<id>` throughout.
+event logs — so a `n\d+` pattern silently drops the extinct lineages, inside a copy token
+(`e6_g138`) as well as on its own. Gene copies are `g<id>`, and a gene-tree leaf is
+`n<species>_g<copy>`, the same token the event log packs into `parents` and `children`. Everything
+that names only extant tips — the extant tree, `profiles.tsv`, the alignments — is `n<id>`
+throughout.
 
-## What v2 does that v1 did not
-
-Worth knowing before you decide the port is only a cost: incomplete sampling and fossil recovery as
-first-class options; **traits**, and rates that read another level (`DrivenBy`) so that gene loss can
-depend on a habitat; the `joint` command for when neither level can be grown first; a nucleotide
-resolution that starts from a real annotation; per-family marker tables and exact homology tables
-(`zombi2 tools format`); run logs with input digests; a summary per run; and a staleness guard that
-refuses to leave one level disagreeing with another.
+The full column list for every file is in [Output files](output-files.md).
