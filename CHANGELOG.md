@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-07-31
+
 ### Added
 - **`zombi2 traits --name NAME`** — a run directory holds one slot per level, which is wrong for
   traits: a tree can carry several, and now one can drive another. `--name` writes each to
