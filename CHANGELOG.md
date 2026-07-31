@@ -10,6 +10,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **A trait can drive another trait.** `DrivenBy` now works on a trait rate, in both the continuous and
+  the discrete engine, so one trait's state can set another's variance-rate or switch rate. Driving is
+  one thing driving another: with both participants at the same level it is still conditioning, and
+  still the same modifier. A driver that switches **mid-branch** breaks the integral where it switches
+  rather than being sampled once per branch, which is the difference between the model asked for and a
+  2.8× wrong answer on a typical branch.
 - **A discrete-bin (rate-category) clock** — `FromParent(spread=σ, bins=N)`. The rate takes one of `N`
   values on a geometric ladder and a daughter moves to a neighbouring rung, which is what a
   rate-category model assumes. It is a knob on `FromParent` rather than a modifier of its own because
@@ -19,6 +25,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   autocorrelated and discrete-bin, all down one species tree at one calibrated divergence and on one
   shared colour scale, so the only thing that differs between them is the pattern of rate variation.
   They replace the two phylogram examples.
+
+### Changed
+- **Conditioning and joining are two chapters**, not one. They answer the same question — can the driver
+  be grown first? — but a reader following one does not need the other, and the single chapter kept
+  putting the two side by side where they had to be told apart.
 
 ### Fixed
 - **`--write` offers everything a result can write.** Its choices were hand-copied from each

@@ -56,6 +56,8 @@ traits.simulate_discrete(tree, states=["absent", "present"],
                          seed=1)
 ```
 
+Either shape may carry a modifier, so a switch rate can be **driven by another trait** grown first on the same tree: `switch = 0.2 * mod.DrivenBy(habitat, {"marine": 5.0, "terrestrial": 1.0})`. That is the conditioning of Chapter 9.
+
 A **threshold** trait is the third case, and it is a bridge back to the continuous world. An observed discrete state can be driven by an underlying continuous **liability** that itself does Brownian motion; the state you see is which side of a threshold the liability currently sits on:
 
 ```python
@@ -94,7 +96,14 @@ Brownian motion is where this chapter starts, not where it stops, and the way pa
 rate = 1.0 * mod.OnTime({0: 4.0, 1: 1.0})       # fast early, then settling — early burst
 rate = 1.0 * mod.FromParent(spread=0.3)         # each clade inherits and drifts in tempo
 rate = 1.0 * mod.OnTotalDiversity(cap=100)      # the rate eases off as the clade fills
+
+# σ² reads a second trait, grown first on the same tree
+habitat = traits.simulate_discrete(tree, states=["marine", "terrestrial"], switch=0.3, seed=1)
+size = traits.simulate_continuous(tree, start=0.0, seed=2,
+    rate=1.0 * mod.DrivenBy(habitat, {"marine": 4.0, "terrestrial": 1.0}))
 ```
+
+The last is one trait driving another, which is the conditioning of Chapter 9: the driver is grown first, and the run that reads it comes second.
 
 Two arguments of `simulate_continuous` go further in the same spirit. `reverts_to` and `pull` make the walk revert toward an optimum instead of wandering freely, and `at_speciation` adds a jump at every split, so change concentrates at branching rather than accumulating along branches.
 
@@ -174,7 +183,7 @@ zombi2 traits out/ --kind continuous \
 zombi2 traits out/ --kind discrete \
     --states marine,terrestrial --switch 0.1 --seed 1
 
-# the same, also writing the driver file a conditioned genome run reads (Chapter 9)
+# the same, also writing the driver file a conditioned genome or trait run reads (Chapter 9)
 zombi2 traits out/ --kind discrete \
     --states cave,surface --switch 0.1 --seed 1 \
     --write values events tree
@@ -192,5 +201,5 @@ The trait evolves on the **complete** tree, extinct lineages included, so `speci
 
 Because the value at every node comes from the same process that produced the tips, these carry the
 *exact* ancestral states, not a reconstruction. `trait_events.tsv` is also the driver file a
-conditioned genome run reads (Chapter 9) — given the shared tree, the root state plus the switches
+conditioned genome or trait run reads (Chapter 9) — given the shared tree, the root state plus the switches
 rebuild the trait on every lineage at every instant; Appendix B gives the columns and the formats.

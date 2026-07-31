@@ -34,9 +34,17 @@ same diffusion wearing different knobs, not three classes (SPEC §4):
   (``rate = σ² * mod.OnTotalDiversity(cap=100)``) and σ² slows as the clade fills — scaled by
   ``(1 − standing_diversity/cap)`` as the tree's lineages-through-time grows — the *same* ``OnTotalDiversity``
   modifier that slows species diversification, read here off the fixed tree (one-way, tree → trait).
+- **Driven by another trait**: give ``rate`` a ``DrivenBy`` modifier
+  (``rate = σ² * mod.DrivenBy(habitat, {"aquatic": 3.0, "terrestrial": 1.0})``) and σ² reads a *second*
+  trait grown first on this same tree — the *same* ``DrivenBy`` modifier that drives a genome rate.
+  One trait driving another is conditioning like any other (SPEC §3): the driver can be finished
+  before the target starts, so it is two ordinary runs in order, handed over as the grown result or
+  as its written ``trait_events.tsv``. A discrete driver switches *mid-branch*, so the per-branch
+  variance is the integral across those pieces, not one sample per branch. The **discrete** engine
+  takes it too: write ``switch`` as a rate expression and a trait's switch rate is driven the same way.
 
-``rate`` thus takes the whole modifier vocabulary — ``OnTime``, ``FromParent``, ``OnTotalDiversity`` — like any
-other rate, and they compose (``σ² * OnTime({…}) * FromParent(spread=…)``).
+``rate`` thus takes the whole modifier vocabulary — ``OnTime``, ``FromParent``, ``OnTotalDiversity``,
+``DrivenBy`` — like any other rate, and they compose (``σ² * OnTime({…}) * FromParent(spread=…)``).
 
 ``rate`` is *per lineage*: each lineage carries its own independent diffusion, never pooled across the
 tree — the engine evaluates the rate one lineage at a time (``lineages=1``), where the event levels
@@ -47,7 +55,8 @@ The **discrete** twin is ``simulate_discrete`` — a state switching along the t
 simulated *exactly* by the Gillespie algorithm along every branch. Its ``events`` log (each transition
 timestamped, on a lineage, ``from_state → to_state``) is the source of truth, exactly as at the genome
 level; ``history`` (each node's ``(state, duration)`` segments) is the derived stochastic character
-map. ``switch`` gives the rates (symmetric shortcut, ``{"a->b": rate}`` dict, or a ``k×k`` matrix). The
+map. ``switch`` gives the rates (symmetric shortcut, ``{"a->b": rate}`` dict, or a ``k×k`` matrix), and
+a switch rate may carry ``DrivenBy`` — the trait switching faster where another trait says so. The
 **threshold** model (``liability=`` / ``threshold=``) reads a discrete state off a continuous Brownian
 liability; the crossings are un-timed, so it carries no event log or map.
 

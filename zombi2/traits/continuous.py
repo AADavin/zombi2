@@ -1,4 +1,4 @@
-"""Traits — the continuous (diffusion) engine: Brownian motion and its OU / early-burst / variable-rate / diversity-dependent variants (simulate_continuous)."""
+"""Traits — the continuous (diffusion) engine: Brownian motion and its OU / early-burst / variable-rate / diversity-dependent / driven variants (simulate_continuous)."""
 
 from __future__ import annotations
 
@@ -7,15 +7,15 @@ import math
 
 import numpy as np
 
-from ..rates.modifiers import ByFamily, FromParent, OnTime, OnTotalDiversity
+from ..rates.modifiers import ByFamily, DrivenBy, FromParent, OnTime, OnTotalDiversity
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..tree import Tree, as_tree
 
-from ._shared import _correlation_matrix, _preorder, _symmetric_sqrt
+from ._shared import _correlation_matrix, _driven_mods, _preorder, _resolve_drivers, _symmetric_sqrt
 from .result import Change, TraitsResult
 
-WIRED_MODIFIERS = (OnTime, FromParent, OnTotalDiversity)  #: the modifiers a continuous rate takes
+WIRED_MODIFIERS = (OnTime, FromParent, OnTotalDiversity, DrivenBy)  #: the modifiers a continuous rate takes
 
 class _LTT:
     """The tree's lineages-through-time step function — how many lineages are alive at time ``t``
@@ -47,7 +47,8 @@ class _LTT:
 
 
 
-def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "_LTT | None" = None) -> float:
+def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "_LTT | None" = None,
+                      trajs: dict | None = None, node_id: int | None = None) -> float:
     """The variance a diffusing trait accrues over a branch spanning ``[t0, t1]`` — the integral
     ``∫ σ²(t) dt`` of the variance-rate. For a bare σ² this is ``σ²·(t1−t0)`` (Brownian motion); for a
     ``OnTime`` skyline (early burst) it sums σ² over each interval the branch crosses, stepping at the
@@ -61,6 +62,13 @@ def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "
     ``ltt`` is the tree's lineages-through-time function when the rate carries a ``OnTotalDiversity`` modifier
     (diversity-dependent σ²): the integral then also steps at the tree's speciation / extinction times,
     reading the standing diversity on each sub-interval. ``None`` when σ² does not depend on diversity.
+
+    ``trajs`` (with ``node_id``, the lineage this branch is) are the driver trajectories when the rate
+    carries a `DrivenBy` — σ² read off another trait. The driver's
+    value on this lineage is threaded in as ``drivers``, and the integral **steps where the driver
+    switches** (``next_change``) exactly as it steps at a skyline breakpoint: a discrete driver
+    switches *mid-branch*, so a single sample per branch would credit the whole branch to whichever
+    state happened to be read. ``None`` when σ² is not driven.
     (Stepping is O(events the branch crosses); fine for the trait level's one value per branch.)"""
     total = 0.0
     t = t0
@@ -70,7 +78,13 @@ def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "
         if ltt is not None:                 # diversity-dependent σ²: also step where the LTT changes
             div = ltt.count(t)
             nxt = min(nxt, ltt.next_change(t))
-        total += rate.effective(lineages=1, time=t, inherited=inherited, diversity=div) * (nxt - t)
+        drivers = None
+        if trajs:                           # driven σ²: also step where this lineage's driver switches
+            drivers = {key: traj.value(node_id, t) for key, traj in trajs.items()}
+            for traj in trajs.values():
+                nxt = min(nxt, traj.next_change(node_id, t))
+        total += rate.effective(lineages=1, time=t, inherited=inherited, diversity=div,
+                                drivers=drivers) * (nxt - t)
         t = nxt
     return total
 
@@ -231,13 +245,19 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     for traits") — each lineage inheriting its parent's σ² times a lognormal kick drawn at the split;
     a ``OnTotalDiversity(cap=…)`` modifier makes σ² **slow as the clade fills up** — diversity-dependent /
     ecological-limits trait evolution — σ² scaled by ``(1 − standing_diversity/cap)`` as the tree's
-    lineages-through-time grows (the tree is a fixed input the trait reads).
+    lineages-through-time grows (the tree is a fixed input the trait reads); a
+    ``DrivenBy(driver, {…})`` modifier makes σ² **read another trait** — the driver grown first on this
+    same tree and handed over as its result object or its written ``trait_events.tsv``, so a lineage
+    diffuses faster while the driver is in one state than another. A discrete driver switches
+    *mid-branch*, and the per-branch variance is the integral across those pieces, so a branch that
+    spends half its length in the fast state accrues exactly half the fast variance.
 
     ``reverts_to`` (the optimum θ) and ``pull`` (the strength α > 0) turn the diffusion into
     Ornstein–Uhlenbeck — the value is pulled toward θ while it diffuses, the exact per-branch
     transition being ``Normal(θ + (x−θ)·e^{−α·dt}, σ²/(2α)·(1−e^{−2α·dt}))``. Give **both** or
-    neither. OU with a *modified* σ² (early burst or variable rates on ``rate``) is not implemented yet —
-    use one or the other.
+    neither. That transition law is exact only for a σ² that is constant along the branch, so OU with a
+    *modified* σ² — a ``OnTime``, ``FromParent``, ``OnTotalDiversity`` or ``DrivenBy`` on ``rate`` — is
+    not implemented yet; use one or the other.
 
     ``at_speciation`` adds an **on-speciation** jump — ``Normal(0, at_speciation)`` on each daughter at
     every speciation (the punctuational mode), layered on top of the along-branch anagenesis.
@@ -261,9 +281,9 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             f"rate has a {type(r.scope).__name__} scope, but a continuous trait's variance-rate is "
             f"per lineage — drop the scope wrapper (per lineage is the default)."
         )
-    # OnTime (early burst), FromParent (variable-rates BM), and OnTotalDiversity (diversity-dependent)
-    # are the σ² modifiers this engine supports; anything else is rejected loudly — the genome
-    # engine's discipline.
+    # OnTime (early burst), FromParent (variable-rates BM), OnTotalDiversity (diversity-dependent)
+    # and DrivenBy (σ² driven by another trait) are the σ² modifiers this engine supports; anything
+    # else is rejected loudly — the genome engine's discipline.
     for m in r.modifiers:
         if isinstance(m, ByFamily):
             # not a missing feature: there is nothing here for it to mean
@@ -274,8 +294,8 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
         if not isinstance(m, WIRED_MODIFIERS):
             raise ValueError(
                 f"rate carries {type(m).__name__}, which the continuous trait engine does not "
-                f"support. It takes OnTime (early burst), FromParent (variable-rates BM), and "
-                f"OnTotalDiversity (diversity-dependent)."
+                f"support. It takes OnTime (early burst), FromParent (variable-rates BM), "
+                f"OnTotalDiversity (diversity-dependent), and DrivenBy (driven by another trait)."
             )
     drifts = [m for m in r.modifiers if isinstance(m, FromParent)]
     if len(drifts) > 1:
@@ -300,13 +320,22 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
                 f"pull must be a finite positive number (omit it for Brownian motion), got {pull!r}"
             )
         if r.modifiers:
+            # a driven σ² is a modified σ², so it falls under this guard like the other three — and
+            # the message names the one actually given rather than making the reader match it against
+            # a list. The OU transition law is exact only for a σ² that is constant along the branch.
+            carried = ", ".join(dict.fromkeys(type(m).__name__ for m in r.modifiers))
             raise ValueError(
-                "a modified variance-rate (early burst via OnTime, variable rates via FromParent, or "
-                "diversity-dependence via OnTotalDiversity) combined with OU (reverts_to / pull) is not "
-                "implemented yet — use one or the other."
+                f"rate carries {carried}, and a modified variance-rate combined with OU (reverts_to / "
+                f"pull) is not implemented yet — use one or the other."
             )
         theta, alpha = float(reverts_to), float(pull)
         sigma2 = r.effective(lineages=1)  # σ² is constant under OU (modifiers are rejected above)
+
+    # conditioning: a σ² carrying DrivenBy reads another trait, grown first on this same tree. Resolve
+    # each driver once into a trajectory (value + next-switch, keyed by the shared node id), from a
+    # written trait log or a grown result handed over in memory. Undriven ⇒ empty, and the walk below
+    # is exactly the walk it was — no driver, no lookup, no change to the draw order.
+    trajs = _resolve_drivers(_driven_mods(r), tree)
 
     jump_sd = _at_speciation_jump_sd(at_speciation)  # on-speciation jump width (0 if not requested)
 
@@ -340,7 +369,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             var = sigma2 / (2.0 * alpha) * (1.0 - e * e)
         else:
             mean = x                                # pure diffusion (BM / early burst / variable-rates)
-            var = _accrued_variance(r, t0, t1, inherited=inh[i], ltt=ltt)
+            var = _accrued_variance(r, t0, t1, inherited=inh[i], ltt=ltt, trajs=trajs, node_id=i)
         std = math.sqrt(var) if var > 0.0 else 0.0
         node_values[i] = mean + (float(rng.normal(0.0, std)) if std > 0.0 else 0.0)
 

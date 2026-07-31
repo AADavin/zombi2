@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
+
 import helpers as h
 from helpers import Example
 
 import phylustrator as ph
+from zombi2.rates import modifiers as mod
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous, simulate_discrete
 
@@ -21,6 +25,9 @@ _DEP_RATES = {"00->01": 0.05, "01->00": 2.0, "10->11": 2.0, "11->10": 0.05,   # 
 _ABSENT = "#c2cac8"
 _XPAL = {"0": _ABSENT, "1": "#3C8D6E"}      # X present = green
 _YPAL = {"0": _ABSENT, "1": "#8B6B9E"}      # Y present = muted purple
+# the driven example: a discrete habitat (the driver) and the body size it speeds up (the target)
+_HABITAT = {"stable": "#3A7CA5", "fluctuating": "#E4572E"}
+_SWITCH, _BASE, _FACTOR = 0.4, 0.25, 20.0
 
 
 def _tree():
@@ -94,6 +101,67 @@ def dependent_characters(out):
          + ph.trees.color_history(hist, palette=pal)).save(png)
     h.composite_two_trees_panel(px, py, lambda ax: h.draw_grid_markov(ax, _DEP_RATES, _XPAL, _YPAL),
                                 out, x_label="character X", y_label="character Y")
+
+
+def _traitgram(ct, driver, target, start=0.0):
+    """``[(t0, t1, v0, v1, state), …]`` — the target's path through time, branch by branch, each branch
+    cut where the driver switches state. A branch runs straight from the parent's value to its own (the
+    usual traitgram); the cut points are that line read at the switch times, so every piece carries the
+    state the target was evolving under."""
+    out = []
+    for i, nd in ct.nodes.items():
+        dt = nd.end_time - nd.birth_time
+        if dt <= 0:
+            continue
+        v0 = start if nd.parent is None else target.node_values[nd.parent]
+        v1, t = target.node_values[i], nd.birth_time
+        for state, dur in driver.history[i]:
+            u0, u1 = (t - nd.birth_time) / dt, (t + dur - nd.birth_time) / dt
+            out.append((t, t + dur, v0 + (v1 - v0) * u0, v0 + (v1 - v0) * u1, state))
+            t += dur
+    return out
+
+
+def driven_trait(out):
+    """A trait driving a trait, with the same ``DrivenBy`` a trait uses to drive a genome rate. The
+    habitat is grown first and held fixed; body size then diffuses down the same tree, twenty times
+    faster on the stretches of branch where the habitat fluctuates."""
+    ct = simulate_species_tree(birth=1.0, n_extant=50, seed=7).complete_tree
+    hab = simulate_discrete(ct, states=["stable", "fluctuating"], switch=_SWITCH, start="stable", seed=5)
+    size = simulate_continuous(ct, start=0.0, seed=9,
+            rate=_BASE * mod.DrivenBy(hab, {"fluctuating": _FACTOR, "stable": 1.0}))
+    lab = ct.labels()                      # {id: 'n<id>'} — the tree's own names, never built by hand
+    present = max(n.end_time for n in ct.nodes.values())
+    TW, TM = 1320, 58
+    tree_png = out.replace(".png", "_tree.png")
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False,
+                   style=ph.Style(width=TW, height=470, margin=TM, branch_width=2.6))
+     + ph.trees.color_history({lab[i]: segs for i, segs in hab.history.items()},
+                              palette=_HABITAT)).save(tree_png)
+    lines = _traitgram(ct, hab, size)
+
+    def panel(ax):                         # body size through time, in the driver's own colours
+        for t0, t1, v0, v1, state in lines:
+            ax.plot([t0, t1], [v0, v1], color=_HABITAT[state], lw=1.5, solid_capstyle="round")
+
+    real = out.replace(".png", "_real.png")
+    h.composite_below(tree_png, present, real, panel, "body size", tree_w=TW, margin=TM,
+                      figsize=(13, 8), height_ratios=(1.45, 1.0), axis_fontsize=18)
+    # the driver·modifier·target diagram the conditioning figures use, small on top — it is the key
+    diag = h.conditioning_png(out.replace(".png", "_diag.png"), driver="habitat",
+        states=["stable", "fluctuating"],
+        switch={"stable->fluctuating": _SWITCH, "fluctuating->stable": _SWITCH},
+        mapping={"fluctuating": _FACTOR, "stable": 1}, target="body size", target_base=_BASE,
+        target_sub="variance-rate", state_colors=_HABITAT)
+    fig = plt.figure(figsize=(12, 9.4))
+    axr = fig.add_axes([0.0, 0.0, 1.0, 0.82])
+    axr.imshow(mpimg.imread(real))
+    axr.set_axis_off()
+    axd = fig.add_axes([0.28, 0.80, 0.44, 0.20])
+    axd.imshow(mpimg.imread(diag))
+    axd.set_axis_off()
+    fig.savefig(out, dpi=140, bbox_inches="tight")
+    plt.close(fig)
 
 
 _C_BM = '''\
@@ -206,6 +274,49 @@ h.composite_two_trees_panel("tree_x.png", "tree_y.png",
                             "dependent.png", x_label="character X", y_label="character Y")'''
 
 
+_C_DRIVEN = '''\
+### simulate  —  a discrete trait drives a continuous one: the driver first, then the target
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_continuous, simulate_discrete
+from zombi2.rates import modifiers as mod
+
+ct = simulate_species_tree(birth=1.0, n_extant=50, seed=7).complete_tree
+hab = simulate_discrete(ct, states=["stable", "fluctuating"], switch=0.4, start="stable", seed=5)
+# the same DrivenBy that lets a trait drive a genome rate lets it drive another trait: body size
+# diffuses 20x faster on the stretches of branch where the habitat fluctuates
+size = simulate_continuous(ct, start=0.0, seed=9,
+        rate=0.25 * mod.DrivenBy(hab, {"fluctuating": 20.0, "stable": 1.0}))
+
+### plot  —  tree coloured by the habitat, and below it body size through time, same colours
+import phylustrator as ph
+import helpers as h                              # gallery helper: a tree with a panel below it
+
+pal = {"stable": "#3A7CA5", "fluctuating": "#E4572E"}
+lab = ct.labels()                                # {id: 'n<id>'}
+(ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False)
+ + ph.trees.color_history({lab[i]: segs for i, segs in hab.history.items()},
+                          palette=pal)).save("tree.png")
+lines = []                       # the traitgram: each branch cut where the habitat switches
+for i, nd in ct.nodes.items():
+    dt = nd.end_time - nd.birth_time
+    if dt <= 0:
+        continue
+    v0 = 0.0 if nd.parent is None else size.node_values[nd.parent]
+    v1, t = size.node_values[i], nd.birth_time
+    for state, dur in hab.history[i]:
+        u0, u1 = (t - nd.birth_time) / dt, (t + dur - nd.birth_time) / dt
+        lines.append((t, t + dur, v0 + (v1 - v0) * u0, v0 + (v1 - v0) * u1, state))
+        t += dur
+
+def panel(ax):
+    for t0, t1, v0, v1, state in lines:
+        ax.plot([t0, t1], [v0, v1], color=pal[state], lw=1.5)
+
+present = max(n.end_time for n in ct.nodes.values())
+h.composite_below("tree.png", present, "driven.png", panel, "body size")
+# the figure then composites the driver->modifier->target diagram (habitat -> body size) on top'''
+
+
 EXAMPLES = [
     Example("bm", "Brownian motion", "Free diffusion — sister lineages drift apart with time.",
             "continuous", brownian_motion, code=_C_BM),
@@ -224,4 +335,11 @@ EXAMPLES = [
             "the 2×2 chain (arrow width&nbsp;=&nbsp;rate) is the model. "
             "<code>simulate_discrete(states=(&quot;00&quot;,…),&nbsp;switch={…})</code>.",
             "discrete · dependent", dependent_characters, code=_C_DEPENDENT),
+    Example("driven", "A trait driving a trait",
+            "A driver (a trait for the habitat) modifies the variance-rate of body size (the target). "
+            "Body size wanders where the habitat fluctuates and barely moves where it is stable. The "
+            "tree is coloured by the habitat, and below it body size runs through time, each piece "
+            "coloured by the habitat it evolved under. "
+            "<code>rate&nbsp;=&nbsp;0.25&nbsp;*&nbsp;mod.DrivenBy(habitat,&nbsp;{…})</code>.",
+            "trait → trait", driven_trait, code=_C_DRIVEN),
 ]

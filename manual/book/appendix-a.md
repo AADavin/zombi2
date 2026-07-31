@@ -58,7 +58,7 @@ The modifiers are:
 | `OnTotalDiversity` | **Slows as the tree fills up**: the factor falls from 1 toward 0 as the number of lineages approaches a carrying capacity, and stays there. |
 | `FromParent` | Is **inherited from the parent lineage and nudged at each split**, so the rate drifts gradually down the tree and close relatives keep similar rates. |
 | `ByLineage` | Is an **independent draw for each lineage**, with no memory of its parent, so nearby branches are no more alike than distant ones. |
-| `DrivenBy` | **Reads another level**: the factor is looked up from a driver's state, which is how one level conditions another (Chapter 9). |
+| `DrivenBy` | **Reads another level**: the factor is looked up from a driver's state, which is how one thing conditions another (Chapter 9). |
 
 The first two are **deterministic**: `OnTime` and `OnTotalDiversity` are fixed functions of the state of
 the world, so every lineage that meets the same time, or the same diversity, gets the same factor. The
@@ -91,7 +91,7 @@ accept rather than silently ignoring it. This is what each accepts today:
 | Genomes — family, ordered | `OnTime` · `DrivenBy` · `ByFamily` |
 | Genomes — nucleotide | `OnTime` · `DrivenBy` |
 | Sequences | `ByLineage` · `FromParent` |
-| Traits | `OnTime` · `FromParent` · `OnTotalDiversity` |
+| Traits | `OnTime` · `FromParent` · `OnTotalDiversity` · `DrivenBy` |
 
 `zombi2 <command> -h` prints the same list for that command, read from the engine itself, so the two
 cannot disagree — and a test asserts this table against them.
