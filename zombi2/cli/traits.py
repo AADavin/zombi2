@@ -53,6 +53,9 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
     # validated in run() rather than argparse-`required`, so a --params file can supply it
     g.add_argument("--kind", choices=("continuous", "discrete"), default=None, metavar="KIND",
                    help="the state space — continuous or discrete (required)")
+    g.add_argument("--name", default=None, metavar="NAME",
+                   help="write this trait to traits/NAME/, so a run can hold several — and one can "
+                        "drive another")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
     g.add_argument("--tip-fates", metavar="FILE", dest="tip_fates",
@@ -94,6 +97,26 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
     _add_flat_arg(g)
     _add_quiet_arg(g)
     _add_force_arg(g)
+
+
+def _traits_slot(args, parser) -> str:
+    """Which directory under the run this trait belongs in: ``traits`` or ``traits/<name>``.
+
+    A run directory holds one slot per level, which is right for the levels a run has one of. It is
+    wrong for traits: a tree can carry several, and one of them can drive another (Chapter 9), so
+    they need somewhere to sit side by side. ``--name`` gives each its own.
+
+    An unnamed run keeps the plain ``traits/`` slot and overwrites what is there, which is what
+    re-running a level means — the slot is the level's, and a second run of it replaces the first."""
+    if args.name is None:
+        return "traits"
+    name = args.name.strip()
+    if not name or os.sep in name or (os.altsep and os.altsep in name) or name in (".", ".."):
+        parser.error(f"--name must be a plain directory name, got {args.name!r}")
+    if args.flat:
+        parser.error("--name and --flat ask for opposite things: --flat writes every file into the "
+                     "run directory, which is what leaves two traits nowhere to go.")
+    return os.path.join("traits", name)
 
 
 def run(args, parser):
@@ -164,7 +187,7 @@ def run(args, parser):
 
     clear_stale_downstream(args, "traits")   # --force: drop the now-stale downstream (run succeeded)
     os.makedirs(args.run, exist_ok=True)
-    out = level_dir(args.run, "traits", args.flat)
+    out = level_dir(args.run, _traits_slot(args, parser), args.flat)
     outputs = args.write or (_DISCRETE_DEFAULT if discrete else _CONTINUOUS_DEFAULT)
     result.write(out, outputs=outputs)
     if names:  # an external tree: map ZOMBI's n<id> back to the user's labels (join on the node col)

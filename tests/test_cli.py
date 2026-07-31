@@ -1877,3 +1877,32 @@ def test_write_offers_every_output_the_result_can_write():
         import inspect
         default = inspect.signature(result.write).parameters["outputs"].default
         assert set(default) <= set(result.OUTPUTS), f"{name}: a default output is not declared"
+
+def test_named_traits_sit_side_by_side_and_one_can_drive_the_other(tmp_path):
+    """A run directory holds one slot per level, which is wrong for traits: a tree can carry several,
+    and one can drive another. --name gives each its own, so the driver's files survive the target."""
+    run = tmp_path / "run"
+    assert main(["species", str(run), "--birth", "1", "--death", "0.2", "--n-extant", "12",
+                 "--seed", "1", "--quiet"]) == 0
+    assert main(["traits", str(run), "--name", "habitat", "--kind", "discrete", "--states",
+                 "slow,fast", "--switch", "0.5", "--seed", "1", "--quiet"]) == 0
+    driver = run / "traits" / "habitat" / "trait_events.tsv"
+    assert driver.is_file()
+    before = driver.read_text(encoding="utf-8")
+
+    assert main(["traits", str(run), "--name", "size", "--kind", "continuous", "--rate",
+                 f"1.0 * DrivenBy('{driver}', {{'fast': 6.0}})", "--seed", "2", "--quiet"]) == 0
+    # the driver is untouched, and the target is beside it rather than on top of it
+    assert driver.read_text(encoding="utf-8") == before
+    assert (run / "traits" / "size" / "trait_values.tsv").is_file()
+    # the run report names each one, so a reader can tell them apart
+    report = (run / "run.zombi2").read_text(encoding="utf-8")
+    assert "TRAITS (habitat)" in report and "TRAITS (size)" in report
+
+
+def test_name_and_flat_ask_for_opposite_things(tmp_path):
+    run = tmp_path / "run"
+    main(["species", str(run), "--birth", "1", "--n-extant", "6", "--seed", "1", "--quiet"])
+    with pytest.raises(SystemExit):
+        main(["traits", str(run), "--name", "a", "--flat", "--kind", "continuous", "--rate", "1.0",
+              "--seed", "1", "--quiet"])
