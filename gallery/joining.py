@@ -1,7 +1,10 @@
-"""Joining and conditioning: one level drives another through the same ``DrivenBy`` mechanism. A trait
-drives diversification (BiSSE / MuSSE / SSE), so the tree's *shape* reflects the state; or a trait
-conditions the genome, driving gene loss so genome *size* reflects the state. The SSE figures carry the
-state Markov chain (the model) as an inset, bottom-left."""
+"""Two ways one level reads another, through the same ``DrivenBy`` mechanism.
+
+**Conditioning** grows the driver first and holds it fixed: a trait is simulated on the tree, then a
+genome run reads it, so the trait's state sets a genome rate. **Joining** grows both at once, because
+the trait drives speciation or extinction and so shapes the tree it is evolving on
+(``joint.simulate_joint``). The two lists below feed two gallery sections.
+"""
 
 from __future__ import annotations
 
@@ -32,9 +35,16 @@ def _style():
     return ph.Style(width=1300, height=1000, margin=82, branch_width=3.4)
 
 
-def _history(r):
-    return {f"n{i}": segs for i, segs in r.trait.history.items()}    # per-branch (state, duration)
+def _state_history(ct, trait):
+    lab = ct.labels()                   # 'n<id>', or 'e<id>' for a lineage that went extinct
+    return {lab[i]: segs for i, segs in trait.history.items()}     # per-branch (state, duration)
 
+
+def _history(r):
+    return _state_history(r.complete_tree, r.trait)
+
+
+# --- joining: the trait and the tree grow together ------------------------------------------
 
 def bisse(out):
     r = joint.simulate_joint(
@@ -46,7 +56,7 @@ def bisse(out):
      + ph.trees.color_history(_history(r), palette=_BISSE)
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
     h.composite_markov(tree_png, out, lambda ax: h.draw_markov(
-        ax, ["fast", "slow"], _BISSE, 0.35, {"fast": 2.6, "slow": 0.7}, symbol="λ"),
+        ax, ["fast", "slow"], _BISSE, {"fast": 2.6, "slow": 0.7}, symbol="λ"),
         loc=(0.02, 0.04, 0.34, 0.30))
 
 
@@ -58,13 +68,13 @@ def state_extinction(out):
         n_extant=35, seed=1)
     ct = r.complete_tree
     tree = ph.trees.loads(ct.to_newick())
-    dashed = h.dashed_extinct(tree, {f"n{n.id}" for n in ct.extinct_leaves()})
+    dashed = h.dashed_extinct(tree, ct)
     tree_png = out.replace(".png", "_tree.png")
     (ph.trees.plot(tree, style=_style(), skeleton=False)
      + ph.trees.color_history(_history(r), palette=_SSE, dashed=dashed)     # dead lineages: dashed + coloured
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
     h.composite_markov(tree_png, out, lambda ax: h.draw_markov(
-        ax, ["doomed", "safe"], _SSE, 0.3, {"doomed": 0.75, "safe": 0.05}, symbol="μ"),
+        ax, ["doomed", "safe"], _SSE, {"doomed": 0.75, "safe": 0.05}, symbol="μ"),
         loc=(0.02, 0.05, 0.34, 0.30))
 
 
@@ -76,27 +86,28 @@ def musse(out):
         n_extant=50, seed=2)
     ct = r.complete_tree
     tree = ph.trees.loads(ct.to_newick())
-    dashed = h.dashed_extinct(tree, {f"n{n.id}" for n in ct.extinct_leaves()})
+    dashed = h.dashed_extinct(tree, ct)
     tree_png = out.replace(".png", "_tree.png")
     (ph.trees.plot(tree, style=_style(), skeleton=False)
      + ph.trees.color_history(_history(r), palette=_MUSSE, dashed=dashed)
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
     h.composite_markov(tree_png, out, lambda ax: h.draw_markov(
-        ax, ["slow", "medium", "fast"], _MUSSE, 0.3, {"slow": 0.6, "medium": 1.3, "fast": 2.6},
+        ax, ["slow", "medium", "fast"], _MUSSE, {"slow": 0.6, "medium": 1.3, "fast": 2.6},
         symbol="λ"), loc=(0.02, 0.075, 0.35, 0.40))
 
 
-def _conditioned_genome(out, ct, trait, palette, sizes, tipcol, diagram):
-    """The shared conditioning-figure layout: the tree coloured by the driver trait, beside per-tip
-    genome-size bars, with the manual's driver·modifier·target diagram (``draw_conditioning``) small
-    on top. ``diagram`` is the kwargs for :func:`helpers.conditioning_png`."""
-    tree = ph.trees.loads(ct.to_newick())
-    history = {f"n{i}": segs for i, segs in trait.history.items()}
+# --- conditioning: the driver is grown first, then the genome reads it -----------------------
+
+def _conditioned_genome(out, ct, layers, sizes, tipcol, diagram):
+    """The shared conditioning-figure layout: the tree painted by the driver, beside per-tip genome-size
+    bars, with the driver·modifier·target diagram small on top. ``layers`` are the Phylustrator layers
+    that colour the tree; ``diagram`` is the kwargs for :func:`helpers.conditioning_png`."""
+    fig = ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False,
+                        style=ph.Style(width=900, height=900, margin=92, branch_width=3.0))
+    for layer in layers:                      # no legend on the tree — the diagram is the key
+        fig = fig + layer
+    fig = fig + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)
     real = out.replace(".png", "_real.png")
-    fig = (ph.trees.plot(tree, style=ph.Style(width=900, height=900, margin=92, branch_width=3.0),
-                         skeleton=False)
-           + ph.trees.color_history(history, palette=palette)   # no legend — the diagram is the key
-           + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False))
     ph.beside(fig, ph.genomes.bars(sizes, colors=tipcol, label="genome size (genes)",
                                    tick_size=20, label_size=26),
               width=1150, tree_fraction=0.58, footer=36).save(real)
@@ -113,9 +124,10 @@ def _conditioned_genome(out, ct, trait, palette, sizes, tipcol, diagram):
 
 
 def _sizes(ct, g, trait, palette):
+    lab = ct.labels()
     tips = list(ct.extant_leaves())
-    sizes = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}
-    tipcol = {f"n{n.id}": palette[trait.values[n.id]] for n in tips}
+    sizes = {lab[n.id]: len(g.genomes[n.id]) for n in tips}
+    tipcol = {lab[n.id]: palette[trait.values[n.id]] for n in tips}
     return sizes, tipcol
 
 
@@ -129,7 +141,8 @@ def genome_reduction(out):
             origination=3.0 * mod.DrivenBy(hab, {"endosymbiont": 0.1, "free-living": 1.0}),
             loss=0.08 * mod.DrivenBy(hab, {"endosymbiont": 12.0, "free-living": 1.0}), seed=9)
     sizes, tipcol = _sizes(ct, g, hab, _HAB)
-    _conditioned_genome(out, ct, hab, _HAB, sizes, tipcol, dict(
+    _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, hab), palette=_HAB)],
+                        sizes, tipcol, dict(
         driver="lifestyle", states=["free-living", "endosymbiont"],
         switch={"free-living->endosymbiont": 0.09},               # irreversible → one arrow
         mapping={"endosymbiont": 12, "free-living": 1}, target="loss", target_base=0.08,
@@ -138,13 +151,14 @@ def genome_reduction(out):
 
 def genome_expansion(out):
     ct = simulate_species_tree(birth=1.0, n_extant=32, seed=4).complete_tree
-    # the mirror of reduction: under relaxed selection (irreversible here) duplicates pile up
+    # under relaxed selection (irreversible here) duplicates pile up
     sel = simulate_discrete(ct, states=["purifying", "relaxed"], start="purifying", seed=8,
                             switch={"purifying->relaxed": 0.09, "relaxed->purifying": 0.0})
     g = simulate_genomes_family(ct, initial_families=25, loss=0.07,
             duplication=0.05 * mod.DrivenBy(sel, {"relaxed": 11.0, "purifying": 1.0}), seed=9)
     sizes, tipcol = _sizes(ct, g, sel, _SEL)
-    _conditioned_genome(out, ct, sel, _SEL, sizes, tipcol, dict(
+    _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, sel), palette=_SEL)],
+                        sizes, tipcol, dict(
         driver="selection", states=["purifying", "relaxed"], switch={"purifying->relaxed": 0.09},
         mapping={"relaxed": 11, "purifying": 1}, target="duplication", target_base=0.05,
         state_colors=_SEL))
@@ -158,7 +172,8 @@ def hgt_uptake(out):
     g = simulate_genomes_family(ct, initial_families=35, transfer=0.5, loss=0.05, duplication=0.03,
             transfer_to=mod.DrivenBy(comp, {"competent": 8.0, "quiet": 1.0}), seed=3)
     sizes, tipcol = _sizes(ct, g, comp, _COMP)
-    _conditioned_genome(out, ct, comp, _COMP, sizes, tipcol, dict(
+    _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, comp), palette=_COMP)],
+                        sizes, tipcol, dict(
         driver="competence", states=["quiet", "competent"],
         switch={"quiet->competent": 0.12, "competent->quiet": 0.05},
         mapping={"competent": 8, "quiet": 1}, target="transfer\nuptake", target_base=None,
@@ -167,44 +182,25 @@ def hgt_uptake(out):
 
 def continuous_conditioning(out):
     """A CONTINUOUS trait conditions a genome rate. A diffusing "activity" trait drives gene gain
-    through a Curve (high activity → more originations), so genome size tracks the trait — the tree is
-    coloured by the continuous value and the scatter shows the driver→target relationship directly."""
+    through a Curve (high activity → more originations), so genome size tracks the trait. Same layout
+    as the discrete conditioning examples; the diagram's modifier column plots the curve, because a
+    continuous driver has no per-state multiplier to list."""
     ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
     act = simulate_continuous(ct, start=0.0, rate=1.8, seed=3)
+    factor = (lambda v: 2.0 ** v)                                # value → factor, the whole mapping
     g = simulate_genomes_family(ct, initial_families=12, loss=0.05,
-            origination=0.6 * mod.DrivenBy(act, Curve(lambda v: 2.0 ** v)), seed=9)
+            origination=0.6 * mod.DrivenBy(act, Curve(factor)), seed=9)
+    lab = ct.labels()
+    vals = {lab[i]: act.node_values[i] for i in ct.nodes}         # the continuous trait, per node
     tips = list(ct.extant_leaves())
-    vals = {f"n{i}": act.node_values[i] for i in ct.nodes}       # the continuous trait, per node
-    tv = [act.node_values[n.id] for n in tips]
-    sz = [len(g.genomes[n.id]) for n in tips]
-    cmap, norm = cm.viridis, colors.Normalize(min(tv), max(tv))
-    sizes = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}
-    tipcol = {f"n{n.id}": colors.to_hex(cmap(norm(act.node_values[n.id]))) for n in tips}
-
-    real = out.replace(".png", "_real.png")
-    fig = (ph.trees.plot(ph.trees.loads(ct.to_newick()),
-                         style=ph.Style(width=900, height=900, margin=92, branch_width=3.0))
-           + ph.trees.color_branches(vals, cmap="viridis")
-           + ph.trees.colorbar("activity (continuous trait)", loc="top-left", size=18)
-           + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False))
-    ph.beside(fig, ph.genomes.bars(sizes, colors=tipcol, label="genome size (genes)",
-                                   tick_size=20, label_size=26),
-              width=1150, tree_fraction=0.58, footer=36).save(real)
-
-    fig2 = plt.figure(figsize=(13, 8))
-    gs = fig2.add_gridspec(1, 2, width_ratios=[2.5, 1.0], wspace=0.12)
-    axr = fig2.add_subplot(gs[0, 0])
-    axr.imshow(mpimg.imread(real))
-    axr.set_axis_off()
-    axs = fig2.add_subplot(gs[0, 1])
-    axs.scatter(tv, sz, c=tv, cmap="viridis", s=42, edgecolors="white", linewidths=0.5)
-    axs.set_xlabel("activity (tip value)", fontsize=14)
-    axs.set_ylabel("genome size (genes)", fontsize=14)
-    axs.set_title("driver → target", fontsize=14, loc="left")
-    for sp in ("top", "right"):
-        axs.spines[sp].set_visible(False)
-    fig2.savefig(out, dpi=140, bbox_inches="tight")
-    plt.close(fig2)
+    cmap, norm = cm.viridis, colors.Normalize(min(vals.values()), max(vals.values()))
+    sizes = {lab[n.id]: len(g.genomes[n.id]) for n in tips}
+    tipcol = {lab[n.id]: colors.to_hex(cmap(norm(act.node_values[n.id]))) for n in tips}
+    _conditioned_genome(out, ct, [ph.trees.color_branches(vals, cmap="viridis")],
+                        sizes, tipcol, dict(
+        draw=h.draw_conditioning_curve, driver="activity", curve=factor,
+        vrange=(min(vals.values()), max(vals.values())), value_label="activity",
+        target="origination", target_base=0.6))
 
 
 _C_BISSE = '''\
@@ -228,7 +224,7 @@ history = {f"n{i}": segs for i, segs in r.trait.history.items()}
  + ph.trees.color_history(history, palette=palette)
  + ph.trees.time_axis("time", tick_size=22, label_size=28)).save("tree.png")
 h.composite_markov("tree.png", "bisse.png", lambda ax: h.draw_markov(
-    ax, ["fast", "slow"], palette, 0.35, {"fast": 2.6, "slow": 0.7}, symbol="λ"))'''
+    ax, ["fast", "slow"], palette, {"fast": 2.6, "slow": 0.7}, symbol="λ"))'''
 
 _C_STATE = '''\
 ### simulate  —  one state dies far faster (state-dependent extinction)
@@ -248,13 +244,14 @@ import helpers as h
 
 palette = {"doomed": "#B0413E", "safe": "#2A9D8F"}
 tree = ph.trees.loads(ct.to_newick())
-dashed = {f"n{n.id}" for n in ct.extinct_leaves()}                 # (+ their all-extinct ancestors)
-history = {f"n{i}": segs for i, segs in r.trait.history.items()}
+lab = ct.labels()                           # {id: 'n<id>'} — or 'e<id>' where the lineage went extinct
+dashed = {lab[n.id] for n in ct.extinct_leaves()}                  # (+ their all-extinct ancestors)
+history = {lab[i]: segs for i, segs in r.trait.history.items()}
 (ph.trees.plot(tree, skeleton=False)
  + ph.trees.color_history(history, palette=palette, dashed=dashed)
  + ph.trees.time_axis("time", tick_size=22, label_size=28)).save("tree.png")
 h.composite_markov("tree.png", "sse.png", lambda ax: h.draw_markov(
-    ax, ["doomed", "safe"], palette, 0.3, {"doomed": 0.75, "safe": 0.05}, symbol="μ"))'''
+    ax, ["doomed", "safe"], palette, {"doomed": 0.75, "safe": 0.05}, symbol="μ"))'''
 
 _C_MUSSE = '''\
 ### simulate  —  three graded speciation rates + constant death (MuSSE)
@@ -274,13 +271,14 @@ import helpers as h
 
 palette = {"slow": "#3A7CA5", "medium": "#F2A541", "fast": "#E4572E"}
 tree = ph.trees.loads(ct.to_newick())
-dashed = {f"n{n.id}" for n in ct.extinct_leaves()}
-history = {f"n{i}": segs for i, segs in r.trait.history.items()}
+lab = ct.labels()                           # {id: 'n<id>'} — or 'e<id>' where the lineage went extinct
+dashed = {lab[n.id] for n in ct.extinct_leaves()}
+history = {lab[i]: segs for i, segs in r.trait.history.items()}
 (ph.trees.plot(tree, skeleton=False)
  + ph.trees.color_history(history, palette=palette, dashed=dashed)
  + ph.trees.time_axis("time", tick_size=22, label_size=28)).save("tree.png")
 h.composite_markov("tree.png", "musse.png", lambda ax: h.draw_markov(
-    ax, ["slow", "medium", "fast"], palette, 0.3, {"slow": 0.6, "medium": 1.3, "fast": 2.6},
+    ax, ["slow", "medium", "fast"], palette, {"slow": 0.6, "medium": 1.3, "fast": 2.6},
     symbol="λ"))'''
 
 _C_REDUCTION = '''\
@@ -295,7 +293,7 @@ ct = sp.complete_tree
 # an irreversible lifestyle: free-living -> endosymbiont, never back
 hab = simulate_discrete(ct, states=["free-living", "endosymbiont"], start="free-living", seed=8,
                         switch={"free-living->endosymbiont": 0.09, "endosymbiont->free-living": 0.0})
-# the SAME DrivenBy that couples a trait to speciation couples it to the genome: endosymbionts
+# the SAME DrivenBy that drives speciation with a trait drives a genome rate: endosymbionts
 # shed genes fast (loss x12) and gain almost none (origination x0.1)
 g = simulate_genomes_family(ct, initial_families=55, duplication=0.1,
         origination=3.0 * mod.DrivenBy(hab, {"endosymbiont": 0.1, "free-living": 1.0}),
@@ -305,19 +303,20 @@ g = simulate_genomes_family(ct, initial_families=55, duplication=0.1,
 import phylustrator as ph
 
 pal = {"free-living": "#2E8B6F", "endosymbiont": "#C25A3C"}
+lab = ct.labels()                                                  # {id: 'n<id>'}
 tree = ph.trees.loads(ct.to_newick())
-history = {f"n{i}": segs for i, segs in hab.history.items()}
+history = {lab[i]: segs for i, segs in hab.history.items()}
 tips = list(ct.extant_leaves())
-sizes  = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}          # gene count per tip
-colors = {f"n{n.id}": pal[hab.values[n.id]] for n in tips}         # bar colour = lifestyle
+sizes  = {lab[n.id]: len(g.genomes[n.id]) for n in tips}           # gene count per tip
+colors = {lab[n.id]: pal[hab.values[n.id]] for n in tips}          # bar colour = lifestyle
 fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
        + ph.trees.time_axis("time", bold=False))
 ph.beside(fig, ph.genomes.bars(sizes, colors=colors, label="genome size (genes)")).save("reduction.png")
-# the figure then composites the manual's driver->modifier->target diagram (lifestyle -> loss) on top'''
+# the figure then composites the driver->modifier->target diagram (lifestyle -> loss) on top'''
 
 _C_EXPANSION = '''\
-### simulate  —  the mirror of reduction: a trait conditions DUPLICATION, so genomes grow
+### simulate  —  a trait conditions DUPLICATION, so genomes grow
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_discrete
 from zombi2.genomes import simulate_genomes_family
@@ -326,18 +325,19 @@ from zombi2.rates import modifiers as mod
 ct = simulate_species_tree(birth=1.0, n_extant=32, seed=4).complete_tree
 sel = simulate_discrete(ct, states=["purifying", "relaxed"], start="purifying", seed=8,
                         switch={"purifying->relaxed": 0.09, "relaxed->purifying": 0.0})  # irreversible
-# under relaxed selection, duplicates pile up: the same DrivenBy, now on the duplication rate
+# under relaxed selection, duplicates pile up: DrivenBy on the duplication rate
 g = simulate_genomes_family(ct, initial_families=25, loss=0.07,
         duplication=0.05 * mod.DrivenBy(sel, {"relaxed": 11.0, "purifying": 1.0}), seed=9)
 ### plot  —  tree coloured by selection, beside per-tip genome-size bars (relaxed clades grow)
 import phylustrator as ph
 
 pal = {"purifying": "#3A7CA5", "relaxed": "#C25A3C"}
+lab = ct.labels()                                                  # {id: 'n<id>'}
 tree = ph.trees.loads(ct.to_newick())
-history = {f"n{i}": segs for i, segs in sel.history.items()}
+history = {lab[i]: segs for i, segs in sel.history.items()}
 tips = list(ct.extant_leaves())
-sizes  = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}
-colors = {f"n{n.id}": pal[sel.values[n.id]] for n in tips}
+sizes  = {lab[n.id]: len(g.genomes[n.id]) for n in tips}
+colors = {lab[n.id]: pal[sel.values[n.id]] for n in tips}
 fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
        + ph.trees.time_axis("time", bold=False))
@@ -354,19 +354,20 @@ from zombi2.rates import modifiers as mod
 ct = simulate_species_tree(birth=1.0, n_extant=30, seed=4).complete_tree
 comp = simulate_discrete(ct, states=["quiet", "competent"], start="quiet", seed=8,
                          switch={"quiet->competent": 0.12, "competent->quiet": 0.05})
-# DrivenBy on transfer_to (the choice slot) makes competent lineages likelier recipients — the
-# trait-driven twin of the topological Clades highway. Competent genomes take up more DNA.
+# DrivenBy on transfer_to (the choice slot) makes competent lineages likelier recipients, so
+# competent genomes take up more DNA
 g = simulate_genomes_family(ct, initial_families=35, transfer=0.5, loss=0.05, duplication=0.03,
         transfer_to=mod.DrivenBy(comp, {"competent": 8.0, "quiet": 1.0}), seed=3)
 ### plot  —  tree coloured by competence, beside per-tip genome-size bars (competent take up more)
 import phylustrator as ph
 
 pal = {"quiet": "#8f99a3", "competent": "#2E8B6F"}
+lab = ct.labels()                                                  # {id: 'n<id>'}
 tree = ph.trees.loads(ct.to_newick())
-history = {f"n{i}": segs for i, segs in comp.history.items()}
+history = {lab[i]: segs for i, segs in comp.history.items()}
 tips = list(ct.extant_leaves())
-sizes  = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}
-colors = {f"n{n.id}": pal[comp.values[n.id]] for n in tips}
+sizes  = {lab[n.id]: len(g.genomes[n.id]) for n in tips}
+colors = {lab[n.id]: pal[comp.values[n.id]] for n in tips}
 fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
        + ph.trees.time_axis("time", bold=False))
@@ -374,7 +375,7 @@ ph.beside(fig, ph.genomes.bars(sizes, colors=colors, label="genome size (genes)"
 # the figure then composites the driver->modifier->target diagram (competence -> uptake) on top'''
 
 _C_CONTINUOUS = '''\
-### simulate  —  a CONTINUOUS trait drives a genome rate (via a Curve, not a state table)
+### simulate  —  a CONTINUOUS trait conditions a genome rate (via a Curve, not a state table)
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous
 from zombi2.genomes import simulate_genomes_family
@@ -385,27 +386,52 @@ ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
 act = simulate_continuous(ct, start=0.0, rate=1.8, seed=3)          # a diffusing "activity" trait
 # a continuous driver maps its VALUE to a factor with a Curve; here high activity -> more gene gain.
 # (Each branch is cut into constant sub-steps internally, so the same engine consumes it.)
+factor = lambda v: 2.0 ** v
 g = simulate_genomes_family(ct, initial_families=12, loss=0.05,
-        origination=0.6 * mod.DrivenBy(act, Curve(lambda v: 2.0 ** v)), seed=9)
-### plot  —  tree coloured by the continuous trait, beside genome-size bars, + a tip scatter
+        origination=0.6 * mod.DrivenBy(act, Curve(factor)), seed=9)
+
+### plot  —  tree coloured by the continuous trait, beside per-tip genome-size bars
 import phylustrator as ph
 from matplotlib import cm, colors as mcolors
 
+lab = ct.labels()                                                   # {id: 'n<id>'}
 tree = ph.trees.loads(ct.to_newick())
-vals = {f"n{i}": act.node_values[i] for i in ct.nodes}          # the continuous value, per node
+vals = {lab[i]: act.node_values[i] for i in ct.nodes}               # the continuous value, per node
 tips = list(ct.extant_leaves())
-sizes = {f"n{n.id}": len(g.genomes[n.id]) for n in tips}
+sizes = {lab[n.id]: len(g.genomes[n.id]) for n in tips}
 norm = mcolors.Normalize(min(vals.values()), max(vals.values()))
-bar_c = {f"n{n.id}": mcolors.to_hex(cm.viridis(norm(act.node_values[n.id]))) for n in tips}
-fig = (ph.trees.plot(tree)
+bar_c = {lab[n.id]: mcolors.to_hex(cm.viridis(norm(act.node_values[n.id]))) for n in tips}
+fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_branches(vals, cmap="viridis")
-       + ph.trees.colorbar("activity (continuous trait)", loc="top-left")
        + ph.trees.time_axis("time", bold=False))
 ph.beside(fig, ph.genomes.bars(sizes, colors=bar_c, label="genome size (genes)")).save("cont.png")
-# beside it, a matplotlib scatter of each tip's trait value vs its genome size shows the driver->target trend'''
+# on top goes the same driver->modifier->target diagram, its middle column plotting value -> factor'''
 
 
-EXAMPLES = [
+CONDITIONING = [
+    Example("genome_reduction", "Genome reduction",
+            "A driver (a trait for the lifestyle) modifies the rate of loss (the target). "
+            "Endosymbionts also gain genes more slowly, so their genomes shrink. The tree is coloured "
+            "by the lifestyle and the bars are genome size at each tip.",
+            "trait → loss", genome_reduction, code=_C_REDUCTION),
+    Example("genome_expansion", "Genome expansion",
+            "A driver (a trait for the strength of selection) modifies the rate of duplication (the "
+            "target). Under relaxed selection duplicates accumulate and the genomes grow. The tree is "
+            "coloured by the selection regime and the bars are genome size at each tip.",
+            "trait → duplication", genome_expansion, code=_C_EXPANSION),
+    Example("hgt_uptake", "HGT uptake by competence",
+            "A driver (a trait for competence) modifies <b>who receives</b> a transfer (the target), "
+            "not a rate. Competent lineages take up DNA more often and their genomes grow. The tree is "
+            "coloured by competence and the bars are genome size at each tip.",
+            "trait → transfer uptake", hgt_uptake, code=_C_UPTAKE),
+    Example("continuous_conditioning", "A continuous driver",
+            "A driver (a diffusing continuous trait) modifies the rate of origination (the target). A "
+            "<code>Curve</code> turns each value into a factor, so genome size follows the trait. The "
+            "tree is coloured by the trait value and the bars are genome size at each tip.",
+            "continuous trait → origination", continuous_conditioning, code=_C_CONTINUOUS),
+]
+
+JOINING = [
     Example("bisse", "BiSSE",
             "A two-state trait drives speciation — the fast state's clades take over; the inset is the "
             "state Markov chain.",
@@ -417,24 +443,6 @@ EXAMPLES = [
             "Three graded speciation rates with constant death — the fastest state fills the tree, "
             "extinct lineages dashed.",
             "trait → speciation", musse, code=_C_MUSSE),
-    Example("genome_reduction", "Genome reduction",
-            "The same coupling, aimed at the genome instead of the tree: an irreversible endosymbiont "
-            "lifestyle drives fast gene loss and near-zero gene gain, so those lineages' genomes "
-            "collapse. Tree coloured by lifestyle; bars are per-tip genome size.",
-            "trait → loss", genome_reduction, code=_C_REDUCTION),
-    Example("genome_expansion", "Genome expansion",
-            "The mirror image: a trait conditions the <b>duplication</b> rate, so under relaxed "
-            "selection duplicates pile up and those genomes grow. Same figure as reduction, run the "
-            "other way. <code>duplication&nbsp;=&nbsp;base&nbsp;*&nbsp;DrivenBy(sel,&nbsp;{…})</code>.",
-            "trait → duplication", genome_expansion, code=_C_EXPANSION),
-    Example("hgt_uptake", "HGT uptake by competence",
-            "A trait conditions <b>who receives</b> a transfer, not a rate — competent lineages take "
-            "up DNA more readily and their genomes swell. The trait-driven twin of the topological "
-            "clade highway. <code>transfer_to&nbsp;=&nbsp;DrivenBy(competence,&nbsp;{…})</code>.",
-            "trait → transfer uptake", hgt_uptake, code=_C_UPTAKE),
-    Example("continuous_conditioning", "A continuous driver",
-            "The driver need not be discrete: a diffusing <b>continuous</b> trait scales a genome rate "
-            "through a <code>Curve</code> (value&nbsp;→&nbsp;factor), so genome size tracks the trait. "
-            "Tree coloured by the trait; the scatter shows the driver→target trend.",
-            "continuous → genome", continuous_conditioning, code=_C_CONTINUOUS),
 ]
+
+EXAMPLES = CONDITIONING + JOINING        # the module's full list; build.py takes the two separately

@@ -55,8 +55,14 @@ def node_values(result) -> dict:
     return {f"n{i}": v for i, v in result.node_values.items()}
 
 
-def dashed_extinct(tree, extinct_leaf_names: set) -> set:
-    """The set of node names whose whole subtree is extinct (their branches draw dashed)."""
+def dashed_extinct(tree, ct) -> set:
+    """The set of node names whose whole subtree is extinct (their branches draw dashed).
+
+    ``ct`` is the ZOMBI2 complete tree, and the names come from its own `labels()` — a lineage that
+    went extinct is ``e<id>``, not ``n<id>``. Spelling the prefix here rather than at each call site
+    is deliberate: when the extinct marking was introduced every caller kept building ``n<id>``, the
+    set matched nothing, and four figures silently lost their dashing."""
+    extinct_leaf_names = {ct.labels()[n.id] for n in ct.extinct_leaves()}
     dashed = set()
     for node in tree.walk("postorder"):
         if node.is_leaf:
@@ -124,9 +130,9 @@ def render_tree_for_composite(tree, out_png: str, values: dict | None = None, *,
     fig.save(out_png)
 
 
-def draw_markov(ax, states, palette, switch, rates, *, symbol="λ") -> None:
-    """Draw a continuous-time Markov chain: a coloured circle per state (labelled with its driving
-    rate), **bidirectional** transition arrows between states, and the switch rate."""
+def draw_markov(ax, states, palette, rates, *, symbol="λ") -> None:
+    """Draw a continuous-time Markov chain: a coloured circle per state (labelled with the rate it
+    drives) and **bidirectional** transition arrows between states."""
     import itertools
     import matplotlib.patches as mpatches
 
@@ -164,7 +170,6 @@ def draw_markov(ax, states, palette, switch, rates, *, symbol="λ") -> None:
             lx, ly = x + ddx / dl * (rad + 0.11), y + ddy / dl * (rad + 0.11)
             va = "bottom" if ddy >= 0 else "top"
         ax.text(lx, ly, f"{symbol} = {rates[s]}", ha="center", va=va, fontsize=22, zorder=4)
-    ax.text(0.5, 0.005, f"switch  q = {switch}", ha="center", va="bottom", fontsize=15, color="#666")
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.set_aspect("equal")
@@ -394,10 +399,22 @@ def mycoplasma_gff() -> str:
     return dest
 
 
+def branch_of(token: str) -> str:
+    """The branch out of a participant token: ``n3_g467`` -> ``n3``, ``e11_g14`` -> ``e11``.
+
+    The event log names participants, not columns: a gene copy carries the branch it sat on inside
+    its own token, which is why there is no ``lineage``/``donor``/``recipient`` column to read."""
+    return token.split("_", 1)[0]
+
+
 def family_events(run: str, tree, kinds=("duplication", "transfer", "loss")) -> tuple:
     """Pick the gene family with the richest history on the tree's lineages, and return
     ``(family_id, events)`` for a branch_events layer. Point events are ``{"kind","node","x"}``;
-    transfers are ``{"kind":"transfer","donor","recipient","x"}`` (from the recipient row)."""
+    transfers are ``{"kind":"transfer","donor","recipient","x"}``.
+
+    Reads the one-row-per-event log: ``time · kind · family · parents · children``, participants
+    ``n<species>_g<copy>`` and ``;``-packed. A transfer's children are **donor-side first**, so the
+    two ends of the edge come off that one cell."""
     import csv
     from collections import defaultdict
 
@@ -405,15 +422,22 @@ def family_events(run: str, tree, kinds=("duplication", "transfer", "loss")) -> 
     byfam = defaultdict(list)
     with open(os.path.join(run, "genomes", "genome_events.tsv")) as fh:
         for r in csv.DictReader(fh, delimiter="\t"):
-            k, fam = r["kind"], r["family"]
+            fam = r["family"]
+            k = "transfer" if r["kind"].startswith("transfer") else r["kind"]
             if k not in kinds:
                 continue
+            kids = [t for t in r["children"].split(";") if t]
+            born = [t for t in r["parents"].split(";") if t]
             if k == "transfer":
-                if r["recipient"] and r["donor"] in names and r["recipient"] in names:
-                    byfam[fam].append({"kind": "transfer", "donor": r["donor"],
-                                       "recipient": r["recipient"], "x": float(r["time"])})
-            elif r["lineage"] in names:
-                byfam[fam].append({"kind": k, "node": r["lineage"], "x": float(r["time"])})
+                if len(kids) == 2:
+                    donor, recipient = branch_of(kids[0]), branch_of(kids[1])
+                    if donor in names and recipient in names:
+                        byfam[fam].append({"kind": "transfer", "donor": donor,
+                                           "recipient": recipient, "x": float(r["time"])})
+            else:
+                where = branch_of((kids or born)[0]) if (kids or born) else None
+                if where in names:
+                    byfam[fam].append({"kind": k, "node": where, "x": float(r["time"])})
 
     def score(f):
         evs = byfam[f]
@@ -448,28 +472,54 @@ def rearranged_pair(genomes: dict) -> tuple:
 
 # --- the conditioning diagram (driver · modifier · target), the manual's figure -----------
 
-def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_base=None,
-                      target_sub=None, symbol="×", target_run="genome", state_colors=None):
-    """Reproduce the manual's driver→modifier→target diagram. ``switch`` is a {"a->b": rate} dict (an
-    arrow is drawn for each positive rate, so an irreversible trait shows one arrow); ``mapping`` is the
-    per-state multiplier; ``state_colors`` tints the state nodes to match the tree's palette. The state
-    names sit *outside* (below) their circles. ``target_base`` is the rate's base value (``None`` for a
-    target that is not a rate, e.g. a recipient-choice slot); ``target_sub`` overrides the italic
-    caption under TARGET."""
-    from matplotlib.patches import Circle, FancyArrowPatch, Rectangle
+_INK, _DIM = "#1a1a1a", "#6e6e6e"
+
+
+def _conditioning_frame(ax, driver, target, target_base, target_sub):
+    """The three columns every conditioning diagram shares: the headers, the driver box, the DrivenBy
+    arrow, and the target box. What sits *below* the arrow is the mapping, and it differs between a
+    discrete driver (a per-state multiplier) and a continuous one (a value→factor curve)."""
+    from matplotlib.patches import FancyArrowPatch, Rectangle
 
     ax.set_xlim(0, 660)
     ax.set_ylim(250, 0)                       # y grows downward, like the SVG
     ax.set_aspect("auto")
     ax.set_axis_off()
-    ink, dim = "#1a1a1a", "#6e6e6e"
 
     for x, t in ((120, "DRIVER"), (345, "MODIFIER"), (566, "TARGET")):
-        ax.text(x, 30, t, ha="center", va="center", color=dim, fontsize=12.5, fontweight="bold")
+        ax.text(x, 30, t, ha="center", va="center", color=_DIM, fontsize=12.5, fontweight="bold")
 
-    ax.add_patch(Rectangle((45, 96), 150, 60, fill=True, facecolor="#f2f2f0", edgecolor=ink,
+    ax.add_patch(Rectangle((45, 96), 150, 60, fill=True, facecolor="#f2f2f0", edgecolor=_INK,
                            lw=1.6, joinstyle="round"))
-    ax.text(120, 126, driver, ha="center", va="center", color=ink, fontsize=16)
+    ax.text(120, 126, driver, ha="center", va="center", color=_INK, fontsize=16)
+
+    ax.add_patch(FancyArrowPatch((203, 126), (486, 126), arrowstyle="-|>", mutation_scale=15,
+                                 lw=1.7, color=_INK))
+    ax.text(345, 112, "DrivenBy", ha="center", va="center", color=_INK, fontsize=14.5, style="italic")
+
+    ax.add_patch(Rectangle((496, 96), 140, 60, fill=True, facecolor="#f2f2f0", edgecolor=_INK,
+                           lw=1.6, joinstyle="round"))
+    if target_base is None:
+        ax.text(566, 126, target, ha="center", va="center", color=_INK, fontsize=15)
+    else:
+        ax.text(566, 120, target, ha="center", va="center", color=_INK, fontsize=15)
+        ax.text(566, 142, f"base {target_base}", ha="center", va="center", color=_DIM, fontsize=13)
+    if target_sub:
+        ax.text(566, 172, target_sub, ha="center", va="top", color=_DIM, fontsize=11.5,
+                style="italic")
+
+
+def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_base=None,
+                      target_sub=None, symbol="×", state_colors=None):
+    """The manual's driver→modifier→target diagram for a **discrete** driver. ``switch`` is a
+    {"a->b": rate} dict (an arrow is drawn for each positive rate, so an irreversible trait shows one
+    arrow); ``mapping`` is the per-state multiplier; ``state_colors`` tints the state nodes to match the
+    tree's palette. The state names sit *outside* (below) their circles. ``target_base`` is the rate's
+    base value (``None`` for a target that is not a rate, e.g. a recipient-choice slot); ``target_sub``
+    is the italic caption under TARGET."""
+    from matplotlib.patches import Circle, FancyArrowPatch
+
+    _conditioning_frame(ax, driver, target, target_base, target_sub)
 
     n = len(states)
     r_st = 15
@@ -478,8 +528,8 @@ def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_bas
     for k, s in enumerate(states):
         x = xs[k]
         col = (state_colors or {}).get(s, "#c9c9c9")
-        ax.add_patch(Circle((x, 202), r_st, facecolor=col, edgecolor=ink, lw=1.2))
-        ax.text(x, 202 + r_st + 11, s, ha="center", va="top", color=ink, fontsize=10.5)
+        ax.add_patch(Circle((x, 202), r_st, facecolor=col, edgecolor=_INK, lw=1.2))
+        ax.text(x, 202 + r_st + 11, s, ha="center", va="top", color=_INK, fontsize=10.5)
     for key, rate in switch.items():
         if rate <= 0:
             continue
@@ -489,33 +539,67 @@ def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_bas
         if xa < xb:
             ax.add_patch(FancyArrowPatch((inner_l, 196), (inner_r, 196),
                                          connectionstyle="arc3,rad=-0.6", arrowstyle="-|>",
-                                         mutation_scale=9, lw=1.1, color=ink))
+                                         mutation_scale=9, lw=1.1, color=_INK))
         else:
             ax.add_patch(FancyArrowPatch((inner_r, 208), (inner_l, 208),
                                          connectionstyle="arc3,rad=-0.6", arrowstyle="-|>",
-                                         mutation_scale=9, lw=1.1, color=ink))
+                                         mutation_scale=9, lw=1.1, color=_INK))
 
-    ax.add_patch(FancyArrowPatch((203, 126), (486, 126), arrowstyle="-|>", mutation_scale=15,
-                                 lw=1.7, color=ink))
-    ax.text(345, 112, "DrivenBy", ha="center", va="center", color=ink, fontsize=14.5, style="italic")
     for i, s in enumerate(states):
         ax.text(345, 152 + i * 19, f"{s} {symbol} {mapping.get(s, 1)}", ha="center", va="center",
-                color=dim, fontsize=13.5)
-
-    ax.add_patch(Rectangle((496, 96), 140, 60, fill=True, facecolor="#f2f2f0", edgecolor=ink,
-                           lw=1.6, joinstyle="round"))
-    if target_base is None:
-        ax.text(566, 126, target, ha="center", va="center", color=ink, fontsize=15)
-    else:
-        ax.text(566, 120, target, ha="center", va="center", color=ink, fontsize=15)
-        ax.text(566, 142, f"base {target_base}", ha="center", va="center", color=dim, fontsize=13)
+                color=_DIM, fontsize=13.5)
 
 
-def conditioning_png(path, **kw):
-    """Render :func:`draw_conditioning` to its own (transparent) PNG, so it can be placed small and
-    undistorted above a realization."""
-    fig, ax = plt.subplots(figsize=(9.5, 3.5))
-    draw_conditioning(ax, **kw)
-    fig.savefig(path, dpi=180, bbox_inches="tight", transparent=True)
+def draw_conditioning_curve(ax, *, driver, curve, vrange, target, target_base=None, target_sub=None,
+                            cmap="viridis", value_label="trait value"):
+    """The same diagram for a **continuous** driver. A discrete driver has one multiplier per state; a
+    continuous one has a curve, so the modifier column plots ``curve`` (value → factor) over ``vrange``
+    and the driver column carries the colour ramp the tree is painted with."""
+    from matplotlib.patches import Rectangle
+
+    _conditioning_frame(ax, driver, target, target_base, target_sub)
+
+    # driver column: the colour ramp, standing in for the discrete diagram's state circles
+    x0, x1, y0, y1 = 57.0, 183.0, 190.0, 214.0
+    ramp = plt.get_cmap(cmap)
+    steps = 48
+    for k in range(steps):
+        ax.add_patch(Rectangle((x0 + (x1 - x0) * k / steps, y0), (x1 - x0) / steps + 0.6, y1 - y0,
+                               facecolor=ramp(k / (steps - 1)), edgecolor="none", lw=0))
+    ax.add_patch(Rectangle((x0, y0), x1 - x0, y1 - y0, fill=False, edgecolor=_INK, lw=1.2))
+    ax.text(x0, y1 + 11, "low", ha="left", va="top", color=_INK, fontsize=10.5)
+    ax.text(x1, y1 + 11, "high", ha="right", va="top", color=_INK, fontsize=10.5)
+
+    # modifier column: the value → factor curve, where the discrete diagram lists its multipliers
+    cx0, cx1, cy0, cy1 = 292.0, 400.0, 148.0, 212.0
+    lo, hi = vrange
+    vs = [lo + (hi - lo) * k / 60 for k in range(61)]
+    fs = [curve(v) for v in vs]
+    fmax = max(fs + [1.0]) or 1.0
+
+    def _px(v):
+        return cx0 + (cx1 - cx0) * (v - lo) / ((hi - lo) or 1.0)
+
+    def _py(f):
+        return cy1 - (cy1 - cy0) * (f / fmax)
+
+    ax.plot([cx0, cx1], [_py(1.0)] * 2, ls=":", lw=1.1, color=_DIM, zorder=1)   # the neutral factor
+    ax.text(cx0 + 4, _py(1.0) - 3, "×1", ha="left", va="bottom", color=_DIM, fontsize=10)
+    ax.plot([_px(v) for v in vs], [_py(f) for f in fs], lw=2.0, color=_INK, zorder=2)
+    ax.plot([cx0, cx0], [cy0, cy1], lw=1.1, color=_DIM)
+    ax.plot([cx0, cx1], [cy1, cy1], lw=1.1, color=_DIM)
+    ax.text(cx0 - 7, (cy0 + cy1) / 2, "factor", ha="center", va="center", color=_DIM, fontsize=11,
+            rotation=90)
+    ax.text((cx0 + cx1) / 2, cy1 + 13, value_label, ha="center", va="top", color=_DIM, fontsize=11)
+
+
+def conditioning_png(path, draw=None, **kw):
+    """Render a conditioning diagram (``draw_conditioning`` by default, ``draw_conditioning_curve`` for
+    a continuous driver) to its own transparent PNG, so it can be placed small and undistorted above a
+    realization. The axes fills the figure, so every diagram comes out at the same proportions."""
+    fig = plt.figure(figsize=(9.5, 3.5))
+    ax = fig.add_axes([0, 0, 1, 1])
+    (draw or draw_conditioning)(ax, **kw)
+    fig.savefig(path, dpi=180, transparent=True)
     plt.close(fig)
     return path
