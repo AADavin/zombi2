@@ -4,6 +4,7 @@ exercise argument wiring, output files, ``--params``, and the clean error paths 
 (which their own suites cover)."""
 
 import collections
+import os
 import re
 
 import pytest
@@ -1300,8 +1301,11 @@ def test_tools_format_reports_one_complete_path_per_output(tmp_path, capsys):
     assert main(["tools", "format", str(run), "--format", "homology", "markers"]) == 0
     lines = capsys.readouterr().out.strip().split("\n")
     n = len(list((run / "genomes" / "homology").glob("*.tsv")))
-    assert lines == [f"wrote {n} table(s) in {run}/genomes/homology/",
-                     f"wrote 1 table in {run}/genomes/markers.tsv"]
+    # built with os.path.join/os.sep, not literal slashes: the point of the line is that it pastes,
+    # so it has to be the platform's own separator all the way through (this caught a "/" on Windows)
+    homology = os.path.join(str(run), "genomes", "homology") + os.sep
+    markers = os.path.join(str(run), "genomes", "markers.tsv")
+    assert lines == [f"wrote {n} table(s) in {homology}", f"wrote 1 table in {markers}"]
     assert (run / "genomes" / "markers.tsv").exists()           # one file needs no folder of its own
 
 
