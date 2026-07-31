@@ -6,17 +6,17 @@ The species tree is the backbone every other level runs on, so it is where almos
 
 A species tree grows by two kinds of event: a lineage **speciates**, splitting in two, or it **goes extinct** and stops. You give a **speciation rate** and an **extinction rate**, and every lineage alive at a given moment has the same constant chance per unit time of splitting or dying, independently of the rest.
 
-The two rates set the tempo. Their difference fixes how fast diversity builds up. Their ratio fixes how much of the history is hidden, because a lineage that goes extinct takes its part of the tree with it. With extinction set to zero nothing is ever lost, and the tree you get is the whole tree that grew: this is the classic **Yule** (pure-birth) process. As extinction rises, the tree of survivors becomes a thinner trace of the one that actually grew. The lineages that died are kept: they are in the complete tree, and *Outputs* below says where.
+The two rates set the tempo. Their difference fixes how fast diversity builds up. Their ratio fixes how much of the history is hidden, because a lineage that goes extinct takes its part of the tree with it. With extinction set to zero nothing is ever lost, and the tree you get is the whole tree that grew: this is the classic **Yule** (pure-birth) process. The lineages that died are kept: they are in the complete tree, and *Outputs* below says where.
 
 ![A species tree grown by the birth–death process. Every lineage alive at a given moment has the same chance per unit time of splitting or of dying. The lineages that died are drawn dashed and stop where they died; the survivors reach the present. Both are in the complete tree, and only the solid ones are in the extant tree.](figures/species_tree.pdf){width=100%}
 
-You also say when to stop: grow to a fixed **total time** (`total_time`), or to a fixed **number of surviving lineages** (`n_extant`).
+You also say when to stop: grow to a fixed **total time** (`total_time`), or to a fixed **number of surviving lineages** (`n_extant`).[^stopping]
 
-They differ in one practical way. `n_extant` bounds the run by construction; `total_time` does not, because standing diversity grows like exp((birth − death) · t), so a rate slightly too high or a time slightly too long is the difference between a thousand lineages and ten million. A run that passes **100,000 standing lineages** therefore stops with an error rather than filling memory. Raise `max_lineages` if that is the size you want, or set it to `None` to lift the guard. It never truncates: a tree cut off at a size is no longer a sample from the process you asked for, so handing one back would be worse than not running at all.
-
-They also differ in a way that matters if you are going to estimate rates from the trees. `n_extant` stops the first moment that many lineages are alive together, then draws one more waiting time and puts the present where the next event would have fired — so the two newest tips have a real branch length instead of a zero-length one. With `death=0` that is exactly the standard way to sample a tree of a given size [@hartmann2010sampling]. With extinction it is not: the run stops the *first* time it touches the target, so a stretch at that many lineages reached by falling back from one more is never sampled, and the trees come out shallower than a birth–death process conditioned on that many tips. How much shallower depends on turnover and on size — nothing measurable at `death=0`, about a tenth of the tree height at 10 tips with `death` at 0.4 of `birth`, a third to a half at 10 tips with `death` at 0.8 of `birth`, and back to nothing by 50 tips at moderate turnover. Use `total_time` if you need the conditioned distribution exactly; otherwise say in your methods which rule made the trees, because a rate estimator applied to them will look biased for a reason that has nothing to do with the estimator.
+`n_extant` bounds the run by construction; `total_time` does not, because standing diversity grows like exp((birth − death) · t), so a rate slightly too high or a time slightly too long is the difference between a thousand lineages and ten million. A run that passes **100,000 standing lineages** stops with an error rather than filling memory. Raise `max_lineages` if that is the size you want, or set it to `None` to lift the guard. It never truncates: a tree cut off at a size is no longer a sample from the process you asked for.
 
 `total_time` is not conditioned on survival. A run that dies out raises an error rather than handing back a tree with no present — so if you loop over seeds and skip the failures, you are conditioning on survival yourself, and everything downstream inherits that.
+
+[^stopping]: The two rules also give different tree shapes, which matters if you are going to estimate rates from the trees. `n_extant` stops the first moment that many lineages are alive together, then draws one more waiting time and puts the present where the next event would have fired, so the two newest tips have a real branch length instead of a zero-length one. With `death=0` that is exactly the standard way to sample a tree of a given size [@hartmann2010sampling]. With extinction it is not: the run stops the *first* time it touches the target, so the trees come out shallower than a birth–death process conditioned on that many tips — nothing measurable at `death=0`, about a tenth of the tree height at 10 tips with `death` at 0.4 of `birth`, a third to a half at 10 tips with `death` at 0.8 of `birth`, and back to nothing by 50 tips at moderate turnover. Use `total_time` if you need the conditioned distribution exactly; otherwise say in your methods which rule made the trees.
 
 ```python
 from zombi2 import species
@@ -67,10 +67,12 @@ By default you see every surviving species. **`sampling`** keeps a random fracti
 
 ```python
 # see only half the survivors
-result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, sampling=0.5, seed=1)
+result = species.simulate_species_tree(
+    birth=1.0, death=0.3, n_extant=20, sampling=0.5, seed=1)
 
 # recover fossils of extinct lineages along the branches
-result = species.simulate_species_tree(birth=1.0, death=0.3, total_time=6.0, fossils=0.1, seed=2)
+result = species.simulate_species_tree(
+    birth=1.0, death=0.3, total_time=6.0, fossils=0.1, seed=2)
 ```
 
 ## The `SpeciesResult` object
@@ -118,15 +120,18 @@ The command mirrors the Python call — the base rates, the stop condition, and 
 zombi2 species out/ --birth 1.0 --death 0.3 --n-extant 20 --seed 1
 
 # grow to time 5, with a mass extinction at time 3 and half the survivors sampled
-zombi2 species out/ --birth 1.0 --death 0.4 --total-time 5 --mass-extinction 3 0.75 --sampling 0.5 --seed 2
+zombi2 species out/ --birth 1.0 --death 0.4 --total-time 5 \
+    --mass-extinction 3 0.75 --sampling 0.5 --seed 2
 ```
 
 ## Outputs
 
-A run writes two Newick trees by default: the **extant** tree of survivors (`species_extant.nwk`) and the **complete** tree, which also carries the extinct and unsampled lineages (`species_complete.nwk`). The survivors are tips of both trees; the dead and unsampled are tips of the complete tree only.
+| File | What it holds |
+|---|---|
+| `species_extant.nwk` | the tree of sampled survivors — what the next level reads |
+| `species_complete.nwk` | the whole tree that grew, with the extinct and unsampled lineages still on it |
+| `species_events.tsv` | every speciation and extinction, with its time |
+| `species_fates.tsv` | each tip's fate: `extant`, `extinct` or `unsampled` |
+| `species_fossils.tsv` | the sampled fossil lineages and their ages, when you asked for `fossils` |
 
-Both trees give the root a branch length (**the stem**), which many simulators leave off. A run begins with a single lineage and that lineage lives for a while before it first splits. It is ordinary simulated time — genes are gained and lost along it, traits drift along it — and a tree written without it would start at the crown and lose that history. In the complete tree the stem runs from the origin to the first speciation; in the extant tree it runs from the origin to the most recent common ancestor of the survivors, absorbing whatever branches were pruned away above it.
-
-The **event log** (`species_events.tsv`) is always written: every speciation and extinction with its time. It is the ground truth the simulator exists to record. If you asked for fossils, the sampled fossil lineages are written too.
-
-All of them land in `out/species/`; `--flat` writes them straight into `out/` instead. Appendix B lists every file.
+Both trees give the root a branch length, the stem of Chapter 2: in the complete tree it runs from the origin to the first speciation, in the extant tree from the origin to the most recent common ancestor of the survivors, absorbing whatever branches were pruned away above it. They land in `out/species/`, or straight into `out/` with `--flat`; Appendix B lists every file with its format and its default.

@@ -56,11 +56,11 @@ The **base** is the speed of a single event (how fast), in units of inverse time
 
 A bare number is a valid rate, and the default scope is the right one for each event, so most runs write neither. The modifiers are where the range of the tool lives, and they get a section of their own below.
 
-**Appendix A** is the full rate reference — the units, each level's default scope, the catalogue of modifiers — and the Gillespie algorithm that turns rates into events.
+**Appendix A of the PDF manual** is the full rate reference — the units, each level's default scope, the catalogue of modifiers — and the Gillespie algorithm that turns rates into events.
 
 ## Modifiers
 
-The base of a rate says how fast. A modifier says **what it depends on**. There are six, and each one answers that question with a different source:
+The base of a rate says how fast. A modifier says **what it depends on**:
 
 | Modifier | The rate depends on | Written |
 |---|---|---|
@@ -69,7 +69,7 @@ The base of a rate says how fast. A modifier says **what it depends on**. There 
 | `FromParent` | the parent's value, drifting at each split | `FromParent(spread=0.3)` |
 | `ByLineage` | the lineage, drawn independently | `ByLineage(spread=0.3)` |
 | `ByFamily` | the gene family, drawn independently | `ByFamily(spread=0.5)` |
-| `DrivenBy` | **another level** — a trait, a gene's presence | `DrivenBy('trait', {'hot': 4.0})` |
+| `DrivenBy` | **a driver** — a trait's state, a gene's presence | `DrivenBy('trait', {'hot': 4.0})` |
 
 Each is a dimensionless multiplier, so they multiply, and a rate can carry several:
 
@@ -80,7 +80,7 @@ from zombi2.rates import modifiers as mod
 loss = 0.25 * mod.OnTime({0: 1.0, 2: 3.0}) * mod.ByFamily(spread=0.5)
 ```
 
-That composition is the point. The six are not a catalogue of scenarios but the parts scenarios are built from, and a good deal of what the literature names as a model is one modifier on one rate:
+Much of what the literature names as a model is one modifier on one rate:
 
 | What it is usually called | What it is here |
 |---|---|
@@ -91,43 +91,34 @@ That composition is the point. The six are not a catalogue of scenarios but the 
 | rate heterogeneity across gene families | `ByFamily` on a genome rate |
 | state-dependent diversification (BiSSE and kin) | `DrivenBy` on `birth` |
 
-None of those is a separate code path with its own function and its own parameters. They are the same grammar pointed at different rates, which is why they combine: a relaxed clock *and* an early burst is one rate with two modifiers, not a model somebody had to implement.
+None of those is a separate code path with its own function and its own parameters. They are the same grammar pointed at different rates, which is why they combine: a relaxed clock *and* an early burst is one rate with two modifiers, not two models.
 
-Not every modifier makes sense at every level — a gene family is not a thing the species tree has — so each level wires the ones that do. Asking for one that is not wired is an **error**, naming what the level does take, rather than a parameter quietly ignored:
+Not every modifier is available at every level. Some combinations mean nothing — a species tree has no gene families for `ByFamily` to vary over — and others are simply not implemented yet. Either way the level refuses the rate and says which modifiers it does take, rather than ignoring it. `zombi2 <command> -h` lists them for that level, and Appendix A of the PDF manual gives the full table.
 
-```
-zombi2: error: loss carries ByLineage, which the family genome engine does not support yet —
-only OnTime (skyline), DrivenBy (a conditioned/joint driver) and ByFamily (per-family
-heterogeneity) are wired. Clade drift is a later slice.
-```
+## Conditioning
 
-`zombi2 <command> -h` lists the wired set for that level, and Appendix A gives the full table.
+Some scenarios need more than the levels running in sequence. A rate can read something that varies from lineage to lineage instead of being a fixed number: a habitat trait makes gene loss faster on some branches than others, a gene's presence makes a lineage speciate faster. That is **one thing driving another**, and it has three parts:
 
-## Going beyond: conditioning and joining levels
-
-Some scenarios need more than the levels running in sequence:
-
-- A trait evolves along a tree and controls how fast that tree speciates.
-- Gene content decides survival: lineages that acquire a key gene diversify faster.
-- Two levels feed back: a trait raises a gene family's loss rate, and carrying that family pulls on the trait.
-
-ZOMBI2 allows to simulate these scenarios, that fall under two categories — **conditioning** and **joining**. 
-
-**Conditioning** makes a rate read the state of another level instead of being a fixed number. It has three parts:
-
-- the **driver** — the level that is read. It is simulated first and then held fixed.
-- the **target** — the rate that is affected. It belongs to a later level.
-- the **modifier** — `DrivenBy`, which says what each state of the driver does to that rate.
+- the **driver** — the value that is read: a trait's state, a gene family's presence.
+- the **target** — the rate that reads it.
+- the **modifier** — `DrivenBy`, which says what each value of the driver does to that rate.
 
 Take olfactory genes. A habitat trait switches between aquatic and terrestrial along the tree, and aquatic lineages lose those genes four times faster. The habitat is the driver, gene loss is the target, and the modifier is what turns one into the other: on a branch that is aquatic the loss rate is `0.25 × 4`, and elsewhere it is `0.25 × 1`.
 
-![Conditioning has three parts. The **driver** is a level that was already simulated — here a habitat trait, whose two states each lineage switches between are shown below it. The **target** is a rate in a later run, here gene loss. The **modifier**, `DrivenBy`, carries a multiplier for each state of the driver, so a branch's habitat sets that branch's loss rate. The driver is finished before the target's run begins, which is what makes this two ordinary runs rather than one joint one.](figures/conditioning_print.png){width=95%}
+![Conditioning has three parts. The **driver** is a value that was already simulated — here a habitat trait, whose two states each lineage switches between are shown below it. The **target** is a rate in a later run, here gene loss. The **modifier**, `DrivenBy`, carries a multiplier for each state of the driver, so a branch's habitat sets that branch's loss rate. The driver is finished before the target's run begins, which is what makes this two ordinary runs rather than one joint one.](figures/conditioning_print.png){width=95%}
 
-Nothing about this needs a special engine. The trait run finishes and writes its event log; the genome run reads that log and looks up a multiplier per branch. It is the same handoff as feeding a species tree to a genome run, one level further along, which is why the whole thing factorises:
+What decides how the run is organised is whether the driver can be finished before the target starts. Here it can, and that is **conditioning**: the trait run finishes and writes its event log, and the genome run reads that log and looks up a multiplier per branch. Nothing about it needs a special engine — it is the same handoff as feeding a species tree to a genome run, one level further along, which is why the whole thing factorises:
 
 $$P(\text{Species}) \cdot P(\text{Traits} \mid \text{Species}) \cdot P(\text{Genomes} \mid \text{Species}, \text{Traits})$$
 
-**Joining** is for when neither level can go first. If a trait speeds up speciation, faster-speciating lineages leave more descendants, so the tree's shape depends on the trait — while the trait is evolving along that very tree. No order works, so both are grown together in one run, and the tree becomes an output rather than an input.
+## Joining
+
+**Joining** is for when the driver cannot be finished first. Two scenarios need it:
+
+- A trait evolves along a tree and controls how fast that tree speciates.
+- Gene content decides survival: lineages that acquire a key gene diversify faster.
+
+If a trait speeds up speciation, faster-speciating lineages leave more descendants, so the tree's shape depends on the trait — while the trait is evolving along that very tree. No order works, so both are grown together in one run, and the tree becomes an output rather than an input.
 
 ![Joining, with the same three parts and a fourth thing that changes everything. Body size drives speciation through the same `DrivenBy` modifier, and the speciation rate creates the tree — but that tree is the one the trait is evolving along, so the loop closes. Note where it closes: not from the rate back to the trait, since a speciation rate does not change a body size. It decides which lineages split, and every split hands the parent's trait state to both daughters. The tree is the third thing in the cycle, and it is the difference between the two figures: in conditioning it is a fixed input, given before either level runs, and here it is an output.](figures/joining_print.png){width=95%}
 
@@ -135,7 +126,7 @@ Because neither is finished first, neither can be written out and handed over. T
 
 $$P(\text{Species}, \text{Traits})$$
 
-The test is whether the influence runs one way or in a loop. One way: condition. In a loop — one level shaping another and being shaped back, directly or through the tree — join.
+The test is one question: can the driver be grown first, on its own, and handed over? If it can, condition. If it cannot, join. Chapter 9 works through both.
 
 ## Using ZOMBI2 in Python
 
@@ -175,24 +166,24 @@ zombi2 species skyline/ --birth "1.0 * OnTime({0: 1.0, 3: 0.3})" --death 0.3 --n
 
 Every command takes one positional argument, the **run directory**. It is both where that command writes and where it reads the level before it, so a pipeline is the same directory named once per command and nothing is passed by hand. `--from` overrides the reading half, for a tree from elsewhere or a run you would rather not write into; a `--params` TOML file can hold a whole pipeline's settings.
 
-Because the levels share one directory, a command refuses to re-run a level in place when a later level was built from it — that would leave the later output out of step. `--force` re-runs anyway and removes the now-stale downstream. The CLI covers all four levels; the coupled models are run from Python until their commands land.
-
-For a script driving the commands, the exit status separates the two ways a run can fail, in the usual convention: **2** is a usage error — an unknown flag, a missing required one, a value the parser cannot read — and **1** is a run that started and could not finish, such as a tree file that will not parse or a condition the model cannot meet. **0** is success. Warnings go to stderr and do not change the status; a warned run succeeded.
+Because the levels share one directory, a command refuses to re-run a level in place when a later level was built from it — that would leave the later output out of step. `--force` re-runs anyway and removes the now-stale downstream. The CLI covers all four levels, and `zombi2 joint` grows a tree and its driver in one pass. Conditioning has no command of its own: a driven rate is written on the level command that reads it, like any other rate.
 
 ## Output in ZOMBI2
 
-Every run can be written with `result.write("out/", outputs=[...])`; with no `outputs` it writes that level's **default** set. The formats are uniform — **trees** in Newick, **tables and event logs** in TSV, **sequences** in FASTA. Branch lengths are in time everywhere except the sequence phylograms, which are in substitutions per site.
+Every run can be written with `result.write("out/", outputs=[...])`; with no `outputs` it writes that level's **default** set. The formats are uniform:
 
-At every level the **event log** (`*_events.tsv`) is the true, ordered history the run followed: the source of truth the summaries are derived from. Appendix B lists every file, level by level.
+| Output | Format |
+|---|---|
+| trees | Newick |
+| tables and event logs | TSV |
+| sequences | FASTA |
+
+Branch lengths are in time everywhere except the sequence phylograms, which are in substitutions per site. At every level the **event log** (`*_events.tsv`) is the true, ordered history the run followed, and Appendix B lists every file, level by level.
 
 ## Reproducing a run
 
-One pseudo-random stream drives a whole run, and `seed` starts it. The same seed with the same parameters gives the same run, event for event. A run given no seed draws one and records it, so a run you did not think to seed can still be repeated — read the seed out of the log.
+One pseudo-random stream drives a whole run, and `seed` starts it: the same seed with the same parameters gives the same run, event for event. A run given no seed draws one and records it in the log, so an unseeded run can still be repeated. Three other things have to match:
 
-A seed alone is not enough to identify a run, and it is worth being exact about what else is needed:
-
-- **The same ZOMBI2 version.** A seed names a position in a stream of draws, not a history, so anything that changes how many draws a run makes, or in what order, changes everything after it. Fixing a bug or adding an event does that. Optimisations are checked seed by seed against the code they replace, so a change that only makes a run faster does not move it — but across versions the realisation is not promised. The version is the first line of every run log, and `pip install zombi2==<that version>` is how to get an old run back.
-- **The same inputs, by content.** A run that reads a species tree, a `--tip-fates` table, or a `DrivenBy` driver file is reproducible only with those files. The log records each of them by SHA-256 as well as by name, so two runs from two different trees are never mistaken for each other.
+- **The version.** A seed names a position in a stream of draws, not a history, so anything that changes how many draws a run makes, or in what order, moves everything after it. Every run log records the version it was made with, and `pip install zombi2==<that version>` gets the old run back.
+- **The inputs, by content.** A run that reads a species tree, a `--tip-fates` table or a `DrivenBy` driver file is reproducible only with those files; the log records each by SHA-256 as well as by name.
 - **Serial or parallel.** `parallel=` is a separate engine, so a parallel run and a serial run of the same seed differ; both are valid draws of the same process. A parallel run is identical for any worker count (Chapter 4).
-
-The machine is not on that list. The generator is numpy's PCG64, whose stream follows from the seed and not from the operating system or the processor, and every draw ZOMBI2 makes comes from it.

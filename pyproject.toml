@@ -69,9 +69,9 @@ bench = ["snakemake>=8", "snakemake-executor-plugin-slurm", "matplotlib", "pyyam
 # renders the parts that do work; raise it to a release that carries the gallery's API when there is one.
 gallery = ["phylustrator==0.1.0", "cairosvg>=2.5", "matplotlib", "pillow"]
 
-# The `zombi2` CLI is grown from the clean core, one level at a time. It
-# currently exposes the four built levels — `species`, `genomes`, `sequences`, `traits`; the coupled
-# commands land as they are rebuilt (the old ones stay quarantined in legacy/ until then).
+# The `zombi2` CLI exposes one command per level — `species`, `genomes`, `sequences`, `traits` —
+# plus `joint`, which grows a species tree together with the level driving it, and `tools`, which
+# runs analyses over a finished run.
 [project.scripts]
 zombi2 = "zombi2.cli.main:main"
 

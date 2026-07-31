@@ -82,8 +82,8 @@ mod.FromParent(spread=0.3)` is a rate that both follows a schedule and drifts be
 
 ### Which level accepts which
 
-A modifier only makes sense where the level can act on it, and a level **rejects** a modifier it does not
-wire rather than silently ignoring it. This is what each accepts today:
+A modifier only makes sense where the level can act on it, and a level **rejects** one it does not
+accept rather than silently ignoring it. This is what each accepts today:
 
 | Level | The modifiers it accepts |
 |---|---|
@@ -98,8 +98,8 @@ cannot disagree — and a test asserts this table against them.
 
 An empty cell means that level does not read that modifier **yet**. It is not a claim that the combination
 would be meaningless; each engine gains a modifier when its own code learns to read it, and some have not
-got there. You never have to guess which: give a level a modifier it does not wire and the error names the
-ones it does, so this table can always be read back off the tool itself.
+got there. You never have to guess which: give a level a modifier it does not accept and the error names
+the ones it does, so this table can always be read back off the tool itself.
 
 ## The Gillespie algorithm
 

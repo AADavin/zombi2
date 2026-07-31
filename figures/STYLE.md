@@ -27,8 +27,8 @@ These are the conventions the rewrite settled on. They outrank anything below.
 - **The four-levels layout:** a vertical chain **Species → Genomes → Sequences**, with **Traits**
   branching to the side from Species on a **curved** arrow, at the same height as Genomes. It is not
   a diamond; do not call it "the diamond". Sequences is never placed centre-bottom.
-- **Coupling diagrams:** dashed = a level a run always evolves on, solid = a coupling you add, a
-  dashed capsule = "grown together" (joint).
+- **Conditioning and joining diagrams:** dashed = a level a run always evolves on, solid = a
+  driving relation you add, a dashed capsule = "grown together" (joint).
 
 Figures already drawn to these rules, to copy from: `manual/book/figures/fig-2-1-four-levels.svg`,
 `figures/svg/stem.svg` (origin, stem, crown) and `figures/svg/species_tree.svg` (a birth–death

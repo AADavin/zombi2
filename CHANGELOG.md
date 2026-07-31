@@ -9,6 +9,84 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **A gallery example that is not the species→genomes→sequences pipeline** — four thousand trees under
+  constant-rate and diversity-dependent birth, compared by their γ statistic, which is the other way to
+  use a level: run it many times and measure the output.
+- **`rearrangement_events.tsv`** — inversions, transpositions and translocations get a file of their
+  own, at both the ordered and the nucleotide resolution, written with the event log. They begin and
+  end no lineage, so in the genealogy table they were rows with nine columns empty; here every column
+  is one they have. `position` is now `start`, because a `length` travels with it.
+
+### Changed
+- **The ordered `genome_events.tsv` is one row per event**, in the shared genealogy format —
+  `time kind family parents children` with the coordinates of the event beside them. Participants are
+  written `n<species>_g<copy>`, so the `lineage`, `recipient`, `donor` and `dest_lineage` columns are
+  gone: a transfer is one row that names the donor's copy, the copy that arrived, the arc that left
+  and where the block landed. **This changes the file's columns**, and a replacing transfer is now
+  `transfer_replacing` carrying the copy it overwrote as a second parent, with no separate `loss` row.
+- **`block_events.tsv` and `chromosome_events.tsv` carry `parents` and `children` too**, with copies
+  written `n<species>_g<copy>` and chromosomes `n<species>_c<chromosome>`. A nucleotide speciation is
+  one row naming both daughters rather than one row each; the chromosome log has no `lineage` column.
+- **A replicon or a copy the run starts with is `initial`, not `origination`**, in
+  `chromosome_events.tsv` as it already was in `block_events.tsv` — so counting `origination` gives
+  what arose during the run.
+- **"Wired" is gone from the error messages.** A level that refuses a modifier now says whether the
+  combination is meaningless (a species tree has no gene families for `ByFamily` to vary over) or simply
+  **not implemented yet** — where "not wired" meant the second and sounded like the first. The manual,
+  the specification and the `RATES` help block use the same wording.
+- **Long lines in the manual's code blocks wrap instead of vanishing.** Past about 104 characters a line
+  ran off the paper and the remainder was silently not printed.
+- **The gallery's sections fold**, with species open, and **conditioning and joining are now two
+  sections** rather than one: conditioning grows the driver first and holds it fixed, joining grows both
+  in one run. Deep links (`gallery.html#conditioning`) open a closed section.
+- **A loss never takes an ordered chromosome below its last gene.** A run covering every gene still on
+  the chromosome no longer fires, matching the floor the nucleotide resolution already enforced, so the
+  two resolutions agree on what a chromosome is. Emptying the karyotype remains chromosome loss's own
+  event. The family resolution has no floor: a high loss rate still empties a genome there. **This
+  changes results** for ordered runs whose loss extents reach whole chromosomes — the random stream is
+  untouched, so a run in which no loss is ever declined is byte-identical.
+- **`--help` is orientation again, not a manual** — 836 rendered lines across the ten screens down to
+  541. Every option states what it does and stops: the run directory is "the run directory", `--quiet`
+  is "no progress bar". Units, defaults, valid values and genuinely surprising interactions stay; the
+  reasoning moves to the manual, which already carried all of it.
+- **`zombi2 tools format` requires `--format`.** It used to default to `homology` and write a table per
+  family, which answers a question nobody asked. Running it bare now names the three choices.
+- **A single-file output no longer gets a directory of its own** — the marker table is
+  `genomes/markers.tsv`, not `genomes/markers/markers.tsv`. `homology` and `recphylo` write one file per
+  family, so they keep theirs.
+- **Every "wrote" line prints one complete path** you can copy — `wrote 1 table in out/genomes/markers.tsv`
+  rather than a base directory plus a fragment to compose yourself.
+- **The saturation warning is a sentence** (it was a paragraph): what happened, the measured identity,
+  and the flag that fixes it.
+- **`zombi2 -h` no longer has a "Coupling" heading.** The commands group as **Levels / Joint / Tools**,
+  and the trailing paragraph about conditioning is gone. ZOMBI2 simulates evolution at four levels, and
+  `joint` is the command for one of the three ways those levels can relate — independent, conditioned,
+  joint — rather than a level of its own. Conditioning has no command: a driven rate is written on the
+  level command that reads it, like any other rate. The word "coupling" is retired throughout, in the
+  CLI, the manual, the specification and Appendix B's `Conditioning and joining — no new files`.
+
+### Fixed
+- **Four `--help` examples did not work.** Two `zombi2 species` examples used a seed whose run goes
+  extinct before the present, so they exited 1; the only worked rate example on `zombi2 joint` used a
+  filename driver, which `joint` always rejects; and `zombi2 tools -h` showed `tools format` without a
+  `--format`.
+- **`--genes` claimed it was ignored alongside `--gff`.** Passing both is an error, and always was.
+- **`--write summary` was undiscoverable** on `genomes`, `sequences` and `traits` — the summary is
+  written by default but was missing from all three help listings. The lists are now generated from the
+  output tables, so they cannot drift again.
+- **`zombi2 genomes` described two resolutions**, omitting `nucleotide`, in both the command list and
+  its own description.
+- **An error from a `zombi2 tools` subcommand named itself with the parent's whole usage string** —
+  `zombi2 tools <tool> DIR [options] format: error: …`.
+- **The `zombi2 joint` example in `--help` named a flag that does not exist** — `--families` for what is
+  spelled `--family-names`, so the example failed if you copied it out of the help.
+- **Gallery: extinct lineages are drawn dashed again.** Since lineages that go extinct became `e<id>`,
+  the gallery still built its set of names as `n<id>`, so it matched nothing and four figures — extinct
+  lineages, mass extinction, state-dependent extinction and MuSSE — drew every branch solid; the two
+  state-dependent figures also left those branches uncoloured. The names now come from the tree's own
+  `labels()`, and the copy-paste snippets on the detail views no longer teach the broken line.
+
 ## [0.18.0] - 2026-07-30
 
 ### Added
