@@ -364,16 +364,34 @@ def _collect_sections(run: str) -> list[dict]:
     if os.path.isfile(joint_summary):
         sections.append(_joint_section(run, read_summary(joint_summary)))
     for level in _LEVELS:
-        level_dir = os.path.join(run, level)
-        log = _read_log(os.path.join(level_dir, f"{level}.log"))
-        if log is None:
-            continue                                     # this level was not run into this directory
+        for level_dir, label in _level_dirs(run, level):
+            log = _read_log(os.path.join(level_dir, f"{level}.log"))
+            if log is None:
+                continue                                 # this level was not run into this directory
         # the summary is the numbers; a level that writes none (nucleotide genomes today) still gets a
         # section from its log, falling back to the log's own result line.
-        summary_path = os.path.join(level_dir, _SUMMARY_FILE.get(level, f"{level}_summary.json"))
-        summary = read_summary(summary_path) if os.path.isfile(summary_path) else {}
-        sections.append(_section(run, level.upper(), level, level_dir, log, summary))
+            summary_path = os.path.join(level_dir, _SUMMARY_FILE.get(level, f"{level}_summary.json"))
+            summary = read_summary(summary_path) if os.path.isfile(summary_path) else {}
+            sections.append(_section(run, label, level, level_dir, log, summary))
     return sections
+
+
+def _level_dirs(run: str, level: str):
+    """``(directory, section title)`` for each run of ``level`` in this run directory.
+
+    One for every level but traits, which a run may hold several of — ``--name`` puts each in
+    ``traits/<name>/`` so that one can drive another. Each named trait gets its own section, titled
+    with its name, so the report says which is which; an unnamed one keeps ``traits/``."""
+    top = os.path.join(run, level)
+    if level != "traits":
+        yield top, level.upper()
+        return
+    if os.path.isfile(os.path.join(top, "traits.log")):
+        yield top, "TRAITS"
+    for name in sorted(os.listdir(top)) if os.path.isdir(top) else []:
+        nested = os.path.join(top, name)
+        if os.path.isfile(os.path.join(nested, "traits.log")):
+            yield nested, f"TRAITS ({name})"
 
 
 #: the summary file each level writes (all ``<level>_summary.json`` except genomes' ``genome_summary``).
