@@ -10,6 +10,21 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **A trait can drive the substitution rate.** `DrivenBy` now works on `substitution`, so a lineage's
+  habitat or lifestyle sets how fast the sequences inside its genes evolve — the same modifier that
+  drives a genome rate, composing with either lineage clock. A driver that switches **mid-branch** is
+  integrated across the switch rather than sampled once for the branch, so the phylograms and the
+  clock species tree are the trees the alignments were really drawn along. Reachable from the command
+  line in the rate's written form, as everywhere else:
+  `--substitution "0.05 * DrivenBy('out/traits/trait_events.tsv', {'cave': 0.5, 'surface': 1.0})"`.
+  `zombi2 sequences` writes a `conditioned_on` marker when its rate was driven, so re-running the
+  trait beneath it refuses rather than leaving the sequences silently stale.
+- **A trait can drive an ordered genome run.** `DrivenBy` now works at the `ordered` resolution — on
+  the gene-family four, on `inversion` / `transposition` / `translocation`, on the chromosome tier
+  and on every extent — so a lineage can rearrange its gene order faster, or in longer runs of genes,
+  where a trait says so. Read wherever it switches mid-branch, as at the other two resolutions. The
+  ordered engine now declares its own `WIRED_MODIFIERS` and `WIRED_EXTENT_MODIFIERS`, and
+  `zombi2 genomes -h` builds its per-resolution sentence from them instead of a hand-written list.
 - **Across-site rate variation — `+Γ` and invariant sites.**
   `hky85(kappa=2.0).across_sites(gamma_shape=0.5, invariant=0.1)`, or `--gamma-shape` ·
   `--invariant` · `--rate-categories` on the command line, gives every site one of a
@@ -48,6 +63,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   refused rather than letting one of them silently win: they are two answers to the same question.
 
 ### Fixed
+- **`family_speed` beside a driven rate is refused instead of running a mismatched model.** It is a
+  `ByFamily` draw and was missing from the guard that refuses `ByFamily` beside `DrivenBy`, so the
+  run was accepted and then summed the total *without* the per-family multipliers while drawing the
+  copy *with* them — a total saying one thing and a pick doing another.
+- **`zombi2 genomes` records `conditioned_on` and the driver's SHA-256 for a `DrivenBy` on any rate**,
+  not only `--duplication` / `--transfer` / `--loss` / `--origination` / `--transfer-to`. A run driven
+  through `--inversion` or `--fission` — already legal at the nucleotide resolution — left no
+  conditioning marker, so re-running the trait beneath it did not know it had orphaned the genome run,
+  and pinned no digest of the driver file in the log.
 - **A circular chromosome no longer fuses with a linear one.** At the ordered resolution `fusion`
   drew its partner from every other chromosome and gave the fused child whichever topology was
   picked first, so a ring and a molecule with two ends silently became one molecule — on a
@@ -63,6 +87,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   raises, which matters more since the same expression started working on `zombi2 species`.
 
 ### Changed
+- **The sequences level refuses a `divergence` given alongside a driven `substitution`.** The base is
+  solved for by assuming the modifiers average to 1 along a root-to-tip path, which the two lineage
+  clocks are mean-corrected to do and a driver deliberately is not — so allowing it would log a
+  divergence the run does not realise.
 - **A `regimes=` trait run writes the event log every other continuous run writes** — the `initial`
   row at t=0 and one `on_speciation` row per jump. It previously returned an empty log and wrote a
   header-only `trait_events.tsv`.

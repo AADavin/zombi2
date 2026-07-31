@@ -13,7 +13,7 @@ import pytest
 from zombi2.genomes.events import gene_from_label, node_from_label
 from zombi2.rates import scope
 from zombi2.rates.distributions import Fixed, Geometric
-from zombi2.rates.modifiers import OnTime
+from zombi2.rates.modifiers import ByFamily, ByLineage, FromParent, OnTime, OnTotalDiversity
 from zombi2.species import simulate_species_tree
 from zombi2.tree import Node, Tree
 from zombi2.genomes import (
@@ -245,12 +245,79 @@ def test_deterministic_given_seed():
     assert r.chromosome_events == r2.chromosome_events
 
 
+#: The digest of one seeded run exercising **every** event class, captured BEFORE ``DrivenBy`` was
+#: wired into this engine. Every driven-path addition is behind ``if any_driven`` / a ``w`` argument
+#: and draws nothing from the rng, so an undriven run must hash the same: the draw order of the plain
+#: path is what a hundred seeded tests, the gallery and every analysis depend on.
+_UNDRIVEN_ORDERED_DIGEST = "2c2b782b7bd55a2197dbb153aabfd5e34ccc39a7f557bc03490bd3184f509c06"
+
+
+def _ordered_digest(r) -> str:
+    """Everything the run produced, hashed: the gene genealogy and where each event happened, the
+    rearrangements, the chromosome network, every node's layout, and the initial genome."""
+    import hashlib
+    key = repr([
+        [(round(e.time, 12), e.kind, e.lineage, e.family, e.copy, e.parent, e.recipient)
+         for e in r.events],
+        [(round(p.time, 12), p.kind, p.lineage, p.chromosome, p.start, p.length, p.family,
+          p.donor, p.recipient, p.dest_position) for p in r.event_positions],
+        [(type(x).__name__, round(x.time, 12), x.lineage, tuple(sorted(vars(x).items())))
+         for x in r.rearrangements],
+        [(round(c.time, 12), c.kind, c.lineage, c.parents, c.children) for c in r.chromosome_events],
+        {k: r.gene_order(k) for k in sorted(r.genomes)},
+        [(c.id, c.topology, [(g.id, g.family, g.strand) for g in c.genes]) for c in r.initial_genome],
+    ])
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
+def test_undriven_ordered_run_is_byte_identical():
+    tree = simulate_species_tree(birth=1.2, death=0.2, total_time=2.0, seed=17).complete_tree
+    r = simulate_genomes_ordered(
+        tree, duplication=0.2, transfer=0.3, loss=0.15, origination=0.25,
+        inversion=0.4, transposition=0.2, translocation=0.2,
+        chromosomes=3, fission=0.1, fusion=0.1,
+        chromosome_origination=0.05, chromosome_loss=0.05,
+        duplication_extent=3, loss_extent=2, transfer_extent=2, inversion_extent=4,
+        transposition_extent=2, translocation_extent=2, inversion_probability=0.3,
+        initial_families=30, seed=23)
+    assert _ordered_digest(r) == _UNDRIVEN_ORDERED_DIGEST, (
+        "an undriven ordered run changed: the rng draw order of the plain path must not move")
+
+
 def test_ontime_skyline_modifier_is_accepted():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)
     r = simulate_genomes_ordered(sp, duplication=0.3 * OnTime({0: 1.0, 1.0: 0.2}),
                                  inversion=0.2 * OnTime({0: 0.5, 1.0: 2.0}),
                                  chromosomes=2, initial_families=6, seed=1)
     assert r.genomes                                           # ran without complaint
+
+
+@pytest.mark.parametrize("modifier", [ByLineage(spread=0.5), FromParent(spread=0.5),
+                                      OnTotalDiversity(cap=100)])
+def test_unsupported_modifier_is_rejected(modifier):
+    """The gate had no test at all. A modifier the engine cannot read must raise — one that returns
+    1.0 because nothing looks at it is a run quietly not the model asked for (SPEC §5) — and the
+    message must name what this engine *does* take, so the reader knows where to go next."""
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
+    with pytest.raises(ValueError, match="ordered genome engine does not support"):
+        simulate_genomes_ordered(sp, inversion=0.3 * modifier, initial_families=6, seed=1)
+
+
+@pytest.mark.parametrize("modifier", [ByLineage(spread=0.5), FromParent(spread=0.5)])
+def test_unsupported_modifier_on_an_extent_is_rejected(modifier):
+    """An extent takes the same modifiers a rate does (SPEC §6), so the same refusal applies — and
+    names the two it takes rather than pointing at another resolution."""
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
+    with pytest.raises(ValueError, match="does not support on an extent"):
+        simulate_genomes_ordered(sp, inversion=0.3, inversion_extent=3 * modifier,
+                                 initial_families=6, seed=1)
+
+
+def test_the_extent_declaration_is_the_rate_declaration_minus_byfamily():
+    """The one difference between the two lists is a modelling fact, not an accident: ``ByFamily``
+    attaches to the contents, and an extent is drawn before the run's genes are known."""
+    from zombi2.genomes.ordered import WIRED_EXTENT_MODIFIERS, WIRED_MODIFIERS
+    assert set(WIRED_MODIFIERS) - set(WIRED_EXTENT_MODIFIERS) == {ByFamily}
 
 
 def test_scope_override_is_rejected_this_slice():

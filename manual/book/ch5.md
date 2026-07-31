@@ -115,6 +115,12 @@ Weighting the starting gene is the obvious implementation and the wrong one: a f
 
 With no weights set every run averages to one, so a run using neither knob is unchanged.
 
+### A rate can be driven by a trait
+
+Every rate here also takes `DrivenBy`, so a habitat can decide how often a lineage rearranges its gene order, and every extent takes it too, so the same habitat can decide how long the rearranged runs are. The mechanism is Chapter 9's and is not repeated here.
+
+What belongs here is why the two per-family knobs above and a trait driver sit apart. A trait `DrivenBy` attaches to the **lineage**: at any instant it is one factor for that lineage's whole genome, so it composes with any extent unchanged and the run is drawn exactly as it would be without it. `ByFamily` attaches to the **contents**, so it has to weight the run by what the run covers. The two therefore cannot be set in the same run yet — combining them means weighting by the product of a lineage factor and a segment factor, which is neither model on its own. `family_speed` counts as a `ByFamily` here.
+
 ## Rearrangements: inversion, transposition, translocation
 
 Three more events reshape the order without creating or destroying genes:
@@ -158,7 +164,7 @@ g.gene_trees[0].to_newick()      # a family's gene tree — as at the family res
 ## Usage from Python
 
 ```python
-from zombi2 import species, genomes
+from zombi2 import species, genomes, traits
 from zombi2.rates.distributions import Geometric
 from zombi2.rates import modifiers as mod
 
@@ -189,6 +195,15 @@ g = genomes.simulate_genomes_ordered(
 # rates can still depend on time (the skyline), as at every level
 g = genomes.simulate_genomes_ordered(
     tree, inversion=1.0 * mod.OnTime({0: 1.0, 2: 0.2}), initial_families=10, seed=1)
+
+# ...or on a trait grown first: a host-restricted lineage inverts four times as often, and each
+# inversion covers three times as many genes (the rate and the extent are separate axes)
+habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.5, seed=1)
+g = genomes.simulate_genomes_ordered(
+    tree,
+    inversion=0.3 * mod.DrivenBy(habitat, {"host": 4.0, "free": 1.0}),
+    inversion_extent=4 * mod.DrivenBy(habitat, {"host": 3.0, "free": 1.0}),
+    initial_families=10, seed=1)
 
 # the outputs
 g.genomes                             # every node's chromosomes

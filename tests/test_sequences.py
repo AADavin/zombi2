@@ -245,17 +245,59 @@ def test_bylineage_clock_is_shared_across_families_on_a_lineage():
     assert std < 0.02      # shared clock ⇒ ~0.006 sampling noise; a per-family clock would be far larger
 
 
-def test_sequence_clock_rejects_multiple_or_unwired_modifiers():
+def test_sequence_clock_rejects_multiple_or_unwired_modifiers(tmp_path):
     run = _pair_run(1.0, 2.0)
-    with pytest.raises(ValueError):                 # two clocks — only a single lineage clock is wired
+    with pytest.raises(ValueError, match="lineage clocks"):   # two clocks — a lineage has one
         simulate_sequences(run, model=jc69(), length=10,
                            substitution=1.0 * mod.FromParent(spread=0.3) * mod.ByLineage(spread=0.2))
-    with pytest.raises(ValueError):                 # two ByLineage
+    with pytest.raises(ValueError, match="lineage clocks"):   # two ByLineage
         simulate_sequences(run, model=jc69(), length=10,
                            substitution=1.0 * mod.ByLineage(spread=0.3) * mod.ByLineage(spread=0.2))
-    with pytest.raises(ValueError):                 # ByLineage × OnTime — a non-clock modifier
-        simulate_sequences(run, model=jc69(), length=10,
+    with pytest.raises(ValueError, match="OnTime"):  # ByLineage × OnTime — a modifier this level
+        simulate_sequences(run, model=jc69(), length=10,   # does not read
                            substitution=1.0 * mod.ByLineage(spread=0.3) * mod.OnTime({0: 1.0}))
+    # A clock and a driver, though, are two different axes and DO compose (SPEC §5: modifiers
+    # multiply) — so this one has to run rather than raise.
+    driver = tmp_path / "d.tsv"
+    driver.write_text("time\tkind\tlineage\tfrom\tto\n0.0\tinitial\tn0\t\ta\n", encoding="utf-8")
+    simulate_sequences(run, model=jc69(), length=10, seed=1,
+                       substitution=1.0 * mod.ByLineage(spread=0.3)
+                       * mod.DrivenBy(str(driver), {"a": 2.0}))
+
+
+def test_a_between_kernel_is_refused_on_the_substitution_rate(tmp_path):
+    """A ``Between`` weights an ordered (donor, recipient) pair, and a rate is read on one lineage —
+    there is no donor for the pair's first half to name. Meaningless rather than unimplemented, so the
+    message has to name the slot it does belong in (SPEC §5)."""
+    from zombi2.rates.mapping import Between
+
+    run = _pair_run(1.0, 2.0)
+    driver = tmp_path / "d.tsv"
+    driver.write_text("time\tkind\tlineage\tfrom\tto\n0.0\tinitial\tn0\t\ta\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="transfer_to"):
+        simulate_sequences(run, model=jc69(), length=10,
+                           substitution=1.0 * mod.DrivenBy(str(driver),
+                                                           Between({("a", "b"): 1.0})))
+
+
+def test_a_live_level_source_is_refused_as_a_joint_run():
+    """SPEC §3: Traits and Sequences can be conditioned and never joined. A live-level source is the
+    joint spelling of DrivenBy, so it must come back as the modelling answer rather than as a missing
+    file called 'trait'."""
+    run = _pair_run(1.0, 2.0)
+    with pytest.raises(ValueError, match="cannot be joined"):
+        simulate_sequences(run, model=jc69(), length=10,
+                           substitution=1.0 * mod.DrivenBy("trait", {"a": 2.0}))
+
+
+def test_divergence_is_refused_alongside_a_driven_rate():
+    """``divergence / height`` is the base only when the modifiers average to 1 along a root-to-tip
+    path — which the two clocks are mean-corrected to do and a driver is not. Solving anyway would log
+    a divergence the run did not realise, so it is refused with the base to write instead."""
+    run = _pair_run(1.0, 2.0)
+    with pytest.raises(ValueError, match="divergence"):
+        simulate_sequences(run, model=jc69(), length=10, divergence=0.2,
+                           substitution=mod.DrivenBy("trait_events.tsv", {"a": 2.0}))
 
 
 # --- the lineage clock (FromParent): the autocorrelated clock ---------------------------------------

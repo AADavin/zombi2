@@ -30,20 +30,30 @@ derived from it unchanged), and the same live-lineage bookkeeping. What differs 
 of chromosomes) and the segmental, position-aware mutators, plus the ``rearrangements`` and
 ``chromosome_events`` logs. The nucleotide resolution (genes/intergenes, indels) is
 `simulate_genomes_nucleotide()`.
+
+**A rate here may be driven by another level** (``DrivenBy``, SPEC §2 and §5) — and so may an extent
+(SPEC §6). A driven rate is *per lineage*: it is summed over the living lineages, each read with its
+own driver value, and the lineage an event lands on is then drawn with those same weights. Because
+the gene-level rates are **per copy**, each lineage's weight carries its own gene count, so the pick
+is two-stage — a lineage by its weight, then a gene inside it. A driven extent is read at the instant
+an event fires, so it changes how much that event takes and never how often one starts.
 """
 
 from __future__ import annotations
 
 import collections
+import math
 import pathlib
 from dataclasses import dataclass, field
 from functools import cached_property
 
 import numpy as np
 
-from ..rates.extent import as_extent
-from ..rates.modifiers import ByFamily, OnTime
-from ..rates.rate import as_rate
+from ..rates.driver import check_mapping_fires, resolve_driver
+from ..rates.extent import Extent, as_extent
+from ..rates.mapping import Between
+from ..rates.modifiers import ByFamily, DrivenBy, OnTime
+from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv, rearrangement_events_tsv
@@ -55,6 +65,21 @@ from .._runtime.progress import progress_bar
 from .events import _COLS, Event, _branches, _grouped, _name, event_rows, gene_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
+
+#: The rate grammar this engine supports (SPEC §5) — read by the gate below and by the CLI's help, so
+#: a modifier is never advertised without being implemented. The same three the family core takes,
+#: because the two are the same model at two resolutions: ``OnTime`` (a skyline in time), ``DrivenBy``
+#: (a conditioned or joint driver) and ``ByFamily`` (per-family heterogeneity, weighted on the segment
+#: an event covers rather than on the gene it started from — SPEC §6). One combination is refused: see
+#: the gate.
+WIRED_MODIFIERS = (OnTime, DrivenBy, ByFamily)
+
+#: What an **extent** takes here (SPEC §6). An extent takes the modifiers a rate does, and at this
+#: resolution that is one fewer: ``ByFamily`` attaches to the *contents*, and an extent is drawn
+#: before the run's genes are known — a run covers several families, so there is no one family to
+#: draw a factor for. The two lists are declared separately rather than hidden in an ``if``, because
+#: the difference is a modelling fact, not an implementation detail.
+WIRED_EXTENT_MODIFIERS = (OnTime, DrivenBy)
 
 
 @dataclass(frozen=True)
@@ -419,22 +444,56 @@ def _events_tsv(events, event_positions, names=None) -> str:
 
 # --- picking, over the chromosome-nested state ----------------------------------------------------
 
+def _gene_in(genome, m: int) -> tuple[int, int]:
+    """The ``m``-th gene of one genome → ``(chromosome index ci, position j)``, counting chromosome
+    by chromosome and left to right within each.
+
+    The inner half of a per-copy pick, on its own because two callers need it at different scopes:
+    `_pick_gene()` draws ``m`` over the whole live pool, while a **driven** rate has already drawn the
+    lineage (weighted by its own rate) and draws ``m`` only inside *that* genome."""
+    for ci, chrom in enumerate(genome):
+        if m < len(chrom.genes):
+            return ci, m
+        m -= len(chrom.genes)
+    raise AssertionError("the gene index is past the end of the genome")  # unreachable
+
+
+def _genome_size(genome) -> int:
+    """How many genes one genome holds, across all its chromosomes — the ``copies`` a per-copy rate
+    is counted per when it is read on a single lineage."""
+    return sum(len(c.genes) for c in genome)
+
+
 def _pick_gene(rng, gen, total_copies) -> tuple[int, int, int]:
     """A uniform global gene pick → ``(lineage k, chromosome index ci in gen[k], position j)``.
     Realises per-copy scope across the whole pool: every gene, in any chromosome of any lineage, is
     equally likely."""
     m = int(rng.integers(total_copies))
     for k, genome in enumerate(gen):
-        for ci, chrom in enumerate(genome):
-            if m < len(chrom.genes):
-                return k, ci, m
-            m -= len(chrom.genes)
+        size = _genome_size(genome)
+        if m < size:
+            ci, j = _gene_in(genome, m)
+            return k, ci, j
+        m -= size
     raise AssertionError("total_copies out of sync with the genomes")  # unreachable
 
 
-def _pick_chromosome(rng, gen, total_chromosomes) -> tuple[int, int]:
-    """A uniform global chromosome pick → ``(lineage k, chromosome index ci in gen[k])``. Realises
-    per-chromosome scope across the whole pool."""
+def _pick_chromosome(rng, gen, total_chromosomes, w=None) -> tuple[int, int] | None:
+    """A chromosome pick → ``(lineage k, chromosome index ci in gen[k])``, or ``None`` when there is
+    nothing to draw.
+
+    Uniform over the whole pool when ``w`` is ``None``, which realises per-chromosome scope: every
+    chromosome, in any lineage, is equally likely. With ``w`` — the per-lineage totals of a **driven**
+    tier rate — the lineage is drawn by its own weight and the chromosome uniformly inside it. That is
+    the same two-stage shape, because a driven lineage's weight already carries its chromosome count:
+    ``base × chromosomes_k × factor_k``. Drawing the lineage uniformly instead would say one thing in
+    the total and another in the pick."""
+    if w is not None:
+        total = sum(w)
+        if total <= 0.0:
+            return None                     # every living lineage weighs 0: the event cannot happen
+        k = weighted_index(rng, w, total)
+        return (k, int(rng.integers(len(gen[k])))) if gen[k] else None
     m = int(rng.integers(total_chromosomes))
     for k, genome in enumerate(gen):
         if m < len(genome):
@@ -543,21 +602,44 @@ def _run_over_cap(genome, chrom, start, m, cap) -> bool:
     return False
 
 
-def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ctx=None):
-    """``(lineage, chromosome index, start, run size)`` for one gene-level event.
+def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ext_ctx, w=None):
+    """``(lineage, chromosome index, start, run size)`` for one gene-level event, or ``None`` when
+    there is nothing to act on.
 
-    Uniform over genes when no per-family weight is set — the plain path, untouched. With one set, the
-    lineage is drawn by its summed weight and the run by `_pick_run_by_family()`, so the weight
-    reaches the segment. ``None`` when the drawn lineage has nothing left to act on."""
+    Three ways of drawing the same thing, and which one applies is fixed by what the rate carries.
+    ``ext_ctx(k)`` builds the context the extent is sampled in, per lineage — it cannot be built
+    before the lineage is known, because a driven extent is read on the lineage the event lands on.
+
+    - **driven** (``w`` given, the per-lineage totals of a `DrivenBy` rate) — the lineage is drawn by
+      its own rate, then a gene uniformly inside it. Two stages, because a per-copy rate's per-lineage
+      total is ``base × copies_k × factor_k``: the gene count is already in the weight, so within the
+      lineage every gene is equally likely.
+    - **per-family** (``fw`` given) — the lineage by its summed family weights, then the run by
+      `_pick_run_by_family()`, so the weight reaches the segment rather than its starting gene.
+    - **plain** — one uniform draw over the whole live gene pool.
+
+    The two weighted paths are mutually exclusive: the engine refuses ``ByFamily`` and ``DrivenBy`` in
+    one run, because combining them would weight by the product of a lineage factor and a segment
+    factor, which is a model neither of them is on its own."""
+    if w is not None:
+        total = sum(w)
+        if total <= 0.0:
+            return None                     # every living lineage weighs 0: the event cannot happen
+        k = weighted_index(rng, w, total)
+        size = _genome_size(gen[k])
+        if not size:  # only via weighted_index's r == total float guard — a zero-weight lineage has
+            return None                     # no gene to act on, so the event is declined (thinning)
+        ci, j = _gene_in(gen[k], int(rng.integers(size)))
+        return k, ci, j, _extent(rng, ext, gen[k][ci], j, ext_ctx(k))
     if fw is None:
         k, ci, j = _pick_gene(rng, gen, n)
-        return k, ci, j, _extent(rng, ext, gen[k][ci], j, ctx)
-    w = fw[key]
-    total = sum(w)
+        return k, ci, j, _extent(rng, ext, gen[k][ci], j, ext_ctx(k))
+    lw = fw[key]
+    total = sum(lw)
     if total <= 0.0:
         return None
-    k = weighted_index(rng, w, total)
-    picked = _pick_run_by_family(rng, gen[k], fam_mult[key], ext, ctx)
+    k = weighted_index(rng, lw, total)
+    picked = _pick_run_by_family(rng, gen[k], fam_mult[key], ext, ext_ctx(k))
     if picked is None:
         return None
     ci, j, m = picked
@@ -911,31 +993,45 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     chromosome and its genes die; never the genome's last). Chromosomes carry identity — re-minted at
     every event that reshapes them — so ``chromosome_events`` is the true reticulating chromosome
     genealogy, rooted at the initial and de-novo originations. Deterministic given ``seed``.
+
+    **Conditioning (a trait drives a rate).** Any rate here may be *driven by another level* —
+    ``inversion = 0.3 * mod.DrivenBy(habitat, {"host": 4.0, "free": 1.0})`` scales each lineage's
+    inversion rate by the habitat on that branch, read from a trait grown first (the finished
+    ``TraitsResult``, or the ``trait_events.tsv`` it wrote). A driven rate is then *per lineage*: it is
+    summed over the living lineages, each read with its own gene count, chromosome count and driver
+    value; the lineage an event lands on is drawn with those same weights, and the gene inside it
+    uniformly, because the gene count is already in the weight. The Gillespie steps at **every**
+    mid-branch switch of the driver rather than averaging over a branch (SPEC §2). For ``transfer``
+    the driven lineage is the **donor**, so a driven ``transfer`` says how often a lineage *donates*;
+    who receives is ``transfer_to``, which takes no driver at this resolution.
+
+    **Conditioning (a trait drives an extent).** An extent takes the same modifiers a rate does
+    (SPEC §6) — ``inversion_extent = 4 * mod.DrivenBy(habitat, {"host": 3.0, "free": 1.0})`` makes a
+    host-restricted lineage invert *longer runs of genes*, which is a different statement from raising
+    its inversion rate. An extent's modifier is read at the instant an event fires, so it changes how
+    much a run takes and never how often one starts, and it adds no Gillespie breakpoint.
+
+    ``ByFamily`` and ``DrivenBy`` cannot be set in the same run: one weights lineages by a driver and
+    the other weights the segment by what it covers.
     """
     tree = as_tree(tree, level="genomes")
     labels = _topologies(chromosomes, topology)
     n_initial_chrom = chromosomes
-    dup = as_rate(duplication, default_scope=PerCopy)
-    tra = as_rate(transfer, default_scope=PerCopy)
-    los = as_rate(loss, default_scope=PerCopy)
-    org = as_rate(origination, default_scope=PerLineage)
-    inv = as_rate(inversion, default_scope=PerCopy)
-    trp = as_rate(transposition, default_scope=PerCopy)
-    trl = as_rate(translocation, default_scope=PerCopy)
-    fis = as_rate(fission, default_scope=PerChromosome)
-    fus = as_rate(fusion, default_scope=PerChromosome)
-    cor = as_rate(chromosome_origination, default_scope=PerLineage)
-    clo = as_rate(chromosome_loss, default_scope=PerChromosome)
-    # this slice implements each event's default scope, OnTime (skyline), and ByFamily — the last with
-    # the weight on the SEGMENT rather than on its starting gene (SPEC §6, and _pick_run_by_family). A
-    # scope override or a clade/driven modifier is a later slice, so reject it rather than silently
-    # mis-scale (see the family engine for the reasoning).
-    for label, rate, want in (("duplication", dup, PerCopy), ("transfer", tra, PerCopy),
-                              ("loss", los, PerCopy), ("origination", org, PerLineage),
-                              ("inversion", inv, PerCopy), ("transposition", trp, PerCopy),
-                              ("translocation", trl, PerCopy), ("fission", fis, PerChromosome),
-                              ("fusion", fus, PerChromosome), ("chromosome_loss", clo, PerChromosome),
-                              ("chromosome_origination", cor, PerLineage)):
+    # this slice implements each event's default scope and the three modifiers WIRED_MODIFIERS
+    # declares: OnTime (skyline), DrivenBy (a conditioned/joint driver, per lineage) and ByFamily —
+    # the last with the weight on the SEGMENT rather than on its starting gene (SPEC §6, and
+    # _pick_run_by_family). A scope override or a clade-drift modifier is a later slice, so reject it
+    # rather than silently mis-scale (see the family engine for the reasoning).
+    _rates: dict[str, Rate] = {}
+    for label, spec, want in (("duplication", duplication, PerCopy), ("transfer", transfer, PerCopy),
+                              ("loss", loss, PerCopy), ("origination", origination, PerLineage),
+                              ("inversion", inversion, PerCopy),
+                              ("transposition", transposition, PerCopy),
+                              ("translocation", translocation, PerCopy),
+                              ("fission", fission, PerChromosome), ("fusion", fusion, PerChromosome),
+                              ("chromosome_origination", chromosome_origination, PerLineage),
+                              ("chromosome_loss", chromosome_loss, PerChromosome)):
+        rate = as_rate(spec, default_scope=want)
         if not isinstance(rate.scope, want):
             raise ValueError(
                 f"{label} has a {type(rate.scope).__name__} scope, but the ordered genome engine "
@@ -953,25 +1049,59 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     f"{label} carries ByFamily on a {type(rate.scope).__name__} scope. A per-family "
                     f"weight has to reach the genes an event covers, so it applies to the per-copy "
                     f"gene events only — not to the chromosome tier, which acts on whole replicons.")
-            if not isinstance(m, (OnTime, ByFamily)):
+            if isinstance(m, DrivenBy) and isinstance(m.mapping, Between):
+                raise ValueError(
+                    f"{label} carries DrivenBy(…, Between(…)); a Between kernel is donor-conditioned "
+                    f"— it weights a recipient by the (donor, recipient) group pair — so it belongs "
+                    f"in transfer_to (who RECEIVES) and never in a rate, which has no donor to "
+                    f"condition on. Drive a rate with a Table (a plain dict); a driven transfer_to is "
+                    f"the family resolution's slot.")
+            if not isinstance(m, WIRED_MODIFIERS):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
-                    f"support. It takes OnTime (skyline) and ByFamily. Clade drift and driven rates "
-                    f"are not implemented yet at this resolution."
+                    f"support. It takes OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
+                    f"ByFamily (per-family heterogeneity, weighted on the segment an event covers). "
+                    f"Clade drift is not implemented yet."
                 )
+        _rates[label] = rate
+    # the eleven rates keep short names in the Gillespie loop below; the dict is what the driver
+    # resolution and the per-lineage weights walk, so neither has to name all eleven again
+    dup, tra, los, org = (_rates["duplication"], _rates["transfer"], _rates["loss"],
+                          _rates["origination"])
+    inv, trp, trl = _rates["inversion"], _rates["transposition"], _rates["translocation"]
+    fis, fus = _rates["fission"], _rates["fusion"]
+    cor, clo = _rates["chromosome_origination"], _rates["chromosome_loss"]
+    if family_speed is not None and not isinstance(family_speed, ByFamily):
+        raise ValueError(
+            f"family_speed must be a ByFamily(...) draw, got {type(family_speed).__name__}.")
+    if (family_speed is not None
+            or any(isinstance(m, ByFamily) for r in _rates.values() for m in r.modifiers)) and \
+            any(isinstance(m, DrivenBy) for r in _rates.values() for m in r.modifiers):
+        raise ValueError(
+            "ByFamily and DrivenBy on the same run is a later slice: one weights lineages by a "
+            "driver and the other weights the segment by what it covers, so combining them means "
+            "weighting by the product. Use one or the other for now. (family_speed= is a ByFamily "
+            "draw too, so it counts here.)")
     # per-event extent distributions (segment size in genes); a bare number is the mean, None a single gene
     def _ext_spec(spec, label):
         """One event's extent (SPEC §6): ``base × modifiers``, no scope, in **genes** here. An extent
-        takes the modifiers this resolution supports on a rate — ``OnTime`` — and they scale the size
-        drawn. A driver is not among them: this engine takes no ``DrivenBy`` on its rates either, and
-        for trait-driven rearrangement the nucleotide resolution is the one that has it."""
+        takes the modifiers a rate takes at this resolution minus ``ByFamily`` (see
+        `WIRED_EXTENT_MODIFIERS`), and they scale the size drawn — ``OnTime`` in time, ``DrivenBy``
+        on the lineage the event lands on."""
         e = as_extent(spec)
+        rate_slot = label.removesuffix("_extent")
         for m in e.modifiers:
-            if not isinstance(m, OnTime):
+            if isinstance(m, ByFamily):
+                raise ValueError(
+                    f"{label} carries ByFamily, which an extent cannot mean: the size is drawn before "
+                    f"the run's genes are known, and a run covers several families, so there is no "
+                    f"one family to draw a factor for. Put ByFamily on {rate_slot}, where it weights "
+                    f"the segment by what it covers, or use family_speed= for a family-wide tempo.")
+            if not isinstance(m, WIRED_EXTENT_MODIFIERS):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
-                    f"support on an extent — it takes only OnTime (a skyline in time). For a "
-                    f"trait-driven extent use --resolution nucleotide.")
+                    f"support on an extent — it takes "
+                    f"{', '.join(w.__name__ for w in WIRED_EXTENT_MODIFIERS)}.")
         return e
 
     dup_ext, los_ext, tra_ext = (_ext_spec(duplication_extent, "duplication_extent"),
@@ -980,6 +1110,10 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     inv_ext, trp_ext, trl_ext = (_ext_spec(inversion_extent, "inversion_extent"),
                                  _ext_spec(transposition_extent, "transposition_extent"),
                                  _ext_spec(translocation_extent, "translocation_extent"))
+    _extents: dict[str, Extent] = {
+        "duplication_extent": dup_ext, "loss_extent": los_ext, "transfer_extent": tra_ext,
+        "inversion_extent": inv_ext, "transposition_extent": trp_ext,
+        "translocation_extent": trl_ext}
     if not 0.0 <= inversion_probability <= 1.0:
         raise ValueError(f"inversion_probability must be in [0, 1], got {inversion_probability!r}")
     if transfer_to == "distance":
@@ -1000,9 +1134,37 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # unless something stops it. A segment may carry several families, and several copies of one, so
     # the run is refused when it would take *any* of them past the quota (see _run_over_cap).
     cap = resolve_max_family_size(max_family_size)
-    if family_speed is not None and not isinstance(family_speed, ByFamily):
-        raise ValueError(
-            f"family_speed must be a ByFamily(...) draw, got {type(family_speed).__name__}.")
+
+    # Conditioning: a rate carrying DrivenBy reads a driver **per lineage**, so its rate stops being
+    # one number for the whole live set and becomes one per lineage. Same machinery as the other two
+    # resolutions — each source resolves once into a DriverTrajectory keyed by the shared species node
+    # id, from a file or an in-memory trait result. With no driven rate and no driven extent this is
+    # empty and the loop stays exactly the pooled one, so an undriven run is untouched.
+    driven = {label: [m for m in r.modifiers if isinstance(m, DrivenBy)]
+              for label, r in _rates.items()}
+    ext_driven = {label: [m for m in e.modifiers if isinstance(m, DrivenBy)]
+                  for label, e in _extents.items()}
+    by_key: dict = {}                   # driver key → its source (deduped: one driver resolves once)
+    for mods in (*driven.values(), *ext_driven.values()):
+        for m in mods:
+            by_key.setdefault(m.key, m.source)
+    resolved: dict = {}
+    if by_key:
+        resolved = {key: resolve_driver(src, tree) for key, src in by_key.items()}
+        # a mapping whose states never occur leaves every lineage on the default factor, so the run
+        # would secretly be the undriven model — refuse it here, naming the driver
+        for mods in (*driven.values(), *ext_driven.values()):
+            for m in mods:
+                src = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
+                check_mapping_fires(m.mapping, resolved[m.key].states(), source_label=src)
+    # Only a driver on a **rate** makes the loop per-lineage and adds a Gillespie breakpoint. A driver
+    # on an **extent** is read at the instant an event fires — it changes how much that event takes,
+    # never how often one happens — so it deliberately stays out of `trajs`: no per-lineage rate
+    # weights, no extra horizon steps. (SPEC §6.)
+    _rate_keys = {m.key for mods in driven.values() for m in mods}
+    trajs = {key: traj for key, traj in resolved.items() if key in _rate_keys}
+    any_driven = bool(trajs)
+    any_ext_driven = any(ext_driven.values())
 
     rng = np.random.default_rng(seed)
     copy_counter = 0
@@ -1100,6 +1262,27 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         ctx = {"copies": n, "lineages": k_alive, "chromosomes": total_chromosomes, "time": t}
         c = total_chromosomes
         can_xfer = n > 0 and (k_alive >= 2 or self_transfer)
+        # A driven rate differs from lineage to lineage, so it is summed **over the living lineages**,
+        # each read with its own driver value, its own gene count and its own chromosome count — and
+        # the weights are kept, because the affected lineage must then be drawn with them too. The
+        # gene count sits inside the weight, which is what makes a driven per-copy rate a two-stage
+        # pick (a lineage, then a gene in it) rather than the one-stage lineage draw a per-lineage
+        # rate takes. ByFamily and DrivenBy cannot both be set, so `w` and `fw` never coexist.
+        w: dict[str, list[float]] = {}
+        if any_driven:
+            drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(k_alive)]
+            for label, rate in _rates.items():
+                if driven[label]:
+                    w[label] = [rate.effective(copies=_genome_size(gen[k]), lineages=1,
+                                               chromosomes=len(gen[k]), time=t, drivers=drivers[k])
+                                for k in range(k_alive)]
+
+        def _r(label, pooled, live=True):
+            """The total for one event class: summed per-lineage when driven, pooled when not."""
+            if not live:
+                return 0.0
+            return sum(w[label]) if label in w else pooled
+
         # A per-copy rate pools over genes, so with per-family weights the total is the unit rate
         # times those weights summed over the live genes — and the run must then be drawn with the
         # same weights, or the rate would say one thing and the picking another. Summed per lineage,
@@ -1118,17 +1301,17 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             r_trp = trp.effective(**one) * sum(fw["transposition"]) if n else 0.0
             r_trl = trl.effective(**one) * sum(fw["translocation"]) if n else 0.0
         else:
-            r_dup = dup.effective(**ctx) if n else 0.0
-            r_los = los.effective(**ctx) if n else 0.0
-            r_tra = tra.effective(**ctx) if can_xfer else 0.0
-            r_inv = inv.effective(**ctx) if n else 0.0                  # per copy (the run's start)
-            r_trp = trp.effective(**ctx) if n else 0.0                  # per copy (the run's start)
-            r_trl = trl.effective(**ctx) if n else 0.0                  # per copy; needs >=2 chromosomes
-        r_org = org.effective(**ctx)                                    # per lineage
-        r_fis = fis.effective(**ctx) if c else 0.0                      # per chromosome (the tier)
-        r_fus = fus.effective(**ctx) if c else 0.0
-        r_cor = cor.effective(**ctx)                                    # per lineage (de-novo replicon)
-        r_clo = clo.effective(**ctx) if c else 0.0
+            r_dup = _r("duplication", dup.effective(**ctx) if n else 0.0, live=bool(n))
+            r_los = _r("loss", los.effective(**ctx) if n else 0.0, live=bool(n))
+            r_tra = _r("transfer", tra.effective(**ctx) if can_xfer else 0.0, live=can_xfer)
+            r_inv = _r("inversion", inv.effective(**ctx) if n else 0.0, live=bool(n))  # per copy
+            r_trp = _r("transposition", trp.effective(**ctx) if n else 0.0, live=bool(n))  # per copy
+            r_trl = _r("translocation", trl.effective(**ctx) if n else 0.0, live=bool(n))  # per copy
+        r_org = _r("origination", org.effective(**ctx))                 # per lineage
+        r_fis = _r("fission", fis.effective(**ctx) if c else 0.0, live=bool(c))  # per chromosome
+        r_fus = _r("fusion", fus.effective(**ctx) if c else 0.0, live=bool(c))
+        r_cor = _r("chromosome_origination", cor.effective(**ctx))      # per lineage (de-novo replicon)
+        r_clo = _r("chromosome_loss", clo.effective(**ctx) if c else 0.0, live=bool(c))
         total = (r_dup + r_los + r_org + r_tra + r_inv + r_trp + r_trl
                  + r_fis + r_fus + r_cor + r_clo)
 
@@ -1136,6 +1319,21 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         horizon = min(next_species, dup.next_change(t), los.next_change(t), org.next_change(t),
                       tra.next_change(t), inv.next_change(t), trp.next_change(t), trl.next_change(t),
                       fis.next_change(t), fus.next_change(t), cor.next_change(t), clo.next_change(t))
+        if any_driven:  # a driven rate also changes when its driver switches mid-branch — step there
+            horizon = min(horizon, min((trajs[key].next_change(alive[k], t) for key in trajs
+                                        for k in range(k_alive)), default=math.inf))
+
+        def _ext_ctx(k):
+            """The context an extent is sampled in, on the lineage the event landed on.
+
+            It cannot be built before the lineage is drawn, because a driven extent is read on the
+            **acting** lineage at the instant the event fires — which is also why an extent adds no
+            Gillespie breakpoint and never enters the horizon above (SPEC §6). With no driven extent
+            this is the ``{"time": t}`` the skyline has always been read from, unchanged."""
+            if not any_ext_driven:
+                return {"time": t}
+            return {"time": t,
+                    "drivers": {key: resolved[key].value(alive[k], t) for key in resolved}}
 
         if total > 0.0:
             t_ev = t + float(rng.exponential(1.0 / total))
@@ -1152,71 +1350,88 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 b_fus = b_fis + r_fus
                 b_cor = b_fus + r_cor                    # ... and the remainder (to total) is clo
                 if r < r_dup:                            # every gene-level event acts on an extent
-                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "duplication", dup_ext, {"time": t})
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "duplication", dup_ext,
+                                             _ext_ctx, w.get("duplication"))
                     if picked is not None:
                         k, ci, j, m = picked
                         if not _run_over_cap(gen[k], gen[k][ci], j, m, cap):
                             total_copies += _duplicate(gen[k][ci], j, m, tree.nodes[alive[k]], t,
                                                        events, event_positions, new_gene)
                 elif r < b_los:
-                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "loss", los_ext, {"time": t})
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "loss", los_ext,
+                                             _ext_ctx, w.get("loss"))
                     if picked is not None:
                         k, ci, j, m = picked
                         total_copies -= _lose_at(gen[k][ci], j, m, tree.nodes[alive[k]], t, events,
                                                  event_positions)
                 elif r < b_org:
-                    k = int(rng.integers(k_alive))  # origination is per lineage: a uniform lineage
+                    # origination is per lineage: a uniform lineage, or one drawn by its own rate
+                    # when that rate is driven (the same weights the total was summed with)
+                    k = (weighted_index(rng, w["origination"], r_org) if "origination" in w
+                         else int(rng.integers(k_alive)))
                     _originate(gen[k], tree.nodes[alive[k]], t, events, event_positions, new_gene,
                                new_family, rng)
                     total_copies += 1
                 elif r < b_tra:
-                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "transfer", tra_ext, {"time": t})
-                    if picked is not None:
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "transfer", tra_ext,
+                                             _ext_ctx, w.get("transfer"))
+                    if picked is not None:                # driven: the weighted lineage is the DONOR
                         kd, cdi, jd, m = picked
                         total_copies += _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events,
                                                      event_positions, new_gene, transfer_to,
                                                      replacement, self_transfer, depth, cap)
                 elif r < b_inv:
-                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "inversion", inv_ext, {"time": t})
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "inversion", inv_ext,
+                                             _ext_ctx, w.get("inversion"))
                     if picked is not None:                # the run starts at a gene, so: per copy
                         k, ci, i0, m = picked
                         _invert(gen[k][ci], i0, m, tree.nodes[alive[k]], t, rearrangements)
                 elif r < b_trp:
-                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "transposition", trp_ext, {"time": t})
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "transposition", trp_ext,
+                                             _ext_ctx, w.get("transposition"))
                     if picked is not None:
                         k, ci, i0, m = picked
                         _transpose(gen[k][ci], i0, m, tree.nodes[alive[k]], t, rearrangements, rng,
                                    inversion_probability)
                 elif r < b_trl:
-                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "translocation", trl_ext, {"time": t})
+                    picked = _pick_event_run(rng, gen, n, fw, fam_mult, "translocation", trl_ext,
+                                             _ext_ctx, w.get("translocation"))
                     if picked is not None:
                         k, ci, j, m = picked
                         _translocate(gen[k], ci, j, m, tree.nodes[alive[k]], t, rearrangements, rng,
                                      inversion_probability)
                 elif r < b_fis:
-                    k, ci = _pick_chromosome(rng, gen, c)
-                    dc, dg = _fission(gen[k], ci, tree.nodes[alive[k]], t, chromosome_events,
-                                      new_chromosome, rng)
-                    total_chromosomes += dc
-                    total_copies += dg
+                    picked = _pick_chromosome(rng, gen, c, w.get("fission"))
+                    if picked is not None:
+                        k, ci = picked
+                        dc, dg = _fission(gen[k], ci, tree.nodes[alive[k]], t, chromosome_events,
+                                          new_chromosome, rng)
+                        total_chromosomes += dc
+                        total_copies += dg
                 elif r < b_fus:
-                    k, ci = _pick_chromosome(rng, gen, c)
-                    dc, dg = _fusion(gen[k], ci, tree.nodes[alive[k]], t, chromosome_events,
-                                     new_chromosome, rng)
-                    total_chromosomes += dc
-                    total_copies += dg
+                    picked = _pick_chromosome(rng, gen, c, w.get("fusion"))
+                    if picked is not None:
+                        k, ci = picked
+                        dc, dg = _fusion(gen[k], ci, tree.nodes[alive[k]], t, chromosome_events,
+                                         new_chromosome, rng)
+                        total_chromosomes += dc
+                        total_copies += dg
                 elif r < b_cor:
-                    k = int(rng.integers(k_alive))  # chromosome origination is per lineage
+                    # chromosome origination is per lineage, uniform or driven, exactly as origination
+                    k = (weighted_index(rng, w["chromosome_origination"], r_cor)
+                         if "chromosome_origination" in w else int(rng.integers(k_alive)))
                     dc, dg = _chromosome_originate(gen[k], tree.nodes[alive[k]], t, chromosome_events,
                                                    new_chromosome)
                     total_chromosomes += dc
                     total_copies += dg
                 else:
-                    k, ci = _pick_chromosome(rng, gen, c)
-                    dc, dg = _chromosome_lose(gen[k], ci, tree.nodes[alive[k]], t, events,
-                                              event_positions, chromosome_events)
-                    total_chromosomes += dc
-                    total_copies += dg
+                    picked = _pick_chromosome(rng, gen, c, w.get("chromosome_loss"))
+                    if picked is not None:
+                        k, ci = picked
+                        dc, dg = _chromosome_lose(gen[k], ci, tree.nodes[alive[k]], t, events,
+                                                  event_positions, chromosome_events)
+                        total_chromosomes += dc
+                        total_copies += dg
                 continue
 
         if horizon == next_species:  # advance to the tree's next event(s); process the whole tie-batch

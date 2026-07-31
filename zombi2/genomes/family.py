@@ -668,17 +668,25 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 f"support. It takes OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
                 f"ByFamily (per-family heterogeneity). Clade drift is not implemented yet."
             )
-    if any(isinstance(m, ByFamily) for rate in (dup, tra, los) for m in rate.modifiers) and \
-            any(isinstance(m, DrivenBy) for rate in (dup, tra, los, org) for m in rate.modifiers):
-        raise ValueError(
-            "ByFamily and DrivenBy on the same run is a later slice: one weights lineages by a "
-            "driver and the other weights copies by their family, and combining them means "
-            "weighting by the product. Use one or the other for now.")
     if family_speed is not None and not isinstance(family_speed, ByFamily):
         raise ValueError(
             f"family_speed takes a ByFamily modifier — family_speed=mod.ByFamily(spread=0.5) — "
             f"got {family_speed!r}. It is the family-wide slot: one draw per family scaling every "
             f"rate that family has.")
+    # `family_speed` counts as a ByFamily here, and leaving it out of this guard was a real bug: with
+    # family_speed set beside a driven rate the run was accepted, and then the loop below set that
+    # rate's per-lineage weights from the family sums and immediately OVERWROTE them with the driven
+    # ones — so the total was summed WITHOUT the family multipliers while the copy was still drawn
+    # WITH them. A total that says one thing and a pick that does another is the one failure this
+    # engine must not have.
+    if (family_speed is not None
+            or any(isinstance(m, ByFamily) for rate in (dup, tra, los) for m in rate.modifiers)) and \
+            any(isinstance(m, DrivenBy) for rate in (dup, tra, los, org) for m in rate.modifiers):
+        raise ValueError(
+            "ByFamily and DrivenBy on the same run is a later slice: one weights lineages by a "
+            "driver and the other weights copies by their family, and combining them means "
+            "weighting by the product. Use one or the other for now. (family_speed= is a ByFamily "
+            "draw too, so it counts here.)")
     if transfer_to == "distance":
         transfer_to = Distance()
     if isinstance(transfer_to, Rate):

@@ -68,16 +68,22 @@ genomes.simulate_genomes_family(tree,
     duplication=0.2, origination=0.5, seed=2)
 ```
 
-What a trait can drive in a genome run fits in four rows:
+What a trait can drive fits in six rows:
 
 | The driver | What it drives | Written like this | Mapping |
 |---|---|---|---|
 | a discrete trait | `loss`, `duplication`, `origination`, `transfer` — the gene-family rates, at the **family** resolution | `loss = 0.25 * mod.DrivenBy(source, {…})` | Table |
-| a discrete trait | **every rate** of a **nucleotide** run — those four, plus `inversion`, `transposition`, `translocation` and the chromosome tier | `inversion = 1.5 * mod.DrivenBy(source, {…})` | Table |
-| a discrete trait | **every extent** of a **nucleotide** run — how much DNA an event takes, rather than how often one happens | `loss_extent = 150 * mod.DrivenBy(source, {…})` | Table |
+| a discrete trait | **every rate** of an **ordered** run — those four, plus `inversion`, `transposition`, `translocation` and the chromosome tier | `inversion = 0.3 * mod.DrivenBy(source, {…})` | Table |
+| a discrete trait | **every rate** of a **nucleotide** run — the same list, on a genome measured in base pairs | `inversion = 1.5 * mod.DrivenBy(source, {…})` | Table |
+| a discrete trait | **every extent** of an **ordered** or **nucleotide** run — how much an event takes, rather than how often one happens | `loss_extent = 150 * mod.DrivenBy(source, {…})` | Table |
 | a discrete trait | `transfer_to` — which lineage a transfer lands on (**family** resolution only) | `transfer_to = mod.DrivenBy(source, {…})` | Table, or Between (reads the donor too) |
+| a discrete or continuous trait | `substitution` — how fast the sequences inside a gene evolve, at the **sequences** level | `substitution = 0.05 * mod.DrivenBy(source, {…})` | Table, Curve or Scalar |
 
-The middle two rows are the pair worth holding apart. Driving a **rate** makes a lineage delete more often; driving an **extent** makes each deletion bigger. Both are ways of saying "this lineage sheds more DNA", they are different processes, and set together they multiply.
+The last row is the one level further down, and Chapter 7 covers it beside the clocks it sits with: the factor multiplies the substitution rate on each species branch, so a lineage's state sets how fast its genes' sequences change. It composes with either lineage clock.
+
+The rate rows and the extent row are the pair worth holding apart. Driving a **rate** makes a lineage delete more often; driving an **extent** makes each deletion bigger. Both are ways of saying "this lineage sheds more", they are different processes, and set together they multiply.
+
+An extent's unit is set by the resolution: genes at ordered, base pairs at nucleotide. Write a driven extent in Python — the `--*-extent` flags take a plain number.
 
 `source` in both rows is the grown `TraitsResult`, or the path to the `trait_events.tsv` it wrote — the trait event log, which a driven run replays against the shared tree.
 
@@ -153,15 +159,15 @@ A `switch` written per transition drives only the transitions you name — `{"ca
 
 ### What can be conditioned, and what cannot yet
 
-A trait's own rate takes a driver, as above. In a genome run conditioning works at two of the three resolutions. At the **family** resolution it covers the four gene-family rates in the table above, plus `transfer_to`. At the **nucleotide** resolution it covers *every* rate the engine has — the rearrangements included — so a trait can speed up inversion, transposition and translocation, and can drive how much DNA a lineage sheds. That last one is genome reduction as it is usually meant: a lifestyle trait raising `loss`, on a genome measured in base pairs rather than in family tokens.
+A trait's own rate takes a driver, as above. In a genome run conditioning works at all three resolutions. At the **family** resolution it covers the four gene-family rates in the table above, plus `transfer_to`. At the **ordered** resolution it covers every rate the engine has, so a trait can make a lineage rearrange its gene order more often — inversion, transposition, translocation — or reshape its karyotype more often, and a driven extent makes each rearranged block longer. At the **nucleotide** resolution it covers the same list on a genome measured in base pairs, which is where a driven `loss` becomes genome reduction as it is usually meant: a lifestyle trait shedding DNA rather than dropping family tokens. At the **sequences** level it covers `substitution`, the one rate that level has.
 
 What is not implemented yet:
 
-- **The ordered resolution does not take a `DrivenBy` on its rates.** It takes `OnTime` (a skyline that varies in *time*) and `ByFamily` (per-family heterogeneity, applied to the segment an event covers), but not a driver. If you want a trait to drive rearrangement, use the nucleotide resolution, where an event is an arc of DNA rather than a run of gene tokens.
-- **`transfer_to` — where a transfer lands — is family-resolution only.** A nucleotide transfer's *rate* can be driven; its recipient rule cannot.
-- **Sequence evolution** takes no `DrivenBy` on its substitution rate, which takes the two lineage clocks and nothing else.
+- **`ByFamily` and `DrivenBy` cannot be set in the same run** at the family or ordered resolution. One weights lineages by a driver, the other weights the segment by what it covers, so combining them means weighting by the product. `family_speed` counts as a `ByFamily` here. Use one or the other.
+- **`transfer_to` — where a transfer lands — is family-resolution only.** An ordered or nucleotide transfer's *rate* can be driven; its recipient rule cannot.
+- **A sequence cannot drive anything.** The arrow runs one way: a trait drives `substitution`, but nothing reads a sequence back out.
 
-These are limits of the implementation, not of the model — the rate grammar (`SPEC §5`) is the same everywhere, so teaching the ordered engine to read `DrivenBy` is a pure addition when it comes. Until then, a driven rate an engine cannot honour raises rather than being silently dropped.
+These are limits of the implementation, not of the model — the rate grammar (`SPEC §5`) is the same everywhere, and each engine gains a modifier when its own code learns to read it. Until then, a driven rate an engine cannot honour raises rather than being silently dropped.
 
 Notice too that conditioning **folds into the target level's own command**. There is no conditioning command and no object to build; you grow the driver, then make an ordinary genome run whose `loss` happens to be `DrivenBy` instead of a bare number. That holds on the command line as well, where the rate keeps its written form:
 
@@ -176,7 +182,13 @@ zombi2 traits out/ --kind discrete \
 # 3. the target: genomes whose loss reads that trait
 zombi2 genomes out/ --duplication 0.2 --origination 0.5 --seed 2 \
     --loss "0.25 * DrivenBy('out/traits/trait_events.tsv', {'cave': 4.0, 'surface': 1.0})"
+
+# 4. one level further down: sequences whose substitution rate reads the same trait
+zombi2 sequences out/ --model hky85 --length 1000 --seed 3 \
+    --substitution "0.05 * DrivenBy('out/traits/trait_events.tsv', {'cave': 0.5, 'surface': 1.0})"
 ```
+
+Each conditioned run writes a `conditioned_on` file naming the levels it read, so re-running the trait afterwards refuses rather than leaving the runs beneath it silently mismatched. Pass `--force` to re-run it and clear them.
 
 Both halves of transfer take that same text: the rate with a base number in front of it, the recipient weight without one.
 
