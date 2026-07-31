@@ -157,6 +157,15 @@ class SubstitutionModel:
 
         Returns a new model; the original is unchanged (they are frozen).
         """
+        if len(self.site_rates) > 1:
+            # Composing two calls would have to decide what a Gamma over an already-classed model
+            # means, and there is exactly one sensible spelling of every combination this offers —
+            # both knobs in one call. Refusing is the cheap half of that; the expensive half would be
+            # a second set of classes replacing the first while the name claimed both.
+            raise ValueError(
+                f"{self.name} already varies across sites, and across_sites() replaces the classes "
+                f"rather than layering on them. Give every knob in one call — "
+                f"across_sites(gamma_shape=…, invariant=…) — starting from the plain model.")
         if isinstance(invariant, bool) or not isinstance(invariant, (int, float)):
             raise TypeError(f"invariant must be a real proportion of sites, got {invariant!r}")
         if not 0.0 <= invariant < 1.0:
