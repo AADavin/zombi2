@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-07-31
+
 ### Added
 - **A gallery example that is not the species→genomes→sequences pipeline** — four thousand trees under
   constant-rate and diversity-dependent birth, compared by their γ statistic, which is the other way to
