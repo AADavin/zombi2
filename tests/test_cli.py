@@ -1858,3 +1858,22 @@ def test_stream_is_refused_on_a_nucleotide_sequences_run(tmp_path, tree_file, ca
     assert e.value.code == 2
     err = capsys.readouterr().err
     assert "--stream" in err and "nucleotide" in err and "--resolution family" in err
+
+def test_write_offers_every_output_the_result_can_write():
+    """The CLI's --write choices are the result's own write vocabulary, not a copy of it.
+
+    They were a copy, with a comment saying so, and they drifted: `species_tree` and
+    `initial_sequence` were writable from Python and unnameable on the command line, and `summary`
+    was written by default at three levels and listed at none."""
+    from zombi2.cli.genomes import _OUTPUTS
+    from zombi2.genomes.family import FamilyGenomesResult
+    from zombi2.genomes.nucleotide import NucleotideGenomesResult
+    from zombi2.genomes.ordered import OrderedGenomesResult
+
+    for name, result in (("family", FamilyGenomesResult), ("ordered", OrderedGenomesResult),
+                         ("nucleotide", NucleotideGenomesResult)):
+        assert tuple(_OUTPUTS[name]) == tuple(result.OUTPUTS), name
+        # and the declared vocabulary is really what write() honours: every default is in it
+        import inspect
+        default = inspect.signature(result.write).parameters["outputs"].default
+        assert set(default) <= set(result.OUTPUTS), f"{name}: a default output is not declared"

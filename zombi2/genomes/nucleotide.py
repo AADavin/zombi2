@@ -913,6 +913,13 @@ class NucleotideGenomesResult:
         `gene_trees`; writing it costs nothing extra."""
         return self._recover()[3]
 
+    #: Every token ``write()`` honours — the write vocabulary, declared rather than left
+    #: implicit in the method body. The CLI builds ``--write``'s choices from this, so the two
+    #: cannot drift: they did, and `initial_sequence` and `species_tree` were writable from
+    #: Python and unnameable on the command line.
+    OUTPUTS = ("events", "genes", "blocks", "initial_genome", "chromosome_events",
+               "gene_trees", "species_tree", "initial_sequence", "gff", "bed")
+
     def write(self, directory, outputs=("events", "genes", "blocks", "initial_genome",
                                         "initial_sequence", "gene_trees", "chromosome_events",
                                         "gff", "bed", "species_tree"), *, flat: bool = False) -> None:

@@ -265,6 +265,13 @@ class OrderedGenomesResult:
         from the (position-blind) event log exactly as for the family core. See `gene_trees`."""
         return gene_trees_from_events(self.events, self.complete_tree)
 
+    #: Every token ``write()`` honours — the write vocabulary, declared rather than left
+    #: implicit in the method body. The CLI builds ``--write``'s choices from this, so the two
+    #: cannot drift: they did, and `initial_sequence` and `species_tree` were writable from
+    #: Python and unnameable on the command line.
+    OUTPUTS = ("events", "profiles", "gene_order", "initial_genome",
+               "chromosome_events", "gene_trees", "species_tree")
+
     def write(self, directory, outputs=("events", "profiles", "gene_order", "initial_genome",
                                         "gene_trees", "chromosome_events", "species_tree"), *,
               flat: bool = False) -> None:
