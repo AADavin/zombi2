@@ -1,7 +1,7 @@
 <svg viewBox="0 0 660 250" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
 <title>Conditioning: a driver, a modifier and a target</title>
 <desc>On the left, a box labelled habitat, with a small two-state diagram below it showing aquatic and terrestrial switching between each other. An arrow runs right, labelled DrivenBy, carrying a multiplier for each state. On the right, the gene loss rate it multiplies.</desc>
-<!-- Colours are presentation ATTRIBUTES, not CSS, and are literals rather than var(--ink): GitHub's
+<!-- Colours are presentation ATTRIBUTES, not CSS, and are literals rather than a CSS custom property: GitHub's
      SVG sanitiser drops the style element, and librsvg resolves no custom properties, so a figure
      whose fills live in either renders as black-on-black. The dark-mode rules below still win
      wherever CSS survives, because CSS outranks a presentation attribute. Keep it this way. -->
