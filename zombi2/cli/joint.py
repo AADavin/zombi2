@@ -31,10 +31,9 @@ from zombi2.traits import discrete
 #: the RATES block for ``zombi2 joint -h``. DrivenBy is the point of the command, so it leads.
 RATES_HELP = _rates_help(
     (DrivenBy,), "--birth",
-    note="DrivenBy here names a LIVE level, not a file — that is what makes a run joint rather "
-         "than conditioned. 'trait' reads the discrete trait grown alongside; 'genomes:count' reads "
-         "a lineage's total gene count; 'genomes:<name>' reads whether a named family is present "
-         "({'present': 3.0, 'absent': 1.0}). Drive --death too for state-dependent extinction.")
+    note="Here DrivenBy names a live level, not a file. Sources: 'trait' (the trait grown "
+         "alongside), 'genomes:count' (a lineage's gene count), 'genomes:<name>' (a named family, "
+         "{'present': 3.0, 'absent': 1.0}). --death takes a driven rate too.")
 
 #: the driver flags, by which driver they build — used to reject the other driver's flags rather
 #: than ignore them, the discipline every other command follows
@@ -44,48 +43,46 @@ _GENOME_ONLY = (("duplication", 0.0), ("loss", 0.0), ("origination", 0.0),
 
 
 def _add_joint_args(p: argparse.ArgumentParser) -> None:
-    _add_run_arg(p, "where this run's files are written — both levels land here")
+    _add_run_arg(p, "both levels land here")
     g = p.add_argument_group("general")
     _add_params_arg(g)
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
 
     # validated in run() rather than argparse-`required`, so a --params file can supply them
-    g = p.add_argument_group("diversification", "the per-lineage rates — drive one with DrivenBy "
-                                                "(see RATES below)")
+    g = p.add_argument_group("diversification")
     g.add_argument("--birth", type=_rate, default=None, metavar="RATE",
-                   help="speciation rate (per lineage) — required")
+                   help="speciation rate, per lineage — required")
     g.add_argument("--death", type=_rate, default=0.0, metavar="RATE",
-                   help="extinction rate (per lineage); 0 = pure birth (default 0)")
+                   help="extinction rate, per lineage (default 0 = pure birth)")
 
-    g = p.add_argument_group("stop condition", "grow until exactly one of these — required")
+    g = p.add_argument_group("stop condition")
     g.add_argument("--n-extant", type=int, default=None, metavar="N", dest="n_extant",
-                   help="stop at N extant lineages — conditioned on survival")
+                   help="stop at N extant lineages (conditioned on survival)")
     g.add_argument("--total-time", type=float, default=None, metavar="T", dest="total_time",
                    help="grow forward for T time units")
 
-    g = p.add_argument_group("driver: a discrete trait", "state-dependent diversification "
-                                                         "(BiSSE / MuSSE)")
+    g = p.add_argument_group("driver: a discrete trait",
+                             "state-dependent diversification (BiSSE / MuSSE); --states selects it")
     g.add_argument("--states", metavar="A,B,...", default=None,
-                   help="the trait's state space, comma-separated (e.g. small,large). Giving this "
-                        "makes the trait the driver")
+                   help="the trait's state space, comma-separated (e.g. small,large)")
     g.add_argument("--switch", type=float, default=None, metavar="RATE",
-                   help="the symmetric switching rate between states")
+                   help="symmetric switching rate between states")
     g.add_argument("--trait-start", metavar="STATE", default=None, dest="trait_start",
-                   help="the root state (default: one of --states drawn uniformly)")
+                   help="the root state (default: uniform over --states)")
 
-    g = p.add_argument_group("driver: gene content", "a lineage's genome decides how fast it splits")
+    g = p.add_argument_group("driver: gene content",
+                             "a lineage's gene content drives its rate; any flag here selects it")
     g.add_argument("--duplication", type=_rate, default=0.0, metavar="RATE",
-                   help="gene duplication rate (per copy)")
+                   help="gene duplication rate, per copy")
     g.add_argument("--loss", type=_rate, default=0.0, metavar="RATE",
-                   help="gene loss rate (per copy)")
+                   help="gene loss rate, per copy")
     g.add_argument("--origination", type=_rate, default=0.0, metavar="RATE",
-                   help="new-family origination rate (per lineage)")
+                   help="new-family origination rate, per lineage")
     g.add_argument("--initial-families", type=int, default=0, metavar="N", dest="initial_families",
                    help="gene families the root genome starts with (default 0)")
     g.add_argument("--family-names", metavar="A,B,...", default=None, dest="family_names",
-                   help="named families to declare, comma-separated — a name is what "
-                        "DrivenBy('genomes:<name>', …) reads")
+                   help="named families, comma-separated — what 'genomes:<name>' reads")
 
     g = p.add_argument_group("outputs")
     _add_flat_arg(g)
