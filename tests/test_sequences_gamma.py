@@ -72,6 +72,34 @@ def test_the_model_name_records_the_decoration():
     assert hky85().across_sites(gamma_shape=0.5, rate_categories=8).name == "HKY85+G8"
 
 
+def test_decorating_twice_is_refused_rather_than_silently_replacing():
+    """A second call replaces the classes instead of layering on them, and the name would claim both
+    — `JC69+G4+I` over a model that is only `+I`. Every combination has one spelling: one call."""
+    once = jc69().across_sites(gamma_shape=0.5)
+    with pytest.raises(ValueError, match="already varies across sites"):
+        once.across_sites(invariant=0.2)
+
+
+@pytest.mark.parametrize("shape", [1e-3, 0.01, 1e3, 1e6])
+def test_extreme_shapes_stay_normalised(shape):
+    """The quantile is found by bracket-and-bisect, so the far tails are where it would give up.
+
+    Only the contract is asserted here — non-negative classes averaging 1. Ascending order is
+    checked separately, below: at a shape this small the classes are all within round-off of zero
+    except the last, and which of several 1e-60 values comes out larger is noise rather than
+    meaning."""
+    rates = jc69().across_sites(gamma_shape=shape).site_rates
+    assert sum(rates) / len(rates) == pytest.approx(1.0, abs=1e-12)
+    assert all(r >= 0.0 for r in rates)
+
+
+@pytest.mark.parametrize("shape", [0.1, 0.5, 1.0, 2.0, 5.0, 20.0])
+def test_the_classes_come_out_in_ascending_order(shape):
+    # over the range anyone actually fits (published analyses live between about 0.1 and 5)
+    rates = jc69().across_sites(gamma_shape=shape, rate_categories=8).site_rates
+    assert list(rates) == sorted(rates)
+
+
 def test_the_original_model_is_left_alone():
     m = hky85(2.0)
     m.across_sites(gamma_shape=0.5)
