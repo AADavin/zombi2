@@ -5,9 +5,11 @@ speciation and extinction. ``birth`` and ``death`` are full **rate specs** — a
 a scope wrapper, or a product — so ``birth = scope.Global(1.0)`` gives one shared
 tree-wide budget (linear growth), ``birth = 1.0 * mod.OnTotalDiversity(cap=100)`` slows the
 tree as it fills up, ``birth = 1.0 * mod.OnTime({...})`` runs a skyline (the interval-aware
-sampler steps to each breakpoint), and ``birth = 1.0 * mod.FromParent(spread=0.2)`` lets
-the rate drift down the tree (clade drift): each lineage threads its own inherited factor and
-the lineage that speciates or dies is drawn **weighted** by its effective rate.
+sampler steps to each breakpoint), and two modifiers make the rate vary from lineage to lineage:
+``birth = 1.0 * mod.FromParent(spread=0.2)`` lets it drift down the tree (clade drift, ClaDS) and
+``birth = 1.0 * mod.ByLineage(spread=0.2)`` gives each lineage an independent draw (*relaxed*
+rates). Under either, each lineage threads its own factor and the lineage that speciates or dies is
+drawn **weighted** by its effective rate.
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..rates.modifiers import ByFamily, FromParent, OnTime, OnTotalDiversity
+from ..rates.modifiers import ByFamily, ByLineage, FromParent, OnTime, OnTotalDiversity
 from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
 from ..rates.rate import as_rate
@@ -29,7 +31,7 @@ from ..tree import Node, Tree, prune
 #: The rate grammar this level supports (SPEC §5). Both the engine's gate below and the CLI's help
 #: read this, so a modifier can never be advertised without being implemented — or silently ignored.
 WIRED_SCOPES = (PerLineage, Global)
-WIRED_MODIFIERS = (OnTime, OnTotalDiversity, FromParent)
+WIRED_MODIFIERS = (OnTime, OnTotalDiversity, FromParent, ByLineage)
 
 
 
@@ -172,13 +174,38 @@ class SpeciesResult:
 _MAX_ATTEMPTS = 1000  # survival-conditioned retries before giving up on n_extant
 
 
-def _drift(rate) -> FromParent | None:
-    """The `FromParent` modifier a rate carries, or ``None``. When present
-    the rate is *per-lineage*: the engine threads each lineage's own inherited factor (clade drift)."""
+def _per_lineage(rate) -> "FromParent | ByLineage | None":
+    """The per-lineage modifier a rate carries, or ``None``.
+
+    Two modifiers make a rate vary from lineage to lineage, and the engine threads both the same way —
+    one factor per living lineage, with the lineage that speciates or dies drawn **weighted** by its
+    effective rate rather than uniformly. They differ only in where a daughter's factor comes from,
+    which is the whole uncorrelated / autocorrelated split (``SPEC §5``): `FromParent`
+    inherits it from the parent and nudges it (clade drift, ClaDS), `ByLineage`
+    draws a fresh one with no memory of the parent (*relaxed* rates). A rate carrying neither keeps a
+    factor of 1 throughout and its lineage is picked uniformly, exactly as before."""
     for m in rate.modifiers:
-        if isinstance(m, FromParent):
+        if isinstance(m, (FromParent, ByLineage)):
             return m
     return None
+
+
+def _born(mod, rng) -> float:
+    """The factor a lineage starts life with: the root's under `FromParent` (1.0, or the middle rung
+    when binned), and an independent draw under `ByLineage`."""
+    return mod.initial() if isinstance(mod, FromParent) else mod.draw(rng)
+
+
+def _inherit(mod, parent_value: float, rng) -> float:
+    """A daughter's factor at a split: its parent's, nudged (`FromParent`), or an independent draw that
+    ignores the parent (`ByLineage`) — the one line where the two differ."""
+    return mod.descend(parent_value, rng) if isinstance(mod, FromParent) else mod.draw(rng)
+
+
+def _threads_as(mod) -> str:
+    """The keyword the modifier reads its threaded factor back under — ``inherited`` for
+    `FromParent`, ``bylineage`` for `ByLineage` (each modifier names its own)."""
+    return "inherited" if isinstance(mod, FromParent) else "bylineage"
 
 
 def _weighted_index(rng, weights: list[float], total: float) -> int:
@@ -198,11 +225,12 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
     """Grow one forward birth-death tree until it reaches ``n_extant`` living lineages,
     reaches ``total_time``, or dies out. Returns the complete tree and the event log.
 
-    When ``birth`` or ``death`` carries an `FromParent` modifier the rate
-    is *per-lineage*: every lineage threads its own inherited factor (its parent's, nudged at the
-    split), so the lineage that speciates or dies is drawn **weighted** by its effective rate rather
-    than uniformly. Birth and death drift independently. A rate with no ``FromParent`` keeps a factor
-    of 1 and picks uniformly, exactly as before.
+    When ``birth`` or ``death`` carries a `FromParent` or `ByLineage` modifier
+    the rate is *per-lineage*: every lineage threads its own factor, so the lineage that speciates or
+    dies is drawn **weighted** by its effective rate rather than uniformly. Under ``FromParent`` a
+    daughter's factor is its parent's, nudged at the split (clade drift); under ``ByLineage`` it is an
+    independent draw with no memory of the parent (relaxed rates). Birth and death vary independently
+    of each other. A rate with neither keeps a factor of 1 and picks uniformly, exactly as before.
 
     ``pulses`` are scheduled mass extinctions as ``(time, survival)`` pairs sorted by time (time runs
     forward from the origin): at each instant every standing lineage is kept with probability
@@ -218,15 +246,20 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
         nodes[i] = Node(i, parent, t)
         return i
 
-    birth_drift = _drift(birth_rate)  # the FromParent modifier on each rate, or None
-    death_drift = _drift(death_rate)
+    birth_drift = _per_lineage(birth_rate)  # the FromParent / ByLineage modifier on each rate, or None
+    death_drift = _per_lineage(death_rate)
+    # the keyword each modifier reads its threaded factor back under, resolved once rather than per step
+    key_b = _threads_as(birth_drift) if birth_drift else ""
+    key_d = _threads_as(death_drift) if death_drift else ""
 
     root = new_node(None, 0.0)
     alive = [root]  # a list so picks are reproducible given the seed
-    # each lineage's inherited factor, kept in lock-step with `alive` under swap-remove; a rate with
-    # no FromParent stays at 1.0, so its total is just scope(base) × modifiers over n, picked uniform
-    inh_b = [birth_drift.initial() if birth_drift else 1.0]
-    inh_d = [death_drift.initial() if death_drift else 1.0]
+    # each lineage's own factor, kept in lock-step with `alive` under swap-remove; a rate with no
+    # per-lineage modifier stays at 1.0, so its total is just scope(base) × modifiers over n, picked
+    # uniform. The root draws under ByLineage (it is a lineage like any other) and does not under
+    # FromParent (its factor is the ladder's starting point), which is what `_born` decides.
+    inh_b = [_born(birth_drift, rng) if birth_drift else 1.0]
+    inh_d = [_born(death_drift, rng) if death_drift else 1.0]
     t = 0.0
     events: list[Event] = []
     pulse_idx = 0  # the next unfired mass extinction in `pulses`
@@ -257,12 +290,12 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
         # scope(base) × modifiers evaluated per lineage through its inherited factor (lineages=1
         # is one lineage); a non-drifting rate is scope(base) × modifiers once, over all n lineages
         if birth_drift:
-            w_b = [birth_rate.effective(lineages=1, inherited=x, **ctx) for x in inh_b]
+            w_b = [birth_rate.effective(lineages=1, **{key_b: x}, **ctx) for x in inh_b]
             total_birth = sum(w_b)
         else:
             total_birth = birth_rate.effective(lineages=n, **ctx)
         if death_drift:
-            w_d = [death_rate.effective(lineages=1, inherited=x, **ctx) for x in inh_d]
+            w_d = [death_rate.effective(lineages=1, **{key_d: x}, **ctx) for x in inh_d]
             total_death = sum(w_d)
         else:
             total_death = death_rate.effective(lineages=n, **ctx)
@@ -303,10 +336,11 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
                     c1, c2 = new_node(node, t), new_node(node, t)
                     nodes[node].children = (c1, c2)
                     alive.extend((c1, c2))
-                    # each daughter inherits the parent's inherited factor, nudged (1.0 if no drift)
-                    inh_b.extend((birth_drift.descend(parent_b, rng), birth_drift.descend(parent_b, rng))
+                    # each daughter takes its own factor — the parent's nudged under FromParent, a
+                    # fresh independent draw under ByLineage (1.0 when the rate carries neither)
+                    inh_b.extend((_inherit(birth_drift, parent_b, rng), _inherit(birth_drift, parent_b, rng))
                                  if birth_drift else (1.0, 1.0))
-                    inh_d.extend((death_drift.descend(parent_d, rng), death_drift.descend(parent_d, rng))
+                    inh_d.extend((_inherit(death_drift, parent_d, rng), _inherit(death_drift, parent_d, rng))
                                  if death_drift else (1.0, 1.0))
                     events.append(Event(t, "speciation", node, (c1, c2)))
                 else:
@@ -422,6 +456,17 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
     with modifiers); the default scope is **per lineage** (each lineage speciates/dies at
     the base rate, so the tree grows exponentially). Yule = ``death=0``.
 
+    **Rates that vary from lineage to lineage.** ``1.0 * mod.FromParent(spread=σ)`` is *inherited*
+    variation — a daughter starts from its parent's rate and is nudged at the split, so fast clades
+    stay fast (clade drift; the literature's ClaDS). ``1.0 * mod.ByLineage(spread=σ)`` is
+    *independent* variation — every lineage draws its own multiplier with no memory of its parent
+    (*relaxed* rates), which is the null to compare drift against: the same amount of rate
+    heterogeneity, none of it heritable, so the tree-shape signature that heritability leaves
+    (lopsidedness — fast clades hoarding the tips) is absent. Both draws are mean-corrected, so
+    widening ``spread`` spreads lineages out without moving the average one off the base rate; both
+    make the lineage that speciates or dies drawn weighted by its own rate; and both must be counted
+    per lineage. They answer the same question and a rate carrying both is refused.
+
     Stop at exactly ``n_extant`` living lineages, **or** at ``total_time`` — give exactly
     one. ``n_extant`` is **conditioned on survival**: a birth-death tree can die out, so we
     restart (advancing the same generator) until one reaches ``n_extant``. Deterministic given
@@ -475,20 +520,33 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                 # not a missing feature: there is nothing here for it to mean
                 raise ValueError(
                     f"{label} carries ByFamily, but a species tree has no gene families — ByFamily "
-                    f"belongs on a genomes rate. For per-lineage heterogeneity here use FromParent "
-                    f"(inherited) at the species level."
+                    f"belongs on a genomes rate. For per-lineage heterogeneity here use ByLineage "
+                    f"(independent) or FromParent (inherited)."
                 )
             if not isinstance(m, WIRED_MODIFIERS):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the species engine does not "
-                    f"support. It takes OnTime (skyline), OnTotalDiversity (diversity-dependent) "
-                    f"and FromParent (clade drift, ClaDS)."
+                    f"support. It takes OnTime (skyline), OnTotalDiversity (diversity-dependent), "
+                    f"FromParent (inherited rate drift, ClaDS) and ByLineage (independent "
+                    f"per-lineage rates)."
                 )
-        if _drift(rate) is not None and not isinstance(rate.scope, PerLineage):
+        # SPEC §5: one memory structure per axis. ByLineage has none and FromParent has a continuous
+        # one, so a rate carrying both asks for a lineage's factor to be independent of its parent's
+        # and inherited from it at once — there is no model there to implement, so say so rather than
+        # silently letting whichever comes first win.
+        if any(isinstance(m, FromParent) for m in rate.modifiers) \
+                and any(isinstance(m, ByLineage) for m in rate.modifiers):
             raise ValueError(
-                f"{label} carries FromParent (per-lineage drift) but its scope is "
-                f"{type(rate.scope).__name__}; a drifting rate must be per lineage — drop the "
-                f"scope wrapper (per lineage is the default) or use PerLineage(...)"
+                f"{label} carries both FromParent and ByLineage, which are the two answers to the "
+                f"same question — where a lineage's rate comes from. FromParent inherits it from the "
+                f"parent and nudges it (autocorrelated); ByLineage draws it afresh with no memory "
+                f"(uncorrelated). Pick one."
+            )
+        if (per_lineage := _per_lineage(rate)) is not None and not isinstance(rate.scope, PerLineage):
+            raise ValueError(
+                f"{label} carries {type(per_lineage).__name__} (a factor per lineage) but its scope "
+                f"is {type(rate.scope).__name__}; a rate that varies by lineage must be counted per "
+                f"lineage — drop the scope wrapper (per lineage is the default) or use PerLineage(...)"
             )
     if (n_extant is None) == (total_time is None):
         raise ValueError("give exactly one of n_extant or total_time")

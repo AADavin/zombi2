@@ -9,6 +9,21 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **Relaxed (per-lineage) diversification rates** — `birth = 1.0 * mod.ByLineage(spread=σ)`. The
+  species level already took the *inherited* form of rate variation (`FromParent`, ClaDS) and
+  refused the independent one, which left the model with no null: `ByLineage` spreads lineage rates
+  the same way and inherits none of it, so the tree-shape signature heritability leaves — fast
+  clades hoarding the tips — can be told apart from the rate variation itself. It works on `birth`
+  and on `death`, independently of each other. A rate carrying both `FromParent` and `ByLineage` is
+  refused rather than letting one of them silently win: they are two answers to the same question.
+
+### Fixed
+- **A joint run no longer accepts a per-lineage rate it does not thread.** `simulate_joint` rejected
+  `FromParent` and checked `DrivenBy`, but let every other modifier through and ignored it, so
+  `birth = 1.0 * ByLineage(...)` returned a tree grown without the rate variation asked for. It now
+  raises, which matters more since the same expression started working on `zombi2 species`.
+
 ### Changed
 - **The API reference is one page per level**, and each entry is stamped with what kind of thing it
   is — module, class, function, method, attribute — beside its heading and again in the contents
