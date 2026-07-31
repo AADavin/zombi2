@@ -1,14 +1,9 @@
 """``zombi2 tools`` — analyses that read a finished run and derive a new view of it.
 
 Where the level commands *simulate*, the tools *read back* what a run wrote. Each tool is its own
-sub-subcommand (``zombi2 tools <tool>``); the first is ``format``, which turns a genomes run into
-analysis-ready files, all derived from the gene trees and all exact rather than inferred, because
-ZOMBI simulated the embedding it is reporting: the **homology** matrix — for each family an n×n grid
-(n the extant leaves) of ``S`` / ``D`` / ``T`` (+ ``x``), the event at each pair's common ancestor and
-whether transfer is in their history since (`zombi2.tools.homology`); the **marker table**, one row
-per family saying whether it can be trusted to recover the species tree, which is what to read if you
-came looking for orthologs (`zombi2.tools.markers`); and **recPhyloXML**, each family's complete gene
-tree written inside the complete species tree in the community format for that
+sub-subcommand (``zombi2 tools <tool>``); ``format`` turns a genomes run into analysis-ready files,
+all derived from the gene trees and all exact rather than inferred: the homology matrix
+(`zombi2.tools.homology`), the marker table (`zombi2.tools.markers`) and recPhyloXML
 (`zombi2.tools.recphylo`).
 """
 from __future__ import annotations
@@ -33,19 +28,19 @@ from zombi2.cli.framework import (
     level_dir, resolve_genomes, warn,
 )
 
-#: what ``format`` can emit — ``name -> (subdirectory, writer, one-line gloss)``. The menu is
-#: declared so a new one is an entry plus its writer, and the ``--format`` help is built from it, so
-#: it can never advertise something that is not wired. A writer takes ``(gene_trees, species tree,
-#: directory)`` and gives back a short description of what it wrote, for the summary line.
+#: what ``format`` can emit — ``name -> (where, writer, one-line gloss)``. The menu is declared so a
+#: new one is an entry plus its writer, and the ``--format`` help is built from it, so it can never
+#: advertise something that is not implemented. ``where`` is the path the format lands on inside the level
+#: directory: a **subdirectory** (trailing slash) for the many-files formats, or a **filename** for a
+#: format that is a single file, which then needs no folder of its own. A writer takes
+#: ``(gene_trees, species tree, directory)`` and gives back a short description of what it wrote.
 _FORMATS = {
-    "homology": ("homology", write_homology,
-                 "per-family n×n table: S/D/T for the event at each pair's ancestor, x if a "
-                 "transfer came after"),
-    "recphylo": ("recphylo", write_recphylo,
-                 "per-family recPhyloXML (the format; this value is spelled recphylo) — the "
-                 "gene tree drawn inside the species tree"),
-    "markers": ("markers", write_markers,
-                "one row per family: single-copy, universal, and does its tree match the species tree"),
+    "homology": ("homology/", write_homology,
+                 "per-family n×n table, S/D/T at each pair's ancestor, x if a transfer came since"),
+    "recphylo": ("recphylo/", write_recphylo,
+                 "per-family recPhyloXML, the gene tree inside the species tree"),
+    "markers": ("markers.tsv", write_markers,
+                "one row per family: single-copy, universal, congruent with the species tree"),
 }
 
 #: the tools description carries its own tool list (the house-style formatter hides argparse's auto
@@ -62,41 +57,27 @@ _TOOLS_DESCRIPTION = (
 
 
 def _add_tools_args(p: argparse.ArgumentParser) -> None:
-    """Wire the ``tools`` sub-subcommands. Adding a tool is a new ``add_parser`` here, its own
+    """Register the ``tools`` sub-subcommands. Adding a tool is a new ``add_parser`` here, its own
     ``_add_tools_<tool>_args`` builder, and one ``_TOOLS_RUN`` entry — the same three-touch shape the
     level commands have."""
+    # prog= on every sub-subcommand: argparse would otherwise build it from the parent's hand-written
+    # usage=, and an error would announce itself as "zombi2 tools <tool> DIR [options] format:"
     tsub = p.add_subparsers(dest="tools_command", metavar="<tool>", required=True)
     fp = tsub.add_parser(
         "format",
+        prog="zombi2 tools format",
         help="turn a genomes run into analysis-ready files (--format homology | markers | recphylo)",
         description=(
-            "Read a finished 'zombi2 genomes' run and write analysis-ready files derived from its "
-            "gene trees. Three --format choices: 'homology' — for each family, an n×n table (n the "
-            "extant leaves) giving the event at each pair's common ancestor (S speciation, D "
-            "duplication, T transfer) and whether transfer is in their history since (an x suffix); "
-            "'markers' — one row per family: is it single-copy, is it universal, and does its true "
-            "tree match the species tree, which is what to read if you are after genes to build a "
-            "species tree from — and 'recphylo' — each family's complete gene tree "
-            "written inside the complete species tree as recPhyloXML, the community format for that, "
-            "ready for a viewer or for scoring a reconciliation method against. All three are exact, "
-            "not inferred: ZOMBI recorded the embedding as it simulated it. All three work at every "
-            "resolution; on a nucleotide run there is one per declared gene (the intergenic spacer is "
-            "not a gene and gets none). Files land in the run's genomes/homology/, genomes/markers/ "
-            "and genomes/recphylo/."
+            "Write analysis-ready files derived from the gene trees of a finished 'zombi2 genomes' "
+            "run — exact, not inferred."
         ),
-        usage="zombi2 tools format DIR [--from PATH] [--format FORMAT ...] [options]",
+        usage="zombi2 tools format DIR --format {homology,markers,recphylo} [options]",
         formatter_class=ZombiHelpFormatter,
         epilog=_examples(
             "  # which families make trustworthy species-tree markers",
             "  zombi2 tools format out/ --format markers",
             "",
-            "  # the per-pair table: the event at each pair's common ancestor",
-            "  zombi2 tools format out/",
-            "",
-            "  # recPhyloXML instead — one file per family, for a viewer",
-            "  zombi2 tools format out/ --format recphylo",
-            "",
-            "  # both, from a run that lives elsewhere",
+            "  # two at once, from a run that lives elsewhere",
             "  zombi2 tools format out/ --from other_run/ --format homology recphylo",
         ),
     )
@@ -104,39 +85,32 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
 
     trp = tsub.add_parser(
         "tree",
+        prog="zombi2 tools tree",
         help="transform one Newick tree (prune, round, stem, rescale, RED)",
         description=(
-            "Apply one transform to a Newick tree and write the result (Newick to stdout, or to a file "
-            "with -o). Exactly one action per call. Actions: --prune (drop dead/unsampled lineages), "
-            "--round (snap a rounding-noisy dated tree to exactly ultrametric), --stem / --stem-add "
-            "(set / extend the branch above the crown), --rescale-height / --rescale-factor (scale "
-            "branch lengths), --red (the RED-rescaled tree; add --values for a per-node RED table). "
-            "The RED-related actions and --stem/--rescale ignore tip fates, so any tree loads; --prune "
-            "needs real fates (a ZOMBI tree, or an ultrametric one)."
+            "Apply one transform to a Newick tree, Newick to stdout (or a file with -o). Exactly one "
+            "action per call. --prune needs each tip's fate, so it takes a ZOMBI tree or an "
+            "ultrametric one; every other action loads any tree."
         ),
-        usage="zombi2 tools tree TREE (--prune | --round | --stem LEN | --rescale-height H | --red) [options]",
+        usage="zombi2 tools tree TREE <action> [options]",
         formatter_class=ZombiHelpFormatter,
         epilog=_examples(
             "  # drop extinct lineages, to stdout",
             "  zombi2 tools tree out/species/species_complete.nwk --prune",
             "",
-            "  # snap a rounding-noisy dated tree to ultrametric, to a file",
-            "  zombi2 tools tree dated.nwk --round -o dated_ultrametric.nwk",
-            "",
-            "  # RED per node, as a table",
-            "  zombi2 tools tree gtdb.nwk --red --values",
+            "  # RED per node, as a table in a file",
+            "  zombi2 tools tree out/species/species_extant.nwk --red --values -o red.tsv",
         ),
     )
     _add_tools_tree_args(trp)
 
     tdp = tsub.add_parser(
         "treedist",
+        prog="zombi2 tools treedist",
         help="distance between two Newick trees (RF, branch-score)",
         description=(
-            "Distance between two rooted Newick trees over their shared tips, printed as "
-            "'<metric><TAB><value>' to stdout (or -o). --metric: rf (Robinson–Foulds), rf-normalized, "
-            "branch-score (Kuhner–Felsenstein, uses branch lengths), or all. The two trees must carry "
-            "the same tips, identically labelled; a mismatch is an error."
+            "Distance between two rooted Newick trees, printed as '<metric><TAB><value>' to stdout "
+            "(or -o). Tips are matched by label, and the two trees must carry the same ones."
         ),
         usage="zombi2 tools treedist TREE_A TREE_B [--metric METRIC] [-o FILE]",
         formatter_class=ZombiHelpFormatter,
@@ -157,7 +131,7 @@ def _add_tools_tree_args(p: argparse.ArgumentParser) -> None:
     m = a.add_mutually_exclusive_group(required=True)
     m.add_argument("--prune", action="store_true", help="drop dead/unsampled lineages → the extant tree")
     m.add_argument("--round", dest="round_", action="store_true",
-                   help="snap a rounding-noisy dated tree to exactly ultrametric (tolerance --tol)")
+                   help="snap a near-ultrametric dated tree to exactly ultrametric (see --tol)")
     m.add_argument("--stem", type=float, metavar="LEN", help="set the stem (branch above the crown) to LEN")
     m.add_argument("--stem-add", type=float, metavar="LEN", dest="stem_add", help="extend the stem by LEN")
     m.add_argument("--rescale-height", type=float, metavar="H", dest="rescale_height",
@@ -165,20 +139,23 @@ def _add_tools_tree_args(p: argparse.ArgumentParser) -> None:
     m.add_argument("--rescale-factor", type=float, metavar="F", dest="rescale_factor",
                    help="multiply every branch length by F")
     m.add_argument("--red", action="store_true",
-                   help="the RED-rescaled tree (Relative Evolutionary Divergence on [0,1])")
-    o = p.add_argument_group("options")
-    o.add_argument("--tol", type=float, default=1e-3,
-                   help="tolerance for --round, as a fraction of tree height (default 1e-3)")
-    o.add_argument("--values", action="store_true",
-                   help="with --red: write a node⇥RED table instead of a tree")
-    o.add_argument("-o", "--output", metavar="FILE", help="write here instead of stdout")
+                   help="rescale to RED, Relative Evolutionary Divergence on [0,1]")
+    # straight onto the parser, not a group of their own: a second group also called "options" would
+    # print a second "options:" heading under the first
+    p.add_argument("--tol", type=float, default=1e-3,
+                   help="tolerance for --round, a fraction of tree height (default 1e-3)")
+    p.add_argument("--values", action="store_true",
+                   help="with --red: a node⇥RED table instead of a tree")
+    p.add_argument("-o", "--output", metavar="FILE", help="write here instead of stdout")
 
 
 def _add_tools_treedist_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("a", metavar="TREE_A", help="first Newick tree file")
     p.add_argument("b", metavar="TREE_B", help="second Newick tree file")
     p.add_argument("--metric", choices=["rf", "rf-normalized", "branch-score", "all"], default="rf",
-                   help="which distance (default rf); 'all' prints every metric")
+                   metavar="METRIC",
+                   help="rf (Robinson–Foulds, the default), rf-normalized, branch-score "
+                        "(Kuhner–Felsenstein, uses branch lengths), or all")
     p.add_argument("-o", "--output", metavar="FILE", help="write here instead of stdout")
 
 
@@ -194,23 +171,21 @@ def _emit(text: str, path: str | None) -> None:
 def _add_tools_format_args(p: argparse.ArgumentParser) -> None:
     _add_run_arg(p, "the genomes run whose gene trees the tables are derived from")
     g = p.add_argument_group("general")
-    _add_from_arg(g, "the genomes run to read — its species tree and genome_events.tsv rebuild the "
-                     "gene trees")
+    _add_from_arg(g, "the genomes run to read")
     g = p.add_argument_group("outputs")
+    # required, with no default: the three write different things for different questions, and
+    # picking one silently would answer a question that was not asked.
     g.add_argument(
-        "--format", nargs="+", choices=sorted(_FORMATS), default=["homology"], metavar="FORMAT",
+        "--format", nargs="+", choices=sorted(_FORMATS), required=True, metavar="FORMAT",
         dest="formats",
-        help="which tables to write (default: homology). " +
+        help="what to write, one or more. " +
              "; ".join(f"{name}: {gloss}" for name, (_, _, gloss) in sorted(_FORMATS.items())))
     g.add_argument("--recphylo", choices=("complete", "extant", "both"), default="complete",
                    metavar="SCOPE",
                    help="which history --format recphylo writes (default complete). complete: the "
-                        "whole simulated history inside the complete species tree. extant: it "
-                        "projected onto what a dataset can hold — the extant gene tree inside the "
-                        "extant species tree — written twice, 'true' (rooted where the family really "
-                        "began, the answer key for ancestral gene content) and 'recoverable' (rooted "
-                        "at the surviving copies' ancestor, the most any method could recover), plus "
-                        "family_origins.tsv saying how each family entered. both: all of them")
+                        "whole history, in the complete species tree; extant: it projected onto the "
+                        "extant trees ('true' and 'recoverable' rootings, plus family_origins.tsv); "
+                        "both: both")
     _add_flat_arg(g)
     _add_quiet_arg(g)
 
@@ -252,19 +227,20 @@ def _run_format(args, parser) -> int:
 
     os.makedirs(args.run, exist_ok=True)
     out = level_dir(args.run, "genomes", args.flat)
-    wrote = []
     for name in dict.fromkeys(args.formats):            # de-dupe, keep the order given
-        subdir, writer, _ = _FORMATS[name]
-        directory = level_dir(out, subdir, args.flat)
+        where, writer, _ = _FORMATS[name]
+        if where.endswith("/"):                         # many files: a directory of their own
+            directory = landed = level_dir(out, where.rstrip("/"), args.flat)
+            landed += "/"
+        else:                                           # one file: straight into the level directory
+            directory, landed = out, os.path.join(out, where)
         # every writer takes (gene_trees, species tree, directory); recphylo alone has a choice to
         # make, so it is the one that takes an option too
         extra = {"scope": args.recphylo} if name == "recphylo" else {}
         what = writer(gene_trees, tree, directory, **extra)   # each writer says what it wrote
-        wrote.append(f"{name}: {what} → {os.path.relpath(directory, args.run)}/")
-    # unconditional, like every other command's completion line: --quiet takes away the progress bar,
-    # not the one line saying what landed and where. This alone printed nothing under --quiet, so a
-    # scripted run had to go and find the files to learn whether it had written any.
-    print(f"wrote {args.run}/ ({'; '.join(wrote)})")
+        # one complete path per line, so it can be pasted as-is. Unconditional, like every other
+        # command's completion line: --quiet takes away the progress bar, not what landed and where.
+        print(f"wrote {what} in {landed}")
     return 0
 
 

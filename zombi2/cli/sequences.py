@@ -1,7 +1,7 @@
 """``zombi2 sequences`` — evolve a sequence inside each gene, along its gene tree.
 
 A sequence sees the species tree only through its gene tree, so this command takes a **prior genomes
-run** (``--genomes DIR``) and replays its gene genealogy: it reads that directory's
+run** (the run directory, or ``--from PATH``) and replays its gene genealogy: it reads that directory's
 ``genome_species_tree.nwk`` and ``genome_events.tsv``, rebuilds the ``{family: GeneTree}`` the run
 produced, and evolves one sequence down each family's *complete* gene tree under a substitution
 **model** (the menu — nucleotide ``jc69`` · ``k80`` · ``hky85`` · ``gtr``, or protein ``poisson`` ·
@@ -26,10 +26,7 @@ from zombi2.genomes import FamilyGenomesResult
 from zombi2.genomes.events import events_from_tsv
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
 from zombi2.rates.modifiers import ByLineage, Modifier
-from zombi2.rates.parse import written_form
-from zombi2.rates.rate import as_rate
 from zombi2._runtime.report import write_run_report
-from zombi2.rates.scope import PerSite
 from zombi2.sequences import (WIRED_MODIFIERS, _calibrate, mean_pairwise_identity,
                               simulate_sequences)
 from zombi2.sequences.substitution_models import (
@@ -44,9 +41,8 @@ from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg,
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
     WIRED_MODIFIERS, "--substitution",
-    note="ByLineage on --substitution IS the uncorrelated ('relaxed') clock: one i.i.d. multiplier "
-         "per species lineage, shared across gene families. spread is σ; dist is 'lognormal' "
-         "(default, σ = the log-scale) or 'gamma' (σ = the coefficient of variation).")
+    note="ByLineage draws one rate per species lineage, shared by every gene in it. spread is σ; "
+         "dist is 'lognormal' (default) or 'gamma' (σ = the coefficient of variation).")
 
 # the write vocabulary, mirroring SequencesResult.write (there is no exported constant to import).
 # The last two exist only for a nucleotide handoff, which is the only run with coordinates to lay a
@@ -76,35 +72,31 @@ _KNOB_FLAG = {"kappa": "--kappa", "frequencies": "--frequencies", "gtr_rates": "
 
 
 def _add_sequence_args(p: argparse.ArgumentParser) -> None:
-    _add_run_arg(p, "sequences evolve down the gene trees of the genomes run it already holds")
+    _add_run_arg(p, "sequences evolve down the gene trees of the genomes run it holds")
     g = p.add_argument_group("general")
     _add_params_arg(g)
-    _add_from_arg(g, "the genomes run to replay — its genome_species_tree.nwk and "
-                     "genome_events.tsv rebuild the gene trees")
+    _add_from_arg(g, "the genomes run to replay")
     g.add_argument("--seed", type=int, default=None, metavar="N",
                    help="RNG seed for reproducibility")
 
-    g = p.add_argument_group("substitution model", "the menu — one --model, its parameters below")
+    g = p.add_argument_group("substitution model")
     # validated in run() (not argparse-`required`) so a --params file can supply it — a required
     # argument is never satisfied by a default, which is what --params sets.
     g.add_argument("--model", default=None, metavar="MODEL",
                    choices=(*_NUCLEOTIDE_MODELS, *_PROTEIN_MODELS),
-                   help="substitution model. nucleotide (4 states, ACGT): jc69 (equal rates), "
-                        "k80 (--kappa), hky85 (--kappa, --frequencies), gtr (--gtr-rates, "
-                        "--frequencies). protein (20 states): poisson (equal rates), jtt, dayhoff, "
-                        "wag, lg — empirical matrices, no parameters to give. Defaults to jc69")
+                   # which knob goes with which model is on the knobs themselves ([k80, hky85] …)
+                   help="substitution model (default jc69). nucleotide: jc69, k80, hky85, gtr. "
+                        "protein: poisson, jtt, dayhoff, wag, lg — empirical, no parameters to give")
     g.add_argument("--length", type=int, default=None, metavar="N",
-                   help="alignment length in sites — residues under a protein model (default 1000). "
-                        "Not for a nucleotide genome run: there every block carries its own length "
-                        "in bp, so giving one here is an error rather than something ignored")
+                   help="alignment length in sites (default 1000). Rejected on a nucleotide run: "
+                        "each block has its own length")
     g.add_argument("--intergene-model", default=None, metavar="MODEL", dest="intergene_model",
                    choices=_NUCLEOTIDE_MODELS,
-                   help="[nucleotide runs] the model the spacer between genes evolves under "
-                        "(default jc69 — flat, no free parameters). Genes take --model")
+                   help="[nucleotide runs] model for the spacer between genes (default jc69); "
+                        "genes take --model")
     g.add_argument("--intergene-speed", type=float, default=3.0, metavar="X",
                    dest="intergene_speed",
-                   help="[nucleotide runs] how much faster the spacer evolves than the genes, as a "
-                        "multiple of the substitution rate (default 3.0)")
+                   help="[nucleotide runs] spacer rate as a multiple of the gene rate (default 3.0)")
     g.add_argument("--kappa", type=float, default=None, metavar="K",
                    help="[k80, hky85] transition/transversion ratio (default 2.0)")
     g.add_argument("--frequencies", type=float, nargs=4, default=None, metavar=("A", "C", "G", "T"),
@@ -114,40 +106,26 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                    metavar=("AC", "AG", "AT", "CG", "CT", "GT"),
                    help="[gtr] the six exchangeabilities (default all 1)")
 
-    g = p.add_argument_group("substitution rate & clock", "the per-site rate — see RATES below")
+    g = p.add_argument_group("substitution rate & clock", "see RATES below")
     g.add_argument("--substitution", type=_rate, default=None, metavar="RATE",
-                   help="per-site substitution rate: a gene-tree branch of Δt time accrues "
-                        "substitution·Δt substitutions/site (default 1.0 — the strict clock). A "
-                        "ByLineage modifier makes it a relaxed clock: \"1.0 * ByLineage(spread=0.3)\"")
+                   help="substitutions per site per unit time (default 1.0, a strict clock); a "
+                        "ByLineage modifier relaxes it")
     g.add_argument("--divergence", type=float, default=None, metavar="D",
-                   help="pick the rate for me, so that a site accrues D substitutions from the root "
-                        "to a tip. The rate is per unit TIME, so what it produces depends on how "
-                        "tall the tree is — 0.2 here is a readable alignment on any tree, where a "
-                        "rate of 1.0 is fine on a short tree and pure noise on a tall one. Composes "
-                        "with --substitution: give the clock's shape alone "
+                   help="solve for the rate instead, so a site accrues D substitutions from root to "
+                        "tip. Composes with --substitution: give the clock's shape alone "
                         "(\"ByLineage(spread=0.3)\") and this sets its scale")
 
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=_SEQUENCE_OUTPUTS, default=None, metavar="PART",
-                   help="which outputs to write (default: alignments, phylograms, "
-                        "species_phylogram — the last written as clock_species_tree_*.nwk, the "
-                        "species tree with its branches in substitutions/site — and, on a "
-                        "nucleotide run, genomes and initial_genome: one assembled FASTA per node "
-                        "of the complete tree, plus the genome the run started with. 'genomes' is "
-                        "the big one, a whole genome times every node. also available: ancestral "
-                        "(the sequence at every node that is not an extant tip) and founding (each "
-                        "family's sequence at its origination, where the phylogram's root branch "
-                        "starts)")
+                   help="which outputs to write. default: alignments, phylograms, "
+                        "species_phylogram, summary, and — on a nucleotide run — genomes (one "
+                        "assembled FASTA per node, the big one) and initial_genome. also: "
+                        "ancestral, founding")
     _add_flat_arg(g)
     _add_parallel_arg(g)
     g.add_argument("--stream", action="store_true",
                    help="[family/ordered] write each family's sequences straight to disk instead of "
-                        "building the whole run in memory. This is the level where a run's memory "
-                        "goes — every alignment and every ancestral sequence live at once — so this "
-                        "is the dial for a run that would not fit. Composes with --parallel and "
-                        "--write, and writes the same files at the same seed, so a streamed run and "
-                        "an in-memory one are the same dataset. Not available on a nucleotide run, "
-                        "which reassembles whole genomes and so needs every block at once")
+                        "holding the whole run in memory. Not available on a nucleotide run")
     _add_quiet_arg(g)
     _add_force_arg(g)
 
@@ -336,20 +314,11 @@ def run(args, parser):
                    f"{extra['length']} sites, {clock}{realised}")
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
     if identity is not None and _saturation_signal(identity, model) < _SATURATED_BELOW:
+        # the floor makes the identity readable: it is where unrelated sequences already sit under
+        # this model (25% for equal-frequency DNA, ~6% for a protein one)
         floor = float(np.sum(np.asarray(model.stationary) ** 2))
-        # Name the rate that RAN, not the flag: --substitution is None when it was left out, and
-        # "currently None" tells a reader nothing — and under --divergence the rate that ran is the
-        # solved-for base, which is not on the command line at all. Then point at --divergence first:
-        # it is the answer to "what should I put instead", which lowering a rate by guesswork is not.
-        rate = _effective_substitution(args, genome_run).get("substitution", args.substitution)
-        used = ("the default 1.0" if args.substitution is None and args.divergence is None
-                else written_form(as_rate(rate, default_scope=PerSite)))
-        warn(f"these sequences are close to saturated — mean pairwise identity is {identity:.1%}, "
-             f"against {floor:.1%} for unrelated sequences under {model.name}. The substitution "
-             f"rate is per unit time, so a tall tree accrues many substitutions per site and the "
-             f"alignments keep little history: homology search and tree inference will both do "
-             f"poorly on them. Say how diverged you want them instead — --divergence 0.2 is a "
-             f"readable alignment on any tree — or lower the rate yourself (it ran at {used}).")
+        warn(f"these sequences are close to saturated — mean identity {identity:.1%}, against a "
+             f"{floor:.1%} floor. Set --divergence 0.2 instead.")
     # the log is the run's parameters, not the parser's: the intergene knobs are for a nucleotide
     # handoff only (there is a spacer between genes to evolve); on a family/ordered run they never
     # applied, so recording them — and printing them in the reproduce command — is misleading.
