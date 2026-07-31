@@ -12,8 +12,16 @@ Two alphabets are on the menu: the four **nucleotide** models (4 states, ``ACGT`
 `AMINO_ACIDS` — `poisson()` · `jtt()` · `dayhoff()` · `wag()` · `lg()`).
 The protein models are *empirical*: their exchangeabilities and frequencies were estimated once from
 large alignments and are read off the published matrices (`_aa_matrices`), so they take **no
-free parameters** — you pick one, you do not tune it. Codon models and across-site ``+Γ``
-heterogeneity are not in the menu; adding one is a pure extension of it, no refactor.
+free parameters** — you pick one, you do not tune it. Codon models are not in the menu; adding one is
+a pure extension of it, no refactor.
+
+**Across-site rate variation decorates any model on the menu** rather than adding entries to it:
+`SubstitutionModel.across_sites()` returns the same chemistry with its sites sorted into
+rate classes — a discretised Gamma (``+Γ``), a class that never changes (``+I``), or both. That is
+where the field puts it (``HKY85+I+G4``) and, more to the point, it is not a **rate modifier**:
+``SPEC §5``'s modifiers multiply *one* rate by a context factor, while this splits the sites of one
+rate into classes. Putting it on the model keeps the rate grammar to one job and lets the spacer of
+a nucleotide run carry its own (or no) variation.
 
 Every model here is time-reversible, so the transition matrix over a branch of length ``t`` (in
 substitutions/site), ``P(t) = exp(Q·t)``, is computed by eigendecomposition of the *symmetric*
@@ -23,13 +31,14 @@ matrix ``B = diag(√π)·Q·diag(1/√π)`` (numpy only, no scipy):
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
 from ._aa_matrices import (
     _DAYHOFF_EXCH, _DAYHOFF_PI, _JTT_EXCH, _JTT_PI, _LG_EXCH, _LG_PI, _WAG_EXCH, _WAG_PI,
 )
+from ._site_rates import discrete_gamma
 
 #: the nucleotide alphabet, in the order ``Q`` and ``stationary`` follow.
 BASES = "ACGT"
@@ -48,14 +57,46 @@ class SubstitutionModel:
     Built through the menu constructors (`jc69()`, `k80()`, `hky85()`, `gtr()`),
     never directly. The reversible eigendecomposition behind `p_matrix()` is precomputed once
     in ``__post_init__``.
+
+    ``site_rates`` and ``site_shares`` carry **across-site rate variation**: the sites of a sequence
+    are sorted into classes, ``site_rates[c]`` multiplying the branch length for the sites in class
+    ``c`` and ``site_shares[c]`` giving the proportion of sites that fall there. A plain model has
+    the one class ``(1.0,)`` / ``(1.0,)`` and every site evolves at the same speed; `across_sites()`
+    builds the rest. The two are dimensionless — a class scales a branch length, it is not a rate in
+    ``SPEC §5``'s ``time⁻¹`` sense — and they obey one invariant:
+
+        ``sum(rate × share) == 1``
+
+    which is what makes a branch length the **mean** substitutions per site. Every phylogram in the
+    result is drawn with that meaning, so the invariant is checked here rather than trusted.
     """
 
     name: str
     Q: np.ndarray
     stationary: np.ndarray
     alphabet: str = BASES
+    #: the branch-length multiplier of each rate class, ascending; ``(1.0,)`` = no variation
+    site_rates: tuple[float, ...] = (1.0,)
+    #: the proportion of sites in each class, in the same order; sums to 1
+    site_shares: tuple[float, ...] = (1.0,)
 
     def __post_init__(self) -> None:
+        rates, shares = self.site_rates, self.site_shares
+        if len(rates) != len(shares) or not rates:
+            raise ValueError(f"site_rates and site_shares must be the same non-empty length, got "
+                             f"{len(rates)} and {len(shares)}")
+        if any(r < 0 for r in rates) or not all(np.isfinite(rates)):
+            raise ValueError(f"site rates must be finite and non-negative, got {rates}")
+        if any(s <= 0 for s in shares) or not np.isclose(sum(shares), 1.0):
+            raise ValueError(f"site shares must be positive and sum to 1, got {shares}")
+        if not np.isclose(sum(r * s for r, s in zip(rates, shares)), 1.0):
+            # the classes are what a branch length means; an unnormalised set would silently rescale
+            # every phylogram in the run rather than raise anywhere near where it was built
+            raise ValueError(
+                f"site rates must average 1 over the sites (Σ rate×share), got "
+                f"{sum(r * s for r, s in zip(rates, shares)):.6g} — a branch length is the mean "
+                f"substitutions per site, so the classes have to be normalised to it. Build them "
+                f"with across_sites(), which does this.")
         # Precompute the reversible eigendecomposition once (numpy only) for fast, scipy-free exp(Qt).
         pi = self.stationary
         sq = np.sqrt(pi)
@@ -83,6 +124,82 @@ class SubstitutionModel:
         with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
             P = (self._left * np.exp(self._eigvals * t)) @ self._right
         return np.clip(P, 0.0, None)
+
+    def across_sites(self, *, gamma_shape: float | None = None, invariant: float = 0.0,
+                     rate_categories: int = 4) -> "SubstitutionModel":
+        """The same model with its sites sorted into **rate classes** — ``+Γ``, ``+I``, or both.
+
+        Every site of a gene evolving at exactly one speed is a model no real gene obeys: some
+        positions are held nearly fixed by function, others race ahead. Two standard knobs say so,
+        and they compose:
+
+        - ``gamma_shape`` (α) draws each site's rate from a **Gamma** with mean 1, discretised into
+          ``rate_categories`` equal-probability classes (Yang 1994; see `_site_rates`). A small shape
+          is strong variation — 0.5 gives a few fast sites among many slow ones — and a large one is
+          nearly flat. There is no default: asking for ``+Γ`` means choosing how unequal the sites are.
+        - ``invariant`` (0 by default) is the proportion of sites that **never** change: one more
+          class, at rate 0. Real alignments have columns that are constant because the site cannot
+          change, not because it happened not to, and a Gamma alone fits those badly.
+
+        A site's class is drawn once and holds for the whole tree — that is what across-site
+        variation means, as against a rate that varies along a branch. Sites stay independent, so
+        this is a knob on the existing engine and not a new one (``SPEC §9``).
+
+        **The classes are normalised to mean 1**, invariant sites included: the Gamma classes are
+        scaled by ``1 / (1 - invariant)`` to make room for the sites that never change. So a branch
+        length stays the **mean** substitutions per site, a run with variation and one without have
+        the same phylogram at the same rate, and only the spread of change across columns differs.
+
+        This is **not a rate modifier** (``SPEC §5``), and `simulate_sequences` will still refuse one
+        on ``substitution``: a modifier multiplies one rate by a context factor, while this splits
+        one rate's sites into classes. It belongs to the model, which is where the field puts it —
+        the decorated ``name`` reads ``HKY85+I+G4``, and it is what the run reports.
+
+        Returns a new model; the original is unchanged (they are frozen).
+        """
+        if isinstance(invariant, bool) or not isinstance(invariant, (int, float)):
+            raise TypeError(f"invariant must be a real proportion of sites, got {invariant!r}")
+        if not 0.0 <= invariant < 1.0:
+            raise ValueError(
+                f"invariant is the proportion of sites that never change, so it must be in [0, 1), "
+                f"got {invariant!r}" + (" — at 1.0 no site could ever change and there would be no "
+                                        "sequence evolution left to simulate" if invariant == 1.0 else ""))
+        # named before the nothing-to-vary case below: someone who typed a category count meant to
+        # ask for a Gamma, and the useful reply names the argument they left out
+        if gamma_shape is None and rate_categories != 4:
+            raise ValueError(
+                f"rate_categories={rate_categories} counts the classes of the Gamma, but no "
+                f"gamma_shape was given — add gamma_shape=…, or drop rate_categories (invariant= "
+                f"on its own is a single never-changing class and takes no count).")
+        if gamma_shape is None and not invariant:
+            raise ValueError(
+                "across_sites() has nothing to vary — give gamma_shape=… for a Gamma of rates "
+                "across sites, invariant=… for a class of sites that never change, or both.")
+
+        rates: list[float] = []
+        shares: list[float] = []
+        suffix = ""
+        if invariant:
+            rates.append(0.0)
+            shares.append(float(invariant))
+            suffix += "+I"
+        # Everything not in the invariant class carries the whole mean of 1 between it, because the
+        # invariant sites contribute nothing — hence the 1/(1 - invariant) scaling. Without it, +I
+        # would quietly slow the whole sequence down instead of concentrating its change.
+        varying = 1.0 - invariant
+        scale = 1.0 / varying
+        if gamma_shape is not None:
+            rates.extend(r * scale for r in discrete_gamma(gamma_shape, rate_categories))
+            shares.extend([varying / rate_categories] * rate_categories)
+            suffix += f"+G{rate_categories}"
+        else:
+            # +I on its own: one class for every site that can change at all
+            rates.append(scale)
+            shares.append(varying)
+        # replace() re-runs __post_init__, so the eigendecomposition is rebuilt (once) and the
+        # mean-1 invariant above is checked on the way out rather than assumed
+        return replace(self, name=self.name + suffix,
+                       site_rates=tuple(rates), site_shares=tuple(shares))
 
 
 def _reversible_model(name: str, S: np.ndarray, pi, alphabet: str = BASES) -> SubstitutionModel:

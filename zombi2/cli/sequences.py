@@ -105,6 +105,15 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--gtr-rates", type=float, nargs=6, default=None, dest="gtr_rates",
                    metavar=("AC", "AG", "AT", "CG", "CT", "GT"),
                    help="[gtr] the six exchangeabilities (default all 1)")
+    # Across-site rate variation decorates ANY model on the menu, so these sit outside _MODEL_KNOBS
+    # (which is the per-matrix physical parameters, and whose stray-knob check is per model).
+    g.add_argument("--gamma-shape", type=float, default=None, metavar="A", dest="gamma_shape",
+                   help="[any model] Gamma shape a for rate variation across sites (+G): smaller is "
+                        "more unequal — 0.5 is strong, 5 nearly flat")
+    g.add_argument("--invariant", type=float, default=None, metavar="P",
+                   help="[any model] proportion of sites that never change (+I); 0 by default")
+    g.add_argument("--rate-categories", type=int, default=None, metavar="N", dest="rate_categories",
+                   help="[any model] how many discrete Gamma classes (default 4); needs --gamma-shape")
 
     g = p.add_argument_group("substitution rate & clock", "see RATES below")
     g.add_argument("--substitution", type=_rate, default=None, metavar="RATE",
@@ -160,25 +169,45 @@ def _effective_substitution(args, genome_run) -> dict:
 def _effective_model_params(args) -> dict:
     """The substitution-model params the run actually used, defaults filled — but only the knobs this
     model has (`_MODEL_KNOBS`), so the ``.log`` reproduces the exact model without the reader
-    knowing each model's defaults. ``jc69`` and the protein models have no free knob, so this is empty."""
+    knowing each model's defaults. ``jc69`` and the protein models have no free knob, so this is empty.
+
+    The across-site knobs are appended when either was given, resolved rather than as typed: someone
+    reading the log should not have to know that the category count defaults to 4."""
     resolved = _resolve_model_knobs(args)
-    return {name: resolved[name] for name in _MODEL_KNOBS.get(args.model, ())}
+    params = {name: resolved[name] for name in _MODEL_KNOBS.get(args.model, ())}
+    if args.gamma_shape is not None or args.invariant:
+        params["invariant"] = args.invariant or 0.0
+        if args.gamma_shape is not None:
+            params["gamma_shape"] = args.gamma_shape
+            params["rate_categories"] = args.rate_categories or 4
+    return params
 
 
 def _build_model(args: argparse.Namespace):
     """Build the substitution model from ``--model`` and its physical parameters (each knob falls back
-    to the menu constructor's own default when not given; a protein model takes none)."""
+    to the menu constructor's own default when not given; a protein model takes none), then decorate
+    it with across-site rate variation if any was asked for.
+
+    The decoration is applied last and to whatever matrix came out, because it is orthogonal to the
+    chemistry: every model on the menu takes it, which is why the three flags are not per-model knobs."""
     if args.model in _PROTEIN_MODELS:
-        return _PROTEIN_MODELS[args.model]()
-    knobs = _resolve_model_knobs(args)
-    kappa, freqs, rates = knobs["kappa"], tuple(knobs["frequencies"]), tuple(knobs["gtr_rates"])
-    if args.model == "jc69":
-        return jc69()
-    if args.model == "k80":
-        return k80(kappa=kappa)
-    if args.model == "hky85":
-        return hky85(kappa=kappa, freqs=freqs)
-    return gtr(rates=rates, freqs=freqs)
+        model = _PROTEIN_MODELS[args.model]()
+    else:
+        knobs = _resolve_model_knobs(args)
+        kappa, freqs, rates = knobs["kappa"], tuple(knobs["frequencies"]), tuple(knobs["gtr_rates"])
+        if args.model == "jc69":
+            model = jc69()
+        elif args.model == "k80":
+            model = k80(kappa=kappa)
+        elif args.model == "hky85":
+            model = hky85(kappa=kappa, freqs=freqs)
+        else:
+            model = gtr(rates=rates, freqs=freqs)
+    if args.gamma_shape is not None or args.invariant:
+        model = model.across_sites(gamma_shape=args.gamma_shape,
+                                   invariant=args.invariant or 0.0,
+                                   rate_categories=args.rate_categories or 4)
+    return model
 
 
 #: Below this much of the way from the random floor to identical, an alignment carries so little
@@ -187,12 +216,24 @@ def _build_model(args: argparse.Namespace):
 _SATURATED_BELOW = 0.15
 
 
+def _identity_floor(model) -> float:
+    """The identity two *unrelated* sequences would still show under this model.
+
+    ``Σπ²`` — 25% for equal-frequency DNA, ~6% for a protein model — because two random draws from
+    the stationary distribution agree that often. Under ``+I`` the floor is higher: the invariant
+    sites match no matter how long the branch, so the floor is ``p + (1 - p)·Σπ²``. Without that
+    term the saturation warning below would fire on a perfectly good ``+I`` run, whose identity
+    cannot fall to ``Σπ²`` even in principle."""
+    chance = float(np.sum(np.asarray(model.stationary) ** 2))
+    invariant = model.site_shares[0] if model.site_rates[0] == 0.0 else 0.0
+    return invariant + (1.0 - invariant) * chance
+
+
 def _saturation_signal(identity: float, model) -> float:
     """How far the realised identity sits from random, as a fraction of the distance from the model's
-    own random floor to identical. Two sequences related only by chance still match at ``Σπ²`` — 25%
-    for equal-frequency DNA, ~6% for a protein model — so raw identity is not comparable across
-    models and this is."""
-    floor = float(np.sum(np.asarray(model.stationary) ** 2))
+    own floor (`_identity_floor`) to identical — so raw identity, which is not comparable across
+    models, becomes a number that is."""
+    floor = _identity_floor(model)
     return (identity - floor) / (1.0 - floor) if floor < 1.0 else 1.0
 
 
@@ -209,6 +250,12 @@ def run(args, parser):
              if getattr(args, k) is not None and k not in allowed]
     if stray:
         parser.error(f"these options don't apply to --model {args.model}: {', '.join(stray)}")
+    # --rate-categories counts the classes of a Gamma, so on its own it asks for nothing; caught here
+    # rather than in across_sites() so it reads as the flag error it is
+    if args.rate_categories is not None and args.gamma_shape is None:
+        parser.error("--rate-categories counts the discrete classes of the across-site Gamma, so it "
+                     "needs --gamma-shape; --invariant on its own is a single never-changing class "
+                     "and takes no count")
 
     handoff, tree_path = resolve_genomes(args.source or args.run)
     with open(tree_path, encoding="utf-8") as f:
@@ -321,8 +368,8 @@ def run(args, parser):
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
     if identity is not None and _saturation_signal(identity, model) < _SATURATED_BELOW:
         # the floor makes the identity readable: it is where unrelated sequences already sit under
-        # this model (25% for equal-frequency DNA, ~6% for a protein one)
-        floor = float(np.sum(np.asarray(model.stationary) ** 2))
+        # this model (25% for equal-frequency DNA, ~6% for a protein one; higher under +I)
+        floor = _identity_floor(model)
         warn(f"these sequences are close to saturated — mean identity {identity:.1%}, against a "
              f"{floor:.1%} floor. Set --divergence 0.2 instead.")
     # the log is the run's parameters, not the parser's: the intergene knobs are for a nucleotide

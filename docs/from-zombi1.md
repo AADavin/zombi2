@@ -118,7 +118,8 @@ species.simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.2), n_extant=2
 | `SHIFT_SUBSTITUTION_RATE` · `SHIFT_CATEGORIES` · `BASE_RATE` | the same clock. No category count |
 | `SCALING` · `SCALE_GENE_TREES` | `--divergence D` sets the rate from the height of the tree, which is what scaling was for |
 | `SEQUENCE codon` · `CODON_MODEL` | **not in v2.** There are no codon models, so no dN/dS |
-| `ALPHA` · `BETA` | **not in v2.** No across-site rate variation (`+Γ`), no invariant-sites class |
+| `ALPHA` | `--gamma-shape A` — the Gamma shape for rate variation across sites, with `--rate-categories N` for the class count (4 by default). It decorates the model, not the rate |
+| `BETA` | `--invariant P` — the proportion of sites that never change (`+I`), if that is what it set; v1's key is not documented here, so check your old control file |
 
 ## Where the files went
 

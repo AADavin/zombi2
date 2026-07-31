@@ -19,7 +19,12 @@ clock**: ``substitution = 1.0 * mod.ByLineage(spread=)`` is the uncorrelated ("r
 i.i.d. rate multiplier drawn per **species lineage** and shared by every gene passing through it, and
 ``substitution = 1.0 * mod.FromParent(spread=)`` is the **autocorrelated** clock, where the rate drifts
 parent→child down the species tree so close relatives run at similar rates (``SPEC §5``). Any other
-modifier — ``Markov`` hops, the per-family ``ByFamily`` speed, across-site ``+Γ`` — raises.
+modifier — ``Markov`` hops, the per-family ``ByFamily`` speed — raises.
+
+Rate variation **across sites** is not a modifier and does not go in ``substitution``: it belongs to
+the model, where the field puts it. ``model=hky85(2.0).across_sites(gamma_shape=0.5, invariant=0.1)``
+is ``HKY85+I+G4``, and the classes are normalised to mean 1, so a branch length stays the mean
+substitutions per site (`substitution_models`).
 
 The result is a `SequencesResult` bundle mirroring the other levels:
 ``.alignments`` (the observable sequence at every **extant** tip), ``.ancestral`` (the reconstructed
@@ -674,12 +679,20 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     branch it sits on: ``1.0 * mod.ByLineage(spread=)`` is the uncorrelated clock (each branch drawn
     i.i.d.), and ``1.0 * mod.FromParent(spread=)`` is the autocorrelated clock (the factor drifts
     parent→child down the species tree). Any other modifier (the ``Markov`` clock, the ``ByFamily``
-    per-family speed, ``+Γ``) or a non-``PerSite`` scope raises.
+    per-family speed) or a non-``PerSite`` scope raises.
+
+    Rate variation **across sites** rides on ``model``, not on ``substitution``:
+    ``model=hky85(2.0).across_sites(gamma_shape=0.5, invariant=0.1)`` sorts the sites into a
+    discretised-Gamma set of rate classes plus a class that never changes. The two axes are
+    orthogonal and compose — the clock says which *lineages* run fast, the model which *sites* do.
 
     On a **nucleotide** genome run every root block is evolved — spacer as well as genes — each at its
     own length in bp, so ``length`` does not apply and is rejected. ``model`` evolves the genes and
     ``intergene_model`` (default ``jc69``) the spacer, at ``intergene_speed`` times the rate (default
-    ``3.0``). Because the whole genome is covered, the run also **puts the genomes back together**:
+    ``3.0``). Each carries **its own** across-site variation: decorating ``model`` with
+    ``across_sites`` does not reach the spacer, whose default ``jc69()`` stays flat — the spacer's
+    job is to be the unconstrained null, and silently giving it the genes' Gamma would make it
+    something else. Give ``intergene_model`` a decorated model to vary the spacer too. Because the whole genome is covered, the run also **puts the genomes back together**:
     ``.genomes`` holds every node's chromosomes, blocks concatenated in physical order — the complete
     tree, reconstructed — and ``.initial_genome`` the one the run started with.
 
@@ -811,8 +824,10 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
                                   or ["a second clock"])
             raise ValueError(
                 f"substitution carries {offenders}, but this slice takes a single lineage clock — one "
-                "ByLineage (uncorrelated) or one FromParent (autocorrelated). The Markov clock, the "
-                "ByFamily per-family speed, and +Γ across-site heterogeneity are not implemented."
+                "ByLineage (uncorrelated) or one FromParent (autocorrelated). The Markov clock and "
+                "the ByFamily per-family speed are not implemented. Rate variation across sites is "
+                "not a modifier at all — it belongs to the model: "
+                "model=hky85(...).across_sites(gamma_shape=0.5), or --gamma-shape."
             )
     rate_base = rate.base
 

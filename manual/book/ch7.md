@@ -49,7 +49,48 @@ model = lg()                      # Le & Gascuel 2008
 
 The four nucleotide matrices are the standard published ones [@jukes1969evolution; @kimura1980simple; @hasegawa1985dating; @tavare1986some], as are the four protein ones [@dayhoff1978model; @jones1992rapid; @whelan2001general; @le2008improved]. The model decides the alphabet, and `length` counts whatever that alphabet holds: bases for a nucleotide model, residues for a protein one. The nucleotide models are four different rate matrices, not one model with four settings, but they nest in the order written — `jc69` is `k80` with `kappa=1`, `k80` is `hky85` with equal base frequencies — so each step adds free parameters. The protein matrices are **empirical**, each estimated once from a large set of real alignments and then used as a fixed table, which is why they take no parameters.
 
+## Rate variation across sites
+
+So far every site of a gene evolves at the same speed, which is a model no real gene obeys. Some positions are held nearly fixed by what the protein has to do; others drift freely. The standard way to say so is a **Gamma distribution of rates across sites**: each site gets a multiplier drawn from a Gamma with mean 1, so one number — its **shape** — sets how unequal the sites are. A small shape means a few fast sites among many slow ones; a large one is nearly flat.
+
+You add it to the model, not to the rate:
+
+```python
+gamma_model = hky85(kappa=2.0).across_sites(gamma_shape=0.5)
+varied = sequences.simulate_sequences(my_genomes, model=gamma_model, length=1000, seed=1)
+```
+
+The Gamma is cut into a small number of equal-probability classes, each represented by its mean [@yang1994variable] — four by default, changed with `rate_categories`. Cutting it is not an approximation made for tidiness: a site's rate is what its branch length is computed from, and a continuous draw would give every site its own branch length and so its own transition matrix. With classes, the sites sharing a class share the work.
+
+A second knob adds a class of sites that **never** change:
+
+```python
+both = hky85(kappa=2.0).across_sites(gamma_shape=0.5, invariant=0.1)
+print(both.name)                  # HKY85+I+G4
+sequences.simulate_sequences(my_genomes, model=both, length=1000, seed=1)
+```
+
+`invariant=0.1` sets aside a tenth of the sites as unchangeable. Real alignments have columns that are constant because the site cannot change rather than because it happened not to, and a Gamma alone fits those badly. Either knob works alone, and the model's name records what you chose — `HKY85+I+G4`, the way the field writes it — which is what the run prints and logs.
+
+From the command line the same three knobs are flags, and they apply to any model on the menu:
+
+```bash
+zombi2 sequences seqs/ --from out/ --model hky85 --gamma-shape 0.5 --invariant 0.1 --seed 1
+```
+
+**Branch lengths do not change.** The classes are normalised so the mean rate over all sites is exactly 1, invariant sites included, so a branch length in the phylograms is still substitutions per site — now the mean over them. A run with rate variation and a run without, at the same rate, have the *same tree*; what differs is how the change is spread across the columns. That is what makes the two comparable, and it is why the mean-1 normalisation is checked rather than assumed.
+
+Two consequences worth knowing. The mean pairwise identity a run reports goes **up** under `+Γ` at the same divergence, because the slow and invariant sites keep their matches while the fast ones saturate. And on a nucleotide run the spacer between genes keeps its own model, which is flat by default: decorating `model` does not reach `intergene_model`, since the spacer's job is to be the unconstrained null.
+
+| What it does | ZOMBI2 | From the literature |
+|---|---|---|
+| sites vary, drawn from a discretised Gamma | `.across_sites(gamma_shape=…)` | +G, discrete Gamma [@yang1994variable] |
+| a class of sites that never change | `.across_sites(invariant=…)` | +I, invariable sites |
+| both together | `.across_sites(gamma_shape=…, invariant=…)` | +I+G [@gu1995maximum] |
+
 ## Relaxed molecular clocks
+
+Rate variation across sites says which *positions* change fast. A clock says which *lineages* do. The two are orthogonal and compose.
 
 The rate itself is `substitution`, and it is counted **per site**: a gene-tree branch of Δ*t* time accrues `substitution · Δt` substitutions at every site. Leave it alone and it is `1.0` everywhere — the **strict clock**, one tempo for the whole tree.
 
@@ -109,7 +150,7 @@ substitution = 1.0 * mod.FromParent(spread=0.3)
 
 **`ByLineage`** has *no memory*: each lineage is an independent draw, so a lineage's rate tells you nothing about its neighbours'. The distribution it draws from (`dist="lognormal"` or `"gamma"`) is a parameter of the modifier.
 
-**`FromParent`** has memory: a daughter starts at its parent's rate and multiplies it by one lognormal step, so close relatives evolve at similar rates. That is the **autocorrelated** clock. Both draws are mean-corrected, so widening `spread` spreads the lineages apart without moving the average rate off the number you typed. Those are the two the sequence level accepts; any other modifier on `substitution` raises.
+**`FromParent`** has memory: a daughter starts at its parent's rate and multiplies it by one lognormal step, so close relatives evolve at similar rates. That is the **autocorrelated** clock. Both draws are mean-corrected, so widening `spread` spreads the lineages apart without moving the average rate off the number you typed. Those are the two the sequence level accepts; any other modifier on `substitution` raises. Rate variation across sites is not among them, and does not belong in the rate at all — it is part of the model, as above.
 
 One important point: **the clock belongs to the species tree, not to the gene trees.**
 

@@ -532,3 +532,23 @@ def test_the_initial_sequence_survives_the_write_read_handoff(tmp_path):
     a = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=4)
     b = simulate_sequences(back, model=jc69(), substitution=0.0, seed=4)
     assert a.initial_genome == b.initial_genome
+
+
+def test_the_spacer_keeps_its_own_model_when_the_genes_get_rate_variation():
+    """Decorating ``model`` does not reach ``intergene_model``.
+
+    The spacer's job is to be the unconstrained null, so the genes' Gamma must not be applied to it
+    behind the user's back — they are two models and each carries its own classes. (Not asserted
+    byte-for-byte against a flat-gene run: the serial engine walks every block from one shared
+    generator, so a gene block's extra draws shift each later block's stream. That is correct, and
+    only ever visible on a run that opted in.)"""
+    from zombi2.sequences.substitution_models import hky85
+
+    genomes = _run()
+    spacer = jc69()
+    result = simulate_sequences(genomes, model=hky85(2.0).across_sites(gamma_shape=0.4),
+                                intergene_model=spacer, substitution=0.05, seed=3)
+    assert spacer.site_rates == (1.0,)                      # the spacer model is untouched
+    for i, (_src, a, b) in enumerate(genomes.root_blocks):
+        assert len(result.founding[i]) == b - a             # every block still its own length in bp
+    assert result.genomes and all(chroms for chroms in result.genomes.values())
