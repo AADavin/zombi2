@@ -876,6 +876,25 @@ def test_genomes_transfer_to_takes_a_driven_recipient_weight(tmp_path, driver_fi
     assert f"transfer_to\t{written}" in (out / "genomes.log").read_text(encoding="utf-8")
 
 
+@pytest.mark.parametrize("resolution", ["ordered", "nucleotide"])
+def test_genomes_transfer_to_takes_a_driven_weight_at_every_resolution(
+        tmp_path, driver_file, tree_file, resolution):
+    """The choice slot is not the family resolution's own: the same flag, the same written form and
+    the same conditioning record at all three. ``--transfer-to`` was already parsed for every
+    resolution and already passed to every engine — the engines were what refused it."""
+    out = tmp_path / resolution
+    extra = ["--root-length", "2000"] if resolution == "nucleotide" else ["--initial-families", "5"]
+    rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", resolution,
+               "--transfer", "0.5", "--transfer-to",
+               f"DrivenBy('{driver_file}', {{'competent': 2.0, 'normal': 1.0}})",
+               "--seed", "2", "--flat", *extra])
+    assert rc == 0
+    from zombi2.cli.genomes import _transfer_to
+    written = repr(_transfer_to(f"DrivenBy('{driver_file}', "
+                                f"{{'competent': 2.0, 'normal': 1.0}})"))
+    assert f"transfer_to\t{written}" in (out / "genomes.log").read_text(encoding="utf-8")
+
+
 def test_genomes_transfer_to_rejects_a_rate_expression(tmp_path, tree_file, capsys):
     with pytest.raises(SystemExit) as e:
         main(["genomes", str(tmp_path / "g"), "--from", str(tree_file), "--transfer-to", "1.0 * DrivenBy('d.tsv', {'a': 2})", "--flat"])

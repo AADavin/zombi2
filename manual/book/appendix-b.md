@@ -115,6 +115,7 @@ which is what the gene trees are derived from.
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
 | Gene order | `gene_order.tsv` | TSV | yes | signed gene order of **every node**, ancestors included — `lineage` · `chromosome` · `position` · `strand` · `family` · `copy` |
 | Initial genome | `initial_genome.tsv` | TSV | yes | the genome the run **started** with, at the start of the root branch — `chromosome` · `position` · `strand` · `family` · `copy`. Its own file, with no `lineage` column, because it belongs to no node: every `lineage` elsewhere is a node, and a node sits at the *end* of its branch |
+| Conditioning | `conditioned_on` | text | conditioned | as at the family resolution: written **only when a rate, an extent or `transfer_to` was conditioned** — the run's levels this run read via `DrivenBy`, one per line |
 | Chromosome events | `chromosome_events.tsv` | TSV | yes | chromosome-network edges — `time` · `kind` · `parents` · `children`, chromosomes written `n<species>_c<id>` so the branch rides in the token here too. Kinds are `initial` (a replicon the run starts with, at time 0), `speciation`, `fission`, `fusion`, `origination` and `loss`; a fusion is the one row with two parents |
 | Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | as at the family resolution — position is orthogonal to genealogy |
 
@@ -138,6 +139,7 @@ From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...
 | Genes | `genes.tsv` | TSV | yes | the declared genes in initial coordinates — `family` · `name` · `source` · `start` · `end` · `strand` (the **coding** strand). Header-only when none were declared |
 | Initial sequence | `initial_sequence.fasta` | FASTA | yes¹ | the initial DNA the run was given (`--fasta`), one `>source<n>` record per replicon. Written only when a FASTA was supplied; it is what lets a separate `zombi2 sequences` run found its blocks from the real sequence |
 | Initial genome | `initial_genome.tsv` | TSV | yes | the genome the run **started** with, at the start of the root branch — `chromosome` · `position` · `source` · `start` · `end` · `strand` · `copy` · `gene`. Its own file, with no `lineage` column, because it belongs to no node: every `lineage` elsewhere is a node, and a node sits at the *end* of its branch |
+| Conditioning | `conditioned_on` | text | conditioned | as at the family resolution: written **only when a rate, an extent or `transfer_to` was conditioned** — the run's levels this run read via `DrivenBy`, one per line |
 | Chromosome events | `chromosome_events.tsv` | TSV | yes | chromosome-network edges — same format and same kinds as ordered |
 | Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | one tree per declared gene (else per recovered root-block), in `gene_trees/` |
 | GFF | `genome_<lineage>.gff` | GFF3 | yes | one file per node, in `gff/`: that genome's **genes** in its own coordinates — the annotation to read beside the sequence level's `genome_<lineage>.fasta`, which it names its sequences to match |

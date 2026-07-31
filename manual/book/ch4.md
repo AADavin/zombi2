@@ -145,6 +145,8 @@ Each entry is a weight, read the same way `"distance"`'s weights are: normalised
 
 `Clades` is written in Python. On the command line `--transfer-to` takes `uniform`, `distance`, or a `DrivenBy` recipient weight (Chapter 9).
 
+`transfer_to` is one slot with one set of rules, and the ordered and nucleotide resolutions take all four of them unchanged — `"uniform"`, `"distance"` / `Distance(decay=)`, `Clades(...)` and a `DrivenBy` weight. What differs between the resolutions is *what moves*: one gene copy here, a block of consecutive genes in Chapter 5, an arc of DNA in Chapter 6. Who receives it is chosen the same way in all three, so the rules are described once, here.
+
 ## The `FamilyGenomesResult` object
 
 `simulate_genomes_family` returns a **FamilyGenomesResult** which carries:

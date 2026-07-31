@@ -76,7 +76,7 @@ What a trait can drive fits in six rows:
 | a discrete trait | **every rate** of an **ordered** run — those four, plus `inversion`, `transposition`, `translocation` and the chromosome tier | `inversion = 0.3 * mod.DrivenBy(source, {…})` | Table |
 | a discrete trait | **every rate** of a **nucleotide** run — the same list, on a genome measured in base pairs | `inversion = 1.5 * mod.DrivenBy(source, {…})` | Table |
 | a discrete trait | **every extent** of an **ordered** or **nucleotide** run — how much an event takes, rather than how often one happens | `loss_extent = 150 * mod.DrivenBy(source, {…})` | Table |
-| a discrete trait | `transfer_to` — which lineage a transfer lands on (**family** resolution only) | `transfer_to = mod.DrivenBy(source, {…})` | Table, or Between (reads the donor too) |
+| a discrete trait | `transfer_to` — which lineage a transfer lands on, at **every** resolution | `transfer_to = mod.DrivenBy(source, {…})` | Table, or Between (reads the donor too) |
 | a discrete or continuous trait | `substitution` — how fast the sequences inside a gene evolve, at the **sequences** level | `substitution = 0.05 * mod.DrivenBy(source, {…})` | Table, Curve or Scalar |
 
 The last row is the one level further down, and Chapter 7 covers it beside the clocks it sits with: the factor multiplies the substitution rate on each species branch, so a lineage's state sets how fast its genes' sequences change. It composes with either lineage clock.
@@ -159,12 +159,13 @@ A `switch` written per transition drives only the transitions you name — `{"ca
 
 ### What can be conditioned, and what cannot yet
 
-A trait's own rate takes a driver, as above. In a genome run conditioning works at all three resolutions. At the **family** resolution it covers the four gene-family rates in the table above, plus `transfer_to`. At the **ordered** resolution it covers every rate the engine has, so a trait can make a lineage rearrange its gene order more often — inversion, transposition, translocation — or reshape its karyotype more often, and a driven extent makes each rearranged block longer. At the **nucleotide** resolution it covers the same list on a genome measured in base pairs, which is where a driven `loss` becomes genome reduction as it is usually meant: a lifestyle trait shedding DNA rather than dropping family tokens. At the **sequences** level it covers `substitution`, the one rate that level has.
+A trait's own rate takes a driver, as above. In a genome run conditioning works at all three resolutions. At the **family** resolution it covers the four gene-family rates in the table above. At the **ordered** resolution it covers every rate the engine has, so a trait can make a lineage rearrange its gene order more often — inversion, transposition, translocation — or reshape its karyotype more often, and a driven extent makes each rearranged block longer. At the **nucleotide** resolution it covers the same list on a genome measured in base pairs, which is where a driven `loss` becomes genome reduction as it is usually meant: a lifestyle trait shedding DNA rather than dropping family tokens. At the **sequences** level it covers `substitution`, the one rate that level has.
+
+`transfer_to` sits outside that per-resolution list because it is not a rate. It is the choice slot, and it works at all three resolutions: the same four rules, the same kernel, the same weights. What a transfer moves differs — one copy, a block of genes, an arc of DNA — and who receives it does not.
 
 What is not implemented yet:
 
 - **`ByFamily` and `DrivenBy` cannot be set in the same run** at the family or ordered resolution. One weights lineages by a driver, the other weights the segment by what it covers, so combining them means weighting by the product. `family_speed` counts as a `ByFamily` here. Use one or the other.
-- **`transfer_to` — where a transfer lands — is family-resolution only.** An ordered or nucleotide transfer's *rate* can be driven; its recipient rule cannot.
 - **A sequence cannot drive anything.** The arrow runs one way: a trait drives `substitution`, but nothing reads a sequence back out.
 
 These are limits of the implementation, not of the model — the rate grammar (`SPEC §5`) is the same everywhere, and each engine gains a modifier when its own code learns to read it. Until then, a driven rate an engine cannot honour raises rather than being silently dropped.

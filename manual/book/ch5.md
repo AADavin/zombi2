@@ -115,6 +115,22 @@ Weighting the starting gene is the obvious implementation and the wrong one: a f
 
 With no weights set every run averages to one, so a run using neither knob is unchanged.
 
+### Who receives a transfer
+
+The recipient rule is Chapter 4's, unchanged: `transfer_to` takes `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or a `DrivenBy` weight read off a trait (Chapter 9). What is ordered about an ordered transfer is the block that moves; who receives it is the same question and the same answer as at the family resolution.
+
+```python
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1)
+flows = genomes.Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)
+g = genomes.simulate_genomes_ordered(
+    tree, transfer=1.0, transfer_extent=3, initial_families=20, seed=2,
+    transfer_to=genomes.Clades({"A": ["n27", "n28"], "B": ["n21", "n26"]}, flows))
+```
+
+Every transferred block now crosses between the two named clades and never lands inside either. The numbers are weights, normalised over the lineages alive when a transfer fires, so they redistribute transfers without changing how many happen — and a weight of 0 means "cannot receive", so a transfer whose every candidate weighs 0 does not fire at all, leaving the donor exactly as it was.
+
+One thing to watch when you combine a restrictive rule with a tight `max_family_size`: the two thin transfers independently. A block is refused when it would take any family it carries past the cap, and refused again when the kernel forbids the pair, so the realised amount of transfer can sit well below the rate you declared. Raise the cap while you are measuring the weights.
+
 ### A rate can be driven by a trait
 
 Every rate here also takes `DrivenBy`, so a habitat can decide how often a lineage rearranges its gene order, and every extent takes it too, so the same habitat can decide how long the rearranged runs are. The mechanism is Chapter 9's and is not repeated here.

@@ -37,6 +37,11 @@ own driver value, and the lineage an event lands on is then drawn with those sam
 the gene-level rates are **per copy**, each lineage's weight carries its own gene count, so the pick
 is two-stage — a lineage by its weight, then a gene inside it. A driven extent is read at the instant
 an event fires, so it changes how much that event takes and never how often one starts.
+
+``transfer_to`` — who receives — is the third slot a driver can sit in, and the one that is **not** a
+rate: there the mapping's numbers are weights normalised across the candidate recipients, so they
+redistribute the same transfers rather than change how many happen (SPEC §5, the choice slot). Its
+four rules and the kernel that reads them are the family core's, shared through ``_transfer``.
 """
 
 from __future__ import annotations
@@ -59,7 +64,8 @@ from ..tree import Tree, as_tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv, rearrangement_events_tsv
 from .family import resolve_max_family_size
 from ._live import enter, retire, weighted_index, without_cyclic_gc
-from ._transfer import Distance, mean_root_to_tip, recipient_index
+from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
+                        resolve_transfer_to)
 from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
 from .events import _COLS, Event, _branches, _grouped, _name, event_rows, gene_label
@@ -772,16 +778,28 @@ def _translocate(genome, ci, i, m, node, t, rearrangements, rng, inversion_proba
 
 
 def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, new_gene,
-                 transfer_to, replacement, self_transfer, depth, cap=None) -> int:
+                 transfer_to, replacement, self_transfer, depth, cap=None,
+                 to_traj=None, groups=None) -> int:
     """The segment ``[jd, jd+m)`` on the donor's chromosome ``cdi`` transfers to a contemporaneous
-    recipient: each gene ends → a continuation on the donor branch and a transferred copy on the
-    recipient (a horizontal gene-tree edge). The run may wrap position 0 on a circular donor
-    chromosome. The transferred copies arrive as a block at a random position on a uniformly-chosen
-    recipient chromosome (strands travel with them). Returns the change in total gene count: ``+m``
-    additive, minus one per homologous copy displaced under ``replacement``."""
+    recipient chosen by ``transfer_to``: each gene ends → a continuation on the donor branch and a
+    transferred copy on the recipient (a horizontal gene-tree edge). The run may wrap position 0 on a
+    circular donor chromosome. The transferred copies arrive as a block at a random position on a
+    uniformly-chosen recipient chromosome (strands travel with them). Returns the change in total gene
+    count: ``+m`` additive, minus one per homologous copy displaced under ``replacement``.
+
+    **No eligible recipient ⇒ nothing happens.** Under a `Clades` kernel or a driven ``transfer_to``
+    a candidate at weight 0 cannot receive, and at some instants that is every candidate. The event is
+    then dropped before anything is minted, moved or logged — which is not an approximation: rejecting
+    an event on a condition that depends only on the current state is Poisson thinning, so the kept
+    transfers are exactly the process whose transfer rate is zero while no recipient is eligible.
+
+    That argument is why the recipient is drawn **first**, above `_anchor()`. Anchoring rotates the
+    donor's gene list in place. The rotation is free on a ring biologically, but it renumbers every
+    position the run writes out, so a drop after it would leave the donor changed by an event that did
+    not happen — the one thing the thinning argument says cannot occur. The pick consumes the rng and
+    the anchoring does not, so drawing it first leaves the draw order, and every existing run,
+    untouched."""
     donor = alive[kd]
-    jd = _anchor(gen[kd][cdi], jd, m)
-    segment = gen[kd][cdi].genes[jd:jd + m]
     if transfer_to == "uniform":
         # O(1) uniform recipient — the same single draw as recipient_index's
         # cand[rng.integers(len(cand))] over every alive lineage but the donor; the donor-skip is a
@@ -791,11 +809,17 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, ne
             return 0
         i = int(rng.integers(npool))
         kr = i if (self_transfer or i < kd) else i + 1
-    else:  # a Distance weighting must weigh every candidate — inherently O(alive)
+    else:  # the weighted rules (Distance / Clades / DrivenBy) weigh every candidate — O(alive)
         cand = [k for k in range(len(alive)) if self_transfer or k != kd]
-        kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth)
+        if not cand:                                   # the uniform branch's npool guard, restated
+            return 0
+        kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_traj, groups)
+        if kr is None:                                 # every candidate weighs 0 — no-op (see above)
+            return 0
     recipient = alive[kr]
     rgenome = gen[kr]
+    jd = _anchor(gen[kd][cdi], jd, m)
+    segment = gen[kd][cdi].genes[jd:jd + m]
     if _run_over_cap(rgenome, gen[kd][cdi], jd, m, cap):   # the recipient is full: same thinning
         return 0
     conts = [new_gene(g.family, g.strand) for g in segment]
@@ -983,8 +1007,13 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     run starts with ``chromosomes`` chromosomes of the given ``topology``, across which the
     ``initial_families`` founding genes are dealt **round-robin**; ``family_names=["toxin", …]`` additionally
     declares **named** families (remembered in ``result.family_names`` for ``result.has_family(node,
-    "toxin")``), as in the family core; ``transfer_to`` / ``replacement`` / ``self_transfer`` behave
-    as in the family core.
+    "toxin")``), as in the family core; ``replacement`` / ``self_transfer`` behave as in the family
+    core. So does ``transfer_to``, the **choice slot** that says who receives — ``"uniform"``,
+    ``"distance"`` / ``Distance(decay=)`` (closer relatives likelier), ``Clades({...}, Between({...}))``
+    (weight by the donor's and recipient's named clade) or ``mod.DrivenBy(source, mapping)`` (weight by
+    another level; see below). What moves is a block of genes rather than a single copy, and the block
+    arrives whole, so the rule chooses the recipient lineage exactly as it does at the family
+    resolution.
 
     The **chromosome tier** changes chromosome *number*: ``fission`` (split), ``fusion`` (merge,
     between two chromosomes of the **same topology** — the reticulation; a ring and a molecule with
@@ -1002,8 +1031,18 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     value; the lineage an event lands on is drawn with those same weights, and the gene inside it
     uniformly, because the gene count is already in the weight. The Gillespie steps at **every**
     mid-branch switch of the driver rather than averaging over a branch (SPEC §2). For ``transfer``
-    the driven lineage is the **donor**, so a driven ``transfer`` says how often a lineage *donates*;
-    who receives is ``transfer_to``, which takes no driver at this resolution.
+    the driven lineage is the **donor**, so a driven ``transfer`` says how often a lineage *donates*.
+
+    **Conditioning (a trait drives who receives).** ``transfer_to = mod.DrivenBy(source, mapping)`` is
+    the other half, and a different model: the mapping's numbers are per-candidate **weights**, not
+    rate multipliers, so they leave the total amount of transfer alone and only redistribute it
+    (SPEC §5, the choice slot). Candidate lineage ``k`` gets weight ``mapping(driver value on k now)``
+    and receives with probability ``w_k / Σw``. Weight 0 means "cannot receive"; when every candidate
+    weighs 0 the transfer does not happen at all, and the donor's chromosome is left untouched. A
+    ``Between({...})`` mapping reads the **donor's** value too, so transfer can be steered between
+    guilds; ``Clades({...}, Between({...}))`` is the same steering by named clade, read off the tree
+    instead of a driver. Because a weight is not a rate, a driven ``transfer_to`` adds no Gillespie
+    breakpoint and composes freely with a driven ``transfer`` rate.
 
     **Conditioning (a trait drives an extent).** An extent takes the same modifiers a rate does
     (SPEC §6) — ``inversion_extent = 4 * mod.DrivenBy(habitat, {"host": 3.0, "free": 1.0})`` makes a
@@ -1054,8 +1093,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     f"{label} carries DrivenBy(…, Between(…)); a Between kernel is donor-conditioned "
                     f"— it weights a recipient by the (donor, recipient) group pair — so it belongs "
                     f"in transfer_to (who RECEIVES) and never in a rate, which has no donor to "
-                    f"condition on. Drive a rate with a Table (a plain dict); a driven transfer_to is "
-                    f"the family resolution's slot.")
+                    f"condition on. Drive a rate with a Table (a plain dict), and put the kernel in "
+                    f"transfer_to=mod.DrivenBy(source, Between({{...}})).")
             if not isinstance(m, WIRED_MODIFIERS):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
@@ -1116,10 +1155,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         "translocation_extent": trl_ext}
     if not 0.0 <= inversion_probability <= 1.0:
         raise ValueError(f"inversion_probability must be in [0, 1], got {inversion_probability!r}")
-    if transfer_to == "distance":
-        transfer_to = Distance()
-    if transfer_to != "uniform" and not isinstance(transfer_to, Distance):
-        raise ValueError(f"transfer_to must be 'uniform', 'distance', or Distance(decay=), got {transfer_to!r}")
+    # the choice slot, validated in the one place all three resolutions share (SPEC §5): the mapping's
+    # numbers are weights over the candidate recipients, never a rate multiplier
+    transfer_to = resolve_transfer_to(transfer_to)
     if isinstance(initial_families, bool) or not isinstance(initial_families, int) or initial_families < 0:
         raise ValueError(f"initial_families must be a non-negative integer, got {initial_families!r}")
     family_names = list(family_names) if family_names is not None else []
@@ -1165,6 +1203,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     trajs = {key: traj for key, traj in resolved.items() if key in _rate_keys}
     any_driven = bool(trajs)
     any_ext_driven = any(ext_driven.values())
+    # The transfer_to slot is prepared **after** `trajs` is fixed, for the same reason: a driven
+    # transfer_to is a weight, not a rate, so its trajectory must not join `trajs` and start adding
+    # horizon breakpoints. `resolved` doubles as the driver cache, so a trait that drives both a rate
+    # and who receives is loaded once and read from one trajectory.
+    group_of, to_traj = prepare_transfer_to(tree, transfer_to, resolved)
 
     rng = np.random.default_rng(seed)
     copy_counter = 0
@@ -1379,7 +1422,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                         kd, cdi, jd, m = picked
                         total_copies += _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events,
                                                      event_positions, new_gene, transfer_to,
-                                                     replacement, self_transfer, depth, cap)
+                                                     replacement, self_transfer, depth, cap,
+                                                     to_traj, group_of)
                 elif r < b_inv:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "inversion", inv_ext,
                                              _ext_ctx, w.get("inversion"))

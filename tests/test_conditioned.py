@@ -589,14 +589,112 @@ def test_transfer_to_rejects_an_unknown_rule():
                                         initial_families=1, seed=1)
 
 
-def test_ordered_engine_rejects_a_driven_transfer_to():
-    """The ordered transfer *rate* takes a driver (below); the **choice slot** does not. ``transfer_to``
-    is where the mapping's numbers are normalised weights over the candidate recipients rather than
-    rate multipliers (SPEC §5), and only the family resolution has that slot wired."""
+# --- the same choice slot at the ordered and nucleotide resolutions -------------------------------
+# `transfer_to` is one slot with one kernel, and a block of genes or an arc of DNA is chosen a
+# recipient exactly as a single copy is. These are the tests that say so at the other two resolutions.
+
+def test_ordered_engine_takes_a_driven_transfer_to(tmp_path):
+    """Weight 0 means "cannot receive" at the ordered resolution too: every arriving block lands on a
+    competent lineage. What moves is a run of genes rather than one copy, which is a statement about
+    the extent and not about who receives."""
+    tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
+    res = genomes.simulate_genomes_ordered(
+        tree, transfer=1.0, initial_families=6,
+        transfer_to=mod.DrivenBy(str(driver), {"competent": 1.0, "normal": 0.0}), seed=5)
+    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    assert arrivals
+    assert all(e.lineage in hot for e in arrivals)
+
+
+def test_nucleotide_engine_takes_a_driven_transfer_to(tmp_path):
+    """The same at the nucleotide resolution, read off the `Transfer` records rather than the gene
+    genealogy. A nucleotide transfer is additive, so steering says only where the arc lands."""
+    tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
+    res = genomes.simulate_genomes_nucleotide(
+        tree, transfer=4.0, root_length=2000, genes=3, gene_length=100,
+        transfer_to=mod.DrivenBy(str(driver), {"competent": 1.0, "normal": 0.0}), seed=5)
+    arrivals = [e for e in res.events if type(e).__name__ == "Transfer"]
+    assert arrivals
+    assert all(e.recipient in hot for e in arrivals)
+
+
+def test_recipient_weight_share_is_two_to_one_at_ordered(tmp_path):
+    """The choice slot is a normalised WEIGHT, not a rate multiplier — the invariant that separates
+    the two driven transfer slots (SPEC §5) — checked where it was never checked before. Four
+    candidates at weight 2 and four at weight 1 take 2/3 of the arrivals. As at the family resolution,
+    ``self_transfer`` keeps the donor in the candidate set so the normaliser is always 4·2 + 4·1, and
+    the family cap is lifted because a recipient already full of a family turns that arrival away and
+    biases what is left toward whoever is not yet full."""
+    tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
+    res = genomes.simulate_genomes_ordered(
+        tree, transfer=4.0, initial_families=6, self_transfer=True, max_family_size=None,
+        transfer_to=mod.DrivenBy(str(driver), {"competent": 2.0, "normal": 1.0}), seed=5)
+    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    assert len(arrivals) > 1500                        # enough events for a 0.03 tolerance
+    assert all(e.lineage in tips for e in arrivals)    # the internal branches are 1e-6 long
+    share = sum(1 for e in arrivals if e.lineage in hot) / len(arrivals)
+    assert share == pytest.approx(2 / 3, abs=0.03)
+
+
+def test_driven_transfer_to_leaves_how_much_transfer_alone_at_ordered(tmp_path):
+    """The other half of the same invariant: a flat driven weight redistributes nothing and must
+    therefore change nothing at all about how many transfers happen. This is the test a threading bug
+    would fail — putting the transfer_to trajectory into ``trajs`` would add a Gillespie breakpoint at
+    every driver switch, moving the run while every assertion about *who* received still passed.
+    Pooled over seeds, because a single run's count is an rng-path detail."""
+    n_plain = n_driven = 0
+    for seed in range(15):
+        tree = simulate_species_tree(birth=1.1, total_time=2.0, seed=seed).complete_tree
+        driver = tmp_path / f"flat{seed}.tsv"
+        _write_driver(driver, tree, {i: "any" for i in tree.nodes})
+        kw = dict(transfer=0.4, initial_families=8, max_family_size=None, seed=seed)
+        plain = genomes.simulate_genomes_ordered(tree, **kw)
+        driven = genomes.simulate_genomes_ordered(
+            tree, transfer_to=mod.DrivenBy(str(driver), {"any": 3.0}), **kw)
+        n_plain += sum(1 for e in plain.events if e.kind == "transfer" and e.recipient is not None)
+        n_driven += sum(1 for e in driven.events if e.kind == "transfer" and e.recipient is not None)
+    assert n_plain > 200
+    assert 0.9 < n_driven / n_plain < 1.1
+
+
+def test_recipient_kernel_keeps_transfer_within_the_donor_state_at_nucleotide(tmp_path):
+    """A ``Between`` mapping reads the driver on the DONOR too, so a same-state kernel keeps every arc
+    inside one guild. Proves the donor-conditioned kernel — not just the per-recipient weight —
+    reaches the nucleotide engine."""
+    tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
+    res = genomes.simulate_genomes_nucleotide(
+        tree, transfer=6.0, root_length=2000, genes=3, gene_length=100, self_transfer=True,
+        transfer_to=mod.DrivenBy(str(driver),
+                                 Between({("competent", "competent"): 1.0,
+                                          ("normal", "normal"): 1.0}, default=0.0)), seed=5)
+    arrivals = [e for e in res.events if type(e).__name__ == "Transfer"]
+    assert arrivals
+    assert all((e.lineage in hot) == (e.recipient in hot) for e in arrivals)
+
+
+def test_a_driven_transfer_to_composes_with_a_driven_transfer_rate_at_ordered(tmp_path):
+    """The two slots are independent models — how often a lineage donates, and who receives — and the
+    ordered engine now has both. The rate driver sets the Gillespie horizon; the weight driver does
+    not, and they share one loaded trajectory."""
+    tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
+    res = genomes.simulate_genomes_ordered(
+        tree, transfer=0.5 * mod.DrivenBy(str(driver), {"competent": 5.0, "normal": 0.0}),
+        transfer_to=mod.DrivenBy(str(driver), {"competent": 0.0, "normal": 1.0}),
+        initial_families=6, seed=5)
+    donations = [e for e in res.events if e.kind == "transfer" and e.recipient is None]
+    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    assert donations and arrivals
+    assert all(e.lineage in hot for e in donations)          # only competent lineages donate
+    assert all(e.lineage not in hot for e in arrivals)       # only non-competent lineages receive
+
+
+def test_ordered_engine_still_refuses_a_between_kernel_on_a_rate():
+    """The change reaches the choice slot and stops there. A rate has no donor to condition on, so a
+    kernel in a rate slot stays a category error at the ordered resolution."""
     tree = simulate_species_tree(birth=1.0, total_time=1.0, seed=1).complete_tree
-    with pytest.raises(ValueError, match="transfer_to must be"):
+    with pytest.raises(ValueError, match="donor-conditioned"):
         genomes.simulate_genomes_ordered(
-            tree, transfer=0.1, transfer_to=mod.DrivenBy("f.tsv", {"a": 2.0}),
+            tree, loss=0.5 * mod.DrivenBy("f.tsv", Between({("a", "b"): 1.0})),
             initial_families=1, seed=1)
 
 

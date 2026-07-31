@@ -10,6 +10,24 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **A substitution model can be built from your own matrix.**
+  `substitution_models.reversible(exchangeabilities, freqs, name=…, alphabet=…)` takes a symmetric
+  exchangeability matrix and stationary frequencies over any alphabet and normalises them like every
+  model on the menu, so `gtr()` is visibly its four-state special case and `lg()` its twenty-state
+  one. Python API: a K×K matrix is not a command-line-shaped thing, so there is no flag.
+- **A family's sites can be split into partitions, each under its own model** —
+  `simulate_sequences(genomes, partitions=[(hky85(kappa=2.0), 600), (jc69(), 400)])` in place of
+  `model=` and `length=`. Every partition shares the run's one alphabet and one substitution rate,
+  and every model is normalised the same way, so the family keeps one phylogram that is exact for all
+  of them; each partition may carry its own `across_sites()` classes. Family and ordered runs only.
+  Composes with `parallel=` and `stream_to=`. Experimental, Python-first.
+- **Transfer steering at every resolution.** `transfer_to` now takes `Clades({…})` — weight by named
+  clade — and `mod.DrivenBy(source, mapping)` — a trait-driven recipient weight, with a `Between`
+  kernel that reads the donor too — at the **ordered** and **nucleotide** resolutions, not only at
+  `family`. Same choice slot, same kernel: the numbers redistribute transfers without changing how
+  many happen, a weight of 0 still means "cannot receive", and a transfer whose every candidate
+  weighs 0 does not fire. `--transfer-to` already accepted the written form everywhere, so the flag
+  works unchanged.
 - **A trait can drive the substitution rate.** `DrivenBy` now works on `substitution`, so a lineage's
   habitat or lifestyle sets how fast the sequences inside its genes evolve — the same modifier that
   drives a genome rate, composing with either lineage clock. A driver that switches **mid-branch** is
@@ -63,6 +81,18 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   refused rather than letting one of them silently win: they are two answers to the same question.
 
 ### Fixed
+- **A rate matrix that is not time-reversible is refused instead of being evolved under wrong
+  transition probabilities.** `SubstitutionModel` is public, and `p_matrix()` computes `exp(Qt)` by
+  eigendecomposing the symmetric `diag(√π)·Q·diag(1/√π)`, which is similar to `Q` only under detailed
+  balance — so a hand-built non-reversible `Q` was quietly replaced by a different matrix and
+  produced plausible, wrong sequences with no error at all. It now raises, naming the violated
+  identity and pointing at `reversible()`. Also refused: rows that do not sum to 0, non-positive or
+  unnormalised frequencies, an alphabet that does not name every state exactly once, and an
+  exchangeability matrix with a non-zero diagonal (which was silently discarded).
+- **A transfer the ordered engine drops because no candidate can receive now leaves the donor
+  untouched.** The recipient is chosen before the donor's chromosome is anchored, so a run that wraps
+  position 0 no longer rotates the donor's gene list for an event that did not happen. Byte-identical
+  for every existing run: the pick consumes the random stream and anchoring does not.
 - **`family_speed` beside a driven rate is refused instead of running a mismatched model.** It is a
   `ByFamily` draw and was missing from the guard that refuses `ByFamily` beside `DrivenBy`, so the
   run was accepted and then summed the total *without* the per-family multipliers while drawing the

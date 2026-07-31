@@ -49,6 +49,29 @@ model = lg()                      # Le & Gascuel 2008
 
 The four nucleotide matrices are the standard published ones [@jukes1969evolution; @kimura1980simple; @hasegawa1985dating; @tavare1986some], as are the four protein ones [@dayhoff1978model; @jones1992rapid; @whelan2001general; @le2008improved]. The model decides the alphabet, and `length` counts whatever that alphabet holds: bases for a nucleotide model, residues for a protein one. The nucleotide models are four different rate matrices, not one model with four settings, but they nest in the order written — `jc69` is `k80` with `kappa=1`, `k80` is `hky85` with equal base frequencies — so each step adds free parameters. The protein matrices are **empirical**, each estimated once from a large set of real alignments and then used as a fixed table, which is why they take no parameters.
 
+### Your own matrix
+
+If none of the nine is the model you want, write the matrix yourself. `reversible` takes a symmetric **exchangeability** matrix $S$ and stationary frequencies $\pi$, and returns a model like any other:
+
+```python
+import numpy as np
+from zombi2.sequences.substitution_models import reversible
+
+kappa = 2.0
+S = np.array([[0, 1, kappa, 1],      # A ↔ C, A ↔ G, A ↔ T
+              [1, 0, 1, kappa],      # C ↔ …
+              [kappa, 1, 0, 1],
+              [1, kappa, 1, 0]], dtype=float)
+mine = reversible(S, freqs=(0.3, 0.2, 0.2, 0.3), name="mine")
+custom = sequences.simulate_sequences(my_genomes, model=mine, length=1000, seed=1)
+```
+
+The rate of $i \to j$ is $Q_{ij} = S_{ij}\,\pi_j$, the diagonal is minus the rest of its row, and the whole matrix is then scaled so that one unit of branch length is one expected substitution per site — the same scaling every model on the menu gets. So a phylogram from your matrix is comparable with one from `hky85` without converting anything. This is the constructor the menu itself uses: the matrix above *is* HKY85, so `mine` and `hky85(kappa=2.0, freqs=(0.3, 0.2, 0.2, 0.3))` are the same model. Pass `alphabet=AMINO_ACIDS` for a twenty-state matrix of your own.
+
+You give $S$ and $\pi$ rather than $Q$ directly, and that restriction is deliberate. ZOMBI2 computes $P(t) = e^{Qt}$ through a symmetric eigendecomposition that is only valid for a **time-reversible** model, one where $\pi_i Q_{ij} = \pi_j Q_{ji}$ for every pair. A symmetric $S$ times $\pi$ satisfies that by construction, so there is no way to write a model here that the engine would evaluate wrongly. A general $Q$ handed straight to `SubstitutionModel` could be, and is refused with an error rather than run: non-reversible models such as UNREST are not implemented, and a wrong transition matrix produces plausible sequences that are not the model you asked for.
+
+There is no command-line flag for a custom matrix. A twenty-state matrix is 190 numbers, which is a file format rather than an argument; `--model` offers the menu, and your own matrix is a Python constructor.
+
 ## Rate variation across sites
 
 So far every site of a gene evolves at the same speed, which is a model no real gene obeys. Some positions are held nearly fixed by what the protein has to do; others drift freely. The standard way to say so is a **Gamma distribution of rates across sites**: each site gets a multiplier drawn from a Gamma with mean 1, so one number — its **shape** — sets how unequal the sites are. A small shape means a few fast sites among many slow ones; a large one is nearly flat.

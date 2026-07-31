@@ -6,9 +6,13 @@ must survive unchanged; on top of it we check the two new things — the inversi
 chromosome genealogy.
 """
 
+import hashlib
 import inspect
 
+import numpy as np
 import pytest
+
+from zombi2.rates import modifiers as mod
 
 from zombi2.genomes.events import gene_from_label, node_from_label
 from zombi2.rates import scope
@@ -17,7 +21,10 @@ from zombi2.rates.modifiers import ByFamily, ByLineage, FromParent, OnTime, OnTo
 from zombi2.species import simulate_species_tree
 from zombi2.tree import Node, Tree
 from zombi2.genomes import (
+    Between,
     Chromosome,
+    Clades,
+    Distance,
     Gene,
     Inversion,
     Transposition,
@@ -26,6 +33,7 @@ from zombi2.genomes import (
     simulate_genomes_family,
 )
 from zombi2.genomes.ordered import (
+    _do_transfer,
     _duplicate,
     _extent,
     _fission,
@@ -997,3 +1005,173 @@ def test_the_initial_genome_is_the_layout_the_run_started_with(tmp_path):
     g.write(tmp_path)
     rows = (tmp_path / "initial_genome.tsv").read_text(encoding="utf-8").splitlines()
     assert rows[0] == "chromosome\tposition\tstrand\tfamily\tcopy" and len(rows) == 9
+
+
+# --- transfer_to: steering who receives -----------------------------------------------------------
+# The recipient rule is the family core's choice slot (SPEC §5), and the whole of it works here: the
+# numbers are weights normalised over the contemporaneous candidates, so they change who receives and
+# never how many transfers happen. What is ordered about an ordered transfer is the *block* that
+# moves, which is the extent — a separate axis (SPEC §6).
+
+_STEERED = dict(transfer=1.0, initial_families=12, max_family_size=8, seed=11)
+
+
+def _arrivals(result):
+    """Every fired transfer's arrival row — the recipient's half of the horizontal edge."""
+    return [e for e in result.events if e.kind == "transfer" and e.recipient is not None]
+
+
+def _sha(obj):
+    return hashlib.sha256(repr(obj).encode()).hexdigest()
+
+
+def _event_digest(result):
+    return _sha([(round(e.time, 12), e.kind, e.lineage, e.family, e.copy, e.parent, e.recipient)
+                 for e in result.events])
+
+
+def _layout_digest(result):
+    """Every node's layout. The genealogy alone is not enough here: rotating a circular chromosome
+    moves no gene between lineages and would slip past an events-only digest, and rotation is exactly
+    what the recipient-pick hoist below changes the timing of."""
+    return _sha({i: result.gene_order(i) for i in sorted(result.genomes)})
+
+
+# Captured from the engine BEFORE the choice slot was wired at this resolution. Wiring it added a
+# branch to `_do_transfer` and moved the recipient pick ABOVE the donor's anchoring, so these are the
+# guard that a run which steers nothing did not move: the pick consumes the rng and anchoring does
+# not, which is what makes the two free to swap. Both rules are pinned because they take different
+# branches of the pick.
+_UNDRIVEN_ORDERED_DIGESTS = {
+    "uniform": ("67da8d3c71f6f4a58235efb854e1cbddd5bf6660514a59cc0107375ac55ed087",
+                "c865dfe27d521e67788e3d2b6f367435282fa754db89809ee864808adfc0643b"),
+    "distance": ("4c1a7cd9699709e1bea8144108a44732f9e499328385058aed70d4536d9b41b2",
+                 "68c7f1c4b720b34b6f2cea9d84623595aa083b58638f5b7e048e4e53834de035"),
+}
+
+
+@pytest.mark.parametrize("rule", ["uniform", "distance"])
+def test_an_undriven_ordered_transfer_is_unchanged(rule):
+    tree = simulate_species_tree(birth=1.2, death=0.2, total_time=2.5, seed=17).complete_tree
+    r = simulate_genomes_ordered(tree, duplication=0.2, transfer=0.4, loss=0.15, origination=0.3,
+                                 inversion=0.2, transposition=0.1, translocation=0.1, chromosomes=2,
+                                 transfer_to=rule, initial_families=8, seed=23)
+    assert (_event_digest(r), _layout_digest(r)) == _UNDRIVEN_ORDERED_DIGESTS[rule], (
+        f"an undriven {rule} transfer changed: the rng draw order of the undriven path must not move")
+
+
+def test_a_wrapping_thinned_transfer_run_is_unchanged():
+    """The same guard on the configuration that exercises the two things the hoist sits between: a
+    transfer extent of three genes on a one-chromosome circular genome, so runs wrap position 0 and
+    are anchored, and a cap of three copies, so some of them are thinned after the anchoring."""
+    tree = simulate_species_tree(birth=1.3, death=0.1, total_time=2.0, seed=4).complete_tree
+    r = simulate_genomes_ordered(tree, duplication=0.4, transfer=0.6, loss=0.1, origination=0.2,
+                                 transfer_extent=3.0, chromosomes=1, transfer_to="distance",
+                                 max_family_size=3, initial_families=6, seed=7)
+    assert _event_digest(r) == "fd7d4ab02d283f81ce5072a37eb97d8d2a0afc671ab44771aa5c93126ac46dc4"
+    assert _layout_digest(r) == "c0d19a80a8788ad75d0490628095600103ebac5a28cd16c2b6db4c121914a65d"
+
+
+def test_clades_steer_an_ordered_transfer_between_two_clades():
+    """The case a per-recipient weight cannot express, at this resolution: transfer runs strictly
+    BETWEEN A and B — never A→A, B→B, or anything touching the rest of the tree. Same two clades and
+    the same kernel as the family test, so what is being shown is that the resolution does not matter
+    to the rule."""
+    from test_genomes_family import _clade_pairs, _two_clades
+
+    sp = simulate_species_tree(birth=1.0, death=0.5, n_extant=20, seed=7)
+    a, b, _, _, lab = _two_clades(sp)
+    r = simulate_genomes_ordered(
+        sp, transfer_to=Clades({"A": a, "B": b},
+                               Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)),
+        **_STEERED)
+    pairs = _clade_pairs(r.events, lab)
+    assert pairs
+    assert all(p in {("A", "B"), ("B", "A")} for p in pairs)
+
+
+def test_clades_steer_an_ordered_transfer_in_one_direction_only():
+    """A donates, B receives, nothing else — the kernel is a directed one."""
+    from test_genomes_family import _clade_pairs, _two_clades
+
+    sp = simulate_species_tree(birth=1.0, death=0.5, n_extant=20, seed=7)
+    a, b, _, _, lab = _two_clades(sp)
+    r = simulate_genomes_ordered(
+        sp, transfer_to=Clades({"A": a, "B": b}, Between({("A", "B"): 1.0}, default=0.0)),
+        **_STEERED)
+    pairs = _clade_pairs(r.events, lab)
+    assert pairs
+    assert all(p == ("A", "B") for p in pairs)
+
+
+def test_steering_composes_with_replacement():
+    """Who receives (the choice slot) and which homolog inside the recipient is overwritten
+    (``replacement``) are two independent questions, so steering must leave replacement working."""
+    from test_genomes_family import _clade_pairs, _two_clades
+
+    sp = simulate_species_tree(birth=1.0, death=0.5, n_extant=20, seed=7)
+    a, b, _, _, lab = _two_clades(sp)
+    r = simulate_genomes_ordered(
+        sp, replacement=True,
+        transfer_to=Clades({"A": a, "B": b},
+                           Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)),
+        **_STEERED)
+    pairs = _clade_pairs(r.events, lab)
+    assert pairs
+    assert all(p in {("A", "B"), ("B", "A")} for p in pairs)
+    assert any(e.replaced is not None for e in _arrivals(r)), "no homolog was displaced — retune"
+
+
+def test_a_kernel_that_lets_nobody_receive_fires_no_transfer_at_all():
+    """Every candidate at weight 0 means the transfer cannot happen, so the event is dropped whole:
+    no donor continuation, no arrival, no gene minted. The same run under 'uniform' transfers freely,
+    so what is being shown is the weighting and not a dead setup."""
+    sp = simulate_species_tree(birth=1.0, death=0.5, n_extant=20, seed=7)
+    tips = [i for i, n in sp.complete_tree.nodes.items() if n.children is None]
+    blocked = simulate_genomes_ordered(
+        sp, transfer_to=Clades({"A": tips[:1]}, Between({("A", "rest"): 0.0}, default=0.0)),
+        **_STEERED)
+    free = simulate_genomes_ordered(sp, transfer_to="uniform", **_STEERED)
+    assert not [e for e in blocked.events if e.kind == "transfer"]
+    assert [e for e in free.events if e.kind == "transfer"]
+
+
+def test_a_dropped_transfer_leaves_the_donor_chromosome_untouched():
+    """The claim the Poisson-thinning argument rests on, checked directly: a transfer that does not
+    fire changes *nothing*.
+
+    It used to be false in a way no run-level assertion would catch. ``_do_transfer`` anchored the
+    donor's chromosome — rotating its gene list in place, so a run wrapping position 0 becomes a plain
+    slice — *before* the recipient was chosen. A rotation moves no gene between lineages and is
+    biologically nothing on a ring, but it renumbers every position the run writes out, so a transfer
+    dropped afterwards left the donor visibly changed by an event that did not happen. The recipient
+    pick now comes first. The run below wraps (positions 4..7 of a six-gene ring), so the old order
+    would have rotated it."""
+    gen = [[Chromosome(0, "circular", [Gene(i, i, 1) for i in range(6)])],
+           [Chromosome(1, "circular", [Gene(10 + i, i, 1) for i in range(6)])]]
+    before = [list(c.genes) for c in gen[0]]
+    # both lineages painted "A", and the only pair the kernel weighs is (A, B): nobody can receive
+    blocked = Clades({"A": 0, "B": 1}, Between({("A", "B"): 1.0}, default=0.0))
+    events, positions = [], []
+    delta = _do_transfer(np.random.default_rng(0), None, [0, 1], gen, 0, 0, 4, 4, 1.0,
+                         events, positions, None, blocked, False, False, 1.0, None,
+                         None, {0: "A", 1: "A"})
+    assert delta == 0
+    assert not events and not positions
+    assert [list(c.genes) for c in gen[0]] == before, "a dropped transfer rotated the donor"
+
+
+def test_the_ordered_choice_slot_refuses_what_the_family_one_refuses():
+    """One validator for all three resolutions, so the words are the same wherever you meet them."""
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    with pytest.raises(ValueError, match="transfer_to must be"):
+        simulate_genomes_ordered(sp, transfer=0.1, transfer_to="closest", initial_families=2, seed=1)
+    with pytest.raises(ValueError, match="on its own, not a rate"):
+        simulate_genomes_ordered(sp, transfer=0.1, initial_families=2, seed=1,
+                                 transfer_to=1.0 * mod.DrivenBy("f.tsv", {"a": 2.0}))
+    with pytest.raises(ValueError, match="one recipient rule"):
+        simulate_genomes_ordered(sp, transfer=0.1, initial_families=2, seed=1,
+                                 transfer_to=(Distance(), mod.DrivenBy("f.tsv", {"a": 2.0})))
+    with pytest.raises(ValueError, match="silently do nothing"):
+        simulate_genomes_ordered(sp, transfer=0.1, initial_families=2, seed=1,
+                                 transfer_to=Clades({"A": 0}, Between({("A", "rest"): 1.0})))

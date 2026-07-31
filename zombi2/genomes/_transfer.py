@@ -9,9 +9,16 @@ change neither how fast nor how many transfers happen, only **who** receives. Th
 - ``"uniform"`` — every contemporaneous lineage gets equal weight;
 - `Distance` — weight by relatedness (closer relatives likelier), which needs the tree's mean
   root-to-tip time to stay scale-free;
+- `Clades` — weight by the **pair** (donor's named clade, recipient's named clade), a fact read from
+  the tree;
 - `DrivenBy` — weight by **another level**: candidate ``k``'s weight is
   the mapping of the driver's value on lineage ``k`` at this instant (a trait that makes a lineage
-  competent to take DNA up). Implemented for the family resolution only.
+  competent to take DNA up), and with a `Between` mapping the donor's value too.
+
+All four rules work at **every** resolution — family, ordered and nucleotide. That is what
+`resolve_transfer_to()` and `prepare_transfer_to()` are for: the slot is validated and prepared here,
+once, so the three engines cannot drift apart in what they accept or in what they say when they
+refuse.
 """
 
 from __future__ import annotations
@@ -19,8 +26,9 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from ..rates.mapping import Between
+from ..rates.mapping import Between, check_kernel_fires
 from ..rates.modifiers import DrivenBy
+from ..rates.rate import Rate
 from ..species import _weighted_index
 from ..tree import node_label
 
@@ -161,6 +169,101 @@ def resolve_groups(tree, groups) -> dict:
             claimed[i] = label
             group_of[i] = label
     return group_of
+
+
+# --- the slot, in one place: validate it once, prepare it once ------------------------------------
+# Three engines take ``transfer_to``, and the words they use to refuse a bad one — and the work they
+# do before the first transfer fires — must be the same words and the same work, or the resolutions
+# quietly become three slightly different models. So both live here and each engine calls them.
+
+def resolve_transfer_to(transfer_to):
+    """Validate the ``transfer_to`` **choice slot** and return the rule the engine will run on:
+    ``"uniform"``, a `Distance`, a `Clades` or a `DrivenBy` — with the ``"distance"`` shorthand
+    coerced to ``Distance()``.
+
+    A choice slot is not a rate (SPEC §5). The numbers in it are per-candidate **weights**, normalised
+    across the contemporaneous candidates, so they change neither how fast nor how many transfers
+    happen — only **who** receives. Two of the four messages below exist because that distinction is
+    exactly what a user coming from the rate grammar gets wrong, and the generic "must be one of …"
+    message would list the alternatives without saying why what they wrote is a different kind of
+    thing:
+
+    - ``transfer_to = 0.1 * mod.DrivenBy(...)`` is the *rate* spelling. There is no base here, because
+      there is no rate, so the modifier is given on its own.
+    - ``transfer_to = (Distance(), mod.DrivenBy(...))`` asks for two rules at once. Composing a
+      topological weight with a driven one is a later slice, not a thing that is refused on principle.
+    """
+    if transfer_to == "distance":
+        return Distance()
+    if isinstance(transfer_to, Rate):
+        raise ValueError(
+            "transfer_to takes the DrivenBy modifier on its own, not a rate — write "
+            "transfer_to=mod.DrivenBy(source, {...}) with no base number. In this slot the mapping's "
+            "numbers are relative WEIGHTS over the candidate recipients (normalised), not a rate "
+            "multiplier: they change who receives, never how much transfer happens."
+        )
+    if isinstance(transfer_to, (list, tuple)):
+        raise ValueError(
+            "transfer_to takes one recipient rule, not several — combining Distance (relatedness) "
+            "with a DrivenBy weighting is a later slice. Give 'uniform', 'distance' / "
+            "Distance(decay=), or mod.DrivenBy(source, {...})."
+        )
+    if transfer_to != "uniform" and not isinstance(transfer_to, (Distance, DrivenBy, Clades)):
+        raise ValueError(
+            f"transfer_to must be 'uniform', 'distance' / Distance(decay=), "
+            f"Clades({{...}}, Between({{...}})) (weight by named clade), or "
+            f"mod.DrivenBy(source, {{...}}) (a recipient weight driven by another level), "
+            f"got {transfer_to!r}")
+    return transfer_to
+
+
+def prepare_transfer_to(tree, transfer_to, resolved=None):
+    """Everything a run must work out **once**, before its first transfer, for the ``transfer_to``
+    rule it was given — returned as the pair ``(group_of, to_traj)`` that `recipient_index()` takes
+    as its ``groups`` and ``to_traj``. ``(None, None)`` for ``"uniform"`` and `Distance`, which need
+    nothing prepared.
+
+    - A `Clades` rule paints every lineage with its clade label. Membership is a fact about the
+      **tree**, so it is constant along a branch and adds no Gillespie breakpoints — which is the
+      whole reason it can be computed here and then never touched again.
+    - A `DrivenBy` weight resolves its source into a driver trajectory. ``resolved`` is the caller's
+      ``{driver key: trajectory}`` cache, mutated in place, so a driver shared with a driven *rate*
+      is loaded once and the two slots read the very same trajectory.
+
+    **The trajectory returned here must not join the engine's ``trajs``.** A driven ``transfer_to``
+    moves no rate: its weights are read at the instant a transfer fires, and a weight that is not a
+    rate can neither change the total hazard nor make the loop per-lineage. Putting it in ``trajs``
+    would add a Gillespie breakpoint at every one of the driver's switches, which changes the draws —
+    and so the run — while every assertion about who received still passes. Call this **after**
+    ``trajs`` is built, and hand the trajectory straight to ``_do_transfer``.
+
+    Both branches also refuse a mapping that could never fire, for the same reason a driven rate
+    does: a kernel or table naming only states the driver never takes leaves every candidate on the
+    default weight, so the recipient is drawn uniformly while the run's log records it as steered.
+    """
+    if isinstance(transfer_to, Clades):
+        group_of = resolve_groups(tree, transfer_to.groups)
+        check_kernel_fires(transfer_to.between, set(group_of.values()), source_label="clades")
+        return group_of, None
+    if isinstance(transfer_to, DrivenBy):
+        # imported here, not at module scope, so a run with no driver anywhere never pays for the
+        # driver machinery (the same lazy import the family engine makes for its rate drivers)
+        from ..rates.driver import check_mapping_fires, resolve_driver
+        if resolved is None:
+            resolved = {}
+        if transfer_to.key not in resolved:
+            resolved[transfer_to.key] = resolve_driver(transfer_to.source, tree)
+        to_traj = resolved[transfer_to.key]
+        label = transfer_to.source if isinstance(transfer_to.source, str) \
+            else f"<{type(transfer_to.source).__name__}>"
+        if isinstance(transfer_to.mapping, Between):
+            # a donor-conditioned kernel. The two checks are an either/or, not a pair:
+            # check_mapping_fires only knows Table and would return without looking at a kernel.
+            check_kernel_fires(transfer_to.mapping, to_traj.states(), source_label=label)
+        else:
+            check_mapping_fires(transfer_to.mapping, to_traj.states(), source_label=label)
+        return None, to_traj
+    return None, None
 
 
 def recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_traj=None, groups=None):
