@@ -44,7 +44,8 @@ _MODULES = ("species", "traits", "joining")
 # The genome / sequence examples that drive the zombi2 Python API in-process (simulate_* called
 # directly, not via the CLI). Named explicitly because their sibling examples in the same modules go
 # through the CLI (and one downloads a genome) and must NOT run mocked here — see the module docstring.
-_PYTHON_EXTRAS = {"sequences": {"seq_phylogram_autocorr", "seq_ancestral"},
+_PYTHON_EXTRAS = {"sequences": {"clock_ucln", "clock_ugam", "clock_autocorrelated",
+                                "clock_discrete_bin", "seq_ancestral"},
                   "genomes": {"genome_inversion", "genome_transfer_highway"}}
 # A zombi2 rename surfaces as one of these on a real result object; a mocked Phylustrator call cannot
 # raise them. Anything else out of a render (a FileNotFoundError from a composite reading back a PNG
