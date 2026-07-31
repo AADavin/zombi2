@@ -231,7 +231,10 @@ def _run_format(args, parser) -> int:
         where, writer, _ = _FORMATS[name]
         if where.endswith("/"):                         # many files: a directory of their own
             directory = landed = level_dir(out, where.rstrip("/"), args.flat)
-            landed += "/"
+            # os.sep, not "/": the rest of the path came from os.path.join, and a literal slash here
+            # made the line "C:\...\genomes\homology/" on Windows — mixed separators in the one
+            # string whose whole purpose is to be pasted somewhere
+            landed += os.sep
         else:                                           # one file: straight into the level directory
             directory, landed = out, os.path.join(out, where)
         # every writer takes (gene_trees, species tree, directory); recphylo alone has a choice to
