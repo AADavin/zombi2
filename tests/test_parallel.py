@@ -310,3 +310,14 @@ def test_guard_pool_workers_falls_back_when_a_pool_cannot_start(monkeypatch, cap
     assert capsys.readouterr().out == ""
     assert par.guard_pool_workers(4) == 1
     assert "single-process" in capsys.readouterr().out
+
+
+def test_sequences_rate_variation_is_worker_count_invariant(genome_run):
+    """Across-site variation draws each site's rate class from the **family's own** stream, so the
+    parallel engine needed no change at all for it — this is what says so. The decorated model
+    travels to the workers like any other, and the class draw happens inside the per-family walk."""
+    model = hky85(kappa=2.0).across_sites(gamma_shape=0.5, invariant=0.1)
+
+    def run(p):
+        return simulate_sequences(genome_run, model=model, length=200, seed=7, parallel=p)
+    assert _seq_fingerprint(run(1)) == _seq_fingerprint(run(3))

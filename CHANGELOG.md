@@ -10,6 +10,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **Across-site rate variation — `+Γ` and invariant sites.**
+  `hky85(kappa=2.0).across_sites(gamma_shape=0.5, invariant=0.1)`, or `--gamma-shape` ·
+  `--invariant` · `--rate-categories` on the command line, gives every site one of a
+  discretised-Gamma set of rate classes (four by default) plus an optional class that never changes.
+  It decorates the **model**, the way the field spells it — the run reports `HKY85+I+G4` — and not
+  the rate: across-site variation is not a modifier, and `substitution` still takes a lineage clock
+  and nothing else. The classes are normalised to mean one, so a phylogram's branch lengths are
+  still substitutions per site, now the mean over them, and a run with variation and one without are
+  directly comparable. Works on every model on the menu, nucleotide and protein alike.
 - **Relaxed (per-lineage) diversification rates** — `birth = 1.0 * mod.ByLineage(spread=σ)`. The
   species level already took the *inherited* form of rate variation (`FromParent`, ClaDS) and
   refused the independent one, which left the model with no null: `ByLineage` spreads lineage rates
