@@ -40,15 +40,18 @@ probability-factorisation notation, where `P(B | A)` reads "B simulated given A"
 | Relation | Notation (a trait and a genome) | What you run |
 |---|---|---|
 | **Independent** | `P(Traits\|Species) · P(Genomes\|Species)` | two commands, any order |
-| **Conditioned** | `P(Traits\|Species) · P(Genomes\|Species, Traits)` | two commands, driver first, passed as a **file** |
-| **Joint** | `P(Traits, Genomes \| Species)`, or `P(Species, Traits)` when the tree is grown | **one** command |
+| **Conditioned** | `P(Traits\|Species) · P(Genomes\|Species, Traits)` | two runs, driver first |
+| **Joint** | `P(Traits, Genomes \| Species)`, or `P(Species, Traits)` when the tree is grown | **one** run |
 
 The load-bearing rule: **every factor you can write on its own is a run you can do on its own.** When
 two factors collapse into one term, so do their runs.
 
 - **Independent** — neither reads the other (independent *of each other*, not of the tree).
 - **Conditioned** — one reads the other; the driver can be grown first and held fixed, so it is two runs
-  in order, the driver passed as a file.
+  in order.
+  From Python the finished driver is handed over as the **object**; across two commands it is handed
+  over as a **file**, because that is all a second process can read. The file is the CLI's way of
+  passing it, not part of the model — do not define conditioning by it.
 - **Joint** — neither can go first, so one run makes both; when a level feeds back into the species
   tree, the tree becomes an **output** and crosses the bar (`P(Species, Traits)`).
 
@@ -72,6 +75,22 @@ The generating rule: a pair can be **conditioned** only on separate branches (Ge
 Traits–Sequences); it can be **joined** either by a level feeding back into its own tree (Species–Genomes,
 Species–Traits, tree grown as an output) or by two separate-branch levels driving each other
 (Genomes–Traits). Species and Sequences are too far apart to connect.
+
+This table is about the **model**, not about what is built. A pair marked *yes* is one the framework
+permits; whether an engine implements it is a separate question, and the manual answers that one.
+
+**A level can also drive itself.** Two traits on one tree, one gene family driving another: the
+participants are at the same level, and nothing above changes. Driving is **one thing driving another**,
+and the relation is fixed by the same question as always — *can the driver be finished before the target
+starts?* If it can, that is conditioning, whichever levels the two sit at. So:
+
+- **acyclic within a level** — trait A drives trait B, an earlier genome run drives a later one. Ordinary
+  conditioning: `P(A|Species) · P(B|Species, A)`, two runs in order.
+- **cyclic, or driven by an aggregate of the level itself** — every family's rate reading total genome
+  size, sites evolving in each other's context. The level's units stop being independent, so this is a
+  joint model and a new engine (§9), not a knob.
+
+Cross-level and within-level are therefore not different mechanisms, and the vocabulary does not fork.
 
 ---
 
@@ -112,8 +131,8 @@ effective rate  =  scope(base)  ×  modifiers
   what); answering **"per what?"** is the crux. It wraps the base and contributes a dimensionless
   factor.
 - **modifiers** — dimensionless context multipliers (by lineage, by family). They change *how fast*,
-  never *how many*. "per" is the scope word; the modifier word is a **preposition** — `On` / `By` /
-  `From` (the families, below) — so `PerLineage` is a scope and `ByLineage` a modifier.
+  never *how many*. "per" is the scope word; a modifier is named for its family — `On` / `By` / `From`,
+  plus `DrivenBy` (below) — so `PerLineage` is a scope and `ByLineage` a modifier.
 
 "Per what" by level:
 
@@ -167,8 +186,13 @@ modifier does belong in. The rest are **not implemented yet**, which is a statem
 and not about the model; say that plainly and do not dress it up as a rule.
 
 **A driver's number is not always a rate multiplier.** `DrivenBy(source, mapping)` is the one mechanism
-for both conditioning and joining (§2), and the **slot** it sits in decides what the mapping's number
-means. In a rate it is an ordinary modifier: dimensionless, multiplying, changing *how fast*. In a
+for both conditioning and joining (§2) — within a level as much as across two (§3) — and the **slot** it
+sits in decides what the mapping's number means.
+
+`source` says *which* thing is read, never how the run is organised: a **finished result** (an object in
+Python, its written log across two commands) makes the run conditioned, and the **name of a level growing
+beside it** makes the run joint. One modifier, one spelling, both relations. A driver read from a file
+and the same driver held in memory are the same model, so they are the same modifier. In a rate it is an ordinary modifier: dimensionless, multiplying, changing *how fast*. In a
 **choice slot** it is a **weight**, normalised across the candidates the choice is made over, so it
 changes neither how fast nor how many — only **who**. Today the one choice slot is the genome level's
 `transfer_to`, the "who receives" of a horizontal transfer:
@@ -202,6 +226,12 @@ modifier at the sequences level). **modifier** names the third factor only.
 | `On` | covariate | a deterministic function of a measured quantity | `OnTime`, `OnTotalDiversity` |
 | `By` | independent | an i.i.d. draw, one per unit — **no memory** (uncorrelated) | `ByLineage`, `ByFamily` |
 | `From` | inherited | inherited along a genealogical edge — **continuous memory** (autocorrelated) | `FromParent` |
+| — | driver | the state of another simulated thing, read as the run walks the tree | `DrivenBy` |
+
+`DrivenBy` is the one modifier outside the preposition scheme, and deliberately: the others say what
+kind of *function* the factor is, while this one says the factor comes from somewhere else entirely.
+Naming it `On…` would file it as a covariate and lose that, so it keeps its own name, and there is no
+second spelling for a driver that happens to sit at the same level as its target (§3).
 
 So the uncorrelated / autocorrelated split is `ByLineage` vs `FromParent`, and one modifier —
 `FromParent` — is ClaDS (species), the autocorrelated clock (sequences), and variable-rates BM
