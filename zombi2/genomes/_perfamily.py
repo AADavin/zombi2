@@ -398,13 +398,16 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
                 node = tree.nodes[i]
                 if node.children is not None and g:         # speciation: re-id each copy into daughters
                     total -= len(g)
+                    per_daughter = []
                     for ch in node.children:
                         child = [new_copy(old.family) for old in g]
-                        for old, nc in zip(g, child):
-                            events.append(Event(t, "speciation", ch, old.family, nc.id, parent=old.id))
+                        per_daughter.append([Event(t, "speciation", ch, old.family, nc.id,
+                                                   parent=old.id) for old, nc in zip(g, child)])
                         enter(alive, gen, pos, ch, child)
                         heapq.heappush(heap, (tree.nodes[ch].end_time, ch))
                         total += len(child)
+                    for rows in zip(*per_daughter):     # one gene, one event: its two edges together
+                        events.extend(rows)
                 else:                                       # a tip / extinction / empty: copies end here
                     total -= len(g)
         else:
@@ -488,18 +491,21 @@ def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events
         enter(alive, gen, pos, recipient, [])
         heapq.heappush(heap, (tree.nodes[recipient].end_time, recipient))
         rg = gen[pos[recipient]]
+    replaced = None
     if replacement:
         residents = [p for p, cpy in enumerate(rg) if cpy.family == fam and cpy.id != cont.id]
         if residents:                                      # homologous overwrite (else additive)
             p = residents[int(rng.integers(len(residents)))]
             victim = rg[p]
             rg[p] = rg[-1]; rg.pop()
-            events.append(Event(t, "loss", recipient, fam, victim.id))
+            replaced = victim.id      # named on the transfer, so the log writes them as one event
+            events.append(Event(t, "loss", recipient, fam, replaced))
             delta = 0
     rg.append(xfer)
-    events.append(Event(t, "transfer", donor, fam, cont.id, parent=src.id, donor=donor))
+    events.append(Event(t, "transfer", donor, fam, cont.id, parent=src.id, donor=donor,
+                        replaced=replaced))
     events.append(Event(t, "transfer", recipient, fam, xfer.id, parent=src.id, recipient=recipient,
-                        donor=donor))
+                        donor=donor, replaced=replaced))
     return delta
 
 

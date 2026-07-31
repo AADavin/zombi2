@@ -7,7 +7,7 @@ import math
 
 import numpy as np
 
-from ..rates.modifiers import FromParent, OnTime, OnTotalDiversity
+from ..rates.modifiers import ByFamily, FromParent, OnTime, OnTotalDiversity
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..tree import Tree, as_tree
@@ -15,7 +15,7 @@ from ..tree import Tree, as_tree
 from ._shared import _correlation_matrix, _preorder, _symmetric_sqrt
 from .result import Change, TraitsResult
 
-WIRED_MODIFIERS = (OnTime, FromParent, OnTotalDiversity)  #: the modifiers a continuous rate wires
+WIRED_MODIFIERS = (OnTime, FromParent, OnTotalDiversity)  #: the modifiers a continuous rate takes
 
 class _LTT:
     """The tree's lineages-through-time step function — how many lineages are alive at time ``t``
@@ -79,8 +79,8 @@ def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "
 def _at_speciation_jump_sd(at_speciation) -> float:
     """The on-speciation jump width (√variance) from ``at_speciation`` — ``0.0`` if not requested. A
     jump of ``Normal(0, at_speciation)`` is added to each daughter's value at every speciation (the
-    punctuational / speciational mode); it *reads* the tree it rides on, so it is a trait-level option,
-    not a coupling (SPEC §4)."""
+    punctuational / speciational mode); it *reads* the tree it rides on without feeding back into it,
+    so it is a trait-level option, not a joint model (SPEC §4)."""
     if at_speciation is None:
         return 0.0
     if isinstance(at_speciation, bool) or not isinstance(at_speciation, (int, float)) \
@@ -108,7 +108,7 @@ def _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciatio
     if set(regimes.history) != set(tree.nodes):
         raise ValueError("regimes must be painted on the SAME tree this trait rides (node ids differ).")
     if at_speciation is not None:
-        raise ValueError("at_speciation combined with regimes is not wired yet.")
+        raise ValueError("at_speciation combined with regimes is not implemented yet.")
     if isinstance(start, dict) or isinstance(rate, dict):
         raise ValueError("regimes is a single-trait model; give scalar start and rate.")
     if not isinstance(reverts_to, dict):
@@ -161,9 +161,9 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
     if len(traits) < 2:
         raise ValueError("correlated traits need ≥ 2 traits; one trait is a plain simulate_continuous call")
     if reverts_to is not None or pull is not None:
-        raise ValueError("multivariate OU (reverts_to / pull with correlated traits) is not wired yet.")
+        raise ValueError("multivariate OU (reverts_to / pull with correlated traits) is not implemented yet.")
     if at_speciation is not None:
-        raise ValueError("at_speciation (on-speciation jumps) with correlated traits is not wired yet.")
+        raise ValueError("at_speciation (on-speciation jumps) with correlated traits is not implemented yet.")
 
     sigma2 = np.empty(len(traits))
     for i, name in enumerate(traits):
@@ -236,7 +236,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     ``reverts_to`` (the optimum θ) and ``pull`` (the strength α > 0) turn the diffusion into
     Ornstein–Uhlenbeck — the value is pulled toward θ while it diffuses, the exact per-branch
     transition being ``Normal(θ + (x−θ)·e^{−α·dt}, σ²/(2α)·(1−e^{−2α·dt}))``. Give **both** or
-    neither. OU with a *modified* σ² (early burst or variable rates on ``rate``) is not wired yet —
+    neither. OU with a *modified* σ² (early burst or variable rates on ``rate``) is not implemented yet —
     use one or the other.
 
     ``at_speciation`` adds an **on-speciation** jump — ``Normal(0, at_speciation)`` on each daughter at
@@ -261,14 +261,21 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             f"rate has a {type(r.scope).__name__} scope, but a continuous trait's variance-rate is "
             f"per lineage — drop the scope wrapper (per lineage is the default)."
         )
-    # OnTime (early burst), FromParent (variable-rates BM), and OnTotalDiversity (diversity-dependent) are the
-    # wired σ² modifiers; anything else is rejected loudly — the genome engine's discipline.
+    # OnTime (early burst), FromParent (variable-rates BM), and OnTotalDiversity (diversity-dependent)
+    # are the σ² modifiers this engine supports; anything else is rejected loudly — the genome
+    # engine's discipline.
     for m in r.modifiers:
+        if isinstance(m, ByFamily):
+            # not a missing feature: there is nothing here for it to mean
+            raise ValueError(
+                "rate carries ByFamily, but a trait has no gene families — ByFamily belongs on a "
+                "genomes rate. For per-lineage heterogeneity here use FromParent (variable-rates BM)."
+            )
         if not isinstance(m, WIRED_MODIFIERS):
             raise ValueError(
-                f"rate carries {type(m).__name__}, which the continuous trait engine does not support "
-                f"— OnTime (early burst), FromParent (variable-rates BM), and OnTotalDiversity "
-                f"(diversity-dependent) are wired."
+                f"rate carries {type(m).__name__}, which the continuous trait engine does not "
+                f"support. It takes OnTime (early burst), FromParent (variable-rates BM), and "
+                f"OnTotalDiversity (diversity-dependent)."
             )
     drifts = [m for m in r.modifiers if isinstance(m, FromParent)]
     if len(drifts) > 1:
@@ -296,7 +303,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             raise ValueError(
                 "a modified variance-rate (early burst via OnTime, variable rates via FromParent, or "
                 "diversity-dependence via OnTotalDiversity) combined with OU (reverts_to / pull) is not "
-                "wired yet — use one or the other."
+                "implemented yet — use one or the other."
             )
         theta, alpha = float(reverts_to), float(pull)
         sigma2 = r.effective(lineages=1)  # σ² is constant under OU (modifiers are rejected above)
@@ -309,7 +316,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     root = tree.nodes[tree.root]
     # the initial value at t=0 — the origin the log reconstructs from (SPEC §2). A diffusion cannot be
     # rebuilt from events, but the row keeps the file's shape uniform across trait kinds.
-    events: list[Change] = [Change(root.birth_time, "root", tree.root, None, float(start))]
+    events: list[Change] = [Change(root.birth_time, "initial", tree.root, None, float(start))]
     inh: dict[int, float] = {}  # each lineage's σ² drift factor (variable-rates BM), constant per branch
     for i in _preorder(tree, progress):
         node = tree.nodes[i]

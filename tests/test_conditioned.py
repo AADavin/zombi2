@@ -1,8 +1,8 @@
-"""Conditioned coupling — a discrete trait drives a genome rate (SPEC §2, §5).
+"""Conditioning — a discrete trait drives a genome rate (SPEC §2, §5).
 
 The one mechanism (``mod.DrivenBy``) and its conditioned uses: a discrete trait grown first, written
 to a driver file, then read by a genome run. Covers the mapping shapes, the DrivenBy modifier, the
-driver trajectory + file round-trip, the traits driver writer, the end-to-end trait→loss coupling
+driver trajectory + file round-trip, the traits driver writer, the end-to-end trait→loss drive
 with a seed-independent correctness invariant, and both halves of trait-driven transfer — the donor
 **rate** (how much HGT) and the ``transfer_to`` recipient **weight** (where it lands).
 """
@@ -189,25 +189,25 @@ def test_driver_file_round_trip(tmp_path):
 
 
 def test_a_continuous_log_is_only_its_origin(tmp_path):
-    # a diffusion cannot be reconstructed from events, so its log carries only the root marker — there
+    # a diffusion cannot be reconstructed from events, so its log carries only the t=0 marker — there
     # is no discrete map to drive a rate with (driving on a continuous trait is a later slice anyway)
     tree = simulate_species_tree(birth=1.0, total_time=1.0, seed=2).complete_tree
     cont = traits.simulate_continuous(tree, rate=1.0, seed=1)
     cont.write(tmp_path, outputs=("events",))
     lines = (tmp_path / "trait_events.tsv").read_text(encoding="utf-8").splitlines()
-    assert len(lines) == 2 and lines[1].split("\t")[1] == "root"
+    assert len(lines) == 2 and lines[1].split("\t")[1] == "initial"
 
 
-# --- end-to-end conditioned coupling: a trait drives gene loss ------------------------------------
+# --- end-to-end conditioning: a trait drives gene loss --------------------------------------------
 
 def _write_driver(path, tree, state_of):
     """Write a trait **event log** assigning ``state_of[node]`` to each lineage for its whole branch:
-    a ``root`` row for the crown, then one ``on_speciation`` row per other node fixing its start state
-    (no ``on_branch`` switches, so every branch is constant). Replayed against ``tree`` this rebuilds
-    exactly ``state_of`` — the format a conditioned run reads now."""
+    an ``initial`` row for the crown, then one ``on_speciation`` row per other node fixing its start
+    state (no ``on_branch`` switches, so every branch is constant). Replayed against ``tree`` this
+    rebuilds exactly ``state_of`` — the format a conditioned run reads now."""
     root = tree.root
     rows = ["time\tkind\tlineage\tfrom\tto",
-            f"{tree.nodes[root].birth_time!r}\troot\tn{root}\t\t{state_of[root]}"]
+            f"{tree.nodes[root].birth_time!r}\tinitial\tn{root}\t\t{state_of[root]}"]
     for i in sorted(tree.nodes):
         if i != root:
             rows.append(f"{tree.nodes[i].birth_time!r}\ton_speciation\tn{i}\t\t{state_of[i]}")
@@ -245,7 +245,7 @@ def test_zero_factor_lineages_never_lose(tmp_path):
 
 def test_mapping_matching_no_driver_state_is_refused(tmp_path):
     # a mapping whose keys occur nowhere in the driver would leave every lineage at the default factor
-    # — a silently uncoupled run — so it must be refused, not run as if it were coupled
+    # — a silently undriven run — so it must be refused, not run as if it were driven
     tree = simulate_species_tree(birth=1.2, death=0.2, total_time=1.5, seed=11).complete_tree
     driver = tmp_path / "habitat.tsv"
     _write_driver(driver, tree, {i: ("hi" if i % 2 else "lo") for i in tree.nodes})
@@ -281,7 +281,7 @@ def test_driven_loss_is_deterministic(tmp_path):
 
 
 def test_end_to_end_trait_drives_loss(tmp_path):
-    """The full conditioned-coupling workflow: grow a habitat trait, write it, drive gene loss by it.
+    """The full conditioning workflow: grow a habitat trait, write it, drive gene loss by it.
     Across the tree, lineages in the high-loss state should carry fewer copies on average than
     lineages in the low-loss state."""
     tree = simulate_species_tree(birth=1.1, total_time=3.0, seed=3).complete_tree
@@ -354,8 +354,14 @@ _UNDRIVEN_TRANSFER_DIGESTS = {
     # captured from the engine BEFORE driven transfer was wired: the whole event log of a seeded
     # run, under each transfer_to rule. An undriven transfer must stay byte-identical — same rng
     # draw order, same results — however the driven path is built around it.
-    "uniform": "2092e6a774b9e71cefba42d41ce1c9c42e4ab00846c1f5d849baba160cec2efd",
-    "distance": "f6c6ccfc5bb7db61794d103fa8356f74d5c525f973ec6b2f98d51086e3013d44",
+    #
+    # Re-pinned when the log went to one row per event: a speciation's two edges are now recorded
+    # one gene at a time (both daughters of a gene together) instead of one daughter at a time, which
+    # moves this digest because it hashes the list in order. Nothing the run *produced* moved — the
+    # ids are minted in the same order as before, and the genomes, the gene trees and the events as a
+    # set are byte-identical against the previous engine.
+    "uniform": "fa1b13772aed552aab5d10c89f391d5378101679afda979a5c3685acc0f5d6f1",
+    "distance": "fb5e83d04658aa6e5b06e4a1672217b9fc84b92e6e0854c259dbcbe5fb451abf",
 }
 
 
@@ -372,7 +378,7 @@ def test_undriven_transfer_is_unchanged(rule):
         tree, duplication=0.2, transfer=0.4, loss=0.15, origination=0.3,
         transfer_to=rule, initial_families=5, seed=23)
     assert _event_digest(res) == _UNDRIVEN_TRANSFER_DIGESTS[rule], (
-        "an undriven transfer changed: the rng draw order of the uncoupled path must not move")
+        "an undriven transfer changed: the rng draw order of the undriven path must not move")
 
 
 def test_undriven_transfer_is_unchanged_under_replacement_and_self_transfer():
@@ -380,7 +386,7 @@ def test_undriven_transfer_is_unchanged_under_replacement_and_self_transfer():
     res = genomes.simulate_genomes_family(
         tree, duplication=0.2, transfer=0.4, loss=0.15, origination=0.3, replacement=True,
         self_transfer=True, initial_families=5, seed=23)
-    assert _event_digest(res) == "6eb913b6da50df2dcfa463dcc02327258e7da68ec092c127990bd03ea2d8dfac"
+    assert _event_digest(res) == "b0b74e65397d1da5ea17b27adfb8784ec5ffcc8eea40f03d0d6cb56dcdbb3b60"
 
 
 def test_driven_transfer_picks_the_donor(tmp_path):
@@ -396,7 +402,7 @@ def test_driven_transfer_picks_the_donor(tmp_path):
     donations = [e for e in res.events if e.kind == "transfer" and e.recipient is None]
     assert donations, "expected some donation from the hi lineages"
     assert all(state_of[e.lineage] == "hi" for e in donations)
-    # the recipients are still drawn uniformly, so lo lineages do receive — the coupling is on the
+    # the recipients are still drawn uniformly, so lo lineages do receive — the drive is on the
     # donor side only
     arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
     assert any(state_of[e.lineage] == "lo" for e in arrivals)
@@ -498,7 +504,7 @@ def test_no_eligible_recipient_means_no_transfer_at_all(tmp_path):
     assert all(len(g) == 6 for g in blocked.genomes.values())
 
 
-def test_both_couplings_compose(tmp_path):
+def test_both_drivers_compose(tmp_path):
     """The donor rate and the recipient weight are independent models and may be used together."""
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
     res = genomes.simulate_genomes_family(
@@ -641,7 +647,7 @@ def test_nucleotide_driven_rate_matches_between_an_object_and_a_file(tmp_path):
 
 
 def test_nucleotide_driving_changes_the_run():
-    """A driven rate must actually bite: the same seed with the coupling switched off is a different
+    """A driven rate must actually bite: the same seed with the driver switched off is a different
     run. Guards against a driver that resolves but never reaches the rate."""
     tree = _nuc_tree()
     habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=6)
@@ -653,7 +659,7 @@ def test_nucleotide_driving_changes_the_run():
 
 
 def test_nucleotide_undriven_run_is_unchanged():
-    """No coupling ⇒ the pooled path, byte for byte. The driven machinery must cost an uncoupled run
+    """No driver ⇒ the pooled path, byte for byte. The driven machinery must cost an undriven run
     nothing."""
     tree = _nuc_tree()
     kw = dict(root_length=4000, genes=3, gene_length=250, inversion=1.5, loss=0.4, seed=9)
@@ -665,7 +671,7 @@ def test_nucleotide_undriven_run_is_unchanged():
 
 def test_nucleotide_refuses_a_mapping_that_never_fires():
     """A mapping naming states the driver never takes leaves every lineage on the default factor, so
-    the run would secretly be the uncoupled model."""
+    the run would secretly be the undriven model."""
     tree = _nuc_tree()
     habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=7)
     with pytest.raises(ValueError):
@@ -694,9 +700,9 @@ def test_continuous_driver_trajectory_interpolates():
     assert node.birth_time < nxt <= node.end_time
 
 
-def test_continuous_driver_couples_a_rate_and_is_deterministic():
-    """A continuous trait drives the duplication rate through a Curve: the coupled run differs from an
-    otherwise-identical uncoupled one (the driver is threaded and the mapping applied), and repeats
+def test_continuous_driver_drives_a_rate_and_is_deterministic():
+    """A continuous trait drives the duplication rate through a Curve: the driven run differs from an
+    otherwise-identical undriven one (the driver is threaded and the mapping applied), and repeats
     exactly under the same seed."""
     ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
     met = traits.simulate_continuous(ct, start=0.0, rate=1.2, seed=3)
@@ -706,12 +712,12 @@ def test_continuous_driver_couples_a_rate_and_is_deterministic():
             ct, initial_families=15, loss=0.04,
             duplication=0.06 * mod.DrivenBy(met, Curve(fn)), seed=9)
 
-    coupled = run(lambda v: 3.0 ** v)
-    control = run(lambda v: 1.0)                          # a flat Curve == the uncoupled model
+    driven = run(lambda v: 3.0 ** v)
+    control = run(lambda v: 1.0)                          # a flat Curve == the undriven model
     tips = list(ct.extant_leaves())
-    assert any(len(coupled.genomes[n.id]) != len(control.genomes[n.id]) for n in tips)
+    assert any(len(driven.genomes[n.id]) != len(control.genomes[n.id]) for n in tips)
     again = run(lambda v: 3.0 ** v)
-    assert all(len(coupled.genomes[n.id]) == len(again.genomes[n.id]) for n in tips)
+    assert all(len(driven.genomes[n.id]) == len(again.genomes[n.id]) for n in tips)
 
 
 def test_continuous_driver_takes_a_scalar_link():

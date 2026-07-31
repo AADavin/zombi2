@@ -170,11 +170,14 @@ def test_recorded_inversions_are_well_formed():
 
 # --- the chromosome genealogy --------------------------------------------------------------------
 
-def test_seed_chromosomes_are_origination_roots():
+def test_initial_chromosomes_are_roots_of_their_own_kind():
+    # a replicon the run STARTS with is not something it did, so it is `initial`, not `origination` —
+    # the same word the gene log and the block log use at t=0. Both are roots (no parent).
     _, r = _run(seed=8, chromosomes=4)
-    roots = [e for e in r.chromosome_events if e.kind == "origination"]
+    roots = [e for e in r.chromosome_events if e.kind == "initial"]
     assert len(roots) == 4
     assert all(e.parents == () and len(e.children) == 1 for e in roots)
+    assert not [e for e in r.chromosome_events if e.kind == "origination"]  # none arose de novo
 
 
 def test_speciation_chromosome_edges_are_one_parent_to_two_children():
@@ -329,8 +332,8 @@ def test_empty_run_has_chromosomes_but_no_genes():
 def test_tier_events_fire_with_the_right_network_arity():
     _, r = _tier(seed=1)
     seen = {e.kind for e in r.chromosome_events}
-    assert {"origination", "speciation", "fission", "fusion", "loss"} <= seen  # all five kinds occur
-    shape = {"origination": (0, 1), "speciation": (1, 2), "fission": (1, 2),
+    assert {"initial", "origination", "speciation", "fission", "fusion", "loss"} <= seen  # all occur
+    shape = {"initial": (0, 1), "origination": (0, 1), "speciation": (1, 2), "fission": (1, 2),
              "fusion": (2, 1), "loss": (1, 0)}
     for e in r.chromosome_events:
         assert (len(e.parents), len(e.children)) == shape[e.kind]
@@ -393,9 +396,9 @@ def test_de_novo_replicon_is_an_empty_origination_root():
     nodes = {0: Node(0, None, 0.0, 5.0, None, "extant")}
     r = simulate_genomes_ordered(Tree(nodes, 0), chromosome_origination=1.0, chromosomes=1,
                                  initial_families=3, seed=1)
-    de_novo = [e for e in r.chromosome_events if e.kind == "origination" and e.parents == ()][1:]
-    assert de_novo                                           # some replicons appeared past the seed
-    # the seed carried the 3 genes; the de-novo replicons are empty
+    de_novo = [e for e in r.chromosome_events if e.kind == "origination"]
+    assert de_novo                                    # some replicons appeared past the initial one
+    # the initial replicon carried the 3 genes; the de-novo ones are empty
     assert sum(len(ch.genes) for ch in r.genomes[0]) == 3
     assert len(r.genomes[0]) == 1 + len(de_novo)
 
@@ -554,17 +557,17 @@ def test_strong_invariant_holds_under_segmental_everything():
             assert _extant_leaves(tree.extant) == sum(r.profiles.counts.get((fam, s), 0) for s in extant)
 
 
-def test_one_table_carries_the_genealogy_its_places_and_the_rearrangements(tmp_path):
-    """Three files became one. The genealogy is unchanged, each event carries the arc it acted on —
-    once, on its first row, because the arc is the event's and not each copy's — and the
-    ancestry-neutral rearrangements are interleaved by time."""
+def test_the_genealogy_and_the_rearrangements_are_two_tables(tmp_path):
+    """One row per event, and one file per kind of statement. ``genome_events.tsv`` is the shared
+    genealogy — ``parents`` and ``children`` naming copies where they sit — with the arc each event
+    acted on beside it. ``rearrangement_events.tsv`` is what moved without beginning or ending a
+    lineage, and so has nothing to say about parents and children at all."""
     _, r = _run(seed=3, inversion=0.3, transposition=0.3, translocation=0.3)
     r.write(tmp_path, outputs=("events",))
     lines = (tmp_path / "genome_events.tsv").read_text(encoding="utf-8").splitlines()
     header = lines[0].split("\t")
-    assert header == ["time", "kind", "lineage", "family", "copy", "parent", "recipient", "donor",
-                      "event", "dest_lineage", "chromosome", "position", "length",
-                      "dest_chromosome", "dest_position", "flipped"]
+    assert header == ["time", "kind", "family", "parents", "children",
+                      "chromosome", "start", "length", "dest_chromosome", "dest_position"]
     # keyed by name, not position, so adding a column cannot silently shift what this asserts on
     at = {c: i for i, c in enumerate(header)}
     rows = [ln.split("\t") for ln in lines[1:]]
@@ -572,21 +575,24 @@ def test_one_table_carries_the_genealogy_its_places_and_the_rearrangements(tmp_p
     assert ([float(col(x, "time")) for x in rows]
             == sorted(float(col(x, "time")) for x in rows))   # in the order it happened
 
-    genealogy = {"origination", "duplication", "loss", "transfer", "speciation"}
-    assert len([x for x in rows if col(x, "kind") in genealogy]) == len(r.events)
-    assert len([x for x in rows if col(x, "kind") not in genealogy]) == len(r.rearrangements)
-    assert {col(x, "kind") for x in rows} - genealogy <= {"inversion", "transposition",
-                                                          "translocation"}
-    # one arc per positioned event, not one per copy it touched
-    assert (len([x for x in rows if col(x, "kind") in genealogy and col(x, "position")])
-            == len(r.event_positions))
-    assert not [x for x in rows                            # a speciation moves nothing
-                if col(x, "kind") == "speciation" and col(x, "position")]
-    # a rearrangement ends no gene lineage, so it names no family, copy, parent — nor an event
-    assert all(col(x, "family") == col(x, "copy") == col(x, "parent") == col(x, "event") == ""
-               for x in rows if col(x, "kind") not in genealogy)
-    # and every genealogy row does name one, shared by the rows of the same event
-    assert all(col(x, "event") for x in rows if col(x, "kind") in genealogy)
+    # a genome event is never a rearrangement now: those have a file of their own
+    assert {col(x, "kind") for x in rows} <= {"origination", "duplication", "loss", "speciation",
+                                              "transfer_additive", "transfer_replacing"}
+    # one row per EVENT, not per gene-tree edge: the kinds that end a gene and start two write one
+    assert len(rows) == len({(e.kind, e.event) for e in r.events})
+    # every event that moved genes carries where it happened; a speciation moves nothing and never has
+    assert all(col(x, "chromosome") for x in rows if col(x, "kind") != "speciation")
+    assert not [x for x in rows if col(x, "kind") == "speciation" and col(x, "chromosome")]
+    # every participant carries its own branch, so no row needs a lineage column
+    assert all(all(tok.startswith("n") or tok.startswith("e")
+                   for cell in (col(x, "parents"), col(x, "children"))
+                   for tok in cell.split(";") if tok) for x in rows)
+
+    rear = (tmp_path / "rearrangement_events.tsv").read_text(encoding="utf-8").splitlines()
+    assert rear[0].split("\t") == ["time", "kind", "lineage", "chromosome", "start", "length",
+                                   "dest_chromosome", "dest_position", "flipped"]
+    assert len(rear) - 1 == len(r.rearrangements)
+    assert {ln.split("\t")[1] for ln in rear[1:]} == {"inversion", "transposition", "translocation"}
 
 
 # --- topology: a circular chromosome has no ends, so a run wraps past position 0 ------------------
@@ -675,14 +681,25 @@ def test_a_wrapped_loss_removes_the_genes_on_both_sides_of_the_origin():
     assert [(p.start, p.length) for p in positions] == [(0, 3)]
 
 
-def test_a_whole_chromosome_loss_empties_it_but_leaves_the_chromosome():
-    # a run covering every gene is legal. The chromosome survives as an empty replicon, exactly as a
-    # de-novo one starts out; only chromosome_loss takes a chromosome out of the karyotype.
+def test_a_loss_never_takes_a_chromosome_below_its_last_gene():
+    # A run covering every gene left does not fire — the same floor `Chromosome.delete()` enforces at
+    # the nucleotide resolution, so the two agree on what a chromosome is. Emptying the karyotype is
+    # chromosome_loss's job, at the chromosome tier.
+    ch = Chromosome(0, "circular", [Gene(i, i, 1) for i in range(3)])
+    events, positions = [], []
+    node = Node(3, None, 0.0, 1.0, None, "extant")
+    assert _lose_at(ch, 0, 3, node, 1.0, events, positions) == 0   # the whole chromosome: refused
+    assert [g.id for g in ch.genes] == [0, 1, 2]                   # and the order is untouched
+    assert events == [] and positions == []                        # a declined event logs nothing
+    assert _lose_at(ch, 0, 2, node, 1.0, events, positions) == 2   # one short: fires
+    assert [g.id for g in ch.genes] == [2]
+
+
+def test_a_crushing_loss_rate_leaves_every_chromosome_standing():
     r = simulate_genomes_ordered(_lone_branch(5.0), loss=2.0, chromosomes=2, initial_families=6,
                                  loss_extent=Fixed(50), seed=1)
     assert len(r.genomes[0]) == 2                                # both chromosomes still there
-    assert sum(len(ch.genes) for ch in r.genomes[0]) == 0        # and both empty
-    assert sorted(e.copy for e in r.events if e.kind == "loss") == list(range(6))
+    assert all(len(ch.genes) >= 1 for ch in r.genomes[0])        # and neither was emptied
 
 
 def test_a_linear_chromosome_still_clamps_at_its_end():

@@ -48,10 +48,11 @@ from .profiles import Profiles, profiles_from_genomes
 if TYPE_CHECKING:  # a streamed run returns a StreamedRun (built by the per-family engine); type-only
     from ._perfamily import StreamedRun
 
-#: The rate grammar this level wires (SPEC §5) — read by the engine gates below and by the CLI's
+#: The rate grammar this level supports (SPEC §5) — read by the engine gates below and by the CLI's
 #: help, so a modifier is never advertised without being implemented. Each rate keeps its natural
-#: scope this slice, ``DrivenBy`` is wired for the single-lineage events; the ordered engine wires
-#: ``OnTime`` and ``ByFamily``, the nucleotide one ``OnTime`` and ``DrivenBy``. The gates say so per rate.
+#: scope this slice, and ``DrivenBy`` is implemented for the single-lineage events; the ordered engine
+#: takes ``OnTime`` and ``ByFamily``, the nucleotide one ``OnTime`` and ``DrivenBy``. The gates say so
+#: per rate.
 WIRED_MODIFIERS = (OnTime, DrivenBy, ByFamily)
 
 
@@ -125,11 +126,16 @@ class FamilyGenomesResult:
     def summary(self) -> dict:
         """What this run produced, as a plain dict — the payload of ``genome_summary.json``.
 
-        **Every event count here is deduplicated.** The event log holds one row per gene-tree *edge*,
-        so a duplication, a transfer and a speciation each write two rows: counting by row inflates
-        them exactly 2×, which is the first mistake a reader of that file makes. A duplication's two
-        rows share the ``parent`` gene they descend from, and a gene ends at exactly one event, so
-        distinct parents *are* the events.
+        **Every count here is one per event**, which is also what ``genome_events.tsv`` is now one row
+        of. They are counted from the `Event` objects, and those are one per gene-tree *edge*: a
+        duplication, a transfer and a speciation each end one gene and start two, so counting edges
+        inflates them exactly 2×. A duplication's two edges share the ``parent`` gene they descend
+        from, and a gene ends at exactly one event, so distinct parents *are* the events.
+
+        ``loss`` counts every gene that died, which under ``replacement`` is more than the log's
+        ``loss`` rows: a copy displaced by an arriving transfer has no row of its own — it is the
+        second parent of that ``transfer_replacing`` row, because its death and the transfer are one
+        event. It is a loss of the gene tree all the same, and that is what this counts.
 
         The family counts are the other thing nobody could reconcile: ``gene_trees/`` holds a file pair
         per family that ever existed, while the run's summary line counts the ones that survived, so
@@ -171,12 +177,11 @@ class FamilyGenomesResult:
         return {
             "level": "genomes",
             "seed": self.seed,
-            # deduplicated: one number per EVENT, not per row of genome_events.tsv
+            # one number per EVENT — the same thing a row of genome_events.tsv is
             "events": {"initial": initial,
                        "origination": events.get("origination", 0) - initial,
                        **{k: events.get(k, 0) for k in
                           ("duplication", "transfer", "loss", "speciation")}},
-            "event_rows": len(self.events),        # what a naive `wc -l` on the log would give
             "families": {"born": len(born), "surviving": len(surviving),
                          "died_out": len(born) - len(surviving),
                          "named": len(self.family_names)},
@@ -495,7 +500,7 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
         # ``cand[rng.integers(len(cand))]``, where ``cand`` is every alive lineage except the donor
         # (unless self_transfer). Skipping the donor's slot is a +1 index shift, so this returns the
         # identical recipient without allocating the candidate list every transfer — a small, byte-
-        # identical simplification of the uncoupled hot path.
+        # identical simplification of the undriven hot path.
         m = len(alive) if self_transfer else len(alive) - 1
         i = int(rng.integers(m))
         kr = i if (self_transfer or i < kd) else i + 1
@@ -517,6 +522,7 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
     cont, xfer = new_copy(fam), new_copy(fam)
     gen[kd][jd] = cont
     delta = 1
+    replaced = None
     if replacement:
         residents = [p for p, c in enumerate(rg) if c.family == fam and c.id != cont.id]
         if residents:  # homologous overwrite; empty ⇒ additive fallback (the gene still arrives)
@@ -524,14 +530,20 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
             victim = rg[p]
             rg[p] = rg[-1]
             rg.pop()
-            events.append(Event(t, "loss", recipient, fam, victim.id))
+            # the displaced copy dies, so it is a loss of the gene tree like any other. It is *also*
+            # part of this transfer, and naming it on the transfer is what keeps the two linked: the
+            # log writes one `transfer_replacing` row carrying both parents, and nobody downstream has
+            # to recognise the pair by their shared timestamp.
+            replaced = victim.id
+            events.append(Event(t, "loss", recipient, fam, replaced))
             counts.removed(kr, fam)
             delta = 0
     rg.append(xfer)
     counts.added(kr, fam)
-    events.append(Event(t, "transfer", donor, fam, cont.id, parent=src.id, donor=donor))
+    events.append(Event(t, "transfer", donor, fam, cont.id, parent=src.id, donor=donor,
+                        replaced=replaced))
     events.append(Event(t, "transfer", recipient, fam, xfer.id, parent=src.id, recipient=recipient,
-                        donor=donor))
+                        donor=donor, replaced=replaced))
     return delta, kr
 
 
@@ -579,7 +591,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     (SPEC §5, the choice slot). Candidate lineage ``k`` gets weight ``mapping(driver value on k now)``
     and receives with probability ``w_k / Σw`` — five candidates at weight 1 and five at weight 2 send
     two thirds of transfers to the weight-2 group. Weight 0 means "cannot receive"; when every
-    candidate weighs 0 the transfer does not happen (see `_do_transfer()`). The two couplings are
+    candidate weighs 0 the transfer does not happen (see `_do_transfer()`). The two driven slots are
     independent and may be used together or apart.
 
     ``parallel`` opts into a **separate** engine that evolves the families concurrently, one per worker
@@ -606,18 +618,18 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     tra = as_rate(transfer, default_scope=PerCopy)
     los = as_rate(loss, default_scope=PerCopy)
     org = as_rate(origination, default_scope=PerLineage)
-    # this slice wires only the default scope (D/T/L per copy, origination per lineage). The wired
-    # modifiers are OnTime (skyline) and DrivenBy (a conditioned/joint driver). A non-default scope
-    # would set the *total* rate one way while the engine still picks the affected copy/lineage the
-    # default way — a silent mismatch (e.g. a PerCopy origination is base×0 copies, a no-op) — so
-    # reject it. DrivenBy is a per-lineage driver, wired for all four events; on transfer the driven
-    # lineage is the DONOR (who receives is the separate transfer_to slot, below).
+    # this slice implements only the default scope (D/T/L per copy, origination per lineage), and the
+    # modifiers OnTime (skyline) and DrivenBy (a conditioned/joint driver). A non-default scope would
+    # set the *total* rate one way while the engine still picks the affected copy/lineage the default
+    # way — a silent mismatch (e.g. a PerCopy origination is base×0 copies, a no-op) — so reject it.
+    # DrivenBy is a per-lineage driver on all four events; on transfer the driven lineage is the
+    # DONOR (who receives is the separate transfer_to slot, below).
     for label, rate, want in (("duplication", dup, PerCopy), ("transfer", tra, PerCopy),
                               ("loss", los, PerCopy), ("origination", org, PerLineage)):
         if not isinstance(rate.scope, want):
             raise ValueError(
                 f"{label} has a {type(rate.scope).__name__} scope, but the family genome engine "
-                f"wires only {want.__name__} for {label} this slice — scope overrides are a later slice."
+                f"takes only {want.__name__} for {label} this slice — scope overrides are a later slice."
             )
         for m in rate.modifiers:
             if isinstance(m, ByFamily) and label == "origination":
@@ -636,8 +648,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 continue
             raise ValueError(
                 f"{label} carries {type(m).__name__}, which the family genome engine does not "
-                f"support yet — only OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
-                f"ByFamily (per-family heterogeneity) are wired. Clade drift is a later slice."
+                f"support. It takes OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
+                f"ByFamily (per-family heterogeneity). Clade drift is not implemented yet."
             )
     if any(isinstance(m, ByFamily) for rate in (dup, tra, los) for m in rate.modifiers) and \
             any(isinstance(m, DrivenBy) for rate in (dup, tra, los, org) for m in rate.modifiers):
@@ -701,7 +713,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # conditioning: a rate carrying DrivenBy reads a driver per lineage. Resolve each driver once into
     # a DriverTrajectory (value + next-switch lookups, keyed by the shared species node id) — from a
     # file (str source) or an in-memory trait result (object source). No driven rate ⇒ this is empty
-    # and the loop stays byte-identical to an uncoupled run.
+    # and the loop stays byte-identical to an undriven run.
     dup_mods, los_mods = _driven_mods(dup), _driven_mods(los)
     org_mods, tra_mods = _driven_mods(org), _driven_mods(tra)
     by_key = {}  # driver key → its source (deduped, so a driver shared across rates resolves once)
@@ -716,8 +728,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         from ..rates.driver import check_mapping_fires, resolve_driver
         resolved = {key: resolve_driver(src, tree) for key, src in by_key.items()}
         # a mapping whose states never occur in the driver leaves every lineage at the default factor,
-        # so the rate is never driven and the run is secretly the uncoupled model — refuse it here,
-        # naming the driver, rather than let it pass as a coupled run
+        # so the rate is never driven and the run is secretly the undriven model — refuse it here,
+        # naming the driver, rather than let it pass as a driven run
         for m in (*dup_mods, *los_mods, *org_mods, *tra_mods, *( (to_mod,) if to_mod else () )):
             label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
             check_mapping_fires(m.mapping, resolved[m.key].states(), source_label=label)
@@ -836,7 +848,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         # a driven rate is per-lineage: sum its effective rate over the living lineages (each read with
         # its own copy count and its branch's driver value), keeping the weights for the affected-lineage
         # pick — the species_tree._grow shape. An undriven rate stays pooled (one .effective, uniform
-        # pick), so a run with no coupling is byte-identical to before. For transfer the affected
+        # pick), so a run with no driver is byte-identical to before. For transfer the affected
         # lineage is the donor, so a driven transfer weights who donates.
         w_dup = w_los = w_org = w_tra = None
         if any_family:
@@ -951,17 +963,24 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     weights.retired(k_out)
                 node = tree.nodes[i]
                 if node.children is not None:  # a speciation: each gene re-ids into each daughter
+                    per_daughter = []
                     for c in node.children:
-                        child_genome = []
+                        child_genome, rows = [], []
                         for old in g:  # ZOMBI1: the gene ends here and continues under a fresh id
                             nc = new_copy(old.family)
                             child_genome.append(nc)
-                            events.append(Event(t, "speciation", c, old.family, nc.id, parent=old.id))
+                            rows.append(Event(t, "speciation", c, old.family, nc.id, parent=old.id))
+                        per_daughter.append(rows)
                         enter(alive, gen, pos, c, child_genome)
                         counts.entered_like(inherited)   # a re-id of the parent: same families
                         if weights is not None:
                             weights.entered(child_genome)
                         total_copies += len(child_genome)
+                    # the ids are minted daughter by daughter (which is what fixes them), but a gene's
+                    # two rows are recorded together: one gene ending is one event, and the log writes
+                    # it as one row with both daughters in it.
+                    for rows in zip(*per_daughter):
+                        events.extend(rows)
                 si += 1
         else:
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
@@ -991,7 +1010,7 @@ class FamilyGenome:
     def _resolve(self):
         """Coerce and validate the three rates for the joint engine — ``(duplication, loss,
         origination)`` as resolved `Rate`s. The genome is the **driver**
-        here, not the target, so its own rates carry no coupling (``OnTime`` is the only modifier)."""
+        here, not the target, so its own rates carry no driver (``OnTime`` is the only modifier)."""
         dup = as_rate(self.duplication, default_scope=PerCopy)
         los = as_rate(self.loss, default_scope=PerCopy)
         org = as_rate(self.origination, default_scope=PerLineage)
@@ -999,7 +1018,7 @@ class FamilyGenome:
                                   ("origination", org, PerLineage)):
             if not isinstance(rate.scope, want):
                 raise ValueError(
-                    f"{label} has a {type(rate.scope).__name__} scope, but a joint genome wires only "
+                    f"{label} has a {type(rate.scope).__name__} scope, but a joint genome takes only "
                     f"{want.__name__} for {label} — drop the scope wrapper."
                 )
             for m in rate.modifiers:

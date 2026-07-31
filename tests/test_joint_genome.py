@@ -1,4 +1,4 @@
-"""Coupling slice 3 — gene content drives speciation, grown jointly (P(Species, Genomes)).
+"""Joint slice 3 — gene content drives speciation, grown jointly (P(Species, Genomes)).
 
 The genome half of joint: `mod.DrivenBy("genomes:count", …)` / `mod.DrivenBy("genomes:<family>", …)`
 with a live genome grown by `joint.simulate_joint(genome=genomes.family(...))`. Covers named
@@ -100,16 +100,16 @@ def test_joint_genome_is_deterministic():
 # --- the gene-content-dependent-diversification signals -------------------------------------------
 
 def test_gene_count_drives_diversification():
-    # bigger genomes speciate faster → coupled tips carry larger genomes than a flat (neutral) curve
+    # bigger genomes speciate faster → driven tips carry larger genomes than a flat (neutral) curve
     def mean_size(curve):
         sizes = []
         for s in (1, 2, 3):
             r = _count_joint(curve, seed=s)
             sizes.append(statistics.mean(len(r.genome.genomes[n.id]) for n in r.complete_tree.extant_leaves()))
         return statistics.mean(sizes)
-    coupled = mean_size(lambda n: 1.0 + 0.3 * n)
+    driven = mean_size(lambda n: 1.0 + 0.3 * n)
     neutral = mean_size(lambda n: 2.0)              # flat curve: driven but no effect = neutral null
-    assert coupled > neutral, f"count coupling gave no size signal: {coupled:.2f} vs {neutral:.2f}"
+    assert driven > neutral, f"count driving gave no size signal: {driven:.2f} vs {neutral:.2f}"
 
 
 def test_named_family_presence_drives_diversification():
@@ -119,11 +119,11 @@ def test_named_family_presence_drives_diversification():
             n_extant=200, seed=seed)
         tips = [n.id for n in r.complete_tree.extant_leaves()]
         return sum(r.genome.has_family(i, "toxin") for i in tips) / len(tips)
-    coupled = statistics.mean(
+    driven = statistics.mean(
         frac_toxin(1.0 * mod.DrivenBy("genomes:toxin", {"present": 5.0, "absent": 1.0}), s) for s in (1, 2, 3))
     neutral = statistics.mean(
         frac_toxin(1.0 * mod.DrivenBy("genomes:toxin", {"present": 1.0, "absent": 1.0}), s) for s in (1, 2, 3))
-    assert coupled > neutral + 0.15, f"toxin coupling gave no signal: {coupled:.2f} vs {neutral:.2f}"
+    assert driven > neutral + 0.15, f"toxin driving gave no signal: {driven:.2f} vs {neutral:.2f}"
 
 
 def test_total_time_mode():

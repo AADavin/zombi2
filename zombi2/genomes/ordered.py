@@ -46,13 +46,13 @@ from ..rates.modifiers import ByFamily, OnTime
 from ..rates.rate import as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
-from .chromosomes import ChromosomeEvent, chromosome_events_tsv
+from .chromosomes import ChromosomeEvent, chromosome_events_tsv, rearrangement_events_tsv
 from .family import resolve_max_family_size
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import Distance, mean_root_to_tip, recipient_index
 from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
-from .events import _COLS, Event, _name, gene_label
+from .events import _COLS, Event, _branches, _grouped, _name, event_rows, gene_label
 from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
 
@@ -171,18 +171,18 @@ class EventPosition:
       The branch itself is unchanged; the row says what left and where it went.
     - ``"transfer_recipient"`` — a block of ``length`` genes arrived **at** ``start`` of this branch.
 
-    A transfer spans two branches, so it writes **two rows** — one on each — and both name the whole
-    edge in ``donor`` and ``recipient``. Pair them on ``(time, donor, recipient)``; the donor row is
-    written first. (This follows Krister Swenson's fork, which splits a transfer into a leaving and
-    an arriving event, except that the branches are named outright rather than matched by timestamp.)
+    A transfer spans two branches, so it is **two records** — one on each — and both name the whole
+    edge in ``donor`` and ``recipient``. (This follows Krister Swenson's fork, which splits a transfer
+    into a leaving and an arriving event, except that the branches are named outright rather than
+    matched by timestamp.) In the *written* table the two are one row, the departing record filling
+    ``chromosome`` / ``start`` / ``length`` and the arriving one ``dest_chromosome`` /
+    ``dest_position``, so a reader never pairs anything.
 
     Together with the genomes (``gene_order``) and the rearrangement log this is **sufficient to
-    replay a run**: no join back to the genealogy is needed. A join is still possible — on
-    ``(time, lineage, kind)`` — but is not one-to-one, since the origin's founding originations all
-    fire at the same instant on the same lineage.
-
-    Rows sharing a ``time`` apply **in the order written** — a replacing transfer displaces its
-    homologs (each a ``loss`` on the recipient) before the arriving block is inserted."""
+    replay a run**. The one record that does not reach the file is the ``loss`` of a copy displaced by
+    a replacing transfer: that death is part of the transfer, so it is written as that row's second
+    parent and named by copy id rather than by position — a replay tracking ids removes it without
+    being told where it sat."""
 
     time: float
     kind: str  # origination | duplication | loss | transfer_donor | transfer_recipient
@@ -270,9 +270,14 @@ class OrderedGenomesResult:
               flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
-        - ``"events"`` → ``genome_events.tsv``, the run's whole history in one time-ordered table:
-          the gene genealogy, **where** each event happened, and the ancestry-neutral
-          rearrangements. With ``gene_order`` this is enough to replay the run.
+        - ``"events"`` → **two** tables, because a run does two different things to a genome.
+          ``genome_events.tsv`` is the gene genealogy — one row per event, in the format every
+          resolution writes — with **where** each event happened beside it.
+          ``rearrangement_events.tsv`` is the ancestry-neutral rearrangements: an inversion, a
+          transposition or a translocation begins and ends no gene lineage, so it has no parents and
+          no children and nothing to say in those columns. The two used to be one table, which meant
+          nine columns empty on every rearrangement row and six on every genealogy row. Together with
+          ``gene_order`` they are enough to replay the run.
         - ``"profiles"`` → ``profiles.tsv``, the family × extant-species copy-count matrix.
         - ``"gene_order"`` → ``gene_order.tsv``, every node's layout (one row per gene), ancestors
           included — so a branch's rearrangements can be replayed from its parent's genome.
@@ -294,8 +299,9 @@ class OrderedGenomesResult:
         names = self.complete_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
         if "events" in outputs:
             (d / "genome_events.tsv").write_text(
-                _events_tsv(self.events, self.event_positions, self.rearrangements, names),
-                encoding="utf-8")
+                _events_tsv(self.events, self.event_positions, names), encoding="utf-8")
+            (d / "rearrangement_events.tsv").write_text(
+                rearrangement_events_tsv(self.rearrangements, names), encoding="utf-8")
         if "profiles" in outputs:
             (d / "profiles.tsv").write_text(self.profiles.to_tsv(), encoding="utf-8")
         if "gene_order" in outputs:
@@ -303,7 +309,9 @@ class OrderedGenomesResult:
         if "initial_genome" in outputs:
             (d / "initial_genome.tsv").write_text(self._initial_genome_tsv(), encoding="utf-8")
         if "chromosome_events" in outputs:
-            (d / "chromosome_events.tsv").write_text(chromosome_events_tsv(self.chromosome_events), encoding="utf-8")
+            (d / "chromosome_events.tsv").write_text(
+                chromosome_events_tsv(self.chromosome_events, self.complete_tree, names),
+                encoding="utf-8")
         if "gene_trees" in outputs:
             write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat),
                              self.complete_tree.labels())
@@ -327,85 +335,75 @@ class OrderedGenomesResult:
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 
 
-#: One table for the whole history of a run. The genealogy — who begat whom — with **where** each
-#: event happened beside it, and the ancestry-neutral rearrangements interleaved by time. These used
-#: to be three files (``genome_events`` · ``genome_event_positions`` · ``rearrangements``), and the
-#: first two described the *same events* split by which columns they carried, so replaying a branch
-#: meant joining files. ``position`` / ``length`` are coordinates in the branch's own genome just
-#: before the event, as ``gene_order`` numbers it, and are written once per **event** — on its
-#: first row — because the arc is the event's, not each copy's. A transfer spans two branches and
-#: writes a row on each, and each names the whole edge so it stands alone: the arriving row already
-#: has ``lineage`` (where it went) and gains ``donor`` (where it came from); the departing row has
-#: ``lineage`` (where it came from) and gains ``dest_lineage`` (where it went). ``recipient`` keeps
-#: the genealogy's meaning — the branch the *new* copy is born on — and so is set on the arriving row
-#: only; it is what tells the two sides apart.
-#: The genealogy columns come from `_COLS` rather than being repeated,
-#: because `events_from_tsv()` reads this table by requiring those columns
-#: as a literal **prefix** of the header. Spelling them out twice let the two drift, which broke that
-#: reader silently; deriving them cannot.
-_EVENT_COLS = _COLS + ("dest_lineage",
-                       "chromosome", "position", "length", "dest_chromosome", "dest_position",
-                       "flipped")
+#: ``genome_events.tsv`` here: the shared genealogy columns (`_COLS` — one row per event, its
+#: participants written ``n<species>_g<copy>``) with **where** the event happened beside them. The
+#: coordinates are the one thing this resolution has that the family core does not, so they are the
+#: one thing it adds; the genealogy half is written by `event_rows()`, not repeated here, because
+#: `events_from_tsv()` reads this table by requiring `_COLS` as a literal **prefix** of the header
+#: and spelling them out twice let the two drift.
+#:
+#: ``chromosome`` / ``start`` / ``length`` are coordinates in the branch's own genome just before the
+#: event, as ``gene_order`` numbers it. ``dest_position`` is where the material *landed*: the tandem
+#: copy block for a duplication, the arriving block for a transfer — and for a transfer
+#: ``dest_chromosome`` names the recipient's chromosome, the recipient branch itself already being
+#: inside the arriving copy's token. So one row carries a whole transfer, both ends of it, where the
+#: old table spent a row on each side and left a reader to pair them.
+#:
+#: A segmental event acts on a run of genes of several families, and this table has one ``family``
+#: column, so it writes one row per gene lineage — each carrying the **same arc**, the one the event
+#: acted on. Rows of one event therefore repeat their coordinates; that is the price of a row being
+#: about one gene, and it buys a row that stands alone. (The rearrangements that used to be
+#: interleaved here, with the nine genealogy columns blank, are now ``rearrangement_events.tsv``.)
+_EVENT_COLS = _COLS + ("chromosome", "start", "length", "dest_chromosome", "dest_position")
 
 
-def _position_key(kind, lineage, family, recipient):
-    """What pairs one genealogy row with the `EventPosition` of the event it belongs to.
-
-    A transfer is told apart by which side it is — the row born on the recipient carries one — rather
-    than by lineage, so a self-transfer still resolves. An origination needs its ``family`` too: the
-    initial ones all fire at t=0 on the root branch, and nothing else separates them."""
-    if kind == "transfer":
-        kind = "transfer_donor" if recipient is None else "transfer_recipient"
+def _position_key(kind, lineage, family):
+    """What pairs an event with the `EventPosition` recorded for it: its kind, the branch whose
+    coordinates those are, and — for an origination alone — the family. The initial originations all
+    fire at t=0 on the root branch, and nothing else separates them."""
     return (kind, lineage, family if kind == "origination" else None)
 
 
-def _events_tsv(events, event_positions, rearrangements, names=None) -> str:
-    """The run's whole history as one time-ordered table (see `_EVENT_COLS`)."""
-    where = {}
+def _coordinates(events, event_positions) -> list[str]:
+    """The coordinate cells of every written row, in `event_rows()`'s order — the two are zipped into
+    one table, so this walks the same `_grouped()` the genealogy writer does.
+
+    A transfer needs *both* of its `EventPosition`\\ s: the departing one for the donor's arc and the
+    arriving one for where the block landed. Which branch each is on comes from the copies themselves
+    (`_branches()`) — the donor's continuation leads ``children``, the arriving copy follows — so a
+    self-transfer, where the two branches are the same, still resolves by kind.
+
+    A copy displaced by a replacing transfer has no row of its own (it is that transfer's second
+    parent), so its position is not written: it is named by id, and a replay that tracks ids removes
+    it without needing to be told where it sat."""
+    where: dict = {}
     for p in event_positions:
-        where[(p.time, *_position_key(p.kind, p.lineage, p.family, None))] = p
+        where.setdefault((p.time, *_position_key(p.kind, p.lineage, p.family)), p)
+    branch = _branches(events)
+    out = []
+    for time, kind, family, parents, children in _grouped(events):
+        cells: tuple = ("", "", "", "", "")
+        if kind.startswith("transfer"):
+            left = where.get((time, "transfer_donor", branch[children[0]], None))
+            landed = where.get((time, "transfer_recipient", branch[children[1]], None))
+            if left is not None and landed is not None:
+                cells = (left.chromosome, left.start, left.length, landed.chromosome, landed.start)
+        elif kind != "speciation":               # a speciation copies a genome whole: no arc
+            lineage = branch[parents[0] if kind == "loss" else children[0]]
+            p = where.get((time, *_position_key(kind, lineage, family)))
+            if p is not None:
+                cells = (p.chromosome, p.start, p.length, "",
+                         "" if p.dest_position is None else p.dest_position)
+        out.append("\t".join(str(c) for c in cells))
+    return out
 
-    rows: list[tuple[float, str]] = []
-    placed: set = set()
-    for e in events:
-        key = (e.time, *_position_key(e.kind, e.lineage, e.family, e.recipient))
-        p = where.get(key)
-        cells = [e.time, e.kind, _name(names, e.lineage), e.family, gene_label(e.copy),
-                 "" if e.parent is None else gene_label(e.parent),
-                 "" if e.recipient is None else _name(names, e.recipient),
-                 "" if e.donor is None else _name(names, e.donor),
-                 gene_label(e.event)]
-        # `donor` is on both of a transfer's rows (it comes from the event itself); the row that
-        # *left* additionally needs to say where the material went, which its own `recipient` cannot
-        # — that field names the branch the new copy is born on, so it is the arriving row's.
-        arriving = e.kind == "transfer" and e.recipient is not None
-        cells += ["" if p is None or p.recipient is None or arriving else _name(names, p.recipient)]
-        # The arc belongs to the **event**, not to each copy it touched: a duplication of three genes
-        # ends three and starts six, but there is one arc. So it is written on the event's first row
-        # and left empty on the rest — filter on a non-empty `position` to get one row per event that
-        # moved genes, which is what a replay walks. A speciation moves nothing and never has one.
-        if p is not None and key not in placed:
-            placed.add(key)
-            cells += [p.chromosome, p.start, p.length, "",
-                      "" if p.dest_position is None else p.dest_position, ""]
-        else:
-            cells += ["", "", "", "", "", ""]
-        rows.append((e.time, "\t".join(str(c) for c in cells)))
 
-    for r in rearrangements:            # ancestry-neutral: no family, copy, parent or event either
-        head = [r.time, "", _name(names, r.lineage), *[""] * (len(_COLS) - 3), ""]
-        if isinstance(r, Inversion):
-            tail = ["inversion", r.chromosome, r.start, r.length, "", "", ""]
-        elif isinstance(r, Transposition):
-            tail = ["transposition", r.chromosome, r.start, r.length, "", r.dest, int(r.flipped)]
-        else:
-            tail = ["translocation", r.source, r.start, r.length, r.dest, r.dest_position,
-                    int(r.flipped)]
-        head[1] = tail[0]
-        rows.append((r.time, "\t".join(str(c) for c in head + tail[1:])))
-
-    rows.sort(key=lambda tr: tr[0])                     # one stream, in the order it happened
-    return "\n".join(["\t".join(_EVENT_COLS), *[r for _t, r in rows]]) + "\n"
+def _events_tsv(events, event_positions, names=None) -> str:
+    """The genealogy with the place each event happened (see `_EVENT_COLS`)."""
+    rows = event_rows(events, names)
+    return "\n".join(["\t".join(_EVENT_COLS),
+                      *[f"{r}\t{c}" for r, c in zip(rows, _coordinates(events, event_positions))]]
+                     ) + "\n"
 
 
 # --- picking, over the chromosome-nested state ----------------------------------------------------
@@ -609,9 +607,19 @@ def _duplicate(chrom, j, m, node, t, events, positions, new_gene) -> int:
 
 def _lose_at(chrom, j, m, node, t, events, positions) -> int:
     """The ``m`` genes at ``[j, j+m)`` are lost together, removed in place; the run may wrap position
-    0 on a circular chromosome. A run covering the whole chromosome empties it — the chromosome
-    itself survives as an empty replicon, exactly as a de-novo one starts out; only
-    `_chromosome_lose()` removes a chromosome from the karyotype. Returns the ``m`` removed."""
+    0 on a circular chromosome. Returns the number removed, which is ``0`` when the loss does not
+    happen.
+
+    **A loss never takes a chromosome below its last gene.** A run covering everything still on the
+    chromosome does not fire — the same floor the nucleotide resolution enforces in
+    `Chromosome.delete()`, so the two resolutions agree on what a chromosome is. Emptying the
+    karyotype is `_chromosome_lose()`'s job, an event of its own at the chromosome tier.
+
+    The refusal happens before `_anchor()`, which rotates a wrapping run to the front: a declined
+    event must leave the gene order exactly as it found it. It happens after the draw, so the random
+    stream is untouched and a run in which no loss is ever declined is byte-identical."""
+    if m >= len(chrom.genes):
+        return 0
     j = _anchor(chrom, j, m)
     for g in chrom.genes[j:j + m]:
         events.append(Event(t, "loss", node.id, g.family, g.id))
@@ -705,6 +713,7 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, ne
     positions.append(EventPosition(t, "transfer_donor", donor, gen[kd][cdi].id, jd, m,
                                    donor=donor, recipient=recipient))
     delta = m
+    displaced: dict[int, int] = {}                      # arriving copy -> the resident it overwrote
     if replacement:
         cont_ids = {c.id for c in conts}                # self-transfer: never overwrite our own conts
         for x in xfers:                                 # each arriving copy may displace a homolog
@@ -714,7 +723,7 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, ne
                 ci, p = residents[int(rng.integers(len(residents)))]
                 victim = rgenome[ci].genes[p]
                 del rgenome[ci].genes[p]
-                events.append(Event(t, "loss", recipient, victim.family, victim.id))
+                displaced[x.id] = victim.id
                 positions.append(EventPosition(t, "loss", recipient, rgenome[ci].id, p, 1))
                 delta -= 1
     rchrom = rgenome[int(rng.integers(len(rgenome)))]   # arrive as a block on a random recipient chromosome
@@ -722,10 +731,19 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, ne
     rchrom.genes[pos:pos] = xfers
     positions.append(EventPosition(t, "transfer_recipient", recipient, rchrom.id, pos, m,
                                    donor=donor, recipient=recipient))
+    # A gene's three edges are recorded together — the resident it displaced dies *of* this transfer,
+    # so its `loss` sits with the two transfer edges rather than in a block of its own ahead of them,
+    # and `replaced` names it on both. That is what lets the log fold the two into one
+    # `transfer_replacing` row and read it back unchanged. The displacements are drawn above, before
+    # the arrival is placed, so the random stream is untouched by recording them here.
     for old, cont, xf in zip(segment, conts, xfers):
-        events.append(Event(t, "transfer", donor, old.family, cont.id, parent=old.id, donor=donor))
+        replaced = displaced.get(xf.id)
+        if replaced is not None:
+            events.append(Event(t, "loss", recipient, old.family, replaced))
+        events.append(Event(t, "transfer", donor, old.family, cont.id, parent=old.id, donor=donor,
+                            replaced=replaced))
         events.append(Event(t, "transfer", recipient, old.family, xf.id, parent=old.id,
-                            recipient=recipient, donor=donor))
+                            recipient=recipient, donor=donor, replaced=replaced))
     return delta
 
 
@@ -877,8 +895,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     fus = as_rate(fusion, default_scope=PerChromosome)
     cor = as_rate(chromosome_origination, default_scope=PerLineage)
     clo = as_rate(chromosome_loss, default_scope=PerChromosome)
-    # this slice wires each event's default scope, OnTime (skyline), and ByFamily — the last with the
-    # weight on the SEGMENT rather than on its starting gene (SPEC §6, and _pick_run_by_family). A
+    # this slice implements each event's default scope, OnTime (skyline), and ByFamily — the last with
+    # the weight on the SEGMENT rather than on its starting gene (SPEC §6, and _pick_run_by_family). A
     # scope override or a clade/driven modifier is a later slice, so reject it rather than silently
     # mis-scale (see the family engine for the reasoning).
     for label, rate, want in (("duplication", dup, PerCopy), ("transfer", tra, PerCopy),
@@ -890,7 +908,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         if not isinstance(rate.scope, want):
             raise ValueError(
                 f"{label} has a {type(rate.scope).__name__} scope, but the ordered genome engine "
-                f"wires only {want.__name__} for {label} this slice — scope overrides are a later slice."
+                f"takes only {want.__name__} for {label} this slice — scope overrides are a later slice."
             )
         for m in rate.modifiers:
             if isinstance(m, ByFamily) and label == "origination":
@@ -902,27 +920,27 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             if isinstance(m, ByFamily) and not isinstance(rate.scope, PerCopy):
                 raise ValueError(
                     f"{label} carries ByFamily on a {type(rate.scope).__name__} scope. A per-family "
-                    f"weight has to reach the genes an event covers, so it is wired for the per-copy "
-                    f"gene events only — not for the chromosome tier, which acts on whole replicons.")
+                    f"weight has to reach the genes an event covers, so it applies to the per-copy "
+                    f"gene events only — not to the chromosome tier, which acts on whole replicons.")
             if not isinstance(m, (OnTime, ByFamily)):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
-                    f"support yet — OnTime (skyline) and ByFamily are wired. Clade drift and driven "
-                    f"rates are later slices."
+                    f"support. It takes OnTime (skyline) and ByFamily. Clade drift and driven rates "
+                    f"are not implemented yet at this resolution."
                 )
     # per-event extent distributions (segment size in genes); a bare number is the mean, None a single gene
     def _ext_spec(spec, label):
         """One event's extent (SPEC §6): ``base × modifiers``, no scope, in **genes** here. An extent
-        takes the modifiers this resolution wires on a rate — ``OnTime`` — and they scale the size
-        drawn. A driver is not among them: this engine wires no ``DrivenBy`` on its rates either, and
+        takes the modifiers this resolution supports on a rate — ``OnTime`` — and they scale the size
+        drawn. A driver is not among them: this engine takes no ``DrivenBy`` on its rates either, and
         for trait-driven rearrangement the nucleotide resolution is the one that has it."""
         e = as_extent(spec)
         for m in e.modifiers:
             if not isinstance(m, OnTime):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
-                    f"wire on an extent — only OnTime (a skyline in time). For a trait-driven extent "
-                    f"use --resolution nucleotide.")
+                    f"support on an extent — it takes only OnTime (a skyline in time). For a "
+                    f"trait-driven extent use --resolution nucleotide.")
         return e
 
     dup_ext, los_ext, tra_ext = (_ext_spec(duplication_extent, "duplication_extent"),
@@ -1014,7 +1032,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     for label in labels:  # lay down the initial karyotype; each initial chromosome is a network root
         cid = new_chromosome()
         initial_chroms.append(Chromosome(cid, label, []))
-        chromosome_events.append(ChromosomeEvent(t, "origination", root.id, (), (cid,)))
+        # `initial`, not `origination`: a replicon the run *starts* with is not something it did, so
+        # counting `origination` in the log gives the de-novo replicons alone
+        chromosome_events.append(ChromosomeEvent(t, "initial", root.id, (), (cid,)))
     # the origin's initial genome is logged like any other origination — each founding gene appended in turn —
     # so the position table is total over gene-content events and a replay of the root branch can
     # start from an empty karyotype (every other branch starts from its parent's gene_order rows)
@@ -1182,15 +1202,23 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     child_genomes = {c: [] for c in node.children}
                     for pchrom in g:
                         dcids = []
+                        per_daughter: list[list[Event]] = []
                         for c in node.children:
                             dcid = new_chromosome()
                             dcids.append(dcid)
-                            dgenes = []
+                            dgenes, edges = [], []
                             for old in pchrom.genes:  # ZOMBI1: the gene ends and continues, fresh id
                                 ng = new_gene(old.family, old.strand)
                                 dgenes.append(ng)
-                                events.append(Event(t, "speciation", c, old.family, ng.id, parent=old.id))
+                                edges.append(Event(t, "speciation", c, old.family, ng.id,
+                                                   parent=old.id))
+                            per_daughter.append(edges)
                             child_genomes[c].append(Chromosome(dcid, pchrom.topology, dgenes))
+                        # the ids are minted daughter by daughter (which is what fixes them), but a
+                        # gene's two edges are recorded together: one gene ending is one event, and
+                        # the log writes it as one row naming both daughters
+                        for gene_edges in zip(*per_daughter):
+                            events.extend(gene_edges)
                         chromosome_events.append(
                             ChromosomeEvent(t, "speciation", node.id, (pchrom.id,), tuple(dcids)))
                     for c in node.children:
