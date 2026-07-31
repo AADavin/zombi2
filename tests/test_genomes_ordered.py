@@ -437,6 +437,84 @@ def test_fusion_concatenates_two_chromosomes_into_one():
     assert ce[0].kind == "fusion" and ce[0].parents == (10, 11) and len(ce[0].children) == 1
 
 
+def test_a_circular_chromosome_never_fuses_with_a_linear_one():
+    # A ring and a molecule with two ends cannot become one molecule. This used to draw the partner
+    # uniformly over the whole karyotype and hand the child `a.topology`, so the two silently fused
+    # into one chromosome whose shape was whichever end the chromosome pick landed on first.
+    import numpy as np
+    genome = [Chromosome(10, "circular", [Gene(0, 0, 1), Gene(1, 1, 1)]),
+              Chromosome(11, "linear", [Gene(2, 2, 1)])]
+    node = Node(5, None, 0.0, 1.0, None, "extant")
+    ce = []
+    for ci in (0, 1):                                  # neither one has a legal partner
+        assert _fusion(genome, ci, node, 3.0, ce, _minter(20), np.random.default_rng(0)) == (0, 0)
+    assert [c.id for c in genome] == [10, 11]          # the karyotype is exactly as it was
+    assert [c.topology for c in genome] == ["circular", "linear"]
+    assert ce == []                                    # a declined event logs nothing
+
+
+def test_fusion_picks_a_partner_of_its_own_topology():
+    # With one legal partner among two candidates the choice is forced, so this holds at every seed:
+    # the circular chromosome fuses with the other circular one and the linear one is left alone.
+    import numpy as np
+    for seed in range(20):
+        genome = [Chromosome(0, "circular", [Gene(0, 0, 1)]),
+                  Chromosome(1, "linear", [Gene(1, 1, 1)]),
+                  Chromosome(2, "circular", [Gene(2, 2, 1)])]
+        node = Node(5, None, 0.0, 1.0, None, "extant")
+        ce = []
+        assert _fusion(genome, 0, node, 3.0, ce, _minter(90),
+                       np.random.default_rng(seed)) == (-1, 0)
+        assert ce[0].parents == (0, 2)                          # never (0, 1)
+        assert [c.topology for c in genome] == ["linear", "circular"]   # the linear one survives
+        assert [g.id for g in genome[1].genes] == [0, 2]
+
+
+def test_a_single_topology_genome_draws_its_partner_exactly_as_before():
+    # The rule must cost nothing where it cannot bite. In a genome of one topology `partners` is
+    # every other chromosome in index order, so it is the same single draw from a pool of n-1 that
+    # the old `rng.integers(n - 1)` + skip-past-ci arithmetic made, and it maps to the same
+    # chromosome. Pinning it here is what makes "a seeded circular run is unchanged" a test rather
+    # than a claim.
+    import numpy as np
+    node = Node(5, None, 0.0, 1.0, None, "extant")
+    for seed in range(10):
+        for ci in range(6):
+            genome = [Chromosome(k, "circular", [Gene(k, k, 1)]) for k in range(6)]
+            ce = []
+            _fusion(genome, ci, node, 3.0, ce, _minter(90), np.random.default_rng(seed))
+            i = int(np.random.default_rng(seed).integers(5))    # the one draw, from a pool of n-1
+            expected = i if i < ci else i + 1                   # ... mapped as the old code mapped it
+            assert ce[0].parents == (ci, expected)
+
+
+def test_a_mixed_topology_karyotype_keeps_one_chromosome_of_each_shape():
+    # The end-to-end regression. Under a hard fusion rate a karyotype of two rings and two linear
+    # molecules used to collapse to a single chromosome carrying every gene; now it can only ever
+    # collapse to one of each shape, because the last ring and the last linear molecule have no
+    # legal partner left.
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    r = simulate_genomes_ordered(sp, fusion=1.0, fission=0.5, chromosomes=4,
+                                 topology=["circular", "linear", "circular", "linear"],
+                                 initial_families=12, seed=5)
+    for n in sp.complete_tree.extant_leaves():
+        assert sorted(c.topology for c in r.genomes[n.id]) == ["circular", "linear"]
+    # ... and no recorded fusion edge ever joined two shapes. Ancestral chromosomes are not in the
+    # result, so track each id's topology down the network from the roots the run laid down.
+    topology = {}
+    initial = iter(["circular", "linear", "circular", "linear"])
+    for e in r.chromosome_events:
+        if e.kind == "initial":
+            topology[e.children[0]] = next(initial)
+        elif e.kind == "origination":
+            topology[e.children[0]] = "circular"            # a de-novo replicon is a plasmid
+        else:
+            assert len({topology[p] for p in e.parents}) == 1
+            for ch in e.children:
+                topology[ch] = topology[e.parents[0]]
+    assert any(e.kind == "fusion" for e in r.chromosome_events)      # the rule was actually exercised
+
+
 def test_tier_rate_scope_override_is_rejected():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)
     with pytest.raises(ValueError, match="scope"):

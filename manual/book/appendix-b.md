@@ -95,6 +95,11 @@ both kinds, counts each replacing transfer's displaced copy under `loss`, and se
 the run started with (`initial`) from the ones the origination rate made (`origination`), where the
 log writes both as `origination` rows and the initial ones sit at time 0.
 
+It also reports `empty_genomes`: the extant genomes that came out with no genes at all. There is no
+floor at this resolution — loss is counted per copy, and the last copy is a copy like any other — so
+a lineage can lose everything, and an empty genome is otherwise invisible, having no row in
+`profiles.tsv` and no gene tree.
+
 Speciation is the largest single kind in the file, and the rows are not redundant: a gene tree's
 internal nodes are labelled `speciation_n14` — the kind and the branch, no copy id — so this log is
 the only record of the internal gene copies and their parentage. In Python an `Event` is still one

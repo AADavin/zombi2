@@ -367,6 +367,36 @@ def test_sequences_reads_a_nucleotide_handoff_through_from(tmp_path, tree_file):
     assert list(s.glob("block*.fasta"))               # blocks, not families: the files say so
 
 
+def test_an_emptied_genome_run_says_so_on_stderr(tmp_path, capsys):
+    """There is no genome floor at the family resolution, so a high --loss can strip every lineage of
+    every gene. That is a real outcome, but nothing in the outputs shows it — profiles.tsv is simply
+    empty — so the command says so. It goes to stderr and survives --quiet, because a scripted batch is
+    exactly the caller who needs to hear that its data is degenerate."""
+    run = tmp_path / "run"
+    main(["species", str(run), "--birth", "1.0", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "--quiet"])
+    capsys.readouterr()
+    rc = main(["genomes", str(run), "--loss", "5.0", "--duplication", "0", "--transfer", "0",
+               "--origination", "0", "--initial-families", "10", "--seed", "3", "--quiet"])
+    err = capsys.readouterr().err
+    assert rc == 0                                        # a degenerate run is not a failed run
+    assert "empty" in err and "--loss" in err             # what happened, and the knob to turn
+
+
+def test_sequences_survives_a_run_with_no_families(tmp_path):
+    """A run with no gene families has no alignments, so mean pairwise identity is undefined. The run
+    report rendered it as a percentage regardless and raised `TypeError`, after every output file had
+    already been written — reachable from an emptied genome and from a plain --initial-families 0."""
+    run = tmp_path / "run"
+    main(["species", str(run), "--birth", "1.0", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "--quiet"])
+    main(["genomes", str(run), "--initial-families", "0", "--loss", "0.1", "--duplication", "0",
+          "--transfer", "0", "--origination", "0", "--seed", "1", "--quiet"])
+    rc = main(["sequences", str(run), "--length", "60", "--seed", "1", "--quiet"])
+    assert rc == 0
+    assert (run / "run.zombi2").exists()                   # the report was written, not crashed on
+
+
 def test_genomes_missing_tree_is_reported_cleanly(tmp_path, capsys):
     rc = main(["genomes", str(tmp_path / "g"), "--from", str(tmp_path / "nope.nwk"), "--duplication", "0.1", "--flat"])
     assert rc == 1
@@ -522,6 +552,21 @@ def test_traits_ou_and_threshold_run(tmp_path, tree_file):
     assert main(["traits", str(out), "--from", str(tree_file), "--kind", "discrete", "--states", "absent,present", "--liability", "1.0", "--threshold", "0.0", "--seed", "1", "--flat"]) == 0
     states = {ln.split("\t")[2] for ln in (out / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[1:]}
     assert states <= {"absent", "present"}
+
+
+def test_traits_continuous_ou_with_a_modified_rate(tmp_path, tree_file):
+    # the OU knobs and a σ² modifier in one run — the combination the engine used to refuse. Nothing
+    # about the command changed: --rate takes the same written form it always did, so this is the
+    # end-to-end check that the unlocked combination reaches the engine from the command line.
+    out = tmp_path / "ou_eb"
+    rc = main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file),
+               "--rate", "1.0 * OnTime({0: 4.0, 1: 1.0})", "--reverts-to", "2.0", "--pull", "0.5",
+               "--seed", "1", "--flat"])
+    assert rc == 0
+    assert (out / "trait_values.tsv").exists()
+    log = (out / "traits.log").read_text(encoding="utf-8")
+    assert "rate\t1.0 * OnTime({0: 4, 1: 1})" in log            # the rate, as the run resolved it
+    assert "reverts_to\t2.0" in log and "pull\t0.5" in log       # alongside the OU knobs, not instead
 
 
 def test_traits_discrete_writes_the_event_log(tmp_path, tree_file):

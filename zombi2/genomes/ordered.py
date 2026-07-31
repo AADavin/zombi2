@@ -80,8 +80,12 @@ class Chromosome:
     run that reaches the last gene continues from the first — it wraps position 0 — and is limited
     only by the whole chromosome. A **linear** one has ends, so a run stops at the last gene. Position
     0 is therefore a real boundary on a linear chromosome and pure bookkeeping on a circular one,
-    where it may be re-anchored freely (see `_anchor()`). Topology does not yet gate which
-    fissions and fusions are legal."""
+    where it may be re-anchored freely (see `_anchor()`).
+
+    Topology also decides which chromosome-tier events are legal. A **fusion** joins two chromosomes
+    of the same topology only, because a ring and a molecule with two ends cannot become one
+    molecule (`_fusion()`). A **fission** is legal on either, and gives both halves the parent's
+    topology."""
 
     id: int
     topology: str
@@ -776,15 +780,33 @@ def _fission(genome, ci, node, t, chromosome_events, new_chromosome, rng) -> tup
 
 
 def _fusion(genome, ci, node, t, chromosome_events, new_chromosome, rng) -> tuple[int, int]:
-    """Chromosome ``ci`` merges with another chromosome of the same genome — the **reticulation**
-    (two parents, one child): the fused child re-mints, both parents end. No-op if the genome has
-    fewer than two chromosomes."""
-    if len(genome) < 2:
+    """Chromosome ``ci`` merges with another chromosome **of the same topology** — the
+    **reticulation** (two parents, one child): the fused child re-mints, both parents end.
+
+    **A fusion joins two chromosomes of the same topology only.** A ring and a molecule with two
+    ends cannot become one molecule, so the partner is drawn from the same-topology chromosomes
+    alone — the same rule the nucleotide resolution enforces in `_do_fusion()`, so the two
+    resolutions agree on what a chromosome is. Drawing the partner uniformly over the whole
+    karyotype and handing the child ``a.topology``, as this did, made a circular chromosome and a
+    linear one into one chromosome whose topology was whichever of the two the chromosome pick
+    happened to land on first.
+
+    **No same-topology partner ⇒ nothing happens.** The event is dropped before anything is minted
+    or logged, which is not an approximation: refusing an event on a condition that reads only the
+    current state is Poisson thinning, so what is kept is exactly the process whose fusion rate is
+    zero while the chosen chromosome has no legal partner. A genome of one circular and one linear
+    chromosome therefore never fuses, however high ``fusion`` is set. (A genome of one chromosome is
+    the same case — there is no other chromosome at all — so it needs no separate test.)
+
+    In a genome of a single topology ``partners`` is every other chromosome in index order, so the
+    one ``rng.integers`` draw is the one the old arithmetic made and maps to the same chromosome:
+    such a run is byte-identical to the run before the rule existed."""
+    a = genome[ci]
+    partners = [k for k in range(len(genome)) if k != ci and genome[k].topology == a.topology]
+    if not partners:
         return (0, 0)
-    cj = int(rng.integers(len(genome) - 1))
-    if cj >= ci:
-        cj += 1                                        # a uniform chromosome index distinct from ci
-    a, b = genome[ci], genome[cj]
+    cj = partners[int(rng.integers(len(partners)))]
+    b = genome[cj]
     fused = Chromosome(new_chromosome(), a.topology, a.genes + b.genes)
     genome[:] = [c for idx, c in enumerate(genome) if idx not in (ci, cj)] + [fused]
     chromosome_events.append(ChromosomeEvent(t, "fusion", node.id, (a.id, b.id), (fused.id,)))
@@ -882,8 +904,10 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     "toxin")``), as in the family core; ``transfer_to`` / ``replacement`` / ``self_transfer`` behave
     as in the family core.
 
-    The **chromosome tier** changes chromosome *number*: ``fission`` (split), ``fusion`` (merge — the
-    reticulation), ``chromosome_origination`` (a de-novo replicon), ``chromosome_loss`` (a whole
+    The **chromosome tier** changes chromosome *number*: ``fission`` (split), ``fusion`` (merge,
+    between two chromosomes of the **same topology** — the reticulation; a ring and a molecule with
+    two ends cannot become one molecule, so a genome of one of each never fuses),
+    ``chromosome_origination`` (a de-novo replicon), ``chromosome_loss`` (a whole
     chromosome and its genes die; never the genome's last). Chromosomes carry identity — re-minted at
     every event that reshapes them — so ``chromosome_events`` is the true reticulating chromosome
     genealogy, rooted at the initial and de-novo originations. Deterministic given ``seed``.

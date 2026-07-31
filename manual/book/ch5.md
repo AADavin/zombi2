@@ -35,7 +35,7 @@ A genome has a **karyotype**: `chromosomes=N` chromosomes, each with a `topology
 On top of the karyotype, four events change the **number** of chromosomes:
 
 - **`fission`** *(per chromosome)* — a chromosome splits in two.
-- **`fusion`** *(per chromosome)* — two chromosomes of a genome merge into one.
+- **`fusion`** *(per chromosome)* — two chromosomes of a genome merge into one. Only two of the **same topology**: a ring and a molecule with two ends cannot become one molecule, so a circular chromosome never fuses with a linear one, and a genome holding one of each never fuses at all.
 - **`chromosome_origination`** *(per lineage)* — a de-novo replicon appears: a new chromosome, empty and circular, a plasmid.
 - **`chromosome_loss`** *(per chromosome)* — a whole chromosome dies, and every gene on it is recorded as a loss. A lineage never loses its *last* chromosome this way.
 

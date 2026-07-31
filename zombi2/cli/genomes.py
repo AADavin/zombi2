@@ -32,7 +32,7 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   clear_stale_downstream, conditioned_levels, default_outputs,
                                   defaults_used, signpost, input_digests, level_dir,
                                   parallel_from_args, record_conditioning, resolve_tree,
-                                  sibling_fates, warn_if_fates_were_inferred)
+                                  sibling_fates, warn, warn_if_fates_were_inferred)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -324,6 +324,46 @@ def _stray(args, knobs) -> list[str]:
             if getattr(args, attr) != default]
 
 
+def _warn_if_genomes_emptied(result, resolution: str) -> None:
+    """Say so when the run left an extant genome with no genes in it — a diagnostic about the
+    *result*, in the register of `warn_if_fates_were_inferred()`.
+
+    A genome that lost everything is a legitimate outcome, not an error, so this announces rather
+    than refuses: with a loss rate well above the duplication and origination rates, a lineage
+    losing its last gene is what the model says happens. It is announced because it is otherwise
+    invisible. A genome with no genes writes no row in ``profiles.tsv`` and leaves no gene tree for
+    ``zombi2 sequences`` to run down, so the reader meets it as a short matrix and a level below it
+    that produced nothing — which reads as a broken run rather than as the model they asked for.
+
+    Why the two resolutions differ in the message: at ``family`` there is no floor at all, because
+    loss is counted per gene copy and the last copy is a copy like any other. At ``ordered`` a loss
+    never takes a chromosome below its last gene, so the way a genome empties there is
+    ``chromosome_loss`` taking the chromosome that held them — a different knob to turn down. The
+    ``nucleotide`` resolution is not checked here: its unit is base pairs and its per-chromosome
+    floor leaves a lineage a chromosome with material on it."""
+    extant = [n.id for n in result.complete_tree.extant_leaves()]
+    if resolution == "ordered":
+        empty = [i for i in extant if not any(c.genes for c in result.genomes[i])]
+        why = ("A loss never takes a chromosome below its last gene at --resolution ordered, but "
+               "chromosome_loss can take the chromosome that held them. Lower --loss or "
+               "--chromosome-loss, or raise --origination")
+    else:
+        empty = [i for i in extant if not result.genomes[i]]
+        why = ("There is no genome floor at --resolution family: loss is counted per copy, and the "
+               "last copy is a copy like any other. Lower --loss, raise --origination, or start "
+               "with more --initial-families")
+    if not empty:
+        return
+    if len(empty) == len(extant):
+        warn(f"every extant genome is empty — not one of them holds a gene, so profiles.tsv has no "
+             f"rows and there is no gene tree for a sequence to run down. {why} if that is not the "
+             f"model you meant.")
+    else:
+        warn(f"{len(empty)} of {len(extant)} extant genomes are empty — those lineages lost every "
+             f"gene they had, so their columns of profiles.tsv are all zeros. {why} if that is not "
+             f"the model you meant.")
+
+
 def run(args, parser):
     # Fill the rate defaults first, so everything below validates the run that will actually happen
     # rather than a half-specified one. A bare `zombi2 genomes out/` runs, and shows what this level
@@ -520,6 +560,11 @@ def run(args, parser):
         n_families, n_species = result.profiles.shape
         summary = f"{n_families} gene families across {n_species} extant genomes ({args.resolution})"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
+    # A run that emptied a genome succeeded — it is a result, not an error — but it is the one
+    # result the outputs do not show, so it goes to stderr after the `wrote …` line. A streamed run
+    # holds no genomes to count; the nucleotide resolution is left out for the reason in the helper.
+    if not streaming and args.resolution != "nucleotide":
+        _warn_if_genomes_emptied(result, args.resolution)
     if not args.flat:                             # record which same-run levels drove a rate (if any),
         record_conditioning(out, conditioned_levels(   # so re-running one of them knows it orphans this
             args.run, (args.duplication, args.transfer, args.loss, args.origination, args.transfer_to)))

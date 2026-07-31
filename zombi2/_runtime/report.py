@@ -170,8 +170,16 @@ def _stat_lines(summary: dict) -> list[str]:
             continue
         if key == "assembled_genomes" and value == 0:
             continue                                 # assembly is nucleotide-only; 0 here reads as failure
+        if key == "empty_genomes" and value == 0:
+            continue                                 # the healthy case; the line is only news when it fires
         if key == "mean_pairwise_identity":
-            lines.append(f"mean pairwise identity {float(value) * 100:.1f}%")
+            # `None` is the declared value when there are no alignments to compare (a run whose
+            # genomes emptied, or one started with --initial-families 0): mean pairwise identity is
+            # undefined, not zero, so there is no line to write. This used to render it regardless
+            # and raise, which turned a legitimately empty run into a crash *after* every file had
+            # been written.
+            if value is not None:
+                lines.append(f"mean pairwise identity {float(value) * 100:.1f}%")
         elif key == "family_size_cap":
             hit = value.get("families_at_cap", 0)
             if hit:
