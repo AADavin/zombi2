@@ -8,8 +8,9 @@ sequence of ancestry blocks, with declared indivisible genes and intergenic spac
 `simulate_genomes_nucleotide()`). Long options are the API keyword names, and
 every rate takes the written form (SPEC §5): a bare number on its natural scope, or the same
 ``scope(base) × modifiers`` expression the Python API takes — ``--loss "0.25 * OnTime({0: 1.0, 3:
-2.0})"``. The nucleotide engine takes ``OnTime`` and ``DrivenBy``, so any other modifier is rejected
-there rather than silently ignored."""
+2.0})"``. Each resolution declares which modifiers it reads (its ``WIRED_MODIFIERS``) and rejects the
+rest rather than silently ignoring them; the two structured resolutions both take ``DrivenBy``, so a
+trait can drive a rearrangement rate at either."""
 from __future__ import annotations
 
 import argparse
@@ -22,6 +23,7 @@ from zombi2.genomes.family import FamilyGenomesResult
 from zombi2.genomes.ordered import OrderedGenomesResult
 from zombi2.genomes.nucleotide import NucleotideGenomesResult
 from zombi2.genomes.nucleotide import WIRED_MODIFIERS as _NUC_WIRED
+from zombi2.genomes.ordered import WIRED_MODIFIERS as _ORDERED_WIRED
 from zombi2.rates.parse import parse_rate
 from zombi2.rates.scope import Global, PerLineage
 from zombi2.tree import node_label, read_newick
@@ -34,13 +36,17 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   parallel_from_args, record_conditioning, resolve_tree,
                                   sibling_fates, warn, warn_if_fates_were_inferred)
 
-#: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
+#: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration — including the
+#: per-resolution sentence, which is read off each engine's ``WIRED_MODIFIERS`` rather than typed out
+#: here. It had been typed out, and it went stale the moment the ordered engine learned ``DrivenBy``.
 RATES_HELP = _rates_help(
     WIRED_MODIFIERS, "--loss",
     note="Rates keep their natural scope here (D/T/L per copy, origination per lineage), so there "
          "is no scope wrapper to write. On --transfer, DrivenBy drives how often a lineage DONATES; "
-         "--transfer-to takes one on its own as a recipient weight. --resolution ordered takes "
-         "OnTime and ByFamily; nucleotide, OnTime and DrivenBy.")
+         "--transfer-to takes one on its own as a recipient weight (family resolution only). "
+         "--resolution ordered takes " + ", ".join(m.__name__ for m in _ORDERED_WIRED) +
+         ", though not ByFamily and DrivenBy in one run; nucleotide, " +
+         ", ".join(m.__name__ for m in _NUC_WIRED) + ".")
 
 # The write vocabularies, read off the results themselves. They used to be hand-copied here, with a
 # comment saying so, and they drifted: `species_tree` and `initial_sequence` were writable from
@@ -318,6 +324,22 @@ _RATE_FLAGS = (("duplication", None), ("transfer", None), ("loss", None), ("orig
                ("chromosome_origination", 0.0), ("chromosome_loss", 0.0))
 
 
+#: Every rate flag that may carry a ``DrivenBy`` — what the run's conditioning bookkeeping has to
+#: scan. It is *all* of them at the two structured resolutions, not just D/T/L/O: a driven
+#: ``--inversion`` or ``--fission`` is as much a conditioned run as a driven ``--loss``, and reading
+#: only the four meant such a run recorded no ``conditioned_on`` marker (so re-running the driver
+#: level did not know it orphaned this one) and logged no digest of the driver file.
+_DRIVABLE_RATE_FLAGS = ("duplication", "transfer", "loss", "origination", "inversion",
+                        "transposition", "translocation", "fission", "fusion",
+                        "chromosome_origination", "chromosome_loss")
+
+
+def _driven_specs(args) -> tuple:
+    """Every spec of this run that may name a driver: the rate flags above, plus ``--transfer-to``,
+    which is the choice slot rather than a rate but points at the same kind of file."""
+    return (*(getattr(args, name) for name in _DRIVABLE_RATE_FLAGS), args.transfer_to)
+
+
 def _stray(args, knobs) -> list[str]:
     """The flags in ``knobs`` the user actually set (their value differs from the default)."""
     return [f"--{attr.replace('_', '-')}" for attr, default in knobs
@@ -567,7 +589,7 @@ def run(args, parser):
         _warn_if_genomes_emptied(result, args.resolution)
     if not args.flat:                             # record which same-run levels drove a rate (if any),
         record_conditioning(out, conditioned_levels(   # so re-running one of them knows it orphans this
-            args.run, (args.duplication, args.transfer, args.loss, args.origination, args.transfer_to)))
+            args.run, _driven_specs(args)))
     # The log is this run's parameters, not the parser's: a family run has no --root-length and no
     # --inversion, and recording them at their defaults reads as though it had them and chose those
     # values. Each resolution's own gates already say which options belong to which.
@@ -580,7 +602,6 @@ def run(args, parser):
                       inputs=input_digests(tree_path, args.tip_fates,
                                            os.path.join(os.path.dirname(tree_path),
                                                         "species_fates.tsv"),
-                                           args.duplication, args.transfer, args.loss,
-                                           args.origination, args.transfer_to))
+                                           *_driven_specs(args)))
     signpost(args, write_run_report(args.run), out)   # every file it wrote, then the run report
     return 0

@@ -484,6 +484,7 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
 
     from zombi2.genomes import WIRED_MODIFIERS as GENOMES
     from zombi2.genomes.nucleotide import WIRED_MODIFIERS as NUCLEOTIDE
+    from zombi2.genomes.ordered import WIRED_MODIFIERS as ORDERED
     from zombi2.sequences import WIRED_MODIFIERS as SEQUENCES
     from zombi2.species import WIRED_MODIFIERS as SPECIES
     from zombi2.traits import WIRED_MODIFIERS as TRAITS
@@ -495,6 +496,15 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
     # scope the search to the modifier table — an earlier table in the same appendix lists scopes
     # and also has a "| Species |" row
     text = appendix.read_text(encoding="utf-8").split("### Which level accepts which", 1)[-1]
+
+    # One row covers two engines — "Genomes — family, ordered" — and only family's tuple was ever
+    # checked against it, so the row was free to be false for ordered, and for a while it was: it
+    # listed DrivenBy while the ordered engine refused it. Assert the two agree, and the shared row
+    # cannot lie again about either.
+    assert set(ORDERED) == set(GENOMES), (
+        f"appendix A lists family and ordered under one row, but they wire "
+        f"{sorted(m.__name__ for m in GENOMES)} and {sorted(m.__name__ for m in ORDERED)} — either "
+        f"bring them back into line or split the row")
 
     for row, wired in (("Species", SPECIES),
                        ("Genomes — family, ordered", GENOMES),

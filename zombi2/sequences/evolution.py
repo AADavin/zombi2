@@ -4,8 +4,9 @@ A gene tree is a **timetree** — its branch lengths are time (``child.time - pa
 sequence living inside that gene converts time to *substitutions/site* through the substitution
 **rate**: a branch spanning ``Δt`` accrues ``rate · Δt`` substitutions/site. Under the **strict
 clock** the rate is one number for the whole tree, so the branch length in subs/site is just
-``rate_base · Δt``; a relaxed clock (a per-branch ``clock`` factor riding the species tree) scales it
-per lineage.
+``rate_base · Δt``. Any per-lineage variation — a relaxed clock drawn per species branch, a trait
+driving the rate, or both — comes from the run's `Clock`, which converts a
+stretch of species branch into subs/site and is asked for every branch length here.
 
 **Across-site rate variation** scales the same branch length again, per **site**. A model decorated
 with `SubstitutionModel.across_sites()` carries rate
@@ -33,11 +34,12 @@ from __future__ import annotations
 
 import numpy as np
 
+from .clock import Clock  # noqa: F401  — the `clock:` annotation names it; kept out of __all__
 from .substitution_models import SubstitutionModel
 
 
 def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: float,
-                     clock: "dict[int, float] | None", rng: np.random.Generator,
+                     clock: "Clock | None", rng: np.random.Generator,
                      origination: float,
                      founding: "np.ndarray | None" = None,
                      cdf_cache: "dict[float, np.ndarray] | None" = None
@@ -51,9 +53,11 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
     keeps. The second is the sequence the family began with. Deterministic given ``rng``.
 
     The branch ending at a node lies on that node's species branch, so its length in substitutions/site
-    is ``rate_base · clock[node.species] · (node.time - parent.time)`` — the lineage clock (``clock``,
-    one value per species branch, shared across families) rescales it. ``clock=None`` (the strict
-    clock) uses factor 1 everywhere.
+    is what the run's `Clock` makes of that stretch — the drawn per-lineage
+    factor (shared across families), times a driver integrated over the stretch where the rate reads a
+    trait. ``clock=None`` is the strict, undriven rate: ``rate_base · (node.time - parent.time)``.
+    Asking the clock for the stretch rather than for a factor is what makes a driver that switches
+    *inside* this branch come out exact — a factor per branch could not express it.
 
     The **root is an ordinary node** here, its parent time being ``origination``: a family exists from
     the moment it originates, and its founding gene evolves across the stem before whatever event ends
@@ -96,8 +100,8 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
     stack: list[tuple[object, float, np.ndarray]] = [(root, origination, founding_states)]
     while stack:
         node, parent_time, parent_states = stack.pop()
-        factor = 1.0 if clock is None else clock.get(node.species, 1.0)
-        bl = rate_base * factor * (node.time - parent_time)
+        bl = (rate_base * (node.time - parent_time) if clock is None
+              else clock.branch_length(rate_base, node.species, parent_time, node.time))
         if bl <= 0.0:
             states = parent_states
         elif groups is None:

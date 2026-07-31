@@ -332,8 +332,9 @@ _STRUCTURAL = {
 }
 
 #: Levels whose rates can be conditioned on another level (they take a ``DrivenBy``), so they may carry
-#: a ``conditioned_on`` record. Only ``genomes`` today — ``sequences`` and ``traits`` take no driven rate.
-_CONDITIONABLE = ("genomes",)
+#: a ``conditioned_on`` record. ``traits`` takes a driven rate too, but ``zombi2 traits`` does not yet
+#: call `record_conditioning()`, so listing it here would look for a marker nothing writes.
+_CONDITIONABLE = ("genomes", "sequences")
 
 #: Every level, in pipeline order — a stable order for listing them in a message.
 _LEVEL_ORDER = ("species", "genomes", "sequences", "traits")

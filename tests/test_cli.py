@@ -935,7 +935,8 @@ def test_the_rates_help_lists_only_what_the_level_wires(capsys):
     # the help is built from each level's WIRED_MODIFIERS, so it cannot advertise the unwired
     for command, present, absent in [
             ("species", ["FromParent", "ByLineage"], ["ByFamily"]),   # both per-lineage forms wired
-            ("sequences", ["ByLineage", "FromParent"], ["OnTotalDiversity"])]:  # both clocks wired
+            # both clocks and the trait driver are wired; the diversity covariate is not
+            ("sequences", ["ByLineage", "FromParent", "DrivenBy"], ["OnTotalDiversity"])]:
         with pytest.raises(SystemExit):
             main([command, "--help", "--flat"])
         out = capsys.readouterr().out
@@ -1500,6 +1501,30 @@ def test_conditioning_records_which_level_drove_a_rate(tmp_path):
     assert (run / "genomes" / "conditioned_on").read_text(encoding="utf-8").split() == ["traits"]
 
 
+def test_genomes_ordered_takes_a_driven_rate_from_the_command_line(tmp_path):
+    """The whole conditioned ordered story on the command line: grow the driver, then drive
+    ``--inversion`` by it in its written form.
+
+    The bookkeeping is the point as much as the run. ``conditioned_on`` and the input digests used to
+    be read off ``--duplication``/``--transfer``/``--loss``/``--origination``/``--transfer-to`` only,
+    so a run driven through any other rate recorded nothing: re-running the driver level did not know
+    it had orphaned this one, and the log did not pin the driver file it read."""
+    run = tmp_path / "run"
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "--quiet"])
+    main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch", "0.4",
+          "--seed", "5", "--quiet"])
+    driver = f"{run}/traits/trait_events.tsv"
+    rc = main(["genomes", str(run), "--resolution", "ordered", "--initial-families", "12",
+               "--inversion", f"0.3 * DrivenBy('{driver}', {{'cave': 4.0, 'surface': 1.0}})",
+               "--seed", "3", "--quiet"])
+    assert rc == 0
+    assert (run / "genomes" / "rearrangement_events.tsv").exists()
+    assert (run / "genomes" / "conditioned_on").read_text(encoding="utf-8").split() == ["traits"]
+    log = (run / "genomes" / "genomes.log").read_text(encoding="utf-8")
+    assert "trait_events.tsv" in log and re.search(r"\b[0-9a-f]{64}\b", log)
+
+
 def test_rerunning_a_trait_a_genome_was_conditioned_on_refuses(tmp_path, capsys):
     run = tmp_path / "run"
     _conditioned_pipeline(run)
@@ -1522,6 +1547,36 @@ def test_force_reruns_the_trait_and_clears_its_conditioned_downstream(tmp_path, 
     assert rc == 0
     assert not (run / "genomes").exists() and not (run / "sequences").exists()
     assert (run / "traits").exists()
+
+
+def test_a_trait_drives_the_substitution_rate_from_the_command_line(tmp_path, capsys):
+    """The whole conditioned pipeline for Traits → Sequences, in the written form of the rate: grow a
+    habitat trait, then a sequences run whose substitution rate reads it. The run has to record the
+    dependency, hash the driver file it read, and refuse a re-run of the trait beneath it."""
+    run = tmp_path / "run"
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "--quiet"])
+    main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch", "0.4",
+          "--seed", "5", "--quiet", "--write", "events"])
+    main(["genomes", str(run), "--duplication", "0.2", "--loss", "0.2", "--origination", "0.5",
+          "--seed", "3", "--quiet"])
+    driver = f"{run}/traits/trait_events.tsv"
+    rate = f"0.05 * DrivenBy('{driver}', {{'cave': 0.2, 'surface': 1.0}})"
+    capsys.readouterr()
+    assert main(["sequences", str(run), "--model", "jc69", "--length", "200", "--seed", "1",
+                 "--quiet", "--substitution", rate]) == 0
+    assert "driven by trait_events.tsv" in capsys.readouterr().out
+
+    assert (run / "sequences" / "conditioned_on").read_text(encoding="utf-8").split() == ["traits"]
+    log = (run / "sequences" / "sequences.log").read_text(encoding="utf-8")
+    assert "DrivenBy(" in log and "trait_events.tsv" in log       # the rate in its written form
+    assert any(line.startswith("input\t") and driver in line for line in log.splitlines())
+
+    # and the trait is now a driver of this run: re-running it without --force would orphan the run
+    capsys.readouterr()
+    assert main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch",
+                 "0.9", "--seed", "2", "--quiet"]) == 1
+    assert "sequences" in capsys.readouterr().err
 
 
 def test_an_unconditioned_genome_leaves_the_trait_free_to_rerun(tmp_path):

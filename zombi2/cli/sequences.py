@@ -25,7 +25,7 @@ import numpy as np
 from zombi2.genomes import FamilyGenomesResult
 from zombi2.genomes.events import events_from_tsv
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
-from zombi2.rates.modifiers import ByLineage, FromParent, Modifier
+from zombi2.rates.modifiers import ByLineage, DrivenBy, FromParent, Modifier
 from zombi2._runtime.report import write_run_report
 from zombi2.sequences import (WIRED_MODIFIERS, _calibrate, mean_pairwise_identity,
                               simulate_sequences)
@@ -35,14 +35,19 @@ from zombi2.sequences.substitution_models import (
 from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _write_params_log,
-                                  default_outputs, signpost, level_dir, parallel_from_args,
-                                  defaults_used, input_digests, resolve_genomes, resolve_seed, warn)
+                                  conditioned_levels, default_outputs, signpost, level_dir, parallel_from_args,
+                                  defaults_used, input_digests, record_conditioning, resolve_genomes,
+                                  resolve_seed, warn)
 
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
     WIRED_MODIFIERS, "--substitution",
     note="ByLineage draws one rate per species lineage, shared by every gene in it. spread is σ; "
-         "dist is 'lognormal' (default) or 'gamma' (σ = the coefficient of variation).")
+         "dist is 'lognormal' (default) or 'gamma' (σ = the coefficient of variation). DrivenBy "
+         "reads a trait grown first — the trait_events.tsv a 'zombi2 traits' run wrote, in this run "
+         "or another: \"1.0 * DrivenBy('out/traits/trait_events.tsv', {'cave': 0.5, 'surface': "
+         "1.0})\". A clock and a driver compose; a driver that switches mid-branch is integrated "
+         "across the switch, not sampled once for the branch.")
 
 # the write vocabulary, mirroring SequencesResult.write (there is no exported constant to import).
 # The last two exist only for a nucleotide handoff, which is the only run with coordinates to lay a
@@ -118,7 +123,7 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("substitution rate & clock", "see RATES below")
     g.add_argument("--substitution", type=_rate, default=None, metavar="RATE",
                    help="substitutions per site per unit time (default 1.0, a strict clock); a "
-                        "ByLineage modifier relaxes it")
+                        "ByLineage modifier relaxes it, and a DrivenBy reads a trait grown first")
     g.add_argument("--divergence", type=float, default=None, metavar="D",
                    help="solve for the rate instead, so a site accrues D substitutions from root to "
                         "tip. Composes with --substitution: give the clock's shape alone "
@@ -340,12 +345,20 @@ def run(args, parser):
     # Both clock modifiers, not just the uncorrelated one: a FromParent run is autocorrelated, and
     # reporting it as "strict" was the same bug the ByLineage branch above was written to fix.
     clock = "strict clock"
+    driven = []
     for m in _mods:
         if isinstance(m, ByLineage):
             clock = f"{m.dist} lineage clock, spread {m.spread:g}"
         elif isinstance(m, FromParent):
             clock = (f"discrete-bin clock, {m.bins} bins, spread {m.spread:g}" if m.bins
                      else f"autocorrelated clock, spread {m.spread:g}")
+        elif isinstance(m, DrivenBy):
+            # a driver is a second factor, not a second clock — appended rather than replacing, or a
+            # driven relaxed run would report itself as one or the other and never as both
+            driven.append(os.path.basename(m.source) if isinstance(m.source, str)
+                          else type(m.source).__name__)
+    if driven:
+        clock += f", driven by {', '.join(driven)}"
     # What the run actually produced, not what was asked for: the rate is per unit time, so whether
     # it yields a usable alignment depends on the height of the tree it ran down, which the user has
     # no way to read off the flags. Reporting it turns a silent failure into a visible number.
@@ -372,6 +385,9 @@ def run(args, parser):
         floor = _identity_floor(model)
         warn(f"these sequences are close to saturated — mean identity {identity:.1%}, against a "
              f"{floor:.1%} floor. Set --divergence 0.2 instead.")
+    if not args.flat:                             # record which same-run levels drove the rate (if any),
+        record_conditioning(out, conditioned_levels(  # so re-running one of them knows it orphans this
+            args.run, (args.substitution,)))
     # the log is the run's parameters, not the parser's: the intergene knobs are for a nucleotide
     # handoff only (there is a spacer between genes to evolve); on a family/ordered run they never
     # applied, so recording them — and printing them in the reproduce command — is misleading.

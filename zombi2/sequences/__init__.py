@@ -5,8 +5,9 @@ A sequence lives **inside a gene**, so it sees the species tree only through its
 `FamilyGenomesResult`) and evolves one sequence down each family's *complete* gene
 tree under a substitution **model** (the menu — nucleotide ``jc69`` · ``k80`` · ``hky85`` · ``gtr``,
 or protein ``poisson`` · ``jtt`` · ``dayhoff`` · ``wag`` · ``lg``; `substitution_models`) and a
-substitution **rate** (``scope(base) × modifiers``; ``SPEC §5``). Sequences are **target-only** in
-v1 — nothing drives *out* of a sequence yet (``SPEC §10``).
+substitution **rate** (``scope(base) × modifiers``; ``SPEC §5``). Sequences are a **target** here:
+a trait can drive the substitution rate (``SPEC §3``, Traits–Sequences, conditioned), while nothing
+drives *out* of a sequence — the reverse direction is deferred, and the pair cannot be joined at all.
 
 The whole genome run is required, not just its gene trees, because a level below reads the level
 above: the **species tree** is what the lineage clock rides (one rate per species branch, shared by
@@ -18,8 +19,11 @@ gets ``substitution · Δt`` substitutions/site — the **strict clock**), optio
 clock**: ``substitution = 1.0 * mod.ByLineage(spread=)`` is the uncorrelated ("relaxed") clock, one
 i.i.d. rate multiplier drawn per **species lineage** and shared by every gene passing through it, and
 ``substitution = 1.0 * mod.FromParent(spread=)`` is the **autocorrelated** clock, where the rate drifts
-parent→child down the species tree so close relatives run at similar rates (``SPEC §5``). Any other
-modifier — ``Markov`` hops, the per-family ``ByFamily`` speed — raises.
+parent→child down the species tree so close relatives run at similar rates (``SPEC §5``). It may also
+carry a ``mod.DrivenBy(trait, {...})``, which reads a **trait grown first** and lets a lineage's state
+set how fast its sequences evolve; a clock and a driver compose (modifiers multiply), and a driver that
+switches mid-branch is **integrated** across the switch rather than sampled once for the branch
+(`clock`). Any other modifier — ``Markov`` hops, the per-family ``ByFamily`` speed — raises.
 
 Rate variation **across sites** is not a modifier and does not go in ``substitution``: it belongs to
 the model, where the field puts it. ``model=hky85(2.0).across_sites(gamma_shape=0.5, invariant=0.1)``
@@ -47,13 +51,16 @@ import numpy as np
 from ..genomes import FamilyGenomesResult
 from ..genomes.events import gene_label
 from ..genomes.gene_trees import GeneNode, GeneTree
-from ..rates.modifiers import ByLineage, FromParent, Modifier
+from ..rates.driver import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
+from ..rates.mapping import Between
+from ..rates.modifiers import ByLineage, DrivenBy, FromParent, Modifier
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerSite
 from ..tree import Node, Tree, prune
 from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
+from .clock import Clock, resolve_clock
 from .evolution import evolve_gene_tree
 from .substitution_models import (BASES, SubstitutionModel, dayhoff, decode, encode, gtr,
                                   hky85, jc69, jtt, k80, lg, poisson, wag)
@@ -66,9 +73,11 @@ _COMPLEMENT = str.maketrans("ACGT", "TGCA")
 
 #: The rate grammar this level supports (SPEC §5) — read by the engine gate in `simulate_sequences()`
 #: and by the CLI's help, so a modifier is never advertised without being implemented. On the
-#: substitution rate these are the two lineage clocks: ``ByLineage`` the uncorrelated ("relaxed")
-#: clock, ``FromParent`` the autocorrelated clock (the rate drifts parent→child down the species tree).
-WIRED_MODIFIERS = (ByLineage, FromParent)
+#: substitution rate these are the two lineage clocks — ``ByLineage`` the uncorrelated ("relaxed")
+#: clock, ``FromParent`` the autocorrelated clock (the rate drifts parent→child down the species
+#: tree) — and ``DrivenBy``, the conditioned driver a trait grown first supplies (SPEC §3:
+#: Traits→Sequences can be conditioned). A clock and a driver compose: modifiers multiply.
+WIRED_MODIFIERS = (ByLineage, FromParent, DrivenBy)
 
 
 @dataclass
@@ -366,6 +375,13 @@ def _calibrate(substitution, divergence: float, tree: Tree) -> Rate:
     (strict, or relaxed by a modifier), ``divergence`` says how far it drifts. A base given alongside
     is refused rather than overridden — silently replacing a number someone typed is how a run comes
     to differ from what its command line says.
+
+    A **driven** rate is refused here for a modelling reason, not a coding one: ``divergence / height``
+    is the base only when the modifiers average to 1 along a root-to-tip path, which is what
+    mean-correcting ``ByLineage`` and ``FromParent`` buys (SPEC §5) and what a driver deliberately does
+    not promise — its factor is whatever the trait's state says. Solving as though it did would
+    produce a run whose realised divergence is off by the driver's mean factor while the log claims
+    the number that was asked for. Set the base yourself alongside the driver.
     """
     if not isinstance(divergence, (int, float)) or isinstance(divergence, bool):
         raise ValueError(f"divergence must be a number of substitutions per site, got {divergence!r}")
@@ -379,6 +395,14 @@ def _calibrate(substitution, divergence: float, tree: Tree) -> Rate:
             f"what divergence solves for. Give the clock's shape alone "
             f"(substitution=ByLineage(spread=…)) to calibrate a relaxed clock, or drop divergence "
             f"and set the base yourself.")
+    if isinstance(substitution, DrivenBy):
+        raise ValueError(
+            f"substitution is driven by another level, and divergence={divergence} cannot solve for "
+            "its base: divergence / height is the base only when the modifiers average to 1 along a "
+            "root-to-tip path, which the two lineage clocks are mean-corrected to do and a driver is "
+            "not — its factor is whatever the driver's state says. The realised divergence would be "
+            "off by the driver's mean factor while this claimed the number you asked for. Write the "
+            "base yourself: substitution=0.01 * mod.DrivenBy(source, {…}).")
     rate = as_rate(1.0 if substitution is None else substitution, default_scope=PerSite)
     height = max(n.end_time for n in tree.nodes.values()) - min(n.birth_time for n in tree.nodes.values())
     if height <= 0:
@@ -386,77 +410,35 @@ def _calibrate(substitution, divergence: float, tree: Tree) -> Rate:
     return Rate(base=divergence / height, scope=rate.scope, modifiers=rate.modifiers)
 
 
-def _all_species(gene_trees) -> list[int]:
-    """The sorted set of species-branch ids the gene trees touch — the lineages the clock is drawn
-    over. Collected from the gene trees rather than the species tree, so the draws depend only on the
-    branches genes actually pass through; every branch that needs a clock value has its species
-    branch present as some node's ``species`` (a branch no gene crossed keeps the factor 1.0)."""
-    ids: set[int] = set()
-    for gt in gene_trees.values():
-        stack = [gt.complete]
-        while stack:
-            n = stack.pop()
-            ids.add(n.species)
-            stack.extend(n.children)
-    return sorted(ids)
-
-
-def _preorder(tree) -> list[int]:
-    """Species-tree node ids, parent before child — the order the autocorrelated clock descends."""
-    order: list[int] = []
-    stack = [tree.root]
-    while stack:
-        i = stack.pop()
-        order.append(i)
-        kids = tree.nodes[i].children
-        if kids is not None:
-            stack.extend(kids)
-    return order
-
-
-def _clock_factor(clock, species: int) -> float:
-    """The lineage clock on a species branch — 1.0 under the strict clock (``clock is None``) or for a
-    branch no gene passed through (so none was drawn for it)."""
-    return 1.0 if clock is None else clock.get(species, 1.0)
-
-
-def _draw_clock(clock_mod, species_tree, gene_trees, rng) -> "dict[int, float] | None":
-    """The lineage clock: one factor per species branch, drawn once and shared by every family (a hot
-    species runs hot for all its genes). ``None`` ⇒ the strict clock (factor 1). ``ByLineage`` draws
-    each branch i.i.d.; ``FromParent`` drifts the factor parent→child down the species tree
-    (autocorrelated). Factored out so the serial loop and the parallel engine draw it the same way —
-    each just hands in its own ``rng`` (the serial run's shared generator, or a stream spawned for the
-    clock so the parallel engine is worker-count invariant)."""
-    if isinstance(clock_mod, FromParent):
-        clock: dict[int, float] = {}
-        for i in _preorder(species_tree):                       # parent before child
-            p = species_tree.nodes[i].parent
-            clock[i] = clock_mod.initial() if p is None else clock_mod.descend(clock[p], rng)
-        return clock
-    if clock_mod is not None:
-        return {sid: clock_mod.draw(rng) for sid in _all_species(gene_trees)}
-    return None
-
-
-def _scaled_gene_tree(gt: GeneTree, rate_base: float, clock) -> GeneTree:
+def _scaled_gene_tree(gt: GeneTree, rate_base: float, clock: "Clock | None") -> GeneTree:
     """A copy of the gene tree whose node ``time`` holds the cumulative **substitutions/site** from the
-    family's **origination** (``base × clock[species] × Δt`` summed along the path). Feeding it to
+    family's **origination** (`Clock.branch_length` summed along the path). Feeding it to
     ``GeneTree.to_newick`` then emits a *phylogram* (branch lengths in subs/site); and because its
     prune-to-extant merges branches by that same cumulative measure, a suppressed branch spanning
     several species branches gets the **sum** of its pieces for free — the exact trick the chronogram
     uses with time.
 
     Counting from origination rather than from the root is what gives the root its own branch: the
-    founding gene evolves across the stem, so the scaled root sits ``base × clock × stem`` in, not
-    at zero."""
+    founding gene evolves across the stem, so the scaled root sits one stem's worth in, not at zero.
+
+    The lengths come from the same `Clock` the sampler reads, and by branch *endpoints* rather than by
+    a per-branch factor, which is what keeps a **driven** rate consistent: a trait that switches
+    mid-branch makes the driver's contribution an integral over the branch, and a phylogram that
+    scaled by a single sample would not be the tree its own alignment was drawn along."""
     root = gt.complete
-    stem = rate_base * _clock_factor(clock, root.species) * (root.time - gt.origination)
+    if clock is None:
+        stem = rate_base * (root.time - gt.origination)
+    else:
+        stem = clock.branch_length(rate_base, root.species, gt.origination, root.time)
     scaled_root = GeneNode(root.kind, root.species, stem, root.copy)
     stack = [(root, scaled_root)]
     while stack:
         onode, snode = stack.pop()
         for ochild in onode.children:
-            blen = rate_base * _clock_factor(clock, ochild.species) * (ochild.time - onode.time)
+            if clock is None:
+                blen = rate_base * (ochild.time - onode.time)
+            else:
+                blen = clock.branch_length(rate_base, ochild.species, onode.time, ochild.time)
             schild = GeneNode(ochild.kind, ochild.species, snode.time + blen, ochild.copy)
             snode.children.append(schild)
             stack.append((ochild, schild))
@@ -490,10 +472,15 @@ def _gene_newick(root: GeneNode, names) -> str:
     return result + ";"
 
 
-def _scaled_species_tree(tree: Tree, rate_base: float, clock) -> Tree:
-    """A copy of the species tree whose branch lengths are **substitutions/site** (``base ×
-    clock[branch] × Δt``). Node times become the cumulative subs/site from the root, so
-    ``Tree.to_newick`` / ``prune`` emit and merge the phylogram exactly as they do a dated tree."""
+def _scaled_species_tree(tree: Tree, rate_base: float, clock: "Clock | None") -> Tree:
+    """A copy of the species tree whose branch lengths are **substitutions/site**
+    (`Clock.branch_length` over each whole branch). Node times become the cumulative subs/site from
+    the root, so ``Tree.to_newick`` / ``prune`` emit and merge the phylogram exactly as they do a
+    dated tree.
+
+    This is where the clock is made visible, so it must show *all* of it: a branch whose driver
+    switched partway along gets the integral across the switch, the same number the gene phylograms
+    and the sampler used."""
     scaled: dict[int, Node] = {}
     scaled_end: dict[int, float] = {}
     order: list[int] = []
@@ -505,7 +492,8 @@ def _scaled_species_tree(tree: Tree, rate_base: float, clock) -> Tree:
             stack.extend(tree.nodes[i].children)
     for i in order:
         nd = tree.nodes[i]
-        blen = rate_base * _clock_factor(clock, i) * (nd.end_time - nd.birth_time)
+        blen = (rate_base * (nd.end_time - nd.birth_time) if clock is None
+                else clock.branch_length(rate_base, i, nd.birth_time, nd.end_time))
         start = 0.0 if nd.parent is None else scaled_end[nd.parent]
         scaled_end[i] = start + blen
         scaled[i] = Node(i, nd.parent, start, start + blen, nd.children, nd.fate)
@@ -678,8 +666,18 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     families, computed once before evolving, rescaling each gene-tree branch by the clock of the species
     branch it sits on: ``1.0 * mod.ByLineage(spread=)`` is the uncorrelated clock (each branch drawn
     i.i.d.), and ``1.0 * mod.FromParent(spread=)`` is the autocorrelated clock (the factor drifts
-    parent→child down the species tree). Any other modifier (the ``Markov`` clock, the ``ByFamily``
-    per-family speed) or a non-``PerSite`` scope raises.
+    parent→child down the species tree).
+
+    It may also carry a **driver** — ``1.0 * mod.DrivenBy(habitat, {"cave": 0.5, "surface": 1.0})``,
+    where ``habitat`` is a trait grown first (the `~zombi2.traits.TraitsResult`, or the path to the
+    ``trait_events.tsv`` it wrote). That is conditioning, not a joint run: SPEC §3 allows the pair
+    Traits–Sequences to be conditioned and never joined, so naming a live level (``"trait"``) raises
+    rather than starting one. A clock and a driver **compose** — the factors multiply (SPEC §5), so a
+    lineage's dealt tempo and its state both count — and several drivers on one rate multiply too.
+    A discrete driver switches *mid-branch*, and the branch length is the driver **integrated** across
+    the branch rather than one sample of it (`clock`), so the phylograms are the trees the alignments
+    were actually drawn along. Any other modifier (the ``Markov`` clock, the ``ByFamily`` per-family
+    speed), a second lineage clock, or a non-``PerSite`` scope raises.
 
     Rate variation **across sites** rides on ``model``, not on ``substitution``:
     ``model=hky85(2.0).across_sites(gamma_shape=0.5, invariant=0.1)`` sorts the sites into a
@@ -814,22 +812,70 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             f"substitution has a {type(rate.scope).__name__} scope, but the sequence engine takes only "
             f"PerSite (the default) this slice — drop the scope wrapper or use PerSite(...)."
         )
-    clock_mod = None
-    if rate.modifiers:
-        if len(rate.modifiers) == 1 and isinstance(rate.modifiers[0], (ByLineage, FromParent)):
-            clock_mod = rate.modifiers[0]
-        else:
-            offenders = ", ".join(sorted({type(m).__name__ for m in rate.modifiers
-                                          if not isinstance(m, (ByLineage, FromParent))})
-                                  or ["a second clock"])
+    # The rate's modifiers, sorted into the two things this level reads. SPEC §5: modifiers multiply,
+    # so a clock and a driver compose — one says which lineages were dealt a fast tempo, the other
+    # what their state makes of it — and the gate below rejects only what the level cannot honour.
+    clocks = [m for m in rate.modifiers if isinstance(m, (ByLineage, FromParent))]
+    drivers = driven_mods(rate)
+    unwired = sorted({type(m).__name__ for m in rate.modifiers
+                      if not isinstance(m, (ByLineage, FromParent, DrivenBy))})
+    if unwired:
+        raise ValueError(
+            f"substitution carries {', '.join(unwired)}, which the sequence engine does not read. It "
+            "takes a lineage clock — one ByLineage (uncorrelated) or one FromParent (autocorrelated) "
+            "— and any number of DrivenBy drivers, which multiply. The Markov clock and the ByFamily "
+            "per-family speed are not implemented here. Rate variation across sites is not a modifier "
+            "at all — it belongs to the model: model=hky85(...).across_sites(gamma_shape=0.5), or "
+            "--gamma-shape."
+        )
+    if len(clocks) > 1:
+        # SPEC §5's one-memory-structure-per-axis rule: ByLineage is no memory and FromParent is
+        # continuous memory, over the same axis (the species lineage), so two of them are two
+        # incompatible accounts of the same thing rather than a composition.
+        raise ValueError(
+            f"substitution carries {len(clocks)} lineage clocks "
+            f"({', '.join(type(m).__name__ for m in clocks)}), and a lineage can only have one: "
+            "ByLineage is an independent draw per lineage and FromParent an inherited one, two "
+            "accounts of the same per-lineage factor. Keep one. A DrivenBy is a different axis and "
+            "does compose with either."
+        )
+    for m in drivers:
+        if isinstance(m.mapping, Between):
             raise ValueError(
-                f"substitution carries {offenders}, but this slice takes a single lineage clock — one "
-                "ByLineage (uncorrelated) or one FromParent (autocorrelated). The Markov clock and "
-                "the ByFamily per-family speed are not implemented. Rate variation across sites is "
-                "not a modifier at all — it belongs to the model: "
-                "model=hky85(...).across_sites(gamma_shape=0.5), or --gamma-shape."
+                "substitution carries DrivenBy(..., Between(...)), and a donor/recipient kernel is "
+                "meaningless in a rate: a rate is read on one lineage, and there is no second lineage "
+                "for the pair's first half to name. A Between belongs in the genome level's "
+                "transfer_to choice slot, where the two ends of a transfer exist. Weight the "
+                "substitution rate by the lineage's own state instead — DrivenBy(source, {state: "
+                "factor})."
             )
+        if names_a_live_level(m.source):
+            raise ValueError(
+                f"substitution is driven by {m.source!r}, which names a level growing beside the run "
+                "— the joint spelling of DrivenBy (SPEC §5). Traits and Sequences cannot be joined "
+                "(SPEC §3): a sequence lives inside a gene and never feeds back into the trait, so "
+                "there is nothing for the two to decide together. Grow the trait first and condition "
+                "on it — pass the TraitsResult, or the path to the trait_events.tsv it wrote."
+            )
+    clock_mod = clocks[0] if clocks else None
     rate_base = rate.base
+
+    # Conditioning: resolve each driver ONCE into a DriverTrajectory (value + next-switch lookups,
+    # keyed by the shared species node id), before choosing an engine — this is shared validation and
+    # shared input, not one engine's business, exactly as the genome level does it. A mapping whose
+    # states never occur in the driver would leave every branch at the default factor, so the run
+    # would be the undriven model wearing a driven rate; that is refused here, naming the driver.
+    # No driven rate ⇒ `driven` is empty and everything below is what it was.
+    driven: list = []
+    if drivers:
+        by_key: dict = {}
+        for m in drivers:
+            by_key.setdefault(m.key, m.source)
+        trajs = {key: resolve_driver(src, species_tree) for key, src in by_key.items()}
+        for m in drivers:
+            label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
+            check_mapping_fires(m.mapping, trajs[m.key].states(), source_label=label)
+        driven = [(m, trajs[m.key]) for m in drivers]
 
     names = species_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
     sink = None
@@ -848,7 +894,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         # clock, then each family is walked in turn. `parallel` selects a *separate* engine (decision A),
         # so turning it on gives a different-but-valid realisation for a seed; this path never changes.
         rng = np.random.default_rng(seed)
-        clock = _draw_clock(clock_mod, species_tree, gene_trees, rng)
+        clock = resolve_clock(clock_mod, driven, species_tree, gene_trees, rng)
         # One transition-CDF cache per model, shared across every block that model evolves. Branch lengths
         # recur across blocks (a block passing straight through a species branch reuses its length), so a
         # run-wide cache builds a few hundred matrices where a per-block cache rebuilt tens of thousands.
@@ -888,7 +934,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         from ._pergenetree import evolve_families
         workers = guard_pool_workers(resolve_workers(parallel))
         spawned = np.random.SeedSequence(seed).spawn(1 + len(gene_trees))
-        clock = _draw_clock(clock_mod, species_tree, gene_trees, np.random.default_rng(spawned[0]))
+        clock = resolve_clock(clock_mod, driven, species_tree, gene_trees,
+                              np.random.default_rng(spawned[0]))
         alignments, ancestral, founding, phylograms = evolve_families(
             gene_trees, per_block, model, intergene_model, length, rate_base, clock,
             founding_seed if nucleotide else None, spawned[1:], workers, progress, names,

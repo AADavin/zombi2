@@ -150,7 +150,7 @@ substitution = 1.0 * mod.FromParent(spread=0.3)
 
 **`ByLineage`** has *no memory*: each lineage is an independent draw, so a lineage's rate tells you nothing about its neighbours'. The distribution it draws from (`dist="lognormal"` or `"gamma"`) is a parameter of the modifier.
 
-**`FromParent`** has memory: a daughter starts at its parent's rate and multiplies it by one lognormal step, so close relatives evolve at similar rates. That is the **autocorrelated** clock. Both draws are mean-corrected, so widening `spread` spreads the lineages apart without moving the average rate off the number you typed. Those are the two the sequence level accepts; any other modifier on `substitution` raises. Rate variation across sites is not among them, and does not belong in the rate at all — it is part of the model, as above.
+**`FromParent`** has memory: a daughter starts at its parent's rate and multiplies it by one lognormal step, so close relatives evolve at similar rates. That is the **autocorrelated** clock. Both draws are mean-corrected, so widening `spread` spreads the lineages apart without moving the average rate off the number you typed. Rate variation across sites is not a modifier, and does not belong in the rate at all — it is part of the model, as above.
 
 One important point: **the clock belongs to the species tree, not to the gene trees.**
 
@@ -164,6 +164,34 @@ A reference table that can be handy to people who want to implement a specific m
 | each lineage i.i.d. lognormal | `1.0 * mod.ByLineage(spread=…)` | Uncorrelated lognormal (UCLN) |
 | each lineage i.i.d. gamma | `1.0 * mod.ByLineage(spread=…, dist="gamma")` | Uncorrelated gamma (UGAM) |
 | the rate drifts parent to daughter | `1.0 * mod.FromParent(spread=…)` | Autocorrelated lognormal |
+| the rate reads another level | `1.0 * mod.DrivenBy(trait, {…})` | Trait-dependent rate of molecular evolution |
+
+### A trait can drive the rate
+
+The two clocks above make a lineage fast or slow at random. A third modifier makes it fast or slow for a *reason*: `DrivenBy` reads a trait grown first and looks the factor up from that lineage's state.
+
+```python
+from zombi2 import traits
+
+habitat = traits.simulate_discrete(tree, states=["cave", "surface"], switch=0.3, seed=1)
+
+result = sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, seed=2,
+    substitution = 0.05 * mod.DrivenBy(habitat, {"cave": 0.5, "surface": 1.0}))
+```
+
+Cave lineages now evolve at half the rate of surface ones. The `source` is the grown trait, or the path to the `trait_events.tsv` it wrote — the same two spellings every driven rate takes. This is conditioning, so it is two ordinary runs in order, and Chapter 9 covers the whole mechanism.
+
+A clock and a driver **compose**, because modifiers multiply. Written together, a lineage's branch length is the base rate, times the tempo it was dealt, times the factor its state gives:
+
+```python
+sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, seed=2,
+    substitution = 0.05 * mod.ByLineage(spread=0.3)
+                        * mod.DrivenBy(habitat, {"cave": 0.5, "surface": 1.0}))
+```
+
+A discrete trait switches partway along a branch, and ZOMBI2 does not read the driver once per branch. It integrates the rate across the branch, breaking at each switch. A lineage that leaves the cave halfway down a branch of length 2 accrues `0.05 × 0.5 × 1` substitutions per site before the move and `0.05 × 1.0 × 1` after it, so the branch is `0.075` long rather than `0.05` or `0.1`. The gene phylograms and the clock species tree carry that same number, so the tree a run writes is the tree its alignments were drawn along.
+
+Two limits worth stating. The reverse direction — a sequence driving a trait — is not implemented; and the two levels cannot be **joined**, because a sequence lives inside a gene and never feeds back into the trait, so there is nothing for the two to decide together. Naming a live level (`mod.DrivenBy("trait", …)`) says so rather than looking for a file. `divergence` is also refused alongside a driven rate: it solves for the base by assuming the modifiers average to 1, which the two clocks are corrected to do and a driver is not. Set the base yourself there.
 
 ## The objects
 
