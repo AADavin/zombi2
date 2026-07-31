@@ -25,7 +25,7 @@ import numpy as np
 from zombi2.genomes import FamilyGenomesResult
 from zombi2.genomes.events import events_from_tsv
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
-from zombi2.rates.modifiers import ByLineage, Modifier
+from zombi2.rates.modifiers import ByLineage, FromParent, Modifier
 from zombi2._runtime.report import write_run_report
 from zombi2.sequences import (WIRED_MODIFIERS, _calibrate, mean_pairwise_identity,
                               simulate_sequences)
@@ -290,9 +290,15 @@ def run(args, parser):
     # relaxed run reports itself as strict.
     _sub = args.substitution
     _mods = (_sub,) if isinstance(_sub, Modifier) else getattr(_sub, "modifiers", ())
-    clocks = [m for m in _mods if isinstance(m, ByLineage)]
-    clock = (f"{clocks[0].dist} lineage clock, spread {clocks[0].spread:g}" if clocks
-             else "strict clock")
+    # Both clock modifiers, not just the uncorrelated one: a FromParent run is autocorrelated, and
+    # reporting it as "strict" was the same bug the ByLineage branch above was written to fix.
+    clock = "strict clock"
+    for m in _mods:
+        if isinstance(m, ByLineage):
+            clock = f"{m.dist} lineage clock, spread {m.spread:g}"
+        elif isinstance(m, FromParent):
+            clock = (f"discrete-bin clock, {m.bins} bins, spread {m.spread:g}" if m.bins
+                     else f"autocorrelated clock, spread {m.spread:g}")
     # What the run actually produced, not what was asked for: the rate is per unit time, so whether
     # it yields a usable alignment depends on the height of the tree it ran down, which the user has
     # no way to read off the flags. Reporting it turns a silent failure into a visible number.

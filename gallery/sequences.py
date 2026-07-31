@@ -15,15 +15,91 @@ from helpers import Example
 import phylustrator as ph
 
 
-def species_phylogram(out):
-    run = h.phylo_run()
-    # the clock tree: branch lengths in substitutions/site (non-ultrametric under a relaxed clock)
-    tree = ph.trees.read(run + "/sequences/clock_species_tree_extant.nwk")
-    style = ph.Style(width=1250, height=1050, margin=82, branch_width=1.6)
+# --- the relaxed clocks, one card each: one species tree, one shared colour scale ------------
+
+_CLOCK_SEED, _CLOCK_TIPS, _CLOCK_DIV = 11, 70, 1.0
+
+#: name -> the clock's shape. `divergence` solves for the base, so all four are calibrated to the
+#: same root-to-tip divergence and only their *pattern* of rate variation differs — which is the
+#: whole comparison. `bins` is the discrete-bin (rate-category) form of the autocorrelated clock.
+_CLOCKS = {
+    "ucln":  lambda mod: mod.ByLineage(spread=0.55),
+    "ugam":  lambda mod: mod.ByLineage(spread=0.55, dist="gamma"),
+    "auto":  lambda mod: mod.FromParent(spread=0.4),
+    "bins":  lambda mod: mod.FromParent(spread=0.45, bins=6),
+}
+
+_CLOCK_CACHE: dict = {}
+
+
+def _clock_panels() -> dict:
+    """Simulate all four clocks down ONE species tree and return
+    ``{name: (tree, {branch: log10 rate})}`` plus the shared colour ``limits``.
+
+    Built together and cached because the four cards must share a colour scale: coloured
+    independently, each would normalise to its own min and max and the same green would mean a
+    different rate on every card. The range is clipped to the 2nd-98th percentile so one fast branch
+    cannot flatten the rest, and it is logarithmic because these clocks are lognormal."""
+    import math
+    from zombi2.genomes import simulate_genomes_family
+    from zombi2.rates import modifiers as mod
+    from zombi2.sequences import hky85, simulate_sequences
+    from zombi2.species import simulate_species_tree
+
+    if _CLOCK_CACHE:
+        return _CLOCK_CACHE
+    sp = simulate_species_tree(birth=1.0, n_extant=_CLOCK_TIPS, seed=_CLOCK_SEED)
+    ct = sp.complete_tree                       # pure birth, so clock and time trees share node ids
+    g = simulate_genomes_family(ct, initial_families=1, duplication=0.0, loss=0.0, seed=_CLOCK_SEED)
+    panels, every = {}, []
+    for name, shape in _CLOCKS.items():
+        seqs = simulate_sequences(g, model=hky85(kappa=2.0), length=600,
+                                  substitution=shape(mod), divergence=_CLOCK_DIV, seed=_CLOCK_SEED)
+        tree = ph.trees.loads(seqs.species_phylogram["extant"])
+        logr = {}
+        for n in tree.walk():
+            if n.name and n.name.startswith("n") and n.length:
+                nd = ct.nodes[int(n.name[1:])]
+                dt = nd.end_time - nd.birth_time
+                if dt > 0:
+                    logr[n.name] = math.log10(n.length / dt)
+        panels[name] = (tree, logr)
+        every += list(logr.values())
+    every.sort()
+    lo, hi = every[int(0.02 * len(every))], every[int(0.98 * len(every)) - 1]
+    _CLOCK_CACHE.update(panels=panels, limits=(lo, hi))
+    return _CLOCK_CACHE
+
+
+def _clock_figure(name, out):
+    """One clock's phylogram: branches coloured by lineage rate, on the scale all four share.
+
+    No time axis — the card is about the *pattern* of rate variation, and the four trees are drawn on
+    one branch-length scale, so their widths stay comparable without one."""
+    got = _clock_panels()
+    tree, logr = got["panels"][name]
+    style = ph.Style(width=1250, height=1150, margin=70, branch_width=1.9)
     (ph.trees.plot(tree, style=style)
-     + ph.trees.tip_labels()
-     + ph.trees.note("uncorrelated relaxed clock (ByLineage)", loc="top-left", size=22)
-     + ph.trees.time_axis("substitutions / site", tick_size=20, label_size=26)).save(out)
+     + ph.trees.color_branches(logr, cmap="viridis", limits=got["limits"])
+     + ph.trees.colorbar("lineage rate  (subs/site per unit time)", loc="bottom-left",
+                         width=210, height=14, size=20,
+                         labels=tuple(f"{10 ** v:.2f}" for v in got["limits"]))).save(out)
+
+
+def clock_ucln(out):
+    _clock_figure("ucln", out)
+
+
+def clock_ugam(out):
+    _clock_figure("ugam", out)
+
+
+def clock_autocorrelated(out):
+    _clock_figure("auto", out)
+
+
+def clock_discrete_bin(out):
+    _clock_figure("bins", out)
 
 
 def _best_single_copy(M) -> str:
@@ -45,44 +121,6 @@ def alignment_beside_tree(out):
     fig = ph.trees.plot(tree, style=h.style())                            # no leaf labels
     ph.beside(fig, ph.genomes.alignment(aln, letters=False, legend=True),   # no letters; nucleotide key
               width=1150, tree_fraction=0.30, footer=70).save(out)  # no title
-
-
-# --- an autocorrelated-clock phylogram, branches coloured by lineage rate ------------------
-
-def _clock_rates(ct, clock_tree) -> dict:
-    """Per-branch lineage clock rate = (branch length in subs/site) / (branch duration in time). With
-    no extinction the clock tree and the time tree share node ids, so this is exact per branch."""
-    rates = {}
-    for n in clock_tree.walk():
-        if not n.name or not n.name.startswith("n"):
-            continue
-        nid = int(n.name[1:])
-        dt = ct.nodes[nid].end_time - ct.nodes[nid].birth_time
-        if dt > 0:
-            rates[n.name] = n.length / dt
-    return rates
-
-
-def autocorrelated_phylogram(out):
-    from zombi2.genomes import simulate_genomes_family
-    from zombi2.rates import modifiers as mod
-    from zombi2.sequences import hky85, simulate_sequences
-    from zombi2.species import simulate_species_tree
-
-    # a rich Yule tree (pure birth) so the clock tree and time tree share node ids exactly
-    sp = simulate_species_tree(birth=1.0, n_extant=120, seed=7)
-    ct = sp.complete_tree
-    g = simulate_genomes_family(ct, initial_families=1, duplication=0.0, loss=0.0, seed=9)
-    seqs = simulate_sequences(g, model=hky85(kappa=2.0), length=600,
-                              substitution=1.0 * mod.FromParent(spread=0.6), seed=7)
-    tree = ph.trees.loads(seqs.species_phylogram["extant"])
-    rates = _clock_rates(ct, tree)
-    style = ph.Style(width=1500, height=784, margin=80, branch_width=1.5)
-    (ph.trees.plot(tree, style=style)
-     + ph.trees.color_branches(rates, cmap="viridis")
-     + ph.trees.colorbar("subs/site per unit time", loc="bottom-left", size=18)
-     + ph.trees.note("autocorrelated relaxed clock", loc="top-right", size=22)
-     + ph.trees.time_axis("substitutions / site", tick_size=20, label_size=26)).save(out)
 
 
 # --- a small tree with numbered nodes, beside the ancestral sequence at each -----------------
@@ -261,16 +299,64 @@ ph.beside(fig, ph.genomes.alignment(aln, letters=False),   # colour blocks + a n
           footer=70).save("alignment.png")'''
 
 
+_C_CLOCKS = '''\
+### simulate  —  one species tree, four clocks, all calibrated to the same divergence
+from zombi2.species import simulate_species_tree
+from zombi2.genomes import simulate_genomes_family
+from zombi2.sequences import simulate_sequences, hky85
+from zombi2.rates import modifiers as mod
+
+sp = simulate_species_tree(birth=1.0, n_extant=70, seed=11)     # pure birth: no extinction
+ct = sp.complete_tree
+g = simulate_genomes_family(ct, initial_families=1, seed=11)
+
+clocks = {"uncorrelated lognormal": mod.ByLineage(spread=0.55),
+          "uncorrelated gamma":     mod.ByLineage(spread=0.55, dist="gamma"),
+          "autocorrelated":         mod.FromParent(spread=0.4),
+          "discrete-bin":           mod.FromParent(spread=0.45, bins=6)}
+
+# the clock's SHAPE alone, with divergence solving for the base — so the four differ only in
+# their pattern of rate variation, not in how far the sequences ran
+seqs = simulate_sequences(g, model=hky85(kappa=2), length=600,
+                          substitution=clocks["discrete-bin"], divergence=1.0, seed=11)
+
+### plot  —  the clock tree, branches coloured by lineage rate (clock length / elapsed time)
+import math
+import phylustrator as ph
+
+tree = ph.trees.loads(seqs.species_phylogram["extant"])
+rate = {n.name: math.log10(n.length / (ct.nodes[int(n.name[1:])].end_time
+                                       - ct.nodes[int(n.name[1:])].birth_time))
+        for n in tree.walk() if n.name and n.name.startswith("n") and n.length}
+# limits= fixes the colour range, so several of these share one scale and a colour means
+# the same rate on each; without it every figure normalises to its own min and max
+(ph.trees.plot(tree, style=ph.Style(width=1250, height=1150, branch_width=1.9))
+ + ph.trees.color_branches(rate, cmap="viridis", limits=(-1.31, -0.33))
+ + ph.trees.colorbar("lineage rate  (subs/site per unit time)", loc="bottom-left",
+                     labels=("0.05", "0.47"))).save("clock.png")'''
+
+
 EXAMPLES = [
-    Example("seq_phylogram", "Sequence phylogram",
-            "The clock tree the sequences evolve down — branch lengths are substitutions/site under an "
-            "uncorrelated relaxed clock, so the tips are <i>not</i> level.",
-            "phylustrator · phylogram", species_phylogram, code=_C_PHYLO),
-    Example("seq_phylogram_autocorr", "Autocorrelated-clock phylogram",
-            "The other clock we ship: under the <b>autocorrelated</b> clock the rate drifts parent→child, "
-            "so related lineages share a rate — branches coloured by lineage rate move in blocks, not "
-            "salt-and-pepper. <code>substitution&nbsp;=&nbsp;FromParent(spread)</code>.",
-            "phylustrator · phylogram", autocorrelated_phylogram, code=_C_AUTOCORR),
+    Example("clock_ucln", "Uncorrelated lognormal clock",
+            "Every lineage draws its own rate, with no memory of its parent, so neighbouring branches "
+            "are unrelated — the colour is salt-and-pepper. "
+            "<code>substitution&nbsp;=&nbsp;ByLineage(spread)</code>.",
+            "phylustrator · clocks", clock_ucln, code=_C_CLOCKS),
+    Example("clock_ugam", "Uncorrelated gamma clock",
+            "The same independent draw with a gamma instead of a lognormal, where <code>spread</code> "
+            "is the coefficient of variation. The two agree to first order in <code>spread</code>. "
+            "<code>ByLineage(spread,&nbsp;dist=\"gamma\")</code>.",
+            "phylustrator · clocks", clock_ugam, code=_C_CLOCKS),
+    Example("clock_autocorrelated", "Autocorrelated clock",
+            "A daughter starts at its parent's rate and is nudged, so relatives run at similar rates "
+            "and the colour moves in <b>clades</b> rather than branch to branch. "
+            "<code>substitution&nbsp;=&nbsp;FromParent(spread)</code>.",
+            "phylustrator · clocks", clock_autocorrelated, code=_C_CLOCKS),
+    Example("clock_discrete_bin", "Discrete-bin clock",
+            "The same inherited drift in <b>steps</b>: the rate takes one of a few values and a "
+            "daughter moves to a neighbouring one, which is what a rate-category model assumes. "
+            "<code>FromParent(spread,&nbsp;bins=6)</code>.",
+            "phylustrator · clocks", clock_discrete_bin, code=_C_CLOCKS),
     Example("seq_ancestral", "Ancestral sequences at the nodes",
             "A small tree with its internal nodes numbered (0&nbsp;=&nbsp;initial genome, 1&nbsp;=&nbsp;crown, "
             "…); beside it the reconstructed sequence at each — one free-floating row per node, "

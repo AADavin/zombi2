@@ -9,6 +9,21 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **A discrete-bin (rate-category) clock** — `FromParent(spread=σ, bins=N)`. The rate takes one of `N`
+  values on a geometric ladder and a daughter moves to a neighbouring rung, which is what a
+  rate-category model assumes. It is a knob on `FromParent` rather than a modifier of its own because
+  the model is `FromParent`'s: a daughter starts from its parent and is perturbed. `bins` defaults to
+  `None`, the continuous form, so a run written before this draws exactly as it did.
+- **Four gallery cards comparing the relaxed clocks** — uncorrelated lognormal, uncorrelated gamma,
+  autocorrelated and discrete-bin, all down one species tree at one calibrated divergence and on one
+  shared colour scale, so the only thing that differs between them is the pattern of rate variation.
+  They replace the two phylogram examples.
+
+### Fixed
+- **A run with an autocorrelated clock reported itself as `strict clock`.** The summary line only
+  recognised `ByLineage`, so `FromParent` — and now its binned form — fell through to the default.
+
 ## [0.19.0] - 2026-07-31
 
 ### Added

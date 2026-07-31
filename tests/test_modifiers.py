@@ -142,6 +142,38 @@ def test_inherited_deterministic():
     assert a == b
 
 
+def test_binned_drift_stays_on_its_ladder_and_averages_one():
+    """The discrete-bin clock: the same inherit-and-perturb model, in steps. A daughter takes its
+    parent's rung or one either side, the ends reflect, and the ladder is scaled so the mean is 1 —
+    which holds because a reflecting nearest-neighbour walk is uniform at stationarity."""
+    import numpy as np
+    inh = mod.FromParent(spread=0.35, bins=6)
+    rungs = {round(r, 9) for r in inh._ladder()}
+    rng = np.random.default_rng(0)
+    v, seen = inh.initial(), []
+    for _ in range(60000):
+        v = inh.descend(v, rng)
+        seen.append(v)
+    assert all(round(x, 9) in rungs for x in seen)      # never lands between two rungs
+    assert abs(sum(seen) / len(seen) - 1.0) < 0.02      # and does not inflate the rate
+    assert round(min(seen), 9) == min(rungs) and round(max(seen), 9) == max(rungs)  # ends reached
+
+
+def test_binned_drift_leaves_the_continuous_form_alone():
+    # `bins` defaults to None, so a run written before it existed draws exactly as it did
+    import numpy as np
+    assert mod.FromParent(spread=0.3).bins is None
+    a = mod.FromParent(spread=0.3).descend(1.0, np.random.default_rng(7))
+    b = mod.FromParent(spread=0.3, bins=None).descend(1.0, np.random.default_rng(7))
+    assert a == b
+
+
+@pytest.mark.parametrize("bad", [1, 0, -3])
+def test_binned_drift_needs_at_least_two_bins(bad):
+    with pytest.raises(ValueError, match="at least 2"):
+        mod.FromParent(spread=0.3, bins=bad)
+
+
 def test_inherited_factor_reads_lineage_multiplier():
     inh = mod.FromParent(spread=0.3)
     assert inh.factor(inherited=2.5, time=1.0) == 2.5

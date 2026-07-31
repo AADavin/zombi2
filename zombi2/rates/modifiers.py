@@ -150,24 +150,68 @@ class FromParent(Modifier):
     historical bug. The draw logic (`initial()` / `descend()`) is driven by the engine,
     which threads each lineage's current factor and passes it back to `factor()` as
     ``inherited``.
+
+    ``bins`` discretises the drift: instead of a continuous step, the rate takes one of ``bins``
+    values on a geometric ladder and a daughter moves to a **neighbouring rung**, or stays. That is
+    the discrete-bin (rate-category) clock — the same inherit-and-perturb idea, in steps rather than
+    continuously, which is what a lineage-category model assumes. It is a knob rather than a modifier
+    of its own because the model is `FromParent`'s: a daughter starts from its parent and is
+    perturbed. ``None`` (the default) is the continuous form, so a run written before this existed
+    draws exactly as it did.
     """
 
     spread: float
+    bins: int | None = None
 
     def __post_init__(self) -> None:
         if isinstance(self.spread, bool) or not isinstance(self.spread, (int, float)):
             raise TypeError(f"FromParent spread must be a real number, got {self.spread!r}")
         if not math.isfinite(self.spread) or self.spread < 0:
             raise ValueError(f"FromParent spread must be finite and non-negative, got {self.spread!r}")
+        if self.bins is not None:
+            if isinstance(self.bins, bool) or not isinstance(self.bins, int):
+                raise TypeError(f"FromParent bins must be a whole number, got {self.bins!r}")
+            if self.bins < 2:
+                raise ValueError(f"FromParent bins must be at least 2, got {self.bins}")
+
+    def __repr__(self) -> str:
+        """Omit ``bins`` when it is unset. The repr is what `written_form()` records in a run's log
+        and what a reader pastes back into a flag, so it has to be the expression that reproduces the
+        rate — and the dataclass default would render ``bins=None``, which the rate grammar rejects."""
+        extra = f", bins={self.bins}" if self.bins is not None else ""
+        return f"FromParent(spread={self.spread!r}{extra})"
+
+    def _ladder(self) -> list[float]:
+        """The ``bins`` rungs, geometric in ``spread`` and scaled so their mean is 1.
+
+        The mean is taken over the rungs because a nearest-neighbour walk with reflecting ends is
+        uniform at stationarity, so an even ladder gives ``E[factor] = 1`` — the same promise the
+        continuous form keeps with its lognormal correction."""
+        n = self.bins or 0
+        raw = [math.exp(self.spread * (k - (n - 1) / 2)) for k in range(n)]
+        mean = sum(raw) / n
+        return [r / mean for r in raw]
 
     def initial(self) -> float:
-        """The root's factor: 1.0 — the rate starts at its base."""
-        return 1.0
+        """The root's factor: 1.0 for the continuous form; the middle rung when binned."""
+        if self.bins is None:
+            return 1.0
+        rungs = self._ladder()
+        return rungs[len(rungs) // 2]
 
     def descend(self, parent_value: float, rng) -> float:
-        """A daughter's factor: the parent's, times one mean-corrected lognormal step."""
+        """A daughter's factor: the parent's, times one mean-corrected lognormal step — or, when
+        binned, its parent's rung or one either side, with the ends reflecting.
+
+        The parent's rung is recovered by nearest match rather than by inverting the ladder, so no
+        float drift down a deep tree can put a lineage between two rungs."""
         sigma = self.spread
-        return parent_value * math.exp(rng.normal(-0.5 * sigma * sigma, sigma))
+        if self.bins is None:
+            return parent_value * math.exp(rng.normal(-0.5 * sigma * sigma, sigma))
+        rungs = self._ladder()
+        here = min(range(len(rungs)), key=lambda i: abs(math.log(rungs[i] / parent_value)))
+        step = int(rng.integers(-1, 2))                      # -1, 0 or +1
+        return rungs[min(max(here + step, 0), len(rungs) - 1)]
 
     def factor(self, *, inherited: float = 1.0, **_: float) -> float:
         """The lineage's current factor — the engine threads it and passes it back as ``inherited``."""
