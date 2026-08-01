@@ -930,11 +930,26 @@ def _chromosome_originate(genome, node, t, chromosome_events, new_chromosome) ->
 
 def _chromosome_lose(genome, ci, node, t, events, positions, chromosome_events) -> tuple[int, int]:
     """A whole chromosome and its genes die — a **leaf** of the chromosome network (no child); each
-    gene on it ends as a gene ``loss``. No-op if it is the genome's last chromosome (a lineage never
-    loses its entire genome this way)."""
+    gene on it ends as a gene ``loss``.
+
+    **No-op if it would leave the genome with no genes.** Two cases, and the second is the one that
+    is easy to miss: it is refused when it is the genome's last chromosome, and also when it is the
+    last chromosome that *has* genes on it. A lineage can be carrying empty replicons — a de-novo
+    plasmid from `_chromosome_originate()` starts empty, and `_translocate()` can empty one — so
+    "not the last chromosome" is not enough on its own to keep a genome alive. Without the second
+    check a lineage holding one gene-bearing chromosome beside an empty one loses everything.
+
+    This is the same floor `_lose_at()` enforces one tier down, for the same reason: a chromosome
+    without a gene is still a replicon, but a genome without a gene has nothing left for any level
+    below to read. Refusing on a condition that reads only the current state is Poisson thinning, so
+    what is kept is exactly the process whose ``chromosome_loss`` is zero while the genome is down to
+    its last genes; and the refusal happens after the draw, so the random stream is untouched and a
+    run that never reaches that state is byte-identical."""
     if len(genome) < 2:
         return (0, 0)
     lost = genome[ci]
+    if lost.genes and not any(c.genes for i, c in enumerate(genome) if i != ci):
+        return (0, 0)
     for g in lost.genes:
         events.append(Event(t, "loss", node.id, g.family, g.id))
     if lost.genes:  # the whole chromosome goes, so its genes are one run starting at 0

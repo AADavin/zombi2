@@ -738,7 +738,10 @@ def test_correlated_result_shape():
     assert set(r.node_values) == set(tree.nodes)                       # every node valued
     assert all(set(v) == {"x", "y"} for v in r.node_values.values())   # each value a per-trait dict
     assert set(r.values) == {n.id for n in tree.extant_leaves()}
-    assert r.kind == "continuous" and r.events == [] and r.history is None
+    # the log carries the run's discrete moments (here only the initial row — no jumps were asked
+    # for); `history` stays None, because a stochastic character map is a discrete-trait thing
+    assert r.kind == "continuous" and r.history is None
+    assert [e.kind for e in r.events] == ["initial"]
 
 
 def test_correlated_write(tmp_path):
@@ -1417,3 +1420,40 @@ def test_a_driven_switch_rate_can_be_written_per_transition(tmp_path):
                                         seed=s).events
              if e.kind == "on_branch" and e.from_state == "x"]
     assert times and min(times) > 2.0    # x→y is off until the driver turns it on at t=2
+
+
+def test_a_correlated_run_carries_the_event_log_every_other_continuous_run_carries():
+    """It used to return no events at all — not even the ``initial`` row — so `trait_events.tsv` came
+    out header-only, which reads as data having gone missing rather than as a diffusion being
+    unreconstructable (which it is, here as for one trait).
+
+    The rows hold the whole **vector**: a correlated jump moves every trait at once, so it is one
+    event, and the table widens to ``from:<trait>`` / ``to:<trait>`` exactly as ``trait_values.tsv``
+    widens. Checked against the values file: a node's post-jump value is where its branch starts."""
+    tree = simulate_species_tree(birth=1.0, n_extant=6, seed=1)
+    r = simulate_continuous(tree, start={"a": 0.0, "b": 0.0}, rate={"a": 1.0, "b": 0.8},
+                            correlation={("a", "b"): 0.6}, at_speciation=0.5, seed=1)
+    kinds = [e.kind for e in r.events]
+    assert kinds[0] == "initial" and set(kinds[1:]) == {"on_speciation"}
+    assert r.events[0].from_state is None
+    assert r.events[0].to_state == {"a": 0.0, "b": 0.0}
+    # one jump per non-root node, and every payload is the full vector
+    assert len(r.events) - 1 == sum(1 for n in tree.complete_tree.nodes.values() if n.parent is not None)
+    assert all(set(e.to_state) == {"a", "b"} for e in r.events)
+
+
+def test_a_correlated_event_log_widens_one_column_pair_per_trait(tmp_path):
+    tree = simulate_species_tree(birth=1.0, n_extant=4, seed=2)
+    r = simulate_continuous(tree, start={"a": 0.0, "b": 0.0}, rate={"a": 1.0, "b": 1.0},
+                            correlation={("a", "b"): 0.3}, at_speciation=0.4, seed=2)
+    r.write(tmp_path, outputs=("events",))
+    lines = (tmp_path / "trait_events.tsv").read_text(encoding="utf-8").splitlines()
+    assert lines[0].split("\t") == ["time", "kind", "lineage", "from:a", "from:b", "to:a", "to:b"]
+    assert all(len(ln.split("\t")) == 7 for ln in lines)      # the initial row keeps its empty cells
+
+
+def test_a_correlated_run_without_jumps_logs_only_the_initial_row():
+    tree = simulate_species_tree(birth=1.0, n_extant=5, seed=3)
+    r = simulate_continuous(tree, start={"a": 0.0, "b": 0.0}, rate={"a": 1.0, "b": 1.0},
+                            correlation={("a", "b"): 0.5}, seed=3)
+    assert [e.kind for e in r.events] == ["initial"]          # a diffusion has no other moments

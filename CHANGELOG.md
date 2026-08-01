@@ -10,6 +10,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **A correlated trait run carries the event log every other continuous run carries** — the `initial`
+  row and one `on_speciation` row per jump, where it previously returned nothing and wrote a
+  header-only `trait_events.tsv`. The table **widens** rather than repeating a row per trait
+  (`from:<trait>` · `to:<trait>`, one pair apiece, as `trait_values.tsv` already does), because a
+  correlated jump moves every trait at once and is one event.
+- **`zombi2 traits` records `conditioned_on`** when its rate was driven, like `genomes` and
+  `sequences` do, so a trait driven by another level is no longer an untracked dependency.
 - **A substitution model can be built from your own matrix.**
   `substitution_models.reversible(exchangeabilities, freqs, name=…, alphabet=…)` takes a symmetric
   exchangeability matrix and stationary frequencies over any alphabet and normalises them like every
@@ -81,6 +88,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   refused rather than letting one of them silently win: they are two answers to the same question.
 
 ### Fixed
+- **`chromosome_loss` never takes an ordered genome's last genes.** It refused only the genome's last
+  *chromosome*, so a lineage holding one gene-bearing chromosome beside an empty replicon — one
+  `chromosome_origination` minted, or one a translocation emptied — could lose everything it had.
+  The same floor `_lose_at` enforces one tier down, for the same reason.
+- **`simulate_joint` declares what it supports and rejects the rest**, as every other level does. Its
+  gate named two modifiers and let everything else through, so `ByFamily` on a joint `birth` was
+  accepted and then silently returned a factor of 1. (`OnTime` and `OnTotalDiversity` were never
+  affected — the loop threads both and steps at their breakpoints.)
 - **A rate matrix that is not time-reversible is refused instead of being evolved under wrong
   transition probabilities.** `SubstitutionModel` is public, and `p_matrix()` computes `exp(Qt)` by
   eigendecomposing the symmetric `diag(√π)·Q·diag(1/√π)`, which is similar to `Q` only under detailed

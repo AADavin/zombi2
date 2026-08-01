@@ -2028,3 +2028,30 @@ def test_name_and_flat_ask_for_opposite_things(tmp_path):
     with pytest.raises(SystemExit):
         main(["traits", str(run), "--name", "a", "--flat", "--kind", "continuous", "--rate", "1.0",
               "--seed", "1", "--quiet"])
+
+
+def test_traits_records_which_level_drove_its_rate(tmp_path):
+    """`zombi2 traits` wrote no `conditioned_on` marker, so a trait driving another trait recorded no
+    dependency at all — `genomes` and `sequences` both record theirs.
+
+    The within-level edge is deliberately not followed by the staleness graph: both traits live under
+    `traits/`, so the edge is traits -> traits, and a graph whose nodes are levels would mark the
+    level stale against itself — `--force` would then delete every trait in the run, the one just
+    written included. The marker is recorded (it is what the log and the run report show); automatic
+    invalidation waits for the graph's nodes to be `traits/<name>`."""
+    run = tmp_path / "r"
+    assert main(["species", str(run), "--birth", "1.0", "--n-extant", "8", "--seed", "1", "--quiet"]) == 0
+    assert main(["traits", str(run), "--name", "habitat", "--kind", "discrete", "--states",
+                 "cave,surface", "--switch", "0.5", "--seed", "1", "--quiet"]) == 0
+    driver = run / "traits" / "habitat" / "trait_events.tsv"
+    assert main(["traits", str(run), "--name", "size", "--kind", "continuous", "--rate",
+                 f"1.0 * DrivenBy('{driver}', {{'cave': 0.2, 'surface': 1.0}})",
+                 "--seed", "1", "--quiet"]) == 0
+
+    assert (run / "traits" / "size" / "conditioned_on").read_text().split() == ["traits"]
+    assert not (run / "traits" / "habitat" / "conditioned_on").exists()   # the driver drives nothing
+
+    # re-running the driver with --force must not take the trait beside it with it
+    assert main(["traits", str(run), "--name", "habitat", "--kind", "discrete", "--states",
+                 "cave,surface", "--switch", "0.9", "--seed", "7", "--quiet", "--force"]) == 0
+    assert (run / "traits" / "size" / "trait_values.tsv").exists()

@@ -359,11 +359,23 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
 
     rng = np.random.default_rng(seed)
     node_values: dict[int, dict] = {}
+    # The log every other continuous run carries: the value the run started from, and each jump at a
+    # split. A diffusion cannot be rebuilt from events — that is as true here as for one trait — so
+    # this is a record of the run's discrete moments, not a conditioning file. The rows hold the whole
+    # **vector**, because a correlated jump moves every trait at once and splitting it into one row per
+    # trait would suggest they were separate events.
+    def _vec(v) -> dict:
+        return {t: float(v[j]) for j, t in enumerate(traits)}
+
+    events: list[Change] = [Change(tree.nodes[tree.root].birth_time, "initial", tree.root, None,
+                                   _vec(start_vec))]
     for i in _preorder(tree, progress):
         node = tree.nodes[i]
         x = start_vec if node.parent is None else np.array([node_values[node.parent][t] for t in traits])
         if node.parent is not None and jump_sqrt is not None:
+            before = x
             x = x + jump_sqrt @ rng.standard_normal(k)   # on speciation: a jump at the split…
+            events.append(Change(node.birth_time, "on_speciation", i, _vec(before), _vec(x)))
         dt = node.end_time - node.birth_time              # …then anagenesis along the branch
         if not is_ou:
             vec = x + (math.sqrt(dt) * (sigma @ rng.standard_normal(k)) if dt > 0.0 else 0.0)
@@ -378,7 +390,7 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
             vec = mean + root @ rng.standard_normal(k)
         node_values[i] = {t: float(vec[j]) for j, t in enumerate(traits)}
 
-    return TraitsResult(tree, node_values, [], seed)  # correlated: no event log (see simulate_continuous)
+    return TraitsResult(tree, node_values, events, seed)
 
 
 

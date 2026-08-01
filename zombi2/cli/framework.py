@@ -332,9 +332,8 @@ _STRUCTURAL = {
 }
 
 #: Levels whose rates can be conditioned on another level (they take a ``DrivenBy``), so they may carry
-#: a ``conditioned_on`` record. ``traits`` takes a driven rate too, but ``zombi2 traits`` does not yet
-#: call `record_conditioning()`, so listing it here would look for a marker nothing writes.
-_CONDITIONABLE = ("genomes", "sequences")
+#: a ``conditioned_on`` record.
+_CONDITIONABLE = ("genomes", "sequences", "traits")
 
 #: Every level, in pipeline order — a stable order for listing them in a message.
 _LEVEL_ORDER = ("species", "genomes", "sequences", "traits")
@@ -411,6 +410,15 @@ def _stale_downstream(args, level: str) -> list:
     edges = {k: set(v) for k, v in _STRUCTURAL.items()}
     for consumer in _CONDITIONABLE:                          # a conditioning edge: driver → consumer
         for driver in _conditioned_on(run, consumer):
+            if driver == consumer:
+                # A trait driving another trait: both sit under `traits/`, so the edge is
+                # traits → traits and this graph, whose nodes are LEVELS, cannot tell the driver
+                # from the target. Following it would mark the level stale against itself and
+                # `--force` would then delete every trait in the run, including the one just
+                # written. The marker is still recorded — it is what the log and the run report
+                # show — but a within-level dependency is not invalidated automatically until the
+                # graph's nodes are `traits/<name>` rather than `traits`.
+                continue
             edges.setdefault(driver, set()).add(consumer)
     seen, stack = set(), list(edges.get(level, ()))
     while stack:
