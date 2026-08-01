@@ -110,7 +110,7 @@ class Tree:
         apart by their fate) but pruned from the extant tree."""
         return [n for n in self.nodes.values() if n.fate == "unsampled"]
 
-    def to_newick(self, *, precision: int = 7) -> str:
+    def to_newick(self, *, precision: int = 12) -> str:
         """Serialise to Newick (matching ``tree.to_newick()`` elsewhere in the codebase). Each
         branch length is ``end_time - birth_time`` and every node — leaves and internals — is named
         ``n<id>``, or ``e<id>`` for a lineage that went extinct (see `node_label()`).
@@ -121,13 +121,13 @@ class Tree:
         tree whose crown comes late, a large fraction of its history. It is emitted as ``)n0:<stem>;``
         and `read_newick()` reads it back.
 
-        ``precision`` is the number of **significant digits** each branch length is written to, 7 by
-        default. It matters more than it looks: a tip's *depth* is a sum of branch lengths, so the
-        rounding error accumulates down the path — on a 40-tip tree of height 4, the depths of two
-        tips written at 7 digits differ by around 1e-6, which is far above the tolerance
-        ``ape::is.ultrametric()`` uses (~1e-8) even though the tree is ultrametric to 1e-16 in
-        memory. Anything that needs the *written* tree to still be ultrametric therefore has to ask
-        for more digits — `make_ultrametric()` says so, and ``zombi2 tools tree --round`` does it."""
+        ``precision`` is the number of **significant digits** each branch length is written to, 12 by
+        default. It matters more than it looks, and 7 — the old default — was not enough: a tip's
+        *depth* is a sum of branch lengths, so the rounding accumulates down the path, and on a
+        40-tip tree of height 4 two tips written at 7 digits came out about 1e-6 apart. That is far
+        above the tolerance ``ape::is.ultrametric()`` allows (~1e-8), so an ultrametric tree — which
+        every extant tree from a dated run is, to 1e-16 in memory — was rejected by the first thing
+        anyone does with it in R. At 12 digits the same tree lands around 1e-15."""
 
         name = self.labels()
         fmt = f".{precision}g"

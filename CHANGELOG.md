@@ -10,6 +10,18 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Fixed
+- **Every tree ZOMBI2 writes is now ultrametric when read back.** Branch lengths were written at 7
+  significant digits, and a tip's depth is a *sum* of them, so the rounding accumulated down the path
+  and left `species_extant.nwk` about 1e-6 off — far above what `ape::is.ultrametric()` allows, on a
+  tree that was ultrametric to 1e-16 in memory. The first thing anyone does with it in R therefore
+  failed. Trees are written at 12 digits; `Tree.to_newick()` takes `precision=` for anything else.
+- **Chapter 4 said `transfer`, the log writes `transfer_additive` / `transfer_replacing`** — a reader
+  filtering on the documented kind got nothing back. The chapter now says what the log says.
+- **The `"rest"` group is documented.** `Between({("rest", "A"): 8.0})` makes a named clade a transfer
+  hotspot the whole rest of the tree donates into; it worked and appeared nowhere in the manual.
+- **Chapter 9 no longer promises the staleness guard across run directories.** It records the
+  dependency in the run directory, so a driver and a target written to two different directories with
+  `--from` are not linked — which the chapter stated without qualification.
 - **A trait dataset now joins the tree it came from.** `TraitsResult.values` was keyed by bare node
   ids (`5`) while every Newick label and every `trait_values.tsv` row says `n5` — so in Python the
   comparative vector and the tree beside it shared **no keys at all**, and nothing said so. It is now
@@ -50,6 +62,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [0.21.0] - 2026-08-01
 
 ### Added
+- **Extents on the command line at the `ordered` resolution** — `--inversion-extent`,
+  `--duplication-extent`, `--loss-extent`, `--transfer-extent`, `--transposition-extent`,
+  `--translocation-extent`, each the mean number of **genes** an event takes. They were reachable
+  from Python only, so a command-line ordered run could make nothing but single-gene inversions —
+  which flip one gene's strand and shuffle nothing, so the CLI produced something that looked like a
+  rearrangement dataset and was not one. The same flags mean base pairs at `nucleotide`, as before.
+- **`--topology` takes one label per chromosome** — `--topology circular,linear` for a mixed
+  karyotype, which the manual has always shown for the Python argument and the flag could not express.
 - **A correlated trait run carries the event log every other continuous run carries** — the `initial`
   row and one `on_speciation` row per jump, where it previously returned nothing and wrote a
   header-only `trait_events.tsv`. The table **widens** rather than repeating a row per trait
