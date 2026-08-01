@@ -249,19 +249,19 @@ def test_a_tree_with_no_branch_lengths_is_refused():
     assert len(tree.nodes) == 7
 
 
-def test_a_rounded_tree_is_still_ultrametric_after_it_is_written():
-    """The snap was exact and the writer undid it.
+def test_a_written_tree_is_still_ultrametric_when_it_is_read_back():
+    """An extant tree from a dated run is ultrametric to ~1e-16 in memory, and the writer used to
+    undo it: a tip's depth is a **sum** of branch lengths, so at the old 7 significant digits the
+    rounding accumulated down the path and two tips came out ~1e-6 apart — far above the ~1e-8
+    ``ape::is.ultrametric()`` allows. The very first thing anyone does with `species_extant.nwk` in R
+    therefore failed, on a tree that was never not ultrametric.
 
-    ``make_ultrametric`` equalises tip depths to ~1e-16 in memory, but a depth is a **sum** of branch
-    lengths, so serialising them at the default 7 significant digits reintroduced a spread of about
-    1e-6 — well above the ~1e-8 ``ape::is.ultrametric()`` allows. The flag's whole purpose is the
-    file, so the file has to carry the precision the snap earned. Read back rather than inspected in
-    memory, because reading back is the thing that was broken."""
+    Checked after a round trip, because reading back is what was broken, and on the plain tree as
+    well as the snapped one: ``--round`` was never the only thing affected."""
     from zombi2 import species
     from zombi2.tree import make_ultrametric, read_newick
 
     result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=40, seed=1)
-    snapped = make_ultrametric(result.extant_tree, tol=1e-3)
 
     def relative_spread(newick):
         tree, _ = read_newick(newick)
@@ -273,5 +273,8 @@ def test_a_rounded_tree_is_still_ultrametric_after_it_is_written():
         tips = [depth[i] for i, n in tree.nodes.items() if n.children is None]
         return (max(tips) - min(tips)) / max(tips)
 
-    assert relative_spread(snapped.to_newick(precision=15)) < 1e-8       # ape would accept this
-    assert relative_spread(snapped.to_newick()) > 1e-8                   # ...and not the default
+    ape_tolerance = 1e-8
+    assert relative_spread(result.extant_tree.to_newick()) < ape_tolerance
+    assert relative_spread(make_ultrametric(result.extant_tree, tol=1e-3).to_newick()) < ape_tolerance
+    # the old default is still reachable, and still not good enough — which is why it is not the default
+    assert relative_spread(result.extant_tree.to_newick(precision=7)) > ape_tolerance

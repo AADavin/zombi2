@@ -189,7 +189,7 @@ zombi2 sequences out/ --model hky85 --length 1000 --seed 3 \
     --substitution "0.05 * DrivenBy('out/traits/trait_events.tsv', {'cave': 0.5, 'surface': 1.0})"
 ```
 
-Each conditioned run writes a `conditioned_on` file naming the levels it read, so re-running the trait afterwards refuses rather than leaving the runs beneath it silently mismatched. Pass `--force` to re-run it and clear them.
+Each conditioned run writes a `conditioned_on` file naming the levels it read, so re-running the trait afterwards refuses rather than leaving the runs beneath it silently mismatched. Pass `--force` to re-run it and clear them. The guard works **within one run directory**: it is the directory that holds the record, so a driver and a target written to two different directories (with `--from`) are not linked, and re-running the driver there will not warn you.
 
 Both halves of transfer take that same text: the rate with a base number in front of it, the recipient weight without one.
 

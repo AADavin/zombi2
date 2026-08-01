@@ -141,6 +141,8 @@ g = genomes.simulate_genomes_family(
     transfer_to=genomes.Clades({"A": ["n27", "n28"], "B": ["n21", "n26"]}, flows))
 ```
 
+There is one group you do not have to name: **`"rest"`** is every lineage outside the clades you did name, so `Between({("rest", "A"): 8.0})` makes clade A a transfer hotspot that the whole rest of the tree donates into, without having to enumerate the rest of the tree.
+
 Each entry is a weight, read the same way `"distance"`'s weights are: normalised over the lineages alive at the instant a transfer fires. Naming only `("A", "B")` and `("B", "A")` and setting `default=0.0` means every other pairing weighs 0 — a clade-A donor can reach clade B but not another clade-A lineage, and the rest of the tree neither sends nor receives. Drop the `default=0.0` and unlisted pairs return to weight 1 (baseline), so `Between({("A", "B"): 5.0})` *enriches* A→B fivefold while leaving everything else to happen normally. A weight of 0 means "cannot receive", exactly as in Chapter 9: when a donor's every candidate weighs 0, the transfer has nowhere to land and does not fire.
 
 `Clades` is written in Python. On the command line `--transfer-to` takes `uniform`, `distance`, or a `DrivenBy` recipient weight (Chapter 9).
@@ -154,7 +156,7 @@ Each entry is a weight, read the same way `"distance"`'s weights are: normalised
 - `.complete_tree` — the species tree the genomes ran on, extinct lineages and all.
 - `.genomes` — a dict from node to that node's genome.
 - `.initial_genome` — the genome the run **started** with, at the root lineage's origination. It is not `.genomes[root]`: a node sits at the **end** of its branch, and the root branch is real simulated time, so events happen along it. Written to its own `initial_genome.tsv`, with no `lineage` column, because it belongs to no node.
-- `.events` — the event log: every gene event with its time and lineage — origination, duplication, transfer, loss, and the *speciations* at a split.
+- `.events` — the event log: every gene event with its time and lineage — origination, duplication, transfer, loss, and the *speciations* at a split. A transfer is written under the kind that says what it did on arrival: `transfer_additive` when the arriving copy is an addition, `transfer_replacing` when it overwrote a homolog. So filter for both, or on the prefix — there is no bare `transfer` row.
 - `.profiles` — the family × extant-species copy-count table.
 - `.gene_trees` — one `GeneTree` per family.
 - `.seed` — the seed, so the run reproduces.
