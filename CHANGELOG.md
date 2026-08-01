@@ -10,6 +10,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Fixed
+- **A trait dataset now joins the tree it came from.** `TraitsResult.values` was keyed by bare node
+  ids (`5`) while every Newick label and every `trait_values.tsv` row says `n5` — so in Python the
+  comparative vector and the tree beside it shared **no keys at all**, and nothing said so. It is now
+  keyed by the tip's name. **Breaking** for code that indexed it by id: `values_by_id` is the old
+  view, unchanged. The written files always agreed with each other; it was only the in-memory pair
+  that did not.
 - **`zombi2 tools tree --round` now produces a file that is actually ultrametric.** The snap was
   exact in memory (tip depths agreed to ~1e-16) and the writer undid it: a depth is a *sum* of branch
   lengths, so writing them at the usual 7 significant digits reintroduced a spread of ~1e-6 — well
