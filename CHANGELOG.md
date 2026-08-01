@@ -10,6 +10,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Fixed
+- **A `DrivenBy` mapping that names a state the driver never takes now says so.** One typo among
+  otherwise-correct keys used to pass in total silence: the guard refused a mapping where *nothing*
+  matched, but a mapping with one good key and one typo fires, so the run completed, reported itself
+  as driven, and applied the factor the user cared about to nobody. It warns rather than raises,
+  because when a driver is replayed from a file the only states known are the ones it actually
+  reached, and a mapping may legitimately name one this realisation missed. (A joint run, whose
+  alphabet is declared up front, already raised.)
+- **The command line prints a library warning in its own voice** — `zombi2: warning: …` — instead of
+  Python's file-and-line rendering, which for a CLI user wraps the one sentence that matters in noise
+  and reads like a crash.
 - **The conditioning and joining diagrams read backwards.** Their arrow ran from cause to effect —
   habitat to loss — but was labelled `DrivenBy`, which is passive, so reading along the arrow gave
   "habitat is driven by loss": the opposite of the model. The joining figure contained the proof, one
