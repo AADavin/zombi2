@@ -10,6 +10,19 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Fixed
+- **`zombi2 tools tree --round` now produces a file that is actually ultrametric.** The snap was
+  exact in memory (tip depths agreed to ~1e-16) and the writer undid it: a depth is a *sum* of branch
+  lengths, so writing them at the usual 7 significant digits reintroduced a spread of ~1e-6 — well
+  above what `ape::is.ultrametric()` allows, so the tree still came back rejected. `--round` writes
+  at full precision; `Tree.to_newick()` takes a `precision=` for anything else that needs it.
+- **`gene_order.tsv` and `initial_genome.tsv` record each chromosome's `topology`.** It decides where
+  a segmental event stops and which chromosomes may fuse, and it is what a rearrangement format's
+  per-chromosome terminator depends on — but it appeared in no output file, so a mixed circular and
+  linear karyotype left nothing on disk saying which chromosome was a ring.
+- **The `TO REPRODUCE` block runs.** It listed commands in pipeline order, which for a conditioned run
+  is the wrong order: a rate driven by a trait must run after the trait that writes the file it
+  reads, and traits come last in the pipeline. Copy-pasted, it failed on that line. A driver is now
+  promoted above whatever is conditioned on it; a run with no conditioning is unchanged.
 - **A `DrivenBy` mapping that names a state the driver never takes now says so.** One typo among
   otherwise-correct keys used to pass in total silence: the guard refused a mapping where *nothing*
   matched, but a mapping with one good key and one typo fires, so the run completed, reported itself

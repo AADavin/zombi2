@@ -110,7 +110,7 @@ class Tree:
         apart by their fate) but pruned from the extant tree."""
         return [n for n in self.nodes.values() if n.fate == "unsampled"]
 
-    def to_newick(self) -> str:
+    def to_newick(self, *, precision: int = 7) -> str:
         """Serialise to Newick (matching ``tree.to_newick()`` elsewhere in the codebase). Each
         branch length is ``end_time - birth_time`` and every node — leaves and internals — is named
         ``n<id>``, or ``e<id>`` for a lineage that went extinct (see `node_label()`).
@@ -119,23 +119,32 @@ class Tree:
         to the first split. A forward birth–death run starts from one lineage, so that stem is real
         simulated time in which events happen, and writing ``)n0;`` would silently discard it — for a
         tree whose crown comes late, a large fraction of its history. It is emitted as ``)n0:<stem>;``
-        and `read_newick()` reads it back."""
+        and `read_newick()` reads it back.
+
+        ``precision`` is the number of **significant digits** each branch length is written to, 7 by
+        default. It matters more than it looks: a tip's *depth* is a sum of branch lengths, so the
+        rounding error accumulates down the path — on a 40-tip tree of height 4, the depths of two
+        tips written at 7 digits differ by around 1e-6, which is far above the tolerance
+        ``ape::is.ultrametric()`` uses (~1e-8) even though the tree is ultrametric to 1e-16 in
+        memory. Anything that needs the *written* tree to still be ultrametric therefore has to ask
+        for more digits — `make_ultrametric()` says so, and ``zombi2 tools tree --round`` does it."""
 
         name = self.labels()
+        fmt = f".{precision}g"
 
         def emit(i: int) -> str:
             node = self.nodes[i]
             bl = node.end_time - node.birth_time
             if node.children is None:
-                return f"{name[i]}:{bl:.7g}"
+                return f"{name[i]}:{bl:{fmt}}"
             inner = ",".join(emit(c) for c in node.children)
-            return f"({inner}){name[i]}:{bl:.7g}"
+            return f"({inner}){name[i]}:{bl:{fmt}}"
 
         root = self.nodes[self.root]
         stem = root.end_time - root.birth_time
         if root.children is None:
-            return f"{name[self.root]}:{stem:.7g};"
-        return f"({','.join(emit(c) for c in root.children)}){name[self.root]}:{stem:.7g};"
+            return f"{name[self.root]}:{stem:{fmt}};"
+        return f"({','.join(emit(c) for c in root.children)}){name[self.root]}:{stem:{fmt}};"
 
 
 def prune(tree: Tree, keep: str = "extant") -> Tree | None:
@@ -548,7 +557,14 @@ def make_ultrametric(tree: Tree, *, tol: float = 1e-3) -> Tree:
     """Return a copy in which every tip sits at the present (exactly ultrametric), by extending the
     terminal branches to a common depth. Snaps only when the tip-depth spread is within ``tol`` of
     the tree height — i.e. rounding; a larger spread raises, because differing tip depths then carry
-    real signal (extinct lineages or serial samples) that this must not silently flatten."""
+    real signal (extinct lineages or serial samples) that this must not silently flatten.
+
+    **Write it out with enough digits or this is undone.** The snap is exact here — tip depths agree
+    to about 1e-16 — but a depth is a *sum* of branch lengths, so serialising at
+    `to_newick`'s default 7 significant digits reintroduces a spread of
+    roughly 1e-6 on an ordinary tree: more than enough for ``ape::is.ultrametric()`` to reject the
+    file this function was called to produce. Use ``to_newick(precision=15)`` for a tree that is
+    still ultrametric after the round trip; that is what ``zombi2 tools tree --round`` writes."""
     depth = _depths(tree)
     tips = [i for i, n in tree.nodes.items() if n.children is None]
     lo, hi = min(depth[i] for i in tips), max(depth[i] for i in tips)

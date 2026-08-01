@@ -262,7 +262,12 @@ def _run_tree(args, parser) -> int:
         else:
             t, _ = _tree.read_newick(text, assume_extant=True)  # geometric: any tree, fates irrelevant
             if args.round_:
-                out = _tree.make_ultrametric(t, tol=args.tol).to_newick()
+                # 15 digits, not the default 7: the snap is exact in memory, but a tip's depth is a
+                # SUM of branch lengths, so writing them at 7 significant digits reintroduces a
+                # spread of ~1e-6 — well above the ~1e-8 ape::is.ultrametric() allows, which made
+                # --round produce a file that still read as non-ultrametric. The whole point of this
+                # flag is the file, so the file has to carry the precision the snap earned.
+                out = _tree.make_ultrametric(t, tol=args.tol).to_newick(precision=15)
             elif args.stem is not None:
                 out = _tree.with_stem(t, args.stem).to_newick()
             elif args.stem_add is not None:

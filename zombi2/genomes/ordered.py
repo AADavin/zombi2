@@ -364,16 +364,31 @@ class OrderedGenomesResult:
     def _initial_genome_tsv(self) -> str:
         """The layout the run started with — ``gene_order.tsv``'s columns without ``lineage``, which
         is the whole point: it belongs to the start of the root branch, not to a node."""
-        cols = ("chromosome", "position", "strand", "family", "copy")
-        rows = [f"{chrom.id}\t{pos}\t{g.strand}\t{g.family}\t{gene_label(g.id)}"
+        cols = ("chromosome", "topology", "position", "strand", "family", "copy")
+        rows = [f"{chrom.id}\t{chrom.topology}\t{pos}\t{g.strand}\t{g.family}\t{gene_label(g.id)}"
                 for chrom in self.initial_genome for pos, g in enumerate(chrom.genes)]
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 
     def _gene_order_tsv(self, names=None) -> str:
-        cols = ("lineage", "chromosome", "position", "strand", "family", "copy")
-        rows = [f"{_name(names, s)}\t{ch}\t{p}\t{st}\t{fam}\t{gene_label(gid)}"
-                for s in sorted(self.genomes)
-                for (ch, p, st, fam, gid) in self.gene_order(s)]
+        """Every node's gene arrangement, with each chromosome's **topology** beside its id.
+
+        Topology is written here because it is load-bearing and was recoverable from nothing else the
+        run wrote: it decides where a segmental event stops (a run wraps position 0 on a ring and
+        stops at the end of a linear molecule) and which chromosomes may fuse. It also decides how
+        the arrangement is read *out* — the standard rearrangement formats need a per-chromosome
+        terminator that differs between a ring and a linear molecule — so a reader handed the output
+        directory alone could not produce one. Repeating it on every gene's row is redundant, and the
+        alternative was a file of its own for one column.
+
+        A chromosome carrying no genes has no rows here and so no topology, as it has no position or
+        strand either: this is the gene arrangement, and an empty replicon has none."""
+        cols = ("lineage", "chromosome", "topology", "position", "strand", "family", "copy")
+        rows = []
+        for s in sorted(self.genomes):
+            topology = {c.id: c.topology for c in self.genomes[s]}
+            rows.extend(f"{_name(names, s)}\t{ch}\t{topology.get(ch, '')}\t{p}\t{st}\t{fam}\t"
+                        f"{gene_label(gid)}"
+                        for (ch, p, st, fam, gid) in self.gene_order(s))
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 
 
