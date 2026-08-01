@@ -80,7 +80,7 @@ _GLOSS = {
     "genome_events.tsv": "every duplication / transfer / loss / origination, per gene copy",
     "gene_trees": "gene trees, one per family — complete (all copies) and extant (survivors), Newick",
     # genomes/ (ordered resolution adds gene order and chromosome-level events)
-    "gene_order.tsv": "the gene arrangement of every genome (lineage, chromosome, position, strand, family, copy)",
+    "gene_order.tsv": "the gene arrangement of every genome (lineage, chromosome, topology, position, strand, family, copy)",
     "chromosome_events.tsv": "the chromosome network's edges — initial / origination / speciation / fission / fusion / loss (time, kind, parents, children)",
     "rearrangement_events.tsv": "every inversion / transposition / translocation — the segment moved and where it went",
     # genomes/ (nucleotide resolution: the genome as ancestry blocks along a sequence)
@@ -472,12 +472,56 @@ def build_run_report(run: str) -> str | None:
         # the RNG stream is numpy's, so byte-identical output is only guaranteed on the same versions —
         # say so, rather than let a run silently fail to reproduce on a different machine.
         lines.append(f"  # recorded under {built} — byte-identical output requires the same environment")
-    for sec in sections:
+    for sec in _runnable_order(run, sections):
         seed = sec["log"].get("params", {}).get("seed") or sec["summary"].get("seed")
         lines.append("  " + _reproduce(sec["command"], run, sec["log"].get("params", {}),
                                        seed, _source_of(sec), _given_flags(sec["log"])))
     lines.append("")
     return "\n".join(lines)
+
+
+def _runnable_order(run: str, sections: list[dict]) -> list[dict]:
+    """The sections in an order that actually **runs**, which is not the order they are read in.
+
+    The report lists levels in pipeline order — species, genomes, sequences, traits — because that is
+    how a reader wants them. TO REPRODUCE cannot use that order: a level whose rate is conditioned on
+    a trait must run *after* the trait that writes the file it reads, and traits come last in the
+    pipeline. Copy-pasted, the block failed on the line that read a driver nothing had written yet —
+    in the block the command line tells you to open first.
+
+    So this promotes a driver above anything conditioned on it, by the ``conditioned_on`` marker each
+    conditioned level writes (the same marker the staleness guard reads). It is a stable sort, not a
+    reshuffle: a run with no conditioning comes out in exactly pipeline order, and the ordering moves
+    only what would otherwise not run.
+    """
+    driven_by: dict[int, set] = {}
+    for k, sec in enumerate(sections):
+        marker = os.path.join(sec["dir"], "conditioned_on") if sec.get("dir") else None
+        if marker and os.path.isfile(marker):
+            with open(marker, encoding="utf-8") as f:
+                driven_by[k] = {line.strip() for line in f if line.strip()}
+    if not driven_by:
+        return sections                     # nothing conditioned: pipeline order already runs
+
+    ordered: list[dict] = []
+    placed: set[int] = set()
+    # Repeatedly take the first section whose drivers are all already placed. A section is its own
+    # level's driver in a trait-drives-trait run (both live under traits/), which no ordering can
+    # satisfy, so a level never blocks on itself.
+    while len(placed) < len(sections):
+        for k, sec in enumerate(sections):
+            if k in placed:
+                continue
+            needed = driven_by.get(k, set()) - {sec["command"]}
+            if all(any(sections[j]["command"] == lvl for j in placed) or
+                   not any(s["command"] == lvl for s in sections) for lvl in needed):
+                ordered.append(sec)
+                placed.add(k)
+                break
+        else:                               # a cycle: emit the rest as they came rather than hang
+            ordered.extend(s for k, s in enumerate(sections) if k not in placed)
+            break
+    return ordered
 
 
 def _source_of(section: dict) -> str | None:

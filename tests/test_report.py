@@ -185,3 +185,30 @@ def test_a_joint_run_reports_species_and_its_driver(tmp_path):
     assert "JOINT" in text and "driven by a trait" in text
     assert "traits/trait_values.tsv" in text            # the driver's files listed with the species'
     assert "zombi2 joint" in text                       # a reproduce line for the joint command
+
+
+def test_the_reproduce_block_runs_a_driver_before_what_it_drives(tmp_path):
+    """TO REPRODUCE listed the commands in pipeline order, which for a conditioned run does not run.
+
+    `sequences` comes third in the pipeline and `traits` fourth, but a sequences run whose rate reads
+    a trait file must run *after* the trait that writes it. Copy-pasted verbatim, the block failed on
+    the line that read a driver nothing had written — in the block the CLI tells you to open first."""
+    from zombi2.cli.main import main
+
+    run = tmp_path / "r"
+    assert main(["species", str(run), "--birth", "1.0", "--n-extant", "8", "--seed", "1", "--quiet"]) == 0
+    assert main(["genomes", str(run), "--duplication", "0.2", "--initial-families", "5",
+                 "--seed", "1", "--quiet"]) == 0
+    assert main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface",
+                 "--switch", "0.6", "--seed", "1", "--quiet"]) == 0
+    driver = run / "traits" / "trait_events.tsv"
+    assert main(["sequences", str(run), "--model", "jc69", "--length", "100", "--seed", "1", "--quiet",
+                 "--substitution",
+                 f"0.05 * DrivenBy('{driver}', {{'cave': 0.5, 'surface': 1.0}})"]) == 0
+
+    block = (run / "run.zombi2").read_text(encoding="utf-8").split("TO REPRODUCE")[1]
+    commands = [ln.strip() for ln in block.splitlines() if ln.strip().startswith("zombi2 ")]
+    levels = [c.split()[1] for c in commands]
+    assert levels.index("traits") < levels.index("sequences"), levels
+    # the pipeline order of the untangled part is untouched
+    assert levels.index("species") < levels.index("genomes") < levels.index("traits")
