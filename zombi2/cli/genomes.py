@@ -77,10 +77,17 @@ _STRUCTURED_ONLY = (
 _NUCLEOTIDE_ONLY = (
     ("root_length", 10000), ("genes", None), ("gene_length", 500), ("gff", None),
     ("trim_overlaps", False),
-    ("inversion_extent", 50.0), ("transposition_extent", 50.0), ("translocation_extent", 50.0),
-    ("loss_extent", 50.0), ("duplication_extent", 50.0), ("transfer_extent", 50.0),
-    ("origination_extent", 50.0),
+    ("origination_extent", None),
 )
+
+#: The extents both structured resolutions have — how much one event takes (SPEC §6). They are NOT
+#: nucleotide-only: an ordered event acts on a run of genes exactly as a nucleotide one acts on an arc
+#: of DNA, and only the **unit** differs, which is what a resolution fixes. They were reachable from
+#: Python alone, so a command-line ordered run could only ever make single-gene inversions — which
+#: flip one gene's strand and shuffle nothing, so the CLI produced something that looked like a
+#: rearrangement dataset and was not one. ``origination_extent`` is absent because a family is born
+#: once, as one gene, so at this resolution it has no extent to give.
+_SEGMENT_EXTENTS = ("inversion", "transposition", "translocation", "loss", "duplication", "transfer")
 
 # A genome the command starts with. The library function defaults to 0 — an explicit caller says what
 # it wants — but a bare `zombi2 genomes -t tree.nwk` should hand back a genome rather than 100 empty
@@ -103,6 +110,18 @@ _DEFAULT_MAX_FAMILY_SIZE = 10
 
 _NOT_IN_NUCLEOTIDE = (("initial_families", None), ("replacement", False),
                       ("max_family_size", _DEFAULT_MAX_FAMILY_SIZE), ("family_speed", None))
+
+
+def _topology(text: str):
+    """``--topology`` as one label for every chromosome, or a comma-separated list of one apiece.
+
+    The list form is what the manual has always shown for the Python argument (``["circular",
+    "linear"]``), and the flag took a single ``choices=`` value — so a mixed karyotype, which the
+    chapter advertises, could not be asked for from the command line at all. Validation of the
+    labels, and of the count against ``--chromosomes``, belongs to the engine and is left there; this
+    only decides between the two spellings."""
+    labels = [part.strip() for part in text.split(",")]
+    return labels[0] if len(labels) == 1 else labels
 
 
 def _add_genomes_args(p: argparse.ArgumentParser) -> None:
@@ -161,8 +180,9 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    help="segmental move to another chromosome (per copy)")
     g.add_argument("--chromosomes", type=int, default=1, metavar="N",
                    help="number of chromosomes at the origin (default 1)")
-    g.add_argument("--topology", choices=("circular", "linear"), default="circular", metavar="TOPO",
-                   help="chromosome topology: circular (default) or linear")
+    g.add_argument("--topology", type=_topology, default="circular", metavar="TOPO",
+                   help="chromosome topology: circular (default) or linear, or one per chromosome "
+                        "as a comma-separated list — circular,linear for a mixed karyotype")
     g.add_argument("--fission", type=_rate, default=0.0, metavar="RATE",
                    help="chromosome fission rate (per chromosome)")
     g.add_argument("--fusion", type=_rate, default=0.0, metavar="RATE",
@@ -194,13 +214,21 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--fasta", metavar="FILE",
                    help="[--gff] the initial genome's DNA — one >seqid record per GFF "
                         "##sequence-region, each exactly its declared length")
+    g.add_argument("--origination-extent", type=float, default=None, metavar="BP",
+                   dest="origination_extent",
+                   help="mean bp of new material per event (default 50)")
+
+    g = p.add_argument_group(
+        "how much each event takes (extents)",
+        "with --resolution ordered or nucleotide. The unit is what the resolution counts: genes at "
+        "ordered (default 1, a single gene), base pairs at nucleotide (default 50). A bare number is "
+        "the MEAN of a geometric draw, not a fixed size")
     for knob, what in (("inversion", "inverted"), ("transposition", "transposed"),
                        ("translocation", "translocated"), ("loss", "deleted"),
-                       ("duplication", "copied in tandem"), ("transfer", "transferred"),
-                       ("origination", "of new material")):
-        g.add_argument(f"--{knob}-extent", type=float, default=50.0, metavar="BP",
+                       ("duplication", "copied in tandem"), ("transfer", "transferred")):
+        g.add_argument(f"--{knob}-extent", type=float, default=None, metavar="N",
                        dest=f"{knob}_extent",
-                       help=f"mean bp {what} per event (default 50)")
+                       help=f"mean genes (ordered) or bp (nucleotide) {what} per event")
 
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=sorted({o for v in _OUTPUTS.values() for o in v}),
@@ -414,9 +442,11 @@ def run(args, parser):
     # `--inversion` under the family resolution, or `--initial-families` under nucleotide, would quietly
     # produce a run that is not the one asked for
     if args.resolution == "family":
-        if stray := _stray(args, _STRUCTURED_ONLY):
+        extents = tuple((f"{k}_extent", None) for k in _SEGMENT_EXTENTS)
+        if stray := _stray(args, _STRUCTURED_ONLY + extents):
             parser.error(f"these options need --resolution ordered or nucleotide: "
-                         f"{', '.join(stray)} (the gene-family core has no chromosomes or positions)")
+                         f"{', '.join(stray)} (the gene-family core has no chromosomes or positions, "
+                         f"so an event acts on one copy and there is no run of genes to size)")
     else:
         for flag, given in (("--parallel", args.parallel is not None), ("--stream", args.stream)):
             if given:
@@ -506,19 +536,21 @@ def run(args, parser):
 
     t0 = time.perf_counter()
     if args.resolution == "ordered":
+        # None passes straight through: the engine's own default is one gene, so an unset flag runs
+        # exactly as it did before these reached the command line
+        extents = {f"{k}_extent": getattr(args, f"{k}_extent") for k in _SEGMENT_EXTENTS}
         result = simulate_genomes_ordered(
             tree, replacement=args.replacement, initial_families=args.initial_families,
-            progress=not args.quiet, **structured, **family_knobs, **common)
+            progress=not args.quiet, **extents, **structured, **family_knobs, **common)
     elif args.resolution == "nucleotide":
+        # the flags default to None so `ordered` can mean "one gene" and `nucleotide` "50 bp" from
+        # one flag; here None is filled with the 50 this command has always used
+        extents = {f"{k}_extent": (getattr(args, f"{k}_extent") or 50.0)
+                   for k in (*_SEGMENT_EXTENTS, "origination")}
         result = simulate_genomes_nucleotide(
             tree, root_length=args.root_length, genes=args.genes, gene_length=args.gene_length,
             gff=args.gff, fasta=args.fasta, trim_overlaps=args.trim_overlaps,
-            inversion_extent=args.inversion_extent,
-            transposition_extent=args.transposition_extent,
-            translocation_extent=args.translocation_extent, loss_extent=args.loss_extent,
-            duplication_extent=args.duplication_extent, transfer_extent=args.transfer_extent,
-            origination_extent=args.origination_extent, progress=not args.quiet,
-            **structured, **common)
+            progress=not args.quiet, **extents, **structured, **common)
     elif streaming:
         # each family written straight to disk (no whole run in memory) — the engine writes `out`
         # itself, so there is no result.write below; a StreamedRun handle comes back.
@@ -595,7 +627,8 @@ def run(args, parser):
     # The log is this run's parameters, not the parser's: a family run has no --root-length and no
     # --inversion, and recording them at their defaults reads as though it had them and chose those
     # values. Each resolution's own gates already say which options belong to which.
-    other = {"family": (*_STRUCTURED_ONLY, *_NUCLEOTIDE_ONLY),
+    _EXTENT_KNOBS = tuple((f"{k}_extent", None) for k in _SEGMENT_EXTENTS)
+    other = {"family": (*_STRUCTURED_ONLY, *_NUCLEOTIDE_ONLY, *_EXTENT_KNOBS),
              "ordered": _NUCLEOTIDE_ONLY,
              "nucleotide": _NOT_IN_NUCLEOTIDE}[args.resolution]
     _write_params_log(os.path.join(out, "genomes.log"), args, summary,

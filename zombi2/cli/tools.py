@@ -262,7 +262,10 @@ def _run_tree(args, parser) -> int:
         else:
             t, _ = _tree.read_newick(text, assume_extant=True)  # geometric: any tree, fates irrelevant
             if args.round_:
-                out = _tree.make_ultrametric(t, tol=args.tol).to_newick()
+                # Round-trip exact, rather than the default 12 that is merely well inside every
+                # tolerance: this is the one flag whose whole promise is the exactness of the file,
+                # so it writes the number back rather than a number close to it.
+                out = _tree.make_ultrametric(t, tol=args.tol).to_newick(precision=15)
             elif args.stem is not None:
                 out = _tree.with_stem(t, args.stem).to_newick()
             elif args.stem_add is not None:

@@ -93,7 +93,7 @@ the level that is read; the **modifier**, which turns the driver's state into a 
 **target**, the rate it multiplies.
 
 <p align="center">
-  <img alt="Conditioning: a habitat trait on the left drives the gene loss rate on the right through a DrivenBy modifier, which carries a multiplier for each habitat state" src="manual/book/figures/conditioning.svg" width="560">
+  <img alt="Conditioning: a habitat trait on the left, an arrow labelled drives running right to the gene loss rate and carrying a multiplier for each habitat state, and under the loss rate the expression you write on it, 0.25 times DrivenBy of habitat" src="manual/book/figures/conditioning.svg" width="560">
 </p>
 
 ```bash
@@ -109,7 +109,7 @@ that speeds up speciation is the standard case: the tree shapes the trait's hist
 shapes the tree, so the tree is an *output* of the joint run rather than an input to it.
 
 <p align="center">
-  <img alt="Joining: body size drives the speciation rate through a DrivenBy modifier, the rate creates the tree, and an arrow runs back from the tree to body size because the two grow at the same time" src="manual/book/figures/joining.svg" width="700">
+  <img alt="Joining: body size drives the speciation rate, with the expression written on that rate shown beneath it, the rate creates the tree, and an arrow runs back from the tree to body size because the two grow at the same time" src="manual/book/figures/joining.svg" width="700">
 </p>
 
 ```bash

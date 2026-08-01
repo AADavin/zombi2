@@ -1,7 +1,12 @@
 <svg viewBox="0 0 660 250" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
-<title>Conditioning: a driver, a modifier and a target</title>
-<desc>On the left, a box labelled habitat, with a small two-state diagram below it showing aquatic and terrestrial switching between each other. An arrow runs right, labelled DrivenBy, carrying a multiplier for each state. On the right, the gene loss rate it multiplies.</desc>
-<!-- Colours are presentation ATTRIBUTES, not CSS, and are literals rather than a CSS custom property: GitHub's
+<title>Conditioning: a driver, the rate it drives, and where DrivenBy is written</title>
+<desc>On the left, a box labelled habitat, with a small two-state diagram below it showing aquatic and terrestrial switching between each other. An arrow runs right to the gene loss rate, labelled drives, carrying a multiplier for each habitat state. Under the loss rate is the expression you write on it, 0.25 times DrivenBy of habitat.</desc>
+<!-- The arrow's verb is ACTIVE and points the way the causation does: habitat drives loss. It used
+     to read "DrivenBy", which is passive, so an arrow drawn cause-to-effect carried a label that
+     names the relation effect-to-cause — read along the arrow it said "habitat is driven by loss",
+     the exact opposite of the model. DrivenBy now sits under the TARGET, which is both where it
+     reads correctly and where it is actually typed: loss = 0.25 * DrivenBy(habitat, ...).
+     Colours are presentation ATTRIBUTES, not CSS, and are literals rather than a CSS custom property: GitHub's
      SVG sanitiser drops the style element, and librsvg resolves no custom properties, so a figure
      whose fills live in either renders as black-on-black. The dark-mode rules below still win
      wherever CSS survives, because CSS outranks a presentation attribute. Keep it this way. -->
@@ -22,15 +27,14 @@
   </marker>
 </defs>
 
-<!-- column headings -->
+<!-- column headings: two things and the relation between them -->
 <g class="dim" fill="#6e6e6e" font-size="12.5" letter-spacing="1.6" text-anchor="middle">
   <text x="120" y="34">DRIVER</text>
-  <text x="345" y="34">MODIFIER</text>
-  <text x="566" y="34">TARGET</text>
+  <text x="555" y="34">TARGET</text>
 </g>
 <g class="dim" fill="#8a8a8a" font-size="12.5" font-style="italic" text-anchor="middle">
-  <text x="345" y="52">what it does to the rate</text>
-  <text x="566" y="52">a rate in the genome run</text>
+  <text x="120" y="52">a trait, grown first</text>
+  <text x="555" y="52">the rate you write it on</text>
 </g>
 
 <!-- the driver: one thing, named -->
@@ -55,24 +59,28 @@
   <path d="M 137,220 C 128,229 112,229 103,220" marker-end="url(#cb)"/>
 </g>
 
-<!-- the mapping: one multiplier per state -->
+<!-- the relation, read in the direction it is drawn; the mapping is what it carries -->
 <g class="edge" fill="none" stroke="#1a1a1a" stroke-width="1.7">
-  <line x1="203" y1="126" x2="486" y2="126" marker-end="url(#cb)"/>
+  <line x1="203" y1="126" x2="462" y2="126" marker-end="url(#cb)"/>
 </g>
 <g class="lbl" fill="#1a1a1a" font-size="14.5" text-anchor="middle">
-  <text x="345" y="116" font-style="italic">DrivenBy</text>
+  <text x="332" y="116" font-style="italic">drives</text>
 </g>
 <g class="dim" fill="#6e6e6e" font-size="13.5" text-anchor="middle">
-  <text x="345" y="153">aquatic &#215;&#8202;4</text>
-  <text x="345" y="171">terrestrial &#215;&#8202;1</text>
+  <text x="332" y="153">aquatic &#215;&#8202;4</text>
+  <text x="332" y="171">terrestrial &#215;&#8202;1</text>
 </g>
 
-<!-- the target rate -->
+<!-- the target rate, and the expression that carries the driver -->
 <g class="node" fill="#f2f2f0" stroke="#1a1a1a" stroke-width="1.6">
-  <rect x="496" y="96" width="140" height="60" rx="7"/>
+  <rect x="472" y="96" width="166" height="60" rx="7"/>
 </g>
 <g class="lbl" fill="#1a1a1a" text-anchor="middle">
-  <text x="566" y="120" font-size="15">loss</text>
-  <text x="566" y="142" font-size="13.5" fill="#6e6e6e">base 0.25</text>
+  <text x="555" y="120" font-size="15">loss</text>
+  <text x="555" y="142" font-size="13.5" fill="#6e6e6e">base 0.25</text>
+</g>
+<g class="dim" fill="#6e6e6e" font-size="10.5" text-anchor="middle"
+   font-family="SFMono-Regular, Menlo, Consolas, monospace">
+  <text x="551" y="180">0.25 * DrivenBy(habitat, &#8230;)</text>
 </g>
 </svg>

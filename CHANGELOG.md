@@ -9,9 +9,67 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+- **Every tree ZOMBI2 writes is now ultrametric when read back.** Branch lengths were written at 7
+  significant digits, and a tip's depth is a *sum* of them, so the rounding accumulated down the path
+  and left `species_extant.nwk` about 1e-6 off — far above what `ape::is.ultrametric()` allows, on a
+  tree that was ultrametric to 1e-16 in memory. The first thing anyone does with it in R therefore
+  failed. Trees are written at 12 digits; `Tree.to_newick()` takes `precision=` for anything else.
+- **Chapter 4 said `transfer`, the log writes `transfer_additive` / `transfer_replacing`** — a reader
+  filtering on the documented kind got nothing back. The chapter now says what the log says.
+- **The `"rest"` group is documented.** `Between({("rest", "A"): 8.0})` makes a named clade a transfer
+  hotspot the whole rest of the tree donates into; it worked and appeared nowhere in the manual.
+- **Chapter 9 no longer promises the staleness guard across run directories.** It records the
+  dependency in the run directory, so a driver and a target written to two different directories with
+  `--from` are not linked — which the chapter stated without qualification.
+- **A trait dataset now joins the tree it came from.** `TraitsResult.values` was keyed by bare node
+  ids (`5`) while every Newick label and every `trait_values.tsv` row says `n5` — so in Python the
+  comparative vector and the tree beside it shared **no keys at all**, and nothing said so. It is now
+  keyed by the tip's name. **Breaking** for code that indexed it by id: `values_by_id` is the old
+  view, unchanged. The written files always agreed with each other; it was only the in-memory pair
+  that did not.
+- **`zombi2 tools tree --round` now produces a file that is actually ultrametric.** The snap was
+  exact in memory (tip depths agreed to ~1e-16) and the writer undid it: a depth is a *sum* of branch
+  lengths, so writing them at the usual 7 significant digits reintroduced a spread of ~1e-6 — well
+  above what `ape::is.ultrametric()` allows, so the tree still came back rejected. `--round` writes
+  at full precision; `Tree.to_newick()` takes a `precision=` for anything else that needs it.
+- **`gene_order.tsv` and `initial_genome.tsv` record each chromosome's `topology`.** It decides where
+  a segmental event stops and which chromosomes may fuse, and it is what a rearrangement format's
+  per-chromosome terminator depends on — but it appeared in no output file, so a mixed circular and
+  linear karyotype left nothing on disk saying which chromosome was a ring.
+- **The `TO REPRODUCE` block runs.** It listed commands in pipeline order, which for a conditioned run
+  is the wrong order: a rate driven by a trait must run after the trait that writes the file it
+  reads, and traits come last in the pipeline. Copy-pasted, it failed on that line. A driver is now
+  promoted above whatever is conditioned on it; a run with no conditioning is unchanged.
+- **A `DrivenBy` mapping that names a state the driver never takes now says so.** One typo among
+  otherwise-correct keys used to pass in total silence: the guard refused a mapping where *nothing*
+  matched, but a mapping with one good key and one typo fires, so the run completed, reported itself
+  as driven, and applied the factor the user cared about to nobody. It warns rather than raises,
+  because when a driver is replayed from a file the only states known are the ones it actually
+  reached, and a mapping may legitimately name one this realisation missed. (A joint run, whose
+  alphabet is declared up front, already raised.)
+- **The command line prints a library warning in its own voice** — `zombi2: warning: …` — instead of
+  Python's file-and-line rendering, which for a CLI user wraps the one sentence that matters in noise
+  and reads like a crash.
+- **The conditioning and joining diagrams read backwards.** Their arrow ran from cause to effect —
+  habitat to loss — but was labelled `DrivenBy`, which is passive, so reading along the arrow gave
+  "habitat is driven by loss": the opposite of the model. The joining figure contained the proof, one
+  arrow reading forwards (`creates`) and the other back. Both arrows now carry an active verb, and
+  `DrivenBy` sits under the **target**, where it reads correctly and where it is actually typed. The
+  gallery's five conditioning cards are drawn from the same helper and change with them; on the one
+  card whose target is a choice slot (`transfer_to`) the expression now correctly shows no base.
+
 ## [0.21.0] - 2026-08-01
 
 ### Added
+- **Extents on the command line at the `ordered` resolution** — `--inversion-extent`,
+  `--duplication-extent`, `--loss-extent`, `--transfer-extent`, `--transposition-extent`,
+  `--translocation-extent`, each the mean number of **genes** an event takes. They were reachable
+  from Python only, so a command-line ordered run could make nothing but single-gene inversions —
+  which flip one gene's strand and shuffle nothing, so the CLI produced something that looked like a
+  rearrangement dataset and was not one. The same flags mean base pairs at `nucleotide`, as before.
+- **`--topology` takes one label per chromosome** — `--topology circular,linear` for a mixed
+  karyotype, which the manual has always shown for the Python argument and the flag could not express.
 - **A correlated trait run carries the event log every other continuous run carries** — the `initial`
   row and one `on_speciation` row per jump, where it previously returned nothing and wrote a
   header-only `trait_events.tsv`. The table **widens** rather than repeating a row per trait

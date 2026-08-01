@@ -154,7 +154,7 @@ Trait models arrive under a thicket of names, and a reader who wants "an OU mode
 
 A run returns a **`TraitsResult`** bundle:
 
-- `.values` — the observable vector: the trait's value at each **extant tip**. This is the comparative-data matrix a method would be handed.
+- `.values` — the observable vector: the trait's value at each **extant tip**, keyed by the tip's name (`n5`, or `e5` for a lineage that died) — the same names the Newick and `trait_values.tsv` use, so the dataset joins the tree it came from. `.values_by_id` is the same thing keyed by bare node id, for joining against `.node_values`. This is the comparative-data matrix a method would be handed.
 - `.node_values` — the value at **every** node (extant, extinct, and internal alike), the true ancestors at each split, from the same process that produced the tips.
 - `.events` — the timestamped event log, the same shape as the genome level's: each entry is a change on a lineage at a time, from one state to another, and its `kind` is `on_branch` (a switch along a branch) or `on_speciation` (a jump at a split). For a discrete trait this log is the source of truth. A continuous trait diffuses with no along-branch events, so its log holds only the `at_speciation` jumps and is empty without them.
 - `.history` — for a **discrete** trait, the per-branch stochastic character map derived from that log: the ordered list of `(state, duration)` segments each branch passed through. It is `None` for a continuous trait, which has no map, and for a threshold trait, whose liability crossings are un-timed.
@@ -174,7 +174,7 @@ tree = species.simulate_species_tree(
 
 # continuous: body size under Brownian motion
 size = traits.simulate_continuous(tree, start=0.0, rate=1.0, seed=1)
-size.values                 # {extant tip: float}
+size.values                 # {"n5": float, …} — keyed like the tree's tips
 
 # continuous: an Ornstein–Uhlenbeck trait pulled toward an optimum of 2
 temp = traits.simulate_continuous(tree, start=0.0, rate=1.0,
@@ -183,7 +183,7 @@ temp = traits.simulate_continuous(tree, start=0.0, rate=1.0,
 # discrete: habitat flipping between two states
 habitat = traits.simulate_discrete(tree, states=["marine", "terrestrial"],
                                    switch=0.1, start="marine", seed=1)
-habitat.values              # {extant tip: "marine" | "terrestrial"}
+habitat.values              # {"n5": "marine" | "terrestrial", …}
 habitat.events              # the realized flips, in time order
 
 # two continuous traits that drift together — one joint call

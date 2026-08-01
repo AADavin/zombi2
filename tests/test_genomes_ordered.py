@@ -361,18 +361,23 @@ def test_write_emits_the_selected_outputs(tmp_path):
                  "chromosome_events.tsv"):
         assert (tmp_path / name).exists()
     head = (tmp_path / "gene_order.tsv").read_text(encoding="utf-8").splitlines()[0]
-    assert head.split("\t") == ["lineage", "chromosome", "position", "strand", "family", "copy"]
+    assert head.split("\t") == ["lineage", "chromosome", "topology", "position", "strand",
+                                "family", "copy"]
 
 
 def _written_gene_order(path):
-    """``gene_order.tsv`` -> ``{node: [(chromosome, position, strand, family, gene), ...]}``."""
+    """``gene_order.tsv`` -> ``{node: [(chromosome, position, strand, family, gene), ...]}``.
+
+    The ``topology`` column is dropped here on purpose: this helper exists to compare the file
+    against ``result.gene_order()``, which is the arrangement and carries no topology. What the
+    column says is checked on its own, in ``test_gene_order_records_each_chromosome_topology``."""
     lines = (path / "gene_order.tsv").read_text(encoding="utf-8").splitlines()[1:]
     written = {}
     for row in lines:
-        s, *rest = row.split("\t")
-        *ints, copy = rest                       # chromosome, position, strand, family are ints; copy is g<n>
+        s, chrom, _topology, *rest = row.split("\t")
+        *ints, copy = rest                       # position, strand, family are ints; copy is g<n>
         written.setdefault(node_from_label(s), []).append(
-            (*(int(c) for c in ints), gene_from_label(copy)))
+            (int(chrom), *(int(c) for c in ints), gene_from_label(copy)))
     return written
 
 
@@ -1021,7 +1026,7 @@ def test_the_initial_genome_is_the_layout_the_run_started_with(tmp_path):
         "the stem was quiet — pick another seed"
     g.write(tmp_path)
     rows = (tmp_path / "initial_genome.tsv").read_text(encoding="utf-8").splitlines()
-    assert rows[0] == "chromosome\tposition\tstrand\tfamily\tcopy" and len(rows) == 9
+    assert rows[0] == "chromosome\ttopology\tposition\tstrand\tfamily\tcopy" and len(rows) == 9
 
 
 # --- transfer_to: steering who receives -----------------------------------------------------------
@@ -1192,3 +1197,37 @@ def test_the_ordered_choice_slot_refuses_what_the_family_one_refuses():
     with pytest.raises(ValueError, match="silently do nothing"):
         simulate_genomes_ordered(sp, transfer=0.1, initial_families=2, seed=1,
                                  transfer_to=Clades({"A": 0}, Between({("A", "rest"): 1.0})))
+
+
+def test_gene_order_records_each_chromosome_topology(tmp_path):
+    """Topology was recoverable from nothing the run wrote.
+
+    It is load-bearing — it decides where a segmental event stops and which chromosomes may fuse —
+    and it is what a rearrangement format's per-chromosome terminator depends on, so a reader handed
+    the output directory alone could not export one. Checked on a MIXED karyotype, which is the case
+    that made it unrecoverable: on a single-topology run you could at least assume."""
+    sp = simulate_species_tree(birth=1.0, n_extant=4, seed=1)
+    r = simulate_genomes_ordered(sp.complete_tree, duplication=0.2, loss=0.1, initial_families=6,
+                                 chromosomes=2, topology=["circular", "linear"], inversion=0.3,
+                                 seed=1)
+    r.write(tmp_path, outputs=("gene_order", "initial_genome"))
+    rows = (tmp_path / "gene_order.tsv").read_text(encoding="utf-8").splitlines()
+    header = rows[0].split("\t")
+    assert header[2] == "topology"
+
+    # every row's topology is the one the in-memory chromosome actually has
+    seen = set()
+    for row in rows[1:]:
+        cells = row.split("\t")
+        lineage, chrom, topology = node_from_label(cells[0]), int(cells[1]), cells[2]
+        actual = {c.id: c.topology for c in r.genomes[lineage]}
+        assert topology == actual[chrom], f"{cells[0]} chr{chrom}: wrote {topology!r}"
+        seen.add(topology)
+    assert seen == {"circular", "linear"}, f"the mixed karyotype should show both, saw {seen}"
+
+    initial = (tmp_path / "initial_genome.tsv").read_text(encoding="utf-8").splitlines()
+    assert initial[0].split("\t")[1] == "topology"
+    started = {c.id: c.topology for c in r.initial_genome}
+    for row in initial[1:]:
+        chrom, topology = row.split("\t")[:2]
+        assert topology == started[int(chrom)]

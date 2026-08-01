@@ -60,10 +60,27 @@ class TraitsResult:
                 f"{len(self.node_values)} nodes, {len(self.events)} events, seed={self.seed})")
 
     @property
-    def values(self) -> dict[int, object]:
+    def values(self) -> dict[str, object]:
         """The observed trait dataset — the value at each **extant** tip (the comparative-data
-        vector). Internal and extinct nodes keep their exact ancestral / lineage values in
-        ``node_values``."""
+        vector), keyed by the **tip name** the tree writes: ``n5``, or ``e5`` for a lineage that died.
+
+        Keyed by name because the only thing anyone does with this is join it to the tree, and the
+        tree names its tips. It used to be keyed by the bare node id (``5``), which the written
+        ``trait_values.tsv`` and every Newick label do not use — so a comparative dataset built in
+        Python shared **no keys at all** with the tree beside it, and nothing said so. The two files
+        a ``write()`` produces always did match; it was the in-memory pair that did not.
+
+        `values_by_id` is the old view, for code that joins on node ids. Internal and extinct nodes
+        keep their exact ancestral / lineage values in ``node_values``, which stays id-keyed: it is
+        the run's own record, not a dataset to export."""
+        name = self.complete_tree.labels()
+        return {name[n.id]: self.node_values[n.id] for n in self.complete_tree.extant_leaves()}
+
+    @property
+    def values_by_id(self) -> dict[int, object]:
+        """`values`, keyed by node id rather than tip name — the shape `values` had before it was
+        keyed to match the tree. For joining against ``node_values``, ``complete_tree.nodes`` or
+        anything else that works in ids."""
         return {n.id: self.node_values[n.id] for n in self.complete_tree.extant_leaves()}
 
     @cached_property
