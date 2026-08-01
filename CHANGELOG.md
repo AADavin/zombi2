@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-08-01
+
 ### Fixed
 - **Every tree ZOMBI2 writes is now ultrametric when read back.** Branch lengths were written at 7
   significant digits, and a tip's depth is a *sum* of them, so the rounding accumulated down the path
