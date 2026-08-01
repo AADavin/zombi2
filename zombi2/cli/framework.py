@@ -109,7 +109,9 @@ _MODIFIER_HELP = {
     "OnTime": ("OnTime({0: 1.0, 3: 0.3})", "the rate changes in time — a skyline"),
     "OnTotalDiversity": ("OnTotalDiversity(cap=100)", "the rate slows as the clade fills up"),
     "FromParent": ("FromParent(spread=0.2)", "the rate drifts down the tree"),
-    "ByLineage": ("ByLineage(spread=0.3)", "one draw per lineage — the uncorrelated clock"),
+    # "clock" is reserved for the sequences by-lineage substitution modifier (SPEC §7), and this
+    # string now prints on `zombi2 species -h` and `zombi2 genomes -h` too
+    "ByLineage": ("ByLineage(spread=0.3)", "one independent draw per lineage — uncorrelated"),
     "DrivenBy": (None, "the rate is driven by another level"),
 }
 
@@ -330,8 +332,8 @@ _STRUCTURAL = {
 }
 
 #: Levels whose rates can be conditioned on another level (they take a ``DrivenBy``), so they may carry
-#: a ``conditioned_on`` record. Only ``genomes`` today — ``sequences`` and ``traits`` take no driven rate.
-_CONDITIONABLE = ("genomes",)
+#: a ``conditioned_on`` record.
+_CONDITIONABLE = ("genomes", "sequences", "traits")
 
 #: Every level, in pipeline order — a stable order for listing them in a message.
 _LEVEL_ORDER = ("species", "genomes", "sequences", "traits")
@@ -408,6 +410,15 @@ def _stale_downstream(args, level: str) -> list:
     edges = {k: set(v) for k, v in _STRUCTURAL.items()}
     for consumer in _CONDITIONABLE:                          # a conditioning edge: driver → consumer
         for driver in _conditioned_on(run, consumer):
+            if driver == consumer:
+                # A trait driving another trait: both sit under `traits/`, so the edge is
+                # traits → traits and this graph, whose nodes are LEVELS, cannot tell the driver
+                # from the target. Following it would mark the level stale against itself and
+                # `--force` would then delete every trait in the run, including the one just
+                # written. The marker is still recorded — it is what the log and the run report
+                # show — but a within-level dependency is not invalidated automatically until the
+                # graph's nodes are `traits/<name>` rather than `traits`.
+                continue
             edges.setdefault(driver, set()).add(consumer)
     seen, stack = set(), list(edges.get(level, ()))
     while stack:

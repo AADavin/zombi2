@@ -35,7 +35,7 @@ A genome has a **karyotype**: `chromosomes=N` chromosomes, each with a `topology
 On top of the karyotype, four events change the **number** of chromosomes:
 
 - **`fission`** *(per chromosome)* — a chromosome splits in two.
-- **`fusion`** *(per chromosome)* — two chromosomes of a genome merge into one.
+- **`fusion`** *(per chromosome)* — two chromosomes of a genome merge into one. Only two of the **same topology**: a ring and a molecule with two ends cannot become one molecule, so a circular chromosome never fuses with a linear one, and a genome holding one of each never fuses at all.
 - **`chromosome_origination`** *(per lineage)* — a de-novo replicon appears: a new chromosome, empty and circular, a plasmid.
 - **`chromosome_loss`** *(per chromosome)* — a whole chromosome dies, and every gene on it is recorded as a loss. A lineage never loses its *last* chromosome this way.
 
@@ -56,12 +56,12 @@ Chromosomes are tracked. A chromosome id is re-minted at every event that reshap
 species tree  ⊃  chromosome network  ⊃  gene trees
 ```
 
-It is a **network** and not a tree because of one event: **fusion joins two chromosome lineages into one**, two parents and one child. Fission and speciation are ordinary splits (one parent, two children); origination is a root; loss is a leaf. The whole thing is a directed graph, and it is recorded the way graphs are, as an **edge list** — `chromosome_events`, one row per event. The run above gives:
+It is a **network** and not a tree because of one event: **fusion joins two chromosome lineages into one**, two parents and one child. Fission and speciation are ordinary splits (one parent, two children); `initial` and `origination` are roots — the chromosomes the run began with and the de-novo replicons `chromosome_origination` mints, told apart so you can see which is which; loss is a leaf. The whole thing is a directed graph, and it is recorded the way graphs are, as an **edge list** — `chromosome_events`, one row per event. The run above gives:
 
 ```
   time   kind          parents -> children
-  0.00   origination        -  -> 0          an initial chromosome
-  0.00   origination        -  -> 1          an initial chromosome
+  0.00   initial            -  -> 0          a chromosome the run started with
+  0.00   initial            -  -> 1          a chromosome the run started with
   0.97   loss               1  -> -          chromosome 1 (and its genes) dies
   2.19   speciation         0  -> 2, 3
   3.27   speciation         2  -> 4, 5
@@ -115,6 +115,28 @@ Weighting the starting gene is the obvious implementation and the wrong one: a f
 
 With no weights set every run averages to one, so a run using neither knob is unchanged.
 
+### Who receives a transfer
+
+The recipient rule is Chapter 4's, unchanged: `transfer_to` takes `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or a `DrivenBy` weight read off a trait (Chapter 9). What is ordered about an ordered transfer is the block that moves; who receives it is the same question and the same answer as at the family resolution.
+
+```python
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1)
+flows = genomes.Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)
+g = genomes.simulate_genomes_ordered(
+    tree, transfer=1.0, transfer_extent=3, initial_families=20, seed=2,
+    transfer_to=genomes.Clades({"A": ["n27", "n28"], "B": ["n21", "n26"]}, flows))
+```
+
+Every transferred block now crosses between the two named clades and never lands inside either. The numbers are weights, normalised over the lineages alive when a transfer fires, so they redistribute transfers without changing how many happen — and a weight of 0 means "cannot receive", so a transfer whose every candidate weighs 0 does not fire at all, leaving the donor exactly as it was.
+
+One thing to watch when you combine a restrictive rule with a tight `max_family_size`: the two thin transfers independently. A block is refused when it would take any family it carries past the cap, and refused again when the kernel forbids the pair, so the realised amount of transfer can sit well below the rate you declared. Raise the cap while you are measuring the weights.
+
+### A rate can be driven by a trait
+
+Every rate here also takes `DrivenBy`, so a habitat can decide how often a lineage rearranges its gene order, and every extent takes it too, so the same habitat can decide how long the rearranged runs are. The mechanism is Chapter 9's and is not repeated here.
+
+What belongs here is why the two per-family knobs above and a trait driver sit apart. A trait `DrivenBy` attaches to the **lineage**: at any instant it is one factor for that lineage's whole genome, so it composes with any extent unchanged and the run is drawn exactly as it would be without it. `ByFamily` attaches to the **contents**, so it has to weight the run by what the run covers. The two therefore cannot be set in the same run yet — combining them means weighting by the product of a lineage factor and a segment factor, which is neither model on its own. `family_speed` counts as a `ByFamily` here.
+
 ## Rearrangements: inversion, transposition, translocation
 
 Three more events reshape the order without creating or destroying genes:
@@ -158,7 +180,7 @@ g.gene_trees[0].to_newick()      # a family's gene tree — as at the family res
 ## Usage from Python
 
 ```python
-from zombi2 import species, genomes
+from zombi2 import species, genomes, traits
 from zombi2.rates.distributions import Geometric
 from zombi2.rates import modifiers as mod
 
@@ -189,6 +211,15 @@ g = genomes.simulate_genomes_ordered(
 # rates can still depend on time (the skyline), as at every level
 g = genomes.simulate_genomes_ordered(
     tree, inversion=1.0 * mod.OnTime({0: 1.0, 2: 0.2}), initial_families=10, seed=1)
+
+# ...or on a trait grown first: a host-restricted lineage inverts four times as often, and each
+# inversion covers three times as many genes (the rate and the extent are separate axes)
+habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.5, seed=1)
+g = genomes.simulate_genomes_ordered(
+    tree,
+    inversion=0.3 * mod.DrivenBy(habitat, {"host": 4.0, "free": 1.0}),
+    inversion_extent=4 * mod.DrivenBy(habitat, {"host": 3.0, "free": 1.0}),
+    initial_families=10, seed=1)
 
 # the outputs
 g.genomes                             # every node's chromosomes

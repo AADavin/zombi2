@@ -180,13 +180,26 @@ def test_ordered_extent_takes_a_skyline(tree):
     assert max(late) > max(early), "runs should get longer after the step"
 
 
-def test_ordered_refuses_a_driven_extent(tree):
-    """The ordered engine wires no DrivenBy on a rate, and none on an extent either — the message
-    points at the resolution that does."""
+def test_ordered_extent_can_be_driven_by_a_trait(tree):
+    """The same statement as the nucleotide test above, in genes rather than base pairs: a
+    host-restricted lineage duplicates in **longer runs**, not more often. The duplication rate is
+    left undriven, so only the sizes may differ."""
+    from zombi2 import traits
     from zombi2.rates import modifiers as mod
-    with pytest.raises(ValueError, match="does not support on an extent"):
-        simulate_genomes_ordered(tree, duplication=0.3,
-                                 duplication_extent=2 * mod.DrivenBy("t.tsv", {"a": 2.0}), seed=1)
+    from zombi2.rates.driver import driver_from_result
+
+    habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=2)
+    traj = driver_from_result(habitat)
+    g = simulate_genomes_ordered(
+        tree, duplication=0.5, chromosomes=1, initial_families=30,
+        duplication_extent=2 * mod.DrivenBy(habitat, {"host": 6.0, "free": 1.0}), seed=2)
+
+    sizes = {"host": [], "free": []}
+    for p in g.event_positions:
+        if p.kind == "duplication":
+            sizes[traj.value(p.lineage, p.time)].append(p.length)
+    assert sizes["host"] and sizes["free"], "both states should have duplicated something"
+    assert np.mean(sizes["host"]) > np.mean(sizes["free"])
 
 
 def test_nucleotide_refuses_an_unwired_extent_modifier(tree):

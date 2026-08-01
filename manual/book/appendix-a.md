@@ -87,10 +87,10 @@ accept rather than silently ignoring it. This is what each accepts today:
 
 | Level | The modifiers it accepts |
 |---|---|
-| Species | `OnTime` · `OnTotalDiversity` · `FromParent` |
+| Species | `OnTime` · `OnTotalDiversity` · `FromParent` · `ByLineage` |
 | Genomes — family, ordered | `OnTime` · `DrivenBy` · `ByFamily` |
 | Genomes — nucleotide | `OnTime` · `DrivenBy` |
-| Sequences | `ByLineage` · `FromParent` |
+| Sequences | `ByLineage` · `FromParent` · `DrivenBy` |
 | Traits | `OnTime` · `FromParent` · `OnTotalDiversity` · `DrivenBy` |
 
 `zombi2 <command> -h` prints the same list for that command, read from the engine itself, so the two

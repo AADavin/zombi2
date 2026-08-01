@@ -15,7 +15,9 @@ from zombi2.genomes.events import copy_label
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
 from zombi2.rates import modifiers as mod
 from zombi2.sequences import SequencesResult, simulate_sequences
-from zombi2.sequences.substitution_models import gtr, hky85, jc69, k80
+from zombi2.sequences.substitution_models import (AMINO_ACIDS, SubstitutionModel, dayhoff, gtr,
+                                                  hky85, jc69, jtt, k80, lg, poisson, reversible,
+                                                  wag)
 
 
 # --- hand-built gene trees: origination → speciation → two extant tips -----------------------------
@@ -82,6 +84,135 @@ def test_models_are_normalised_to_one_substitution_per_unit_time():
     # -Σ π_i Q_ii == 1 (branch lengths are in substitutions/site)
     for m in (jc69(), k80(3.0), hky85(2.0, (0.2, 0.3, 0.3, 0.2)), gtr()):
         assert np.isclose(-(m.stationary * np.diag(m.Q)).sum(), 1.0)
+
+
+# --- a matrix of your own: reversible() ------------------------------------------------------------
+
+def _hky_exchangeabilities(kappa: float) -> np.ndarray:
+    """HKY85's 4×4 exchangeability matrix written out by hand: transitions (A↔G, C↔T) at ``kappa``,
+    transversions at 1. Built here rather than taken from the module so the test compares the public
+    constructor against the menu, not the module against itself."""
+    return np.array([[0.0, 1.0, kappa, 1.0],
+                     [1.0, 0.0, 1.0, kappa],
+                     [kappa, 1.0, 0.0, 1.0],
+                     [1.0, kappa, 1.0, 0.0]])
+
+
+def test_reversible_rebuilds_a_menu_model_exactly():
+    """The public door is the same door the menu goes through: a hand-written HKY85 matrix and the
+    same frequencies give the model `hky85()` gives, cell for cell — including the normalisation to
+    one expected substitution per site per unit branch length."""
+    freqs = (0.3, 0.2, 0.2, 0.3)
+    mine = reversible(_hky_exchangeabilities(2.0), freqs, name="HKY85")
+    theirs = hky85(kappa=2.0, freqs=freqs)
+    assert np.allclose(mine.Q, theirs.Q)
+    assert np.allclose(mine.stationary, theirs.stationary)
+    assert np.allclose(mine.p_matrix(0.42), theirs.p_matrix(0.42))
+    assert mine.alphabet == theirs.alphabet == "ACGT"
+
+
+def test_a_custom_model_is_normalised_and_keeps_its_stationary():
+    """The two properties the rest of the level leans on. Normalisation is what makes a branch
+    length mean substitutions per site whatever matrix produced it — the reason one phylogram is
+    exact for a partitioned run — and stationarity is what makes the founding draw a fixed point."""
+    rng = np.random.default_rng(3)
+    S = rng.random((4, 4))
+    S = S + S.T
+    np.fill_diagonal(S, 0.0)
+    pi = rng.random(4) + 0.1
+    pi = pi / pi.sum()
+    m = reversible(S, pi, name="Random")
+    assert np.isclose(-(m.stationary * np.diag(m.Q)).sum(), 1.0)
+    assert np.allclose(m.stationary @ m.p_matrix(0.4), m.stationary)
+    assert np.allclose(m.p_matrix(0.4).sum(1), 1.0)
+
+
+def test_a_custom_model_can_use_the_amino_acid_alphabet():
+    """`reversible()` is not a nucleotide constructor with a wider door — `poisson()` is literally
+    this call, and a run under a hand-built 20-state matrix writes amino acids."""
+    S = np.ones((20, 20)) - np.eye(20)
+    mine = reversible(S, np.full(20, 0.05), name="Poisson", alphabet=AMINO_ACIDS)
+    assert np.allclose(mine.Q, poisson().Q)
+    r = simulate_sequences(_pair_run(1.0, 2.0), model=mine, length=60, seed=2)
+    assert set("".join(_seqs(r))) <= set(AMINO_ACIDS)
+
+
+#: bad exchangeability matrices, and the *detail* the message has to name — not merely "invalid".
+_BAD_MATRICES = [
+    (np.array([[0.0, 1.0, 1.0, 1.0], [2.0, 0.0, 1.0, 1.0],
+               [1.0, 1.0, 0.0, 1.0], [1.0, 1.0, 1.0, 0.0]]), "asymmetric by up to 1"),
+    (np.full((4, 4), -1.0) + np.eye(4), "minimum entry -1"),
+    (np.ones((4, 4)), "zero diagonal"),
+    (np.ones((3, 3)) - np.eye(3), r"K = 4"),                   # a 3×3 S against 4 frequencies
+]
+
+
+@pytest.mark.parametrize("S, match", _BAD_MATRICES)
+def test_reversible_names_what_is_wrong_with_a_bad_matrix(S, match):
+    with pytest.raises(ValueError, match=match):
+        reversible(S, [0.25] * 4)
+
+
+@pytest.mark.parametrize("freqs, match", [
+    ([0.4, 0.3, 0.2, 0.0], "strictly positive"),
+    ([0.4, 0.3, 0.2, 0.2], "sum to 1"),
+])
+def test_reversible_names_what_is_wrong_with_the_frequencies(freqs, match):
+    with pytest.raises(ValueError, match=match):
+        reversible(np.ones((4, 4)) - np.eye(4), freqs)
+
+
+@pytest.mark.parametrize("alphabet, match", [
+    ("ACG", "characters but"),                                 # too few for a 4×4
+    ("ACGA", "distinct"),                                      # a repeat: two states, one letter
+    ("ACGé", "distinct"),                                      # non-ASCII cannot go in a FASTA
+])
+def test_a_custom_alphabet_must_name_every_state_exactly_once(alphabet, match):
+    with pytest.raises(ValueError, match=match):
+        reversible(np.ones((4, 4)) - np.eye(4), [0.25] * 4, alphabet=alphabet)
+
+
+def test_a_non_reversible_rate_matrix_is_refused_rather_than_silently_wrong():
+    """The load-bearing guard. `p_matrix()` eigendecomposes diag(√π)·Q·diag(1/√π), which is similar
+    to Q only under detailed balance, so a cyclic A→C→G→T→A matrix — a perfectly good generator,
+    just not a reversible one — would come back as a well-formed transition matrix for a *different*
+    model. Nothing downstream could notice: the sequences would look like sequences."""
+    Q = np.array([[-1.0, 1.0, 0.0, 0.0],
+                  [0.0, -1.0, 1.0, 0.0],
+                  [0.0, 0.0, -1.0, 1.0],
+                  [1.0, 0.0, 0.0, -1.0]])
+    assert np.allclose(Q.sum(1), 0.0)                          # it *is* a rate matrix
+    with pytest.raises(ValueError, match="detailed balance") as e:
+        SubstitutionModel("Cyclic", Q, np.full(4, 0.25))
+    assert "not implemented" in str(e.value)                   # a fact about the code, not the model
+    assert "reversible(" in str(e.value)                       # and where the thing does belong
+
+
+def test_a_rate_matrix_whose_rows_do_not_sum_to_zero_is_refused():
+    Q = np.array([[-1.0, 1.0, 0.0, 0.5],
+                  [1.0, -1.0, 0.0, 0.0],
+                  [0.0, 0.0, 0.0, 0.0],
+                  [0.5, 0.0, 0.0, -0.5]])
+    with pytest.raises(ValueError, match="sum to 0"):
+        SubstitutionModel("Leaky", Q, np.full(4, 0.25))
+
+
+@pytest.mark.parametrize("build", [jc69, lambda: k80(3.0), lambda: hky85(2.0, (0.2, 0.3, 0.3, 0.2)),
+                                   gtr, poisson, jtt, dayhoff, wag, lg])
+def test_every_menu_model_passes_the_reversibility_guard(build):
+    """A tolerance regression guard. The published 20-state matrices are symmetric only to
+    round-off, so this pins that the check that refuses a non-reversible model does not also refuse
+    WAG."""
+    m = build()
+    flux = m.stationary[:, None] * m.Q
+    assert np.allclose(flux, flux.T)
+
+
+def test_across_sites_survives_the_reversibility_guard():
+    """`across_sites()` rebuilds the model through `dataclasses.replace`, which re-runs
+    ``__post_init__`` — so the guard sees every decorated model too, and must pass them."""
+    m = hky85(kappa=2.0).across_sites(gamma_shape=0.5, invariant=0.1)
+    assert m.name == "HKY85+I+G4"
 
 
 # --- the engine: determinism, the strict clock, structure ------------------------------------------
@@ -245,17 +376,59 @@ def test_bylineage_clock_is_shared_across_families_on_a_lineage():
     assert std < 0.02      # shared clock ⇒ ~0.006 sampling noise; a per-family clock would be far larger
 
 
-def test_sequence_clock_rejects_multiple_or_unwired_modifiers():
+def test_sequence_clock_rejects_multiple_or_unwired_modifiers(tmp_path):
     run = _pair_run(1.0, 2.0)
-    with pytest.raises(ValueError):                 # two clocks — only a single lineage clock is wired
+    with pytest.raises(ValueError, match="lineage clocks"):   # two clocks — a lineage has one
         simulate_sequences(run, model=jc69(), length=10,
                            substitution=1.0 * mod.FromParent(spread=0.3) * mod.ByLineage(spread=0.2))
-    with pytest.raises(ValueError):                 # two ByLineage
+    with pytest.raises(ValueError, match="lineage clocks"):   # two ByLineage
         simulate_sequences(run, model=jc69(), length=10,
                            substitution=1.0 * mod.ByLineage(spread=0.3) * mod.ByLineage(spread=0.2))
-    with pytest.raises(ValueError):                 # ByLineage × OnTime — a non-clock modifier
-        simulate_sequences(run, model=jc69(), length=10,
+    with pytest.raises(ValueError, match="OnTime"):  # ByLineage × OnTime — a modifier this level
+        simulate_sequences(run, model=jc69(), length=10,   # does not read
                            substitution=1.0 * mod.ByLineage(spread=0.3) * mod.OnTime({0: 1.0}))
+    # A clock and a driver, though, are two different axes and DO compose (SPEC §5: modifiers
+    # multiply) — so this one has to run rather than raise.
+    driver = tmp_path / "d.tsv"
+    driver.write_text("time\tkind\tlineage\tfrom\tto\n0.0\tinitial\tn0\t\ta\n", encoding="utf-8")
+    simulate_sequences(run, model=jc69(), length=10, seed=1,
+                       substitution=1.0 * mod.ByLineage(spread=0.3)
+                       * mod.DrivenBy(str(driver), {"a": 2.0}))
+
+
+def test_a_between_kernel_is_refused_on_the_substitution_rate(tmp_path):
+    """A ``Between`` weights an ordered (donor, recipient) pair, and a rate is read on one lineage —
+    there is no donor for the pair's first half to name. Meaningless rather than unimplemented, so the
+    message has to name the slot it does belong in (SPEC §5)."""
+    from zombi2.rates.mapping import Between
+
+    run = _pair_run(1.0, 2.0)
+    driver = tmp_path / "d.tsv"
+    driver.write_text("time\tkind\tlineage\tfrom\tto\n0.0\tinitial\tn0\t\ta\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="transfer_to"):
+        simulate_sequences(run, model=jc69(), length=10,
+                           substitution=1.0 * mod.DrivenBy(str(driver),
+                                                           Between({("a", "b"): 1.0})))
+
+
+def test_a_live_level_source_is_refused_as_a_joint_run():
+    """SPEC §3: Traits and Sequences can be conditioned and never joined. A live-level source is the
+    joint spelling of DrivenBy, so it must come back as the modelling answer rather than as a missing
+    file called 'trait'."""
+    run = _pair_run(1.0, 2.0)
+    with pytest.raises(ValueError, match="cannot be joined"):
+        simulate_sequences(run, model=jc69(), length=10,
+                           substitution=1.0 * mod.DrivenBy("trait", {"a": 2.0}))
+
+
+def test_divergence_is_refused_alongside_a_driven_rate():
+    """``divergence / height`` is the base only when the modifiers average to 1 along a root-to-tip
+    path — which the two clocks are mean-corrected to do and a driver is not. Solving anyway would log
+    a divergence the run did not realise, so it is refused with the base to write instead."""
+    run = _pair_run(1.0, 2.0)
+    with pytest.raises(ValueError, match="divergence"):
+        simulate_sequences(run, model=jc69(), length=10, divergence=0.2,
+                           substitution=mod.DrivenBy("trait_events.tsv", {"a": 2.0}))
 
 
 # --- the lineage clock (FromParent): the autocorrelated clock ---------------------------------------

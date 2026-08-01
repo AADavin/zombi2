@@ -51,7 +51,7 @@ The one case that yields no event is degenerate — a replicon with no legal end
 1 000 000 bp  ->  77 inversions
 ```
 
-The chromosome tier below is the exception: `fission`, `fusion` and `chromosome_loss` are counted **per chromosome**, and `chromosome_origination` per lineage.
+The chromosome tier below is the exception: `fission`, `fusion` and `chromosome_loss` are counted **per chromosome**, and `chromosome_origination` per lineage. A fusion joins two chromosomes of the **same topology**, for the same reason it does at the ordered resolution: a ring and a molecule with two ends cannot become one molecule.
 
 Rates here take the same written form as everywhere else — `scope(base) × modifiers` — and the scopes above are the defaults, so a bare number stays a bare number. The **skyline** works: `inversion = 5.0 * OnTime({0: 1.0, 3: 0.2})` drops the inversion rate fivefold at time 3, and the run re-reads its rates at each step rather than racing past it.
 
@@ -75,6 +75,21 @@ loss_extent = 150 * mod.DrivenBy(habitat, {"host": 6.0,  "free": 1.0})  # bigger
 The first raises how often a host-restricted lineage deletes, the second how much each deletion takes. Set both and they multiply: the DNA shed per unit time goes up by the product, not the sum.
 
 A modifier on an *extent* is read when an event fires, so unlike the same modifier on a rate it adds no step to the run's clock. Chapter 9 covers what a driver is and how to grow one; anything the level does not accept raises rather than being quietly ignored.
+
+## Who receives a transfer
+
+`transfer_to` is Chapter 4's recipient rule, and it works here unchanged: `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or a `DrivenBy` weight read off a trait. It is not a rate — the numbers are weights normalised over the lineages alive when a transfer fires — so it says who receives and never how much transfer happens.
+
+```python
+tree6 = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=6)
+flows = genomes.Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)
+g = genomes.simulate_genomes_nucleotide(
+    tree6, root_length=6000, genes=6, gene_length=400,
+    transfer=2.0, transfer_extent=900, seed=6,
+    transfer_to=genomes.Clades({"A": ["n49", "n50"], "B": ["n30", "n36"]}, flows))
+```
+
+A transfer here is always **additive** — the donor keeps its copy — so steering changes only which lineage the arc lands on. Nothing is taken from anyone, and a transfer whose every candidate weighs 0 simply does not fire.
 
 ## Genes are never split
 

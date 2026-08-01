@@ -6,18 +6,25 @@ must survive unchanged; on top of it we check the two new things — the inversi
 chromosome genealogy.
 """
 
+import hashlib
 import inspect
 
+import numpy as np
 import pytest
+
+from zombi2.rates import modifiers as mod
 
 from zombi2.genomes.events import gene_from_label, node_from_label
 from zombi2.rates import scope
 from zombi2.rates.distributions import Fixed, Geometric
-from zombi2.rates.modifiers import OnTime
+from zombi2.rates.modifiers import ByFamily, ByLineage, FromParent, OnTime, OnTotalDiversity
 from zombi2.species import simulate_species_tree
 from zombi2.tree import Node, Tree
 from zombi2.genomes import (
+    Between,
     Chromosome,
+    Clades,
+    Distance,
     Gene,
     Inversion,
     Transposition,
@@ -26,6 +33,7 @@ from zombi2.genomes import (
     simulate_genomes_family,
 )
 from zombi2.genomes.ordered import (
+    _do_transfer,
     _duplicate,
     _extent,
     _fission,
@@ -245,12 +253,79 @@ def test_deterministic_given_seed():
     assert r.chromosome_events == r2.chromosome_events
 
 
+#: The digest of one seeded run exercising **every** event class, captured BEFORE ``DrivenBy`` was
+#: wired into this engine. Every driven-path addition is behind ``if any_driven`` / a ``w`` argument
+#: and draws nothing from the rng, so an undriven run must hash the same: the draw order of the plain
+#: path is what a hundred seeded tests, the gallery and every analysis depend on.
+_UNDRIVEN_ORDERED_DIGEST = "2c2b782b7bd55a2197dbb153aabfd5e34ccc39a7f557bc03490bd3184f509c06"
+
+
+def _ordered_digest(r) -> str:
+    """Everything the run produced, hashed: the gene genealogy and where each event happened, the
+    rearrangements, the chromosome network, every node's layout, and the initial genome."""
+    import hashlib
+    key = repr([
+        [(round(e.time, 12), e.kind, e.lineage, e.family, e.copy, e.parent, e.recipient)
+         for e in r.events],
+        [(round(p.time, 12), p.kind, p.lineage, p.chromosome, p.start, p.length, p.family,
+          p.donor, p.recipient, p.dest_position) for p in r.event_positions],
+        [(type(x).__name__, round(x.time, 12), x.lineage, tuple(sorted(vars(x).items())))
+         for x in r.rearrangements],
+        [(round(c.time, 12), c.kind, c.lineage, c.parents, c.children) for c in r.chromosome_events],
+        {k: r.gene_order(k) for k in sorted(r.genomes)},
+        [(c.id, c.topology, [(g.id, g.family, g.strand) for g in c.genes]) for c in r.initial_genome],
+    ])
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
+def test_undriven_ordered_run_is_byte_identical():
+    tree = simulate_species_tree(birth=1.2, death=0.2, total_time=2.0, seed=17).complete_tree
+    r = simulate_genomes_ordered(
+        tree, duplication=0.2, transfer=0.3, loss=0.15, origination=0.25,
+        inversion=0.4, transposition=0.2, translocation=0.2,
+        chromosomes=3, fission=0.1, fusion=0.1,
+        chromosome_origination=0.05, chromosome_loss=0.05,
+        duplication_extent=3, loss_extent=2, transfer_extent=2, inversion_extent=4,
+        transposition_extent=2, translocation_extent=2, inversion_probability=0.3,
+        initial_families=30, seed=23)
+    assert _ordered_digest(r) == _UNDRIVEN_ORDERED_DIGEST, (
+        "an undriven ordered run changed: the rng draw order of the plain path must not move")
+
+
 def test_ontime_skyline_modifier_is_accepted():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)
     r = simulate_genomes_ordered(sp, duplication=0.3 * OnTime({0: 1.0, 1.0: 0.2}),
                                  inversion=0.2 * OnTime({0: 0.5, 1.0: 2.0}),
                                  chromosomes=2, initial_families=6, seed=1)
     assert r.genomes                                           # ran without complaint
+
+
+@pytest.mark.parametrize("modifier", [ByLineage(spread=0.5), FromParent(spread=0.5),
+                                      OnTotalDiversity(cap=100)])
+def test_unsupported_modifier_is_rejected(modifier):
+    """The gate had no test at all. A modifier the engine cannot read must raise — one that returns
+    1.0 because nothing looks at it is a run quietly not the model asked for (SPEC §5) — and the
+    message must name what this engine *does* take, so the reader knows where to go next."""
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
+    with pytest.raises(ValueError, match="ordered genome engine does not support"):
+        simulate_genomes_ordered(sp, inversion=0.3 * modifier, initial_families=6, seed=1)
+
+
+@pytest.mark.parametrize("modifier", [ByLineage(spread=0.5), FromParent(spread=0.5)])
+def test_unsupported_modifier_on_an_extent_is_rejected(modifier):
+    """An extent takes the same modifiers a rate does (SPEC §6), so the same refusal applies — and
+    names the two it takes rather than pointing at another resolution."""
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
+    with pytest.raises(ValueError, match="does not support on an extent"):
+        simulate_genomes_ordered(sp, inversion=0.3, inversion_extent=3 * modifier,
+                                 initial_families=6, seed=1)
+
+
+def test_the_extent_declaration_is_the_rate_declaration_minus_byfamily():
+    """The one difference between the two lists is a modelling fact, not an accident: ``ByFamily``
+    attaches to the contents, and an extent is drawn before the run's genes are known."""
+    from zombi2.genomes.ordered import WIRED_EXTENT_MODIFIERS, WIRED_MODIFIERS
+    assert set(WIRED_MODIFIERS) - set(WIRED_EXTENT_MODIFIERS) == {ByFamily}
 
 
 def test_scope_override_is_rejected_this_slice():
@@ -373,6 +448,23 @@ def test_a_genome_never_loses_its_last_chromosome():
     assert all(len(chroms) >= 1 for chroms in r.genomes.values())
 
 
+def test_a_genome_never_loses_its_last_genes_to_a_chromosome_loss():
+    """"Not the genome's last chromosome" is not enough to keep a genome alive.
+
+    A lineage can be carrying **empty** replicons — `chromosome_origination` mints one empty, and a
+    translocation can empty one — so a genome of one gene-bearing chromosome beside an empty plasmid
+    used to lose everything the moment `chromosome_loss` picked the one with the genes on it. The
+    parameters below are the ones that reproduced it: 3 of 6 extant genomes came out with no genes."""
+    for seed in range(40):
+        sp = simulate_species_tree(birth=1.0, n_extant=6, seed=seed)
+        r = simulate_genomes_ordered(sp.complete_tree, loss=3.0, translocation=3.0,
+                                     chromosome_loss=1.0, chromosome_origination=0.5,
+                                     initial_families=4, chromosomes=2, seed=seed)
+        for node in sp.complete_tree.extant_leaves():
+            assert any(c.genes for c in r.genomes[node.id]), (
+                f"seed {seed}, lineage {node.id}: every chromosome came out empty")
+
+
 def test_the_tier_changes_chromosome_number():
     _, r = _tier(seed=5)
     counts = {len(chroms) for chroms in r.genomes.values()}
@@ -435,6 +527,84 @@ def test_fusion_concatenates_two_chromosomes_into_one():
     assert len(genome) == 1
     assert [g.id for g in genome[0].genes] == [0, 1, 2]              # a.genes + b.genes
     assert ce[0].kind == "fusion" and ce[0].parents == (10, 11) and len(ce[0].children) == 1
+
+
+def test_a_circular_chromosome_never_fuses_with_a_linear_one():
+    # A ring and a molecule with two ends cannot become one molecule. This used to draw the partner
+    # uniformly over the whole karyotype and hand the child `a.topology`, so the two silently fused
+    # into one chromosome whose shape was whichever end the chromosome pick landed on first.
+    import numpy as np
+    genome = [Chromosome(10, "circular", [Gene(0, 0, 1), Gene(1, 1, 1)]),
+              Chromosome(11, "linear", [Gene(2, 2, 1)])]
+    node = Node(5, None, 0.0, 1.0, None, "extant")
+    ce = []
+    for ci in (0, 1):                                  # neither one has a legal partner
+        assert _fusion(genome, ci, node, 3.0, ce, _minter(20), np.random.default_rng(0)) == (0, 0)
+    assert [c.id for c in genome] == [10, 11]          # the karyotype is exactly as it was
+    assert [c.topology for c in genome] == ["circular", "linear"]
+    assert ce == []                                    # a declined event logs nothing
+
+
+def test_fusion_picks_a_partner_of_its_own_topology():
+    # With one legal partner among two candidates the choice is forced, so this holds at every seed:
+    # the circular chromosome fuses with the other circular one and the linear one is left alone.
+    import numpy as np
+    for seed in range(20):
+        genome = [Chromosome(0, "circular", [Gene(0, 0, 1)]),
+                  Chromosome(1, "linear", [Gene(1, 1, 1)]),
+                  Chromosome(2, "circular", [Gene(2, 2, 1)])]
+        node = Node(5, None, 0.0, 1.0, None, "extant")
+        ce = []
+        assert _fusion(genome, 0, node, 3.0, ce, _minter(90),
+                       np.random.default_rng(seed)) == (-1, 0)
+        assert ce[0].parents == (0, 2)                          # never (0, 1)
+        assert [c.topology for c in genome] == ["linear", "circular"]   # the linear one survives
+        assert [g.id for g in genome[1].genes] == [0, 2]
+
+
+def test_a_single_topology_genome_draws_its_partner_exactly_as_before():
+    # The rule must cost nothing where it cannot bite. In a genome of one topology `partners` is
+    # every other chromosome in index order, so it is the same single draw from a pool of n-1 that
+    # the old `rng.integers(n - 1)` + skip-past-ci arithmetic made, and it maps to the same
+    # chromosome. Pinning it here is what makes "a seeded circular run is unchanged" a test rather
+    # than a claim.
+    import numpy as np
+    node = Node(5, None, 0.0, 1.0, None, "extant")
+    for seed in range(10):
+        for ci in range(6):
+            genome = [Chromosome(k, "circular", [Gene(k, k, 1)]) for k in range(6)]
+            ce = []
+            _fusion(genome, ci, node, 3.0, ce, _minter(90), np.random.default_rng(seed))
+            i = int(np.random.default_rng(seed).integers(5))    # the one draw, from a pool of n-1
+            expected = i if i < ci else i + 1                   # ... mapped as the old code mapped it
+            assert ce[0].parents == (ci, expected)
+
+
+def test_a_mixed_topology_karyotype_keeps_one_chromosome_of_each_shape():
+    # The end-to-end regression. Under a hard fusion rate a karyotype of two rings and two linear
+    # molecules used to collapse to a single chromosome carrying every gene; now it can only ever
+    # collapse to one of each shape, because the last ring and the last linear molecule have no
+    # legal partner left.
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    r = simulate_genomes_ordered(sp, fusion=1.0, fission=0.5, chromosomes=4,
+                                 topology=["circular", "linear", "circular", "linear"],
+                                 initial_families=12, seed=5)
+    for n in sp.complete_tree.extant_leaves():
+        assert sorted(c.topology for c in r.genomes[n.id]) == ["circular", "linear"]
+    # ... and no recorded fusion edge ever joined two shapes. Ancestral chromosomes are not in the
+    # result, so track each id's topology down the network from the roots the run laid down.
+    topology = {}
+    initial = iter(["circular", "linear", "circular", "linear"])
+    for e in r.chromosome_events:
+        if e.kind == "initial":
+            topology[e.children[0]] = next(initial)
+        elif e.kind == "origination":
+            topology[e.children[0]] = "circular"            # a de-novo replicon is a plasmid
+        else:
+            assert len({topology[p] for p in e.parents}) == 1
+            for ch in e.children:
+                topology[ch] = topology[e.parents[0]]
+    assert any(e.kind == "fusion" for e in r.chromosome_events)      # the rule was actually exercised
 
 
 def test_tier_rate_scope_override_is_rejected():
@@ -852,3 +1022,173 @@ def test_the_initial_genome_is_the_layout_the_run_started_with(tmp_path):
     g.write(tmp_path)
     rows = (tmp_path / "initial_genome.tsv").read_text(encoding="utf-8").splitlines()
     assert rows[0] == "chromosome\tposition\tstrand\tfamily\tcopy" and len(rows) == 9
+
+
+# --- transfer_to: steering who receives -----------------------------------------------------------
+# The recipient rule is the family core's choice slot (SPEC §5), and the whole of it works here: the
+# numbers are weights normalised over the contemporaneous candidates, so they change who receives and
+# never how many transfers happen. What is ordered about an ordered transfer is the *block* that
+# moves, which is the extent — a separate axis (SPEC §6).
+
+_STEERED = dict(transfer=1.0, initial_families=12, max_family_size=8, seed=11)
+
+
+def _arrivals(result):
+    """Every fired transfer's arrival row — the recipient's half of the horizontal edge."""
+    return [e for e in result.events if e.kind == "transfer" and e.recipient is not None]
+
+
+def _sha(obj):
+    return hashlib.sha256(repr(obj).encode()).hexdigest()
+
+
+def _event_digest(result):
+    return _sha([(round(e.time, 12), e.kind, e.lineage, e.family, e.copy, e.parent, e.recipient)
+                 for e in result.events])
+
+
+def _layout_digest(result):
+    """Every node's layout. The genealogy alone is not enough here: rotating a circular chromosome
+    moves no gene between lineages and would slip past an events-only digest, and rotation is exactly
+    what the recipient-pick hoist below changes the timing of."""
+    return _sha({i: result.gene_order(i) for i in sorted(result.genomes)})
+
+
+# Captured from the engine BEFORE the choice slot was wired at this resolution. Wiring it added a
+# branch to `_do_transfer` and moved the recipient pick ABOVE the donor's anchoring, so these are the
+# guard that a run which steers nothing did not move: the pick consumes the rng and anchoring does
+# not, which is what makes the two free to swap. Both rules are pinned because they take different
+# branches of the pick.
+_UNDRIVEN_ORDERED_DIGESTS = {
+    "uniform": ("67da8d3c71f6f4a58235efb854e1cbddd5bf6660514a59cc0107375ac55ed087",
+                "c865dfe27d521e67788e3d2b6f367435282fa754db89809ee864808adfc0643b"),
+    "distance": ("4c1a7cd9699709e1bea8144108a44732f9e499328385058aed70d4536d9b41b2",
+                 "68c7f1c4b720b34b6f2cea9d84623595aa083b58638f5b7e048e4e53834de035"),
+}
+
+
+@pytest.mark.parametrize("rule", ["uniform", "distance"])
+def test_an_undriven_ordered_transfer_is_unchanged(rule):
+    tree = simulate_species_tree(birth=1.2, death=0.2, total_time=2.5, seed=17).complete_tree
+    r = simulate_genomes_ordered(tree, duplication=0.2, transfer=0.4, loss=0.15, origination=0.3,
+                                 inversion=0.2, transposition=0.1, translocation=0.1, chromosomes=2,
+                                 transfer_to=rule, initial_families=8, seed=23)
+    assert (_event_digest(r), _layout_digest(r)) == _UNDRIVEN_ORDERED_DIGESTS[rule], (
+        f"an undriven {rule} transfer changed: the rng draw order of the undriven path must not move")
+
+
+def test_a_wrapping_thinned_transfer_run_is_unchanged():
+    """The same guard on the configuration that exercises the two things the hoist sits between: a
+    transfer extent of three genes on a one-chromosome circular genome, so runs wrap position 0 and
+    are anchored, and a cap of three copies, so some of them are thinned after the anchoring."""
+    tree = simulate_species_tree(birth=1.3, death=0.1, total_time=2.0, seed=4).complete_tree
+    r = simulate_genomes_ordered(tree, duplication=0.4, transfer=0.6, loss=0.1, origination=0.2,
+                                 transfer_extent=3.0, chromosomes=1, transfer_to="distance",
+                                 max_family_size=3, initial_families=6, seed=7)
+    assert _event_digest(r) == "fd7d4ab02d283f81ce5072a37eb97d8d2a0afc671ab44771aa5c93126ac46dc4"
+    assert _layout_digest(r) == "c0d19a80a8788ad75d0490628095600103ebac5a28cd16c2b6db4c121914a65d"
+
+
+def test_clades_steer_an_ordered_transfer_between_two_clades():
+    """The case a per-recipient weight cannot express, at this resolution: transfer runs strictly
+    BETWEEN A and B — never A→A, B→B, or anything touching the rest of the tree. Same two clades and
+    the same kernel as the family test, so what is being shown is that the resolution does not matter
+    to the rule."""
+    from test_genomes_family import _clade_pairs, _two_clades
+
+    sp = simulate_species_tree(birth=1.0, death=0.5, n_extant=20, seed=7)
+    a, b, _, _, lab = _two_clades(sp)
+    r = simulate_genomes_ordered(
+        sp, transfer_to=Clades({"A": a, "B": b},
+                               Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)),
+        **_STEERED)
+    pairs = _clade_pairs(r.events, lab)
+    assert pairs
+    assert all(p in {("A", "B"), ("B", "A")} for p in pairs)
+
+
+def test_clades_steer_an_ordered_transfer_in_one_direction_only():
+    """A donates, B receives, nothing else — the kernel is a directed one."""
+    from test_genomes_family import _clade_pairs, _two_clades
+
+    sp = simulate_species_tree(birth=1.0, death=0.5, n_extant=20, seed=7)
+    a, b, _, _, lab = _two_clades(sp)
+    r = simulate_genomes_ordered(
+        sp, transfer_to=Clades({"A": a, "B": b}, Between({("A", "B"): 1.0}, default=0.0)),
+        **_STEERED)
+    pairs = _clade_pairs(r.events, lab)
+    assert pairs
+    assert all(p == ("A", "B") for p in pairs)
+
+
+def test_steering_composes_with_replacement():
+    """Who receives (the choice slot) and which homolog inside the recipient is overwritten
+    (``replacement``) are two independent questions, so steering must leave replacement working."""
+    from test_genomes_family import _clade_pairs, _two_clades
+
+    sp = simulate_species_tree(birth=1.0, death=0.5, n_extant=20, seed=7)
+    a, b, _, _, lab = _two_clades(sp)
+    r = simulate_genomes_ordered(
+        sp, replacement=True,
+        transfer_to=Clades({"A": a, "B": b},
+                           Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)),
+        **_STEERED)
+    pairs = _clade_pairs(r.events, lab)
+    assert pairs
+    assert all(p in {("A", "B"), ("B", "A")} for p in pairs)
+    assert any(e.replaced is not None for e in _arrivals(r)), "no homolog was displaced — retune"
+
+
+def test_a_kernel_that_lets_nobody_receive_fires_no_transfer_at_all():
+    """Every candidate at weight 0 means the transfer cannot happen, so the event is dropped whole:
+    no donor continuation, no arrival, no gene minted. The same run under 'uniform' transfers freely,
+    so what is being shown is the weighting and not a dead setup."""
+    sp = simulate_species_tree(birth=1.0, death=0.5, n_extant=20, seed=7)
+    tips = [i for i, n in sp.complete_tree.nodes.items() if n.children is None]
+    blocked = simulate_genomes_ordered(
+        sp, transfer_to=Clades({"A": tips[:1]}, Between({("A", "rest"): 0.0}, default=0.0)),
+        **_STEERED)
+    free = simulate_genomes_ordered(sp, transfer_to="uniform", **_STEERED)
+    assert not [e for e in blocked.events if e.kind == "transfer"]
+    assert [e for e in free.events if e.kind == "transfer"]
+
+
+def test_a_dropped_transfer_leaves_the_donor_chromosome_untouched():
+    """The claim the Poisson-thinning argument rests on, checked directly: a transfer that does not
+    fire changes *nothing*.
+
+    It used to be false in a way no run-level assertion would catch. ``_do_transfer`` anchored the
+    donor's chromosome — rotating its gene list in place, so a run wrapping position 0 becomes a plain
+    slice — *before* the recipient was chosen. A rotation moves no gene between lineages and is
+    biologically nothing on a ring, but it renumbers every position the run writes out, so a transfer
+    dropped afterwards left the donor visibly changed by an event that did not happen. The recipient
+    pick now comes first. The run below wraps (positions 4..7 of a six-gene ring), so the old order
+    would have rotated it."""
+    gen = [[Chromosome(0, "circular", [Gene(i, i, 1) for i in range(6)])],
+           [Chromosome(1, "circular", [Gene(10 + i, i, 1) for i in range(6)])]]
+    before = [list(c.genes) for c in gen[0]]
+    # both lineages painted "A", and the only pair the kernel weighs is (A, B): nobody can receive
+    blocked = Clades({"A": 0, "B": 1}, Between({("A", "B"): 1.0}, default=0.0))
+    events, positions = [], []
+    delta = _do_transfer(np.random.default_rng(0), None, [0, 1], gen, 0, 0, 4, 4, 1.0,
+                         events, positions, None, blocked, False, False, 1.0, None,
+                         None, {0: "A", 1: "A"})
+    assert delta == 0
+    assert not events and not positions
+    assert [list(c.genes) for c in gen[0]] == before, "a dropped transfer rotated the donor"
+
+
+def test_the_ordered_choice_slot_refuses_what_the_family_one_refuses():
+    """One validator for all three resolutions, so the words are the same wherever you meet them."""
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    with pytest.raises(ValueError, match="transfer_to must be"):
+        simulate_genomes_ordered(sp, transfer=0.1, transfer_to="closest", initial_families=2, seed=1)
+    with pytest.raises(ValueError, match="on its own, not a rate"):
+        simulate_genomes_ordered(sp, transfer=0.1, initial_families=2, seed=1,
+                                 transfer_to=1.0 * mod.DrivenBy("f.tsv", {"a": 2.0}))
+    with pytest.raises(ValueError, match="one recipient rule"):
+        simulate_genomes_ordered(sp, transfer=0.1, initial_families=2, seed=1,
+                                 transfer_to=(Distance(), mod.DrivenBy("f.tsv", {"a": 2.0})))
+    with pytest.raises(ValueError, match="silently do nothing"):
+        simulate_genomes_ordered(sp, transfer=0.1, initial_families=2, seed=1,
+                                 transfer_to=Clades({"A": 0}, Between({("A", "rest"): 1.0})))

@@ -5,8 +5,9 @@ A sequence lives **inside a gene**, so it sees the species tree only through its
 `FamilyGenomesResult`) and evolves one sequence down each family's *complete* gene
 tree under a substitution **model** (the menu — nucleotide ``jc69`` · ``k80`` · ``hky85`` · ``gtr``,
 or protein ``poisson`` · ``jtt`` · ``dayhoff`` · ``wag`` · ``lg``; `substitution_models`) and a
-substitution **rate** (``scope(base) × modifiers``; ``SPEC §5``). Sequences are **target-only** in
-v1 — nothing drives *out* of a sequence yet (``SPEC §10``).
+substitution **rate** (``scope(base) × modifiers``; ``SPEC §5``). Sequences are a **target** here:
+a trait can drive the substitution rate (``SPEC §3``, Traits–Sequences, conditioned), while nothing
+drives *out* of a sequence — the reverse direction is deferred, and the pair cannot be joined at all.
 
 The whole genome run is required, not just its gene trees, because a level below reads the level
 above: the **species tree** is what the lineage clock rides (one rate per species branch, shared by
@@ -18,8 +19,21 @@ gets ``substitution · Δt`` substitutions/site — the **strict clock**), optio
 clock**: ``substitution = 1.0 * mod.ByLineage(spread=)`` is the uncorrelated ("relaxed") clock, one
 i.i.d. rate multiplier drawn per **species lineage** and shared by every gene passing through it, and
 ``substitution = 1.0 * mod.FromParent(spread=)`` is the **autocorrelated** clock, where the rate drifts
-parent→child down the species tree so close relatives run at similar rates (``SPEC §5``). Any other
-modifier — ``Markov`` hops, the per-family ``ByFamily`` speed, across-site ``+Γ`` — raises.
+parent→child down the species tree so close relatives run at similar rates (``SPEC §5``). It may also
+carry a ``mod.DrivenBy(trait, {...})``, which reads a **trait grown first** and lets a lineage's state
+set how fast its sequences evolve; a clock and a driver compose (modifiers multiply), and a driver that
+switches mid-branch is **integrated** across the switch rather than sampled once for the branch
+(`clock`). Any other modifier — ``Markov`` hops, the per-family ``ByFamily`` speed — raises.
+
+Rate variation **across sites** is not a modifier and does not go in ``substitution``: it belongs to
+the model, where the field puts it. ``model=hky85(2.0).across_sites(gamma_shape=0.5, invariant=0.1)``
+is ``HKY85+I+G4``, and the classes are normalised to mean 1, so a branch length stays the mean
+substitutions per site (`substitution_models`).
+
+A family's sites may also be split into **partitions**, each under its own model —
+``partitions=[(hky85(kappa=2.0), 600), (jc69(), 400)]`` in place of ``model=`` and ``length=`` — on a
+family or ordered run. They share one alphabet and one substitution rate, so the family keeps its one
+phylogram. Experimental (``SPEC §9``): Python API, no CLI flag yet.
 
 The result is a `SequencesResult` bundle mirroring the other levels:
 ``.alignments`` (the observable sequence at every **extant** tip), ``.ancestral`` (the reconstructed
@@ -42,13 +56,16 @@ import numpy as np
 from ..genomes import FamilyGenomesResult
 from ..genomes.events import gene_label
 from ..genomes.gene_trees import GeneNode, GeneTree
-from ..rates.modifiers import ByLineage, FromParent, Modifier
+from ..rates.driver import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
+from ..rates.mapping import Between
+from ..rates.modifiers import ByLineage, DrivenBy, FromParent, Modifier
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerSite
 from ..tree import Node, Tree, prune
 from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
+from .clock import Clock, resolve_clock
 from .evolution import evolve_gene_tree
 from .substitution_models import (BASES, SubstitutionModel, dayhoff, decode, encode, gtr,
                                   hky85, jc69, jtt, k80, lg, poisson, wag)
@@ -61,9 +78,11 @@ _COMPLEMENT = str.maketrans("ACGT", "TGCA")
 
 #: The rate grammar this level supports (SPEC §5) — read by the engine gate in `simulate_sequences()`
 #: and by the CLI's help, so a modifier is never advertised without being implemented. On the
-#: substitution rate these are the two lineage clocks: ``ByLineage`` the uncorrelated ("relaxed")
-#: clock, ``FromParent`` the autocorrelated clock (the rate drifts parent→child down the species tree).
-WIRED_MODIFIERS = (ByLineage, FromParent)
+#: substitution rate these are the two lineage clocks — ``ByLineage`` the uncorrelated ("relaxed")
+#: clock, ``FromParent`` the autocorrelated clock (the rate drifts parent→child down the species
+#: tree) — and ``DrivenBy``, the conditioned driver a trait grown first supplies (SPEC §3:
+#: Traits→Sequences can be conditioned). A clock and a driver compose: modifiers multiply.
+WIRED_MODIFIERS = (ByLineage, FromParent, DrivenBy)
 
 
 @dataclass
@@ -361,6 +380,13 @@ def _calibrate(substitution, divergence: float, tree: Tree) -> Rate:
     (strict, or relaxed by a modifier), ``divergence`` says how far it drifts. A base given alongside
     is refused rather than overridden — silently replacing a number someone typed is how a run comes
     to differ from what its command line says.
+
+    A **driven** rate is refused here for a modelling reason, not a coding one: ``divergence / height``
+    is the base only when the modifiers average to 1 along a root-to-tip path, which is what
+    mean-correcting ``ByLineage`` and ``FromParent`` buys (SPEC §5) and what a driver deliberately does
+    not promise — its factor is whatever the trait's state says. Solving as though it did would
+    produce a run whose realised divergence is off by the driver's mean factor while the log claims
+    the number that was asked for. Set the base yourself alongside the driver.
     """
     if not isinstance(divergence, (int, float)) or isinstance(divergence, bool):
         raise ValueError(f"divergence must be a number of substitutions per site, got {divergence!r}")
@@ -374,6 +400,14 @@ def _calibrate(substitution, divergence: float, tree: Tree) -> Rate:
             f"what divergence solves for. Give the clock's shape alone "
             f"(substitution=ByLineage(spread=…)) to calibrate a relaxed clock, or drop divergence "
             f"and set the base yourself.")
+    if isinstance(substitution, DrivenBy):
+        raise ValueError(
+            f"substitution is driven by another level, and divergence={divergence} cannot solve for "
+            "its base: divergence / height is the base only when the modifiers average to 1 along a "
+            "root-to-tip path, which the two lineage clocks are mean-corrected to do and a driver is "
+            "not — its factor is whatever the driver's state says. The realised divergence would be "
+            "off by the driver's mean factor while this claimed the number you asked for. Write the "
+            "base yourself: substitution=0.01 * mod.DrivenBy(source, {…}).")
     rate = as_rate(1.0 if substitution is None else substitution, default_scope=PerSite)
     height = max(n.end_time for n in tree.nodes.values()) - min(n.birth_time for n in tree.nodes.values())
     if height <= 0:
@@ -381,77 +415,35 @@ def _calibrate(substitution, divergence: float, tree: Tree) -> Rate:
     return Rate(base=divergence / height, scope=rate.scope, modifiers=rate.modifiers)
 
 
-def _all_species(gene_trees) -> list[int]:
-    """The sorted set of species-branch ids the gene trees touch — the lineages the clock is drawn
-    over. Collected from the gene trees rather than the species tree, so the draws depend only on the
-    branches genes actually pass through; every branch that needs a clock value has its species
-    branch present as some node's ``species`` (a branch no gene crossed keeps the factor 1.0)."""
-    ids: set[int] = set()
-    for gt in gene_trees.values():
-        stack = [gt.complete]
-        while stack:
-            n = stack.pop()
-            ids.add(n.species)
-            stack.extend(n.children)
-    return sorted(ids)
-
-
-def _preorder(tree) -> list[int]:
-    """Species-tree node ids, parent before child — the order the autocorrelated clock descends."""
-    order: list[int] = []
-    stack = [tree.root]
-    while stack:
-        i = stack.pop()
-        order.append(i)
-        kids = tree.nodes[i].children
-        if kids is not None:
-            stack.extend(kids)
-    return order
-
-
-def _clock_factor(clock, species: int) -> float:
-    """The lineage clock on a species branch — 1.0 under the strict clock (``clock is None``) or for a
-    branch no gene passed through (so none was drawn for it)."""
-    return 1.0 if clock is None else clock.get(species, 1.0)
-
-
-def _draw_clock(clock_mod, species_tree, gene_trees, rng) -> "dict[int, float] | None":
-    """The lineage clock: one factor per species branch, drawn once and shared by every family (a hot
-    species runs hot for all its genes). ``None`` ⇒ the strict clock (factor 1). ``ByLineage`` draws
-    each branch i.i.d.; ``FromParent`` drifts the factor parent→child down the species tree
-    (autocorrelated). Factored out so the serial loop and the parallel engine draw it the same way —
-    each just hands in its own ``rng`` (the serial run's shared generator, or a stream spawned for the
-    clock so the parallel engine is worker-count invariant)."""
-    if isinstance(clock_mod, FromParent):
-        clock: dict[int, float] = {}
-        for i in _preorder(species_tree):                       # parent before child
-            p = species_tree.nodes[i].parent
-            clock[i] = clock_mod.initial() if p is None else clock_mod.descend(clock[p], rng)
-        return clock
-    if clock_mod is not None:
-        return {sid: clock_mod.draw(rng) for sid in _all_species(gene_trees)}
-    return None
-
-
-def _scaled_gene_tree(gt: GeneTree, rate_base: float, clock) -> GeneTree:
+def _scaled_gene_tree(gt: GeneTree, rate_base: float, clock: "Clock | None") -> GeneTree:
     """A copy of the gene tree whose node ``time`` holds the cumulative **substitutions/site** from the
-    family's **origination** (``base × clock[species] × Δt`` summed along the path). Feeding it to
+    family's **origination** (`Clock.branch_length` summed along the path). Feeding it to
     ``GeneTree.to_newick`` then emits a *phylogram* (branch lengths in subs/site); and because its
     prune-to-extant merges branches by that same cumulative measure, a suppressed branch spanning
     several species branches gets the **sum** of its pieces for free — the exact trick the chronogram
     uses with time.
 
     Counting from origination rather than from the root is what gives the root its own branch: the
-    founding gene evolves across the stem, so the scaled root sits ``base × clock × stem`` in, not
-    at zero."""
+    founding gene evolves across the stem, so the scaled root sits one stem's worth in, not at zero.
+
+    The lengths come from the same `Clock` the sampler reads, and by branch *endpoints* rather than by
+    a per-branch factor, which is what keeps a **driven** rate consistent: a trait that switches
+    mid-branch makes the driver's contribution an integral over the branch, and a phylogram that
+    scaled by a single sample would not be the tree its own alignment was drawn along."""
     root = gt.complete
-    stem = rate_base * _clock_factor(clock, root.species) * (root.time - gt.origination)
+    if clock is None:
+        stem = rate_base * (root.time - gt.origination)
+    else:
+        stem = clock.branch_length(rate_base, root.species, gt.origination, root.time)
     scaled_root = GeneNode(root.kind, root.species, stem, root.copy)
     stack = [(root, scaled_root)]
     while stack:
         onode, snode = stack.pop()
         for ochild in onode.children:
-            blen = rate_base * _clock_factor(clock, ochild.species) * (ochild.time - onode.time)
+            if clock is None:
+                blen = rate_base * (ochild.time - onode.time)
+            else:
+                blen = clock.branch_length(rate_base, ochild.species, onode.time, ochild.time)
             schild = GeneNode(ochild.kind, ochild.species, snode.time + blen, ochild.copy)
             snode.children.append(schild)
             stack.append((ochild, schild))
@@ -485,10 +477,15 @@ def _gene_newick(root: GeneNode, names) -> str:
     return result + ";"
 
 
-def _scaled_species_tree(tree: Tree, rate_base: float, clock) -> Tree:
-    """A copy of the species tree whose branch lengths are **substitutions/site** (``base ×
-    clock[branch] × Δt``). Node times become the cumulative subs/site from the root, so
-    ``Tree.to_newick`` / ``prune`` emit and merge the phylogram exactly as they do a dated tree."""
+def _scaled_species_tree(tree: Tree, rate_base: float, clock: "Clock | None") -> Tree:
+    """A copy of the species tree whose branch lengths are **substitutions/site**
+    (`Clock.branch_length` over each whole branch). Node times become the cumulative subs/site from
+    the root, so ``Tree.to_newick`` / ``prune`` emit and merge the phylogram exactly as they do a
+    dated tree.
+
+    This is where the clock is made visible, so it must show *all* of it: a branch whose driver
+    switched partway along gets the integral across the switch, the same number the gene phylograms
+    and the sampler used."""
     scaled: dict[int, Node] = {}
     scaled_end: dict[int, float] = {}
     order: list[int] = []
@@ -500,7 +497,8 @@ def _scaled_species_tree(tree: Tree, rate_base: float, clock) -> Tree:
             stack.extend(tree.nodes[i].children)
     for i in order:
         nd = tree.nodes[i]
-        blen = rate_base * _clock_factor(clock, i) * (nd.end_time - nd.birth_time)
+        blen = (rate_base * (nd.end_time - nd.birth_time) if clock is None
+                else clock.branch_length(rate_base, i, nd.birth_time, nd.end_time))
         start = 0.0 if nd.parent is None else scaled_end[nd.parent]
         scaled_end[i] = start + blen
         scaled[i] = Node(i, nd.parent, start, start + blen, nd.children, nd.fate)
@@ -646,7 +644,131 @@ class _Sink:
 _DEFAULT_STREAM_OUTPUTS = ("alignments", "phylograms", "species_phylogram", "summary")
 
 
-def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None = None,
+def _resolve_partitions(model, partitions, length) -> tuple[tuple[SubstitutionModel, int], ...]:
+    """The **site blocks** one family evolves, as ``((model, sites), …)``.
+
+    One entry for the ordinary ``model=`` + ``length=`` run, several for a partitioned one — so the
+    engine below has a single shape to walk and the un-partitioned case is literally the
+    one-partition case, not a branch beside it.
+
+    Everything else this owns is a refusal. Giving ``model=`` or ``length=`` *alongside*
+    ``partitions`` is a second answer to a question the partitions already answer, and two answers
+    are worse than none. Mixing alphabets across partitions is the one refusal that is a statement
+    about the **model** rather than about the call: it is meaningless in ``SPEC §5``'s sense, not
+    unimplemented, because the partitions concatenate into one sequence per gene copy and there is
+    no string that is half DNA and half protein.
+    """
+    if partitions is None:
+        if length is None:
+            raise ValueError("length is required: the number of sites each family evolves")
+        if isinstance(length, bool) or not isinstance(length, int) or length < 1:
+            raise ValueError(f"length must be a positive integer, got {length!r}")
+        return ((model, length),)
+
+    if model is not None:
+        raise ValueError(
+            f"model={model.name if isinstance(model, SubstitutionModel) else model!r} was given "
+            "alongside partitions, and each partition already carries its own model — so this would "
+            "be a second answer to the same question, and nothing here could say which one a site "
+            "should follow. Drop one: partitions=[(model, sites), …] for a split sequence, or "
+            "model=… with length=… for one model over all of it.")
+    if length is not None:
+        raise ValueError(
+            f"length={length!r} was given alongside partitions, but a family's length is the sum of "
+            "the partitions' site counts, so one number here would contradict them. Drop it — the "
+            "partitions set the length.")
+
+    listed = list(partitions)
+    if not listed:
+        raise ValueError(
+            "partitions is empty, so a family would evolve no sites at all. Give at least one "
+            "(model, sites) pair, or drop partitions and use model=… with length=….")
+    parts: list[tuple[SubstitutionModel, int]] = []
+    for i, item in enumerate(listed):
+        pair = tuple(item) if isinstance(item, (tuple, list)) else ()
+        if len(pair) != 2:
+            # a bare model is the likely slip, and a model's repr is a whole rate matrix — name it
+            if isinstance(item, SubstitutionModel):
+                shown = f"the model {item.name} on its own"
+            elif pair and isinstance(pair[0], SubstitutionModel):
+                shown = f"{len(pair)} values starting with the model {pair[0].name}"
+            else:
+                shown = repr(item)
+            raise ValueError(
+                f"partition {i} is {shown}: every partition is a (model, sites) pair — which "
+                "substitution model that stretch of the sequence evolves under, and how many sites "
+                "it covers. For example partitions=[(hky85(kappa=2.0), 600), (jc69(), 400)].")
+        m, n = pair
+        if not isinstance(m, SubstitutionModel):
+            raise ValueError(
+                f"partition {i}'s model is {m!r}, which is not a SubstitutionModel — take one from "
+                "the menu (jc69(), hky85(kappa=2.0), lg(), …) or build your own with "
+                "substitution_models.reversible(S, freqs).")
+        if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+            raise ValueError(
+                f"partition {i} ({m.name}) covers {n!r} sites: a partition's site count must be a "
+                "positive whole number of sites. A partition of zero sites is not a partition — "
+                "leave it out.")
+        parts.append((m, n))
+
+    first = parts[0][0]
+    if any(m.alphabet != first.alphabet for m, _ in parts):
+        j, mj = next((i, m) for i, (m, _) in enumerate(parts) if m.alphabet != first.alphabet)
+        raise ValueError(
+            f"partition 0 is {first.name} over {first.alphabet!r} and partition {j} is {mj.name} "
+            f"over {mj.alphabet!r}, but the partitions are concatenated into one sequence per "
+            "gene copy and a sequence has one alphabet. That is meaningless rather than "
+            "unimplemented: there is no string a half-nucleotide, half-protein gene could be "
+            "written in. Use models over the same alphabet — all nucleotide, or all protein. To "
+            "evolve a DNA gene and a protein gene, run the level twice.")
+    return tuple(parts)
+
+
+def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=None):
+    """Evolve one gene tree partition by partition and hand back the family's whole sequences:
+    ``(alignment, ancestral, founding_string)``, each sequence the partitions concatenated in order.
+
+    Every partition is evolved down the **same** tree at the **same** rate, so the family has one
+    phylogram and that phylogram is exact for all of it: every model is normalised to one expected
+    substitution per site per unit branch length (`substitution_models._reversible_model`) and every
+    set of across-site rate classes to a mean of 1, so a branch of ``Δt`` accrues ``rate · Δt``
+    substitutions per site in each partition alike. Give the partitions relative *speeds* and that
+    stops being true — one phylogram would then be a weighted average of the trees the partitions
+    were actually drawn along — which is why there is no per-partition rate here.
+
+    The random draws are consumed **partition by partition**, in the order given, so a run is
+    reproducible from its seed; and with a single partition the sequence of draws is exactly what an
+    un-partitioned run always took, which is what keeps the default path byte-identical. That case
+    also returns its dicts untouched rather than rebuilding them, so the common run does no
+    concatenation work at all.
+
+    ``founding`` (a nucleotide run's supplied DNA) is sliced per partition at the same offsets, so
+    each block founds from its own stretch.
+    """
+    pieces = []
+    at = 0
+    for model, n in parts:
+        # one CDF cache per model, shared across every family and every partition that model
+        # evolves: branch lengths recur massively, and the cache is keyed by length alone, so it
+        # must never be shared between two matrices
+        cache = cdf_caches.setdefault(id(model), {})
+        states, founding_states = evolve_gene_tree(
+            gt.complete, model, n, rate, clock, rng, gt.origination,
+            founding=None if founding is None else founding[at:at + n], cdf_cache=cache)
+        at += n
+        aln, anc = _split(gt, states, names, model)
+        pieces.append((aln, anc, decode(founding_states, model.alphabet)))
+    if len(pieces) == 1:
+        return pieces[0]
+    # The node keys are the same in every partition — they come from the same tree, walked the same
+    # way — so partition 0's keys are the whole set, and joining in partition order is the sequence.
+    alignment = {key: "".join(p[0][key] for p in pieces) for key in pieces[0][0]}
+    ancestral = {key: "".join(p[1][key] for p in pieces) for key in pieces[0][1]}
+    return alignment, ancestral, "".join(p[2] for p in pieces)
+
+
+def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
+                       length: int | None = None, partitions=None,
                        intergene_model: SubstitutionModel | None = None, intergene_speed=3.0,
                        substitution=None, divergence=None, seed=None, parallel=False,
                        stream_to=None, outputs=None, flat: bool = False,
@@ -673,13 +795,52 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
     families, computed once before evolving, rescaling each gene-tree branch by the clock of the species
     branch it sits on: ``1.0 * mod.ByLineage(spread=)`` is the uncorrelated clock (each branch drawn
     i.i.d.), and ``1.0 * mod.FromParent(spread=)`` is the autocorrelated clock (the factor drifts
-    parent→child down the species tree). Any other modifier (the ``Markov`` clock, the ``ByFamily``
-    per-family speed, ``+Γ``) or a non-``PerSite`` scope raises.
+    parent→child down the species tree).
+
+    It may also carry a **driver** — ``1.0 * mod.DrivenBy(habitat, {"cave": 0.5, "surface": 1.0})``,
+    where ``habitat`` is a trait grown first (the `~zombi2.traits.TraitsResult`, or the path to the
+    ``trait_events.tsv`` it wrote). That is conditioning, not a joint run: SPEC §3 allows the pair
+    Traits–Sequences to be conditioned and never joined, so naming a live level (``"trait"``) raises
+    rather than starting one. A clock and a driver **compose** — the factors multiply (SPEC §5), so a
+    lineage's dealt tempo and its state both count — and several drivers on one rate multiply too.
+    A discrete driver switches *mid-branch*, and the branch length is the driver **integrated** across
+    the branch rather than one sample of it (`clock`), so the phylograms are the trees the alignments
+    were actually drawn along. Any other modifier (the ``Markov`` clock, the ``ByFamily`` per-family
+    speed), a second lineage clock, or a non-``PerSite`` scope raises.
+
+    Rate variation **across sites** rides on ``model``, not on ``substitution``:
+    ``model=hky85(2.0).across_sites(gamma_shape=0.5, invariant=0.1)`` sorts the sites into a
+    discretised-Gamma set of rate classes plus a class that never changes. The two axes are
+    orthogonal and compose — the clock says which *lineages* run fast, the model which *sites* do.
+
+    ``partitions`` splits a family's sites into blocks each under **its own** model, in place of
+    ``model=`` and ``length=``::
+
+        partitions=[(hky85(kappa=2.0), 600), (jc69(), 400)]
+
+    — a 1000-site gene whose first 600 sites evolve under HKY85 and whose last 400 evolve under
+    JC69, concatenated in that order into one sequence per gene copy. Each partition's model may
+    carry its own ``across_sites`` classes, which is how the field usually spells a codon-position
+    split. Giving ``model=`` or ``length=`` alongside is refused rather than merged: the partitions
+    already answer both, and the length is their site counts summed. Every partition must be over the
+    **same alphabet**, because they concatenate into one sequence.
+
+    All the partitions share the run's one substitution rate, and so the family keeps its one
+    phylogram — exactly, not approximately: every model is normalised to one expected substitution
+    per site per unit branch length, and every set of rate classes to a mean of 1, so a branch of
+    ``Δt`` accrues ``rate · Δt`` substitutions per site in each partition alike. There is
+    deliberately no per-partition speed; it would make one phylogram a weighted average of the trees
+    the partitions were really drawn along. Family and ordered runs only — a **nucleotide** run's
+    blocks already carry their own lengths and their own gene/spacer models, so it refuses
+    ``partitions``. Experimental (SPEC §9): Python API, no CLI flag yet.
 
     On a **nucleotide** genome run every root block is evolved — spacer as well as genes — each at its
     own length in bp, so ``length`` does not apply and is rejected. ``model`` evolves the genes and
     ``intergene_model`` (default ``jc69``) the spacer, at ``intergene_speed`` times the rate (default
-    ``3.0``). Because the whole genome is covered, the run also **puts the genomes back together**:
+    ``3.0``). Each carries **its own** across-site variation: decorating ``model`` with
+    ``across_sites`` does not reach the spacer, whose default ``jc69()`` stays flat — the spacer's
+    job is to be the unconstrained null, and silently giving it the genes' Gamma would make it
+    something else. Give ``intergene_model`` a decorated model to vary the spacer too. Because the whole genome is covered, the run also **puts the genomes back together**:
     ``.genomes`` holds every node's chromosomes, blocks concatenated in physical order — the complete
     tree, reconstructed — and ``.initial_genome`` the one the run started with.
 
@@ -730,7 +891,15 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             "outputs applies to a streamed run (stream_to=DIR), which writes the files itself; for "
             "an in-memory run choose them when you call result.write(outputs=...).")
     species_tree = genomes.complete_tree
-    if not isinstance(model, SubstitutionModel):
+    # With partitions the models arrive inside them, and `_resolve_partitions` checks each one; this
+    # is the plain path, where `model` is the whole answer and the common mistake is worth naming
+    # exactly as it always was.
+    if partitions is None and not isinstance(model, SubstitutionModel):
+        if model is None:
+            raise ValueError(
+                "no model: give model=… (one substitution model for every site of every family) "
+                "together with length=…, or partitions=[(model, sites), …] to split a family's "
+                "sites into blocks each under its own model.")
         raise TypeError(f"model must be a SubstitutionModel (e.g. hky85(kappa=2.0)), got {model!r}")
     if intergene_model is not None and not isinstance(intergene_model, SubstitutionModel):
         raise TypeError(f"intergene_model must be a SubstitutionModel, got {intergene_model!r}")
@@ -739,6 +908,14 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         # Every recovered root block evolves — spacer as well as genes — so the run reconstructs the
         # whole genome rather than the declared loci. Each block brings its own length in bp, which
         # is why a single `length` would contradict the coordinates the genome recorded.
+        if partitions is not None:
+            raise ValueError(
+                "partitions do not apply to a nucleotide genome run: every block already carries "
+                "its own length in bp and its own model — `model` for a gene, `intergene_model` for "
+                "the spacer — so the genome has already said which stretch takes which. Drop "
+                "partitions; the genome sets both the lengths and the split. Partitions are for a "
+                "family or ordered run, where a family is one undivided sequence until you divide "
+                "it.")
         if length is not None:
             raise ValueError(
                 "length does not apply to a nucleotide genome run: every block carries its own "
@@ -780,12 +957,10 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
                     f"the run was founded from a FASTA (DNA), but {f_model.name} is a protein model — "
                     "a nucleotide sequence cannot found an amino-acid alignment")
             founding_seed[i] = encode(root[a:b], f_model.alphabet)
+        parts = None                # a nucleotide block's model and length come from `per_block`
     else:
         gene_trees = genomes.gene_trees
-        if length is None:
-            raise ValueError("length is required: the number of sites each family evolves")
-        if isinstance(length, bool) or not isinstance(length, int) or length < 1:
-            raise ValueError(f"length must be a positive integer, got {length!r}")
+        parts = _resolve_partitions(model, partitions, length)
         if intergene_model is not None:
             raise ValueError(
                 "intergene_model applies to a nucleotide genome run, where blocks are genes or "
@@ -801,20 +976,70 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             f"substitution has a {type(rate.scope).__name__} scope, but the sequence engine takes only "
             f"PerSite (the default) this slice — drop the scope wrapper or use PerSite(...)."
         )
-    clock_mod = None
-    if rate.modifiers:
-        if len(rate.modifiers) == 1 and isinstance(rate.modifiers[0], (ByLineage, FromParent)):
-            clock_mod = rate.modifiers[0]
-        else:
-            offenders = ", ".join(sorted({type(m).__name__ for m in rate.modifiers
-                                          if not isinstance(m, (ByLineage, FromParent))})
-                                  or ["a second clock"])
+    # The rate's modifiers, sorted into the two things this level reads. SPEC §5: modifiers multiply,
+    # so a clock and a driver compose — one says which lineages were dealt a fast tempo, the other
+    # what their state makes of it — and the gate below rejects only what the level cannot honour.
+    clocks = [m for m in rate.modifiers if isinstance(m, (ByLineage, FromParent))]
+    drivers = driven_mods(rate)
+    unwired = sorted({type(m).__name__ for m in rate.modifiers
+                      if not isinstance(m, (ByLineage, FromParent, DrivenBy))})
+    if unwired:
+        raise ValueError(
+            f"substitution carries {', '.join(unwired)}, which the sequence engine does not read. It "
+            "takes a lineage clock — one ByLineage (uncorrelated) or one FromParent (autocorrelated) "
+            "— and any number of DrivenBy drivers, which multiply. The Markov clock and the ByFamily "
+            "per-family speed are not implemented here. Rate variation across sites is not a modifier "
+            "at all — it belongs to the model: model=hky85(...).across_sites(gamma_shape=0.5), or "
+            "--gamma-shape."
+        )
+    if len(clocks) > 1:
+        # SPEC §5's one-memory-structure-per-axis rule: ByLineage is no memory and FromParent is
+        # continuous memory, over the same axis (the species lineage), so two of them are two
+        # incompatible accounts of the same thing rather than a composition.
+        raise ValueError(
+            f"substitution carries {len(clocks)} lineage clocks "
+            f"({', '.join(type(m).__name__ for m in clocks)}), and a lineage can only have one: "
+            "ByLineage is an independent draw per lineage and FromParent an inherited one, two "
+            "accounts of the same per-lineage factor. Keep one. A DrivenBy is a different axis and "
+            "does compose with either."
+        )
+    for m in drivers:
+        if isinstance(m.mapping, Between):
             raise ValueError(
-                f"substitution carries {offenders}, but this slice takes a single lineage clock — one "
-                "ByLineage (uncorrelated) or one FromParent (autocorrelated). The Markov clock, the "
-                "ByFamily per-family speed, and +Γ across-site heterogeneity are not implemented."
+                "substitution carries DrivenBy(..., Between(...)), and a donor/recipient kernel is "
+                "meaningless in a rate: a rate is read on one lineage, and there is no second lineage "
+                "for the pair's first half to name. A Between belongs in the genome level's "
+                "transfer_to choice slot, where the two ends of a transfer exist. Weight the "
+                "substitution rate by the lineage's own state instead — DrivenBy(source, {state: "
+                "factor})."
             )
+        if names_a_live_level(m.source):
+            raise ValueError(
+                f"substitution is driven by {m.source!r}, which names a level growing beside the run "
+                "— the joint spelling of DrivenBy (SPEC §5). Traits and Sequences cannot be joined "
+                "(SPEC §3): a sequence lives inside a gene and never feeds back into the trait, so "
+                "there is nothing for the two to decide together. Grow the trait first and condition "
+                "on it — pass the TraitsResult, or the path to the trait_events.tsv it wrote."
+            )
+    clock_mod = clocks[0] if clocks else None
     rate_base = rate.base
+
+    # Conditioning: resolve each driver ONCE into a DriverTrajectory (value + next-switch lookups,
+    # keyed by the shared species node id), before choosing an engine — this is shared validation and
+    # shared input, not one engine's business, exactly as the genome level does it. A mapping whose
+    # states never occur in the driver would leave every branch at the default factor, so the run
+    # would be the undriven model wearing a driven rate; that is refused here, naming the driver.
+    # No driven rate ⇒ `driven` is empty and everything below is what it was.
+    driven: list = []
+    if drivers:
+        by_key: dict = {}
+        for m in drivers:
+            by_key.setdefault(m.key, m.source)
+        trajs = {key: resolve_driver(src, species_tree) for key, src in by_key.items()}
+        for m in drivers:
+            label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
+            check_mapping_fires(m.mapping, trajs[m.key].states(), source_label=label)
+        driven = [(m, trajs[m.key]) for m in drivers]
 
     names = species_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
     sink = None
@@ -833,7 +1058,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         # clock, then each family is walked in turn. `parallel` selects a *separate* engine (decision A),
         # so turning it on gives a different-but-valid realisation for a seed; this path never changes.
         rng = np.random.default_rng(seed)
-        clock = _draw_clock(clock_mod, species_tree, gene_trees, rng)
+        clock = resolve_clock(clock_mod, driven, species_tree, gene_trees, rng)
         # One transition-CDF cache per model, shared across every block that model evolves. Branch lengths
         # recur across blocks (a block passing straight through a species branch reuses its length), so a
         # run-wide cache builds a few hundred matrices where a per-block cache rebuilt tens of thousands.
@@ -844,17 +1069,13 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
             bar.update()
             gt = gene_trees[family]
             if per_block is None:
-                f_len, f_model, f_rate = length, model, rate_base
+                f_parts, f_rate = parts, rate_base
             else:                       # a nucleotide block: its own length, and spacer runs faster
                 f_len, f_model, speed = per_block[family]
-                f_rate = rate_base * speed
+                f_parts, f_rate = ((f_model, f_len),), rate_base * speed
             seed_states = None if per_block is None else founding_seed[family]
-            cache = cdf_caches.setdefault(id(f_model), {})
-            states, founding_states = evolve_gene_tree(gt.complete, f_model, f_len, f_rate, clock, rng,
-                                                       gt.origination, founding=seed_states,
-                                                       cdf_cache=cache)
-            aln, anc = _split(gt, states, names, f_model)
-            fnd = decode(founding_states, f_model.alphabet)
+            aln, anc, fnd = _evolve_partitions(gt, f_parts, f_rate, clock, rng, cdf_caches, names,
+                                               founding=seed_states)
             scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site
             ext = scaled.extant
             phylo = {"complete": _gene_newick(scaled.complete, names),
@@ -873,11 +1094,12 @@ def simulate_sequences(genomes, *, model: SubstitutionModel, length: int | None 
         from ._pergenetree import evolve_families
         workers = guard_pool_workers(resolve_workers(parallel))
         spawned = np.random.SeedSequence(seed).spawn(1 + len(gene_trees))
-        clock = _draw_clock(clock_mod, species_tree, gene_trees, np.random.default_rng(spawned[0]))
+        clock = resolve_clock(clock_mod, driven, species_tree, gene_trees,
+                              np.random.default_rng(spawned[0]))
         alignments, ancestral, founding, phylograms = evolve_families(
             gene_trees, per_block, model, intergene_model, length, rate_base, clock,
             founding_seed if nucleotide else None, spawned[1:], workers, progress, names,
-            sink=None if sink is None else sink.family)
+            sink=None if sink is None else sink.family, partitions=parts)
 
     sp_scaled = _scaled_species_tree(species_tree, rate_base, clock)   # the clock made visible
     sp_extant = prune(sp_scaled, keep="extant")

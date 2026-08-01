@@ -9,6 +9,148 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **A correlated trait run carries the event log every other continuous run carries** — the `initial`
+  row and one `on_speciation` row per jump, where it previously returned nothing and wrote a
+  header-only `trait_events.tsv`. The table **widens** rather than repeating a row per trait
+  (`from:<trait>` · `to:<trait>`, one pair apiece, as `trait_values.tsv` already does), because a
+  correlated jump moves every trait at once and is one event.
+- **`zombi2 traits` records `conditioned_on`** when its rate was driven, like `genomes` and
+  `sequences` do, so a trait driven by another level is no longer an untracked dependency.
+- **A substitution model can be built from your own matrix.**
+  `substitution_models.reversible(exchangeabilities, freqs, name=…, alphabet=…)` takes a symmetric
+  exchangeability matrix and stationary frequencies over any alphabet and normalises them like every
+  model on the menu, so `gtr()` is visibly its four-state special case and `lg()` its twenty-state
+  one. Python API: a K×K matrix is not a command-line-shaped thing, so there is no flag.
+- **A family's sites can be split into partitions, each under its own model** —
+  `simulate_sequences(genomes, partitions=[(hky85(kappa=2.0), 600), (jc69(), 400)])` in place of
+  `model=` and `length=`. Every partition shares the run's one alphabet and one substitution rate,
+  and every model is normalised the same way, so the family keeps one phylogram that is exact for all
+  of them; each partition may carry its own `across_sites()` classes. Family and ordered runs only.
+  Composes with `parallel=` and `stream_to=`. Experimental, Python-first.
+- **Transfer steering at every resolution.** `transfer_to` now takes `Clades({…})` — weight by named
+  clade — and `mod.DrivenBy(source, mapping)` — a trait-driven recipient weight, with a `Between`
+  kernel that reads the donor too — at the **ordered** and **nucleotide** resolutions, not only at
+  `family`. Same choice slot, same kernel: the numbers redistribute transfers without changing how
+  many happen, a weight of 0 still means "cannot receive", and a transfer whose every candidate
+  weighs 0 does not fire. `--transfer-to` already accepted the written form everywhere, so the flag
+  works unchanged.
+- **A trait can drive the substitution rate.** `DrivenBy` now works on `substitution`, so a lineage's
+  habitat or lifestyle sets how fast the sequences inside its genes evolve — the same modifier that
+  drives a genome rate, composing with either lineage clock. A driver that switches **mid-branch** is
+  integrated across the switch rather than sampled once for the branch, so the phylograms and the
+  clock species tree are the trees the alignments were really drawn along. Reachable from the command
+  line in the rate's written form, as everywhere else:
+  `--substitution "0.05 * DrivenBy('out/traits/trait_events.tsv', {'cave': 0.5, 'surface': 1.0})"`.
+  `zombi2 sequences` writes a `conditioned_on` marker when its rate was driven, so re-running the
+  trait beneath it refuses rather than leaving the sequences silently stale.
+- **A trait can drive an ordered genome run.** `DrivenBy` now works at the `ordered` resolution — on
+  the gene-family four, on `inversion` / `transposition` / `translocation`, on the chromosome tier
+  and on every extent — so a lineage can rearrange its gene order faster, or in longer runs of genes,
+  where a trait says so. Read wherever it switches mid-branch, as at the other two resolutions. The
+  ordered engine now declares its own `WIRED_MODIFIERS` and `WIRED_EXTENT_MODIFIERS`, and
+  `zombi2 genomes -h` builds its per-resolution sentence from them instead of a hand-written list.
+- **Across-site rate variation — `+Γ` and invariant sites.**
+  `hky85(kappa=2.0).across_sites(gamma_shape=0.5, invariant=0.1)`, or `--gamma-shape` ·
+  `--invariant` · `--rate-categories` on the command line, gives every site one of a
+  discretised-Gamma set of rate classes (four by default) plus an optional class that never changes.
+  It decorates the **model**, the way the field spells it — the run reports `HKY85+I+G4` — and not
+  the rate: across-site variation is not a modifier, and `substitution` still takes a lineage clock
+  and nothing else. The classes are normalised to mean one, so a phylogram's branch lengths are
+  still substitutions per site, now the mean over them, and a run with variation and one without are
+  directly comparable. Works on every model on the menu, nucleotide and protein alike.
+- **Ornstein–Uhlenbeck takes a modified variance-rate.** `reverts_to` / `pull` now compose with
+  `OnTime`, `FromParent`, `OnTotalDiversity` and `DrivenBy` on `rate`, so a trait that bursts early
+  *and* reverts to an optimum is one rate with one modifier and two arguments — which is what
+  Chapter 8 has said all along and the code refused. The per-branch variance is the exact weighted
+  integral `∫ e^{−2α(t₁−s)} σ²(s) ds`, stepping where the schedule, the standing diversity or the
+  driver steps; the Brownian `∫ σ²(s) ds` is a different number, larger by an order of magnitude on
+  a typical branch.
+- **Multivariate Ornstein–Uhlenbeck** — `reverts_to` and `pull` alongside `correlation=`, each
+  taking one value shared across the traits or one per trait. Each trait reverts to its own optimum
+  at its own strength and the correlation rides in the diffusion. The drift is **diagonal**: one
+  trait's deviation does not pull another, and a full drift matrix is refused by name rather than
+  quietly approximated.
+- **Jumps at speciation combine with correlated traits and with regimes.** A correlated jump is
+  drawn under the same `correlation=` overlay the diffusion uses, and a multi-optimum OU (`regimes=`)
+  run now jumps at each split like any other continuous trait.
+- **A genome run says when it emptied a genome.** There is no floor at the family resolution — loss
+  is counted per copy, and the last copy is a copy like any other — so a high loss rate can strip a
+  lineage of every gene. The run now reports how many extant genomes came out empty, on stderr and
+  as `empty_genomes` in `genome_summary.json`, instead of leaving a reader to work it out from
+  `profiles.tsv` having no rows.
+- **Relaxed (per-lineage) diversification rates** — `birth = 1.0 * mod.ByLineage(spread=σ)`. The
+  species level already took the *inherited* form of rate variation (`FromParent`, ClaDS) and
+  refused the independent one, which left the model with no null: `ByLineage` spreads lineage rates
+  the same way and inherits none of it, so the tree-shape signature heritability leaves — fast
+  clades hoarding the tips — can be told apart from the rate variation itself. It works on `birth`
+  and on `death`, independently of each other. A rate carrying both `FromParent` and `ByLineage` is
+  refused rather than letting one of them silently win: they are two answers to the same question.
+
+### Fixed
+- **`chromosome_loss` never takes an ordered genome's last genes.** It refused only the genome's last
+  *chromosome*, so a lineage holding one gene-bearing chromosome beside an empty replicon — one
+  `chromosome_origination` minted, or one a translocation emptied — could lose everything it had.
+  The same floor `_lose_at` enforces one tier down, for the same reason.
+- **`simulate_joint` declares what it supports and rejects the rest**, as every other level does. Its
+  gate named two modifiers and let everything else through, so `ByFamily` on a joint `birth` was
+  accepted and then silently returned a factor of 1. (`OnTime` and `OnTotalDiversity` were never
+  affected — the loop threads both and steps at their breakpoints.)
+- **A rate matrix that is not time-reversible is refused instead of being evolved under wrong
+  transition probabilities.** `SubstitutionModel` is public, and `p_matrix()` computes `exp(Qt)` by
+  eigendecomposing the symmetric `diag(√π)·Q·diag(1/√π)`, which is similar to `Q` only under detailed
+  balance — so a hand-built non-reversible `Q` was quietly replaced by a different matrix and
+  produced plausible, wrong sequences with no error at all. It now raises, naming the violated
+  identity and pointing at `reversible()`. Also refused: rows that do not sum to 0, non-positive or
+  unnormalised frequencies, an alphabet that does not name every state exactly once, and an
+  exchangeability matrix with a non-zero diagonal (which was silently discarded).
+- **A transfer the ordered engine drops because no candidate can receive now leaves the donor
+  untouched.** The recipient is chosen before the donor's chromosome is anchored, so a run that wraps
+  position 0 no longer rotates the donor's gene list for an event that did not happen. Byte-identical
+  for every existing run: the pick consumes the random stream and anchoring does not.
+- **`family_speed` beside a driven rate is refused instead of running a mismatched model.** It is a
+  `ByFamily` draw and was missing from the guard that refuses `ByFamily` beside `DrivenBy`, so the
+  run was accepted and then summed the total *without* the per-family multipliers while drawing the
+  copy *with* them — a total saying one thing and a pick doing another.
+- **`zombi2 genomes` records `conditioned_on` and the driver's SHA-256 for a `DrivenBy` on any rate**,
+  not only `--duplication` / `--transfer` / `--loss` / `--origination` / `--transfer-to`. A run driven
+  through `--inversion` or `--fission` — already legal at the nucleotide resolution — left no
+  conditioning marker, so re-running the trait beneath it did not know it had orphaned the genome run,
+  and pinned no digest of the driver file in the log.
+- **A circular chromosome no longer fuses with a linear one.** At the ordered resolution `fusion`
+  drew its partner from every other chromosome and gave the fused child whichever topology was
+  picked first, so a ring and a molecule with two ends silently became one molecule — on a
+  two-topology karyotype it collapsed almost every genome. The partner is drawn from the
+  same-topology chromosomes only, the rule the nucleotide resolution already enforced; a genome of a
+  single topology draws exactly as it did before.
+- **`zombi2 sequences` no longer crashes on a run with no gene families.** A run whose genomes
+  emptied, or one started with `--initial-families 0`, has no alignments, so mean pairwise identity
+  is undefined; the run report tried to render it as a percentage and raised.
+- **A joint run no longer accepts a per-lineage rate it does not thread.** `simulate_joint` rejected
+  `FromParent` and checked `DrivenBy`, but let every other modifier through and ignored it, so
+  `birth = 1.0 * ByLineage(...)` returned a tree grown without the rate variation asked for. It now
+  raises, which matters more since the same expression started working on `zombi2 species`.
+
+### Changed
+- **The sequences level refuses a `divergence` given alongside a driven `substitution`.** The base is
+  solved for by assuming the modifiers average to 1 along a root-to-tip path, which the two lineage
+  clocks are mean-corrected to do and a driver deliberately is not — so allowing it would log a
+  divergence the run does not realise.
+- **A `regimes=` trait run writes the event log every other continuous run writes** — the `initial`
+  row at t=0 and one `on_speciation` row per jump. It previously returned an empty log and wrote a
+  header-only `trait_events.tsv`.
+- **Clearer refusals at the traits level.** The combinations that stay blocked — a modified
+  variance-rate with `regimes=`, per-trait modifiers with `correlation=`, a per-regime jump size, a
+  modified liability variance-rate, a full drift matrix — now say plainly that they are not
+  implemented yet and name the modifier actually given, instead of referring to an internal "slice".
+- **The API reference is one page per level**, and each entry is stamped with what kind of thing it
+  is — module, class, function, method, attribute — beside its heading and again in the contents
+  column, so the reference reads as an index of each package rather than one long scroll. The
+  overview page gains a table of the entry points: which function starts a run at each level and
+  each genome resolution, what it returns, and which chapter covers it.
+- **The docs site has the favicon the main site has been using**, rather than the theme's default
+  mark.
+
 ## [0.20.0] - 2026-07-31
 
 ### Added

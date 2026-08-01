@@ -26,6 +26,7 @@ import bisect
 import math
 import pathlib
 
+from .modifiers import DrivenBy
 from ..tree import node_from_label, node_label
 
 
@@ -280,6 +281,34 @@ def check_mapping_fires(mapping, available_states, *, source_label: str, exhaust
             f"the state names, or a stale or mismatched driver file.")
 
 
+def driven_mods(rate) -> list:
+    """The `DrivenBy` modifiers a rate carries, or ``[]`` when it carries none. A non-empty list means
+    the rate reads another level on each lineage, so the engine must thread a ``drivers`` value and
+    step where the driver switches.
+
+    It lives here rather than in one level's package because every level that reads a driver asks the
+    same question first, and the answer is a fact about the rate grammar (SPEC §5), not about any one
+    engine. (The trait and genome engines still each carry a private copy from before this existed;
+    folding them onto this one is a tidy-up, not a behaviour change.)"""
+    return [m for m in rate.modifiers if isinstance(m, DrivenBy)]
+
+
+def names_a_live_level(source: object) -> bool:
+    """Whether a ``DrivenBy`` ``source`` names a **level growing beside the run** rather than a
+    finished driver.
+
+    SPEC §5: "a finished result makes the run conditioned, and the name of a level growing beside it
+    makes the run joint". One modifier, one spelling, and the *source* is what tells the two apart —
+    so this is the predicate that reads the source, not a judgement about what the target level then
+    does with it. The live names are the ones `zombi2.joint` accepts: ``"trait"``, ``"genomes:count"``
+    and ``"genomes:<family>"``.
+
+    A level that cannot be joined with the driver at all (Traits–Sequences, SPEC §3) uses this to say
+    so in the modelling terms, instead of letting the string fall through to `load_driver()` and come
+    back as a missing file called ``'trait'``."""
+    return isinstance(source, str) and (source == "trait" or source.startswith("genomes:"))
+
+
 def resolve_driver(source, tree) -> DriverTrajectory:
     """Resolve a conditioned ``DrivenBy`` ``source`` into a `DriverTrajectory` — a **filename**
     (str) via `load_driver()` (replayed against ``tree``, the target run's own species tree), or an
@@ -292,4 +321,4 @@ def resolve_driver(source, tree) -> DriverTrajectory:
 
 
 __all__ = ["DriverTrajectory", "load_driver", "driver_from_result", "resolve_driver",
-           "check_mapping_fires"]
+           "check_mapping_fires", "driven_mods", "names_a_live_level"]
