@@ -1396,3 +1396,44 @@ def test_a_driven_run_is_the_same_in_parallel():
     one = sequences.simulate_sequences(run, parallel=1, **kw)
     two = sequences.simulate_sequences(run, parallel=2, **kw)
     assert one.alignments == two.alignments and one.phylograms == two.phylograms
+
+
+def test_a_mapping_key_the_driver_never_takes_warns(tmp_path):
+    """A typo in ONE state of a mapping used to pass in complete silence.
+
+    The existing guard refuses a mapping where *nothing* matches. But a mapping with one good key and
+    one typo fires (the good key drives the rate), so it sailed through — and the factor the user
+    actually cared about was applied to nobody, while the run reported itself as driven. That is the
+    shape of failure that gets a wrong result published: it does not look like a failure at all.
+
+    It warns rather than raises because a mapping may legitimately name a state that this particular
+    realisation never reached — the observed states are all we know when replaying a written driver.
+    (A joint run, whose alphabet is declared up front, already raises: `exhaustive=True`.)"""
+    import warnings as _w
+
+    tree = simulate_species_tree(birth=1.0, n_extant=8, seed=1)
+    habitat = traits.simulate_discrete(tree, states=("cave", "surface"), switch=0.6, seed=1)
+
+    with _w.catch_warnings(record=True) as caught:
+        _w.simplefilter("always")
+        genomes.simulate_genomes_family(
+            tree.complete_tree, initial_families=5,
+            loss=0.3 * mod.DrivenBy(habitat, {"caves": 5.0, "surface": 1.0}), seed=1)
+    messages = [str(w.message) for w in caught]
+    assert any("caves" in m and "never takes" in m for m in messages), messages
+    # the state that IS right must not be reported as stray
+    assert not any("'surface'" in m.split("never takes")[0] for m in messages if "never takes" in m)
+
+
+def test_a_mapping_whose_keys_all_match_is_silent(tmp_path):
+    # the guard must not cry wolf on the ordinary case
+    import warnings as _w
+
+    tree = simulate_species_tree(birth=1.0, n_extant=8, seed=1)
+    habitat = traits.simulate_discrete(tree, states=("cave", "surface"), switch=0.6, seed=1)
+    with _w.catch_warnings(record=True) as caught:
+        _w.simplefilter("always")
+        genomes.simulate_genomes_family(
+            tree.complete_tree, initial_families=5,
+            loss=0.3 * mod.DrivenBy(habitat, {"cave": 5.0, "surface": 1.0}), seed=1)
+    assert [str(w.message) for w in caught if "never takes" in str(w.message)] == []

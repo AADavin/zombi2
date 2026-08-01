@@ -476,9 +476,16 @@ _INK, _DIM = "#1a1a1a", "#6e6e6e"
 
 
 def _conditioning_frame(ax, driver, target, target_base, target_sub):
-    """The three columns every conditioning diagram shares: the headers, the driver box, the DrivenBy
-    arrow, and the target box. What sits *below* the arrow is the mapping, and it differs between a
-    discrete driver (a per-state multiplier) and a continuous one (a value→factor curve)."""
+    """The two columns every conditioning diagram shares — the driver and the target it drives — with
+    the relation drawn between them. What sits *below* the arrow is the mapping, and it differs
+    between a discrete driver (a per-state multiplier) and a continuous one (a value→factor curve).
+
+    The arrow's verb is **active** and runs the way the arrow does: *habitat drives loss*. It used to
+    read ``DrivenBy``, which is passive, so an arrow drawn cause-to-effect carried a label naming the
+    relation effect-to-cause — read along the arrow it said "habitat is driven by loss", the opposite
+    of the model. ``DrivenBy`` now sits under the TARGET instead, which is both where it reads
+    correctly and where it is actually typed. A **choice slot** (`transfer_to`) has no base, so it
+    shows the modifier alone — which is exactly the rule that a choice slot takes it on its own."""
     from matplotlib.patches import FancyArrowPatch, Rectangle
 
     ax.set_xlim(0, 660)
@@ -486,26 +493,31 @@ def _conditioning_frame(ax, driver, target, target_base, target_sub):
     ax.set_aspect("auto")
     ax.set_axis_off()
 
-    for x, t in ((120, "DRIVER"), (345, "MODIFIER"), (566, "TARGET")):
+    for x, t in ((120, "DRIVER"), (555, "TARGET")):
         ax.text(x, 30, t, ha="center", va="center", color=_DIM, fontsize=12.5, fontweight="bold")
 
     ax.add_patch(Rectangle((45, 96), 150, 60, fill=True, facecolor="#f2f2f0", edgecolor=_INK,
                            lw=1.6, joinstyle="round"))
     ax.text(120, 126, driver, ha="center", va="center", color=_INK, fontsize=16)
 
-    ax.add_patch(FancyArrowPatch((203, 126), (486, 126), arrowstyle="-|>", mutation_scale=15,
+    ax.add_patch(FancyArrowPatch((203, 126), (462, 126), arrowstyle="-|>", mutation_scale=15,
                                  lw=1.7, color=_INK))
-    ax.text(345, 112, "DrivenBy", ha="center", va="center", color=_INK, fontsize=14.5, style="italic")
+    ax.text(332, 112, "drives", ha="center", va="center", color=_INK, fontsize=14.5, style="italic")
 
-    ax.add_patch(Rectangle((496, 96), 140, 60, fill=True, facecolor="#f2f2f0", edgecolor=_INK,
+    ax.add_patch(Rectangle((472, 96), 166, 60, fill=True, facecolor="#f2f2f0", edgecolor=_INK,
                            lw=1.6, joinstyle="round"))
     if target_base is None:
-        ax.text(566, 126, target, ha="center", va="center", color=_INK, fontsize=15)
+        ax.text(555, 126, target, ha="center", va="center", color=_INK, fontsize=15)
+        written = f"DrivenBy({driver}, …)"
     else:
-        ax.text(566, 120, target, ha="center", va="center", color=_INK, fontsize=15)
-        ax.text(566, 142, f"base {target_base}", ha="center", va="center", color=_DIM, fontsize=13)
+        ax.text(555, 120, target, ha="center", va="center", color=_INK, fontsize=15)
+        ax.text(555, 142, f"base {target_base}", ha="center", va="center", color=_DIM, fontsize=13)
+        written = f"{target_base} * DrivenBy({driver}, …)"
+    # the expression this diagram is a picture of, under the thing you write it on
+    ax.text(555, 176, written, ha="center", va="center", color=_DIM, fontsize=10.5,
+            family="monospace")
     if target_sub:
-        ax.text(566, 172, target_sub, ha="center", va="top", color=_DIM, fontsize=11.5,
+        ax.text(555, 196, target_sub, ha="center", va="top", color=_DIM, fontsize=11.5,
                 style="italic")
 
 
@@ -546,14 +558,14 @@ def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_bas
                                          mutation_scale=9, lw=1.1, color=_INK))
 
     for i, s in enumerate(states):
-        ax.text(345, 152 + i * 19, f"{s} {symbol} {mapping.get(s, 1)}", ha="center", va="center",
+        ax.text(332, 152 + i * 19, f"{s} {symbol} {mapping.get(s, 1)}", ha="center", va="center",
                 color=_DIM, fontsize=13.5)
 
 
 def draw_conditioning_curve(ax, *, driver, curve, vrange, target, target_base=None, target_sub=None,
                             cmap="viridis", value_label="trait value"):
     """The same diagram for a **continuous** driver. A discrete driver has one multiplier per state; a
-    continuous one has a curve, so the modifier column plots ``curve`` (value → factor) over ``vrange``
+    continuous one has a curve, so the space under the arrow plots ``curve`` (value → factor) over ``vrange``
     and the driver column carries the colour ramp the tree is painted with."""
     from matplotlib.patches import Rectangle
 
@@ -570,7 +582,7 @@ def draw_conditioning_curve(ax, *, driver, curve, vrange, target, target_base=No
     ax.text(x0, y1 + 11, "low", ha="left", va="top", color=_INK, fontsize=10.5)
     ax.text(x1, y1 + 11, "high", ha="right", va="top", color=_INK, fontsize=10.5)
 
-    # modifier column: the value → factor curve, where the discrete diagram lists its multipliers
+    # under the arrow: the value → factor curve, where the discrete diagram lists its multipliers
     cx0, cx1, cy0, cy1 = 292.0, 400.0, 148.0, 212.0
     lo, hi = vrange
     vs = [lo + (hi - lo) * k / 60 for k in range(61)]

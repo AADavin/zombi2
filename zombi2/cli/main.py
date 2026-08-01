@@ -12,11 +12,12 @@ import argparse
 import difflib
 import re
 import sys
+import warnings
 
 from zombi2 import __version__
 from zombi2.cli import genomes, joint, sequences, species, tools, traits
 from zombi2.cli.framework import (
-    _DESCRIPTION, ZombiHelpFormatter, _add_subcommand, _apply_params_file, _banner, _examples,
+    _DESCRIPTION, ZombiHelpFormatter, _add_subcommand, _apply_params_file, _banner, _examples, warn,
 )
 
 #: command name -> handler; the single source of dispatch
@@ -24,7 +25,23 @@ _RUN = {"species": species.run, "genomes": genomes.run, "sequences": sequences.r
         "traits": traits.run, "joint": joint.run, "tools": tools.run}
 
 
+def _route_library_warnings_to_stderr() -> None:
+    """Print a library ``warnings.warn`` in the CLI's own voice, not Python's.
+
+    The engines warn through `warnings` because they are a library and must say something useful to
+    a Python caller too. Python's default rendering is a file path, a line number and the offending
+    source line — which for a command-line user is noise wrapped around the one sentence that
+    matters, and looks enough like a crash to be read as one. This reformats it to the same
+    ``zombi2: warning: …`` line `warn()` prints, so a run has one voice however the diagnostic was
+    raised. ``always`` because Python's default shows a given warning **once per location**, and a
+    warning about the run you just asked for should not be suppressed because an earlier run in the
+    same process happened to trip the same line."""
+    warnings.simplefilter("always", UserWarning)
+    warnings.showwarning = lambda message, *_a, **_k: warn(str(message))
+
+
 def main(argv: list[str] | None = None) -> int:
+    _route_library_warnings_to_stderr()
     parser = argparse.ArgumentParser(
         prog="zombi2", description=_banner() + "\n\n" + _DESCRIPTION,
         formatter_class=ZombiHelpFormatter,

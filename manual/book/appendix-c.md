@@ -170,7 +170,7 @@ action ignores fates and loads any tree.
 | Action | What it writes |
 |-----------------------------------|-------------------------------------------------|
 | `--prune` | the extant tree: the dead and unsampled lineages dropped, and the unifurcations they leave behind suppressed so the tree stays bifurcating |
-| `--round` | the tree snapped to exactly ultrametric, by extending the terminal branches to a common depth. `--tol` is the tolerance as a fraction of tree height (default `1e-3`); a wider tip-depth spread raises, because it is real tip-date signal, not rounding |
+| `--round` | the tree snapped to exactly ultrametric, by extending the terminal branches to a common depth. `--tol` is the tolerance as a fraction of tree height (default `1e-3`); a wider tip-depth spread raises, because it is real tip-date signal, not rounding. Written round-trip exact: this is the flag whose whole promise is the exactness of the file. (Every tree ZOMBI2 writes now carries 12 significant digits, which is already well inside `ape::is.ultrametric()`'s tolerance — so an extant tree from a dated run no longer needs this flag to survive R. It is for trees that arrive near-ultrametric from somewhere else) |
 | `--stem LEN` / `--stem-add LEN` | the branch above the crown set to `LEN`, or extended by `LEN`; nothing below the crown moves |
 | `--rescale-height H` / `--rescale-factor F` | every branch length scaled — so the root-to-tip height becomes `H`, or by a raw multiplier `F` |
 | `--red` | the RED-rescaled tree: node depths become their Relative Evolutionary Divergence (Parks et al. 2018), ultrametric on `[0, 1]` with the root at 0 and every tip at 1. `--red --values` writes a two-column `node<TAB>RED` table instead of a tree |

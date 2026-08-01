@@ -231,7 +231,7 @@ g.gene_trees                          # one gene tree per family, as in Chapter 
 
 ## Usage from the CLI
 
-The ordered resolution is `--resolution ordered`. It adds the chromosome and segment flags to the Chapter 4 events, each still a plain number:
+The ordered resolution is `--resolution ordered`. It adds the chromosome flags and the **extent** flags — `--inversion-extent`, `--duplication-extent` and the rest, each the mean number of genes an event takes — to the Chapter 4 events, each still a plain number. Leave an extent out and every event takes a single gene, which for an inversion means flipping one gene's strand and shuffling nothing:
 
 ```bash
 # chromosomes split and merge along the tree

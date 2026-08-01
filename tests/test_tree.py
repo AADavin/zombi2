@@ -247,3 +247,34 @@ def test_a_tree_with_no_branch_lengths_is_refused():
     # is a perfectly good input to a tree comparison
     tree, _ = read_newick("(((A,B),C),D);", assume_extant=True)
     assert len(tree.nodes) == 7
+
+
+def test_a_written_tree_is_still_ultrametric_when_it_is_read_back():
+    """An extant tree from a dated run is ultrametric to ~1e-16 in memory, and the writer used to
+    undo it: a tip's depth is a **sum** of branch lengths, so at the old 7 significant digits the
+    rounding accumulated down the path and two tips came out ~1e-6 apart — far above the ~1e-8
+    ``ape::is.ultrametric()`` allows. The very first thing anyone does with `species_extant.nwk` in R
+    therefore failed, on a tree that was never not ultrametric.
+
+    Checked after a round trip, because reading back is what was broken, and on the plain tree as
+    well as the snapped one: ``--round`` was never the only thing affected."""
+    from zombi2 import species
+    from zombi2.tree import make_ultrametric, read_newick
+
+    result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=40, seed=1)
+
+    def relative_spread(newick):
+        tree, _ = read_newick(newick)
+        depth = {}
+        for i in sorted(tree.nodes):
+            node = tree.nodes[i]
+            depth[i] = (0.0 if node.parent is None else depth[node.parent]) + \
+                       (node.end_time - node.birth_time)
+        tips = [depth[i] for i, n in tree.nodes.items() if n.children is None]
+        return (max(tips) - min(tips)) / max(tips)
+
+    ape_tolerance = 1e-8
+    assert relative_spread(result.extant_tree.to_newick()) < ape_tolerance
+    assert relative_spread(make_ultrametric(result.extant_tree, tol=1e-3).to_newick()) < ape_tolerance
+    # the old default is still reachable, and still not good enough — which is why it is not the default
+    assert relative_spread(result.extant_tree.to_newick(precision=7)) > ape_tolerance

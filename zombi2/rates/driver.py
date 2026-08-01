@@ -22,6 +22,8 @@ The join key is the **species node id**: ``node n7`` in the log is lineage 7 in 
 
 from __future__ import annotations
 
+import warnings
+
 import bisect
 import math
 import pathlib
@@ -248,7 +250,10 @@ def check_mapping_fires(mapping, available_states, *, source_label: str, exhaust
     - ``exhaustive=False`` (the default) — ``available_states`` are the states the driver was **observed**
       to take (e.g. replayed from a written trait file). At least **one** named state must occur, but a
       mapping may still list a state this particular realisation never reached (a legitimate partial
-      mapping), so only an *empty* overlap is an error.
+      mapping), so only an *empty* overlap is an error. A key that matches nothing still **warns**:
+      it is far more often a typo than a deliberate partial mapping, and the failure it causes is the
+      worst kind — the run completes, reports that it was driven, and applies the driver to only some
+      of the lineages the user meant. Silence there is what lets a wrong result be published.
     - ``exhaustive=True`` — ``available_states`` is the driver's **complete declared alphabet**, known up
       front (e.g. a joint trait's declared states). Then **every** named state must be one of them: a key
       outside the alphabet is a state that can never occur, so its factor could never apply — an
@@ -279,6 +284,20 @@ def check_mapping_fires(mapping, available_states, *, source_label: str, exhaust
             f"driver's states {sorted(have)}, so the mapping would silently do nothing — every "
             f"lineage falls to the default factor and the rate is never driven. Check for a typo in "
             f"the state names, or a stale or mismatched driver file.")
+    stray = named - have
+    if stray:
+        # Some keys matched, so the rate IS driven and the run is a legitimate model — which is why
+        # this warns rather than raises. But a key matching nothing is far more often a typo than a
+        # deliberate partial mapping, and the shape of that failure is the dangerous one: the run
+        # completes, the summary says it was driven, and the factor the user cared about was applied
+        # to nobody. Saying so costs one line; not saying it is how a wrong result gets published.
+        warnings.warn(
+            f"DrivenBy on {source_label}: the mapping names state(s) {sorted(stray)} that the "
+            f"driver never takes (it takes {sorted(have)}), so those factors were never applied. "
+            f"The states it did match are still driving the rate. Check for a typo — this is a "
+            f"warning rather than an error only because a mapping may legitimately name a state "
+            f"that this particular run did not reach.",
+            stacklevel=2)
 
 
 def driven_mods(rate) -> list:
