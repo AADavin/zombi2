@@ -9,6 +9,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+- **The conditioning and joining diagrams read backwards.** Their arrow ran from cause to effect —
+  habitat to loss — but was labelled `DrivenBy`, which is passive, so reading along the arrow gave
+  "habitat is driven by loss": the opposite of the model. The joining figure contained the proof, one
+  arrow reading forwards (`creates`) and the other back. Both arrows now carry an active verb, and
+  `DrivenBy` sits under the **target**, where it reads correctly and where it is actually typed. The
+  gallery's five conditioning cards are drawn from the same helper and change with them; on the one
+  card whose target is a choice slot (`transfer_to`) the expression now correctly shows no base.
+
 ## [0.21.0] - 2026-08-01
 
 ### Added
