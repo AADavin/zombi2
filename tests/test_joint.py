@@ -234,3 +234,25 @@ def test_joint_refuses_per_lineage_rate_variation():
             birth=1.0 * mod.ByLineage(spread=0.5) * mod.DrivenBy("trait", {"small": 1.0, "large": 2.0}),
             death=0.1, n_extant=8, seed=1,
             trait=traits.DiscreteTrait(states=("small", "large"), switch=0.3))
+
+
+def test_joint_refuses_a_modifier_it_does_not_thread():
+    """The gate was a negative list — it named FromParent and DrivenBy and let everything else
+    through — where every other level declares what it takes. `ByFamily` was the one that slipped:
+    accepted, then returning its default factor of 1.0, so the run was quietly not the model asked
+    for. `OnTime` and `OnTotalDiversity` were never the problem; the loop threads both and steps at
+    their breakpoints, which is why they are in `WIRED_MODIFIERS` rather than refused alongside."""
+    import pytest
+
+    from zombi2 import joint, traits
+    from zombi2.rates import modifiers as mod
+
+    trait = traits.DiscreteTrait(states=("small", "large"), switch=0.3)
+    driven = mod.DrivenBy("trait", {"small": 1.0, "large": 2.0})
+    with pytest.raises(ValueError, match="no gene families"):
+        joint.simulate_joint(birth=1.0 * mod.ByFamily(spread=0.5) * driven, death=0.1,
+                             n_extant=8, seed=1, trait=trait)
+    # the two covariates are genuinely wired, so they must still run
+    for modifier in (mod.OnTime({0: 1.0, 0.2: 0.4}), mod.OnTotalDiversity(cap=40)):
+        assert joint.simulate_joint(birth=1.0 * modifier * driven, death=0.1, n_extant=8,
+                                    seed=1, trait=trait).species.n_extant == 8

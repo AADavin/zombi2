@@ -21,7 +21,8 @@ import time
 from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _read_tip_fates,
                                   _write_params_log, check_stale_downstream, clear_stale_downstream,
-                                  signpost, input_digests, level_dir, resolve_tree, sibling_fates)
+                                  signpost, input_digests, level_dir, resolve_tree, sibling_fates,
+                                  conditioned_levels, record_conditioning)
 from zombi2.tree import node_label, read_newick
 from zombi2._runtime.report import write_run_report
 from zombi2.traits import WIRED_MODIFIERS, simulate_continuous, simulate_discrete
@@ -195,6 +196,9 @@ def run(args, parser):
         with open(os.path.join(out, "names.tsv"), "w", encoding="utf-8") as f:
             f.write("\n".join(rows) + "\n")
 
+    if not args.flat:                             # record which same-run levels drove a rate (if any),
+        record_conditioning(out, conditioned_levels(  # so re-running one of them knows it orphans this
+            args.run, (args.rate, args.switch)))
     n_tips = len(result.values)
     detail = f"{len(states)} states" if discrete else "diffusing"
     summary = f"a {result.kind} trait ({detail}) over {n_tips} extant tips"

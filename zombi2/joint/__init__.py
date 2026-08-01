@@ -32,12 +32,20 @@ import numpy as np
 from .._runtime.summary import write_summary
 from ..genomes import Event as GenomeEvent, GeneCopy, FamilyGenomesResult, FamilyGenome
 from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
-from ..rates.modifiers import ByLineage, DrivenBy, FromParent
+from ..rates.modifiers import ByFamily, ByLineage, DrivenBy, FromParent, OnTime, OnTotalDiversity
+
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..species import Event, SpeciesResult
 from ..tree import Node, Tree
 from ..traits import Change, DiscreteTrait, TraitsResult
+
+#: The rate grammar a joint run supports on ``birth`` / ``death`` (SPEC §5). Declared, like every
+#: other level, so the gate below cannot fall behind what the engine threads: the loop passes ``time``
+#: and ``diversity`` into every rate and steps its Gillespie at each ``next_change``, so the two
+#: covariates are as real here as at the species level, and ``DrivenBy`` is what makes the run joint
+#: at all. What is missing is missing on purpose — see the rejections in `simulate_joint()`.
+WIRED_MODIFIERS = (OnTime, OnTotalDiversity, DrivenBy)
 
 _MAX_ATTEMPTS = 1000  # survival-conditioned retries before giving up on n_extant
 _GENOME_COUNT = "genomes:count"  # the live gene-content driver source for a count → Curve/Scalar
@@ -421,6 +429,14 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 f"per lineage — drop the scope wrapper (per lineage is the default)."
             )
         for m in rate.modifiers:
+            if isinstance(m, ByFamily):
+                # not a missing feature: there is nothing here for it to mean (the species level
+                # says the same thing about the same modifier, for the same reason)
+                raise ValueError(
+                    f"{label} carries ByFamily, but a diversification rate has no gene families — "
+                    f"ByFamily belongs on a genomes rate. To make speciation depend on gene content, "
+                    f"drive it: birth = 1.0 * mod.DrivenBy(\"genomes:count\", ...)."
+                )
             if isinstance(m, FromParent):
                 raise ValueError(
                     f"{label} carries FromParent (clade drift); drift and a driven rate are not available "
@@ -435,6 +451,15 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                     f"{label} carries ByLineage (independent per-lineage rates); per-lineage rate "
                     f"variation and a driven rate are not available together in a joint run — use "
                     f"one or the other. On its own, ByLineage works at the species level."
+                )
+            if not isinstance(m, WIRED_MODIFIERS):
+                # the backstop: anything this engine does not thread would come back as its default
+                # factor of 1.0, which is a run quietly not the model that was asked for (SPEC §5).
+                # Declared rather than enumerated here, so a modifier added later cannot slip through.
+                raise ValueError(
+                    f"{label} carries {type(m).__name__}, which a joint run does not support. It "
+                    f"takes OnTime (skyline), OnTotalDiversity (diversity-dependent) and DrivenBy "
+                    f"(the driver that makes the run joint)."
                 )
             if isinstance(m, DrivenBy):
                 if not isinstance(m.source, str):

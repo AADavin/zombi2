@@ -448,6 +448,23 @@ def test_a_genome_never_loses_its_last_chromosome():
     assert all(len(chroms) >= 1 for chroms in r.genomes.values())
 
 
+def test_a_genome_never_loses_its_last_genes_to_a_chromosome_loss():
+    """"Not the genome's last chromosome" is not enough to keep a genome alive.
+
+    A lineage can be carrying **empty** replicons — `chromosome_origination` mints one empty, and a
+    translocation can empty one — so a genome of one gene-bearing chromosome beside an empty plasmid
+    used to lose everything the moment `chromosome_loss` picked the one with the genes on it. The
+    parameters below are the ones that reproduced it: 3 of 6 extant genomes came out with no genes."""
+    for seed in range(40):
+        sp = simulate_species_tree(birth=1.0, n_extant=6, seed=seed)
+        r = simulate_genomes_ordered(sp.complete_tree, loss=3.0, translocation=3.0,
+                                     chromosome_loss=1.0, chromosome_origination=0.5,
+                                     initial_families=4, chromosomes=2, seed=seed)
+        for node in sp.complete_tree.extant_leaves():
+            assert any(c.genes for c in r.genomes[node.id]), (
+                f"seed {seed}, lineage {node.id}: every chromosome came out empty")
+
+
 def test_the_tier_changes_chromosome_number():
     _, r = _tier(seed=5)
     counts = {len(chroms) for chroms in r.genomes.values()}
