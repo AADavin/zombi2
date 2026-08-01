@@ -367,6 +367,36 @@ def test_sequences_reads_a_nucleotide_handoff_through_from(tmp_path, tree_file):
     assert list(s.glob("block*.fasta"))               # blocks, not families: the files say so
 
 
+def test_an_emptied_genome_run_says_so_on_stderr(tmp_path, capsys):
+    """There is no genome floor at the family resolution, so a high --loss can strip every lineage of
+    every gene. That is a real outcome, but nothing in the outputs shows it — profiles.tsv is simply
+    empty — so the command says so. It goes to stderr and survives --quiet, because a scripted batch is
+    exactly the caller who needs to hear that its data is degenerate."""
+    run = tmp_path / "run"
+    main(["species", str(run), "--birth", "1.0", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "--quiet"])
+    capsys.readouterr()
+    rc = main(["genomes", str(run), "--loss", "5.0", "--duplication", "0", "--transfer", "0",
+               "--origination", "0", "--initial-families", "10", "--seed", "3", "--quiet"])
+    err = capsys.readouterr().err
+    assert rc == 0                                        # a degenerate run is not a failed run
+    assert "empty" in err and "--loss" in err             # what happened, and the knob to turn
+
+
+def test_sequences_survives_a_run_with_no_families(tmp_path):
+    """A run with no gene families has no alignments, so mean pairwise identity is undefined. The run
+    report rendered it as a percentage regardless and raised `TypeError`, after every output file had
+    already been written — reachable from an emptied genome and from a plain --initial-families 0."""
+    run = tmp_path / "run"
+    main(["species", str(run), "--birth", "1.0", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "--quiet"])
+    main(["genomes", str(run), "--initial-families", "0", "--loss", "0.1", "--duplication", "0",
+          "--transfer", "0", "--origination", "0", "--seed", "1", "--quiet"])
+    rc = main(["sequences", str(run), "--length", "60", "--seed", "1", "--quiet"])
+    assert rc == 0
+    assert (run / "run.zombi2").exists()                   # the report was written, not crashed on
+
+
 def test_genomes_missing_tree_is_reported_cleanly(tmp_path, capsys):
     rc = main(["genomes", str(tmp_path / "g"), "--from", str(tmp_path / "nope.nwk"), "--duplication", "0.1", "--flat"])
     assert rc == 1
@@ -522,6 +552,21 @@ def test_traits_ou_and_threshold_run(tmp_path, tree_file):
     assert main(["traits", str(out), "--from", str(tree_file), "--kind", "discrete", "--states", "absent,present", "--liability", "1.0", "--threshold", "0.0", "--seed", "1", "--flat"]) == 0
     states = {ln.split("\t")[2] for ln in (out / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[1:]}
     assert states <= {"absent", "present"}
+
+
+def test_traits_continuous_ou_with_a_modified_rate(tmp_path, tree_file):
+    # the OU knobs and a σ² modifier in one run — the combination the engine used to refuse. Nothing
+    # about the command changed: --rate takes the same written form it always did, so this is the
+    # end-to-end check that the unlocked combination reaches the engine from the command line.
+    out = tmp_path / "ou_eb"
+    rc = main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file),
+               "--rate", "1.0 * OnTime({0: 4.0, 1: 1.0})", "--reverts-to", "2.0", "--pull", "0.5",
+               "--seed", "1", "--flat"])
+    assert rc == 0
+    assert (out / "trait_values.tsv").exists()
+    log = (out / "traits.log").read_text(encoding="utf-8")
+    assert "rate\t1.0 * OnTime({0: 4, 1: 1})" in log            # the rate, as the run resolved it
+    assert "reverts_to\t2.0" in log and "pull\t0.5" in log       # alongside the OU knobs, not instead
 
 
 def test_traits_discrete_writes_the_event_log(tmp_path, tree_file):
@@ -769,8 +814,11 @@ def test_species_records_the_rate_in_its_written_form(tmp_path):
 
 
 def test_species_refuses_a_modifier_it_does_not_wire(tmp_path, capsys):
-    # ByLineage would return a factor of 1.0 at this level — a run quietly not the model asked for
-    rc = main(["species", str(tmp_path / "o"), "--birth", "1.0 * ByLineage(spread=0.3)", "--total-time", "3", "--seed", "1", "--flat"])
+    # DrivenBy would return a factor of 1.0 at this level — a run quietly not the model asked for.
+    # (Driving speciation is a *joint* model, so it is `zombi2 joint`'s business, not this command's.)
+    rc = main(["species", str(tmp_path / "o"), "--birth",
+               "1.0 * DrivenBy('habitat.tsv', Table({'a': 2.0}))", "--total-time", "3",
+               "--seed", "1", "--flat"])
     assert rc == 1
     assert "does not support" in capsys.readouterr().err
 
@@ -821,6 +869,25 @@ def test_genomes_transfer_to_takes_a_driven_recipient_weight(tmp_path, driver_fi
     # the RECIPIENT side: the choice slot, so the modifier is written on its own, with no base
     out = tmp_path / "g"
     rc = main(["genomes", str(out), "--from", str(tree_file), "--initial-families", "5", "--transfer", "0.5", "--transfer-to", f"DrivenBy('{driver_file}', {{'competent': 2.0, 'normal': 1.0}})", "--seed", "2", "--flat"])
+    assert rc == 0
+    from zombi2.cli.genomes import _transfer_to
+    written = repr(_transfer_to(f"DrivenBy('{driver_file}', "
+                                f"{{'competent': 2.0, 'normal': 1.0}})"))
+    assert f"transfer_to\t{written}" in (out / "genomes.log").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("resolution", ["ordered", "nucleotide"])
+def test_genomes_transfer_to_takes_a_driven_weight_at_every_resolution(
+        tmp_path, driver_file, tree_file, resolution):
+    """The choice slot is not the family resolution's own: the same flag, the same written form and
+    the same conditioning record at all three. ``--transfer-to`` was already parsed for every
+    resolution and already passed to every engine — the engines were what refused it."""
+    out = tmp_path / resolution
+    extra = ["--root-length", "2000"] if resolution == "nucleotide" else ["--initial-families", "5"]
+    rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", resolution,
+               "--transfer", "0.5", "--transfer-to",
+               f"DrivenBy('{driver_file}', {{'competent': 2.0, 'normal': 1.0}})",
+               "--seed", "2", "--flat", *extra])
     assert rc == 0
     from zombi2.cli.genomes import _transfer_to
     written = repr(_transfer_to(f"DrivenBy('{driver_file}', "
@@ -886,8 +953,9 @@ def test_params_file_rate_expression_matches_the_flag(tmp_path):
 def test_the_rates_help_lists_only_what_the_level_wires(capsys):
     # the help is built from each level's WIRED_MODIFIERS, so it cannot advertise the unwired
     for command, present, absent in [
-            ("species", ["FromParent"], ["ByLineage"]),
-            ("sequences", ["ByLineage", "FromParent"], ["OnTotalDiversity"])]:  # both clocks wired
+            ("species", ["FromParent", "ByLineage"], ["ByFamily"]),   # both per-lineage forms wired
+            # both clocks and the trait driver are wired; the diversity covariate is not
+            ("sequences", ["ByLineage", "FromParent", "DrivenBy"], ["OnTotalDiversity"])]:
         with pytest.raises(SystemExit):
             main([command, "--help", "--flat"])
         out = capsys.readouterr().out
@@ -1452,6 +1520,30 @@ def test_conditioning_records_which_level_drove_a_rate(tmp_path):
     assert (run / "genomes" / "conditioned_on").read_text(encoding="utf-8").split() == ["traits"]
 
 
+def test_genomes_ordered_takes_a_driven_rate_from_the_command_line(tmp_path):
+    """The whole conditioned ordered story on the command line: grow the driver, then drive
+    ``--inversion`` by it in its written form.
+
+    The bookkeeping is the point as much as the run. ``conditioned_on`` and the input digests used to
+    be read off ``--duplication``/``--transfer``/``--loss``/``--origination``/``--transfer-to`` only,
+    so a run driven through any other rate recorded nothing: re-running the driver level did not know
+    it had orphaned this one, and the log did not pin the driver file it read."""
+    run = tmp_path / "run"
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "--quiet"])
+    main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch", "0.4",
+          "--seed", "5", "--quiet"])
+    driver = f"{run}/traits/trait_events.tsv"
+    rc = main(["genomes", str(run), "--resolution", "ordered", "--initial-families", "12",
+               "--inversion", f"0.3 * DrivenBy('{driver}', {{'cave': 4.0, 'surface': 1.0}})",
+               "--seed", "3", "--quiet"])
+    assert rc == 0
+    assert (run / "genomes" / "rearrangement_events.tsv").exists()
+    assert (run / "genomes" / "conditioned_on").read_text(encoding="utf-8").split() == ["traits"]
+    log = (run / "genomes" / "genomes.log").read_text(encoding="utf-8")
+    assert "trait_events.tsv" in log and re.search(r"\b[0-9a-f]{64}\b", log)
+
+
 def test_rerunning_a_trait_a_genome_was_conditioned_on_refuses(tmp_path, capsys):
     run = tmp_path / "run"
     _conditioned_pipeline(run)
@@ -1474,6 +1566,36 @@ def test_force_reruns_the_trait_and_clears_its_conditioned_downstream(tmp_path, 
     assert rc == 0
     assert not (run / "genomes").exists() and not (run / "sequences").exists()
     assert (run / "traits").exists()
+
+
+def test_a_trait_drives_the_substitution_rate_from_the_command_line(tmp_path, capsys):
+    """The whole conditioned pipeline for Traits → Sequences, in the written form of the rate: grow a
+    habitat trait, then a sequences run whose substitution rate reads it. The run has to record the
+    dependency, hash the driver file it read, and refuse a re-run of the trait beneath it."""
+    run = tmp_path / "run"
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "--quiet"])
+    main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch", "0.4",
+          "--seed", "5", "--quiet", "--write", "events"])
+    main(["genomes", str(run), "--duplication", "0.2", "--loss", "0.2", "--origination", "0.5",
+          "--seed", "3", "--quiet"])
+    driver = f"{run}/traits/trait_events.tsv"
+    rate = f"0.05 * DrivenBy('{driver}', {{'cave': 0.2, 'surface': 1.0}})"
+    capsys.readouterr()
+    assert main(["sequences", str(run), "--model", "jc69", "--length", "200", "--seed", "1",
+                 "--quiet", "--substitution", rate]) == 0
+    assert "driven by trait_events.tsv" in capsys.readouterr().out
+
+    assert (run / "sequences" / "conditioned_on").read_text(encoding="utf-8").split() == ["traits"]
+    log = (run / "sequences" / "sequences.log").read_text(encoding="utf-8")
+    assert "DrivenBy(" in log and "trait_events.tsv" in log       # the rate in its written form
+    assert any(line.startswith("input\t") and driver in line for line in log.splitlines())
+
+    # and the trait is now a driver of this run: re-running it without --force would orphan the run
+    capsys.readouterr()
+    assert main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch",
+                 "0.9", "--seed", "2", "--quiet"]) == 1
+    assert "sequences" in capsys.readouterr().err
 
 
 def test_an_unconditioned_genome_leaves_the_trait_free_to_rerun(tmp_path):
@@ -1906,3 +2028,30 @@ def test_name_and_flat_ask_for_opposite_things(tmp_path):
     with pytest.raises(SystemExit):
         main(["traits", str(run), "--name", "a", "--flat", "--kind", "continuous", "--rate", "1.0",
               "--seed", "1", "--quiet"])
+
+
+def test_traits_records_which_level_drove_its_rate(tmp_path):
+    """`zombi2 traits` wrote no `conditioned_on` marker, so a trait driving another trait recorded no
+    dependency at all — `genomes` and `sequences` both record theirs.
+
+    The within-level edge is deliberately not followed by the staleness graph: both traits live under
+    `traits/`, so the edge is traits -> traits, and a graph whose nodes are levels would mark the
+    level stale against itself — `--force` would then delete every trait in the run, the one just
+    written included. The marker is recorded (it is what the log and the run report show); automatic
+    invalidation waits for the graph's nodes to be `traits/<name>`."""
+    run = tmp_path / "r"
+    assert main(["species", str(run), "--birth", "1.0", "--n-extant", "8", "--seed", "1", "--quiet"]) == 0
+    assert main(["traits", str(run), "--name", "habitat", "--kind", "discrete", "--states",
+                 "cave,surface", "--switch", "0.5", "--seed", "1", "--quiet"]) == 0
+    driver = run / "traits" / "habitat" / "trait_events.tsv"
+    assert main(["traits", str(run), "--name", "size", "--kind", "continuous", "--rate",
+                 f"1.0 * DrivenBy('{driver}', {{'cave': 0.2, 'surface': 1.0}})",
+                 "--seed", "1", "--quiet"]) == 0
+
+    assert (run / "traits" / "size" / "conditioned_on").read_text().split() == ["traits"]
+    assert not (run / "traits" / "habitat" / "conditioned_on").exists()   # the driver drives nothing
+
+    # re-running the driver with --force must not take the trait beside it with it
+    assert main(["traits", str(run), "--name", "habitat", "--kind", "discrete", "--states",
+                 "cave,surface", "--switch", "0.9", "--seed", "7", "--quiet", "--force"]) == 0
+    assert (run / "traits" / "size" / "trait_values.tsv").exists()

@@ -90,6 +90,22 @@ def test_sequences_parallel_is_worker_count_invariant(genome_run):
     assert inline == pooled                                   # 1 (inline) == 2 (pool), to the byte
 
 
+def test_sequences_parallel_is_worker_count_invariant_with_partitions(genome_run):
+    """Partitions are a **run-wide** property, so they ride the pool's initializer with the clock
+    rather than the per-family task. If a worker did not get them it would silently evolve the first
+    partition's model over every site — a wrong answer, not a crash — so this checks the whole run
+    twice over, and against the serial engine's family set."""
+    parts = [(hky85(kappa=2.0), 120), (jc69(), 80)]
+
+    def run(p):
+        return simulate_sequences(genome_run, partitions=parts, seed=7, parallel=p)
+    assert _seq_fingerprint(run(1)) == _seq_fingerprint(run(2))
+    pooled = run(2)
+    assert set(pooled.alignments) == set(
+        simulate_sequences(genome_run, partitions=parts, seed=7).alignments)
+    assert all(len(s) == 200 for aln in pooled.alignments.values() for s in aln.values())
+
+
 def test_sequences_parallel_differs_from_serial_but_matches_family_set(genome_run):
     serial = simulate_sequences(genome_run, model=hky85(kappa=2.0), length=200, seed=7)
     par = simulate_sequences(genome_run, model=hky85(kappa=2.0), length=200, seed=7, parallel=2)
@@ -310,3 +326,14 @@ def test_guard_pool_workers_falls_back_when_a_pool_cannot_start(monkeypatch, cap
     assert capsys.readouterr().out == ""
     assert par.guard_pool_workers(4) == 1
     assert "single-process" in capsys.readouterr().out
+
+
+def test_sequences_rate_variation_is_worker_count_invariant(genome_run):
+    """Across-site variation draws each site's rate class from the **family's own** stream, so the
+    parallel engine needed no change at all for it — this is what says so. The decorated model
+    travels to the workers like any other, and the class draw happens inside the per-family walk."""
+    model = hky85(kappa=2.0).across_sites(gamma_shape=0.5, invariant=0.1)
+
+    def run(p):
+        return simulate_sequences(genome_run, model=model, length=200, seed=7, parallel=p)
+    assert _seq_fingerprint(run(1)) == _seq_fingerprint(run(3))

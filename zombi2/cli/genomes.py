@@ -8,8 +8,10 @@ sequence of ancestry blocks, with declared indivisible genes and intergenic spac
 `simulate_genomes_nucleotide()`). Long options are the API keyword names, and
 every rate takes the written form (SPEC §5): a bare number on its natural scope, or the same
 ``scope(base) × modifiers`` expression the Python API takes — ``--loss "0.25 * OnTime({0: 1.0, 3:
-2.0})"``. The nucleotide engine takes ``OnTime`` and ``DrivenBy``, so any other modifier is rejected
-there rather than silently ignored."""
+2.0})"``. Each resolution declares which modifiers it reads (its ``WIRED_MODIFIERS``) and rejects the
+rest rather than silently ignoring them; the two structured resolutions both take ``DrivenBy``, so a
+trait can drive a rearrangement rate at either. ``--transfer-to`` is the one **choice slot** (SPEC §5)
+and works at all three: the weight it takes says who receives, never how much transfer happens."""
 from __future__ import annotations
 
 import argparse
@@ -22,6 +24,7 @@ from zombi2.genomes.family import FamilyGenomesResult
 from zombi2.genomes.ordered import OrderedGenomesResult
 from zombi2.genomes.nucleotide import NucleotideGenomesResult
 from zombi2.genomes.nucleotide import WIRED_MODIFIERS as _NUC_WIRED
+from zombi2.genomes.ordered import WIRED_MODIFIERS as _ORDERED_WIRED
 from zombi2.rates.parse import parse_rate
 from zombi2.rates.scope import Global, PerLineage
 from zombi2.tree import node_label, read_newick
@@ -32,15 +35,20 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   clear_stale_downstream, conditioned_levels, default_outputs,
                                   defaults_used, signpost, input_digests, level_dir,
                                   parallel_from_args, record_conditioning, resolve_tree,
-                                  sibling_fates, warn_if_fates_were_inferred)
+                                  sibling_fates, warn, warn_if_fates_were_inferred)
 
-#: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration
+#: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration — including the
+#: per-resolution sentence, which is read off each engine's ``WIRED_MODIFIERS`` rather than typed out
+#: here. It had been typed out, and it went stale the moment the ordered engine learned ``DrivenBy``.
 RATES_HELP = _rates_help(
     WIRED_MODIFIERS, "--loss",
     note="Rates keep their natural scope here (D/T/L per copy, origination per lineage), so there "
          "is no scope wrapper to write. On --transfer, DrivenBy drives how often a lineage DONATES; "
-         "--transfer-to takes one on its own as a recipient weight. --resolution ordered takes "
-         "OnTime and ByFamily; nucleotide, OnTime and DrivenBy.")
+         "--transfer-to takes one on its own as a recipient weight, at every resolution — it is a "
+         "choice slot, not a rate, so the numbers are normalised weights over the candidates. "
+         "--resolution ordered takes " + ", ".join(m.__name__ for m in _ORDERED_WIRED) +
+         ", though not ByFamily and DrivenBy in one run; nucleotide, " +
+         ", ".join(m.__name__ for m in _NUC_WIRED) + ".")
 
 # The write vocabularies, read off the results themselves. They used to be hand-copied here, with a
 # comment saying so, and they drifted: `species_tree` and `initial_sequence` were writable from
@@ -125,8 +133,8 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("transfer & content")
     g.add_argument("--transfer-to", type=_transfer_to, default="uniform",
                    metavar="RULE", dest="transfer_to",
-                   help="recipient rule: uniform (any contemporaneous lineage, default), distance "
-                        "(closer relatives likelier), or a DrivenBy weight (family resolution only)")
+                   help="recipient rule, at any resolution: uniform (any contemporaneous lineage, "
+                        "default), distance (closer relatives likelier), or a DrivenBy weight")
     g.add_argument("--replacement", action="store_true",
                    help="a transfer overwrites a homologous copy (replacing HGT)")
     g.add_argument("--self-transfer", action="store_true", dest="self_transfer",
@@ -318,10 +326,66 @@ _RATE_FLAGS = (("duplication", None), ("transfer", None), ("loss", None), ("orig
                ("chromosome_origination", 0.0), ("chromosome_loss", 0.0))
 
 
+#: Every rate flag that may carry a ``DrivenBy`` — what the run's conditioning bookkeeping has to
+#: scan. It is *all* of them at the two structured resolutions, not just D/T/L/O: a driven
+#: ``--inversion`` or ``--fission`` is as much a conditioned run as a driven ``--loss``, and reading
+#: only the four meant such a run recorded no ``conditioned_on`` marker (so re-running the driver
+#: level did not know it orphaned this one) and logged no digest of the driver file.
+_DRIVABLE_RATE_FLAGS = ("duplication", "transfer", "loss", "origination", "inversion",
+                        "transposition", "translocation", "fission", "fusion",
+                        "chromosome_origination", "chromosome_loss")
+
+
+def _driven_specs(args) -> tuple:
+    """Every spec of this run that may name a driver: the rate flags above, plus ``--transfer-to``,
+    which is the choice slot rather than a rate but points at the same kind of file."""
+    return (*(getattr(args, name) for name in _DRIVABLE_RATE_FLAGS), args.transfer_to)
+
+
 def _stray(args, knobs) -> list[str]:
     """The flags in ``knobs`` the user actually set (their value differs from the default)."""
     return [f"--{attr.replace('_', '-')}" for attr, default in knobs
             if getattr(args, attr) != default]
+
+
+def _warn_if_genomes_emptied(result, resolution: str) -> None:
+    """Say so when the run left an extant genome with no genes in it — a diagnostic about the
+    *result*, in the register of `warn_if_fates_were_inferred()`.
+
+    A genome that lost everything is a legitimate outcome, not an error, so this announces rather
+    than refuses: with a loss rate well above the duplication and origination rates, a lineage
+    losing its last gene is what the model says happens. It is announced because it is otherwise
+    invisible. A genome with no genes writes no row in ``profiles.tsv`` and leaves no gene tree for
+    ``zombi2 sequences`` to run down, so the reader meets it as a short matrix and a level below it
+    that produced nothing — which reads as a broken run rather than as the model they asked for.
+
+    Why the two resolutions differ in the message: at ``family`` there is no floor at all, because
+    loss is counted per gene copy and the last copy is a copy like any other. At ``ordered`` a loss
+    never takes a chromosome below its last gene, so the way a genome empties there is
+    ``chromosome_loss`` taking the chromosome that held them — a different knob to turn down. The
+    ``nucleotide`` resolution is not checked here: its unit is base pairs and its per-chromosome
+    floor leaves a lineage a chromosome with material on it."""
+    extant = [n.id for n in result.complete_tree.extant_leaves()]
+    if resolution == "ordered":
+        empty = [i for i in extant if not any(c.genes for c in result.genomes[i])]
+        why = ("A loss never takes a chromosome below its last gene at --resolution ordered, but "
+               "chromosome_loss can take the chromosome that held them. Lower --loss or "
+               "--chromosome-loss, or raise --origination")
+    else:
+        empty = [i for i in extant if not result.genomes[i]]
+        why = ("There is no genome floor at --resolution family: loss is counted per copy, and the "
+               "last copy is a copy like any other. Lower --loss, raise --origination, or start "
+               "with more --initial-families")
+    if not empty:
+        return
+    if len(empty) == len(extant):
+        warn(f"every extant genome is empty — not one of them holds a gene, so profiles.tsv has no "
+             f"rows and there is no gene tree for a sequence to run down. {why} if that is not the "
+             f"model you meant.")
+    else:
+        warn(f"{len(empty)} of {len(extant)} extant genomes are empty — those lineages lost every "
+             f"gene they had, so their columns of profiles.tsv are all zeros. {why} if that is not "
+             f"the model you meant.")
 
 
 def run(args, parser):
@@ -520,9 +584,14 @@ def run(args, parser):
         n_families, n_species = result.profiles.shape
         summary = f"{n_families} gene families across {n_species} extant genomes ({args.resolution})"
     print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
+    # A run that emptied a genome succeeded — it is a result, not an error — but it is the one
+    # result the outputs do not show, so it goes to stderr after the `wrote …` line. A streamed run
+    # holds no genomes to count; the nucleotide resolution is left out for the reason in the helper.
+    if not streaming and args.resolution != "nucleotide":
+        _warn_if_genomes_emptied(result, args.resolution)
     if not args.flat:                             # record which same-run levels drove a rate (if any),
         record_conditioning(out, conditioned_levels(   # so re-running one of them knows it orphans this
-            args.run, (args.duplication, args.transfer, args.loss, args.origination, args.transfer_to)))
+            args.run, _driven_specs(args)))
     # The log is this run's parameters, not the parser's: a family run has no --root-length and no
     # --inversion, and recording them at their defaults reads as though it had them and chose those
     # values. Each resolution's own gates already say which options belong to which.
@@ -535,7 +604,6 @@ def run(args, parser):
                       inputs=input_digests(tree_path, args.tip_fates,
                                            os.path.join(os.path.dirname(tree_path),
                                                         "species_fates.tsv"),
-                                           args.duplication, args.transfer, args.loss,
-                                           args.origination, args.transfer_to))
+                                           *_driven_specs(args)))
     signpost(args, write_run_report(args.run), out)   # every file it wrote, then the run report
     return 0

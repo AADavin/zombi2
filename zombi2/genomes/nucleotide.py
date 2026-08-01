@@ -104,7 +104,8 @@ from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerLineage
 from ..tree import Tree, as_tree
 from ._live import enter, retire, weighted_index, without_cyclic_gc
-from ._transfer import Distance, mean_root_to_tip, recipient_index
+from ._transfer import (Distance, mean_root_to_tip, prepare_transfer_to, recipient_index,
+                        resolve_transfer_to)
 from .chromosomes import (REARRANGEMENT_COLS, ChromosomeEvent, chromosome_events_tsv,
                           chromosome_from_label, chromosome_label, rearrangement_events_tsv)
 from .._runtime.outputs import grouped_dir
@@ -1510,12 +1511,28 @@ def _do_duplication(g, node_id, t, duplication_extent, rng, events, new_copy) ->
 
 
 def _do_transfer(rng, tree, alive, gen, kd, t, transfer_extent, transfer_to, self_transfer, depth,
-                 events, new_copy) -> int:
+                 events, new_copy, to_traj=None, groups=None) -> int:
     """Copy a geometric-length arc of the donor lineage ``alive[kd]`` into a **contemporaneous
-    recipient** (chosen by ``transfer_to``: uniform, or a `Distance` weighting): the arc's copy
-    lineages beget fresh children that arrive as a block at a random spot on a random recipient
-    chromosome (strands travel with them). A horizontal edge in each block's gene tree. **Additive**
-    — the donor keeps its copy — so it returns the recipient's length gain (0 on a no-op)."""
+    recipient** chosen by ``transfer_to`` — ``"uniform"``, a `Distance` weighting, a `Clades` kernel,
+    or a driven recipient weight: the arc's copy lineages beget fresh children that arrive as a block
+    at a random spot on a random recipient chromosome (strands travel with them). A horizontal edge in
+    each block's gene tree. **Additive** — the donor keeps its copy — so it returns the recipient's
+    length gain (0 on a no-op).
+
+    A transfer here being additive is what makes steering a pure statement about *where* the DNA
+    lands: nothing is removed from the donor either way, so a kernel that forbids a pair only moves
+    arcs to other recipients. **No eligible recipient ⇒ nothing happens** — when every candidate
+    weighs 0 the event is dropped before any copy lineage is minted, any base moves or anything is
+    logged, which is Poisson thinning on a condition read off the current state and so leaves a clean
+    process (see `family._do_transfer()` for the argument in full).
+
+    The arc is drawn *before* the recipient, unlike at the ordered resolution, because the donor's
+    draws come first in the rng stream and reordering them would move every existing run. Preparing
+    the arc splits the donor's blocks at its two ends and may rotate a circular donor to bring the arc
+    to the front, so a dropped transfer does leave those marks — but neither changes a base, an
+    ancestry or a gene: block boundaries and a ring's origin are bookkeeping, which is why
+    `Genome.ancestry()` is the invariant to check a no-op against. It is the same state the existing
+    "no legal spot on the recipient" drop below leaves."""
     donor_g = gen[kd]
     spot = donor_g._pick_legal_cut(rng)
     if spot is None:
@@ -1539,11 +1556,13 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_extent, transfer_to, sel
             return 0
         i = int(rng.integers(npool))
         kr = i if (self_transfer or i < kd) else i + 1
-    else:  # a Distance weighting must weigh every candidate — inherently O(alive)
+    else:  # the weighted rules (Distance / Clades / DrivenBy) weigh every candidate — O(alive)
         cand = [k for k in range(len(alive)) if self_transfer or k != kd]
         if not cand:
             return 0
-        kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth)
+        kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_traj, groups)
+        if kr is None:                                   # every candidate weighs 0 — no-op (see above)
+            return 0
     recipient = alive[kr]
     rgenome = gen[kr]
     child_of: dict[int, int] = {}                        # each donor copy lineage begets one fresh child
@@ -1840,9 +1859,10 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     - ``duplication`` (**per lineage**) copies a geometric-length (mean ``duplication_extent``) arc
       in tandem — an ancestry-**changing** *birth*, recorded in ``events``.
     - ``transfer`` (**per lineage**) copies a geometric-length (mean ``transfer_extent``) arc into a
-      **contemporaneous recipient** (``transfer_to``: ``"uniform"`` or ``"distance"`` / a
-      `Distance`; ``self_transfer`` allows the donor itself) — a horizontal *birth*, additive
-      (the donor keeps its copy). This is what needs the global timeline.
+      **contemporaneous recipient** (``transfer_to``: ``"uniform"``, ``"distance"`` / a `Distance`,
+      ``Clades({...}, Between({...}))`` or ``mod.DrivenBy(source, mapping)`` — see below;
+      ``self_transfer`` allows the donor itself) — a horizontal *birth*, additive (the donor keeps its
+      copy). This is what needs the global timeline.
     - ``origination`` (**per lineage**) lays down a **new gene** on a fresh source (geometric length,
       mean ``origination_extent``) — a *birth* of a wholly new family, indivisible from birth.
     - ``fission`` (**per chromosome**) splits a chromosome in two (a **bifurcation**); ``fusion``
@@ -1863,7 +1883,17 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     couples two contemporaries. With loss, the strong invariant weakens: every node carries a **subset**
     of the initial sequence (each ancestral position at most once, monotonically down every path);
     origination further adds fresh sources beyond the root. Deterministic given ``seed``. (Transfer is
-    always additive.)"""
+    always additive.)
+
+    **Conditioning (a trait drives who receives).** ``transfer_to = mod.DrivenBy(source, mapping)``
+    weights the candidate recipients by another level, and the numbers are **weights**, not rate
+    multipliers: they are normalised across the candidates, so they leave the total amount of transfer
+    alone and only redistribute it (SPEC §5, the choice slot). Weight 0 means "cannot receive"; when
+    every candidate weighs 0 the transfer does not happen. A ``Between({...})`` mapping reads the
+    **donor's** value too, so transfer can be steered between guilds rather than merely into one, and
+    ``Clades({...}, Between({...}))`` is the same steering by named clade, read off the tree instead
+    of a driver. Since a transfer here is additive, steering changes only which lineage the arc lands
+    on — never how much DNA moves, and never anything about the donor."""
     tree = as_tree(tree, level="genomes")
     # Every rate takes the written form (SPEC §5). The scopes here are **per lineage** for the gene
     # events — the rate says how often a lineage does the event and the extent says how much DNA it
@@ -1932,11 +1962,9 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 "origination_extent": origination_extent}
     if not 0.0 <= inversion_probability <= 1.0:
         raise ValueError(f"inversion_probability must be in [0, 1], got {inversion_probability}")
-    if transfer_to == "distance":
-        transfer_to = Distance()
-    if transfer_to != "uniform" and not isinstance(transfer_to, Distance):
-        raise ValueError(f"transfer_to must be 'uniform', 'distance', or Distance(decay=), "
-                         f"got {transfer_to!r}")
+    # the choice slot, validated in the one place all three resolutions share (SPEC §5): the mapping's
+    # numbers are weights over the candidate recipients, never a rate multiplier
+    transfer_to = resolve_transfer_to(transfer_to)
     if isinstance(genes, bool) or not isinstance(genes, int) or genes < 0:
         raise ValueError(f"genes must be a non-negative integer, got {genes!r}")
     if genes and (isinstance(gene_length, bool) or not isinstance(gene_length, int) or gene_length < 1):
@@ -2002,6 +2030,11 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     _rate_keys = {m.key for mods in driven.values() for m in mods}
     trajs = {k: v for k, v in resolved.items() if k in _rate_keys}
     any_driven = bool(trajs)
+    # The transfer_to slot is prepared **after** `trajs` is fixed, for the same reason: a driven
+    # transfer_to is a weight, not a rate, so its trajectory must not join `trajs` and start adding
+    # horizon breakpoints. `resolved` doubles as the driver cache, so a trait that drives both a rate
+    # and who receives is loaded once and read from one trajectory.
+    group_of, to_traj = prepare_transfer_to(tree, transfer_to, resolved)
 
     rates = _Rates(_rates["inversion"], _rates["translocation"], _rates["transposition"],
                    _rates["loss"], _rates["duplication"], _rates["transfer"], _rates["origination"],
@@ -2183,7 +2216,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 elif r < b_tra:
                     kd = _pick("transfer")
                     total_length += _do_transfer(rng, tree, alive, gen, kd, t, _ext("transfer_extent", kd),
-                                                 transfer_to, self_transfer, depth, events, new_copy)
+                                                 transfer_to, self_transfer, depth, events, new_copy,
+                                                 to_traj, group_of)
                 elif r < b_org:
                     k = _pick("origination")            # per lineage; weighted when driven
                     total_length += _do_origination(gen[k], alive[k], t, _ext("origination_extent", k),

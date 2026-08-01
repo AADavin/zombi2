@@ -19,6 +19,10 @@ extra:
 
 theme:
   name: material
+  # The same mark the main site uses (web/favicon.svg), symlinked into docs/img/ so there is one
+  # file to change: the browser tab, the header logo and the main site all read it.
+  favicon: img/favicon.svg
+  logo: img/favicon.svg
   features:
     - navigation.top
     - navigation.indexes
@@ -81,6 +85,19 @@ plugins:
             show_signature_annotations: true
             merge_init_into_class: true
             filters: ["!^_"]
+            # The two-column reference: each entry is stamped with what kind of thing it is
+            # (mod / class / func / attr) beside its heading, and the same badge repeats in the
+            # right-hand table of contents — so the contents column reads as an index of the
+            # module's symbols rather than a list of bare names.
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            # A heading carries the short name; the full dotted path is on the module page's own
+            # heading, so repeating it on every member would only make the contents column wrap.
+            show_root_full_path: true
+            show_object_full_path: false
+            # Cross-references like [`SpeciesResult`][zombi2.species.SpeciesResult] (the overview
+            # table) only resolve when the objects are registered as anchors.
+            show_if_no_docstring: false
 
 extra_javascript:
   - javascripts/mathjax.js
@@ -124,7 +141,16 @@ nav:
       - Joining: guide/joining.md
   - FAQ: faq.md
   - Coming from ZOMBI v1: from-zombi1.md
-  - API reference: api.md
+  # One page per level, so the reference reads the way the library is laid out and the left column
+  # is an index of the packages. The overview page carries the entry-point table.
+  - API reference:
+      - Overview: api/index.md
+      - zombi2.species: api/species.md
+      - zombi2.genomes: api/genomes.md
+      - zombi2.sequences: api/sequences.md
+      - zombi2.traits: api/traits.md
+      - zombi2.joint: api/joint.md
+      - zombi2.rates: api/rates.md
   - Output files: output-files.md
   - Performance: performance.md
   - Tools:

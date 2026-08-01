@@ -102,7 +102,7 @@ species.simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.2), n_extant=2
 | `RECONCILED_TREES` | `zombi2 tools format DIR --format recphylo` — **recPhyloXML, not Newick**, so this needs a new parser |
 | `RATE_FILE` · `SCALE_RATES` | the rate grammar again: `--loss "0.25 * OnTime({0: 1.0, 3: 2.0})"`, or `DrivenBy` to read another level |
 | `GENE_LENGTH` · `INTERGENE_LENGTH` | `--gene-length` · the spacer is what lies between genes on `--resolution nucleotide` |
-| `MIN_GENOME_SIZE` | **not a setting.** On `--resolution ordered` and `nucleotide` a loss never takes a chromosome below its last gene: the run that would empty it does not fire. On `--resolution family` there is no floor, and a high loss rate empties a genome completely |
+| `MIN_GENOME_SIZE` | **not a setting.** On `--resolution ordered` and `nucleotide` a loss never takes a chromosome below its last gene: the run that would empty it does not fire. That is a floor on a chromosome, not on a genome — at `ordered` a `chromosome_loss` can still take the only chromosome that had genes on it. On `--resolution family` there is no floor at all: a high loss rate empties a genome completely, and the run says so — `empty_genomes` in `genome_summary.json`, and a line on standard error |
 | `ALPHA` | **no equivalent** as a genome parameter |
 | `PSEUDOGENIZATION` | **not in v2** |
 
@@ -118,7 +118,8 @@ species.simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.2), n_extant=2
 | `SHIFT_SUBSTITUTION_RATE` · `SHIFT_CATEGORIES` · `BASE_RATE` | the same clock. No category count |
 | `SCALING` · `SCALE_GENE_TREES` | `--divergence D` sets the rate from the height of the tree, which is what scaling was for |
 | `SEQUENCE codon` · `CODON_MODEL` | **not in v2.** There are no codon models, so no dN/dS |
-| `ALPHA` · `BETA` | **not in v2.** No across-site rate variation (`+Γ`), no invariant-sites class |
+| `ALPHA` | `--gamma-shape A` — the Gamma shape for rate variation across sites, with `--rate-categories N` for the class count (4 by default). It decorates the model, not the rate |
+| `BETA` | `--invariant P` — the proportion of sites that never change (`+I`), if that is what it set; v1's key is not documented here, so check your old control file |
 
 ## Where the files went
 

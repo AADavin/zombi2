@@ -1,23 +1,33 @@
-"""Conditioning — a discrete trait drives a genome rate (SPEC §2, §5).
+"""Conditioning — a trait drives a genome or a sequence rate (SPEC §2, §3, §5).
 
 The one mechanism (``mod.DrivenBy``) and its conditioned uses: a discrete trait grown first, written
-to a driver file, then read by a genome run. Covers the mapping shapes, the DrivenBy modifier, the
+to a driver file, then read by a later run. Covers the mapping shapes, the DrivenBy modifier, the
 driver trajectory + file round-trip, the traits driver writer, the end-to-end trait→loss drive
-with a seed-independent correctness invariant, and both halves of trait-driven transfer — the donor
-**rate** (how much HGT) and the ``transfer_to`` recipient **weight** (where it lands).
+with a seed-independent correctness invariant, both halves of trait-driven transfer — the donor
+**rate** (how much HGT) and the ``transfer_to`` recipient **weight** (where it lands) — and the
+trait→substitution drive at the sequences level, where the branch length in substitutions is the
+driver integrated across the branch.
 """
 
 import hashlib
 import math
+import re
 
 import pytest
 
-from zombi2 import genomes, traits
+from zombi2 import genomes, sequences, traits
 from zombi2.rates.driver import DriverTrajectory, load_driver
 from zombi2.rates import modifiers as mod
 from zombi2.rates.mapping import Between, Curve, Scalar, Table, as_mapping, check_kernel_fires
+from zombi2.sequences.substitution_models import hky85, jc69
 from zombi2.species import simulate_species_tree
-from zombi2.tree import read_newick
+from zombi2.tree import Node, Tree, read_newick
+
+
+def _branch_lengths(newick: str) -> dict:
+    """``{species node id: branch length}`` from a species phylogram — read straight out of the text
+    rather than through a tree, so the numbers are the ones the file carries."""
+    return {int(i): float(bl) for _, i, bl in re.findall(r"([ne])(\d+):([0-9.eE+-]+)", newick)}
 
 
 # --- the mapping shapes (Table / Curve / Scalar) --------------------------------------------------
@@ -579,19 +589,128 @@ def test_transfer_to_rejects_an_unknown_rule():
                                         initial_families=1, seed=1)
 
 
-def test_ordered_engine_rejects_a_driven_transfer_to():
+# --- the same choice slot at the ordered and nucleotide resolutions -------------------------------
+# `transfer_to` is one slot with one kernel, and a block of genes or an arc of DNA is chosen a
+# recipient exactly as a single copy is. These are the tests that say so at the other two resolutions.
+
+def test_ordered_engine_takes_a_driven_transfer_to(tmp_path):
+    """Weight 0 means "cannot receive" at the ordered resolution too: every arriving block lands on a
+    competent lineage. What moves is a run of genes rather than one copy, which is a statement about
+    the extent and not about who receives."""
+    tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
+    res = genomes.simulate_genomes_ordered(
+        tree, transfer=1.0, initial_families=6,
+        transfer_to=mod.DrivenBy(str(driver), {"competent": 1.0, "normal": 0.0}), seed=5)
+    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    assert arrivals
+    assert all(e.lineage in hot for e in arrivals)
+
+
+def test_nucleotide_engine_takes_a_driven_transfer_to(tmp_path):
+    """The same at the nucleotide resolution, read off the `Transfer` records rather than the gene
+    genealogy. A nucleotide transfer is additive, so steering says only where the arc lands."""
+    tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
+    res = genomes.simulate_genomes_nucleotide(
+        tree, transfer=4.0, root_length=2000, genes=3, gene_length=100,
+        transfer_to=mod.DrivenBy(str(driver), {"competent": 1.0, "normal": 0.0}), seed=5)
+    arrivals = [e for e in res.events if type(e).__name__ == "Transfer"]
+    assert arrivals
+    assert all(e.recipient in hot for e in arrivals)
+
+
+def test_recipient_weight_share_is_two_to_one_at_ordered(tmp_path):
+    """The choice slot is a normalised WEIGHT, not a rate multiplier — the invariant that separates
+    the two driven transfer slots (SPEC §5) — checked where it was never checked before. Four
+    candidates at weight 2 and four at weight 1 take 2/3 of the arrivals. As at the family resolution,
+    ``self_transfer`` keeps the donor in the candidate set so the normaliser is always 4·2 + 4·1, and
+    the family cap is lifted because a recipient already full of a family turns that arrival away and
+    biases what is left toward whoever is not yet full."""
+    tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
+    res = genomes.simulate_genomes_ordered(
+        tree, transfer=4.0, initial_families=6, self_transfer=True, max_family_size=None,
+        transfer_to=mod.DrivenBy(str(driver), {"competent": 2.0, "normal": 1.0}), seed=5)
+    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    assert len(arrivals) > 1500                        # enough events for a 0.03 tolerance
+    assert all(e.lineage in tips for e in arrivals)    # the internal branches are 1e-6 long
+    share = sum(1 for e in arrivals if e.lineage in hot) / len(arrivals)
+    assert share == pytest.approx(2 / 3, abs=0.03)
+
+
+def test_driven_transfer_to_leaves_how_much_transfer_alone_at_ordered(tmp_path):
+    """The other half of the same invariant: a flat driven weight redistributes nothing and must
+    therefore change nothing at all about how many transfers happen. This is the test a threading bug
+    would fail — putting the transfer_to trajectory into ``trajs`` would add a Gillespie breakpoint at
+    every driver switch, moving the run while every assertion about *who* received still passed.
+    Pooled over seeds, because a single run's count is an rng-path detail."""
+    n_plain = n_driven = 0
+    for seed in range(15):
+        tree = simulate_species_tree(birth=1.1, total_time=2.0, seed=seed).complete_tree
+        driver = tmp_path / f"flat{seed}.tsv"
+        _write_driver(driver, tree, {i: "any" for i in tree.nodes})
+        kw = dict(transfer=0.4, initial_families=8, max_family_size=None, seed=seed)
+        plain = genomes.simulate_genomes_ordered(tree, **kw)
+        driven = genomes.simulate_genomes_ordered(
+            tree, transfer_to=mod.DrivenBy(str(driver), {"any": 3.0}), **kw)
+        n_plain += sum(1 for e in plain.events if e.kind == "transfer" and e.recipient is not None)
+        n_driven += sum(1 for e in driven.events if e.kind == "transfer" and e.recipient is not None)
+    assert n_plain > 200
+    assert 0.9 < n_driven / n_plain < 1.1
+
+
+def test_recipient_kernel_keeps_transfer_within_the_donor_state_at_nucleotide(tmp_path):
+    """A ``Between`` mapping reads the driver on the DONOR too, so a same-state kernel keeps every arc
+    inside one guild. Proves the donor-conditioned kernel — not just the per-recipient weight —
+    reaches the nucleotide engine."""
+    tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
+    res = genomes.simulate_genomes_nucleotide(
+        tree, transfer=6.0, root_length=2000, genes=3, gene_length=100, self_transfer=True,
+        transfer_to=mod.DrivenBy(str(driver),
+                                 Between({("competent", "competent"): 1.0,
+                                          ("normal", "normal"): 1.0}, default=0.0)), seed=5)
+    arrivals = [e for e in res.events if type(e).__name__ == "Transfer"]
+    assert arrivals
+    assert all((e.lineage in hot) == (e.recipient in hot) for e in arrivals)
+
+
+def test_a_driven_transfer_to_composes_with_a_driven_transfer_rate_at_ordered(tmp_path):
+    """The two slots are independent models — how often a lineage donates, and who receives — and the
+    ordered engine now has both. The rate driver sets the Gillespie horizon; the weight driver does
+    not, and they share one loaded trajectory."""
+    tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
+    res = genomes.simulate_genomes_ordered(
+        tree, transfer=0.5 * mod.DrivenBy(str(driver), {"competent": 5.0, "normal": 0.0}),
+        transfer_to=mod.DrivenBy(str(driver), {"competent": 0.0, "normal": 1.0}),
+        initial_families=6, seed=5)
+    donations = [e for e in res.events if e.kind == "transfer" and e.recipient is None]
+    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    assert donations and arrivals
+    assert all(e.lineage in hot for e in donations)          # only competent lineages donate
+    assert all(e.lineage not in hot for e in arrivals)       # only non-competent lineages receive
+
+
+def test_ordered_engine_still_refuses_a_between_kernel_on_a_rate():
+    """The change reaches the choice slot and stops there. A rate has no donor to condition on, so a
+    kernel in a rate slot stays a category error at the ordered resolution."""
     tree = simulate_species_tree(birth=1.0, total_time=1.0, seed=1).complete_tree
-    with pytest.raises(ValueError, match="transfer_to must be"):
+    with pytest.raises(ValueError, match="donor-conditioned"):
         genomes.simulate_genomes_ordered(
-            tree, transfer=0.1, transfer_to=mod.DrivenBy("f.tsv", {"a": 2.0}),
+            tree, loss=0.5 * mod.DrivenBy("f.tsv", Between({("a", "b"): 1.0})),
             initial_families=1, seed=1)
 
 
-def test_ordered_engine_rejects_a_driven_transfer_rate():
-    tree = simulate_species_tree(birth=1.0, total_time=1.0, seed=1).complete_tree
-    with pytest.raises(ValueError, match="ordered genome engine does not"):
-        genomes.simulate_genomes_ordered(
-            tree, transfer=0.1 * mod.DrivenBy("f.tsv", {"a": 2.0}), initial_families=1, seed=1)
+def test_family_speed_beside_a_driven_rate_is_refused(tmp_path):
+    """Regression. ``family_speed`` is a ``ByFamily`` draw, so it belongs in the guard that refuses
+    ByFamily beside DrivenBy — and it was missing from it. The run was accepted, and then the loss
+    total was summed WITHOUT the family multipliers while the copy was still drawn WITH them: a total
+    saying one thing and a pick doing another."""
+    tree = simulate_species_tree(birth=1.2, death=0.2, total_time=1.5, seed=11).complete_tree
+    driver = tmp_path / "d.tsv"
+    _write_driver(driver, tree, {i: ("hi" if i % 2 else "lo") for i in tree.nodes})
+    with pytest.raises(ValueError, match="ByFamily and DrivenBy on the same run"):
+        genomes.simulate_genomes_family(
+            tree, family_speed=mod.ByFamily(spread=0.5),
+            loss=0.2 * mod.DrivenBy(str(driver), {"lo": 0.0, "hi": 5.0}),
+            initial_families=6, seed=3)
 
 
 def test_missing_driver_file_is_named_as_a_drivenby_driver(tmp_path):
@@ -679,6 +798,261 @@ def test_nucleotide_refuses_a_mapping_that_never_fires():
             tree, root_length=3000, loss=0.5 * mod.DrivenBy(habitat, {"aquatic": 3.0}), seed=7)
 
 
+# --- the ordered resolution: a trait drives gene order -------------------------------------------
+#
+# The gene-level rates here are PER COPY, so a driven rate's per-lineage weight carries that
+# lineage's own gene count and the pick is two-stage — a lineage by its weight, then a gene inside
+# it. That is the family resolution's shape, not the nucleotide one (whose gene rates are per
+# lineage and whose driven pick is a single "which lineage" draw). The count test below is what
+# separates the two: a weight that ignored genome size would give ~N times fewer events.
+
+
+def _ord_tree():
+    return simulate_species_tree(birth=1.0, death=0.2, n_extant=10, seed=4).complete_tree
+
+
+def _ord_driver(tmp_path, tree, name="habitat.tsv"):
+    """Half the lineages ``host``, half ``free``, constant along every branch — the same by-hand
+    driver the family tests use, so a factor of 0 is an exact statement about which lineages can act."""
+    state_of = {i: ("host" if i % 2 else "free") for i in tree.nodes}
+    path = tmp_path / name
+    _write_driver(path, tree, state_of)
+    return state_of, str(path)
+
+
+def test_ordered_loss_is_driven_by_a_trait(tmp_path):
+    """The seed-independent invariant: with the free-living factor at zero, every recorded loss falls
+    on a lineage that was host-restricted at that instant. Anything else means the driver reaches the
+    total but not the pick, or neither."""
+    tree = _ord_tree()
+    state_of, driver = _ord_driver(tmp_path, tree)
+    res = genomes.simulate_genomes_ordered(
+        tree, loss=0.5 * mod.DrivenBy(driver, {"host": 25.0, "free": 0.0}),
+        loss_extent=2, initial_families=20, seed=2)
+    losses = [e for e in res.events if e.kind == "loss"]
+    assert losses, "the run should produce losses at all"
+    assert all(state_of[e.lineage] == "host" for e in losses)
+
+
+@pytest.mark.parametrize("rate", ["inversion", "transposition", "translocation"])
+def test_ordered_rearrangements_are_driven_by_a_trait(tmp_path, rate):
+    """The headline case this feature exists for: a trait drives how often a lineage reshuffles its
+    gene order. With the free-living factor at zero every inversion, transposition and translocation
+    must land on a host lineage — and the rearrangement log is the only place they appear, since they
+    begin and end no gene lineage."""
+    tree = _ord_tree()
+    state_of, driver = _ord_driver(tmp_path, tree)
+    res = genomes.simulate_genomes_ordered(
+        tree, chromosomes=3, initial_families=24,
+        **{rate: 0.6 * mod.DrivenBy(driver, {"host": 25.0, "free": 0.0}),
+           f"{rate}_extent": 3}, seed=2)
+    assert res.rearrangements, f"the run should produce {rate}s at all"
+    assert all(state_of[x.lineage] == "host" for x in res.rearrangements)
+
+
+def test_ordered_chromosome_tier_is_driven(tmp_path):
+    """The per-chromosome scope path: a driven ``fission`` weights each lineage by its own chromosome
+    count times its driver factor, so the pick is the weighted lineage and then a chromosome inside
+    it. With the free factor at zero every fission is on a host lineage."""
+    tree = _ord_tree()
+    state_of, driver = _ord_driver(tmp_path, tree)
+    res = genomes.simulate_genomes_ordered(
+        tree, chromosomes=4, initial_families=24,
+        fission=0.5 * mod.DrivenBy(driver, {"host": 20.0, "free": 0.0}), seed=3)
+    fissions = [c for c in res.chromosome_events if c.kind == "fission"]
+    assert fissions, "the run should produce fissions at all"
+    assert all(state_of[c.lineage] == "host" for c in fissions)
+
+
+@pytest.mark.parametrize("rate", ["origination", "chromosome_origination"])
+def test_ordered_per_lineage_rates_are_driven(tmp_path, rate):
+    """The per-lineage scope path. Origination makes something from nothing, so it is counted per
+    lineage and the driven pick is a single weighted-lineage draw — no gene or chromosome to choose
+    inside it. A zero factor still means "never"."""
+    tree = _ord_tree()
+    state_of, driver = _ord_driver(tmp_path, tree)
+    res = genomes.simulate_genomes_ordered(
+        tree, initial_families=4,
+        **{rate: 0.8 * mod.DrivenBy(driver, {"host": 20.0, "free": 0.0})}, seed=4)
+    if rate == "origination":
+        t0 = tree.nodes[tree.root].birth_time     # the initial genome is logged at the origin
+        acted = [e for e in res.events if e.kind == "origination" and e.time > t0]
+    else:
+        acted = [c for c in res.chromosome_events if c.kind == "origination"]
+    assert acted, f"the run should produce {rate}s at all"
+    assert all(state_of[x.lineage] == "host" for x in acted)
+
+
+def test_ordered_driven_transfer_picks_the_donor(tmp_path):
+    """A driven ``transfer`` says how often a lineage **donates**. Free-living lineages never donate,
+    but they still receive: the recipient is drawn by ``transfer_to``, which is a separate slot and
+    takes no driver here."""
+    tree = _ord_tree()
+    state_of, driver = _ord_driver(tmp_path, tree)
+    res = genomes.simulate_genomes_ordered(
+        tree, transfer=0.4 * mod.DrivenBy(driver, {"host": 20.0, "free": 0.0}),
+        transfer_extent=2, initial_families=20, seed=5)
+    donations = [e for e in res.events if e.kind == "transfer" and e.recipient is None]
+    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    assert donations, "expected some donation from the host lineages"
+    assert all(state_of[e.lineage] == "host" for e in donations)
+    assert any(state_of[e.lineage] == "free" for e in arrivals)
+
+
+def test_ordered_driven_rate_matches_the_per_copy_theory(tmp_path):
+    """The quantitative check, against theory derived from SPEC §5 rather than from the code.
+
+    ``inversion`` is per copy, so its total rate at any instant is ``base × (genes alive) × factor``.
+    Inversions create and destroy no gene, and with no duplication, loss or origination every living
+    lineage holds exactly ``initial_families`` genes — so the total is ``base × N × (lineages alive)``
+    and the expected number of inversions over the whole run is
+
+        E[#inversions] = factor × base × N × L,        L = the complete tree's total branch length.
+
+    Both the flat driver (factor 1) and the tripled one are checked against that number. This is what
+    pins the two-stage pick: a driven weight that forgot the lineage's gene count — the per-lineage
+    shape the nucleotide engine uses — would give N times fewer events and sail past a ratio test."""
+    base, families, factor = 0.4, 12, 3.0
+    seen = {1.0: 0, factor: 0}
+    expected = {1.0: 0.0, factor: 0.0}
+    for seed in range(25):
+        tree = simulate_species_tree(birth=1.1, total_time=2.0, seed=seed).complete_tree
+        driver = tmp_path / f"flat{seed}.tsv"
+        _write_driver(driver, tree, {i: "any" for i in tree.nodes})
+        length = sum(n.end_time - n.birth_time for n in tree.nodes.values())
+        for f in seen:
+            res = genomes.simulate_genomes_ordered(
+                tree, inversion=base * mod.DrivenBy(str(driver), {"any": f}),
+                inversion_extent=2, initial_families=families, seed=seed)
+            seen[f] += len(res.rearrangements)
+            expected[f] += f * base * families * length
+    for f in seen:
+        assert seen[f] == pytest.approx(expected[f], rel=0.06), (
+            f"factor {f}: {seen[f]} inversions against a theoretical {expected[f]:.0f}")
+
+
+def test_ordered_extent_is_driven_by_a_trait(tmp_path):
+    """The other axis (SPEC §6). An extent is ``base × modifiers``, and a driven extent's modifier
+    scales the size drawn, so the mean run length on a host lineage is the factor times the mean on a
+    free one. The inversion **rate** is flat here, so the two axes are shown to move independently."""
+    tree = _ord_tree()
+    state_of, driver = _ord_driver(tmp_path, tree)
+    res = genomes.simulate_genomes_ordered(
+        tree, inversion=1.0, chromosomes=1, initial_families=60,
+        inversion_extent=2 * mod.DrivenBy(driver, {"host": 6.0, "free": 1.0}), seed=6)
+    host = [x.length for x in res.rearrangements if state_of[x.lineage] == "host"]
+    free = [x.length for x in res.rearrangements if state_of[x.lineage] == "free"]
+    assert len(host) > 50 and len(free) > 50
+    assert sum(host) / len(host) > 3.0 * (sum(free) / len(free))
+    # ...and the *rate* is untouched. Nothing here creates or destroys a gene, so every lineage holds
+    # the same 60 genes throughout and its share of the inversions is its share of the branch length.
+    # A driver that leaked from the extent into the rate would shift that share; it does not.
+    span = {"host": 0.0, "free": 0.0}
+    for i, node in tree.nodes.items():
+        span[state_of[i]] += node.end_time - node.birth_time
+    assert len(host) / len(free) == pytest.approx(span["host"] / span["free"], rel=0.15)
+
+
+def test_ordered_driven_rate_matches_between_an_object_and_a_file(tmp_path):
+    """A driver read from an in-memory trait result and the same driver read back from its own
+    ``trait_events.tsv`` must give the identical run — the file is a serialisation, not a model."""
+    tree = _ord_tree()
+    habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.6, seed=5)
+    kw = dict(inversion_extent=3, loss_extent=2, chromosomes=2, initial_families=20, seed=5)
+
+    by_object = genomes.simulate_genomes_ordered(
+        tree, loss=0.4 * mod.DrivenBy(habitat, {"host": 8.0, "free": 1.0}),
+        inversion=0.5 * mod.DrivenBy(habitat, {"host": 4.0, "free": 1.0}), **kw)
+    habitat.write(str(tmp_path), outputs=("events",))
+    path = str(tmp_path / "trait_events.tsv")
+    by_file = genomes.simulate_genomes_ordered(
+        tree, loss=0.4 * mod.DrivenBy(path, {"host": 8.0, "free": 1.0}),
+        inversion=0.5 * mod.DrivenBy(path, {"host": 4.0, "free": 1.0}), **kw)
+    assert [(e.time, e.kind, e.lineage, e.copy) for e in by_object.events] == \
+           [(e.time, e.kind, e.lineage, e.copy) for e in by_file.events]
+    assert by_object.rearrangements == by_file.rearrangements
+
+
+def test_ordered_driving_changes_the_run():
+    """A driven rate must actually bite: the same seed with the driver switched off is a different
+    run. Guards against a driver that resolves but never reaches the rate."""
+    tree = _ord_tree()
+    habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=6)
+    kw = dict(inversion_extent=3, initial_families=20, seed=6)
+    driven = genomes.simulate_genomes_ordered(
+        tree, inversion=0.6 * mod.DrivenBy(habitat, {"host": 20.0, "free": 0.05}), **kw)
+    flat = genomes.simulate_genomes_ordered(tree, inversion=0.6, **kw)
+    assert len(driven.rearrangements) != len(flat.rearrangements)
+
+
+def test_ordered_refuses_a_mapping_that_never_fires():
+    """A mapping naming states the driver never takes leaves every lineage on the default factor, so
+    the run would secretly be the undriven model."""
+    tree = _ord_tree()
+    habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=7)
+    with pytest.raises(ValueError, match="match none of the driver's states"):
+        genomes.simulate_genomes_ordered(
+            tree, inversion=0.5 * mod.DrivenBy(habitat, {"aquatic": 3.0}),
+            initial_families=6, seed=7)
+
+
+def test_ordered_refuses_a_mapping_that_never_fires_on_an_extent():
+    """The same check on the extent axis: an extent's driver is resolved and validated with the
+    rates', so a stale mapping there cannot slip through either."""
+    tree = _ord_tree()
+    habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=7)
+    with pytest.raises(ValueError, match="match none of the driver's states"):
+        genomes.simulate_genomes_ordered(
+            tree, inversion=0.5,
+            inversion_extent=3 * mod.DrivenBy(habitat, {"aquatic": 3.0}),
+            initial_families=6, seed=7)
+
+
+def test_ordered_refuses_byfamily_and_a_driver_together(tmp_path):
+    """The one combination the ordered engine refuses, and it says why: one weights lineages by a
+    driver, the other weights the segment by what it covers."""
+    tree = _ord_tree()
+    _state_of, driver = _ord_driver(tmp_path, tree)
+    with pytest.raises(ValueError, match="ByFamily and DrivenBy on the same run"):
+        genomes.simulate_genomes_ordered(
+            tree, duplication=0.2 * mod.ByFamily(spread=0.5),
+            loss=0.2 * mod.DrivenBy(driver, {"host": 3.0, "free": 1.0}),
+            initial_families=6, seed=1)
+
+
+def test_ordered_refuses_family_speed_and_a_driver_together(tmp_path):
+    """``family_speed`` is a ByFamily draw, so it falls under the same refusal. This is the half the
+    family engine's guard missed."""
+    tree = _ord_tree()
+    _state_of, driver = _ord_driver(tmp_path, tree)
+    with pytest.raises(ValueError, match="ByFamily and DrivenBy on the same run"):
+        genomes.simulate_genomes_ordered(
+            tree, family_speed=mod.ByFamily(spread=0.5),
+            loss=0.2 * mod.DrivenBy(driver, {"host": 3.0, "free": 1.0}),
+            initial_families=6, seed=1)
+
+
+def test_ordered_refuses_between_in_a_rate_slot():
+    """A kernel weights a recipient by the (donor, recipient) pair, and a rate has no donor to
+    condition on — so it is a category error here as much as at the family resolution."""
+    tree = _ord_tree()
+    with pytest.raises(ValueError, match="donor-conditioned"):
+        genomes.simulate_genomes_ordered(
+            tree, inversion=0.5 * mod.DrivenBy("f.tsv", Between({("a", "b"): 1.0})),
+            initial_families=1, seed=1)
+
+
+def test_ordered_refuses_byfamily_on_an_extent():
+    """The 'meaningless' half of SPEC §5's two rejections: an extent is drawn before the run's genes
+    are known, so there is no one family to draw a factor for — and the message must name the slot
+    ByFamily does belong in rather than merely refuse."""
+    tree = _ord_tree()
+    with pytest.raises(ValueError, match="Put ByFamily on inversion"):
+        genomes.simulate_genomes_ordered(
+            tree, inversion=0.5, inversion_extent=3 * mod.ByFamily(spread=0.5),
+            initial_families=6, seed=1)
+
+
 # --- a CONTINUOUS trait as the driver (approximate: each branch cut into constant sub-steps) --------
 
 def test_continuous_driver_trajectory_interpolates():
@@ -743,3 +1117,282 @@ def test_multitrait_continuous_driver_is_refused():
     two = traits.simulate_continuous(ct, start={"x": 0.0, "y": 0.0}, rate={"x": 1.0, "y": 1.0}, seed=2)
     with pytest.raises(ValueError, match="SINGLE-trait"):
         driver_from_continuous_result(two)
+
+
+# --- a trait drives the SUBSTITUTION rate (Traits → Sequences) ------------------------------------
+#
+# SPEC §3 allows Traits–Sequences to be conditioned and never joined: a trait can be grown first and
+# held fixed, and a sequence never feeds back into it. So the driver is an ordinary modifier on
+# `substitution`, and the branch length in substitutions/site is the driver integrated across the
+# branch — a discrete trait switches mid-branch, and a single sample per branch would be a different
+# model.
+
+def _one_branch_run(total_time: float = 2.0):
+    """A species tree of one lineage running from 0 to ``total_time``, carrying one gene family whose
+    gene tree is that single branch. The smallest run in which a branch length can be read off by
+    hand: the phylogram is one number."""
+    tree = Tree({0: Node(0, None, 0.0, total_time, None, "extant")}, 0)
+    return tree, genomes.simulate_genomes_family(tree, initial_families=1, seed=1)
+
+
+def _switch_driver(path, at: float, before: str, after: str, total_time: float):
+    """A driver on the one-lineage tree that is ``before`` on ``[0, at)`` and ``after`` from ``at`` on
+    — one switch, strictly inside the branch."""
+    path.write_text(
+        "time\tkind\tlineage\tfrom\tto\n"
+        f"0.0\tinitial\tn0\t\t{before}\n"
+        f"{at!r}\ton_branch\tn0\t{before}\t{after}\n", encoding="utf-8")
+    assert 0.0 < at < total_time                      # the switch has to be mid-branch to test anything
+
+
+def _gene_sequences(result, gene_tree, labels, family=0):
+    """``{id(gene-tree node): its sequence}`` for one family, from the two halves the level splits them
+    into — the extant tips are in ``alignments`` and everything else in ``ancestral``. Keyed by
+    identity because a gene-tree node is not hashable, which is also how the engine keys them."""
+    from zombi2.genomes.events import gene_label
+
+    out = {}
+    stack = [gene_tree.complete]
+    while stack:
+        n = stack.pop()
+        key = f"{labels[n.species]}_{gene_label(n.copy)}"
+        out[id(n)] = result.alignments[family].get(key) or result.ancestral[family][key]
+        stack.extend(n.children)
+    return out
+
+
+def test_a_trait_drives_the_substitution_rate(tmp_path):
+    """The sharp, seed-independent invariant, the sequence twin of `test_zero_factor_lineages_never_lose`:
+    a species branch whose driver factor is 0 has a branch length of 0 in substitutions, so every gene
+    passing through it arrives at its far end unchanged. States are assigned by hand so half the tree
+    is ``lo`` (factor 0) and half ``hi`` (factor 20)."""
+    tree = simulate_species_tree(birth=1.2, death=0.2, total_time=1.5, seed=11).complete_tree
+    state_of = {i: ("hi" if i % 2 else "lo") for i in tree.nodes}
+    driver = tmp_path / "habitat.tsv"
+    _write_driver(driver, tree, state_of)
+    run = genomes.simulate_genomes_family(tree, duplication=0.3, loss=0.2, initial_families=6, seed=3)
+
+    res = sequences.simulate_sequences(
+        run, model=jc69(), length=400,
+        substitution=0.5 * mod.DrivenBy(str(driver), {"lo": 0.0, "hi": 20.0}), seed=4)
+
+    labels = tree.labels()
+    changed_on_hi = False
+    for family, gt in run.gene_trees.items():
+        seq = _gene_sequences(res, gt, labels, family)
+        pairs = [(res.founding[family], gt.complete)]
+        stack = [gt.complete]
+        while stack:
+            n = stack.pop()
+            for c in n.children:
+                pairs.append((seq[id(n)], c))
+                stack.append(c)
+        for parent_seq, node in pairs:
+            if state_of[node.species] == "lo":
+                assert seq[id(node)] == parent_seq, \
+                    f"a gene changed on lineage n{node.species}, whose substitution rate is 0"
+            elif seq[id(node)] != parent_seq:
+                changed_on_hi = True
+    assert changed_on_hi, "nothing changed anywhere — the run would pass vacuously"
+
+
+def test_a_mid_branch_switch_is_integrated_not_sampled(tmp_path):
+    """A driver that switches halfway along a branch: the branch length in substitutions must be the
+    driver **integrated** over the branch, not one sample of it.
+
+    One lineage of length 2, factor 0 on ``[0, 1)`` and 2 on ``[1, 2]``, base 0.3. The integral is
+    ``0.3 × (0×1 + 2×1) = 0.6``. Sampling the driver once per branch would give ``0.3 × 0 × 2 = 0``
+    or ``0.3 × 2 × 2 = 1.2`` depending on which state was read — both are asserted against, because
+    either would be a different model rather than a rounding difference."""
+    tree, run = _one_branch_run(2.0)
+    driver = tmp_path / "d.tsv"
+    _switch_driver(driver, at=1.0, before="lo", after="hi", total_time=2.0)
+    res = sequences.simulate_sequences(
+        run, model=jc69(), length=10,
+        substitution=0.3 * mod.DrivenBy(str(driver), {"lo": 0.0, "hi": 2.0}), seed=2)
+
+    length = float(res.phylograms[0]["complete"].split(":")[1].rstrip(";"))
+    assert length == pytest.approx(0.6, rel=1e-6)
+    assert length != pytest.approx(0.0, abs=1e-6)     # the branch read as 'lo' throughout
+    assert length != pytest.approx(1.2, rel=1e-6)     # the branch read as 'hi' throughout
+    # the species phylogram is the same branch, so it must carry the same number
+    assert float(res.species_phylogram["complete"].split(":")[1].rstrip(";")) == \
+        pytest.approx(0.6, rel=1e-6)
+
+
+def test_the_driven_branch_length_is_the_exact_integral(tmp_path):
+    """The integral itself, at full precision and by hand — the phylogram above is written to seven
+    significant figures, which is not enough to tell an exact integral from a good approximation.
+
+    Three stretches on one branch (factors 0.5, 4.0, 1.0 over [0,1), [1,1.25), [1.25,2]) give
+    ``0.5×1 + 4×0.25 + 1×0.75 = 2.25``; a sub-stretch is checked too, so the running total is not
+    only right at the breakpoints."""
+    from zombi2.rates.driver import resolve_driver
+    from zombi2.sequences.clock import resolve_clock
+
+    tree = Tree({0: Node(0, None, 0.0, 2.0, None, "extant")}, 0)
+    driver = tmp_path / "d.tsv"
+    driver.write_text("time\tkind\tlineage\tfrom\tto\n"
+                      "0.0\tinitial\tn0\t\ta\n"
+                      "1.0\ton_branch\tn0\ta\tb\n"
+                      "1.25\ton_branch\tn0\tb\tc\n", encoding="utf-8")
+    m = mod.DrivenBy(str(driver), {"a": 0.5, "b": 4.0, "c": 1.0})
+    clock = resolve_clock(None, [(m, resolve_driver(m.source, tree))], tree, {}, None)
+
+    assert clock.branch_length(1.0, 0, 0.0, 2.0) == pytest.approx(2.25, abs=1e-12)
+    # a sub-stretch ending inside the middle piece: 0.5×1 + 4×0.1
+    assert clock.branch_length(1.0, 0, 0.0, 1.1) == pytest.approx(0.9, abs=1e-12)
+    # and one starting inside it: 4×0.15 + 1×0.75
+    assert clock.branch_length(2.0, 0, 1.1, 2.0) == pytest.approx(2.0 * 1.35, abs=1e-12)
+
+
+def test_driven_divergence_matches_jukes_cantor(tmp_path):
+    """The model check against theory. Under JC69 two sequences separated by ``d`` substitutions per
+    site differ at a proportion ``0.75 · (1 − e^(−4d/3))`` of sites — derived from the model, not read
+    off the implementation. With the driver integrating to ``d = 0.6`` that is 0.4130.
+
+    The point of running it on a mid-branch switch is that the two per-branch-constant readings give
+    ``d = 0`` (0.0) and ``d = 1.2`` (0.5628), both far outside the sampling window of 20 000 sites."""
+    tree, run = _one_branch_run(2.0)
+    driver = tmp_path / "d.tsv"
+    _switch_driver(driver, at=1.0, before="lo", after="hi", total_time=2.0)
+    res = sequences.simulate_sequences(
+        run, model=jc69(), length=20000,
+        substitution=0.3 * mod.DrivenBy(str(driver), {"lo": 0.0, "hi": 2.0}), seed=17)
+
+    start, end = res.founding[0], res.alignments[0]["n0_g0"]
+    observed = sum(a != b for a, b in zip(start, end)) / len(start)
+    expected = 0.75 * (1.0 - math.exp(-4.0 * 0.6 / 3.0))
+    assert expected == pytest.approx(0.4130, abs=1e-4)          # the number this pins, spelled out
+    assert observed == pytest.approx(expected, abs=0.014)       # ~4 standard errors at 20 000 sites
+
+
+def test_a_driver_composes_with_a_lineage_clock():
+    """SPEC §5: modifiers multiply. A ``ByLineage`` clock and a ``DrivenBy`` driver on one rate give a
+    branch ``base × clock × ∫driver``, and each factor is recovered here independently — the clock
+    from an otherwise-identical undriven run at the same seed (the draw comes first and consumes the
+    same randomness either way), the integral by walking the trait's own trajectory."""
+    from zombi2.rates.driver import driver_from_result
+
+    tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=21).complete_tree
+    habitat = traits.simulate_discrete(tree, states=["cave", "surface"], switch=2.0, seed=22)
+    run = genomes.simulate_genomes_family(tree, duplication=0.2, loss=0.2, initial_families=3, seed=23)
+    table = {"cave": 0.25, "surface": 3.0}
+    base, kw = 0.4, dict(model=jc69(), length=20, seed=24)
+
+    clocked = sequences.simulate_sequences(
+        run, substitution=base * mod.ByLineage(spread=0.5), **kw)
+    both = sequences.simulate_sequences(
+        run, substitution=base * mod.ByLineage(spread=0.5) * mod.DrivenBy(habitat, table), **kw)
+
+    by_clock = _branch_lengths(clocked.species_phylogram["complete"])
+    by_both = _branch_lengths(both.species_phylogram["complete"])
+    traj = driver_from_result(habitat)
+    moved = 0
+    for i, node in tree.nodes.items():
+        span = node.end_time - node.birth_time
+        clock_factor = by_clock[i] / (base * span) if span else 1.0
+        integral, t = 0.0, node.birth_time
+        while t < node.end_time:
+            nxt = min(traj.next_change(i, t), node.end_time)
+            integral += table[traj.value(i, t)] * (nxt - t)
+            t = nxt
+        assert by_both[i] == pytest.approx(base * clock_factor * integral, rel=1e-6, abs=1e-9)
+        if by_both[i] != pytest.approx(by_clock[i], rel=1e-6, abs=1e-12):
+            moved += 1
+    assert moved, "the driver changed no branch — the composition test would pass vacuously"
+
+
+def test_the_species_phylogram_shows_the_driver():
+    """``clock_species_tree_*.nwk`` is the molecular clock made visible, so it has to show the driven
+    part too — a run whose tree disagreed with its own alignments would be worse than no tree."""
+    tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=31).complete_tree
+    habitat = traits.simulate_discrete(tree, states=["fast", "slow"], switch=1.0, seed=32)
+    run = genomes.simulate_genomes_family(tree, duplication=0.2, initial_families=2, seed=33)
+    kw = dict(model=jc69(), length=20, seed=34)
+
+    flat = sequences.simulate_sequences(run, substitution=0.2, **kw)
+    driven = sequences.simulate_sequences(
+        run, substitution=0.2 * mod.DrivenBy(habitat, {"fast": 8.0, "slow": 1.0}), **kw)
+    plain = _branch_lengths(flat.species_phylogram["complete"])
+    shown = _branch_lengths(driven.species_phylogram["complete"])
+    assert any(shown[i] > plain[i] * 1.5 for i in plain), "no branch was stretched by the driver"
+    assert all(shown[i] >= plain[i] - 1e-12 for i in plain)   # every factor here is ≥ 1
+
+
+def test_driven_substitution_matches_between_an_object_and_a_file(tmp_path):
+    """A driver handed over in memory and the same driver read back from its own ``trait_events.tsv``
+    must give the identical run — the file is a serialisation, not a model (SPEC §2)."""
+    tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=41).complete_tree
+    habitat = traits.simulate_discrete(tree, states=["cave", "surface"], switch=1.5, seed=42)
+    run = genomes.simulate_genomes_family(tree, duplication=0.2, loss=0.2, initial_families=4, seed=43)
+    table = {"cave": 0.3, "surface": 2.0}
+    kw = dict(model=hky85(2.0), length=150, seed=44)
+
+    by_object = sequences.simulate_sequences(run, substitution=0.3 * mod.DrivenBy(habitat, table), **kw)
+    habitat.write(str(tmp_path), outputs=("events",))
+    by_file = sequences.simulate_sequences(
+        run, substitution=0.3 * mod.DrivenBy(str(tmp_path / "trait_events.tsv"), table), **kw)
+
+    assert by_object.alignments == by_file.alignments
+    assert by_object.ancestral == by_file.ancestral
+    assert by_object.phylograms == by_file.phylograms
+    assert by_object.species_phylogram == by_file.species_phylogram
+
+
+def test_driven_substitution_is_deterministic():
+    tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=51).complete_tree
+    habitat = traits.simulate_discrete(tree, states=["cave", "surface"], switch=1.5, seed=52)
+    run = genomes.simulate_genomes_family(tree, duplication=0.2, initial_families=4, seed=53)
+    spec = 0.3 * mod.ByLineage(spread=0.3) * mod.DrivenBy(habitat, {"cave": 0.5, "surface": 2.0})
+    kw = dict(model=jc69(), length=120, substitution=spec, seed=54)
+    a = sequences.simulate_sequences(run, **kw)
+    b = sequences.simulate_sequences(run, **kw)
+    assert a.alignments == b.alignments and a.ancestral == b.ancestral
+    assert a.phylograms == b.phylograms and a.species_phylogram == b.species_phylogram
+
+
+def test_driven_sequences_refuse_a_mapping_that_never_fires():
+    """The fires-check is wired at this level too, so a secretly-undriven run cannot pass as driven."""
+    tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=61).complete_tree
+    habitat = traits.simulate_discrete(tree, states=["cave", "surface"], switch=1.5, seed=62)
+    run = genomes.simulate_genomes_family(tree, duplication=0.2, initial_families=2, seed=63)
+    with pytest.raises(ValueError, match="match none of the driver's states"):
+        sequences.simulate_sequences(run, model=jc69(), length=20, seed=64,
+                                     substitution=0.3 * mod.DrivenBy(habitat, {"aquatic": 4.0}))
+
+
+def test_a_continuous_trait_drives_the_substitution_rate():
+    """A continuous driver needs a continuous mapping — a ``Curve`` or a ``Scalar``. Its trajectory is
+    the piecewise-constant approximation `driver_from_continuous_result` builds, so the branch length
+    is still an integral over stretches; a discrete ``{state: factor}`` table names states a float
+    never equals and is refused."""
+    tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=10, seed=71).complete_tree
+    metabolism = traits.simulate_continuous(tree, start=0.0, rate=1.0, seed=72)
+    run = genomes.simulate_genomes_family(tree, duplication=0.2, initial_families=3, seed=73)
+    kw = dict(model=jc69(), length=60, seed=74)
+
+    flat = sequences.simulate_sequences(run, substitution=0.3, **kw)
+    curved = sequences.simulate_sequences(
+        run, substitution=0.3 * mod.DrivenBy(metabolism, Curve(lambda x: math.exp(0.3 * x))), **kw)
+    linked = sequences.simulate_sequences(
+        run, substitution=0.3 * mod.DrivenBy(metabolism, Scalar(0.7)), **kw)
+    assert curved.phylograms != flat.phylograms
+    assert linked.phylograms != flat.phylograms
+    with pytest.raises(ValueError, match="CONTINUOUS"):
+        sequences.simulate_sequences(
+            run, substitution=0.3 * mod.DrivenBy(metabolism, {"hi": 2.0}), **kw)
+
+
+def test_a_driven_run_is_the_same_in_parallel():
+    """The parallel engine ships the resolved clock to its workers, and a ``Curve`` mapping is usually
+    a lambda — which does not pickle. Precomputing the driver's integral to plain numbers is what lets
+    it cross; this is the regression that catches storing the mapping on the clock instead."""
+    tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=81).complete_tree
+    metabolism = traits.simulate_continuous(tree, start=0.0, rate=1.0, seed=82)
+    run = genomes.simulate_genomes_family(tree, duplication=0.3, initial_families=5, seed=83)
+    spec = 0.3 * mod.DrivenBy(metabolism, Curve(lambda x: math.exp(0.4 * x)))
+    kw = dict(model=jc69(), length=80, substitution=spec, seed=84)
+    one = sequences.simulate_sequences(run, parallel=1, **kw)
+    two = sequences.simulate_sequences(run, parallel=2, **kw)
+    assert one.alignments == two.alignments and one.phylograms == two.phylograms

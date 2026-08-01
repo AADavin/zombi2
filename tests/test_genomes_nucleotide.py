@@ -801,8 +801,74 @@ def test_transfer_validation():
         simulate_genomes_nucleotide(sp, transfer=-0.1)
     with pytest.raises(ValueError):
         simulate_genomes_nucleotide(sp, transfer=5, transfer_extent=0)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="transfer_to must be"):
         simulate_genomes_nucleotide(sp, transfer=5, transfer_to="nearest")
+    from zombi2.rates import modifiers as mod
+    with pytest.raises(ValueError, match="on its own, not a rate"):
+        simulate_genomes_nucleotide(sp, transfer=5,
+                                    transfer_to=1.0 * mod.DrivenBy("f.tsv", {"a": 2.0}))
+
+
+# --- transfer_to: steering who receives -----------------------------------------------------------
+# The recipient rule is the family core's choice slot (SPEC §5), unchanged here: weights normalised
+# over the contemporaneous candidates, so they change who receives and never how much DNA moves. A
+# nucleotide transfer is additive, which makes the point sharper — the donor is untouched either way,
+# so steering is purely a statement about where the arc lands.
+
+_TO_KW = dict(transfer=4, transfer_extent=8, chromosomes=_XFER_SPECS, seed=5)
+
+
+def _clades_of(sp):
+    """Two disjoint halves of the complete tree, as a `Clades` group dict plus a labeller. Split by
+    the root's two children, so every lineage is in one or the other and 'rest' stays empty."""
+    from zombi2.genomes import Clades  # noqa: F401  (imported for the caller's convenience)
+    tree = sp.complete_tree
+    left, right = tree.nodes[tree.root].children
+
+    def desc(r):
+        out, st = set(), [r]
+        while st:
+            i = st.pop()
+            out.add(i)
+            if tree.nodes[i].children:
+                st.extend(tree.nodes[i].children)
+        return out
+
+    a, b = desc(left), desc(right)
+    return {"A": left, "B": right}, (lambda i: "A" if i in a else ("B" if i in b else "rest"))
+
+
+def test_clades_steer_a_nucleotide_transfer_between_two_clades():
+    """Every arc crosses from one half of the tree to the other and none stays within a half — the
+    donor-conditioned kernel, at the resolution where what moves is DNA rather than whole genes."""
+    from zombi2.genomes import Between, Clades
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=5)
+    groups, lab = _clades_of(sp)
+    r = simulate_genomes_nucleotide(
+        sp, transfer_to=Clades(groups, Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)),
+        **_TO_KW)
+    pairs = [(lab(e.lineage), lab(e.recipient)) for e in r.events if isinstance(e, Transfer)]
+    assert pairs
+    assert all(p in {("A", "B"), ("B", "A")} for p in pairs)
+    for node_id in r.genomes:                                  # still additive: nothing lost
+        assert set(r.ancestry(node_id)) == _XFER_FULL
+
+
+def test_a_kernel_that_lets_nobody_receive_fires_no_nucleotide_transfer():
+    """Every candidate at weight 0 means the transfer cannot happen at all. The recipient is chosen
+    before any copy lineage is minted, so a dropped event leaves no `Transfer` record and no fresh
+    copy anywhere — and the ancestry, the invariant that ignores block boundaries and a ring's
+    origin, is exactly the un-transferred one."""
+    from zombi2.genomes import Between, Clades
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=5)
+    groups, _lab = _clades_of(sp)
+    blocked = simulate_genomes_nucleotide(
+        sp, transfer_to=Clades(groups, Between({("A", "A"): 0.0}, default=0.0)), **_TO_KW)
+    free = simulate_genomes_nucleotide(sp, transfer_to="uniform", **_TO_KW)
+    assert not [e for e in blocked.events if isinstance(e, Transfer)]
+    assert [e for e in free.events if isinstance(e, Transfer)]
+    # no transfer fired and nothing else was on: every node still carries the root genome exactly once
+    assert all(sorted(blocked.ancestry(n)) == sorted(_XFER_FULL) for n in blocked.genomes)
 
 
 # --- transposition: an intra-chromosome move (ancestry-neutral) -----------------------------------

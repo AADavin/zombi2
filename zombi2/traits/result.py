@@ -236,11 +236,26 @@ def _events_tsv(changes: list[Change], names: dict | None = None) -> str:
 
     Times are written at **full float precision** (``repr``), not rounded: a driven run steps its
     Gillespie exactly at each switch, so a rounded time would make the file-driven run diverge from the
-    in-memory one. The ``initial`` row's ``from`` is empty."""
-    rows = ["time\tkind\tlineage\tfrom\tto"]
+    in-memory one. The ``initial`` row's ``from`` is empty.
+
+    **Correlated traits widen the table** rather than repeating a row per trait, exactly as
+    ``trait_values.tsv`` does: the ``from`` / ``to`` pair becomes one pair per trait,
+    ``from:<trait>`` · ``to:<trait>``. A correlated jump moves every trait at once, so it is one
+    event, and one row per trait would suggest they were several."""
+    multi = bool(changes) and isinstance(changes[0].to_state, dict)
+    if not multi:
+        rows = ["time\tkind\tlineage\tfrom\tto"]
+        for c in changes:
+            frm = "" if c.from_state is None else _fmt(c.from_state)  # the initial row leads from nothing
+            rows.append(f"{c.time!r}\t{c.kind}\t{_name(names, c.lineage)}\t{frm}\t{_fmt(c.to_state)}")
+        return "\n".join(rows) + "\n"
+    cols = list(changes[0].to_state)
+    rows = ["time\tkind\tlineage\t"
+            + "\t".join(f"from:{c}" for c in cols) + "\t" + "\t".join(f"to:{c}" for c in cols)]
     for c in changes:
-        frm = "" if c.from_state is None else _fmt(c.from_state)   # the initial row leads from nothing
-        rows.append(f"{c.time!r}\t{c.kind}\t{_name(names, c.lineage)}\t{frm}\t{_fmt(c.to_state)}")
+        frm = ["" for _ in cols] if c.from_state is None else [_fmt(c.from_state[t]) for t in cols]
+        rows.append(f"{c.time!r}\t{c.kind}\t{_name(names, c.lineage)}\t"
+                    + "\t".join(frm) + "\t" + "\t".join(_fmt(c.to_state[t]) for t in cols))
     return "\n".join(rows) + "\n"
 
 

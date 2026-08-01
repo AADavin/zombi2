@@ -30,13 +30,14 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ..rates.mapping import Between, check_kernel_fires
+from ..rates.mapping import Between
 from ..rates.modifiers import ByFamily, DrivenBy, OnTime
-from ..rates.rate import Rate, as_rate
+from ..rates.rate import as_rate
 from ..rates.scope import PerCopy, PerLineage, Scope
 from ..tree import Tree, as_tree
 from ._live import enter, retire, weighted_index, without_cyclic_gc
-from ._transfer import Clades, Distance, mean_root_to_tip, recipient_index, resolve_groups
+from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
+                        resolve_transfer_to)
 
 from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
@@ -148,7 +149,16 @@ class FamilyGenomesResult:
 
         And the cap, which was invisible. When ``max_family_size`` binds it discards duplications and
         arriving transfers, so realised rates fall below the declared ones — so this reports which
-        families are sitting at it, because that is the signal a reader can act on."""
+        families are sitting at it, because that is the signal a reader can act on.
+
+        ``empty_genomes`` is the other end of the same story. There is **no floor** at this
+        resolution: loss is counted per gene copy and the last copy is a copy like any other, so a
+        high loss rate can strip a lineage of every gene it has. That is a real outcome of the model,
+        not a failure — but it is invisible in the outputs, because a genome with no genes writes no
+        row in ``profiles.tsv`` and leaves no gene tree for a sequence to run down. This is the
+        number that says it happened, before a reader wonders why the matrix is short. (The ordered
+        and nucleotide resolutions do have a floor, but it is a statement about what a chromosome is
+        — a loss never takes a chromosome below its last gene — not a bound on genome size.)"""
         per_kind: dict[str, set] = collections.defaultdict(set)
         singles: collections.Counter = collections.Counter()
         for e in self.events:
@@ -186,6 +196,7 @@ class FamilyGenomesResult:
                          "died_out": len(born) - len(surviving),
                          "named": len(self.family_names)},
             "extant_genomes": len(extant),
+            "empty_genomes": sum(1 for i in extant if not self.genomes.get(i, ())),
             "genes_per_genome": _stats(genes_per_genome),
             "copies_per_family_per_genome": _stats(copies),
             # the cap made visible. `families_at_cap` is what to look at: a family sitting at the
@@ -658,40 +669,28 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 f"support. It takes OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
                 f"ByFamily (per-family heterogeneity). Clade drift is not implemented yet."
             )
-    if any(isinstance(m, ByFamily) for rate in (dup, tra, los) for m in rate.modifiers) and \
-            any(isinstance(m, DrivenBy) for rate in (dup, tra, los, org) for m in rate.modifiers):
-        raise ValueError(
-            "ByFamily and DrivenBy on the same run is a later slice: one weights lineages by a "
-            "driver and the other weights copies by their family, and combining them means "
-            "weighting by the product. Use one or the other for now.")
     if family_speed is not None and not isinstance(family_speed, ByFamily):
         raise ValueError(
             f"family_speed takes a ByFamily modifier — family_speed=mod.ByFamily(spread=0.5) — "
             f"got {family_speed!r}. It is the family-wide slot: one draw per family scaling every "
             f"rate that family has.")
-    if transfer_to == "distance":
-        transfer_to = Distance()
-    if isinstance(transfer_to, Rate):
-        # `1.0 * mod.DrivenBy(...)` — the rate spelling, in a slot that is not a rate. Say so rather
-        # than let a Rate fall through to the generic "must be …" message.
+    # `family_speed` counts as a ByFamily here, and leaving it out of this guard was a real bug: with
+    # family_speed set beside a driven rate the run was accepted, and then the loop below set that
+    # rate's per-lineage weights from the family sums and immediately OVERWROTE them with the driven
+    # ones — so the total was summed WITHOUT the family multipliers while the copy was still drawn
+    # WITH them. A total that says one thing and a pick that does another is the one failure this
+    # engine must not have.
+    if (family_speed is not None
+            or any(isinstance(m, ByFamily) for rate in (dup, tra, los) for m in rate.modifiers)) and \
+            any(isinstance(m, DrivenBy) for rate in (dup, tra, los, org) for m in rate.modifiers):
         raise ValueError(
-            "transfer_to takes the DrivenBy modifier on its own, not a rate — write "
-            "transfer_to=mod.DrivenBy(source, {...}) with no base number. In this slot the mapping's "
-            "numbers are relative WEIGHTS over the candidate recipients (normalised), not a rate "
-            "multiplier: they change who receives, never how much transfer happens."
-        )
-    if isinstance(transfer_to, (list, tuple)):
-        raise ValueError(
-            "transfer_to takes one recipient rule, not several — combining Distance (relatedness) "
-            "with a DrivenBy weighting is a later slice. Give 'uniform', 'distance' / "
-            "Distance(decay=), or mod.DrivenBy(source, {...})."
-        )
-    if transfer_to != "uniform" and not isinstance(transfer_to, (Distance, DrivenBy, Clades)):
-        raise ValueError(
-            f"transfer_to must be 'uniform', 'distance' / Distance(decay=), "
-            f"Clades({{...}}, Between({{...}})) (weight by named clade), or "
-            f"mod.DrivenBy(source, {{...}}) (a recipient weight driven by another level), "
-            f"got {transfer_to!r}")
+            "ByFamily and DrivenBy on the same run is a later slice: one weights lineages by a "
+            "driver and the other weights copies by their family, and combining them means "
+            "weighting by the product. Use one or the other for now. (family_speed= is a ByFamily "
+            "draw too, so it counts here.)")
+    # the choice slot, validated in the one place all three resolutions share (SPEC §5): the mapping's
+    # numbers are weights over the candidate recipients, never a rate multiplier
+    transfer_to = resolve_transfer_to(transfer_to)
     if isinstance(initial_families, bool) or not isinstance(initial_families, int) or initial_families < 0:
         raise ValueError(f"initial_families must be a non-negative integer, got {initial_families!r}")
     family_names = list(family_names) if family_names is not None else []
@@ -710,13 +709,6 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # truncated run. ``None`` removes it.
     cap = resolve_max_family_size(max_family_size)
 
-    # A Clades rule paints every lineage with its clade once (membership is a fact about the tree, not
-    # a driver, so it is constant along a branch and adds no Gillespie breakpoints). A kernel naming
-    # only absent groups weights every candidate at its default — secretly uniform — so refuse it here.
-    group_of = resolve_groups(tree, transfer_to.groups) if isinstance(transfer_to, Clades) else None
-    if group_of is not None:
-        check_kernel_fires(transfer_to.between, set(group_of.values()), source_label="clades")
-
     # conditioning: a rate carrying DrivenBy reads a driver per lineage. Resolve each driver once into
     # a DriverTrajectory (value + next-switch lookups, keyed by the shared species node id) — from a
     # file (str source) or an in-memory trait result (object source). No driven rate ⇒ this is empty
@@ -726,10 +718,6 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     by_key = {}  # driver key → its source (deduped, so a driver shared across rates resolves once)
     for m in (*dup_mods, *los_mods, *org_mods, *tra_mods):
         by_key.setdefault(m.key, m.source)
-    rate_keys = list(by_key)     # the drivers that move a RATE: they alone set the Gillespie horizon
-    to_mod = transfer_to if isinstance(transfer_to, DrivenBy) else None
-    if to_mod is not None:       # the transfer_to driver is read only at the instant a transfer fires
-        by_key.setdefault(to_mod.key, to_mod.source)
     resolved = {}
     if by_key:
         from ..rates.driver import check_mapping_fires, resolve_driver
@@ -737,17 +725,16 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         # a mapping whose states never occur in the driver leaves every lineage at the default factor,
         # so the rate is never driven and the run is secretly the undriven model — refuse it here,
         # naming the driver, rather than let it pass as a driven run
-        for m in (*dup_mods, *los_mods, *org_mods, *tra_mods, *( (to_mod,) if to_mod else () )):
+        for m in (*dup_mods, *los_mods, *org_mods, *tra_mods):
             label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
             check_mapping_fires(m.mapping, resolved[m.key].states(), source_label=label)
-    # a driven transfer_to changes no rate — the weights are evaluated when a transfer fires, so the
-    # recipient driver deliberately stays OUT of trajs (no per-lineage rate weights, no extra horizon
-    # breakpoints for it). Only the rate drivers make the loop per-lineage.
-    trajs = {key: resolved[key] for key in rate_keys}
-    to_traj = resolved[to_mod.key] if to_mod is not None else None
-    if to_mod is not None and isinstance(to_mod.mapping, Between):  # a donor-conditioned trait kernel:
-        label = to_mod.source if isinstance(to_mod.source, str) else f"<{type(to_mod.source).__name__}>"
-        check_kernel_fires(to_mod.mapping, to_traj.states(), source_label=label)
+    # `trajs` is the drivers that move a RATE: they alone make the loop per-lineage and set the
+    # Gillespie horizon. It is built BEFORE the transfer_to slot is prepared, and that order is
+    # load-bearing — a driven transfer_to changes no rate, so its trajectory must not end up here
+    # adding horizon breakpoints (see prepare_transfer_to). `resolved` is passed along as the driver
+    # cache, so a source shared between a rate and transfer_to is loaded once.
+    trajs = dict(resolved)
+    group_of, to_traj = prepare_transfer_to(tree, transfer_to, resolved)
 
     # Parallel is a *separate* engine (opt-in): families are independent, so it evolves them one per
     # process (SPEC-style — serial by default). `stream_to` takes the same engine one step further —
@@ -812,9 +799,6 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         return f
 
     depth = mean_root_to_tip(tree)  # timescale for Distance weighting (unused by "uniform")
-    # a Clades rule paints every lineage with its clade once (membership is a fact about the tree, not
-    # a driver, so it is constant along a branch and adds no Gillespie breakpoints). A kernel naming
-    # only absent groups weights every candidate at its default — secretly uniform — so refuse it here.
     schedule = sorted((tree.nodes[i].end_time, i) for i in tree.nodes)  # (end_time, node_id)
 
     root = tree.nodes[tree.root]
@@ -837,7 +821,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     total_copies = len(gen[0])
     initial_genome = tuple(gen[0])   # the run's starting genome: a snapshot before the stem runs
 
-    any_driven = bool(rate_keys)
+    any_driven = bool(trajs)
     # the per-family weight sums, carried across events rather than rebuilt each time (see the class)
     weights = _FamilyWeights(fam_mult, gen) if any_family else None
     counts = _FamilyCounts(gen)      # the family cap's question, answered without walking a genome

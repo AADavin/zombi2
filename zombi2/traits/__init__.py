@@ -48,8 +48,10 @@ same diffusion wearing different knobs, not three classes (SPEC §4):
 
 ``rate`` is *per lineage*: each lineage carries its own independent diffusion, never pooled across the
 tree — the engine evaluates the rate one lineage at a time (``lineages=1``), where the event levels
-sum a per-unit rate over everything alive at once. (OU with a time-varying σ² — the two knob-sets at
-once — is not available; use one or the other.)
+sum a per-unit rate over everything alive at once. The σ² modifiers **compose with**
+``reverts_to`` / ``pull``: an early-bursting, drifting or driven σ² under an OU pull gives a
+per-branch variance of ``∫ e^{−2α(t₁−s)}·σ²(s) ds``, the diffusion integral weighted by how much of
+each moment's noise the pull has not yet erased by the end of the branch.
 
 The **discrete** twin is ``simulate_discrete`` — a state switching along the tree (the Mk model),
 simulated *exactly* by the Gillespie algorithm along every branch. Its ``events`` log (each transition
@@ -60,9 +62,13 @@ a switch rate may carry ``DrivenBy`` — the trait switching faster where anothe
 **threshold** model (``liability=`` / ``threshold=``) reads a discrete state off a continuous Brownian
 liability; the crossings are un-timed, so it carries no event log or map.
 
-Also built: correlated traits (the ``correlation=`` overlay), jumps at speciation (``at_speciation=``),
-and multi-optimum OU (``regimes=``). SSE (BiSSE/MuSSE/QuaSSE) is
-**not** a trait model — it is trait↔species *joint*, Part III.
+Also built: correlated traits (the ``correlation=`` overlay), jumps at speciation
+(``at_speciation=``, in either engine, and under ``correlation=`` drawn through the same overlay),
+and multi-optimum OU (``regimes=``, which takes the jumps too). ``reverts_to`` / ``pull`` also
+apply to a correlated set, as **multivariate OU restricted to a diagonal drift** — each trait
+reverts to its own optimum at its own strength, and the correlation rides in the diffusion rather
+than in the reversion; a full drift matrix, where one trait's deviation pulls another, is refused
+by name. SSE (BiSSE/MuSSE/QuaSSE) is **not** a trait model — it is trait↔species *joint*, Part III.
 """
 
 from __future__ import annotations

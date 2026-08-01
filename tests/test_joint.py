@@ -215,3 +215,44 @@ def test_joint_speciation_jump_is_off_by_default():
         trait=traits.discrete(states=["small", "large"], switch=0.3),
         n_extant=30, seed=1)
     assert collections.Counter(e.kind for e in res.trait.events)["on_speciation"] == 0
+
+
+def test_joint_refuses_per_lineage_rate_variation():
+    """The species level takes ByLineage; the joint engine does not thread it.
+
+    Accepting it here would run a model without the rate variation that was asked for — and because
+    the same ``--birth`` expression works on ``zombi2 species``, silently ignoring it is a trap rather
+    than merely a gap. It used to be accepted (SPEC §5's rejection rule was applied to FromParent and
+    DrivenBy but not to this one)."""
+    import pytest
+
+    from zombi2 import joint, traits
+    from zombi2.rates import modifiers as mod
+
+    with pytest.raises(ValueError, match="ByLineage"):
+        joint.simulate_joint(
+            birth=1.0 * mod.ByLineage(spread=0.5) * mod.DrivenBy("trait", {"small": 1.0, "large": 2.0}),
+            death=0.1, n_extant=8, seed=1,
+            trait=traits.DiscreteTrait(states=("small", "large"), switch=0.3))
+
+
+def test_joint_refuses_a_modifier_it_does_not_thread():
+    """The gate was a negative list — it named FromParent and DrivenBy and let everything else
+    through — where every other level declares what it takes. `ByFamily` was the one that slipped:
+    accepted, then returning its default factor of 1.0, so the run was quietly not the model asked
+    for. `OnTime` and `OnTotalDiversity` were never the problem; the loop threads both and steps at
+    their breakpoints, which is why they are in `WIRED_MODIFIERS` rather than refused alongside."""
+    import pytest
+
+    from zombi2 import joint, traits
+    from zombi2.rates import modifiers as mod
+
+    trait = traits.DiscreteTrait(states=("small", "large"), switch=0.3)
+    driven = mod.DrivenBy("trait", {"small": 1.0, "large": 2.0})
+    with pytest.raises(ValueError, match="no gene families"):
+        joint.simulate_joint(birth=1.0 * mod.ByFamily(spread=0.5) * driven, death=0.1,
+                             n_extant=8, seed=1, trait=trait)
+    # the two covariates are genuinely wired, so they must still run
+    for modifier in (mod.OnTime({0: 1.0, 0.2: 0.4}), mod.OnTotalDiversity(cap=40)):
+        assert joint.simulate_joint(birth=1.0 * modifier * driven, death=0.1, n_extant=8,
+                                    seed=1, trait=trait).species.n_extant == 8

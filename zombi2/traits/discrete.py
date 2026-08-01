@@ -214,11 +214,14 @@ def _finite(x, name: str) -> float:
 
 
 def _liability_sigma2(spec, name) -> float:
-    """The liability's variance-rate σ² — a bare per-lineage rate this slice (no modifiers)."""
+    """The liability's variance-rate σ² — a bare per-lineage rate (no modifiers)."""
     r = as_rate(spec, default_scope=PerLineage)
     where = "liability" if name is None else f"liability[{name!r}]"
     if not isinstance(r.scope, PerLineage) or r.modifiers:
-        raise ValueError(f"{where} must be a bare variance-rate (per lineage, no modifiers) this slice.")
+        raise ValueError(
+            f"{where} must be a bare variance-rate, per lineage; a modified liability variance-rate "
+            f"is not implemented yet."
+        )
     return r.effective(lineages=1)
 
 
