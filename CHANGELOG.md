@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-08-01
+
 ### Added
 - **A correlated trait run carries the event log every other continuous run carries** — the `initial`
   row and one `on_speciation` row per jump, where it previously returned nothing and wrote a
