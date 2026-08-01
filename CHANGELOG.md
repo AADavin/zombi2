@@ -12,6 +12,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [0.22.0] - 2026-08-01
 
 ### Fixed
+- **The extant tree keeps the complete tree's clade order.** `prune` rebuilt each node's children in
+  ascending node id, which coincides with the original order only until a child is pruned away — the
+  surviving descendant that replaces it can have a far larger id than its sibling, so the pair came
+  out swapped. A figure showing both trees drew the same clade on opposite sides, and anything
+  joining them by position disagreed with itself.
 - **Every tree ZOMBI2 writes is now ultrametric when read back.** Branch lengths were written at 7
   significant digits, and a tip's depth is a *sum* of them, so the rounding accumulated down the path
   and left `species_extant.nwk` about 1e-6 off — far above what `ape::is.ultrametric()` allows, on a
