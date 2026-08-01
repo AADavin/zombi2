@@ -278,3 +278,26 @@ def test_a_written_tree_is_still_ultrametric_when_it_is_read_back():
     assert relative_spread(make_ultrametric(result.extant_tree, tol=1e-3).to_newick()) < ape_tolerance
     # the old default is still reachable, and still not good enough — which is why it is not the default
     assert relative_spread(result.extant_tree.to_newick(precision=7)) > ape_tolerance
+
+
+def test_pruning_keeps_the_complete_tree_s_clade_order():
+    """The extant tree must draw its clades on the same side the complete tree does.
+
+    Children were rebuilt in ascending node-id order. Ids are assigned in birth order, so that
+    coincides with the original order until a child is pruned away — the surviving descendant that
+    replaces it can have a far larger id than its sibling, and the pair comes out swapped. A figure
+    showing the complete tree beside the extant one then put the same clade top-left in one and
+    bottom-left in the other, and any reader joining the two by position disagreed with itself.
+
+    Checked on tip order, which is what a reader actually sees, over enough seeds to catch it: the
+    extant tips of the complete tree, in Newick order, are the extant tree's tips in that same order.
+    """
+    import re
+
+    from zombi2 import species
+
+    for seed in range(1, 25):
+        result = species.simulate_species_tree(birth=1.0, death=0.45, n_extant=12, seed=seed)
+        tips = lambda nwk: re.findall(r"[(,]([ne]\d+):", nwk)          # noqa: E731
+        survivors = [t for t in tips(result.complete_tree.to_newick()) if t.startswith("n")]
+        assert survivors == tips(result.extant_tree.to_newick()), f"seed {seed}"
