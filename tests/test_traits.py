@@ -93,8 +93,8 @@ def test_values_are_the_extant_tips():
     sp = _tree(seed=8)
     r = simulate_continuous(sp, rate=0.5, seed=1)
     extant = {n.id for n in sp.complete_tree.extant_leaves()}
-    assert set(r.values) == extant
-    assert all(r.values[i] == r.node_values[i] for i in extant)
+    assert set(r.values_by_id) == extant
+    assert all(r.values_by_id[i] == r.node_values[i] for i in extant)
 
 
 def test_continuous_events_are_only_the_initial_marker():
@@ -586,7 +586,7 @@ def test_discrete_result_shape():
     sp = _tree(seed=8)
     r = simulate_discrete(sp, states=["marine", "terrestrial"], switch=0.3, start="marine", seed=1)
     assert r.kind == "discrete"
-    assert set(r.values) == {n.id for n in sp.complete_tree.extant_leaves()}
+    assert set(r.values_by_id) == {n.id for n in sp.complete_tree.extant_leaves()}
     assert set(r.values.values()) <= {"marine", "terrestrial"}     # labels, not indices
     assert set(r.history) == set(sp.complete_tree.nodes)            # a branch history for every node
 
@@ -717,7 +717,7 @@ def test_correlated_tip_correlation_matches_rho():
         b = np.empty(4000)
         for s in range(4000):
             v = simulate_continuous(tree, start={"a": 0.0, "b": 0.0}, rate={"a": 2.0, "b": 0.5},
-                                    correlation={("a", "b"): rho}, seed=s).values[tip]
+                                    correlation={("a", "b"): rho}, seed=s).values_by_id[tip]
             a[s], b[s] = v["a"], v["b"]
         assert abs(float(np.corrcoef(a, b)[0, 1]) - rho) < 0.04
         assert np.isclose(a.var(), 2.0 * depth, rtol=0.08)
@@ -737,7 +737,7 @@ def test_correlated_result_shape():
                             correlation={("x", "y"): 0.5}, seed=1)
     assert set(r.node_values) == set(tree.nodes)                       # every node valued
     assert all(set(v) == {"x", "y"} for v in r.node_values.values())   # each value a per-trait dict
-    assert set(r.values) == {n.id for n in tree.extant_leaves()}
+    assert set(r.values_by_id) == {n.id for n in tree.extant_leaves()}
     # the log carries the run's discrete moments (here only the initial row — no jumps were asked
     # for); `history` stays None, because a stochastic character map is a discrete-trait thing
     assert r.kind == "continuous" and r.history is None
@@ -809,7 +809,7 @@ def test_multivariate_ou_transition_law():
     for s in range(4000):
         v = simulate_continuous(tree, start={"a": 0.0, "b": 0.0}, rate=s2,
                                 correlation={("a", "b"): rho}, reverts_to=theta, pull=alpha,
-                                seed=s).values[tip]
+                                seed=s).values_by_id[tip]
         va[s], vb[s] = v["a"], v["b"]
     e = math.exp(-alpha * T)
     for got, name in ((va, "a"), (vb, "b")):
@@ -833,7 +833,7 @@ def test_multivariate_ou_with_a_per_trait_pull():
     for s in range(6000):
         v = simulate_continuous(tree, start={"a": 0.0, "b": 0.0}, rate=s2,
                                 correlation={("a", "b"): rho}, reverts_to={"a": 0.0, "b": 0.0},
-                                pull=alpha, seed=s).values[tip]
+                                pull=alpha, seed=s).values_by_id[tip]
         va[s], vb[s] = v["a"], v["b"]
     for got, name in ((va, "a"), (vb, "b")):
         a = alpha[name]
@@ -872,7 +872,7 @@ def test_correlated_jumps_at_speciation_add_the_jump_covariance():
     for s in range(5000):
         v = simulate_continuous(tree, start={"a": 0.0, "b": 0.0}, rate={"a": 1.0, "b": 1.0},
                                 correlation={("a", "b"): rho}, at_speciation=jump,
-                                seed=s).values[tip]
+                                seed=s).values_by_id[tip]
         va[s], vb[s] = v["a"], v["b"]
     assert va.var() == pytest.approx(depth + jump["a"] * splits, rel=0.1)
     assert vb.var() == pytest.approx(depth + jump["b"] * splits, rel=0.1)
@@ -905,7 +905,7 @@ def test_threshold_state_frequency_law():
     for start, cut, s2 in [(0.0, 0.0, 1.0), (0.5, 0.0, 1.0), (0.0, -0.4, 2.0)]:
         n = 6000
         p = sum(simulate_discrete(tree, states=["absent", "present"], liability=s2, threshold=cut,
-                                  start=start, seed=z).values[tip] == "present" for z in range(n)) / n
+                                  start=start, seed=z).values_by_id[tip] == "present" for z in range(n)) / n
         assert abs(p - _phi((start - cut) / math.sqrt(s2 * depth))) < 0.03
 
 
@@ -935,7 +935,7 @@ def test_correlated_discrete_agreement_matches_tetrachoric():
         agree = sum(
             (lambda v: v["w"] == v["f"])(
                 simulate_discrete(tree, states=["absent", "present"], liability={"w": 1.0, "f": 1.0},
-                                  correlation={("w", "f"): rho}, threshold=0.0, seed=z).values[tip])
+                                  correlation={("w", "f"): rho}, threshold=0.0, seed=z).values_by_id[tip])
             for z in range(n))
         assert abs(agree / n - (0.5 + math.asin(rho) / math.pi)) < 0.03
 
@@ -1004,7 +1004,7 @@ def test_at_speciation_discrete_flips_at_every_split():
     tree = _corr_tree()
     r = simulate_discrete(tree, states=["a", "b"], switch=0.0, at_speciation=1.0, start="a", seed=1)
     for i in sorted(n.id for n in tree.extant_leaves()):
-        assert r.values[i] == ("a" if _n_splits(tree, i) % 2 == 0 else "b")
+        assert r.values_by_id[i] == ("a" if _n_splits(tree, i) % 2 == 0 else "b")
 
 
 def test_at_speciation_deterministic():
@@ -1049,8 +1049,8 @@ def test_regimes_track_their_optima():
     regime = simulate_discrete(tree, states=["lo", "hi"], switch=0.8, seed=1)
     r = simulate_continuous(tree, rate=0.3, pull=6.0, reverts_to={"lo": 0.0, "hi": 10.0}, regimes=regime, seed=2)
     tips = sorted(n.id for n in tree.extant_leaves())
-    lo = [r.values[i] for i in tips if regime.values[i] == "lo"]
-    hi = [r.values[i] for i in tips if regime.values[i] == "hi"]
+    lo = [r.values_by_id[i] for i in tips if regime.values_by_id[i] == "lo"]
+    hi = [r.values_by_id[i] for i in tips if regime.values_by_id[i] == "hi"]
     if lo:
         assert abs(float(np.mean(lo))) < 3.0
     if hi:
@@ -1457,3 +1457,26 @@ def test_a_correlated_run_without_jumps_logs_only_the_initial_row():
     r = simulate_continuous(tree, start={"a": 0.0, "b": 0.0}, rate={"a": 1.0, "b": 1.0},
                             correlation={("a", "b"): 0.5}, seed=3)
     assert [e.kind for e in r.events] == ["initial"]          # a diffusion has no other moments
+
+
+def test_the_dataset_keys_are_the_tree_tip_names():
+    """The comparative vector and the tree it belongs to must join.
+
+    `.values` used to be keyed by bare node ids while every Newick label and `trait_values.tsv` row
+    says ``n5`` — so the two objects a user is meant to line up shared **no keys at all**, and
+    nothing said so. This is the check that was failing silently on the Python path; the written
+    files always agreed with each other."""
+    import re
+
+    tree = simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=1)
+    r = simulate_continuous(tree, rate=1.0, seed=1)
+
+    extant_newick = tree.extant_tree.to_newick()
+    tips = set(re.findall(r"[(,]([ne]\d+):", extant_newick))
+    assert tips, "the extant tree should have named tips"
+    assert set(r.values) == tips, (
+        f"dataset keys {sorted(r.values)[:4]}… do not join the tree's tips {sorted(tips)[:4]}…")
+
+    # and the id-keyed view still exists, with the same values behind the other key
+    labels = tree.complete_tree.labels()
+    assert {labels[i]: v for i, v in r.values_by_id.items()} == r.values
