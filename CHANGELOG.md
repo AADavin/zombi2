@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-08-02
+
 ### Changed
 - **The conditioning diagram can draw the target's own Markov chain, and mark which arrow is
   driven.** A rate that reads a driver is usually **one transition**, not the whole chain, and a
