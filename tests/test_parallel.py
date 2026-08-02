@@ -19,7 +19,7 @@ import pytest
 
 from zombi2._runtime.parallel import flatten_gene_tree, rebuild_gene_tree, resolve_workers
 from zombi2.genomes import StreamedRun, simulate_genomes_nucleotide, simulate_genomes_family
-from zombi2.genomes.events import events_from_tsv, node_label
+from zombi2.genomes.events import edges_from_tsv, node_label
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
 from zombi2.rates import modifiers as mod
 from zombi2.sequences import simulate_sequences
@@ -136,7 +136,7 @@ def _extant_leaves(node):
 
 def _gen_fingerprint(r):
     ev = sorted((round(e.time, 9), e.kind, e.lineage, e.family, e.copy, e.parent,
-                 e.recipient, e.donor) for e in r.events)
+                 e.recipient, e.donor) for e in r.edges)
     gen = {i: sorted((c.family, c.id) for c in r.genomes[i]) for i in sorted(r.genomes)}
     return ev, tuple(sorted(gen.items()))
 
@@ -167,7 +167,7 @@ def test_genomes_parallel_is_a_valid_run(species_for_genomes):
     r = simulate_genomes_family(sp, duplication=0.5, transfer=0.3, loss=0.4, origination=0.2,
                                 initial_families=30, seed=5, parallel=2)
     assert set(r.genomes) == set(sp.complete_tree.nodes)
-    born = [e.copy for e in r.events
+    born = [e.copy for e in r.edges
             if e.kind in ("origination", "duplication", "transfer", "speciation")]
     assert len(born) == len(set(born))                       # copy ids globally unique
     extant_sp = {n.id for n in sp.complete_tree.extant_leaves()}
@@ -222,7 +222,7 @@ def test_a_clades_recipient_runs_in_parallel(species_for_genomes, capsys):
         transfer_to=Clades({"A": kid[0], "B": kid[1]},
                            Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)))
     assert "not applied" not in capsys.readouterr().out
-    assert any(e.kind == "transfer" for e in run.events)
+    assert any(e.kind == "transfer" for e in run.edges)
 
 
 def test_a_driven_parallel_run_is_worker_count_invariant(species_for_genomes):
@@ -285,7 +285,7 @@ def test_stream_files_carry_the_same_content_as_the_in_memory_run(species_for_ge
     for f in mem_trees:
         assert _lines(tmp_path / "mem/gene_trees" / f) == _lines(tmp_path / "str/gene_trees" / f)
     # the streamed event log replays (the disk handoff the sequence level uses)
-    assert len(events_from_tsv(open(run.path("events"), encoding="utf-8").read())) == run.n_events
+    assert len(edges_from_tsv(open(run.path("events"), encoding="utf-8").read())) == run.n_events
 
 
 def test_stream_output_selection(species_for_genomes, tmp_path):

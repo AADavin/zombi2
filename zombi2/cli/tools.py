@@ -16,8 +16,8 @@ import re
 import sys
 
 from zombi2 import tree as _tree
-from zombi2.genomes.events import events_from_tsv
-from zombi2.genomes.gene_trees import gene_trees_from_events
+from zombi2.genomes.events import edges_from_tsv
+from zombi2.genomes.gene_trees import gene_trees_from_edges
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
 from zombi2.tree import read_newick
 from zombi2.tools.homology import write_homology
@@ -210,12 +210,12 @@ def _load_gene_trees(handoff, tree):
     events_path = os.path.join(handoff, "genome_events.tsv")
     try:
         with open(events_path, encoding="utf-8") as f:
-            events = events_from_tsv(f.read())
+            events = edges_from_tsv(f.read())
     except FileNotFoundError:
         raise FileNotFoundError(
             f"{events_path} not found — re-run 'zombi2 genomes' with 'events' in --write so the gene "
             "genealogy can be rebuilt") from None
-    return gene_trees_from_events(events, tree)
+    return gene_trees_from_edges(events, tree)
 
 
 def _run_format(args, parser: argparse.ArgumentParser) -> int:

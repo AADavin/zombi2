@@ -1,6 +1,6 @@
 """The gene-genealogy event log — the shared source of truth every resolution writes.
 
-An `Event` records one moment in a gene family's history; the per-family gene trees are
+An `GeneEdge` records one moment in a gene family's history; the per-family gene trees are
 *derived* from a run's events (see `gene_trees`), identically whether the genome was an
 multiset of families or an ordered set of chromosomes. Position and orientation are **not** here —
 they live in the genome snapshots and the rearrangement log — because an event is about gene
@@ -13,9 +13,9 @@ per descendant. The participants are written ``n<species>_g<copy>``, each carryi
 lived on inside the token, which is what lets the ``lineage`` / ``recipient`` / ``donor`` columns go:
 a transfer's row says who donated and who received by naming the two copies where they sit.
 
-**In memory an `Event` is still one gene-tree edge.** That is what the engines emit and what
-`gene_trees_from_events()` reads — a gene tree is a parent→children graph, so the edge is the natural
-object. The aggregation happens here, at write time, and `events_from_tsv()` undoes it exactly, so
+**In memory an `GeneEdge` is still one gene-tree edge.** That is what the engines emit and what
+`gene_trees_from_edges()` reads — a gene tree is a parent→children graph, so the edge is the natural
+object. The aggregation happens here, at write time, and `edges_from_tsv()` undoes it exactly, so
 the file and the objects can each have the shape that suits them without either being a translation
 of the other everywhere else.
 """
@@ -30,7 +30,7 @@ from ..tree import node_from_label, node_label  # noqa: F401
 
 
 @dataclass(frozen=True)
-class Event:
+class GeneEdge:
     """A recorded genome event — the true history every per-family gene tree is derived from. Gene
     ids are **per segment** (the ZOMBI1 model): every event ends a gene and starts fresh ids for its
     descendants, so an id belongs to exactly one species branch and every node's genome has its own
@@ -88,11 +88,33 @@ class Event:
         return self.copy if self.parent is None else self.parent
 
 
+@dataclass(frozen=True)
+class Event:
+    """One genome event — **the same thing one row of ``genome_events.tsv`` is**.
+
+    A `GeneEdge` is one edge of a gene tree, so a duplication is two of them (the copy that continues
+    and the copy that is new) and a transfer likewise. An `Event` is the event itself: one object,
+    with the copies it ended in ``parents`` and the copies it began in ``children``. Counting
+    duplications in Python and counting them in the file give the same number, and a filter written
+    against one works on the other — ``kind`` here is the file's vocabulary, so a transfer is
+    ``transfer_additive`` or ``transfer_replacing`` rather than the edge form's bare ``transfer``.
+
+    ``parents`` and ``children`` are gene ids in the order the row writes them: for a transfer, the
+    copy left on the donor's branch leads. An origination has no parents and a loss no children.
+    """
+
+    time: float
+    kind: str
+    family: int
+    parents: tuple[int, ...]
+    children: tuple[int, ...]
+
+
 _COLS = ("time", "kind", "family", "parents", "children")
 
 #: TRANSITIONAL — the columns of the old log, one row per gene-tree **edge**, with the branch of each
 #: participant in a column of its own. The ordered resolution still writes them (its table carries
-#: every event's position beside the genealogy, and moving it is the next change), so `events_from_tsv`
+#: every event's position beside the genealogy, and moving it is the next change), so `edges_from_tsv`
 #: reads them as well as `_COLS`. Nothing writes them from here.
 _EDGE_COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient", "donor", "event")
 
@@ -161,7 +183,7 @@ def _name(names: "dict[int, str] | None", node_id: int | None) -> str:
     return node_label(node_id) if names is None or node_id is None else names[node_id]
 
 
-def _branches(events: list[Event]) -> dict[int, int]:
+def _branches(events: list[GeneEdge]) -> dict[int, int]:
     """``{copy id: the species branch it lived on}``, read off the log itself.
 
     A copy is born exactly once, on the branch it spends its whole life on, and its birth is some
@@ -172,11 +194,11 @@ def _branches(events: list[Event]) -> dict[int, int]:
     return {e.copy: e.lineage for e in events}
 
 
-def _grouped(events: list[Event]) -> list[tuple[float, str, int, list[int], list[int]]]:
+def events_from_edges(edges: list[GeneEdge]) -> list[Event]:
     """The edges gathered into ``(time, kind, family, parents, children)``, one per event, in the
     order the events were recorded.
 
-    The key is `Event.event` — the copy whose fate the event is — paired with the kind, because a
+    The key is `GeneEdge.event` — the copy whose fate the event is — paired with the kind, because a
     copy that an origination *begins* is the same id a later duplication *ends*. Grouping on ids
     rather than on ``time`` is the point: the two edges of one event carry the same copy id, and
     pairing them on a float is a bug waiting for the run that produces two events in the same
@@ -187,9 +209,9 @@ def _grouped(events: list[Event]) -> list[tuple[float, str, int, list[int], list
     the whole of what the ``transfer_replacing`` kind means — one event, one row, two parents (the
     donor's copy and the copy it overwrote), and no phantom loss a reader would have to tell from a
     real one by matching timestamps."""
-    folded = {e.replaced for e in events if e.replaced is not None}
+    folded = {e.replaced for e in edges if e.replaced is not None}
     rows: dict[tuple[str, int], tuple[float, str, int, list[int], list[int]]] = {}
-    for e in events:
+    for e in edges:
         if e.kind == "loss" and e.copy in folded:
             continue                            # its death IS the replacing transfer (see above)
         key = (e.kind, e.event)
@@ -214,10 +236,11 @@ def _grouped(events: list[Event]) -> list[tuple[float, str, int, list[int], list
             row[4].insert(0, e.copy)
         else:
             row[4].append(e.copy)
-    return list(rows.values())
+    return [Event(time, kind, family, tuple(parents), tuple(children))
+            for time, kind, family, parents, children in rows.values()]
 
 
-def event_rows(events: list[Event], names: dict[int, str] | None = None) -> list[str]:
+def event_rows(events: list[GeneEdge], names: dict[int, str] | None = None) -> list[str]:
     """The event rows **without** the header — one tab-joined line per event. The one row format, so a
     streamed per-worker shard and `events_tsv()` cannot drift; the shard writes only rows and the
     finalize prepends `EVENTS_HEADER` once.
@@ -227,23 +250,23 @@ def event_rows(events: list[Event], names: dict[int, str] | None = None) -> list
     Omitting it names them all ``n<id>``, which is right only where no dead branch can appear."""
     where = _branches(events)
 
-    def cell(copies: list[int]) -> str:
+    def cell(copies: tuple[int, ...]) -> str:
         return _PACK.join(_copy_cell(_name(names, where[c]), c) for c in copies)
 
-    return [f"{time}\t{kind}\t{family}\t{cell(parents)}\t{cell(children)}"
-            for time, kind, family, parents, children in _grouped(events)]
+    return [f"{e.time}\t{e.kind}\t{e.family}\t{cell(e.parents)}\t{cell(e.children)}"
+            for e in events_from_edges(events)]
 
 
-def events_tsv(events: list[Event], names: dict[int, str] | None = None) -> str:
+def events_tsv(events: list[GeneEdge], names: dict[int, str] | None = None) -> str:
     """The event log as TSV — one row per event; an empty cell where a kind has no parents (an
     origination) or no children (a loss). ``names`` as in `event_rows()`."""
     return "\n".join([EVENTS_HEADER, *event_rows(events, names)]) + "\n"
 
 
-def events_from_tsv(text: str) -> list[Event]:
-    """Parse the TSV `events_tsv()` writes back into a ``list[Event]`` — the deserializer twin, so
+def edges_from_tsv(text: str) -> list[GeneEdge]:
+    """Parse the TSV `events_tsv()` writes back into a ``list[GeneEdge]`` — the deserializer twin, so
     a written ``genome_events.tsv`` can be replayed (a downstream level's gene trees are derived from
-    the log by `gene_trees_from_events()`). Each row is expanded back into one `Event` per gene-tree
+    the log by `gene_trees_from_edges()`). Each row is expanded back into one `GeneEdge` per gene-tree
     edge, which is what every reader downstream of here expects."""
     lines = text.splitlines()
     if not lines:
@@ -301,12 +324,12 @@ def _need(what: list, n: int, lineno: int, kind: str, col: str) -> None:
         raise ValueError(f"genome event log line {lineno}: a {kind} has {n} {col}, got {len(what)}")
 
 
-def _parse(lines: list[str], header: list[str]) -> list[Event]:
+def _parse(lines: list[str], header: list[str]) -> list[GeneEdge]:
     """Read the rows by column **name**, so a table carrying more than the canonical columns parses
     unchanged and only the genealogy rows come back, and expand each into its gene-tree edges — the
-    exact inverse of `_grouped()`, down to the order the edges come back in."""
+    exact inverse of `events_from_edges()`, down to the order the edges come back in."""
     at = {c: i for i, c in enumerate(header)}
-    events: list[Event] = []
+    events: list[GeneEdge] = []
     for lineno, raw in enumerate(lines[1:], 2):
         if not raw:                                     # tolerate a trailing blank line
             continue
@@ -324,41 +347,41 @@ def _parse(lines: list[str], header: list[str]) -> list[Event]:
             _need(parents, 0, lineno, kind, "parents")
             _need(children, 1, lineno, kind, "children")
             (lineage, copy), = children
-            events.append(Event(t, kind, lineage, fam, copy))
+            events.append(GeneEdge(t, kind, lineage, fam, copy))
         elif kind == "loss":
             _need(parents, 1, lineno, kind, "parents")
             _need(children, 0, lineno, kind, "children")
             (lineage, copy), = parents
-            events.append(Event(t, kind, lineage, fam, copy))
+            events.append(GeneEdge(t, kind, lineage, fam, copy))
         elif kind in ("duplication", "speciation"):
             _need(parents, 1, lineno, kind, "parents")
             _need(children, 2, lineno, kind, "children")
             (_, source), = parents
-            events.extend(Event(t, kind, lineage, fam, copy, parent=source)
+            events.extend(GeneEdge(t, kind, lineage, fam, copy, parent=source)
                           for lineage, copy in children)
         else:                                           # a transfer, additive or replacing
             _need(parents, 2 if kind == _REPLACING else 1, lineno, kind, "parents")
             _need(children, 2, lineno, kind, "children")
-            (donor, cont), (recipient, arrived) = children   # donor's own copy leads (see `_grouped`)
+            (donor, cont), (recipient, arrived) = children   # donor's copy leads (events_from_edges)
             (_, source), *rest = parents
             replaced = rest[0][1] if rest else None
             if replaced is not None:
                 # the copy the arriving one overwrote: it dies here, and its death is an edge of the
                 # gene tree like any other, so it comes back as the `loss` the file no longer spends
                 # a row on. Written first, which is where the engines record it.
-                events.append(Event(t, "loss", recipient, fam, replaced))
-            events.append(Event(t, "transfer", donor, fam, cont, parent=source, donor=donor,
+                events.append(GeneEdge(t, "loss", recipient, fam, replaced))
+            events.append(GeneEdge(t, "transfer", donor, fam, cont, parent=source, donor=donor,
                                 replaced=replaced))
-            events.append(Event(t, "transfer", recipient, fam, arrived, parent=source,
+            events.append(GeneEdge(t, "transfer", recipient, fam, arrived, parent=source,
                                 recipient=recipient, donor=donor, replaced=replaced))
     return events
 
 
-def _parse_edges(lines: list[str], header: list[str]) -> list[Event]:
+def _parse_edges(lines: list[str], header: list[str]) -> list[GeneEdge]:
     """The pre-aggregation table (`_EDGE_COLS`): every row is already one edge, so this is a
     field-by-field read. Kept until the ordered resolution's writer moves to `_COLS`."""
     at = {c: i for i, c in enumerate(header)}
-    events: list[Event] = []
+    events: list[GeneEdge] = []
     for lineno, raw in enumerate(lines[1:], 2):
         if not raw:
             continue
@@ -369,7 +392,7 @@ def _parse_edges(lines: list[str], header: list[str]) -> list[Event]:
         if cells[at["kind"]] not in _GENEALOGY:
             continue
         get = lambda c: cells[at[c]]                    # noqa: E731
-        events.append(Event(
+        events.append(GeneEdge(
             time=float(get("time")), kind=get("kind"), lineage=node_from_label(get("lineage")),
             family=int(get("family")), copy=gene_from_label(get("copy")),
             parent=gene_from_label(get("parent")) if get("parent") else None,

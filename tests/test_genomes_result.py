@@ -78,7 +78,7 @@ def test_write_produces_events_and_profiles(tmp_path):
     assert ev[0].split("\t") == ["time", "kind", "family", "parents", "children"]
     # one row per EVENT, where an `Event` is one gene-tree edge: a duplication, a transfer and a
     # speciation each end one gene and start two, so there are fewer rows than edges
-    assert len(ev) - 1 == len({(e.kind, e.event) for e in g.events}) < len(g.events)
+    assert len(ev) - 1 == len({(e.kind, e.event) for e in g.edges}) < len(g.edges)
 
 
 def test_one_row_per_event_with_the_participants_in_it(tmp_path):
@@ -101,7 +101,7 @@ def test_one_row_per_event_with_the_participants_in_it(tmp_path):
     # every copy the run minted appears exactly once as a child (its birth) — the row it is born on
     # is where the log says which branch it lived on
     born = [c for r in rows for c in r["children"].split(";") if c]
-    assert len(born) == len(set(born)) == len({e.copy for e in g.events})
+    assert len(born) == len(set(born)) == len({e.copy for e in g.edges})
     pr = (tmp_path / "profiles.tsv").read_text(encoding="utf-8").splitlines()
     assert len(pr) - 1 == len(g.profiles.families)      # one row per family
 
@@ -165,7 +165,7 @@ def test_a_transfer_names_both_ends_of_its_edge_on_every_row():
 
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=4)
     r = simulate_genomes_family(sp, initial_families=8, transfer=1.0, seed=4)
-    transfers = [e for e in r.events if e.kind == "transfer"]
+    transfers = [e for e in r.edges if e.kind == "transfer"]
     assert transfers
     for e in transfers:
         assert e.donor is not None                       # on both rows, arriving and departing
@@ -174,7 +174,7 @@ def test_a_transfer_names_both_ends_of_its_edge_on_every_row():
             assert e.lineage == e.donor
         else:                                            # the copy that arrived
             assert e.lineage == e.recipient
-    assert all(e.donor is None for e in r.events if e.kind != "transfer")
+    assert all(e.donor is None for e in r.edges if e.kind != "transfer")
 
 
 def test_self_transfers_are_readable_from_one_row():
@@ -185,7 +185,7 @@ def test_self_transfers_are_readable_from_one_row():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=4)
     r = simulate_genomes_family(sp, initial_families=8, transfer=1.0, self_transfer=True,
                                 transfer_to=Distance(decay=10.0), seed=4)
-    arrived = [e for e in r.events if e.kind == "transfer" and e.recipient is not None]
+    arrived = [e for e in r.edges if e.kind == "transfer" and e.recipient is not None]
     selfies = [e for e in arrived if e.donor == e.recipient]
     assert selfies, "a steep distance decay with self_transfer should give plenty of self-transfers"
     assert len(selfies) < len(arrived), "and not all of them"

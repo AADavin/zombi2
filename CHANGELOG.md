@@ -9,6 +9,23 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+- **`result.events` now means what a row of `genome_events.tsv` means.** It used to hold one entry
+  per gene-tree *edge*, so a duplication was two of them and a transfer likewise — counting
+  duplications in Python gave twice the file's number, and a filter on `kind == "transfer"` matched
+  everything in Python and nothing in the file, which is the mismatch that forced Chapter 4's
+  wording to be corrected once already. The two now agree, kind for kind and count for count.
+  **Breaking** for code reading the old shape: the edge list is `result.edges`, unchanged, and it is
+  what a gene tree is built from. Family and ordered runs — traits and the nucleotide level already
+  matched their files, which is how the gap was found.
+- **The classes say which is which.** `Event` is one genome event, with the copies it ended in
+  `parents` and the copies it began in `children`; the per-edge record is `GeneEdge`.
+  `gene_trees_from_events` is `gene_trees_from_edges` and `events_from_tsv` is `edges_from_tsv`,
+  because both take edges. `zombi2.species.Event` is untouched — a species-tree event is a different
+  thing and keeps its name.
+- **No run changed.** The reproducibility digests are byte-identical across this, because they hash
+  `edges` — the finer record, and the one they always hashed.
+
 ## [0.25.0] - 2026-08-02
 
 ### Added

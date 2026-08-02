@@ -42,8 +42,8 @@ from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
 from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
 from .._runtime.summary import _stats, write_summary
-from .events import Event, events_tsv, gene_label
-from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
+from .events import Event, GeneEdge, events_from_edges, events_tsv, gene_label
+from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
 
 if TYPE_CHECKING:  # a streamed run returns a StreamedRun (built by the per-family engine); type-only
@@ -78,7 +78,7 @@ class FamilyGenomesResult:
 
     complete_tree: Tree
     genomes: dict[int, tuple[GeneCopy, ...]]
-    events: list[Event]
+    edges: list[GeneEdge]
     seed: int | None
     #: ``{name: family id}`` for families declared by ``family_names=[…]`` — the handle to a *named* family
     #: (a toxin, an operon) that you can look up in the genome; empty when only anonymous families were used.
@@ -118,17 +118,30 @@ class FamilyGenomesResult:
         return profiles_from_genomes(self.genomes, extant)
 
     @cached_property
+    def events(self) -> list[Event]:
+        """The genome events — **one per row of ``genome_events.tsv``**, the same objects the writer
+        formats.
+
+        `edges` is the finer record this is grouped from: one entry per gene-tree *edge*, so a
+        duplication is two of them and a transfer likewise. That is the shape a gene tree is built
+        out of, and it used to be what this attribute returned — which meant counting duplications in
+        Python gave twice the file's number, and a filter on ``kind == "transfer"`` matched everything
+        here and nothing there. One word, one meaning: an event is what the log has a row for.
+        """
+        return events_from_edges(self.edges)
+
+    @cached_property
     def gene_trees(self) -> dict[int, GeneTree]:
         """``{family id: GeneTree}`` — each family's true genealogy inside the complete tree,
         derived from the event log. Each ``GeneTree`` exposes ``.complete`` and ``.extant``. See
         `gene_trees`."""
-        return gene_trees_from_events(self.events, self.complete_tree)
+        return gene_trees_from_edges(self.edges, self.complete_tree)
 
     def summary(self) -> dict:
         """What this run produced, as a plain dict — the payload of ``genome_summary.json``.
 
         **Every count here is one per event**, which is also what ``genome_events.tsv`` is now one row
-        of. They are counted from the `Event` objects, and those are one per gene-tree *edge*: a
+        of. They are counted from the `GeneEdge` objects, and those are one per gene-tree *edge*: a
         duplication, a transfer and a speciation each end one gene and start two, so counting edges
         inflates them exactly 2×. A duplication's two edges share the ``parent`` gene they descend
         from, and a gene ends at exactly one event, so distinct parents *are* the events.
@@ -161,7 +174,7 @@ class FamilyGenomesResult:
         — a loss never takes a chromosome below its last gene — not a bound on genome size.)"""
         per_kind: dict[str, set] = collections.defaultdict(set)
         singles: collections.Counter = collections.Counter()
-        for e in self.events:
+        for e in self.edges:
             if e.parent is None:                  # origination and loss: one row apiece already
                 singles[e.kind] += 1
             else:
@@ -172,10 +185,10 @@ class FamilyGenomesResult:
         # "origination" is the de-novo families PLUS `initial_families` — over-counting new arrivals by
         # however many the run began with. Split them: they are different things to a reader.
         t0 = self.complete_tree.nodes[self.complete_tree.root].birth_time
-        initial = sum(1 for e in self.events if e.kind == "origination" and e.time <= t0)
+        initial = sum(1 for e in self.edges if e.kind == "origination" and e.time <= t0)
 
         extant = [n.id for n in self.complete_tree.extant_leaves()]
-        born = {e.family for e in self.events}
+        born = {e.family for e in self.edges}
         surviving = {c.family for i in extant for c in self.genomes.get(i, ())}
         genes_per_genome = [len(self.genomes.get(i, ())) for i in extant]
         cells = [collections.Counter(c.family for c in self.genomes.get(i, ())) for i in extant]
@@ -244,7 +257,7 @@ class FamilyGenomesResult:
         d.mkdir(parents=True, exist_ok=True)
         names = self.complete_tree.labels()      # e<id> for a lineage that died; n<id> for the rest
         if "events" in outputs:
-            (d / "genome_events.tsv").write_text(events_tsv(self.events, names), encoding="utf-8")
+            (d / "genome_events.tsv").write_text(events_tsv(self.edges, names), encoding="utf-8")
         if "profiles" in outputs:
             (d / "profiles.tsv").write_text(self.profiles.to_tsv(), encoding="utf-8")
         if "genomes" in outputs:
@@ -377,7 +390,7 @@ def _originate(genome, node, t, events, new_copy, new_family) -> None:
     """A new gene family arises: mint a founding copy in a fresh family and record it."""
     c = new_copy(new_family())
     genome.append(c)
-    events.append(Event(t, "origination", node.id, c.family, c.id))
+    events.append(GeneEdge(t, "origination", node.id, c.family, c.id))
 
 
 def _duplicate(genome, j, node, t, events, new_copy) -> None:
@@ -388,8 +401,8 @@ def _duplicate(genome, j, node, t, events, new_copy) -> None:
     cont, dup = new_copy(old.family), new_copy(old.family)
     genome[j] = cont                                   # the continuing lineage (a fresh id)
     genome.append(dup)                                 # the new copy (a fresh id)
-    events.append(Event(t, "duplication", node.id, old.family, cont.id, parent=old.id))
-    events.append(Event(t, "duplication", node.id, old.family, dup.id, parent=old.id))
+    events.append(GeneEdge(t, "duplication", node.id, old.family, cont.id, parent=old.id))
+    events.append(GeneEdge(t, "duplication", node.id, old.family, dup.id, parent=old.id))
 
 
 def _lose_at(genome, j, node, t, events) -> None:
@@ -397,7 +410,7 @@ def _lose_at(genome, j, node, t, events) -> None:
     lost = genome[j]
     genome[j] = genome[-1]
     genome.pop()
-    events.append(Event(t, "loss", node.id, lost.family, lost.id))
+    events.append(GeneEdge(t, "loss", node.id, lost.family, lost.id))
 
 
 def resolve_max_family_size(max_family_size) -> int | None:
@@ -553,14 +566,14 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
             # log writes one `transfer_replacing` row carrying both parents, and nobody downstream has
             # to recognise the pair by their shared timestamp.
             replaced = victim.id
-            events.append(Event(t, "loss", recipient, fam, replaced))
+            events.append(GeneEdge(t, "loss", recipient, fam, replaced))
             counts.removed(kr, fam)
             delta = 0
     rg.append(xfer)
     counts.added(kr, fam)
-    events.append(Event(t, "transfer", donor, fam, cont.id, parent=src.id, donor=donor,
+    events.append(GeneEdge(t, "transfer", donor, fam, cont.id, parent=src.id, donor=donor,
                         replaced=replaced))
-    events.append(Event(t, "transfer", recipient, fam, xfer.id, parent=src.id, recipient=recipient,
+    events.append(GeneEdge(t, "transfer", recipient, fam, xfer.id, parent=src.id, recipient=recipient,
                         donor=donor, replaced=replaced))
     return delta, kr
 
@@ -808,7 +821,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     gen: list[list[GeneCopy]] = []
     pos: dict[int, int] = {}
     genomes: dict[int, tuple[GeneCopy, ...]] = {}
-    events: list[Event] = []
+    events: list[GeneEdge] = []
     enter(alive, gen, pos, root.id, [])
     for _ in range(initial_families):  # lay down the origin's genome as originations at t = root.birth_time
         _originate(gen[0], root, t, events, new_copy, new_family)
@@ -818,7 +831,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         named[name] = fid
         c = new_copy(fid)
         gen[0].append(c)
-        events.append(Event(t, "origination", root.id, fid, c.id))
+        events.append(GeneEdge(t, "origination", root.id, fid, c.id))
     total_copies = len(gen[0])
     initial_genome = tuple(gen[0])   # the run's starting genome: a snapshot before the stem runs
 
@@ -962,7 +975,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                         for old in g:  # ZOMBI1: the gene ends here and continues under a fresh id
                             nc = new_copy(old.family)
                             child_genome.append(nc)
-                            rows.append(Event(t, "speciation", c, old.family, nc.id, parent=old.id))
+                            rows.append(GeneEdge(t, "speciation", c, old.family, nc.id, parent=old.id))
                         per_daughter.append(rows)
                         enter(alive, gen, pos, c, child_genome)
                         counts.entered_like(inherited)   # a re-id of the parent: same families
