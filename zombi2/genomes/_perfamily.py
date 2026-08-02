@@ -591,7 +591,7 @@ def _stream_chunk(task):
 # --- the public entry: two passes, then either an in-memory merge or a stream to disk -------------
 
 def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, self_transfer,
-                        initial_families, family_names, family_speed, cap, seed, parallel,
+                        initial_families, family_names, modules, family_speed, cap, seed, parallel,
                         progress, stream_to=None, outputs=None,
                         trajs=None, to_traj=None, group_of=None, driven=None):
     """Run the per-family engine. Returns a `FamilyGenomesResult` (the in-memory
@@ -670,7 +670,8 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
     # before the stem — the snapshot the serial engine takes as `initial_genome`.
     n_seeded = initial_families + len(family_names)
     initial_genome = tuple(GeneCopy(_copy_base(fid), fid) for fid in range(n_seeded))
-    return FamilyGenomesResult(tree, genomes_final, events, seed, named, initial_genome,
+    return FamilyGenomesResult(tree, genomes_final, events, seed, named, dict(modules or {}),
+                               initial_genome,
                                ctx.cap if hasattr(ctx, 'cap') else None)
 
 

@@ -9,6 +9,24 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+- **The conditioning diagram can draw the target's own Markov chain.** Where the target is itself a
+  discrete trait, the driven rate is visibly *that chain's* rate rather than an unexplained number —
+  the `gene_drives_trait` figure now shows harmless ⇄ pathogenic under the target box, matching the
+  driver's chain under its own.
+
+### Added
+- **Gene families can be grouped into modules, and a module's completion drives a rate.**
+  `modules={"flagellum": ["flgA", …]}` names a group of declared families, and
+  `g.completion("flagellum")` is a conditioning driver giving the fraction of it a lineage carries —
+  a number in `[0, 1]`, read with a `Curve` like any continuous driver. A **fraction rather than a
+  yes/no on purpose**: under independent loss the chance every family of a module survives falls off
+  geometrically with its size (measured on a 200-tip tree, a module of three was complete at 189 tips
+  and one of six at none), so a complete/incomplete driver would be a constant for anything but the
+  smallest modules. A threshold is expressible where every other response shape already lives, in the
+  curve. A module of one family is exactly that family's presence. Members must be named with
+  `family_names=`; an anonymous family's id comes from the order events fired in.
+
 ### Fixed
 - **Two gallery figures had silently lost their transfers.** They filtered a genome run's `.events`
   on `kind == "transfer"`, which after that attribute came to mean one row per event is never true —

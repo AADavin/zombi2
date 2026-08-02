@@ -527,7 +527,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
             tree, se, go, ge, fn = _grow_joint_genome(
                 rng, birth_rate, death_rate, genome, unique_sources, target_n, tt)
             result = JointResult(SpeciesResult(tree, se, seed, []), seed,
-                                 genome=FamilyGenomesResult(tree, go, ge, seed, fn))
+                                 genome=FamilyGenomesResult(tree, go, ge, seed, fn, {}))
         return tree, result
 
     if total_time is not None:

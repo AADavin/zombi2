@@ -63,7 +63,7 @@ from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv, rearrangement_events_tsv
-from .family import resolve_max_family_size
+from .family import resolve_modules, resolve_max_family_size
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
                         resolve_transfer_to)
@@ -254,6 +254,10 @@ class OrderedGenomesResult:
     seed: int | None
     #: ``{name: family id}`` for families declared by ``family_names=[…]`` — the handle to a *named* family.
     family_names: dict[str, int] = field(default_factory=dict)
+    #: ``{module name: (family name, …)}`` for groups declared by ``modules=`` — a pathway or a
+    #: complex, whose *completion* in a lineage (`completion`) is a driver. Empty when none were
+    #: declared; a module changes nothing about how the genome evolves.
+    modules: dict[str, tuple[str, ...]] = field(default_factory=dict)
     #: where each gene-genealogy `GeneEdge` happened — the positional
     #: companion to `events`, which is position-blind. See `EventPosition`.
     event_positions: list[EventPosition] = field(default_factory=list)
@@ -271,6 +275,17 @@ class OrderedGenomesResult:
     def family_counts(self, node_id: int) -> collections.Counter:
         """A multiset view of one node's genome: ``family id → copy count`` (across all chromosomes)."""
         return collections.Counter(g.family for chrom in self.genomes[node_id] for g in chrom.genes)
+
+    def completion(self, name: str):
+        """A module's completion as a **conditioning driver** — `ModuleCompletion`, a number in
+        ``[0, 1]``: the fraction of the module's families a lineage carries.
+
+        Read it with a `Curve`, the way any continuous driver is read; a threshold goes there rather
+        than here (``lambda f: 8.0 if f > 0.8 else 1.0``)."""
+        from .presence import ModuleCompletion
+        if name not in self.modules:
+            raise KeyError(f"no module {name!r}; declared modules are {sorted(self.modules)}")
+        return ModuleCompletion(self, name)
 
     def presence(self, name: str):
         """The named family's presence as a **conditioning driver** — `GenePresence`.
@@ -1046,7 +1061,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              inversion_extent=None, transposition_extent=None,
                              translocation_extent=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
-                             initial_families=100, family_names=None, family_speed=None,
+                             initial_families=100, family_names=None, modules=None,
+                             family_speed=None,
                              max_family_size=10, seed=None,
                              progress=False) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
@@ -1236,6 +1252,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             raise ValueError(f"family_names must be a list of non-empty family names (strings), got {name!r}")
     if len(set(family_names)) != len(family_names):
         raise ValueError(f"family names must be unique, got {family_names}")
+    module_map = resolve_modules(modules, family_names)
 
     # The growth guard, as at the family resolution: duplication compounds, so a run whose rate sits
     # above its loss rate — or a family that drew a high ByFamily factor — multiplies without bound
@@ -1592,7 +1609,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
 
     bar.close()
     return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
-                                named, event_positions, initial_genome)
+                                named, module_map, event_positions, initial_genome)
 
 
 __all__ = ["simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",

@@ -83,6 +83,10 @@ class FamilyGenomesResult:
     #: ``{name: family id}`` for families declared by ``family_names=[…]`` — the handle to a *named* family
     #: (a toxin, an operon) that you can look up in the genome; empty when only anonymous families were used.
     family_names: dict[str, int] = field(default_factory=dict)
+    #: ``{module name: (family name, …)}`` for groups declared by ``modules=`` — a pathway or a
+    #: complex, whose *completion* in a lineage (`completion`) is a driver. Empty when none were
+    #: declared; a module changes nothing about how the genome evolves.
+    modules: dict[str, tuple[str, ...]] = field(default_factory=dict)
     #: The genome the run **started** with, at the root lineage's origination — before any event.
     #: It is not in `genomes`, which holds a genome per *node*, and a node sits at the **end**
     #: of its branch: the root branch is real simulated time, so ``genomes[root]`` is this genome plus
@@ -101,6 +105,17 @@ class FamilyGenomesResult:
     def family_counts(self, node_id: int) -> collections.Counter:
         """A multiset view of one node's genome: ``family id → copy count``."""
         return collections.Counter(c.family for c in self.genomes[node_id])
+
+    def completion(self, name: str):
+        """A module's completion as a **conditioning driver** — `ModuleCompletion`, a number in
+        ``[0, 1]``: the fraction of the module's families a lineage carries.
+
+        Read it with a `Curve`, the way any continuous driver is read; a threshold goes there rather
+        than here (``lambda f: 8.0 if f > 0.8 else 1.0``)."""
+        from .presence import ModuleCompletion
+        if name not in self.modules:
+            raise KeyError(f"no module {name!r}; declared modules are {sorted(self.modules)}")
+        return ModuleCompletion(self, name)
 
     def presence(self, name: str):
         """The named family's presence as a **conditioning driver** — `GenePresence`.
@@ -427,6 +442,45 @@ def _lose_at(genome, j, node, t, events) -> None:
     events.append(GeneEdge(t, "loss", node.id, lost.family, lost.id))
 
 
+def resolve_modules(modules, family_names) -> dict:
+    """Validate ``modules={"flagellum": ["flgA", …]}`` — a **named group of named families**.
+
+    A module changes nothing about how the genome evolves: it is a way of asking one question of the
+    result, *how much of this group does a lineage carry* (`ModuleCompletion`). It is declared with
+    the run rather than at read time so the grouping is part of the record — the report and the
+    summary can name it, and two runs of the same command mean the same thing by "flagellum".
+
+    Members must be families declared by ``family_names=``: an anonymous family has an integer id
+    that is an artefact of the order events fired in, so a module built on one would not survive a
+    change of seed.
+    """
+    if modules is None:
+        return {}
+    if not isinstance(modules, dict):
+        raise TypeError(
+            f"modules must be a dict of {{name: [family names]}}, got {type(modules).__name__}.")
+    declared = set(family_names)
+    out: dict[str, tuple[str, ...]] = {}
+    for name, members in modules.items():
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"a module needs a non-empty name, got {name!r}")
+        members = tuple(members)
+        if not members:
+            raise ValueError(f"module {name!r} has no families in it, so its completion would be "
+                             f"undefined (0 out of 0).")
+        if len(set(members)) != len(members):
+            raise ValueError(f"module {name!r} names a family twice: {members}")
+        missing = [m for m in members if m not in declared]
+        if missing:
+            raise ValueError(
+                f"module {name!r} names {missing}, which are not declared families. Every member has "
+                f"to appear in family_names= — an anonymous family's id comes from the order events "
+                f"fired in, so a module built on one would mean something else at another seed. "
+                f"Declared: {sorted(declared)}.")
+        out[name] = members
+    return out
+
+
 def resolve_max_family_size(max_family_size) -> int | None:
     """Validate the per-genome family cap — **a plain count of copies in one genome**, or ``None``
     for no cap.
@@ -595,7 +649,8 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
 @without_cyclic_gc
 def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                             transfer_to="uniform", replacement=False, self_transfer=False,
-                            initial_families=100, family_names=None, family_speed=None,
+                            initial_families=100, family_names=None, modules=None,
+                            family_speed=None,
                             max_family_size=10, seed=None, parallel=False, stream_to=None,
                             outputs=None, progress=False) -> "FamilyGenomesResult | StreamedRun":
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
@@ -726,6 +781,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             raise ValueError(f"family_names must be a list of non-empty family names (strings), got {name!r}")
     if len(set(family_names)) != len(family_names):
         raise ValueError(f"family names must be unique, got {family_names}")
+    module_map = resolve_modules(modules, family_names)
 
     # A family's copies in one genome are capped. Growth compounds — a duplication rate above the
     # loss rate multiplies without bound — so a run needs a ceiling somewhere. An int is that number
@@ -782,7 +838,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         result = run_parallel_family(
             tree, dup=dup, tra=tra, los=los, org=org, transfer_to=transfer_to,
             replacement=replacement, self_transfer=self_transfer, initial_families=initial_families,
-            family_names=family_names, family_speed=family_speed, cap=cap, seed=seed, parallel=parallel,
+            family_names=family_names, modules=module_map, family_speed=family_speed, cap=cap,
+            seed=seed, parallel=parallel,
             progress=progress, stream_to=stream_to, outputs=outputs,
             trajs=trajs, to_traj=to_traj, group_of=group_of,
             driven={"duplication": bool(dup_mods), "transfer": bool(tra_mods),
@@ -1006,7 +1063,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
     bar.close()
-    return FamilyGenomesResult(tree, genomes, events, seed, named, initial_genome, cap)
+    return FamilyGenomesResult(tree, genomes, events, seed, named, module_map, initial_genome,
+                               cap)
 
 
 # --- process spec: a genome bundled but UNEXECUTED, for a joint model to grow with the tree --------
