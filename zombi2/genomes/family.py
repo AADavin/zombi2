@@ -715,7 +715,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # and the loop stays byte-identical to an undriven run.
     dup_mods, los_mods = _driven_mods(dup), _driven_mods(los)
     org_mods, tra_mods = _driven_mods(org), _driven_mods(tra)
-    by_key = {}  # driver key → its source (deduped, so a driver shared across rates resolves once)
+    # driver key → its source (deduped, so a driver shared across rates resolves once)
+    by_key: dict[object, object] = {}
     for m in (*dup_mods, *los_mods, *org_mods, *tra_mods):
         by_key.setdefault(m.key, m.source)
     resolved = {}
@@ -847,6 +848,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             # unit rate times the sum of those multipliers over the live copies — and the copy has
             # to be drawn with the same weights, or the rates would say one thing and the picking
             # another. Summed per lineage, so the existing weighted-lineage pick can be reused.
+            assert weights is not None       # `any_family` is exactly when it was built
             fw = weights.current(gen)
             unit = {"duplication": dup.effective(copies=1, lineages=1, time=t),
                     "loss": los.effective(copies=1, lineages=1, time=t),
@@ -970,8 +972,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     # the ids are minted daughter by daughter (which is what fixes them), but a gene's
                     # two rows are recorded together: one gene ending is one event, and the log writes
                     # it as one row with both daughters in it.
-                    for rows in zip(*per_daughter):
-                        events.extend(rows)
+                    for pair in zip(*per_daughter):
+                        events.extend(pair)
                 si += 1
         else:
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate

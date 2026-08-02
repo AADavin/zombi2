@@ -57,7 +57,7 @@ s.write("out/")                 # alignments, phylograms and ancestral sequences
 
 ZOMBI2 is organized around **four levels of evolution**. A genome, a sequence or a trait always
 evolves along a species tree, so you run whichever you need, composed into one seeded,
-reproducible run.
+[reproducible](https://aadavin.github.io/zombi2/docs/reproducibility/) run.
 
 <p align="center">
   <img alt="One simulated dataset at all four levels: a species tree with its extinct lineages, the gene order of every surviving genome with homologues linked, the alignment behind one gene family, and two traits drifting together" src="assets/overview.png" width="900">

@@ -49,6 +49,56 @@ jobs:
       - name: Run the test suite
         run: pytest -q
 
+  # Coverage rides on one job rather than the matrix: it measures which lines the suite reaches, and
+  # that is a property of the suite, not of the interpreter running it. Reported, not enforced —
+  # a threshold turns a number worth reading into a number worth gaming.
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install ZOMBI2 (dev extra)
+        run: pip install -e ".[dev]"
+
+      - name: Measure coverage
+        run: |
+          pytest -q --cov=zombi2 --cov-report=term:skip-covered --cov-report=json
+          python - <<'PY'
+          import json
+          pct = json.load(open("coverage.json"))["totals"]["percent_covered"]
+          print(f"::notice title=Coverage::{pct:.1f}% of zombi2 is covered by the test suite")
+          PY
+
+  # zombi2 ships `py.typed`, so its annotations are read by the type checker of anyone who installs
+  # it. Publishing type information nobody verifies is worse than publishing none, so it is checked
+  # here like the tests are. Configuration lives in [tool.mypy] in pyproject.toml.
+  types:
+    name: types (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install ZOMBI2 (dev extra)
+        run: pip install -e ".[dev]"
+
+      - name: Type-check
+        run: mypy
+
   lint:
     name: lint (ruff)
     runs-on: ubuntu-latest

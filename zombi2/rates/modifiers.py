@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Any, Mapping
 
 
 class Modifier:
@@ -35,7 +35,7 @@ class Modifier:
     it ignores the rest. Abstract — use a subclass.
     """
 
-    def factor(self, **context: float) -> float:
+    def factor(self, **context: Any) -> float:
         raise NotImplementedError
 
     def next_change(self, time: float) -> float:
@@ -92,7 +92,11 @@ class OnTime(Modifier):
                 raise ValueError(f"OnTime factors must be finite and non-negative, got {f!r}")
         self._steps = steps
 
-    def factor(self, *, time: float, **_: float) -> float:
+    # `factor` narrows the base signature: this modifier cannot answer without its key, and
+    # giving it a default would make a level that forgot to thread it return a plausible
+    # wrong number in silence. `WIRED_MODIFIERS` is what guarantees the key arrives — a level
+    # that does not thread it rejects the modifier outright rather than reaching here.
+    def factor(self, *, time: float, **_: Any) -> float:  # type: ignore[override]
         f = self._steps[0][1]  # before the first breakpoint, the earliest factor applies
         for t, fac in self._steps:
             if t <= time:
@@ -135,7 +139,11 @@ class OnTotalDiversity(Modifier):
         if not math.isfinite(self.cap) or self.cap <= 0:
             raise ValueError(f"OnTotalDiversity cap must be finite and positive, got {self.cap!r}")
 
-    def factor(self, *, diversity: float, **_: float) -> float:
+    # `factor` narrows the base signature: this modifier cannot answer without its key, and
+    # giving it a default would make a level that forgot to thread it return a plausible
+    # wrong number in silence. `WIRED_MODIFIERS` is what guarantees the key arrives — a level
+    # that does not thread it rejects the modifier outright rather than reaching here.
+    def factor(self, *, diversity: float, **_: Any) -> float:  # type: ignore[override]
         return max(0.0, 1.0 - diversity / self.cap)
 
 
@@ -213,7 +221,7 @@ class FromParent(Modifier):
         step = int(rng.integers(-1, 2))                      # -1, 0 or +1
         return rungs[min(max(here + step, 0), len(rungs) - 1)]
 
-    def factor(self, *, inherited: float = 1.0, **_: float) -> float:
+    def factor(self, *, inherited: float = 1.0, **_: Any) -> float:
         """The lineage's current factor — the engine threads it and passes it back as ``inherited``."""
         return inherited
 
@@ -252,7 +260,7 @@ class ByLineage(Modifier):
             return math.exp(rng.normal(-0.5 * s * s, s))     # mean-corrected lognormal
         return float(rng.gamma(1.0 / (s * s), s * s))        # mean-1 gamma, coefficient of variation = s
 
-    def factor(self, *, bylineage: float = 1.0, **_: float) -> float:
+    def factor(self, *, bylineage: float = 1.0, **_: Any) -> float:
         """The lineage's drawn factor — the engine threads it and passes it back as ``bylineage``."""
         return bylineage
 
@@ -304,7 +312,7 @@ class ByFamily(Modifier):
             return math.exp(rng.normal(-0.5 * s * s, s))     # mean-corrected lognormal
         return float(rng.gamma(1.0 / (s * s), s * s))        # mean-1 gamma, coefficient of variation = s
 
-    def factor(self, *, byfamily: float = 1.0, **_: float) -> float:
+    def factor(self, *, byfamily: float = 1.0, **_: Any) -> float:
         """The family's drawn factor — the engine threads it and passes it back as ``byfamily``."""
         return byfamily
 
@@ -355,7 +363,7 @@ class DrivenBy(Modifier):
         self.source = source
         self.mapping = as_mapping(mapping)
 
-    def factor(self, *, drivers: Mapping | None = None, **_: float) -> float:
+    def factor(self, *, drivers: Mapping | None = None, **_: Any) -> float:
         """The mapped multiplier for this lineage's driver value — the engine threads the value under
         ``drivers[key]`` (``key`` is the source string, or the identity of an in-memory driver). No
         ``drivers`` (or this source absent) ⇒ 1.0, so an unthreaded rate is inert (the engine is

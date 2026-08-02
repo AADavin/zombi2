@@ -94,8 +94,8 @@ class SpeciesResult:
         speciations = sum(1 for e in self.events if e.kind == "speciation")
         extinctions = sum(1 for e in self.events if e.kind == "extinction")
         # total branch length: every node's own branch, which is the exposure a per-lineage rate ran on
-        exposure = sum((n.end_time or 0.0) - n.birth_time for n in nodes.values())
-        height = max((n.end_time or 0.0) for n in extant) if extant else None
+        exposure = sum(n.end_time - n.birth_time for n in nodes.values())
+        height = max(n.end_time for n in extant) if extant else None
         root = nodes[self.complete_tree.root]
         return {
             "level": "species",
@@ -105,7 +105,7 @@ class SpeciesResult:
             "nodes": len(nodes),
             "events": {"speciation": speciations, "extinction": extinctions},
             "fossils": len(self.fossils),
-            "tree": {"height": height, "stem_length": (root.end_time or 0.0) - root.birth_time,
+            "tree": {"height": height, "stem_length": root.end_time - root.birth_time,
                      "total_branch_length": exposure},
             # events per lineage per unit time, as declared rates are counted. A sanity check, not a
             # parameter: it is what the run realised, which a conditioned stop condition can bias.

@@ -6,6 +6,7 @@ import collections
 import pathlib
 from dataclasses import dataclass, field
 from functools import cached_property
+from typing import cast
 
 
 from .._runtime.summary import _stats, write_summary
@@ -106,7 +107,7 @@ class TraitsResult:
         values = list(self.values.values())
         switches = sum(1 for e in self.events if e.kind == "on_branch")
         jumps = sum(1 for e in self.events if e.kind == "on_speciation")
-        out = {
+        out: dict[str, object] = {
             "level": "traits",
             "seed": self.seed,
             "kind": self.kind,
@@ -125,11 +126,12 @@ class TraitsResult:
             out["most_common_share"] = (round(counts.most_common(1)[0][1] / len(values), 6)
                                         if values else None)
         else:
-            numeric = [float(v) for v in values]
+            numeric = [float(cast(float, v)) for v in values]
             out["values"] = _stats(numeric)
             # the root NODE, i.e. after diffusing along the stem — not the value the run started
             # from, which is `start` and belongs to no node
-            out["value_at_root_node"] = float(self.node_values[self.complete_tree.root])
+            out["value_at_root_node"] = float(
+                cast(float, self.node_values[self.complete_tree.root]))
         return out
 
     def write(self, directory, outputs=("values",)) -> None:
@@ -230,11 +232,14 @@ def _values_tsv(values: dict[int, object], names: dict | None = None,
     one ``trait`` column; correlated traits give one per trait."""
     kinds = kinds or {}
     kind = lambda i: kinds.get(i, "ancestor")
-    if values and isinstance(next(iter(values.values())), dict):  # correlated / multi-trait
-        cols = list(next(iter(values.values())))
+    first = next(iter(values.values())) if values else None
+    if isinstance(first, dict):                                   # correlated / multi-trait
+        per_trait = cast("dict[int, dict[str, object]]", values)
+        cols = list(first)
         rows = ["node\tkind\t" + "\t".join(str(c) for c in cols)]
-        for i in sorted(values):
-            rows.append(f"{_name(names, i)}\t{kind(i)}\t" + "\t".join(_fmt(values[i][c]) for c in cols))
+        for i in sorted(per_trait):
+            rows.append(f"{_name(names, i)}\t{kind(i)}\t"
+                        + "\t".join(_fmt(per_trait[i][c]) for c in cols))
         return "\n".join(rows) + "\n"
     rows = ["node\tkind\ttrait"]
     for i in sorted(values):
@@ -266,13 +271,15 @@ def _events_tsv(changes: list[Change], names: dict | None = None) -> str:
             frm = "" if c.from_state is None else _fmt(c.from_state)  # the initial row leads from nothing
             rows.append(f"{c.time!r}\t{c.kind}\t{_name(names, c.lineage)}\t{frm}\t{_fmt(c.to_state)}")
         return "\n".join(rows) + "\n"
-    cols = list(changes[0].to_state)
+    cols = list(cast("dict[str, object]", changes[0].to_state))
     rows = ["time\tkind\tlineage\t"
             + "\t".join(f"from:{c}" for c in cols) + "\t" + "\t".join(f"to:{c}" for c in cols)]
     for c in changes:
-        frm = ["" for _ in cols] if c.from_state is None else [_fmt(c.from_state[t]) for t in cols]
+        to_state = cast("dict[str, object]", c.to_state)      # every change of a multi-trait run
+        from_state = cast("dict[str, object] | None", c.from_state)
+        cells = ["" for _ in cols] if from_state is None else [_fmt(from_state[t]) for t in cols]
         rows.append(f"{c.time!r}\t{c.kind}\t{_name(names, c.lineage)}\t"
-                    + "\t".join(frm) + "\t" + "\t".join(_fmt(c.to_state[t]) for t in cols))
+                    + "\t".join(cells) + "\t" + "\t".join(_fmt(to_state[t]) for t in cols))
     return "\n".join(rows) + "\n"
 
 

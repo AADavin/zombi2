@@ -41,7 +41,7 @@ def node_label(node_id: int | None, fate: str | None = None) -> str:
     rely on. Empty for ``None``, which is how an absent ``recipient`` / ``donor`` writes itself."""
     if node_id is None:
         return ""
-    return f"{_PREFIX.get(fate, 'n')}{node_id}"
+    return f"{_PREFIX.get(fate or '', 'n')}{node_id}"
 
 
 def node_from_label(cell: str) -> int:
@@ -53,12 +53,17 @@ def node_from_label(cell: str) -> int:
 @dataclass
 class Node:
     """One lineage segment: born at ``birth_time``, ended at ``end_time`` by a split, a
-    death, or reaching the present. A split has two ``children``; a leaf has none."""
+    death, or reaching the present. A split has two ``children``; a leaf has none.
+
+    ``end_time`` defaults to ``inf`` — *has not ended yet*, which is the state a lineage is in while
+    the engine is still growing it. Every node of a finished `Tree` has a real end, so the toolkit
+    reads it as the number it is; a stray ``inf`` that escaped would surface as an infinite branch
+    length rather than as a ``None`` propagating quietly through the arithmetic."""
 
     id: int
     parent: int | None
     birth_time: float
-    end_time: float | None = None
+    end_time: float = math.inf
     children: tuple[int, int] | None = None
     fate: str = "alive"  # alive → "extant" | "extinct" | "unsampled"; internal splits are "speciation"
 
@@ -183,7 +188,7 @@ def prune(tree: Tree, keep: str = "extant") -> Tree | None:
         if p is None:
             ext_root = i
 
-    def kept_children(i: int) -> tuple[int, ...]:
+    def kept_children(i: int) -> tuple[int, int] | None:
         """``i``'s kept children, **in the order the complete tree had them**.
 
         Descends through the surviving unifurcations a pruned sibling leaves behind, taking the
@@ -194,7 +199,7 @@ def prune(tree: Tree, keep: str = "extant") -> Tree | None:
         sides, and any figure showing both, or any reader joining them by position, disagrees with
         itself."""
         out: list[int] = []
-        stack = list(reversed(nodes[i].children or ()))
+        stack: list[int] = list(reversed(nodes[i].children or ()))
         while stack:
             c = stack.pop()
             if not surviving[c]:
@@ -203,13 +208,18 @@ def prune(tree: Tree, keep: str = "extant") -> Tree | None:
                 out.append(c)
             else:                                   # a unifurcation: its kept descendants stand in
                 stack.extend(reversed(nodes[c].children or ()))
-        return tuple(out)
+        if not out:
+            return None
+        if len(out) != 2:                       # `kept` is exactly the leaves and the real splits
+            raise AssertionError(f"node {i} kept {len(out)} children; a pruned tree is bifurcating")
+        return out[0], out[1]
 
     for i in kept:
         children = kept_children(i)
-        if children:
+        if children is not None:
             new[i].children = children
 
+    assert ext_root is not None                 # `kept` is non-empty, so its root was found above
     return Tree(new, ext_root)
 
 
@@ -225,10 +235,10 @@ def _assign_fates_from_map(leaves: list[Node], labels: dict[int, str],
     value must be ``extant`` / ``extinct`` / ``unsampled``; anything off raises, naming ``source`` (the
     map it came from) so the message points at the right file. Used for both a ZOMBI tree keyed by its
     ``n<id>`` labels and an external tree keyed by the user's labels."""
-    labelled = [labels.get(n.id) for n in leaves]  # every tip must be uniquely named to map a fate
-    if any(lbl is None for lbl in labelled):
+    if any(n.id not in labels for n in leaves):    # every tip must be uniquely named to map a fate
         raise ValueError(f"every tip must be named to declare its fate with {source}, but the "
                          "tree has unlabelled tips")
+    labelled = [labels[n.id] for n in leaves]
     if len(set(labelled)) != len(labelled):
         dups = sorted({lbl for lbl in labelled if labelled.count(lbl) > 1})
         raise ValueError(f"tip labels must be unique to map fates; repeated: {', '.join(dups)}")
@@ -432,7 +442,9 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
     def _mint(p: _P) -> int:
         nonlocal counter
         if all_labelled:
-            return int(_ZOMBI_LABEL.match(p.name).group(2))
+            m = _ZOMBI_LABEL.match(p.name)      # `all_labelled` is exactly "every label matched"
+            assert m is not None
+            return int(m.group(2))
         i_ = counter
         counter += 1
         return i_
@@ -443,7 +455,8 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
         if nid in nodes:
             raise ValueError(f"duplicate node id n{nid} in the Newick (labels must be unique)")
         end = birth + p.length
-        child_ids = tuple(_build(c, nid, end) for c in p.children) or None
+        kids = [_build(c, nid, end) for c in p.children]     # arity was checked while parsing
+        child_ids = (kids[0], kids[1]) if kids else None
         nodes[nid] = Node(nid, parent, birth, end, child_ids)  # fate filled in below
         if all_labelled:
             written[nid] = p.name              # the label as the file spells it: n<id> or e<id>
@@ -609,6 +622,7 @@ def rescale(tree: Tree, *, height: float | None = None, factor: float | None = N
     if (height is None) == (factor is None):
         raise ValueError("pass exactly one of height= or factor=")
     if factor is None:
+        assert height is not None                # exactly one of the two was given, checked above
         depth = _depths(tree)
         current = max(depth[i] for i, n in tree.nodes.items() if n.children is None)
         if current <= 0:
