@@ -37,6 +37,26 @@ def synteny_pair(out):
     (ph.genomes.stack([G[a], G[b]]) + ph.genomes.genes(by="family") + ph.genomes.synteny(opacity=0.42)).save(out)
 
 
+def synteny_on_the_tree(out):
+    """Every tip's gene order beside the tree, homologues ribboned between neighbouring genomes.
+
+    The pair figure above shows two genomes; this shows the whole clade at once, which is where a
+    synteny picture starts saying something about *history* — a collinear block that survives down
+    one clade and breaks in another.
+
+    Genes are coloured by their position in the **ancestral** order, so a genome still in that order
+    reads as a clean gradient and every rearrangement is a break in it. Categorical colours would
+    make the reader match hues instead of reading the shape."""
+    run = h.synteny_tree_run()
+    tree = ph.trees.read(run + "/species/species_extant.nwk")
+    genomes = ph.zombi.read_genomes(run)
+    style = ph.Style(width=1240, height=840, margin=72, branch_width=2.4)
+    panel = ph.genomes.tracks(list(genomes.values()), reference=h.initial_gene_order(run),
+                              cmap="viridis", opacity=0.38)
+    ph.beside(ph.trees.plot(tree, style=style), panel,
+              width=1240, height=840, tree_fraction=0.27, gap=22, pad=34).save(out)
+
+
 def tree_with_events(out):
     run = h.events_run()                                          # 40 species, high speciation
     tree = ph.trees.read(run + "/species/species_extant.nwk")
@@ -286,6 +306,27 @@ G = ph.zombi.read_genomes("run/genomes")
  + ph.genomes.genes(by="family")
  + ph.genomes.synteny()).save("synteny.png")         # ribbons link same-family genes'''
 
+_C_SYNTENY_TREE = '''\
+### simulate  —  30 species, 14 families on one chromosome, gently rearranged
+zombi2 species run --birth 1.0 --death 0.45 --n-extant 30 --seed 56
+zombi2 genomes run --resolution ordered --initial-families 14 \\
+                   --duplication 0.015 --loss 0.015 \\
+                   --inversion 0.10 --inversion-extent 3 --seed 5
+
+### plot  —  Phylustrator
+import phylustrator as ph
+
+tree = ph.trees.read("run/species/species_extant.nwk")
+G = ph.zombi.read_genomes("run")
+ancestral = [g.family for g in ph.zombi.read_genomes("run")["initial"].genes]
+
+style = ph.Style(width=1240, height=840, margin=72, branch_width=2.4)
+panel = ph.genomes.tracks(list(G.values()),      # one gene track per genome
+                          reference=ancestral,   # colour by ANCESTRAL position…
+                          cmap="viridis")        # …so a rearrangement is a break in the gradient
+ph.beside(ph.trees.plot(tree, style=style), panel,
+          width=1240, height=840, tree_fraction=0.27).save("synteny_tree.png")'''
+
 _C_EVENTS = '''\
 ### simulate  —  high speciation, 40 species, with D/T/L (a different tree)
 zombi2 species run --birth 1.8 --death 0.3 --n-extant 40 --seed 7
@@ -398,6 +439,12 @@ EXAMPLES = [
             "Two genomes, one per row; ribbons link same-family genes and cross where the order was "
             "rearranged. <code>stack([a,b])&nbsp;+&nbsp;synteny()</code>.",
             "phylustrator · synteny", synteny_pair, code=_C_SYNTENY),
+    Example("genome_synteny_tree", "Synteny across a whole clade",
+            "Every tip's gene order beside the tree, homologues ribboned between neighbours. Genes "
+            "are coloured by their position in the <em>ancestral</em> order, so a genome still in "
+            "that order is a clean gradient and each rearrangement is a break in it. "
+            "<code>beside(plot(tree),&nbsp;tracks(genomes,&nbsp;reference=…))</code>.",
+            "phylustrator · synteny", synteny_on_the_tree, code=_C_SYNTENY_TREE),
     Example("genome_tree_events", "Gene-family events on the tree",
             "One family's history on the species tree: duplications (squares), losses (crosses) and "
             "transfers (arrows, donor→recipient). <code>plot(tree)&nbsp;+&nbsp;branch_events(…)</code>.",

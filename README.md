@@ -60,7 +60,7 @@ evolves along a species tree, so you run whichever you need, composed into one s
 reproducible run.
 
 <p align="center">
-  <img alt="The four levels of evolution ZOMBI2 simulates: the species tree forks into genomes and traits, and sequences continue below genomes" src="manual/book/figures/fig-2-1-four-levels.svg" width="450">
+  <img alt="One simulated dataset at all four levels: a species tree with its extinct lineages, the gene order of every surviving genome with homologues linked, the alignment behind one gene family, and two traits drifting together" src="assets/overview.png" width="900">
 </p>
 
 - **[Species trees](https://aadavin.github.io/zombi2/docs/guide/species-trees/)** — a
@@ -79,18 +79,16 @@ reproducible run.
   diffuse, revert to an optimum or shift at speciation, and discrete traits switching between
   states.
 
-## Combining levels
+<p align="center">
+  <img alt="The four levels of evolution ZOMBI2 simulates: the species tree forks into genomes and traits, and sequences continue below genomes" src="manual/book/figures/fig-2-1-four-levels.svg" width="360">
+</p>
 
-Levels do not have to run side by side: one can drive another. Both ways of doing it are the same
-mechanism, `DrivenBy(source, mapping)`, written on any rate. See
-[conditioning](https://aadavin.github.io/zombi2/docs/guide/conditioning/) and
-[joining](https://aadavin.github.io/zombi2/docs/guide/joining/).
+## Conditioning
 
-### Conditioning
-
-A rate reads the state of a level that has already been grown. There are three parts: the **driver**,
-the level that is read; the **modifier**, which turns the driver's state into a factor; and the
-**target**, the rate it multiplies.
+**[Conditioning](https://aadavin.github.io/zombi2/docs/guide/conditioning/)** is a rate reading the
+state of a level that has already been grown. There are three parts: the **driver**, the level that
+is read; the **modifier**, which turns the driver's state into a factor; and the **target**, the rate
+it multiplies.
 
 <p align="center">
   <img alt="Conditioning: a habitat trait on the left, an arrow labelled drives running right to the gene loss rate and carrying a multiplier for each habitat state, and under the loss rate the expression you write on it, 0.25 times DrivenBy of habitat" src="manual/book/figures/conditioning.svg" width="560">
@@ -102,9 +100,10 @@ zombi2 traits  out/ --kind discrete --states aquatic,terrestrial --switch 0.4 --
 zombi2 genomes out/ --loss "0.25 * DrivenBy('out/traits/trait_events.tsv', {'aquatic': 4.0})" --seed 1
 ```
 
-### Joining
+## Joining
 
-When neither level can be grown first — because each drives the other — one run grows both. A trait
+**[Joining](https://aadavin.github.io/zombi2/docs/guide/joining/)** is what to reach for when neither
+level can be grown first, because each drives the other: one run grows both. A trait
 that speeds up speciation is the standard case: the tree shapes the trait's history and the trait
 shapes the tree, so the tree is an *output* of the joint run rather than an input to it.
 

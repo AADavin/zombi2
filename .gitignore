@@ -70,3 +70,7 @@ HANDOFF.md
 # Claude Code session directory — local settings and session state, not committed. (If you ever
 # want to share Claude config in-repo, un-ignore the specific file, e.g. `!.claude/settings.json`.)
 .claude/
+
+# the overview figure's working directory: its panels and cached run regenerate from
+# `python figures/scripts/fig_overview.py`; only assets/overview.png is committed.
+figures/_overview/

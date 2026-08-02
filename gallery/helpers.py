@@ -346,6 +346,31 @@ def ordered_run() -> str:
     return run
 
 
+def synteny_tree_run() -> str:
+    """A cached 30-tip run for the whole-clade synteny figure.
+
+    Rearranged **gently** on purpose. A synteny picture says something only when the blocks are
+    mostly collinear and a few have moved: shuffled hard, every row is a fresh permutation and the
+    ribbons cross into noise, which reads as decoration rather than as data. At `inversion=0.10` one
+    clade comes out strikingly collinear while the other is visibly rearranged, so the panel shows
+    structure varying *across the tree* rather than a uniform amount of shuffling."""
+    run = os.path.join(_DATA, "synteny_tree")
+    if not os.path.isdir(os.path.join(run, "genomes")):
+        _zombi("species", run, "--birth", 1.0, "--death", 0.45, "--n-extant", 30, "--seed", 56)
+        _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 14,
+               "--duplication", 0.015, "--loss", 0.015,
+               "--inversion", 0.10, "--inversion-extent", 3, "--seed", 5)
+    return run
+
+
+def initial_gene_order(run: str) -> list:
+    """The gene order the run started with — the ancestral arrangement a synteny figure colours
+    against, read from ``initial_genome.tsv`` by column name."""
+    with open(os.path.join(run, "genomes", "initial_genome.tsv"), encoding="utf-8") as f:
+        ix = {name: k for k, name in enumerate(f.readline().rstrip("\n").split("\t"))}
+        return [line.rstrip("\n").split("\t")[ix["family"]] for line in f if line.strip()]
+
+
 def events_run() -> str:
     """A cached high-speciation run (40 extant genomes) with plenty of D/T/L for the events figure."""
     run = os.path.join(_DATA, "events")
