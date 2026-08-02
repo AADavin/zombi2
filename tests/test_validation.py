@@ -31,6 +31,13 @@ So each test here computes a quantity with a **closed form** and checks the run 
   stays at ``π`` however deep the tree, and changes ``i→j`` and ``j→i`` balance, which is
   reversibility itself. The **empirical protein** matrices get the same two checks, where the risk
   is not algebra but a table of 190 published numbers transcribed wrongly;
+- a **site profile** puts row *i* on site *i*. Over an equal-exchangeability model a profiled site is
+  Felsenstein's F81, whose ``S·(1 − e^(−d/S))`` with ``S = 1 − Σπ²`` gives each block of a profile its
+  own closed form — and the total over sites cannot catch a shuffled profile, because summing over
+  positions is permutation-invariant. The profile's other promise, that it changes *where* residues
+  belong and not *which pairs interchange*, is checked separately: changes still follow
+  ``π_i·π_j·S_ij`` with the base model's exchangeabilities, which rules out a rebuild that keeps the
+  frequencies and drops the chemistry;
 - **across-site rate classes** reach the sites: ``+I+Γ`` gives the Jukes–Cantor curve *averaged over*
   the classes rather than evaluated at their mean, which by Jensen's inequality is strictly fewer
   differences — so a set of classes that is computed, normalised and then never applied is ruled out;
@@ -78,8 +85,16 @@ fails; 3% does not. Mis-wiring the driver strength by 5% is caught on the condit
 10% on the joint one. At the sequence and trait levels, scaling the substitution rate by 1.02 fails,
 κ by 1.03, the Brownian variance-rate by 1.05, the OU pull by 1.02, an Mk transition rate by 1.03 and
 a declared correlation by 1.05; shifting one stationary frequency by 0.005 fails by 15 standard
-errors, and inflating the lineage clock — the historical bug's signature — by 1.10. So resolution
-sits between a fraction of a percent and about ten percent, depending on the check.
+errors, moving a profile row's dominant frequency from 0.80 to 0.81 by 3.4, and inflating the lineage
+clock — the historical bug's signature — by 1.10. So resolution sits between a fraction of a percent
+and about ten percent, depending on the check.
+
+The **exchangeabilities under a profile are the loose one**, and knowing which check is weakest is
+part of reading this file: one exchangeability has to be off by about 20% before it shows, because
+pinning six of them needs branches short enough that a difference is still a substitution, which caps
+how many changes there are to count. What it does catch decisively is the failure that path invites —
+rebuilding each site from its frequencies and losing the chemistry altogether, which it rejects by
+270 standard errors.
 
 That figure is a property of *these* trees and replicate counts, not of the method: more material, or
 more replicates, tightens it. Which is the honest way to read this file — it is evidence that the
@@ -102,7 +117,7 @@ from zombi2.genomes.ordered import Inversion
 from zombi2.joint import simulate_joint
 from zombi2.rates.modifiers import ByLineage, DrivenBy, FromParent
 from zombi2.sequences import simulate_sequences
-from zombi2.sequences.substitution_models import BASES, hky85, jc69, k80, lg
+from zombi2.sequences.substitution_models import BASES, gtr, hky85, jc69, k80, lg, poisson
 from zombi2.species import simulate_species_tree
 from zombi2.traits import discrete, simulate_continuous, simulate_discrete
 
@@ -759,6 +774,157 @@ def test_an_empirical_protein_matrix_keeps_the_frequencies_it_was_published_with
     assert abs(_z(np.array(asymmetry), 1.0)) < Z_MAX, (
         f"{model.name}: forward and reverse changes give χ²/df = {np.mean(asymmetry):.4f} rather "
         f"than 1 — the published matrix is not being used reversibly")
+
+
+def test_a_site_profile_governs_the_site_it_belongs_to():
+    """``profiles=``: row *i* of the array is the equilibrium frequencies at position *i*, and the
+    thing worth proving is that row *i* really lands on site *i*.
+
+    A profile that was transposed, shifted by one, or collapsed so that one row governed the whole
+    gene would still produce a well-formed alignment of exactly the right length, over the right
+    alphabet, with a sensible-looking overall composition. Only a per-site expectation catches it, and
+    the *total* over sites cannot: summing over positions is permutation-invariant, so a shuffled
+    profile has the same total divergence as the right one. So the profile here is **blocked** — a
+    flat half and a sharply peaked half — and each half is checked against its own closed form.
+
+    That closed form exists because the base model is `poisson()`, whose exchangeabilities are all
+    equal. A site of an equal-exchangeability model over frequencies ``π`` is Felsenstein's F81, and
+    F81 has a closed form for the chance a site differs across a branch of length ``d``:
+
+        ``P(differ) = S·(1 − e^(−d/S))``   with ``S = 1 − Σπ²``
+
+    — which at uniform ``π`` is ``3/4·(1 − e^(−4d/3))``, Jukes–Cantor, as it must be. ``S`` is what a
+    profile changes: a peaked site has a low ``S`` and saturates early, because most of the time the
+    residue it mutates to is the one it already was. Here the two blocks sit at ``S = 0.95`` and
+    ``S = 0.36``, so they saturate in visibly different places and each block's expectation is
+    strongly wrong for the other — which is the assertion at the end.
+
+    The formula also pins the **normalisation**. Every per-site model is rebuilt from the base
+    model's exchangeabilities and its own row, and rebuilt models are renormalised to one expected
+    substitution per site per unit branch length; if that step were dropped, a peaked profile would
+    quietly run at a different rate and the phylogram would stop meaning substitutions per site."""
+    model, block, substitution, reps = poisson(), 120, 1.0, 12
+    table = _coder(model.alphabet)
+    k = model.k
+
+    flat = np.full(k, 1 / k)
+    peaked = np.full(k, 0.2 / (k - 1))
+    peaked[0] = 0.8
+    rows = np.vstack([np.tile(flat, (block, 1)), np.tile(peaked, (block, 1))])
+    halves = {"flat": (np.arange(block), flat),
+              "peaked": (np.arange(block, 2 * block), peaked)}
+    spread = {name: 1 - float((pi ** 2).sum()) for name, (_, pi) in halves.items()}
+
+    seen = dict.fromkeys(halves, 0.0)
+    expected = dict.fromkeys(halves, 0.0)
+    variance = dict.fromkeys(halves, 0.0)
+    swapped = dict.fromkeys(halves, 0.0)        # what the *other* half's row would predict
+    composition = {name: [] for name in halves}
+
+    for seed in range(reps):
+        tree, genomes = _one_copy_per_lineage(n_extant=10, families=2, seed=seed)
+        run = simulate_sequences(genomes, model=model, length=2 * block,
+                                 substitution=substitution,
+                                 profiles={f: rows for f in genomes.gene_trees}, seed=seed)
+        residues = {name: np.zeros(k) for name in halves}
+        for family in genomes.gene_trees:
+            for sequence in run.alignments[family].values():
+                coded = _codes(sequence, table)
+                for name, (sites, _) in halves.items():
+                    residues[name] += np.bincount(coded[sites], minlength=k)
+            for ancestor, descendant, d in _sequence_branches(tree, run, family, substitution, table):
+                for name, (sites, _) in halves.items():
+                    other = spread["peaked" if name == "flat" else "flat"]
+                    p = spread[name] * (1 - math.exp(-d / spread[name]))
+                    seen[name] += float((ancestor[sites] != descendant[sites]).sum())
+                    expected[name] += p * len(sites)
+                    variance[name] += p * (1 - p) * len(sites)
+                    swapped[name] += other * (1 - math.exp(-d / other)) * len(sites)
+        for name in halves:
+            composition[name].append(residues[name] / residues[name].sum())
+
+    for name, (_, pi) in halves.items():
+        assert abs((seen[name] - expected[name]) / math.sqrt(variance[name])) < Z_MAX, (
+            f"the {name} half of the profile differs at {seen[name]:.0f} sites against the "
+            f"F81 curve its own row implies, {expected[name]:.0f} (S = {spread[name]:.3f})")
+        assert abs((seen[name] - swapped[name]) / math.sqrt(variance[name])) > 10, (
+            f"the {name} half is not distinguishable from the other half's row — the rows may not be "
+            f"reaching the sites they belong to")
+
+        # Where the mass sits, on the residue the peaked row concentrates it on: 0.8 in that half and
+        # 1/20 in the flat one. One well-conditioned number per half rather than all 20 frequencies —
+        # the rare residues of a peaked row carry too few counts for their spread to be estimated from
+        # a dozen replicates, and `test_an_empirical_protein_matrix…` already pins a full frequency
+        # vector where the counts support it. Between this and the F81 curve above the whole row is
+        # constrained anyway: S fixes how concentrated the row is, this fixes where.
+        dominant = np.array([replicate[0] for replicate in composition[name]])
+        assert abs(_z(dominant, pi[0])) < Z_MAX, (
+            f"in the {name} half {model.alphabet[0]} settles at {dominant.mean():.4f} of the sites "
+            f"but its row says {pi[0]:.4f}")
+        other = halves["peaked" if name == "flat" else "flat"][1]
+        assert abs(_z(dominant, other[0])) > 20, (
+            f"the {name} half's composition is not distinguishable from the other half's row")
+
+
+def test_a_profile_keeps_the_chemistry_of_the_model_it_decorates():
+    """The other half of what a profile promises: it says **where** residues belong, not **which
+    pairs interchange**.
+
+    A profile replaces a model's frequencies site by site while keeping its exchangeabilities, so a
+    run under a profile should still show the base model's chemistry. The failure this rules out is
+    the plausible one — rebuilding each site from its frequencies alone and losing the exchangeability
+    matrix on the way, which turns every model into F81. Nothing downstream would look wrong: the
+    composition would still match the profile (the test above would still pass), the sequences would
+    still be well formed, and only *which* substitutions happen would be homogenised.
+
+    Under a reversible model at stationarity, changes between ``i`` and ``j`` happen at a rate
+    proportional to ``π_i·π_j·S_ij``, so with one profile shared by every site the pooled change
+    counts should follow that product — with ``S`` the exchangeabilities **this test supplied** to
+    ``gtr()``, not any matrix read back out of the model.
+
+    ``π_i·π_j·S_ij`` is a statement about *rates*, and observed differences are only substitutions
+    while branches are short enough that a site rarely changes twice. So the substitution rate here
+    is deliberately small: at ``0.04`` the second-order correction sits below the counting noise,
+    while at the ``0.6`` the tests above use it does not, and this same check would report a large
+    and entirely spurious misfit. Four states rather than twenty for the same reason — six
+    exchangeabilities need far less material to pin than 190, and the run has to stay short."""
+    exchangeabilities = (1.0, 3.0, 0.5, 2.0, 4.0, 1.5)      # AC AG AT CG CT GT, deliberately uneven
+    profile = np.array([0.4, 0.35, 0.15, 0.10])
+    substitution, length, families, reps = 0.04, 300, 3, 6
+
+    upper = np.triu_indices(4, 1)
+    S = np.zeros((4, 4))
+    S[upper] = exchangeabilities
+    S = S + S.T
+
+    rows = np.tile(profile, (length, 1))
+    changes = np.zeros((4, 4))
+    for seed in range(reps):
+        tree, genomes = _one_copy_per_lineage(n_extant=10, families=families, seed=seed)
+        run = simulate_sequences(genomes, model=gtr(exchangeabilities, (0.25, 0.25, 0.25, 0.25)),
+                                 length=length, substitution=substitution,
+                                 profiles={f: rows for f in genomes.gene_trees}, seed=seed)
+        for family in genomes.gene_trees:
+            for ancestor, descendant, _ in _sequence_branches(tree, run, family, substitution):
+                changed = ancestor != descendant
+                np.add.at(changes, (ancestor[changed], descendant[changed]), 1)
+
+    observed = (changes + changes.T)[upper]                 # changes between i and j, either way
+    exposure = (profile[:, None] * profile[None, :])[upper]
+    assert observed.sum() > 1500 and observed.min() > 50, (
+        f"only {observed.sum():.0f} changes, rarest pair {observed.min():.0f} — too few to judge")
+
+    def misfit(weights) -> float:
+        expected = observed.sum() * weights / weights.sum()
+        chi2 = float((((observed - expected) ** 2) / expected).sum())
+        return (chi2 - (len(observed) - 1)) / math.sqrt(2 * (len(observed) - 1))
+
+    assert abs(misfit(exposure * S[upper])) < Z_MAX, (
+        f"changes under a profile do not follow π_i·π_j·S_ij with the exchangeabilities the model "
+        f"was built from ({misfit(exposure * S[upper]):+.1f} standard errors) — the profile is not "
+        f"keeping the base model's chemistry")
+    assert misfit(exposure) > 20, (
+        "equal exchangeabilities are not ruled out — a profile may be collapsing its model to F81")
 
 
 def test_a_trait_driving_the_substitution_rate_is_integrated_across_the_branch():
