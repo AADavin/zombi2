@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-08-02
+
 ### Added
 - **A stated reproducibility contract, and a test that checks it.** What a seed guarantees was
   true but nowhere written down, and nothing verified it: every other test asserts a *property* of
