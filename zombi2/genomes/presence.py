@@ -5,12 +5,16 @@ from their own event log. A **gene family** can answer it too — present or abs
 other direction of the same relation: a trait can already make a genome rate faster, and this is what
 lets a genome make a trait's rate faster.
 
-The trajectory is read off the family's **gene tree**, not off the raw event log. Each `GeneNode`
-records the species branch it lived on and when it ended, and its parent records when it began, so a
-gene is an interval on a branch and the family is present on that branch exactly while at least one
-interval covers it. That derivation is already tested (`gene_trees`), and rebuilding the copy count
-from event edges would mean re-deriving it — with two rows per duplication and per transfer to
-deduplicate, and the arriving half of a transfer to tell from the continuing half.
+The trajectory is read off the family's **gene tree**. Each `GeneNode` records the species branch it
+lived on and when it ended, and its parent records when it began, so a gene is an interval on a branch
+and the family is present there exactly while at least one interval covers it.
+
+That is not a way of avoiding the event log — it is the log after the step that turns it into
+genealogies. Presence needs to know when each copy *began* and *ended*, and neither form of the log
+says so directly: ``result.events`` is one row per gene-tree edge (two per duplication, two per
+transfer), and the written ``genome_events.tsv`` is one row per event with ``parents`` / ``children``
+gene ids. Either way, getting from ids to intervals means rebuilding the genealogy, which is exactly
+`gene_trees_from_events`. Doing it here would be a second implementation of a tested one.
 """
 
 from __future__ import annotations
