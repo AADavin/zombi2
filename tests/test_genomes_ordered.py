@@ -222,7 +222,7 @@ def test_chromosome_count_is_conserved_through_speciation():
 
 def test_transfer_events_appear_and_cross_species_branches():
     _, r = _run(seed=7, self_transfer=False)
-    xfer_rows = [e for e in r.events if e.kind == "transfer"]
+    xfer_rows = [e for e in r.edges if e.kind == "transfer"]
     assert xfer_rows                                           # transfers really fired
     # the recipient row carries a recipient different from the donor lineage
     recip = [e for e in xfer_rows if e.recipient is not None]
@@ -231,7 +231,7 @@ def test_transfer_events_appear_and_cross_species_branches():
 
 def test_no_transfer_events_when_transfer_is_zero():
     _, r = _run(seed=8, transfer=0.0)
-    assert not any(e.kind == "transfer" for e in r.events)
+    assert not any(e.kind == "transfer" for e in r.edges)
 
 
 def test_replacement_run_stays_consistent():
@@ -266,7 +266,7 @@ def _ordered_digest(r) -> str:
     import hashlib
     key = repr([
         [(round(e.time, 12), e.kind, e.lineage, e.family, e.copy, e.parent, e.recipient)
-         for e in r.events],
+         for e in r.edges],
         [(round(p.time, 12), p.kind, p.lineage, p.chromosome, p.start, p.length, p.family,
           p.donor, p.recipient, p.dest_position) for p in r.event_positions],
         [(type(x).__name__, round(x.time, 12), x.lineage, tuple(sorted(vars(x).items())))
@@ -754,7 +754,7 @@ def test_the_genealogy_and_the_rearrangements_are_two_tables(tmp_path):
     assert {col(x, "kind") for x in rows} <= {"origination", "duplication", "loss", "speciation",
                                               "transfer_additive", "transfer_replacing"}
     # one row per EVENT, not per gene-tree edge: the kinds that end a gene and start two write one
-    assert len(rows) == len({(e.kind, e.event) for e in r.events})
+    assert len(rows) == len({(e.kind, e.event) for e in r.edges})
     # every event that moved genes carries where it happened; a speciation moves nothing and never has
     assert all(col(x, "chromosome") for x in rows if col(x, "kind") != "speciation")
     assert not [x for x in rows if col(x, "kind") == "speciation" and col(x, "chromosome")]
@@ -1040,7 +1040,7 @@ _STEERED = dict(transfer=1.0, initial_families=12, max_family_size=8, seed=11)
 
 def _arrivals(result):
     """Every fired transfer's arrival row — the recipient's half of the horizontal edge."""
-    return [e for e in result.events if e.kind == "transfer" and e.recipient is not None]
+    return [e for e in result.edges if e.kind == "transfer" and e.recipient is not None]
 
 
 def _sha(obj):
@@ -1049,7 +1049,7 @@ def _sha(obj):
 
 def _event_digest(result):
     return _sha([(round(e.time, 12), e.kind, e.lineage, e.family, e.copy, e.parent, e.recipient)
-                 for e in result.events])
+                 for e in result.edges])
 
 
 def _layout_digest(result):
@@ -1107,7 +1107,7 @@ def test_clades_steer_an_ordered_transfer_between_two_clades():
         sp, transfer_to=Clades({"A": a, "B": b},
                                Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)),
         **_STEERED)
-    pairs = _clade_pairs(r.events, lab)
+    pairs = _clade_pairs(r.edges, lab)
     assert pairs
     assert all(p in {("A", "B"), ("B", "A")} for p in pairs)
 
@@ -1121,7 +1121,7 @@ def test_clades_steer_an_ordered_transfer_in_one_direction_only():
     r = simulate_genomes_ordered(
         sp, transfer_to=Clades({"A": a, "B": b}, Between({("A", "B"): 1.0}, default=0.0)),
         **_STEERED)
-    pairs = _clade_pairs(r.events, lab)
+    pairs = _clade_pairs(r.edges, lab)
     assert pairs
     assert all(p == ("A", "B") for p in pairs)
 
@@ -1138,7 +1138,7 @@ def test_steering_composes_with_replacement():
         transfer_to=Clades({"A": a, "B": b},
                            Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)),
         **_STEERED)
-    pairs = _clade_pairs(r.events, lab)
+    pairs = _clade_pairs(r.edges, lab)
     assert pairs
     assert all(p in {("A", "B"), ("B", "A")} for p in pairs)
     assert any(e.replaced is not None for e in _arrivals(r)), "no homolog was displaced — retune"
@@ -1154,8 +1154,8 @@ def test_a_kernel_that_lets_nobody_receive_fires_no_transfer_at_all():
         sp, transfer_to=Clades({"A": tips[:1]}, Between({("A", "rest"): 0.0}, default=0.0)),
         **_STEERED)
     free = simulate_genomes_ordered(sp, transfer_to="uniform", **_STEERED)
-    assert not [e for e in blocked.events if e.kind == "transfer"]
-    assert [e for e in free.events if e.kind == "transfer"]
+    assert not [e for e in blocked.edges if e.kind == "transfer"]
+    assert [e for e in free.edges if e.kind == "transfer"]
 
 
 def test_a_dropped_transfer_leaves_the_donor_chromosome_untouched():

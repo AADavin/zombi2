@@ -33,7 +33,7 @@ def test_named_families_default_path_byte_identical():
     tree = simulate_species_tree(birth=1.0, total_time=1.5, seed=5).complete_tree
     a = genomes.simulate_genomes_family(tree, loss=0.2, initial_families=4, seed=7)
     b = genomes.simulate_genomes_family(tree, loss=0.2, initial_families=4, family_names=None, seed=7)
-    assert [(e.kind, e.copy, e.family) for e in a.events] == [(e.kind, e.copy, e.family) for e in b.events]
+    assert [(e.kind, e.copy, e.family) for e in a.edges] == [(e.kind, e.copy, e.family) for e in b.edges]
 
 
 def test_named_families_validate():
@@ -92,9 +92,10 @@ def test_joint_genome_writes_both_levels(tmp_path):
 
 def test_joint_genome_is_deterministic():
     a, b = _count_joint(seed=9), _count_joint(seed=9)
-    assert [(e.time, e.kind, e.node) for e in a.events] == [(e.time, e.kind, e.node) for e in b.events]
-    assert [(e.time, e.kind, e.lineage, e.copy) for e in a.genome.events] == \
-           [(e.time, e.kind, e.lineage, e.copy) for e in b.genome.events]
+    assert [(e.time, e.kind, e.node) for e in a.events] == \
+           [(e.time, e.kind, e.node) for e in b.events]
+    assert [(e.time, e.kind, e.lineage, e.copy) for e in a.genome.edges] == \
+           [(e.time, e.kind, e.lineage, e.copy) for e in b.genome.edges]
 
 
 # --- the gene-content-dependent-diversification signals -------------------------------------------

@@ -23,7 +23,7 @@ import time
 import numpy as np
 
 from zombi2.genomes import FamilyGenomesResult
-from zombi2.genomes.events import events_from_tsv
+from zombi2.genomes.events import edges_from_tsv
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
 from zombi2.rates.modifiers import ByLineage, DrivenBy, FromParent, Modifier
 from zombi2._runtime.report import write_run_report
@@ -287,7 +287,7 @@ def run(args, parser):
         events_path = os.path.join(handoff, "genome_events.tsv")
         try:
             with open(events_path, encoding="utf-8") as f:
-                events = events_from_tsv(f.read())
+                events = edges_from_tsv(f.read())
         except FileNotFoundError:
             raise FileNotFoundError(
                 f"{events_path} not found — re-run 'zombi2 genomes' with 'events' in --write so the "
@@ -295,7 +295,7 @@ def run(args, parser):
         # The genome run's spine from disk: its gene trees derive from (events, tree), and the species
         # tree drives the species phylogram. The sequence engine reads only .complete_tree and
         # .gene_trees, so an empty `genomes` map is the honest minimal shell (it never escapes here).
-        genome_run = FamilyGenomesResult(complete_tree=tree, genomes={}, events=events, seed=None)
+        genome_run = FamilyGenomesResult(complete_tree=tree, genomes={}, edges=events, seed=None)
         for flag, value in (("--intergene-model", args.intergene_model),):
             if value is not None:
                 parser.error(f"{flag} applies to a nucleotide genome run, where blocks are genes or "

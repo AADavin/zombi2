@@ -49,7 +49,7 @@ def test_accepts_a_result_or_a_bare_tree():
     sp = _tree(seed=7)
     a = simulate_genomes_family(sp, origination=0.5, initial_families=3, seed=1)
     b = simulate_genomes_family(sp.complete_tree, origination=0.5, initial_families=3, seed=1)
-    assert [(e.time, e.kind, e.copy) for e in a.events] == [(e.time, e.kind, e.copy) for e in b.events]
+    assert [(e.time, e.kind, e.copy) for e in a.edges] == [(e.time, e.kind, e.copy) for e in b.edges]
 
 
 # --- determinism -----------------------------------------------------------
@@ -58,8 +58,8 @@ def test_deterministic_given_seed():
     sp = _tree(seed=2)
     kw = dict(duplication=0.3, loss=0.2, origination=0.5, initial_families=4, seed=9)
     a, b = simulate_genomes_family(sp, **kw), simulate_genomes_family(sp, **kw)
-    assert [(e.time, e.kind, e.lineage, e.copy, e.parent) for e in a.events] == \
-           [(e.time, e.kind, e.lineage, e.copy, e.parent) for e in b.events]
+    assert [(e.time, e.kind, e.lineage, e.copy, e.parent) for e in a.edges] == \
+           [(e.time, e.kind, e.lineage, e.copy, e.parent) for e in b.edges]
     assert a.genomes == b.genomes
 
 
@@ -67,8 +67,8 @@ def test_different_seeds_differ():
     sp = _tree(seed=2)
     a = simulate_genomes_family(sp, duplication=0.3, loss=0.2, origination=0.5, initial_families=4, seed=1)
     b = simulate_genomes_family(sp, duplication=0.3, loss=0.2, origination=0.5, initial_families=4, seed=2)
-    assert len(a.events) != len(b.events) or \
-        [e.copy for e in a.events] != [e.copy for e in b.events]
+    assert len(a.edges) != len(b.edges) or \
+        [e.copy for e in a.edges] != [e.copy for e in b.edges]
 
 
 # --- the three events behave --------------------------------------------------
@@ -150,9 +150,9 @@ def test_duplication_bifurcates_into_two_same_family_children():
     # ZOMBI1 model: a duplication ends the gene and starts two fresh ids descending from it
     sp = _tree(seed=8)
     g = simulate_genomes_family(sp, duplication=0.6, initial_families=3, seed=1)
-    fam_of = {e.copy: e.family for e in g.events if e.kind != "loss"}   # every gene's birth family
+    fam_of = {e.copy: e.family for e in g.edges if e.kind != "loss"}   # every gene's birth family
     kids = collections.defaultdict(list)
-    for e in g.events:
+    for e in g.edges:
         if e.kind == "duplication":
             assert e.parent in fam_of and e.family == fam_of[e.parent]  # parent is a real, same-family gene
             kids[e.parent].append(e.copy)
@@ -162,7 +162,7 @@ def test_duplication_bifurcates_into_two_same_family_children():
 def test_every_born_copy_id_is_unique():
     sp = _tree(seed=8, death=0.5)
     g = simulate_genomes_family(sp, duplication=0.4, loss=0.3, origination=0.6, initial_families=5, seed=2)
-    born = [e.copy for e in g.events if e.kind in ("origination", "duplication")]
+    born = [e.copy for e in g.edges if e.kind in ("origination", "duplication")]
     assert len(born) == len(set(born))
 
 
@@ -239,7 +239,7 @@ def _alive_at(tree, node_id, t):
 def test_transfer_events_are_contemporaneous_donor_to_recipient():
     sp = _tree(seed=3, death=0.4)
     g = simulate_genomes_family(sp, transfer=0.4, origination=0.5, initial_families=4, seed=1)
-    xfers = _transfers(g.events)
+    xfers = _transfers(g.edges)
     assert xfers
     for donor, recipient, t in xfers:
         assert donor != recipient                               # a different lineage (default)
@@ -250,8 +250,8 @@ def test_transfer_events_are_contemporaneous_donor_to_recipient():
 def test_transfer_copy_descends_from_a_real_donor_copy():
     sp = _tree(seed=8)
     g = simulate_genomes_family(sp, transfer=0.5, initial_families=5, seed=2)
-    born = {e.copy for e in g.events if e.kind != "loss"}       # every gene id that was born
-    xfer_rows = [e for e in g.events if e.kind == "transfer"]
+    born = {e.copy for e in g.edges if e.kind != "loss"}       # every gene id that was born
+    xfer_rows = [e for e in g.edges if e.kind == "transfer"]
     assert xfer_rows
     for e in xfer_rows:
         assert e.parent in born and e.copy in born             # the donor gene and the new copy are real
@@ -261,7 +261,7 @@ def test_only_transfer_events_carry_a_recipient():
     sp = _tree(seed=2)
     g = simulate_genomes_family(sp, duplication=0.2, transfer=0.3, loss=0.2, origination=0.4,
                                 initial_families=4, seed=1)
-    for e in g.events:
+    for e in g.edges:
         if e.recipient is not None:
             assert e.kind == "transfer"                        # only a transfer names a recipient
 
@@ -269,7 +269,7 @@ def test_only_transfer_events_carry_a_recipient():
 def test_no_transfer_at_zero_rate():
     sp = _tree(seed=1)
     g = simulate_genomes_family(sp, duplication=0.3, loss=0.2, origination=0.4, initial_families=5, seed=1)
-    assert all(e.kind != "transfer" for e in g.events)
+    assert all(e.kind != "transfer" for e in g.edges)
 
 
 def test_transfer_is_deterministic():
@@ -285,8 +285,8 @@ def test_replacement_can_displace_a_resident():
     # each such loss sits at the same instant as a transfer
     sp = _tree(seed=6)
     g = simulate_genomes_family(sp, transfer=1.0, loss=0.0, replacement=True, initial_families=8, seed=1)
-    losses = [e for e in g.events if e.kind == "loss"]
-    xfer_times = {e.time for e in g.events if e.kind == "transfer"}
+    losses = [e for e in g.edges if e.kind == "loss"]
+    xfer_times = {e.time for e in g.edges if e.kind == "transfer"}
     assert losses                                               # replacement did displace some copies
     assert all(e.time in xfer_times for e in losses)           # every loss co-occurs with a transfer
 
@@ -300,10 +300,10 @@ def test_additive_transfer_never_loses():
 def test_default_transfer_is_never_self_but_self_transfer_runs():
     sp = _tree(seed=4)
     g = simulate_genomes_family(sp, transfer=0.6, initial_families=5, seed=1)
-    assert _transfers(g.events)
-    assert all(donor != recipient for donor, recipient, _ in _transfers(g.events))
+    assert _transfers(g.edges)
+    assert all(donor != recipient for donor, recipient, _ in _transfers(g.edges))
     s = simulate_genomes_family(sp, transfer=0.6, self_transfer=True, initial_families=5, seed=1)
-    assert any(e.kind == "transfer" for e in s.events)         # runs (self donor==recipient now allowed)
+    assert any(e.kind == "transfer" for e in s.edges)         # runs (self donor==recipient now allowed)
 
 
 def test_distance_mode_runs_and_is_deterministic():
@@ -311,15 +311,15 @@ def test_distance_mode_runs_and_is_deterministic():
     from zombi2.genomes import Distance
     a = simulate_genomes_family(sp, transfer=0.5, transfer_to="distance", initial_families=5, seed=3)
     b = simulate_genomes_family(sp, transfer=0.5, transfer_to=Distance(decay=1.0), initial_families=5, seed=3)
-    assert [str(e) for e in a.events] == [str(e) for e in b.events]  # "distance" == Distance(decay=1.0)
-    assert any(e.kind == "transfer" for e in a.events)
+    assert [str(e) for e in a.edges] == [str(e) for e in b.edges]  # "distance" == Distance(decay=1.0)
+    assert any(e.kind == "transfer" for e in a.edges)
 
 
 def test_transfer_can_come_from_the_dead():
     # high death + transfer: some transfers are donated by a lineage that later goes extinct
     sp = _tree(seed=3, death=0.7)
     g = simulate_genomes_family(sp, transfer=0.8, origination=0.6, initial_families=4, seed=2)
-    donor_fates = {sp.complete_tree.nodes[e.lineage].fate for e in g.events if e.kind == "transfer"}
+    donor_fates = {sp.complete_tree.nodes[e.lineage].fate for e in g.edges if e.kind == "transfer"}
     assert "extinct" in donor_fates
 
 
@@ -380,7 +380,7 @@ def test_clades_between_only_excludes_within_and_rest():
     g = simulate_genomes_family(
         sp, transfer_to=Clades({"A": a, "B": b}, Between({("A", "B"): 1.0, ("B", "A"): 1.0},
                                                          default=0.0)), **_CLADE_KW)
-    pairs = _clade_pairs(g.events, lab)
+    pairs = _clade_pairs(g.edges, lab)
     assert pairs
     assert all(p in {("A", "B"), ("B", "A")} for p in pairs)
 
@@ -392,7 +392,7 @@ def test_clades_directional_a_to_b_only():
     a, b, _, _, lab = _two_clades(sp)
     g = simulate_genomes_family(
         sp, transfer_to=Clades({"A": a, "B": b}, Between({("A", "B"): 1.0}, default=0.0)), **_CLADE_KW)
-    pairs = _clade_pairs(g.events, lab)
+    pairs = _clade_pairs(g.edges, lab)
     assert pairs and all(p == ("A", "B") for p in pairs)
 
 
@@ -417,7 +417,7 @@ def test_clades_default_baseline_allows_other_pairs():
     a, b, _, _, lab = _two_clades(sp)
     g = simulate_genomes_family(
         sp, transfer_to=Clades({"A": a, "B": b}, Between({("A", "B"): 8.0})), **_CLADE_KW)  # default 1.0
-    kinds = set(_clade_pairs(g.events, lab))
+    kinds = set(_clade_pairs(g.edges, lab))
     assert ("A", "B") in kinds
     assert any(p not in {("A", "B"), ("B", "A")} for p in kinds)   # within/rest still occur at baseline
 
@@ -504,15 +504,15 @@ def test_written_node_columns_carry_a_lineage_label():
 def test_written_log_round_trips_through_the_reader():
     # the written row is one EVENT and an Event is one gene-tree EDGE, so the reader has to expand
     # them again — exactly, or a downstream level replaying the log builds a different history
-    from zombi2.genomes.events import events_from_tsv, events_tsv
+    from zombi2.genomes.events import edges_from_tsv, events_tsv
     sp = _tree(seed=2)
     for kw in ({}, {"replacement": True}, {"replacement": True, "self_transfer": True}):
         g = simulate_genomes_family(sp, duplication=0.3, transfer=0.3, loss=0.2, origination=0.5,
                                     initial_families=4, seed=7, **kw)
-        kinds = {e.kind for e in g.events}
+        kinds = {e.kind for e in g.edges}
         assert kinds == {"origination", "duplication", "loss", "transfer", "speciation"}, kw
         names = sp.complete_tree.labels()
-        assert events_from_tsv(events_tsv(g.events, names)) == g.events, kw
+        assert edges_from_tsv(events_tsv(g.edges, names)) == g.edges, kw
 
 
 def test_write_genomes_covers_every_node_where_profiles_covers_only_tips():
@@ -577,7 +577,7 @@ def test_a_run_with_no_by_family_is_untouched():
                                 initial_families=10, seed=5)
     b = simulate_genomes_family(sp, duplication=0.2, transfer=0.1, loss=0.2,
                                 initial_families=10, seed=5)
-    assert [(e.time, e.kind, e.copy) for e in a.events] == [(e.time, e.kind, e.copy) for e in b.events]
+    assert [(e.time, e.kind, e.copy) for e in a.edges] == [(e.time, e.kind, e.copy) for e in b.edges]
 
 
 def test_by_family_is_deterministic_given_the_seed():
@@ -585,7 +585,7 @@ def test_by_family_is_deterministic_given_the_seed():
     kw = dict(duplication=0.2 * mod.ByFamily(spread=0.6), loss=0.2, initial_families=20, seed=5)
     a = simulate_genomes_family(sp, **kw)
     b = simulate_genomes_family(sp, **kw)
-    assert [(e.time, e.kind, e.copy) for e in a.events] == [(e.time, e.kind, e.copy) for e in b.events]
+    assert [(e.time, e.kind, e.copy) for e in a.edges] == [(e.time, e.kind, e.copy) for e in b.edges]
 
 
 def test_family_speed_moves_every_rate_of_a_family_together():
@@ -631,7 +631,7 @@ def test_the_carried_family_weights_match_a_full_recompute(monkeypatch):
                                 family_speed=mod.ByFamily(spread=0.7), replacement=True,
                                 max_family_size=4, initial_families=40, seed=6)
     assert len(checked) > 500                      # the run really did exercise the loop
-    assert {e.kind for e in g.events} == {"origination", "duplication", "loss", "transfer",
+    assert {e.kind for e in g.edges} == {"origination", "duplication", "loss", "transfer",
                                           "speciation"}
 
 
@@ -753,7 +753,7 @@ def test_the_carried_family_counts_match_a_full_scan(monkeypatch):
                                 initial_families=25, max_family_size=3, replacement=True,
                                 self_transfer=True, seed=9)
     assert len(checked) > 200                       # the run really did exercise the cap
-    assert {e.kind for e in g.events} == {"origination", "duplication", "loss", "transfer",
+    assert {e.kind for e in g.edges} == {"origination", "duplication", "loss", "transfer",
                                           "speciation"}
 
 

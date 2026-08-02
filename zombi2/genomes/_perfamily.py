@@ -47,8 +47,8 @@ from .._runtime.progress import progress_bar
 from ..rates.modifiers import ByFamily
 from ._live import enter, retire, weighted_index
 from ._transfer import mean_root_to_tip, recipient_index
-from .events import EVENTS_HEADER, Event, event_rows, gene_label, node_label
-from .gene_trees import gene_trees_from_events, write_gene_trees
+from .events import EVENTS_HEADER, GeneEdge, event_rows, gene_label, node_label
+from .gene_trees import gene_trees_from_edges, write_gene_trees
 
 
 def _unsupported_reason(dup, tra, los, org, transfer_to) -> str | None:
@@ -270,7 +270,7 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
     mult = _family_mults(rng, family_speed, fam_by)
     m_dup, m_tra, m_los = mult["duplication"], mult["transfer"], mult["loss"]
 
-    events: list[Event] = []
+    events: list[GeneEdge] = []
     node_genomes: dict[int, list] = {}
     base = copy_id_base
     counter = 0
@@ -292,7 +292,7 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
     heap: list[tuple[float, int]] = []
 
     founding = new_copy(family)                             # the founding gene (local id 0)
-    events.append(Event(time, "origination", lineage, family, founding.id))
+    events.append(GeneEdge(time, "origination", lineage, family, founding.id))
     enter(alive, gen, pos, lineage, [founding])
     heapq.heappush(heap, (tree.nodes[lineage].end_time, lineage))
 
@@ -401,7 +401,7 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
                     per_daughter = []
                     for ch in node.children:
                         child = [new_copy(old.family) for old in g]
-                        per_daughter.append([Event(t, "speciation", ch, old.family, nc.id,
+                        per_daughter.append([GeneEdge(t, "speciation", ch, old.family, nc.id,
                                                    parent=old.id) for old, nc in zip(g, child)])
                         enter(alive, gen, pos, ch, child)
                         heapq.heappush(heap, (tree.nodes[ch].end_time, ch))
@@ -499,12 +499,12 @@ def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events
             victim = rg[p]
             rg[p] = rg[-1]; rg.pop()
             replaced = victim.id      # named on the transfer, so the log writes them as one event
-            events.append(Event(t, "loss", recipient, fam, replaced))
+            events.append(GeneEdge(t, "loss", recipient, fam, replaced))
             delta = 0
     rg.append(xfer)
-    events.append(Event(t, "transfer", donor, fam, cont.id, parent=src.id, donor=donor,
+    events.append(GeneEdge(t, "transfer", donor, fam, cont.id, parent=src.id, donor=donor,
                         replaced=replaced))
-    events.append(Event(t, "transfer", recipient, fam, xfer.id, parent=src.id, recipient=recipient,
+    events.append(GeneEdge(t, "transfer", recipient, fam, xfer.id, parent=src.id, recipient=recipient,
                         donor=donor, replaced=replaced))
     return delta
 
@@ -581,7 +581,7 @@ def _stream_chunk(task):
                 if any(counts):                             # a family absent from every extant tip: no row
                     files["profiles"].write(f"{fid}\t" + "\t".join(map(str, counts)) + "\n")
             if want["gene_trees"]:
-                write_gene_trees(gene_trees_from_events(events, tree), trees_dir, names)
+                write_gene_trees(gene_trees_from_edges(events, tree), trees_dir, names)
     finally:
         for f in files.values():
             f.close()
@@ -657,7 +657,7 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
 
     # The merge is now a concatenation: copy ids are already globally unique, so the per-family logs and
     # node snapshots stitch together with no rewrite. Every node appears, empty where no family reached it.
-    events: list[Event] = []
+    events: list[GeneEdge] = []
     genomes: dict[int, list] = {i: [] for i in tree.nodes}
     for _fid, fam_events, node_genomes in results:
         events.extend(fam_events)

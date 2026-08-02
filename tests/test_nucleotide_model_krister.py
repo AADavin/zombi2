@@ -654,7 +654,7 @@ def test_every_gene_content_event_has_a_position(tmp_path):
     positioned = {(p.time, p.lineage, p.kind.split("_")[0]) for p in r.event_positions}
 
     kinds = set()
-    for e in r.events:
+    for e in r.edges:                         # positions are per branch, so this is the edge view
         if e.kind == "speciation":            # a genome is copied wholesale: no position to record
             continue
         kinds.add(e.kind)
