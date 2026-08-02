@@ -159,14 +159,20 @@ A `switch` written per transition drives only the transitions you name — `{"ca
 
 ### What can be conditioned, and what cannot yet
 
-A trait's own rate takes a driver, as above. In a genome run conditioning works at all three resolutions. At the **family** resolution it covers the four gene-family rates in the table above. At the **ordered** resolution it covers every rate the engine has, so a trait can make a lineage rearrange its gene order more often — inversion, transposition, translocation — or reshape its karyotype more often, and a driven extent makes each rearranged block longer. At the **nucleotide** resolution it covers the same list on a genome measured in base pairs, which is where a driven `loss` becomes genome reduction as it is usually meant: a lifestyle trait shedding DNA rather than dropping family tokens. At the **sequences** level it covers `substitution`, the one rate that level has.
+**What can drive**: a trait, discrete or continuous; a named gene family, present or absent; and a
+module's completion, a number between 0 and 1. The last two are below, under *A gene as the driver* —
+they are ordinary drivers, spelled the way a trait is, and everything in this section applies to them
+equally.
+
+**What can be driven** is the rest of this section. A trait's own rate takes a driver, as above. In a genome run conditioning works at all three resolutions. At the **family** resolution it covers the four gene-family rates in the table above. At the **ordered** resolution it covers every rate the engine has, so a trait can make a lineage rearrange its gene order more often — inversion, transposition, translocation — or reshape its karyotype more often, and a driven extent makes each rearranged block longer. At the **nucleotide** resolution it covers the same list on a genome measured in base pairs, which is where a driven `loss` becomes genome reduction as it is usually meant: a lifestyle trait shedding DNA rather than dropping family tokens. At the **sequences** level it covers `substitution`, the one rate that level has.
 
 `transfer_to` sits outside that per-resolution list because it is not a rate. It is the choice slot, and it works at all three resolutions: the same four rules, the same kernel, the same weights. What a transfer moves differs — one copy, a block of genes, an arc of DNA — and who receives it does not.
 
 What is not implemented yet:
 
 - **`ByFamily` and `DrivenBy` cannot be set in the same run** at the family or ordered resolution. One weights lineages by a driver, the other weights the segment by what it covers, so combining them means weighting by the product. `family_speed` counts as a `ByFamily` here. Use one or the other.
-- **A sequence cannot drive anything.** The arrow runs one way: a trait drives `substitution`, but nothing reads a sequence back out.
+- **A sequence cannot drive anything.** The arrow runs one way: a trait or a gene drives `substitution`, but nothing reads a sequence back out.
+- **A nucleotide run cannot be the driver.** A family or ordered run offers `presence` and `completion`; the nucleotide one names its genes differently and has neither yet. It can still be the *target*.
 
 These are limits of the implementation, not of the model — the rate grammar (`SPEC §5`) is the same everywhere, and each engine gains a modifier when its own code learns to read it. Until then, a driven rate an engine cannot honour raises rather than being silently dropped.
 
