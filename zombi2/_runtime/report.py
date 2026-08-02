@@ -450,7 +450,7 @@ def build_run_report(run: str) -> str | None:
         return None
 
     from zombi2 import __version__
-    env = next((s["log"] for s in sections if s["log"].get("zombi2_version")), {})
+    env: dict = next((s["log"] for s in sections if s["log"].get("zombi2_version")), {})
     lines = [f"ZOMBI2 {env.get('zombi2_version', __version__)}  ·  run report", _HEAVY,
              f"  {_one_liner(sections)}"]
     built = " · ".join(p for p in (

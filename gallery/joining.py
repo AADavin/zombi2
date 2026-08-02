@@ -8,6 +8,8 @@ the trait drives speciation or extinction and so shapes the tree it is evolving 
 
 from __future__ import annotations
 
+import math
+
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors
@@ -201,6 +203,92 @@ def continuous_conditioning(out):
         draw=h.draw_conditioning_curve, driver="activity", curve=factor,
         vrange=(min(vals.values()), max(vals.values())), value_label="activity",
         target="origination", target_base=0.6))
+
+
+def _continuous_figure(out, factor, *, driver, value_label, target, base, layer_cmap="viridis",
+                       rate="origination", trait_rate=1.2, trait_seed=3, genome_seed=9):
+    """The continuous-driver figure with the curve left free. `continuous_conditioning` is the
+    exponential case; the two below are the same run with a different value → factor function."""
+    ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
+    tr = simulate_continuous(ct, start=0.0, rate=trait_rate, seed=trait_seed)
+    g = simulate_genomes_family(ct, initial_families=12, loss=0.05,
+            **{rate: base * mod.DrivenBy(tr, Curve(factor))}, seed=genome_seed)
+    lab = ct.labels()
+    vals = {lab[i]: tr.node_values[i] for i in ct.nodes}
+    tips = list(ct.extant_leaves())
+    cmap, norm = plt.get_cmap(layer_cmap), colors.Normalize(min(vals.values()), max(vals.values()))
+    sizes = {lab[n.id]: len(g.genomes[n.id]) for n in tips}
+    tipcol = {lab[n.id]: colors.to_hex(cmap(norm(tr.node_values[n.id]))) for n in tips}
+    _conditioned_genome(out, ct, [ph.trees.color_branches(vals, cmap=layer_cmap)],
+                        sizes, tipcol, dict(
+        draw=h.draw_conditioning_curve, driver=driver, curve=factor, cmap=layer_cmap,
+        vrange=(min(vals.values()), max(vals.values())), value_label=value_label,
+        target=target, target_base=base))
+
+
+def curve_saturating(out):
+    """A SATURATING curve. Gene gain rises with a "resource" trait and then levels off at a ceiling:
+    once resources are plentiful, more of them buys nothing. Unlike the exponential, this response is
+    bounded — the factor can never exceed 5."""
+    factor = (lambda v: 0.2 + 5.8 / (1.0 + math.exp(-1.6 * v)))
+    _continuous_figure(out, factor, driver="resources", value_label="resources",
+                       target="origination", base=0.6)
+
+
+def curve_optimum(out):
+    """A HUMPED curve. Gene gain is fastest at an intermediate temperature and falls away on both
+    sides. A table of per-state multipliers can express neither this nor the saturating curve: the
+    response is not monotone, so the tallest bars sit in the middle of the colour ramp, not at
+    its top."""
+    factor = (lambda v: 0.2 + 5.8 * math.exp(-((v - 1.2) ** 2) / (2 * 0.8 ** 2)))
+    _continuous_figure(out, factor, driver="temperature", value_label="temperature",
+                       target="origination", base=0.6)
+
+
+def trait_drives_trait(out):
+    """The driver and the target are BOTH traits, on one tree. A continuous "temperature" trait is
+    grown first; the rate at which a second trait — body size — diffuses then reads it through the
+    same saturating curve. Warm lineages redesign their size quickly and their descendants spread
+    apart; cold ones barely move from where their ancestor left them. Nothing here is a new
+    mechanism: the driver is grown first and held fixed, which is conditioning, spelled the way
+    every other conditioned rate is spelled."""
+    ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
+    temp = simulate_continuous(ct, start=0.0, rate=1.2, seed=6)
+    # the threshold sits between the two halves of this tree, so one is switched on
+    # (~6x) and the other is all but switched off (~0.08x) — a 75-fold contrast
+    factor = (lambda v: 0.05 + 6.0 / (1.0 + math.exp(-1.6 * (v - 2.0))))
+    size = simulate_continuous(ct, start=0.0, rate=0.35 * mod.DrivenBy(temp, Curve(factor)), seed=11)
+    lab = ct.labels()
+    driver = {lab[i]: temp.node_values[i] for i in ct.nodes}
+    driven = {lab[i]: size.node_values[i] for i in ct.nodes}
+    # the driven trait is drawn on a DIVERGING scale centred on where it started, so white reads
+    # "has not moved" and the saturated ends read "has moved a long way" — which is what the driver
+    # actually controls. On its own min-to-max range the same colours would say nothing about that.
+    reach = max(abs(v) for v in driven.values())
+    pngs = []
+    for k, (vals, cmap, lim) in enumerate(((driver, "viridis", None),
+                                           (driven, "coolwarm", (-reach, reach)))):
+        png = out.replace(".png", f"_t{k}.png")
+        (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False,
+                       style=ph.Style(width=1000, height=560, margin=70, branch_width=3.4))
+         + ph.trees.color_branches(vals, cmap=cmap, limits=lim)
+         + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
+        pngs.append(png)
+    diag = h.conditioning_png(out.replace(".png", "_diag.png"),
+                              draw=h.draw_conditioning_curve, driver="temperature", curve=factor,
+                              vrange=(min(driver.values()), max(driver.values())),
+                              value_label="temperature", target="size diffusion", target_base=0.35)
+    fig = plt.figure(figsize=(12, 11.4))
+    fig.add_axes([0.30, 0.845, 0.40, 0.155]).imshow(mpimg.imread(diag))
+    rows = ((pngs[0], "temperature — grown first, then held fixed", 0.44),
+            (pngs[1], "body size — its diffusion rate reads the temperature", 0.02))
+    for png, name, y in rows:
+        fig.add_axes([0.0, y, 1.0, 0.375]).imshow(mpimg.imread(png))
+        fig.text(0.045, y + 0.385, name, fontsize=15, ha="left", va="bottom")
+    for ax in fig.axes:
+        ax.set_axis_off()
+    fig.savefig(out, dpi=140, bbox_inches="tight")
+    plt.close(fig)
 
 
 _C_BISSE = '''\
@@ -408,6 +496,80 @@ ph.beside(fig, ph.genomes.bars(sizes, colors=bar_c, label="genome size (genes)")
 # on top goes the same driver->modifier->target diagram, its middle column plotting value -> factor'''
 
 
+_C_SATURATING = '''\
+### simulate  —  the same run, a SATURATING curve instead of an exponential one
+import math
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_continuous
+from zombi2.genomes import simulate_genomes_family
+from zombi2.rates import modifiers as mod
+from zombi2.rates.mapping import Curve
+
+ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
+res = simulate_continuous(ct, start=0.0, rate=1.2, seed=3)          # a diffusing "resources" trait
+# a logistic response: gene gain switches on as resources rise and then levels off at a ceiling.
+# The factor is bounded (0.2 to 6.0), which an exponential curve never is.
+factor = lambda v: 0.2 + 5.8 / (1.0 + math.exp(-1.6 * v))
+g = simulate_genomes_family(ct, initial_families=12, loss=0.05,
+        origination=0.6 * mod.DrivenBy(res, Curve(factor)), seed=9)
+
+### plot  —  identical to the exponential example: tree by trait value, bars by genome size
+# (see "A continuous driver" above; only `factor` changed)'''
+
+
+_C_OPTIMUM = '''\
+### simulate  —  the same run again, this time a HUMPED curve
+import math
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_continuous
+from zombi2.genomes import simulate_genomes_family
+from zombi2.rates import modifiers as mod
+from zombi2.rates.mapping import Curve
+
+ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
+temp = simulate_continuous(ct, start=0.0, rate=1.2, seed=3)         # a diffusing "temperature" trait
+# gene gain is fastest at an intermediate temperature and falls away on both sides. A Table of
+# per-state multipliers cannot express this: the response is not monotone in the driver.
+factor = lambda v: 0.2 + 5.8 * math.exp(-((v - 1.2) ** 2) / (2 * 0.8 ** 2))
+g = simulate_genomes_family(ct, initial_families=12, loss=0.05,
+        origination=0.6 * mod.DrivenBy(temp, Curve(factor)), seed=9)
+
+### plot  —  identical again; the tallest bars now sit in the MIDDLE of the colour ramp
+# (see "A continuous driver" above; only `factor` changed)'''
+
+
+_C_TRAIT_TRAIT = '''\
+### simulate  —  the driver and the target are both TRAITS, on one tree
+import math
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_continuous
+from zombi2.rates import modifiers as mod
+from zombi2.rates.mapping import Curve
+
+ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
+temp = simulate_continuous(ct, start=0.0, rate=1.2, seed=6)         # grown first, then held fixed
+# the threshold sits between the two halves of this tree: one is switched on (~6x), the other
+# all but switched off (~0.08x). The rate a trait diffuses AT is itself driven.
+factor = lambda v: 0.05 + 6.0 / (1.0 + math.exp(-1.6 * (v - 2.0)))
+size = simulate_continuous(ct, start=0.0, rate=0.35 * mod.DrivenBy(temp, Curve(factor)), seed=11)
+
+### plot  —  the same tree twice: painted by the driver, then by what it drove
+import phylustrator as ph
+
+lab = ct.labels()
+tree = ph.trees.loads(ct.to_newick())
+driver = {lab[i]: temp.node_values[i] for i in ct.nodes}
+driven = {lab[i]: size.node_values[i] for i in ct.nodes}
+reach = max(abs(v) for v in driven.values())            # centre the diverging scale on the start
+(ph.trees.plot(tree, skeleton=False)
+ + ph.trees.color_branches(driver, cmap="viridis")
+ + ph.trees.time_axis("time", bold=False)).save("driver.png")
+(ph.trees.plot(tree, skeleton=False)
+ + ph.trees.color_branches(driven, cmap="coolwarm", limits=(-reach, reach))
+ + ph.trees.time_axis("time", bold=False)).save("driven.png")
+# white = has not moved from where its ancestor left it; the cold half of the tree stays white'''
+
+
 CONDITIONING = [
     Example("genome_reduction", "Genome reduction",
             "A driver (a trait for the lifestyle) modifies the rate of loss (the target). "
@@ -429,6 +591,22 @@ CONDITIONING = [
             "<code>Curve</code> turns each value into a factor, so genome size follows the trait. The "
             "tree is coloured by the trait value and the bars are genome size at each tip.",
             "continuous trait → origination", continuous_conditioning, code=_C_CONTINUOUS),
+    Example("curve_saturating", "A saturating curve",
+            "The same run with a different <code>Curve</code>. Gene gain switches on as the trait "
+            "rises and then levels off at a ceiling, so the factor is <b>bounded</b> — once resources "
+            "are plentiful, more of them buys nothing.",
+            "continuous trait → origination", curve_saturating, code=_C_SATURATING),
+    Example("curve_optimum", "A humped curve",
+            "The same run again, with the response fastest at an <b>intermediate</b> value and falling "
+            "away on both sides. A table of per-state multipliers can express neither this nor the "
+            "saturating curve: the tallest bars sit in the middle of the colour ramp, not at its top.",
+            "continuous trait → origination", curve_optimum, code=_C_OPTIMUM),
+    Example("trait_drives_trait", "One trait drives another",
+            "Driver and target are both traits on one tree. A temperature trait is grown first; the "
+            "rate at which body size diffuses then reads it. The same tree is painted twice — by the "
+            "driver, then by what it drove, on a scale centred where the trait started, so white "
+            "means <b>has not moved</b>. The cold half of the tree stays white.",
+            "trait → trait", trait_drives_trait, code=_C_TRAIT_TRAIT),
 ]
 
 JOINING = [

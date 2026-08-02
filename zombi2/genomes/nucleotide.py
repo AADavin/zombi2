@@ -1418,7 +1418,8 @@ def _even_gene_intervals(length, genes, gene_length) -> list[tuple[int, int, int
     if genes == 0:
         return []
     base, extra = divmod(length - genes * gene_length, genes)   # `extra` intergenes are 1 bp longer
-    out, at = [], 0
+    out: list[tuple[int, int, int, str | None]] = []
+    at = 0
     for i in range(genes):
         at += base + (1 if i < extra else 0)
         out.append((at, at + gene_length, 1, None))
@@ -2411,7 +2412,7 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
 
 def _recover_gene_trees(result, *, every_block: bool = False
                         ) -> tuple[list[tuple[int, int, int]], dict[int, GeneTree],
-                                   dict[tuple[int, int], int | None]]:
+                                   dict[tuple[int, int], int | None], list[Event]]:
     """The full recovery: the root partition, a tree per family, and ``{(family, copy): gene id}`` —
     the last gene each copy lineage held, which is what a genome still carrying that copy is made of
     (``None`` where a loss ended that copy over that block, leaving nothing to read a fragment from).
@@ -2446,7 +2447,7 @@ def _recover_gene_trees(result, *, every_block: bool = False
         targets = list(enumerate(blocks))
 
     seg_events: list[Event] = []
-    tip_of: dict[tuple[int, int], int] = {}
+    tip_of: dict[tuple[int, int], int | None] = {}
     for fam, (s, a, b) in targets:
         _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs, new_seg,
                            seg_events, tip_of)

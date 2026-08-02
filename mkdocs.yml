@@ -139,8 +139,12 @@ nav:
       - Trait evolution: guide/traits.md
       - Conditioning: guide/conditioning.md
       - Joining: guide/joining.md
-  - FAQ: faq.md
-  - Coming from ZOMBI v1: from-zombi1.md
+  - Output files: output-files.md
+  - Tools:
+      - Overview: tools.md
+      - "format": tools/format.md
+      - "tree": tools/tree.md
+      - "treedist": tools/treedist.md
   # One page per level, so the reference reads the way the library is laid out and the left column
   # is an index of the packages. The overview page carries the entry-point table.
   - API reference:
@@ -151,10 +155,7 @@ nav:
       - zombi2.traits: api/traits.md
       - zombi2.joint: api/joint.md
       - zombi2.rates: api/rates.md
-  - Output files: output-files.md
   - Performance: performance.md
-  - Tools:
-      - Overview: tools.md
-      - "format": tools/format.md
-      - "tree": tools/tree.md
-      - "treedist": tools/treedist.md
+  - Reproducibility: reproducibility.md
+  - Coming from ZOMBI v1: from-zombi1.md
+  - FAQ: faq.md

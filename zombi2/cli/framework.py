@@ -310,7 +310,9 @@ def resolve_seed(args) -> None:
     is only that the draw is written down."""
     if getattr(args, "seed", None) is None:
         # a 32-bit value, so the number in the log is one a reader can retype as --seed
-        args.seed = int(np.random.SeedSequence().entropy % (2 ** 31))
+        entropy = np.random.SeedSequence().entropy
+        assert isinstance(entropy, int)      # the default source is one integer, not a sequence
+        args.seed = int(entropy % (2 ** 31))
 
 
 def warn(message: str) -> None:

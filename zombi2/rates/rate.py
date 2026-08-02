@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 from .modifiers import Modifier
 from .scope import Scope
@@ -30,7 +31,7 @@ class Rate:
             return self
         return Rate(self.base, default(self.base), self.modifiers)
 
-    def effective(self, **context: float) -> float:
+    def effective(self, **context: Any) -> float:
         """The rate *right now*: the scope-applied base times the product of the modifier factors.
 
         ``context`` carries the current state (``time``, ``diversity``, the counts ``lineages`` /

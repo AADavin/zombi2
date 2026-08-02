@@ -22,6 +22,7 @@ change at each split), is **not** a rate multiplier — it changes a state at a 
 from __future__ import annotations
 
 import math
+from typing import cast
 
 _MAX_EXPONENT = 40.0  # clamp the log-link argument so a large driver value cannot overflow exp()
 
@@ -228,7 +229,7 @@ def _numeric(value: object, cls: str) -> float:
     clear error if the driver is a discrete label — the usual sign a discrete driver was given a
     continuous mapping (use a ``Table`` / dict for a discrete driver)."""
     try:
-        return float(value)
+        return float(value)  # type: ignore[arg-type]  # the except below is the check
     except (TypeError, ValueError):
         raise ValueError(
             f"{cls} is a continuous-driver response but got the discrete driver value {value!r}; use a "
@@ -244,8 +245,10 @@ def as_mapping(spec: object) -> Mapping:
     `as_rate()` / `as_distribution()`.
     """
     if isinstance(spec, (Mapping, Between)):
-        return spec  # a Between is a choice-slot kernel, not a rate multiplier; carried through here
-                     # so DrivenBy(..., Between(...)) works, and refused in a rate slot by the engine
+        # a Between is a choice-slot kernel, not a rate multiplier; carried through here so
+        # DrivenBy(..., Between(...)) works, and refused in a rate slot by the engine — which is
+        # why the declared return type is the one every *rate* caller may rely on.
+        return cast(Mapping, spec)
     if isinstance(spec, dict):
         return Table(spec)
     if isinstance(spec, bool):

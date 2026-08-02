@@ -153,6 +153,7 @@ def _project(node: GeneNode, tree: Tree, kept: set[int], image: dict[int, int],
                            if n.kind == "extant" else (None, None))
             continue
         here = _nearest_visible(n.species, tree, image)
+        assert here is not None          # a surviving root is visible, so something above is
         moved = _moved_child(n)
         live = [(c, *done[id(c)]) for c in n.children]
         alive = [(c, built, came) for c, built, came in live if built is not None]
