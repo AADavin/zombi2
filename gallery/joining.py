@@ -296,9 +296,10 @@ def trait_drives_trait(out):
 def gene_drives_trait(out):
     """A GENE FAMILY is the driver and a trait is the target — the other direction of a relation that
     only ran one way before. A toxin family is grown first, gained and lost down the tree; a
-    pathogenicity trait then switches many times faster in the lineages that carry it. The same tree
-    is painted twice, so the answer is in the alignment of the two panels: where the top is green the
-    bottom flickers, and where it is grey the bottom sits still.
+    pathogenicity trait then *becomes* pathogenic forty times faster in the lineages that carry it —
+    one direction only, since a toxin makes a lineage dangerous rather than helping it recover. The
+    same tree is painted twice, so the answer is in the alignment of the two panels: 80% of the tips
+    carrying the gene end up pathogenic against 37% of those without.
 
     Presence is exact and changes mid-branch, at the instant the last copy actually went."""
     ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
@@ -308,8 +309,13 @@ def gene_drives_trait(out):
     g = simulate_genomes_family(ct, initial_families=20, family_names=["tox"],
                                 duplication=0.05, loss=0.3, seed=9)
     tox = g.presence("tox")
-    disease = simulate_discrete(ct, states=["harmless", "pathogenic"], start="harmless", seed=2,
-                                switch=0.05 * mod.DrivenBy(tox, {"present": 20.0, "absent": 1.0}))
+    # the gene drives ONE direction: carrying a toxin makes a lineage *become* pathogenic, it does
+    # not make it revert faster. `switch` takes a rate per transition, and only one of them reads the
+    # driver — so the signal is which tips end up pathogenic, not how much they flicker.
+    disease = simulate_discrete(
+        ct, states=["harmless", "pathogenic"], start="harmless", seed=2,
+        switch={"harmless->pathogenic": 0.02 * mod.DrivenBy(tox, {"present": 40.0, "absent": 1.0}),
+                "pathogenic->harmless": 0.6})
 
     lab = ct.labels()
     top = {lab[i]: segs for i, segs in tox.history(ct).items()}
@@ -325,18 +331,20 @@ def gene_drives_trait(out):
     diag = h.conditioning_png(out.replace(".png", "_diag.png"),
                               driver="tox", states=["absent", "present"],
                               switch={"present->absent": 0.3},    # the family is lost, not regained
-                              mapping={"present": 20, "absent": 1}, target="switch",
-                              target_base=0.05, state_colors=_TOX,
+                              mapping={"present": 40, "absent": 1},
+                              target="→ pathogenic",
+                              target_base=0.02, state_colors=_TOX,
                               # the target is itself a discrete trait, so it gets its own chain:
                               # what the gene drives is the rate of *these* two arrows
                               target_states=["harmless", "pathogenic"],
-                              target_switch={"harmless->pathogenic": 0.05,
-                                             "pathogenic->harmless": 0.05},
-                              target_colors=_DISEASE)
+                              target_switch={"harmless->pathogenic": 0.8,
+                                             "pathogenic->harmless": 0.6},
+                              target_colors=_DISEASE,
+                              target_driven="harmless->pathogenic")
     fig = plt.figure(figsize=(12, 11.4))
     fig.add_axes([0.30, 0.845, 0.40, 0.155]).imshow(mpimg.imread(diag))
     rows = ((pngs[0], "the toxin family — present or absent", 0.44),
-            (pngs[1], "pathogenicity — its switch rate reads the gene", 0.02))
+            (pngs[1], "pathogenicity — the gene drives becoming it, not reverting", 0.02))
     for png, name, y in rows:
         fig.add_axes([0.0, y, 1.0, 0.375]).imshow(mpimg.imread(png))
         fig.text(0.045, y + 0.385, name, fontsize=15, ha="left", va="bottom")
@@ -641,9 +649,14 @@ g = simulate_genomes_family(ct, initial_families=20, family_names=["tox"],
 
 # 2. the target: a trait whose switch rate reads whether that family is there. `presence` is a
 #    driver like a grown trait, so the mapping is an ordinary table over its two states.
-disease = simulate_discrete(ct, states=["harmless", "pathogenic"], start="harmless", seed=2,
-                            switch=0.05 * mod.DrivenBy(g.presence("tox"),
-                                                       {"present": 20.0, "absent": 1.0}))
+# `switch` takes a rate per transition, and only ONE of them reads the driver: a toxin makes a
+# lineage become pathogenic, it does not help it revert. So the signal is which tips END UP
+# pathogenic — 80% of those carrying the gene against 37% without — not how much they flicker.
+disease = simulate_discrete(
+    ct, states=["harmless", "pathogenic"], start="harmless", seed=2,
+    switch={"harmless->pathogenic": 0.02 * mod.DrivenBy(g.presence("tox"),
+                                                        {"present": 40.0, "absent": 1.0}),
+            "pathogenic->harmless": 0.6})
 
 ### plot  —  the same tree painted twice: by the gene, then by what the gene drove
 import phylustrator as ph
@@ -700,11 +713,12 @@ CONDITIONING = [
             "trait → trait", trait_drives_trait, code=_C_TRAIT_TRAIT),
     Example("gene_drives_trait", "A gene drives a trait",
             "The other direction of the same relation. A driver (a named gene family, present or "
-            "absent) modifies the rate at which a trait switches (the target), so pathogenicity turns "
-            "over twenty times faster in the lineages carrying the toxin. The same tree is painted "
-            "twice — by the gene, then by what the gene drove — so the answer is in the alignment of "
-            "the two: where the top is green the bottom flickers, where it is grey the bottom sits "
-            "still. Presence changes <b>mid-branch</b>, at the instant the last copy went.",
+            "absent) modifies <b>one direction</b> of a trait's switch (the target): carrying a toxin "
+            "makes a lineage <i>become</i> pathogenic forty times faster, but does not help it revert. "
+            "The same tree is painted twice — by the gene, then by what the gene drove — so the answer "
+            "is in the alignment of the two: 80% of the tips carrying the gene end up pathogenic "
+            "against 37% of those without. Presence changes <b>mid-branch</b>, at the instant the "
+            "last copy went.",
             "gene → trait", gene_drives_trait, code=_C_GENE_TRAIT),
 ]
 
