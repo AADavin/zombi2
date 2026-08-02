@@ -7,7 +7,6 @@ subfolder (they import the installed `zombi2` and read/write paths relative to t
 | Study | Question | What it recovers | Regenerate |
 |-------|----------|------------------|------------|
 | [`red/`](red/) | Does **RED** (the GTDB tree-rescaling measure) recover relative node ages once uneven molecular rates distort branch lengths? | RED holds at real archaeal raggedness (CV = 0.23), under every arrangement of rate variation the core can put it under: Pearson r = 0.94–0.95 uncorrelated (nRMSE ≈ 6% of tree depth), 0.99 autocorrelated (2.3%). Published as a worked example on the docs site. | `python red/observable.py && python red/experiment.py && python red/figures.py` |
-| [`synteny_inversions/`](synteny_inversions/) | What is the genome **inversion rate** in yeast, inferred by matching gene-order conservation between real genomes and a nucleotide-model simulation down a dated tree (ABC)? | ≈ 3–5×10⁻⁴ inversions per gene·Myr (*Lachancea* 2.7×10⁻⁴, *Kluyveromyces* 4.6×10⁻⁴); the rate is identifiable, the event size is not. | `python synteny_inversions/fit.py && python synteny_inversions/figures.py` |
 
 `red/` is also the docs site's worked example ([`docs/example-red.md`](../docs/example-red.md)); its
 `figures.py` writes into `docs/assets/red/` as well as its own folder, so the two cannot drift.

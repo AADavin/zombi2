@@ -136,8 +136,8 @@ Three things are worth being precise about.
 > **Calibrate realism, then test against known truth.** A method like RED cannot be graded on the data
 > it is meant for, because that data hides the answer. But one honest number can say how demanding the
 > real case is (here, CV = 0.232), that number can be reproduced in a simulation where the answer is
-> known, and the method graded there. This is the same move as the [synteny recipe](../synteny_inversions/REPORT.md),
-> one level up: a summary pins one thing cleanly and hands what it cannot pin to a stated modelling choice.
+> known, and the method graded there. One summary pins one thing cleanly, and hands what it cannot
+> pin to a stated modelling choice.
 
 ## Assumptions and limitations
 
