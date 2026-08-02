@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-08-02
+
 ### Added
 - **The README opens on one simulated dataset seen at all four levels** — the same 30-tip tree drawn
   with its extinct lineages, the gene order of every surviving genome with homologues linked, the
