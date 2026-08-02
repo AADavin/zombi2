@@ -100,10 +100,10 @@ def test_transfers_and_losses_are_counted_as_the_event_log_counts_them(run):
     tags = collections.Counter(ev.tag for rgt in ET.fromstring(xml).findall("recGeneTree")
                                for c in _clades(rgt) for ev in c.find("eventsRec"))
     log = collections.Counter(e.kind for e in run.events)
-    assert tags["branchingOut"] == tags["transferBack"] == log["transfer"] // 2
-    assert tags["duplication"] == log["duplication"] // 2
+    assert tags["branchingOut"] == tags["transferBack"] == log["transfer_additive"]
+    assert tags["duplication"] == log["duplication"]
     assert tags["loss"] == log["loss"]
-    assert tags["speciation"] == log["speciation"] // 2
+    assert tags["speciation"] == log["speciation"]
 
 
 def test_losses_are_in_the_file_at_all(run):

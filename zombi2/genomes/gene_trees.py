@@ -114,7 +114,7 @@ def write_gene_trees(gene_trees: dict[int, "GeneTree"], directory,
             (d / f"gene_tree_fam{fam}_extant.nwk").write_text(extant + "\n", encoding="utf-8")
 
 
-def gene_trees_from_events(events: list, tree) -> dict[int, GeneTree]:
+def gene_trees_from_edges(events: list, tree) -> dict[int, GeneTree]:
     """Derive ``{family id: GeneTree}`` from the event log inside the complete ``tree``. Each event
     records a gene ending and its descendants beginning, so this is a direct parent→children read."""
     birth: dict[int, tuple[int, int]] = {}                # gene -> (family, species it lived on)

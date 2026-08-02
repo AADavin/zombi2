@@ -241,7 +241,7 @@ def test_zero_factor_lineages_never_lose(tmp_path):
         initial_families=6, seed=3,
     )
     # every loss event lands on a hi lineage (a lo lineage's loss rate is exactly 0)
-    losses = [e for e in res.events if e.kind == "loss"]
+    losses = [e for e in res.edges if e.kind == "loss"]
     assert losses, "expected some loss on the hi lineages"
     assert all(state_of[e.lineage] == "hi" for e in losses)
     # a lo lineage changes nothing on its own branch (loss factor 0, no dup/transfer/origination
@@ -286,8 +286,8 @@ def test_driven_loss_is_deterministic(tmp_path):
               initial_families=4, seed=9)
     a = genomes.simulate_genomes_family(tree, **kw)
     b = genomes.simulate_genomes_family(tree, **kw)
-    assert [(e.time, e.kind, e.lineage, e.family) for e in a.events] == \
-           [(e.time, e.kind, e.lineage, e.family) for e in b.events]
+    assert [(e.time, e.kind, e.lineage, e.family) for e in a.edges] == \
+           [(e.time, e.kind, e.lineage, e.family) for e in b.edges]
 
 
 def test_end_to_end_trait_drives_loss(tmp_path):
@@ -321,7 +321,7 @@ def test_int_state_trait_drives_loss_end_to_end(tmp_path):
         loss=0.3 * mod.DrivenBy(str(tmp_path / "trait_events.tsv"), {0: 0.0, 1: 30.0}),
         initial_families=5, seed=2,
     )
-    losses = [e for e in res.events if e.kind == "loss"]
+    losses = [e for e in res.edges if e.kind == "loss"]
     assert losses, "the int-keyed mapping must actually bite (not silently default to 1.0)"
     # every loss is on a state-1 branch (state 0 has loss factor exactly 0)
     driver = load_driver(tmp_path / "trait_events.tsv", tree)
@@ -344,7 +344,7 @@ def test_drivenby_accepts_traits_result_object(tmp_path):
         tree,
         loss=0.5 * mod.DrivenBy(str(tmp_path / "trait_events.tsv"), {"aquatic": 3.0, "terrestrial": 1.0}),
         origination=0.2, initial_families=8, seed=2)
-    key = lambda r: [(e.time, e.kind, e.lineage, e.copy) for e in r.events]
+    key = lambda r: [(e.time, e.kind, e.lineage, e.copy) for e in r.edges]
     assert key(by_object) == key(by_file)
 
 
@@ -377,7 +377,7 @@ _UNDRIVEN_TRANSFER_DIGESTS = {
 
 def _event_digest(result) -> str:
     key = repr([(round(e.time, 12), e.kind, e.lineage, e.family, e.copy, e.parent, e.recipient)
-                for e in result.events])
+                for e in result.edges])
     return hashlib.sha256(key.encode()).hexdigest()
 
 
@@ -409,12 +409,12 @@ def test_driven_transfer_picks_the_donor(tmp_path):
     res = genomes.simulate_genomes_family(
         tree, transfer=0.2 * mod.DrivenBy(str(driver), {"lo": 0.0, "hi": 20.0}),
         initial_families=6, seed=3)
-    donations = [e for e in res.events if e.kind == "transfer" and e.recipient is None]
+    donations = [e for e in res.edges if e.kind == "transfer" and e.recipient is None]
     assert donations, "expected some donation from the hi lineages"
     assert all(state_of[e.lineage] == "hi" for e in donations)
     # the recipients are still drawn uniformly, so lo lineages do receive — the drive is on the
     # donor side only
-    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
     assert any(state_of[e.lineage] == "lo" for e in arrivals)
 
 
@@ -433,8 +433,8 @@ def test_driven_transfer_changes_how_much_transfer_happens(tmp_path):
         plain = genomes.simulate_genomes_family(tree, transfer=0.2, **kw)
         driven = genomes.simulate_genomes_family(
             tree, transfer=0.2 * mod.DrivenBy(str(driver), {"any": 3.0}), **kw)
-        n_plain += sum(1 for e in plain.events if e.kind == "transfer" and e.recipient is not None)
-        n_driven += sum(1 for e in driven.events if e.kind == "transfer" and e.recipient is not None)
+        n_plain += sum(1 for e in plain.edges if e.kind == "transfer" and e.recipient is not None)
+        n_driven += sum(1 for e in driven.edges if e.kind == "transfer" and e.recipient is not None)
     assert 2.7 < n_driven / n_plain < 3.3
 
 
@@ -481,7 +481,7 @@ def test_recipient_weight_splits_transfers_two_to_one(tmp_path):
     res = genomes.simulate_genomes_family(
         tree, transfer=4.0, initial_families=6, self_transfer=True, max_family_size=None,
         transfer_to=mod.DrivenBy(str(driver), {"competent": 2.0, "normal": 1.0}), seed=5)
-    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
     assert len(arrivals) > 1500                        # enough events for a 0.03 tolerance
     assert all(e.lineage in tips for e in arrivals)     # the internal branches are 1e-6 long
     share = sum(1 for e in arrivals if e.lineage in hot) / len(arrivals)
@@ -494,7 +494,7 @@ def test_recipient_weight_zero_cannot_receive(tmp_path):
     res = genomes.simulate_genomes_family(
         tree, transfer=1.0, initial_families=6,
         transfer_to=mod.DrivenBy(str(driver), {"competent": 1.0, "normal": 0.0}), seed=5)
-    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
     assert arrivals
     assert all(e.lineage in hot for e in arrivals)
 
@@ -508,8 +508,8 @@ def test_no_eligible_recipient_means_no_transfer_at_all(tmp_path):
     blocked = genomes.simulate_genomes_family(
         tree, transfer_to=mod.DrivenBy(str(driver), {"competent": 1.0, "normal": 0.0}), **kw)
     free = genomes.simulate_genomes_family(tree, transfer_to="uniform", **kw)
-    assert not [e for e in blocked.events if e.kind == "transfer"]
-    assert [e for e in free.events if e.kind == "transfer"]
+    assert not [e for e in blocked.edges if e.kind == "transfer"]
+    assert [e for e in free.edges if e.kind == "transfer"]
     # a dropped event leaves the genomes untouched: the six crown families are simply inherited
     assert all(len(g) == 6 for g in blocked.genomes.values())
 
@@ -521,8 +521,8 @@ def test_both_drivers_compose(tmp_path):
         tree, transfer=0.5 * mod.DrivenBy(str(driver), {"competent": 5.0, "normal": 0.0}),
         transfer_to=mod.DrivenBy(str(driver), {"competent": 0.0, "normal": 1.0}),
         initial_families=6, seed=5)
-    donations = [e for e in res.events if e.kind == "transfer" and e.recipient is None]
-    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    donations = [e for e in res.edges if e.kind == "transfer" and e.recipient is None]
+    arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
     assert donations and arrivals
     assert all(e.lineage in hot for e in donations)          # only competent lineages donate
     assert all(e.lineage not in hot for e in arrivals)       # only non-competent lineages receive
@@ -539,7 +539,7 @@ def test_recipient_kernel_keeps_transfer_within_the_donor_state(tmp_path):
         transfer_to=mod.DrivenBy(str(driver),
                                  Between({("competent", "competent"): 1.0,
                                           ("normal", "normal"): 1.0}, default=0.0)), seed=5)
-    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
     assert arrivals
     assert all((e.donor in hot) == (e.lineage in hot) for e in arrivals)  # donor and recipient agree
 
@@ -601,7 +601,7 @@ def test_ordered_engine_takes_a_driven_transfer_to(tmp_path):
     res = genomes.simulate_genomes_ordered(
         tree, transfer=1.0, initial_families=6,
         transfer_to=mod.DrivenBy(str(driver), {"competent": 1.0, "normal": 0.0}), seed=5)
-    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
     assert arrivals
     assert all(e.lineage in hot for e in arrivals)
 
@@ -629,7 +629,7 @@ def test_recipient_weight_share_is_two_to_one_at_ordered(tmp_path):
     res = genomes.simulate_genomes_ordered(
         tree, transfer=4.0, initial_families=6, self_transfer=True, max_family_size=None,
         transfer_to=mod.DrivenBy(str(driver), {"competent": 2.0, "normal": 1.0}), seed=5)
-    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
     assert len(arrivals) > 1500                        # enough events for a 0.03 tolerance
     assert all(e.lineage in tips for e in arrivals)    # the internal branches are 1e-6 long
     share = sum(1 for e in arrivals if e.lineage in hot) / len(arrivals)
@@ -651,8 +651,8 @@ def test_driven_transfer_to_leaves_how_much_transfer_alone_at_ordered(tmp_path):
         plain = genomes.simulate_genomes_ordered(tree, **kw)
         driven = genomes.simulate_genomes_ordered(
             tree, transfer_to=mod.DrivenBy(str(driver), {"any": 3.0}), **kw)
-        n_plain += sum(1 for e in plain.events if e.kind == "transfer" and e.recipient is not None)
-        n_driven += sum(1 for e in driven.events if e.kind == "transfer" and e.recipient is not None)
+        n_plain += sum(1 for e in plain.edges if e.kind == "transfer" and e.recipient is not None)
+        n_driven += sum(1 for e in driven.edges if e.kind == "transfer" and e.recipient is not None)
     assert n_plain > 200
     assert 0.9 < n_driven / n_plain < 1.1
 
@@ -681,8 +681,8 @@ def test_a_driven_transfer_to_composes_with_a_driven_transfer_rate_at_ordered(tm
         tree, transfer=0.5 * mod.DrivenBy(str(driver), {"competent": 5.0, "normal": 0.0}),
         transfer_to=mod.DrivenBy(str(driver), {"competent": 0.0, "normal": 1.0}),
         initial_families=6, seed=5)
-    donations = [e for e in res.events if e.kind == "transfer" and e.recipient is None]
-    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    donations = [e for e in res.edges if e.kind == "transfer" and e.recipient is None]
+    arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
     assert donations and arrivals
     assert all(e.lineage in hot for e in donations)          # only competent lineages donate
     assert all(e.lineage not in hot for e in arrivals)       # only non-competent lineages receive
@@ -829,7 +829,7 @@ def test_ordered_loss_is_driven_by_a_trait(tmp_path):
     res = genomes.simulate_genomes_ordered(
         tree, loss=0.5 * mod.DrivenBy(driver, {"host": 25.0, "free": 0.0}),
         loss_extent=2, initial_families=20, seed=2)
-    losses = [e for e in res.events if e.kind == "loss"]
+    losses = [e for e in res.edges if e.kind == "loss"]
     assert losses, "the run should produce losses at all"
     assert all(state_of[e.lineage] == "host" for e in losses)
 
@@ -876,7 +876,7 @@ def test_ordered_per_lineage_rates_are_driven(tmp_path, rate):
         **{rate: 0.8 * mod.DrivenBy(driver, {"host": 20.0, "free": 0.0})}, seed=4)
     if rate == "origination":
         t0 = tree.nodes[tree.root].birth_time     # the initial genome is logged at the origin
-        acted = [e for e in res.events if e.kind == "origination" and e.time > t0]
+        acted = [e for e in res.edges if e.kind == "origination" and e.time > t0]
     else:
         acted = [c for c in res.chromosome_events if c.kind == "origination"]
     assert acted, f"the run should produce {rate}s at all"
@@ -892,8 +892,8 @@ def test_ordered_driven_transfer_picks_the_donor(tmp_path):
     res = genomes.simulate_genomes_ordered(
         tree, transfer=0.4 * mod.DrivenBy(driver, {"host": 20.0, "free": 0.0}),
         transfer_extent=2, initial_families=20, seed=5)
-    donations = [e for e in res.events if e.kind == "transfer" and e.recipient is None]
-    arrivals = [e for e in res.events if e.kind == "transfer" and e.recipient is not None]
+    donations = [e for e in res.edges if e.kind == "transfer" and e.recipient is None]
+    arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
     assert donations, "expected some donation from the host lineages"
     assert all(state_of[e.lineage] == "host" for e in donations)
     assert any(state_of[e.lineage] == "free" for e in arrivals)
@@ -968,8 +968,8 @@ def test_ordered_driven_rate_matches_between_an_object_and_a_file(tmp_path):
     by_file = genomes.simulate_genomes_ordered(
         tree, loss=0.4 * mod.DrivenBy(path, {"host": 8.0, "free": 1.0}),
         inversion=0.5 * mod.DrivenBy(path, {"host": 4.0, "free": 1.0}), **kw)
-    assert [(e.time, e.kind, e.lineage, e.copy) for e in by_object.events] == \
-           [(e.time, e.kind, e.lineage, e.copy) for e in by_file.events]
+    assert [(e.time, e.kind, e.lineage, e.copy) for e in by_object.edges] == \
+           [(e.time, e.kind, e.lineage, e.copy) for e in by_file.edges]
     assert by_object.rearrangements == by_file.rearrangements
 
 

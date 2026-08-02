@@ -58,7 +58,13 @@ def _tree_text(tree) -> str:
 
 
 def _events_text(events) -> str:
-    """An event log as the columns that decide what happened, in the order it happened."""
+    """A log as the columns that decide what happened, in the order it happened.
+
+    The genome runs hash their `edges` — one entry per gene-tree edge — rather than `events`, which
+    is the grouped view. Not a detail: the edge list is the finer record, so a change the grouping
+    would hide still moves the digest, and it is what these digests hashed before `events` came to
+    mean one row per event. They are unchanged across that rename, which is what says it moved no
+    randomness."""
     return "\n".join("\t".join(_fmt(getattr(e, f, "")) for f in
                                ("time", "kind", "lineage", "family", "copy", "parent",
                                 "donor", "recipient"))
@@ -83,7 +89,7 @@ def _genomes_family():
     g = simulate_genomes_family(sp, initial_families=8, duplication=0.2, transfer=0.15, loss=0.25,
                                 origination=0.3, seed=7)
     trees = "\n".join(f"{fam}\t{gt.to_newick('complete')}" for fam, gt in sorted(g.gene_trees.items()))
-    return _digest(_events_text(g.events), trees)
+    return _digest(_events_text(g.edges), trees)
 
 
 def _genomes_ordered():
@@ -93,7 +99,7 @@ def _genomes_ordered():
     order = "\n".join(f"{s}\t{c.id}\t{c.topology}\t"
                       + ",".join(f"{gene.family}:{gene.strand}" for gene in c.genes)
                       for s in sorted(g.genomes) for c in g.genomes[s])
-    return _digest(_events_text(g.events), order)
+    return _digest(_events_text(g.edges), order)
 
 
 def _sequences():
@@ -126,7 +132,7 @@ def _driven():
     hab = simulate_discrete(sp.complete_tree, states=["wet", "dry"], start="wet", switch=0.3, seed=3)
     g = simulate_genomes_family(sp, initial_families=6, duplication=0.1,
                                 loss=0.2 * mod.DrivenBy(hab, {"dry": 5.0, "wet": 1.0}), seed=7)
-    return _digest(_events_text(g.events))
+    return _digest(_events_text(g.edges))
 
 
 #: run name → the digest that run has produced since it was recorded. Read the module docstring

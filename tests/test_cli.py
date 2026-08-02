@@ -1319,15 +1319,15 @@ def test_tools_format_reads_another_run_with_from(tmp_path):
 def test_tools_format_matches_the_python_api(tmp_path):
     # the CLI is a shell over the library: each table it writes must equal the classifier applied to
     # the gene trees rebuilt from the run's own recorded history (its species tree + event log).
-    from zombi2.genomes.events import events_from_tsv
-    from zombi2.genomes.gene_trees import gene_trees_from_events
+    from zombi2.genomes.events import edges_from_tsv
+    from zombi2.genomes.gene_trees import gene_trees_from_edges
     from zombi2.tools.homology import homology_tsv
 
     run = _dtl_run(tmp_path)
     main(["tools", "format", str(run), "--format", "homology"])
     tree, _ = read_newick((run / "species" / "species_complete.nwk").read_text(encoding="utf-8"))
-    events = events_from_tsv((run / "genomes" / "genome_events.tsv").read_text(encoding="utf-8"))
-    trees = gene_trees_from_events(events, tree)
+    events = edges_from_tsv((run / "genomes" / "genome_events.tsv").read_text(encoding="utf-8"))
+    trees = gene_trees_from_edges(events, tree)
     written = 0
     for fam, gt in trees.items():
         if gt.extant is None:

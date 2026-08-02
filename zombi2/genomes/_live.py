@@ -18,7 +18,7 @@ def without_cyclic_gc(fn):
     """Run ``fn`` with Python's *cyclic* garbage collector paused, restoring the caller's setting
     afterwards (even on error).
 
-    A genome run builds millions of ``Event`` and ``GeneCopy`` objects that live until the run ends
+    A genome run builds millions of ``GeneEdge`` and ``GeneCopy`` objects that live until the run ends
     and hold only ints, floats, strings and ``None`` — so they can never form a reference cycle.
     The cyclic collector cannot know that, so as the pile grows it keeps re-scanning all of it looking
     for cycles that by construction do not exist; that scanning measures at roughly a third of a run.

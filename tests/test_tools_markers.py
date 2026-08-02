@@ -72,12 +72,12 @@ def test_the_counts_are_the_family_s_own_history():
     # columns must add up to the log
     from_log = collections.Counter()
     for e in g.events:
-        if e.kind in ("duplication", "transfer", "loss"):
-            from_log[(e.family, e.kind)] += 1
+        if e.kind in ("duplication", "transfer_additive", "transfer_replacing", "loss"):
+            from_log[(e.family, "transfer" if e.kind.startswith("transfer") else e.kind)] += 1
     for family, gt in g.gene_trees.items():
         row = marker_row(family, gt, sp.complete_tree)
-        assert row["duplications"] == from_log[(family, "duplication")] // 2
-        assert row["transfers"] == from_log[(family, "transfer")] // 2
+        assert row["duplications"] == from_log[(family, "duplication")]
+        assert row["transfers"] == from_log[(family, "transfer")]
         assert row["losses"] == from_log[(family, "loss")]
 
 

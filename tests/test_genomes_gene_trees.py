@@ -53,7 +53,7 @@ def test_root_is_the_founding_gene():
     # ZOMBI1: no separate origination node — the root IS the founding gene (its kind is what ended it)
     _, g = _run(seed=4)
     for fam, tree in g.gene_trees.items():
-        origin_copy = next(e.copy for e in g.events if e.kind == "origination" and e.family == fam)
+        origin_copy = next(e.copy for e in g.edges if e.kind == "origination" and e.family == fam)
         assert tree.complete.copy == origin_copy
 
 

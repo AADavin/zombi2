@@ -42,7 +42,7 @@ def _genome_run(gene_trees, *, t_split: float = 1.0, t_now: float = 2.0) -> Fami
     tree = species.Tree({0: species.Node(0, None, 0.0, t_split, (1, 2), "speciation"),
                          1: species.Node(1, 0, t_split, t_now, None, "extant"),
                          2: species.Node(2, 0, t_split, t_now, None, "extant")}, 0)
-    run = FamilyGenomesResult(complete_tree=tree, genomes={}, events=[], seed=None)
+    run = FamilyGenomesResult(complete_tree=tree, genomes={}, edges=[], seed=None)
     run.gene_trees = dict(gene_trees)      # a cached_property: the instance dict wins
     return run
 

@@ -18,7 +18,7 @@ _WRITE_OUTPUTS = ("values", "events", "tree", "summary")  # write vocabulary; "e
 @dataclass(frozen=True)
 class Change:
     """A realized trait change — one entry of the event log, the trait twin of the genome level's
-    `Event`. On lineage ``lineage`` at ``time`` (origin-forward, the species-tree
+    `GeneEdge`. On lineage ``lineage`` at ``time`` (origin-forward, the species-tree
     clock) the state went from ``from_state`` to ``to_state``. ``kind`` is ``"on_branch"`` — a switch
     *along* a branch (an Mk transition) — ``"on_speciation"`` — a jump *at* a speciation node (from
     ``at_speciation``; for a continuous trait ``from_state`` / ``to_state`` are the pre- and post-jump
