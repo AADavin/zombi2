@@ -23,11 +23,49 @@ So each test here computes a quantity with a **closed form** and checks the run 
 - a mass extinction culls the fraction it was given, and ``sampling`` observes the fraction it was
   given;
 - a transfer picks its recipient uniformly among the lineages alive at that instant;
-- **a driven rate realises the multiplier it was declared with** — on the conditioned path and on the
-  joint one. These matter most and are checked last, because a mis-wired driver is the one error
+- a **substitution model** puts the distance between an ancestor and its descendant where its own
+  transition probability does: Jukes–Cantor's ``3/4·(1 − e^(−4d/3))`` for JC69 and Kimura's separate
+  transition and transversion probabilities for K80 — written out from the 1969 and 1980 papers, not
+  taken from ``p_matrix()``, which is the code under test. HKY85 is checked on the two things that
+  follow from building ``Q`` out of ``π`` correctly and are invisible otherwise: the composition
+  stays at ``π`` however deep the tree, and changes ``i→j`` and ``j→i`` balance, which is
+  reversibility itself. The **empirical protein** matrices get the same two checks, where the risk
+  is not algebra but a table of 190 published numbers transcribed wrongly;
+- **across-site rate classes** reach the sites: ``+I+Γ`` gives the Jukes–Cantor curve *averaged over*
+  the classes rather than evaluated at their mean, which by Jensen's inequality is strictly fewer
+  differences — so a set of classes that is computed, normalised and then never applied is ruled out;
+- the **lineage clocks** are mean 1, so a relaxed clock does not inflate every branch in the tree.
+  This is where the historical lognormal bug lived, and the uncorrected draw is the alternative
+  ruled out;
+- a **Brownian trait** moves by ``Normal(0, σ²·Δt)`` on each branch, and its tips separate by ``σ²×``
+  the path between them — Felsenstein's covariance, the statement that shared ancestry makes
+  relatives similar; **Ornstein–Uhlenbeck** hits its exact transition moments, mean *and* variance,
+  which is what distinguishes a pull from a diffusion that happens to be near an optimum;
+- an **Mk trait** fires each transition at the rate that *direction* was given — the compensator
+  identity again, and the check that catches a transposed rate dict — and its branches end in the
+  other state as often as the chain's ``(1 − e^(−2qΔt))/2`` says, which pins the saturation a rate
+  alone does not;
+- **correlated traits** come out at the ρ they were declared with. The null a comparative method is
+  graded against is a run with the correlation switched off, so if the overlay were not reaching the
+  draw, the signal and the null would be the same run;
+- **a driven rate realises the multiplier it was declared with** — on the conditioned path, on the
+  joint one, and on the sequence level, where it is not statistical at all: a species-phylogram
+  branch is the driven rate *integrated* over the branch, so when the driver switches part-way along,
+  the length the engine wrote can be checked against the trait's own segments to floating point, and
+  the two "sample the driver once per branch" wirings are ruled out by how far they would land from
+  it. These matter most and are checked last, because a mis-wired driver is the one error
   that leaves every output well formed: a tree, a genome and a log that are all internally consistent,
   with only the strength of the association wrong, which is precisely what the run was made to
   measure.
+
+Where the sequence and trait checks pool across a tree, note **which standard error applies**. Under
+JC69, K80 and a symmetric Mk chain, whether a site or a lineage ends up somewhere else does not
+depend on where it started, so those indicators are independent across branches even though the
+sequences and the states are not, and the binomial standard error is the right one. Base composition,
+reversibility and the rate classes are *not* state-independent in that way — sites within one run are
+correlated through their shared ancestry — so those are measured across independent replicates, each
+its own tree, with the spread taken from the replicates themselves. Using a binomial standard error
+there would understate the spread and read ordinary noise as a broken model.
 
 **Every test is deterministic.** The seeds are fixed, so a "statistical" test here cannot flake: it
 computes one number and compares it to one expectation. The tolerances are wide (``|z| < 4``) because
@@ -37,7 +75,11 @@ the hypotheses these rule out are rejected by tens of standard deviations, not b
 What that buys, measured by mutating the model rather than assumed. Scaling a rate by 1.15 behind the
 engine's back fails these; by 1.02 it does not. Biasing 10% of inversions toward one half of the ring
 fails; 3% does not. Mis-wiring the driver strength by 5% is caught on the conditioned path and by
-10% on the joint one. So resolution sits between a few and ten percent, depending on the check.
+10% on the joint one. At the sequence and trait levels, scaling the substitution rate by 1.02 fails,
+κ by 1.03, the Brownian variance-rate by 1.05, the OU pull by 1.02, an Mk transition rate by 1.03 and
+a declared correlation by 1.05; shifting one stationary frequency by 0.005 fails by 15 standard
+errors, and inflating the lineage clock — the historical bug's signature — by 1.10. So resolution
+sits between a fraction of a percent and about ten percent, depending on the check.
 
 That figure is a property of *these* trees and replicate counts, not of the method: more material, or
 more replicates, tightens it. Which is the honest way to read this file — it is evidence that the
@@ -50,6 +92,7 @@ engine samples has changed.
 from __future__ import annotations
 
 import math
+import re
 from collections import Counter
 
 import numpy as np
@@ -57,9 +100,11 @@ import numpy as np
 from zombi2.genomes import simulate_genomes_family, simulate_genomes_ordered
 from zombi2.genomes.ordered import Inversion
 from zombi2.joint import simulate_joint
-from zombi2.rates.modifiers import DrivenBy
+from zombi2.rates.modifiers import ByLineage, DrivenBy, FromParent
+from zombi2.sequences import simulate_sequences
+from zombi2.sequences.substitution_models import BASES, hky85, jc69, k80, lg
 from zombi2.species import simulate_species_tree
-from zombi2.traits import discrete, simulate_discrete
+from zombi2.traits import discrete, simulate_continuous, simulate_discrete
 
 #: How far an observation may sit from its closed form before the test fails, in standard errors.
 #: Generous on purpose: with fixed seeds these numbers are deterministic, so this is not guarding
@@ -470,6 +515,647 @@ def test_a_joint_rate_realises_the_multiplier_it_was_given():
         assert abs((realised - expected) / se) < Z_MAX, (
             f"{state}: lineages split at {realised:.4f} per unit time, but the trait was told to "
             f"make them split at λ × {factor} = {expected:.4f}")
+
+
+# --- the sequence level: a substitution model down a gene tree ------------------------------------
+#
+# A branch length here is in **substitutions/site**, and every model on the menu is normalised to one
+# expected substitution per site per unit branch length. So a branch of length d has a transition
+# probability the model itself fixes, and each test below writes that probability out by hand — from
+# Jukes and Cantor (1969) and Kimura (1980), not from `p_matrix()`, which is the code under test.
+
+#: no duplication, transfer, loss or origination, so every family's gene tree *is* the species tree
+#: and each lineage carries exactly one copy — which makes ``n<species>_g<copy>`` an unambiguous
+#: handle on "the sequence this lineage ended with".
+_NO_GENOME_EVENTS = {"duplication": 0.0, "transfer": 0.0, "loss": 0.0, "origination": 0.0}
+
+def _coder(alphabet: str) -> np.ndarray:
+    """A lookup from byte to state index, for counting with ``bincount`` rather than a Python loop
+    over sites. Out-of-alphabet bytes map to 255, which indexes out of bounds rather than quietly
+    counting as a state."""
+    table = np.full(128, 255, dtype=np.uint8)
+    for index, letter in enumerate(alphabet):
+        table[ord(letter)] = index
+    return table
+
+
+_ACGT = _coder(BASES)
+
+
+def _codes(sequence: str, table: np.ndarray = _ACGT) -> np.ndarray:
+    return table[np.frombuffer(sequence.encode("ascii"), dtype=np.uint8)]
+
+
+def _one_copy_per_lineage(*, n_extant: int, families: int, seed: int):
+    """A species tree and a genome run with no D/T/L/O — one gene copy per lineage per family."""
+    tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=n_extant, seed=seed).complete_tree
+    return tree, simulate_genomes_family(tree, initial_families=families, seed=seed,
+                                         **_NO_GENOME_EVENTS)
+
+
+def _sequence_branches(tree, run, family: int, substitution: float, table: np.ndarray = _ACGT):
+    """``(ancestor, descendant, branch length)`` for every branch of one family.
+
+    The root branch counts too, and it is the one that quietly goes missing: its ancestor is the
+    family's ``founding`` sequence — drawn from the model's stationary frequencies at the origination
+    point, ``t = 0`` for a family the run started with — and ``founding`` is deliberately *not* in
+    ``ancestral``, whose keys pair one-to-one with phylogram nodes. So a walk that only pairs a node
+    with its parent silently drops one branch per family."""
+    seqs = {int(label.split("_", 1)[0][1:]): _codes(s, table)
+            for label, s in {**run.ancestral[family], **run.alignments[family]}.items()}
+    founding = _codes(run.founding[family], table)
+    for node in tree.nodes.values():
+        ancestor = founding if node.parent is None else seqs[node.parent]
+        yield ancestor, seqs[node.id], substitution * (node.end_time - node.birth_time)
+
+
+def test_jc69_site_differences_match_the_jukes_cantor_distance():
+    """Under JC69 a site differs across a branch of length ``d`` with probability
+    ``3/4·(1 − e^(−4d/3))`` — the Jukes–Cantor formula, written out here rather than taken from
+    `p_matrix()`.
+
+    One number checks the whole chain at once: that ``Q`` is normalised to one substitution per site
+    per unit branch length, that the exponential is applied over the right ``d``, and that a
+    gene-tree branch is ``substitution × Δt``. A ``Q`` scaled by any constant fails, because the
+    saturating curve pins the *scale*, not just the ordering.
+
+    The binomial standard error is the right one despite the shared ancestry: under JC69 whether a
+    site changes over a branch does not depend on which base it started from, so the indicators are
+    independent across sites **and** across branches, even though the sequences are not.
+
+    The alternative ruled out is the one every textbook warns about — reading ``d`` itself as the
+    expected fraction of differing sites, i.e. ignoring multiple hits at the same site."""
+    substitution = 0.6
+    tree, genomes = _one_copy_per_lineage(n_extant=12, families=8, seed=1)
+    run = simulate_sequences(genomes, model=jc69(), length=400, substitution=substitution, seed=1)
+
+    observed = expected = naive = variance = 0.0
+    for family in genomes.gene_trees:
+        for ancestor, descendant, d in _sequence_branches(tree, run, family, substitution):
+            sites = len(ancestor)
+            observed += float((ancestor != descendant).sum())
+            p = 0.75 * (1 - math.exp(-4 * d / 3))
+            expected += p * sites
+            variance += p * (1 - p) * sites
+            naive += min(d, 1.0) * sites          # the uncorrected p-distance, capped to stay a probability
+
+    assert observed > 10_000, "too few substitutions to say anything"
+    assert abs((observed - expected) / math.sqrt(variance)) < Z_MAX, (
+        f"{observed:.0f} sites differ, but Jukes–Cantor expects {expected:.0f} "
+        f"(ratio {observed / expected:.4f})")
+    assert abs((observed - naive) / math.sqrt(variance)) > 10, (
+        "the uncorrected p-distance is not ruled out — multiple hits may not be accumulating")
+
+
+def test_k80_transitions_and_transversions_match_kimuras_two_probabilities():
+    """Under K80 the two kinds of change have separate closed forms (Kimura 1980), and κ is what
+    sets them apart. With ``Q`` normalised, the transversion rate is ``β = 1/(κ+2)`` and the
+    transition rate ``α = κ/(κ+2)``, giving over a branch of length ``d``
+
+        ``P(transition)   = 1/4 + 1/4·e^(−4βd) − 1/2·e^(−2(α+β)d)``
+        ``P(transversion) = 1/2 − 1/2·e^(−4βd)``     (both transversions together)
+
+    Checking the two separately, each against its own expression, is what pins κ. The ts/tv *ratio*
+    alone would not: a model that got both probabilities wrong by the same factor would keep the
+    ratio and fail here. And at κ = 1 the pair collapses to Jukes–Cantor, so a κ that was parsed but
+    never reached the matrix is the alternative ruled out at the end."""
+    kappa, substitution = 4.0, 0.6
+    alpha, beta = kappa / (kappa + 2), 1 / (kappa + 2)
+    # more material than the JC69 check above: κ is the hardest of these numbers to pin, because it
+    # only shows in *which* of two changes happened rather than in whether one did at all
+    tree, genomes = _one_copy_per_lineage(n_extant=18, families=24, seed=1)
+    run = simulate_sequences(genomes, model=k80(kappa), length=1200, substitution=substitution,
+                             seed=1)
+
+    #: purine (A, G) = 0, pyrimidine (C, T) = 1 — a change within a class is a transition
+    ring = np.array([0, 1, 0, 1], dtype=np.uint8)
+    seen = {"transition": 0.0, "transversion": 0.0}
+    expected = {"transition": 0.0, "transversion": 0.0}
+    variance = {"transition": 0.0, "transversion": 0.0}
+    flat = 0.0                                     # what κ = 1 (Jukes–Cantor) would predict for transitions
+
+    for family in genomes.gene_trees:
+        for ancestor, descendant, d in _sequence_branches(tree, run, family, substitution):
+            changed = ancestor != descendant
+            same_ring = ring[ancestor] == ring[descendant]
+            sites = len(ancestor)
+            counts = {"transition": float((changed & same_ring).sum()),
+                      "transversion": float((changed & ~same_ring).sum())}
+            p = {"transition": 0.25 + 0.25 * math.exp(-4 * beta * d)
+                               - 0.5 * math.exp(-2 * (alpha + beta) * d),
+                 "transversion": 0.5 - 0.5 * math.exp(-4 * beta * d)}
+            for kind in seen:
+                seen[kind] += counts[kind]
+                expected[kind] += p[kind] * sites
+                variance[kind] += p[kind] * (1 - p[kind]) * sites
+            flat += (0.25 + 0.25 * math.exp(-4 * d / 3) - 0.5 * math.exp(-4 * d / 3)) * sites
+
+    for kind in seen:
+        assert abs((seen[kind] - expected[kind]) / math.sqrt(variance[kind])) < Z_MAX, (
+            f"κ={kappa}: {seen[kind]:.0f} {kind}s against Kimura's {expected[kind]:.0f} "
+            f"(ratio {seen[kind] / expected[kind]:.4f})")
+
+    assert abs((seen["transition"] - flat) / math.sqrt(variance["transition"])) > 10, (
+        f"κ={kappa} is not distinguishable from κ=1 — the ratio may never reach the matrix")
+
+
+def test_hky85_holds_the_composition_it_was_given_and_stays_reversible():
+    """Two consequences of building ``Q`` from ``π`` correctly, neither visible in a well-formed run.
+
+    **The composition stays at π.** Every sequence starts drawn from π, so if π really is stationary
+    for ``Q`` the composition is π at every node however deep. Build ``Q`` with π on the wrong axis —
+    a transpose, the classic — and π stops being its stationary distribution, so the sequences drift
+    away from the frequencies the run was asked for while every output stays perfectly well formed.
+
+    **The change matrix is symmetric.** Reversibility says ``π_i·P_ij = π_j·P_ji``, so ancestor→
+    descendant changes ``i→j`` and ``j→i`` are equally common *whatever* the branch lengths are.
+    That is a statement about ``Q`` alone, so it holds pooled over a whole tree with no expectation
+    to compute.
+
+    Unlike the JC69 and K80 checks, neither quantity is state-independent, so sites within a run are
+    correlated through their shared ancestry and a binomial standard error would be too small. Both
+    are therefore measured across **independent replicates**, each its own tree and its own
+    sequences, with the spread taken from the replicates themselves."""
+    frequencies, substitution, reps = (0.4, 0.3, 0.2, 0.1), 1.0, 60
+    composition, asymmetry = [], {pair: [] for pair in ((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))}
+
+    for seed in range(reps):
+        tree, genomes = _one_copy_per_lineage(n_extant=8, families=4, seed=seed)
+        run = simulate_sequences(genomes, model=hky85(2.5, frequencies), length=400,
+                                 substitution=substitution, seed=seed)
+        bases = np.zeros(4)
+        changes = np.zeros((4, 4))
+        for family in genomes.gene_trees:
+            for sequence in run.alignments[family].values():
+                bases += np.bincount(_codes(sequence), minlength=4)
+            for ancestor, descendant, _ in _sequence_branches(tree, run, family, substitution):
+                changed = ancestor != descendant
+                np.add.at(changes, (ancestor[changed], descendant[changed]), 1)
+        composition.append(bases / bases.sum())
+        for i, j in asymmetry:
+            both = changes[i, j] + changes[j, i]
+            asymmetry[(i, j)].append((changes[i, j] - changes[j, i]) / both)
+
+    composition = np.array(composition)
+    for i, pi in enumerate(frequencies):
+        assert abs(_z(composition[:, i], pi)) < Z_MAX, (
+            f"{'ACGT'[i]} settles at {composition[:, i].mean():.4f} of the sites, but the model was "
+            f"given π = {pi}")
+
+    for (i, j), sample in asymmetry.items():
+        assert abs(_z(np.array(sample), 0.0)) < Z_MAX, (
+            f"{'ACGT'[i]}→{'ACGT'[j]} and {'ACGT'[j]}→{'ACGT'[i]} do not balance "
+            f"(relative asymmetry {np.mean(sample):+.4f}) — the model is not reversible")
+
+
+def test_an_empirical_protein_matrix_keeps_the_frequencies_it_was_published_with():
+    """The twenty-state models, where the risk is transcription rather than algebra.
+
+    JTT, Dayhoff, WAG and LG take no free parameters: their exchangeabilities and frequencies were
+    estimated once from large alignments and are read off published tables of 190 numbers each. So
+    the failure mode is not a wrong formula, it is a wrong *number* — a row read in the wrong column
+    order, a matrix that is not quite symmetric, frequencies that no longer match the exchangeabilities
+    they were fitted with. None of that stops a run: the sequences still evolve, the alignments still
+    look like alignments.
+
+    Two consequences of the table being right catch it. The composition stays at the published π —
+    which is the statement that π really is stationary for the ``Q`` that was assembled from it — and
+    the ``i→j`` / ``j→i`` change counts balance, which is reversibility. With 190 pairs, the
+    asymmetry is pooled into one χ² per degree of freedom rather than tested pair by pair, and pairs
+    too rare to have a χ² distribution are dropped rather than trusted.
+
+    The composition is a maximum over 20 residues rather than a single number, so it is a wider net
+    than the ``|z| < 4`` on any one of them suggests: under a correct matrix the largest of 20
+    deviations sits near 2.5 standard errors by construction."""
+    model, reps = lg(), 40
+    table = _coder(model.alphabet)
+    composition, asymmetry = [], []
+
+    for seed in range(reps):
+        tree, genomes = _one_copy_per_lineage(n_extant=8, families=4, seed=seed)
+        run = simulate_sequences(genomes, model=model, length=300, substitution=1.0, seed=seed)
+        residues = np.zeros(model.k)
+        changes = np.zeros((model.k, model.k))
+        for family in genomes.gene_trees:
+            for sequence in run.alignments[family].values():
+                residues += np.bincount(_codes(sequence, table), minlength=model.k)
+            for ancestor, descendant, _ in _sequence_branches(tree, run, family, 1.0, table):
+                changed = ancestor != descendant
+                np.add.at(changes, (ancestor[changed], descendant[changed]), 1)
+        composition.append(residues / residues.sum())
+
+        upper = np.triu_indices(model.k, 1)
+        forward, backward = changes[upper], changes.T[upper]
+        common = (forward + backward) >= 10           # rarer pairs have no χ² distribution to speak of
+        asymmetry.append(float((((forward - backward) ** 2)[common]
+                                / (forward + backward)[common]).sum()) / int(common.sum()))
+
+    composition = np.array(composition)
+    for index, pi in enumerate(model.stationary):
+        assert abs(_z(composition[:, index], pi)) < Z_MAX, (
+            f"{model.name}: {model.alphabet[index]} settles at {composition[:, index].mean():.4f} of "
+            f"the sites, but the published frequency is {pi:.4f}")
+
+    assert abs(_z(np.array(asymmetry), 1.0)) < Z_MAX, (
+        f"{model.name}: forward and reverse changes give χ²/df = {np.mean(asymmetry):.4f} rather "
+        f"than 1 — the published matrix is not being used reversibly")
+
+
+def test_a_trait_driving_the_substitution_rate_is_integrated_across_the_branch():
+    """The Traits→Sequences driver, which is exact rather than statistical.
+
+    A branch of the species phylogram is the substitution rate **integrated** over the branch, so
+    when a trait drives that rate and the trait switches part-way along, the branch length is
+    ``base × Σ(factor of each state × how long it was held)`` — not the base rate times one factor
+    sampled for the branch. Both give plausible phylograms; they differ by how much of the branch was
+    spent in which state, which is precisely the quantity a conditioned run was set up to express.
+
+    Because this is an integral of a step function and not a random draw, it can be checked exactly:
+    the trait's own ``history`` gives the segments, and the phylogram gives what the engine used.
+    They should agree to floating point. The two sampled-once alternatives — take the state the
+    branch started in, take the one it ended in — are ruled out at the end, and the run is set up so
+    that a good share of branches carry a switch, without which all three agree and the test would
+    pass on a wiring that is wrong."""
+    factors, base, switch, reps = {"hot": 3.0, "cold": 1.0}, 0.5, 1.2, 20
+    label = re.compile(r"[ne](\d+):([0-9.eE+-]+)")
+    checked = 0
+    worst = 0.0
+    #: for the branches the trait switched on, how far the two sampled-once wirings would land from
+    #: what the engine actually wrote, relative to the branch
+    off_if_sampled = {"the state it started in": [], "the state it ended in": []}
+
+    for seed in range(reps):
+        tree, genomes = _one_copy_per_lineage(n_extant=20, families=1, seed=seed)
+        habitat = simulate_discrete(tree, states=list(factors), switch=switch, start="hot", seed=seed)
+        run = simulate_sequences(genomes, model=jc69(), length=1,
+                                 substitution=base * DrivenBy(habitat, factors), seed=seed)
+        lengths = {int(i): float(v)
+                   for i, v in label.findall(run.species_phylogram["complete"])}
+
+        for node, length in lengths.items():
+            segments = habitat.history[node]
+            integrated = base * sum(factors[state] * held for state, held in segments)
+            worst = max(worst, abs(length - integrated) / integrated)
+            checked += 1
+            if len(segments) > 1:                     # the trait switched part-way along this branch
+                elapsed = tree.nodes[node].end_time - tree.nodes[node].birth_time
+                for wiring, state in (("the state it started in", segments[0][0]),
+                                      ("the state it ended in", segments[-1][0])):
+                    sampled_once = base * factors[state] * elapsed
+                    off_if_sampled[wiring].append(abs(sampled_once - length) / length)
+
+    assert checked > 500, f"only {checked} branches to check"
+    switched = len(off_if_sampled["the state it started in"])
+    assert switched > 100, (
+        f"only {switched} branches carried a switch — without them every wiring agrees and this test "
+        f"proves nothing")
+    assert worst < 1e-9, (
+        f"a driven branch is off its integrated rate by {worst:.2e} relative — the driver is not "
+        f"being integrated across the branch")
+
+    for wiring, gaps in off_if_sampled.items():
+        assert np.mean(gaps) > 0.1, (
+            f"sampling the driver once per branch — taking {wiring} — would land within "
+            f"{np.mean(gaps):.1%} of the integral on average, so this test would not tell the two "
+            f"apart")
+
+
+def test_across_site_rate_classes_are_applied_per_site_and_average_to_one():
+    """``+I+Γ``: the sites of one gene run at different speeds, and the classes average to 1.
+
+    With classes ``r_c`` in shares ``s_c``, a site differs across a branch of length ``d`` with
+    probability ``Σ_c s_c · 3/4·(1 − e^(−4·d·r_c/3))`` — the Jukes–Cantor curve averaged over the
+    classes, *not* evaluated at their mean. The difference is Jensen's inequality and it is the whole
+    point of the model: because the curve saturates, spreading rates across sites gives **fewer**
+    differences than one rate at the same average, which is why ignoring rate variation
+    underestimates distance.
+
+    So the single-rate expectation is the alternative ruled out here. It is what the run would
+    produce if the classes were computed, normalised, reported on the model — and then never reached
+    the sites. That is a failure mode with no other symptom: the invariant ``Σ r_c·s_c = 1`` still
+    holds, the phylograms still read as mean substitutions per site, and the alignments still look
+    like alignments.
+
+    Classes are drawn per site, once per family, so the realised shares are multinomial rather than
+    exact and the sites of a family are correlated across branches through their class. Replicates
+    again, with the spread taken from them."""
+    shape, invariant, substitution, reps = 0.5, 0.2, 0.8, 40
+    model = jc69().across_sites(gamma_shape=shape, invariant=invariant)
+    assert abs(sum(r * s for r, s in zip(model.site_rates, model.site_shares)) - 1.0) < 1e-12
+
+    against_classes, against_one_rate = [], []
+    for seed in range(reps):
+        tree, genomes = _one_copy_per_lineage(n_extant=8, families=4, seed=seed)
+        run = simulate_sequences(genomes, model=model, length=500, substitution=substitution,
+                                 seed=seed)
+        observed = mixture = single = 0.0
+        for family in genomes.gene_trees:
+            for ancestor, descendant, d in _sequence_branches(tree, run, family, substitution):
+                sites = len(ancestor)
+                observed += float((ancestor != descendant).sum())
+                mixture += sites * sum(share * 0.75 * (1 - math.exp(-4 * d * rate / 3))
+                                       for rate, share in zip(model.site_rates, model.site_shares))
+                single += sites * 0.75 * (1 - math.exp(-4 * d / 3))
+        against_classes.append(observed / mixture)
+        against_one_rate.append(observed / single)
+
+    assert abs(_z(np.array(against_classes), 1.0)) < Z_MAX, (
+        f"observed differences are {np.mean(against_classes):.4f}× what the rate classes predict")
+    assert abs(_z(np.array(against_one_rate), 1.0)) > 10, (
+        "a single rate across sites is not ruled out — the classes may not be reaching the sites")
+
+
+def test_the_lineage_clocks_are_mean_one_so_the_tree_is_not_inflated():
+    """The relaxed clocks, at the one place they have been wrong before.
+
+    A lineage clock multiplies the substitution rate by a random factor per species branch, and the
+    factor has to have **mean 1** — otherwise every branch in the tree is systematically longer than
+    the rate the run was given, and the whole phylogram inflates. Drawing ``exp(Normal(0, σ))``
+    instead of ``exp(Normal(−σ²/2, σ))`` does exactly that, silently: the tree still looks like a
+    tree, the alignments still look like alignments, and only the *scale* is wrong — by ``e^(σ²/2)``,
+    which at σ = 0.5 is 13%. That is the historical lognormal-clock bug, and it is what the last
+    assertion in each half rules out.
+
+    The realised factor is recoverable from the run itself: a species-phylogram branch is
+    ``base × factor × Δt``, so dividing out the base rate and the branch's time gives the factor the
+    engine actually used. `ByLineage` draws one per branch independently, so the factors themselves
+    are the sample; `FromParent` drifts parent→child, so the *ratios* down each branch are."""
+    label = re.compile(r"[ne](\d+):([0-9.eE+-]+)")
+
+    def realised_factors(modifier, base=1.0, reps=25):
+        """``{seed: (tree, {node id: the clock factor the engine used on its branch})}``."""
+        out = {}
+        for seed in range(reps):
+            tree, genomes = _one_copy_per_lineage(n_extant=25, families=1, seed=seed)
+            run = simulate_sequences(genomes, model=jc69(), length=1, substitution=base * modifier,
+                                     seed=seed)
+            lengths = {int(i): float(v)
+                       for i, v in label.findall(run.species_phylogram["complete"])}
+            out[seed] = (tree, {i: length / (base * (tree.nodes[i].end_time - tree.nodes[i].birth_time))
+                                for i, length in lengths.items()})
+        return out
+
+    spread = 0.5
+    drawn = np.array([f for _, factors in realised_factors(ByLineage(spread=spread)).values()
+                      for f in factors.values()])
+    assert len(drawn) > 1000, "too few branches to judge the clock by"
+    assert abs(_z(drawn, 1.0)) < Z_MAX, (
+        f"ByLineage(spread={spread}) factors average {drawn.mean():.4f}, not 1 — every branch in the "
+        f"phylogram is scaled by that")
+    assert abs(np.log(drawn).std(ddof=1) - spread) < 0.05, (
+        f"the log-scale spread is {np.log(drawn).std(ddof=1):.4f}, not the {spread} it was given")
+    assert _z(drawn, math.exp(spread ** 2 / 2)) < -5, (
+        "an uncorrected lognormal is not ruled out — the mean correction may be missing")
+
+    spread = 0.4
+    ratios = []
+    for tree, factors in realised_factors(FromParent(spread=spread)).values():
+        for i, factor in factors.items():
+            parent = tree.nodes[i].parent
+            if parent is not None:
+                ratios.append(factor / factors[parent])
+    ratios = np.array(ratios)
+    assert abs(_z(ratios, 1.0)) < Z_MAX, (
+        f"FromParent(spread={spread}) drifts by {ratios.mean():.4f} per branch on average, not 1 — "
+        f"the rate ratchets down the tree")
+    assert abs(np.log(ratios).std(ddof=1) - spread) < 0.05, (
+        f"the log-scale spread of the drift is {np.log(ratios).std(ddof=1):.4f}, not {spread}")
+    assert _z(ratios, math.exp(spread ** 2 / 2)) < -5, (
+        "an uncorrected lognormal drift is not ruled out")
+
+
+# --- the trait level: a value riding the tree -----------------------------------------------------
+
+def _trait_tree():
+    """One tree, reused so every expectation below is exact for *this* tree rather than averaged."""
+    tree = simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1).complete_tree
+    # a node's depth below is read straight off its end_time, which is only the elapsed time since
+    # the origin if the origin is 0 — asserted rather than assumed, because a tree that started
+    # elsewhere would shift every expectation here by a constant and still look entirely ordinary
+    assert tree.nodes[tree.root].birth_time == 0.0
+    return tree
+
+
+def _mrca(tree, a: int, b: int) -> int:
+    """The most recent node both ``a`` and ``b`` descend from."""
+    above, node = set(), a
+    while node is not None:
+        above.add(node)
+        node = tree.nodes[node].parent
+    node = b
+    while node not in above:
+        node = tree.nodes[node].parent
+    return node
+
+
+def _trait_branches(tree, values, start):
+    """``(ancestor value, node value, Δt)`` for every branch, the root's included.
+
+    ``node_values`` is the value at each node's ``end_time``, and the root diffuses over its own
+    branch from ``start`` at ``t = 0`` (convention B), so the root branch is a branch like any other
+    and its ancestor is ``start``."""
+    for node in tree.nodes.values():
+        ancestor = start if node.parent is None else values[node.parent]
+        yield ancestor, values[node.id], node.end_time - node.birth_time
+
+
+def test_brownian_motion_moves_by_the_variance_it_was_given():
+    """The diffusion, checked twice: once per branch, once across the tree.
+
+    **Per branch** the increment is ``Normal(0, σ²·Δt)``, so dividing every increment by
+    ``√(σ²·Δt)`` should give one standard normal sample pooled over branches of every length. Mean
+    and variance are both checked — a σ² read as a standard deviation rather than a variance, or a
+    ``Δt`` dropped from the draw, moves the variance while leaving the mean at 0.
+
+    **Across the tree** the tips are what a user actually gets, and their law is Felsenstein's: two
+    tips have variance ``σ²×`` their own depth and covariance ``σ²×`` their shared path, so the
+    expected squared difference between them is ``σ²×`` the path length *between* them — down from
+    one, up to the other, with everything above their MRCA cancelling. That is the statement that
+    shared ancestry makes relatives similar, and it is the one a wrong tree traversal breaks while
+    leaving every individual branch correct. It is measured as a squared separation rather than as a
+    covariance because a covariance of near-independent tips is a badly conditioned thing to
+    estimate, and the alternative it rules out — tips that ignore their shared ancestry — is the same
+    either way."""
+    sigma2, start, reps = 2.5, 0.0, 400
+    tree = _trait_tree()
+    runs = [simulate_continuous(tree, start=start, rate=sigma2, seed=s) for s in range(reps)]
+
+    standardised = np.array([(value - ancestor) / math.sqrt(sigma2 * dt)
+                             for run in runs
+                             for ancestor, value, dt in _trait_branches(tree, run.node_values,
+                                                                           start)])
+    assert abs(_z(standardised, 0.0)) < Z_MAX, (
+        f"branch increments average {standardised.mean():+.4f} rather than 0 — the diffusion drifts")
+    variance_z = (standardised.var(ddof=1) - 1) / math.sqrt(2 / len(standardised))
+    assert abs(variance_z) < Z_MAX, (
+        f"branch increments have variance {standardised.var(ddof=1):.4f} against the σ²·Δt they were "
+        f"drawn with, {variance_z:+.2f} standard errors away")
+
+    tips = [n.id for n in tree.extant_leaves()]
+    depth = {i: tree.nodes[i].end_time for i in tips}      # the root is born at t = 0
+    pairs = [(a, b, depth[a] + depth[b] - 2 * tree.nodes[_mrca(tree, a, b)].end_time)
+             for i, a in enumerate(tips) for b in tips[i + 1:]]
+
+    separation = np.array([np.mean([(run.node_values[a] - run.node_values[b]) ** 2 / (sigma2 * path)
+                                    for a, b, path in pairs]) for run in runs])
+    assert abs(_z(separation, 1.0)) < Z_MAX, (
+        f"tips sit {separation.mean():.4f}× as far apart as the path between them implies")
+
+    ignoring_ancestry = np.array([np.mean([(run.node_values[a] - run.node_values[b]) ** 2
+                                           / (sigma2 * (depth[a] + depth[b])) for a, b, _ in pairs])
+                                  for run in runs])
+    assert abs(_z(ignoring_ancestry, 1.0)) > 5, (
+        "tips that ignored their shared ancestry are not ruled out — relatives may not be inheriting "
+        "their common history")
+
+
+def test_ornstein_uhlenbeck_realises_its_exact_transition_moments():
+    """The OU pull, against the transition density it is supposed to have.
+
+    Over a branch of length ``Δt`` from a value ``x``, an OU process ends at
+
+        ``Normal(θ + (x − θ)·e^(−α·Δt),  σ²/(2α)·(1 − e^(−2α·Δt)))``
+
+    — both moments depending on α, and neither reducing to the Brownian one except in the limit
+    ``α → 0``. Standardising every branch by its own mean and variance turns the whole run into one
+    standard normal sample, so a pull applied to the wrong quantity, or applied once per branch
+    instead of continuously, moves the mean; a variance that forgets the ``(1 − e^(−2αΔt))`` factor
+    — the part that keeps an OU from wandering off the way a Brownian motion does — moves the spread.
+
+    The run starts far from the optimum (``start`` well below θ) on purpose: near θ the pull term is
+    small and a broken pull would be nearly invisible. The alternative ruled out is exactly that —
+    reading the run as if there were no pull at all."""
+    sigma2, theta, pull, start, reps = 1.5, 4.0, 2.0, -3.0, 2000
+    tree = _trait_tree()
+    runs = [simulate_continuous(tree, start=start, rate=sigma2, reverts_to=theta, pull=pull, seed=s)
+            for s in range(reps)]
+
+    standardised, as_brownian = [], []
+    for run in runs:
+        for ancestor, value, dt in _trait_branches(tree, run.node_values, start):
+            mean = theta + (ancestor - theta) * math.exp(-pull * dt)
+            variance = sigma2 / (2 * pull) * (1 - math.exp(-2 * pull * dt))
+            standardised.append((value - mean) / math.sqrt(variance))
+            as_brownian.append((value - ancestor) / math.sqrt(sigma2 * dt))
+    standardised = np.array(standardised)
+
+    assert abs(_z(standardised, 0.0)) < Z_MAX, (
+        f"standardised increments average {standardised.mean():+.4f} rather than 0 — the pull is not "
+        f"landing where the OU transition density puts it")
+    variance_z = (standardised.var(ddof=1) - 1) / math.sqrt(2 / len(standardised))
+    assert abs(variance_z) < Z_MAX, (
+        f"standardised increments have variance {standardised.var(ddof=1):.4f}, {variance_z:+.2f} "
+        f"standard errors from the σ²/(2α)·(1−e^(−2αΔt)) they were drawn with")
+
+    assert abs(_z(np.array(as_brownian), 0.0)) > 10, (
+        "a run with no pull at all is not ruled out — reverts_to/pull may not be reaching the draw")
+
+
+def test_an_mk_trait_switches_at_the_rate_each_direction_was_given():
+    """The compensator identity at the trait level, one rate at a time.
+
+    A lineage in state ``a`` leaves for ``b`` at ``q(a→b)`` per unit time, so over the whole run the
+    expected number of ``a→b`` transitions is ``q(a→b) × (time spent in a)`` — and both quantities
+    are in the result already: the events log has the transitions, and ``history`` has the
+    ``(state, duration)`` segments that say how long each state was occupied. Nothing has to reach
+    equilibrium for this to hold, which matters, because a tree this size does not.
+
+    The rates are deliberately **asymmetric**, and each direction is checked against its own declared
+    value. That is what catches a transposed rate dict — ``{"a->b": …}`` read as ``b→a`` — which is
+    a mistake with no other symptom: the trait still switches, the log is still consistent, the map
+    still derives, and only the direction of the asymmetry is reversed."""
+    forward, backward, reps = 0.8, 0.3, 1200
+    tree = _trait_tree()
+    fired, occupancy = Counter(), Counter()
+
+    for seed in range(reps):
+        run = simulate_discrete(tree, states=["a", "b"], start="a",
+                                switch={"a->b": forward, "b->a": backward}, seed=seed)
+        for segments in run.history.values():
+            for state, duration in segments:
+                occupancy[state] += duration
+        for change in run.events:
+            if change.kind == "on_branch":
+                fired[(change.from_state, change.to_state)] += 1
+
+    for (frm, to), rate in ((("a", "b"), forward), (("b", "a"), backward)):
+        count = fired[(frm, to)]
+        assert count > 2000, f"only {count} {frm}→{to} transitions to judge by"
+        realised = count / occupancy[frm]
+        se = math.sqrt(count) / occupancy[frm]           # a Poisson count over a known exposure
+        assert abs((realised - rate) / se) < Z_MAX, (
+            f"{frm}→{to} fired at {realised:.4f} per unit time spent in {frm}, but was given {rate}")
+
+    transposed = abs((fired[("a", "b")] / occupancy["a"] - backward)
+                     / (math.sqrt(fired[("a", "b")]) / occupancy["a"]))
+    assert transposed > 10, "a transposed rate dict is not ruled out"
+
+
+def test_an_mk_branch_ends_in_the_other_state_as_often_as_the_chain_says():
+    """The two-state chain's transition probability, which pins the *shape* the rate alone does not.
+
+    For a symmetric two-state chain at rate ``q``, a branch of length ``Δt`` ends in the other state
+    with probability ``(1 − e^(−2qΔt))/2`` — saturating at ½ however long the branch, because the
+    chain forgets where it started. Counting transitions (the test above) pins the rate; this pins
+    what the chain *does* with it, and rules out the naive alternative that treats every switch as
+    permanent, ``q·Δt``, which has the same slope at zero and no saturation at all.
+
+    As with JC69, the end state's disagreement with the start does not depend on which state that
+    was, so branches are independent and the binomial standard error applies despite the tree."""
+    switch, reps = 0.9, 150
+    tree = _trait_tree()
+    observed = expected = naive = variance = 0.0
+
+    for seed in range(reps):
+        run = simulate_discrete(tree, states=["a", "b"], switch=switch, start="a", seed=seed)
+        for ancestor, value, dt in _trait_branches(tree, run.node_values, "a"):
+            observed += ancestor != value
+            p = (1 - math.exp(-2 * switch * dt)) / 2
+            expected += p
+            variance += p * (1 - p)
+            naive += min(switch * dt, 1.0)
+
+    assert observed > 500, "too few branches ended elsewhere to say anything"
+    assert abs((observed - expected) / math.sqrt(variance)) < Z_MAX, (
+        f"{observed:.0f} branches ended in the other state, against the chain's {expected:.1f}")
+    assert abs((observed - naive) / math.sqrt(variance)) > 5, (
+        "a chain whose switches never reverse is not ruled out")
+
+
+def test_correlated_traits_realise_the_correlation_they_were_given():
+    """The ``correlation=`` overlay, which is the whole reason to evolve two traits in one call.
+
+    Two traits diffusing jointly take their branch increment from ``MVN(0, Σ·Δt)`` with
+    ``Σ = D·R·D``, so after dividing each trait's increment by its own ``√(σ²·Δt)`` the pair has
+    correlation exactly ρ — whatever the branch lengths, and whatever the two σ² are. The σ² here
+    differ by a factor of four on purpose: a Σ assembled without ``D`` on both sides would still give
+    a correlated-looking pair, just not at ρ.
+
+    ρ = 0 is the alternative ruled out, and it is the one that matters. A comparative method is
+    usually being asked whether an apparent association between two traits is real, and the null it
+    is graded against is a run with the correlation switched off. If the overlay were not reaching
+    the draw, both the signal and the null would be the same run and the grading would be
+    meaningless."""
+    rho, sigma_x, sigma_y, reps = 0.6, 1.0, 4.0, 60
+    tree = _trait_tree()
+    increments = []
+
+    for seed in range(reps):
+        run = simulate_continuous(tree, start={"x": 0.0, "y": 0.0},
+                                  rate={"x": sigma_x, "y": sigma_y},
+                                  correlation={("x", "y"): rho}, seed=seed)
+        origin = {"x": 0.0, "y": 0.0}
+        for ancestor, value, dt in _trait_branches(tree, run.node_values, origin):
+            increments.append(((value["x"] - ancestor["x"]) / math.sqrt(sigma_x * dt),
+                               (value["y"] - ancestor["y"]) / math.sqrt(sigma_y * dt)))
+
+    increments = np.array(increments)
+    realised = float(np.corrcoef(increments.T)[0, 1])
+    se = (1 - rho ** 2) / math.sqrt(len(increments))
+    assert abs((realised - rho) / se) < Z_MAX, (
+        f"the two traits came out correlated at {realised:.4f}, not the ρ = {rho} they were given")
+    assert abs(realised / (1 / math.sqrt(len(increments)))) > 10, (
+        "uncorrelated traits are not ruled out — the overlay may not be reaching the draw")
 
 
 def test_the_manual_modifier_table_matches_what_the_engines_wire():
