@@ -9,6 +9,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+- **Two gallery figures had silently lost their transfers.** They filtered a genome run's `.events`
+  on `kind == "transfer"`, which after that attribute came to mean one row per event is never true —
+  the file's vocabulary is `transfer_additive` — so `and e.recipient is not None` short-circuited
+  before touching a field that no longer exists, and the list came back empty rather than raising.
+  170 transfers read as 0 and the transfer-highway chart drew nothing, with no error anywhere. They
+  read `.edges`, which is where a per-branch donor and recipient live.
+
 ### Changed
 - **`result.events` now means what a row of `genome_events.tsv` means.** It used to hold one entry
   per gene-tree *edge*, so a duplication was two of them and a transfer likewise — counting
