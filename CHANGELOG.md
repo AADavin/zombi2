@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-08-02
+
 ### Added
 - **Site-specific amino-acid profiles.** `simulate_sequences(..., profiles={family: array})` gives a
   family one set of equilibrium frequencies **per position** instead of one shared by the whole gene,
