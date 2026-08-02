@@ -67,8 +67,8 @@ from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
 from .clock import Clock, resolve_clock
 from .evolution import evolve_gene_tree
-from .substitution_models import (BASES, SubstitutionModel, dayhoff, decode, encode, gtr,
-                                  hky85, jc69, jtt, k80, lg, poisson, wag)
+from .substitution_models import (BASES, SubstitutionModel, _with_frequencies, dayhoff, decode,
+                                  encode, gtr, hky85, jc69, jtt, k80, lg, poisson, wag)
 
 _WRITE_OUTPUTS = ("summary", "alignments", "ancestral", "founding", "phylograms", "species_phylogram",
                   "genomes", "initial_genome")
@@ -729,6 +729,57 @@ def _resolve_partitions(model, partitions, length) -> tuple[tuple[SubstitutionMo
     return tuple(parts)
 
 
+def _resolve_profiles(profiles, model, length) -> dict:
+    """``{family: ((model, 1), (model, 1), …)}`` — one single-site model per position, built from a
+    site profile.
+
+    A **profile** is an ``(L, K)`` array whose row *i* is the equilibrium frequencies at position
+    *i*, in the model's own ``alphabet`` order. Each row becomes a model of its own over the base
+    model's exchangeabilities (`_with_frequencies`), so what changes down the sequence is which
+    residues belong where, not the chemistry relating them.
+
+    **Built once, for the whole run, on purpose.** The transition-matrix cache is keyed by
+    ``id(model)``, so a model created and dropped inside the family loop could have its id reused by
+    a later one and collide with a cache entry computed for a different matrix. Holding every
+    per-site model for the run's lifetime is what keeps those ids stable. Do not move this into the
+    loop.
+    """
+    if not isinstance(profiles, dict):
+        raise TypeError(
+            f"profiles must be a dict of {{family: array}} — one (L, K) array per family you have a "
+            f"profile for, not {type(profiles).__name__}. Families you leave out evolve under `model` "
+            f"as usual.")
+    k = len(model.alphabet)
+    out = {}
+    for family, profile in profiles.items():
+        arr = np.asarray(profile, dtype=float)
+        if arr.ndim != 2 or arr.shape[1] != k:
+            raise ValueError(
+                f"the profile for family {family!r} is {arr.shape}, but it must be (L, {k}) — one row "
+                f"per site and one column per state of the model's alphabet {model.alphabet!r}, in "
+                f"that order.")
+        if length is not None and arr.shape[0] != length:
+            raise ValueError(
+                f"the profile for family {family!r} has {arr.shape[0]} rows but length={length} — a "
+                f"profile carries one row per site, so the two have to agree.")
+        if not np.isfinite(arr).all() or (arr < 0).any():
+            raise ValueError(f"the profile for family {family!r} must be finite and non-negative.")
+        totals = arr.sum(axis=1)
+        if (totals <= 0).any():
+            raise ValueError(
+                f"row {int(np.argmin(totals))} of the profile for family {family!r} sums to zero, so "
+                f"that site has no state it could be in.")
+        arr = arr / totals[:, None]
+        if (arr <= 0).any():
+            raise ValueError(
+                f"the profile for family {family!r} gives a state a frequency of exactly zero, which "
+                f"makes that site's rate matrix degenerate. Add a pseudocount — a real profile says a "
+                f"residue is unlikely at a position, not that it is impossible.")
+        out[family] = tuple((_with_frequencies(model, row, name=f"{model.name}+profile[{i}]"), 1)
+                            for i, row in enumerate(arr))
+    return out
+
+
 def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=None):
     """Evolve one gene tree partition by partition and hand back the family's whole sequences:
     ``(alignment, ancestral, founding_string)``, each sequence the partitions concatenated in order.
@@ -773,7 +824,7 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
 
 
 def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
-                       length: int | None = None, partitions=None,
+                       length: int | None = None, partitions=None, profiles=None,
                        intergene_model: SubstitutionModel | None = None, intergene_speed=3.0,
                        substitution=None, divergence=None, seed=None, parallel=False,
                        stream_to=None, outputs=None, flat: bool = False,
@@ -838,6 +889,33 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     the partitions were really drawn along. Family and ordered runs only — a **nucleotide** run's
     blocks already carry their own lengths and their own gene/spacer models, so it refuses
     ``partitions``. Experimental (SPEC §9): Python API, no CLI flag yet.
+
+    ``profiles`` gives chosen families a **site profile** — an ``(L, K)`` array whose row *i* is the
+    equilibrium frequencies at position *i*, in the model's own ``alphabet`` order::
+
+        profiles={4: array_of_shape_300_by_20}
+
+    Every model on the menu gives a gene one set of frequencies shared by all its sites; a profile
+    says which residues belong at *each* position instead, which is what a buried hydrophobic site
+    and the loop beside it differ by. The base model's **exchangeabilities are kept** — which pairs
+    interchange easily is chemistry, and the profile's business is only where each residue belongs —
+    so the site's matrix is the run's model over the site's own frequencies. Families you leave out
+    evolve under ``model`` untouched, and a family's profile changes nothing about any other family.
+
+    A row of exact zeros is refused: it makes that site's matrix degenerate, and a real profile says
+    a residue is unlikely at a position rather than impossible — add a pseudocount. A **flat**
+    profile, every row the model's own frequencies, is the model without one; it is statistically
+    identical rather than byte-identical, because L single-site models consume the random stream
+    differently from one L-site model. Profiles compose with ``across_sites`` — a profile says *which*
+    residues, ``+Γ`` says *how fast* — and are refused alongside ``partitions`` (both decide a
+    family's per-site models) and alongside ``parallel`` (which ships one shared partition set to
+    every worker).
+
+    An **amino-acid** profile needs a protein model and so belongs to a family or ordered run: a
+    nucleotide genome is measured in base pairs and read on either strand, so it refuses protein
+    models outright. Profiles still apply there, over the four bases — a row per base pair — and the
+    row count must equal that block's length, which the genome run already fixed. Experimental
+    (SPEC §9): Python API, no CLI flag yet.
 
     On a **nucleotide** genome run every root block is evolved — spacer as well as genes — each at its
     own length in bp, so ``length`` does not apply and is rejected. ``model`` evolves the genes and
@@ -917,6 +995,19 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         raise TypeError(f"model must be a SubstitutionModel (e.g. hky85(kappa=2.0)), got {model!r}")
     if intergene_model is not None and not isinstance(intergene_model, SubstitutionModel):
         raise TypeError(f"intergene_model must be a SubstitutionModel, got {intergene_model!r}")
+
+    if profiles is not None and partitions is not None:
+        raise ValueError(
+            "profiles and partitions both decide which model each site of a family evolves under, so "
+            "giving both leaves no rule for which wins. A profile already gives every site its own "
+            "model — if you want blocks of sites to differ in something a profile cannot say, that is "
+            "partitions; if you want per-site frequencies, that is profiles. Not both.")
+    if profiles is not None and parallel:
+        raise ValueError(
+            "profiles are not wired to the parallel engine yet: it ships one shared partition set to "
+            "every worker, and a profile is per family. Run this level serially (drop `parallel`), or "
+            "drop `profiles`.")
+    site_profiles = {} if profiles is None else _resolve_profiles(profiles, model, length)
 
     if nucleotide:
         # Every recovered root block evolves — spacer as well as genes — so the run reconstructs the
@@ -1081,6 +1172,15 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         # recur across blocks (a block passing straight through a species branch reuses its length), so a
         # run-wide cache builds a few hundred matrices where a per-block cache rebuilt tens of thousands.
         # Keyed by model identity — genes and spacer are different models and must not share a cache.
+        # A profile keyed to a family this run does not have is a typo that would otherwise apply
+        # to nobody and say nothing — the same silence the DrivenBy mapping guard exists to break.
+        stray = sorted(set(site_profiles) - set(gene_trees), key=str)
+        if stray:
+            raise ValueError(
+                f"profiles names {len(stray)} family/families this run does not have: "
+                f"{', '.join(map(str, stray[:5]))}{' …' if len(stray) > 5 else ''}. The run has "
+                f"{len(gene_trees)} of them, keyed {min(gene_trees, key=str)}…{max(gene_trees, key=str)}. "
+                f"A profile for a family that is not here applies to nothing.")
         cdf_caches: dict[int, dict[float, np.ndarray]] = {}
         bar = progress_bar(len(gene_trees), "sequences", unit="family", enabled=progress)
         for family in sorted(gene_trees):  # sorted for reproducibility given the seed
@@ -1091,6 +1191,17 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             else:                       # a nucleotide block: its own length, and spacer runs faster
                 f_len, f_model, speed = per_block[family]
                 f_parts, f_rate = ((f_model, f_len),), rate_base * speed
+            if family in site_profiles:          # a profile replaces the family's model, site by site
+                f_parts = site_profiles[family]
+                # `length` is rejected on a nucleotide run — every block carries its own — so the
+                # row-count check in `_resolve_profiles` had nothing to compare against and this is
+                # where it lands. Without it a short profile silently shortens the sequence, and the
+                # alignment stops agreeing with the coordinates the genome run wrote.
+                if per_block is not None and len(f_parts) != per_block[family][0]:
+                    raise ValueError(
+                        f"the profile for block {family!r} has {len(f_parts)} rows but that block is "
+                        f"{per_block[family][0]} bp. A profile carries one row per site, and on a "
+                        f"nucleotide run the genome already fixed the length.")
             seed_states = None if per_block is None else founding_seed[family]
             aln, anc, fnd = _evolve_partitions(gt, f_parts, f_rate, clock, rng, cdf_caches, names,
                                                founding=seed_states)

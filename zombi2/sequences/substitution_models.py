@@ -302,6 +302,24 @@ class SubstitutionModel:
                        site_rates=tuple(rates), site_shares=tuple(shares))
 
 
+def _with_frequencies(model: SubstitutionModel, frequencies, *, name: str) -> SubstitutionModel:
+    """The same model — same exchangeabilities, same rate classes — over different equilibrium
+    frequencies.
+
+    What a **site profile** needs (`simulate_sequences(profiles=…)`): the chemistry of which amino
+    acids swap easily is a property of the substitution process and is kept, while *which* residues
+    belong at this position is the profile's to say. ``S`` is recovered from the model as
+    ``Q_ij / pi_j``, symmetric by construction because that is how ``Q`` was built; the halving
+    kills round-off, not asymmetry."""
+    S = model.Q / model.stationary[None, :]
+    S = (S + S.T) / 2.0
+    np.fill_diagonal(S, 0.0)
+    out = _reversible_model(name, S, frequencies, model.alphabet)
+    # the rate classes ride along: a profile says which residues, `+G` says how fast, and the two
+    # are independent (see `across_sites`)
+    return replace(out, site_rates=model.site_rates, site_shares=model.site_shares)
+
+
 def _reversible_model(name: str, S: np.ndarray, pi, alphabet: str = BASES) -> SubstitutionModel:
     """Build a normalised reversible model from a symmetric exchangeability matrix ``S`` and ``pi``.
 
