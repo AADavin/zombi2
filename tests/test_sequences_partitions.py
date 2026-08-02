@@ -98,13 +98,13 @@ def test_each_partition_evolves_under_its_own_model():
     """20 000 sites of JC69 followed by 20 000 of an HKY85 with strongly skewed frequencies, run far
     enough to saturate. Each half must sit at *its own* model's stationary composition: if the second
     block were evolving under the first block's matrix, both halves would come out uniform."""
-    freqs = (0.1, 0.1, 0.4, 0.4)
+    frequencies = (0.1, 0.1, 0.4, 0.4)
     n = 20000
     r = simulate_sequences(_pair_run(0.0, 5.0), substitution=2.0, seed=4,
-                           partitions=[(jc69(), n), (hky85(kappa=1.0, freqs=freqs), n)])
+                           partitions=[(jc69(), n), (hky85(kappa=1.0, frequencies=frequencies), n)])
     seq = _tips(r)[0]
     assert np.allclose(_composition(seq[:n]), 0.25, atol=0.02)
-    assert np.allclose(_composition(seq[n:]), freqs, atol=0.02)
+    assert np.allclose(_composition(seq[n:]), frequencies, atol=0.02)
 
 
 def test_the_realised_divergence_is_the_same_in_every_partition():

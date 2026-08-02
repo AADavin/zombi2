@@ -173,7 +173,7 @@ class SubstitutionModel:
                 f"{rows[worst]:.6g}. A rate matrix's diagonal is minus the rest of its row (a state "
                 f"leaves exactly as fast as it goes anywhere else), so a non-zero row sum is not a "
                 f"model with extra flux, it is a matrix that is not a generator. Build the model "
-                f"with reversible(exchangeabilities, freqs), which sets the diagonal itself.")
+                f"with reversible(exchangeabilities, frequencies), which sets the diagonal itself.")
         flux = pi[:, None] * Q                 # π_i·Q_ij, the rate of i→j substitutions in a lineage
         gap = np.abs(flux - flux.T)
         if not np.allclose(flux, flux.T):
@@ -187,7 +187,7 @@ class SubstitutionModel:
                 f"diag(√π)·Q·diag(1/√π), which is similar to Q only under detailed balance. Given a "
                 f"non-reversible Q it would return something that still looks like a transition "
                 f"matrix and is not, so the run would produce plausible, wrong sequences instead of "
-                f"failing. Build the model with reversible(exchangeabilities, freqs): a symmetric "
+                f"failing. Build the model with reversible(exchangeabilities, frequencies): a symmetric "
                 f"exchangeability matrix times π cannot express a non-reversible model. "
                 f"Non-reversible models (UNREST and its relatives) are not implemented here — "
                 f"that is a statement about this code, not about the models (SPEC §5).")
@@ -324,7 +324,7 @@ def _reversible_model(name: str, S: np.ndarray, pi, alphabet: str = BASES) -> Su
             f"the exchangeability matrix must have a zero diagonal, got S_ii = {np.diag(S)}. S_ii "
             "is not a rate a state leaves itself at — the diagonal of Q is set from the row sums, "
             "so anything written here would be silently discarded.")
-    pi = pi / pi.sum()          # renormalise (published freqs round to 1 only to ~1e-6)
+    pi = pi / pi.sum()          # renormalise (published frequencies round to 1 only to ~1e-6)
     Q = S * pi[None, :]
     np.fill_diagonal(Q, 0.0)
     np.fill_diagonal(Q, -Q.sum(axis=1))
@@ -335,7 +335,7 @@ def _reversible_model(name: str, S: np.ndarray, pi, alphabet: str = BASES) -> Su
 
 
 def _gtr_model(name: str, exch, pi) -> SubstitutionModel:
-    """Build a GTR-family nucleotide model from 6 exchangeabilities ``[AC,AG,AT,CG,CT,GT]`` and freqs.
+    """Build a GTR-family nucleotide model from 6 exchangeabilities ``[AC,AG,AT,CG,CT,GT]`` and frequencies.
 
     ``Q_ij = exch_ij · pi_j`` (i≠j), scaled so ``-Σ pi_i Q_ii = 1`` (branch lengths in subs/site).
     """
@@ -359,17 +359,20 @@ def k80(kappa: float = 2.0) -> SubstitutionModel:
     return _gtr_model("K80", [1, kappa, 1, 1, kappa, 1], [0.25] * 4)
 
 
-def hky85(kappa: float = 2.0, freqs=(0.25, 0.25, 0.25, 0.25)) -> SubstitutionModel:
-    """HKY85 (Hasegawa–Kishino–Yano 1985): transition bias ``kappa`` with unequal base ``freqs`` (A,C,G,T)."""
-    return _gtr_model("HKY85", [1, kappa, 1, 1, kappa, 1], freqs)
+def hky85(kappa: float = 2.0, frequencies=(0.25, 0.25, 0.25, 0.25)) -> SubstitutionModel:
+    """HKY85 (Hasegawa–Kishino–Yano 1985): transition bias ``kappa`` with unequal base ``frequencies`` (A,C,G,T)."""
+    return _gtr_model("HKY85", [1, kappa, 1, 1, kappa, 1], frequencies)
 
 
-def gtr(rates=(1, 1, 1, 1, 1, 1), freqs=(0.25, 0.25, 0.25, 0.25)) -> SubstitutionModel:
-    """General time-reversible: 6 exchangeabilities ``[AC,AG,AT,CG,CT,GT]`` and freqs (A,C,G,T)."""
-    return _gtr_model("GTR", rates, freqs)
+def gtr(exchangeabilities=(1, 1, 1, 1, 1, 1),
+        frequencies=(0.25, 0.25, 0.25, 0.25)) -> SubstitutionModel:
+    """General time-reversible: 6 ``exchangeabilities`` ``[AC,AG,AT,CG,CT,GT]`` and ``frequencies``
+    (A,C,G,T). This is `reversible()` restricted to four states, and the two name the numbers the
+    same thing on purpose — they are the same numbers."""
+    return _gtr_model("GTR", exchangeabilities, frequencies)
 
 
-def reversible(exchangeabilities, freqs, *, name: str = "Custom",
+def reversible(exchangeabilities, frequencies, *, name: str = "Custom",
                alphabet: str = BASES) -> SubstitutionModel:
     """A model of **your own matrix**: a symmetric ``K×K`` exchangeability matrix and ``K``
     stationary frequencies, over any alphabet.
@@ -407,7 +410,7 @@ def reversible(exchangeabilities, freqs, *, name: str = "Custom",
 
     Experimental (SPEC §9): Python API only, and the spelling may still move.
     """
-    return _reversible_model(name, exchangeabilities, freqs, alphabet)
+    return _reversible_model(name, exchangeabilities, frequencies, alphabet)
 
 
 # --- the protein models: 20 states, empirical exchangeabilities + frequencies ----------------------
@@ -424,7 +427,7 @@ def _lower_triangle(tri, k: int) -> np.ndarray:
 
 
 def _empirical_protein(name: str, tri, pi) -> SubstitutionModel:
-    """Build a 20-state protein model from published lower-triangular exchangeabilities and freqs,
+    """Build a 20-state protein model from published lower-triangular exchangeabilities and frequencies,
     both in `AMINO_ACIDS` order — normalised, like every model here, to one expected
     substitution per site per unit branch length."""
     return _reversible_model(name, _lower_triangle(tri, 20), pi, AMINO_ACIDS)

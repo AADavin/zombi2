@@ -127,7 +127,7 @@ def _sizes(ct, g, trait, palette):
     lab = ct.labels()
     tips = list(ct.extant_leaves())
     sizes = {lab[n.id]: len(g.genomes[n.id]) for n in tips}
-    tipcol = {lab[n.id]: palette[trait.values[n.id]] for n in tips}
+    tipcol = {lab[n.id]: palette[trait.values[lab[n.id]]] for n in tips}
     return sizes, tipcol
 
 
@@ -308,7 +308,7 @@ tree = ph.trees.loads(ct.to_newick())
 history = {lab[i]: segs for i, segs in hab.history.items()}
 tips = list(ct.extant_leaves())
 sizes  = {lab[n.id]: len(g.genomes[n.id]) for n in tips}           # gene count per tip
-colors = {lab[n.id]: pal[hab.values[n.id]] for n in tips}          # bar colour = lifestyle
+colors = {lab[n.id]: pal[hab.values[lab[n.id]]] for n in tips}     # bar colour = lifestyle
 fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
        + ph.trees.time_axis("time", bold=False))
@@ -337,7 +337,7 @@ tree = ph.trees.loads(ct.to_newick())
 history = {lab[i]: segs for i, segs in sel.history.items()}
 tips = list(ct.extant_leaves())
 sizes  = {lab[n.id]: len(g.genomes[n.id]) for n in tips}
-colors = {lab[n.id]: pal[sel.values[n.id]] for n in tips}
+colors = {lab[n.id]: pal[sel.values[lab[n.id]]] for n in tips}
 fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
        + ph.trees.time_axis("time", bold=False))
@@ -367,7 +367,7 @@ tree = ph.trees.loads(ct.to_newick())
 history = {lab[i]: segs for i, segs in comp.history.items()}
 tips = list(ct.extant_leaves())
 sizes  = {lab[n.id]: len(g.genomes[n.id]) for n in tips}
-colors = {lab[n.id]: pal[comp.values[n.id]] for n in tips}
+colors = {lab[n.id]: pal[comp.values[lab[n.id]]] for n in tips}
 fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
        + ph.trees.time_axis("time", bold=False))
