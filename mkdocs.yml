@@ -128,6 +128,8 @@ markdown_extensions:
 # the book's reading order. Adding a chapter means adding a stub page and a line here.
 nav:
   - Home: index.md
+  # A worked study, straight after Home: what the tool is *for*, before what it does.
+  - Example, can you trust RED?: example-red.md
   - Guide:
       - Introduction: guide/introduction.md
       - A tour of ZOMBI2: guide/tour.md

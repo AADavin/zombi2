@@ -9,6 +9,30 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **The docs open on a worked study.** `analyses/red/` — does RED, the measure GTDB uses to normalise
+  taxonomic ranks, still recover node ages once molecular rates vary? — was in the repository and
+  linked from nowhere: not the README, not the site, not the manual. It is now a documentation page
+  sitting directly after Home, framed as an example of the kind of question the tool exists to
+  answer, and its figures are written into `docs/assets/red/` by the study's own `figures.py` so the
+  two cannot drift apart.
+- **The RED study now sweeps the autocorrelated clock too**, which closes the limitation it was
+  written around. `FromParent` was a species-level modifier when the study was written and is wired
+  at the sequence level now, so the claim that the uncorrelated case was all that could be tested had
+  gone stale. At the raggedness real archaea show, RED recovers relative node ages with r = 0.993
+  (nRMSE 2.3%) under autocorrelated rates against r = 0.94–0.95 (≈6%) uncorrelated — confirming the
+  study's own prediction that autocorrelation is the easier case, and turning a caveat into a bound:
+  the conclusion no longer depends on which arrangement real archaea have. The uncorrelated numbers
+  are unchanged to four decimals.
+
+### Removed
+- **The yeast synteny/inversion study has left the repository** (`analyses/synteny_inversions/`). Its
+  headline rate was stated in the analyses index where anyone browsing would read it, and it is not a
+  number we are ready to stand behind — an unlinked folder is not the same as an unpublished result.
+  The code, the data and the write-up are kept outside the repository and will come back when the
+  estimate does. With one study left, the index is gone too: its conventions now sit in that study's
+  own `REPORT.md`, under "Reproducing this recipe".
+
 ## [0.24.0] - 2026-08-02
 
 ### Added
