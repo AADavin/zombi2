@@ -80,17 +80,26 @@ class DriverTrajectory:
         return starts[i] if i < len(starts) else math.inf
 
 
-def load_driver(path, tree) -> DriverTrajectory:
-    """Read a trait **event log** (``trait_events.tsv``: ``time · kind · lineage · from · to``, an
-    ``initial`` row then the switches) and **replay it against ``tree``** into a `DriverTrajectory`.
+def load_driver(path, tree, *, step: float | None = None) -> DriverTrajectory:
+    """Read a written driver and rebuild it against ``tree``. Two files can be a driver, and which
+    one you need depends on which kind of trait was grown.
 
-    The log alone is not enough — a switch says *when* the state changed, not what each branch started
-    in — so the tree supplies branch birth/end times and the topology, and the reconstruction walks
-    parent-before-child: the root begins in the ``initial`` row's state, every other lineage in its own
-    ``on_speciation`` state if it has one else its parent's ending state, and ``on_branch`` rows cut
-    the branch into constant stretches. This is the same tree the target level runs on, so ``node n7``
-    in the log is lineage 7 here. (``tree`` is the run's own species tree, always in hand where a
-    conditioned rate is resolved.)"""
+    A **discrete** trait's driver is its event log, ``trait_events.tsv``
+    (``time · kind · lineage · from · to``: an ``initial`` row then every switch). The log alone is
+    not enough — a switch says *when* the state changed, not what each branch started in — so the tree
+    supplies branch birth/end times and the topology, and the reconstruction walks parent-before-child:
+    the root begins in the ``initial`` row's state, every other lineage in its own ``on_speciation``
+    state if it has one else its parent's ending state, and ``on_branch`` rows cut the branch into
+    constant stretches. That is the exact stochastic character map.
+
+    A **continuous** trait's driver is its value table, ``trait_values.tsv``
+    (``node · kind · trait``). A diffusion has no switches to log — its event file holds only the
+    ``initial`` row — so the values at the nodes are what carries it, and the path between them is
+    interpolated at a resolution of ``step`` (`interpolated_segments`). Pointing a conditioned rate at
+    a continuous trait's *event* log used to be accepted and to yield a driver frozen at the root
+    value for the whole tree; it now raises and names the file to use instead.
+
+    The join key is the species node id either way: ``n7`` in the file is lineage 7 here."""
     try:
         text = pathlib.Path(path).read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -104,11 +113,13 @@ def load_driver(path, tree) -> DriverTrajectory:
         raise ValueError(f"driver file {str(path)!r} is empty")
     header = rows[0].split("\t")
     expected = ["time", "kind", "lineage", "from", "to"]
+    if header == ["node", "kind", "trait"]:
+        return _load_values_driver(path, rows, tree, step)
     if header != expected:
         raise ValueError(
-            f"driver file {str(path)!r} must be a trait event log with header {expected}, got "
-            f"{header} — write it with TraitsResult.write(dir, outputs=('events',)). (The old "
-            "node·start·end·state driver table was retired: the event log is the driver now.)"
+            f"driver file {str(path)!r} must be a trait event log with header {expected}, or a trait "
+            f"value table with header ['node', 'kind', 'trait']; got {header}. Write one with "
+            f"TraitsResult.write(dir, outputs=('events',)) or outputs=('values',)."
         )
     initial_state = None
     clado: dict[int, object] = {}                       # lineage -> its on-speciation start state
@@ -131,7 +142,72 @@ def load_driver(path, tree) -> DriverTrajectory:
             "trajectory cannot be reconstructed. Re-write it with a current ZOMBI2 (the t=0 row used "
             "to be spelled 'root')."
         )
+    if not switches and not clado:
+        # A log with an initial row and nothing else is either a discrete trait that happened never to
+        # switch — fine, a constant driver is the truth — or a CONTINUOUS trait, whose diffusion is not
+        # in this file at all. Replaying the latter silently produced a driver frozen at the root value
+        # for the whole tree, so a run that looked conditioned was the undriven model with a constant
+        # factor. The sibling value table tells the two apart, and is the file a diffusion belongs in.
+        values_file = pathlib.Path(path).with_name("trait_values.tsv")
+        if values_file.exists() and _looks_continuous(values_file):
+            raise ValueError(
+                f"driver file {str(path)!r} is a CONTINUOUS trait's event log, which records no "
+                f"switches — a diffusion has none — so it carries only the value at t=0 and would "
+                f"drive every lineage at that one constant value.\n"
+                f"Point the conditioned rate at {str(values_file)!r} instead: a continuous trait's "
+                f"driver is its value table, and the path between nodes is interpolated from it."
+            )
     return DriverTrajectory(_replay(tree, initial_state, clado, switches))
+
+
+def _looks_continuous(values_file: pathlib.Path) -> bool:
+    """Whether a ``trait_values.tsv`` holds numbers (a diffusion) rather than state labels.
+
+    Read rather than guessed from the event log, because a discrete trait's states may themselves be
+    spelled ``0`` and ``1`` and a never-switching discrete log is indistinguishable from a continuous
+    one on its own."""
+    try:
+        rows = [r for r in values_file.read_text(encoding="utf-8").splitlines() if r.strip()]
+    except OSError:
+        return False
+    if len(rows) < 2 or rows[0].split("\t") != ["node", "kind", "trait"]:
+        return False
+    for row in rows[1:]:
+        parts = row.split("\t")
+        if len(parts) != 3:
+            return False
+        try:
+            float(parts[2])
+        except ValueError:
+            return False
+    return True
+
+
+def _load_values_driver(path, rows, tree, step) -> DriverTrajectory:
+    """A continuous trait's ``trait_values.tsv`` → a `DriverTrajectory`, interpolated at ``step``."""
+    values: dict[int, float] = {}
+    for line in rows[1:]:
+        parts = line.split("\t")
+        if len(parts) != 3:
+            raise ValueError(f"driver file {str(path)!r} row is not 3 columns: {line!r}")
+        node_s, _kind, value_s = parts
+        try:
+            values[node_from_label(node_s)] = float(value_s)
+        except ValueError:
+            raise ValueError(
+                f"driver file {str(path)!r} is a value table whose entries are not numbers "
+                f"({value_s!r} on {node_s}). A DISCRETE trait's driver is its event log "
+                f"(trait_events.tsv), which carries the switch times this table has lost; only a "
+                f"CONTINUOUS trait is conditioned on its values."
+            ) from None
+    missing = [node_label(i) for i in tree.nodes if i not in values]
+    if missing:
+        raise ValueError(
+            f"driver file {str(path)!r} has no value for {len(missing)} lineage(s) of the tree this "
+            f"run is on (e.g. {', '.join(missing[:5])}). The driver must have been grown on the SAME "
+            f"complete tree — including the lineages that went extinct."
+        )
+    return DriverTrajectory(interpolated_segments(tree, values, step))
 
 
 def _replay(tree, initial_state, clado, switches) -> dict[int, list[tuple[float, object]]]:
@@ -163,10 +239,14 @@ def _replay(tree, initial_state, clado, switches) -> dict[int, list[tuple[float,
 
 #: default per-branch resolution for a continuous driver — how many constant stretches each branch is
 #: cut into. Higher is a finer approximation of the continuous path (and more Gillespie breakpoints).
-CONTINUOUS_DRIVER_STEPS = 8
+#: Default continuous-driver resolution, as a fraction of the tree's height: a stretch lasts 1% of
+#: the run, wherever on the tree it sits. A fraction rather than an absolute duration because a tree
+#: may be measured in expected substitutions or in millions of years, and a default in "time units"
+#: would be meaninglessly fine on one and uselessly coarse on the other.
+CONTINUOUS_DRIVER_FRACTION = 0.01
 
 
-def driver_from_result(result, *, steps: int = CONTINUOUS_DRIVER_STEPS) -> DriverTrajectory:
+def driver_from_result(result, *, step: float | None = None) -> DriverTrajectory:
     """Build a `DriverTrajectory` **directly from a grown trait result** — the same per-lineage lookup
     `load_driver()` builds from a file, but skipping the file round-trip. This is how a conditioned
     ``DrivenBy(trait, …)`` reads a trait grown in the same Python session: still conditioning (the
@@ -175,7 +255,7 @@ def driver_from_result(result, *, steps: int = CONTINUOUS_DRIVER_STEPS) -> Drive
     A **discrete** trait (`traits.simulate_discrete`) has a stochastic character map, so each branch is
     cut into its exact constant segments. A **continuous** trait (`traits.simulate_continuous`) has no
     such map, so it is handled by `driver_from_continuous_result()` — a piecewise-constant
-    approximation (``steps`` per branch)."""
+    approximation whose stretches last at most ``step`` time units."""
     tree = getattr(result, "complete_tree", None)
     history = getattr(result, "history", None)
     if tree is None:
@@ -184,7 +264,7 @@ def driver_from_result(result, *, steps: int = CONTINUOUS_DRIVER_STEPS) -> Drive
             f"simulate_continuous), carrying its complete tree; got {type(result).__name__}.")
     if history is None:                                       # no character map -> continuous (or threshold)
         if getattr(result, "node_values", None) is not None:
-            return driver_from_continuous_result(result, steps=steps)
+            return driver_from_continuous_result(result, step=step)
         raise ValueError(
             "a conditioned driver object must be a DISCRETE trait result (with a stochastic character "
             "map) or a CONTINUOUS one (with per-node values); got "
@@ -200,15 +280,73 @@ def driver_from_result(result, *, steps: int = CONTINUOUS_DRIVER_STEPS) -> Drive
     return DriverTrajectory(segments)
 
 
-def driver_from_continuous_result(result, *, steps: int = CONTINUOUS_DRIVER_STEPS) -> DriverTrajectory:
+def tree_height(tree) -> float:
+    """Origin to present — what a ``step=None`` continuous driver takes its default resolution from."""
+    root_birth = tree.nodes[tree.root].birth_time
+    return max(n.end_time for n in tree.nodes.values()) - root_birth
+
+
+def default_step(tree) -> float:
+    """The default driver resolution for ``tree``: `CONTINUOUS_DRIVER_FRACTION` of its height."""
+    height = tree_height(tree)
+    if not (height > 0.0) or not math.isfinite(height):
+        raise ValueError(f"cannot pick a default driver step for a tree of height {height!r}; "
+                         f"pass step= explicitly")
+    return height * CONTINUOUS_DRIVER_FRACTION
+
+
+def interpolated_segments(tree, values: dict, step: float | None = None) -> dict:
+    """Cut every branch into stretches of **at most ``step`` time units** and give each the trait
+    linearly interpolated between the branch's endpoints, read at the stretch's midpoint.
+
+    The cut is per unit of TIME, not per branch. Cutting each branch into a fixed number of pieces
+    makes the approximation as coarse as the branch is long: a branch ten times another gets stretches
+    ten times cruder, so the error is uneven across the tree and worst exactly where the driver has
+    had most time to move. A fixed time step gives every stretch the same duration wherever it sits,
+    so the resolution means the same thing everywhere and refining it is one number.
+
+    A branch shorter than ``step`` gets a single stretch at its midpoint value. The number of
+    stretches on a branch of length ``L`` is ``ceil(L / step)``, and they divide ``L`` evenly."""
+    if step is None:
+        step = default_step(tree)
+    step = float(step)
+    if not (step > 0.0) or not math.isfinite(step):
+        raise ValueError(f"a driver step is a duration and must be finite and positive, got {step!r}")
+
+    segments: dict[int, list[tuple[float, object]]] = {}
+    for i, node in tree.nodes.items():
+        end_v = float(values[i])
+        start_v = float(values[node.parent]) if node.parent is not None else end_v  # root: no earlier value
+        t0 = node.birth_time
+        dt = node.end_time - node.birth_time
+        if dt <= 0:
+            segments[i] = [(t0, end_v)]
+            continue
+        n = max(1, math.ceil(dt / step))
+        segments[i] = [(t0 + k * dt / n, start_v + (end_v - start_v) * (k + 0.5) / n)
+                       for k in range(n)]
+    return segments
+
+
+def driver_from_continuous_result(result, *, step: float | None = None) -> DriverTrajectory:
     """Build a `DriverTrajectory` from a **continuous** trait result (`traits.simulate_continuous`).
 
-    A continuous trait has no discrete switches, so there is no exact stochastic map. Instead each
-    branch is cut into ``steps`` equal stretches whose value is the trait **linearly interpolated** from
-    the branch's start (its parent's node value) to its end (this node's value), sampled at each
-    stretch's midpoint — a piecewise-constant approximation of the continuous path that the same engine
-    consumes, converging as ``steps`` grows. It adds ``steps`` breakpoints per branch, so a
-    continuously-driven run steps its Gillespie more often than a discrete one.
+    A continuous trait has no discrete switches, so there is no exact stochastic map to replay.
+    Instead the path is approximated by a piecewise-constant one — the same shape a discrete trait's
+    map has, which is what lets one engine consume both — with each stretch lasting at most ``step``
+    time units (`interpolated_segments`). The engine then steps its Gillespie to every stretch
+    boundary, so within a stretch the rate really is constant and the exponential draw is exact
+    there; nothing is thinned or rejected.
+
+    ``step`` is the resolution, in the tree's own time units, and it is the knob that trades accuracy
+    for speed: halving it doubles the breakpoints and so the work. ``None`` takes
+    `CONTINUOUS_DRIVER_FRACTION` of the tree's height.
+
+    Two things this approximation is not, worth knowing before reading a driven run. It is the
+    **straight line** between a branch's endpoint values, so it is the mean of the Brownian bridge
+    between them with the excursions dropped — a real path wanders either side of that line and this
+    driver does not. And under a non-linear response curve those dropped excursions do not average
+    out, so a smaller ``step`` is not only more precise, it removes a bias.
 
     The driver's values are **floats**, so its `DrivenBy` needs a continuous mapping (a
     `~zombi2.rates.mapping.Curve` or `~zombi2.rates.mapping.Scalar`), not a discrete
@@ -222,19 +360,7 @@ def driver_from_continuous_result(result, *, steps: int = CONTINUOUS_DRIVER_STEP
         raise ValueError(
             "a continuous driver must be a SINGLE-trait result; got multi-trait node values "
             f"({sorted(sample)}). Grow one trait as the driver, or select a component before conditioning.")
-    steps = max(1, int(steps))
-    segments: dict[int, list[tuple[float, object]]] = {}
-    for i, node in tree.nodes.items():
-        end_v = float(values[i])
-        start_v = float(values[node.parent]) if node.parent is not None else end_v  # root: no earlier value
-        t0 = node.birth_time
-        dt = node.end_time - node.birth_time
-        if dt <= 0:
-            segments[i] = [(t0, end_v)]
-            continue
-        segments[i] = [(t0 + k * dt / steps, start_v + (end_v - start_v) * (k + 0.5) / steps)
-                       for k in range(steps)]
-    return DriverTrajectory(segments)
+    return DriverTrajectory(interpolated_segments(tree, values, step))
 
 
 def check_mapping_fires(mapping, available_states, *, source_label: str, exhaustive: bool = False) -> None:
@@ -328,22 +454,25 @@ def names_a_live_level(source: object) -> bool:
     return isinstance(source, str) and (source == "trait" or source.startswith("genomes:"))
 
 
-def resolve_driver(source, tree) -> DriverTrajectory:
+def resolve_driver(source, tree, *, step: float | None = None) -> DriverTrajectory:
     """Resolve a conditioned ``DrivenBy`` ``source`` into a `DriverTrajectory` — a **filename**
     (str) via `load_driver()` (replayed against ``tree``, the target run's own species tree), an
     object that answers for itself through ``as_driver_trajectory(tree)`` (a genome run's
     ``presence("name")``), or an **in-memory** trait result via `driver_from_result()` (which carries
     its own tree).
     Both are conditioning (the driver grown first); the object form just spares you the ``write``/read
-    step in a single session."""
+    step in a single session.
+
+    ``step`` is the continuous-driver resolution (see `interpolated_segments`); it is ignored by a
+    discrete driver, whose stretches are exact."""
     if isinstance(source, str):
-        return load_driver(source, tree)
+        return load_driver(source, tree, step=step)
     if hasattr(source, "as_driver_trajectory"):
         # a level that knows how to answer "what state was lineage L in at time t?" for itself —
         # `genomes.presence("tox")` is the first. The protocol is one method rather than an isinstance
         # branch per level so this module stays free of imports from the levels it serves.
         return source.as_driver_trajectory(tree)
-    return driver_from_result(source)
+    return driver_from_result(source, step=step)
 
 
 __all__ = ["DriverTrajectory", "load_driver", "driver_from_result", "resolve_driver",

@@ -1056,22 +1056,90 @@ def test_ordered_refuses_byfamily_on_an_extent():
 # --- a CONTINUOUS trait as the driver (approximate: each branch cut into constant sub-steps) --------
 
 def test_continuous_driver_trajectory_interpolates():
-    """`driver_from_continuous_result` cuts each branch into ``steps`` constant stretches whose value
-    is the trait linearly interpolated from the parent's value to the node's, sampled at each
-    stretch's midpoint — so `value()` returns exactly that, and `next_change()` steps within a branch."""
+    """`driver_from_continuous_result` cuts each branch into stretches of at most ``step`` time units
+    whose value is the trait linearly interpolated from the parent's value to the node's, sampled at
+    each stretch's midpoint — so `value()` returns exactly that, and `next_change()` steps within a
+    branch."""
+    import math
+
     from zombi2.rates.driver import driver_from_continuous_result
     ct = simulate_species_tree(birth=1.0, n_extant=6, seed=1).complete_tree
     met = traits.simulate_continuous(ct, start=0.0, rate=1.0, seed=2)
-    traj = driver_from_continuous_result(met, steps=10)
 
     node = next(n for n in ct.nodes.values() if n.parent is not None and n.end_time > n.birth_time)
-    start_v, end_v = met.node_values[node.parent], met.node_values[node.id]
     dt = node.end_time - node.birth_time
-    for k in (0, 3, 9):                                  # the value in the k-th stretch = its midpoint
-        expected = start_v + (end_v - start_v) * (k + 0.5) / 10
-        assert traj.value(node.id, node.birth_time + k * dt / 10) == pytest.approx(expected)
+    step = dt / 10                                       # ten stretches on *this* branch
+    traj = driver_from_continuous_result(met, step=step)
+
+    start_v, end_v = met.node_values[node.parent], met.node_values[node.id]
+    n = max(1, math.ceil(dt / step))
+    for k in (0, 3, n - 1):                              # the value in the k-th stretch = its midpoint
+        expected = start_v + (end_v - start_v) * (k + 0.5) / n
+        assert traj.value(node.id, node.birth_time + k * dt / n) == pytest.approx(expected)
     nxt = traj.next_change(node.id, node.birth_time)     # a within-branch breakpoint, not inf
     assert node.birth_time < nxt <= node.end_time
+
+
+def test_the_continuous_driver_step_is_a_duration_not_a_count_of_pieces():
+    """The resolution is per unit of **time**, so a stretch means the same thing on every branch.
+
+    Cutting each branch into a fixed number of pieces makes the approximation as coarse as the branch
+    is long — the error is then worst exactly where the driver has had most time to move, and refining
+    it on the branches that need it also refines every branch that does not. A duration gives every
+    stretch the same length wherever it sits: a branch twice as long gets twice as many, and halving
+    the step doubles them everywhere."""
+    from zombi2.rates.driver import default_step, driver_from_continuous_result, tree_height
+    ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=25, seed=3).complete_tree
+    met = traits.simulate_continuous(ct, start=0.0, rate=1.0, seed=4)
+
+    step = tree_height(ct) / 40
+    traj = driver_from_continuous_result(met, step=step)
+    for node in ct.nodes.values():                       # every stretch is at most `step` long
+        starts = traj._starts[node.id]
+        bounds = [*starts[1:], node.end_time]
+        assert all(b - s <= step + 1e-12 for s, b in zip(starts, bounds)), node.id
+        assert len(starts) == max(1, math.ceil((node.end_time - node.birth_time) / step))
+
+    # halving the step doubles the work; a per-branch scheme would not move at all
+    fine = driver_from_continuous_result(met, step=step / 2)
+    n_coarse = sum(len(v) for v in traj._starts.values())
+    n_fine = sum(len(v) for v in fine._starts.values())
+    assert 1.9 < n_fine / n_coarse < 2.1, (n_coarse, n_fine)
+
+    assert default_step(ct) == pytest.approx(tree_height(ct) * 0.01)
+    for bad in (0.0, -1.0, float("inf")):
+        with pytest.raises(ValueError, match="finite and positive"):
+            driver_from_continuous_result(met, step=bad)
+
+
+def test_a_continuous_trait_is_conditioned_on_from_its_values_file(tmp_path):
+    """Conditioning from disk on a diffusion, which used to be a silent constant.
+
+    A continuous trait has no switches, so its event log holds only the ``initial`` row. Replaying
+    that log gave a driver frozen at the root value on every lineage — accepted without complaint, so
+    a run that looked conditioned was the undriven model with one constant factor. The event log now
+    refuses and names the value table, and the value table reproduces the in-memory driver exactly."""
+    ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=20, seed=5).complete_tree
+    bm = traits.simulate_continuous(ct, start=0.0, rate=1.0, seed=6)
+    bm.write(tmp_path, outputs=("values", "events"))
+    curve = (lambda x: 1.0 + max(0.0, x))
+
+    with pytest.raises(ValueError, match="CONTINUOUS trait's event log"):
+        genomes.simulate_genomes_family(
+            ct, initial_families=30, seed=7,
+            loss=0.1 * mod.DrivenBy(str(tmp_path / "trait_events.tsv"), curve))
+
+    from_file = genomes.simulate_genomes_family(
+        ct, initial_families=30, seed=7,
+        loss=0.1 * mod.DrivenBy(str(tmp_path / "trait_values.tsv"), curve))
+    in_memory = genomes.simulate_genomes_family(
+        ct, initial_families=30, seed=7, loss=0.1 * mod.DrivenBy(bm, curve))
+    assert [e.kind for e in from_file.events] == [e.kind for e in in_memory.events]
+
+    # and the same trait read at two resolutions stays two drivers rather than being shared
+    coarse = mod.DrivenBy(bm, curve, step=0.5)
+    fine = mod.DrivenBy(bm, curve, step=0.01)
+    assert coarse.key != fine.key
 
 
 def test_continuous_driver_drives_a_rate_and_is_deterministic():

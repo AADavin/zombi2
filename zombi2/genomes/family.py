@@ -798,14 +798,15 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # and the loop stays byte-identical to an undriven run.
     dup_mods, los_mods = _driven_mods(dup), _driven_mods(los)
     org_mods, tra_mods = _driven_mods(org), _driven_mods(tra)
-    # driver key → its source (deduped, so a driver shared across rates resolves once)
-    by_key: dict[object, object] = {}
+    # driver key → its DrivenBy (deduped, so a driver shared across rates resolves once);
+    # the modifier rather than the source because the driver's step rides on it
+    by_key: dict[object, "DrivenBy"] = {}
     for m in (*dup_mods, *los_mods, *org_mods, *tra_mods):
-        by_key.setdefault(m.key, m.source)
+        by_key.setdefault(m.key, m)
     resolved = {}
     if by_key:
         from ..rates.driver import check_mapping_fires, resolve_driver
-        resolved = {key: resolve_driver(src, tree) for key, src in by_key.items()}
+        resolved = {key: resolve_driver(m.source, tree, step=m.step) for key, m in by_key.items()}
         # a mapping whose states never occur in the driver leaves every lineage at the default factor,
         # so the rate is never driven and the run is secretly the undriven model — refuse it here,
         # naming the driver, rather than let it pass as a driven run
