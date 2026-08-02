@@ -152,12 +152,25 @@ Three things are worth being precise about.
 
 ## Reproducing this recipe
 
+A study under `analyses/` is **self-contained**: its own scripts, data, figures and write-up, run
+from its own folder, importing the installed `zombi2` and reading and writing paths relative to
+itself. Every number regenerates deterministically from fixed seeds.
+
 ```bash
 cd analyses/red
 python observable.py     # the observable: GTDB root-to-tip substitution CV (= 0.232)
 python experiment.py     # calibrate the clocks, then grade RED vs raggedness -> results.json
 python figures.py        # Figures 1-4 from results.json (also into docs/assets/red/)
 ```
+
+`figures.py` writes into `docs/assets/red/` as well as its own folder, because this study is the docs
+site's worked example ([`docs/example-red.md`](../../docs/example-red.md)) — one command regenerates
+both, so the page and the study cannot drift apart.
+
+Where a study needs a capability the clean core does not ship as a public API, it carries a **local,
+faithful port** in its own folder rather than un-quarantining the package `tools/` — the core stays
+lean and the analysis stays reproducible. (RED's own estimator did not need one: it ships, as
+`zombi2.tree.relative_evolutionary_divergence`.)
 
 The GTDB archaeal reference tree ships with the recipe (`data/ar53.tree`); refresh it with
 `curl -fsSL -o data/ar53.tree https://data.gtdb.ecogenomic.org/releases/latest/ar53.tree`. The relaxed

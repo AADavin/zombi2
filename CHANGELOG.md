@@ -27,10 +27,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Removed
 - **The yeast synteny/inversion study has left the repository** (`analyses/synteny_inversions/`). Its
-  headline rate was stated in `analyses/README.md` where anyone browsing would read it, and it is not
-  a number we are ready to stand behind — an unlinked folder is not the same as an unpublished
-  result. The code, the data and the write-up are kept outside the repository and will come back when
-  the estimate does.
+  headline rate was stated in the analyses index where anyone browsing would read it, and it is not a
+  number we are ready to stand behind — an unlinked folder is not the same as an unpublished result.
+  The code, the data and the write-up are kept outside the repository and will come back when the
+  estimate does. With one study left, the index is gone too: its conventions now sit in that study's
+  own `REPORT.md`, under "Reproducing this recipe".
 
 ## [0.24.0] - 2026-08-02
 
