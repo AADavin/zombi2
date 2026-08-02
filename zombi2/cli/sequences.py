@@ -10,7 +10,7 @@ produced, and evolves one sequence down each family's *complete* gene tree under
 Long options are the API keyword names, and ``--substitution`` takes the written form of a rate
 (SPEC §5): a bare number is the strict clock, and the uncorrelated ("relaxed") lineage clock is that
 rate times a ``ByLineage`` modifier — ``--substitution "1.0 * ByLineage(spread=0.3)"``. The model's
-physical parameters (``--kappa`` / ``--frequencies`` / ``--gtr-rates``) are rejected for a model that
+physical parameters (``--kappa`` / ``--frequencies`` / ``--exchangeabilities``) are rejected for a model that
 does not use them — including *every* protein model, which is empirical and takes none — so a
 silently-ignored flag can't give a misleading run. See
 `zombi2.sequences.simulate_sequences()`."""
@@ -70,10 +70,11 @@ _MODEL_KNOBS = {
     "jc69": (),
     "k80": ("kappa",),
     "hky85": ("kappa", "frequencies"),
-    "gtr": ("frequencies", "gtr_rates"),
+    "gtr": ("frequencies", "exchangeabilities"),
     **{name: () for name in _PROTEIN_MODELS},
 }
-_KNOB_FLAG = {"kappa": "--kappa", "frequencies": "--frequencies", "gtr_rates": "--gtr-rates"}
+_KNOB_FLAG = {"kappa": "--kappa", "frequencies": "--frequencies",
+              "exchangeabilities": "--exchangeabilities"}
 
 
 def _add_sequence_args(p: argparse.ArgumentParser) -> None:
@@ -107,7 +108,7 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--frequencies", type=float, nargs=4, default=None, metavar=("A", "C", "G", "T"),
                    help="[hky85, gtr] equilibrium base frequencies A C G T (must be positive and "
                         "sum to 1; default equal)")
-    g.add_argument("--gtr-rates", type=float, nargs=6, default=None, dest="gtr_rates",
+    g.add_argument("--exchangeabilities", type=float, nargs=6, default=None,
                    metavar=("AC", "AG", "AT", "CG", "CT", "GT"),
                    help="[gtr] the six exchangeabilities (default all 1)")
     # Across-site rate variation decorates ANY model on the menu, so these sit outside _MODEL_KNOBS
@@ -146,13 +147,13 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
 
 def _resolve_model_knobs(args) -> dict:
     """The nucleotide substitution-model knobs with each default filled in — ``kappa`` (2.0),
-    ``frequencies`` (uniform), ``gtr_rates`` (all 1). Shared by `_build_model()`, which uses them,
+    ``frequencies`` (uniform), ``exchangeabilities`` (all 1). Shared by `_build_model()`, which uses them,
     and `_effective_model_params()`, which logs them, so the two cannot drift."""
     # floats, not ints: --gtr-rates parses as float, so a default logged as [1, 1, …] would not match
     # the [1.0, …] a reproduced run logs — and the run report is meant to reproduce byte-for-byte.
     return {"kappa": 2.0 if args.kappa is None else args.kappa,
             "frequencies": [0.25, 0.25, 0.25, 0.25] if args.frequencies is None else list(args.frequencies),
-            "gtr_rates": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0] if args.gtr_rates is None else list(args.gtr_rates)}
+            "exchangeabilities": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0] if args.exchangeabilities is None else list(args.exchangeabilities)}
 
 
 def _effective_substitution(args, genome_run) -> dict:
@@ -199,15 +200,17 @@ def _build_model(args: argparse.Namespace):
         model = _PROTEIN_MODELS[args.model]()
     else:
         knobs = _resolve_model_knobs(args)
-        kappa, freqs, rates = knobs["kappa"], tuple(knobs["frequencies"]), tuple(knobs["gtr_rates"])
+        kappa = knobs["kappa"]
+        frequencies = tuple(knobs["frequencies"])
+        exchangeabilities = tuple(knobs["exchangeabilities"])
         if args.model == "jc69":
             model = jc69()
         elif args.model == "k80":
             model = k80(kappa=kappa)
         elif args.model == "hky85":
-            model = hky85(kappa=kappa, freqs=freqs)
+            model = hky85(kappa=kappa, frequencies=frequencies)
         else:
-            model = gtr(rates=rates, freqs=freqs)
+            model = gtr(exchangeabilities=exchangeabilities, frequencies=frequencies)
     if args.gamma_shape is not None or args.invariant:
         model = model.across_sites(gamma_shape=args.gamma_shape,
                                    invariant=args.invariant or 0.0,
@@ -251,7 +254,7 @@ def run(args, parser):
     # reject a physical parameter given for a model that doesn't read it (e.g. --kappa with jc69),
     # so a silently-ignored flag can't give a misleading run — the genomes command's discipline
     allowed = set(_MODEL_KNOBS[args.model])
-    stray = [_KNOB_FLAG[k] for k in ("kappa", "frequencies", "gtr_rates")
+    stray = [_KNOB_FLAG[k] for k in ("kappa", "frequencies", "exchangeabilities")
              if getattr(args, k) is not None and k not in allowed]
     if stray:
         parser.error(f"these options don't apply to --model {args.model}: {', '.join(stray)}")

@@ -37,7 +37,7 @@ RATES_HELP = _rates_help(
 
 #: the driver flags, by which driver they build — used to reject the other driver's flags rather
 #: than ignore them, the discipline every other command follows
-_TRAIT_ONLY = (("states", None), ("switch", None), ("trait_start", None))
+_TRAIT_ONLY = (("states", None), ("switch", None), ("start", None))
 _GENOME_ONLY = (("duplication", 0.0), ("loss", 0.0), ("origination", 0.0),
                 ("initial_families", 0), ("family_names", None))
 
@@ -68,7 +68,7 @@ def _add_joint_args(p: argparse.ArgumentParser) -> None:
                    help="the trait's state space, comma-separated (e.g. small,large)")
     g.add_argument("--switch", type=float, default=None, metavar="RATE",
                    help="symmetric switching rate between states")
-    g.add_argument("--trait-start", metavar="STATE", default=None, dest="trait_start",
+    g.add_argument("--start", metavar="STATE", default=None,
                    help="the root state (default: uniform over --states)")
 
     g = p.add_argument_group("driver: gene content",
@@ -119,7 +119,7 @@ def run(args, parser):
         states = [s.strip() for s in args.states.split(",") if s.strip()]
         if len(states) < 2:
             parser.error(f"--states needs at least two, got {args.states!r}")
-        driver = dict(trait=discrete(states=states, switch=args.switch, start=args.trait_start))
+        driver = dict(trait=discrete(states=states, switch=args.switch, start=args.start))
     else:
         names = ([s.strip() for s in args.family_names.split(",") if s.strip()]
                  if args.family_names else None)

@@ -182,11 +182,33 @@ def prune(tree: Tree, keep: str = "extant") -> Tree | None:
         new[i] = Node(i, p, branch_start, nodes[i].end_time, None, nodes[i].fate)
         if p is None:
             ext_root = i
-    for i in sorted(kept):  # rebuild children from parents, in id order for a stable Newick
-        p = new[i].parent
-        if p is not None:
-            existing = new[p].children
-            new[p].children = (i,) if existing is None else existing + (i,)
+
+    def kept_children(i: int) -> tuple[int, ...]:
+        """``i``'s kept children, **in the order the complete tree had them**.
+
+        Descends through the surviving unifurcations a pruned sibling leaves behind, taking the
+        original children left to right. Rebuilding them by node id instead — which this did — is
+        stable but not *consistent*: ids are assigned in birth order, and a suppressed child is
+        replaced by a descendant whose id can be far larger than its sibling's, so the pair comes
+        out swapped. The complete tree and its extant tree then draw the same clade on opposite
+        sides, and any figure showing both, or any reader joining them by position, disagrees with
+        itself."""
+        out: list[int] = []
+        stack = list(reversed(nodes[i].children or ()))
+        while stack:
+            c = stack.pop()
+            if not surviving[c]:
+                continue
+            if c in kept:
+                out.append(c)
+            else:                                   # a unifurcation: its kept descendants stand in
+                stack.extend(reversed(nodes[c].children or ()))
+        return tuple(out)
+
+    for i in kept:
+        children = kept_children(i)
+        if children:
+            new[i].children = children
 
     return Tree(new, ext_root)
 

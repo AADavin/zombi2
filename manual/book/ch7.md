@@ -36,8 +36,9 @@ from zombi2.sequences.substitution_models import (jc69, k80, hky85, gtr,
 # --- nucleotide models (4 states, ACGT) ---
 model = jc69()                    # equal rates, equal base frequencies — no parameters
 model = k80(kappa=2.0)            # a transition/transversion bias
-model = hky85(kappa=2.0, freqs=(0.3, 0.2, 0.2, 0.3))            # bias + unequal freqs
-model = gtr(rates=(1,2,1,1,2,1), freqs=(0.25,0.25,0.25,0.25))   # six exchangeabilities
+model = hky85(kappa=2.0, frequencies=(0.3, 0.2, 0.2, 0.3))            # bias + unequal frequencies
+model = gtr(exchangeabilities=(1,2,1,1,2,1),           # six exchangeabilities
+            frequencies=(0.25,0.25,0.25,0.25))
 
 # --- protein models (20 states, amino acids) ---
 model = poisson()                 # equal rates, equal frequencies — the JC69 of proteins
@@ -62,11 +63,11 @@ S = np.array([[0, 1, kappa, 1],      # A ↔ C, A ↔ G, A ↔ T
               [1, 0, 1, kappa],      # C ↔ …
               [kappa, 1, 0, 1],
               [1, kappa, 1, 0]], dtype=float)
-mine = reversible(S, freqs=(0.3, 0.2, 0.2, 0.3), name="mine")
+mine = reversible(S, frequencies=(0.3, 0.2, 0.2, 0.3), name="mine")
 custom = sequences.simulate_sequences(my_genomes, model=mine, length=1000, seed=1)
 ```
 
-The rate of $i \to j$ is $Q_{ij} = S_{ij}\,\pi_j$, the diagonal is minus the rest of its row, and the whole matrix is then scaled so that one unit of branch length is one expected substitution per site — the same scaling every model on the menu gets. So a phylogram from your matrix is comparable with one from `hky85` without converting anything. This is the constructor the menu itself uses: the matrix above *is* HKY85, so `mine` and `hky85(kappa=2.0, freqs=(0.3, 0.2, 0.2, 0.3))` are the same model. Pass `alphabet=AMINO_ACIDS` for a twenty-state matrix of your own.
+The rate of $i \to j$ is $Q_{ij} = S_{ij}\,\pi_j$, the diagonal is minus the rest of its row, and the whole matrix is then scaled so that one unit of branch length is one expected substitution per site — the same scaling every model on the menu gets. So a phylogram from your matrix is comparable with one from `hky85` without converting anything. This is the constructor the menu itself uses: the matrix above *is* HKY85, so `mine` and `hky85(kappa=2.0, frequencies=(0.3, 0.2, 0.2, 0.3))` are the same model. Pass `alphabet=AMINO_ACIDS` for a twenty-state matrix of your own.
 
 You give $S$ and $\pi$ rather than $Q$ directly, and that restriction is deliberate. ZOMBI2 computes $P(t) = e^{Qt}$ through a symmetric eigendecomposition that is only valid for a **time-reversible** model, one where $\pi_i Q_{ij} = \pi_j Q_{ji}$ for every pair. A symmetric $S$ times $\pi$ satisfies that by construction, so there is no way to write a model here that the engine would evaluate wrongly. A general $Q$ handed straight to `SubstitutionModel` could be, and is refused with an error rather than run: non-reversible models such as UNREST are not implemented, and a wrong transition matrix produces plausible sequences that are not the model you asked for.
 
@@ -256,7 +257,7 @@ result.species_phylogram   # the species tree in substitutions per site
 
 # GTR with unequal base frequencies, under a relaxed (uncorrelated) clock
 result = sequences.simulate_sequences(my_genomes,
-    model=gtr(rates=(1, 2, 1, 1, 2, 1), freqs=(0.3, 0.2, 0.2, 0.3)),
+    model=gtr(exchangeabilities=(1, 2, 1, 1, 2, 1), frequencies=(0.3, 0.2, 0.2, 0.3)),
     substitution=1.0 * mod.ByLineage(spread=0.3),   # the relaxed clock
     length=500, seed=1)
 

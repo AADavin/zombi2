@@ -9,6 +9,40 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **The README opens on one simulated dataset seen at all four levels** — the same 30-tip tree drawn
+  with its extinct lineages, the gene order of every surviving genome with homologues linked, the
+  alignment behind one gene family, and two coupled traits. The figure regenerates with
+  `figures/scripts/fig_overview.py`.
+- **A gallery entry for gene order along a tree** — `genome_synteny_tree`, ordered genomes drawn
+  beside the tree that produced them with homologous genes linked across the tips.
+
+### Changed
+- **The CLI's flags and the Python keywords are the same words.** Three had drifted apart:
+  `--frequencies` was `freqs`, `--gtr-rates` was `gtr(rates=)` and `zombi2 joint --trait-start` was
+  `discrete(start=)`. **Breaking:** `hky85(freqs=…)` and `gtr(freqs=…)` are now `frequencies=`,
+  `gtr(rates=…)` is `exchangeabilities=` (the name `reversible()` already used for the same six
+  numbers), and the joint flag is `--start`, matching `zombi2 traits`. `--mass-extinction` keeps its
+  singular name against a plural `mass_extinctions=`: the flag is repeatable and names one pulse
+  where the parameter holds the list.
+
+### Fixed
+- **The gallery's conditioning examples read the trait by tip name.** Four of them still indexed
+  `TraitsResult.values` by node id, which stopped working when that mapping was re-keyed — so the
+  code printed beside those figures raised a `KeyError` for anyone who copied it.
+- **`simulate_sequences` accepts an ordered genome run.** Its gate tested the result's class rather
+  than what the level needs — `gene_trees` and a `complete_tree`, both of which an ordered run has —
+  so `simulate_genomes_ordered(...)` into `simulate_sequences(...)` raised in Python while the
+  identical two commands worked on the command line, whose directory handoff quietly rebuilds a
+  family result on the way in. The docstring, Chapter 7 and Appendix B all said the Python route
+  worked. A test now asserts that every CLI flag has a Python route, so the two front doors cannot
+  drift apart again.
+- **The extant tree keeps the complete tree's clade order.** `prune` rebuilt each node's children in
+  ascending node id, which coincides with the original order only until a child is pruned away — the
+  surviving descendant that replaces it can have a far larger id than its sibling, so the pair came
+  out swapped. A figure showing both trees drew the same clade on opposite sides, and anything
+  joining them by position disagreed with itself.
+
 ## [0.22.0] - 2026-08-01
 
 ### Fixed
