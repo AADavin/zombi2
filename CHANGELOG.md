@@ -12,6 +12,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [0.22.0] - 2026-08-01
 
 ### Fixed
+- **`simulate_sequences` accepts an ordered genome run.** Its gate tested the result's class rather
+  than what the level needs — `gene_trees` and a `complete_tree`, both of which an ordered run has —
+  so `simulate_genomes_ordered(...)` into `simulate_sequences(...)` raised in Python while the
+  identical two commands worked on the command line, whose directory handoff quietly rebuilds a
+  family result on the way in. The docstring, Chapter 7 and Appendix B all said the Python route
+  worked. A test now asserts that every CLI flag has a Python route, so the two front doors cannot
+  drift apart again.
 - **The extant tree keeps the complete tree's clade order.** `prune` rebuilt each node's children in
   ascending node id, which coincides with the original order only until a child is pruned away — the
   surviving descendant that replaces it can have a far larger id than its sibling, so the pair came
@@ -199,6 +206,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   raises, which matters more since the same expression started working on `zombi2 species`.
 
 ### Changed
+- **The CLI's flags and the Python keywords are the same words.** Three had drifted apart:
+  `--frequencies` was `freqs`, `--gtr-rates` was `gtr(rates=)` and `zombi2 joint --trait-start` was
+  `discrete(start=)`. **Breaking:** `hky85(freqs=…)` and `gtr(freqs=…)` are now `frequencies=`,
+  `gtr(rates=…)` is `exchangeabilities=` (the name `reversible()` already used for the same six
+  numbers), and the joint flag is `--start`, matching `zombi2 traits`. `--mass-extinction` keeps its
+  singular name against a plural `mass_extinctions=`: the flag is repeatable and names one pulse
+  where the parameter holds the list.
 - **The sequences level refuses a `divergence` given alongside a driven `substitution`.** The base is
   solved for by assuming the modifiers average to 1 along a root-to-tip path, which the two lineage
   clocks are mean-corrected to do and a driver deliberately is not — so allowing it would log a

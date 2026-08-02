@@ -1651,7 +1651,7 @@ def test_sequences_log_records_effective_model_params(tmp_path):
     # the resolved values the run used, not the bare `None` that was on the command line
     assert "kappa\t2.0" in log
     assert "frequencies\t[0.25, 0.25, 0.25, 0.25]" in log
-    assert "gtr_rates\tNone" in log            # a knob this model does not have stays None
+    assert "exchangeabilities\tNone" in log    # a knob this model does not have stays None
 
 
 # ── the family-tier knobs on the command line ───────────────────────────────────────────────────
