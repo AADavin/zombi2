@@ -22,7 +22,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   of everyone who installs it — and 118 errors said they were not worth reading. All of them are
   fixed and the check is a CI job. Nothing about a run changed; the fixes are annotations, three
   latent `None` paths that could not be reached, and two stale signatures.
-- **Coverage is measured in CI** and reported (94% of `zombi2` at the time of writing). Not
+- **Coverage is measured in CI** and reported (95% of `zombi2` at the time of writing). Not
   enforced: a threshold turns a number worth reading into a number worth gaming.
 - **A `CONTRIBUTING.md`** — how to set up, what to run before opening a pull request, and what a
   pull request is expected to carry.
