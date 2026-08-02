@@ -604,13 +604,18 @@ def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_bas
 
 
 def draw_conditioning_curve(ax, *, driver, curve, vrange, target, target_base=None, target_sub=None,
-                            cmap="viridis", value_label="trait value"):
+                            cmap="viridis", value_label="trait value",
+                            target_states=None, target_switch=None, target_colors=None,
+                            target_driven=None):
     """The same diagram for a **continuous** driver. A discrete driver has one multiplier per state; a
     continuous one has a curve, so the space under the arrow plots ``curve`` (value → factor) over ``vrange``
     and the driver column carries the colour ramp the tree is painted with."""
     from matplotlib.patches import Rectangle
 
     _conditioning_frame(ax, driver, target, target_base, target_sub)
+    if target_states:
+        _state_chain(ax, target_states, target_switch, target_colors, cx=555, y=214,
+                     driven=target_driven)
 
     # driver column: the colour ramp, standing in for the discrete diagram's state circles
     x0, x1, y0, y1 = 57.0, 183.0, 190.0, 214.0
@@ -628,6 +633,8 @@ def draw_conditioning_curve(ax, *, driver, curve, vrange, target, target_base=No
     lo, hi = vrange
     vs = [lo + (hi - lo) * k / 60 for k in range(61)]
     fs = [curve(v) for v in vs]
+    # a step function drawn through a line plot would be a ramp, which is the one thing it is not
+    step = any(abs(b - a) > 0.25 * (max(fs) or 1.0) for a, b in zip(fs, fs[1:]))
     fmax = max(fs + [1.0]) or 1.0
 
     def _px(v):
@@ -638,7 +645,8 @@ def draw_conditioning_curve(ax, *, driver, curve, vrange, target, target_base=No
 
     ax.plot([cx0, cx1], [_py(1.0)] * 2, ls=":", lw=1.1, color=_DIM, zorder=1)   # the neutral factor
     ax.text(cx0 + 4, _py(1.0) - 3, "×1", ha="left", va="bottom", color=_DIM, fontsize=10)
-    ax.plot([_px(v) for v in vs], [_py(f) for f in fs], lw=2.0, color=_INK, zorder=2)
+    ax.plot([_px(v) for v in vs], [_py(f) for f in fs], lw=2.0, color=_INK, zorder=2,
+            drawstyle="steps-post" if step else "default")
     ax.plot([cx0, cx0], [cy0, cy1], lw=1.1, color=_DIM)
     ax.plot([cx0, cx1], [cy1, cy1], lw=1.1, color=_DIM)
     ax.text(cx0 - 7, (cy0 + cy1) / 2, "factor", ha="center", va="center", color=_DIM, fontsize=11,
