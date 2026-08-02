@@ -1269,13 +1269,13 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
               for label, r in _rates.items()}
     ext_driven = {label: [m for m in e.modifiers if isinstance(m, DrivenBy)]
                   for label, e in _extents.items()}
-    by_key: dict = {}                   # driver key → its source (deduped: one driver resolves once)
+    by_key: dict = {}                   # driver key → its DrivenBy (deduped: one driver resolves once)
     for mods in (*driven.values(), *ext_driven.values()):
         for m in mods:
-            by_key.setdefault(m.key, m.source)
+            by_key.setdefault(m.key, m)
     resolved: dict = {}
     if by_key:
-        resolved = {key: resolve_driver(src, tree) for key, src in by_key.items()}
+        resolved = {key: resolve_driver(m.source, tree, step=m.step) for key, m in by_key.items()}
         # a mapping whose states never occur leaves every lineage on the default factor, so the run
         # would secretly be the undriven model — refuse it here, naming the driver
         for mods in (*driven.values(), *ext_driven.values()):
