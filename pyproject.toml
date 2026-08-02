@@ -88,7 +88,12 @@ testpaths = ["tests"]
 # zombi2 ships `py.typed`, so its annotations are what a user's own type checker reads — they are
 # part of the public surface and CI checks them like any other. Defaults otherwise: bodies of
 # unannotated functions are not analysed, which keeps the gate about what the package *promises*.
-python_version = "3.10"
+#
+# No `python_version`: mypy checks against whatever interpreter it runs under. Pinning it to our
+# floor (3.10) sounds better than it is — numpy's own stubs are written in syntax that needs 3.12,
+# so the check dies inside numpy before reaching us. Nothing is lost by not pinning: 3.10 support is
+# a runtime property, and the test matrix actually *runs* the suite there, which is the stronger
+# evidence anyway.
 files = ["zombi2"]
 
 [[tool.mypy.overrides]]
@@ -99,8 +104,8 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 # `tomllib` is standard from 3.11 and `tomli` is the 3.10 backport, so exactly one of the pair exists
-# on any supported Python — which is what the try/except in zombi2.cli._params selects between. The
-# check runs at `python_version = "3.10"`, where the stdlib one is not there to find.
+# on any supported Python — which is what the try/except in zombi2.cli._params selects between.
+# Whichever one the checking interpreter does not have is the one it cannot find.
 module = ["tomllib", "tomli"]
 ignore_missing_imports = true
 
