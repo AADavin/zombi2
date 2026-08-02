@@ -191,10 +191,12 @@ hundred-site model, so the same seed gives a different draw from the same distri
 Profiles and `+Γ` are about different things and compose. A profile says **which** amino acids belong
 at a site; a Gamma says **how fast** sites change. Decorate the model as usual and you get both.
 
-This works at every genome resolution. A gene family evolves along its own gene tree, and at the
-nucleotide resolution a gene is a single block with its own block tree, evolving in its own frame — an
-inversion moves the block and flips which strand it is read from, but position 40 of the gene stays
-position 40.
+**An amino-acid profile needs a protein model, so it belongs to a family or ordered run.** A
+nucleotide genome is measured in base pairs and its blocks are read on either strand, so that
+resolution refuses protein models altogether — there is no complement of an amino acid. Profiles are
+still accepted there, but over the four bases: a row per base pair, saying what belongs at that
+coordinate. The row count then has to match the block's length in bp, since the genome run already
+fixed it.
 
 | What it does | ZOMBI2 | From the literature |
 |---|---|---|

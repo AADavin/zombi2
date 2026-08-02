@@ -874,3 +874,23 @@ def test_a_profile_composes_with_gamma():
         return sum(1 for i in range(L) if len({s[i] for s in seqs}) == 1)
 
     assert conserved(lg().across_sites(gamma_shape=0.4)) > conserved(lg())
+
+
+def test_a_profile_on_a_nucleotide_block_must_match_the_length_the_genome_fixed():
+    """`length` is rejected on a nucleotide run, so the row-count check in `_resolve_profiles` has
+    nothing to compare against and the block's own length is what must agree. Without this a short
+    profile silently shortened the sequence and the alignment stopped matching the coordinates the
+    genome run wrote."""
+    from zombi2.genomes import simulate_genomes_nucleotide
+    from zombi2.sequences.substitution_models import jc69
+    from zombi2.species import simulate_species_tree
+    sp = simulate_species_tree(birth=1.0, death=0.1, n_extant=5, seed=1)
+    g = simulate_genomes_nucleotide(sp, root_length=900, genes=3, gene_length=100, seed=2)
+    block = sorted(g.block_trees)[0]
+    _, start, end = g.root_blocks[block]
+    ok = simulate_sequences(g, model=jc69(), divergence=0.2, seed=3,
+                            profiles={block: _np.full((end - start, 4), 0.25)})
+    assert {len(s) for s in ok.alignments[block].values()} == {end - start}
+    with pytest.raises(ValueError, match="rows but that block is"):
+        simulate_sequences(g, model=jc69(), divergence=0.2, seed=3,
+                           profiles={block: _np.full((7, 4), 0.25)})
