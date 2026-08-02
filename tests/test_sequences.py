@@ -772,3 +772,105 @@ def test_the_cli_streams_and_reports_the_same_run(tmp_path, capsys):
     data = lambda d: {k: v for k, v in _tree_of(d).items()
                       if not k.endswith((".log", "_summary.json"))}
     assert data(a / "sequences") == data(b / "sequences")
+
+
+# --- site profiles: one set of equilibrium frequencies per position ----------------------------
+
+import numpy as _np  # noqa: E402
+
+
+def _profile_run(profiles=None, *, length=40, seed=2, families=2):
+    from zombi2.genomes import simulate_genomes_family
+    from zombi2.species import simulate_species_tree
+    sp = simulate_species_tree(birth=1.0, n_extant=20, seed=1)
+    g = simulate_genomes_family(sp, initial_families=families, duplication=0.1, loss=0.1, seed=1)
+    return g, simulate_sequences(g, model=lg(), length=length, divergence=0.6, seed=seed,
+                                 profiles=profiles)
+
+
+def test_a_profile_puts_the_residue_it_prefers_at_that_site():
+    """The point of a profile: position i's composition follows row i, not the model's own
+    frequencies. A site whose profile is nearly a point mass comes out nearly invariant."""
+    L = 40
+    pref = _np.full((L, 20), 1e-3)
+    pref[:, 5] = 1.0                       # every site should be the sixth residue of the alphabet
+    g, res = _profile_run({0: pref}, length=L)
+    want = lg().alphabet[5]
+    seqs = list(res.alignments[0].values())
+    matching = sum(1 for s in seqs for c in s if c == want)
+    assert matching / (len(seqs) * L) > 0.95
+
+
+def test_a_flat_profile_is_the_model_it_was_built_from():
+    """Every row equal to the model's own frequencies must give back the model — the property that
+    says a profile *adds* something rather than replacing the run's model with a different one.
+    Statistical, not byte-for-byte: L single-site models walk the random stream differently from one
+    L-site model."""
+    import collections
+    base = lg()
+    flat = _np.tile(base.stationary, (200, 1))
+    counts = []
+    for profiles in (None, {0: flat}):
+        c: collections.Counter = collections.Counter()
+        for seed in range(6):
+            _, res = _profile_run(profiles, length=200, seed=100 + seed, families=1)
+            for aln in res.alignments.values():
+                for seq in aln.values():
+                    c.update(seq)
+        total = sum(c.values())
+        counts.append(_np.array([c[a] / total for a in base.alphabet]))
+    # the two agree with each other about as closely as each agrees with the model it came from
+    assert _np.abs(counts[0] - counts[1]).max() < 0.03
+
+
+def test_a_profile_on_one_family_leaves_the_others_alone():
+    sharp = _np.random.default_rng(0).dirichlet(_np.full(20, 0.05), size=40) + 1e-4
+    _, plain = _profile_run()
+    _, one = _profile_run({0: sharp})
+    assert plain.alignments[1] == one.alignments[1]
+    assert plain.alignments[0] != one.alignments[0]
+
+
+def test_a_profile_refuses_what_it_cannot_mean():
+    from zombi2.sequences import _resolve_profiles
+    good = _np.full((5, 20), 0.05)
+    assert len(_resolve_profiles({1: good}, lg(), 5)[1]) == 5
+    for bad, fragment in (
+            (_np.full((5, 19), 0.05), "must be (L, 20)"),      # wrong width for the alphabet
+            (_np.full((4, 20), 0.05), "but length=5"),          # disagrees with the run's length
+            (_np.zeros((5, 20)), "no state it could be in"),    # a site with nowhere to be
+            (_np.eye(5, 20), "exactly zero"),                   # a residue declared impossible
+    ):
+        with pytest.raises(ValueError, match=fragment.replace("(", r"\(").replace(")", r"\)")):
+            _resolve_profiles({1: bad}, lg(), 5)
+    with pytest.raises(TypeError, match="must be a dict"):
+        _resolve_profiles([good], lg(), 5)
+
+
+def test_profiles_are_refused_alongside_what_would_contradict_them():
+    g, _ = _profile_run()
+    flat = _np.tile(lg().stationary, (40, 1))
+    with pytest.raises(ValueError, match="both decide which model each site"):
+        simulate_sequences(g, partitions=((lg(), 40),), profiles={0: flat}, divergence=0.5, seed=1)
+    with pytest.raises(ValueError, match="not wired to the parallel engine"):
+        simulate_sequences(g, model=lg(), length=40, profiles={0: flat}, parallel=2,
+                           divergence=0.5, seed=1)
+
+
+def test_a_profile_composes_with_gamma():
+    """A profile says which residues belong at a site; `+G` says how fast sites change. Independent,
+    so both apply — and the Gamma still slows the alignment down with a profile in place."""
+    L = 60
+    sharp = _np.random.default_rng(1).dirichlet(_np.full(20, 0.3), size=L) + 1e-4
+    from zombi2.genomes import simulate_genomes_family
+    from zombi2.species import simulate_species_tree
+    sp = simulate_species_tree(birth=1.0, n_extant=20, seed=1)
+    g = simulate_genomes_family(sp, initial_families=1, seed=1)
+
+    def conserved(model):
+        res = simulate_sequences(g, model=model, length=L, divergence=0.6, seed=2,
+                                 profiles={0: sharp})
+        seqs = list(res.alignments[0].values())
+        return sum(1 for i in range(L) if len({s[i] for s in seqs}) == 1)
+
+    assert conserved(lg().across_sites(gamma_shape=0.4)) > conserved(lg())
