@@ -10,6 +10,33 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Changed
+- **The conditioning diagram can draw the target's own Markov chain, and mark which arrow is
+  driven.** A rate that reads a driver is usually **one transition**, not the whole chain, and a
+  diagram that does not say so claims the model is symmetric when it is not. The `gene_drives_trait`
+  figure drives `harmless → pathogenic` only — a toxin makes a lineage dangerous, it does not help it
+  recover — and the driven arrow is drawn heavier than the one that is not.
+
+### Added
+- **Gene families can be grouped into modules, and a module's completion drives a rate.**
+  `modules={"flagellum": ["flgA", …]}` names a group of declared families, and
+  `g.completion("flagellum")` is a conditioning driver giving the fraction of it a lineage carries —
+  a number in `[0, 1]`, read with a `Curve` like any continuous driver. A **fraction rather than a
+  yes/no on purpose**: under independent loss the chance every family of a module survives falls off
+  geometrically with its size (measured on a 200-tip tree, a module of three was complete at 189 tips
+  and one of six at none), so a complete/incomplete driver would be a constant for anything but the
+  smallest modules. A threshold is expressible where every other response shape already lives, in the
+  curve. A module of one family is exactly that family's presence. Members must be named with
+  `family_names=`; an anonymous family's id comes from the order events fired in.
+
+### Fixed
+- **Two gallery figures had silently lost their transfers.** They filtered a genome run's `.events`
+  on `kind == "transfer"`, which after that attribute came to mean one row per event is never true —
+  the file's vocabulary is `transfer_additive` — so `and e.recipient is not None` short-circuited
+  before touching a field that no longer exists, and the list came back empty rather than raising.
+  170 transfers read as 0 and the transfer-highway chart drew nothing, with no error anywhere. They
+  read `.edges`, which is where a per-branch donor and recipient live.
+
+### Changed
 - **`result.events` now means what a row of `genome_events.tsv` means.** It used to hold one entry
   per gene-tree *edge*, so a duplication was two of them and a transfer likewise — counting
   duplications in Python gave twice the file's number, and a filter on `kind == "transfer"` matched
@@ -37,7 +64,21 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   lineage in at time t* only knew how to be built from a trait. It reads the family's gene tree, so
   the signal changes **mid-branch** where a copy was actually gained or lost rather than only at the
   nodes, and a lineage that never held the family answers `absent` rather than raising. Family and
-  ordered runs; only families named with `family_names=`.
+  ordered runs; only families named with `family_names=`. `presence(...).history(tree)` gives the
+  per-branch map in the same shape `TraitsResult.history` has, so anything that draws a trait's
+  history down a tree draws a gene's too — which is what the new gallery entry does.
+- **A gallery entry for a module driving a trait through a step** — `module_drives_metabolism`.
+  Four families make up aerobic respiration, and the response is *discontinuous*:
+  `lambda f: 20.0 if f > 0.5 else 1.0`, so more than half the module makes a lineage aerobic and less
+  makes it revert. Both directions read the module, oppositely, so the trait tracks gene content
+  rather than accumulating — 97% of the tree's branch length has the trait on the side of the
+  threshold its completion is. The curve diagram draws a step as a step rather than a ramp, which is
+  the one thing a threshold is not.
+- **A gallery entry for a gene driving a trait** — `gene_drives_trait`, the same tree painted twice:
+  by the toxin family's presence, then by the pathogenicity whose switch rate reads it. The rates are
+  chosen so the two panels have something to disagree about: the family covers 62% of the tree's
+  branch length, and the realised switch rate is 1.1 per unit where it is present against 0.07 where
+  it is not.
 
 ### Added
 - **Site-specific amino-acid profiles.** `simulate_sequences(..., profiles={family: array})` gives a

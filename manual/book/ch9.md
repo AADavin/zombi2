@@ -159,14 +159,20 @@ A `switch` written per transition drives only the transitions you name — `{"ca
 
 ### What can be conditioned, and what cannot yet
 
-A trait's own rate takes a driver, as above. In a genome run conditioning works at all three resolutions. At the **family** resolution it covers the four gene-family rates in the table above. At the **ordered** resolution it covers every rate the engine has, so a trait can make a lineage rearrange its gene order more often — inversion, transposition, translocation — or reshape its karyotype more often, and a driven extent makes each rearranged block longer. At the **nucleotide** resolution it covers the same list on a genome measured in base pairs, which is where a driven `loss` becomes genome reduction as it is usually meant: a lifestyle trait shedding DNA rather than dropping family tokens. At the **sequences** level it covers `substitution`, the one rate that level has.
+**What can drive**: a trait, discrete or continuous; a named gene family, present or absent; and a
+module's completion, a number between 0 and 1. The last two are below, under *A gene as the driver* —
+they are ordinary drivers, spelled the way a trait is, and everything in this section applies to them
+equally.
+
+**What can be driven** is the rest of this section. A trait's own rate takes a driver, as above. In a genome run conditioning works at all three resolutions. At the **family** resolution it covers the four gene-family rates in the table above. At the **ordered** resolution it covers every rate the engine has, so a trait can make a lineage rearrange its gene order more often — inversion, transposition, translocation — or reshape its karyotype more often, and a driven extent makes each rearranged block longer. At the **nucleotide** resolution it covers the same list on a genome measured in base pairs, which is where a driven `loss` becomes genome reduction as it is usually meant: a lifestyle trait shedding DNA rather than dropping family tokens. At the **sequences** level it covers `substitution`, the one rate that level has.
 
 `transfer_to` sits outside that per-resolution list because it is not a rate. It is the choice slot, and it works at all three resolutions: the same four rules, the same kernel, the same weights. What a transfer moves differs — one copy, a block of genes, an arc of DNA — and who receives it does not.
 
 What is not implemented yet:
 
 - **`ByFamily` and `DrivenBy` cannot be set in the same run** at the family or ordered resolution. One weights lineages by a driver, the other weights the segment by what it covers, so combining them means weighting by the product. `family_speed` counts as a `ByFamily` here. Use one or the other.
-- **A sequence cannot drive anything.** The arrow runs one way: a trait drives `substitution`, but nothing reads a sequence back out.
+- **A sequence cannot drive anything.** The arrow runs one way: a trait or a gene drives `substitution`, but nothing reads a sequence back out.
+- **A nucleotide run cannot be the driver.** A family or ordered run offers `presence` and `completion`; the nucleotide one names its genes differently and has neither yet. It can still be the *target*.
 
 These are limits of the implementation, not of the model — the rate grammar (`SPEC §5`) is the same everywhere, and each engine gains a modifier when its own code learns to read it. Until then, a driven rate an engine cannot honour raises rather than being silently dropped.
 
@@ -245,6 +251,42 @@ from the moment the transfer landed.
 This is conditioning, so the genome is finished before the trait starts and does not react to it.
 For a gene whose presence shapes the tree that the genome is itself evolving on, see the next
 chapter: `joint` grows both at once, and there the target is speciation rather than a trait.
+
+### A module rather than a single gene
+
+Genes rarely act alone. A **module** is a named group of families — a pathway, a complex, an operon
+— and what a lineage has of it is a matter of degree: all six flagellar genes, or four of them, or
+none. `modules=` declares the grouping and `completion` reads it, as a number between 0 and 1:
+
+```python
+from zombi2.rates.mapping import Curve
+
+flg = [f"flg{i}" for i in range(6)]
+
+g = genomes.simulate_genomes_family(tree, initial_families=20, family_names=flg,
+                                    modules={"flagellum": flg},
+                                    duplication=0.05, loss=0.2, seed=9)
+
+motility = traits.simulate_discrete(
+    tree, states=["sessile", "motile"], start="sessile", seed=2,
+    switch = 0.05 * mod.DrivenBy(g.completion("flagellum"),
+                                 Curve(lambda f: 0.05 + 30.0 * f ** 4)))
+```
+
+Completion is a **continuous** driver, so it takes a `Curve` rather than a table — and that is where
+a threshold belongs, alongside every other response shape. `lambda f: 8.0 if f > 0.8 else 1.0` reads
+"eight times faster once four fifths of it is there"; the `f ** 4` above is a softer version of the
+same idea, where the last genes matter most.
+
+**Why a fraction and not a yes-or-no.** Under independent loss, the chance that *every* family of a
+module survives falls off geometrically with its size. Measured on a 200-tip tree: a module of three
+was complete at 189 tips, one of six at none of them. A complete/incomplete driver would therefore be
+a constant for anything but the smallest modules, and a run driven by a constant has told you
+nothing. The fraction is always informative, and it degrades gracefully — a module of one family is
+exactly that family's presence, 1 or 0.
+
+Members must be families you named with `family_names=`. An anonymous family's id comes from the
+order events happened to fire in, so a module built on one would mean something else at another seed.
 
 ## Outputs
 

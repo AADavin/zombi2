@@ -222,7 +222,7 @@ def transfer_highway(out):
                                 transfer_to=highway, seed=7)
 
     grp = resolve_groups(ct, {"A": A, "B": B})
-    trans = [e for e in g.events if e.kind == "transfer" and e.recipient is not None]
+    trans = [e for e in g.edges if e.kind == "transfer" and e.recipient is not None]
     pair = Counter((grp[e.donor], grp[e.recipient]) for e in trans)
     counts = {"within A": pair[("A", "A")], "A → B": pair[("A", "B")],
               "B → A": pair[("B", "A")], "within B": pair[("B", "B")]}
@@ -426,7 +426,7 @@ labels = {f"n{i}": grp[i] for i in ct.nodes}
  + ph.trees.highlight_clade(f"n{nodeA}") + ph.trees.highlight_clade(f"n{nodeB}")
  + ph.trees.time_axis("time")).save("tree.png")
 # beside it, a matplotlib barplot of transfer counts by (donor, recipient) clade — A<->B towers:
-transfers = [e for e in g.events if e.kind == "transfer" and e.recipient is not None]
+transfers = [e for e in g.edges if e.kind == "transfer" and e.recipient is not None]
 counts = Counter((grp[e.donor], grp[e.recipient]) for e in transfers)'''
 
 
