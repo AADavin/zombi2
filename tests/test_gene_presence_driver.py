@@ -105,3 +105,89 @@ def test_it_refuses_what_it_cannot_answer():
     other = simulate_species_tree(birth=1.0, death=0.2, n_extant=9, seed=77).complete_tree
     with pytest.raises(ValueError, match="different species trees"):
         g.presence("tox").as_driver_trajectory(other)
+
+
+# --- modules: a named group of families, and how much of it a lineage carries ------------------
+
+_FLG = [f"flg{i}" for i in range(6)]
+
+
+def _module_run(loss=0.2, seed=9, n_extant=60):
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=n_extant, seed=4)
+    g = simulate_genomes_family(sp.complete_tree, initial_families=20, family_names=_FLG,
+                                modules={"flagellum": _FLG}, duplication=0.05, loss=loss, seed=seed)
+    return sp.complete_tree, g
+
+
+def test_completion_is_the_fraction_of_the_module_a_lineage_carries():
+    """Graded against a naive per-tip count of `has_family`, which reads each node's genome rather
+    than the families' gene trees — two derivations of the same fact meeting."""
+    tree, g = _module_run()
+    traj = g.completion("flagellum").as_driver_trajectory(tree)
+    for node in tree.nodes.values():
+        just_before = node.end_time - 1e-9
+        if just_before < node.birth_time:
+            continue
+        naive = sum(g.has_family(node.id, m) for m in _FLG) / len(_FLG)
+        assert traj.value(node.id, just_before) == naive
+
+
+def test_completion_takes_every_step_between_none_and_all():
+    tree, g = _module_run()
+    states = g.completion("flagellum").as_driver_trajectory(tree).states()
+    assert states == {k / len(_FLG) for k in range(len(_FLG) + 1)}
+
+
+def test_a_module_of_one_family_is_that_family_s_presence():
+    """The two readers share a span builder, so this is the seam between them: a one-family module
+    must reduce to presence, 1.0 where present and 0.0 where absent."""
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=30, seed=4)
+    tree = sp.complete_tree
+    g = simulate_genomes_family(tree, initial_families=15, family_names=["tox"],
+                                modules={"just_tox": ["tox"]}, duplication=0.1, loss=0.15, seed=9)
+    one = g.completion("just_tox").as_driver_trajectory(tree)
+    pres = g.presence("tox").as_driver_trajectory(tree)
+    for node in tree.nodes.values():
+        t = node.end_time - 1e-9
+        if t < node.birth_time:
+            continue
+        assert one.value(node.id, t) == (1.0 if pres.value(node.id, t) == "present" else 0.0)
+
+
+def test_every_lineage_gets_a_completion():
+    tree, g = _module_run()
+    traj = g.completion("flagellum").as_driver_trajectory(tree)
+    assert set(traj._starts) == set(tree.nodes)
+
+
+def test_completion_drives_a_trait():
+    from zombi2.rates.mapping import Curve
+    tree, g = _module_run()
+    kw = dict(states=["sessile", "motile"], start="sessile", seed=2)
+    plain = simulate_discrete(tree, switch=0.05, **kw)
+    driven = simulate_discrete(tree, switch=0.05 * mod.DrivenBy(
+        g.completion("flagellum"), Curve(lambda f: 0.05 + 30.0 * f ** 4)), **kw)
+    switches = lambda r: sum(1 for e in r.events if e.kind == "on_branch")
+    assert switches(driven) != switches(plain)
+
+
+def test_the_module_history_sums_to_the_branch_lengths():
+    tree, g = _module_run()
+    for node_id, segs in g.completion("flagellum").history(tree).items():
+        node = tree.nodes[node_id]
+        assert abs(sum(d for _, d in segs) - (node.end_time - node.birth_time)) < 1e-9
+
+
+def test_a_module_refuses_what_it_cannot_mean():
+    tree, g = _module_run()
+    with pytest.raises(KeyError, match="no module"):
+        g.completion("nope")
+    kw = dict(initial_families=4, family_names=["a", "b"], seed=1)
+    for bad, fragment in (({"m": []}, "no families in it"),
+                          ({"m": ["a", "z"]}, "not declared families"),
+                          ({"m": ["a", "a"]}, "names a family twice"),
+                          ({"": ["a"]}, "non-empty name")):
+        with pytest.raises(ValueError, match=fragment):
+            simulate_genomes_family(tree, modules=bad, **kw)
+    with pytest.raises(TypeError, match="must be a dict"):
+        simulate_genomes_family(tree, modules=["a"], **kw)

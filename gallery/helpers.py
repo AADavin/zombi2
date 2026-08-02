@@ -546,41 +546,57 @@ def _conditioning_frame(ax, driver, target, target_base, target_sub):
                 style="italic")
 
 
-def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_base=None,
-                      target_sub=None, symbol="×", state_colors=None):
-    """The manual's driver→modifier→target diagram for a **discrete** driver. ``switch`` is a
-    {"a->b": rate} dict (an arrow is drawn for each positive rate, so an irreversible trait shows one
-    arrow); ``mapping`` is the per-state multiplier; ``state_colors`` tints the state nodes to match the
-    tree's palette. The state names sit *outside* (below) their circles. ``target_base`` is the rate's
-    base value (``None`` for a target that is not a rate, e.g. a recipient-choice slot); ``target_sub``
-    is the italic caption under TARGET."""
+def _state_chain(ax, states, switch, colors, *, cx, y, half=48.0, r_st=15, driven=None):
+    """The little Markov chain a discrete variable is: one circle per state, named below it, and an
+    arrow for each positive rate. Used under the DRIVER box and, where the target is itself a discrete
+    trait, under the TARGET box — so the reader can see both ends of the relation are the same kind of
+    thing and only the rate differs.
+
+    ``driven`` names the one transition a driver acts on (``"a->b"``), drawn heavier: a rate that
+    reads a driver is usually **one arrow**, not the whole chain, and a diagram that does not say so
+    claims the model is symmetric when it is not."""
     from matplotlib.patches import Circle, FancyArrowPatch
 
-    _conditioning_frame(ax, driver, target, target_base, target_sub)
-
     n = len(states)
-    r_st = 15
-    xs = [72 + (168 - 72) * (k / (n - 1) if n > 1 else 0.5) for k in range(n)]
+    xs = [cx - half + 2 * half * (k / (n - 1) if n > 1 else 0.5) for k in range(n)]
     pos = dict(zip(states, xs))
-    for k, s in enumerate(states):
-        x = xs[k]
-        col = (state_colors or {}).get(s, "#c9c9c9")
-        ax.add_patch(Circle((x, 202), r_st, facecolor=col, edgecolor=_INK, lw=1.2))
-        ax.text(x, 202 + r_st + 11, s, ha="center", va="top", color=_INK, fontsize=10.5)
-    for key, rate in switch.items():
+    for x, s in zip(xs, states):
+        ax.add_patch(Circle((x, y), r_st, facecolor=(colors or {}).get(s, "#c9c9c9"),
+                            edgecolor=_INK, lw=1.2))
+        ax.text(x, y + r_st + 11, s, ha="center", va="top", color=_INK, fontsize=10.5)
+    for key, rate in (switch or {}).items():
         if rate <= 0:
             continue
         a, b = key.split("->")
         xa, xb = pos[a], pos[b]
         inner_l, inner_r = min(xa, xb) + r_st, max(xa, xb) - r_st
-        if xa < xb:
-            ax.add_patch(FancyArrowPatch((inner_l, 196), (inner_r, 196),
-                                         connectionstyle="arc3,rad=-0.6", arrowstyle="-|>",
-                                         mutation_scale=9, lw=1.1, color=_INK))
-        else:
-            ax.add_patch(FancyArrowPatch((inner_r, 208), (inner_l, 208),
-                                         connectionstyle="arc3,rad=-0.6", arrowstyle="-|>",
-                                         mutation_scale=9, lw=1.1, color=_INK))
+        lo, hi = (inner_l, inner_r) if xa < xb else (inner_r, inner_l)
+        hot = key == driven
+        ax.add_patch(FancyArrowPatch((lo, y - 6 if xa < xb else y + 6),
+                                     (hi, y - 6 if xa < xb else y + 6),
+                                     connectionstyle="arc3,rad=-0.6", arrowstyle="-|>",
+                                     mutation_scale=13 if hot else 9,
+                                     lw=2.4 if hot else 1.1, color=_INK))
+
+
+def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_base=None,
+                      target_sub=None, symbol="×", state_colors=None,
+                      target_states=None, target_switch=None, target_colors=None,
+                      target_driven=None):
+    """The manual's driver→modifier→target diagram for a **discrete** driver. ``switch`` is a
+    {"a->b": rate} dict (an arrow is drawn for each positive rate, so an irreversible trait shows one
+    arrow); ``mapping`` is the per-state multiplier; ``state_colors`` tints the state nodes to match the
+    tree's palette. The state names sit *outside* (below) their circles. ``target_base`` is the rate's
+    base value (``None`` for a target that is not a rate, e.g. a recipient-choice slot); ``target_sub``
+    is the italic caption under TARGET. ``target_states`` / ``target_switch`` / ``target_colors``
+    draw a second chain under the target box, for a target that is itself a discrete trait — the
+    driven rate is then visibly *that chain's* rate, rather than an unexplained number."""
+    _conditioning_frame(ax, driver, target, target_base, target_sub)
+
+    _state_chain(ax, states, switch, state_colors, cx=120, y=202)
+    if target_states:
+        _state_chain(ax, target_states, target_switch, target_colors, cx=555, y=214,
+                     driven=target_driven)
 
     for i, s in enumerate(states):
         ax.text(332, 152 + i * 19, f"{s} {symbol} {mapping.get(s, 1)}", ha="center", va="center",
@@ -588,13 +604,18 @@ def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_bas
 
 
 def draw_conditioning_curve(ax, *, driver, curve, vrange, target, target_base=None, target_sub=None,
-                            cmap="viridis", value_label="trait value"):
+                            cmap="viridis", value_label="trait value",
+                            target_states=None, target_switch=None, target_colors=None,
+                            target_driven=None):
     """The same diagram for a **continuous** driver. A discrete driver has one multiplier per state; a
     continuous one has a curve, so the space under the arrow plots ``curve`` (value → factor) over ``vrange``
     and the driver column carries the colour ramp the tree is painted with."""
     from matplotlib.patches import Rectangle
 
     _conditioning_frame(ax, driver, target, target_base, target_sub)
+    if target_states:
+        _state_chain(ax, target_states, target_switch, target_colors, cx=555, y=214,
+                     driven=target_driven)
 
     # driver column: the colour ramp, standing in for the discrete diagram's state circles
     x0, x1, y0, y1 = 57.0, 183.0, 190.0, 214.0
@@ -612,6 +633,8 @@ def draw_conditioning_curve(ax, *, driver, curve, vrange, target, target_base=No
     lo, hi = vrange
     vs = [lo + (hi - lo) * k / 60 for k in range(61)]
     fs = [curve(v) for v in vs]
+    # a step function drawn through a line plot would be a ramp, which is the one thing it is not
+    step = any(abs(b - a) > 0.25 * (max(fs) or 1.0) for a, b in zip(fs, fs[1:]))
     fmax = max(fs + [1.0]) or 1.0
 
     def _px(v):
@@ -622,7 +645,8 @@ def draw_conditioning_curve(ax, *, driver, curve, vrange, target, target_base=No
 
     ax.plot([cx0, cx1], [_py(1.0)] * 2, ls=":", lw=1.1, color=_DIM, zorder=1)   # the neutral factor
     ax.text(cx0 + 4, _py(1.0) - 3, "×1", ha="left", va="bottom", color=_DIM, fontsize=10)
-    ax.plot([_px(v) for v in vs], [_py(f) for f in fs], lw=2.0, color=_INK, zorder=2)
+    ax.plot([_px(v) for v in vs], [_py(f) for f in fs], lw=2.0, color=_INK, zorder=2,
+            drawstyle="steps-post" if step else "default")
     ax.plot([cx0, cx0], [cy0, cy1], lw=1.1, color=_DIM)
     ax.plot([cx0, cx1], [cy1, cy1], lw=1.1, color=_DIM)
     ax.text(cx0 - 7, (cy0 + cy1) / 2, "factor", ha="center", va="center", color=_DIM, fontsize=11,
