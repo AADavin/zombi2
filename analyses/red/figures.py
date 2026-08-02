@@ -21,17 +21,29 @@ from observable import root_to_tip_depths
 
 HERE = pathlib.Path(__file__).parent
 FIG = HERE / "figures"
-COLORS = {"lognormal": "#4477AA", "gamma": "#EE6677"}   # Paul Tol 'bright'
+# Paul Tol 'bright'. The two uncorrelated tails are cool, the autocorrelated clock warm — the
+# comparison the figures exist to make is uncorrelated vs autocorrelated, not tail vs tail.
+COLORS = {"lognormal": "#4477AA", "gamma": "#66CCEE", "autocorrelated": "#EE6677"}
+LABELS = {"lognormal": "uncorrelated, lognormal", "gamma": "uncorrelated, gamma",
+          "autocorrelated": "autocorrelated"}
 INK = "#1a1a1a"
 plt.rcParams.update({"font.family": "sans-serif", "font.size": 11, "axes.edgecolor": INK,
                      "axes.labelcolor": INK, "text.color": INK, "xtick.color": INK,
                      "ytick.color": INK, "svg.fonttype": "none"})
 
 
+#: the docs site carries this study as a worked example, so the figures are written there too rather
+#: than copied by hand — one command regenerates both, and the two cannot drift apart.
+DOCS = HERE.parents[1] / "docs" / "assets" / "red"
+
+
 def _save(fig, name):
     FIG.mkdir(exist_ok=True)
     fig.savefig(FIG / f"{name}.png", dpi=200, bbox_inches="tight")
     fig.savefig(FIG / f"{name}.svg", bbox_inches="tight")
+    if DOCS.parent.parent.is_dir():
+        DOCS.mkdir(parents=True, exist_ok=True)
+        fig.savefig(DOCS / f"{name}.png", dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"wrote figures/{name}.png")
 
@@ -53,21 +65,22 @@ def fig_observable(res):
 
 def fig_clock_recovery(res):
     fig, ax = plt.subplots(figsize=(6.2, 4.2))
-    spreads = np.array(res["spreads"])
     tgt = res["target_cv"]
     for dist, fam in res["families"].items():
+        spreads = np.array(fam["spreads"])
         cv = np.array([r["cv"] for r in fam["rows"]])
         sd = np.array([r["cv_sd"] for r in fam["rows"]])
-        ax.plot(spreads, cv, "-o", ms=3, color=COLORS[dist], label=f"{dist}")
+        ax.plot(spreads, cv, "-o", ms=3, color=COLORS[dist], label=LABELS[dist])
         ax.fill_between(spreads, cv - sd, cv + sd, color=COLORS[dist], alpha=0.15, lw=0)
         rec = fam["recovered_spread"]
         ax.plot([rec], [tgt], "o", color=COLORS[dist], ms=8, mec=INK, mew=1, zorder=5)
     ax.axhline(tgt, color=INK, lw=1.2, ls="--")
-    ax.text(spreads[-1], tgt, f"  GTDB CV = {tgt:.3f}", va="bottom", ha="right", fontsize=10)
-    ax.set_xlabel("clock heterogeneity  σ  (ByLineage spread)")
+    ax.set_xlim(0, 2.0)
+    ax.text(2.0, tgt, f"  GTDB CV = {tgt:.3f}", va="bottom", ha="right", fontsize=10)
+    ax.set_xlabel("clock heterogeneity  σ  (spread)")
     ax.set_ylabel("root-to-tip substitution CV")
     ax.set_title("Calibrating the clock to real raggedness", fontsize=12)
-    ax.legend(loc="upper left", frameon=False, title="uncorrelated tail")
+    ax.legend(loc="upper left", frameon=False, title="clock")
     for s in ("top", "right"):
         ax.spines[s].set_visible(False)
     _save(fig, "clock_recovery")
@@ -82,16 +95,20 @@ def fig_red_bridge(res):
         rsd = np.array([r_["r_sd"] for r_ in fam["rows"]])
         ne = np.array([r_["nrmse"] for r_ in fam["rows"]]) * 100
         nesd = np.array([r_["nrmse_sd"] for r_ in fam["rows"]]) * 100
-        axes[0].plot(cv, r, "-o", ms=3, color=COLORS[dist], label=dist)
+        axes[0].plot(cv, r, "-o", ms=3, color=COLORS[dist], label=LABELS[dist])
         axes[0].fill_between(cv, r - rsd, r + rsd, color=COLORS[dist], alpha=0.15, lw=0)
-        axes[1].plot(cv, ne, "-o", ms=3, color=COLORS[dist], label=dist)
+        axes[1].plot(cv, ne, "-o", ms=3, color=COLORS[dist], label=LABELS[dist])
         axes[1].fill_between(cv, ne - nesd, ne + nesd, color=COLORS[dist], alpha=0.15, lw=0)
         axes[0].plot([tgt], [fam["r_at_target"]], "o", color=COLORS[dist], ms=8, mec=INK, mew=1, zorder=5)
         axes[1].plot([tgt], [fam["nrmse_at_target"] * 100], "o", color=COLORS[dist], ms=8, mec=INK, mew=1, zorder=5)
     for ax in axes:
+        # The sweeps run to CV ~ 1.9, but past ~0.8 the autocorrelated clock's between-tree variance
+        # swamps the signal at 8 replicates — the curve there is noise, not structure. The claim this
+        # figure makes lives at CV = 0.232, so the axis stops where the curves are still readable.
+        ax.set_xlim(0, 0.8)
         ax.axvline(tgt, color=INK, lw=1.2, ls="--")
         ax.annotate("real archaea\n(CV = 0.232)", xy=(tgt, ax.get_ylim()[1]),
-                    xytext=(tgt + 0.12, ax.get_ylim()[1]), va="top", ha="left", fontsize=9,
+                    xytext=(tgt + 0.04, ax.get_ylim()[1]), va="top", ha="left", fontsize=9,
                     color=INK)
         ax.set_xlabel("root-to-tip substitution CV")
         for s in ("top", "right"):
@@ -100,7 +117,9 @@ def fig_red_bridge(res):
     axes[1].set_ylabel("RED–age nRMSE (% of tree depth)")
     axes[0].set_title("How faithfully RED recovers ages", fontsize=12)
     axes[1].set_title("... and by how much it errs", fontsize=12)
-    axes[0].legend(loc="lower left", frameon=False, title="uncorrelated tail")
+    axes[0].set_ylim(0.6, 1.02)
+    axes[1].set_ylim(0, 22)
+    axes[0].legend(loc="lower left", frameon=False, title="clock", fontsize=9)
     _save(fig, "red_bridge")
 
 
@@ -120,7 +139,8 @@ def fig_red_scatter(res):
             ax.spines[s].set_visible(False)
     axes[0].set_ylabel("RED-recovered relative age")
     fig.suptitle(f"True vs RED-recovered node ages "
-                 f"({res['scatter']['dist']} clock, {res['scatter']['n_extant']} tips)", fontsize=12)
+                 f"({LABELS[res['scatter']['dist']]} clock, {res['scatter']['n_extant']} tips)",
+                 fontsize=12)
     _save(fig, "red_scatter")
 
 

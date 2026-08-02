@@ -6,17 +6,19 @@ tree, so we borrow one model-free number from the real GTDB archaeal phylogram �
 substitution CV = 0.2315 (``observable.py``) — reproduce that raggedness in ZOMBI2 simulations
 where truth *is* known, and grade RED there.
 
-Forward model. Simulate a dated species tree (truth); evolve it under ZOMBI2's shipped relaxed
-clock — ``substitution = 1.0 * ByLineage(spread=sigma, dist=...)``, the uncorrelated lineage clock
-— and read the resulting ``species_phylogram`` (branch lengths in substitutions/site). RED of the
-dated tree is the ground truth (RED is exact on an ultrametric tree); RED of the ragged phylogram
-is the estimate. Sweep ``sigma`` to trace accuracy (Pearson r, nRMSE) against the realized
-root-to-tip CV, and read off the accuracy at the CV real archaea actually show.
+Forward model. Simulate a dated species tree (truth); evolve it under a relaxed clock —
+``substitution = 1.0 * <clock>(spread=sigma)`` — and read the resulting ``species_phylogram``
+(branch lengths in substitutions/site). RED of the dated tree is the ground truth (RED is exact on
+an ultrametric tree); RED of the ragged phylogram is the estimate. Sweep ``sigma`` to trace accuracy
+(Pearson r, nRMSE) against the realized root-to-tip CV, and read off the accuracy at the CV real
+archaea actually show.
 
-Shipped-clock note. The clean core wires exactly one sequence-level clock — the uncorrelated
-``ByLineage`` — with two tails, ``lognormal`` and ``gamma``. (The autocorrelated ``FromParent`` is a
-species-level modifier, not wired at the sequence level; the legacy six-clock sweep is narrowed to
-what ships.)
+Three clocks, because the *structure* of rate variation is the one thing a single CV cannot pin.
+Two are **uncorrelated** — ``ByLineage``, every lineage drawing its own rate independently, with a
+lognormal or a gamma tail. The third is **autocorrelated** — ``FromParent``, each lineage inheriting
+its parent's rate times a draw at the split, so relatives evolve at similar rates (Thorne et al.
+1998). The CV measured on GTDB says how much variation there is, not how it is arranged; running all
+three at the same CV is what turns that ambiguity into a bound.
 """
 from __future__ import annotations
 
@@ -38,8 +40,19 @@ TARGET_CV = 0.2315          # measured GTDB archaeal root-to-tip substitution CV
 HERE = pathlib.Path(__file__).parent
 N_EXTANT = 400
 REPS = 8
-SPREADS = np.round(np.arange(0.0, 2.001, 0.1), 3)
-DISTS = ("lognormal", "gamma")
+
+#: clock name -> (how to build the modifier at spread sigma, the sigma grid to sweep).
+#: The grids differ because the clocks reach a given raggedness at very different sigma: drift
+#: compounds down the tree, so the autocorrelated clock hits the GTDB CV near 0.22 where the
+#: uncorrelated ones need ~0.55. Each grid is chosen to bracket the target with room either side.
+CLOCKS = {
+    "lognormal":      (lambda s: mod.ByLineage(spread=s, dist="lognormal"),
+                       np.round(np.arange(0.0, 2.001, 0.1), 3)),
+    "gamma":          (lambda s: mod.ByLineage(spread=s, dist="gamma"),
+                       np.round(np.arange(0.0, 2.001, 0.1), 3)),
+    "autocorrelated": (lambda s: mod.FromParent(spread=s),
+                       np.round(np.arange(0.0, 1.001, 0.05), 3)),
+}
 
 
 def _preorder(tree) -> list[int]:
@@ -75,15 +88,15 @@ def make_tree(n_extant: int, seed: int, birth: float = 1.0, death: float = 0.0):
     return res.extant_tree, g
 
 
-def grade(dated, red_true, g, dist: str, spread: float, seed: int):
-    """Evolve the dated tree under a ByLineage clock; return (realized CV, r, nRMSE, (true, est))."""
+def grade(dated, red_true, g, clock: str, spread: float, seed: int):
+    """Evolve the dated tree under ``clock`` at ``spread``; return (CV, r, nRMSE, (true, est))."""
     if spread == 0.0:                                   # strict clock: phylogram ∝ dated tree
         ids = internal_nodes(dated)
         t = np.array([red_true[i] for i in ids])
         return 0.0, 1.0, 0.0, (t, t.copy())
+    build, _ = CLOCKS[clock]
     seqres = sequences.simulate_sequences(
-        g, model=sm.jc69(), length=1,
-        substitution=1.0 * mod.ByLineage(spread=spread, dist=dist), seed=seed)
+        g, model=sm.jc69(), length=1, substitution=1.0 * build(spread), seed=seed)
     phylo, _ = read_newick(seqres.species_phylogram["extant"])
     red_est = red_of(phylo)
     ids = [i for i in internal_nodes(dated) if i in red_est]
@@ -106,11 +119,10 @@ def _crossing(x: np.ndarray, y: np.ndarray, target: float) -> float:
 def sweep() -> dict:
     trees = [make_tree(N_EXTANT, seed=100 + k) for k in range(REPS)]
     red_trues = [red_of(dated) for dated, _ in trees]
-    out: dict = {"target_cv": TARGET_CV, "n_extant": N_EXTANT, "reps": REPS,
-                 "spreads": [float(s) for s in SPREADS], "families": {}}
-    for dist in DISTS:
+    out: dict = {"target_cv": TARGET_CV, "n_extant": N_EXTANT, "reps": REPS, "families": {}}
+    for dist, (_, spreads) in CLOCKS.items():
         rows = []
-        for si, s in enumerate(SPREADS):
+        for si, s in enumerate(spreads):
             cvs, rs, nes = [], [], []
             for k, (dated, g) in enumerate(trees):
                 cv, r, ne, _ = grade(dated, red_trues[k], g, dist, float(s), seed=7000 + si * 20 + k)
@@ -120,11 +132,12 @@ def sweep() -> dict:
                          "r": float(np.mean(rs)), "r_sd": float(np.std(rs)),
                          "nrmse": float(np.mean(nes)), "nrmse_sd": float(np.std(nes))})
         cvarr = np.array([row["cv"] for row in rows])
-        rec_spread = _crossing(SPREADS, cvarr, TARGET_CV)
+        rec_spread = _crossing(spreads, cvarr, TARGET_CV)
         # accuracy AT the target CV: interpolate r / nRMSE as functions of CV (CV rises with sigma)
         r_at = float(np.interp(TARGET_CV, cvarr, np.array([row["r"] for row in rows])))
         nrmse_at = float(np.interp(TARGET_CV, cvarr, np.array([row["nrmse"] for row in rows])))
-        out["families"][dist] = {"rows": rows, "recovered_spread": rec_spread,
+        out["families"][dist] = {"rows": rows, "spreads": [float(s) for s in spreads],
+                                 "recovered_spread": rec_spread,
                                  "r_at_target": r_at, "nrmse_at_target": nrmse_at,
                                  "cv_max": float(cvarr.max())}
         print(f"  {dist:10s}: recovered sigma={rec_spread:.3f} at CV={TARGET_CV}"
