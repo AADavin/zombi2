@@ -46,6 +46,14 @@ That command is the whole record. Anyone who has it, and the version it ran unde
   or thirty-two, but a different (equally valid) realisation from the serial default. Choose once at
   the start of a study rather than switching partway through, and record which you used.
 
+- **Not, strictly, across numpy major versions.** Every random number ZOMBI2 draws comes from numpy's
+  `Generator`, and numpy does not promise that a `Generator` method keeps producing the same stream
+  forever — a better algorithm for a distribution is allowed to land in a major release. In practice
+  the digests above are unchanged from numpy 1.26 to 2.5, and ZOMBI2 pins `numpy<3` so a major bump
+  cannot arrive without a release of ours. But if you are reproducing a years-old run and the numbers
+  are close rather than equal, this is the second thing to check after the ZOMBI2 version. The
+  `run.zombi2` report records the numpy version for exactly that reason.
+
 - **Not bit-identical floating point where the platform's own maths differs.** `exp`, `log` and the
   matrix routines behind a substitution model are allowed a rounding error in their last bit or two,
   and different platforms use different implementations. Branch lengths and trait values can differ

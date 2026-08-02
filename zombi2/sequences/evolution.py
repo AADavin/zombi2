@@ -162,7 +162,7 @@ def _cdf_for(cache: dict, model: SubstitutionModel, bl: float) -> np.ndarray:
 def _sample(parent_states: np.ndarray, cum: np.ndarray, rng: np.random.Generator) -> np.ndarray:
     """Draw each site's child state from the transition CDF ``cum[parent_state]`` (vectorised over
     sites). ``cum`` is the row-cumulated, 1.0-pinned transition matrix from `_cdf_for()`."""
-    r = rng.random(parent_states.shape[0])
+    r = rng.random(parent_states.shape)
     return (r[:, None] < cum[parent_states]).argmax(1).astype(np.int8)
 
 
