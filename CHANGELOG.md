@@ -20,7 +20,9 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   amino acids at every position. Families without a profile are untouched, a flat profile is the
   model it was built from, and profiles compose with `+Γ` — a profile says which residues, a Gamma
   says how fast. Refused alongside `partitions` (both decide a family's per-site models), alongside
-  `parallel`, and for a family the run does not have. Works at every genome resolution.
+  `parallel`, and for a family the run does not have. An amino-acid profile needs a protein model and
+  so belongs to a family or ordered run — a nucleotide genome is measured in base pairs and refuses
+  protein models — where a profile is over the four bases instead, one row per base pair.
 
 ### Added
 - **The docs open on a worked study.** `analyses/red/` — does RED, the measure GTDB uses to normalise

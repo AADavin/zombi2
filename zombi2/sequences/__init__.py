@@ -909,8 +909,13 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     differently from one L-site model. Profiles compose with ``across_sites`` — a profile says *which*
     residues, ``+Γ`` says *how fast* — and are refused alongside ``partitions`` (both decide a
     family's per-site models) and alongside ``parallel`` (which ships one shared partition set to
-    every worker). Works at every genome resolution. Experimental (SPEC §9): Python API, no CLI
-    flag yet.
+    every worker).
+
+    An **amino-acid** profile needs a protein model and so belongs to a family or ordered run: a
+    nucleotide genome is measured in base pairs and read on either strand, so it refuses protein
+    models outright. Profiles still apply there, over the four bases — a row per base pair — and the
+    row count must equal that block's length, which the genome run already fixed. Experimental
+    (SPEC §9): Python API, no CLI flag yet.
 
     On a **nucleotide** genome run every root block is evolved — spacer as well as genes — each at its
     own length in bp, so ``length`` does not apply and is rejected. ``model`` evolves the genes and
@@ -1188,6 +1193,15 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 f_parts, f_rate = ((f_model, f_len),), rate_base * speed
             if family in site_profiles:          # a profile replaces the family's model, site by site
                 f_parts = site_profiles[family]
+                # `length` is rejected on a nucleotide run — every block carries its own — so the
+                # row-count check in `_resolve_profiles` had nothing to compare against and this is
+                # where it lands. Without it a short profile silently shortens the sequence, and the
+                # alignment stops agreeing with the coordinates the genome run wrote.
+                if per_block is not None and len(f_parts) != per_block[family][0]:
+                    raise ValueError(
+                        f"the profile for block {family!r} has {len(f_parts)} rows but that block is "
+                        f"{per_block[family][0]} bp. A profile carries one row per site, and on a "
+                        f"nucleotide run the genome already fixed the length.")
             seed_states = None if per_block is None else founding_seed[family]
             aln, anc, fnd = _evolve_partitions(gt, f_parts, f_rate, clock, rng, cdf_caches, names,
                                                founding=seed_states)
