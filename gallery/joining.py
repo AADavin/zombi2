@@ -31,6 +31,8 @@ _MUSSE = {"slow": "#3A7CA5", "medium": "#F2A541", "fast": "#E4572E"}
 _HAB = {"free-living": "#2E8B6F", "endosymbiont": "#C25A3C"}
 _SEL = {"purifying": "#3A7CA5", "relaxed": "#C25A3C"}       # relaxed selection → duplicates accumulate
 _COMP = {"quiet": "#8f99a3", "competent": "#2E8B6F"}        # competent → takes up more DNA
+_TOX = {"absent": "#b9bec4", "present": "#2E8B6F"}          # a gene family, present or not
+_DISEASE = {"harmless": "#8f99a3", "pathogenic": "#C2453C"}
 
 
 def _style():
@@ -282,6 +284,53 @@ def trait_drives_trait(out):
     fig.add_axes([0.30, 0.845, 0.40, 0.155]).imshow(mpimg.imread(diag))
     rows = ((pngs[0], "temperature — grown first, then held fixed", 0.44),
             (pngs[1], "body size — its diffusion rate reads the temperature", 0.02))
+    for png, name, y in rows:
+        fig.add_axes([0.0, y, 1.0, 0.375]).imshow(mpimg.imread(png))
+        fig.text(0.045, y + 0.385, name, fontsize=15, ha="left", va="bottom")
+    for ax in fig.axes:
+        ax.set_axis_off()
+    fig.savefig(out, dpi=140, bbox_inches="tight")
+    plt.close(fig)
+
+
+def gene_drives_trait(out):
+    """A GENE FAMILY is the driver and a trait is the target — the other direction of a relation that
+    only ran one way before. A toxin family is grown first, gained and lost down the tree; a
+    pathogenicity trait then switches many times faster in the lineages that carry it. The same tree
+    is painted twice, so the answer is in the alignment of the two panels: where the top is green the
+    bottom flickers, and where it is grey the bottom sits still.
+
+    Presence is exact and changes mid-branch, at the instant the last copy actually went."""
+    ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
+    # loss well above duplication, so the family is genuinely lost in whole clades: 62% of the
+    # tree's branch length carries it and 38% does not, which is what gives the two panels something
+    # to disagree about
+    g = simulate_genomes_family(ct, initial_families=20, family_names=["tox"],
+                                duplication=0.05, loss=0.3, seed=9)
+    tox = g.presence("tox")
+    disease = simulate_discrete(ct, states=["harmless", "pathogenic"], start="harmless", seed=2,
+                                switch=0.05 * mod.DrivenBy(tox, {"present": 20.0, "absent": 1.0}))
+
+    lab = ct.labels()
+    top = {lab[i]: segs for i, segs in tox.history(ct).items()}
+    bottom = _state_history(ct, disease)
+    style = ph.Style(width=1000, height=560, margin=70, branch_width=3.4)
+    pngs = []
+    for k, (hist, palette) in enumerate(((top, _TOX), (bottom, _DISEASE))):
+        png = out.replace(".png", f"_g{k}.png")
+        (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
+         + ph.trees.color_history(hist, palette=palette)
+         + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
+        pngs.append(png)
+    diag = h.conditioning_png(out.replace(".png", "_diag.png"),
+                              driver="tox", states=["absent", "present"],
+                              switch={"present->absent": 0.3},    # the family is lost, not regained
+                              mapping={"present": 20, "absent": 1}, target="switch",
+                              target_base=0.05, state_colors=_TOX)
+    fig = plt.figure(figsize=(12, 11.4))
+    fig.add_axes([0.30, 0.845, 0.40, 0.155]).imshow(mpimg.imread(diag))
+    rows = ((pngs[0], "the toxin family — present or absent", 0.44),
+            (pngs[1], "pathogenicity — its switch rate reads the gene", 0.02))
     for png, name, y in rows:
         fig.add_axes([0.0, y, 1.0, 0.375]).imshow(mpimg.imread(png))
         fig.text(0.045, y + 0.385, name, fontsize=15, ha="left", va="bottom")
@@ -570,6 +619,42 @@ reach = max(abs(v) for v in driven.values())            # centre the diverging s
 # white = has not moved from where its ancestor left it; the cold half of the tree stays white'''
 
 
+_C_GENE_TRAIT = '''\
+### simulate  —  a GENE FAMILY drives a trait (the other direction of the same relation)
+from zombi2.species import simulate_species_tree
+from zombi2.genomes import simulate_genomes_family
+from zombi2.traits import simulate_discrete
+from zombi2.rates import modifiers as mod
+
+ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
+
+# 1. the driver: genomes with ONE family named, so it can be referred to. Loss well above
+#    duplication, so the family is genuinely lost in whole clades rather than kept everywhere.
+g = simulate_genomes_family(ct, initial_families=20, family_names=["tox"],
+                            duplication=0.05, loss=0.3, seed=9)
+
+# 2. the target: a trait whose switch rate reads whether that family is there. `presence` is a
+#    driver like a grown trait, so the mapping is an ordinary table over its two states.
+disease = simulate_discrete(ct, states=["harmless", "pathogenic"], start="harmless", seed=2,
+                            switch=0.05 * mod.DrivenBy(g.presence("tox"),
+                                                       {"present": 20.0, "absent": 1.0}))
+
+### plot  —  the same tree painted twice: by the gene, then by what the gene drove
+import phylustrator as ph
+
+lab = ct.labels()
+tree = ph.trees.loads(ct.to_newick())
+gene = {lab[i]: segs for i, segs in g.presence("tox").history(ct).items()}
+trait = {lab[i]: segs for i, segs in disease.history.items()}
+(ph.trees.plot(tree, skeleton=False)
+ + ph.trees.color_history(gene, palette={"absent": "#b9bec4", "present": "#2E8B6F"})
+ + ph.trees.time_axis("time", bold=False)).save("gene.png")
+(ph.trees.plot(tree, skeleton=False)
+ + ph.trees.color_history(trait, palette={"harmless": "#8f99a3", "pathogenic": "#C2453C"})
+ + ph.trees.time_axis("time", bold=False)).save("trait.png")
+# presence changes MID-BRANCH, at the instant the last copy actually went'''
+
+
 CONDITIONING = [
     Example("genome_reduction", "Genome reduction",
             "A driver (a trait for the lifestyle) modifies the rate of loss (the target). "
@@ -607,6 +692,14 @@ CONDITIONING = [
             "driver, then by what it drove, on a scale centred where the trait started, so white "
             "means <b>has not moved</b>. The cold half of the tree stays white.",
             "trait → trait", trait_drives_trait, code=_C_TRAIT_TRAIT),
+    Example("gene_drives_trait", "A gene drives a trait",
+            "The other direction of the same relation. A driver (a named gene family, present or "
+            "absent) modifies the rate at which a trait switches (the target), so pathogenicity turns "
+            "over twenty times faster in the lineages carrying the toxin. The same tree is painted "
+            "twice — by the gene, then by what the gene drove — so the answer is in the alignment of "
+            "the two: where the top is green the bottom flickers, where it is grey the bottom sits "
+            "still. Presence changes <b>mid-branch</b>, at the instant the last copy went.",
+            "gene → trait", gene_drives_trait, code=_C_GENE_TRAIT),
 ]
 
 JOINING = [

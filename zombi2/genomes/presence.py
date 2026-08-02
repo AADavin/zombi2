@@ -51,6 +51,21 @@ class GenePresence:
         """The per-lineage present/absent trajectory, for `zombi2.rates.driver.resolve_driver`."""
         return DriverTrajectory(_presence_segments(self.result, self.name, tree))
 
+    def history(self, tree) -> dict[int, list[tuple[str, float]]]:
+        """``{node id: [(state, duration), …]}`` — the per-branch map, durations summing to the
+        branch length.
+
+        The same shape `zombi2.traits.TraitsResult.history` has, so anything that draws a trait's
+        history down a tree draws this one too. `as_driver_trajectory` is what a rate reads; this is
+        what a figure reads."""
+        out: dict[int, list[tuple[str, float]]] = {}
+        for node_id, segs in _presence_segments(self.result, self.name, tree).items():
+            end = tree.nodes[node_id].end_time
+            bounds = [t for t, _ in segs] + [end]
+            out[node_id] = [(str(state), bounds[i + 1] - bounds[i])
+                            for i, (_, state) in enumerate(segs)]
+        return out
+
     def __repr__(self) -> str:
         return f"presence({self.name!r})"
 
