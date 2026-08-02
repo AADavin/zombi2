@@ -67,6 +67,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   ordered runs; only families named with `family_names=`. `presence(...).history(tree)` gives the
   per-branch map in the same shape `TraitsResult.history` has, so anything that draws a trait's
   history down a tree draws a gene's too — which is what the new gallery entry does.
+- **A gallery entry for a module driving a trait through a step** — `module_drives_metabolism`.
+  Four families make up aerobic respiration, and the response is *discontinuous*:
+  `lambda f: 20.0 if f > 0.5 else 1.0`, so more than half the module makes a lineage aerobic and less
+  makes it revert. Both directions read the module, oppositely, so the trait tracks gene content
+  rather than accumulating — 97% of the tree's branch length has the trait on the side of the
+  threshold its completion is. The curve diagram draws a step as a step rather than a ramp, which is
+  the one thing a threshold is not.
 - **A gallery entry for a gene driving a trait** — `gene_drives_trait`, the same tree painted twice:
   by the toxin family's presence, then by the pathogenicity whose switch rate reads it. The rates are
   chosen so the two panels have something to disagree about: the family covers 62% of the tree's
