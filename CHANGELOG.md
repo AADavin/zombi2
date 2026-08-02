@@ -9,6 +9,37 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **A stated reproducibility contract, and a test that checks it.** What a seed guarantees was
+  true but nowhere written down, and nothing verified it: every other test asserts a *property* of
+  a run, so the whole suite would still pass if the random stream shifted by one draw and every
+  number came out different. `tests/test_reproducibility.py` now hashes a run of each level against
+  a recorded digest, and CI runs it on Linux, macOS and Windows across Python 3.10–3.13 — six
+  configurations, six independently randomised hash seeds, one number. The contract itself is a new
+  documentation page, including what is *not* promised (across versions, and between a serial and a
+  `--parallel` run).
+- **`mypy` is part of CI.** ZOMBI2 ships `py.typed`, so its annotations are read by the type checker
+  of everyone who installs it — and 118 errors said they were not worth reading. All of them are
+  fixed and the check is a CI job. Nothing about a run changed; the fixes are annotations, three
+  latent `None` paths that could not be reached, and two stale signatures.
+- **Coverage is measured in CI** and reported (94% of `zombi2` at the time of writing). Not
+  enforced: a threshold turns a number worth reading into a number worth gaming.
+- **A `CONTRIBUTING.md`** — how to set up, what to run before opening a pull request, and what a
+  pull request is expected to carry.
+- **Three gallery examples for continuous drivers.** A `Curve` maps a driver's value to a factor,
+  and one exponential example did not show what that buys: a **saturating** curve, whose factor is
+  bounded however high the driver goes; a **humped** one, fastest at an intermediate value, which no
+  table of per-state multipliers can express; and **one trait driving another**, where the rate a
+  body-size trait diffuses at reads a temperature trait, drawn as the same tree painted twice.
+
+### Changed
+- **The documentation is ordered the way it is read**: Home · Guide · Output files · Tools · API
+  reference · Performance · Coming from ZOMBI v1 · FAQ.
+- **`Chromosome.genes` is typed `Sequence[Gene]`, not `list[Gene]`.** A chromosome has two states —
+  the engine's live one, which it mutates, and the frozen snapshot a finished run hands back, whose
+  genes are a tuple. The old annotation described only the first and so was wrong about every
+  chromosome a user ever touches.
+
 ## [0.23.0] - 2026-08-02
 
 ### Added

@@ -37,7 +37,7 @@ matrix ``B = diag(√π)·Q·diag(1/√π)`` (numpy only, no scipy):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -91,6 +91,13 @@ class SubstitutionModel:
     site_rates: tuple[float, ...] = (1.0,)
     #: the proportion of sites in each class, in the same order; sums to 1
     site_shares: tuple[float, ...] = (1.0,)
+
+    #: the reversible eigendecomposition `p_matrix()` runs on, filled in by ``__post_init__``
+    #: (through ``object.__setattr__``, since the dataclass is frozen). Not part of the public
+    #: surface: ``P(t) = _left · exp(_eigvals·t) · _right``.
+    _eigvals: np.ndarray = field(init=False, repr=False, compare=False)
+    _left: np.ndarray = field(init=False, repr=False, compare=False)
+    _right: np.ndarray = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         self._check_reversible()

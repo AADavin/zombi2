@@ -35,6 +35,7 @@ from __future__ import annotations
 import numpy as np
 
 from .clock import Clock  # noqa: F401  — the `clock:` annotation names it; kept out of __all__
+from ..genomes.gene_trees import GeneNode
 from .substitution_models import SubstitutionModel
 
 
@@ -97,7 +98,7 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
     # Iterative pre-order. Each stack frame carries the parent's end time and states so a node's own
     # states are sampled when it is popped (strict pre-order rng consumption); children are pushed
     # reversed so they pop in forward order. The root's "parent" is the origination.
-    stack: list[tuple[object, float, np.ndarray]] = [(root, origination, founding_states)]
+    stack: list[tuple[GeneNode, float, np.ndarray]] = [(root, origination, founding_states)]
     while stack:
         node, parent_time, parent_states = stack.pop()
         bl = (rate_base * (node.time - parent_time) if clock is None
@@ -116,7 +117,7 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
                 if rate > 0.0 and idx.size:
                     states[idx] = _sample(parent_states[idx], _cdf_for(cache, model, bl * rate), rng)
         out[id(node)] = states
-        for child in reversed(node.children):
+        for child in reversed(node.children or ()):
             stack.append((child, node.time, states))
     return out, founding_states
 

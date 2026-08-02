@@ -98,11 +98,12 @@ def read_gff(source, *, trim_overlaps: bool = False) -> tuple[dict[str, int], li
         cols = line.split("\t")
         if len(cols) < 8:
             raise ValueError(f"line {n}: a GFF feature needs at least 8 tab-separated columns, got {len(cols)}")
-        seqid, _src, kind, start, end, _score, strand = cols[0], cols[1], cols[2], cols[3], cols[4], cols[5], cols[6]
+        seqid, _src, kind = cols[0], cols[1], cols[2]
+        start_s, end_s, _score, strand = cols[3], cols[4], cols[5], cols[6]
         if kind.lower() != "gene":                       # only genes are declared; ignore other features
             continue
         try:
-            start, end = int(start), int(end)
+            start, end = int(start_s), int(end_s)
         except ValueError:
             raise ValueError(f"line {n}: start/end must be integers, got {cols[3]!r} {cols[4]!r}") from None
         if start < 1 or end < start:

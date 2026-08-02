@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import bisect
 import math
+from typing import cast
 
 import numpy as np
 
@@ -258,7 +259,7 @@ def _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciatio
             var = sigma2 / (2.0 * alpha) * (1.0 - e * e)
             x = theta + (x - theta) * e + (float(rng.normal(0.0, math.sqrt(var))) if var > 0.0 else 0.0)
         node_values[i] = x
-    return TraitsResult(tree, node_values, events, seed)
+    return TraitsResult(tree, cast("dict[int, object]", node_values), events, seed)
 
 
 
@@ -358,7 +359,7 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
     k = len(traits)
 
     rng = np.random.default_rng(seed)
-    node_values: dict[int, dict] = {}
+    node_values: dict[int, dict[str, float]] = {}
     # The log every other continuous run carries: the value the run started from, and each jump at a
     # split. A diffusion cannot be rebuilt from events — that is as true here as for one trait — so
     # this is a record of the run's discrete moments, not a conditioning file. The rows hold the whole
@@ -390,7 +391,7 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
             vec = mean + root @ rng.standard_normal(k)
         node_values[i] = {t: float(vec[j]) for j, t in enumerate(traits)}
 
-    return TraitsResult(tree, node_values, events, seed)
+    return TraitsResult(tree, cast("dict[int, object]", node_values), events, seed)
 
 
 
@@ -561,7 +562,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
         std = math.sqrt(var) if var > 0.0 else 0.0
         node_values[i] = mean + (float(rng.normal(0.0, std)) if std > 0.0 else 0.0)
 
-    return TraitsResult(tree, node_values, events, seed)
+    return TraitsResult(tree, cast("dict[int, object]", node_values), events, seed)
 
 
 # --- discrete traits: a state switching along the tree (Mk) ------------------------------------
