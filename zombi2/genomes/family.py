@@ -102,6 +102,20 @@ class FamilyGenomesResult:
         """A multiset view of one node's genome: ``family id → copy count``."""
         return collections.Counter(c.family for c in self.genomes[node_id])
 
+    def presence(self, name: str):
+        """The named family's presence as a **conditioning driver** — `GenePresence`.
+
+        ``has_family`` answers for one node; this answers for every lineage at every instant, which
+        is what a driven rate needs::
+
+            switch=0.1 * mod.DrivenBy(g.presence("tox"), {"present": 5.0, "absent": 1.0})
+        """
+        from .presence import GenePresence
+        if name not in self.family_names:
+            raise KeyError(f"no named family {name!r}; declared families are "
+                           f"{sorted(self.family_names)}")
+        return GenePresence(self, name)
+
     def has_family(self, node_id: int, name: str) -> bool:
         """Whether the named family ``name`` (declared via ``family_names=``) is present — has ≥ 1 copy — in
         the genome at ``node_id``. The presence signal a joint ``DrivenBy("genomes:<name>", …)`` reads."""

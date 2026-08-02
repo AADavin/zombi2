@@ -211,6 +211,41 @@ zombi2 traits size/ --from out/ --kind continuous --start 0.0 --seed 4 \
     --rate "1.0 * DrivenBy('out/traits/trait_events.tsv', {'cave': 4.0, 'surface': 1.0})"
 ```
 
+## A gene as the driver
+
+Everything so far has a trait doing the driving. A **gene family** can do it too, and it is the same
+relation the other way round: a trait can make gene loss faster, and this makes a trait's rate depend
+on whether a lineage carries a gene.
+
+Name the family when you grow the genomes, then ask the run for its presence:
+
+```python
+tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=40, seed=4)
+
+# 1. grow the driver: genomes in which one family is named, so it can be referred to
+g = genomes.simulate_genomes_family(tree, initial_families=20, family_names=["tox"],
+                                    duplication=0.1, loss=0.15, seed=9)
+
+# 2. grow the trait, with its switch rate reading whether that family is there
+pathogenicity = traits.simulate_discrete(
+    tree, states=["harmless", "pathogenic"], start="harmless", seed=2,
+    switch = 0.1 * mod.DrivenBy(g.presence("tox"), {"present": 8.0, "absent": 1.0}))
+```
+
+`g.presence("tox")` is a driver like any other, so the mapping is an ordinary table over its two
+states, `present` and `absent`. Only families you **named** with `family_names=` can be asked for: a
+family that arose during the run has an id but nothing stable to call it by.
+
+The signal is exact and it changes **during** a branch, not only at the nodes. A lineage that loses
+its last copy of the family halfway along a branch is `present` before that instant and `absent`
+after it, and the driven rate switches there — the same treatment a trait's mid-branch switch gets.
+Presence is read off the family's gene tree, so a lineage that gains the family by transfer has it
+from the moment the transfer landed.
+
+This is conditioning, so the genome is finished before the trait starts and does not react to it.
+For a gene whose presence shapes the tree that the genome is itself evolving on, see the next
+chapter: `joint` grows both at once, and there the target is speciation rather than a trait.
+
 ## Outputs
 
 Conditioning adds no format. A conditioned run writes the target level's own files, plus a
