@@ -18,7 +18,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   lineage in at time t* only knew how to be built from a trait. It reads the family's gene tree, so
   the signal changes **mid-branch** where a copy was actually gained or lost rather than only at the
   nodes, and a lineage that never held the family answers `absent` rather than raising. Family and
-  ordered runs; only families named with `family_names=`.
+  ordered runs; only families named with `family_names=`. `presence(...).history(tree)` gives the
+  per-branch map in the same shape `TraitsResult.history` has, so anything that draws a trait's
+  history down a tree draws a gene's too — which is what the new gallery entry does.
+- **A gallery entry for a gene driving a trait** — `gene_drives_trait`, the same tree painted twice:
+  by the toxin family's presence, then by the pathogenicity whose switch rate reads it. The rates are
+  chosen so the two panels have something to disagree about: the family covers 62% of the tree's
+  branch length, and the realised switch rate is 1.1 per unit where it is present against 0.07 where
+  it is not.
 
 ### Added
 - **Site-specific amino-acid profiles.** `simulate_sequences(..., profiles={family: array})` gives a
