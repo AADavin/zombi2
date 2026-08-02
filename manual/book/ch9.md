@@ -246,6 +246,42 @@ This is conditioning, so the genome is finished before the trait starts and does
 For a gene whose presence shapes the tree that the genome is itself evolving on, see the next
 chapter: `joint` grows both at once, and there the target is speciation rather than a trait.
 
+### A module rather than a single gene
+
+Genes rarely act alone. A **module** is a named group of families — a pathway, a complex, an operon
+— and what a lineage has of it is a matter of degree: all six flagellar genes, or four of them, or
+none. `modules=` declares the grouping and `completion` reads it, as a number between 0 and 1:
+
+```python
+from zombi2.rates.mapping import Curve
+
+flg = [f"flg{i}" for i in range(6)]
+
+g = genomes.simulate_genomes_family(tree, initial_families=20, family_names=flg,
+                                    modules={"flagellum": flg},
+                                    duplication=0.05, loss=0.2, seed=9)
+
+motility = traits.simulate_discrete(
+    tree, states=["sessile", "motile"], start="sessile", seed=2,
+    switch = 0.05 * mod.DrivenBy(g.completion("flagellum"),
+                                 Curve(lambda f: 0.05 + 30.0 * f ** 4)))
+```
+
+Completion is a **continuous** driver, so it takes a `Curve` rather than a table — and that is where
+a threshold belongs, alongside every other response shape. `lambda f: 8.0 if f > 0.8 else 1.0` reads
+"eight times faster once four fifths of it is there"; the `f ** 4` above is a softer version of the
+same idea, where the last genes matter most.
+
+**Why a fraction and not a yes-or-no.** Under independent loss, the chance that *every* family of a
+module survives falls off geometrically with its size. Measured on a 200-tip tree: a module of three
+was complete at 189 tips, one of six at none of them. A complete/incomplete driver would therefore be
+a constant for anything but the smallest modules, and a run driven by a constant has told you
+nothing. The fraction is always informative, and it degrades gracefully — a module of one family is
+exactly that family's presence, 1 or 0.
+
+Members must be families you named with `family_names=`. An anonymous family's id comes from the
+order events happened to fire in, so a module built on one would mean something else at another seed.
+
 ## Outputs
 
 Conditioning adds no format. A conditioned run writes the target level's own files, plus a

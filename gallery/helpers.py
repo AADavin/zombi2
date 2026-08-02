@@ -546,41 +546,49 @@ def _conditioning_frame(ax, driver, target, target_base, target_sub):
                 style="italic")
 
 
-def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_base=None,
-                      target_sub=None, symbol="×", state_colors=None):
-    """The manual's driver→modifier→target diagram for a **discrete** driver. ``switch`` is a
-    {"a->b": rate} dict (an arrow is drawn for each positive rate, so an irreversible trait shows one
-    arrow); ``mapping`` is the per-state multiplier; ``state_colors`` tints the state nodes to match the
-    tree's palette. The state names sit *outside* (below) their circles. ``target_base`` is the rate's
-    base value (``None`` for a target that is not a rate, e.g. a recipient-choice slot); ``target_sub``
-    is the italic caption under TARGET."""
+def _state_chain(ax, states, switch, colors, *, cx, y, half=48.0, r_st=15):
+    """The little Markov chain a discrete variable is: one circle per state, named below it, and an
+    arrow for each positive rate. Used under the DRIVER box and, where the target is itself a discrete
+    trait, under the TARGET box — so the reader can see both ends of the relation are the same kind of
+    thing and only the rate differs."""
     from matplotlib.patches import Circle, FancyArrowPatch
 
-    _conditioning_frame(ax, driver, target, target_base, target_sub)
-
     n = len(states)
-    r_st = 15
-    xs = [72 + (168 - 72) * (k / (n - 1) if n > 1 else 0.5) for k in range(n)]
+    xs = [cx - half + 2 * half * (k / (n - 1) if n > 1 else 0.5) for k in range(n)]
     pos = dict(zip(states, xs))
-    for k, s in enumerate(states):
-        x = xs[k]
-        col = (state_colors or {}).get(s, "#c9c9c9")
-        ax.add_patch(Circle((x, 202), r_st, facecolor=col, edgecolor=_INK, lw=1.2))
-        ax.text(x, 202 + r_st + 11, s, ha="center", va="top", color=_INK, fontsize=10.5)
-    for key, rate in switch.items():
+    for x, s in zip(xs, states):
+        ax.add_patch(Circle((x, y), r_st, facecolor=(colors or {}).get(s, "#c9c9c9"),
+                            edgecolor=_INK, lw=1.2))
+        ax.text(x, y + r_st + 11, s, ha="center", va="top", color=_INK, fontsize=10.5)
+    for key, rate in (switch or {}).items():
         if rate <= 0:
             continue
         a, b = key.split("->")
         xa, xb = pos[a], pos[b]
         inner_l, inner_r = min(xa, xb) + r_st, max(xa, xb) - r_st
-        if xa < xb:
-            ax.add_patch(FancyArrowPatch((inner_l, 196), (inner_r, 196),
-                                         connectionstyle="arc3,rad=-0.6", arrowstyle="-|>",
-                                         mutation_scale=9, lw=1.1, color=_INK))
-        else:
-            ax.add_patch(FancyArrowPatch((inner_r, 208), (inner_l, 208),
-                                         connectionstyle="arc3,rad=-0.6", arrowstyle="-|>",
-                                         mutation_scale=9, lw=1.1, color=_INK))
+        lo, hi = (inner_l, inner_r) if xa < xb else (inner_r, inner_l)
+        ax.add_patch(FancyArrowPatch((lo, y - 6 if xa < xb else y + 6),
+                                     (hi, y - 6 if xa < xb else y + 6),
+                                     connectionstyle="arc3,rad=-0.6", arrowstyle="-|>",
+                                     mutation_scale=9, lw=1.1, color=_INK))
+
+
+def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_base=None,
+                      target_sub=None, symbol="×", state_colors=None,
+                      target_states=None, target_switch=None, target_colors=None):
+    """The manual's driver→modifier→target diagram for a **discrete** driver. ``switch`` is a
+    {"a->b": rate} dict (an arrow is drawn for each positive rate, so an irreversible trait shows one
+    arrow); ``mapping`` is the per-state multiplier; ``state_colors`` tints the state nodes to match the
+    tree's palette. The state names sit *outside* (below) their circles. ``target_base`` is the rate's
+    base value (``None`` for a target that is not a rate, e.g. a recipient-choice slot); ``target_sub``
+    is the italic caption under TARGET. ``target_states`` / ``target_switch`` / ``target_colors``
+    draw a second chain under the target box, for a target that is itself a discrete trait — the
+    driven rate is then visibly *that chain's* rate, rather than an unexplained number."""
+    _conditioning_frame(ax, driver, target, target_base, target_sub)
+
+    _state_chain(ax, states, switch, state_colors, cx=120, y=202)
+    if target_states:
+        _state_chain(ax, target_states, target_switch, target_colors, cx=555, y=214)
 
     for i, s in enumerate(states):
         ax.text(332, 152 + i * 19, f"{s} {symbol} {mapping.get(s, 1)}", ha="center", va="center",

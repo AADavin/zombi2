@@ -326,7 +326,13 @@ def gene_drives_trait(out):
                               driver="tox", states=["absent", "present"],
                               switch={"present->absent": 0.3},    # the family is lost, not regained
                               mapping={"present": 20, "absent": 1}, target="switch",
-                              target_base=0.05, state_colors=_TOX)
+                              target_base=0.05, state_colors=_TOX,
+                              # the target is itself a discrete trait, so it gets its own chain:
+                              # what the gene drives is the rate of *these* two arrows
+                              target_states=["harmless", "pathogenic"],
+                              target_switch={"harmless->pathogenic": 0.05,
+                                             "pathogenic->harmless": 0.05},
+                              target_colors=_DISEASE)
     fig = plt.figure(figsize=(12, 11.4))
     fig.add_axes([0.30, 0.845, 0.40, 0.155]).imshow(mpimg.imread(diag))
     rows = ((pngs[0], "the toxin family — present or absent", 0.44),
