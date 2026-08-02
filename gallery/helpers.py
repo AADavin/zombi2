@@ -546,11 +546,15 @@ def _conditioning_frame(ax, driver, target, target_base, target_sub):
                 style="italic")
 
 
-def _state_chain(ax, states, switch, colors, *, cx, y, half=48.0, r_st=15):
+def _state_chain(ax, states, switch, colors, *, cx, y, half=48.0, r_st=15, driven=None):
     """The little Markov chain a discrete variable is: one circle per state, named below it, and an
     arrow for each positive rate. Used under the DRIVER box and, where the target is itself a discrete
     trait, under the TARGET box — so the reader can see both ends of the relation are the same kind of
-    thing and only the rate differs."""
+    thing and only the rate differs.
+
+    ``driven`` names the one transition a driver acts on (``"a->b"``), drawn heavier: a rate that
+    reads a driver is usually **one arrow**, not the whole chain, and a diagram that does not say so
+    claims the model is symmetric when it is not."""
     from matplotlib.patches import Circle, FancyArrowPatch
 
     n = len(states)
@@ -567,15 +571,18 @@ def _state_chain(ax, states, switch, colors, *, cx, y, half=48.0, r_st=15):
         xa, xb = pos[a], pos[b]
         inner_l, inner_r = min(xa, xb) + r_st, max(xa, xb) - r_st
         lo, hi = (inner_l, inner_r) if xa < xb else (inner_r, inner_l)
+        hot = key == driven
         ax.add_patch(FancyArrowPatch((lo, y - 6 if xa < xb else y + 6),
                                      (hi, y - 6 if xa < xb else y + 6),
                                      connectionstyle="arc3,rad=-0.6", arrowstyle="-|>",
-                                     mutation_scale=9, lw=1.1, color=_INK))
+                                     mutation_scale=13 if hot else 9,
+                                     lw=2.4 if hot else 1.1, color=_INK))
 
 
 def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_base=None,
                       target_sub=None, symbol="×", state_colors=None,
-                      target_states=None, target_switch=None, target_colors=None):
+                      target_states=None, target_switch=None, target_colors=None,
+                      target_driven=None):
     """The manual's driver→modifier→target diagram for a **discrete** driver. ``switch`` is a
     {"a->b": rate} dict (an arrow is drawn for each positive rate, so an irreversible trait shows one
     arrow); ``mapping`` is the per-state multiplier; ``state_colors`` tints the state nodes to match the
@@ -588,7 +595,8 @@ def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_bas
 
     _state_chain(ax, states, switch, state_colors, cx=120, y=202)
     if target_states:
-        _state_chain(ax, target_states, target_switch, target_colors, cx=555, y=214)
+        _state_chain(ax, target_states, target_switch, target_colors, cx=555, y=214,
+                     driven=target_driven)
 
     for i, s in enumerate(states):
         ax.text(332, 152 + i * 19, f"{s} {symbol} {mapping.get(s, 1)}", ha="center", va="center",

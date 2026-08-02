@@ -10,10 +10,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Changed
-- **The conditioning diagram can draw the target's own Markov chain.** Where the target is itself a
-  discrete trait, the driven rate is visibly *that chain's* rate rather than an unexplained number —
-  the `gene_drives_trait` figure now shows harmless ⇄ pathogenic under the target box, matching the
-  driver's chain under its own.
+- **The conditioning diagram can draw the target's own Markov chain, and mark which arrow is
+  driven.** A rate that reads a driver is usually **one transition**, not the whole chain, and a
+  diagram that does not say so claims the model is symmetric when it is not. The `gene_drives_trait`
+  figure drives `harmless → pathogenic` only — a toxin makes a lineage dangerous, it does not help it
+  recover — and the driven arrow is drawn heavier than the one that is not.
 
 ### Added
 - **Gene families can be grouped into modules, and a module's completion drives a rate.**
