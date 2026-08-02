@@ -112,6 +112,98 @@ Two consequences worth knowing. The mean pairwise identity a run reports goes **
 | a class of sites that never change | `.across_sites(invariant=…)` | +I, invariable sites |
 | both together | `.across_sites(gamma_shape=…, invariant=…)` | +I+G [@gu1995maximum] |
 
+## Site-specific amino-acid profiles
+
+Every model on the menu gives a gene one set of amino-acid frequencies, shared by all its sites. Real
+proteins do not work that way: a buried position is some flavour of hydrophobic and essentially never
+charged, while the loop next to it takes almost anything. A **profile** says so directly — one set of
+frequencies per position, rather than one per gene.
+
+You supply a table with a row per site and a column per amino acid, for whichever families you have
+one for:
+
+```python
+import numpy as np
+
+# a profile is an (L, 20) array: row i is the amino-acid frequencies at position i,
+# with the columns in the model's own alphabet order, model.alphabet
+protein = lg()
+constrained = np.full((300, 20), 0.002)      # every residue possible, none likely...
+constrained[:, protein.alphabet.index("L")] = 1.0   # ...except leucine, at every position
+
+seqs = sequences.simulate_sequences(my_genomes, model=protein, length=300,
+                                    profiles={0: constrained}, seed=1)
+```
+
+Each row is normalised to sum to 1, and the exchangeabilities — which pairs of amino acids swap
+easily, the chemistry the model already encodes — are left alone. Families you leave out evolve under
+`model` untouched. A row of exact zeros is refused, because it makes that site's matrix degenerate: a
+real profile says a residue is unlikely at a position, not that it is impossible, so add a
+pseudocount.
+
+Where the numbers come from is your business. Two ways.
+
+**From an alignment of the real family.** Column frequencies, with a pseudocount so nothing is
+impossible:
+
+```python
+def profile_from_alignment(columns, alphabet, pseudocount=0.1):
+    """One row per alignment column, from the residues seen in it."""
+    counts = np.array([[c.count(a) for a in alphabet] for c in columns], dtype=float)
+    counts += pseudocount                       # nothing is impossible, only unlikely
+    return counts / counts.sum(axis=1, keepdims=True)
+
+columns = ["LLLIL", "GGGGA", "KKRKK"]           # three columns of a five-sequence alignment
+print(profile_from_alignment(columns, protein.alphabet).shape)      # (3, 20)
+```
+
+**From a protein language model.** These already produce a distribution over amino acids at every
+position, which is the table this section wants, so nothing has to be derived from it:
+
+<!-- doc-test: skip — transformers and torch are not ZOMBI2 dependencies -->
+
+```python
+import torch
+from transformers import T5ForConditionalGeneration, T5Tokenizer
+
+def profile_from_prott5(sequence, alphabet, model_name="Rostlab/prot_t5_xl_uniref50"):
+    tok = T5Tokenizer.from_pretrained(model_name)
+    mdl = T5ForConditionalGeneration.from_pretrained(model_name).eval()
+    ids = tok(" ".join(sequence), return_tensors="pt")
+    with torch.no_grad():
+        logits = mdl(**ids, decoder_input_ids=ids["input_ids"]).logits[0]
+    p = torch.softmax(logits, dim=-1).numpy()
+    cols = [tok.convert_tokens_to_ids(a) for a in alphabet]      # the model's own token ids
+    prof = p[:len(sequence), cols]
+    return prof / prof.sum(axis=1, keepdims=True)
+```
+
+**Compute the table once and keep it.** A language model's output depends on its version and on the
+hardware it ran on, so calling one at simulation time would put something outside this manual's
+reproducibility promise inside your run. Save the array beside your script and load it. The
+simulation is then bit-identical from the seed as usual, and a reader can inspect the profile without
+owning a GPU.
+
+A **flat** profile — every row the model's own frequencies — is the model without one. Statistically,
+not byte for byte: a hundred single-site models walk the random stream differently from one
+hundred-site model, so the same seed gives a different draw from the same distribution.
+
+Profiles and `+Γ` are about different things and compose. A profile says **which** amino acids belong
+at a site; a Gamma says **how fast** sites change. Decorate the model as usual and you get both.
+
+**An amino-acid profile needs a protein model, so it belongs to a family or ordered run.** A
+nucleotide genome is measured in base pairs and its blocks are read on either strand, so that
+resolution refuses protein models altogether — there is no complement of an amino acid. Profiles are
+still accepted there, but over the four bases: a row per base pair, saying what belongs at that
+coordinate. The row count then has to match the block's length in bp, since the genome run already
+fixed it.
+
+| What it does | ZOMBI2 | From the literature |
+|---|---|---|
+| one set of frequencies per gene | `lg()`, `wag()`, … | the empirical matrices |
+| one set per **site**, supplied | `profiles={family: array}` | site-heterogeneous profile models |
+| how fast each site changes | `.across_sites(gamma_shape=…)` | +G [@yang1994variable] |
+
 ## Relaxed molecular clocks
 
 Rate variation across sites says which *positions* change fast. A clock says which *lineages* do. The two are orthogonal and compose.

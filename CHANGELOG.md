@@ -10,6 +10,21 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **Site-specific amino-acid profiles.** `simulate_sequences(..., profiles={family: array})` gives a
+  family one set of equilibrium frequencies **per position** instead of one shared by the whole gene,
+  which is the difference between a buried hydrophobic site and the loop beside it. Each row of the
+  `(L, K)` array becomes that site's own model over the base model's exchangeabilities — which pairs
+  of residues interchange easily is chemistry and is kept; where each residue belongs is the
+  profile's to say. Where the numbers come from is open: the manual shows one recipe from an
+  alignment and one from a protein language model, whose output already *is* a distribution over
+  amino acids at every position. Families without a profile are untouched, a flat profile is the
+  model it was built from, and profiles compose with `+Γ` — a profile says which residues, a Gamma
+  says how fast. Refused alongside `partitions` (both decide a family's per-site models), alongside
+  `parallel`, and for a family the run does not have. An amino-acid profile needs a protein model and
+  so belongs to a family or ordered run — a nucleotide genome is measured in base pairs and refuses
+  protein models — where a profile is over the four bases instead, one row per base pair.
+
+### Added
 - **The docs open on a worked study.** `analyses/red/` — does RED, the measure GTDB uses to normalise
   taxonomic ranks, still recover node ages once molecular rates vary? — was in the repository and
   linked from nowhere: not the README, not the site, not the manual. It is now a documentation page
