@@ -703,7 +703,7 @@ def _resolve_partitions(model, partitions, length) -> tuple[tuple[SubstitutionMo
             raise ValueError(
                 f"partition {i}'s model is {m!r}, which is not a SubstitutionModel — take one from "
                 "the menu (jc69(), hky85(kappa=2.0), lg(), …) or build your own with "
-                "substitution_models.reversible(S, freqs).")
+                "substitution_models.reversible(S, frequencies).")
         if isinstance(n, bool) or not isinstance(n, int) or n < 1:
             raise ValueError(
                 f"partition {i} ({m.name}) covers {n!r} sites: a partition's site count must be a "
@@ -869,17 +869,26 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     ``parallel``. A **nucleotide** run cannot stream: it puts whole genomes back together, and that
     needs every block's sequence at once, which is the opposite of keeping nothing.
     """
-    from ..genomes import NucleotideGenomesResult
+    from ..genomes import NucleotideGenomesResult, OrderedGenomesResult
 
     nucleotide = isinstance(genomes, NucleotideGenomesResult)
-    if not nucleotide and not isinstance(genomes, FamilyGenomesResult):
+    # An ordered run is admitted here as a family one: this level reads a genome run's `gene_trees`
+    # and its `complete_tree`, and the ordered result carries both — the coordinates it adds are
+    # simply not something a sequence needs. It used to be refused, because `OrderedGenomesResult`
+    # is not a subclass of `FamilyGenomesResult` and the gate tested the class rather than what it
+    # had to supply. That contradicted the documentation everywhere ("a family or ordered run", in
+    # this module's own docstring four times, in Chapter 7 and in Appendix B), and the CLI never hit
+    # it because its directory handoff rebuilds a FamilyGenomesResult from `genome_events.tsv` on
+    # the way in — so `zombi2 genomes --resolution ordered` into `zombi2 sequences` worked while the
+    # same two calls in Python did not.
+    if not nucleotide and not isinstance(genomes, (FamilyGenomesResult, OrderedGenomesResult)):
         raise TypeError(
             f"the sequence level runs on a genome run, got {type(genomes).__name__} — pass the "
-            "FamilyGenomesResult that genomes.simulate_genomes_family(...) returned, or the "
-            "NucleotideGenomesResult from simulate_genomes_nucleotide(...): the whole run, not its "
-            ".gene_trees. A sequence lives inside a gene, but its clock rides the *species* branch "
-            "that gene sits on — one draw per lineage, shared by every family — so the run needs "
-            "the species tree too."
+            "result that genomes.simulate_genomes_family(...), simulate_genomes_ordered(...) or "
+            "simulate_genomes_nucleotide(...) returned: the whole run, not its .gene_trees. A "
+            "sequence lives inside a gene, but its clock rides the *species* branch that gene sits "
+            "on — one draw per lineage, shared by every family — so the run needs the species tree "
+            "too."
         )
     if stream_to is not None and nucleotide:
         raise ValueError(

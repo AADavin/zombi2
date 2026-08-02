@@ -102,9 +102,9 @@ def test_reversible_rebuilds_a_menu_model_exactly():
     """The public door is the same door the menu goes through: a hand-written HKY85 matrix and the
     same frequencies give the model `hky85()` gives, cell for cell — including the normalisation to
     one expected substitution per site per unit branch length."""
-    freqs = (0.3, 0.2, 0.2, 0.3)
-    mine = reversible(_hky_exchangeabilities(2.0), freqs, name="HKY85")
-    theirs = hky85(kappa=2.0, freqs=freqs)
+    frequencies = (0.3, 0.2, 0.2, 0.3)
+    mine = reversible(_hky_exchangeabilities(2.0), frequencies, name="HKY85")
+    theirs = hky85(kappa=2.0, frequencies=frequencies)
     assert np.allclose(mine.Q, theirs.Q)
     assert np.allclose(mine.stationary, theirs.stationary)
     assert np.allclose(mine.p_matrix(0.42), theirs.p_matrix(0.42))
@@ -153,13 +153,13 @@ def test_reversible_names_what_is_wrong_with_a_bad_matrix(S, match):
         reversible(S, [0.25] * 4)
 
 
-@pytest.mark.parametrize("freqs, match", [
+@pytest.mark.parametrize("frequencies, match", [
     ([0.4, 0.3, 0.2, 0.0], "strictly positive"),
     ([0.4, 0.3, 0.2, 0.2], "sum to 1"),
 ])
-def test_reversible_names_what_is_wrong_with_the_frequencies(freqs, match):
+def test_reversible_names_what_is_wrong_with_the_frequencies(frequencies, match):
     with pytest.raises(ValueError, match=match):
-        reversible(np.ones((4, 4)) - np.eye(4), freqs)
+        reversible(np.ones((4, 4)) - np.eye(4), frequencies)
 
 
 @pytest.mark.parametrize("alphabet, match", [
@@ -283,8 +283,8 @@ def test_jc69_pdistance_matches_theory_and_rate_scales_it():
 
 def test_hky85_transition_bias_makes_diverged_tips_still_reflect_frequencies():
     # a strongly skewed base composition is reproduced at the tips (endpoint stays near stationary)
-    freqs = (0.4, 0.1, 0.1, 0.4)
-    r = simulate_sequences(_pair_run(1.0, 4.0), model=hky85(4.0, freqs), length=20000, seed=5)
+    frequencies = (0.4, 0.1, 0.1, 0.4)
+    r = simulate_sequences(_pair_run(1.0, 4.0), model=hky85(4.0, frequencies), length=20000, seed=5)
     seq = r.alignments[0]["n1_g1"]
     comp = [seq.count(b) / len(seq) for b in "ACGT"]
     assert comp[0] > comp[1] and comp[3] > comp[2]   # A,T (0.4) exceed C,G (0.1)
