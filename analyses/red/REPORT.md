@@ -54,18 +54,28 @@ which GTDB provides.*
 
 We build the simulated trees the way ZOMBI2 builds any tree, and calibrate their raggedness to the
 real number. We simulate 8 species trees under the Yule process (400 tips, known node ages), evolve
-each under ZOMBI2's relaxed lineage clock — `substitution = 1.0 * ByLineage(spread=σ)` (Drummond et
-al. 2006) — and read the `species_phylogram`, whose branch lengths are substitutions. Sweeping σ and
-finding where the mean root-to-tip CV crosses 0.232 gives the σ that makes a simulated tree as ragged
-as real archaea (Figure 2): σ ≈ 0.54 for the lognormal tail, σ ≈ 0.59 for the gamma tail.
+each under a relaxed clock, and read the `species_phylogram`, whose branch lengths are substitutions.
+Sweeping σ and finding where the mean root-to-tip CV crosses 0.232 gives the σ that makes a simulated
+tree as ragged as real archaea (Figure 2).
+
+**Three clocks, because one number cannot pin the structure.** The CV says *how much* rate variation
+there is, not how it is arranged across the tree — and those are different things for a method that
+walks root to tip. So the sweep runs all three clocks ZOMBI2 wires at the sequence level: the
+**uncorrelated** `ByLineage(spread=σ)` with a lognormal or a gamma tail (Drummond et al. 2006), where
+every lineage draws its own rate independently; and the **autocorrelated** `FromParent(spread=σ)`
+(Thorne et al. 1998), where each lineage inherits its parent's rate times a draw at the split, so
+relatives evolve at similar rates. They reach the GTDB raggedness at very different σ — 0.54
+(lognormal), 0.59 (gamma), 0.14 (autocorrelated), because drift compounds down the tree — which is
+exactly why the comparison has to be made at matched CV rather than at matched σ.
 
 ![Figure 2](figures/clock_recovery.png)
 
-*Figure 2. Root-to-tip substitution CV as the clock heterogeneity σ grows, for the two tails ZOMBI2
-ships for its uncorrelated lineage clock (`ByLineage`, `dist="lognormal"` and `dist="gamma"`). Where
-a curve crosses the GTDB target (CV = 0.232, dashed) is the σ that reproduces real raggedness, marked
-with a filled circle. Shaded bands are ±1 s.d. across the 8 Yule trees. The amount of variation (CV)
-is identifiable; the σ read off is tail-dependent, so both tails are carried into the test.*
+*Figure 2. Root-to-tip substitution CV as the clock heterogeneity σ grows, for the three clocks ZOMBI2
+wires at the sequence level. Where a curve crosses the GTDB target (CV = 0.232, dashed) is the σ that
+reproduces real raggedness, marked with a filled circle. Shaded bands are ±1 s.d. across the 8 Yule
+trees. The amount of variation (CV) is identifiable; the σ that produces it is clock-dependent — the
+autocorrelated clock needs a quarter of the σ, because inherited drift accumulates — so all three are
+carried into the test at matched CV.*
 
 The forward model contains no real branch lengths: the GTDB tree sets only the target CV.
 
@@ -80,10 +90,12 @@ Figure 4 is the per-tree picture.
 ![Figure 3](figures/red_bridge.png)
 
 *Figure 3. RED accuracy (left, Pearson r between RED and true relative age) and error (right, nRMSE as
-a percentage of tree depth) against how rate-variable the tree is, one curve per clock tail. The
-dashed line is real archaea (CV = 0.232); filled markers read off RED's accuracy there. RED is
-near-exact for mild variation and degrades as trees get raggeder. Shaded bands are ±1 s.d. across the
-8 Yule trees.*
+a percentage of tree depth) against how rate-variable the tree is, one curve per clock. The dashed
+line is real archaea (CV = 0.232); filled markers read off RED's accuracy there. RED is near-exact for
+mild variation and degrades as trees get raggeder — but the **autocorrelated** clock degrades far more
+slowly, because inherited rates preserve the local ordering RED reads. Shaded bands are ±1 s.d. across
+the 8 Yule trees. The sweeps run past CV = 1.8; the axis stops at 0.8, beyond which 8 replicates no
+longer separate the curves from their own variance.*
 
 ![Figure 4](figures/red_scatter.png)
 
@@ -93,10 +105,19 @@ tracks the diagonal (r = 0.92); the scatter opens up well beyond real heterogene
 
 ## What it means
 
-**At the raggedness real archaea show, RED holds up.** Reading off CV = 0.232, RED recovers node ages
-with Pearson **r = 0.95 (lognormal tail) and r = 0.94 (gamma tail)**, and **nRMSE ≈ 6% of tree
-depth**. The amount of rate variation in real archaea is not enough to break RED — a quantitative
-version of the assumption GTDB relies on (Rinke et al. 2021).
+**At the raggedness real archaea show, RED holds up — under every clock we can put it under.**
+Reading off CV = 0.232:
+
+| clock | Pearson r | nRMSE (% of tree depth) | σ at the target CV |
+|---|---|---|---|
+| uncorrelated, lognormal | 0.953 | 5.8% | 0.544 |
+| uncorrelated, gamma | 0.942 | 6.1% | 0.588 |
+| autocorrelated | **0.993** | **2.3%** | 0.142 |
+
+The amount of rate variation in real archaea is not enough to break RED — a quantitative version of
+the assumption GTDB relies on (Rinke et al. 2021). And because the two arrangements of that variation
+bracket the answer, the conclusion does not rest on guessing which one real archaea have: the worst
+case is r = 0.94, the best 0.99.
 
 Three things are worth being precise about.
 
@@ -104,11 +125,13 @@ Three things are worth being precise about.
   Use RED to order divergences and normalise ranks — its designed job — not to read absolute times off.
 - **RED only breaks down past real data.** Beyond CV ≈ 0.23 the accuracy falls away: by CV ≈ 0.46,
   r drops to ≈ 0.79 and nRMSE rises to ≈ 9%. Real archaea sit on the safe side of that.
-- **The CV pins the amount of variation, not its structure.** The identifiable quantity is how much
-  rate variation there is, not whether it is autocorrelated (neighbouring lineages evolving at similar
-  rates). See the limitations below: the clean core's sequence-level clock is uncorrelated only, so
-  this port cannot vary that structure — the two tails it does sweep agree closely (r within 0.01),
-  which is the residual this single observable leaves open.
+- **The CV pins the amount of variation, not its structure — so we bound the structure instead.**
+  One root-to-tip CV cannot say whether rate variation is autocorrelated (relatives evolving at
+  similar rates) or independent, and the two are not equivalent for RED: at matched raggedness the
+  autocorrelated clock gives r = 0.993 against the uncorrelated 0.94–0.95, because inherited rates
+  preserve the local ordering RED walks. Rather than assume one, the sweep runs both and reports the
+  interval. **Uncorrelated is the harder case**, so the uncorrelated number is the conservative one to
+  quote.
 
 > **Calibrate realism, then test against known truth.** A method like RED cannot be graded on the data
 > it is meant for, because that data hides the answer. But one honest number can say how demanding the
@@ -119,12 +142,11 @@ Three things are worth being precise about.
 ## Assumptions and limitations
 
 - **Model-free observable, rooted tree.** The root-to-tip CV assumes the tree is correctly rooted.
-- **Uncorrelated clock only.** The clean core wires a single sequence-level clock, the uncorrelated
-  `ByLineage` (`sequences/__init__.py`, `WIRED_MODIFIERS = (ByLineage,)`), with a lognormal or gamma
-  tail. The autocorrelated clock (`FromParent`) is a species-level modifier and is rejected at the
-  sequence level, so — unlike the retired six-clock version of this recipe — this port cannot test how
-  RED responds to autocorrelated rate variation. It reports the uncorrelated case, which is the harder
-  one for RED: autocorrelation preserves local order and would only help.
+- **Two arrangements, not all of them.** The sweep covers the clocks ZOMBI2 wires at the sequence
+  level (`WIRED_MODIFIERS = (ByLineage, FromParent, DrivenBy)`): uncorrelated with two tails, and
+  autocorrelated. Those bracket the plausible range, but they are not every way rate variation can be
+  arranged — a clock that shifts at particular nodes rather than drifting smoothly, say, is a third
+  shape neither end covers.
 - **One domain.** This is archaea (GTDB). Bacteria, or a dated eukaryote phylogeny, would each set
   their own CV and could land on a different part of the RED curve.
 
@@ -133,8 +155,8 @@ Three things are worth being precise about.
 ```bash
 cd analyses/red
 python observable.py     # the observable: GTDB root-to-tip substitution CV (= 0.232)
-python experiment.py     # calibrate the clock, then grade RED vs raggedness -> results.json
-python figures.py        # Figures 1-4 from results.json
+python experiment.py     # calibrate the clocks, then grade RED vs raggedness -> results.json
+python figures.py        # Figures 1-4 from results.json (also into docs/assets/red/)
 ```
 
 The GTDB archaeal reference tree ships with the recipe (`data/ar53.tree`); refresh it with
