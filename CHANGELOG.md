@@ -25,6 +25,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   the conclusion no longer depends on which arrangement real archaea have. The uncorrelated numbers
   are unchanged to four decimals.
 
+### Removed
+- **The yeast synteny/inversion study has left the repository** (`analyses/synteny_inversions/`). Its
+  headline rate was stated in `analyses/README.md` where anyone browsing would read it, and it is not
+  a number we are ready to stand behind — an unlinked folder is not the same as an unpublished
+  result. The code, the data and the write-up are kept outside the repository and will come back when
+  the estimate does.
+
 ## [0.24.0] - 2026-08-02
 
 ### Added
