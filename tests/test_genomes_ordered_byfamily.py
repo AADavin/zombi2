@@ -82,8 +82,8 @@ def test_no_family_weight_is_byte_identical(tree):
               chromosomes=1, seed=5)
     a = genomes.simulate_genomes_ordered(tree, **kw)
     b = genomes.simulate_genomes_ordered(tree, **kw)
-    assert [(e.time, e.kind, e.family, e.copy) for e in a.events] == \
-           [(e.time, e.kind, e.family, e.copy) for e in b.events]
+    assert [(e.time, e.kind, e.family, e.copy) for e in a.edges] == \
+           [(e.time, e.kind, e.family, e.copy) for e in b.edges]
 
 
 def test_byfamily_is_accepted_and_spreads_families_apart(tree):

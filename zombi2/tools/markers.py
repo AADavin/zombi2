@@ -75,7 +75,7 @@ def _species_clades(tree, keep: set[int]) -> set[frozenset]:
 def marker_row(family: int, gt: GeneTree, tree) -> dict:
     """One family's marker verdict — the fields of ``_COLS`` as a dict.
 
-    Event counts are over the family's **whole** history, dead lineages included: that is what
+    GeneEdge counts are over the family's **whole** history, dead lineages included: that is what
     happened to the family, and a duplication in a lineage that later died is part of it even though
     it cannot affect the marker. ``rf`` is the congruence check, and is left empty where it has no
     meaning — a family with several copies in one genome (no one-to-one gene→genome map) or fewer

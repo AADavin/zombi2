@@ -30,13 +30,13 @@ from dataclasses import dataclass
 import numpy as np
 
 from .._runtime.summary import write_summary
-from ..genomes import Event as GenomeEvent, GeneCopy, FamilyGenomesResult, FamilyGenome
+from ..genomes import GeneEdge, GeneCopy, FamilyGenomesResult, FamilyGenome
 from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
 from ..rates.modifiers import ByFamily, ByLineage, DrivenBy, FromParent, OnTime, OnTotalDiversity
 
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
-from ..species import Event, SpeciesResult
+from ..species import Event as SpeciesEvent, SpeciesResult
 from ..tree import Node, Tree
 from ..traits import Change, DiscreteTrait, TraitsResult
 
@@ -163,7 +163,7 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
     alive = [root]      # living lineage ids
     st = [start_i]      # each lineage's trait state index, kept in lock-step with `alive`
     t = 0.0
-    species_events: list[Event] = []
+    species_events: list[SpeciesEvent] = []
     trait_events: list[Change] = []
     end_state: dict[int, int] = {}  # node id → its trait state index when it ended (→ node_values)
 
@@ -208,7 +208,7 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
                             d = j if j < cur else j + 1
                             trait_events.append(Change(t, "on_speciation", c, states[cur], states[d]))
                         alive.append(c); st.append(d)
-                    species_events.append(Event(t, "speciation", node_id, (c1, c2)))
+                    species_events.append(SpeciesEvent(t, "speciation", node_id, (c1, c2)))
                 elif r < total_b + total_d:  # extinction
                     i = _weighted_index(rng, wd, total_d)
                     node_id, cur = alive[i], st[i]
@@ -218,7 +218,7 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
                     node.end_time = t
                     node.fate = "extinct"
                     end_state[node_id] = cur
-                    species_events.append(Event(t, "extinction", node_id))
+                    species_events.append(SpeciesEvent(t, "extinction", node_id))
                 else:  # trait switch — change one lineage's state, no topology change
                     i = _weighted_index(rng, ws, total_s)
                     node_id, cur = alive[i], st[i]
@@ -281,8 +281,8 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, sources,
     root = new_node(None, 0.0)
     alive = [root]          # living lineage ids
     gen: list[list] = [[]]  # each lineage's genome (list of GeneCopy), kept in lock-step with `alive`
-    species_events: list[Event] = []
-    genome_events: list[GenomeEvent] = []
+    species_events: list[SpeciesEvent] = []
+    genome_events: list[GeneEdge] = []
     for _ in range(spec.initial_families):  # anonymous families at the origin (t = 0)
         _originate(gen[0], nodes[root], 0.0, genome_events, new_copy, new_family)
     named: dict[str, int] = {}              # a minted id per declared name (the DrivenBy("genomes:<name>") handles)
@@ -291,7 +291,7 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, sources,
         named[name] = fid
         c = new_copy(fid)
         gen[0].append(c)
-        genome_events.append(GenomeEvent(0.0, "origination", root, fid, c.id))
+        genome_events.append(GeneEdge(0.0, "origination", root, fid, c.id))
     total_copies = len(gen[0])
     genomes_out: dict[int, tuple] = {}
 
@@ -342,9 +342,9 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, sources,
                         for old in g:
                             nc = new_copy(old.family)
                             child.append(nc)
-                            genome_events.append(GenomeEvent(t, "speciation", c, old.family, nc.id, parent=old.id))
+                            genome_events.append(GeneEdge(t, "speciation", c, old.family, nc.id, parent=old.id))
                         alive.append(c); gen.append(child); total_copies += len(child)
-                    species_events.append(Event(t, "speciation", node_id, (c1, c2)))
+                    species_events.append(SpeciesEvent(t, "speciation", node_id, (c1, c2)))
                 elif r < tb + td:  # extinction
                     i = _weighted_index(rng, wd, td)
                     node_id, g = alive[i], gen[i]
@@ -355,7 +355,7 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, sources,
                     node.fate = "extinct"
                     genomes_out[node_id] = tuple(g)
                     total_copies -= len(g)
-                    species_events.append(Event(t, "extinction", node_id))
+                    species_events.append(SpeciesEvent(t, "extinction", node_id))
                 elif r < tb + td + r_dup:  # duplication (per copy, pooled — the genome's own dynamics)
                     k, j = _pick_copy(rng, gen, total_copies)
                     _duplicate(gen[k], j, nodes[alive[k]], t, genome_events, new_copy)

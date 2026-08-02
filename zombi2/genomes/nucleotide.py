@@ -110,9 +110,9 @@ from .chromosomes import (REARRANGEMENT_COLS, ChromosomeEvent, chromosome_events
                           chromosome_from_label, chromosome_label, rearrangement_events_tsv)
 from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
-from .events import (Event, _copy_cell, _name, events_tsv, gene_from_label, gene_label,
+from .events import (GeneEdge, _copy_cell, _name, events_tsv, gene_from_label, gene_label,
                      node_from_label, node_label)
-from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
+from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
 from .gff import read_fasta, read_gff
 
 #: The rate grammar this engine supports (SPEC §5). Only the skyline this slice: a modifier it does
@@ -900,8 +900,8 @@ class NucleotideGenomesResult:
         return self._recover()[1]
 
     @property
-    def genealogy(self) -> list[Event]:
-        """The run's genealogy as `Event` — **the same table the family
+    def genealogy(self) -> list[GeneEdge]:
+        """The run's genealogy as `GeneEdge` — **the same table the family
         and ordered resolutions write**, and what lands in ``genome_events.tsv``.
 
         A nucleotide run's own record, `events`, is interval-shaped: a copy lineage covers an
@@ -1265,7 +1265,7 @@ def _copies_cell(cell: str) -> list[tuple[int, int]]:
     return out
 
 
-def _events_from_tsv(text: str) -> list:
+def _edges_from_tsv(text: str) -> list:
     """The nucleotide ``block_events.tsv`` → the copy-lineage genealogy, the inverse of
     `_nucleotide_events_tsv()`.
 
@@ -1378,7 +1378,7 @@ def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
             ) from None
 
     spans, names, strands = _genes_from_tsv(read("genes.tsv"))
-    events = _events_from_tsv(read("block_events.tsv"))
+    events = _edges_from_tsv(read("block_events.tsv"))
     rearrangements = _rearrangements_from_tsv(read("rearrangement_events.tsv"))
     initial_sequence: dict[int, str] = {}
     fpath = d / "initial_sequence.fasta"
@@ -2280,7 +2280,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
 #   1. the **root partition** — cut each source at the union of every node's breakpoints and keep the
 #      intervals some node still covers (the material that exists anywhere);
 #   2. per block, replay the copy-lineage log restricted to that block into the **per-segment** model
-#      the shared ``gene_trees_from_events`` reads (every event ends a segment and starts fresh ids),
+#      the shared ``gene_trees_from_edges`` reads (every event ends a segment and starts fresh ids),
 #      so a duplication is a ladder (parent continues + child) and a speciation a bifurcation.
 #
 # Because the partition is by *surviving* breakpoints, every event that reaches an extant copy is
@@ -2379,7 +2379,7 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
 
     seg_in = {c: new_seg() for c in order}
     for e in root_origs:
-        out.append(Event(e.time, "origination", e.lineage, fam, seg_in[e.copy]))
+        out.append(GeneEdge(e.time, "origination", e.lineage, fam, seg_in[e.copy]))
     for c in order:
         prev = seg_in[c]
         for (t, cc, kind) in sorted(spawns.get(c, ())):    # ladder: each rung a bifurcation (dup or transfer)
@@ -2389,9 +2389,9 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
             # resolution writes, because this is the same table.
             donor = species[c] if kind == "transfer" else None
             recipient = species[cc] if kind == "transfer" else None
-            out.append(Event(t, kind, species[c], fam, nxt, prev,        # continuation, on c's branch
+            out.append(GeneEdge(t, kind, species[c], fam, nxt, prev,        # continuation, on c's branch
                              donor=donor))
-            out.append(Event(t, kind, species[cc], fam, seg_in[cc], prev,   # the new copy
+            out.append(GeneEdge(t, kind, species[cc], fam, seg_in[cc], prev,   # the new copy
                              recipient=recipient, donor=donor))
             prev = nxt
         # The gene a genome still carrying c holds. ``None`` when a loss ended c over this block —
@@ -2400,19 +2400,19 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
         # dropped so the assembly's guard can tell "died here" from "never existed".
         tip_of[(fam, c)] = None if c in loss_of else prev
         if c in loss_of:                                   # a death (dead leaf)
-            out.append(Event(loss_of[c], "loss", species[c], fam, prev))
+            out.append(GeneEdge(loss_of[c], "loss", species[c], fam, prev))
         elif c in specs:                                   # a bifurcation into the daughter species
             pnode = tree.nodes[specs[c].lineage]
             for i, d in enumerate(specs[c].children):
                 if d in block_copies:
-                    out.append(Event(specs[c].time, "speciation", pnode.children[i], fam,
+                    out.append(GeneEdge(specs[c].time, "speciation", pnode.children[i], fam,
                                      seg_in[d], prev))
-        # else: prev survives to an extant/extinct leaf — gene_trees_from_events tags it by species fate
+        # else: prev survives to an extant/extinct leaf — gene_trees_from_edges tags it by species fate
 
 
 def _recover_gene_trees(result, *, every_block: bool = False
                         ) -> tuple[list[tuple[int, int, int]], dict[int, GeneTree],
-                                   dict[tuple[int, int], int | None], list[Event]]:
+                                   dict[tuple[int, int], int | None], list[GeneEdge]]:
     """The full recovery: the root partition, a tree per family, and ``{(family, copy): gene id}`` —
     the last gene each copy lineage held, which is what a genome still carrying that copy is made of
     (``None`` where a loss ended that copy over that block, leaving nothing to read a fragment from).
@@ -2446,13 +2446,13 @@ def _recover_gene_trees(result, *, every_block: bool = False
     else:                                                # uniform: every root-block is its own family
         targets = list(enumerate(blocks))
 
-    seg_events: list[Event] = []
+    seg_events: list[GeneEdge] = []
     tip_of: dict[tuple[int, int], int | None] = {}
     for fam, (s, a, b) in targets:
         _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs, new_seg,
                            seg_events, tip_of)
     seg_events.sort(key=lambda e: e.time)                # one stream, in the order it happened
-    return blocks, gene_trees_from_events(seg_events, tree), tip_of, seg_events
+    return blocks, gene_trees_from_edges(seg_events, tree), tip_of, seg_events
 
 
 __all__ = ["Block", "Chromosome", "NucleotideGenome", "NucleotideGenomesResult",

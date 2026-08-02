@@ -1751,10 +1751,10 @@ def test_every_resolution_writes_the_same_genome_events_table(tmp_path):
 
     Every resolution now writes one row per **event** (`_COLS`); the ordered one adds the coordinates
     of that event beside them, which is what "a prefix of the header" is for. Either way
-    `events_from_tsv` reads it and gives back the same edges, which is the contract this test is
+    `edges_from_tsv` reads it and gives back the same edges, which is the contract this test is
     about."""
     from zombi2.genomes import simulate_genomes_family, simulate_genomes_ordered
-    from zombi2.genomes.events import _COLS, events_from_tsv
+    from zombi2.genomes.events import _COLS, edges_from_tsv
 
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=3)
     runs = {
@@ -1771,10 +1771,10 @@ def test_every_resolution_writes_the_same_genome_events_table(tmp_path):
         r.write(d, outputs=("events",))
         text = (d / "genome_events.tsv").read_text(encoding="utf-8")
         # the columns are a prefix of the header — a resolution may write more beside them, and that
-        # prefix is the contract `events_from_tsv` dispatches on
+        # prefix is the contract `edges_from_tsv` dispatches on
         assert tuple(text.splitlines()[0].split("\t"))[:len(_COLS)] == _COLS, name
 
-        events = events_from_tsv(text)                   # the one reader, on all three
+        events = edges_from_tsv(text)                   # the one reader, on all three
         assert events, name
         by_kind: dict[str, list] = {}
         for e in events:

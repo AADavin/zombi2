@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from ..rates.mapping import Between
 from ._transfer import Clades, Distance
-from .events import Event
+from .events import GeneEdge
 from .gene_trees import GeneNode, GeneTree
 from .profiles import Profiles
 from .family import GeneCopy, FamilyGenomesResult, FamilyGenome, simulate_genomes_family, family
@@ -38,7 +38,7 @@ from .ordered import (
 from .nucleotide import NucleotideGenome, NucleotideGenomesResult, simulate_genomes_nucleotide
 from ._perfamily import StreamedRun
 
-__all__ = ["simulate_genomes_family", "FamilyGenomesResult", "Event", "GeneCopy", "Distance",
+__all__ = ["simulate_genomes_family", "FamilyGenomesResult", "GeneEdge", "GeneCopy", "Distance",
            "Clades", "Between",
            "Profiles", "GeneTree", "GeneNode", "FamilyGenome", "family",
            "simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",

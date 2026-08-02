@@ -358,7 +358,7 @@ def test_duplication_transfer_and_loss_are_counted_per_copy():
     for s in range(reps):
         g = simulate_genomes_family(tree, initial_families=20, seed=s, **rates)
         born, ended = {}, {}
-        for e in g.events:
+        for e in g.edges:
             born.setdefault(e.copy, (e.time, e.lineage))
             if e.parent is not None:
                 ended.setdefault(e.parent, e.time)
@@ -367,7 +367,7 @@ def test_duplication_transfer_and_loss_are_counted_per_copy():
         copy_time.append(sum(ended.get(c, tree.nodes[lin].end_time) - t
                              for c, (t, lin) in born.items()))
         for kind in rates:
-            counts[kind].append(len({e.event for e in g.events if e.kind == kind}))
+            counts[kind].append(len({e.event for e in g.edges if e.kind == kind}))
 
     total = float(np.mean(copy_time))
     for kind, rate in rates.items():
@@ -393,7 +393,7 @@ def test_transfer_picks_its_recipient_uniformly():
     received, exposure, total = Counter(), Counter(), 0
 
     for s in range(12):
-        for e in simulate_genomes_family(tree, initial_families=30, transfer=0.6, seed=s).events:
+        for e in simulate_genomes_family(tree, initial_families=30, transfer=0.6, seed=s).edges:
             if e.kind != "transfer" or e.recipient is None:
                 continue
             eligible = [i for i, (b, d) in spans.items() if b < e.time <= d and i != e.lineage]
@@ -449,7 +449,7 @@ def test_a_conditioned_rate_realises_the_multiplier_it_was_given():
                 lineage_time[state] += duration
         run = simulate_genomes_family(tree, initial_families=0, seed=s,
                                       origination=base * DrivenBy(habitat, factors))
-        for e in run.events:
+        for e in run.edges:
             if e.kind == "origination":
                 seen[_state_at(habitat.history, e.lineage, tree, e.time)] += 1
 
@@ -484,7 +484,7 @@ def test_the_parallel_engine_realises_a_driven_multiplier_too():
                 lineage_time[state] += duration
         run = simulate_genomes_family(tree, initial_families=0, seed=s, parallel=1,
                                       origination=base * DrivenBy(habitat, factors))
-        for e in run.events:
+        for e in run.edges:
             if e.kind == "origination":
                 seen[_state_at(habitat.history, e.lineage, tree, e.time)] += 1
 

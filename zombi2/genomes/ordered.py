@@ -25,7 +25,7 @@ not eNewick).
 
 It is the genome twin of the family core and shares its spine: one forward Gillespie over the
 **complete** species tree, the same ``scope(base) × modifiers`` rate grammar, the same gene-genealogy
-`Event` log (position-blind, so ``gene_trees`` and ``profiles`` are
+`GeneEdge` log (position-blind, so ``gene_trees`` and ``profiles`` are
 derived from it unchanged), and the same live-lineage bookkeeping. What differs is the state (a list
 of chromosomes) and the segmental, position-aware mutators, plus the ``rearrangements`` and
 ``chromosome_events`` logs. The nucleotide resolution (genes/intergenes, indels) is
@@ -69,8 +69,9 @@ from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
                         resolve_transfer_to)
 from .._runtime.outputs import grouped_dir
 from .._runtime.progress import progress_bar
-from .events import _COLS, Event, _branches, _grouped, _name, event_rows, gene_label
-from .gene_trees import GeneTree, gene_trees_from_events, write_gene_trees
+from .events import (_COLS, Event, GeneEdge, _branches, _name, event_rows,
+                     events_from_edges, gene_label)
+from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
 
 #: The rate grammar this engine supports (SPEC §5) — read by the gate below and by the CLI's help, so
@@ -141,7 +142,7 @@ class Inversion:
     starting at position ``start`` of chromosome ``chromosome`` was reversed and its strands flipped.
     On a circular chromosome the run may wrap position 0 (``start + length`` exceeds the chromosome's
     gene count). Gene ids are untouched — an inversion reshapes order, it does not end lineages — so
-    it is logged here, separate from the gene-genealogy `Event`
+    it is logged here, separate from the gene-genealogy `GeneEdge`
     stream."""
 
     time: float
@@ -189,7 +190,7 @@ class Translocation:
 @dataclass(frozen=True)
 class EventPosition:
     """**Where** one gene-genealogy event happened — the positional companion to an
-    `Event`.
+    `GeneEdge`.
 
     The event log is position-blind on purpose (it records identity and descent, which is the same
     whatever the resolution), so the ordered engine records position here instead.
@@ -247,13 +248,13 @@ class OrderedGenomesResult:
 
     complete_tree: Tree
     genomes: dict[int, tuple[Chromosome, ...]]
-    events: list[Event]
+    edges: list[GeneEdge]
     rearrangements: list[Inversion | Transposition | Translocation]
     chromosome_events: list[ChromosomeEvent]
     seed: int | None
     #: ``{name: family id}`` for families declared by ``family_names=[…]`` — the handle to a *named* family.
     family_names: dict[str, int] = field(default_factory=dict)
-    #: where each gene-genealogy `Event` happened — the positional
+    #: where each gene-genealogy `GeneEdge` happened — the positional
     #: companion to `events`, which is position-blind. See `EventPosition`.
     event_positions: list[EventPosition] = field(default_factory=list)
     #: The genome the run **started** with, at the root lineage's origination — before any event.
@@ -264,7 +265,7 @@ class OrderedGenomesResult:
 
     def __repr__(self) -> str:
         return (f"OrderedGenomesResult({len(self.complete_tree.extant_leaves())} extant genomes, "
-                f"{len(self.genomes)} nodes, {len(self.events)} events, "
+                f"{len(self.genomes)} nodes, {len(self.edges)} events, "
                 f"{len(self.rearrangements)} rearrangements, seed={self.seed})")
 
     def family_counts(self, node_id: int) -> collections.Counter:
@@ -300,10 +301,23 @@ class OrderedGenomesResult:
         return profiles_from_genomes(self._extant_genes, self._extant_genes.keys())
 
     @cached_property
+    def events(self) -> list[Event]:
+        """The genome events — **one per row of ``genome_events.tsv``**, the same objects the writer
+        formats.
+
+        `edges` is the finer record this is grouped from: one entry per gene-tree *edge*, so a
+        duplication is two of them and a transfer likewise. That is the shape a gene tree is built
+        out of, and it used to be what this attribute returned — which meant counting duplications in
+        Python gave twice the file's number, and a filter on ``kind == "transfer"`` matched everything
+        here and nothing there. One word, one meaning: an event is what the log has a row for.
+        """
+        return events_from_edges(self.edges)
+
+    @cached_property
     def gene_trees(self) -> dict[int, GeneTree]:
         """``{family id: GeneTree}`` — each family's true genealogy inside the complete tree, derived
         from the (position-blind) event log exactly as for the family core. See `gene_trees`."""
-        return gene_trees_from_events(self.events, self.complete_tree)
+        return gene_trees_from_edges(self.edges, self.complete_tree)
 
     #: Every token ``write()`` honours — the write vocabulary, declared rather than left
     #: implicit in the method body. The CLI builds ``--write``'s choices from this, so the two
@@ -346,7 +360,7 @@ class OrderedGenomesResult:
         names = self.complete_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
         if "events" in outputs:
             (d / "genome_events.tsv").write_text(
-                _events_tsv(self.events, self.event_positions, names), encoding="utf-8")
+                _events_tsv(self.edges, self.event_positions, names), encoding="utf-8")
             (d / "rearrangement_events.tsv").write_text(
                 rearrangement_events_tsv(self.rearrangements, names), encoding="utf-8")
         if "profiles" in outputs:
@@ -401,7 +415,7 @@ class OrderedGenomesResult:
 #: participants written ``n<species>_g<copy>``) with **where** the event happened beside them. The
 #: coordinates are the one thing this resolution has that the family core does not, so they are the
 #: one thing it adds; the genealogy half is written by `event_rows()`, not repeated here, because
-#: `events_from_tsv()` reads this table by requiring `_COLS` as a literal **prefix** of the header
+#: `edges_from_tsv()` reads this table by requiring `_COLS` as a literal **prefix** of the header
 #: and spelling them out twice let the two drift.
 #:
 #: ``chromosome`` / ``start`` / ``length`` are coordinates in the branch's own genome just before the
@@ -428,7 +442,7 @@ def _position_key(kind, lineage, family):
 
 def _coordinates(events, event_positions) -> list[str]:
     """The coordinate cells of every written row, in `event_rows()`'s order — the two are zipped into
-    one table, so this walks the same `_grouped()` the genealogy writer does.
+    one table, so this walks the same `events_from_edges()` the genealogy writer does.
 
     A transfer needs *both* of its `EventPosition`\\ s: the departing one for the donor's arc and the
     arriving one for where the block landed. Which branch each is on comes from the copies themselves
@@ -443,7 +457,8 @@ def _coordinates(events, event_positions) -> list[str]:
         where.setdefault((p.time, *_position_key(p.kind, p.lineage, p.family)), p)
     branch = _branches(events)
     out = []
-    for time, kind, family, parents, children in _grouped(events):
+    for time, kind, family, parents, children in (
+            (e.time, e.kind, e.family, e.parents, e.children) for e in events_from_edges(events)):
         cells: tuple = ("", "", "", "", "")
         if kind.startswith("transfer"):
             left = where.get((time, "transfer_donor", branch[children[0]], None))
@@ -709,7 +724,7 @@ def _originate(genome, node, t, events, positions, new_gene, new_family, rng) ->
     g = new_gene(fam, +1)
     at = int(rng.integers(len(chrom.genes) + 1))
     _live(chrom).insert(at, g)
-    events.append(Event(t, "origination", node.id, fam, g.id))
+    events.append(GeneEdge(t, "origination", node.id, fam, g.id))
     positions.append(EventPosition(t, "origination", node.id, chrom.id, at, 1, family=fam))
 
 
@@ -724,8 +739,8 @@ def _duplicate(chrom, j, m, node, t, events, positions, new_gene) -> int:
     copies = [new_gene(g.family, g.strand) for g in segment]
     chrom.genes[j:j + m] = conts + copies              # [.. conts .., .. copies .., ...]
     for old, cont, cp in zip(segment, conts, copies):
-        events.append(Event(t, "duplication", node.id, old.family, cont.id, parent=old.id))
-        events.append(Event(t, "duplication", node.id, old.family, cp.id, parent=old.id))
+        events.append(GeneEdge(t, "duplication", node.id, old.family, cont.id, parent=old.id))
+        events.append(GeneEdge(t, "duplication", node.id, old.family, cp.id, parent=old.id))
     positions.append(EventPosition(t, "duplication", node.id, chrom.id, j, m, dest_position=j + m))
     return m
 
@@ -747,7 +762,7 @@ def _lose_at(chrom, j, m, node, t, events, positions) -> int:
         return 0
     j = _anchor(chrom, j, m)
     for g in chrom.genes[j:j + m]:
-        events.append(Event(t, "loss", node.id, g.family, g.id))
+        events.append(GeneEdge(t, "loss", node.id, g.family, g.id))
     del chrom.genes[j:j + m]
     positions.append(EventPosition(t, "loss", node.id, chrom.id, j, m))
     return m
@@ -882,10 +897,10 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, ne
     for old, cont, xf in zip(segment, conts, xfers):
         replaced = displaced.get(xf.id)
         if replaced is not None:
-            events.append(Event(t, "loss", recipient, old.family, replaced))
-        events.append(Event(t, "transfer", donor, old.family, cont.id, parent=old.id, donor=donor,
+            events.append(GeneEdge(t, "loss", recipient, old.family, replaced))
+        events.append(GeneEdge(t, "transfer", donor, old.family, cont.id, parent=old.id, donor=donor,
                             replaced=replaced))
-        events.append(Event(t, "transfer", recipient, old.family, xf.id, parent=old.id,
+        events.append(GeneEdge(t, "transfer", recipient, old.family, xf.id, parent=old.id,
                             recipient=recipient, donor=donor, replaced=replaced))
     return delta
 
@@ -977,7 +992,7 @@ def _chromosome_lose(genome, ci, node, t, events, positions, chromosome_events) 
     if lost.genes and not any(c.genes for i, c in enumerate(genome) if i != ci):
         return (0, 0)
     for g in lost.genes:
-        events.append(Event(t, "loss", node.id, g.family, g.id))
+        events.append(GeneEdge(t, "loss", node.id, g.family, g.id))
     if lost.genes:  # the whole chromosome goes, so its genes are one run starting at 0
         positions.append(EventPosition(t, "loss", node.id, lost.id, 0, len(lost.genes)))
     del genome[ci]
@@ -1300,7 +1315,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     gen: list[list[Chromosome]] = []
     pos: dict[int, int] = {}
     genomes: dict[int, tuple[Chromosome, ...]] = {}
-    events: list[Event] = []
+    events: list[GeneEdge] = []
     event_positions: list[EventPosition] = []
     rearrangements: list[Inversion | Transposition | Translocation] = []
     chromosome_events: list[ChromosomeEvent] = []
@@ -1319,7 +1334,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         fam = new_family()
         chrom = initial_chroms[i % n_initial_chrom]
         _live(chrom).append(new_gene(fam, +1))
-        events.append(Event(t, "origination", root.id, fam, chrom.genes[-1].id))
+        events.append(GeneEdge(t, "origination", root.id, fam, chrom.genes[-1].id))
         event_positions.append(EventPosition(t, "origination", root.id, chrom.id,
                                              len(chrom.genes) - 1, 1, family=fam))
     named: dict[str, int] = {}  # a minted id per declared name, dealt round-robin after the anonymous ones
@@ -1328,7 +1343,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         named[name] = fam
         chrom = initial_chroms[(initial_families + j) % n_initial_chrom]
         _live(chrom).append(new_gene(fam, +1))
-        events.append(Event(t, "origination", root.id, fam, chrom.genes[-1].id))
+        events.append(GeneEdge(t, "origination", root.id, fam, chrom.genes[-1].id))
         event_positions.append(EventPosition(t, "origination", root.id, chrom.id,
                                              len(chrom.genes) - 1, 1, family=fam))
     # the run's starting genome: a deep snapshot, so the live genome's events never reach it
@@ -1533,7 +1548,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     child_genomes: dict[int, list[Chromosome]] = {c: [] for c in node.children}
                     for pchrom in g:
                         dcids = []
-                        per_daughter: list[list[Event]] = []
+                        per_daughter: list[list[GeneEdge]] = []
                         for c in node.children:
                             dcid = new_chromosome()
                             dcids.append(dcid)
@@ -1541,7 +1556,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                             for old in pchrom.genes:  # ZOMBI1: the gene ends and continues, fresh id
                                 ng = new_gene(old.family, old.strand)
                                 dgenes.append(ng)
-                                edges.append(Event(t, "speciation", c, old.family, ng.id,
+                                edges.append(GeneEdge(t, "speciation", c, old.family, ng.id,
                                                    parent=old.id))
                             per_daughter.append(edges)
                             child_genomes[c].append(Chromosome(dcid, pchrom.topology, dgenes))
