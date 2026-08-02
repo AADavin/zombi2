@@ -45,7 +45,7 @@ Issues = "https://github.com/AADavin/zombi2/issues"
 # ruff is pinned to a minor series: its rule set (and its autofixes) evolve between releases, and
 # [tool.ruff.lint] below deliberately pins *which* rules we run — an unpinned linter would let a
 # ruff release turn CI red without a change on our side. Bump it deliberately.
-dev = ["pytest>=7", "pytest-cov", "scipy>=1.10", "ruff>=0.12,<0.13"]
+dev = ["pytest>=7", "pytest-cov", "scipy>=1.10", "ruff>=0.12,<0.13", "mypy>=1.11"]
 docs = ["mkdocs-material", "mkdocstrings[python]"]
 # Parsers for external reconciliation-tool output (zombi2.tools.reconparser: ALE, AleRax).
 # Trees are parsed with ZOMBI2's own zombi2.tree.read_newick (no ete3), so the only extra
@@ -83,6 +83,26 @@ packages = ["zombi2"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.mypy]
+# zombi2 ships `py.typed`, so its annotations are what a user's own type checker reads — they are
+# part of the public surface and CI checks them like any other. Defaults otherwise: bodies of
+# unannotated functions are not analysed, which keeps the gate about what the package *promises*.
+python_version = "3.10"
+files = ["zombi2"]
+
+[[tool.mypy.overrides]]
+# tqdm ships no type information and has no stub package we depend on; the progress bar is optional
+# at runtime anyway (zombi2._runtime.progress falls back to a no-op without it).
+module = "tqdm.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# `tomllib` is standard from 3.11 and `tomli` is the 3.10 backport, so exactly one of the pair exists
+# on any supported Python — which is what the try/except in zombi2.cli._params selects between. The
+# check runs at `python_version = "3.10"`, where the stdlib one is not there to find.
+module = ["tomllib", "tomli"]
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 100

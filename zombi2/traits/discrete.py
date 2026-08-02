@@ -296,10 +296,10 @@ def _simulate_threshold(tree, states, liability, threshold, start, correlation, 
         liab_s: dict[int, float] = {}
         for i in _preorder(tree, progress):
             node = tree.nodes[i]
-            x = start_liab if node.parent is None else liab_s[node.parent]
+            x_s = start_liab if node.parent is None else liab_s[node.parent]
             dt = node.end_time - node.birth_time
             std = math.sqrt(sig2 * dt) if sig2 > 0.0 and dt > 0.0 else 0.0
-            liab_s[i] = x + (float(rng.normal(0.0, std)) if std > 0.0 else 0.0)
+            liab_s[i] = x_s + (float(rng.normal(0.0, std)) if std > 0.0 else 0.0)
             node_values[i] = label(liab_s[i])
 
     return TraitsResult(tree, node_values, [], seed, kind="threshold")

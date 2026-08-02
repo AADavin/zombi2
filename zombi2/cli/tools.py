@@ -218,7 +218,7 @@ def _load_gene_trees(handoff, tree):
     return gene_trees_from_events(events, tree)
 
 
-def _run_format(args, parser) -> int:
+def _run_format(args, parser: argparse.ArgumentParser) -> int:
     """``zombi2 tools format`` — rebuild the run's gene trees and write the requested tables."""
     handoff, tree_path = resolve_genomes(args.source or args.run)
     with open(tree_path, encoding="utf-8") as f:
@@ -247,7 +247,7 @@ def _run_format(args, parser) -> int:
     return 0
 
 
-def _run_tree(args, parser) -> int:
+def _run_tree(args, parser: argparse.ArgumentParser) -> int:
     """``zombi2 tools tree`` — one transform, Newick in, Newick (or a RED table) out."""
     if args.values and not args.red:
         parser.error("--values only applies with --red")
@@ -328,7 +328,8 @@ def _relabel_leaves(tree, leaf_labels: dict, label_id: dict):
     return _tree.Tree(nodes, new[tree.root])
 
 
-def _match_gene_tree_to_species_tree(la: dict, lb: dict, parser) -> tuple[dict, dict]:
+def _match_gene_tree_to_species_tree(la: dict, lb: dict,
+                                     parser: argparse.ArgumentParser) -> tuple[dict, dict]:
     """When exactly one of the two trees has gene-copy tips, relabel it by the species each gene sits
     in — and say so. Both trees the same kind ⇒ nothing to do.
 
@@ -342,6 +343,7 @@ def _match_gene_tree_to_species_tree(la: dict, lb: dict, parser) -> tuple[dict, 
         return la, lb
     which, other = ("first", "second") if ga is not None else ("second", "first")
     species = ga if ga is not None else gb
+    assert species is not None       # exactly one of the two is a gene tree; the other returned above
     repeated = sorted({s for s, n in Counter(species.values()).items() if n > 1})
     if repeated:
         parser.error(
@@ -357,7 +359,7 @@ def _match_gene_tree_to_species_tree(la: dict, lb: dict, parser) -> tuple[dict, 
     return (species, lb) if ga is not None else (la, species)
 
 
-def _run_treedist(args, parser) -> int:
+def _run_treedist(args, parser: argparse.ArgumentParser) -> int:
     """``zombi2 tools treedist`` — a distance (or all) between two trees, to stdout. Tips are matched
     by **label** (the external name, or ``n<id>`` for a ZOMBI tree), not by parse order."""
     try:
@@ -396,5 +398,5 @@ def _run_treedist(args, parser) -> int:
 _TOOLS_RUN = {"format": _run_format, "tree": _run_tree, "treedist": _run_treedist}
 
 
-def run(args, parser) -> int:
+def run(args, parser: argparse.ArgumentParser) -> int:
     return _TOOLS_RUN[args.tools_command](args, parser)

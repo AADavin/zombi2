@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import Any, ClassVar
 
 
 @dataclass(frozen=True)
@@ -48,7 +48,7 @@ class Scope:
         if not math.isfinite(self.base) or self.base < 0:
             raise ValueError(f"a rate base must be finite and non-negative, got {self.base!r}")
 
-    def total(self, **counts: float) -> float:
+    def total(self, **counts: Any) -> float:
         """The total rate given the current counts.
 
         ``counts`` supplies the units in scope right now (``lineages``, ``copies``,

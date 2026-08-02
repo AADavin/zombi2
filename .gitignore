@@ -74,3 +74,8 @@ HANDOFF.md
 # the overview figure's working directory: its panels and cached run regenerate from
 # `python figures/scripts/fig_overview.py`; only assets/overview.png is committed.
 figures/_overview/
+
+# coverage data (measured in CI, reported not committed)
+.coverage
+coverage.json
+htmlcov/

@@ -49,6 +49,7 @@ from __future__ import annotations
 import collections
 import math
 import pathlib
+from typing import Sequence, cast
 from dataclasses import dataclass, field
 from functools import cached_property
 
@@ -120,7 +121,11 @@ class Chromosome:
 
     id: int
     topology: str
-    genes: list[Gene]
+    #: a `Sequence`, not a ``list``, because a chromosome has two states: the engine's live one, which
+    #: it mutates in place, and the frozen snapshot a finished run hands back, whose genes are a
+    #: tuple so a result cannot be edited under the reader. `_live()` narrows back where the engine
+    #: does the mutating.
+    genes: Sequence[Gene]
 
 
 # Every rearrangement record names its run the same way: ``start`` is the run's first position in the
@@ -383,7 +388,7 @@ class OrderedGenomesResult:
         A chromosome carrying no genes has no rows here and so no topology, as it has no position or
         strand either: this is the gene arrangement, and an empty replicon has none."""
         cols = ("lineage", "chromosome", "topology", "position", "strand", "family", "copy")
-        rows = []
+        rows: list[str] = []
         for s in sorted(self.genomes):
             topology = {c.id: c.topology for c in self.genomes[s]}
             rows.extend(f"{_name(names, s)}\t{ch}\t{topology.get(ch, '')}\t{p}\t{st}\t{fam}\t"
@@ -667,6 +672,12 @@ def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ext_ctx, w=None):
     return k, ci, j, m
 
 
+def _live(chrom: Chromosome) -> list[Gene]:
+    """A live chromosome's genes, as the list they are. Only the engine calls this, and only while
+    building: a snapshot's genes are a frozen tuple and must not be reached through here."""
+    return cast("list[Gene]", chrom.genes)
+
+
 def _anchor(chrom, start, m) -> int:
     """Make the run ``[start, start+m)`` one contiguous slice, and return the index it now begins at.
 
@@ -697,7 +708,7 @@ def _originate(genome, node, t, events, positions, new_gene, new_family, rng) ->
     fam = new_family()
     g = new_gene(fam, +1)
     at = int(rng.integers(len(chrom.genes) + 1))
-    chrom.genes.insert(at, g)
+    _live(chrom).insert(at, g)
     events.append(Event(t, "origination", node.id, fam, g.id))
     positions.append(EventPosition(t, "origination", node.id, chrom.id, at, 1, family=fam))
 
@@ -1307,7 +1318,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     for i in range(initial_families):  # deal the founding genes round-robin across the chromosomes
         fam = new_family()
         chrom = initial_chroms[i % n_initial_chrom]
-        chrom.genes.append(new_gene(fam, +1))
+        _live(chrom).append(new_gene(fam, +1))
         events.append(Event(t, "origination", root.id, fam, chrom.genes[-1].id))
         event_positions.append(EventPosition(t, "origination", root.id, chrom.id,
                                              len(chrom.genes) - 1, 1, family=fam))
@@ -1316,7 +1327,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         fam = new_family()
         named[name] = fam
         chrom = initial_chroms[(initial_families + j) % n_initial_chrom]
-        chrom.genes.append(new_gene(fam, +1))
+        _live(chrom).append(new_gene(fam, +1))
         events.append(Event(t, "origination", root.id, fam, chrom.genes[-1].id))
         event_positions.append(EventPosition(t, "origination", root.id, chrom.id,
                                              len(chrom.genes) - 1, 1, family=fam))
@@ -1519,7 +1530,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 retire(alive, gen, pos, pos[i])
                 node = tree.nodes[i]
                 if node.children is not None:  # a speciation: re-mint every chromosome and gene id
-                    child_genomes = {c: [] for c in node.children}
+                    child_genomes: dict[int, list[Chromosome]] = {c: [] for c in node.children}
                     for pchrom in g:
                         dcids = []
                         per_daughter: list[list[Event]] = []

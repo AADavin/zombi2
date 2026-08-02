@@ -80,7 +80,7 @@ def marker_row(family: int, gt: GeneTree, tree) -> dict:
     it cannot affect the marker. ``rf`` is the congruence check, and is left empty where it has no
     meaning — a family with several copies in one genome (no one-to-one gene→genome map) or fewer
     than three genomes (no non-trivial clade to disagree about)."""
-    kinds = collections.Counter()
+    kinds: collections.Counter[str] = collections.Counter()
     leaves, stack = [], [gt.complete]
     while stack:
         n = stack.pop()
@@ -120,7 +120,7 @@ def markers_tsv(gene_trees: dict[int, GeneTree], tree) -> str:
 
 
 def _fmt(v) -> str:
-    return {True: "yes", False: "no"}.get(v, v) if isinstance(v, bool) else str(v)
+    return {True: "yes", False: "no"}[v] if isinstance(v, bool) else str(v)
 
 
 def write_markers(gene_trees: dict[int, GeneTree], tree, directory) -> str:

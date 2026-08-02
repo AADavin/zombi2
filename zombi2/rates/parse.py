@@ -27,6 +27,7 @@ from __future__ import annotations
 import ast
 import warnings
 import difflib
+from typing import cast
 
 from . import mapping as _mapping
 from . import modifiers as _modifiers
@@ -135,9 +136,11 @@ def _node(node: ast.AST, text: str):
             raise _fail(f"{cls.__name__}: {e}", text) from None
 
     if isinstance(node, ast.Dict):
-        if any(k is None for k in node.keys):     # {**other}
+        keys = node.keys
+        if any(k is None for k in keys):          # {**other}
             raise _fail("'**' unpacking is not allowed in a rate", text)
-        return {_node(k, text): _node(v, text) for k, v in zip(node.keys, node.values)}
+        return {_node(k, text): _node(v, text)
+                for k, v in zip(cast("list[ast.expr]", keys), node.values)}
 
     if isinstance(node, (ast.List, ast.Tuple)):
         values = [_node(e, text) for e in node.elts]

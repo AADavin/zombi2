@@ -220,14 +220,18 @@ class SequencesResult:
         if "phylograms" in outputs and self.phylograms:
             into = grouped_dir(d, "phylograms", flat)
             for fam, ph in self.phylograms.items():
-                (into / f"phylogram_{u}{fam}_complete.nwk").write_text(ph["complete"] + "\n", encoding="utf-8")
+                complete = ph["complete"]
+                assert complete is not None        # only the extant member of a pair can be absent
+                (into / f"phylogram_{u}{fam}_complete.nwk").write_text(complete + "\n", encoding="utf-8")
                 if ph["extant"] is not None:
                     (into / f"phylogram_{u}{fam}_extant.nwk").write_text(ph["extant"] + "\n", encoding="utf-8")
         if "summary" in outputs:
             write_summary(d / "sequences_summary.json", self.summary())
         if "species_phylogram" in outputs:
             sp = self.species_phylogram
-            (d / "clock_species_tree_complete.nwk").write_text(sp["complete"] + "\n", encoding="utf-8")
+            complete = sp["complete"]
+            assert complete is not None
+            (d / "clock_species_tree_complete.nwk").write_text(complete + "\n", encoding="utf-8")
             if sp["extant"] is not None:
                 (d / "clock_species_tree_extant.nwk").write_text(sp["extant"] + "\n", encoding="utf-8")
         # every genome is written the same way and named by whose it is — a node label, or "initial"
@@ -493,8 +497,9 @@ def _scaled_species_tree(tree: Tree, rate_base: float, clock: "Clock | None") ->
     while stack:  # pre-order: a parent is visited before its children
         i = stack.pop()
         order.append(i)
-        if tree.nodes[i].children is not None:
-            stack.extend(tree.nodes[i].children)
+        kids = tree.nodes[i].children
+        if kids is not None:
+            stack.extend(kids)
     for i in order:
         nd = tree.nodes[i]
         blen = (rate_base * (nd.end_time - nd.birth_time) if clock is None
@@ -925,6 +930,9 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 "partitions; the genome sets both the lengths and the split. Partitions are for a "
                 "family or ordered run, where a family is one undivided sequence until you divide "
                 "it.")
+        # `partitions is None` here, so the guard above already refused a missing or non-model
+        # `model` — from this point it is the gene model, not an optional one.
+        assert isinstance(model, SubstitutionModel)
         if length is not None:
             raise ValueError(
                 "length does not apply to a nucleotide genome run: every block carries its own "
@@ -936,8 +944,9 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                     f"{name}={m.name} is a protein model, but a nucleotide genome is measured in base "
                     "pairs and its blocks are read on either strand — amino acids have no complement "
                     "to read back. Use a nucleotide model (jc69 / k80 / hky85 / gtr).")
-        if intergene_model is None:
-            intergene_model = jc69()          # flat and parameterless: the null for unconstrained DNA
+        # flat and parameterless: the null for unconstrained DNA. Named separately so the
+        # argument's optionality ends here rather than trailing through the loops below.
+        spacer: SubstitutionModel = intergene_model if intergene_model is not None else jc69()
         if isinstance(intergene_speed, bool) or not isinstance(intergene_speed, (int, float)) \
                 or intergene_speed <= 0:
             raise ValueError(f"intergene_speed must be a positive number, got {intergene_speed!r}")
@@ -948,7 +957,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         per_block = {}
         for i, (src, a, b) in enumerate(blocks):
             is_gene = (src, a, b) in genic
-            per_block[i] = (b - a, model if is_gene else intergene_model,
+            per_block[i] = (b - a, model if is_gene else spacer,
                             1.0 if is_gene else float(intergene_speed))
         # Founded from a real FASTA: a block's founding sequence is the supplied DNA at its own root
         # coordinates, encoded to states, rather than a stationary draw. A de-novo source is not in
@@ -960,7 +969,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             if root is None:
                 founding_seed[i] = None
                 continue
-            f_model = model if (src, a, b) in genic else intergene_model
+            f_model = model if (src, a, b) in genic else spacer
             if f_model.alphabet != BASES:
                 raise ValueError(
                     f"the run was founded from a FASTA (DNA), but {f_model.name} is a protein model — "

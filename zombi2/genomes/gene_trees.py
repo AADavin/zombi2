@@ -103,8 +103,10 @@ def write_gene_trees(gene_trees: dict[int, "GeneTree"], directory,
     d = pathlib.Path(directory)
     d.mkdir(parents=True, exist_ok=True)
     for fam, gt in sorted(gene_trees.items()):
-        (d / f"gene_tree_fam{fam}_complete.nwk").write_text(
-            gt.to_newick("complete", names=names) + "\n", encoding="utf-8")
+        complete = gt.to_newick("complete", names=names)
+        if complete is not None:                 # a family with no nodes at all writes nothing
+            (d / f"gene_tree_fam{fam}_complete.nwk").write_text(
+                complete + "\n", encoding="utf-8")
         # `names` here too: an extant tree's LEAVES are all in living species, but a transfer node
         # sits on the donor's branch and can outlive it, so e<id> reaches this file as well
         extant = gt.to_newick("extant", names=names)

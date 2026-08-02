@@ -37,9 +37,9 @@ from __future__ import annotations
 import pathlib
 
 from ..genomes.events import gene_label
-from ..genomes.gene_trees import GeneTree
+from ..genomes.gene_trees import GeneNode, GeneTree
 from ..tree import prune
-from .reconciliation import extant_reconciliation, origins_tsv, visible_branches
+from .reconciliation import Reconciliation, extant_reconciliation, origins_tsv, visible_branches
 
 #: gene-node kind → the recPhyloXML tag that ends its ``<eventsRec>``. Every kind a
 #: `GeneNode` can carry is here, so an unmapped one is a real gap
@@ -80,7 +80,7 @@ def _gene_lines(root, indent: int, name) -> list[str]:
     recursion limit, which is why every other walk over these trees is iterative too."""
     out: list[str] = []
     # (node, the species it was transferred INTO or None, depth); None in the node slot closes a clade
-    stack: list[tuple[object, int | None, int]] = [(root, None, indent)]
+    stack: list[tuple[GeneNode | None, int | None, int]] = [(root, None, indent)]
     while stack:
         node, arrived_in, depth = stack.pop()
         pad = "  " * depth
@@ -100,10 +100,10 @@ def _gene_lines(root, indent: int, name) -> list[str]:
         # A transfer's children are the copy that stayed and the copy that left, and the one that
         # left is the one now on another branch. A self-transfer puts both on the same branch, and
         # then it is the second child that arrived — the engine logs the donor's continuation first.
-        moved = None
+        moved: GeneNode | None = None
         if node.kind == "transfer" and node.children:
             moved = next((c for c in node.children if c.species != node.species), node.children[-1])
-        for child in reversed(node.children):
+        for child in reversed(node.children or ()):
             stack.append((child, child.species if child is moved else None, depth + 1))
     return out
 
@@ -169,7 +169,7 @@ def write_recphylo(gene_trees: dict[int, GeneTree], tree, directory, *,
         if extant_tree is None:
             raise ValueError("no extant lineages, so there is no extant tree to reconcile against")
         visible = visible_branches(tree)
-        origins: dict[int, object] = {}
+        origins: dict[int, Reconciliation] = {}
         n = 0
         for fam, gt in sorted(gene_trees.items()):
             for which in ("true", "recoverable"):
