@@ -25,6 +25,44 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   protein models — where a profile is over the four bases instead, one row per base pair.
 
 ### Added
+- **The sequence and trait levels are now validated against theory, not only against themselves.**
+  `tests/test_validation.py` checks a run against a closed form rather than against an invariant, and
+  it covered the species and genome levels only — the two levels a user is most likely to hand to a
+  method for grading had no such check at all. Twelve more: JC69's `3/4·(1 − e^(−4d/3))` and Kimura's
+  separate transition and transversion probabilities (written out from the 1969 and 1980 papers, not
+  taken from `p_matrix()`); HKY85 and LG holding the frequencies they were given and keeping `i→j`
+  and `j→i` balanced, which is reversibility; `+I+Γ` giving the Jukes–Cantor curve *averaged over* the
+  rate classes rather than evaluated at their mean, so classes that are computed and then never
+  applied are ruled out; both lineage clocks drawing mean-1 factors, where the historical lognormal
+  bug lived; Brownian motion's per-branch `Normal(0, σ²·Δt)` and Felsenstein's tip covariance;
+  Ornstein–Uhlenbeck's exact transition moments; an Mk trait firing each direction at the rate that
+  direction was given (which catches a transposed rate dict) and saturating at ½ the way the chain
+  says; correlated traits realising their ρ; and a trait driving the substitution rate, which is
+  exact rather than statistical — a phylogram branch is the driven rate *integrated* over the branch,
+  so it can be checked against the trait's own segments to floating point.
+
+  Each test also rules out the plausible wrong model, not just confirms the right one: the
+  uncorrected p-distance, κ = 1, a single rate across sites, an uncorrected lognormal clock, tips that
+  ignore their shared ancestry, a diffusion with no pull, a chain whose switches never reverse,
+  uncorrelated traits, and sampling a driver once per branch instead of integrating it. Resolution is
+  measured by mutating the model rather than asserted: the checks catch a substitution rate off by
+  2%, κ by 3%, a Brownian variance-rate by 5%, an OU pull by 2%, an Mk rate by 3%, a declared
+  correlation by 5% and one stationary frequency shifted by 0.005 at fifteen standard errors. They
+  add about four seconds to the suite.
+- **Site profiles are validated too.** Over an equal-exchangeability model a profiled site is
+  Felsenstein's F81, so `S·(1 − e^(−d/S))` with `S = 1 − Σπ²` gives each row its own closed form. A
+  blocked profile — a flat half and a sharply peaked one — is checked half by half, which is what
+  catches a profile applied to the wrong sites: the *total* over sites cannot, because summing over
+  positions is permutation-invariant, so a shuffled profile has exactly the same total divergence as
+  the right one. The formula also pins the renormalisation each rebuilt per-site model goes through,
+  without which a peaked profile would quietly run at its own rate and a phylogram would stop meaning
+  substitutions per site. A second check covers the other half of what a profile promises — that it
+  says *where* residues belong, not *which pairs interchange* — by confirming changes still follow
+  `π_i·π_j·S_ij` with the base model's exchangeabilities. That one is the loosest check in the file
+  (one exchangeability must be off by about 20% to show, since pinning six of them needs branches
+  short enough that a difference is still a substitution), but it rejects the failure the code path
+  invites — rebuilding a site from its frequencies and dropping the chemistry, collapsing every model
+  to F81 — at 270 standard errors.
 - **The docs open on a worked study.** `analyses/red/` — does RED, the measure GTDB uses to normalise
   taxonomic ranks, still recover node ages once molecular rates vary? — was in the repository and
   linked from nowhere: not the README, not the site, not the manual. It is now a documentation page
