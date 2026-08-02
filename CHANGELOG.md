@@ -10,6 +10,17 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **A gene family's presence can drive a rate.** `g.presence("tox")` is a conditioning driver like a
+  grown trait, so `switch=0.1 * DrivenBy(g.presence("tox"), {"present": 8.0, "absent": 1.0})` makes a
+  trait switch faster in lineages that carry the gene. Until now driving only ran one way — a trait
+  could make gene loss faster, but a gene could not make a trait's rate faster — and the reason was a
+  missing translator rather than a missing mechanism: the thing that answers *what state was this
+  lineage in at time t* only knew how to be built from a trait. It reads the family's gene tree, so
+  the signal changes **mid-branch** where a copy was actually gained or lost rather than only at the
+  nodes, and a lineage that never held the family answers `absent` rather than raising. Family and
+  ordered runs; only families named with `family_names=`.
+
+### Added
 - **Site-specific amino-acid profiles.** `simulate_sequences(..., profiles={family: array})` gives a
   family one set of equilibrium frequencies **per position** instead of one shared by the whole gene,
   which is the difference between a buried hydrophobic site and the loop beside it. Each row of the

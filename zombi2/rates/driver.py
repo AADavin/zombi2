@@ -330,12 +330,19 @@ def names_a_live_level(source: object) -> bool:
 
 def resolve_driver(source, tree) -> DriverTrajectory:
     """Resolve a conditioned ``DrivenBy`` ``source`` into a `DriverTrajectory` — a **filename**
-    (str) via `load_driver()` (replayed against ``tree``, the target run's own species tree), or an
-    **in-memory** discrete trait result via `driver_from_result()` (which carries its own tree).
+    (str) via `load_driver()` (replayed against ``tree``, the target run's own species tree), an
+    object that answers for itself through ``as_driver_trajectory(tree)`` (a genome run's
+    ``presence("name")``), or an **in-memory** trait result via `driver_from_result()` (which carries
+    its own tree).
     Both are conditioning (the driver grown first); the object form just spares you the ``write``/read
     step in a single session."""
     if isinstance(source, str):
         return load_driver(source, tree)
+    if hasattr(source, "as_driver_trajectory"):
+        # a level that knows how to answer "what state was lineage L in at time t?" for itself —
+        # `genomes.presence("tox")` is the first. The protocol is one method rather than an isinstance
+        # branch per level so this module stays free of imports from the levels it serves.
+        return source.as_driver_trajectory(tree)
     return driver_from_result(source)
 
 
