@@ -62,6 +62,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   his 21 single-copy families scored. `markers.tsv` already reported RF that way internally, so the
   capability existed and was simply not offered here. Opt-in, because silently scoring a different
   question than the one asked is worse than refusing; the refusal now names the flag. (#316)
+- **The run report says where the software came from** — the project URL and a
+  `pip install zombi2==<version>` line, pinned to the version that made the run. A folder handed on
+  outlives the environment that produced it: a reviewer reconstructed an entire run from
+  `run.zombi2` and still could not say where ZOMBI2 lived or what to install. (#316)
 - **Images in the README resolve on PyPI.** They were repository-relative paths, and the README is
   the package's `long_description`, so the project page — a main discovery surface — showed six
   broken images. (#316)

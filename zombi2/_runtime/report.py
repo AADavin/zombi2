@@ -442,6 +442,11 @@ def _one_liner(sections: list[dict]) -> str:
             if bits else "An empty run.")
 
 
+#: Where a reader of a written run finds the software. In the report because the report is what
+#: travels with the data — a run directory is read years later, on a machine that never had ZOMBI2.
+_HOME_URL = "https://github.com/AADavin/zombi2"
+
+
 def build_run_report(run: str) -> str | None:
     """The text of ``run.zombi2`` for a run directory, or ``None`` if it holds no level records yet
     (e.g. a ``--flat`` run, whose levels share one directory and cannot be told apart)."""
@@ -460,6 +465,13 @@ def build_run_report(run: str) -> str | None:
         env.get("platform", "")) if p)
     if built:
         lines.append(f"  built with {built}")
+    # Where the tool that made this came from. A folder handed on — deposited, emailed, inherited —
+    # outlives the environment that produced it, and the version string alone is only a head start:
+    # a research assistant who reconstructed a whole run from this file could not say where ZOMBI2
+    # lived or what to install. Two lines, and the run report answers it without anyone asking.
+    version = env.get("zombi2_version", __version__)
+    lines.append(f"  {_HOME_URL}")
+    lines.append(f"  reinstall it with:  pip install zombi2=={version}")
     for note in _stale_notes(run, sections):
         lines.append(f"  {note}")
     lines.append("")
