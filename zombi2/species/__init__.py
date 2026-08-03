@@ -19,9 +19,9 @@ import math
 import pathlib
 from dataclasses import dataclass, field
 
-import numpy as np
 
-from ..rates.modifiers import ByFamily, ByLineage, FromParent, OnTime, OnTotalDiversity
+from ..rates.modifiers import ByFamily, ByLineage, FromParent, OnTime, OnTotalDiversity, is_wired
+from ..rng import stream
 from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
 from ..rates.rate import as_rate
@@ -523,7 +523,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                     f"belongs on a genomes rate. For per-lineage heterogeneity here use ByLineage "
                     f"(independent) or FromParent (inherited)."
                 )
-            if not isinstance(m, WIRED_MODIFIERS):
+            if not is_wired(m, WIRED_MODIFIERS, "species"):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the species engine does not "
                     f"support. It takes OnTime (skyline), OnTotalDiversity (diversity-dependent), "
@@ -560,7 +560,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
         raise ValueError(f"sampling must be a fraction in (0, 1], got {sampling!r}")
     pulses = _mass_extinction_pulses(mass_extinctions, total_time)  # [] unless mass_extinctions given (needs total_time)
 
-    rng = np.random.default_rng(seed)
+    rng, seed = stream("species", seed)     # own stream, and a drawn seed if none was given
 
     def _finish(tree: Tree, events: list[Event]) -> SpeciesResult:
         # observe (sampling relabels survivors) then recover fossils along the grown branches

@@ -42,9 +42,10 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .._runtime.parallel import guard_pool_workers, resolve_workers
+from .._runtime.parallel import guard_pool_workers, pool_errors, resolve_workers
 from .._runtime.progress import progress_bar
 from ..rates.modifiers import ByFamily
+from ..rng import seed_sequence
 from ._live import enter, retire, weighted_index
 from ._transfer import mean_root_to_tip, recipient_index
 from .events import EVENTS_HEADER, GeneEdge, event_rows, gene_label, node_label
@@ -514,9 +515,10 @@ def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events
 #: the outputs a streamed run can produce and their top-level filenames — the same names the in-memory
 #: ``FamilyGenomesResult.write`` uses. Gene trees are the exception: one Newick pair per family under a
 #: ``gene_trees/`` subdirectory, so a million families do not land as two million files in the run root.
-_STREAM_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees")
+_STREAM_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees", "species_tree")
 _STREAM_FILENAMES = {"events": "genome_events.tsv", "profiles": "profiles.tsv",
-                     "genomes": "genomes.tsv", "initial_genome": "initial_genome.tsv"}
+                     "genomes": "genomes.tsv", "initial_genome": "initial_genome.tsv",
+                     "species_tree": "species_complete.nwk"}
 _DEFAULT_STREAM_OUTPUTS = _STREAM_OUTPUTS
 
 #: families per streamed chunk — **fixed**, independent of the worker count, so a chunk is a contiguous
@@ -629,7 +631,7 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
         trajs=trajs, to_traj=to_traj, group_of=group_of, driven=driven)
 
     # Pass 1: who originates, and where. One reserved stream for it; one per family after.
-    root_ss = np.random.SeedSequence(seed)
+    root_ss = seed_sequence("genomes", seed)[0]
     families_meta, named = _enumerate_families(
         tree, org, initial_families, family_names, np.random.default_rng(root_ss.spawn(1)[0]),
         trajs=trajs, driven=driven.get("origination", False))
@@ -647,7 +649,8 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
     bar = progress_bar(max(1, n_families), "genomes", unit="family", enabled=progress)
     if workers > 1 and n_families >= 2:
         w = min(workers, n_families)
-        with ProcessPoolExecutor(max_workers=w, initializer=_init_worker, initargs=(ctx,)) as ex:
+        with pool_errors(), ProcessPoolExecutor(max_workers=w, initializer=_init_worker,
+                                                initargs=(ctx,)) as ex:
             for out in ex.map(_evolve_family, per_family, chunksize=max(1, n_families // (w * 8))):
                 results.append(out); bar.update()
     else:
@@ -687,6 +690,13 @@ def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_fam
     extant_ids = sorted(n.id for n in tree.extant_leaves())
     stream_cfg = {"out_dir": out_dir, "outputs": set(outputs), "extant_ids": extant_ids,
                   "shard_dir": shard_dir}
+    # The tree the run evolved along, beside its outputs — every one of them is indexed by this
+    # tree's node labels, so without it the directory is not a dataset anyone (or `read_run`) can
+    # reopen. The in-memory `.write` learned this first; a streamed run needs it more, being the one
+    # whose only handoff *is* the directory.
+    if "species_tree" in outputs:
+        with open(os.path.join(out_dir, "species_complete.nwk"), "w", encoding="utf-8") as f:
+            f.write(tree.to_newick() + "\n")
 
     chunks = [per_family[i:i + _STREAM_CHUNK] for i in range(0, n_families, _STREAM_CHUNK)]
     tasks = list(enumerate(chunks))
@@ -695,8 +705,8 @@ def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_fam
     bar = progress_bar(max(1, n_chunks), "genomes", unit="chunk", enabled=progress)
     if workers > 1 and n_chunks >= 2:
         w = min(workers, n_chunks)
-        with ProcessPoolExecutor(max_workers=w, initializer=_init_worker,
-                                 initargs=(ctx, stream_cfg)) as ex:
+        with pool_errors("stream_to="), ProcessPoolExecutor(max_workers=w, initializer=_init_worker,
+                                                            initargs=(ctx, stream_cfg)) as ex:
             for (_ci, _nfam, nev) in ex.map(_stream_chunk, tasks):
                 total_events += nev; bar.update()
     else:

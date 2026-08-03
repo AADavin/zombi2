@@ -125,11 +125,13 @@ def test_across_sites_rejects_what_it_cannot_mean(kwargs, message):
 
 def test_a_flat_model_still_draws_exactly_what_it_drew():
     """A golden pin, because the whole design rests on one guard: a model with a single rate class
-    must not consume a single extra draw, so every run written before this feature existed is
-    bit-identical. Generated from the commit before the change."""
+    must not consume a single extra draw, so adding across-site variation leaves a flat run
+    bit-identical. Re-pinned when each level moved to its own RNG stream (`zombi2.rng`) — that
+    deliberately changed what a sequences seed draws, which is a different thing from this guard,
+    and the guard still holds against the run beside it."""
     r = simulate_sequences(_pair_run(1.0, 2.0), model=jc69(), length=40, seed=7)
-    assert r.alignments[0]["n1_g1"] == "CTGATTCGGCATCCCGAGAATGGCTCCGCCGTATATTAGG"
-    assert r.founding[0] == "GTTACTATTCCCCCGGTTGTAAGAAGCTGGCAAAGACATA"
+    assert r.alignments[0]["n1_g1"] == "GCAGATGCGGAGGTGGATCTTGTCCATTCAATTTACCGGG"
+    assert r.founding[0] == "GCAGGAAAGGATGAAAATACTGGAGACTCGATAATGAACA"
 
 
 def test_the_phylogram_is_unchanged_by_across_site_variation():

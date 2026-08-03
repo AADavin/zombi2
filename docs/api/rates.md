@@ -50,4 +50,30 @@ deterministic function of a measured quantity), `By` is an independent i.i.d. dr
 `From` is inherited along a genealogical edge. `DrivenBy` sits outside that scheme deliberately —
 it says the factor comes from another simulated level entirely.
 
+### Writing your own
+
+Every engine takes a fixed set of modifiers and refuses the rest, because one it never reads would
+return its default factor of 1.0 and give a run that is quietly not the model you asked for. A
+modifier of your own opens that gate by naming the engines it is wired for:
+
+```python
+from zombi2.rates.modifiers import Modifier
+
+class OnLogTime(Modifier):
+    wired_for = ("species",)
+    def factor(self, *, time: float = 0.0, **_) -> float:
+        return 1.0 / (1.0 + time)
+
+species.simulate_species_tree(birth=2.0 * OnLogTime(), n_extant=20, seed=1)
+```
+
+The engine names are `species`, `genomes.family`, `genomes.ordered`, `genomes.nucleotide`,
+`sequences`, `traits.continuous`, `traits.discrete` and `joint`. Take `**_` and default every keyword
+you read: the engine passes whatever context it happens to have, and the set differs between them.
+Naming an engine is a claim you are making, not a check the library can do for you — everything you
+have not named still refuses your modifier, by name.
+
+The rate *text* grammar (a `--birth` flag, a `--params` file) knows only the built-in names, so a
+modifier of your own is Python-only, as an object you construct has to be.
+
 ::: zombi2.rates.modifiers

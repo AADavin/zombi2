@@ -18,7 +18,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 
-from .._runtime.parallel import flatten_gene_tree, rebuild_gene_tree
+from .._runtime.parallel import flatten_gene_tree, pool_errors, rebuild_gene_tree
 from .._runtime.progress import progress_bar
 
 #: Below this many gene trees the process-pool spawn + IPC costs more than it saves (the measured
@@ -115,8 +115,8 @@ def evolve_families(gene_trees, per_block, model, intergene_model, length, rate_
     n = len(families)
     if workers > 1 and n >= _MIN_FAMILIES_FOR_POOL:
         w = min(workers, n)
-        with ProcessPoolExecutor(max_workers=w, initializer=_init_worker,
-                                 initargs=(models, clock, names, partitions)) as ex:
+        with pool_errors(), ProcessPoolExecutor(max_workers=w, initializer=_init_worker,
+                                                initargs=(models, clock, names, partitions)) as ex:
             _collect(ex.map(_evolve_one, tasks, chunksize=max(1, n // (w * 8))))
     else:
         # inline: the same worker + per-process caches, no pool

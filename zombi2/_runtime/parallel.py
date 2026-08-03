@@ -16,10 +16,12 @@ the default pickle recursion limit; the rest of the codebase is iterative for th
 
 from __future__ import annotations
 
+import contextlib
 import multiprocessing
 import os
 import sys
-from typing import TYPE_CHECKING
+from concurrent.futures.process import BrokenProcessPool
+from typing import TYPE_CHECKING, Iterator
 
 # NB: gene-tree types are imported *lazily* inside rebuild_gene_tree, not here. This module is the
 # low-level shared scaffolding; importing zombi2.genomes at top level would make genomes → _perfamily →
@@ -65,18 +67,65 @@ def _pool_would_fail_to_start() -> bool:
     return not (path and os.path.exists(path))
 
 
+def _in_a_worker() -> bool:
+    """True when this process is a multiprocessing child rather than the program the user started.
+
+    Read off ``current_process().name``, which is ``"MainProcess"`` in the parent and
+    ``"SpawnProcess-N"`` / ``"ForkProcess-N"`` in a child — and, unlike `multiprocessing.parent_process`,
+    is already set while the child re-imports the main module, which is exactly the moment that
+    matters here."""
+    return multiprocessing.current_process().name != "MainProcess"
+
+
 def guard_pool_workers(workers: int, *, what: str = "--parallel") -> int:
     """Return ``workers`` unchanged, unless a process pool would crash at startup here (see
     `_pool_would_fail_to_start()`) — then fall back to ``1`` (single-process), warning once. This is
     what lets ``parallel=`` be called from a notebook, ``python -c``, or a stdin heredoc without a raw
     ``BrokenProcessPool``: it runs single-process instead of dying. A ``.py`` script (or the CLI) is
     unaffected and keeps every worker. ``what`` names the knob in the message."""
-    if workers > 1 and _pool_would_fail_to_start():
-        print(f"note: {what} needs worker processes, but this looks like an interactive session, a "
-              f"notebook, or 'python -c', where they cannot re-import your program — a process pool "
-              f"would crash there. Running single-process instead; run from a .py script to use all cores.")
-        return 1
-    return workers
+    if workers <= 1 or not _pool_would_fail_to_start():
+        return workers
+    # Two very different situations reach here, and they need opposite answers.
+    if _in_a_worker():
+        # A worker is re-importing the caller's script and running its top level again — the script
+        # has no `__main__` guard. Left alone this is worse than a crash: every child silently
+        # repeated the whole simulation and the run "succeeded", having done N× the work and printed
+        # N copies of its output. Refusing kills the child, and the parent turns the resulting
+        # BrokenProcessPool into `pool_errors`'s message, which names the guard.
+        raise RuntimeError(
+            f"{what} started worker processes and one of them has re-run your program from the top, "
+            f"so the call is not under `if __name__ == \"__main__\":`. Add the guard.")
+    # Genuinely no importable `__main__`: a notebook, `python -c`, a heredoc. Nothing is wrong with
+    # the caller's code — there is simply no file for a worker to import — so run single-process.
+    print(f"note: {what} needs worker processes, but this looks like an interactive session, a "
+          f"notebook, or 'python -c', where they cannot re-import your program — a process pool "
+          f"would crash there. Running single-process instead; run from a .py script to use all cores.")
+    return 1
+
+
+@contextlib.contextmanager
+def pool_errors(what: str = "parallel=") -> Iterator[None]:
+    """Turn a dead worker pool into an error that names the usual cause.
+
+    `guard_pool_workers()` catches the interactive cases up front, but the commonest failure is one
+    it cannot see: a plain ``.py`` script whose simulate call sits at the top level, with no
+    ``if __name__ == "__main__":``. Under the ``spawn`` start method each worker re-imports the
+    script, runs it from the top, tries to open a pool of its own inside a child, and dies — and all
+    the parent sees is ``BrokenProcessPool``, sometimes trailed by a `FileNotFoundError` from a
+    half-created stream directory. Nothing about that names the guard, so a user's first parallel
+    script fails and tells them nothing. Detecting the missing guard beforehand would mean reading
+    the caller's source; saying what happened afterwards costs one ``except``."""
+    try:
+        yield
+    except BrokenProcessPool as exc:
+        raise RuntimeError(
+            f"{what} needs worker processes, and they died as they started. The usual cause is a "
+            f"script whose simulate call is at the top level: a worker re-imports your program, runs "
+            f"it again from the top, and crashes. Put the call under `if __name__ == \"__main__\":` "
+            f"(the standard multiprocessing requirement — the zombi2 CLI already does). If it is "
+            f"already guarded, the workers hit something else: run once with the default "
+            f"{what}False to see the real error."
+        ) from exc
 
 
 def flatten_gene_tree(gt: GeneTree) -> tuple[int, float, list[tuple[int, str, int, float, int]]]:

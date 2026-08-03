@@ -27,13 +27,13 @@ import math
 import pathlib
 from dataclasses import dataclass
 
-import numpy as np
 
 from .._runtime.summary import write_summary
 from ..genomes import GeneEdge, GeneCopy, FamilyGenomesResult, FamilyGenome
 from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
 from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import ByFamily, ByLineage, DrivenBy, FromParent, OnTime, OnTotalDiversity
+from ..rng import stream
+from ..rates.modifiers import ByFamily, ByLineage, DrivenBy, FromParent, OnTime, OnTotalDiversity, is_wired
 
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
@@ -471,7 +471,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                     f"variation and a driven rate are not available together in a joint run — use "
                     f"one or the other. On its own, ByLineage works at the species level."
                 )
-            if not isinstance(m, WIRED_MODIFIERS):
+            if not is_wired(m, WIRED_MODIFIERS, "joint"):
                 # the backstop: anything this engine does not thread would come back as its default
                 # factor of 1.0, which is a run quietly not the model that was asked for (SPEC §5).
                 # Declared rather than enumerated here, so a modifier added later cannot slip through.
@@ -534,7 +534,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                                    or not math.isfinite(total_time) or total_time <= 0):
         raise ValueError(f"total_time must be a positive finite number, got {total_time!r}")
 
-    rng = np.random.default_rng(seed)
+    rng, seed = stream("joint", seed)       # own stream, and a drawn seed if none was given
     unique_sources = sorted(set(sources))
 
     def grow_once(target_n, tt) -> tuple[Tree, JointResult]:
