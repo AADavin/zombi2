@@ -732,6 +732,30 @@ def test_ordered_engine_still_refuses_a_between_kernel_on_a_rate():
             initial_families=1, seed=1)
 
 
+def test_the_trait_and_joint_engines_refuse_a_between_kernel_on_a_rate():
+    """The kernel guard, at the three slots it did not reach.
+
+    A ``Between`` weights a recipient by the (donor, recipient) pair, so it belongs in
+    ``transfer_to``. The genome engines refuse it in a rate; the two trait engines and the joint
+    engine did not check, and ``Between`` implements no ``multiplier`` — so instead of a modelling
+    error the run died part-way through with ``AttributeError: 'Between' object has no attribute
+    'multiplier'``, a traceback from inside the engine naming neither the rate nor the mistake."""
+    from zombi2 import joint, traits
+    tree = simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1).complete_tree
+    hab = traits.simulate_discrete(tree, states=["a", "b"], switch=0.3, seed=2)
+    kernel = Between({("a", "b"): 2.0})
+
+    with pytest.raises(ValueError, match="donor-conditioned"):
+        traits.simulate_continuous(tree, start=0.0, rate=1.0 * mod.DrivenBy(hab, kernel), seed=3)
+    with pytest.raises(ValueError, match="donor-conditioned"):
+        traits.simulate_discrete(tree, states=["x", "y"],
+                                 switch=0.2 * mod.DrivenBy(hab, kernel), seed=3)
+    with pytest.raises(ValueError, match="donor-conditioned"):
+        joint.simulate_joint(birth=1.0 * mod.DrivenBy("trait", kernel), death=0.3,
+                             trait=traits.discrete(states=["a", "b"], switch=0.3),
+                             n_extant=20, seed=3)
+
+
 def test_family_speed_beside_a_driven_rate_is_refused(tmp_path):
     """Regression. ``family_speed`` is a ``ByFamily`` draw, so it belongs in the guard that refuses
     ByFamily beside DrivenBy — and it was missing from it. The run was accepted, and then the loss

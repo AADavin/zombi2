@@ -255,13 +255,14 @@ zombi2 genomes out/ --resolution ordered \
 
 | File | What it holds |
 |---|---|
-| `genome_events.tsv` | the whole history — the genealogy, where each event happened, and the rearrangements, in time order |
+| `genome_events.tsv` | the gene genealogy — every event with its time, and where it happened |
+| `rearrangement_events.tsv` | the inversions, transpositions and translocations, in time order |
 | `profiles.tsv` | family × extant-species copy counts |
 | `gene_order.tsv` | every node's layout, one row per gene |
 | `initial_genome.tsv` | the genome the run started with |
-| `chromosome_events.tsv` | the chromosome network, one row per edge — `time · kind · lineage · parents · children` |
+| `chromosome_events.tsv` | the chromosome network, one row per edge — `time · kind · parents · children` (no lineage column: each `n<species>_c<id>` token already names its branch) |
 | `gene_trees/` | one Newick per family, complete and extant |
 
 `.write(dir, outputs=[...])` picks which of these go to disk, by the tokens `events`, `profiles`,
-`gene_order`, `initial_genome`, `chromosome_events` and `gene_trees`. Appendix B gives the columns and
+`gene_order`, `initial_genome`, `chromosome_events`, `gene_trees` and `species_tree`. Appendix B gives the columns and
 the formats.

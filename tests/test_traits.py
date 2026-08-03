@@ -1480,3 +1480,49 @@ def test_the_dataset_keys_are_the_tree_tip_names():
     # and the id-keyed view still exists, with the same values behind the other key
     labels = tree.complete_tree.labels()
     assert {labels[i]: v for i, v in r.values_by_id.items()} == r.values
+
+
+def test_correlation_beside_regimes_is_refused():
+    """Regression. ``regimes=`` dispatches before the correlated engine and threads no correlation,
+    so a correlation passed alongside it was read by nothing: the run was silently the uncorrelated
+    model. Two runs differing only in a bogus correlation came back byte-identical."""
+    from zombi2 import species, traits
+    tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
+    reg = traits.simulate_discrete(tree, states=["r1", "r2"], switch=0.3, seed=2)
+    with pytest.raises(ValueError, match="correlation= with regimes="):
+        traits.simulate_continuous(tree, start=0.0, rate=1.0, pull=1.0,
+                                   reverts_to={"r1": -2.0, "r2": 2.0}, regimes=reg,
+                                   correlation={("x", "y"): 0.9}, seed=5)
+
+
+def test_summary_of_a_correlated_run_is_per_trait():
+    """Regression. A correlated run holds one value per trait at every node, and ``summary()``
+    assumed one number: the continuous case raised ``TypeError: float() argument must be … not
+    'dict'`` (so ``write(..., "summary")`` failed outright), and the threshold case counted whole
+    dicts as states, giving keys like "{'a': 'b', 'b': 'b'}"."""
+    from zombi2 import species, traits
+    tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
+
+    c = traits.simulate_continuous(tree, start={"x": 0.0, "y": 0.0}, rate={"x": 1.0, "y": 1.0},
+                                   correlation={("x", "y"): 0.7}, seed=6)
+    s = c.summary()
+    assert s["traits"] == ["x", "y"]
+    assert set(s["values"]) == {"x", "y"} and "mean" in s["values"]["x"]
+    assert set(s["value_at_root_node"]) == {"x", "y"}
+
+    d = traits.simulate_discrete(tree, states=["a", "b"], liability={"p": 1.0, "q": 1.0},
+                                 threshold=0.0, correlation={("p", "q"): 0.6}, seed=6)
+    s2 = d.summary()
+    assert s2["traits"] == ["p", "q"]
+    assert set(s2["states"]) == {"p", "q"}
+    assert set(s2["states"]["p"]) <= {"a", "b"}          # states, not stringified dicts
+
+
+def test_summary_of_a_single_trait_run_is_unchanged():
+    """The per-trait branch must not capture the ordinary one-trait case."""
+    from zombi2 import species, traits
+    tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
+    c = traits.simulate_continuous(tree, start=0.0, rate=1.0, seed=6).summary()
+    assert "traits" not in c and "mean" in c["values"]
+    d = traits.simulate_discrete(tree, states=["a", "b"], switch=0.3, seed=6).summary()
+    assert "traits" not in d and set(d["states"]) <= {"a", "b"}

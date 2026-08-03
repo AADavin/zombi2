@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ..rates.mapping import check_not_a_kernel
 from ..rates.modifiers import DrivenBy, Modifier
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerLineage
@@ -14,6 +15,11 @@ from ..tree import as_tree
 
 from ._shared import _correlation_matrix, _preorder, _resolve_drivers, _symmetric_sqrt
 from .result import Change, TraitsResult
+
+#: the modifiers a discrete trait's ``switch`` rate takes — declared, as every level declares its
+#: own, so Appendix A and the CLI help are built from the engine rather than kept by hand. It is a
+#: shorter list than the continuous rate's: a switch rate reads a driver and nothing else.
+WIRED_MODIFIERS = (DrivenBy,)
 
 
 def _q_matrix(states, switch) -> np.ndarray:
@@ -119,10 +125,11 @@ def _switch_drivers(switch) -> list:
                 f"a switch rate has a {type(r.scope).__name__} scope, but a discrete trait switches "
                 f"per lineage — drop the scope wrapper (per lineage is the default).")
         for m in r.modifiers:
-            if not isinstance(m, DrivenBy):
+            if not isinstance(m, WIRED_MODIFIERS):
                 raise ValueError(
                     f"a switch rate carries {type(m).__name__}, which the discrete trait engine does "
                     f"not support. It takes DrivenBy (the switch rate driven by another trait).")
+            check_not_a_kernel(m.mapping, label="a switch rate")
             mods.append(m)
     return mods
 

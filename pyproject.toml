@@ -47,14 +47,10 @@ Issues = "https://github.com/AADavin/zombi2/issues"
 # ruff release turn CI red without a change on our side. Bump it deliberately.
 dev = ["pytest>=7", "pytest-cov", "scipy>=1.10", "ruff>=0.12,<0.13", "mypy>=1.11"]
 docs = ["mkdocs-material", "mkdocstrings[python]"]
-# Parsers for external reconciliation-tool output (zombi2.tools.reconparser: ALE, AleRax).
-# Trees are parsed with ZOMBI2's own zombi2.tree.read_newick (no ete3), so the only extra
-# dependency is pandas for the table outputs; it stays out of the base install.
-reconparser = ["pandas>=2.0.0"]
-# Snakemake benchmarking workflows (examples/). snakemake pulls pyyaml transitively, but the
-# Snakefile imports it directly, so pin it; matplotlib renders the summary figures; the SLURM
-# executor plugin is only needed to run on a cluster.
-bench = ["snakemake>=8", "snakemake-executor-plugin-slurm", "matplotlib", "pyyaml"]
+# NOTE: there is no `reconparser` extra and no `bench` extra. Both used to be declared here for
+# code that is not in the package — `zombi2/tools/reconparser/` and a Snakefile under examples/ —
+# so `pip install zombi2[reconparser]` installed pandas for a feature that does not exist, and PyPI
+# advertised both. An extra is a promise about what is installable; it goes in when the code does.
 # The examples gallery (gallery/) — simulates with zombi2 and plots with Phylustrator. Not a runtime
 # dependency of the library, and not what guards the examples in CI (that is tests/test_gallery_api.py,
 # which runs them with Phylustrator mocked so only the zombi2 calls execute — no rendering, no extra
@@ -123,12 +119,6 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# The reconparser parsers are vendored from https://github.com/AADavin/reconparser and kept
-# close to upstream to make future syncs trivial; exempt their upstream idioms from our lint.
-"zombi2/tools/reconparser/parsers/*.py" = [
-    "F401",  # typing.Tuple imported but unused
-    "F841",  # a bookkeeping local (num_trees) assigned but unused
-]
 # The figure scripts share one house-style vocabulary import (`from zombi_style import FONT, INK,
 # MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK` — 44 scripts, 19 of them the identical line). Every
 # script imports the whole vocabulary whether or not it uses every name, so the set stays uniform

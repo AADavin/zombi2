@@ -495,7 +495,7 @@ def test_sequences_protein_models_write_amino_acid_alignments(tmp_path, genomes_
 
 
 @pytest.mark.parametrize("flag,value", [("--kappa", ["2"]), ("--frequencies", ["0.25"] * 4),
-                                        ("--gtr-rates", ["1"] * 6)])
+                                        ("--exchangeabilities", ["1"] * 6)])
 def test_sequences_protein_models_take_no_parameters(tmp_path, genomes_dir, flag, value):
     # an empirical matrix has nothing to tune, so a nucleotide knob must be rejected, not ignored
     with pytest.raises(SystemExit) as e:
@@ -2055,3 +2055,17 @@ def test_traits_records_which_level_drove_its_rate(tmp_path):
     assert main(["traits", str(run), "--name", "habitat", "--kind", "discrete", "--states",
                  "cave,surface", "--switch", "0.9", "--seed", "7", "--quiet", "--force"]) == 0
     assert (run / "traits" / "size" / "trait_values.tsv").exists()
+
+
+def test_fasta_is_refused_on_a_family_run(tmp_path):
+    """Regression. ``--fasta`` was missing from the nucleotide-only list, so a family run accepted
+    it, ignored it, and wrote it into genomes.log as though it had applied — the one silent-ignore
+    the resolution guard exists to prevent, and its own sibling ``--gff`` was already caught."""
+    main(["species", str(tmp_path), "--birth", "1", "--death", "0.3", "--n-extant", "12",
+          "--seed", "1"])
+    fasta = tmp_path / "t.fasta"
+    fasta.write_text(">chr\nACGTACGTAC\n", encoding="utf-8")
+    with pytest.raises(SystemExit) as e:
+        main(["genomes", str(tmp_path), "--duplication", "0.2", "--loss", "0.25",
+              "--origination", "0.5", "--fasta", str(fasta), "--seed", "1"])
+    assert e.value.code == 2

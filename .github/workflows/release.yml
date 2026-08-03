@@ -7,8 +7,8 @@ name: Release
 # GATED so nothing goes out by accident:
 #   * PyPI  -- only when a GitHub Release is published.
 #   * TestPyPI -- only on a manual run with the `testpypi` box ticked.
-# See docs/publishing.md for the one-time PyPI setup (a trusted publisher
-# pointing at this workflow). Until that is configured the publish jobs fail
+# The one-time PyPI setup is a trusted publisher pointing at this workflow.
+# Until that is configured the publish jobs fail
 # safely at the OIDC step and nothing is uploaded.
 #
 # (The compiled Rust engine zombi2_core lived here too; it has been retired

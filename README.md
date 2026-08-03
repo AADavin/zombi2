@@ -48,7 +48,7 @@ g.gene_trees                    # the true gene tree of every family
 
 sp.write("out/")                # the trees, the event log and the fates
 g.write("out/")                 # gene trees, the event log, profiles
-s.write("out/")                 # alignments, phylograms and ancestral sequences
+s.write("out/")                 # alignments and phylograms (ancestral is opt-in)
 ```
 
 ---

@@ -136,7 +136,7 @@ The **initial genome** — the genome the run starts from, at time 0, before any
 - `.chromosome_events` — the chromosome network, as in Chapter 5.
 - `.gene_spans` — `{family: (source, start, end)}`, where each declared gene sits in initial coordinates.
 - `.gene_names`, `.gene_strands` — a named gene's family id, and its coding strand, from a GFF.
-- `.gene_trees` — one recovered gene tree per gene family, for the families that survive in at least one extant leaf.
+- `.gene_trees` — one recovered gene tree per gene family: every family some node still carries, so a gene surviving only in lineages that died still gets a tree.
 - `.root_blocks` — the recovered root partition: the maximal never-cut intervals that some node still carries. Cut at **every** node's breakpoints, not just the survivors', which is what lets any node's genome be rebuilt.
 - `.block_trees` — a recovered tree for **every** root block, spacer as well as gene, keyed by its index in `.root_blocks`.
 - `.initial_assembly()` — the same for `.initial_genome`, as `(block, strand)` pairs. No gene id: the initial genome predates every event, so each block has exactly one sequence there.
@@ -149,7 +149,7 @@ and four ways to read one node's genome, at four grains:
 g.mosaic(2)      # per block:      {chromosome: [(source, start, end, strand), ...]}
 g.trace_back(2)  # per nucleotide: {chromosome: [(source, position, strand), ...]}
 g.ancestry(2)    # the multiset of ancestral (source, position) it still carries
-g.assembly(2)    # per piece:      {chromosome: [(block, gene, start, end, strand), ...]}
+g.assembly(2)    # per piece:      {chromosome: [(block, gene, strand), ...]}
 ```
 
 `ancestry` is the invariant worth knowing: rearrangements conserve it exactly, so an inversion-only run leaves every leaf holding a permutation of the initial sequence. Loss makes it a subset, and duplication, transfer and origination add to it.
@@ -222,7 +222,8 @@ Every event kind has its own `--<event>-extent`, the mean of a geometric draw in
 | File | What it holds |
 |---|---|
 | `genome_events.tsv` | the gene genealogy, in the format every resolution writes |
-| `block_events.tsv` | this resolution's own log — the copy lineages over ancestral intervals, plus the rearrangements |
+| `block_events.tsv` | this resolution's own log — the copy lineages over ancestral intervals |
+| `rearrangement_events.tsv` | the inversions, transpositions and translocations, in time order |
 | `blocks.tsv` | every node's genome as its block mosaic |
 | `genes.tsv` | where each declared gene sits in initial coordinates, and on which strand |
 | `initial_genome.tsv` | the genome the run started with |

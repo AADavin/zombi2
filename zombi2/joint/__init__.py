@@ -32,6 +32,7 @@ import numpy as np
 from .._runtime.summary import write_summary
 from ..genomes import GeneEdge, GeneCopy, FamilyGenomesResult, FamilyGenome
 from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
+from ..rates.mapping import check_not_a_kernel
 from ..rates.modifiers import ByFamily, ByLineage, DrivenBy, FromParent, OnTime, OnTotalDiversity
 
 from ..rates.rate import as_rate
@@ -480,6 +481,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                     f"(the driver that makes the run joint)."
                 )
             if isinstance(m, DrivenBy):
+                check_not_a_kernel(m.mapping, label=label)
                 if not isinstance(m.source, str):
                     raise TypeError(
                         f"{label} is driven by a {type(m.source).__name__} object, but a joint model "

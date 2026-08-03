@@ -9,7 +9,60 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Removed
+- **Two optional-dependency extras that installed things for code that is not here.**
+  `pip install zombi2[reconparser]` pulled in pandas for `zombi2/tools/reconparser/`, which does not
+  exist, and `zombi2[bench]` pinned snakemake, its SLURM executor plugin, matplotlib and pyyaml for a
+  Snakefile that is not in the tree — both advertised on PyPI. An extra is a promise about what is
+  installable; it goes back in when the code does.
+
+### Changed
+- **The documentation says what the code does, in twenty-odd places it had drifted from.** The
+  load-bearing one: Chapter 3 said `species_extant.nwk` was "what the next level reads", and it is
+  the **complete** tree that the other levels run along — which is the whole point of keeping the
+  dead lineages. Also: rearrangements are their own file at both structured resolutions (not rows in
+  `genome_events.tsv`); `chromosome_events.tsv` has no lineage column; `assembly()` returns 3-tuples,
+  not 5; every family some node still carries gets a gene tree, not only those surviving in an extant
+  leaf; `Event`/`GeneEdge` and `edges_from_tsv` under their 0.26.0 names; the t=0 driver row is
+  spelled `initial`, not `root`, so a hand-built file following the manual was rejected;
+  `--gtr-rates` is `--exchangeabilities` (and the test that "covered" it was passing because the flag
+  no longer parsed); `at_speciation` is refused for threshold traits; a `k×k` switch matrix cannot
+  carry a modifier; `--at-speciation` takes a **variance**, not a width; `Tree`/`Node`/`prune` are
+  documented under `zombi2.tree`; and the README no longer says ancestral sequences are written by
+  default, since they are an opt-in `--write ancestral`.
+- **Appendix A's modifier table gained the two rows it was missing**, and the test that guards it now
+  covers them. The single "Traits" row described the *continuous* rate only, while a discrete
+  `switch` rate takes `DrivenBy` and nothing else; the joint level had no row at all. The discrete
+  engine now declares its `WIRED_MODIFIERS` like every other level, and `zombi2 joint -h` builds its
+  RATES block from the joint engine's declaration instead of a hand-written tuple — it had been
+  under-reporting `OnTime` and `OnTotalDiversity`, which a joint run does thread.
+
 ### Fixed
+- **`--fasta` was accepted and ignored on a family or ordered run.** It was missing from the
+  nucleotide-only list its own sibling `--gff` is in, so `zombi2 genomes DIR --fasta x.fasta` ran an
+  ordinary family simulation, never opened the file, and wrote `fasta  x.fasta` into `genomes.log` as
+  though it had applied — a run recorded as something it was not. It is refused now, like every other
+  knob a resolution does not have.
+- **The `Between` kernel guard reaches the last three slots.** The genome engines refuse a kernel in
+  a rate; the two trait engines and the joint engine did not check, so a kernel there died mid-run
+  with `AttributeError: 'Between' object has no attribute 'multiplier'` instead of naming the
+  mistake. All three now go through the same `check_not_a_kernel`.
+- **`correlation=` alongside `regimes=` was silently dropped.** `regimes=` dispatches before the
+  correlated engine and threads no correlation, so the run was quietly the uncorrelated model: two
+  runs differing only in a bogus correlation came back byte-identical. It raises now, and says why —
+  multi-optimum OU evolves one trait, so there is no second trait for a correlation to be with.
+- **`TraitsResult.summary()` on a correlated run.** A correlated run holds one value per trait at
+  every node and `summary()` assumed one number: the continuous case raised `TypeError: float()
+  argument must be … not 'dict'`, so `write(..., "summary")` failed outright for multi-trait
+  continuous data, and the threshold case counted whole dicts as states, producing keys like
+  `"{'a': 'b', 'b': 'b'}"`. Both now report per trait, in the shape `trait_values.tsv` already writes.
+- **The ordered resolution is about 1.5× faster, with byte-identical output.** `_pick_gene` measured
+  each lineage's genome with `_genome_size()` to decide whether the draw landed in it and then walked
+  the chosen genome again through `_gene_in()` — every chromosome of every skipped lineage read once
+  and the chosen lineage's read twice, per event, inside the Gillespie loop. Counting chromosome by
+  chromosome finds the same gene in one pass. The draw is untouched, so a run is the same run: 1.70 s
+  → 1.11 s on a 1,000-tip tree (medians of three interleaved rounds), and the event logs and genomes
+  hash identically at three seeds. This recovers a regression that arrived in 0.21.0.
 - **A `Between` kernel in a rate or extent slot now says so, everywhere.** A kernel weights a
   recipient by the (donor, recipient) pair, so it answers *who receives* and belongs in
   `transfer_to`; a rate is read on one lineage and has no donor. The family and ordered engines

@@ -112,7 +112,7 @@ species.simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.2), n_extant=2
 |---|---|
 | `SEQUENCE_SIZE` | `--length` |
 | `AA_MODEL` | `--model wag` (also `jtt`, `dayhoff`, `lg`, `poisson`) |
-| the `AC`…`TG` and `A`/`C`/`G`/`T` keys | `--model gtr --gtr-rates … --frequencies …`, or `hky85` / `k80` / `jc69` |
+| the `AC`…`TG` and `A`/`C`/`G`/`T` keys | `--model gtr --exchangeabilities … --frequencies …`, or `hky85` / `k80` / `jc69` |
 | `KAPPA` | `--kappa` |
 | `ST_RATE_MULTIPLIERS` · `GF_RATE_MULTIPLIERS` | the lineage clock: `--substitution "1.0 * ByLineage(spread=0.3)"` (uncorrelated) or `FromParent` (autocorrelated) |
 | `SHIFT_SUBSTITUTION_RATE` · `SHIFT_CATEGORIES` · `BASE_RATE` | the same clock. No category count |

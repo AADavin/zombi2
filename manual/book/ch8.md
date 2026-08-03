@@ -35,7 +35,7 @@ traits.simulate_continuous(tree, start=0.0,
 
 The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root; it is written with the same `mod.OnTime` that gives the species tree its skyline.
 
-The rest of the modifier vocabulary applies to `rate` unchanged, each with a name in the comparative-methods literature: `mod.FromParent(spread=…)` makes σ² drift from parent to daughter (variable-rates BM, the trait twin of ClaDS), `mod.OnTotalDiversity(cap=…)` slows σ² as the clade fills. Two knobs sit alongside `rate`: `regimes=` paints a multi-optimum OU, where clades pull toward different optima (a discrete trait supplies the painting and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches. These are not alternatives to each other. `regimes=` and `at_speciation=` combine, and both combine with the modifiers on `rate`, so nothing here is a knob you have to give up to use another. The one exception is stated where it bites: `regimes=` takes a plain σ², not a modified one.
+The rest of the modifier vocabulary applies to `rate` unchanged, each with a name in the comparative-methods literature: `mod.FromParent(spread=…)` makes σ² drift from parent to daughter (variable-rates BM, the trait twin of ClaDS), `mod.OnTotalDiversity(cap=…)` slows σ² as the clade fills. Two knobs sit alongside `rate`: `regimes=` paints a multi-optimum OU, where clades pull toward different optima (a discrete trait supplies the painting and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches. These are not alternatives to each other: `regimes=` and `at_speciation=` combine. `regimes=` is the one knob that asks you to give things up, and it says so rather than ignoring them — it takes a plain σ² (not a modified one), one jump variance shared across regimes (not one per regime), and one trait (so not `correlation=`).
 
 ## Discrete traits
 
@@ -56,7 +56,7 @@ traits.simulate_discrete(tree, states=["absent", "present"],
                          seed=1)
 ```
 
-Either shape may carry a modifier, so a switch rate can be **driven by another trait** grown first on the same tree: `switch = 0.2 * mod.DrivenBy(habitat, {"marine": 5.0, "terrestrial": 1.0})`. That is the conditioning of Chapter 9.
+Either of those two shapes may carry a modifier — a bare rate or a `{'from->to': rate}` entry, but not the third spelling, a `k×k` matrix, whose entries are numbers by construction — so a switch rate can be **driven by another trait** grown first on the same tree: `switch = 0.2 * mod.DrivenBy(habitat, {"marine": 5.0, "terrestrial": 1.0})`. That is the conditioning of Chapter 9.
 
 A **threshold** trait is the third case, and it is a bridge back to the continuous world. An observed discrete state can be driven by an underlying continuous **liability** that itself does Brownian motion; the state you see is which side of a threshold the liability currently sits on:
 
@@ -143,7 +143,7 @@ Trait models arrive under a thicket of names, and a reader who wants "an OU mode
 | diffusion rate drifts between lineages | `simulate_continuous(rate=1.0 * mod.FromParent(spread=…))` | Variable-rates BM [@maliet2019clads] |
 | diffusion rate slows as the clade fills | `simulate_continuous(rate=1.0 * mod.OnTotalDiversity(cap=…))` | Diversity-dependent / ecological limits [@etienne2012diversitydependence] |
 | the optimum differs between painted clades | `simulate_continuous(regimes=…, reverts_to={…}, pull=…)` | Multi-optimum OU (OUM) [@beaulieu2012ouwie] |
-| the value jumps at each split | `at_speciation=…` (either kind) | Cladogenetic / punctuational change |
+| the value jumps at each split | `at_speciation=…` (continuous, and Mk `switch=` traits — not threshold ones) | Cladogenetic / punctuational change |
 | traits evolving together | one `simulate_continuous(rate={…}, correlation={…})` call | Multivariate BM |
 | traits reverting together, each to its own optimum | `simulate_continuous(rate={…}, correlation={…}, reverts_to={…}, pull=…)` | Multivariate OU, diagonal drift [@clavel2015mvmorph] |
 | a discrete state switching | `simulate_discrete(states=…, switch=…)` | Mk (k-state Markov) |
@@ -156,7 +156,7 @@ A run returns a **`TraitsResult`** bundle:
 
 - `.values` — the observable vector: the trait's value at each **extant tip**, keyed by the tip's name (`n5`, or `e5` for a lineage that died) — the same names the Newick and `trait_values.tsv` use, so the dataset joins the tree it came from. `.values_by_id` is the same thing keyed by bare node id, for joining against `.node_values`. This is the comparative-data matrix a method would be handed.
 - `.node_values` — the value at **every** node (extant, extinct, and internal alike), the true ancestors at each split, from the same process that produced the tips.
-- `.events` — the timestamped event log, the same shape as the genome level's: each entry is a change on a lineage at a time, from one state to another, and its `kind` is `on_branch` (a switch along a branch) or `on_speciation` (a jump at a split). For a discrete trait this log is the source of truth. A continuous trait diffuses with no along-branch events, so its log holds only the `at_speciation` jumps and is empty without them.
+- `.events` — the timestamped event log, the same shape as the genome level's: each entry is a change on a lineage at a time, from one state to another, and its `kind` is `initial` (the value at t=0), `on_branch` (a switch along a branch) or `on_speciation` (a jump at a split). For a discrete trait this log is the source of truth. A continuous trait diffuses with no along-branch events, so its log holds the `initial` row and any `at_speciation` jumps — the `initial` row is always written, so a plain Brownian run's log has exactly one entry.
 - `.history` — for a **discrete** trait, the per-branch stochastic character map derived from that log: the ordered list of `(state, duration)` segments each branch passed through. It is `None` for a continuous trait, which has no map, and for a threshold trait, whose liability crossings are un-timed.
 
 For discrete traits the stored values are the state labels you gave (not integer indices), so `.values` and `.node_values` already read back in your own vocabulary.
@@ -219,10 +219,10 @@ The trait evolves on the **complete** tree, extinct lineages included, so `speci
 | File | What it holds |
 |---|---|
 | `trait_values.tsv` | the value at every node — extant tips, extinct lineages and internal nodes |
-| `trait_events.tsv` | a `root` row for the state at t=0, then every realized switch with its time (discrete traits) |
+| `trait_events.tsv` | an `initial` row for the state at t=0, then every realized switch with its time (discrete traits) |
 | `trait_tree.nwk` | the complete tree with every node annotated `[&trait=…]`, which opens in FigTree or iTOL |
 
 Because the value at every node comes from the same process that produced the tips, these carry the
 *exact* ancestral states, not a reconstruction. `trait_events.tsv` is also the driver file a
-conditioned genome or trait run reads (Chapter 9) — given the shared tree, the root state plus the switches
+conditioned genome or trait run reads (Chapter 9) — given the shared tree, the initial state plus the switches
 rebuild the trait on every lineage at every instant; Appendix B gives the columns and the formats.
