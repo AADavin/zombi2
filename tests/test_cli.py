@@ -954,7 +954,7 @@ def test_params_file_rate_expression_matches_the_flag(tmp_path):
 
 
 def test_the_rates_help_lists_only_what_the_level_wires(capsys):
-    # the help is built from each level's WIRED_MODIFIERS, so it cannot advertise the unwired
+    # the help is built from each level's IMPLEMENTED_MODIFIERS, so it cannot advertise the unwired
     for command, present, absent in [
             ("species", ["FromParent", "ByLineage"], ["ByFamily"]),   # both per-lineage forms wired
             # both clocks and the trait driver are wired; the diversity covariate is not

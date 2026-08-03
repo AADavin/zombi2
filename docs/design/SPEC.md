@@ -176,7 +176,7 @@ never add a flag. (Read by `rates/parse.py`; it parses the expression, it does n
 **A level rejects the modifiers it does not support.** A modifier a level does not support must
 **raise**, never be silently ignored — a modifier that returns a factor of 1.0 because nothing reads
 it is a run that is quietly not the model the user asked for. Each level therefore declares what it
-takes (`WIRED_MODIFIERS`), the CLI's help is **built from that declaration** rather than hand-listed,
+takes (`IMPLEMENTED_MODIFIERS`), the CLI's help is **built from that declaration** rather than hand-listed,
 and the engine's own gate may be stricter still where a rate takes less than the level does.
 
 Two different things get rejected, and the message must say which. A few combinations are

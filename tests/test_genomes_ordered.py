@@ -324,8 +324,8 @@ def test_unsupported_modifier_on_an_extent_is_rejected(modifier):
 def test_the_extent_declaration_is_the_rate_declaration_minus_byfamily():
     """The one difference between the two lists is a modelling fact, not an accident: ``ByFamily``
     attaches to the contents, and an extent is drawn before the run's genes are known."""
-    from zombi2.genomes.ordered import WIRED_EXTENT_MODIFIERS, WIRED_MODIFIERS
-    assert set(WIRED_MODIFIERS) - set(WIRED_EXTENT_MODIFIERS) == {ByFamily}
+    from zombi2.genomes.ordered import IMPLEMENTED_EXTENT_MODIFIERS, IMPLEMENTED_MODIFIERS
+    assert set(IMPLEMENTED_MODIFIERS) - set(IMPLEMENTED_EXTENT_MODIFIERS) == {ByFamily}
 
 
 def test_scope_override_is_rejected_this_slice():

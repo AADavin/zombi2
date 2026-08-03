@@ -10,7 +10,7 @@ import numpy as np
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import ByFamily, DrivenBy, FromParent, OnTime, OnTotalDiversity, is_wired
+from ..rates.modifiers import ByFamily, DrivenBy, FromParent, OnTime, OnTotalDiversity, is_implemented
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..tree import Tree, as_tree
@@ -18,7 +18,7 @@ from ..tree import Tree, as_tree
 from ._shared import _correlation_matrix, _driven_mods, _preorder, _resolve_drivers, _symmetric_sqrt
 from .result import Change, TraitsResult
 
-WIRED_MODIFIERS = (OnTime, FromParent, OnTotalDiversity, DrivenBy)  #: the modifiers a continuous rate takes
+IMPLEMENTED_MODIFIERS = (OnTime, FromParent, OnTotalDiversity, DrivenBy)  #: the modifiers a continuous rate takes
 
 class _LTT:
     """The tree's lineages-through-time step function — how many lineages are alive at time ``t``
@@ -499,7 +499,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
                 "rate carries ByFamily, but a trait has no gene families — ByFamily belongs on a "
                 "genomes rate. For per-lineage heterogeneity here use FromParent (variable-rates BM)."
             )
-        if not is_wired(m, WIRED_MODIFIERS, "traits.continuous"):
+        if not is_implemented(m, IMPLEMENTED_MODIFIERS, "traits.continuous"):
             raise ValueError(
                 f"rate carries {type(m).__name__}, which the continuous trait engine does not "
                 f"support. It takes OnTime (early burst), FromParent (variable-rates BM), "

@@ -25,11 +25,11 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   conditioned_levels, record_conditioning)
 from zombi2.tree import node_label, read_newick
 from zombi2._runtime.report import write_run_report
-from zombi2.traits import WIRED_MODIFIERS, simulate_continuous, simulate_discrete
+from zombi2.traits import IMPLEMENTED_MODIFIERS, simulate_continuous, simulate_discrete
 
 #: the RATES block for ``zombi2 traits -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
-    WIRED_MODIFIERS, "--rate",
+    IMPLEMENTED_MODIFIERS, "--rate",
     note="Only --rate takes an expression; --switch and --liability are bare numbers.")
 
 # the write vocabularies, mirroring TraitsResult.write. The event log IS the conditioning file now

@@ -9,7 +9,7 @@ import numpy as np
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import DrivenBy, Modifier, is_wired
+from ..rates.modifiers import DrivenBy, Modifier, is_implemented
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerLineage
 from ..tree import as_tree
@@ -20,7 +20,7 @@ from .result import Change, TraitsResult
 #: the modifiers a discrete trait's ``switch`` rate takes — declared, as every level declares its
 #: own, so Appendix A and the CLI help are built from the engine rather than kept by hand. It is a
 #: shorter list than the continuous rate's: a switch rate reads a driver and nothing else.
-WIRED_MODIFIERS = (DrivenBy,)
+IMPLEMENTED_MODIFIERS = (DrivenBy,)
 
 
 def _q_matrix(states, switch) -> np.ndarray:
@@ -109,13 +109,16 @@ def _switch_specs(switch) -> list:
     return [switch]
 
 
-def _switch_drivers(switch) -> list:
-    """The `DrivenBy` modifiers the switch rates carry — a switch rate written as a rate expression
+def _switch_modifiers(switch) -> list:
+    """Every modifier the switch rates carry — a switch rate written as a rate expression
     (``0.4 * mod.DrivenBy(habitat, {"aquatic": 3.0})``) rather than as a bare number, so the trait
     switches faster on the lineages where the driver is in one state than another.
 
-    ``DrivenBy`` is the only modifier a switch rate takes; anything else on it would be read by no
-    part of this engine, so it is refused by name rather than silently ignored."""
+    ``DrivenBy`` is the only modifier this engine ships for a switch rate; anything else built in
+    would be read by no part of it, so it is refused by name rather than silently ignored. A
+    third-party modifier that named this engine in its `Modifier.implemented_for` is returned here
+    too — carrying *any* modifier is what puts the run on the rebuild-per-stretch path below, where
+    the generator is a function of the context instead of a constant."""
     mods = []
     for spec in _switch_specs(switch):
         if not isinstance(spec, (Rate, Modifier)):
@@ -126,11 +129,11 @@ def _switch_drivers(switch) -> list:
                 f"a switch rate has a {type(r.scope).__name__} scope, but a discrete trait switches "
                 f"per lineage — drop the scope wrapper (per lineage is the default).")
         for m in r.modifiers:
-            if not is_wired(m, WIRED_MODIFIERS, "traits.discrete"):
+            if not is_implemented(m, IMPLEMENTED_MODIFIERS, "traits.discrete"):
                 raise ValueError(
                     f"a switch rate carries {type(m).__name__}, which the discrete trait engine does "
                     f"not support. It takes DrivenBy (the switch rate driven by another trait).")
-            if isinstance(m, DrivenBy):   # a modifier wired in from outside carries no mapping
+            if isinstance(m, DrivenBy):     # only a driver has a mapping to check
                 check_not_a_kernel(m.mapping, label="a switch rate")
             mods.append(m)
     return mods
@@ -364,11 +367,17 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
         raise ValueError("give switch= — the transition rate(s) between the discrete states.")
     # conditioning: a switch rate carrying DrivenBy reads another trait, grown first on this same
     # tree. The generator is then a function of the driver, so it is built per stretch rather than
-    # once. No DrivenBy ⇒ `trajs` is empty and the walk below is exactly the walk it was.
-    sw_mods = _switch_drivers(switch)
+    # once. No modifier at all ⇒ one constant Q and the walk below is exactly the walk it was.
+    #
+    # The two questions are separate, and conflating them was a bug: *any* modifier puts the run on
+    # the rebuild-per-stretch path (that is what makes the generator a function of the context),
+    # while only a `DrivenBy` names a source level to resolve a trajectory from. A third-party
+    # modifier used to pass the gate, land in the driver list, and crash the resolver looking for a
+    # `.key` it does not have.
+    sw_mods = _switch_modifiers(switch)
     entries = _driven_entries(states, switch) if sw_mods else None
     Q = None if sw_mods else _q_matrix(states, switch)
-    trajs = _resolve_drivers(sw_mods, tree)
+    trajs = _resolve_drivers([m for m in sw_mods if isinstance(m, DrivenBy)], tree)
     if at_speciation is not None and (isinstance(at_speciation, bool)
             or not isinstance(at_speciation, (int, float)) or not 0.0 <= at_speciation <= 1.0):
         raise ValueError(f"at_speciation must be a probability in [0, 1] (the shift chance), got {at_speciation!r}")

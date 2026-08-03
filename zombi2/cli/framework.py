@@ -101,7 +101,7 @@ def _rate(text: str):
 
 
 #: one gloss and one worked snippet per modifier, for the RATES help block. A modifier with no entry
-#: still lists (by name), so the help can never fall behind a level's ``WIRED_MODIFIERS`` declaration
+#: still lists (by name), so the help can never fall behind a level's ``IMPLEMENTED_MODIFIERS`` declaration
 #: of what it supports.
 #: ``DrivenBy`` carries no snippet: its source is a *file* on a conditioned level and a *live level*
 #: name on ``joint``, so one snippet would be wrong on one of the two screens (it was — the joint help
@@ -123,7 +123,7 @@ def _wrap_note(note: str, width: int = 86) -> list[str]:
 
 def _rates_help(supported, flag: str, *, scopes: str | None = None, note: str | None = None,
                 example: str | None = None) -> str:
-    """The ``RATES`` epilog block for a command, built from that level's ``WIRED_MODIFIERS``.
+    """The ``RATES`` epilog block for a command, built from that level's ``IMPLEMENTED_MODIFIERS``.
 
     Listing what the engine *declares* (rather than a hand-kept list) is what keeps the help honest:
     a modifier the level does not support is rejected by the engine, so it must not be advertised

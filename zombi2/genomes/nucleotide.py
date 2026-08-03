@@ -100,7 +100,7 @@ from ..rng import stream
 from ..rates.extent import Extent, as_extent
 from ..rates.driver import check_mapping_fires, resolve_driver
 from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import DrivenBy, OnTime, is_wired
+from ..rates.modifiers import DrivenBy, OnTime, is_implemented
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerLineage
 from ..tree import Tree, as_tree
@@ -119,7 +119,7 @@ from .gff import read_fasta, read_gff
 #: The rate grammar this engine supports (SPEC §5). Only the skyline this slice: a modifier it does
 #: not support raises rather than being silently ignored, so a run is never quietly not the model
 #: asked for.
-WIRED_MODIFIERS = (OnTime, DrivenBy)
+IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy)
 
 
 @dataclass(slots=True)
@@ -555,7 +555,7 @@ class NucleotideGenome:
         return sorted((src, pos) for c in self.chromosomes for (src, pos, _s) in c.trace_back())
 
 
-# --- the tree wiring (inversions along the species tree; a multi-chromosome, identity-bearing karyotype)
+# --- the tree plumbing (inversions along the species tree; a multi-chromosome, identity-bearing karyotype)
 
 @dataclass(frozen=True, slots=True)
 class Inversion:
@@ -1926,10 +1926,10 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         for m in r.modifiers:
             if isinstance(m, DrivenBy):
                 check_not_a_kernel(m.mapping, label=label)
-            if not is_wired(m, WIRED_MODIFIERS, "genomes.nucleotide"):
+            if not is_implemented(m, IMPLEMENTED_MODIFIERS, "genomes.nucleotide"):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the nucleotide genome engine does not "
-                    f"support. It takes {', '.join(w.__name__ for w in WIRED_MODIFIERS)}.")
+                    f"support. It takes {', '.join(w.__name__ for w in IMPLEMENTED_MODIFIERS)}.")
         _rates[label] = r
     def _as_bp_extent(spec, label):
         """An extent in base pairs (SPEC §6): ``base × modifiers``, no scope. A bare number *is* the
@@ -1953,11 +1953,11 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         for m in e.modifiers:
             if isinstance(m, DrivenBy):
                 check_not_a_kernel(m.mapping, label=label)
-            if not is_wired(m, WIRED_MODIFIERS, "genomes.nucleotide"):
+            if not is_implemented(m, IMPLEMENTED_MODIFIERS, "genomes.nucleotide"):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the nucleotide genome engine does not "
                     f"support — an extent takes the same modifiers a rate does here "
-                    f"({', '.join(w.__name__ for w in WIRED_MODIFIERS)}).")
+                    f"({', '.join(w.__name__ for w in IMPLEMENTED_MODIFIERS)}).")
         return e
 
     inversion_extent = _as_bp_extent(inversion_extent, "inversion_extent")

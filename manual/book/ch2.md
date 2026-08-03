@@ -95,6 +95,104 @@ None of those is a separate code path with its own function and its own paramete
 
 Not every modifier is available at every level. Some combinations mean nothing — a species tree has no gene families for `ByFamily` to vary over — and others are simply not implemented yet. Either way the level refuses the rate and says which modifiers it does take, rather than ignoring it. `zombi2 <command> -h` lists them for that level, and Appendix A of the PDF manual gives the full table.
 
+### Writing your own
+
+The six modifiers above are the ones ZOMBI2 ships. They are not the only ones you can use. A modifier is a class with one method — `factor`, returning a dimensionless multiplier — and the engine calls it with the context it has: the current `time`, the standing `lineages` and `diversity`, the `copies` in the pool, the number of `chromosomes`. Read the keys you need, ignore the rest.
+
+The one extra step is naming the engines you wrote it for, in `implemented_for`. That is the same gate that refuses `ByFamily` on a species tree, and it exists because a modifier an engine never reads would return 1.0 and give you a run that is quietly not the model you asked for. Naming an engine is you taking responsibility for that claim.
+
+**A rate that follows a measured curve.** `OnTime` is a step function, which is the right shape for a skyline and the wrong one for a covariate you have measured through time — a temperature series, a sea-level curve. This one interpolates between the points you give it:
+
+```python
+import bisect
+from zombi2 import species
+from zombi2.rates.modifiers import Modifier
+
+class OnCurve(Modifier):
+    """Speciation follows a measured series, interpolated between knots."""
+    implemented_for = ("species",)
+
+    def __init__(self, knots):
+        self._t, self._f = zip(*sorted(knots.items()))
+
+    def factor(self, *, time=0.0, **_):
+        i = bisect.bisect_right(self._t, time)
+        if i == 0 or i == len(self._t):          # before the first knot, or after the last
+            return self._f[0] if i == 0 else self._f[-1]
+        span = self._t[i] - self._t[i - 1]
+        w = (time - self._t[i - 1]) / span
+        return self._f[i - 1] * (1 - w) + self._f[i] * w
+
+    def next_change(self, time):
+        """The next knot. The engine re-evaluates the rate here, so the curve is followed."""
+        i = bisect.bisect_right(self._t, time)
+        return self._t[i] if i < len(self._t) else float("inf")
+
+warming = species.simulate_species_tree(
+    birth=1.0 * OnCurve({0: 0.4, 2: 1.0, 4: 2.5}), death=0.1, total_time=4, seed=3)
+cooling = species.simulate_species_tree(
+    birth=1.0 * OnCurve({0: 2.5, 2: 1.0, 4: 0.4}), death=0.1, total_time=4, seed=3)
+
+def median_split(run):
+    times = sorted(n.end_time for n in run.complete_tree.nodes.values() if n.children)
+    return times[len(times) // 2]
+
+print(f"warming: splits pile up late  (median {median_split(warming):.2f})")
+print(f"cooling: splits pile up early (median {median_split(cooling):.2f})")
+```
+
+`next_change` is the part worth reading twice. The engine draws a waiting time from the rate as it stands and then jumps; between events the rate is held constant. Returning the next knot tells it to stop and re-evaluate there, so a rate that varies continuously is followed rather than frozen at whatever it was when the last event happened. A modifier that does not depend on time can leave `next_change` alone — the default says "never changes on its own".
+
+**Density dependence in the gene pool.** `OnTotalDiversity` slows a rate as *lineages* accumulate. The same idea on gene copies takes one line, and reads a key no shipped modifier uses:
+
+```python
+from zombi2 import genomes
+
+class OnTotalCopies(Modifier):
+    """Loss rises as the gene pool fills up — a carrying capacity for genes."""
+    implemented_for = ("genomes.family",)
+
+    def __init__(self, cap):
+        self.cap = float(cap)
+
+    def factor(self, *, copies=0.0, **_):
+        return 1.0 + copies / self.cap
+
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=1)
+flat = genomes.simulate_genomes_family(tree, duplication=0.5, loss=0.2,
+                                       initial_families=20, seed=1)
+dense = genomes.simulate_genomes_family(tree, duplication=0.5,
+                                        loss=0.2 * OnTotalCopies(cap=200),
+                                        initial_families=20, seed=1)
+print(f"{flat.profiles.matrix.sum()} copies with a flat loss rate, "
+      f"{dense.profiles.matrix.sum()} when loss rises with the pool")
+```
+
+**Rearrangement that scales with the karyotype.** The ordered resolution hands its rates a `chromosomes` count, so a rate can depend on how divided the genome is:
+
+```python
+class OnKaryotype(Modifier):
+    """Rearrangement gets faster the more chromosomes there are to rearrange."""
+    implemented_for = ("genomes.ordered",)
+
+    def __init__(self, per_chromosome=0.5):
+        self.per_chromosome = float(per_chromosome)
+
+    def factor(self, *, chromosomes=1.0, **_):
+        return 1.0 + self.per_chromosome * max(0.0, chromosomes - 1.0)
+
+one = genomes.simulate_genomes_ordered(tree, inversion=0.3 * OnKaryotype(), duplication=0.1,
+                                       loss=0.1, initial_families=20, chromosomes=1, seed=2)
+four = genomes.simulate_genomes_ordered(tree, inversion=0.3 * OnKaryotype(), duplication=0.1,
+                                        loss=0.1, initial_families=20, chromosomes=4, seed=2)
+print(f"{len(one.rearrangements)} inversions on one chromosome, "
+      f"{len(four.rearrangements)} on four")
+```
+
+The engine names are `species`, `genomes.family`, `genomes.ordered`, `genomes.nucleotide`, `traits.continuous`, `traits.discrete` and `joint`. **`sequences` is the exception**: it reads its modifiers itself rather than through the rate — the clock is drawn per lineage before any site evolves — so a modifier of your own could not be honoured there, and it says so instead of ignoring you.
+
+Two limits worth knowing. A modifier of your own is Python-only: `--birth` and a `--params` file know the shipped names, and cannot construct an object you defined. And a modifier declaring one engine is still refused by every other, which is the point — the declaration is per engine because the context is.
+
 ## Conditioning
 
 Some scenarios need more than the levels running in sequence. A rate can read something that varies from lineage to lineage instead of being a fixed number: a habitat trait makes gene loss faster on some branches than others, a gene's presence makes a lineage speciate faster. That is **one thing driving another**, and it has three parts:
