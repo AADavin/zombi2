@@ -57,7 +57,7 @@ import numpy as np
 
 from ..rates.driver import check_mapping_fires, resolve_driver
 from ..rates.extent import Extent, as_extent
-from ..rates.mapping import Between
+from ..rates.mapping import check_not_a_kernel
 from ..rates.modifiers import ByFamily, DrivenBy, OnTime
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
@@ -1174,13 +1174,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     f"{label} carries ByFamily on a {type(rate.scope).__name__} scope. A per-family "
                     f"weight has to reach the genes an event covers, so it applies to the per-copy "
                     f"gene events only — not to the chromosome tier, which acts on whole replicons.")
-            if isinstance(m, DrivenBy) and isinstance(m.mapping, Between):
-                raise ValueError(
-                    f"{label} carries DrivenBy(…, Between(…)); a Between kernel is donor-conditioned "
-                    f"— it weights a recipient by the (donor, recipient) group pair — so it belongs "
-                    f"in transfer_to (who RECEIVES) and never in a rate, which has no donor to "
-                    f"condition on. Drive a rate with a Table (a plain dict), and put the kernel in "
-                    f"transfer_to=mod.DrivenBy(source, Between({{...}})).")
+            if isinstance(m, DrivenBy):
+                check_not_a_kernel(m.mapping, label=label)
             if not isinstance(m, WIRED_MODIFIERS):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
@@ -1216,6 +1211,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         e = as_extent(spec)
         rate_slot = label.removesuffix("_extent")
         for m in e.modifiers:
+            if isinstance(m, DrivenBy):
+                check_not_a_kernel(m.mapping, label=label)
             if isinstance(m, ByFamily):
                 raise ValueError(
                     f"{label} carries ByFamily, which an extent cannot mean: the size is drawn before "

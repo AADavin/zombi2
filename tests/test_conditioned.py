@@ -563,6 +563,40 @@ def test_between_is_rejected_in_a_rate_slot():
             initial_families=1, seed=1)
 
 
+def test_every_rate_and_extent_slot_rejects_a_between_kernel():
+    """The same category error, refused at every slot that takes a driven rate or extent.
+
+    Two of these used to reach the engine instead. `Between` deliberately implements no
+    ``multiplier`` — it answers for a (donor, recipient) *pair* — so a slot without the guard did not
+    quietly do the wrong thing, it died part-way through the run with
+    ``AttributeError: 'Between' object has no attribute 'multiplier'``: a traceback from inside the
+    engine naming neither the rate nor the mistake, after however long the run had taken to get
+    there. The nucleotide engine had no guard on either its rates or its extents, and the ordered
+    engine had one on its rates but not its extents."""
+    tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=6, seed=1).complete_tree
+    kernel = Between({("a", "a"): 3.0, ("b", "b"): 3.0})
+    driven = mod.DrivenBy("f.tsv", kernel)
+
+    slots = [
+        ("family rate", genomes.simulate_genomes_family, {"initial_families": 4, "loss": 0.2 * driven}),
+        ("ordered rate", genomes.simulate_genomes_ordered, {"initial_families": 6, "loss": 0.2 * driven}),
+        ("ordered extent", genomes.simulate_genomes_ordered,
+         {"initial_families": 6, "inversion": 0.4, "inversion_extent": 3 * driven}),
+        ("nucleotide rate", genomes.simulate_genomes_nucleotide,
+         {"root_length": 2000, "genes": 4, "loss": 0.2 * driven}),
+        ("nucleotide extent", genomes.simulate_genomes_nucleotide,
+         {"root_length": 2000, "genes": 4, "inversion": 0.3, "inversion_extent": 200 * driven}),
+    ]
+    for label, fn, kwargs in slots:
+        with pytest.raises(ValueError, match="donor-conditioned"):
+            fn(tree, seed=1, **kwargs)
+        # the message names the slot, so a user with several driven rates knows which one to change
+        try:
+            fn(tree, seed=1, **kwargs)
+        except ValueError as e:
+            assert "transfer_to" in str(e), label
+
+
 # --- the guard: what is not wired ------------------------------------------------------------------
 
 def test_transfer_to_rejects_a_rate():
