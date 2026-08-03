@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ..rates.mapping import Between
+from ..rates.mapping import check_not_a_kernel
 from ..rates.modifiers import ByFamily, DrivenBy, OnTime
 from ..rates.rate import as_rate
 from ..rates.scope import PerCopy, PerLineage, Scope
@@ -738,12 +738,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     "CREATED — when it is read there is no family yet to have drawn a factor for. "
                     "Put ByFamily on duplication, transfer or loss, or use family_speed= for a "
                     "family-wide tempo.")
-            if isinstance(m, DrivenBy) and isinstance(m.mapping, Between):
-                raise ValueError(
-                    f"{label} carries DrivenBy(…, Between(…)); a Between kernel is donor-conditioned — "
-                    f"it weights a recipient by the (donor, recipient) group pair — so it belongs only "
-                    f"in transfer_to (who RECEIVES), never in a rate (which has no donor to condition "
-                    f"on). Drive a rate with a Table (a plain dict).")
+            if isinstance(m, DrivenBy):
+                check_not_a_kernel(m.mapping, label=label)
             if isinstance(m, (OnTime, DrivenBy, ByFamily)):
                 continue
             raise ValueError(

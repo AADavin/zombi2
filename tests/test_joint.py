@@ -181,6 +181,36 @@ def test_mapping_naming_a_non_trait_state_is_refused():
                        n_extant=10, seed=1)
 
 
+def test_a_gene_content_mapping_that_can_never_fire_is_refused_too():
+    """The joint GENE-CONTENT path gets the same guard the joint trait path has.
+
+    It did not have one. A typo'd ``{"presnt": 3.0}`` left every lineage at the default factor, so
+    birth was never actually driven — the run was the plain birth-death model — and it completed in
+    silence, reporting a coupled run. The failure is the worst kind for a simulator: the output is a
+    well-formed tree and a well-formed genome, and only the association the run was made to measure
+    is missing.
+
+    Both gene-content drivers have an alphabet known before the race starts, so the check is
+    exhaustive. A named family is ``present`` or ``absent``; a count is a number, which a
+    ``{state: factor}`` table can never equal."""
+    from zombi2 import genomes as g
+
+    def run(mapping, **kw):
+        return joint.simulate_joint(
+            birth=1.0 * mod.DrivenBy(kw.pop("source"), mapping),
+            genome=g.family(duplication=0.1, loss=0.1, origination=0.2, initial_families=3,
+                            family_names=["toxin"]),
+            n_extant=15, seed=1)
+
+    with pytest.raises(ValueError, match="not among the driver's states"):
+        run({"presnt": 3.0, "absent": 1.0}, source="genomes:toxin")      # typo: presnt
+    with pytest.raises(ValueError, match="CONTINUOUS"):
+        run({"many": 3.0}, source="genomes:count")                       # a table on a numeric driver
+
+    result = run({"present": 3.0, "absent": 1.0}, source="genomes:toxin")  # the correct spelling runs
+    assert len(result.complete_tree.nodes) > 15
+
+
 # --- a trait that drives speciation and also jumps at the split ----------------------------------
 
 def test_joint_trait_can_jump_at_speciation_while_driving_it():
