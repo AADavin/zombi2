@@ -30,6 +30,13 @@ form. Beside it, a summary of what came out: `species_summary.json`, `genome_sum
 `sequences_summary.json`, `trait_summary.json` — written at **every** level, and at all three genome
 resolutions. `--flat` writes every file straight into the run directory instead.
 
+The report's per-level block names the **units of that level's rates** — what each is counted *per*,
+and that time is tree time, in whatever unit the tree is in. Only the slots a run used are listed.
+The unit belongs to the slot rather than to the value: a modifier is a dimensionless multiplier by
+construction (SPEC §5), so no rate expression can change it. Quantities that are not rates are absent
+— a probability, a fraction, a count, and the continuous trait's `rate`, which is a variance (σ²) and
+not a per-something rate.
+
 A directory of per-family files — `gene_trees/`, `alignments/`, `phylograms/` — is **emptied before a
 run fills it**, so it describes that run and nothing else. Writing a second run into a directory used
 to interleave the two, and the leftovers were indistinguishable from real output: a run with no

@@ -306,3 +306,42 @@ def test_the_run_report_says_where_to_get_the_software(tmp_path):
     assert "https://github.com/AADavin/zombi2" in report
     assert f"pip install zombi2=={__version__}" in report, (
         "the pip line must name the version that made the run, not a floating one")
+
+
+def test_the_run_report_names_the_units_of_its_rates(tmp_path):
+    """"duplication 0.15" says nothing about per what, and the CLI help that answers it is not in the
+    folder. The unit belongs to the slot, not the value — a modifier is a dimensionless multiplier by
+    construction — so it can be stated without qualification."""
+    run = tmp_path / "u"
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8",
+          "--seed", "1", "--quiet"])
+    main(["genomes", str(run), "--duplication", "0.2", "--transfer", "0.1", "--loss", "0.25",
+          "--origination", "0.5", "--seed", "1", "--quiet"])
+    report = (run / "run.zombi2").read_text(encoding="utf-8")
+
+    assert "per gene copy   duplication, transfer, loss" in report
+    assert "per lineage" in report and "origination" in report
+    assert "per unit of tree time (time⁻¹)" in report
+    # one group reads "per unit of tree time"; several read "and all per unit of tree time"
+    assert "and all per unit of tree time" in report
+
+
+def test_only_the_slots_a_run_used_are_listed(tmp_path):
+    """A run with no chromosome tier must not be told what a fission rate would be counted per."""
+    run = tmp_path / "v"
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8",
+          "--seed", "1", "--quiet"])
+    report = (run / "run.zombi2").read_text(encoding="utf-8")
+    assert "per lineage   birth, death" in report
+    assert "per chromosome" not in report and "per gene copy" not in report
+
+
+def test_a_continuous_trait_gets_no_units_line(tmp_path):
+    """Its `rate` is a variance (sigma squared), not a per-something rate, so it is left out rather
+    than described with a word that would be wrong."""
+    run = tmp_path / "w"
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8",
+          "--seed", "1", "--quiet"])
+    main(["traits", str(run), "--kind", "continuous", "--rate", "1.0", "--seed", "1", "--quiet"])
+    traits_block = (run / "run.zombi2").read_text(encoding="utf-8").split("TRAITS")[1]
+    assert "rate units" not in traits_block
