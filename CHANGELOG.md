@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-08-03
+
 ### Removed
 - **Two optional-dependency extras that installed things for code that is not here.**
   `pip install zombi2[reconparser]` pulled in pandas for `zombi2/tools/reconparser/`, which does not
