@@ -1143,8 +1143,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     if drivers:
         by_key: dict = {}
         for m in drivers:
-            by_key.setdefault(m.key, m.source)
-        trajs = {key: resolve_driver(src, species_tree) for key, src in by_key.items()}
+            by_key.setdefault(m.key, m)
+        trajs = {key: resolve_driver(m.source, species_tree, step=m.step) for key, m in by_key.items()}
         for m in drivers:
             label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
             check_mapping_fires(m.mapping, trajs[m.key].states(), source_label=label)

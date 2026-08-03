@@ -81,8 +81,8 @@ def _resolve_drivers(mods: list, tree: Tree) -> dict:
 
     by_key: dict = {}
     for m in mods:
-        by_key.setdefault(m.key, m.source)
-    trajs = {key: resolve_driver(src, tree) for key, src in by_key.items()}
+        by_key.setdefault(m.key, m)
+    trajs = {key: resolve_driver(m.source, tree, step=m.step) for key, m in by_key.items()}
     for m in mods:
         label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
         check_mapping_fires(m.mapping, trajs[m.key].states(), source_label=label)
