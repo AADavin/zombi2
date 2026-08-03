@@ -28,9 +28,11 @@ So each test here computes a quantity with a **closed form** and checks the run 
   transition and transversion probabilities for K80 — written out from the 1969 and 1980 papers, not
   taken from ``p_matrix()``, which is the code under test. HKY85 is checked on the two things that
   follow from building ``Q`` out of ``π`` correctly and are invisible otherwise: the composition
-  stays at ``π`` however deep the tree, and changes ``i→j`` and ``j→i`` balance, which is
-  reversibility itself. The **empirical protein** matrices get the same two checks, where the risk
-  is not algebra but a table of 190 published numbers transcribed wrongly;
+  stays at ``π`` at the tips of a deep tree, and changes ``i→j`` and ``j→i`` balance, which is
+  reversibility itself. A **protein** matrix gets the same two checks over twenty states, where a
+  20x20 eigendecomposition gives an indexing error more room to hide — but note what they cannot
+  reach: ``Q`` is assembled as ``S_ij * pi_j``, so any pi handed in is stationary by construction and
+  neither check can detect a mis-transcribed published table;
 - a **site profile** puts row *i* on site *i*. Over an equal-exchangeability model a profiled site is
   Felsenstein's F81, whose ``S·(1 − e^(−d/S))`` with ``S = 1 − Σπ²`` gives each block of a profile its
   own closed form — and the total over sites cannot catch a shuffled profile, because summing over
@@ -678,7 +680,8 @@ def test_hky85_holds_the_composition_it_was_given_and_stays_reversible():
     """Two consequences of building ``Q`` from ``π`` correctly, neither visible in a well-formed run.
 
     **The composition stays at π.** Every sequence starts drawn from π, so if π really is stationary
-    for ``Q`` the composition is π at every node however deep. Build ``Q`` with π on the wrong axis —
+    for ``Q`` the composition is still π at the tips of a deep tree (which is where it is measured
+    here — the extant alignments). Build ``Q`` with π on the wrong axis —
     a transpose, the classic — and π stops being its stationary distribution, so the sequences drift
     away from the frequencies the run was asked for while every output stays perfectly well formed.
 
@@ -723,25 +726,32 @@ def test_hky85_holds_the_composition_it_was_given_and_stays_reversible():
             f"(relative asymmetry {np.mean(sample):+.4f}) — the model is not reversible")
 
 
-def test_an_empirical_protein_matrix_keeps_the_frequencies_it_was_published_with():
-    """The twenty-state models, where the risk is transcription rather than algebra.
+def test_an_empirical_protein_matrix_is_simulated_at_its_own_stationary_distribution():
+    """A twenty-state model, checked end to end: the run stays at the model's own π and its changes
+    balance.
 
-    JTT, Dayhoff, WAG and LG take no free parameters: their exchangeabilities and frequencies were
-    estimated once from large alignments and are read off published tables of 190 numbers each. So
-    the failure mode is not a wrong formula, it is a wrong *number* — a row read in the wrong column
-    order, a matrix that is not quite symmetric, frequencies that no longer match the exchangeabilities
-    they were fitted with. None of that stops a run: the sequences still evolve, the alignments still
-    look like alignments.
+    **Be precise about what this can and cannot catch**, because the obvious reading is wrong.
+    `reversible()` assembles ``Q_ij = S_ij · π_j`` from a symmetric ``S``, so whatever π it is handed
+    is stationary for the ``Q`` it builds, and detailed balance holds by construction. Neither half
+    of this test can therefore detect a **transcription** error in the published table: swap two
+    entries of ``_LG_PI`` and the model simply believes the swapped numbers, which are stationary for
+    the matrix built from them, and everything here still passes (verified). Checking 190 published
+    numbers needs an independent copy of them, which this suite does not have.
 
-    Two consequences of the table being right catch it. The composition stays at the published π —
-    which is the statement that π really is stationary for the ``Q`` that was assembled from it — and
-    the ``i→j`` / ``j→i`` change counts balance, which is reversibility. With 190 pairs, the
-    asymmetry is pooled into one χ² per degree of freedom rather than tested pair by pair, and pairs
-    too rare to have a χ² distribution are dropped rather than trusted.
+    What it does check is the **engine**, over twenty states rather than four: that a founding
+    sequence is drawn from the model's frequencies rather than uniformly; that ``exp(Qt)`` — computed
+    by eigendecomposing ``diag(√π)·Q·diag(1/√π)`` — preserves that distribution instead of drifting
+    away from it down a deep tree; and that the simulation applies the transition matrix in the right
+    orientation, since applying ``P`` transposed would break the ``i→j`` / ``j→i`` balance while
+    leaving every sequence well formed. On the four-state models the same properties ride on
+    `test_hky85_holds_the_composition_it_was_given_and_stays_reversible`; here they are exercised on
+    a 20×20 eigendecomposition, where an indexing error has far more room to hide.
 
-    The composition is a maximum over 20 residues rather than a single number, so it is a wider net
-    than the ``|z| < 4`` on any one of them suggests: under a correct matrix the largest of 20
-    deviations sits near 2.5 standard errors by construction."""
+    With 190 pairs the asymmetry is pooled into one χ² per degree of freedom rather than tested pair
+    by pair, and pairs too rare to have a χ² distribution are dropped rather than trusted. The
+    composition is a maximum over 20 residues, so it is a wider net than the ``|z| < 4`` on any one
+    of them suggests: under a correct matrix the largest of 20 deviations sits near 2.5 standard
+    errors by construction."""
     model, reps = lg(), 40
     table = _coder(model.alphabet)
     composition, asymmetry = [], []
