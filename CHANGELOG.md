@@ -55,7 +55,23 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   nowhere in the migration guide and blank in the CLI help. Drawn with Phylustrator's new
   `genomes.grid`. (#316)
 
+- **`zombi2 tools treedist --restrict` scores two trees on the taxa they share.** Differing leaf
+  sets were an error, which refused the commonest comparison there is — a family's gene tree against
+  the species tree, since only a universal single-copy family occupies every genome. A lecturer
+  building a practical found not one of 22 families qualified, and an applied reviewer had none of
+  his 21 single-copy families scored. `markers.tsv` already reported RF that way internally, so the
+  capability existed and was simply not offered here. Opt-in, because silently scoring a different
+  question than the one asked is worse than refusing; the refusal now names the flag. (#316)
+- **Images in the README resolve on PyPI.** They were repository-relative paths, and the README is
+  the package's `long_description`, so the project page — a main discovery surface — showed six
+  broken images. (#316)
+
 ### Changed
+- **`tree.prune` takes `tips=` — a named set of leaves, whatever their fate**, beside the existing
+  fate-based `keep="extant"`. The same operation on a different question: "the tree of the survivors"
+  against "the tree of these taxa". `--restrict` prunes rather than intersecting clade sets, so
+  branch lengths merge across the suppressed nodes and a length-aware metric still means something.
+  (#316)
 - **`zombi2[gallery]` asks for `phylustrator>=0.1.4`, not `==0.1.0`.** An exact pin on a companion
   library downgrades anyone who already has a newer one and makes any environment wanting one
   unresolvable. (#316)
