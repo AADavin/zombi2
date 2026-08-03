@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-08-03
+
 ### Changed
 - **BREAKING: each level now draws from its own random stream, so one seed on two levels no longer
   means the same numbers twice.** Every level opened `np.random.default_rng(seed)`, so two levels
