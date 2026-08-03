@@ -4,7 +4,7 @@
 
 **[🌐 Website](https://aadavin.github.io/zombi2/)** · [Gallery](https://aadavin.github.io/zombi2/gallery.html) · [Documentation](https://aadavin.github.io/zombi2/docs/) · [Manual (pdf)](https://aadavin.github.io/zombi2/zombi2-manual.pdf)
 
-[![CI](https://github.com/AADavin/zombi2/actions/workflows/ci.yml/badge.svg)](https://github.com/AADavin/zombi2/actions/workflows/ci.yml)
+[![CI](https://github.com/AADavin/zombi2/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/AADavin/zombi2/actions/workflows/ci.yml?query=branch%3Amain)
 [![PyPI](https://img.shields.io/pypi/v/zombi2)](https://pypi.org/project/zombi2/)
 [![Docs](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://aadavin.github.io/zombi2/docs/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)

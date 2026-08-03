@@ -22,6 +22,7 @@ of the other everywhere else.
 
 from __future__ import annotations
 
+import collections
 from dataclasses import dataclass
 
 # the node spelling belongs to the tree, not to this level — re-exported here because every
@@ -192,6 +193,43 @@ def _branches(events: list[GeneEdge]) -> dict[int, int]:
     (a speciation's parent, most of all) names the daughter branches, not the branch the parent
     lived on."""
     return {e.copy: e.lineage for e in events}
+
+
+def event_counts(edges: list[GeneEdge], origin_time: float) -> dict[str, int]:
+    """``{kind: how many events}`` — one number per *event*, which is what a row of
+    ``genome_events.tsv`` is, and what every resolution's ``genome_summary.json`` reports.
+
+    Counted from `GeneEdge`, which is one per gene-tree **edge**: a duplication, a transfer and a
+    speciation each end one gene and start two, so counting edges inflates them exactly 2×. A gene
+    ends at exactly one event, so distinct parents *are* the events. Origination and loss begin or end
+    a single lineage and already have one edge apiece.
+
+    ``loss`` therefore counts every gene that died, which under ``replacement`` is **more than the
+    log's ``loss`` rows**: a copy displaced by an arriving transfer has no row of its own — it is the
+    second parent of that ``transfer_replacing`` row, because its death and the transfer are one
+    event. That gap is exactly what the migration guide warns a returning ZOMBI v1 user about, and
+    this is the corrected number it tells them to trust.
+
+    ``origination`` is split from ``initial``: the starting genome is logged as origination at the
+    root's own start time, so a bare count is de-novo arrivals plus ``initial_families`` — a number
+    nobody asked for. ``origin_time`` is the root's ``birth_time``, the cut between the two.
+
+    One function because all three resolutions must agree here by construction. Only the family
+    resolution used to report any of it, which left the two resolutions with the *larger* undercount
+    (64% at ordered, measured) with no corrected figure to consult."""
+    per_kind: dict[str, set] = collections.defaultdict(set)
+    singles: collections.Counter = collections.Counter()
+    for e in edges:
+        if e.parent is None:                  # origination and loss: one row apiece already
+            singles[e.kind] += 1
+        else:
+            per_kind[e.kind].add(e.parent)    # two rows, one parent, one event
+    counts = {k: len(v) for k, v in sorted(per_kind.items())}
+    counts.update(sorted(singles.items()))
+    initial = sum(1 for e in edges if e.kind == "origination" and e.time <= origin_time)
+    return {"initial": initial,
+            "origination": counts.get("origination", 0) - initial,
+            **{k: counts.get(k, 0) for k in ("duplication", "transfer", "loss", "speciation")}}
 
 
 def events_from_edges(edges: list[GeneEdge]) -> list[Event]:

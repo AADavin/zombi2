@@ -9,6 +9,52 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+- **A run's output directory now describes that run and nothing else.** The per-unit directories —
+  `gene_trees/`, `alignments/`, `phylograms/`, `genomes/`, `gff/`, `bed/` — hold one file per family,
+  block or node, numbered by the run that made them, so a second run written into the same place
+  interleaved two sets and left the leftovers indistinguishable from real output. A genome run that
+  produced **zero** surviving families — announced clearly on the terminal — left the previous run's
+  gene trees in place, and `zombi2 tools treedist` read one and printed `rf 0`, byte-identical to the
+  earlier run's answer. They are emptied once, before a write fills them. `--flat` is untouched: there
+  the directory is shared with every other output and every other level. (#316)
+- **`--params` works on Python 3.10 again: `tomli` is now a declared dependency.** The package
+  declares `requires-python = ">=3.10"` and CI tests 3.10, but the CLI's TOML reader falls back to
+  `tomli` there and it was never in `dependencies` — supplied transitively by `pytest` and `mypy`,
+  which both require it below 3.11. So the dev environment and CI had it and a plain
+  `pip install zombi2` did not, and `--params` died with a raw `ModuleNotFoundError`. No test run
+  inside this project could have found that; `tests/test_packaging.py` now compares the code's imports
+  against the declared metadata instead. (#316)
+- **`genome_summary.json` is written at the ordered and nucleotide resolutions too**, not only at
+  family. It carries the corrected event counts — the ones that include a replacing transfer's
+  displaced copy under `loss`, which the raw event log has no row for — and
+  `docs/from-zombi1.md` names that undercount as the change most likely to hand a returning ZOMBI v1
+  user a plausible wrong number, then points them at this file. It was missing at the two resolutions
+  where the gap is *larger*: 64% at ordered, measured. All three resolutions now count events through
+  one shared function, so they cannot drift. (#316)
+- **`sequences_summary.json` no longer counts ancestral sequences it did not write.** They are
+  reconstructed in memory either way but only land on disk when asked for, so a default run reported
+  a count beside a directory that had none — and whoever inherits the folder cannot tell "never
+  written" from "lost in transfer". `SequencesResult.summary()` is unchanged: it describes the run,
+  where the written file describes the directory it sits in. (#316)
+- **A run given no `--seed` now says which seed it drew**, on stderr, surviving `--quiet`. It was
+  always recorded in the run report, but the report is a file the user has not opened: on screen an
+  unseeded run looked exactly like a seeded one, and a class following a worksheet got 17, 19 and 15
+  families where the sheet said 20 with no clue beyond the wrong answers. (#316)
+- **The four gene-family rate defaults are stated in `--help`.** A pasted command that lost its tail
+  still ran — at `--duplication 0.2 --transfer 0.1 --loss 0.25 --origination 0.5`, none of which the
+  help named, though `--initial-families` and `--max-family-size` named theirs. The wording carries
+  the condition too: those apply only to a run given no rate at all. (#316)
+
+### Changed
+- **A release is now gated on CI, and the README badge tells the truth.** 0.28.0 reached PyPI 43
+  seconds after its CI run started and 19 minutes before it finished, so the artifact was published
+  before a single test job had reported. `release.yml` now calls `ci.yml` as a reusable workflow and
+  no publish job can start until the whole matrix is green. Separately, `cancel-in-progress` no longer
+  cancels runs on `main`: a release push cancelled the run testing the commit before it, and GitHub
+  renders cancelled as *failing*, so the badge told every visitor the build was broken while all six
+  OS/Python jobs had passed. (#316)
+
 ## [0.28.0] - 2026-08-03
 
 ### Changed

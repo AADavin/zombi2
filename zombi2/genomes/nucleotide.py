@@ -109,9 +109,11 @@ from ._transfer import (Distance, mean_root_to_tip, prepare_transfer_to, recipie
                         resolve_transfer_to)
 from .chromosomes import (REARRANGEMENT_COLS, ChromosomeEvent, chromosome_events_tsv,
                           chromosome_from_label, chromosome_label, rearrangement_events_tsv)
-from .._runtime.outputs import grouped_dir
+from .._runtime.outputs import fresh_dirs, grouped_dir
+from .._runtime.summary import _stats, write_summary
 from .._runtime.progress import progress_bar
-from .events import (GeneEdge, _copy_cell, _name, events_tsv, gene_from_label, gene_label,
+from .events import (GeneEdge, _copy_cell, _name, event_counts, events_tsv, gene_from_label,
+                     gene_label,
                      node_from_label, node_label)
 from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
 from .gff import read_fasta, read_gff
@@ -920,11 +922,12 @@ class NucleotideGenomesResult:
     #: cannot drift: they did, and `initial_sequence` and `species_tree` were writable from
     #: Python and unnameable on the command line.
     OUTPUTS = ("events", "genes", "blocks", "initial_genome", "chromosome_events",
-               "gene_trees", "species_tree", "initial_sequence", "gff", "bed")
+               "gene_trees", "species_tree", "initial_sequence", "gff", "bed", "summary")
 
     def write(self, directory, outputs=("events", "genes", "blocks", "initial_genome",
                                         "initial_sequence", "gene_trees", "chromosome_events",
-                                        "gff", "bed", "species_tree"), *, flat: bool = False) -> None:
+                                        "gff", "bed", "species_tree", "summary"), *,
+              flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → **three** tables, because a nucleotide run records three different things.
@@ -975,6 +978,9 @@ class NucleotideGenomesResult:
             raise ValueError(f"unknown write outputs {unknown}; choose from {list(self.OUTPUTS)}")
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
+        # a run's directory describes that run: clear the per-unit directories this write is
+        # about to fill, so nothing from a previous run survives inside them (see fresh_dirs)
+        fresh_dirs(d, ("gene_trees", "gff", "bed"), flat)
         names = self.complete_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
         if "events" in outputs:
             # Three tables, because they describe three things. `genome_events.tsv` is the genealogy
@@ -1013,6 +1019,39 @@ class NucleotideGenomesResult:
                 into = grouped_dir(d, token, flat)
                 for label, genome in self._every_genome(names):
                     (into / f"genome_{label}.{ext}").write_text(render(label, genome), encoding="utf-8")
+        if "summary" in outputs:
+            write_summary(d / "genome_summary.json", self.summary())
+
+    def summary(self) -> dict:
+        """What this run produced, as a plain dict — the payload of ``genome_summary.json``.
+
+        Same reason as the other two resolutions: the raw ``loss`` rows undercount real losses when a
+        transfer replaces a copy, and this is the corrected count. `event_counts` is shared with them,
+        reading `genealogy` — the `GeneEdge` translation every resolution writes — so the three
+        agree by construction rather than by three separate implementations agreeing by luck.
+
+        The unit here is the base pair, so there are no phyletic profiles and no per-family copy
+        counts to report; what this resolution has instead is how much sequence there is and how it is
+        divided."""
+        t0 = self.complete_tree.nodes[self.complete_tree.root].birth_time
+        extant = [n.id for n in self.complete_tree.extant_leaves()]
+        lengths = [self.genomes[i].length for i in extant if i in self.genomes]
+        chrom_per_genome = [len(self.genomes[i].chromosomes) for i in extant if i in self.genomes]
+        rearrangements = collections.Counter(type(r).__name__.lower() for r in self.rearrangements)
+        chromosome = collections.Counter(e.kind for e in self.chromosome_events)
+        return {
+            "level": "genomes",
+            "seed": self.seed,
+            "resolution": "nucleotide",
+            "events": event_counts(self.genealogy, t0),
+            "extant_genomes": len(extant),
+            "declared_genes": len(self.gene_spans),
+            "base_pairs_per_genome": _stats(lengths),
+            "chromosomes_per_genome": _stats(chrom_per_genome),
+            "rearrangements": {k: rearrangements.get(k, 0)
+                               for k in ("inversion", "transposition", "translocation")},
+            "chromosome_events": dict(sorted(chromosome.items())),
+        }
 
     def _every_genome(self, names=None):
         """``(label, genome)`` for every genome the run holds — each node, and the initial one. The

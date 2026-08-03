@@ -311,6 +311,13 @@ def resolve_seed(args) -> None:
     is only that the draw is written down."""
     if getattr(args, "seed", None) is None:
         args.seed = draw_seed()      # a 32-bit value, so the log's number is one a reader can retype
+        # …and say so. The seed was always written into the report, but the report is a file nobody
+        # has opened yet: on screen an unseeded run looked exactly like a seeded one. A class of
+        # students following a worksheet got 17, 19 and 15 families where the sheet said 20, and their
+        # only clue was that the answers were wrong. One line on stderr, surviving --quiet for the
+        # same reason `warn` does — a batch job's log is exactly where this number needs to end up.
+        print(f"zombi2: no --seed given; drew {args.seed} (recorded in the run report)",
+              file=sys.stderr)
 
 
 def warn(message: str) -> None:

@@ -5,10 +5,18 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Callable, so `release.yml` can require the whole matrix before it publishes anything rather
+  # than repeating a thinner copy of it. One definition of "the tests pass".
+  workflow_call:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel superseded runs on a branch — but never on main. A release push cancelled the run that was
+  # still testing the commit before it, and GitHub renders a cancelled run as *failing*: the README
+  # badge told every visitor the build was broken when all six OS/Python jobs had passed. A cancelled
+  # run is also not an answer to "did this commit pass?", which is the question the badge exists to
+  # answer, and the question `release.yml` now gates on.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   test:
