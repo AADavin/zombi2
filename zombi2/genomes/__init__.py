@@ -23,7 +23,7 @@ from .gene_trees import GeneNode, GeneTree
 from .profiles import Profiles
 from .family import GeneCopy, FamilyGenomesResult, FamilyGenome, simulate_genomes_family, family
 # re-exported on the package path for the CLI / tests, but kept out of __all__ (not public API):
-from .family import WIRED_MODIFIERS, resolve_max_family_size  # noqa: F401
+from .family import IMPLEMENTED_MODIFIERS, resolve_max_family_size  # noqa: F401
 from .chromosomes import ChromosomeEvent
 from .ordered import (
     Chromosome,

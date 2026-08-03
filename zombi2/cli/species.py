@@ -10,7 +10,7 @@ import argparse
 import os
 import time
 
-from zombi2.species import WIRED_MODIFIERS, _WRITE_OUTPUTS, simulate_species_tree
+from zombi2.species import IMPLEMENTED_MODIFIERS, _WRITE_OUTPUTS, simulate_species_tree
 from zombi2._runtime.report import write_run_report
 from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_params_arg,
                                   _add_run_arg, _rate, _rates_help, _write_params_log,
@@ -20,7 +20,7 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
 
 #: the RATES block for ``zombi2 species -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
-    WIRED_MODIFIERS, "--birth", scopes="Global(1.0)",
+    IMPLEMENTED_MODIFIERS, "--birth", scopes="Global(1.0)",
     note="Global(base) is one budget for the tree (linear growth); a bare number is per lineage.")
 
 

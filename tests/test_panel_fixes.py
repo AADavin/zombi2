@@ -25,6 +25,9 @@ from zombi2.tree import read_newick
 
 PY = sys.executable
 
+#: one small tree, shared by the engine-coverage cases below
+_TREE = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)
+
 
 # --- 1. one seed, one stream per level ------------------------------------------------------------
 
@@ -204,20 +207,44 @@ def test_a_zombi_tree_is_unaffected():
 
 # --- 8. an unguarded parallel script says what is wrong -------------------------------------------
 
-def test_an_unguarded_parallel_script_names_the_main_guard(tmp_path):
-    """A worker re-imports the caller's script and runs its top level again. Left alone that is worse
-    than a crash: every child silently repeated the whole simulation and the run "succeeded", having
-    done N× the work. The parent used to see only ``BrokenProcessPool``."""
-    script = tmp_path / "unguarded.py"
-    script.write_text(textwrap.dedent("""
+def _unguarded_parallel_script(tmp_path, start_method: str) -> subprocess.CompletedProcess:
+    """A `.py` whose simulate call sits at the top level, run under a chosen start method."""
+    script = tmp_path / f"unguarded_{start_method}.py"
+    script.write_text(textwrap.dedent(f"""
+        import multiprocessing
+        multiprocessing.set_start_method({start_method!r}, force=True)
         from zombi2 import species, genomes
         sp = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=2)
         genomes.simulate_genomes_family(sp, duplication=0.3, loss=0.3, origination=0.5,
                                         initial_families=20, seed=4, parallel=2)
+        print("finished")
     """), encoding="utf-8")
-    done = subprocess.run([PY, str(script)], capture_output=True, text=True, timeout=300)
+    return subprocess.run([PY, str(script)], capture_output=True, text=True, timeout=300)
+
+
+@pytest.mark.skipif("spawn" not in __import__("multiprocessing").get_all_start_methods(),
+                    reason="no spawn start method on this platform")
+def test_an_unguarded_parallel_script_names_the_main_guard(tmp_path):
+    """Under ``spawn`` a worker re-imports the caller's script and runs its top level again. Left
+    alone that is worse than a crash: every child silently repeated the whole simulation and the run
+    "succeeded", having done N× the work and printed N copies of its output. The parent used to see
+    only ``BrokenProcessPool``, which names nothing."""
+    done = _unguarded_parallel_script(tmp_path, "spawn")
     assert done.returncode != 0
-    assert '__main__' in done.stderr
+    assert "__main__" in done.stderr
+    assert done.stdout.count("finished") == 0, "no worker may have re-run the whole program"
+
+
+@pytest.mark.skipif("fork" not in __import__("multiprocessing").get_all_start_methods(),
+                    reason="no fork start method on this platform")
+def test_the_guard_is_not_demanded_where_fork_makes_it_pointless(tmp_path):
+    """The other half, and the reason the check is on the start method rather than on the script:
+    ``fork`` (the Linux default) inherits the parent instead of re-importing it, so there is nothing
+    to guard against and an unguarded script is perfectly correct. Refusing it there would be us
+    inventing a requirement the platform does not have."""
+    done = _unguarded_parallel_script(tmp_path, "fork")
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.count("finished") == 1
 
 
 # --- 9. a written run reads back ------------------------------------------------------------------
@@ -266,7 +293,7 @@ class OnLogTime(Modifier):
     """A third-party modifier: it declares the engine it is wired for, and takes ``**_`` because the
     engine supplies whatever context it happens to have."""
 
-    wired_for = ("species",)
+    implemented_for = ("species",)
 
     def factor(self, *, time: float = 0.0, **_) -> float:
         return 1.0 / (1.0 + time)
@@ -294,6 +321,53 @@ def test_the_gate_still_holds_for_everything_undeclared():
     tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
     with pytest.raises(ValueError, match="does not support"):   # wired for species, not for traits
         traits.simulate_continuous(tree, rate=1.0 * OnLogTime(), seed=1)
+
+
+@pytest.mark.parametrize("engine, run", [
+    ("species", lambda m: species.simulate_species_tree(birth=1.0 * m, death=0.2, n_extant=8, seed=1)),
+    ("genomes.family", lambda m: genomes.simulate_genomes_family(
+        _TREE, duplication=0.2 * m, loss=0.2, initial_families=4, seed=1)),
+    ("genomes.ordered", lambda m: genomes.simulate_genomes_ordered(
+        _TREE, duplication=0.2 * m, loss=0.2, initial_families=4, chromosomes=1, seed=1)),
+    ("genomes.nucleotide", lambda m: genomes.simulate_genomes_nucleotide(
+        _TREE, loss=0.5 * m, root_length=400, seed=1)),
+    ("traits.continuous", lambda m: traits.simulate_continuous(_TREE, rate=1.0 * m, seed=1)),
+    ("traits.discrete", lambda m: traits.simulate_discrete(
+        _TREE, states=["a", "b"], switch=0.5 * m, seed=1)),
+])
+def test_every_advertised_engine_actually_calls_a_third_party_modifier(engine, run):
+    """The gate opening is only half of it: the engine has to *call* the thing it let through.
+
+    `traits.discrete` did not. It chose between a constant generator and a rebuilt-per-stretch one by
+    asking "are there drivers?", so a modifier that was not a `DrivenBy` fell between the two and
+    crashed the driver resolver looking for a `.key`. This asserts the whole advertised list, because
+    the failure mode is per engine and invisible from the outside."""
+    calls: list[tuple[str, ...]] = []
+
+    class Spy(Modifier):
+        implemented_for = (engine,)
+
+        def factor(self, **context) -> float:
+            calls.append(tuple(sorted(context)))
+            return 1.0
+
+    run(Spy())
+    assert calls, f"the {engine} engine accepted the modifier and never called factor()"
+
+
+def test_the_sequence_level_refuses_rather_than_ignoring():
+    """The one engine that does not offer the hatch, and must say so. It reads its modifiers itself —
+    the clock is drawn per lineage before any site evolves — so one it did not ship could be accepted
+    and then never called, which is the silence the whole mechanism exists to prevent."""
+    class Spy(Modifier):
+        implemented_for = ("sequences",)
+
+        def factor(self, **_) -> float:
+            return 1.0
+
+    g = genomes.simulate_genomes_family(_TREE, duplication=0.2, loss=0.2, initial_families=4, seed=1)
+    with pytest.raises(ValueError, match="does not read"):
+        sequences.simulate_sequences(g, model=jc69(), length=20, substitution=1.0 * Spy(), seed=1)
 
 
 def test_the_built_in_modifiers_are_unaffected():

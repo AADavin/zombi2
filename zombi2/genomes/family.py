@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import resolve_seed, stream
-from ..rates.modifiers import ByFamily, DrivenBy, OnTime, is_wired
+from ..rates.modifiers import ByFamily, DrivenBy, OnTime, is_implemented
 from ..rates.rate import as_rate
 from ..rates.scope import PerCopy, PerLineage, Scope
 from ..tree import Tree, as_tree
@@ -54,7 +54,7 @@ if TYPE_CHECKING:  # a streamed run returns a StreamedRun (built by the per-fami
 #: scope this slice, and ``DrivenBy`` is implemented for the single-lineage events; the ordered engine
 #: takes ``OnTime`` and ``ByFamily``, the nucleotide one ``OnTime`` and ``DrivenBy``. The gates say so
 #: per rate.
-WIRED_MODIFIERS = (OnTime, DrivenBy, ByFamily)
+IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, ByFamily)
 
 
 @dataclass(frozen=True)
@@ -756,7 +756,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     "family-wide tempo.")
             if isinstance(m, DrivenBy):
                 check_not_a_kernel(m.mapping, label=label)
-            if is_wired(m, WIRED_MODIFIERS, "genomes.family"):
+            if is_implemented(m, IMPLEMENTED_MODIFIERS, "genomes.family"):
                 continue
             raise ValueError(
                 f"{label} carries {type(m).__name__}, which the family genome engine does not "

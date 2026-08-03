@@ -60,7 +60,7 @@ from ..genomes.gene_trees import GeneNode, GeneTree
 from ..rates.driver import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
 from ..rng import resolve_seed, seed_sequence, stream
 from ..rates.mapping import Between
-from ..rates.modifiers import ByLineage, DrivenBy, FromParent, Modifier, is_wired
+from ..rates.modifiers import ByLineage, DrivenBy, FromParent, Modifier
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerSite
 from ..tree import Node, Tree, prune
@@ -84,7 +84,7 @@ _COMPLEMENT = str.maketrans("ACGT", "TGCA")
 #: clock, ``FromParent`` the autocorrelated clock (the rate drifts parent→child down the species
 #: tree) — and ``DrivenBy``, the conditioned driver a trait grown first supplies (SPEC §3:
 #: Traits→Sequences can be conditioned). A clock and a driver compose: modifiers multiply.
-WIRED_MODIFIERS = (ByLineage, FromParent, DrivenBy)
+IMPLEMENTED_MODIFIERS = (ByLineage, FromParent, DrivenBy)
 
 
 @dataclass
@@ -1013,7 +1013,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             "partitions; if you want per-site frequencies, that is profiles. Not both.")
     if profiles is not None and parallel:
         raise ValueError(
-            "profiles are not wired to the parallel engine yet: it ships one shared partition set to "
+            "profiles are not implemented for the parallel engine yet: it ships one shared partition set to "
             "every worker, and a profile is per family. Run this level serially (drop `parallel`), or "
             "drop `profiles`.")
     site_profiles = {} if profiles is None else _resolve_profiles(profiles, model, length)
@@ -1099,14 +1099,23 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     # what their state makes of it — and the gate below rejects only what the level cannot honour.
     clocks = [m for m in rate.modifiers if isinstance(m, (ByLineage, FromParent))]
     drivers = driven_mods(rate)
-    unwired = sorted({type(m).__name__ for m in rate.modifiers
-                      if not is_wired(m, WIRED_MODIFIERS, "sequences")})
-    if unwired:
+    # This level is the one that does NOT take a third-party modifier, so the gate is a plain
+    # isinstance rather than `is_implemented`. Every other engine evaluates its rate through
+    # `Rate.effective`, which multiplies in whatever `factor()` returns; this one reads its two kinds
+    # of modifier itself — the clock is *drawn per lineage* before any site evolves, not evaluated at
+    # an event — so a modifier declaring itself implemented here would be accepted and then never
+    # called. Silently returning the undriven answer is precisely what SPEC §5 forbids, so it is
+    # refused by name instead, and `Modifier.implemented_for` documents the omission.
+    unimplemented = sorted({type(m).__name__ for m in rate.modifiers
+                            if not isinstance(m, IMPLEMENTED_MODIFIERS)})
+    if unimplemented:
         raise ValueError(
-            f"substitution carries {', '.join(unwired)}, which the sequence engine does not read. It "
+            f"substitution carries {', '.join(unimplemented)}, which the sequence engine does not read. It "
             "takes a lineage clock — one ByLineage (uncorrelated) or one FromParent (autocorrelated) "
             "— and any number of DrivenBy drivers, which multiply. The Markov clock and the ByFamily "
-            "per-family speed are not implemented here. Rate variation across sites is not a modifier "
+            "per-family speed are not implemented here, and neither is a modifier of your own: this "
+            "level reads its modifiers directly rather than through the rate, so one it did not ship "
+            "could not be honoured. Rate variation across sites is not a modifier "
             "at all — it belongs to the model: model=hky85(...).across_sites(gamma_shape=0.5), or "
             "--gamma-shape."
         )

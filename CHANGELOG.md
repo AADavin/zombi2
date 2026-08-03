@@ -37,11 +37,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   has always reopened a run with `--from`; from Python the same handoff was a dead end, which mattered
   most for `stream_to=` — the feature whose whole point is that the run does not fit in memory, and
   whose handle could then not be passed to the next level. (#315)
-- **A modifier of your own can declare the engines it is wired for.** `Modifier` is public with a
-  clean `factor(**context)` contract, and a subclass composed into a `Rate` correctly — and was then
-  refused by every level, with no registry and no entry point, so extending the advertised grammar
-  meant forking the package. Setting `wired_for = ("species",)` on the subclass opens the gate for
-  that engine and no other; everything undeclared is still refused by name. (#315)
+- **A modifier of your own can declare the engines it was implemented for.** `Modifier` is public
+  with a clean `factor(**context)` contract, and a subclass composed into a `Rate` correctly — and
+  was then refused by every level, with no registry and no entry point, so extending the advertised
+  grammar meant forking the package. Setting `implemented_for = ("species",)` on the subclass opens
+  the gate for that engine and no other; everything undeclared is still refused by name. Seven
+  engines take one; `sequences` does not and now says why, since it reads its modifiers itself rather
+  than through the rate and could not honour one. Chapter 2 gains three worked examples — a rate
+  following a measured curve, density dependence in the gene pool, and rearrangement scaling with the
+  karyotype — each executed by the manual's doc tests. (#315)
 
 ### Fixed
 - **`seed=None` from Python now records the seed it drew**, as the CLI already did.
@@ -71,6 +75,18 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   they have no script to re-import, and still degrade to single-process. (#315)
 - **A run reopened without its `genomes.tsv` says so** instead of raising `KeyError` from `.profiles`,
   and its `repr` no longer claims 0 nodes. (#315)
+- **A discrete trait's `switch` rate honours any modifier it accepts, not only `DrivenBy`.** The
+  engine chose between a constant generator and one rebuilt per stretch by asking "are there
+  drivers?", which conflated two separate questions — *any* modifier makes the generator a function
+  of the context, while only a `DrivenBy` names a source level to resolve. A non-driver modifier fell
+  between the two and crashed the resolver. (#315)
+
+### Changed
+- **"wired" is gone from the vocabulary: `WIRED_MODIFIERS` is now `IMPLEMENTED_MODIFIERS`**, with
+  `WIRED_SCOPES` and `WIRED_EXTENT_MODIFIERS` renamed to match. One word per concept — the levels
+  declare what they *implement*, and the CLI's `RATES` help is still built from that declaration, so
+  it cannot advertise what an engine refuses. These names are not in any `__all__`; nothing public
+  changes. (#315)
 
 ## [0.27.0] - 2026-08-03
 

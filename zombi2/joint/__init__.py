@@ -33,7 +33,7 @@ from ..genomes import GeneEdge, GeneCopy, FamilyGenomesResult, FamilyGenome
 from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
 from ..rates.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import ByFamily, ByLineage, DrivenBy, FromParent, OnTime, OnTotalDiversity, is_wired
+from ..rates.modifiers import ByFamily, ByLineage, DrivenBy, FromParent, OnTime, OnTotalDiversity, is_implemented
 
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
@@ -46,7 +46,7 @@ from ..traits import Change, DiscreteTrait, TraitsResult
 #: and ``diversity`` into every rate and steps its Gillespie at each ``next_change``, so the two
 #: covariates are as real here as at the species level, and ``DrivenBy`` is what makes the run joint
 #: at all. What is missing is missing on purpose — see the rejections in `simulate_joint()`.
-WIRED_MODIFIERS = (OnTime, OnTotalDiversity, DrivenBy)
+IMPLEMENTED_MODIFIERS = (OnTime, OnTotalDiversity, DrivenBy)
 
 _MAX_ATTEMPTS = 1000  # survival-conditioned retries before giving up on n_extant
 _GENOME_COUNT = "genomes:count"  # the live gene-content driver source for a count → Curve/Scalar
@@ -471,7 +471,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                     f"variation and a driven rate are not available together in a joint run — use "
                     f"one or the other. On its own, ByLineage works at the species level."
                 )
-            if not is_wired(m, WIRED_MODIFIERS, "joint"):
+            if not is_implemented(m, IMPLEMENTED_MODIFIERS, "joint"):
                 # the backstop: anything this engine does not thread would come back as its default
                 # factor of 1.0, which is a run quietly not the model that was asked for (SPEC §5).
                 # Declared rather than enumerated here, so a modifier added later cannot slip through.
