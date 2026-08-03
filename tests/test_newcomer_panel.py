@@ -289,3 +289,20 @@ def test_prune_to_a_named_tip_set_keeps_a_real_dated_tree():
         assert sub.nodes[i].end_time == pytest.approx(complete.nodes[i].end_time)
     # and the extant-tree behaviour is untouched
     assert {n.id for n in prune(complete).leaves()} == {n.id for n in complete.extant_leaves()}
+
+
+# --- 7. a run directory says where the software came from -----------------------------------------
+
+def test_the_run_report_says_where_to_get_the_software(tmp_path):
+    """A folder handed on outlives the environment that made it. A research assistant reconstructed
+    an entire run from this file and still could not say where ZOMBI2 lived or what to install —
+    the version string alone is a head start, not an answer."""
+    from zombi2 import __version__
+
+    run = tmp_path / "r"
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8",
+          "--seed", "1", "--quiet"])
+    report = (run / "run.zombi2").read_text(encoding="utf-8")
+    assert "https://github.com/AADavin/zombi2" in report
+    assert f"pip install zombi2=={__version__}" in report, (
+        "the pip line must name the version that made the run, not a floating one")
