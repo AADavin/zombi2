@@ -110,9 +110,10 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
         help="distance between two Newick trees (RF, branch-score)",
         description=(
             "Distance between two rooted Newick trees, printed as '<metric><TAB><value>' to stdout "
-            "(or -o). Tips are matched by label, and the two trees must carry the same ones."
+            "(or -o). Tips are matched by label; the two trees must carry the same ones, or "
+            "--restrict scores them on the taxa they share."
         ),
-        usage="zombi2 tools treedist TREE_A TREE_B [--metric METRIC] [-o FILE]",
+        usage="zombi2 tools treedist TREE_A TREE_B [--metric METRIC] [--restrict] [-o FILE]",
         formatter_class=ZombiHelpFormatter,
         epilog=_examples(
             "  # Robinson–Foulds between a true and an inferred tree",
@@ -120,6 +121,10 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
             "",
             "  # every metric at once",
             "  zombi2 tools treedist true.nwk inferred.nwk --metric all",
+            "",
+            "  # a family's gene tree against the species tree, on the genomes it occupies",
+            "  zombi2 tools treedist out/species/species_extant.nwk \\",
+            "      out/genomes/gene_trees/gene_tree_fam4_extant.nwk --restrict",
         ),
     )
     _add_tools_treedist_args(tdp)
@@ -156,6 +161,10 @@ def _add_tools_treedist_args(p: argparse.ArgumentParser) -> None:
                    metavar="METRIC",
                    help="rf (Robinson–Foulds, the default), rf-normalized, branch-score "
                         "(Kuhner–Felsenstein, uses branch lengths), or all")
+    p.add_argument("--restrict", action="store_true",
+                   help="score on the taxa the two trees share, pruning both to them first. Without "
+                        "it, differing leaf sets are an error — which refuses the commonest "
+                        "comparison there is, a family's gene tree against the species tree")
     p.add_argument("-o", "--output", metavar="FILE", help="write here instead of stdout")
 
 
@@ -381,9 +390,33 @@ def _run_treedist(args, parser: argparse.ArgumentParser) -> int:
                     f"share a species: compare gene trees to each other, or pick one copy per species "
                     f"first.")
         sa, sb = set(la.values()), set(lb.values())
+        if sa != sb and args.restrict:
+            # The comparison this tool is most often reached for — a family's gene tree against the
+            # species tree — is exactly the one the equal-leaf-sets rule refuses: only a universal,
+            # single-copy family occupies every genome, and a lecturer building a practical found not
+            # one of 22 families qualified. Restricting both trees to the taxa they share is the
+            # standard answer, and `markers.tsv` already reports RF that way internally, so the
+            # capability existed and was simply not offered here. It is opt-in because silently
+            # scoring a different question than the one asked is worse than refusing.
+            shared, sa_all, sb_all = sa & sb, sa, sb
+            if len(shared) < 3:
+                parser.error(
+                    f"the two trees share only {len(shared)} taxa, and a tree distance needs at "
+                    f"least 3 to mean anything — there is no comparison to restrict to.")
+            kept_a = _tree.prune(a, tips={i for i, lab in la.items() if lab in shared})
+            kept_b = _tree.prune(b, tips={i for i, lab in lb.items() if lab in shared})
+            # prune returns None only when it keeps nothing, which the >= 3 guard above rules out
+            assert kept_a is not None and kept_b is not None
+            a, b = kept_a, kept_b
+            la = {i: lab for i, lab in la.items() if lab in shared}
+            lb = {i: lab for i, lab in lb.items() if lab in shared}
+            sa = sb = shared
+            print(f"zombi2: --restrict: scored on the {len(shared)} taxa the two trees share, "
+                  f"pruned from {len(sa_all)} and {len(sb_all)}", file=sys.stderr)
         if sa != sb:
             parser.error(f"the two trees have different leaf sets ({len(sa)} vs {len(sb)} tips, "
-                         f"{len(sa ^ sb)} not shared) — treedist needs the same taxa on both")
+                         f"{len(sa ^ sb)} not shared) — treedist needs the same taxa on both, or "
+                         f"--restrict to score them on the taxa they share")
         label_id = {lab: k for k, lab in enumerate(sorted(sa))}
         a, b = _relabel_leaves(a, la, label_id), _relabel_leaves(b, lb, label_id)
         metrics = ["rf", "rf-normalized", "branch-score"] if args.metric == "all" else [args.metric]
