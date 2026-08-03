@@ -9,6 +9,34 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+- **Conditioning on a continuous trait from disk drove every lineage at one constant value.** A
+  diffusion has no switches, so its `trait_events.tsv` holds only the `initial` row — and replaying
+  that log built a driver frozen at the root value on every lineage, *accepted without a warning*. A
+  run that looked conditioned was the undriven model with one constant factor, and the difference was
+  large: on a 30-tip tree the same driven-loss run gave 79 losses from the file against 157 from the
+  in-memory trait. The event log now **refuses** and names the file to use, and `trait_values.tsv` —
+  which has always carried every node's value — is a driver in its own right, reproducing the
+  in-memory result event for event. Discrete traits are untouched: their event log is still the exact
+  stochastic map, and a genuinely never-switching discrete trait still loads as the constant it is.
+
+### Changed
+- **A continuous driver's resolution is cut per unit of time, and it is tunable.** It used to be a
+  fixed eight stretches per branch, which makes the approximation as coarse as the branch is long:
+  the error was worst exactly where the driver had had most time to move, and it could not be
+  refined. `DrivenBy(source, mapping, step=…)` now takes a **duration** in the tree's own time units,
+  so every stretch means the same thing wherever it sits — a branch twice as long gets twice as many,
+  and halving the step doubles them everywhere. `step=None` takes 1% of the tree's height, a fraction
+  rather than an absolute because a tree may be measured in substitutions or in millions of years.
+  The same trait read at two resolutions stays two drivers rather than being silently resolved once
+  and shared.
+
+  Worth knowing when reading a driven run: the interpolation is the **straight line** between a
+  branch's endpoint values, which is the mean of the Brownian bridge with the excursions dropped.
+  Under a non-linear response curve those do not average out, so a smaller `step` is not only more
+  precise, it removes a bias.
+
+
 ## [0.26.0] - 2026-08-02
 
 ### Changed

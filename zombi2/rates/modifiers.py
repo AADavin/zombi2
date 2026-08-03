@@ -351,16 +351,26 @@ class DrivenBy(Modifier):
     **rate** (a "how often") and **multiplies**; it does not drive a *value*, such as an OU optimum.
     """
 
-    def __init__(self, source: object, mapping: object) -> None:
+    def __init__(self, source: object, mapping: object, step: float | None = None) -> None:
         from .mapping import as_mapping
 
         if isinstance(source, str):
             if not source.strip():
                 raise ValueError("DrivenBy source must be a non-empty string (a filename or level name)")
-            self.key: object = source                # a string source is its own context key
+            base: object = source                    # a string source is its own context key
         else:
-            self.key = id(source)                    # an in-memory driver result (conditioning): key by identity
+            base = id(source)                        # an in-memory driver result (conditioning): key by identity
+        if step is not None:
+            step = float(step)
+            if not (step > 0.0) or step == float("inf"):
+                raise ValueError(
+                    f"DrivenBy step is the resolution a CONTINUOUS driver is read at, in the tree's own "
+                    f"time units, so it must be finite and positive; got {step!r}.")
+        # the step is part of the key: the same driver read at two resolutions is two trajectories, and
+        # keying on the source alone would silently resolve it once and share the first one
+        self.key: object = base if step is None else (base, step)
         self.source = source
+        self.step = step
         self.mapping = as_mapping(mapping)
 
     def factor(self, *, drivers: Mapping | None = None, **_: Any) -> float:
