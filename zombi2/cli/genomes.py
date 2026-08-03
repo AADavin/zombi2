@@ -76,6 +76,7 @@ _STRUCTURED_ONLY = (
 # takes its genes from the file, and the two are mutually exclusive.
 _NUCLEOTIDE_ONLY = (
     ("root_length", 10000), ("genes", None), ("gene_length", 500), ("gff", None),
+    ("fasta", None),
     ("trim_overlaps", False),
     ("origination_extent", None),
 )

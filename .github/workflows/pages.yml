@@ -62,7 +62,7 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       # Install the docs toolchain from the [docs] extra (single source of truth).
-      # zombi2_core resolves from PyPI as a prebuilt abi3 wheel; mkdocstrings only
+      # the package is pure Python (the compiled engine was retired); mkdocstrings only
       # needs zombi2 importable to render docstrings.
       - name: Install docs dependencies
         run: pip install -e ".[docs]"

@@ -8,6 +8,7 @@ from typing import cast
 
 import numpy as np
 
+from ..rates.mapping import check_not_a_kernel
 from ..rates.modifiers import ByFamily, DrivenBy, FromParent, OnTime, OnTotalDiversity
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
@@ -413,8 +414,8 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     correlation stays in the diffusion, and the branch covariance is
     ``Σ_ij·(1 − e^{−(α_i+α_j)·dt})/(α_i + α_j)``. One trait's deviation pulling *another* — a full
     drift matrix — is a different model and is refused by name, not read as a diagonal. A correlated
-    run takes bare per-trait rates, and it carries **no event log**: its value is a per-trait vector,
-    which the log's single ``from`` / ``to`` columns do not hold.
+    run takes bare per-trait rates. Its log is **widened** rather than absent: a value is a per-trait
+    vector, so ``trait_events.tsv`` gets one ``from``/``to`` column pair per trait.
 
     ``tree`` is the **complete** species tree (a `Tree`, or a
     `SpeciesResult` whose ``complete_tree`` is used). The trait evolves on
@@ -464,6 +465,16 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     """
     tree = as_tree(tree, level="traits")
     if regimes is not None:
+        if correlation is not None:
+            # `regimes` dispatches before the correlated engine and threads no correlation, so a
+            # correlation passed here would be read by nothing and the run would silently be the
+            # uncorrelated model (SPEC §5: refuse, never ignore). The obstacle is the same one that
+            # keeps a modified σ² out of `regimes`: the branch covariance under multi-optimum OU is
+            # ∫ρ_ij·σ_i·σ_j weighted by each regime's own pull, which this engine does not integrate.
+            raise ValueError(
+                "correlation= with regimes= is not implemented yet: multi-optimum OU evolves one "
+                "trait, so there is no second trait for a correlation to be with. Use correlation= "
+                "on its own (correlated BM/OU), or regimes= on its own (multi-optimum OU).")
         return _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciation, seed,
                                  progress)
     if isinstance(start, dict) or isinstance(rate, dict) or correlation is not None:
@@ -493,6 +504,8 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
                 f"support. It takes OnTime (early burst), FromParent (variable-rates BM), "
                 f"OnTotalDiversity (diversity-dependent), and DrivenBy (driven by another trait)."
             )
+        if isinstance(m, DrivenBy):
+            check_not_a_kernel(m.mapping, label="rate")
     drifts = [m for m in r.modifiers if isinstance(m, FromParent)]
     if len(drifts) > 1:
         raise ValueError("rate carries more than one FromParent modifier; a variance-rate drifts one way")
