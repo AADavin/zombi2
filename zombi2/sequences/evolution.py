@@ -22,8 +22,8 @@ origination**, then walks the tree from root to tips: a child's sequence is samp
 ``P(bl)[parent_state]``, where
 ``P(bl) = exp(Q·bl)`` (the reversible eigendecomposition in `substitution_models`). Only the branch
 *endpoints* are sampled — this gives the sequence at every node (the observable tip alignment and the
-ancestral reconstructions) but not the individual substitution events, which are a later opt-in
-``record=`` slice. Everything is vectorised over sites; a zero-length branch copies its parent.
+ancestral reconstructions) but not the individual substitution events, which are not recorded at all —
+there is no ``record=`` parameter and no substitution event log. Everything is vectorised over sites; a zero-length branch copies its parent.
 
 The walk is **iterative** (an explicit stack): gene trees run deeper than CPython's C-stack recursion
 guard on high-turnover families — the same reason `_to_newick()` is

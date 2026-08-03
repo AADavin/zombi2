@@ -87,7 +87,8 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
                         "label when discrete (default: uniform over --states)")
     g.add_argument("--at-speciation", type=float, default=None, metavar="X",
                    dest="at_speciation",
-                   help="a change at each speciation node — jump width Normal(0, X) when "
+                   help="a change at each speciation node — jump VARIANCE: Normal(0, X), so the "
+                        "width is sqrt(X), when "
                         "continuous, hop probability when discrete")
 
     g = p.add_argument_group("outputs")

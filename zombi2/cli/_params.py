@@ -3,7 +3,7 @@
 A parameters file collects the *model* parameters of a run (rates, tree size, event knobs) so a
 configuration is reproducible and shareable — the modern successor to ZOMBI1's ``*Parameters.tsv``.
 It is applied as **defaults**, so any flag given on the command line still wins; the required I/O
-paths (``-o``, ``-t``) stay on the command line.
+paths (the positional run directory, and ``--from``) stay on the command line.
 
 The file is TOML. Keys are the command's long option names (hyphens or underscores both work, since
 the option name *is* the API keyword), and values are native TOML scalars/arrays::

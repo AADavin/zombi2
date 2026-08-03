@@ -596,9 +596,10 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
                         trajs=None, to_traj=None, group_of=None, driven=None):
     """Run the per-family engine. Returns a `FamilyGenomesResult` (the in-memory
     merge), or a `StreamedRun` when ``stream_to`` is a directory — each family written straight
-    to disk, for a scale a whole result would not hold. Returns ``None`` (a loud fallback to the serial
-    loop) only for the in-memory path: a driven rate has no per-family engine, and a streamed run
-    **raises** rather than silently pulling the whole thing back into memory.
+    to disk, for a scale a whole result would not hold. It can still return ``None`` (a loud fallback to the serial
+    loop) for the in-memory path, but nothing currently asks for one — conditioning does not couple
+    families, so a driven rate runs here as well; a streamed run **raises** rather than silently
+    pulling the whole thing back into memory.
 
     Copy ids are global from the start (``fid << SHIFT`` + local), so the merge and the streamed shards
     both just concatenate — no id rewrite, no run-sized bottleneck beyond the (serial) in-memory merge

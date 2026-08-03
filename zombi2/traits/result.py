@@ -115,6 +115,29 @@ class TraitsResult:
             "nodes": len(self.node_values),
             "events": {"on_branch": switches, "on_speciation": jumps},
         }
+        # A CORRELATED run holds one value per trait at every node, so there is no single
+        # distribution to describe and each trait gets its own entry. This is tested before `kind`
+        # because both kinds can be correlated, and both got it wrong: a continuous one raised
+        # `TypeError: float() argument must be … not 'dict'`, and a threshold one counted whole
+        # dicts as if they were states, giving keys like "{'a': 'b', 'b': 'b'}". The per-trait shape
+        # matches what `trait_values.tsv` writes (one column per trait), so the summary and the table
+        # describe the same object.
+        if values and isinstance(values[0], dict):
+            per_trait = [cast("dict[str, object]", v) for v in values]
+            names = list(per_trait[0])
+            root = cast("dict[str, object]", self.node_values[self.complete_tree.root])
+            out["traits"] = names
+            if self.kind == "continuous":
+                out["values"] = {n: _stats([float(cast(float, v[n])) for v in per_trait])
+                                 for n in names}
+                out["value_at_root_node"] = {n: float(cast(float, root[n])) for n in names}
+            else:
+                out["states"] = {}
+                for n in names:
+                    counts = collections.Counter(str(v[n]) for v in per_trait)
+                    cast(dict, out["states"])[n] = dict(sorted(counts.items()))
+                out["state_at_root_node"] = {n: str(root[n]) for n in names}
+            return out
         # continuous is the only NUMERIC kind. A threshold trait reads a discrete state off a
         # continuous liability, so its values are states like a discrete trait's — taking a mean of
         # them is what the first version of this tried to do.

@@ -85,8 +85,8 @@ result = species.simulate_species_tree(
 
 `simulate_species_tree` returns a **`SpeciesResult`**, which carries:
 
-- `.extant_tree` — the survivors' tree, dated and bifurcating; this is what you get by default and hand to the next level.
-- `.complete_tree` — the whole tree that grew, with the extinct lineages still on it.
+- `.complete_tree` — the whole tree that grew, with the extinct lineages still on it. **This is what the next level runs along**, which is what lets a gene be transferred out of a lineage that later dies.
+- `.extant_tree` — the survivors' tree, dated and bifurcating: the tree an analysis would be handed, and a projection of the run rather than its substrate.
 - `.fossils` — the sampled fossil lineages and their ages, present when you asked for `fossils`.
 - `.events` — the event log: every speciation and extinction with its time, the source of truth the run exists to record.
 
@@ -134,10 +134,11 @@ zombi2 species out/ --birth 1.0 --death 0.4 --total-time 5 \
 
 | File | What it holds |
 |---|---|
-| `species_extant.nwk` | the tree of sampled survivors — what the next level reads |
-| `species_complete.nwk` | the whole tree that grew, with the extinct and unsampled lineages still on it |
+| `species_complete.nwk` | the whole tree that grew, with the extinct and unsampled lineages still on it — **what the next level reads** |
+| `species_extant.nwk` | the tree of sampled survivors: what an analysis would be handed |
 | `species_events.tsv` | every speciation and extinction, with its time |
 | `species_fates.tsv` | each tip's fate: `extant`, `extinct` or `unsampled` |
 | `species_fossils.tsv` | the sampled fossil lineages and their ages, when you asked for `fossils` |
+| `species_summary.json` | what the run produced: counts, tree height, stem, total branch length, realised rates |
 
 Both trees give the root a branch length, the stem of Chapter 2: in the complete tree it runs from the origin to the first speciation, in the extant tree from the origin to the most recent common ancestor of the survivors, absorbing whatever branches were pruned away above it. They land in `out/species/`, or straight into `out/` with `--flat`; Appendix B lists every file with its format and its default.

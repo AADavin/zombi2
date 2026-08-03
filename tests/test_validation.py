@@ -1347,9 +1347,11 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
     from zombi2.genomes import WIRED_MODIFIERS as GENOMES
     from zombi2.genomes.nucleotide import WIRED_MODIFIERS as NUCLEOTIDE
     from zombi2.genomes.ordered import WIRED_MODIFIERS as ORDERED
+    from zombi2.joint import WIRED_MODIFIERS as JOINT
     from zombi2.sequences import WIRED_MODIFIERS as SEQUENCES
     from zombi2.species import WIRED_MODIFIERS as SPECIES
     from zombi2.traits import WIRED_MODIFIERS as TRAITS
+    from zombi2.traits.discrete import WIRED_MODIFIERS as TRAITS_DISCRETE
 
     appendix = pathlib.Path(__file__).resolve().parent.parent / "manual" / "book" / "appendix-a.md"
     if not appendix.exists():                       # the manual is not shipped in every checkout
@@ -1372,10 +1374,15 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
                        ("Genomes — family, ordered", GENOMES),
                        ("Genomes — nucleotide", NUCLEOTIDE),
                        ("Sequences", SEQUENCES),
-                       ("Traits", TRAITS)):
+                       ("Traits — continuous `rate`", TRAITS),
+                       ("Traits — discrete `switch`", TRAITS_DISCRETE),
+                       ("Joint — `birth` / `death`", JOINT)):
         line = next((ln for ln in text.splitlines() if ln.startswith(f"| {row} |")), None)
         assert line, f"appendix A has no row for {row!r}"
-        listed = set(re.findall(r"`(\w+)`", line))
+        # the SECOND column only: a row label may itself carry a backticked word (the rate a row is
+        # about — `rate`, `switch`, `birth`), and scanning the whole line would read those as
+        # modifiers.
+        listed = set(re.findall(r"`(\w+)`", line.split("|")[2]))
         assert listed == {m.__name__ for m in wired}, (
             f"appendix A's {row!r} row lists {sorted(listed)}, but the engine wires "
             f"{sorted(m.__name__ for m in wired)}")

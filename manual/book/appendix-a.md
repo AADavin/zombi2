@@ -91,7 +91,9 @@ accept rather than silently ignoring it. This is what each accepts today:
 | Genomes — family, ordered | `OnTime` · `DrivenBy` · `ByFamily` |
 | Genomes — nucleotide | `OnTime` · `DrivenBy` |
 | Sequences | `ByLineage` · `FromParent` · `DrivenBy` |
-| Traits | `OnTime` · `FromParent` · `OnTotalDiversity` · `DrivenBy` |
+| Traits — continuous `rate` | `OnTime` · `FromParent` · `OnTotalDiversity` · `DrivenBy` |
+| Traits — discrete `switch` | `DrivenBy` |
+| Joint — `birth` / `death` | `OnTime` · `OnTotalDiversity` · `DrivenBy` |
 
 `zombi2 <command> -h` prints the same list for that command, read from the engine itself, so the two
 cannot disagree — and a test asserts this table against them.
