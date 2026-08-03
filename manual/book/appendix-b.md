@@ -102,9 +102,10 @@ a lineage can lose everything, and an empty genome is otherwise invisible, havin
 
 Speciation is the largest single kind in the file, and the rows are not redundant: a gene tree's
 internal nodes are labelled `speciation_n14` — the kind and the branch, no copy id — so this log is
-the only record of the internal gene copies and their parentage. In Python an `Event` is still one
-gene-tree **edge**; `zombi2.genomes.events.events_from_tsv` expands each row back into one per edge,
-which is what the gene trees are derived from.
+the only record of the internal gene copies and their parentage. In Python an `Event` is one **event**, with the copies it began in as `children` and the copies it
+ended in as `parents`; the per-edge record is a `GeneEdge`, and
+`zombi2.genomes.events.edges_from_tsv` expands each row back into one per edge, which is what the
+gene trees are derived from.
 
 ## Genomes, ordered — `simulate_genomes_ordered`
 
@@ -204,7 +205,7 @@ of its own beyond the run log.
 |-----------|-----------------|-------|-----|------------------------|
 | Values | `trait_values.tsv` | TSV | yes | value at every node (tips, extinct, internal) — `node` · `kind` · `trait`, where `kind` is the tip's fate (`extant` / `extinct` / `unsampled`) or `ancestor`, so `kind == "extant"` isolates the observed tips |
 | Events | `trait_events.tsv` | TSV | yes (discrete) | the trait's whole history — an `initial` row giving the state at t=0, then every switch: `time` · `kind` · `lineage` · `from` · `to`, where `kind` is `initial` · `on_branch` · `on_speciation`. The one event log whose payload is a **state change** rather than a birth and a death, so it keeps its `lineage` and has no `parents` / `children`. Times are full precision (they drive a conditioned run's Gillespie). **This is also the conditioning file**: a genome/sequence run drives a rate with `mod.DrivenBy("trait_events.tsv", …)`, replaying it against the shared tree. A continuous trait carries only the `initial` row and any `at_speciation` jumps (a diffusion can't be rebuilt from events), and that holds for a multi-optimum (`regimes=`) run and a **correlated** multi-trait one alike. A correlated run **widens** the table instead of repeating a row per trait — `from:<trait>` · `to:<trait>`, one pair apiece, exactly as `trait_values.tsv` widens — because a correlated jump moves every trait at once and is one event |
-| Trait tree | `trait_tree.nwk` | Newick | no | tree with every node annotated `[&trait=…]` (opens in FigTree / iTOL) |
+| Trait tree | `trait_tree.nwk` | Newick | yes (CLI) | tree with every node annotated `[&trait=…]` (opens in FigTree / iTOL). `zombi2 traits` writes it by default; the Python `TraitsResult.write` default is `("values",)` alone |
 | Summary | `trait_summary.json` | JSON | yes | what came out, not what was asked for — `tips` · `nodes` · `events` (the `on_branch` and `on_speciation` counts), then `states` · `most_common_share` for a discrete trait, or `values` (min/mean/max) · `value_at_root_node` for a continuous one. The root node sits at the end of the stem, so that value is not the one the run started from |
 
 ## Conditioning and joining — no new files

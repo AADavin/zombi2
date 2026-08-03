@@ -14,7 +14,7 @@ genealogies. Presence needs to know when each copy *began* and *ended*, and neit
 says so directly: ``result.events`` is one row per gene-tree edge (two per duplication, two per
 transfer), and the written ``genome_events.tsv`` is one row per event with ``parents`` / ``children``
 gene ids. Either way, getting from ids to intervals means rebuilding the genealogy, which is exactly
-`gene_trees_from_events`. Doing it here would be a second implementation of a tested one.
+`gene_trees_from_edges`. Doing it here would be a second implementation of a tested one.
 """
 
 from __future__ import annotations

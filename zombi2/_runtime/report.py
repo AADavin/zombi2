@@ -71,7 +71,7 @@ _GLOSS = {
     # species/
     "species_extant.nwk": "Newick — the sampled extant tips only, the tree most analyses want",
     "species_complete.nwk": "Newick — the whole tree, all nodes including extinct lineages",
-    "species_events.tsv": "one row per speciation/extinction (time, kind, lineage, children)",
+    "species_events.tsv": "one row per speciation/extinction (time, kind, parents, children)",
     "species_fates.tsv": "each tip's fate: extant / extinct / unsampled",
     # genomes/ (family resolution)
     "genomes.tsv": "gene content of every genome — one row per gene copy (lineage, family, copy)",

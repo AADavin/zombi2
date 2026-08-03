@@ -149,7 +149,7 @@ def _resolve_model_knobs(args) -> dict:
     """The nucleotide substitution-model knobs with each default filled in — ``kappa`` (2.0),
     ``frequencies`` (uniform), ``exchangeabilities`` (all 1). Shared by `_build_model()`, which uses them,
     and `_effective_model_params()`, which logs them, so the two cannot drift."""
-    # floats, not ints: --gtr-rates parses as float, so a default logged as [1, 1, …] would not match
+    # floats, not ints: --exchangeabilities parses as float, so a default logged as [1, 1, …] would not match
     # the [1.0, …] a reproduced run logs — and the run report is meant to reproduce byte-for-byte.
     return {"kappa": 2.0 if args.kappa is None else args.kappa,
             "frequencies": [0.25, 0.25, 0.25, 0.25] if args.frequencies is None else list(args.frequencies),

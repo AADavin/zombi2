@@ -157,10 +157,13 @@ def prune(tree: Tree, keep: str = "extant") -> Tree | None:
     drop the pruned subtrees and suppress the unifurcations they leave behind, giving a dated,
     bifurcating tree. Branch lengths merge across suppressed nodes; ``None`` if nothing is kept.
 
-    ``keep="extant"`` (default) keeps the survivors — the extant tree. (``"sampled"``, the
-    fossil/serially-sampled tree, arrives with the sampling and fossils slices; it raises for now.)"""
+    ``keep="extant"`` (default) keeps the survivors — the extant tree. ``"sampled"``, the
+    fossil/serially-sampled tree, is not built: `simulate_species_tree` reports fossils as
+    ``(lineage, time)`` pairs rather than as taxa, so there are no sampled ancestors to keep."""
     if keep != "extant":
-        raise ValueError(f"keep must be 'extant' until the sampling/fossils slices land, got {keep!r}")
+        raise ValueError(
+            f"keep must be 'extant', got {keep!r}: the sampled (fossil) tree is not built — fossils "
+            f"are reported as (lineage, time) pairs, not as taxa on a tree.")
     nodes = tree.nodes
     surviving: dict[int, bool] = {}
     for i in sorted(nodes, reverse=True):  # children have higher ids → processed before parents

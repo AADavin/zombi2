@@ -87,7 +87,7 @@ An extent's unit is set by the resolution: genes at ordered, base pairs at nucle
 
 `source` in both rows is the grown `TraitsResult`, or the path to the `trait_events.tsv` it wrote — the trait event log, which a driven run replays against the shared tree.
 
-The driver file is the trait event log from Chapter 8: a `root` row for the state at t=0, then every switch with its time. Replayed against the shared species tree, that rebuilds each branch's constant stretches, which is what lets the genome engine step its Gillespie at every switch — so a lineage that changes habitat halfway down a branch loses genes at one rate before the switch and another after it. The driven rate follows the trait exactly, not as a per-branch average.
+The driver file is the trait event log from Chapter 8: an `initial` row for the state at t=0, then every switch with its time. Replayed against the shared species tree, that rebuilds each branch's constant stretches, which is what lets the genome engine step its Gillespie at every switch — so a lineage that changes habitat halfway down a branch loses genes at one rate before the switch and another after it. For a **discrete** driver the driven rate follows the trait exactly, not as a per-branch average. A **continuous** driver has no switches to step at, so it is approximated instead: the branch is cut into stretches of at most `step` time units (`DrivenBy(..., step=)`; by default 1% of the tree's height) and read at each stretch's midpoint.
 
 ### Two ways a trait can drive transfer
 

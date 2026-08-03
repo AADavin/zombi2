@@ -700,8 +700,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     worker-count invariant (each family draws from its own stream spawned off ``seed``) but gives a
     different-though-equally-valid draw than the serial default for a given seed. ``False`` (default)
     runs the serial loop; ``True`` uses every core; an ``int`` sets the worker count. A **driven** rate
-    or ``transfer_to`` (``DrivenBy``) has no per-family engine yet — the run announces this and falls
-    back to the serial loop. The gain is real but modest (a merge over the whole event log stays
+    or ``transfer_to`` (``DrivenBy``) runs on the per-family engine too — conditioning does not couple
+    families, so nothing here forces a fallback. The gain is real but modest (a merge over the whole event log stays
     serial), so a handful of workers is the sweet spot; unlike the sequences level it does not scale far.
     Because it spawns processes, a calling script must guard its entry with ``if __name__ ==
     "__main__":`` (the ``zombi2`` CLI already does).

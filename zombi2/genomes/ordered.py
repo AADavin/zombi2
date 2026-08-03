@@ -537,14 +537,20 @@ def _genome_size(genome) -> int:
 def _pick_gene(rng, gen, total_copies) -> tuple[int, int, int]:
     """A uniform global gene pick → ``(lineage k, chromosome index ci in gen[k], position j)``.
     Realises per-copy scope across the whole pool: every gene, in any chromosome of any lineage, is
-    equally likely."""
+    equally likely.
+
+    One pass over the chromosomes, deliberately: the obvious spelling — ``_genome_size(genome)`` per
+    lineage to decide whether the draw lands in it, then ``_gene_in()`` to walk the chosen one again —
+    reads every chromosome of every skipped lineage and then re-reads the chosen lineage's, which is a
+    per-event cost in the hot Gillespie loop. Counting chromosome by chromosome finds the same gene in
+    a single walk. The draw is unchanged, so a run is byte-identical either way."""
     m = int(rng.integers(total_copies))
     for k, genome in enumerate(gen):
-        size = _genome_size(genome)
-        if m < size:
-            ci, j = _gene_in(genome, m)
-            return k, ci, j
-        m -= size
+        for ci, chrom in enumerate(genome):
+            n = len(chrom.genes)
+            if m < n:
+                return k, ci, m
+            m -= n
     raise AssertionError("total_copies out of sync with the genomes")  # unreachable
 
 

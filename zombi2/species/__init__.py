@@ -155,7 +155,7 @@ class SpeciesResult:
                 rows.append(f"{e.time:.6g}\t{e.kind}\t{name[e.node]}\t{kids}")
             (d / "species_events.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
         if "fossils" in outputs and self.fossils:
-            # a fossil is a sampled EXTINCT lineage, so this table is where e<id> shows up most
+            # fossils are drawn along every branch, a surviving lineage's as readily as an extinct one's
             rows = ["lineage\ttime"] + [f"{name[i]}\t{t:.6g}" for i, t in self.fossils]
             (d / "species_fossils.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
         if "summary" in outputs:
