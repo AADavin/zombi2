@@ -19,9 +19,9 @@ import math
 import pathlib
 from dataclasses import dataclass, field
 
-import numpy as np
 
-from ..rates.modifiers import ByFamily, ByLineage, FromParent, OnTime, OnTotalDiversity
+from ..rates.modifiers import ByFamily, ByLineage, FromParent, OnTime, OnTotalDiversity, is_implemented
+from ..rng import stream
 from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
 from ..rates.rate import as_rate
@@ -30,8 +30,8 @@ from ..tree import Node, Tree, prune
 
 #: The rate grammar this level supports (SPEC §5). Both the engine's gate below and the CLI's help
 #: read this, so a modifier can never be advertised without being implemented — or silently ignored.
-WIRED_SCOPES = (PerLineage, Global)
-WIRED_MODIFIERS = (OnTime, OnTotalDiversity, FromParent, ByLineage)
+IMPLEMENTED_SCOPES = (PerLineage, Global)
+IMPLEMENTED_MODIFIERS = (OnTime, OnTotalDiversity, FromParent, ByLineage)
 
 
 
@@ -509,7 +509,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
     for label, rate in (("birth", birth_rate), ("death", death_rate)):
         # a modifier this engine does not thread would return its default factor of 1.0 — a run that
         # is quietly not the model asked for — so reject it (SPEC §5, the genome engine's discipline)
-        if not isinstance(rate.scope, WIRED_SCOPES):
+        if not isinstance(rate.scope, IMPLEMENTED_SCOPES):
             raise ValueError(
                 f"{label} has a {type(rate.scope).__name__} scope, but the species engine counts "
                 f"lineages — use PerLineage(...) (the default, so a bare number is enough) or "
@@ -523,7 +523,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                     f"belongs on a genomes rate. For per-lineage heterogeneity here use ByLineage "
                     f"(independent) or FromParent (inherited)."
                 )
-            if not isinstance(m, WIRED_MODIFIERS):
+            if not is_implemented(m, IMPLEMENTED_MODIFIERS, "species"):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the species engine does not "
                     f"support. It takes OnTime (skyline), OnTotalDiversity (diversity-dependent), "
@@ -560,7 +560,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
         raise ValueError(f"sampling must be a fraction in (0, 1], got {sampling!r}")
     pulses = _mass_extinction_pulses(mass_extinctions, total_time)  # [] unless mass_extinctions given (needs total_time)
 
-    rng = np.random.default_rng(seed)
+    rng, seed = stream("species", seed)     # own stream, and a drawn seed if none was given
 
     def _finish(tree: Tree, events: list[Event]) -> SpeciesResult:
         # observe (sampling relabels survivors) then recover fossils along the grown branches

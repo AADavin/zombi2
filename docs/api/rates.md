@@ -50,4 +50,49 @@ deterministic function of a measured quantity), `By` is an independent i.i.d. dr
 `From` is inherited along a genealogical edge. `DrivenBy` sits outside that scheme deliberately —
 it says the factor comes from another simulated level entirely.
 
+### Writing your own
+
+Every engine takes a fixed set of modifiers and refuses the rest, because one it never reads would
+return its default factor of 1.0 and give a run that is quietly not the model you asked for. A
+modifier of your own opens that gate by naming the engines you implemented it for:
+
+```python
+from zombi2.rates.modifiers import Modifier
+
+class OnLogTime(Modifier):
+    implemented_for = ("species",)
+    def factor(self, *, time: float = 0.0, **_) -> float:
+        return 1.0 / (1.0 + time)
+
+species.simulate_species_tree(birth=2.0 * OnLogTime(), n_extant=20, seed=1)
+```
+
+Each engine supplies a different context, and `sequences` does not take a modifier of your own at all
+— it reads its modifiers itself rather than through the rate, so one it did not ship could never be
+called, and it refuses rather than ignoring you:
+
+| Engine | Context passed to `factor` |
+|---|---|
+| `species` | `time`, `lineages`, `diversity` |
+| `genomes.family` | `time`, `lineages`, `copies` |
+| `genomes.ordered` | `time`, `lineages`, `copies`, `chromosomes` |
+| `genomes.nucleotide` | `time`, `lineages`, `copies`, `chromosomes` |
+| `traits.continuous` | `time`, `lineages`, `diversity`, `inherited`, `drivers` |
+| `traits.discrete` | `time`, `lineages`, `drivers` |
+| `joint` | `time`, `lineages`, `diversity`, `drivers` |
+
+Take `**_` and default every keyword you read. Naming an engine is a claim you are making, not a check
+the library can do for you — everything you have not named still refuses your modifier, by name.
+
+If your factor varies continuously with `time`, override `next_change` to return the next point at
+which it should be re-evaluated. The engine holds a rate constant between events, so without it the
+curve is frozen at whatever it was when the last event fired.
+
+The rate *text* grammar (a `--birth` flag, a `--params` file) knows only the built-in names, so a
+modifier of your own is Python-only, as an object you construct has to be.
+
+**Three worked examples** — a rate following a measured curve, density dependence in the gene pool,
+and rearrangement scaling with the karyotype — are in
+[Chapter 2, "Writing your own"](../guide/tour.md#writing-your-own).
+
 ::: zombi2.rates.modifiers

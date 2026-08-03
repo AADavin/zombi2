@@ -65,7 +65,7 @@ def test_every_lineage_gets_an_answer():
 
 def test_a_gene_can_drive_a_trait():
     tree, g = _run()
-    kw = dict(states=["harmless", "pathogenic"], start="harmless", seed=2)
+    kw = dict(states=["harmless", "pathogenic"], start="harmless", seed=1)
     plain = simulate_discrete(tree, switch=0.1, **kw)
     driven = simulate_discrete(tree, switch=0.1 * mod.DrivenBy(
         g.presence("tox"), {"present": 8.0, "absent": 1.0}), **kw)

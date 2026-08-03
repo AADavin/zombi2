@@ -9,7 +9,8 @@ from typing import cast
 import numpy as np
 
 from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import ByFamily, DrivenBy, FromParent, OnTime, OnTotalDiversity
+from ..rng import stream
+from ..rates.modifiers import ByFamily, DrivenBy, FromParent, OnTime, OnTotalDiversity, is_implemented
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..tree import Tree, as_tree
@@ -17,7 +18,7 @@ from ..tree import Tree, as_tree
 from ._shared import _correlation_matrix, _driven_mods, _preorder, _resolve_drivers, _symmetric_sqrt
 from .result import Change, TraitsResult
 
-WIRED_MODIFIERS = (OnTime, FromParent, OnTotalDiversity, DrivenBy)  #: the modifiers a continuous rate takes
+IMPLEMENTED_MODIFIERS = (OnTime, FromParent, OnTotalDiversity, DrivenBy)  #: the modifiers a continuous rate takes
 
 class _LTT:
     """The tree's lineages-through-time step function — how many lineages are alive at time ``t``
@@ -241,7 +242,7 @@ def _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciatio
 
     jump_sd = _at_speciation_jump_sd(at_speciation)  # on-speciation jump width (0 if not requested)
 
-    rng = np.random.default_rng(seed)
+    rng, seed = stream("traits", seed)      # own stream, and a drawn seed if none was given
     node_values: dict[int, float] = {}
     root = tree.nodes[tree.root]
     # the same log a single-optimum run carries (SPEC §2): the value at t=0, then each jump at a
@@ -359,7 +360,7 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
     start_vec = np.array([float(start[t]) for t in traits])
     k = len(traits)
 
-    rng = np.random.default_rng(seed)
+    rng, seed = stream("traits", seed)      # own stream, and a drawn seed if none was given
     node_values: dict[int, dict[str, float]] = {}
     # The log every other continuous run carries: the value the run started from, and each jump at a
     # split. A diffusion cannot be rebuilt from events — that is as true here as for one trait — so
@@ -498,7 +499,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
                 "rate carries ByFamily, but a trait has no gene families — ByFamily belongs on a "
                 "genomes rate. For per-lineage heterogeneity here use FromParent (variable-rates BM)."
             )
-        if not isinstance(m, WIRED_MODIFIERS):
+        if not is_implemented(m, IMPLEMENTED_MODIFIERS, "traits.continuous"):
             raise ValueError(
                 f"rate carries {type(m).__name__}, which the continuous trait engine does not "
                 f"support. It takes OnTime (early burst), FromParent (variable-rates BM), "
@@ -538,7 +539,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
 
     jump_sd = _at_speciation_jump_sd(at_speciation)  # on-speciation jump width (0 if not requested)
 
-    rng = np.random.default_rng(seed)
+    rng, seed = stream("traits", seed)      # own stream, and a drawn seed if none was given
     ltt = _LTT(tree) if has_diversity else None  # the standing-diversity curve, when σ² reads it
     node_values: dict[int, float] = {}
     root = tree.nodes[tree.root]

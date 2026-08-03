@@ -1344,14 +1344,14 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
     import pathlib
     import re
 
-    from zombi2.genomes import WIRED_MODIFIERS as GENOMES
-    from zombi2.genomes.nucleotide import WIRED_MODIFIERS as NUCLEOTIDE
-    from zombi2.genomes.ordered import WIRED_MODIFIERS as ORDERED
-    from zombi2.joint import WIRED_MODIFIERS as JOINT
-    from zombi2.sequences import WIRED_MODIFIERS as SEQUENCES
-    from zombi2.species import WIRED_MODIFIERS as SPECIES
-    from zombi2.traits import WIRED_MODIFIERS as TRAITS
-    from zombi2.traits.discrete import WIRED_MODIFIERS as TRAITS_DISCRETE
+    from zombi2.genomes import IMPLEMENTED_MODIFIERS as GENOMES
+    from zombi2.genomes.nucleotide import IMPLEMENTED_MODIFIERS as NUCLEOTIDE
+    from zombi2.genomes.ordered import IMPLEMENTED_MODIFIERS as ORDERED
+    from zombi2.joint import IMPLEMENTED_MODIFIERS as JOINT
+    from zombi2.sequences import IMPLEMENTED_MODIFIERS as SEQUENCES
+    from zombi2.species import IMPLEMENTED_MODIFIERS as SPECIES
+    from zombi2.traits import IMPLEMENTED_MODIFIERS as TRAITS
+    from zombi2.traits.discrete import IMPLEMENTED_MODIFIERS as TRAITS_DISCRETE
 
     appendix = pathlib.Path(__file__).resolve().parent.parent / "manual" / "book" / "appendix-a.md"
     if not appendix.exists():                       # the manual is not shipped in every checkout

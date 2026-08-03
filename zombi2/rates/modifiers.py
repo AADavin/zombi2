@@ -27,6 +27,14 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 
+def is_implemented(m: "Modifier", engines: tuple[type, ...], engine: str) -> bool:
+    """Whether ``engine`` may run modifier ``m``: it is one of the types that engine threads
+    (``engines``, the level's ``IMPLEMENTED_MODIFIERS``), or it names that engine in its own
+    `Modifier.implemented_for`. Every engine gate goes through here, so the escape hatch cannot be
+    honoured in one level and forgotten in another."""
+    return isinstance(m, engines) or engine in getattr(m, "implemented_for", ())
+
+
 class Modifier:
     """Base for rate modifiers.
 
@@ -34,6 +42,44 @@ class Modifier:
     ``branch``, ``family``, …) and returns a dimensionless, non-negative multiplier;
     it ignores the rest. Abstract — use a subclass.
     """
+
+    #: The engines a **third-party** modifier declares itself implemented for. Each engine ships an
+    #: ``IMPLEMENTED_MODIFIERS`` tuple and refuses anything outside it, because a modifier it never
+    #: reads would return its default 1.0 and give a run that is quietly not the model you asked for
+    #: (SPEC §5). That gate is right, but it was also a closed door: a `Modifier` subclass of your own
+    #: composed into a `Rate` correctly and was then refused by every level, with no registry and no
+    #: entry point — so extending the grammar meant forking the package. Naming an engine here is the
+    #: opt-in::
+    #:
+    #:     class OnLogTime(Modifier):
+    #:         implemented_for = ("species",)
+    #:         def factor(self, *, time: float = 0.0, **_): return 1.0 / (1.0 + time)
+    #:
+    #: The engine names, and the context each one supplies to `factor`:
+    #:
+    #: =====================  =================================================
+    #: ``species``            ``time``, ``lineages``, ``diversity``
+    #: ``genomes.family``     ``time``, ``lineages``, ``copies``
+    #: ``genomes.ordered``    ``time``, ``lineages``, ``copies``, ``chromosomes``
+    #: ``genomes.nucleotide`` ``time``, ``lineages``, ``copies``, ``chromosomes``
+    #: ``traits.continuous``  ``time``, ``lineages``, ``diversity``, ``inherited``, ``drivers``
+    #: ``traits.discrete``    ``time``, ``lineages``, ``drivers``
+    #: ``joint``              ``time``, ``lineages``, ``diversity``, ``drivers``
+    #: =====================  =================================================
+    #:
+    #: **``sequences`` is not on that list, deliberately.** Every engine above evaluates its rate
+    #: through `Rate.effective`, which multiplies in whatever `factor` returns. The sequence level
+    #: reads its two kinds of modifier itself — the clock is *drawn per lineage* before any site
+    #: evolves, not evaluated at an event — so a modifier declaring itself implemented there would be
+    #: accepted and then never called, which is the silence this whole mechanism exists to prevent.
+    #: It refuses instead, and says why.
+    #:
+    #: Declaring an engine is a claim you are making: it calls `factor` with the context above and
+    #: nothing more, so take ``**_`` and default every key you read. Built-in modifiers leave this
+    #: empty; the engine lists them by type. The rate *text* grammar (a `--birth` flag, a ``--params``
+    #: file) knows only the built-in names, so a modifier of your own is Python-only — as an object
+    #: you constructed has to be. Worked examples: Chapter 2, "Writing your own".
+    implemented_for: tuple[str, ...] = ()
 
     def factor(self, **context: Any) -> float:
         raise NotImplementedError
@@ -94,7 +140,7 @@ class OnTime(Modifier):
 
     # `factor` narrows the base signature: this modifier cannot answer without its key, and
     # giving it a default would make a level that forgot to thread it return a plausible
-    # wrong number in silence. `WIRED_MODIFIERS` is what guarantees the key arrives — a level
+    # wrong number in silence. `IMPLEMENTED_MODIFIERS` is what guarantees the key arrives — a level
     # that does not thread it rejects the modifier outright rather than reaching here.
     def factor(self, *, time: float, **_: Any) -> float:  # type: ignore[override]
         f = self._steps[0][1]  # before the first breakpoint, the earliest factor applies
@@ -141,7 +187,7 @@ class OnTotalDiversity(Modifier):
 
     # `factor` narrows the base signature: this modifier cannot answer without its key, and
     # giving it a default would make a level that forgot to thread it return a plausible
-    # wrong number in silence. `WIRED_MODIFIERS` is what guarantees the key arrives — a level
+    # wrong number in silence. `IMPLEMENTED_MODIFIERS` is what guarantees the key arrives — a level
     # that does not thread it rejects the modifier outright rather than reaching here.
     def factor(self, *, diversity: float, **_: Any) -> float:  # type: ignore[override]
         return max(0.0, 1.0 - diversity / self.cap)

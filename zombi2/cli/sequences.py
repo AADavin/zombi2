@@ -27,7 +27,7 @@ from zombi2.genomes.events import edges_from_tsv
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
 from zombi2.rates.modifiers import ByLineage, DrivenBy, FromParent, Modifier
 from zombi2._runtime.report import write_run_report
-from zombi2.sequences import (WIRED_MODIFIERS, _calibrate, mean_pairwise_identity,
+from zombi2.sequences import (IMPLEMENTED_MODIFIERS, _calibrate, mean_pairwise_identity,
                               simulate_sequences)
 from zombi2.sequences.substitution_models import (
     dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
@@ -41,7 +41,7 @@ from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg,
 
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
-    WIRED_MODIFIERS, "--substitution",
+    IMPLEMENTED_MODIFIERS, "--substitution",
     note="ByLineage draws one rate per species lineage, shared by every gene in it. spread is σ; "
          "dist is 'lognormal' (default) or 'gamma' (σ = the coefficient of variation). DrivenBy "
          "reads a trait grown first — the trait_events.tsv a 'zombi2 traits' run wrote, in this run "

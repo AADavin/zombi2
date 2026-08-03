@@ -11,8 +11,10 @@ Level 1: the species tree every other level lives on. One forward engine, shaped
 
 ## Trees
 
-The tree object itself, and the readers and shape helpers that work on it. `read_newick` takes a
-ZOMBI2 tree or an external one, so a genome run can start from a published phylogeny.
+The tree object itself, and the readers and shape helpers that work on it. These live in
+**`zombi2.tree`** — `from zombi2.tree import read_newick` — and are documented here because the
+species level is the one that grows a tree; every other level takes one. `read_newick` reads a ZOMBI2
+tree or an external one, so a genome run can start from a published phylogeny.
 
 ::: zombi2.tree.Tree
 

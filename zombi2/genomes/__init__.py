@@ -23,7 +23,7 @@ from .gene_trees import GeneNode, GeneTree
 from .profiles import Profiles
 from .family import GeneCopy, FamilyGenomesResult, FamilyGenome, simulate_genomes_family, family
 # re-exported on the package path for the CLI / tests, but kept out of __all__ (not public API):
-from .family import WIRED_MODIFIERS, resolve_max_family_size  # noqa: F401
+from .family import IMPLEMENTED_MODIFIERS, resolve_max_family_size  # noqa: F401
 from .chromosomes import ChromosomeEvent
 from .ordered import (
     Chromosome,
@@ -37,8 +37,9 @@ from .ordered import (
 )
 from .nucleotide import NucleotideGenome, NucleotideGenomesResult, simulate_genomes_nucleotide
 from ._perfamily import StreamedRun
+from .read import read_run
 
-__all__ = ["simulate_genomes_family", "FamilyGenomesResult", "GeneEdge", "GeneCopy", "Distance",
+__all__ = ["simulate_genomes_family", "read_run", "FamilyGenomesResult", "GeneEdge", "GeneCopy", "Distance",
            "Clades", "Between",
            "Profiles", "GeneTree", "GeneNode", "FamilyGenome", "family",
            "simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",
