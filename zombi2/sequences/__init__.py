@@ -47,6 +47,7 @@ compact the way the speciation and D/T/L/O logs are.
 
 from __future__ import annotations
 
+import os
 import pathlib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -57,8 +58,9 @@ from ..genomes import FamilyGenomesResult
 from ..genomes.events import gene_label
 from ..genomes.gene_trees import GeneNode, GeneTree
 from ..rates.driver import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
+from ..rng import resolve_seed, seed_sequence, stream
 from ..rates.mapping import Between
-from ..rates.modifiers import ByLineage, DrivenBy, FromParent, Modifier
+from ..rates.modifiers import ByLineage, DrivenBy, FromParent, Modifier, is_wired
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerSite
 from ..tree import Node, Tree, prune
@@ -952,7 +954,14 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     ``parallel``. A **nucleotide** run cannot stream: it puts whole genomes back together, and that
     needs every block's sequence at once, which is the opposite of keeping nothing.
     """
-    from ..genomes import NucleotideGenomesResult, OrderedGenomesResult
+    from ..genomes import NucleotideGenomesResult, OrderedGenomesResult, StreamedRun, read_run
+
+    # A written run is a genome run too. `zombi2 sequences --from DIR` has always reopened one; from
+    # Python the same handoff was a dead end, which mattered most for `stream_to=` — the feature
+    # whose whole point is that the run does not fit in memory, and whose handle then could not be
+    # passed on. A path or a StreamedRun reads back here, so both front doors take the same step.
+    if isinstance(genomes, (str, os.PathLike, StreamedRun)):
+        genomes = read_run(genomes)
 
     nucleotide = isinstance(genomes, NucleotideGenomesResult)
     # An ordered run is admitted here as a family one: this level reads a genome run's `gene_trees`
@@ -1091,7 +1100,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     clocks = [m for m in rate.modifiers if isinstance(m, (ByLineage, FromParent))]
     drivers = driven_mods(rate)
     unwired = sorted({type(m).__name__ for m in rate.modifiers
-                      if not isinstance(m, (ByLineage, FromParent, DrivenBy))})
+                      if not is_wired(m, WIRED_MODIFIERS, "sequences")})
     if unwired:
         raise ValueError(
             f"substitution carries {', '.join(unwired)}, which the sequence engine does not read. It "
@@ -1162,11 +1171,12 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     ancestral: dict[int, dict[str, str]] = {}
     founding: dict[int, str] = {}
     phylograms: dict[int, dict[str, str | None]] = {}
+    seed = resolve_seed(seed)      # drawn if none was given, so either engine below records it
     if not parallel:
         # Serial reference engine — the default, left exactly as it was. One shared generator draws the
         # clock, then each family is walked in turn. `parallel` selects a *separate* engine (decision A),
         # so turning it on gives a different-but-valid realisation for a seed; this path never changes.
-        rng = np.random.default_rng(seed)
+        rng, _ = stream("sequences", seed)
         clock = resolve_clock(clock_mod, driven, species_tree, gene_trees, rng)
         # One transition-CDF cache per model, shared across every block that model evolves. Branch lengths
         # recur across blocks (a block passing straight through a species branch reuses its length), so a
@@ -1222,7 +1232,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         from .._runtime.parallel import guard_pool_workers, resolve_workers
         from ._pergenetree import evolve_families
         workers = guard_pool_workers(resolve_workers(parallel))
-        spawned = np.random.SeedSequence(seed).spawn(1 + len(gene_trees))
+        spawned = seed_sequence("sequences", seed)[0].spawn(1 + len(gene_trees))
         clock = resolve_clock(clock_mod, driven, species_tree, gene_trees,
                               np.random.default_rng(spawned[0]))
         alignments, ancestral, founding, phylograms = evolve_families(

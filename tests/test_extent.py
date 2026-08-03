@@ -153,11 +153,13 @@ def test_nucleotide_extent_can_be_driven_by_a_trait(tree):
     from zombi2.rates import modifiers as mod
     from zombi2.rates.driver import driver_from_result
 
-    habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=2)
+    # the trait and the genome take *different* seeds, as two levels of one study should: each level
+    # draws its own stream, so a shared number no longer makes them the same draws (see zombi2.rng)
+    habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=1)
     traj = driver_from_result(habitat)
     res = simulate_genomes_nucleotide(
         tree, root_length=20000, genes=4, gene_length=300, loss=0.6,
-        loss_extent=150 * mod.DrivenBy(habitat, {"host": 6.0, "free": 1.0}), seed=2)
+        loss_extent=150 * mod.DrivenBy(habitat, {"host": 6.0, "free": 1.0}), seed=5)
 
     sizes = {"host": [], "free": []}
     for e in res.events:

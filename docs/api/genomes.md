@@ -23,6 +23,13 @@ the event log, and the genomes themselves.
 
 ::: zombi2.genomes.StreamedRun
 
+## Reading a run back
+
+A written run is a genome run too: `read_run` reopens one from its directory, and the sequence level
+accepts a directory or a `StreamedRun` wherever it accepts a result.
+
+::: zombi2.genomes.read_run
+
 ## Gene trees
 
 ::: zombi2.genomes.GeneTree

@@ -53,12 +53,12 @@ from typing import Sequence, cast
 from dataclasses import dataclass, field
 from functools import cached_property
 
-import numpy as np
 
 from ..rates.driver import check_mapping_fires, resolve_driver
+from ..rng import stream
 from ..rates.extent import Extent, as_extent
 from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import ByFamily, DrivenBy, OnTime
+from ..rates.modifiers import ByFamily, DrivenBy, OnTime, is_wired
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
@@ -384,6 +384,11 @@ class OrderedGenomesResult:
         The gene trees are two files per family, so they get a subdirectory rather than burying the
         tables above; ``flat=True`` writes everything into ``directory`` instead.
         """
+        # An unknown token used to write nothing and exit clean — silent data loss you discover
+        # three pipeline steps later, when the next tool has no input. The other levels have always
+        # raised; these two did not.
+        if unknown := [o for o in outputs if o not in self.OUTPUTS]:
+            raise ValueError(f"unknown write outputs {unknown}; choose from {list(self.OUTPUTS)}")
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
         names = self.complete_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
@@ -1182,7 +1187,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     f"gene events only — not to the chromosome tier, which acts on whole replicons.")
             if isinstance(m, DrivenBy):
                 check_not_a_kernel(m.mapping, label=label)
-            if not isinstance(m, WIRED_MODIFIERS):
+            if not is_wired(m, WIRED_MODIFIERS, "genomes.ordered"):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
                     f"support. It takes OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
@@ -1225,7 +1230,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     f"the run's genes are known, and a run covers several families, so there is no "
                     f"one family to draw a factor for. Put ByFamily on {rate_slot}, where it weights "
                     f"the segment by what it covers, or use family_speed= for a family-wide tempo.")
-            if not isinstance(m, WIRED_EXTENT_MODIFIERS):
+            if not is_wired(m, WIRED_EXTENT_MODIFIERS, "genomes.ordered"):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
                     f"support on an extent — it takes "
@@ -1299,7 +1304,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # and who receives is loaded once and read from one trajectory.
     group_of, to_traj = prepare_transfer_to(tree, transfer_to, resolved)
 
-    rng = np.random.default_rng(seed)
+    rng, seed = stream("genomes", seed)     # own stream, and a drawn seed if none was given
     copy_counter = 0
     family_counter = 0
     chrom_counter = 0

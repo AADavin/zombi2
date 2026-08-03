@@ -37,8 +37,9 @@ from .ordered import (
 )
 from .nucleotide import NucleotideGenome, NucleotideGenomesResult, simulate_genomes_nucleotide
 from ._perfamily import StreamedRun
+from .read import read_run
 
-__all__ = ["simulate_genomes_family", "FamilyGenomesResult", "GeneEdge", "GeneCopy", "Distance",
+__all__ = ["simulate_genomes_family", "read_run", "FamilyGenomesResult", "GeneEdge", "GeneCopy", "Distance",
            "Clades", "Between",
            "Profiles", "GeneTree", "GeneNode", "FamilyGenome", "family",
            "simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",

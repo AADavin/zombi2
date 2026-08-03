@@ -27,6 +27,14 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 
+def is_wired(m: "Modifier", engines: tuple[type, ...], engine: str) -> bool:
+    """Whether ``engine`` may run modifier ``m``: it is one of the types that engine threads
+    (``engines``, the level's ``WIRED_MODIFIERS``), or it declares itself `Modifier.wired_for` that
+    engine. Every engine gate goes through here, so the escape hatch cannot be honoured in one level
+    and forgotten in another."""
+    return isinstance(m, engines) or engine in getattr(m, "wired_for", ())
+
+
 class Modifier:
     """Base for rate modifiers.
 
@@ -34,6 +42,27 @@ class Modifier:
     ``branch``, ``family``, …) and returns a dimensionless, non-negative multiplier;
     it ignores the rest. Abstract — use a subclass.
     """
+
+    #: The engines a **third-party** modifier declares itself wired for. Each engine ships a
+    #: ``WIRED_MODIFIERS`` tuple and refuses anything outside it, because a modifier the engine never
+    #: reads would return its default 1.0 and give a run that is quietly not the model you asked for
+    #: (SPEC §5). That gate is right, but it was also a closed door: a `Modifier` subclass of your own
+    #: composed into a `Rate` correctly and was then refused by every level, with no registry and no
+    #: entry point — so extending the grammar meant forking the package. Naming an engine here is the
+    #: opt-in::
+    #:
+    #:     class OnLogTime(Modifier):
+    #:         wired_for = ("species",)
+    #:         def factor(self, *, time: float = 0.0, **_): return 1.0 / (1.0 + time)
+    #:
+    #: The engine names are ``species``, ``genomes.family``, ``genomes.ordered``,
+    #: ``genomes.nucleotide``, ``sequences``, ``traits.continuous``, ``traits.discrete`` and
+    #: ``joint`` — each the level module the engine lives in. Declaring one is a claim you are making:
+    #: that engine calls `factor` with whatever context it happens to supply, so take ``**_`` and read
+    #: only keys you can default. Built-in modifiers leave this empty; the engine lists them by type.
+    #: The rate *text* grammar (a `--birth` flag, a ``--params`` file) still knows only the built-in
+    #: names, so a modifier of your own is Python-only — as an object you constructed has to be.
+    wired_for: tuple[str, ...] = ()
 
     def factor(self, **context: Any) -> float:
         raise NotImplementedError

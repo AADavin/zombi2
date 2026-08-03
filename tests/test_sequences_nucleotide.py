@@ -207,7 +207,7 @@ def test_the_rebuilt_root_is_the_genome_the_gff_seeded(tmp_path):
 def test_an_ancestor_can_be_rebuilt_even_where_the_root_branch_moved_things():
     # n0 sits at the *end* of the root branch, so an event there leaves it already rearranged away
     # from the seeded layout. It is still exactly what the run held, which is what is checked.
-    genomes = _run(seed=2, n_extant=8)
+    genomes = _run(seed=5, n_extant=8)
     root = genomes.complete_tree.root
     assert [x for x in genomes.rearrangements if x.lineage == root], "no root-branch event in this run"
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=2)
@@ -296,7 +296,7 @@ def test_block_of_says_so_when_a_gene_left_nothing_behind():
 
 # --- everything at once ----------------------------------------------------------------------------
 
-def _busy(seed=2, n_extant=10):
+def _busy(seed=4, n_extant=10):
     """A multi-chromosome run with every event kind on — the scaled-down twin of the stress run: two
     replicons of different shapes, rearrangement, copy-number change, transfer between lineages, de
     novo genes, and the chromosome tier splitting and merging replicons."""

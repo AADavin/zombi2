@@ -28,10 +28,10 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from typing import TYPE_CHECKING
 
-import numpy as np
 
 from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import ByFamily, DrivenBy, OnTime
+from ..rng import resolve_seed, stream
+from ..rates.modifiers import ByFamily, DrivenBy, OnTime, is_wired
 from ..rates.rate import as_rate
 from ..rates.scope import PerCopy, PerLineage, Scope
 from ..tree import Tree, as_tree
@@ -99,8 +99,11 @@ class FamilyGenomesResult:
     max_family_size: int | None = None
 
     def __repr__(self) -> str:
+        # "0 nodes" beside a real tip count reads as a broken run; a reopened run that did not write
+        # genomes.tsv has the genealogy and not the gene content, so it says which.
+        content = f"{len(self.genomes)} nodes" if self.genomes else "gene content not loaded"
         return (f"FamilyGenomesResult({len(self.complete_tree.extant_leaves())} extant genomes, "
-                f"{len(self.genomes)} nodes, {len(self.events)} events, seed={self.seed})")
+                f"{content}, {len(self.events)} events, seed={self.seed})")
 
     def family_counts(self, node_id: int) -> collections.Counter:
         """A multiset view of one node's genome: ``family id → copy count``."""
@@ -144,6 +147,14 @@ class FamilyGenomesResult:
         """The phyletic profiles — each gene family's copy count in each extant species — derived
         from the observed genomes (the classic comparative-genomics matrix). See `profiles`."""
         extant = [n.id for n in self.complete_tree.extant_leaves()]
+        if extant and not self.genomes:
+            # a run reopened by `read_run` from a directory whose 'genomes' output was not written:
+            # the genealogy is all there, the gene content is not. Say that, rather than KeyError.
+            raise ValueError(
+                "this run has no per-node gene content, so there are no profiles to derive — it was "
+                "read back from a directory whose genomes.tsv was not written. Re-run the genomes "
+                "level with 'genomes' among its outputs, or read profiles.tsv if that one is there. "
+                "The gene trees and the event log are unaffected.")
         return profiles_from_genomes(self.genomes, extant)
 
     @cached_property
@@ -282,6 +293,11 @@ class FamilyGenomesResult:
         The gene trees are two files per family, so they get a subdirectory rather than burying the
         tables above; ``flat=True`` writes everything into ``directory`` instead.
         """
+        # An unknown token used to write nothing and exit clean — silent data loss you discover
+        # three pipeline steps later, when the next tool has no input. The other levels have always
+        # raised; these two did not.
+        if unknown := [o for o in outputs if o not in self.OUTPUTS]:
+            raise ValueError(f"unknown write outputs {unknown}; choose from {list(self.OUTPUTS)}")
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
         names = self.complete_tree.labels()      # e<id> for a lineage that died; n<id> for the rest
@@ -740,7 +756,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     "family-wide tempo.")
             if isinstance(m, DrivenBy):
                 check_not_a_kernel(m.mapping, label=label)
-            if isinstance(m, (OnTime, DrivenBy, ByFamily)):
+            if is_wired(m, WIRED_MODIFIERS, "genomes.family"):
                 continue
             raise ValueError(
                 f"{label} carries {type(m).__name__}, which the family genome engine does not "
@@ -830,6 +846,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         raise ValueError(
             "outputs applies to a streamed run (stream_to=DIR), which writes the files itself; for an "
             "in-memory run choose them when you call result.write(outputs=...).")
+    seed = resolve_seed(seed)     # drawn if none was given, so either engine below records it
     if parallel or stream_to is not None:
         from ._perfamily import run_parallel_family
         result = run_parallel_family(
@@ -844,7 +861,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         if result is not None:
             return result
 
-    rng = np.random.default_rng(seed)
+    rng, seed = stream("genomes", seed)     # the genomes level's own stream
     copy_counter = 0
     family_counter = 0
 

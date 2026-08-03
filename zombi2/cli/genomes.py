@@ -377,6 +377,34 @@ def _stray(args, knobs) -> list[str]:
             if getattr(args, attr) != default]
 
 
+def _warn_if_cap_bound(result, cap: int | None) -> None:
+    """Warn on **stderr** when ``--max-family-size`` actually bound.
+
+    The cap defaults to 10 and is on unless you turn it off. When it binds it discards duplications
+    and arriving transfers, so the run no longer realises the rate you declared: at
+    ``--duplication 0.8`` the default cap has been measured pulling the realised rate to 0.32. That
+    is a defensible model — it is Poisson thinning, and Chapter 4 says so — but the terminal used to
+    say nothing at all, while the far less damaging all-genomes-empty case got a loud warning right
+    here. Someone building a benchmark from a job script would publish a biased dataset and never see
+    a sign of it, because a job log keeps stdout and stderr, not ``run.zombi2``.
+
+    Counted off the phyletic profiles, which both the family and ordered resolutions carry — the
+    family resolution's ``genome_summary.json`` reports the same numbers, and the ordered one has no
+    summary to report them in, so counting here covers both. Only fires when a family actually
+    reached the cap, so a healthy run still prints nothing."""
+    if cap is None:
+        return
+    at_cap = [key for key, n in result.profiles.counts.items() if n >= cap]
+    if not at_cap:
+        return
+    families, cells = len({f for f, _ in at_cap}), len(at_cap)
+    warn(f"max-family-size {cap} bound on this run: {families} "
+         f"famil{'y' if families == 1 else 'ies'} reached it in {cells} extant "
+         f"genome{'' if cells == 1 else 's'}, so the realised duplication and transfer rates are "
+         f"below the ones you declared. Raise the cap, or pass --max-family-size none to remove it, "
+         f"if you are measuring rates.")
+
+
 def _warn_if_genomes_emptied(result, resolution: str) -> None:
     """Say so when the run left an extant genome with no genes in it — a diagnostic about the
     *result*, in the register of `warn_if_fates_were_inferred()`.
@@ -622,6 +650,7 @@ def run(args, parser):
     # holds no genomes to count; the nucleotide resolution is left out for the reason in the helper.
     if not streaming and args.resolution != "nucleotide":
         _warn_if_genomes_emptied(result, args.resolution)
+        _warn_if_cap_bound(result, args.max_family_size)
     if not args.flat:                             # record which same-run levels drove a rate (if any),
         record_conditioning(out, conditioned_levels(   # so re-running one of them knows it orphans this
             args.run, _driven_specs(args)))

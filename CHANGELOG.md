@@ -9,6 +9,69 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+- **BREAKING: each level now draws from its own random stream, so one seed on two levels no longer
+  means the same numbers twice.** Every level opened `np.random.default_rng(seed)`, so two levels
+  handed the same integer replayed the *same* PCG64 stream: a species tree's height and its genome's
+  copy count at equal seeds came out correlated at Spearman −0.79 over 6000 seeds, with nothing in the
+  output to say so. SPEC §2 calls two levels that do not read each other *independent*, and that is a
+  claim about two random streams. Each level's generator is now spawned from a `SeedSequence` under a
+  per-level key (`zombi2/rng.py`). **The species level is unchanged** — it keeps the unkeyed root
+  stream, so every species tree ever grown under a seed still reproduces byte for byte — but
+  **genomes, sequences, traits and joint runs at a given seed now produce a different (equally valid)
+  realisation**. Pin the version for anything you need to rerun. (#315)
+- **Branch lengths are written at full precision, so a tree round-trips through a file exactly.**
+  `to_newick()` wrote 12 significant digits, which shifted every branch by ~2e−12 on the CLI's
+  disk handoff between levels — enough to move every downstream waiting time, so
+  `zombi2 genomes --seed 7` and `simulate_genomes_family(sp, seed=7)` produced *different* histories
+  from the same tree and the same seed. Both were valid draws, but a seed that means one run through
+  Python and another through the CLI is not a seed anyone can publish. `precision=` still takes a
+  fixed digit count for a smaller file. (#315)
+- **A genome run written with `stream_to=` now writes `species_complete.nwk` beside its outputs.**
+  Every other file in that directory is indexed by the tree's node labels, and for a streamed run the
+  directory is the only handoff there is. (#315)
+
+### Added
+- **`genomes.read_run(directory)` reopens a written genome run from Python**, and
+  `simulate_sequences` accepts a directory or a `StreamedRun` wherever it accepts a result. The CLI
+  has always reopened a run with `--from`; from Python the same handoff was a dead end, which mattered
+  most for `stream_to=` — the feature whose whole point is that the run does not fit in memory, and
+  whose handle could then not be passed to the next level. (#315)
+- **A modifier of your own can declare the engines it is wired for.** `Modifier` is public with a
+  clean `factor(**context)` contract, and a subclass composed into a `Rate` correctly — and was then
+  refused by every level, with no registry and no entry point, so extending the advertised grammar
+  meant forking the package. Setting `wired_for = ("species",)` on the subclass opens the gate for
+  that engine and no other; everything undeclared is still refused by name. (#315)
+
+### Fixed
+- **`seed=None` from Python now records the seed it drew**, as the CLI already did.
+  `docs/reproducibility.md` states there is no such thing as an unrepeatable ZOMBI2 run; that was true
+  of the command line and false of the API, where `result.seed` stayed `None` and an interesting
+  realisation found while exploring was gone. (#315)
+- **A species run whose `species_fates.tsv` is missing is refused rather than silently consumed.**
+  That is what SIGINT during the write phase leaves, and equally a partial copy or a tidied directory
+  — and under `--sampling` every unsampled tip then read back as sampled, so the same seed and rates
+  gave 30 extant genomes where the complete run gave 14, with exit 0 and nothing on stderr. An
+  external tree still goes in as a file, which is what tells the two apart. (#315)
+- **`--max-family-size` says so on stderr when it actually bound.** The cap is on by default, and when
+  it binds it discards duplications and arriving transfers: at `--duplication 0.8` the default cap of
+  10 has been measured pulling the realised rate to 0.32. It was recorded in `run.zombi2` and warned
+  about in Chapter 4's prose, and nowhere a cluster job log would keep it — while the far less
+  damaging all-genomes-empty case got a loud warning. (#315)
+- **`FamilyGenomesResult.write(outputs=…)` and the ordered and nucleotide results now reject an
+  unknown output token**, as species, sequences and traits always did. A typo wrote nothing and
+  exited clean: silent data loss found three steps later, when the next tool has no input. (#315)
+- **A Newick with duplicate tip labels is refused.** The simulation itself was fine, which is what
+  made it dangerous: `names.tsv` — the documented join back to your own taxa — mapped two node ids to
+  one name, and any downstream merge by taxon name silently duplicated or dropped rows. (#315)
+- **A parallel run from an unguarded script now says what is wrong.** Workers re-import the caller's
+  script; without `if __name__ == "__main__":` they ran the whole simulation again from the top, so
+  the run "succeeded" having done N× the work and printed N copies of its output — or died with a
+  bare `BrokenProcessPool`. Both paths now name the guard. A notebook and `python -c` are unaffected:
+  they have no script to re-import, and still degrade to single-process. (#315)
+- **A run reopened without its `genomes.tsv` says so** instead of raising `KeyError` from `.profiles`,
+  and its `repr` no longer claims 0 nodes. (#315)
+
 ## [0.27.0] - 2026-08-03
 
 ### Removed

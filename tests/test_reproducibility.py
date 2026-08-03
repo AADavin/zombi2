@@ -138,13 +138,13 @@ def _driven():
 #: run name → the digest that run has produced since it was recorded. Read the module docstring
 #: before changing one.
 RUNS = {
-    "species": (_species, "06466dd513d31779"),
-    "genomes_family": (_genomes_family, "369934dfe2346d76"),
-    "genomes_ordered": (_genomes_ordered, "e11177c5d2945c59"),
-    "sequences": (_sequences, "bf5fa015e805f8ad"),
-    "traits_continuous": (_traits_continuous, "6babd98690779b90"),
-    "traits_discrete": (_traits_discrete, "ed8068708a0b54a0"),
-    "driven": (_driven, "87d523661508241c"),
+    "species": (_species, "4f33df380040b900"),
+    "genomes_family": (_genomes_family, "ea19d2eb7751ed4e"),
+    "genomes_ordered": (_genomes_ordered, "60f87e542d759973"),
+    "sequences": (_sequences, "5d6ae687bfb8c219"),
+    "traits_continuous": (_traits_continuous, "719b66f31de35cd7"),
+    "traits_discrete": (_traits_discrete, "4d46d145dd81174a"),
+    "driven": (_driven, "421c647ee645e8c0"),
 }
 
 

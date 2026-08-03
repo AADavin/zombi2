@@ -94,13 +94,13 @@ import math
 import pathlib
 from dataclasses import dataclass, field
 
-import numpy as np
 
 from ..rates.distributions import Geometric
+from ..rng import stream
 from ..rates.extent import Extent, as_extent
 from ..rates.driver import check_mapping_fires, resolve_driver
 from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import DrivenBy, OnTime
+from ..rates.modifiers import DrivenBy, OnTime, is_wired
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerLineage
 from ..tree import Tree, as_tree
@@ -968,6 +968,11 @@ class NucleotideGenomesResult:
         genome times a real tree — so each gets a subdirectory rather than burying the tables above;
         ``flat=True`` writes everything into ``directory`` instead.
         """
+        # An unknown token used to write nothing and exit clean — silent data loss you discover
+        # three pipeline steps later, when the next tool has no input. The other levels have always
+        # raised; these two did not.
+        if unknown := [o for o in outputs if o not in self.OUTPUTS]:
+            raise ValueError(f"unknown write outputs {unknown}; choose from {list(self.OUTPUTS)}")
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
         names = self.complete_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
@@ -1921,7 +1926,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         for m in r.modifiers:
             if isinstance(m, DrivenBy):
                 check_not_a_kernel(m.mapping, label=label)
-            if not isinstance(m, WIRED_MODIFIERS):
+            if not is_wired(m, WIRED_MODIFIERS, "genomes.nucleotide"):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the nucleotide genome engine does not "
                     f"support. It takes {', '.join(w.__name__ for w in WIRED_MODIFIERS)}.")
@@ -1948,7 +1953,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         for m in e.modifiers:
             if isinstance(m, DrivenBy):
                 check_not_a_kernel(m.mapping, label=label)
-            if not isinstance(m, WIRED_MODIFIERS):
+            if not is_wired(m, WIRED_MODIFIERS, "genomes.nucleotide"):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the nucleotide genome engine does not "
                     f"support — an extent takes the same modifiers a rate does here "
@@ -2050,7 +2055,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                    transfer_extent, origination_extent, inversion_probability)
     depth = mean_root_to_tip(tree)                       # timescale for Distance weighting
 
-    rng = np.random.default_rng(seed)
+    rng, seed = stream("genomes", seed)     # own stream, and a drawn seed if none was given
     chrom_counter = 0
     copy_counter = 0
     source_counter = len(specs)                          # de-novo sources continue past the initial sources

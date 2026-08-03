@@ -370,8 +370,8 @@ _UNDRIVEN_TRANSFER_DIGESTS = {
     # moves this digest because it hashes the list in order. Nothing the run *produced* moved — the
     # ids are minted in the same order as before, and the genomes, the gene trees and the events as a
     # set are byte-identical against the previous engine.
-    "uniform": "fa1b13772aed552aab5d10c89f391d5378101679afda979a5c3685acc0f5d6f1",
-    "distance": "fb5e83d04658aa6e5b06e4a1672217b9fc84b92e6e0854c259dbcbe5fb451abf",
+    "uniform": "2f068999dc990e8cdfe17997c6c418e71372b4e35c4cbf3666513cfd43935ced",
+    "distance": "a52f01064f17c8c1706065214d409326896fd98727dead3359fb8ccc739a4042",
 }
 
 
@@ -396,7 +396,7 @@ def test_undriven_transfer_is_unchanged_under_replacement_and_self_transfer():
     res = genomes.simulate_genomes_family(
         tree, duplication=0.2, transfer=0.4, loss=0.15, origination=0.3, replacement=True,
         self_transfer=True, initial_families=5, seed=23)
-    assert _event_digest(res) == "b0b74e65397d1da5ea17b27adfb8784ec5ffcc8eea40f03d0d6cb56dcdbb3b60"
+    assert _event_digest(res) == "e14c05d3480058943566532526710b8ac482d7816739c3749080a51cfdfabe21"
 
 
 def test_driven_transfer_picks_the_donor(tmp_path):
@@ -677,7 +677,7 @@ def test_driven_transfer_to_leaves_how_much_transfer_alone_at_ordered(tmp_path):
     every driver switch, moving the run while every assertion about *who* received still passed.
     Pooled over seeds, because a single run's count is an rng-path detail."""
     n_plain = n_driven = 0
-    for seed in range(15):
+    for seed in range(20):
         tree = simulate_species_tree(birth=1.1, total_time=2.0, seed=seed).complete_tree
         driver = tmp_path / f"flat{seed}.tsv"
         _write_driver(driver, tree, {i: "any" for i in tree.nodes})

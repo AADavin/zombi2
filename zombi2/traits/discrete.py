@@ -8,7 +8,8 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import DrivenBy, Modifier
+from ..rng import stream
+from ..rates.modifiers import DrivenBy, Modifier, is_wired
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerLineage
 from ..tree import as_tree
@@ -125,11 +126,12 @@ def _switch_drivers(switch) -> list:
                 f"a switch rate has a {type(r.scope).__name__} scope, but a discrete trait switches "
                 f"per lineage — drop the scope wrapper (per lineage is the default).")
         for m in r.modifiers:
-            if not isinstance(m, WIRED_MODIFIERS):
+            if not is_wired(m, WIRED_MODIFIERS, "traits.discrete"):
                 raise ValueError(
                     f"a switch rate carries {type(m).__name__}, which the discrete trait engine does "
                     f"not support. It takes DrivenBy (the switch rate driven by another trait).")
-            check_not_a_kernel(m.mapping, label="a switch rate")
+            if isinstance(m, DrivenBy):   # a modifier wired in from outside carries no mapping
+                check_not_a_kernel(m.mapping, label="a switch rate")
             mods.append(m)
     return mods
 
@@ -275,7 +277,7 @@ def _simulate_threshold(tree, states, liability, threshold, start, correlation, 
     def label(x):
         return states[int(np.searchsorted(thr, x))]
 
-    rng = np.random.default_rng(seed)
+    rng, seed = stream("traits", seed)      # own stream, and a drawn seed if none was given
     node_values: dict[int, object] = {}
 
     if isinstance(liability, dict):  # correlated discrete traits — joint liabilities, shared thresholds
@@ -372,7 +374,7 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
         raise ValueError(f"at_speciation must be a probability in [0, 1] (the shift chance), got {at_speciation!r}")
     shift = 0.0 if at_speciation is None else float(at_speciation)
 
-    rng = np.random.default_rng(seed)
+    rng, seed = stream("traits", seed)      # own stream, and a drawn seed if none was given
     idx = {s: i for i, s in enumerate(states)}
     if start is None:
         start_i = int(rng.integers(len(states)))

@@ -270,6 +270,15 @@ g = genomes.simulate_genomes_family(
 
 `parallel=True` uses every core and an integer sets the worker count; on the command line it is `--parallel` for all cores or `--parallel 8` for eight. It is a **separate engine**, not a faster path through the default one: each family draws from its own random stream, so the result is identical for any worker count, but it differs from a serial run of the same seed — both are valid draws of the same process.
 
+From a script, put the call under a `__main__` guard — the standard requirement for anything that starts worker processes, since they re-import your script and would otherwise run it again from the top:
+
+```python
+if __name__ == "__main__":
+    g = genomes.simulate_genomes_family(tree, duplication=0.2, seed=1, parallel=8)
+```
+
+Leave it out and the run stops with a message saying so. A notebook or `python -c` has no script to re-import, so neither needs the guard; the library notices and runs single-process there instead.
+
 A **conditioned** rate (Chapter 9) runs here too. Conditioning does not couple families: the driver was grown before this run and is an input to it, so a lineage's factor at a given moment is the same number whichever family is asking, and no family can reach another through it. Each worker reads the driver as a lookup, and the decomposition is untouched.
 
 For very large runs — hundreds of thousands of families, or a million — the difficulty stops being speed and becomes memory: the finished result itself no longer fits. `stream_to` writes each family to a directory the moment it is done, and hands back a light handle holding a path rather than a `FamilyGenomesResult` holding everything. Memory then stays flat however many families you run — a run that would have held 2 GB streams in about 40 MB — and the sequence level reads the families back off the disk afterwards. Choose which files to write with `outputs=`, exactly as `.write` takes them. On the command line this is `--stream`.
@@ -280,4 +289,6 @@ run = genomes.simulate_genomes_family(
     parallel=8, stream_to="out/", outputs=("events", "profiles"))
 run.path("events")            # out/genome_events.tsv — the log, ready to replay
 ```
+
+The handle goes straight into the next level, and so does the directory: `sequences.simulate_sequences(run, …)` and `sequences.simulate_sequences("out/", …)` both reopen it. `genomes.read_run("out/")` gives the run itself back — the event log, and the gene trees derived from it — for anything you would rather do in Python than on the command line.
 

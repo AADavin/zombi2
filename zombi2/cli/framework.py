@@ -15,6 +15,7 @@ import textwrap
 import numpy as np
 
 from zombi2 import __version__
+from zombi2.rng import draw_seed
 
 
 _DESCRIPTION = """\
@@ -309,10 +310,7 @@ def resolve_seed(args) -> None:
     A run that wants fresh randomness still gets it — this draws from the OS each time. What changes
     is only that the draw is written down."""
     if getattr(args, "seed", None) is None:
-        # a 32-bit value, so the number in the log is one a reader can retype as --seed
-        entropy = np.random.SeedSequence().entropy
-        assert isinstance(entropy, int)      # the default source is one integer, not a sequence
-        args.seed = int(entropy % (2 ** 31))
+        args.seed = draw_seed()      # a 32-bit value, so the log's number is one a reader can retype
 
 
 def warn(message: str) -> None:
@@ -524,11 +522,42 @@ def resolve_tree(path: str, *, is_run_dir: bool = False) -> str:
     for candidate in _TREE_IN_RUN:
         full = os.path.join(path, candidate)
         if os.path.exists(full):
+            _refuse_partial_species_run(full)
             return full
     raise FileNotFoundError(
         f"{path} is a directory but holds no species tree — looked for "
         f"{' and '.join(_TREE_IN_RUN)}. Point it at a 'zombi2 species' run directory, or give a "
         f"Newick file with --from.")
+
+
+#: What a *finished* species run leaves beside its tree. A run directory holding the tree and neither
+#: of these did not finish writing.
+_SPECIES_RUN_MARKERS = ("species_fates.tsv", "species.log")
+
+
+def _refuse_partial_species_run(tree_path: str) -> None:
+    """Refuse a run directory whose species tree is there but whose run plainly did not finish.
+
+    A downstream level reads each tip's fate from ``species_fates.tsv`` and falls back to guessing
+    from tip depth when it is absent — which is right for an **external** tree (a published phylogeny
+    has no fates file and never will) and wrong for a ZOMBI run that was interrupted, rsynced
+    halfway, or tidied. The two were indistinguishable to the reader, and the failure was silent and
+    material: under ``--sampling`` every unsampled tip reads back as sampled, so the same seed and
+    rates gave 30 extant genomes where the complete run gave 14, with exit 0 and nothing on stderr.
+
+    What tells them apart is that this is a run *directory* with the run's own file names in it. A
+    run that finished wrote a log beside the tree; one that did not, did not. So: tree present,
+    neither marker present → stop. An external tree still goes in the way it always did, as a file
+    path (or ``--from tree.nwk``), which never reaches here."""
+    directory = os.path.dirname(tree_path)
+    if any(os.path.exists(os.path.join(directory, m)) for m in _SPECIES_RUN_MARKERS):
+        return
+    raise FileNotFoundError(
+        f"{tree_path} is there but {' and '.join(_SPECIES_RUN_MARKERS)} are not, so this looks like "
+        f"a species run that did not finish writing (an interrupted run, a partial copy). Reading it "
+        f"would treat every tip as sampled and extant, which silently changes the taxon set your "
+        f"genomes are built over. Re-run 'zombi2 species' here — or, if this is an external tree, "
+        f"pass the .nwk file itself with --from rather than the directory.")
 
 
 def _read_tip_fates(path: str) -> dict:
