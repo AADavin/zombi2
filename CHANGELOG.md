@@ -46,7 +46,19 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   help named, though `--initial-families` and `--max-family-size` named theirs. The wording carries
   the condition too: those apply only to a run given no rate at all. (#316)
 
+### Added
+- **A gallery example for `ByFamily`**: two genome runs on one species tree at the same mean rates,
+  where only how much families differ from one another changes. With every family alike **no family
+  is present in every genome**; a `ByFamily` draw gives 62 universal families and the bimodal
+  gene-frequency spectrum real pangenomes show. `ByFamily` is the knob a comparative-genomics study
+  leans on hardest and it had nothing showing what it does — a returning ZOMBI v1 user found it named
+  nowhere in the migration guide and blank in the CLI help. Drawn with Phylustrator's new
+  `genomes.grid`. (#316)
+
 ### Changed
+- **`zombi2[gallery]` asks for `phylustrator>=0.1.4`, not `==0.1.0`.** An exact pin on a companion
+  library downgrades anyone who already has a newer one and makes any environment wanting one
+  unresolvable. (#316)
 - **A release is now gated on CI, and the README badge tells the truth.** 0.28.0 reached PyPI 43
   seconds after its CI run started and 19 minutes before it finished, so the artifact was published
   before a single test job had reported. `release.yml` now calls `ci.yml` as a reusable workflow and
