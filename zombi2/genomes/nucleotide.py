@@ -99,6 +99,7 @@ import numpy as np
 from ..rates.distributions import Geometric
 from ..rates.extent import Extent, as_extent
 from ..rates.driver import check_mapping_fires, resolve_driver
+from ..rates.mapping import check_not_a_kernel
 from ..rates.modifiers import DrivenBy, OnTime
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerLineage
@@ -1918,6 +1919,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 f"{label} has a {type(r.scope).__name__} scope, but the nucleotide engine takes only "
                 f"{want.__name__} for {label} this slice — scope overrides are a later slice.")
         for m in r.modifiers:
+            if isinstance(m, DrivenBy):
+                check_not_a_kernel(m.mapping, label=label)
             if not isinstance(m, WIRED_MODIFIERS):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the nucleotide genome engine does not "
@@ -1943,6 +1946,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 f"breakpoints, so another shape would have to be re-weighted over that set rather "
                 f"than drawn. Pass a number (the mean in bp) or Geometric(mean=...).")
         for m in e.modifiers:
+            if isinstance(m, DrivenBy):
+                check_not_a_kernel(m.mapping, label=label)
             if not isinstance(m, WIRED_MODIFIERS):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the nucleotide genome engine does not "

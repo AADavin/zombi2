@@ -10,6 +10,22 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Fixed
+- **A `Between` kernel in a rate or extent slot now says so, everywhere.** A kernel weights a
+  recipient by the (donor, recipient) pair, so it answers *who receives* and belongs in
+  `transfer_to`; a rate is read on one lineage and has no donor. The family and ordered engines
+  refused it on a rate, but the ordered engine did not check its **extents** and the nucleotide
+  engine checked neither. Those two did not do the wrong thing quietly — `Between` implements no
+  `multiplier`, so a run died part-way through with `AttributeError: 'Between' object has no
+  attribute 'multiplier'`, a traceback from inside the engine naming neither the rate nor the
+  mistake. All five slots now refuse before the run starts, through one shared guard so the message
+  is the same wherever the kernel was put.
+- **A joint gene-content mapping that can never fire is refused, as a joint trait's already was.**
+  A typo'd `DrivenBy("genomes:toxin", {"presnt": 3.0, "absent": 1.0})` left every lineage at the
+  default factor — birth was never driven, the run was the plain birth–death model — and it completed
+  in silence, reporting a coupled run. Both gene-content drivers have an alphabet known before the
+  race starts (a named family is `present` or `absent`; a count is a number, which a `{state: factor}`
+  table can never equal), so the check is exhaustive.
+
 - **Conditioning on a continuous trait from disk drove every lineage at one constant value.** A
   diffusion has no switches, so its `trait_events.tsv` holds only the `initial` row — and replaying
   that log built a driver frozen at the root value on every lineage, *accepted without a warning*. A

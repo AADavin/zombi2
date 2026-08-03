@@ -253,6 +253,24 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, sources,
     ``(tree, species_events, genomes_out, genome_events, family_names)``."""
     dup, los, org = spec._resolve()
 
+    # The same guard the joint TRAIT path has applied one function up: a mapping that can never fire
+    # leaves every lineage at the default factor, so the run is the UNDRIVEN model while reporting that
+    # gene content drove it. Both gene-content drivers have an alphabet known before the race starts —
+    # a named family is present or absent, and a count is a number — so the check is exhaustive here
+    # too. Without it a typo'd `{"presnt": 3.0}` ran to completion in silence.
+    from ..rates.driver import check_mapping_fires
+    for label, rate in (("birth", birth_rate), ("death", death_rate)):
+        for m in rate.modifiers:
+            if not isinstance(m, DrivenBy):
+                continue
+            if m.source == _GENOME_COUNT:
+                # a count is numeric: {state: factor} names discrete states a number never equals, and
+                # `check_mapping_fires` says exactly that when the states it is given are numbers
+                check_mapping_fires(m.mapping, {0}, source_label=f"{label} (genomes:count)")
+            else:
+                check_mapping_fires(m.mapping, {"present", "absent"},
+                                    source_label=f"{label} ({m.source})", exhaustive=True)
+
     nodes: dict[int, Node] = {}
     counter = 0
 

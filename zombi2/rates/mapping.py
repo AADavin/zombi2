@@ -263,4 +263,26 @@ def as_mapping(spec: object) -> Mapping:
     )
 
 
-__all__ = ["Mapping", "Table", "Curve", "Scalar", "Between", "check_kernel_fires", "as_mapping"]
+def check_not_a_kernel(mapping, *, label: str) -> None:
+    """Raise if a **rate** (or an extent) is driven through a `Between` kernel.
+
+    A ``Between`` weights a recipient by the ``(donor, recipient)`` group pair, so it answers *who
+    receives* and belongs in ``transfer_to``. A rate is read on one lineage and has no donor to
+    condition on, so a kernel there has nothing to be a pair with: `Between` deliberately implements
+    no ``multiplier``, and an engine that does not check first dies part-way through a run with
+    ``AttributeError: 'Between' object has no attribute 'multiplier'`` — a traceback from inside the
+    engine, naming neither the rate nor the mistake.
+
+    Every engine that accepts ``DrivenBy`` on a rate or an extent calls this, so the message is the
+    same one wherever the kernel was put."""
+    if isinstance(mapping, Between):
+        raise ValueError(
+            f"{label} carries DrivenBy(…, Between(…)); a Between kernel is donor-conditioned — it "
+            f"weights a recipient by the (donor, recipient) group pair — so it belongs in transfer_to "
+            f"(who RECEIVES) and never in a rate or an extent, which are read on one lineage and have "
+            f"no donor to condition on. Drive this with a Table (a plain dict) or a Curve, and put the "
+            f"kernel in transfer_to=mod.DrivenBy(source, Between({{...}})).")
+
+
+__all__ = ["Mapping", "Table", "Curve", "Scalar", "Between", "check_kernel_fires",
+           "check_not_a_kernel", "as_mapping"]
