@@ -25,14 +25,14 @@ from zombi2.genomes import family
 from zombi2.joint import simulate_joint
 from zombi2._runtime.report import write_run_report
 from zombi2._runtime.summary import write_summary
-from zombi2.joint import WIRED_MODIFIERS
+from zombi2.joint import IMPLEMENTED_MODIFIERS
 from zombi2.traits import discrete
 
 #: the RATES block for ``zombi2 joint -h``, built from the engine's own declaration like every other
 #: command's — it used to hard-code ``(DrivenBy,)`` and so under-reported OnTime and
 #: OnTotalDiversity, which a joint run does thread.
 RATES_HELP = _rates_help(
-    WIRED_MODIFIERS, "--birth",
+    IMPLEMENTED_MODIFIERS, "--birth",
     note="Here DrivenBy names a live level, not a file. Sources: 'trait' (the trait grown "
          "alongside), 'genomes:count' (a lineage's gene count), 'genomes:<name>' (a named family, "
          "{'present': 3.0, 'absent': 1.0}). --death takes a driven rate too.")

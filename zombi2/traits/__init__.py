@@ -74,7 +74,7 @@ by name. SSE (BiSSE/MuSSE/QuaSSE) is **not** a trait model — it is trait↔spe
 from __future__ import annotations
 
 from .continuous import simulate_continuous
-from .continuous import WIRED_MODIFIERS  # noqa: F401  (re-exported for the CLI, not in __all__)
+from .continuous import IMPLEMENTED_MODIFIERS  # noqa: F401  (re-exported for the CLI, not in __all__)
 from .discrete import DiscreteTrait, discrete, simulate_discrete
 from .result import Change, TraitsResult
 

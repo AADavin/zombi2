@@ -53,12 +53,12 @@ from typing import Sequence, cast
 from dataclasses import dataclass, field
 from functools import cached_property
 
-import numpy as np
 
 from ..rates.driver import check_mapping_fires, resolve_driver
+from ..rng import stream
 from ..rates.extent import Extent, as_extent
 from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import ByFamily, DrivenBy, OnTime
+from ..rates.modifiers import ByFamily, DrivenBy, OnTime, is_implemented
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
@@ -80,14 +80,14 @@ from .profiles import Profiles, profiles_from_genomes
 #: (a conditioned or joint driver) and ``ByFamily`` (per-family heterogeneity, weighted on the segment
 #: an event covers rather than on the gene it started from — SPEC §6). One combination is refused: see
 #: the gate.
-WIRED_MODIFIERS = (OnTime, DrivenBy, ByFamily)
+IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, ByFamily)
 
 #: What an **extent** takes here (SPEC §6). An extent takes the modifiers a rate does, and at this
 #: resolution that is one fewer: ``ByFamily`` attaches to the *contents*, and an extent is drawn
 #: before the run's genes are known — a run covers several families, so there is no one family to
 #: draw a factor for. The two lists are declared separately rather than hidden in an ``if``, because
 #: the difference is a modelling fact, not an implementation detail.
-WIRED_EXTENT_MODIFIERS = (OnTime, DrivenBy)
+IMPLEMENTED_EXTENT_MODIFIERS = (OnTime, DrivenBy)
 
 
 @dataclass(frozen=True)
@@ -384,6 +384,11 @@ class OrderedGenomesResult:
         The gene trees are two files per family, so they get a subdirectory rather than burying the
         tables above; ``flat=True`` writes everything into ``directory`` instead.
         """
+        # An unknown token used to write nothing and exit clean — silent data loss you discover
+        # three pipeline steps later, when the next tool has no input. The other levels have always
+        # raised; these two did not.
+        if unknown := [o for o in outputs if o not in self.OUTPUTS]:
+            raise ValueError(f"unknown write outputs {unknown}; choose from {list(self.OUTPUTS)}")
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
         names = self.complete_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
@@ -1148,7 +1153,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     tree = as_tree(tree, level="genomes")
     labels = _topologies(chromosomes, topology)
     n_initial_chrom = chromosomes
-    # this slice implements each event's default scope and the three modifiers WIRED_MODIFIERS
+    # this slice implements each event's default scope and the three modifiers IMPLEMENTED_MODIFIERS
     # declares: OnTime (skyline), DrivenBy (a conditioned/joint driver, per lineage) and ByFamily —
     # the last with the weight on the SEGMENT rather than on its starting gene (SPEC §6, and
     # _pick_run_by_family). A scope override or a clade-drift modifier is a later slice, so reject it
@@ -1182,7 +1187,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     f"gene events only — not to the chromosome tier, which acts on whole replicons.")
             if isinstance(m, DrivenBy):
                 check_not_a_kernel(m.mapping, label=label)
-            if not isinstance(m, WIRED_MODIFIERS):
+            if not is_implemented(m, IMPLEMENTED_MODIFIERS, "genomes.ordered"):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
                     f"support. It takes OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
@@ -1212,7 +1217,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     def _ext_spec(spec, label):
         """One event's extent (SPEC §6): ``base × modifiers``, no scope, in **genes** here. An extent
         takes the modifiers a rate takes at this resolution minus ``ByFamily`` (see
-        `WIRED_EXTENT_MODIFIERS`), and they scale the size drawn — ``OnTime`` in time, ``DrivenBy``
+        `IMPLEMENTED_EXTENT_MODIFIERS`), and they scale the size drawn — ``OnTime`` in time, ``DrivenBy``
         on the lineage the event lands on."""
         e = as_extent(spec)
         rate_slot = label.removesuffix("_extent")
@@ -1225,11 +1230,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     f"the run's genes are known, and a run covers several families, so there is no "
                     f"one family to draw a factor for. Put ByFamily on {rate_slot}, where it weights "
                     f"the segment by what it covers, or use family_speed= for a family-wide tempo.")
-            if not isinstance(m, WIRED_EXTENT_MODIFIERS):
+            if not is_implemented(m, IMPLEMENTED_EXTENT_MODIFIERS, "genomes.ordered"):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
                     f"support on an extent — it takes "
-                    f"{', '.join(w.__name__ for w in WIRED_EXTENT_MODIFIERS)}.")
+                    f"{', '.join(w.__name__ for w in IMPLEMENTED_EXTENT_MODIFIERS)}.")
         return e
 
     dup_ext, los_ext, tra_ext = (_ext_spec(duplication_extent, "duplication_extent"),
@@ -1299,7 +1304,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # and who receives is loaded once and read from one trajectory.
     group_of, to_traj = prepare_transfer_to(tree, transfer_to, resolved)
 
-    rng = np.random.default_rng(seed)
+    rng, seed = stream("genomes", seed)     # own stream, and a drawn seed if none was given
     copy_counter = 0
     family_counter = 0
     chrom_counter = 0

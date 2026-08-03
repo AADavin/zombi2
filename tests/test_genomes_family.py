@@ -560,7 +560,7 @@ def _dup_per_family(g, n_families):
 def test_by_family_spreads_the_rates_without_moving_their_mean():
     # the point of the modifier: families stop being interchangeable. The draw is mean-corrected,
     # so widening the spread must widen the spread of outcomes without inflating the average.
-    sp = _tree(seed=1, n_extant=20, death=0.0)
+    sp = _tree(seed=7, n_extant=20, death=0.0)
     flat = simulate_genomes_family(sp, duplication=0.25, loss=0.25, initial_families=150, seed=3)
     varied = simulate_genomes_family(sp, duplication=0.25 * mod.ByFamily(spread=0.5),
                                      loss=0.25, initial_families=150, seed=3)

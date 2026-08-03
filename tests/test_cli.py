@@ -655,8 +655,10 @@ def test_traits_params_file_drives_the_run_and_cli_overrides(tmp_path, tree_file
 # ── --params ────────────────────────────────────────────────────────────────────────
 
 def test_the_log_records_the_input_tree_by_content_not_only_by_name(tmp_path):
-    # two different trees under the same filename give logs that differ nowhere else: same command
-    # line, same seed, same parameters. The digest is what tells the two runs apart.
+    # two different trees under the same filename give logs whose *parameters* are identical: same
+    # command line, same seed, same rates. The digest is the only thing that tells the two runs
+    # apart. (`result` is dropped with it — a different tree of course yields a different number of
+    # families, and it is the parameter block this test is about.)
     logs = []
     for seed in (1, 2):
         sp, gn = tmp_path / f"sp{seed}", tmp_path / f"gn{seed}"
@@ -667,7 +669,8 @@ def test_the_log_records_the_input_tree_by_content_not_only_by_name(tmp_path):
         main(["genomes", str(gn), "--from", str(tree), "--duplication", "0.2", "--loss", "0.2",
               "--seed", "7", "--flat", "--quiet"])
         logs.append([ln for ln in (gn / "genomes.log").read_text(encoding="utf-8").splitlines()
-                     if not ln.startswith(("timestamp", "command_line", "run\t", "source\t"))])
+                     if not ln.startswith(("timestamp", "command_line", "run\t", "source\t",
+                                           "result\t"))])
     digests = [[ln for ln in log if ln.startswith("input\t")] for log in logs]
     assert len(digests[0]) == 1 and digests[0] != digests[1]     # the tree, and it is not the same tree
     assert [ln for ln in logs[0] if not ln.startswith("input\t")] == \
@@ -951,7 +954,7 @@ def test_params_file_rate_expression_matches_the_flag(tmp_path):
 
 
 def test_the_rates_help_lists_only_what_the_level_wires(capsys):
-    # the help is built from each level's WIRED_MODIFIERS, so it cannot advertise the unwired
+    # the help is built from each level's IMPLEMENTED_MODIFIERS, so it cannot advertise the unwired
     for command, present, absent in [
             ("species", ["FromParent", "ByLineage"], ["ByFamily"]),   # both per-lineage forms wired
             # both clocks and the trait driver are wired; the diversity covariate is not

@@ -8,7 +8,7 @@ sequence of ancestry blocks, with declared indivisible genes and intergenic spac
 `simulate_genomes_nucleotide()`). Long options are the API keyword names, and
 every rate takes the written form (SPEC §5): a bare number on its natural scope, or the same
 ``scope(base) × modifiers`` expression the Python API takes — ``--loss "0.25 * OnTime({0: 1.0, 3:
-2.0})"``. Each resolution declares which modifiers it reads (its ``WIRED_MODIFIERS``) and rejects the
+2.0})"``. Each resolution declares which modifiers it reads (its ``IMPLEMENTED_MODIFIERS``) and rejects the
 rest rather than silently ignoring them; the two structured resolutions both take ``DrivenBy``, so a
 trait can drive a rearrangement rate at either. ``--transfer-to`` is the one **choice slot** (SPEC §5)
 and works at all three: the weight it takes says who receives, never how much transfer happens."""
@@ -18,13 +18,13 @@ import argparse
 import os
 import time
 
-from zombi2.genomes import (WIRED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
+from zombi2.genomes import (IMPLEMENTED_MODIFIERS, simulate_genomes_nucleotide, simulate_genomes_ordered,
                             simulate_genomes_family)
 from zombi2.genomes.family import FamilyGenomesResult
 from zombi2.genomes.ordered import OrderedGenomesResult
 from zombi2.genomes.nucleotide import NucleotideGenomesResult
-from zombi2.genomes.nucleotide import WIRED_MODIFIERS as _NUC_WIRED
-from zombi2.genomes.ordered import WIRED_MODIFIERS as _ORDERED_WIRED
+from zombi2.genomes.nucleotide import IMPLEMENTED_MODIFIERS as _NUC_IMPLEMENTED
+from zombi2.genomes.ordered import IMPLEMENTED_MODIFIERS as _ORDERED_IMPLEMENTED
 from zombi2.rates.parse import parse_rate
 from zombi2.rates.scope import Global, PerLineage
 from zombi2.tree import node_label, read_newick
@@ -38,17 +38,17 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   sibling_fates, warn, warn_if_fates_were_inferred)
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration — including the
-#: per-resolution sentence, which is read off each engine's ``WIRED_MODIFIERS`` rather than typed out
+#: per-resolution sentence, which is read off each engine's ``IMPLEMENTED_MODIFIERS`` rather than typed out
 #: here. It had been typed out, and it went stale the moment the ordered engine learned ``DrivenBy``.
 RATES_HELP = _rates_help(
-    WIRED_MODIFIERS, "--loss",
+    IMPLEMENTED_MODIFIERS, "--loss",
     note="Rates keep their natural scope here (D/T/L per copy, origination per lineage), so there "
          "is no scope wrapper to write. On --transfer, DrivenBy drives how often a lineage DONATES; "
          "--transfer-to takes one on its own as a recipient weight, at every resolution — it is a "
          "choice slot, not a rate, so the numbers are normalised weights over the candidates. "
-         "--resolution ordered takes " + ", ".join(m.__name__ for m in _ORDERED_WIRED) +
+         "--resolution ordered takes " + ", ".join(m.__name__ for m in _ORDERED_IMPLEMENTED) +
          ", though not ByFamily and DrivenBy in one run; nucleotide, " +
-         ", ".join(m.__name__ for m in _NUC_WIRED) + ".")
+         ", ".join(m.__name__ for m in _NUC_IMPLEMENTED) + ".")
 
 # The write vocabularies, read off the results themselves. They used to be hand-copied here, with a
 # comment saying so, and they drifted: `species_tree` and `initial_sequence` were writable from
@@ -377,6 +377,34 @@ def _stray(args, knobs) -> list[str]:
             if getattr(args, attr) != default]
 
 
+def _warn_if_cap_bound(result, cap: int | None) -> None:
+    """Warn on **stderr** when ``--max-family-size`` actually bound.
+
+    The cap defaults to 10 and is on unless you turn it off. When it binds it discards duplications
+    and arriving transfers, so the run no longer realises the rate you declared: at
+    ``--duplication 0.8`` the default cap has been measured pulling the realised rate to 0.32. That
+    is a defensible model — it is Poisson thinning, and Chapter 4 says so — but the terminal used to
+    say nothing at all, while the far less damaging all-genomes-empty case got a loud warning right
+    here. Someone building a benchmark from a job script would publish a biased dataset and never see
+    a sign of it, because a job log keeps stdout and stderr, not ``run.zombi2``.
+
+    Counted off the phyletic profiles, which both the family and ordered resolutions carry — the
+    family resolution's ``genome_summary.json`` reports the same numbers, and the ordered one has no
+    summary to report them in, so counting here covers both. Only fires when a family actually
+    reached the cap, so a healthy run still prints nothing."""
+    if cap is None:
+        return
+    at_cap = [key for key, n in result.profiles.counts.items() if n >= cap]
+    if not at_cap:
+        return
+    families, cells = len({f for f, _ in at_cap}), len(at_cap)
+    warn(f"max-family-size {cap} bound on this run: {families} "
+         f"famil{'y' if families == 1 else 'ies'} reached it in {cells} extant "
+         f"genome{'' if cells == 1 else 's'}, so the realised duplication and transfer rates are "
+         f"below the ones you declared. Raise the cap, or pass --max-family-size none to remove it, "
+         f"if you are measuring rates.")
+
+
 def _warn_if_genomes_emptied(result, resolution: str) -> None:
     """Say so when the run left an extant genome with no genes in it — a diagnostic about the
     *result*, in the register of `warn_if_fates_were_inferred()`.
@@ -489,10 +517,10 @@ def run(args, parser):
         modulated = [f"--{n}" for n in ("duplication", "transfer", "loss", "origination", "inversion",
                                         "transposition", "translocation", "fission", "fusion")
                      if not isinstance(getattr(args, n), float)
-                     and any(not isinstance(m, _NUC_WIRED) for m in getattr(args, n).modifiers)]
+                     and any(not isinstance(m, _NUC_IMPLEMENTED) for m in getattr(args, n).modifiers)]
         if modulated:
             parser.error(f"--resolution nucleotide takes only "
-                         f"{', '.join(w.__name__ for w in _NUC_WIRED)}, but "
+                         f"{', '.join(w.__name__ for w in _NUC_IMPLEMENTED)}, but "
                          f"{', '.join(modulated)} carries another modifier")
 
     vocab = _OUTPUTS[args.resolution]
@@ -622,6 +650,7 @@ def run(args, parser):
     # holds no genomes to count; the nucleotide resolution is left out for the reason in the helper.
     if not streaming and args.resolution != "nucleotide":
         _warn_if_genomes_emptied(result, args.resolution)
+        _warn_if_cap_bound(result, args.max_family_size)
     if not args.flat:                             # record which same-run levels drove a rate (if any),
         record_conditioning(out, conditioned_levels(   # so re-running one of them knows it orphans this
             args.run, _driven_specs(args)))

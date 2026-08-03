@@ -852,7 +852,7 @@ def test_profiles_are_refused_alongside_what_would_contradict_them():
     flat = _np.tile(lg().stationary, (40, 1))
     with pytest.raises(ValueError, match="both decide which model each site"):
         simulate_sequences(g, partitions=((lg(), 40),), profiles={0: flat}, divergence=0.5, seed=1)
-    with pytest.raises(ValueError, match="not wired to the parallel engine"):
+    with pytest.raises(ValueError, match="not implemented for the parallel engine"):
         simulate_sequences(g, model=lg(), length=40, profiles={0: flat}, parallel=2,
                            divergence=0.5, seed=1)
 

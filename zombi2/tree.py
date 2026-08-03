@@ -115,7 +115,7 @@ class Tree:
         apart by their fate) but pruned from the extant tree."""
         return [n for n in self.nodes.values() if n.fate == "unsampled"]
 
-    def to_newick(self, *, precision: int = 12) -> str:
+    def to_newick(self, *, precision: int | None = None) -> str:
         """Serialise to Newick (matching ``tree.to_newick()`` elsewhere in the codebase). Each
         branch length is ``end_time - birth_time`` and every node — leaves and internals — is named
         ``n<id>``, or ``e<id>`` for a lineage that went extinct (see `node_label()`).
@@ -126,30 +126,44 @@ class Tree:
         tree whose crown comes late, a large fraction of its history. It is emitted as ``)n0:<stem>;``
         and `read_newick()` reads it back.
 
-        ``precision`` is the number of **significant digits** each branch length is written to, 12 by
-        default. It matters more than it looks, and 7 — the old default — was not enough: a tip's
-        *depth* is a sum of branch lengths, so the rounding accumulates down the path, and on a
-        40-tip tree of height 4 two tips written at 7 digits came out about 1e-6 apart. That is far
-        above the tolerance ``ape::is.ultrametric()`` allows (~1e-8), so an ultrametric tree — which
-        every extant tree from a dated run is, to 1e-16 in memory — was rejected by the first thing
-        anyone does with it in R. At 12 digits the same tree lands around 1e-15."""
+        ``precision`` is the number of **significant digits** each branch length is written to.
+        ``None`` (the default) writes the shortest string that reads back as *exactly* the same
+        float, so a tree written and re-read is the tree you had.
+
+        That exactness is not cosmetic: the CLI hands a tree between levels through this file, so a
+        rounded length is a different tree. At the old fixed 12 digits every branch shifted by about
+        2e-12 on the round trip, which moved every downstream Gillespie waiting time — and
+        ``zombi2 genomes --seed 7`` and ``simulate_genomes_family(sp, seed=7)`` then produced
+        *different* histories from the same tree and the same seed. Both were valid draws, but a seed
+        that means one run through Python and another through the CLI is not a seed anyone can
+        publish. Writing lengths in full costs a few bytes a branch and makes the two front doors the
+        same run.
+
+        Digits also matter downstream. Seven — the default before 12 — was not enough: a tip's
+        *depth* is a sum of branch lengths, so rounding accumulates down the path, and on a 40-tip
+        tree of height 4 two tips written at 7 digits came out about 1e-6 apart. That is far above the
+        tolerance ``ape::is.ultrametric()`` allows (~1e-8), so an ultrametric tree — which every
+        extant tree from a dated run is, to 1e-16 in memory — was rejected by the first thing anyone
+        does with it in R. Pass ``precision=`` to go back to fixed significant digits for a smaller
+        file; the tree it writes no longer round-trips exactly."""
 
         name = self.labels()
-        fmt = f".{precision}g"
+        # repr() is Python's shortest round-tripping float form: float(repr(x)) == x, always
+        num = repr if precision is None else (lambda x: f"{x:.{precision}g}")
 
         def emit(i: int) -> str:
             node = self.nodes[i]
             bl = node.end_time - node.birth_time
             if node.children is None:
-                return f"{name[i]}:{bl:{fmt}}"
+                return f"{name[i]}:{num(bl)}"
             inner = ",".join(emit(c) for c in node.children)
-            return f"({inner}){name[i]}:{bl:{fmt}}"
+            return f"({inner}){name[i]}:{num(bl)}"
 
         root = self.nodes[self.root]
         stem = root.end_time - root.birth_time
         if root.children is None:
-            return f"{name[self.root]}:{stem:{fmt}};"
-        return f"({','.join(emit(c) for c in root.children)}){name[self.root]}:{stem:{fmt}};"
+            return f"{name[self.root]}:{num(stem)};"
+        return f"({','.join(emit(c) for c in root.children)}){name[self.root]}:{num(stem)};"
 
 
 def prune(tree: Tree, keep: str = "extant") -> Tree | None:
@@ -436,6 +450,28 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
             _scan(c)
 
     _scan(root_p)
+
+    # An external tree's tip labels are the join back to the caller's own taxa — the CLI writes them
+    # to ``names.tsv`` — so two tips sharing a label make that table ambiguous (``n2→A`` beside
+    # ``n4→A``) and every downstream merge by taxon name silently duplicates or drops rows. The
+    # simulation itself would be fine, which is what makes this worth refusing rather than warning
+    # about: nothing downstream would ever look wrong. A ZOMBI tree cannot reach this — its labels
+    # are ids, and repeats are caught as duplicate ids below.
+    if not all_labelled:
+        seen: set[str] = set()
+        repeated: list[str] = []
+        stack = [root_p]
+        while stack:
+            p = stack.pop()
+            if p.children:
+                stack.extend(p.children)
+            elif p.name:
+                (repeated.append(p.name) if p.name in seen else seen.add(p.name))
+        if repeated:
+            raise ValueError(
+                f"duplicate tip label(s) in the Newick: {', '.join(sorted(set(repeated)))} — tip "
+                f"labels are how results join back to your taxa, so they must be unique. Rename the "
+                f"repeats (a species appearing twice is usually an export or hand-edit slip).")
 
     nodes: dict[int, Node] = {}
     names: dict[int, str] = {}  # {minted id: user label} — for external trees; empty for ZOMBI ones

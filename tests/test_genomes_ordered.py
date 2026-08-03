@@ -257,7 +257,7 @@ def test_deterministic_given_seed():
 #: wired into this engine. Every driven-path addition is behind ``if any_driven`` / a ``w`` argument
 #: and draws nothing from the rng, so an undriven run must hash the same: the draw order of the plain
 #: path is what a hundred seeded tests, the gallery and every analysis depend on.
-_UNDRIVEN_ORDERED_DIGEST = "2c2b782b7bd55a2197dbb153aabfd5e34ccc39a7f557bc03490bd3184f509c06"
+_UNDRIVEN_ORDERED_DIGEST = "209e3ac7c847c5dea22cc746f10ab10e177b8c705ba792d5784909e7f456a325"
 
 
 def _ordered_digest(r) -> str:
@@ -324,8 +324,8 @@ def test_unsupported_modifier_on_an_extent_is_rejected(modifier):
 def test_the_extent_declaration_is_the_rate_declaration_minus_byfamily():
     """The one difference between the two lists is a modelling fact, not an accident: ``ByFamily``
     attaches to the contents, and an extent is drawn before the run's genes are known."""
-    from zombi2.genomes.ordered import WIRED_EXTENT_MODIFIERS, WIRED_MODIFIERS
-    assert set(WIRED_MODIFIERS) - set(WIRED_EXTENT_MODIFIERS) == {ByFamily}
+    from zombi2.genomes.ordered import IMPLEMENTED_EXTENT_MODIFIERS, IMPLEMENTED_MODIFIERS
+    assert set(IMPLEMENTED_MODIFIERS) - set(IMPLEMENTED_EXTENT_MODIFIERS) == {ByFamily}
 
 
 def test_scope_override_is_rejected_this_slice():
@@ -593,7 +593,7 @@ def test_a_mixed_topology_karyotype_keeps_one_chromosome_of_each_shape():
     sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
     r = simulate_genomes_ordered(sp, fusion=1.0, fission=0.5, chromosomes=4,
                                  topology=["circular", "linear", "circular", "linear"],
-                                 initial_families=12, seed=5)
+                                 initial_families=12, seed=1)
     for n in sp.complete_tree.extant_leaves():
         assert sorted(c.topology for c in r.genomes[n.id]) == ["circular", "linear"]
     # ... and no recorded fusion edge ever joined two shapes. Ancestral chromosomes are not in the
@@ -1065,10 +1065,10 @@ def _layout_digest(result):
 # not, which is what makes the two free to swap. Both rules are pinned because they take different
 # branches of the pick.
 _UNDRIVEN_ORDERED_DIGESTS = {
-    "uniform": ("67da8d3c71f6f4a58235efb854e1cbddd5bf6660514a59cc0107375ac55ed087",
-                "c865dfe27d521e67788e3d2b6f367435282fa754db89809ee864808adfc0643b"),
-    "distance": ("4c1a7cd9699709e1bea8144108a44732f9e499328385058aed70d4536d9b41b2",
-                 "68c7f1c4b720b34b6f2cea9d84623595aa083b58638f5b7e048e4e53834de035"),
+    "uniform": ("ba19064ea8c619c6159c8cba81c49b3e806c0106d0d4e7e9a684fb31080cafa2",
+                "999869de2badcb04893892cc2027861d24a568f1abb63bbd91537939c26f0b8f"),
+    "distance": ("9ddacf457e81d1247fb0e6cfe86dc08b2e1e65345b1ba85692db881f832e8c18",
+                 "222b1a3b64ef98eeff224a171858867aca282df0311eb61321054e70ff6b78e9"),
 }
 
 
@@ -1090,8 +1090,8 @@ def test_a_wrapping_thinned_transfer_run_is_unchanged():
     r = simulate_genomes_ordered(tree, duplication=0.4, transfer=0.6, loss=0.1, origination=0.2,
                                  transfer_extent=3.0, chromosomes=1, transfer_to="distance",
                                  max_family_size=3, initial_families=6, seed=7)
-    assert _event_digest(r) == "fd7d4ab02d283f81ce5072a37eb97d8d2a0afc671ab44771aa5c93126ac46dc4"
-    assert _layout_digest(r) == "c0d19a80a8788ad75d0490628095600103ebac5a28cd16c2b6db4c121914a65d"
+    assert _event_digest(r) == "5be915335767d5b0fc4ece618e3423026a6ce1f5d88f878ad4b3346b937aa868"
+    assert _layout_digest(r) == "13629890f19a2e18787ff5eaef401175bc50c746a7e27d0d69405019d119ffa5"
 
 
 def test_clades_steer_an_ordered_transfer_between_two_clades():

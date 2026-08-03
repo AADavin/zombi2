@@ -271,7 +271,7 @@ def test_joint_refuses_a_modifier_it_does_not_thread():
     through — where every other level declares what it takes. `ByFamily` was the one that slipped:
     accepted, then returning its default factor of 1.0, so the run was quietly not the model asked
     for. `OnTime` and `OnTotalDiversity` were never the problem; the loop threads both and steps at
-    their breakpoints, which is why they are in `WIRED_MODIFIERS` rather than refused alongside."""
+    their breakpoints, which is why they are in `IMPLEMENTED_MODIFIERS` rather than refused alongside."""
     import pytest
 
     from zombi2 import joint, traits

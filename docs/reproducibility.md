@@ -23,10 +23,20 @@ That command is the whole record. Anyone who has it, and the version it ran unde
   conditions on another level lists the driver's command first, so the block runs top to bottom.
 - **A seed you did not give is still written down.** Leave `--seed` off and one is drawn from the
   operating system — and printed into the report, so the run is reproducible afterwards even though
-  it was not planned to be. There is no such thing as an unrepeatable ZOMBI2 run.
+  it was not planned to be. From Python, `seed=None` does the same thing: the drawn seed is on the
+  result as `result.seed`, so an interesting realisation found while exploring is never lost. There
+  is no such thing as an unrepeatable ZOMBI2 run.
 - **Each level is seeded separately.** `zombi2 genomes … --seed 7` on a tree grown with `--seed 42`
   gives the same genomes whatever else has happened in between, because the genome stream depends on
   the tree and its own seed, not on the order you ran things in.
+- **One seed on two levels does not mean the same numbers twice.** Each level draws from its own
+  stream, spawned from your seed under a per-level key, so `--seed 42` on both the species and the
+  genomes command gives you two *independent* runs — which is what SPEC §2 means by two levels being
+  independent. Before 0.28.0 both levels opened the same generator from the same integer, so a shared
+  seed quietly coupled them; if you have a study built that way, its levels are correlated.
+- **A run written to disk is the same run in memory.** Branch lengths are written at full precision,
+  so the tree the CLI hands to the next level is exactly the tree the previous one produced. The same
+  tree and the same seed give the same history whether you run two commands or two Python calls.
 
 ## What is not
 
@@ -45,6 +55,19 @@ That command is the whole record. Anyone who has it, and the version it ran unde
   drawing them all from one. So the same seed gives the same output at **any** worker count, one core
   or thirty-two, but a different (equally valid) realisation from the serial default. Choose once at
   the start of a study rather than switching partway through, and record which you used.
+
+    From Python, a parallel run needs its call under a `__main__` guard, which is the standard
+    requirement for anything that starts worker processes — they re-import your script, and without
+    the guard they run it again from the top:
+
+    ```python
+    if __name__ == "__main__":
+        g = genomes.simulate_genomes_family(sp, duplication=0.2, seed=1, parallel=8)
+    ```
+
+    Leave it out and the run stops with a message naming the guard. The `zombi2` command already has
+    one, and a notebook or `python -c` has no script to re-import, so both are unaffected — the
+    library notices and runs single-process there instead.
 
 - **Not, strictly, across numpy major versions.** Every random number ZOMBI2 draws comes from numpy's
   `Generator`, and numpy does not promise that a `Generator` method keeps producing the same stream
