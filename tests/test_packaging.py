@@ -47,13 +47,21 @@ def _declared_runtime_names() -> set[str]:
     return names
 
 
+#: Modules that are standard library on *some* supported Python but not on the one running this test.
+#: `sys.stdlib_module_names` answers for this interpreter alone, so on 3.10 `tomllib` — stdlib from
+#: 3.11 — reads as a third-party import and the check below fails on the very version it was written
+#: to protect. That is the same mistake in miniature as the bug this file exists for: a check that
+#: silently asks "what is true here?" when the question is "what is true for the package".
+_STDLIB_ON_A_LATER_PYTHON = {"tomllib"}
+
+
 def _third_party_imports() -> set[str]:
     """Every top-level module the package imports that is neither ours nor in the standard library.
 
     Read from the AST rather than by importing, so this reports what the *code* needs on a machine
     that does not happen to have it — which is the whole point."""
     ours = {"zombi2"}
-    stdlib = set(sys.stdlib_module_names)
+    stdlib = set(sys.stdlib_module_names) | _STDLIB_ON_A_LATER_PYTHON
     found: set[str] = set()
     for path in _PKG.rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
