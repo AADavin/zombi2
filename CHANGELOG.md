@@ -62,6 +62,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   his 21 single-copy families scored. `markers.tsv` already reported RF that way internally, so the
   capability existed and was simply not offered here. Opt-in, because silently scoring a different
   question than the one asked is worse than refusing; the refusal now names the flag. (#316)
+- **The run report names the units of the rates it ran with** — what each is counted per, and that
+  time is tree time in whatever unit the tree carries. A folder handed on is read long after the CLI
+  help that answers this: `duplication 0.15` says nothing about per what. Only the slots a run used
+  are listed, and the unit belongs to the slot rather than to the value — a modifier is a
+  dimensionless multiplier by construction, so no rate expression can change it. Nothing
+  dimensionless is listed, nor the continuous trait's `rate`, which is a variance rather than a rate.
+  The `<level>.log` is untouched: it is `key<TAB>value` TSV that things parse. (#316)
 - **The run report says where the software came from** — the project URL and a
   `pip install zombi2==<version>` line, pinned to the version that made the run. A folder handed on
   outlives the environment that produced it: a reviewer reconstructed an entire run from

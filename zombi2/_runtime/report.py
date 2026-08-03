@@ -209,6 +209,39 @@ def _dict_phrase(d: dict) -> str:
     return " · ".join(f"{_label(k)} {_num(v)}" for k, v in d.items())
 
 
+#: What each rate slot is counted *per*. The unit is a property of the slot, never of the value: a
+#: modifier is a dimensionless multiplier by construction (SPEC §5, and every engine gate enforces
+#: it), so no expression a user can write changes it. Time is time⁻¹ throughout — tree time, in
+#: whatever unit the tree is in, which is the run's own and is not calibrated to anything.
+_RATE_UNITS = {
+    "per lineage": ("birth", "death", "fossils", "origination", "switch"),
+    "per gene copy": ("duplication", "transfer", "loss", "inversion", "transposition",
+                      "translocation"),
+    "per chromosome": ("fission", "fusion", "chromosome_origination", "chromosome_loss"),
+    "per site": ("substitution",),
+}
+
+
+def _units_line(params: dict) -> list[str]:
+    """One line naming what the rates in *this* run are counted per — only the slots it used.
+
+    A run directory is read long after the CLI help that answers this is to hand: "duplication 0.15"
+    says nothing about per what, and a reviewer handed a folder could not tell whether a tree height
+    of 5.391 was time or something else. The variance of a continuous trait is not a rate and is not
+    listed here; nor is anything dimensionless (a probability, a fraction, a count)."""
+    present = {k for k, _ in _visible_params(params, drop_zeros=True)}
+    rows = [(per, ", ".join(_label(s) for s in slots if s in present))
+            for per, slots in _RATE_UNITS.items() if present & set(slots)]
+    if not rows:
+        return []
+    # An aligned block rather than one wrapped phrase: run the groups together and the closing
+    # "per unit of tree time" reads as if it qualified only the last of them.
+    width = max(len(per) for per, _ in rows)
+    closing = "and all per unit of tree time (time⁻¹)" if len(rows) > 1 else \
+              "per unit of tree time (time⁻¹)"        # "all" of one group reads oddly
+    return _field("rate units", [f"{per:<{width}}   {names}" for per, names in rows] + [closing])
+
+
 def _visible_params(params: dict, *, for_reproduce: bool = False,
                     drop_zeros: bool = False) -> list[tuple[str, str]]:
     """The parameters worth showing, in reading order — the model parameters, dropping plumbing
@@ -576,6 +609,7 @@ def _render_section(run: str, sec: dict, i: int, n: int) -> list[str]:
     params = _params_phrase(log.get("params", {}))
     if params:
         lines += _field("parameters", _wrap(params))
+        lines += _units_line(log.get("params", {}))
     recorded_run = log.get("params", {}).get("run")
     lines += _field("computed on", [f"{_intra_run_rel(p, recorded_run) or p}  sha256 {sha[:8]}…"
                                     for p, sha in log.get("inputs", [])])
