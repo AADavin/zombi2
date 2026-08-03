@@ -28,8 +28,21 @@ on:
 permissions: {}
 
 jobs:
+  # The gate. 0.28.0 reached PyPI 43 seconds after its CI run started and 19 minutes before it
+  # finished — so the artifact the world installs was published before a single test job had
+  # reported. It happened to be sound; nothing made it so. For a simulator whose whole promise is
+  # that a seed names a run, publishing untested bits is a risk out of proportion to the cost of
+  # waiting. This calls the same CI workflow the badge reports, so "the tests pass" has one
+  # definition, and the publish jobs below cannot start until every one of them is green.
+  ci:
+    name: tests must pass first
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   zombi2-dist:
     name: zombi2 wheel + sdist
+    needs: [ci]
     runs-on: ubuntu-latest
     permissions:
       contents: read

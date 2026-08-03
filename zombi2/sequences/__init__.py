@@ -64,7 +64,7 @@ from ..rates.modifiers import ByLineage, DrivenBy, FromParent, Modifier
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerSite
 from ..tree import Node, Tree, prune
-from .._runtime.outputs import grouped_dir
+from .._runtime.outputs import fresh_dirs, grouped_dir
 from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
 from .clock import Clock, resolve_clock
@@ -205,6 +205,9 @@ class SequencesResult:
             raise ValueError(f"unknown write outputs {unknown}; choose from {list(_WRITE_OUTPUTS)}")
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
+        # a run's directory describes that run: clear the per-unit directories this write is
+        # about to fill, so nothing from a previous run survives inside them (see fresh_dirs)
+        fresh_dirs(d, ("alignments", "ancestral", "phylograms", "genomes"), flat)
         u = self._stem
         if "alignments" in outputs and any(self.alignments.values()):
             into = grouped_dir(d, "alignments", flat)
@@ -228,7 +231,18 @@ class SequencesResult:
                 if ph["extant"] is not None:
                     (into / f"phylogram_{u}{fam}_extant.nwk").write_text(ph["extant"] + "\n", encoding="utf-8")
         if "summary" in outputs:
-            write_summary(d / "sequences_summary.json", self.summary())
+            # The written summary describes the run *as written*, which is not quite what `summary()`
+            # describes. Ancestral sequences are reconstructed in memory either way but only land on
+            # disk when asked for, so a default run reported a count of ancestral sequences beside a
+            # directory that had none — and someone parsing the JSON, which is the point of shipping
+            # JSON, concluded the dataset held reconstructions and then could not find them. When you
+            # inherit a folder you cannot tell "never written" from "lost in transfer". Dropping the
+            # key says there are none here, which is true; a 0 would claim none were reconstructed,
+            # which is not.
+            written = self.summary()
+            if "ancestral" not in outputs:
+                written.pop("ancestral_sequences", None)
+            write_summary(d / "sequences_summary.json", written)
         if "species_phylogram" in outputs:
             sp = self.species_phylogram
             complete = sp["complete"]
@@ -571,6 +585,9 @@ class _Sink:
         self.dir = pathlib.Path(directory)
         self.dir.mkdir(parents=True, exist_ok=True)
         self.outputs, self.unit, self.flat = outputs, unit, flat
+        # once, here — a streamed run resolves its directories per family, so clearing on each would
+        # leave only the last family written
+        fresh_dirs(self.dir, ("alignments", "ancestral", "phylograms", "genomes"), flat)
         self.stem = {"family": "fam", "block": "block"}[unit]
         self.n_families = self.n_sequences = 0
         self._founding = (open(self.dir / "sequences_founding.fasta", "w", encoding="utf-8")
@@ -1284,7 +1301,13 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         handle = StreamedSequences(str(stream_to), seed, sink.n_families, sink.n_sequences,
                                    sink.outputs, sink.identity, sink.sites, sink.n_ancestral)
         if "summary" in sink.outputs:
-            write_summary(pathlib.Path(stream_to) / "sequences_summary.json", handle.summary())
+            # same rule as the in-memory write: the file describes the directory it sits in, so it
+            # counts ancestral sequences only where they were actually written. A streamed run and an
+            # in-memory one at the same seed are the same dataset, summary included.
+            written = handle.summary()
+            if "ancestral" not in sink.outputs:
+                written.pop("ancestral_sequences", None)
+            write_summary(pathlib.Path(stream_to) / "sequences_summary.json", written)
         return handle
     return SequencesResult(alignments, ancestral, founding, phylograms, species_phylogram, seed,
                            assembled, initial_genome, "block" if nucleotide else "family")

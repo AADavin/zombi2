@@ -20,6 +20,13 @@ dependencies = [
     # find out during someone's course.
     "numpy>=1.24,<3",
     "tqdm>=4.60,<5",
+    # `tomllib` is standard from 3.11; on 3.10 the CLI's --params reader falls back to the tiny
+    # `tomli` backport, so on 3.10 it is a real runtime dependency. Undeclared, it was supplied
+    # transitively by pytest and mypy (both require it below 3.11) — so the dev environment and CI
+    # had it and a plain `pip install zombi2` on 3.10 did not, and --params died with a raw
+    # ModuleNotFoundError. No test run inside this project could have caught that; only a fresh
+    # install could. See tests/test_packaging.py.
+    "tomli>=1.1; python_version < '3.11'",
 ]
 license = "MIT"
 license-files = ["LICENSE"]
