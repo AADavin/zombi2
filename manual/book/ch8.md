@@ -1,4 +1,4 @@
-# Trait evolution
+# Traits
 
 The trait level evolves **phenotypes**: a body size, a habitat, the presence or absence of a structure. A trait evolves along the species tree like everything else here. There are two kinds, continuous and discrete:
 

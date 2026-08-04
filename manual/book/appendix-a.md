@@ -274,13 +274,13 @@ The first is **sequence substitution along a branch**. Once a gene tree and its 
 settled, evolving a sequence down a branch does not require the individual substitution events, only the
 state at each end. The probability of ending in each state after a branch of length $t$ is given exactly
 by the matrix exponential $P(t) = e^{Qt}$, so ZOMBI2 draws each site's descendant state straight from
-$P(t)$ in one step ([Sequence evolution](#sequence-evolution)). Running Gillespie here would generate,
+$P(t)$ in one step ([Sequences](#sequences)). Running Gillespie here would generate,
 and then discard, thousands of intermediate substitutions.
 
 The second is a **continuous trait**. Brownian motion has no events to fire — it moves at every instant
 — so there is nothing for the loop to enumerate. A constant-rate run is drawn in closed form instead, as
 one multivariate normal over the whole tree, with variance $\sigma^2 \times$ root-to-tip depth and
-covariance $\sigma^2 \times$ shared path length ([Trait evolution](#trait-evolution)). When the rate
+covariance $\sigma^2 \times$ shared path length ([Traits](#traits)). When the rate
 varies along the tree, each branch takes the exact integral of $\sigma^2$ over it.
 
 The rule of thumb is the same each time. Reach for Gillespie when you need the whole history — every

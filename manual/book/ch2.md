@@ -97,101 +97,56 @@ Not every modifier is available at every level. Some combinations mean nothing �
 
 ### Writing your own
 
-The six modifiers above are the ones ZOMBI2 ships. They are not the only ones you can use. A modifier is a class with one method — `factor`, returning a dimensionless multiplier — and the engine calls it with the context it has: the current `time`, the standing `lineages` and `diversity`, the `copies` in the pool, the number of `chromosomes`. Read the keys you need, ignore the rest.
+The six modifiers above are the ones ZOMBI2 ships. If none of them says what your rate depends on,
+you can write your own. It is a small class, and it needs two things.
 
-The one extra step is naming the engines you wrote it for, in `implemented_for`. That is the same gate that refuses `ByFamily` on a species tree, and it exists because a modifier an engine never reads would return 1.0 and give you a run that is quietly not the model you asked for. Naming an engine is you taking responsibility for that claim.
+**A `factor()` method, returning the multiplier.** The engine calls it as the run goes and hands it
+what it knows at that moment: the current `time`, the standing `diversity`, the number of `copies` in
+the gene pool, the number of `chromosomes`. Read the ones you want and ignore the rest with `**_`.
+What you return multiplies the rate, so 1.0 leaves it alone, 2.0 doubles it, 0.0 switches it off.
 
-**A rate that follows a measured curve.** `OnTime` is a step function, which is the right shape for a skyline and the wrong one for a covariate you have measured through time — a temperature series, a sea-level curve. This one interpolates between the points you give it:
+**An `implemented_for` list, naming the engines that read it.** A modifier an engine does not read
+would silently return 1.0 and hand you a run that is not the model you asked for, so a level takes
+only the modifiers that name it and refuses the rest. The engine names are `species`,
+`genomes.family`, `genomes.ordered`, `genomes.nucleotide`, `traits.continuous`, `traits.discrete`
+and `joint`.
+
+Here is a complete one. `OnTotalDiversity` makes speciation *slow down* as lineages pile up. This
+makes extinction *speed up* instead, which is the other half of the same idea and something no
+shipped modifier can say:
 
 ```python
-import bisect
 from zombi2 import species
 from zombi2.rates.modifiers import Modifier
 
-class OnCurve(Modifier):
-    """Speciation follows a measured series, interpolated between knots."""
+class OnCrowding(Modifier):
+    """Extinction rises as lineages accumulate: at `crowd` standing lineages it has doubled."""
     implemented_for = ("species",)
 
-    def __init__(self, knots):
-        self._t, self._f = zip(*sorted(knots.items()))
+    def __init__(self, crowd):
+        self.crowd = float(crowd)
 
-    def factor(self, *, time=0.0, **_):
-        i = bisect.bisect_right(self._t, time)
-        if i == 0 or i == len(self._t):          # before the first knot, or after the last
-            return self._f[0] if i == 0 else self._f[-1]
-        span = self._t[i] - self._t[i - 1]
-        w = (time - self._t[i - 1]) / span
-        return self._f[i - 1] * (1 - w) + self._f[i] * w
-
-    def next_change(self, time):
-        """The next knot. The engine re-evaluates the rate here, so the curve is followed."""
-        i = bisect.bisect_right(self._t, time)
-        return self._t[i] if i < len(self._t) else float("inf")
-
-warming = species.simulate_species_tree(
-    birth=1.0 * OnCurve({0: 0.4, 2: 1.0, 4: 2.5}), death=0.1, total_time=4, seed=3)
-cooling = species.simulate_species_tree(
-    birth=1.0 * OnCurve({0: 2.5, 2: 1.0, 4: 0.4}), death=0.1, total_time=4, seed=3)
-
-def median_split(run):
-    times = sorted(n.end_time for n in run.complete_tree.nodes.values() if n.children)
-    return times[len(times) // 2]
-
-print(f"warming: splits pile up late  (median {median_split(warming):.2f})")
-print(f"cooling: splits pile up early (median {median_split(cooling):.2f})")
+    def factor(self, *, diversity=0.0, **_):
+        return 1.0 + diversity / self.crowd
 ```
 
-`next_change` is the part worth reading twice. The engine draws a waiting time from the rate as it stands and then jumps; between events the rate is held constant. Returning the next knot tells it to stop and re-evaluate there, so a rate that varies continuously is followed rather than frozen at whatever it was when the last event happened. A modifier that does not depend on time can leave `next_change` alone — the default says "never changes on its own".
-
-**Density dependence in the gene pool.** `OnTotalDiversity` slows a rate as *lineages* accumulate. The same idea on gene copies takes one line, and reads a key no shipped modifier uses:
+That is the whole modifier. Use it the way you use a shipped one — multiply it onto a rate:
 
 ```python
-from zombi2 import genomes
+plain   = species.simulate_species_tree(birth=1.0, death=0.2, total_time=6, seed=3)
+crowded = species.simulate_species_tree(birth=1.0, death=0.2 * OnCrowding(crowd=50),
+                                        total_time=6, seed=3)
 
-class OnTotalCopies(Modifier):
-    """Loss rises as the gene pool fills up — a carrying capacity for genes."""
-    implemented_for = ("genomes.family",)
-
-    def __init__(self, cap):
-        self.cap = float(cap)
-
-    def factor(self, *, copies=0.0, **_):
-        return 1.0 + copies / self.cap
-
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=1)
-flat = genomes.simulate_genomes_family(tree, duplication=0.5, loss=0.2,
-                                       initial_families=20, seed=1)
-dense = genomes.simulate_genomes_family(tree, duplication=0.5,
-                                        loss=0.2 * OnTotalCopies(cap=200),
-                                        initial_families=20, seed=1)
-print(f"{flat.profiles.matrix.sum()} copies with a flat loss rate, "
-      f"{dense.profiles.matrix.sum()} when loss rises with the pool")
+print(len(plain.complete_tree.extant_leaves()))     # 290 lineages survive
+print(len(crowded.complete_tree.extant_leaves()))   # 142 when extinction rises with crowding
 ```
 
-**Rearrangement that scales with the karyotype.** The ordered resolution hands its rates a `chromosomes` count, so a rate can depend on how divided the genome is:
-
-```python
-class OnKaryotype(Modifier):
-    """Rearrangement gets faster the more chromosomes there are to rearrange."""
-    implemented_for = ("genomes.ordered",)
-
-    def __init__(self, per_chromosome=0.5):
-        self.per_chromosome = float(per_chromosome)
-
-    def factor(self, *, chromosomes=1.0, **_):
-        return 1.0 + self.per_chromosome * max(0.0, chromosomes - 1.0)
-
-one = genomes.simulate_genomes_ordered(tree, inversion=0.3 * OnKaryotype(), duplication=0.1,
-                                       loss=0.1, initial_families=20, chromosomes=1, seed=2)
-four = genomes.simulate_genomes_ordered(tree, inversion=0.3 * OnKaryotype(), duplication=0.1,
-                                        loss=0.1, initial_families=20, chromosomes=4, seed=2)
-print(f"{len(one.rearrangements)} inversions on one chromosome, "
-      f"{len(four.rearrangements)} on four")
-```
-
-The engine names are `species`, `genomes.family`, `genomes.ordered`, `genomes.nucleotide`, `traits.continuous`, `traits.discrete` and `joint`. **`sequences` is the exception**: it reads its modifiers itself rather than through the rate — the clock is drawn per lineage before any site evolves — so a modifier of your own could not be honoured there, and it says so instead of ignoring you.
-
-Two limits worth knowing. A modifier of your own is Python-only: `--birth` and a `--params` file know the shipped names, and cannot construct an object you defined. And a modifier declaring one engine is still refused by every other, which is the point — the declaration is per engine because the context is.
+Two limits. A modifier of your own is Python-only: `--death` and a `--params` file know the names
+ZOMBI2 ships and cannot build a class you wrote. And if your `factor` reads `time` — a rate that
+changes continuously rather than only when an event fires — give the class a `next_change(time)`
+method returning the next moment the rate changes, so the engine stops and re-evaluates there instead
+of holding it at whatever it was. `OnCrowding` needs none, because diversity only changes when
+something is born or dies, and the engine already re-evaluates then.
 
 ## Conditioning
 
@@ -278,10 +233,4 @@ Every run can be written with `result.write("out/", outputs=[...])`; with no `ou
 
 Branch lengths are in time everywhere except the sequence phylograms, which are in substitutions per site. At every level the **event log** (`*_events.tsv`) is the true, ordered history the run followed, and Appendix B lists every file, level by level.
 
-## Reproducing a run
-
-One pseudo-random stream drives a whole run, and `seed` starts it: the same seed with the same parameters gives the same run, event for event. A run given no seed draws one and records it in the log, so an unseeded run can still be repeated. Three other things have to match:
-
-- **The version.** A seed names a position in a stream of draws, not a history, so anything that changes how many draws a run makes, or in what order, moves everything after it. Every run log records the version it was made with, and `pip install zombi2==<that version>` gets the old run back.
-- **The inputs, by content.** A run that reads a species tree, a `--tip-fates` table or a `DrivenBy` driver file is reproducible only with those files; the log records each by SHA-256 as well as by name.
-- **Serial or parallel.** `parallel=` is a separate engine, so a parallel run and a serial run of the same seed differ; both are valid draws of the same process. A parallel run is identical for any worker count (Chapter 4).
+One stream of random numbers drives a whole run and `seed` starts it, so the same seed, the same parameters and the same ZOMBI2 version give the same run, event for event; a run given no seed draws one and writes it into the log, so it can still be repeated. Every run also writes a `run.zombi2` report holding the version and the commands that regenerate it, which is what you send with a dataset.
