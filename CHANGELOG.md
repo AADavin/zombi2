@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-08-04
+
 ### Added
 - **`zombi2 tools tree TREE --gamma`** — Pybus & Harvey's γ, printed as `gamma<TAB><value>`, and
   `zombi2.tree.gamma_statistic` from Python. It says where a tree's branching times sit relative to
