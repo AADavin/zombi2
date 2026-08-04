@@ -9,6 +9,11 @@ The trajectory is read off the family's **gene tree**. Each `GeneNode` records t
 lived on and when it ended, and its parent records when it began, so a gene is an interval on a branch
 and the family is present there exactly while at least one interval covers it.
 
+One reader therefore serves **all three resolutions**: each recovers gene trees, so what differs
+between them is already behind us here. What a resolution still decides is how a family is *named*
+(`_declared_names`) and what takes it away — a whole-copy loss at family and ordered, a deletion
+covering the gene at nucleotide.
+
 That is not a way of avoiding the event log — it is the log after the step that turns it into
 genealogies. Presence needs to know when each copy *began* and *ended*, and neither form of the log
 says so directly: ``result.events`` is one row per gene-tree edge (two per duplication, two per
@@ -53,8 +58,10 @@ class GenePresence:
         return _segments(tree, {family: _spans(self.result, family)},
                          lambda covering: PRESENT if covering else ABSENT)
 
-    def as_driver_trajectory(self, tree) -> DriverTrajectory:
-        """The per-lineage present/absent trajectory, for `zombi2.rates.driver.resolve_driver`."""
+    def as_driver_trajectory(self, tree, *, step: float | None = None) -> DriverTrajectory:
+        """The per-lineage present/absent trajectory, for `zombi2.rates.driver.resolve_driver`.
+        ``step`` is ignored: the gene tree says exactly when a copy was gained or lost, so there is no
+        resolution left to choose."""
         return DriverTrajectory(self._segments(tree))
 
     def history(self, tree) -> dict[int, list]:
@@ -103,8 +110,10 @@ class ModuleCompletion:
         n = len(ids)
         return _segments(tree, per_family, lambda covering: len(covering) / n)
 
-    def as_driver_trajectory(self, tree) -> DriverTrajectory:
-        """The per-lineage completion trajectory, for `zombi2.rates.driver.resolve_driver`."""
+    def as_driver_trajectory(self, tree, *, step: float | None = None) -> DriverTrajectory:
+        """The per-lineage completion trajectory, for `zombi2.rates.driver.resolve_driver`. ``step``
+        is ignored: the fraction is a number, but it moves one family at a time and the gene trees
+        give every step exactly."""
         return DriverTrajectory(self._segments(tree))
 
     def history(self, tree) -> dict[int, list]:
@@ -165,13 +174,22 @@ def _same_tree(result, tree) -> None:
             "ids do not refer to the same branches. Grow both on the same complete tree.")
 
 
+def _declared_names(result) -> dict[str, int]:
+    """``{name: family id}`` — the run's declared families, under whichever handle its resolution
+    keeps them: ``family_names`` at family and ordered, ``gene_names`` at nucleotide, where a declared
+    family *is* one gene and its name came off a GFF. Asked once here, not at each call site."""
+    names = getattr(result, "family_names", None)
+    return getattr(result, "gene_names", {}) if names is None else names
+
+
 def _named(result, name: str) -> int:
-    if name not in result.family_names:
+    names = _declared_names(result)
+    if name not in names:
         raise KeyError(
-            f"no named family {name!r} in this genome run; declared families are "
-            f"{sorted(result.family_names)}. A family has to be declared with `family_names=` to be "
-            f"named here — an anonymous one has an id but nothing stable to call it by.")
-    return result.family_names[name]
+            f"no named family {name!r} in this genome run; declared families are {sorted(names)}. A "
+            f"family must be declared to be named here — `family_names=` at the family and ordered "
+            f"resolutions, a GFF `ID` / `Name` at the nucleotide one.")
+    return names[name]
 
 
 def _history(segments, tree) -> dict[int, list[tuple[object, float]]]:

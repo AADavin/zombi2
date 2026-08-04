@@ -377,7 +377,7 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
     sw_mods = _switch_modifiers(switch)
     entries = _driven_entries(states, switch) if sw_mods else None
     Q = None if sw_mods else _q_matrix(states, switch)
-    trajs = _resolve_drivers([m for m in sw_mods if isinstance(m, DrivenBy)], tree)
+    trajs = _resolve_drivers([m for m in sw_mods if isinstance(m, DrivenBy)], tree, "traits.discrete")
     if at_speciation is not None and (isinstance(at_speciation, bool)
             or not isinstance(at_speciation, (int, float)) or not 0.0 <= at_speciation <= 1.0):
         raise ValueError(f"at_speciation must be a probability in [0, 1] (the shift chance), got {at_speciation!r}")

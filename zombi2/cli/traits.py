@@ -4,10 +4,16 @@
 ``continuous`` (a real value diffusing, `zombi2.traits.simulate_continuous()` — Brownian motion,
 or Ornstein–Uhlenbeck with ``--reverts-to``/``--pull``) or ``discrete`` (a finite state switching,
 `simulate_discrete()` — the Mk model with ``--switch``, or the threshold model
-with ``--liability``/``--threshold``). Long options are the API keyword names, and ``--rate`` takes
-the written form of a rate (SPEC §5) — a bare number, or the same ``scope(base) × modifiers``
-expression the Python API takes: ``--rate "1.0 * OnTime({0: 4.0, 1: 1.0})"`` is an early burst,
-``--rate "1.0 * FromParent(spread=0.2)"`` variable-rates BM.
+with ``--liability``/``--threshold``). Long options are the API keyword names, and every rate flag —
+``--rate``, ``--switch``, ``--liability`` — takes the written form of a rate (SPEC §5): a bare number,
+or the same ``scope(base) × modifiers`` expression Python takes. ``--rate "1.0 * OnTime({0: 4.0, 1:
+1.0})"`` is an early burst, ``--rate "1.0 * FromParent(spread=0.2)"`` variable-rates BM, and
+``--switch "0.2 * DrivenBy('habitat/trait_events.tsv', {'aquatic': 3.0, 'terrestrial': 1.0})"`` a
+discrete trait conditioned on one grown first. ``--switch`` also reads its keyword's other two shapes
+— a ``{'a->b': rate}`` dict, a ``k x k`` matrix — whose entries are rates in that same form.
+
+They do not take the same *modifiers*: each engine declares what it reads and refuses the rest by
+name, so one a switch rate cannot honour raises there rather than being dropped here.
 
 Correlated multi-trait runs (``correlation=``) and multi-optimum OU (``regimes=``) need a Python
 object, so they stay in the Python API — the CLI covers the single-trait cases.
@@ -26,11 +32,17 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
 from zombi2.tree import node_label, read_newick
 from zombi2._runtime.report import write_run_report
 from zombi2.traits import IMPLEMENTED_MODIFIERS, simulate_continuous, simulate_discrete
+from zombi2.traits.discrete import IMPLEMENTED_MODIFIERS as _SWITCH_MODIFIERS
 
-#: the RATES block for ``zombi2 traits -h``, built from the level's own declaration
+#: the RATES block for ``zombi2 traits -h``, built from the level's own declarations — the listed
+#: modifiers are the continuous ``--rate``'s, and the note names the discrete engine's shorter list
+#: from its own tuple rather than by hand, so neither can fall behind what the engine takes.
 RATES_HELP = _rates_help(
     IMPLEMENTED_MODIFIERS, "--rate",
-    note="Only --rate takes an expression; --switch and --liability are bare numbers.")
+    note="--rate, --switch and --liability all take a rate in this form. The list above is --rate's; "
+         "--switch takes " + ", ".join(m.__name__ for m in _SWITCH_MODIFIERS) + " and nothing else, "
+         "and --liability no modifier yet. --switch also reads a {'a->b': rate} dict — only the named "
+         "transitions happen — or a k x k matrix of them.")
 
 # the write vocabularies, mirroring TraitsResult.write. The event log IS the conditioning file now
 # (a driven run replays it against the tree), so there is no separate driver output.
@@ -74,9 +86,11 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("discrete trait", "only with --kind discrete")
     g.add_argument("--states", metavar="A,B,...", default=None,
                    help="the state space (required), e.g. marine,terrestrial")
-    g.add_argument("--switch", type=float, default=None, metavar="RATE",
-                   help="[Mk] the symmetric switching rate between states")
-    g.add_argument("--liability", type=float, default=None, metavar="RATE",
+    g.add_argument("--switch", type=_rate, default=None, metavar="RATE",
+                   help="[Mk] the switching rate between states: one symmetric rate, a "
+                        "{'a->b': rate} dict of the transitions to allow, or a k x k matrix "
+                        "(see RATES below)")
+    g.add_argument("--liability", type=_rate, default=None, metavar="RATE",
                    help="[threshold] the variance-rate of the underlying liability")
     g.add_argument("--threshold", type=float, default=None, metavar="CUT",
                    help="[threshold] the liability value the state flips at")
@@ -152,6 +166,14 @@ def run(args, parser):
         if args.switch is None and args.liability is None and args.threshold is None:
             parser.error("--kind discrete needs --switch (the Mk model) or "
                          "--liability/--threshold (the threshold model)")
+        # the rate grammar can also spell a dict or a list, and neither means anything here: a dict is
+        # the keyword's several-liabilities form, which needs the correlation they share and has no
+        # flag for it; a list reached `as_rate` as a TypeError, which the CLI does not catch.
+        if isinstance(args.liability, (dict, list, tuple)):
+            parser.error(
+                "--liability is one variance-rate. Several liabilities — correlated discrete traits "
+                "grown together — stay in the Python API, simulate_discrete(liability={...}, "
+                "correlation={...}).")
 
     # refuse up front if re-running would orphan a level conditioned on this trait (unless --force)
     resolve_seed(args)                      # a run must be reproducible from its own log
