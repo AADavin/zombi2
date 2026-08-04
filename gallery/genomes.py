@@ -543,9 +543,6 @@ varied = genomes.simulate_genomes_family(
     tree, **dict(base, duplication=0.06 * spread,
                  transfer=0.10 * spread, loss=0.30 * spread))
 
-# family_speed=mod.ByFamily(spread=1.4) is the other spelling: one tempo per
-# family, scaling every rate that family has, instead of one draw per rate.
-
 ### plot  —  the profile matrix (ph.genomes.grid) over its frequency spectrum
 import numpy as np, phylustrator as ph
 
@@ -561,14 +558,6 @@ np.histogram(prev, bins=np.arange(1, len(p.species) + 2))   # the frequency spec
 
 
 EXAMPLES = [
-    Example("genome_pangenome_by_family", "Core and accessory, from one parameter",
-            "Two runs on one species tree at the same mean rates \u2014 only how much families "
-            "differ from one another changes. With every family alike <b>no family is in every "
-            "genome</b>; a <code>ByFamily</code> draw gives 62 universal families and the bimodal "
-            "frequency spectrum real pangenomes show. Genome size rises too (90&nbsp;\u2192&nbsp;248 "
-            "genes): a per-copy rate compounds, so spreading it around a fixed mean raises the "
-            "expected copy number. <code>duplication=0.06&nbsp;*&nbsp;ByFamily(spread=1.4)</code>.",
-            "phylustrator \u00b7 heterogeneity", pangenome_by_family, code=_C_PANGENOME),
     Example("genome_circular_ordered", "Circular genome (ordered)",
             "A genome as a ring — genes evenly spaced by rank, coloured by family, arrows by strand. "
             "<code>plot(g,&nbsp;layout=&quot;circular&quot;)&nbsp;+&nbsp;genes()</code>.",
@@ -578,32 +567,31 @@ EXAMPLES = [
             "rearranged. <code>stack([a,b])&nbsp;+&nbsp;synteny()</code>.",
             "phylustrator · synteny", synteny_pair, code=_C_SYNTENY),
     Example("genome_synteny_tree", "Synteny across a whole clade",
-            "Every tip's gene order beside the tree, homologues ribboned between neighbours. Genes "
-            "are coloured by their position in the <em>ancestral</em> order, so a genome still in "
-            "that order is a clean gradient and each rearrangement is a break in it. "
-            "<code>beside(plot(tree),&nbsp;tracks(genomes,&nbsp;reference=…))</code>.",
+            "Every tip's gene order beside the tree. Genes are coloured by their <em>ancestral</em> "
+            "position, so each rearrangement is a break in the gradient.",
             "phylustrator · synteny", synteny_on_the_tree, code=_C_SYNTENY_TREE),
     Example("genome_tree_events", "Gene-family events on the tree",
-            "One family's history on the species tree: duplications (squares), losses (crosses) and "
-            "transfers (arrows, donor→recipient). <code>plot(tree)&nbsp;+&nbsp;branch_events(…)</code>.",
+            "One family's history on the species tree: duplications (squares), losses (crosses), "
+            "transfers (arrows, donor→recipient).",
             "phylustrator · events", tree_with_events, code=_C_EVENTS),
     Example("genome_tree_profiles", "Profile copy-number",
             "A family&nbsp;×&nbsp;genome copy-number heatmap, its rows locked to the tips. "
             "<code>beside(tree,&nbsp;heatmap(profiles))</code>.",
             "phylustrator", tree_with_profiles, code=_C_PROFILES),
     Example("genome_circular_nucleotide", "Real genome (Mycoplasma)",
-            "A real bacterium — <i>Mycoplasma genitalium</i>, 546 genes at their true base positions, "
-            "coloured by strand; the forward/reverse switch marks the replication origin. "
-            "<code>read_gff(…)</code>.",
+            "A real bacterium: <i>Mycoplasma genitalium</i>, 546 genes at their true base positions. "
+            "The forward/reverse switch marks the replication origin.",
             "phylustrator · real GFF", circular_nucleotide, code=_C_CIRC_NUC),
     Example("genome_inversion", "An inversion, before → after",
-            "One inversion on a circular genome: the affected segment is reversed and its strands flip "
-            "(the arrows turn round). The band marks the segment in both rings. "
-            "<code>highlight(g,&nbsp;start,&nbsp;end)&nbsp;+&nbsp;genes()</code>.",
+            "One inversion on a circular genome: the segment is reversed and its strands flip. The band "
+            "marks it in both rings.",
             "phylustrator · circular", genome_inversion, code=_C_INVERSION),
     Example("genome_transfer_highway", "A transfer highway between clades",
-            "Transfers steered to run <i>between</i> two clades (a <code>Clades&nbsp;+&nbsp;Between</code> "
-            "kernel — topology, not a trait). Tree coloured by clade; the barplot counts transfers by "
-            "clade pair, so A↔B towers over within-clade.",
+            "Transfers steered to run <i>between</i> two clades, by topology rather than by a trait. The "
+            "barplot counts them by clade pair, so A↔B towers over within-clade.",
             "clades · transfer_to", transfer_highway, code=_C_HIGHWAY),
+    Example("genome_pangenome_by_family", "Core and accessory, from one parameter",
+            "Two runs at the same mean rates. Every family alike gives no core at all; letting families "
+            "differ gives 62 universal ones and a U-shaped spectrum.",
+            "phylustrator · heterogeneity", pangenome_by_family, code=_C_PANGENOME),
 ]

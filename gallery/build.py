@@ -41,7 +41,7 @@ LEVELS = [
     ("sequences", "Sequences",
      "The dated tree the sequences evolve down, and an alignment lined up row-for-row with its tips.",
      sequences.EXAMPLES),
-    ("traits", "Trait evolution",
+    ("traits", "Traits",
      "A trait evolving down the tree — branches coloured by its value; some paired with a companion panel.",
      traits.EXAMPLES),
     ("conditioning", "Conditioning",
