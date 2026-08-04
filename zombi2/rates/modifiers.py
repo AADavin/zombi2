@@ -326,7 +326,7 @@ class ByFamily(Modifier):
         loss = 0.25 * mod.ByFamily(spread=0.5)      # a family that loses fast is not thereby
         duplication = 0.2 * mod.ByFamily(spread=0.5)   # duplicating fast — independent draws
 
-    In the family-wide ``family_speed=`` slot, one draw scales **every** rate that family has, so a
+    As ``family_speed=``, one draw scales **every** rate that family has, so a
     fast family is fast at everything::
 
         simulate_genomes_family(tree, duplication=0.2, loss=0.25,

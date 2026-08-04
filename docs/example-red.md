@@ -1,50 +1,51 @@
-# An example: can you trust RED?
+# An example ZOMBI2 application
 
-This page is here to show **the kind of question ZOMBI2 exists to answer**.
-
-Phylogenetics is full of methods that cannot be checked on the data they are meant for, because that
-data hides the answer. You can only grade a method where the truth is known — and the truth is known
-in a simulation, by construction. So the recipe is always the same three moves: measure one honest
-number on real data, reproduce that number in a simulation where the answer *is* known, and grade the
-method there.
-
-What follows is one worked instance of that recipe, start to finish. The full study, with its code
-and data, lives in [`analyses/red/`](https://github.com/AADavin/zombi2/tree/main/analyses/red).
+ZOMBI2 is a tool to generate datasets in which the user knows everything about them. Let's see how it
+can be used in a practical example. All the relevant files are in
+[`analyses/red/`](https://github.com/AADavin/zombi2/tree/main/analyses/red).
 
 ## The question
 
 **Relative Evolutionary Divergence** (RED; Parks et al. 2018) turns a phylogram into a relative
-divergence scale. Walking root to tip, it places every node along its path in proportion to
-accumulated branch length, giving a number between 0 (root) and 1 (tips). GTDB uses it to normalise
-taxonomic ranks across the tree of life, so that a phylum sits at a comparable RED whatever lineage
-it belongs to.
+divergence scale. Walking from the root to the tips, it places each node along its path in proportion
+to the branch length accumulated so far, giving a number between 0 at the root and 1 at the tips.
+GTDB uses it to make taxonomic ranks comparable across the tree of life, so that a phylum sits at
+about the same RED whichever lineage it belongs to.
 
-That works only if RED is a faithful stand-in for relative divergence *time*. Under a strict clock it
-is exact — branch length is proportional to time. Under rate variation it is not, and real lineages
-do not share a clock. **Does RED still recover the ages?**
+That works only if branch length is a good stand-in for time. Under a strict clock it is exact,
+because branch length is then proportional to time. Real lineages do not share a strict clock.
+**Does RED still recover the ages?**
 
 ## Why real data cannot answer it
 
-A phylogram measures substitutions, which are rate × time. From substitutions alone, rate and time
-are jointly unidentifiable — so the true node ages you would grade RED against cannot be read off the
-tree. Dating the tree first would assume a rate model, which is the thing in question, and the test
-becomes circular.
+A phylogram measures substitutions, and substitutions are rate times time. From substitutions alone
+you cannot separate the two, so the true node ages you would need to grade RED against cannot be read
+off the tree. Dating the tree first would mean assuming a rate model, which is the thing being
+tested.
 
-## The one number we borrow
+In a simulation the ages are known, because you chose them. That is what makes the question
+answerable at all.
 
-Every genome in the GTDB archaeal tree is extant, so every tip is the same amount of *time* from the
-root. Any spread in root-to-tip *substitutions* can therefore only come from rate variation. The
-coefficient of variation of those distances is a model-free summary of how ragged real trees are:
+## Measuring an observable variable
 
-![The GTDB archaeal root-to-tip distribution](assets/red/observable.png)
+One quantity can be measured on the real tree without assuming anything. Every genome in the GTDB
+archaeal tree is alive today, so every tip sits the same amount of *time* from the root. Any spread
+in root-to-tip *substitutions* can therefore only come from rate variation.
 
-**CV = 0.232** across 10,122 genomes — the fastest lineage has accumulated roughly four times the
-substitutions of the slowest. That single number is all we take from the real world. No real branch
-length enters the simulation.
+We call that spread **root-to-tip variation**, and measure it as the coefficient of variation (CV) of
+the root-to-tip distances.
 
-## Grading the method where truth is known
+![What root-to-tip variation is, and how much of it real archaea show](assets/red/observable.png)
 
-In ZOMBI2 the dated tree *is* the truth, and the phylogram is what a real study would have seen:
+Across 10,122 archaeal genomes the CV is **0.231**. The fastest lineage has accumulated roughly four
+times the substitutions of the slowest. That one number is all we take from the real world; no real
+branch length enters the simulation.
+
+## Running the simulation
+
+Now build trees whose ages are known. Grow a dated species tree, evolve sequences down it under a
+clock that varies from lineage to lineage, and read the phylogram that comes out. RED on the dated
+tree is the truth. RED on the phylogram is what a real study would have seen.
 
 ```python
 import numpy as np
@@ -54,11 +55,12 @@ from zombi2.sequences import substitution_models as sm
 from zombi2.tree import read_newick
 from zombi2.tree import relative_evolutionary_divergence as red_of
 
-# a dated tree — we know its node ages, because we simulated them
+# a dated tree: we know its node ages, because we simulated them
 sp = species.simulate_species_tree(birth=1.0, n_extant=200, seed=100)
 truth = red_of(sp.extant_tree)                 # RED is exact on a dated tree
 
-# evolve it under a relaxed clock and read the phylogram that leaves behind
+# evolve it under a relaxed clock and read the phylogram that leaves behind. Only the branch
+# lengths matter here, so one site per gene is enough to carry them.
 g = genomes.simulate_genomes_family(sp.complete_tree, initial_families=5,
                                     duplication=0.01, loss=0.01, seed=100)
 seq = sequences.simulate_sequences(
@@ -73,28 +75,37 @@ r = np.corrcoef([truth[i] for i in nodes], [estimate[i] for i in nodes])[0, 1]
 print(f"RED recovers relative node age with r = {r:.3f} across {len(nodes)} nodes")
 ```
 
-That is one tree and one draw of the clock. The study repeats it over eight trees and sweeps the
-clock's heterogeneity σ, so the answer comes with an error bar rather than a seed.
+That is one tree under one clock. The study repeats it over 8 trees of 400 tips each, so the answer
+comes with an error bar rather than a seed.
 
-## Calibrating, then reading off
+It also runs three clocks rather than one. A CV says how much rate variation there is, but not how it
+is arranged, and arrangement matters for a method that walks from root to tip:
 
-Sweeping σ and finding where the simulated raggedness crosses the real one gives the clock that makes
-a simulated tree as ragged as real archaea:
+- **uncorrelated** (`ByLineage`), where each lineage draws its own rate independently, with either a
+  lognormal or a gamma tail;
+- **autocorrelated** (`FromParent`), where each lineage inherits its parent's rate and drifts from
+  it, so close relatives evolve at similar rates.
 
-![Calibrating the clock](assets/red/clock_recovery.png)
+Each clock has a spread parameter σ. Turning σ up makes the simulated trees vary more, so for each
+clock we look for the σ that reproduces the real archaeal value of 0.231.
 
-One CV can say *how much* rate variation there is, but not how it is **arranged** — and arrangement
-matters for a method that walks root to tip. So all three clocks ZOMBI2 wires at the sequence level
-are carried through: **uncorrelated** (`ByLineage`, every lineage drawing independently, lognormal or
-gamma tail) and **autocorrelated** (`FromParent`, each lineage inheriting its parent's rate, so
-relatives evolve alike). They reach the same raggedness at very different σ, which is why the
-comparison is made at matched CV.
+![Which σ reproduces the real spread, clock by clock](assets/red/clock_recovery.png)
 
-![RED accuracy against raggedness](assets/red/red_bridge.png)
+The three clocks reach it at very different σ: 0.54 and 0.59 for the two uncorrelated ones, 0.14 for
+the autocorrelated one, because an inherited rate compounds down the tree. What matters is not σ but
+the variation it produces, so every comparison below is made at the same CV.
+
+## Grading RED
+
+Sweep each clock across its σ grid. At every point, compare RED computed on the phylogram against RED
+computed on the dated tree it came from. Two measures: how well they correlate, and how far apart
+they are as a percentage of tree depth.
+
+![RED accuracy and error against root-to-tip variation](assets/red/red_bridge.png)
+
+Then read straight up from 0.231, the value real archaea show.
 
 ## The answer
-
-At the raggedness real archaea show:
 
 | clock | Pearson r | error (% of tree depth) |
 |---|---|---|
@@ -102,27 +113,33 @@ At the raggedness real archaea show:
 | uncorrelated, gamma | 0.942 | 6.1% |
 | autocorrelated | 0.993 | 2.3% |
 
-**RED holds up at real archaeal raggedness**, and it holds up under every arrangement of rate
-variation we can put it under — so the conclusion does not rest on guessing which one archaea have.
-Uncorrelated rates are the harder case, so 0.94 is the conservative number to quote.
+**At the variation real archaea show, RED holds up.** It holds up under all three clocks, so the
+conclusion does not rest on guessing which one archaea actually have. Uncorrelated rates are the
+harder case, so 0.94 is the conservative number to quote.
+
+Node by node, on one 500-tip tree under the uncorrelated lognormal clock, below the real value, at
+it, and past it:
+
+![RED-recovered against true node ages, at three levels of variation](assets/red/red_scatter.png)
 
 Two things worth being precise about. RED is an **ordinal** proxy: even at its best there is a
-few-percent age error, so use it to order divergences and normalise ranks — its designed job — not to
-read absolute times off. And it **does** break down, just past where real data sits: by CV ≈ 0.46 the
-correlation falls to ≈ 0.79 and the error rises to ≈ 9%. Real archaea are on the safe side of that,
-which is a quantitative version of the assumption GTDB relies on.
+few-percent age error, so use it to order divergences and normalise ranks, which is its designed job,
+rather than to read absolute times off. And it does break down, but past where real data sits. By CV
+≈ 0.5 the correlation has fallen to about 0.82 and the error has risen to about 12% of tree depth.
+Real archaea are on the safe side of that, which is a quantitative version of the assumption GTDB
+relies on.
 
-## The shape of the recipe
+## The recipe
 
-Nothing above is specific to RED. The move is general, and it is what a simulator is *for*:
+Nothing above is specific to RED. The three moves are always the same:
 
-> A method that cannot be graded on the data it is meant for can still be graded — if one honest
-> number says how demanding the real case is, that number is reproduced where the answer is known,
-> and the method is graded there.
+1. Measure one honest number on real data.
+2. Reproduce that number in a simulation, where the answer is known.
+3. Grade the method there.
 
-The full write-up, including assumptions, limitations and every number's provenance, is in
-[`analyses/red/REPORT.md`](https://github.com/AADavin/zombi2/blob/main/analyses/red/REPORT.md).
-It regenerates from fixed seeds in three commands.
+The full write-up, with the assumptions, the limitations and the provenance of every number, is in
+[`analyses/red/REPORT.md`](https://github.com/AADavin/zombi2/blob/main/analyses/red/REPORT.md). It
+regenerates from fixed seeds in three commands.
 
 ## References
 

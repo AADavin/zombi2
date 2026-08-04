@@ -155,13 +155,13 @@ Unsampled survivors are treated exactly as extinct lineages: nothing in the data
 
 <!-- --8<-- [end:format] -->
 
-## `tree` — one transform on a Newick tree
+## `tree` — one transform or measurement on a Newick tree
 
 <!-- --8<-- [start:tree] -->
 
-`zombi2 tools tree TREE` applies a single transform to a Newick tree and writes the result — Newick to
-stdout, or to a file with `-o`. Exactly one action runs per call. `TREE` is a tree file, or `-` for
-stdin.
+`zombi2 tools tree TREE` applies a single action to a Newick tree and writes the result to stdout, or
+to a file with `-o`: a Newick tree for the transforms, a table or a number for the measurements.
+Exactly one action runs per call. `TREE` is a tree file, or `-` for stdin.
 
 `--prune` needs each tip's fate, so it reads the fates a ZOMBI complete tree carries; an ultrametric
 tree counts as all-extant, and a plain non-ultrametric tree with no fates is refused. Every other
@@ -174,6 +174,7 @@ action ignores fates and loads any tree.
 | `--stem LEN` / `--stem-add LEN` | the branch above the crown set to `LEN`, or extended by `LEN`; nothing below the crown moves |
 | `--rescale-height H` / `--rescale-factor F` | every branch length scaled — so the root-to-tip height becomes `H`, or by a raw multiplier `F` |
 | `--red` | the RED-rescaled tree: node depths become their Relative Evolutionary Divergence (Parks et al. 2018), ultrametric on `[0, 1]` with the root at 0 and every tip at 1. `--red --values` writes a two-column `node<TAB>RED` table instead of a tree |
+| `--gamma` | Pybus & Harvey's γ, as `gamma<TAB><value>`: where the branching times sit relative to what a constant rate would give. Standard normal under constant-rate pure birth, so 0 is the null; it goes negative when speciation slows toward the present, because the branching times bunch up early. It reads waiting times, so the tree must be **dated and ultrametric** — `--prune` first, and do not pass a phylogram |
 
 ```bash
 # drop the extinct lineages, extant tree to stdout
@@ -184,6 +185,9 @@ zombi2 tools tree dated.nwk --round -o dated_ultrametric.nwk
 
 # the RED of every node, as a table
 zombi2 tools tree out/species/species_extant.nwk --red --values
+
+# gamma — pipe a complete tree through --prune first
+zombi2 tools tree out/species/species_complete.nwk --prune | zombi2 tools tree - --gamma
 ```
 
 <!-- --8<-- [end:tree] -->

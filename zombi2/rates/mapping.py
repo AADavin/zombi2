@@ -143,7 +143,7 @@ class Scalar(Mapping):
 
 class Between:
     """A weight over ordered **(donor-group, recipient-group)** pairs — the 2-D kernel of the transfer
-    **choice slot** (SPEC §5), the donor-conditioned sibling of `Table`::
+    **choice** of who receives (SPEC §5), the donor-conditioned sibling of `Table`::
 
         Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)   # A↔B only, nothing else receives
         Between({("A", "B"): 3.0})                                 # A→B 3× baseline, every other pair 1×
@@ -152,15 +152,15 @@ class Between:
     weights it by the **pair** — the donor's group and the recipient's — which is what lets a transfer
     be steered to run *between* two groups rather than within them. It is therefore **not** a
     `Mapping` (a ``Mapping.multiplier`` reads one value): its `weight()` reads two, and the
-    choice-slot engine passes both. It is used in ``transfer_to`` — on its own as the kernel of a
+    engine passes both. It is used in ``transfer_to`` — on its own as the kernel of a
     `Clades` rule (groups from the tree), or inside a
     `DrivenBy` (groups from a trait). It is **not** a rate multiplier:
-    a rate has no donor to condition on, so a ``Between`` in a rate slot is refused.
+    a rate has no donor to condition on, so a ``Between`` on a rate is refused.
 
     Keys are ``(from_group, to_group)`` pairs matched by **string form**, exactly like ``Table``'s
     states, so an integer-labelled group still finds its entry. ``default`` (1.0) is the weight for any
     pair not named — ``default=0.0`` gives the "only the flows I name can happen" idiom, reusing the
-    choice slot's rule that a **weight of 0 means the donor cannot send to that recipient group**;
+    rule that a **weight of 0 means the donor cannot send to that recipient group**;
     when every candidate weighs 0 the transfer has nowhere to land and does not fire."""
 
     def __init__(self, per_pair, default: float = 1.0) -> None:
@@ -203,7 +203,7 @@ class Between:
 
 def check_kernel_fires(kernel: Between, available_groups, *, source_label: str) -> None:
     """Raise if a `Between` names **no pair whose two groups both occur** among
-    ``available_groups`` — the choice-slot twin of
+    ``available_groups`` — the recipient-weight twin of
     `check_mapping_fires()`. Such a kernel weights every candidate at its
     ``default``, so the recipient choice is secretly *uniform* while the run records it as steered —
     almost always a typo in a group name or a stale driver. A kernel may still name a pair this

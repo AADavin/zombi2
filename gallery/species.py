@@ -12,6 +12,7 @@ from helpers import Example
 import phylustrator as ph
 from zombi2.species import simulate_species_tree
 from zombi2.rates import modifiers as mod
+from zombi2.tree import gamma_statistic
 
 
 def yule(out):
@@ -88,25 +89,6 @@ def diversity_dependent(out):
 
 _CONST, _SLOW = "#3A7CA5", "#C25A3C"      # constant rate · diversity-dependent
 _REPS, _TIPS, _CAP, _SHOWN = 2000, 100, 110, 60
-
-
-def gamma_statistic(tree) -> float:
-    """Pybus & Harvey's γ for one dated, ultrametric tree — where its branching times sit
-    relative to constant-rate expectation. Standard normal under constant-rate pure birth;
-    negative when speciation slows toward the present, because the branching times bunch up
-    early."""
-    splits = sorted(nd.end_time for nd in tree.nodes.values() if nd.children)   # branching times
-    present = max(nd.end_time for nd in tree.nodes.values() if nd.children is None)
-    n = len(splits) + 1                                                        # tips
-    # inter[k] = the waiting time during which k + 2 lineages were alive
-    inter = [splits[j] - splits[j - 1] for j in range(1, n - 1)] + [present - splits[-1]]
-    partial, acc = [], 0.0
-    for k, g in enumerate(inter):
-        acc += (k + 2) * g
-        partial.append(acc)
-    total = acc
-    return ((sum(partial[:-1]) / (n - 2) - total / 2)
-            / (total * (1 / (12 * (n - 2))) ** 0.5))
 
 
 def shape_statistics(out):
@@ -270,22 +252,13 @@ present = max(n.end_time for n in ct.nodes.values())
 h.composite_below("tree.png", present, "diversity.png", panel, "lineages")'''
 
 _C_SHAPE = '''\
-### measure  —  Pybus & Harvey's gamma, straight off a ZOMBI2 tree
-def gamma_statistic(tree):
-    """0 on average under constant rates; negative when speciation slows toward the present."""
-    splits = sorted(nd.end_time for nd in tree.nodes.values() if nd.children)   # branching times
-    present = max(nd.end_time for nd in tree.nodes.values() if nd.children is None)
-    n = len(splits) + 1                                                        # tips
-    inter = [splits[j] - splits[j - 1] for j in range(1, n - 1)] + [present - splits[-1]]
-    partial, acc = [], 0.0
-    for k, g in enumerate(inter):          # inter[k] runs while k + 2 lineages are alive
-        acc += (k + 2) * g
-        partial.append(acc)
-    return (sum(partial[:-1]) / (n - 2) - acc / 2) / (acc * (1 / (12 * (n - 2))) ** 0.5)
+### measure  —  gamma is a zombi2 tool, so one tree needs no code at all
+zombi2 tools tree out/species/species_extant.nwk --gamma        # gamma  -6.31
 
 ### simulate  —  2000 trees of 100 tips under each process (a few seconds)
 from zombi2.species import simulate_species_tree
 from zombi2.rates import modifiers as mod
+from zombi2.tree import gamma_statistic     # 0 on average under constant rates
 
 gammas = {}
 for name, birth in (("constant rate", 1.0),
@@ -329,8 +302,7 @@ EXAMPLES = [
             "Speciation slows as diversity fills up; the skyline rises and plateaus at the cap of 100.",
             "birth–death · +&nbsp;skyline", diversity_dependent, code=_C_DIVERSITY),
     Example("shape", "Shape statistics over many trees",
-            "Two thousand trees of 100 tips under each of two processes — diversity-dependence bends "
-            "the lineage curves over (left), and the γ statistic separates the two sets of trees "
-            "almost perfectly (right).",
+            "Two thousand trees under each of two processes. "
+            "<code>zombi2 tools tree --gamma</code> separates them almost perfectly.",
             "simulation study · 4000&nbsp;trees", shape_statistics, code=_C_SHAPE),
 ]

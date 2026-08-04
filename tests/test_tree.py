@@ -95,6 +95,56 @@ def test_red_scaled_is_ultrametric_on_unit_interval():
     assert all(x == pytest.approx(1.0) for x in tips)
 
 
+# ── gamma ──────────────────────────────────────────────────────────────────────────────
+def test_gamma_is_standard_normal_under_constant_rate_pure_birth():
+    """The statistic's whole use is that it has a known null: mean 0, sd 1 on a Yule tree. If that
+    drifts, every comparison anyone makes against it is off by the drift."""
+    import statistics
+
+    from zombi2.species import simulate_species_tree
+
+    gs = [T.gamma_statistic(simulate_species_tree(birth=1.0, n_extant=100, seed=s).extant_tree)
+          for s in range(1, 201)]
+    assert statistics.mean(gs) == pytest.approx(0.0, abs=0.25)
+    assert statistics.stdev(gs) == pytest.approx(1.0, abs=0.2)
+
+
+def test_gamma_goes_negative_when_speciation_slows_toward_the_present():
+    """The reason to compute it at all: diversity dependence bunches the branching times early."""
+    import statistics
+
+    from zombi2.rates import modifiers as mod
+    from zombi2.species import simulate_species_tree
+
+    gs = [T.gamma_statistic(simulate_species_tree(birth=1.0 * mod.OnTotalDiversity(cap=110),
+                                                  n_extant=100, seed=s).extant_tree)
+          for s in range(1, 51)]
+    assert statistics.mean(gs) < -3.0
+
+
+def test_gamma_refuses_a_tree_it_is_not_defined_on():
+    from zombi2.species import simulate_species_tree
+
+    with pytest.raises(ValueError, match="ultrametric"):      # extinct lineages left in
+        T.gamma_statistic(simulate_species_tree(birth=1.0, death=0.5, n_extant=30,
+                                                seed=3).complete_tree)
+    with pytest.raises(ValueError, match="at least 4 tips"):
+        T.gamma_statistic(simulate_species_tree(birth=1.0, n_extant=3, seed=1).extant_tree)
+
+
+def test_cli_tree_gamma_prints_one_number(tmp_path, capsys):
+    from zombi2.cli.main import main
+    from zombi2.species import simulate_species_tree
+
+    t = simulate_species_tree(birth=1.0, n_extant=60, seed=7).extant_tree
+    f = str(tmp_path / "t.nwk")
+    open(f, "w").write(t.to_newick())
+    assert main(["tools", "tree", f, "--gamma"]) == 0
+    name, value = capsys.readouterr().out.strip().split("\t")
+    assert name == "gamma"
+    assert float(value) == pytest.approx(T.gamma_statistic(t), rel=1e-4)
+
+
 # ── distance ───────────────────────────────────────────────────────────────────────────
 def test_distance_of_a_tree_with_itself_is_zero():
     t = _tree()

@@ -10,7 +10,7 @@ every rate takes the written form (SPEC §5): a bare number on its natural scope
 ``scope(base) × modifiers`` expression the Python API takes — ``--loss "0.25 * OnTime({0: 1.0, 3:
 2.0})"``. Each resolution declares which modifiers it reads (its ``IMPLEMENTED_MODIFIERS``) and rejects the
 rest rather than silently ignoring them; the two structured resolutions both take ``DrivenBy``, so a
-trait can drive a rearrangement rate at either. ``--transfer-to`` is the one **choice slot** (SPEC §5)
+trait can drive a rearrangement rate at either. ``--transfer-to`` is the one argument that **chooses who receives** (SPEC §5)
 and works at all three: the weight it takes says who receives, never how much transfer happens."""
 from __future__ import annotations
 
@@ -44,8 +44,9 @@ RATES_HELP = _rates_help(
     IMPLEMENTED_MODIFIERS, "--loss",
     note="Rates keep their natural scope here (D/T/L per copy, origination per lineage), so there "
          "is no scope wrapper to write. On --transfer, DrivenBy drives how often a lineage DONATES; "
-         "--transfer-to takes one on its own as a recipient weight, at every resolution — it is a "
-         "choice slot, not a rate, so the numbers are normalised weights over the candidates. "
+         "--transfer-to takes one on its own as a recipient weight, at every resolution — it "
+         "chooses who receives rather than setting a rate, so the numbers are normalised weights "
+         "over the candidates. "
          "--resolution ordered takes " + ", ".join(m.__name__ for m in _ORDERED_IMPLEMENTED) +
          ", though not ByFamily and DrivenBy in one run; nucleotide, " +
          ", ".join(m.__name__ for m in _NUC_IMPLEMENTED) + ".")
@@ -326,7 +327,7 @@ def _transfer_to(text: str):
 
     ``uniform`` and ``distance`` are the two named rules; anything else is read as the written form
     of a ``DrivenBy`` — ``--transfer-to "DrivenBy('trait_events.tsv', {'competent': 2.0})"`` — the
-    **choice slot** of SPEC §5, where the mapping's numbers are per-candidate weights rather than
+    **choice** of SPEC §5, where the mapping's numbers are per-candidate weights rather than
     rate multipliers. Parsed by the same ast-whitelist parser every rate flag uses, so the expression
     is the one you would write in Python and nothing is evaluated.
     """
@@ -373,7 +374,7 @@ _DRIVABLE_RATE_FLAGS = ("duplication", "transfer", "loss", "origination", "inver
 
 def _driven_specs(args) -> tuple:
     """Every spec of this run that may name a driver: the rate flags above, plus ``--transfer-to``,
-    which is the choice slot rather than a rate but points at the same kind of file."""
+    which chooses who receives rather than setting a rate, but points at the same kind of file."""
     return (*(getattr(args, name) for name in _DRIVABLE_RATE_FLAGS), args.transfer_to)
 
 

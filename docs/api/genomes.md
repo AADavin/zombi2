@@ -38,9 +38,9 @@ accepts a directory or a `StreamedRun` wherever it accepts a result.
 
 ## Who receives a transfer
 
-`transfer_to` is a **choice slot**: it redistributes who receives a horizontal transfer without
-changing how many transfers happen. A weight of 0 means "cannot receive", and when every candidate
-weighs 0 the transfer does not fire.
+`transfer_to` **chooses who receives** a horizontal transfer. It redistributes the transfers without
+changing how many happen. A weight of 0 means "cannot receive", and when every candidate weighs 0 the
+transfer does not fire.
 
 ::: zombi2.genomes.Distance
 

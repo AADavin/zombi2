@@ -181,39 +181,35 @@ and the engine's own gate may be stricter still where a rate takes less than the
 
 Two different things get rejected, and the message must say which. A few combinations are
 **meaningless** — `ByFamily` on a species or trait rate, where there are no gene families to draw a
-factor per — and no implementation would make them mean anything; say so, and name the slot the
-modifier does belong in. The rest are **not implemented yet**, which is a statement about the code
+factor per — and no implementation would make them mean anything; say so, and name the argument the
+modifier does belong on. The rest are **not implemented yet**, which is a statement about the code
 and not about the model; say that plainly and do not dress it up as a rule.
 
-**A driver's number is not always a rate multiplier.** `DrivenBy(source, mapping)` is the one mechanism
-for both conditioning and joining (§2) — within a level as much as across two (§3) — and the **slot** it
-sits in decides what the mapping's number means.
+**`DrivenBy(source, mapping)` is the one mechanism** for both conditioning and joining (§2), within a
+level as much as across two (§3). `source` says which thing is read, never how the run is organised: a
+**finished result** (an object in Python, its written log across two commands) makes the run
+conditioned; the **name of a level growing beside it** makes the run joint. A driver read from a file
+and the same driver held in memory are the same model, so they are the same modifier.
 
-`source` says *which* thing is read, never how the run is organised: a **finished result** (an object in
-Python, its written log across two commands) makes the run conditioned, and the **name of a level growing
-beside it** makes the run joint. One modifier, one spelling, both relations. A driver read from a file
-and the same driver held in memory are the same model, so they are the same modifier. In a rate it is an ordinary modifier: dimensionless, multiplying, changing *how fast*. In a
-**choice slot** it is a **weight**, normalised across the candidates the choice is made over, so it
-changes neither how fast nor how many — only **who**. Today the one choice slot is the genome level's
-`transfer_to`, the "who receives" of a horizontal transfer:
+**What the mapping's number means depends on what it is attached to.** On a rate it is an ordinary
+modifier: dimensionless, multiplying, changing *how fast*. On a **choice** — an argument that decides
+*who*, not how fast or how many — it is a **weight**, normalised across the candidates:
 
 ```
 transfer    = 0.1 * DrivenBy(habitat, {"competent": 3.0, "normal": 1.0})   # a rate:   how much transfer
 transfer_to =       DrivenBy(habitat, {"competent": 3.0, "normal": 1.0})   # a weight: where it lands
 ```
 
-The first changes the total amount of transfer; the second redistributes the same transfers. A choice
-slot takes the modifier **on its own**, never `base * modifier` — there is no base, because there is no
-rate. A weight of 0 means "cannot receive"; when every candidate weighs 0 the transfer cannot happen at
-all, so the event does not fire.
+The genome level's `transfer_to`, the "who receives" of a horizontal transfer, is the only such
+argument today. A choice takes the modifier **on its own**, never `base * modifier`, because there is
+no rate to have a base. A weight of 0 means "cannot receive"; when every candidate weighs 0 the event
+does not fire at all.
 
-The weight may read **both** ends — a **kernel** over `(donor group, recipient group)` pairs
-(`Between({...})`) rather than one factor per recipient — so transfer can be steered *between* groups,
-not only *into* one. The groups partition the lineages, and come from the tree (named clades — a
-topological `transfer_to` rule like `distance`, reading no other level) or from a trait
-(`DrivenBy(trait, Between(...))` — conditioned on Traits). It is still a choice slot: a kernel only
-redistributes who receives, so a kernel in a *rate* slot is refused (a rate has no donor to condition
-on).
+A weight may read **both** ends: a **kernel** over `(donor group, recipient group)` pairs
+(`Between({...})`) steers transfer *between* groups rather than only *into* one. The groups come from
+the tree (named clades, reading no other level) or from a trait (`DrivenBy(trait, Between(...))`). A
+kernel only redistributes who receives, so one on a *rate* is refused: a rate has no donor to read it
+on.
 
 **Banned rate words:** "propensity" (say *rate*); "opportunity" as a noun (say **scope**, or ask **"per
 what?"**); "clock" for the scope (reserve **clock** strictly for the by-lineage substitution-rate
@@ -228,19 +224,20 @@ modifier at the sequences level). **modifier** names the third factor only.
 | `From` | inherited | inherited along a genealogical edge — **continuous memory** (autocorrelated) | `FromParent` |
 | — | driver | the state of another simulated thing, read as the run walks the tree | `DrivenBy` |
 
-`DrivenBy` is the one modifier outside the preposition scheme, and deliberately: the others say what
-kind of *function* the factor is, while this one says the factor comes from somewhere else entirely.
-Naming it `On…` would file it as a covariate and lose that, so it keeps its own name, and there is no
-second spelling for a driver that happens to sit at the same level as its target (§3).
+`DrivenBy` sits outside the preposition scheme deliberately: the others say what kind of *function* the
+factor is, while this one says the factor comes from somewhere else entirely. Naming it `On…` would
+file it as a covariate and lose that.
 
 So the uncorrelated / autocorrelated split is `ByLineage` vs `FromParent`, and one modifier —
 `FromParent` — is ClaDS (species), the autocorrelated clock (sequences), and variable-rates BM
-(traits). Four rules: **fully-qualify an `On` covariate** (`OnTotalDiversity`, since the preposition
-does not fix its scope); **one memory-structure per axis** (`By…` none / `From…` continuous / `Markov`
-discrete — never two at once; orthogonal axes compose); **named exceptions** — discrete-memory
-switching is `Markov` (a mechanism name, no preposition), and any future prepositionless mechanism is
-named likewise; **outside the grammar** — a modifier multiplies *one* rate, so a value-level process
-(the OU trait's `reverts_to` / `pull`) is a function argument, not a modifier.
+(traits). Three rules for naming the next one:
+
+- **Fully qualify an `On` covariate** (`OnTotalDiversity`), since the preposition does not fix its scope.
+- **One memory structure per axis**: `By…` none, `From…` continuous, and never two at once. Orthogonal
+  axes compose. A discrete-memory mechanism would be named for the mechanism rather than a preposition
+  (`Markov`); none is implemented.
+- **A modifier multiplies one rate.** A process on the *value* rather than the rate — the OU trait's
+  `reverts_to` / `pull` — is a function argument, not a modifier.
 
 ---
 

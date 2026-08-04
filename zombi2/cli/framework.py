@@ -369,7 +369,7 @@ def _conditioned_on(run: str, level: str) -> set:
 
 
 def _drivenby_sources(spec):
-    """Every ``DrivenBy`` source in a rate spec — whether ``spec`` is a bare ``DrivenBy`` (a choice slot
+    """Every ``DrivenBy`` source in a rate spec — whether ``spec`` is a bare ``DrivenBy`` (a recipient weight
     like ``transfer_to``) or a rate carrying ``DrivenBy`` modifiers. A plain number yields none."""
     from zombi2.rates.modifiers import DrivenBy
     if isinstance(spec, DrivenBy):
@@ -625,7 +625,7 @@ def _log_value(value: object) -> str:
     from zombi2.rates.scope import Scope
 
     if isinstance(value, DrivenBy):
-        # a bare DrivenBy is how the choice slots are written (--transfer-to), where there is no base
+        # a bare DrivenBy is how a recipient weight is written (--transfer-to), where there is no base
         # number to print; its repr is the same expression the flag takes, and it also round-trips as
         # a rate (a bare modifier is base 1.0), so both readings paste straight back in.
         return repr(value)

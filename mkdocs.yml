@@ -129,7 +129,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   # A worked study, straight after Home: what the tool is *for*, before what it does.
-  - Example, can you trust RED?: example-red.md
+  - An example ZOMBI2 application: example-red.md
   - Guide:
       - Introduction: guide/introduction.md
       - A tour of ZOMBI2: guide/tour.md
@@ -137,8 +137,8 @@ nav:
       - "Genomes I: gene families": guide/genomes.md
       - "Genomes II: ordered": guide/genomes-ordered.md
       - "Genomes III: nucleotide": guide/genomes-nucleotide.md
-      - Sequence evolution: guide/sequences.md
-      - Trait evolution: guide/traits.md
+      - Sequences: guide/sequences.md
+      - Traits: guide/traits.md
       - Conditioning: guide/conditioning.md
       - Joining: guide/joining.md
   - Output files: output-files.md

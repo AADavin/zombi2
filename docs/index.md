@@ -57,7 +57,7 @@ sp = species.simulate_species_tree(
   [**Species trees**](guide/species-trees.md),
   [**Genomes**](guide/genomes.md) (with [ordered](guide/genomes-ordered.md) and
   [nucleotide](guide/genomes-nucleotide.md) resolutions),
-  [**Sequence evolution**](guide/sequences.md), and [**Trait evolution**](guide/traits.md).
+  [**Sequences**](guide/sequences.md), and [**Traits**](guide/traits.md).
 - [**Conditioning**](guide/conditioning.md) and [**joining**](guide/joining.md) — letting one thing drive another.
 - Reference: the [**API**](api/index.md), the [**output files**](output-files.md) each run writes, and the
   [**tools**](tools.md) that read a finished run.
