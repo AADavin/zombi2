@@ -51,7 +51,8 @@ _TOOLS_DESCRIPTION = (
     "Tools\n"
     "  format               turn a genomes run into analysis-ready files "
     "(--format homology | markers | recphylo)\n"
-    "  tree                 transform one Newick tree (prune, round, stem, rescale, RED)\n"
+    "  tree                 transform or measure one Newick tree (prune, round, stem, rescale,\n"
+    "                       RED, gamma)\n"
     "  treedist             distance between two Newick trees (RF, branch-score)\n"
 )
 
@@ -86,9 +87,10 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
     trp = tsub.add_parser(
         "tree",
         prog="zombi2 tools tree",
-        help="transform one Newick tree (prune, round, stem, rescale, RED)",
+        help="transform or measure one Newick tree (prune, round, stem, rescale, RED, gamma)",
         description=(
-            "Apply one transform to a Newick tree, Newick to stdout (or a file with -o). Exactly one "
+            "Apply one action to a Newick tree and write the result to stdout (or a file with -o): a "
+            "Newick tree for the transforms, a table or a number for the measurements. Exactly one "
             "action per call. --prune needs each tip's fate, so it takes a ZOMBI tree or an "
             "ultrametric one; every other action loads any tree."
         ),
@@ -100,6 +102,9 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
             "",
             "  # RED per node, as a table in a file",
             "  zombi2 tools tree out/species/species_extant.nwk --red --values -o red.tsv",
+            "",
+            "  # Pybus & Harvey's gamma, one number on stdout",
+            "  zombi2 tools tree out/species/species_extant.nwk --gamma",
         ),
     )
     _add_tools_tree_args(trp)
@@ -145,6 +150,9 @@ def _add_tools_tree_args(p: argparse.ArgumentParser) -> None:
                    help="multiply every branch length by F")
     m.add_argument("--red", action="store_true",
                    help="rescale to RED, Relative Evolutionary Divergence on [0,1]")
+    m.add_argument("--gamma", action="store_true",
+                   help="Pybus & Harvey's gamma — where the branching times sit relative to a "
+                        "constant rate (dated ultrametric trees only)")
     # straight onto the parser, not a group of their own: a second group also called "options" would
     # print a second "options:" heading under the first
     p.add_argument("--tol", type=float, default=1e-3,
@@ -257,7 +265,7 @@ def _run_format(args, parser: argparse.ArgumentParser) -> int:
 
 
 def _run_tree(args, parser: argparse.ArgumentParser) -> int:
-    """``zombi2 tools tree`` — one transform, Newick in, Newick (or a RED table) out."""
+    """``zombi2 tools tree`` — one action: Newick in, and a tree, a table or a number out."""
     if args.values and not args.red:
         parser.error("--values only applies with --red")
     text = sys.stdin.read() if args.input == "-" else open(args.input, encoding="utf-8").read()
@@ -283,6 +291,8 @@ def _run_tree(args, parser: argparse.ArgumentParser) -> int:
                 out = _tree.rescale(t, height=args.rescale_height).to_newick()
             elif args.rescale_factor is not None:
                 out = _tree.rescale(t, factor=args.rescale_factor).to_newick()
+            elif args.gamma:                                    # a measurement, not a transform
+                out = f"gamma\t{_tree.gamma_statistic(t):.6g}"
             elif args.values:                                   # --red --values: the per-node table
                 red = _tree.relative_evolutionary_divergence(t)
                 out = "node\tRED\n" + "\n".join(f"{_tree.node_label(i)}\t{v:.6g}"

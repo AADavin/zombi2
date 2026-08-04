@@ -1,4 +1,4 @@
-# Sequence evolution
+# Sequences
 
 The sequence level does two main things:
 

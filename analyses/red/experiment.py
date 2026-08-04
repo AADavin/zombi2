@@ -3,13 +3,13 @@
 Question: does Relative Evolutionary Divergence recover a tree's relative node ages once a realistic
 molecular clock distorts branch lengths into substitutions? True ages are unknowable on a real
 tree, so we borrow one model-free number from the real GTDB archaeal phylogram — root-to-tip
-substitution CV = 0.2315 (``observable.py``) — reproduce that raggedness in ZOMBI2 simulations
+substitution CV = 0.2315 (``observable.py``) — reproduce that variation in ZOMBI2 simulations
 where truth *is* known, and grade RED there.
 
 Forward model. Simulate a dated species tree (truth); evolve it under a relaxed clock —
 ``substitution = 1.0 * <clock>(spread=sigma)`` — and read the resulting ``species_phylogram``
 (branch lengths in substitutions/site). RED of the dated tree is the ground truth (RED is exact on
-an ultrametric tree); RED of the ragged phylogram is the estimate. Sweep ``sigma`` to trace accuracy
+an ultrametric tree); RED of the phylogram is the estimate. Sweep ``sigma`` to trace accuracy
 (Pearson r, nRMSE) against the realized root-to-tip CV, and read off the accuracy at the CV real
 archaea actually show.
 
@@ -42,7 +42,7 @@ N_EXTANT = 400
 REPS = 8
 
 #: clock name -> (how to build the modifier at spread sigma, the sigma grid to sweep).
-#: The grids differ because the clocks reach a given raggedness at very different sigma: drift
+#: The grids differ because the clocks reach a given root-to-tip variation at very different sigma: drift
 #: compounds down the tree, so the autocorrelated clock hits the GTDB CV near 0.22 where the
 #: uncorrelated ones need ~0.55. Each grid is chosen to bracket the target with room either side.
 CLOCKS = {
@@ -146,7 +146,7 @@ def sweep() -> dict:
 
 
 def scatter(sweep_rows, levels=(0.10, TARGET_CV, 0.40), dist="lognormal", n_extant=500, seed=42) -> dict:
-    """True vs RED-recovered relative ages on one tree at three raggedness levels. The sigma for each
+    """True vs RED-recovered relative ages on one tree at three levels of root-to-tip variation. The sigma for each
     level is read from the (stable, multi-tree) sweep's CV(sigma) map, so the realized CV lands near
     the target; each panel is labelled by its realized CV."""
     dated, g = make_tree(n_extant, seed=seed)
@@ -165,7 +165,7 @@ def scatter(sweep_rows, levels=(0.10, TARGET_CV, 0.40), dist="lognormal", n_exta
 
 def main():
     print(f"GTDB target root-to-tip CV = {TARGET_CV}")
-    print("Bridge sweep (RED accuracy vs raggedness):")
+    print("Bridge sweep (RED accuracy vs root-to-tip variation):")
     res = sweep()
     print("Scatter (true vs recovered ages):")
     sc = scatter(res["families"]["lognormal"]["rows"])

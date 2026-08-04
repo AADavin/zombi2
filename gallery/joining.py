@@ -128,6 +128,17 @@ def _conditioned_genome(out, ct, layers, sizes, tipcol, diagram):
     plt.close(fig2)
 
 
+def _panel_style():
+    """The tree style the three paint-the-tree-twice figures share.
+
+    Wide and short on purpose: each panel is laid out at its own aspect ratio, so a squarer tree
+    makes the whole figure taller than a gallery card can show. The margin has to clear the time
+    axis *and* its label — at 64 the word "time" was cut in half inside the PNG, before the
+    compositing ever saw it.
+    """
+    return ph.Style(width=1400, height=660, margin=96, branch_width=3.0)
+
+
 def _sizes(ct, g, trait, palette):
     lab = ct.labels()
     tips = list(ct.extant_leaves())
@@ -136,35 +147,41 @@ def _sizes(ct, g, trait, palette):
     return sizes, tipcol
 
 
+# The lifestyle / selection chains below run in BOTH directions. An irreversible switch saturates:
+# the stem alone is ~4 time units, so one draw there paints the whole tree one colour and the figure
+# has nothing left to show. A reversible chain gives the mosaic these figures exist for, and
+# ``tests/test_gallery_api.py`` pins it — both states must reach the extant tips.
+_LIFESTYLE = {"free-living->endosymbiont": 0.20, "endosymbiont->free-living": 0.08}
+_SELECTION = {"purifying->relaxed": 0.20, "relaxed->purifying": 0.08}
+
+
 def genome_reduction(out):
     ct = simulate_species_tree(birth=1.0, n_extant=36, seed=4).complete_tree
-    # an irreversible lifestyle: once a lineage turns endosymbiont it stays (Dollo-ish)
-    hab = simulate_discrete(ct, states=["free-living", "endosymbiont"], start="free-living", seed=8,
-                            switch={"free-living->endosymbiont": 0.09, "endosymbiont->free-living": 0.0})
-    # the trait CONDITIONS the genome: endosymbionts shed genes fast and gain almost none
-    g = simulate_genomes_family(ct, initial_families=55, duplication=0.1,
-            origination=3.0 * mod.DrivenBy(hab, {"endosymbiont": 0.1, "free-living": 1.0}),
-            loss=0.08 * mod.DrivenBy(hab, {"endosymbiont": 12.0, "free-living": 1.0}), seed=9)
+    hab = simulate_discrete(ct, states=["free-living", "endosymbiont"], start="free-living", seed=6,
+                            switch=_LIFESTYLE)
+    # the trait CONDITIONS the genome: endosymbionts shed genes fast and gain few
+    g = simulate_genomes_family(ct, initial_families=200, duplication=0.1,
+            origination=3.0 * mod.DrivenBy(hab, {"endosymbiont": 0.3, "free-living": 1.0}),
+            loss=0.08 * mod.DrivenBy(hab, {"endosymbiont": 6.0, "free-living": 1.0}), seed=9)
     sizes, tipcol = _sizes(ct, g, hab, _HAB)
     _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, hab), palette=_HAB)],
                         sizes, tipcol, dict(
-        driver="lifestyle", states=["free-living", "endosymbiont"],
-        switch={"free-living->endosymbiont": 0.09},               # irreversible → one arrow
-        mapping={"endosymbiont": 12, "free-living": 1}, target="loss", target_base=0.08,
+        driver="lifestyle", states=["free-living", "endosymbiont"], switch=_LIFESTYLE,
+        mapping={"endosymbiont": 6, "free-living": 1}, target="loss", target_base=0.08,
         state_colors=_HAB))
 
 
 def genome_expansion(out):
     ct = simulate_species_tree(birth=1.0, n_extant=32, seed=4).complete_tree
-    # under relaxed selection (irreversible here) duplicates pile up
-    sel = simulate_discrete(ct, states=["purifying", "relaxed"], start="purifying", seed=8,
-                            switch={"purifying->relaxed": 0.09, "relaxed->purifying": 0.0})
-    g = simulate_genomes_family(ct, initial_families=25, loss=0.07,
+    sel = simulate_discrete(ct, states=["purifying", "relaxed"], start="purifying", seed=6,
+                            switch=_SELECTION)
+    # under relaxed selection duplicates pile up
+    g = simulate_genomes_family(ct, initial_families=120, loss=0.07,
             duplication=0.05 * mod.DrivenBy(sel, {"relaxed": 11.0, "purifying": 1.0}), seed=9)
     sizes, tipcol = _sizes(ct, g, sel, _SEL)
     _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, sel), palette=_SEL)],
                         sizes, tipcol, dict(
-        driver="selection", states=["purifying", "relaxed"], switch={"purifying->relaxed": 0.09},
+        driver="selection", states=["purifying", "relaxed"], switch=_SELECTION,
         mapping={"relaxed": 11, "purifying": 1}, target="duplication", target_base=0.05,
         state_colors=_SEL))
 
@@ -273,7 +290,7 @@ def trait_drives_trait(out):
                                            (driven, "coolwarm", (-reach, reach)))):
         png = out.replace(".png", f"_t{k}.png")
         (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False,
-                       style=ph.Style(width=1000, height=560, margin=70, branch_width=3.4))
+                       style=_panel_style())
          + ph.trees.color_branches(vals, cmap=cmap, limits=lim)
          + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
         pngs.append(png)
@@ -281,17 +298,7 @@ def trait_drives_trait(out):
                               draw=h.draw_conditioning_curve, driver="temperature", curve=factor,
                               vrange=(min(driver.values()), max(driver.values())),
                               value_label="temperature", target="size diffusion", target_base=0.35)
-    fig = plt.figure(figsize=(12, 11.4))
-    fig.add_axes([0.30, 0.845, 0.40, 0.155]).imshow(mpimg.imread(diag))
-    rows = ((pngs[0], "temperature — grown first, then held fixed", 0.44),
-            (pngs[1], "body size — its diffusion rate reads the temperature", 0.02))
-    for png, name, y in rows:
-        fig.add_axes([0.0, y, 1.0, 0.375]).imshow(mpimg.imread(png))
-        fig.text(0.045, y + 0.385, name, fontsize=15, ha="left", va="bottom")
-    for ax in fig.axes:
-        ax.set_axis_off()
-    fig.savefig(out, dpi=140, bbox_inches="tight")
-    plt.close(fig)
+    h.composite_under_diagram(out, diag, [(pngs[0], "temperature"), (pngs[1], "body size")])
 
 
 def gene_drives_trait(out):
@@ -299,16 +306,16 @@ def gene_drives_trait(out):
     only ran one way before. A toxin family is grown first, gained and lost down the tree; a
     pathogenicity trait then *becomes* pathogenic forty times faster in the lineages that carry it —
     one direction only, since a toxin makes a lineage dangerous rather than helping it recover. The
-    same tree is painted twice, so the answer is in the alignment of the two panels: 80% of the tips
-    carrying the gene end up pathogenic against 37% of those without.
+    same tree is painted twice, so the answer is in the alignment of the two panels: 74% of the tips
+    carrying the gene end up pathogenic against none of those without.
 
     Presence is exact and changes mid-branch, at the instant the last copy actually went."""
     ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
-    # loss well above duplication, so the family is genuinely lost in whole clades: 62% of the
-    # tree's branch length carries it and 38% does not, which is what gives the two panels something
-    # to disagree about
+    # Loss a little above duplication, so the family survives in some clades and decays in others:
+    # 59% of the tree's branch length carries it, and 23 tips do against 22 that do not. At the old
+    # loss=0.3 the family died on the stem and both panels came out blank.
     g = simulate_genomes_family(ct, initial_families=20, family_names=["tox"],
-                                duplication=0.05, loss=0.3, seed=9)
+                                duplication=0.1, loss=0.13, seed=5)
     tox = g.presence("tox")
     # the gene drives ONE direction: carrying a toxin makes a lineage *become* pathogenic, it does
     # not make it revert faster. `switch` takes a rate per transition, and only one of them reads the
@@ -321,7 +328,7 @@ def gene_drives_trait(out):
     lab = ct.labels()
     top = {lab[i]: segs for i, segs in tox.history(ct).items()}
     bottom = _state_history(ct, disease)
-    style = ph.Style(width=1000, height=560, margin=70, branch_width=3.4)
+    style = _panel_style()
     pngs = []
     for k, (hist, palette) in enumerate(((top, _TOX), (bottom, _DISEASE))):
         png = out.replace(".png", f"_g{k}.png")
@@ -331,7 +338,7 @@ def gene_drives_trait(out):
         pngs.append(png)
     diag = h.conditioning_png(out.replace(".png", "_diag.png"),
                               driver="tox", states=["absent", "present"],
-                              switch={"present->absent": 0.3},    # the family is lost, not regained
+                              switch={"present->absent": 0.13},   # the family is lost, not regained
                               mapping={"present": 40, "absent": 1},
                               target="→ pathogenic",
                               target_base=0.02, state_colors=_TOX,
@@ -342,17 +349,7 @@ def gene_drives_trait(out):
                                              "pathogenic->harmless": 0.6},
                               target_colors=_DISEASE,
                               target_driven="harmless->pathogenic")
-    fig = plt.figure(figsize=(12, 11.4))
-    fig.add_axes([0.30, 0.845, 0.40, 0.155]).imshow(mpimg.imread(diag))
-    rows = ((pngs[0], "the toxin family — present or absent", 0.44),
-            (pngs[1], "pathogenicity — the gene drives becoming it, not reverting", 0.02))
-    for png, name, y in rows:
-        fig.add_axes([0.0, y, 1.0, 0.375]).imshow(mpimg.imread(png))
-        fig.text(0.045, y + 0.385, name, fontsize=15, ha="left", va="bottom")
-    for ax in fig.axes:
-        ax.set_axis_off()
-    fig.savefig(out, dpi=140, bbox_inches="tight")
-    plt.close(fig)
+    h.composite_under_diagram(out, diag, [(pngs[0], "the toxin family"), (pngs[1], "pathogenicity")])
 
 
 _C_BISSE = '''\
@@ -442,14 +439,15 @@ from zombi2.rates import modifiers as mod
 
 sp = simulate_species_tree(birth=1.0, n_extant=36, seed=4)
 ct = sp.complete_tree
-# an irreversible lifestyle: free-living -> endosymbiont, never back
-hab = simulate_discrete(ct, states=["free-living", "endosymbiont"], start="free-living", seed=8,
-                        switch={"free-living->endosymbiont": 0.09, "endosymbiont->free-living": 0.0})
+# the lifestyle switches both ways, so the tree ends up a mosaic rather than one colour
+hab = simulate_discrete(ct, states=["free-living", "endosymbiont"], start="free-living", seed=6,
+                        switch={"free-living->endosymbiont": 0.20, "endosymbiont->free-living": 0.08})
 # the SAME DrivenBy that drives speciation with a trait drives a genome rate: endosymbionts
-# shed genes fast (loss x12) and gain almost none (origination x0.1)
-g = simulate_genomes_family(ct, initial_families=55, duplication=0.1,
-        origination=3.0 * mod.DrivenBy(hab, {"endosymbiont": 0.1, "free-living": 1.0}),
-        loss=0.08 * mod.DrivenBy(hab, {"endosymbiont": 12.0, "free-living": 1.0}), seed=9)
+# shed genes fast (loss x6) and gain few (origination x0.3)
+g = simulate_genomes_family(ct, initial_families=200, duplication=0.1,
+        origination=3.0 * mod.DrivenBy(hab, {"endosymbiont": 0.3, "free-living": 1.0}),
+        loss=0.08 * mod.DrivenBy(hab, {"endosymbiont": 6.0, "free-living": 1.0}), seed=9)
+# 241 genes at the median free-living tip against 48 at the median endosymbiont one
 
 ### plot  —  tree coloured by lifestyle, beside per-tip genome-size bars (aligned axes)
 import phylustrator as ph
@@ -475,11 +473,12 @@ from zombi2.genomes import simulate_genomes_family
 from zombi2.rates import modifiers as mod
 
 ct = simulate_species_tree(birth=1.0, n_extant=32, seed=4).complete_tree
-sel = simulate_discrete(ct, states=["purifying", "relaxed"], start="purifying", seed=8,
-                        switch={"purifying->relaxed": 0.09, "relaxed->purifying": 0.0})  # irreversible
+sel = simulate_discrete(ct, states=["purifying", "relaxed"], start="purifying", seed=6,
+                        switch={"purifying->relaxed": 0.20, "relaxed->purifying": 0.08})
 # under relaxed selection, duplicates pile up: DrivenBy on the duplication rate
-g = simulate_genomes_family(ct, initial_families=25, loss=0.07,
+g = simulate_genomes_family(ct, initial_families=120, loss=0.07,
         duplication=0.05 * mod.DrivenBy(sel, {"relaxed": 11.0, "purifying": 1.0}), seed=9)
+# 96 genes at the median purifying tip against 496 at the median relaxed one
 ### plot  —  tree coloured by selection, beside per-tip genome-size bars (relaxed clades grow)
 import phylustrator as ph
 
@@ -582,7 +581,7 @@ g = simulate_genomes_family(ct, initial_families=12, loss=0.05,
 
 
 _C_OPTIMUM = '''\
-### simulate  —  the same run again, this time a HUMPED curve
+### simulate  —  the same run again, with a curve of your own
 import math
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous
@@ -642,14 +641,15 @@ def module_drives_metabolism(out):
     mapping, where every other response shape lives, rather than as a separate kind of driver.
 
     Both directions read the module, oppositely, so the trait tracks the gene content rather than
-    just accumulating: 97% of the tree's branch length has the trait on the side of the threshold its
-    completion is."""
+    just accumulating: every tip that keeps more than half the module ends up aerobic, and every tip
+    that does not ends up anaerobic."""
     ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
     nuo = [f"nuo{c}" for c in "ABCD"]
-    # loss just under duplication: the module survives in about half the tree and decays in the rest,
-    # which is what puts branches on both sides of the threshold
+    # Loss matched to duplication: the module stays above half on 51% of the tree's branch length and
+    # decays below it on the rest, which is what puts branches on both sides of the threshold. At the
+    # old duplication=0.08 / loss=0.06 it survived nearly everywhere and the figure was one colour.
     g = simulate_genomes_family(ct, initial_families=20, family_names=nuo,
-                                modules={"aerobic": nuo}, duplication=0.08, loss=0.06, seed=3)
+                                modules={"aerobic": nuo}, duplication=0.08, loss=0.08, seed=11)
     comp = g.completion("aerobic")
     step = (lambda f: 20.0 if f > 0.5 else 1.0)
     back = (lambda f: 1.0 if f > 0.5 else 20.0)
@@ -663,7 +663,7 @@ def module_drives_metabolism(out):
     ramp = {f: colors.to_hex(cm.viridis(f)) for f in levels}
     top = {lab[i]: segs for i, segs in comp.history(ct).items()}
     bottom = _state_history(ct, metabolism)
-    style = ph.Style(width=1000, height=560, margin=70, branch_width=3.4)
+    style = _panel_style()
     pngs = []
     for k, (hist, palette) in enumerate(((top, ramp), (bottom, _METAB))):
         png = out.replace(".png", f"_m{k}.png")
@@ -679,17 +679,7 @@ def module_drives_metabolism(out):
                               target_switch={"anaerobic->aerobic": 6.0,
                                              "aerobic->anaerobic": 0.3},
                               target_colors=_METAB, target_driven="anaerobic->aerobic")
-    fig = plt.figure(figsize=(12, 11.4))
-    fig.add_axes([0.30, 0.845, 0.40, 0.155]).imshow(mpimg.imread(diag))
-    rows = ((pngs[0], "aerobic respiration — how much of the module a lineage keeps", 0.44),
-            (pngs[1], "metabolism — aerobic above half the module, anaerobic below", 0.02))
-    for png, name, y in rows:
-        fig.add_axes([0.0, y, 1.0, 0.375]).imshow(mpimg.imread(png))
-        fig.text(0.045, y + 0.385, name, fontsize=15, ha="left", va="bottom")
-    for ax in fig.axes:
-        ax.set_axis_off()
-    fig.savefig(out, dpi=140, bbox_inches="tight")
-    plt.close(fig)
+    h.composite_under_diagram(out, diag, [(pngs[0], "the aerobic module"), (pngs[1], "metabolism")])
 
 
 _C_GENE_TRAIT = '''\
@@ -701,16 +691,16 @@ from zombi2.rates import modifiers as mod
 
 ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
 
-# 1. the driver: genomes with ONE family named, so it can be referred to. Loss well above
-#    duplication, so the family is genuinely lost in whole clades rather than kept everywhere.
+# 1. the driver: genomes with ONE family named, so it can be referred to. Loss a little above
+#    duplication, so the family survives in some clades and decays in others.
 g = simulate_genomes_family(ct, initial_families=20, family_names=["tox"],
-                            duplication=0.05, loss=0.3, seed=9)
+                            duplication=0.1, loss=0.13, seed=5)
 
 # 2. the target: a trait whose switch rate reads whether that family is there. `presence` is a
 #    driver like a grown trait, so the mapping is an ordinary table over its two states.
 # `switch` takes a rate per transition, and only ONE of them reads the driver: a toxin makes a
 # lineage become pathogenic, it does not help it revert. So the signal is which tips END UP
-# pathogenic — 80% of those carrying the gene against 37% without — not how much they flicker.
+# pathogenic — 74% of the 23 tips carrying the gene, against none of the 22 without.
 disease = simulate_discrete(
     ct, states=["harmless", "pathogenic"], start="harmless", seed=2,
     switch={"harmless->pathogenic": 0.02 * mod.DrivenBy(g.presence("tox"),
@@ -744,10 +734,10 @@ from zombi2.rates.mapping import Curve
 ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
 nuo = [f"nuo{c}" for c in "ABCD"]
 
-# 1. the driver: four families grouped into one module. Loss just under duplication, so the
+# 1. the driver: four families grouped into one module. Loss matched to duplication, so the
 #    module survives in about half the tree and decays in the rest.
 g = simulate_genomes_family(ct, initial_families=20, family_names=nuo,
-                            modules={"aerobic": nuo}, duplication=0.08, loss=0.06, seed=3)
+                            modules={"aerobic": nuo}, duplication=0.08, loss=0.08, seed=11)
 
 # 2. the target: a DISCONTINUOUS response. `completion` is a number in [0, 1] and the Curve is a
 #    step — more than half the module and the lineage turns aerobic, below and it turns back.
@@ -773,64 +763,45 @@ ramp = {f: colors.to_hex(cm.viridis(f)) for f in {f for s in kept.values() for f
  + ph.trees.color_history({lab[i]: s for i, s in metabolism.history.items()},
                           palette={"anaerobic": "#6b5b95", "aerobic": "#2E8B6F"})
  + ph.trees.time_axis("time", bold=False)).save("metabolism.png")
-# 97% of the tree's branch length has the trait on the side of the threshold its completion is'''
+# every tip above half the module ends aerobic, every tip below it anaerobic'''
 
 
 CONDITIONING = [
     Example("genome_reduction", "Genome reduction",
-            "A driver (a trait for the lifestyle) modifies the rate of loss (the target). "
-            "Endosymbionts also gain genes more slowly, so their genomes shrink. The tree is coloured "
-            "by the lifestyle and the bars are genome size at each tip.",
+            "A lifestyle trait drives gene loss. Endosymbionts shed genes faster and gain fewer, so "
+            "their genomes end up a fifth the size.",
             "trait → loss", genome_reduction, code=_C_REDUCTION),
     Example("genome_expansion", "Genome expansion",
-            "A driver (a trait for the strength of selection) modifies the rate of duplication (the "
-            "target). Under relaxed selection duplicates accumulate and the genomes grow. The tree is "
-            "coloured by the selection regime and the bars are genome size at each tip.",
+            "A selection trait drives duplication. Under relaxed selection duplicates accumulate and "
+            "the genomes grow fivefold.",
             "trait → duplication", genome_expansion, code=_C_EXPANSION),
     Example("hgt_uptake", "HGT uptake by competence",
-            "A driver (a trait for competence) modifies <b>who receives</b> a transfer (the target), "
-            "not a rate. Competent lineages take up DNA more often and their genomes grow. The tree is "
-            "coloured by competence and the bars are genome size at each tip.",
+            "A competence trait drives <b>who receives</b> a transfer rather than a rate. Competent "
+            "lineages take up DNA more often.",
             "trait → transfer uptake", hgt_uptake, code=_C_UPTAKE),
     Example("continuous_conditioning", "A continuous driver",
-            "A driver (a diffusing continuous trait) modifies the rate of origination (the target). A "
-            "<code>Curve</code> turns each value into a factor, so genome size follows the trait. The "
-            "tree is coloured by the trait value and the bars are genome size at each tip.",
+            "A diffusing trait drives gene gain. A <code>Curve</code> turns each value into a factor, "
+            "so genome size follows the trait.",
             "continuous trait → origination", continuous_conditioning, code=_C_CONTINUOUS),
     Example("curve_saturating", "A saturating curve",
-            "The same run with a different <code>Curve</code>. Gene gain switches on as the trait "
-            "rises and then levels off at a ceiling, so the factor is <b>bounded</b> — once resources "
-            "are plentiful, more of them buys nothing.",
+            "The same run with a different <code>Curve</code>. Gene gain rises with the trait and "
+            "then levels off, so the factor is bounded.",
             "continuous trait → origination", curve_saturating, code=_C_SATURATING),
-    Example("curve_optimum", "A humped curve",
-            "The same run again, with the response fastest at an <b>intermediate</b> value and falling "
-            "away on both sides. A table of per-state multipliers can express neither this nor the "
-            "saturating curve: the tallest bars sit in the middle of the colour ramp, not at its top.",
+    Example("curve_optimum", "A curve of your own",
+            "The response is any function you write. Here it peaks at an intermediate value, which no "
+            "table of per-state multipliers can express.",
             "continuous trait → origination", curve_optimum, code=_C_OPTIMUM),
     Example("trait_drives_trait", "One trait drives another",
-            "Driver and target are both traits on one tree. A temperature trait is grown first; the "
-            "rate at which body size diffuses then reads it. The same tree is painted twice — by the "
-            "driver, then by what it drove, on a scale centred where the trait started, so white "
-            "means <b>has not moved</b>. The cold half of the tree stays white.",
+            "A temperature trait is grown first; body size then diffuses at a rate that reads it. The "
+            "scale is centred on where it started, so white means it has not moved.",
             "trait → trait", trait_drives_trait, code=_C_TRAIT_TRAIT),
     Example("gene_drives_trait", "A gene drives a trait",
-            "The other direction of the same relation. A driver (a named gene family, present or "
-            "absent) modifies <b>one direction</b> of a trait's switch (the target): carrying a toxin "
-            "makes a lineage <i>become</i> pathogenic forty times faster, but does not help it revert. "
-            "The same tree is painted twice — by the gene, then by what the gene drove — so the answer "
-            "is in the alignment of the two: 80% of the tips carrying the gene end up pathogenic "
-            "against 37% of those without. Presence changes <b>mid-branch</b>, at the instant the "
-            "last copy went.",
+            "Carrying a toxin family makes a lineage <i>become</i> pathogenic forty times faster. 74% of "
+            "the tips with the gene end up pathogenic, against none of those without.",
             "gene → trait", gene_drives_trait, code=_C_GENE_TRAIT),
     Example("module_drives_metabolism", "A module, through a step",
-            "Genes rarely act alone. Four families make up aerobic respiration, and a driver "
-            "(<code>completion</code>, the fraction of the module a lineage keeps) modifies the trait "
-            "that decides its metabolism. The response is <b>discontinuous</b> — "
-            "<code>lambda f: 20.0 if f > 0.5 else 1.0</code> — so more than half the module makes a "
-            "lineage aerobic and less makes it revert. That is where a threshold belongs in ZOMBI2: "
-            "in the mapping, alongside every other response shape, rather than as its own kind of "
-            "driver. 97% of the tree's branch length has the trait on the side of the threshold its "
-            "completion is.",
+            "How much of a four-gene module a lineage keeps decides its metabolism, through a step: "
+            "<code>lambda f: 20.0 if f > 0.5 else 1.0</code>.",
             "module → trait", module_drives_metabolism, code=_C_MODULE),
 ]
 

@@ -253,6 +253,43 @@ def composite_markov(tree_png: str, out: str, draw_fn, *, loc=(0.02, 0.09, 0.34,
     plt.close(fig)
 
 
+def composite_under_diagram(out: str, diagram_png: str, rows, *, width=12.0, diagram_frac=0.42,
+                            pad=0.03, gap=0.30, label=0.36) -> None:
+    """The driver·modifier·target diagram on top, then one labelled panel per row.
+
+    ``rows`` is ``[(png, label), ...]``. Every panel gets an axes box of **its own image's aspect
+    ratio**, so nothing is letterboxed and the diagram sits on the same centre line as the panels
+    under it. Saved without ``bbox_inches="tight"``: cropping to content pulled the crop in on the
+    row labels, which shifted the panels off centre and clipped the bottom one's time axis.
+
+    ``width``, ``gap`` and ``label`` are inches; ``pad`` and ``diagram_frac`` are fractions of
+    ``width``.
+    """
+    diagram = mpimg.imread(diagram_png)
+    imgs = [mpimg.imread(png) for png, _ in rows]
+    body = width * (1 - 2 * pad)
+    heights = [body * im.shape[0] / im.shape[1] for im in imgs]
+    h_diagram = diagram_frac * width * diagram.shape[0] / diagram.shape[1]
+    height = gap + h_diagram + sum(h + label + gap for h in heights)
+    fig = plt.figure(figsize=(width, height))
+
+    def box(x, y, w, h):
+        return [x / width, y / height, w / width, h / height]
+
+    y = height - h_diagram
+    fig.add_axes(box(width * (1 - diagram_frac) / 2, y, diagram_frac * width,
+                     h_diagram)).imshow(diagram)
+    for im, h, (_, name) in zip(imgs, heights, rows):
+        y -= label + h
+        fig.add_axes(box(pad * width, y, body, h)).imshow(im)
+        fig.text(pad, (y + h + 0.08) / height, name, fontsize=15, ha="left", va="bottom")
+        y -= gap
+    for ax in fig.axes:
+        ax.set_axis_off()
+    fig.savefig(out, dpi=140)
+    plt.close(fig)
+
+
 def composite_two_trees_panel(tree_x_png: str, tree_y_png: str, draw_panel, out: str, *,
                               x_label: str = "trait x", y_label: str = "trait y") -> None:
     """Two trees stacked on the left (one per character), a custom panel spanning both rows on the
@@ -334,16 +371,43 @@ def _zombi(*args) -> None:
                    stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
 
+def _stale(run: str) -> bool:
+    """Is this cached run older than the ZOMBI2 that would build it now?
+
+    The caches under ``figures/_data/`` used to be guarded on "does the file exist", which never
+    expires. Four of them survived the one-row-per-event redesign holding the *old* columns
+    (``lineage`` · ``copy`` · ``parent`` · ``recipient`` · ``donor``), so the events figure read a
+    format zombi2 had not written in months and the rebuild tracebacked. Stamping the cache with the
+    version that produced it is what makes it a cache rather than a fossil.
+    """
+    from zombi2 import __version__
+
+    stamp = os.path.join(run, ".zombi2-version")
+    try:
+        with open(stamp) as fh:
+            return fh.read().strip() != __version__
+    except OSError:
+        return True
+
+
+def _stamp(run: str) -> str:
+    from zombi2 import __version__
+
+    with open(os.path.join(run, ".zombi2-version"), "w") as fh:
+        fh.write(__version__)
+    return run
+
+
 def ordered_run() -> str:
     """A cached species + ordered-genomes + sequences run (25 extant genomes, D/T/L + inversions)."""
     run = os.path.join(_DATA, "ordered")
-    if not os.path.isdir(os.path.join(run, "sequences", "alignments")):
+    if _stale(run):
         _zombi("species", run, "--birth", 1.0, "--death", 0.25, "--n-extant", 25, "--seed", 7)
         _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 45,
                "--duplication", 0.22, "--loss", 0.18, "--transfer", 0.1, "--inversion", 0.6,
                "--seed", 19)
         _zombi("sequences", run, "--model", "jc69", "--length", 60, "--seed", 7)
-    return run
+    return _stamp(run)
 
 
 def synteny_tree_run() -> str:
@@ -355,12 +419,12 @@ def synteny_tree_run() -> str:
     clade comes out strikingly collinear while the other is visibly rearranged, so the panel shows
     structure varying *across the tree* rather than a uniform amount of shuffling."""
     run = os.path.join(_DATA, "synteny_tree")
-    if not os.path.isdir(os.path.join(run, "genomes")):
+    if _stale(run):
         _zombi("species", run, "--birth", 1.0, "--death", 0.45, "--n-extant", 30, "--seed", 56)
         _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 14,
                "--duplication", 0.015, "--loss", 0.015,
                "--inversion", 0.10, "--inversion-extent", 3, "--seed", 5)
-    return run
+    return _stamp(run)
 
 
 def initial_gene_order(run: str) -> list:
@@ -374,38 +438,38 @@ def initial_gene_order(run: str) -> list:
 def events_run() -> str:
     """A cached high-speciation run (40 extant genomes) with plenty of D/T/L for the events figure."""
     run = os.path.join(_DATA, "events")
-    if not os.path.isfile(os.path.join(run, "genomes", "genome_events.tsv")):
+    if _stale(run):
         _zombi("species", run, "--birth", 1.8, "--death", 0.3, "--n-extant", 40, "--seed", 7)
         _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 45,
                "--duplication", 0.3, "--loss", 0.2, "--transfer", 0.15, "--inversion", 0.5,
                "--seed", 11)
-    return run
+    return _stamp(run)
 
 
 def phylo_run() -> str:
     """A cached run whose sequences evolve under an **uncorrelated relaxed clock** (ByLineage), so the
     clock tree (branch lengths in substitutions/site) is non-ultrametric. 35 species, for the phylogram."""
     run = os.path.join(_DATA, "phylo")
-    if not os.path.isfile(os.path.join(run, "sequences", "clock_species_tree_extant.nwk")):
+    if _stale(run):
         _zombi("species", run, "--birth", 1.4, "--death", 0.2, "--n-extant", 35, "--seed", 7)
         _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 40,
                "--duplication", 0.15, "--loss", 0.12, "--seed", 9)
         _zombi("sequences", run, "--model", "hky85", "--kappa", 2.0, "--length", 500,
                "--substitution", "1.0 * ByLineage(spread=0.6)", "--seed", 7)
-    return run
+    return _stamp(run)
 
 
 def aln_run() -> str:
     """A cached 20-species run (species + ordered genomes + JC69 sequences), for the alignment figure."""
     run = os.path.join(_DATA, "aln")
-    if not os.path.isdir(os.path.join(run, "sequences", "alignments")):
+    if _stale(run):
         _zombi("species", run, "--birth", 1.0, "--death", 0.25, "--n-extant", 20, "--seed", 4)
         # no loss so every family survives in every genome — a full one-row-per-tip alignment
         _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 45,
                "--duplication", 0.04, "--loss", 0.0, "--transfer", 0.0, "--seed", 6)
         # --divergence keeps the alignment from saturating (else every column varies — no signal)
         _zombi("sequences", run, "--model", "jc69", "--length", 60, "--divergence", 0.4, "--seed", 7)
-    return run
+    return _stamp(run)
 
 
 def mycoplasma_gff() -> str:

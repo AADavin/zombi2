@@ -56,7 +56,7 @@ Chromosomes are tracked. A chromosome id is re-minted at every event that reshap
 species tree  ⊃  chromosome network  ⊃  gene trees
 ```
 
-It is a **network** and not a tree because of one event: **fusion joins two chromosome lineages into one**, two parents and one child. Fission and speciation are ordinary splits (one parent, two children); `initial` and `origination` are roots — the chromosomes the run began with and the de-novo replicons `chromosome_origination` mints, told apart so you can see which is which; loss is a leaf. The whole thing is a directed graph, and it is recorded the way graphs are, as an **edge list** — `chromosome_events`, one row per event. The run above gives:
+It is a **network** and not a tree because of one event: **fusion joins two chromosome lineages into one**, two parents and one child. Fission and speciation are ordinary splits (one parent, two children); `initial` and `origination` are roots — the chromosomes the run began with, and the new replicons `chromosome_origination` creates, kept apart so you can tell which is which; loss is a leaf. It is a directed graph, and it is written the way graphs are, as an **edge list**: `chromosome_events`, one row per event. The run above gives:
 
 ```
   time   kind          parents -> children
