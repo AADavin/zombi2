@@ -115,6 +115,7 @@ from .._runtime.progress import progress_bar
 from .events import (GeneEdge, _copy_cell, _name, event_counts, events_tsv, gene_from_label,
                      gene_label,
                      node_from_label, node_label)
+from .family import resolve_modules
 from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
 from .gff import read_fasta, read_gff
 
@@ -705,8 +706,15 @@ class NucleotideGenomesResult:
     #: fixed for the whole run and is exactly the root-block that carries its gene tree.
     gene_spans: dict[int, tuple[int, int, int]] = field(default_factory=dict)
     #: ``{name: gene family id}`` for genes declared with a name (a GFF ``ID`` / ``Name``) — the handle
-    #: to look a named gene up in `gene_spans` / `gene_trees`. Empty for the even layout.
+    #: to look a named gene up in `gene_spans` / `gene_trees`, and to read one as a driver
+    #: (`presence`). This is what the other two resolutions call ``family_names``: the same
+    #: ``{name: family id}`` handle, spelt for a resolution where a declared family is one gene.
+    #: Empty for the even layout, which lays its genes down unnamed.
     gene_names: dict[str, int] = field(default_factory=dict)
+    #: ``{module name: (gene name, …)}`` for groups declared by ``modules=`` — a pathway or a
+    #: complex, whose *completion* in a lineage (`completion`) is a driver. Empty when none were
+    #: declared; a module changes nothing about how the genome evolves.
+    modules: dict[str, tuple[str, ...]] = field(default_factory=dict)
     #: ``{gene family id: +1 / -1}`` — each declared gene's **coding** strand (which strand carries the
     #: ORF), as given by the GFF. This is annotation, *not* ancestry: it is fixed for the family and is
     #: unrelated to `Block.strand`, which records whether a stretch has been inverted since the
@@ -740,6 +748,33 @@ class NucleotideGenomesResult:
 
     def ancestry(self, node_id: int) -> list[tuple[int, int]]:
         return self.genomes[node_id].ancestry()
+
+    def completion(self, name: str):
+        """A module's completion as a **conditioning driver** — `ModuleCompletion`, a number in
+        ``[0, 1]``: the fraction of the module's genes a lineage carries.
+
+        Read it with a `Curve`, the way any continuous driver is read; a threshold goes there rather
+        than here (``lambda f: 8.0 if f > 0.8 else 1.0``)."""
+        from .presence import ModuleCompletion
+        if name not in self.modules:
+            raise KeyError(f"no module {name!r}; declared modules are {sorted(self.modules)}")
+        return ModuleCompletion(self, name)
+
+    def presence(self, name: str):
+        """The named gene's presence as a **conditioning driver** — `GenePresence`, the same reader
+        the other two resolutions hand out, read off the gene's own recovered tree::
+
+            switch=0.1 * mod.DrivenBy(g.presence("dnaA"), {"present": 5.0, "absent": 1.0})
+
+        A gene is named here by the GFF that declared it (its ``ID`` / ``Name``); the evenly-spaced
+        ``genes=`` layout lays its genes down unnamed."""
+        from .presence import GenePresence
+        if name not in self.gene_names:
+            raise KeyError(
+                f"no named gene {name!r}; declared genes are {sorted(self.gene_names)}. A gene is "
+                f"named by the GFF that declares it (its ID / Name attribute) — the evenly-spaced "
+                f"genes= layout has no names to give.")
+        return GenePresence(self, name)
 
     def _recover(self):
         if not hasattr(self, "_recovered"):
@@ -1432,8 +1467,10 @@ def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
             initial_sequence[int(sq[len("source"):] if sq.startswith("source") else sq)] = seq
     return NucleotideGenomesResult(
         tree, _blocks_from_tsv(read("blocks.tsv")), events, rearrangements,
-        [], None, spans, names, strands, _initial_genome_from_tsv(read("initial_genome.tsv")),
-        initial_sequence)
+        [], None, spans, names,
+        gene_strands=strands,
+        initial_genome=_initial_genome_from_tsv(read("initial_genome.tsv")),
+        initial_sequence=initial_sequence)
 
 
 def _valid_length(length) -> int:
@@ -1885,7 +1922,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                                 origination_extent=50.0, fission=0.0, fusion=0.0,
                                 chromosome_origination=0.0, chromosome_loss=0.0, chromosomes=1,
                                 root_length=1000, topology="circular", genes=0, gene_length=100,
-                                gff=None, fasta=None, trim_overlaps=False, seed=None,
+                                gff=None, fasta=None, modules=None, trim_overlaps=False, seed=None,
                                 progress=False) -> NucleotideGenomesResult:
     """Evolve a nucleotide genome along a species tree by inversion, translocation, transposition,
     **loss**, **duplication**, **transfer**, **origination**, and the number-changing chromosome tier.
@@ -1930,6 +1967,12 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     of the initial sequence (each ancestral position at most once, monotonically down every path);
     origination further adds fresh sources beyond the root. Deterministic given ``seed``. (Transfer is
     always additive.)
+
+    **Driving out of the genome.** A gene declared by a GFF is named, and a named gene answers *is it
+    in this lineage, right now?* — ``result.presence("dnaA")``, the driver the other two resolutions
+    already hand out. ``modules={"flagellum": ["flgA", "flgB"]}`` groups declared genes, so
+    ``result.completion("flagellum")`` gives the fraction of the group a lineage carries; a module
+    changes nothing about how the genome evolves.
 
     **Conditioning (a trait drives who receives).** ``transfer_to = mod.DrivenBy(source, mapping)``
     weights the candidate recipients by another level, and the numbers are **weights**, not rate
@@ -2066,7 +2109,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
             by_key.setdefault(m.key, m)
     resolved = {}
     if by_key:
-        resolved = {key: resolve_driver(m.source, tree, step=m.step) for key, m in by_key.items()}
+        resolved = {key: resolve_driver(m.source, tree, step=m.step, level="genomes.nucleotide")
+                    for key, m in by_key.items()}
         # a mapping whose states never occur leaves every lineage on the default factor, so the run
         # would secretly be the undriven model — refuse it here, naming the driver
         for mods in (*driven.values(), *ext_driven.values()):
@@ -2084,7 +2128,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     # transfer_to is a weight, not a rate, so its trajectory must not join `trajs` and start adding
     # horizon breakpoints. `resolved` doubles as the driver cache, so a trait that drives both a rate
     # and who receives is loaded once and read from one trajectory.
-    group_of, to_traj = prepare_transfer_to(tree, transfer_to, resolved)
+    group_of, to_traj = prepare_transfer_to(tree, transfer_to, resolved, level="genomes.nucleotide")
 
     rates = _Rates(_rates["inversion"], _rates["translocation"], _rates["transposition"],
                    _rates["loss"], _rates["duplication"], _rates["transfer"], _rates["origination"],
@@ -2144,6 +2188,10 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         # it did, so counting `origination` in either log gives the de-novo ones alone
         chromosome_events.append(ChromosomeEvent(root.birth_time, "initial", root.id, (), (cid,)))
         events.append(Origination(root.birth_time, root.id, cid, cp, source, 0, length, initial=True))
+
+    # a module groups declared genes, so it can only be checked once the layout has named them — the
+    # same validation the other two resolutions run against `family_names`, here against the GFF's
+    module_map = resolve_modules(modules, gene_names)
 
     # the run's starting genome: a deep snapshot, so the live genome's events never reach it
     initial_genome = NucleotideGenome(
@@ -2316,7 +2364,9 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
             si += 1
     bar.close()
     return NucleotideGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
-                                  gene_spans, gene_names, gene_strands, initial_genome, initial_sequence)
+                                   gene_spans, gene_names, module_map,
+                                   gene_strands=gene_strands, initial_genome=initial_genome,
+                                   initial_sequence=initial_sequence)
 
 
 # --- the gene-tree recovery: root partition -> per-block genealogy -> one tree per block ----------
