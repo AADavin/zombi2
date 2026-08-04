@@ -61,7 +61,13 @@ def render_all():
             print("rendered", ex.id)
 
 
-def _data_uri(path, maxw=920):
+#: The widest an embedded figure is stored at. The detail view and the click-to-zoom lightbox read
+#: the same data URI as the card, so this is also the resolution anyone zooming in actually gets —
+#: at 920 the conditioning figures went to mush on a tree with 45 tips.
+MAXW = 1200
+
+
+def _data_uri(path, maxw=MAXW):
     im = Image.open(path).convert("RGB")
     if im.width > maxw:
         im = im.resize((maxw, round(im.height * maxw / im.width)), Image.LANCZOS)
