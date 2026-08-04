@@ -186,6 +186,52 @@ def test_no_gallery_file_spells_the_extinct_prefix_itself():
                            f"ct.labels() so zombi2.tree stays the one place that decides: {offenders}")
 
 
+def test_conditioning_figures_reach_the_tips_in_both_states():
+    """A conditioning figure exists to contrast two states of its driver, so both have to survive to
+    the extant tips. Nothing above can see this: a run where every lineage ends in one state renders
+    perfectly and publishes a single-coloured tree that shows nothing.
+
+    That is exactly what happened. The lifestyle and selection traits used an *irreversible* switch
+    at rate 0.09, and the stem alone is about four time units long, so a draw there painted the whole
+    tree one colour: `genome_reduction` came out with every tip an endosymbiont and genomes of 0 to 4
+    genes, `genome_expansion` with every tip relaxed. The chains run both ways now, and this pins it.
+    """
+    from zombi2.genomes import simulate_genomes_family
+    from zombi2.rates import modifiers as mod
+    from zombi2.species import simulate_species_tree
+    from zombi2.traits import simulate_discrete
+
+    with _phylustrator_mocked():
+        joining = importlib.import_module("joining")
+    cases = (("genome_reduction", 36, joining._LIFESTYLE, ["free-living", "endosymbiont"], 6),
+             ("genome_expansion", 32, joining._SELECTION, ["purifying", "relaxed"], 6))
+    for name, n_extant, switch, states, seed in cases:
+        ct = simulate_species_tree(birth=1.0, n_extant=n_extant, seed=4).complete_tree
+        trait = simulate_discrete(ct, states=states, start=states[0], seed=seed, switch=switch)
+        at_tips = {trait.values[ct.labels()[n.id]] for n in ct.extant_leaves()}
+        assert set(states) == at_tips, (
+            f"the gallery's {name} driver reaches the tips in only {sorted(at_tips)} — the published "
+            f"figure would be one colour and show nothing")
+
+    # ...and the genomes the driver conditions must actually differ at those tips, or the bars beside
+    # the tree carry no signal either.
+    ct = simulate_species_tree(birth=1.0, n_extant=36, seed=4).complete_tree
+    hab = simulate_discrete(ct, states=["free-living", "endosymbiont"], start="free-living", seed=6,
+                            switch=joining._LIFESTYLE)
+    g = simulate_genomes_family(
+        ct, initial_families=200, duplication=0.1,
+        origination=3.0 * mod.DrivenBy(hab, {"endosymbiont": 0.3, "free-living": 1.0}),
+        loss=0.08 * mod.DrivenBy(hab, {"endosymbiont": 6.0, "free-living": 1.0}), seed=9)
+    lab, by = ct.labels(), {"free-living": [], "endosymbiont": []}
+    for n in ct.extant_leaves():
+        by[hab.values[lab[n.id]]].append(len(g.genomes[n.id]))
+    free = sorted(by["free-living"])[len(by["free-living"]) // 2]
+    endo = sorted(by["endosymbiont"])[len(by["endosymbiont"]) // 2]
+    assert endo > 0, "every endosymbiont genome is empty — the bars would be invisible"
+    assert free > 3 * endo, (f"genome reduction is not visible in the figure: median {free} genes "
+                             f"free-living against {endo} endosymbiont")
+
+
 def test_the_guard_catches_a_renamed_zombi2_method(gallery_examples, tmp_path, monkeypatch):
     """A guard on the guard: rename a method out from under the examples and confirm it is flagged, so
     a green result means the checks ran rather than that nothing did."""

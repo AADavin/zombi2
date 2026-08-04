@@ -338,29 +338,24 @@ rate = {n.name: math.log10(n.length / (ct.nodes[int(n.name[1:])].end_time
 
 EXAMPLES = [
     Example("clock_ucln", "Uncorrelated lognormal clock",
-            "Every lineage draws its own rate, with no memory of its parent, so neighbouring branches "
-            "are unrelated — the colour is salt-and-pepper. "
-            "<code>substitution&nbsp;=&nbsp;ByLineage(spread)</code>.",
+            "Every lineage draws its own rate, with no memory of its parent, so the colour is "
+            "salt-and-pepper. <code>substitution&nbsp;=&nbsp;ByLineage(spread)</code>.",
             "phylustrator · clocks", clock_ucln, code=_C_CLOCKS),
     Example("clock_ugam", "Uncorrelated gamma clock",
-            "The same independent draw with a gamma instead of a lognormal, where <code>spread</code> "
-            "is the coefficient of variation. The two agree to first order in <code>spread</code>. "
+            "The same independent draw with a gamma instead of a lognormal. "
             "<code>ByLineage(spread,&nbsp;dist=\"gamma\")</code>.",
             "phylustrator · clocks", clock_ugam, code=_C_CLOCKS),
     Example("clock_autocorrelated", "Autocorrelated clock",
-            "A daughter starts at its parent's rate and is nudged, so relatives run at similar rates "
-            "and the colour moves in <b>clades</b> rather than branch to branch. "
-            "<code>substitution&nbsp;=&nbsp;FromParent(spread)</code>.",
+            "A daughter starts at its parent's rate and is nudged, so the colour moves in <b>clades</b> "
+            "rather than branch to branch. <code>substitution&nbsp;=&nbsp;FromParent(spread)</code>.",
             "phylustrator · clocks", clock_autocorrelated, code=_C_CLOCKS),
     Example("clock_discrete_bin", "Discrete-bin clock",
-            "The same inherited drift in <b>steps</b>: the rate takes one of a few values and a "
-            "daughter moves to a neighbouring one, which is what a rate-category model assumes. "
-            "<code>FromParent(spread,&nbsp;bins=6)</code>.",
+            "The same inherited drift in <b>steps</b>: the rate takes one of a few values and a daughter "
+            "moves to a neighbouring one. <code>FromParent(spread,&nbsp;bins=6)</code>.",
             "phylustrator · clocks", clock_discrete_bin, code=_C_CLOCKS),
     Example("seq_ancestral", "Ancestral sequences at the nodes",
-            "A small tree with its internal nodes numbered (0&nbsp;=&nbsp;initial genome, 1&nbsp;=&nbsp;crown, "
-            "…); beside it the reconstructed sequence at each — one free-floating row per node, "
-            "<i>not</i> aligned to the tips. <code>seqs.ancestral</code>.",
+            "A small tree with its internal nodes numbered, and beside it the sequence at each. The rows "
+            "are one per node, <i>not</i> aligned to the tips.",
             "phylustrator · ancestral", numbered_ancestral, code=_C_ANCESTRAL),
     Example("seq_alignment", "Alignment beside the tree",
             "A single-copy family across 20 species, residues coloured (with a nucleotide key), each "
