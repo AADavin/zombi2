@@ -132,6 +132,40 @@ jobs:
       - name: Lint
         run: ruff check .
 
+  # CONTRIBUTING asks for a `[Unreleased]` line whenever a user could observe a change, and nothing
+  # enforced it: #319 added `zombi2 tools tree --gamma` and `zombi2.tree.gamma_statistic` and went
+  # green with the changelog untouched — lint, types, tests and the docs build all pass for a pull
+  # request that adds a flag and says nothing about it.
+  #
+  # The check compares the *public surface* at the merge base and at HEAD (every `--flag` under
+  # `zombi2/cli/`, every name in an `__all__` under `zombi2/`), not the diff. A rewritten help
+  # string or docstring leaves the surface identical and raises nothing, which is what keeps the
+  # check worth reading: the same pull request that added `--gamma` also reworded help text across
+  # six CLI modules. Escape hatch: the `no changelog` label.
+  #
+  # Pull requests only. On a push to main the comparison has no base to make, and the pull request
+  # that introduced the commit was already checked.
+  changelog:
+    name: changelog
+    if: >-
+      github.event_name == 'pull_request' &&
+      !contains(github.event.pull_request.labels.*.name, 'no changelog')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0        # the guard needs the merge base, so a shallow clone will not do
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # No install: the guard reads the tree with `ast` and shells out to git. It must keep working
+      # on a branch whose code does not import.
+      - name: Check the public surface against CHANGELOG.md
+        run: python scripts/check_public_surface.py --base "origin/${{ github.base_ref }}"
+
   docs:
     name: docs (mkdocs --strict)
     runs-on: ubuntu-latest
