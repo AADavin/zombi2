@@ -73,7 +73,11 @@ A pull request should also:
 - **add a test** for a fix or a new behaviour — one that fails without the change;
 - **add a line to `CHANGELOG.md`** under `## [Unreleased]` if a user could observe the change
   (new behaviour, a flag, an output file, a public function, a bug fix), grouped under
-  `### Added` / `### Changed` / `### Fixed`;
+  `### Added` / `### Changed` / `### Fixed`. CI checks this for the two cases it can see for
+  itself — a `--flag` added or removed under `zombi2/cli/`, and a name added to or removed from an
+  `__all__` — and you can run the same check with
+  `python scripts/check_public_surface.py --base origin/main`. If the change really is invisible to
+  users, label the pull request `no changelog`;
 - **update [`manual/book/appendix-b.md`](manual/book/appendix-b.md)** if it adds or changes a file
   ZOMBI2 writes — that table is the catalogue of every output, and the docs site single-sources it.
 
