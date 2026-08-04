@@ -744,6 +744,43 @@ def red_scaled(tree: Tree) -> Tree:
     return out
 
 
+def gamma_statistic(tree: Tree) -> float:
+    """Pybus & Harvey's γ — where a dated tree's branching times sit relative to what a constant rate
+    would give.
+
+    Standard normal under constant-rate pure birth, so a value near 0 is the null. It goes negative
+    when speciation slows toward the present, because the branching times then bunch up early, and
+    positive when it accelerates. The tree must be **dated and ultrametric**: γ reads the waiting
+    times between splits, so branch lengths in substitutions mean nothing here. Extinct lineages must
+    be pruned first — γ is defined on the reconstructed tree.
+
+    Needs at least four tips: the statistic divides by ``n - 2`` and by the tree's total branch
+    length, neither of which is usable below that.
+    """
+    splits = sorted(nd.end_time for nd in tree.nodes.values() if nd.children)
+    leaves = [nd.end_time for nd in tree.nodes.values() if nd.children is None]
+    if not leaves:
+        raise ValueError("empty tree — nothing to compute gamma on")
+    n = len(splits) + 1
+    if n < 4:
+        raise ValueError(f"gamma needs at least 4 tips, this tree has {n}")
+    present = max(leaves)
+    spread = present - min(leaves)
+    if spread > 1e-6 * max(present, 1.0):
+        raise ValueError("gamma is defined on a dated ultrametric tree, and this one's tips differ "
+                         f"in depth by {spread:g} — prune the extinct lineages, or pass a dated tree "
+                         "rather than a phylogram")
+    # inter[k] is the waiting time during which k + 2 lineages were alive
+    inter = [splits[j] - splits[j - 1] for j in range(1, n - 1)] + [present - splits[-1]]
+    partial, total = [], 0.0
+    for k, g in enumerate(inter):
+        total += (k + 2) * g
+        partial.append(total)
+    if total <= 0.0:
+        raise ValueError("gamma needs a tree with positive branch lengths")
+    return (sum(partial[:-1]) / (n - 2) - total / 2) / (total * (1 / (12 * (n - 2))) ** 0.5)
+
+
 def _clades(tree: Tree) -> dict[frozenset, float]:
     """``{frozenset(descendant leaf ids): branch length above the node}`` for every node."""
     leafset: dict[int, frozenset] = {}
@@ -782,4 +819,4 @@ def distance(a: Tree, b: Tree, *, metric: str = "rf") -> float:
 
 
 __all__ = ["Tree", "Node", "prune", "read_newick", "with_stem", "make_ultrametric", "rescale",
-           "relative_evolutionary_divergence", "red_scaled", "distance"]
+           "relative_evolutionary_divergence", "red_scaled", "gamma_statistic", "distance"]
