@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-08-04
+
 ### Fixed
 - **A run's output directory now describes that run and nothing else.** The per-unit directories —
   `gene_trees/`, `alignments/`, `phylograms/`, `genomes/`, `gff/`, `bed/` — hold one file per family,
