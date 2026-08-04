@@ -37,7 +37,7 @@ genomes.simulate_genomes_family(tree,
 
 Passing `habitat` hands the result over in memory; passing `"out/trait_events.tsv"` after `habitat.write("out/", outputs=("events",))` hands over the same thing on disk. Either way the driver is read **wherever it changes**, not once per branch: the event log gives each branch's constant stretches, and the genome engine steps its Gillespie at every switch, so a lineage that changes habitat halfway down a branch loses genes at one rate before the switch and another after it. A discrete driver is therefore followed exactly. A continuous one has no switches to step at, so it is approximated: the branch is cut into stretches of at most `step` time units (`DrivenBy(..., step=)`, by default 1% of the tree's height) and read at each stretch's midpoint.
 
-What can drive is a trait, discrete or continuous; a named gene family, present or absent; or a module's completion, a number between 0 and 1. The last two are below, under *A gene as the driver*. What a trait can drive fits in six rows:
+What can drive is a trait, discrete or continuous; a named gene family, present or absent; a module's completion, a number between 0 and 1; or a finished run's GC content. The gene and the module are below, under *A gene as the driver*, and GC under *A sequence as the driver*. What a trait can drive fits in six rows:
 
 | The driver | What it drives | Written like this | Mapping |
 |---|---|---|---|
@@ -116,7 +116,7 @@ A `switch` written per transition drives only the transitions you name — `{"ca
 
 A genome run takes a driver at all three resolutions. At the **family** resolution that is the four gene-family rates in the table above. At the **ordered** resolution it is every rate the engine has, so a trait can make a lineage rearrange its gene order or reshape its karyotype more often, and a driven extent makes each rearranged block longer. At the **nucleotide** resolution it is the same list on a genome measured in base pairs, which is where a driven `loss` becomes genome reduction as it is usually meant. At the **sequences** level it is `substitution`, the one rate that level has. `transfer_to` is not a rate, but it takes a driver at all three resolutions too: the same rules, kernel and weights everywhere, because only what a transfer *moves* differs between them.
 
-Three things are not implemented yet. **`ByFamily` and `DrivenBy` cannot be set in the same run** at the family or ordered resolution, because one weights lineages by a driver and the other weights the segment by what it covers, so combining them means weighting by the product (`family_speed` counts as a `ByFamily` here). **A sequence cannot drive anything**: a trait or a gene drives `substitution`, but nothing reads a sequence back out. And **a nucleotide run cannot be the driver**, because it has neither `presence` nor `completion` yet; it can still be the target. These are limits of the code, not of the model, and a driven rate an engine cannot honour raises rather than being silently dropped.
+Two things are refused, and they are refused for different reasons. **`ByFamily` and `DrivenBy` cannot be set in the same run** at the family or ordered resolution, because one weights lineages by a driver and the other weights the segment by what it covers, so combining them means weighting by the product (`family_speed` counts as a `ByFamily` here). That is a limit of the code. **A genome cannot be driven by a sequence**, and that one is a limit of the model: a sequence lives inside a gene, so it was grown along the gene trees the genome run produced, and a genome reading it back would be conditioning a run on its own output. Genomes and Sequences can only be *joined*, and no joint engine for the pair exists. GC content therefore drives what comes after a sequence — a trait on the same species tree, or a further sequence run. Either way a driven rate an engine cannot honour raises, naming the reason, rather than being silently dropped.
 
 ## On the command line
 
@@ -154,12 +154,17 @@ zombi2 genomes comp_genomes/ --from out/ --initial-families 10 --seed 2 \
     --transfer-to "DrivenBy('$driver', {'competent': 3.0, 'normal': 1.0})"
 ```
 
-A trait target reads that same file the same way. Only the continuous `--rate` takes an expression here: `--switch` is a bare number, so a driven switch rate is written in Python.
+A trait target reads that same file the same way, and every rate flag it has takes the expression: `--rate` for a continuous trait's variance-rate, `--switch` for a discrete one's switching rate. Use `--name` to keep two traits in one run directory, since a trait driving a trait needs somewhere for both to sit.
 
 ```bash
 zombi2 traits size/ --from out/ --kind continuous --start 0.0 --seed 4 \
     --rate "1.0 * DrivenBy('out/traits/trait_events.tsv', {'cave': 4.0, 'surface': 1.0})"
+
+zombi2 traits out/ --kind discrete --name diet --states plant,fish --seed 5 \
+    --switch "0.2 * DrivenBy('out/traits/trait_events.tsv', {'cave': 5.0, 'surface': 1.0})"
 ```
+
+`--switch` also takes the two shapes its keyword does — a `{'a->b': rate}` dict and a `k x k` matrix — and each entry of those is a rate in the same written form, so only the transitions you name need be driven.
 
 ## A gene as the driver
 
@@ -231,6 +236,86 @@ exactly that family's presence, 1 or 0.
 
 Members must be families you named with `family_names=`. An anonymous family's id comes from the
 order events happened to fire in, so a module built on one would mean something else at another seed.
+
+### At the nucleotide resolution
+
+All three resolutions answer, and `presence` and `completion` mean the same thing at each. What
+differs is how a family is named and how it can be taken away. At the nucleotide resolution a family
+is a **declared gene**, so its name comes from the GFF that declared it (its `ID` or `Name`) — the
+evenly-spaced `genes=` layout lays its genes down unnamed, and there is nothing there to ask for. And
+what removes it is an arc of DNA rather than a whole copy, so a gene is gone once a deletion has taken
+it: the driver still reads `present` and `absent`, off the same recovered gene tree.
+
+```python
+# a GFF is a path, or the lines themselves — here two genes on one 3 kb replicon
+annotation = ["##sequence-region c1 1 3000",
+              "c1\tzombi2\tgene\t201\t800\t.\t+\t.\tID=dnaA",
+              "c1\tzombi2\tgene\t1401\t2000\t.\t+\t.\tID=dnaN"]
+
+nt = genomes.simulate_genomes_nucleotide(tree, gff=annotation, loss=1.0, loss_extent=300,
+                                         modules={"operon": ["dnaA", "dnaN"]}, seed=9)
+
+traits.simulate_discrete(tree, states=["harmless", "pathogenic"], start="harmless", seed=2,
+                         switch = 0.1 * mod.DrivenBy(nt.presence("dnaA"),
+                                                     {"present": 8.0, "absent": 1.0}))
+```
+
+## A sequence as the driver
+
+The level furthest down can drive too, through the one number a finished sequence says that another
+level can use: its **GC content**. `result.gc()` gives the fraction of a lineage's DNA that is G or C
+at every instant, and it is read like any other continuous driver.
+
+```python
+from zombi2.sequences import simulate_sequences
+from zombi2.sequences.substitution_models import hky85, lg
+
+seqs = simulate_sequences(g, model=hky85(2.0), length=300, seed=1)
+
+traits.simulate_discrete(tree, states=["mesophile", "thermophile"], start="mesophile", seed=2,
+                         switch = 0.2 * mod.DrivenBy(seqs.gc(),
+                                                     Curve(lambda x: 20.0 ** (x - 0.5))))
+```
+
+**GC is pooled over the whole lineage**, across every family the run evolved, because that is the
+quantity the field measures and the one a lineage's mutational bias acts on. One family's GC is not
+offered: it is undefined wherever that family is absent, and a driver has to answer for every branch
+the target walks. Grow that family in a run of its own if its GC alone is what should drive the rate.
+
+A run gives one sequence per gene-tree node, so pooling gives one GC per species node — the value at
+the end of its branch — and the path between two nodes is the straight line between them, cut into
+stretches of at most `step`, exactly as a continuous trait's is. It is a number, so it takes a `Curve`
+or a `Scalar`, never a `{state: factor}` table.
+
+### Any letters, so any amino-acid frequency
+
+`gc()` is the named door onto a general one. `composition(letters)` counts whichever letters of the
+run's own alphabet you ask for, so an amino-acid frequency is the same driver with different letters —
+one residue, or a set of them:
+
+```python
+proteins = simulate_sequences(g, model=lg(), length=300, seed=1)
+
+traits.simulate_discrete(tree, states=["mesophile", "thermophile"], start="mesophile", seed=2,
+                         switch = 0.2 * mod.DrivenBy(proteins.composition("KR"),
+                                                     Curve(lambda x: 40.0 ** (x - 0.1))))
+```
+
+`gc()` *is* `composition("GC")`, with one extra check: it refuses a protein run, where G and C are
+glycine and cysteine and the call is ambiguous rather than wrong. Letters outside the run's alphabet
+are refused too — they occur nowhere, so the driver would read 0.0 on every lineage and the run would
+be the undriven model wearing a driven rate.
+
+What this does **not** reach is a pattern — a motif, a site. A composition is a count over a lineage's
+whole complement; a motif is a property of one copy, and a sequence exists only at the nodes, so a
+motif driver would need both a pooling rule and an interpolated switch point rather than the exact
+one a gene's presence has.
+
+**It drives forwards only.** A sequence lives inside a gene, so it was grown along the gene trees a
+genome run produced. Handing GC back to a genome rate asks a run to condition on its own output, and
+that pair — Genomes and Sequences — can only be joined, never conditioned; the genome level refuses it
+by name. What GC can drive is what comes after it: a trait on the same species tree, or a further
+sequence run.
 
 ## Outputs
 

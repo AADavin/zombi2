@@ -58,6 +58,7 @@ run fills it**.
 | Tip names | `names.tsv` | TSV | external tree | `node` · `name`, mapping ZOMBI's `n<id>` back to the labels you supplied. Written only when the tree came from `--from` with its own tip labels; it is the join from every other output back to your taxa |
 | Species tree | `species_complete.nwk` | Newick | yes | the tree the run evolved along. Every other file here is indexed by its node labels, so the directory is not readable — by anyone or by `genomes.read_run()` — without it |
 | Family origination | `.gene_trees[f].origination` | float | Python | when the family was founded — where its gene tree's root branch begins |
+| Driver views | `.presence(name)` · `.completion(name)` | driver | Python | a named family's presence (`present` / `absent`) and a declared module's completion (a fraction) along every lineage, for a conditioned `DrivenBy` (Ch9). Read off the families' gene trees, so they change *inside* a branch; the **ordered** resolution gives the same two |
 
 ### One row per event
 
@@ -149,6 +150,7 @@ From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...
 | Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | one tree per declared gene (else per recovered root-block), in `gene_trees/` |
 | GFF | `genome_<lineage>.gff` | GFF3 | yes | one file per node, in `gff/`: that genome's **genes** in its own coordinates — the annotation to read beside the sequence level's `genome_<lineage>.fasta`, which it names its sequences to match |
 | BED | `genome_<lineage>.bed` | BED | yes | one file per node, in `bed/`: that genome's **blocks**, spacer included, each named by the ancestral interval it descends from — the ancestry as a browser track |
+| Driver views | `.presence(name)` · `.completion(name)` | driver | Python | as at the family resolution, over **declared genes**: the name is the GFF's `ID` / `Name`, and what takes a gene away is an arc of DNA rather than a whole copy |
 
 Three event files, because a nucleotide run records three different things: the genealogy in the one
 format every resolution writes, the interval record only this resolution has, and what moved without
@@ -180,6 +182,7 @@ ancestral sequences.
 | Conditioning | `conditioned_on` | text | conditioned | written **only when the substitution rate was conditioned**: the run's levels this run read via `DrivenBy` (one per line, e.g. `traits`). It records the dependency so re-running the trait refuses to leave this run silently stale, or clears it under `--force`. A run with no driven rate writes no such file |
 | Genomes | `genome_<lineage>.fasta` | FASTA | yes | one file per **node** of the complete tree — extant, extinct and ancestral alike — one record `<lineage>_chr<c>` per chromosome: the assembled genome, its blocks concatenated in physical order, in `genomes/`. **Nucleotide genome runs only**: a family or ordered run has gene families, not coordinates, so there is nothing to lay out, and no `genomes/` is created. The biggest thing this level writes — a whole genome times every node |
 | Initial genome | `genome_initial.fasta` | FASTA | yes | the genome the run **started** with, as sequence — the state the stem leads *from*, which is not any node's. In `genomes/` with the rest, being a whole-genome FASTA like they are. Nucleotide runs only |
+| Driver views | `.gc()` · `.composition(letters)` | driver | Python | the share of a lineage's sequence that is those letters, pooled over all its families, for a conditioned `DrivenBy` (Ch9) — GC content, or any amino-acid frequency. A number, so it takes a `Curve` or a `Scalar`; it drives a trait or a further sequence run, never the genome its gene trees came from |
 
 On a **nucleotide** genome run every block evolves, spacer as well as gene, so a genome of *b* blocks
 writes *b* alignments and *b* phylograms — that is what makes the genomes assemblable. The number in

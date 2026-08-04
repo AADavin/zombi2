@@ -9,6 +9,43 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **A nucleotide genome can be a driver.** `NucleotideGenomesResult` gains `.presence(name)` and
+  `.completion(name)`, the two readers the family and ordered resolutions already had, so all three
+  answer *is this family in this lineage, right now?* and can condition a trait or a sequence run. A
+  gene is named here by the GFF that declared it (its `ID` / `Name`), and what takes it away is an arc
+  of DNA rather than a whole copy; the signal is still read off the gene's own tree, so it changes
+  inside a branch, and a lineage that never held the gene answers `absent`. `modules=` declares a
+  named group of declared genes, as at the other two resolutions, for `.completion()` to read.
+- **A sequence can be a driver: its composition.** `SequencesResult.composition(letters)` gives the
+  share of a lineage's sequence that is those letters at every instant, for a conditioned `DrivenBy` —
+  the direction that did not exist, since nothing read a finished sequence back out. Any letters of
+  the run's own alphabet, so an **amino-acid frequency** is the same driver: `composition("KR")` for
+  the basic residues, `composition("AVLIMFWP")` for the hydrophobic set. `gc()` is the named door onto
+  it — `composition("GC")`, refused on a protein run, where G and C are glycine and cysteine. Letters
+  outside the run's alphabet are refused too: they occur nowhere, so the driver would read 0.0 on
+  every lineage. It is pooled over **all** of a lineage's families; one family's is refused rather
+  than offered, because it is undefined wherever that family is absent. A number, so it takes a
+  `Curve` or a `Scalar`, never a `{state: factor}` table. It drives what comes *after* a sequence — a
+  trait on the same species tree, or a further sequence run — and the genome level refuses it by name:
+  a sequence is grown along the gene trees that genome produced, so reading it back would condition a
+  run on its own output (SPEC §3, a pair that can only be joined).
+- **`SequencesResult.alphabet`** — what a run's sequences are written in (`"ACGT"`, or the 20 amino
+  acids). One per run, and what `composition` checks its letters against.
+- **`zombi2 traits --switch` takes a rate in its written form**, as `--rate` already did:
+  `--switch "0.2 * DrivenBy('out/traits/trait_events.tsv', {'aquatic': 5.0, 'terrestrial': 1.0})"`
+  now runs the conditioned discrete trait the engine has always supported. `argparse` was killing the
+  expression as an invalid float before ZOMBI2 saw it. The plain number, the `{'a->b': rate}` dict and
+  the `k x k` matrix all still read, and each entry of the first two may itself carry a driver.
+  `--liability` reads the same grammar, so a modifier it cannot honour is now refused by the engine,
+  which names the model and the way out. (#324)
+
+### Fixed
+- **A driver inside a `--switch` dict is no longer invisible to the run's record.** The parameters
+  log renders each entry in its written form (rather than a `Rate` repr no flag takes back), the input
+  digests cover a driver file named inside one, and the staleness guard records the conditioning — so
+  a conditioned run cannot read as an unconditioned one, nor have its driver re-run out from under it.
+
 ## [0.30.0] - 2026-08-04
 
 ### Added
