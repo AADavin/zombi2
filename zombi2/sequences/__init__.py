@@ -5,9 +5,11 @@ A sequence lives **inside a gene**, so it sees the species tree only through its
 `FamilyGenomesResult`) and evolves one sequence down each family's *complete* gene
 tree under a substitution **model** (the menu — nucleotide ``jc69`` · ``k80`` · ``hky85`` · ``gtr``,
 or protein ``poisson`` · ``jtt`` · ``dayhoff`` · ``wag`` · ``lg``; `substitution_models`) and a
-substitution **rate** (``scope(base) × modifiers``; ``SPEC §5``). Sequences are a **target** here:
-a trait can drive the substitution rate (``SPEC §3``, Traits–Sequences, conditioned), while nothing
-drives *out* of a sequence — the reverse direction is deferred, and the pair cannot be joined at all.
+substitution **rate** (``scope(base) × modifiers``; ``SPEC §5``). Sequences are a **target** here — a
+trait can drive the substitution rate (``SPEC §3``, Traits–Sequences, conditioned) — and, through
+``result.gc()``, a **driver** as well: a finished run's GC content per lineage drives what comes after
+it, a trait on the same species tree or a further sequence run (`composition`). Never the genome,
+whose gene trees the sequences were grown along; the pair cannot be joined either.
 
 The whole genome run is required, not just its gene trees, because a level below reads the level
 above: the **species tree** is what the lineage clock rides (one rate per species branch, shared by
@@ -130,6 +132,9 @@ class SequencesResult:
       has no family. They are different numbering schemes over the same ints, so a gene family id is
       **not** a key here on a nucleotide run — go through
       `block_of()`. It is also what the filenames say.
+    - ``alphabet`` — what the sequences are **written in**: ``"ACGT"``, or the 20 amino acids. One
+      per run (every partition of a family shares it), and what `composition` checks the letters it is
+      asked to count against.
     """
 
     alignments: dict[int, dict[str, str]]
@@ -143,11 +148,59 @@ class SequencesResult:
     genomes: "Mapping[str, dict[int, str]]" = field(default_factory=dict)
     initial_genome: dict[int, str] = field(default_factory=dict)
     unit: str = "family"
+    alphabet: str = ""
 
     def __repr__(self) -> str:
         n = sum(len(a) for a in self.alignments.values())
         return (f"SequencesResult({n} sequences across {len(self.alignments)} {self.unit} "
                 f"alignments, seed={self.seed})")
+
+    def composition(self, letters: str):
+        """The share of a lineage's sequence that is one of ``letters``, at every instant, as a
+        conditioning driver (`~zombi2.sequences.composition.Composition`)::
+
+            proteins = simulate_sequences(g, model=lg(), length=300, seed=1)
+            simulate_discrete(tree, states=["mesophile", "thermophile"], start="mesophile", seed=2,
+                              switch=0.2 * mod.DrivenBy(proteins.composition("KR"),
+                                                        Curve(lambda x: 40.0 ** (x - 0.1))))
+
+        This is how an **amino-acid frequency** is asked for: one residue (``"K"``) or a set of them
+        (``"KR"``, ``"AVLIMFWP"``). The letters must be in this run's `alphabet`; `gc` is the same
+        driver over ``"GC"``, named because it is the one people ask for by name.
+
+        A number, so it takes a `~zombi2.rates.mapping.Curve` or a `~zombi2.rates.mapping.Scalar`, and
+        it drives what comes **after** a sequence — a trait, or a further sequence run — never the
+        genome the gene trees came from."""
+        from .composition import Composition
+        if not isinstance(letters, str):
+            raise TypeError(
+                f"composition() takes the letters to count as a string — composition('KR'), not "
+                f"{letters!r}.")
+        return Composition(self, letters.upper())
+
+    def gc(self, family: object = None):
+        """This run's **GC content** as a conditioning driver: `composition` over ``"GC"``, the
+        fraction of a lineage's DNA that is G or C, pooled over every family the run evolved::
+
+            seqs = simulate_sequences(g, model=hky85(2.0), length=300, seed=1)
+            simulate_continuous(tree, rate=1.0 * mod.DrivenBy(seqs.gc(), Curve(lambda x: 4.0 * x)),
+                                seed=2)
+
+        Nucleotide runs only, because G and C are also glycine and cysteine: on a protein run the
+        call is ambiguous rather than wrong, so it is refused and `composition` asked for instead.
+        ``family`` is here only to refuse one."""
+        if family is not None:
+            raise ValueError(
+                f"gc() is pooled over every family this run evolved, so it takes no family — got "
+                f"{family!r}. One family's GC is not offered: it is undefined wherever that family is "
+                f"absent, and a driver has to answer for every branch the target walks. Evolve that "
+                f"family in a run of its own if its GC alone should drive the rate.")
+        if set(self.alphabet) != set(BASES):
+            raise ValueError(
+                f"gc() is GC content, so it needs DNA; this run's alphabet is {self.alphabet!r}. A "
+                f"protein run's G and C are glycine and cysteine — ask for those by name with "
+                f"composition('GC') if that is what you meant.")
+        return self.composition("GC")
 
     @property
     def _stem(self) -> str:
@@ -1179,7 +1232,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         by_key: dict = {}
         for m in drivers:
             by_key.setdefault(m.key, m)
-        trajs = {key: resolve_driver(m.source, species_tree, step=m.step) for key, m in by_key.items()}
+        trajs = {key: resolve_driver(m.source, species_tree, step=m.step, level="sequences")
+                 for key, m in by_key.items()}
         for m in drivers:
             label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
             check_mapping_fires(m.mapping, trajs[m.key].states(), source_label=label)
@@ -1310,7 +1364,11 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             write_summary(pathlib.Path(stream_to) / "sequences_summary.json", written)
         return handle
     return SequencesResult(alignments, ancestral, founding, phylograms, species_phylogram, seed,
-                           assembled, initial_genome, "block" if nucleotide else "family")
+                           assembled, initial_genome, "block" if nucleotide else "family",
+                           # a nucleotide run's models are all forced to DNA above (and its `parts` is
+                           # None — each block brings its own); elsewhere every partition shares one
+                           # alphabet, so the first one speaks for the run
+                           BASES if parts is None else parts[0][0].alphabet)
 
 
 # The substitution-model menu is reached through its own module — the one canonical path,

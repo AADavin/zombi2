@@ -63,7 +63,7 @@ def _driven_mods(rate) -> list:
 
 
 
-def _resolve_drivers(mods: list, tree: Tree) -> dict:
+def _resolve_drivers(mods: list, tree: Tree, level: str) -> dict:
     """Resolve a rate's `DrivenBy` modifiers into one `~zombi2.rates.driver.DriverTrajectory` per
     driver, keyed by the modifier's ``key`` — the per-lineage lookup the engine reads as it walks the
     tree. The genome level's shape (``genomes/family.py``): dedupe by ``key`` so a driver shared
@@ -74,6 +74,10 @@ def _resolve_drivers(mods: list, tree: Tree) -> dict:
     — the run would be the undriven model wearing a driven rate — so it is refused here, naming the
     driver, rather than passed over in silence.
 
+    ``level`` is which trait engine is asking (``"traits.continuous"`` / ``"traits.discrete"``), which
+    is what lets a driver refuse a level that may not read it at all — a trait may read anything, but
+    the resolver is one and the name is what makes that a decision rather than an omission.
+
     No ``DrivenBy`` ⇒ an empty dict, and the engine's loop stays exactly what it was."""
     if not mods:
         return {}
@@ -82,7 +86,8 @@ def _resolve_drivers(mods: list, tree: Tree) -> dict:
     by_key: dict = {}
     for m in mods:
         by_key.setdefault(m.key, m)
-    trajs = {key: resolve_driver(m.source, tree, step=m.step) for key, m in by_key.items()}
+    trajs = {key: resolve_driver(m.source, tree, step=m.step, level=level)
+             for key, m in by_key.items()}
     for m in mods:
         label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
         check_mapping_fires(m.mapping, trajs[m.key].states(), source_label=label)

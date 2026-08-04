@@ -148,6 +148,14 @@ def main(argv: list[str] | None = None) -> int:
             "  # an early burst: the variance-rate starts at 4 and settles to 1 (see RATES)",
             "  zombi2 traits out/ --kind continuous "
             "--rate \"1.0 * OnTime({0: 4.0, 1: 1.0})\" --seed 1",
+            "",
+            "  # a diet conditioned on a habitat grown first: it switches 5x faster in aquatic",
+            "  # lineages (--name puts each trait in its own directory, so one can drive the other)",
+            "  zombi2 traits out/ --kind discrete --name habitat "
+            "--states aquatic,terrestrial --switch 0.4 --seed 1",
+            "  zombi2 traits out/ --kind discrete --name diet --states plant,fish \\",
+            "      --switch \"0.2 * DrivenBy('out/traits/habitat/trait_events.tsv', "
+            "{'aquatic': 5.0, 'terrestrial': 1.0})\" --seed 2",
         ) + "\n\n" + traits.RATES_HELP)
 
     _add_subcommand(
