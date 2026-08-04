@@ -166,23 +166,34 @@ class Tree:
         return f"({','.join(emit(c) for c in root.children)}){name[self.root]}:{num(stem)};"
 
 
-def prune(tree: Tree, keep: str = "extant") -> Tree | None:
+def prune(tree: Tree, keep: str = "extant", *, tips: "set[int] | None" = None) -> Tree | None:
     """Prune the complete tree to a kept set (matching ``prune(tree, keep=...)`` in the codebase):
     drop the pruned subtrees and suppress the unifurcations they leave behind, giving a dated,
     bifurcating tree. Branch lengths merge across suppressed nodes; ``None`` if nothing is kept.
 
     ``keep="extant"`` (default) keeps the survivors — the extant tree. ``"sampled"``, the
     fossil/serially-sampled tree, is not built: `simulate_species_tree` reports fossils as
-    ``(lineage, time)`` pairs rather than as taxa, so there are no sampled ancestors to keep."""
-    if keep != "extant":
+    ``(lineage, time)`` pairs rather than as taxa, so there are no sampled ancestors to keep.
+
+    ``tips`` keeps a **named set of leaves** instead, whatever their fate — which is the same
+    operation on a different question: "the tree of the survivors" against "the tree of these taxa".
+    Comparing a gene tree to the species tree needs the second, because a family present in part of
+    the tree can only be judged against the part it occupies; without it `zombi2 tools treedist`
+    could score nothing but a universal single-copy family. The branch lengths merge across the
+    suppressed nodes exactly as they do for the extant tree, so the pruned tree is a real dated tree
+    and a length-aware metric means something on it."""
+    if tips is None and keep != "extant":
         raise ValueError(
             f"keep must be 'extant', got {keep!r}: the sampled (fossil) tree is not built — fossils "
             f"are reported as (lineage, time) pairs, not as taxa on a tree.")
     nodes = tree.nodes
+    #: whether a leaf is one of the ones being kept — the only thing the two modes differ in
+    def _keep_leaf(i: int) -> bool:
+        return nodes[i].fate == "extant" if tips is None else i in tips
     surviving: dict[int, bool] = {}
     for i in sorted(nodes, reverse=True):  # children have higher ids → processed before parents
         nd = nodes[i]
-        surviving[i] = nd.fate == "extant" if nd.children is None else any(surviving[c] for c in nd.children)
+        surviving[i] = _keep_leaf(i) if nd.children is None else any(surviving[c] for c in nd.children)
     if not any(surviving.values()):
         return None
 
@@ -192,7 +203,7 @@ def prune(tree: Tree, keep: str = "extant") -> Tree | None:
 
     # keep the extant leaves and the genuine bifurcations (≥2 surviving children)
     kept = {i for i in nodes
-            if (nodes[i].children is None and nodes[i].fate == "extant") or len(surv_children(i)) >= 2}
+            if (nodes[i].children is None and _keep_leaf(i)) or len(surv_children(i)) >= 2}
 
     new: dict[int, Node] = {}
     ext_root: int | None = None
