@@ -9,6 +9,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **`zombi2 tools tree TREE --gamma`** — Pybus & Harvey's γ, printed as `gamma<TAB><value>`, and
+  `zombi2.tree.gamma_statistic` from Python. It says where a tree's branching times sit relative to
+  what a constant rate would give: standard normal under constant-rate pure birth, so 0 is the null,
+  and negative when speciation slows toward the present. γ reads the waiting times between splits, so
+  it refuses a tree it is not defined on — fewer than four tips, or tips at different depths, which
+  is a complete tree with its extinct lineages still in it or a phylogram — and `--prune` pipes into
+  it. `zombi2 tools tree` is therefore now one action per call over transforms **and** measurements
+  rather than transforms alone. (#319)
+
 ## [0.29.0] - 2026-08-04
 
 ### Fixed
