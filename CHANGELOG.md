@@ -46,6 +46,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   help named, though `--initial-families` and `--max-family-size` named theirs. The wording carries
   the condition too: those apply only to a run given no rate at all. (#316)
 
+- **Three corrections to `docs/from-zombi1.md`**, the page a returning ZOMBI v1 user lands on first,
+  found by testing it claim by claim. It told you to group `genome_events.tsv` on a `lineage` column
+  and then, eighty lines later, that the column is gone — the file has five columns and no `lineage`,
+  so a reader followed the mapping table and wrote a groupby on nothing. It never named `ByFamily`,
+  the actual successor to v1's `RATE_FILE` / `SCALE_RATES` per-family rate variation, routing readers
+  to `OnTime` (which varies in time) and `DrivenBy` (which reads another level) instead. And it never
+  mentioned `--max-family-size`, a new default with no v1 counterpart that deflates the duplication
+  and transfer rates you declare — while carefully listing the defaults for other parameters. (#317)
+
+
 ### Added
 - **A gallery example for `ByFamily`**: two genome runs on one species tree at the same mean rates,
   where only how much families differ from one another changes. With every family alike **no family

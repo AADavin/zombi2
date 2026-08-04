@@ -97,10 +97,11 @@ species.simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.2), n_extant=2
 | `REPLACEMENT_TRANSFER` | `--replacement` |
 | `ASSORTATIVE_TRANSFER` | `--transfer-to distance` — nearest equivalent, not identical: v2 weights each candidate by `exp(-decay × d / depth)` |
 | `INITIAL_GENOME_SIZE` | `--initial-families` (default 100) |
-| `EVENTS_PER_BRANCH` | gone. `genome_events.tsv` has a `lineage` column; group on it |
+| *(no v1 key)* | `--max-family-size` (default **10**) is new, and on by default: a cap on how many copies of one family a genome may hold. It is Poisson thinning, so while it binds the realised duplication and transfer rates fall **below the ones you declare** — porting v1 rates straight across is where a returning user meets it. The run warns on standard error when it actually bound; `--max-family-size none` removes it |
+| `EVENTS_PER_BRANCH` | gone, and there is no `lineage` column to replace it: a participant carries its own branch, so a gene copy reads `n<species>_g<copy>`. Split a token on its single `_` and group on the left half — see [What will break in your parsing code](#what-will-break-in-your-parsing-code) below |
 | `PROFILES` · `GENE_TREES` | `--write profiles gene_trees` |
 | `RECONCILED_TREES` | `zombi2 tools format DIR --format recphylo` — **recPhyloXML, not Newick**, so this needs a new parser |
-| `RATE_FILE` · `SCALE_RATES` | the rate grammar again: `--loss "0.25 * OnTime({0: 1.0, 3: 2.0})"`, or `DrivenBy` to read another level |
+| `RATE_FILE` · `SCALE_RATES` | the rate grammar. For **per-family** variation — what these keys were usually for — that is `ByFamily`: `--loss "0.25 * ByFamily(spread=0.5)"` draws one factor per family, or `--family-speed "ByFamily(spread=0.5)"` draws one tempo per family and scales every rate that family has. `OnTime` varies a rate in *time* instead, and `DrivenBy` reads another level |
 | `GENE_LENGTH` · `INTERGENE_LENGTH` | `--gene-length` · the spacer is what lies between genes on `--resolution nucleotide` |
 | `MIN_GENOME_SIZE` | **not a setting.** On `--resolution ordered` and `nucleotide` a loss never takes a chromosome below its last gene: the run that would empty it does not fire. That is a floor on a chromosome, not on a genome — at `ordered` a `chromosome_loss` can still take the only chromosome that had genes on it. On `--resolution family` there is no floor at all: a high loss rate empties a genome completely, and the run says so — `empty_genomes` in `genome_summary.json`, and a line on standard error |
 | `ALPHA` | **no equivalent** as a genome parameter |
