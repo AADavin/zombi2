@@ -298,7 +298,10 @@ def trait_drives_trait(out):
                               draw=h.draw_conditioning_curve, driver="temperature", curve=factor,
                               vrange=(min(driver.values()), max(driver.values())),
                               value_label="temperature", target="size diffusion", target_base=0.35)
-    h.composite_under_diagram(out, diag, [(pngs[0], "temperature"), (pngs[1], "body size")])
+    h.composite_under_diagram(out, diag,
+                              [(pngs[0], "temperature", ("viridis", "cold", "warm")),
+                               (pngs[1], "body size",
+                                ("coolwarm", "smaller", "has not moved", "larger"))])
 
 
 def gene_drives_trait(out):
@@ -340,7 +343,7 @@ def gene_drives_trait(out):
                               driver="tox", states=["absent", "present"],
                               switch={"present->absent": 0.13},   # the family is lost, not regained
                               mapping={"present": 40, "absent": 1},
-                              target="→ pathogenic",
+                              target="pathogenic",
                               target_base=0.02, state_colors=_TOX,
                               # the target is itself a discrete trait, so it gets its own chain:
                               # what the gene drives is the rate of *these* two arrows
@@ -349,7 +352,8 @@ def gene_drives_trait(out):
                                              "pathogenic->harmless": 0.6},
                               target_colors=_DISEASE,
                               target_driven="harmless->pathogenic")
-    h.composite_under_diagram(out, diag, [(pngs[0], "the toxin family"), (pngs[1], "pathogenicity")])
+    h.composite_under_diagram(out, diag, [(pngs[0], "the toxin family", _TOX),
+                                          (pngs[1], "pathogenicity", _DISEASE)])
 
 
 _C_BISSE = '''\
@@ -674,12 +678,15 @@ def module_drives_metabolism(out):
     diag = h.conditioning_png(out.replace(".png", "_diag.png"),
                               draw=h.draw_conditioning_curve, driver="aerobic module", curve=step,
                               vrange=(0.0, 1.0), value_label="fraction of the module present",
-                              target="→ aerobic", target_base=0.3,
+                              target="aerobic", target_base=0.3,
                               target_states=["anaerobic", "aerobic"],
                               target_switch={"anaerobic->aerobic": 6.0,
                                              "aerobic->anaerobic": 0.3},
                               target_colors=_METAB, target_driven="anaerobic->aerobic")
-    h.composite_under_diagram(out, diag, [(pngs[0], "the aerobic module"), (pngs[1], "metabolism")])
+    h.composite_under_diagram(out, diag,
+                              [(pngs[0], "the aerobic module",
+                                ("viridis", "none of it", "all of it")),
+                               (pngs[1], "metabolism", _METAB)])
 
 
 _C_GENE_TRAIT = '''\
