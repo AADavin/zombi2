@@ -665,29 +665,35 @@ def test_traits_switch_takes_every_shape_the_keyword_does(switch, tmp_path, tree
 
 
 def test_traits_switch_takes_a_rate_expression_and_the_driver_reaches_the_engine(tmp_path, tree_file):
+    from zombi2.rates.parse import parse_rate, written_form
+
     driver = _driver_file(tmp_path, tree_file)
+    expression = f"0.2 * DrivenBy({str(driver)!r}, {{'x': 12.0, 'y': 1.0}})"
     plain = _switch_run(tmp_path, "plain", tree_file, "0.2")
-    driven = _switch_run(tmp_path, "driven", tree_file,
-                         f"0.2 * DrivenBy({str(driver)!r}, {{'x': 12.0, 'y': 1.0}})")
+    driven = _switch_run(tmp_path, "driven", tree_file, expression)
     # the driver's own states are x/y here (a second trait over the same labels), so every lineage in
     # state x switches twelve times as fast — the two runs cannot come out the same
     events = lambda d: (d / "trait_events.tsv").read_text(encoding="utf-8")
     assert events(plain) != events(driven)
-    # the run records what drove it, by content as well as by name, so the pair can be reproduced
+    # the run records what drove it, by content as well as by name, so the pair can be reproduced.
+    # Compare against the written form rather than a hand-built string: a Windows path is escaped in it
     log = (driven / "traits.log").read_text(encoding="utf-8")
-    assert "switch\t0.2 * DrivenBy(" in log
-    assert str(driver) in log and "input\t" in log
+    assert f"switch\t{written_form(parse_rate(expression))}" in log
+    assert "input\t" in log and str(driver) in log      # the digest names the file as it is on disk
 
 
 def test_traits_a_driven_switch_inside_a_per_transition_dict_is_seen_by_the_log(tmp_path, tree_file):
     """A rate hidden in a ``{'a->b': rate}`` dict is still a driver: the log has to render it in the
     written form and the input digest has to name the file, or a conditioned run reads as an
     unconditioned one and its driver can be re-run out from under it."""
+    from zombi2.rates.parse import parse_rate, written_form
+
     driver = _driver_file(tmp_path, tree_file)
-    out = _switch_run(tmp_path, "dict_driven", tree_file,
-                      f"{{'x->y': 0.3 * DrivenBy({str(driver)!r}, {{'x': 5.0}}), 'y->x': 0.1}}")
+    inner = f"0.3 * DrivenBy({str(driver)!r}, {{'x': 5.0}})"
+    out = _switch_run(tmp_path, "dict_driven", tree_file, f"{{'x->y': {inner}, 'y->x': 0.1}}")
     log = (out / "traits.log").read_text(encoding="utf-8")
-    assert "switch\t{'x->y': 0.3 * DrivenBy(" in log        # not a Rate repr, which no flag takes
+    # the entry is rendered as a rate, not as a Rate repr, which no flag would take back
+    assert f"switch\t{{'x->y': {written_form(parse_rate(inner))}, 'y->x': 0.1}}" in log
     assert "input\t" in log and str(driver) in log
 
 
@@ -724,9 +730,12 @@ def test_traits_params_file_can_carry_a_switch_expression(tmp_path, tree_file):
     """A TOML value is a *default*, and argparse runs `type` over a string default — which is what
     makes the SPEC's "one written form, everywhere" true of --switch as well as --birth."""
     driver = _driver_file(tmp_path, tree_file)
+    # a TOML *literal* string ('''), so the driver path is taken as written — a basic "..." string
+    # processes backslash escapes, which eats a Windows path before ZOMBI2 sees it
     (tmp_path / "p.toml").write_text(
-        f'kind = "discrete"\nstates = "x,y"\nseed = 4\n'
-        f"switch = \"0.2 * DrivenBy('{driver}', {{'x': 9.0, 'y': 1.0}})\"\n", encoding="utf-8")
+        'kind = "discrete"\nstates = "x,y"\nseed = 4\n'
+        "switch = \'\'\'0.2 * DrivenBy(\'%s\', {\'x\': 9.0, \'y\': 1.0})\'\'\'\n" % driver,
+        encoding="utf-8")
     out = tmp_path / "fromparams"
     assert main(["traits", str(out), "--from", str(tree_file), "--params", str(tmp_path / "p.toml"),
                  "--flat"]) == 0
