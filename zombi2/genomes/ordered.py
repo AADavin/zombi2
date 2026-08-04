@@ -67,9 +67,10 @@ from .family import resolve_modules, resolve_max_family_size
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
                         resolve_transfer_to)
-from .._runtime.outputs import grouped_dir
+from .._runtime.outputs import fresh_dirs, grouped_dir
+from .._runtime.summary import _stats, write_summary
 from .._runtime.progress import progress_bar
-from .events import (_COLS, Event, GeneEdge, _branches, _name, event_rows,
+from .events import (_COLS, Event, GeneEdge, _branches, _name, event_counts, event_rows,
                      events_from_edges, gene_label)
 from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
@@ -353,10 +354,11 @@ class OrderedGenomesResult:
     #: cannot drift: they did, and `initial_sequence` and `species_tree` were writable from
     #: Python and unnameable on the command line.
     OUTPUTS = ("events", "profiles", "gene_order", "initial_genome",
-               "chromosome_events", "gene_trees", "species_tree")
+               "chromosome_events", "gene_trees", "species_tree", "summary")
 
     def write(self, directory, outputs=("events", "profiles", "gene_order", "initial_genome",
-                                        "gene_trees", "chromosome_events", "species_tree"), *,
+                                        "gene_trees", "chromosome_events", "species_tree",
+                                        "summary"), *,
               flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
@@ -391,6 +393,9 @@ class OrderedGenomesResult:
             raise ValueError(f"unknown write outputs {unknown}; choose from {list(self.OUTPUTS)}")
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
+        # a run's directory describes that run: clear the per-unit directories this write is
+        # about to fill, so nothing from a previous run survives inside them (see fresh_dirs)
+        fresh_dirs(d, ("gene_trees",), flat)
         names = self.complete_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
         if "events" in outputs:
             (d / "genome_events.tsv").write_text(
@@ -413,6 +418,49 @@ class OrderedGenomesResult:
         if "species_tree" in outputs:            # the tree everything here is indexed by: without
             (d / "species_complete.nwk").write_text(   # it a directory of gene trees is not a dataset
                 self.complete_tree.to_newick() + "\n", encoding="utf-8")
+        if "summary" in outputs:
+            write_summary(d / "genome_summary.json", self.summary())
+
+    def summary(self) -> dict:
+        """What this run produced, as a plain dict — the payload of ``genome_summary.json``.
+
+        The **corrected event counts** are the reason this exists. ``genome_events.tsv``'s ``loss``
+        rows undercount real losses whenever ``replacement`` is on, because a copy displaced by an
+        arriving transfer has no row of its own; the migration guide names that as the change most
+        likely to hand a returning user a plausible wrong number, and points them here. This file used
+        to be written only at the family resolution — so the advice was sound and the remedy was
+        absent at the two resolutions where the gap is *larger* (64% at ordered, measured).
+
+        `event_counts` is shared with the other two resolutions, so the three cannot drift. The rest
+        is what this resolution has and the family core does not: where the genes sit, and what moved
+        them."""
+        t0 = self.complete_tree.nodes[self.complete_tree.root].birth_time
+        extant = [n.id for n in self.complete_tree.extant_leaves()]
+        born = {e.family for e in self.edges}
+        surviving = {g.family for i in extant for c in self.genomes.get(i, ()) for g in c.genes}
+        genes_per_genome = [sum(len(c.genes) for c in self.genomes.get(i, ())) for i in extant]
+        chrom_per_genome = [len(self.genomes.get(i, ())) for i in extant]
+        rearrangements = collections.Counter(type(r).__name__.lower() for r in self.rearrangements)
+        chromosome = collections.Counter(e.kind for e in self.chromosome_events)
+        return {
+            "level": "genomes",
+            "seed": self.seed,
+            "resolution": "ordered",
+            "events": event_counts(self.edges, t0),
+            "families": {"born": len(born), "surviving": len(surviving),
+                         "died_out": len(born) - len(surviving),
+                         "named": len(self.family_names)},
+            "extant_genomes": len(extant),
+            "empty_genomes": sum(1 for i in extant
+                                 if not any(c.genes for c in self.genomes.get(i, ()))),
+            "genes_per_genome": _stats(genes_per_genome),
+            "chromosomes_per_genome": _stats(chrom_per_genome),
+            # this resolution's own two records: what moved genes without changing their ancestry,
+            # and what happened to the replicons carrying them
+            "rearrangements": {k: rearrangements.get(k, 0)
+                               for k in ("inversion", "transposition", "translocation")},
+            "chromosome_events": dict(sorted(chromosome.items())),
+        }
 
     def _initial_genome_tsv(self) -> str:
         """The layout the run started with — ``gene_order.tsv``'s columns without ``lineage``, which

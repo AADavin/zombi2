@@ -39,10 +39,10 @@ from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
                         resolve_transfer_to)
 
-from .._runtime.outputs import grouped_dir
+from .._runtime.outputs import fresh_dirs, grouped_dir
 from .._runtime.progress import progress_bar
 from .._runtime.summary import _stats, write_summary
-from .events import Event, GeneEdge, events_from_edges, events_tsv, gene_label
+from .events import Event, GeneEdge, event_counts, events_from_edges, events_tsv, gene_label
 from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
 
@@ -212,20 +212,8 @@ class FamilyGenomesResult:
         number that says it happened, before a reader wonders why the matrix is short. (The ordered
         and nucleotide resolutions do have a floor, but it is a statement about what a chromosome is
         — a loss never takes a chromosome below its last gene — not a bound on genome size.)"""
-        per_kind: dict[str, set] = collections.defaultdict(set)
-        singles: collections.Counter = collections.Counter()
-        for e in self.edges:
-            if e.parent is None:                  # origination and loss: one row apiece already
-                singles[e.kind] += 1
-            else:
-                per_kind[e.kind].add(e.parent)    # two rows, one parent, one event
-        events = {k: len(v) for k, v in sorted(per_kind.items())}
-        events.update(sorted(singles.items()))
-        # the initial genome is logged as origination at the root's own start time, so a bare count of
-        # "origination" is the de-novo families PLUS `initial_families` — over-counting new arrivals by
-        # however many the run began with. Split them: they are different things to a reader.
         t0 = self.complete_tree.nodes[self.complete_tree.root].birth_time
-        initial = sum(1 for e in self.edges if e.kind == "origination" and e.time <= t0)
+        counted = event_counts(self.edges, t0)    # shared with the ordered and nucleotide summaries
 
         extant = [n.id for n in self.complete_tree.extant_leaves()]
         born = {e.family for e in self.edges}
@@ -240,11 +228,9 @@ class FamilyGenomesResult:
         return {
             "level": "genomes",
             "seed": self.seed,
+            "resolution": "family",
             # one number per EVENT — the same thing a row of genome_events.tsv is
-            "events": {"initial": initial,
-                       "origination": events.get("origination", 0) - initial,
-                       **{k: events.get(k, 0) for k in
-                          ("duplication", "transfer", "loss", "speciation")}},
+            "events": counted,
             "families": {"born": len(born), "surviving": len(surviving),
                          "died_out": len(born) - len(surviving),
                          "named": len(self.family_names)},
@@ -300,6 +286,9 @@ class FamilyGenomesResult:
             raise ValueError(f"unknown write outputs {unknown}; choose from {list(self.OUTPUTS)}")
         d = pathlib.Path(directory)
         d.mkdir(parents=True, exist_ok=True)
+        # a run's directory describes that run: clear the per-unit directories this write is
+        # about to fill, so nothing from a previous run survives inside them (see fresh_dirs)
+        fresh_dirs(d, ("gene_trees",), flat)
         names = self.complete_tree.labels()      # e<id> for a lineage that died; n<id> for the rest
         if "events" in outputs:
             (d / "genome_events.tsv").write_text(events_tsv(self.edges, names), encoding="utf-8")

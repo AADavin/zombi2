@@ -9,6 +9,91 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+- **A run's output directory now describes that run and nothing else.** The per-unit directories —
+  `gene_trees/`, `alignments/`, `phylograms/`, `genomes/`, `gff/`, `bed/` — hold one file per family,
+  block or node, numbered by the run that made them, so a second run written into the same place
+  interleaved two sets and left the leftovers indistinguishable from real output. A genome run that
+  produced **zero** surviving families — announced clearly on the terminal — left the previous run's
+  gene trees in place, and `zombi2 tools treedist` read one and printed `rf 0`, byte-identical to the
+  earlier run's answer. They are emptied once, before a write fills them. `--flat` is untouched: there
+  the directory is shared with every other output and every other level. (#316)
+- **`--params` works on Python 3.10 again: `tomli` is now a declared dependency.** The package
+  declares `requires-python = ">=3.10"` and CI tests 3.10, but the CLI's TOML reader falls back to
+  `tomli` there and it was never in `dependencies` — supplied transitively by `pytest` and `mypy`,
+  which both require it below 3.11. So the dev environment and CI had it and a plain
+  `pip install zombi2` did not, and `--params` died with a raw `ModuleNotFoundError`. No test run
+  inside this project could have found that; `tests/test_packaging.py` now compares the code's imports
+  against the declared metadata instead. (#316)
+- **`genome_summary.json` is written at the ordered and nucleotide resolutions too**, not only at
+  family. It carries the corrected event counts — the ones that include a replacing transfer's
+  displaced copy under `loss`, which the raw event log has no row for — and
+  `docs/from-zombi1.md` names that undercount as the change most likely to hand a returning ZOMBI v1
+  user a plausible wrong number, then points them at this file. It was missing at the two resolutions
+  where the gap is *larger*: 64% at ordered, measured. All three resolutions now count events through
+  one shared function, so they cannot drift. (#316)
+- **`sequences_summary.json` no longer counts ancestral sequences it did not write.** They are
+  reconstructed in memory either way but only land on disk when asked for, so a default run reported
+  a count beside a directory that had none — and whoever inherits the folder cannot tell "never
+  written" from "lost in transfer". `SequencesResult.summary()` is unchanged: it describes the run,
+  where the written file describes the directory it sits in. (#316)
+- **A run given no `--seed` now says which seed it drew**, on stderr, surviving `--quiet`. It was
+  always recorded in the run report, but the report is a file the user has not opened: on screen an
+  unseeded run looked exactly like a seeded one, and a class following a worksheet got 17, 19 and 15
+  families where the sheet said 20 with no clue beyond the wrong answers. (#316)
+- **The four gene-family rate defaults are stated in `--help`.** A pasted command that lost its tail
+  still ran — at `--duplication 0.2 --transfer 0.1 --loss 0.25 --origination 0.5`, none of which the
+  help named, though `--initial-families` and `--max-family-size` named theirs. The wording carries
+  the condition too: those apply only to a run given no rate at all. (#316)
+
+### Added
+- **A gallery example for `ByFamily`**: two genome runs on one species tree at the same mean rates,
+  where only how much families differ from one another changes. With every family alike **no family
+  is present in every genome**; a `ByFamily` draw gives 62 universal families and the bimodal
+  gene-frequency spectrum real pangenomes show. `ByFamily` is the knob a comparative-genomics study
+  leans on hardest and it had nothing showing what it does — a returning ZOMBI v1 user found it named
+  nowhere in the migration guide and blank in the CLI help. Drawn with Phylustrator's new
+  `genomes.grid`. (#316)
+
+- **`zombi2 tools treedist --restrict` scores two trees on the taxa they share.** Differing leaf
+  sets were an error, which refused the commonest comparison there is — a family's gene tree against
+  the species tree, since only a universal single-copy family occupies every genome. A lecturer
+  building a practical found not one of 22 families qualified, and an applied reviewer had none of
+  his 21 single-copy families scored. `markers.tsv` already reported RF that way internally, so the
+  capability existed and was simply not offered here. Opt-in, because silently scoring a different
+  question than the one asked is worse than refusing; the refusal now names the flag. (#316)
+- **The run report names the units of the rates it ran with** — what each is counted per, and that
+  time is tree time in whatever unit the tree carries. A folder handed on is read long after the CLI
+  help that answers this: `duplication 0.15` says nothing about per what. Only the slots a run used
+  are listed, and the unit belongs to the slot rather than to the value — a modifier is a
+  dimensionless multiplier by construction, so no rate expression can change it. Nothing
+  dimensionless is listed, nor the continuous trait's `rate`, which is a variance rather than a rate.
+  The `<level>.log` is untouched: it is `key<TAB>value` TSV that things parse. (#316)
+- **The run report says where the software came from** — the project URL and a
+  `pip install zombi2==<version>` line, pinned to the version that made the run. A folder handed on
+  outlives the environment that produced it: a reviewer reconstructed an entire run from
+  `run.zombi2` and still could not say where ZOMBI2 lived or what to install. (#316)
+- **Images in the README resolve on PyPI.** They were repository-relative paths, and the README is
+  the package's `long_description`, so the project page — a main discovery surface — showed six
+  broken images. (#316)
+
+### Changed
+- **`tree.prune` takes `tips=` — a named set of leaves, whatever their fate**, beside the existing
+  fate-based `keep="extant"`. The same operation on a different question: "the tree of the survivors"
+  against "the tree of these taxa". `--restrict` prunes rather than intersecting clade sets, so
+  branch lengths merge across the suppressed nodes and a length-aware metric still means something.
+  (#316)
+- **`zombi2[gallery]` asks for `phylustrator>=0.1.4`, not `==0.1.0`.** An exact pin on a companion
+  library downgrades anyone who already has a newer one and makes any environment wanting one
+  unresolvable. (#316)
+- **A release is now gated on CI, and the README badge tells the truth.** 0.28.0 reached PyPI 43
+  seconds after its CI run started and 19 minutes before it finished, so the artifact was published
+  before a single test job had reported. `release.yml` now calls `ci.yml` as a reusable workflow and
+  no publish job can start until the whole matrix is green. Separately, `cancel-in-progress` no longer
+  cancels runs on `main`: a release push cancelled the run testing the commit before it, and GitHub
+  renders cancelled as *failing*, so the badge told every visitor the build was broken while all six
+  OS/Python jobs had passed. (#316)
+
 ## [0.28.0] - 2026-08-03
 
 ### Changed

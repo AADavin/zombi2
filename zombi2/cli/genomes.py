@@ -141,14 +141,20 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "tree is not ultrametric (a species run's species_fates.tsv fits)")
 
     g = p.add_argument_group("gene-family events (D/T/L/O)")
+    # The defaults are stated here because leaving them out cost real time: a pasted command that
+    # lost its tail still ran, at rates the help did not name, and looked like a successful run of the
+    # command the user meant. `--initial-families` and `--max-family-size` already named theirs.
+    # The conditional wording matters as much as the number — these apply only to a run given no rate
+    # at all, so a run given one rate does not silently acquire the other three (see `run` below).
+    _WHEN = "default {} when no rate at all is given; 0 if you give any other rate"
     g.add_argument("--duplication", type=_rate, default=None, metavar="RATE",
-                   help="gene duplication rate (per copy)")
+                   help=f"gene duplication rate (per copy). {_WHEN.format('0.2')}")
     g.add_argument("--transfer", type=_rate, default=None, metavar="RATE",
-                   help="horizontal transfer rate (per copy)")
+                   help=f"horizontal transfer rate (per copy). {_WHEN.format('0.1')}")
     g.add_argument("--loss", type=_rate, default=None, metavar="RATE",
-                   help="gene loss rate (per copy)")
+                   help=f"gene loss rate (per copy). {_WHEN.format('0.25')}")
     g.add_argument("--origination", type=_rate, default=None, metavar="RATE",
-                   help="new-family origination rate (per lineage)")
+                   help=f"new-family origination rate (per lineage). {_WHEN.format('0.5')}")
 
     g = p.add_argument_group("transfer & content")
     g.add_argument("--transfer-to", type=_transfer_to, default="uniform",

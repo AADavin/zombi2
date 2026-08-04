@@ -1,10 +1,10 @@
 <h1>
-  ZOMBI2&nbsp;<img src="assets/logo.svg" alt="ZOMBI2 logo" height="45" align="absmiddle">
+  ZOMBI2&nbsp;<img src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/logo.svg" alt="ZOMBI2 logo" height="45" align="absmiddle">
 </h1>
 
 **[🌐 Website](https://aadavin.github.io/zombi2/)** · [Gallery](https://aadavin.github.io/zombi2/gallery.html) · [Documentation](https://aadavin.github.io/zombi2/docs/) · [Manual (pdf)](https://aadavin.github.io/zombi2/zombi2-manual.pdf)
 
-[![CI](https://github.com/AADavin/zombi2/actions/workflows/ci.yml/badge.svg)](https://github.com/AADavin/zombi2/actions/workflows/ci.yml)
+[![CI](https://github.com/AADavin/zombi2/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/AADavin/zombi2/actions/workflows/ci.yml?query=branch%3Amain)
 [![PyPI](https://img.shields.io/pypi/v/zombi2)](https://pypi.org/project/zombi2/)
 [![Docs](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://aadavin.github.io/zombi2/docs/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -60,7 +60,7 @@ evolves along a species tree, so you run whichever you need, composed into one s
 [reproducible](https://aadavin.github.io/zombi2/docs/reproducibility/) run.
 
 <p align="center">
-  <img alt="One simulated dataset at all four levels: a species tree with its extinct lineages, the gene order of every surviving genome with homologues linked, the alignment behind one gene family, and two traits drifting together" src="assets/overview.png" width="900">
+  <img alt="One simulated dataset at all four levels: a species tree with its extinct lineages, the gene order of every surviving genome with homologues linked, the alignment behind one gene family, and two traits drifting together" src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/overview.png" width="900">
 </p>
 
 - **[Species trees](https://aadavin.github.io/zombi2/docs/guide/species-trees/)** — a
@@ -80,7 +80,7 @@ evolves along a species tree, so you run whichever you need, composed into one s
   states.
 
 <p align="center">
-  <img alt="The four levels of evolution ZOMBI2 simulates: the species tree forks into genomes and traits, and sequences continue below genomes" src="manual/book/figures/fig-2-1-four-levels.svg" width="360">
+  <img alt="The four levels of evolution ZOMBI2 simulates: the species tree forks into genomes and traits, and sequences continue below genomes" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/fig-2-1-four-levels.svg" width="360">
 </p>
 
 ## Conditioning
@@ -91,7 +91,7 @@ is read; the **modifier**, which turns the driver's state into a factor; and the
 it multiplies.
 
 <p align="center">
-  <img alt="Conditioning: a habitat trait on the left, an arrow labelled drives running right to the gene loss rate and carrying a multiplier for each habitat state, and under the loss rate the expression you write on it, 0.25 times DrivenBy of habitat" src="manual/book/figures/conditioning.svg" width="560">
+  <img alt="Conditioning: a habitat trait on the left, an arrow labelled drives running right to the gene loss rate and carrying a multiplier for each habitat state, and under the loss rate the expression you write on it, 0.25 times DrivenBy of habitat" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/conditioning.svg" width="560">
 </p>
 
 ```bash
@@ -108,7 +108,7 @@ that speeds up speciation is the standard case: the tree shapes the trait's hist
 shapes the tree, so the tree is an *output* of the joint run rather than an input to it.
 
 <p align="center">
-  <img alt="Joining: body size drives the speciation rate, with the expression written on that rate shown beneath it, the rate creates the tree, and an arrow runs back from the tree to body size because the two grow at the same time" src="manual/book/figures/joining.svg" width="700">
+  <img alt="Joining: body size drives the speciation rate, with the expression written on that rate shown beneath it, the rate creates the tree, and an arrow runs back from the tree to body size because the two grow at the same time" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/joining.svg" width="700">
 </p>
 
 ```bash
@@ -124,7 +124,7 @@ A species tree of a million leaves takes a few seconds. On the same gene-family 
 about **183× faster than the legacy ZOMBI v1** — both pure Python.
 
 <p align="center">
-  <img alt="ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at the family, ordered and nucleotide resolutions; (c) ZOMBI2 about 183 times faster than the legacy ZOMBI 1 on one shared 1,000-tip tree" src="assets/performance-overview.svg" width="840">
+  <img alt="ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at the family, ordered and nucleotide resolutions; (c) ZOMBI2 about 183 times faster than the legacy ZOMBI 1 on one shared 1,000-tip tree" src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/performance-overview.svg" width="840">
 </p>
 
 ## Gallery

@@ -20,6 +20,13 @@ dependencies = [
     # find out during someone's course.
     "numpy>=1.24,<3",
     "tqdm>=4.60,<5",
+    # `tomllib` is standard from 3.11; on 3.10 the CLI's --params reader falls back to the tiny
+    # `tomli` backport, so on 3.10 it is a real runtime dependency. Undeclared, it was supplied
+    # transitively by pytest and mypy (both require it below 3.11) — so the dev environment and CI
+    # had it and a plain `pip install zombi2` on 3.10 did not, and --params died with a raw
+    # ModuleNotFoundError. No test run inside this project could have caught that; only a fresh
+    # install could. See tests/test_packaging.py.
+    "tomli>=1.1; python_version < '3.11'",
 ]
 license = "MIT"
 license-files = ["LICENSE"]
@@ -63,7 +70,9 @@ docs = ["mkdocs-material", "mkdocstrings[python]"]
 # time_axis(bold=...)), so no released Phylustrator renders the whole gallery yet — a full local
 # regenerate needs a checkout of Phylustrator, not a pip install. The pin below is the floor that
 # renders the parts that do work; raise it to a release that carries the gallery's API when there is one.
-gallery = ["phylustrator==0.1.0", "cairosvg>=2.5", "matplotlib", "pillow"]
+# `>=` not `==`: an exact pin on a companion library downgrades whoever already has a newer
+# phylustrator and makes any environment wanting one unresolvable. 0.1.4 brings genomes.grid.
+gallery = ["phylustrator>=0.1.4", "cairosvg>=2.5", "matplotlib", "pillow"]
 
 # The `zombi2` CLI exposes one command per level — `species`, `genomes`, `sequences`, `traits` —
 # plus `joint`, which grows a species tree together with the level driving it, and `tools`, which

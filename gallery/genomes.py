@@ -430,7 +430,145 @@ transfers = [e for e in g.edges if e.kind == "transfer" and e.recipient is not N
 counts = Counter((grp[e.donor], grp[e.recipient]) for e in transfers)'''
 
 
+# --- how much families differ from one another ----------------------------------------------------
+
+_PANGENOME_SPREAD = 1.4
+_ABSENT, _PRESENT = "#F1EFE9", "#26565B"
+
+
+def _pangenome_runs():
+    """Two genome runs on one species tree: every family alike, then each rate varying by family.
+
+    Same tree, same seed, and the same mean duplication / transfer / loss rate in both — only how
+    much families differ from one another changes. The Python API rather than the CLI, because a
+    ByFamily draw is an object and the point of the figure is the one line that differs."""
+    from zombi2 import genomes as zg
+    from zombi2 import species as zs
+    from zombi2.rates import modifiers as zmod
+
+    tree = zs.simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=11)
+    base = dict(duplication=0.06, transfer=0.10, loss=0.30, origination=0.30,
+                initial_families=200, max_family_size=6, seed=7)
+    spread = zmod.ByFamily(spread=_PANGENOME_SPREAD)
+    varied = dict(base, duplication=0.06 * spread, transfer=0.10 * spread, loss=0.30 * spread)
+    return tree, [("Every family alike", "duplication=0.06\ntransfer=0.10\nloss=0.30",
+                   zg.simulate_genomes_family(tree, **base)),
+                  ("Each rate varies by family",
+                   f"duplication=0.06 * ByFamily(spread={_PANGENOME_SPREAD})\n"
+                   f"transfer=0.10 * ByFamily(spread={_PANGENOME_SPREAD})\n"
+                   f"loss=0.30 * ByFamily(spread={_PANGENOME_SPREAD})",
+                   zg.simulate_genomes_family(tree, **varied))]
+
+
+def pangenome_by_family(out):
+    """Whether a pangenome has a core at all, decided by one parameter.
+
+    The top row is the profile matrix with families sorted by how many genomes carry them; the
+    bottom row is the gene-frequency spectrum, which is the quantity a pangenome paper plots. With
+    every family alike the spectrum is a hump in the middle and **no** family is in every genome.
+    Let families differ and it goes bimodal — a spike of universal families over a flat cloud, the
+    U-shape real pangenomes show.
+
+    The genome sizes differ too (90 against 248 genes), and that is not a flaw in the comparison: a
+    per-copy rate compounds, so spreading it around a fixed mean raises the expected copy number."""
+    import numpy as np
+
+    tree, panels = _pangenome_runs()
+    n = len(tree.complete_tree.extant_leaves())
+    grid_style = ph.Style(width=760, height=1000, margin=0, background=None)
+    fig, axes = plt.subplots(2, 2, figsize=(9.2, 7.2),
+                             gridspec_kw=dict(height_ratios=[2.6, 1.15], hspace=0.40, wspace=0.20))
+
+    for col, (title, params, result) in enumerate(panels):
+        m = result.profiles.matrix
+        prev = (m > 0).sum(axis=1)
+        order = np.argsort(-prev)                       # commonest family at the top
+        M = ph.genomes.Matrix(rows=[str(result.profiles.families[i]) for i in order],
+                              cols=[str(c) for c in result.profiles.species],
+                              values=[[int(v > 0) for v in m[i]] for i in order])
+        png = out.replace(".png", f"_grid{col}.png")
+        ph.genomes.grid(M, palette={0: _ABSENT, 1: _PRESENT}, borders=False,
+                        style=grid_style).save(png)
+
+        ax = axes[0, col]
+        ax.imshow(mpimg.imread(png), aspect="auto", interpolation="antialiased")
+        ax.set_title(title, fontsize=12.5, color="#16191C", pad=44, fontweight="semibold")
+        ax.text(0.5, 1.012, params, transform=ax.transAxes, ha="center", va="bottom",
+                fontsize=7.4, color="#6C6F6A", family="monospace", linespacing=1.5)
+        ax.set_xlabel("genomes", fontsize=9.5, color="#6C6F6A", labelpad=4)
+        if col == 0:
+            ax.set_ylabel("gene families\n(sorted by how many genomes carry them)",
+                          fontsize=9.5, color="#6C6F6A")
+        ax.set_xticks([]); ax.set_yticks([])
+        for sp in ax.spines.values():
+            sp.set_color("#D6D5CC")
+        core = int((prev >= 0.95 * n).sum())
+        ax.text(0.97, 0.035, f"{core} core  \u00b7  {m.sum() / n:.0f} genes per genome",
+                transform=ax.transAxes, ha="right", va="bottom", fontsize=9.5,
+                color="#16191C" if core else "#9E3C29", fontweight="semibold",
+                bbox=dict(facecolor="white", edgecolor="#D6D5CC", boxstyle="round,pad=0.34",
+                          linewidth=0.7))
+
+        ax = axes[1, col]
+        hist, _ = np.histogram(prev, bins=np.arange(1, n + 2))
+        ax.bar(np.arange(1, n + 1), hist / hist.sum(), width=0.86, color=_PRESENT, linewidth=0)
+        ax.set_xlabel("in how many genomes", fontsize=9.5, color="#6C6F6A", labelpad=3)
+        if col == 0:
+            ax.set_ylabel("share of families", fontsize=9.5, color="#6C6F6A")
+        ax.set_xlim(0.3, n + 0.7); ax.set_ylim(0, 0.32)
+        ax.set_yticks([0, 0.15, 0.30])
+        ax.tick_params(labelsize=8.5, colors="#6C6F6A", length=3)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+        for side in ("left", "bottom"):
+            ax.spines[side].set_color("#D6D5CC")
+
+    fig.subplots_adjust(top=0.885, bottom=0.095, left=0.105, right=0.975)
+    fig.savefig(out, dpi=170, facecolor="white")
+    plt.close(fig)
+
+
+_C_PANGENOME = '''### simulate  —  two runs, one species tree, the same mean rates
+from zombi2 import genomes, species
+from zombi2.rates import modifiers as mod
+
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=11)
+base = dict(duplication=0.06, transfer=0.10, loss=0.30, origination=0.30,
+            initial_families=200, max_family_size=6, seed=7)
+
+alike  = genomes.simulate_genomes_family(tree, **base)
+
+spread = mod.ByFamily(spread=1.4)                  # one draw per family, mean unchanged
+varied = genomes.simulate_genomes_family(
+    tree, **dict(base, duplication=0.06 * spread,
+                 transfer=0.10 * spread, loss=0.30 * spread))
+
+# family_speed=mod.ByFamily(spread=1.4) is the other spelling: one tempo per
+# family, scaling every rate that family has, instead of one draw per rate.
+
+### plot  —  the profile matrix (ph.genomes.grid) over its frequency spectrum
+import numpy as np, phylustrator as ph
+
+p = varied.profiles
+prev = (p.matrix > 0).sum(axis=1)                  # genomes carrying each family
+order = np.argsort(-prev)                          # commonest at the top
+M = ph.genomes.Matrix(rows=[str(p.families[i]) for i in order],
+                      cols=[str(c) for c in p.species],
+                      values=[[int(v > 0) for v in p.matrix[i]] for i in order])
+ph.genomes.grid(M, palette={0: "#F1EFE9", 1: "#26565B"}, borders=False).save("pangenome.png")
+
+np.histogram(prev, bins=np.arange(1, len(p.species) + 2))   # the frequency spectrum'''
+
+
 EXAMPLES = [
+    Example("genome_pangenome_by_family", "Core and accessory, from one parameter",
+            "Two runs on one species tree at the same mean rates \u2014 only how much families "
+            "differ from one another changes. With every family alike <b>no family is in every "
+            "genome</b>; a <code>ByFamily</code> draw gives 62 universal families and the bimodal "
+            "frequency spectrum real pangenomes show. Genome size rises too (90&nbsp;\u2192&nbsp;248 "
+            "genes): a per-copy rate compounds, so spreading it around a fixed mean raises the "
+            "expected copy number. <code>duplication=0.06&nbsp;*&nbsp;ByFamily(spread=1.4)</code>.",
+            "phylustrator \u00b7 heterogeneity", pangenome_by_family, code=_C_PANGENOME),
     Example("genome_circular_ordered", "Circular genome (ordered)",
             "A genome as a ring — genes evenly spaced by rank, coloured by family, arrows by strand. "
             "<code>plot(g,&nbsp;layout=&quot;circular&quot;)&nbsp;+&nbsp;genes()</code>.",
