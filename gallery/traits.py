@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import matplotlib.image as mpimg
-import matplotlib.pyplot as plt
-
 import helpers as h
 from helpers import Example
 
