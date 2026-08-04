@@ -33,6 +33,39 @@ They are **Newick**, the standard tree format. Plot them with **Phylustrator**, 
 plotting library: `pip install phylustrator`, then `phyl species_extant.nwk` draws any tree a run
 produces. Its Python API draws the genomes too.
 
+## My genomes came out empty. Is that a bug?
+
+No. Loss is counted per copy and the last copy is a copy like any other, so a loss rate well above
+duplication and origination strips a lineage of everything it has. The run tells you:
+`genome_summary.json` reports `empty_genomes` and `zombi2 genomes` prints a line on standard error.
+Lower `--loss`, raise `--origination`, or start with more `--initial-families`.
+
+The chromosome-based resolutions do have a floor — a loss never takes a chromosome below its last
+gene — but that is a floor on a chromosome, not on a genome.
+
+## Why do my families stop at 10 copies?
+
+`--max-family-size` defaults to 10 copies of one family **in one genome**, because a duplication rate
+above the loss rate grows without bound. While the cap binds it discards events, so the realised
+duplication and transfer rates fall below the ones you declared. Pass `--max-family-size none` when
+you are measuring rates.
+
+## I counted losses in the event log and got fewer than I expected.
+
+A `transfer_replacing` row overwrites a copy on the recipient branch and writes **no separate `loss`
+row** for it, so a script counting `loss` rows comes up short by exactly the number of replacing
+transfers. `genome_summary.json` counts the biology instead: `transfer` as one number over both
+kinds, each displaced copy under `loss`.
+
+## Why does re-running a level refuse?
+
+Because a later level was built from it, and re-running in place would leave that later output
+mismatched. `--force` re-runs anyway and removes the now-stale downstream. The same guard covers
+conditioning: a conditioned run writes a `conditioned_on` file naming the levels its rates read, so
+re-running the driver afterwards refuses rather than leaving the target silently stale. It works
+**within one run directory** — a driver and a target written to two directories with `--from` are
+not linked.
+
 ## `sequences` printed a warning about "saturated" alignments — did it fail?
 
 No — it succeeded; that is a *warning*, not an error (the exit status is still 0). It compares the mean

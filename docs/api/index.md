@@ -25,9 +25,9 @@ nucleotide — with one entry point each, so the resolution is chosen by which f
 | Genomes · family | [`simulate_genomes_family`][zombi2.genomes.simulate_genomes_family] | [`FamilyGenomesResult`][zombi2.genomes.FamilyGenomesResult] | [Genomes I](../guide/genomes.md) |
 | Genomes · ordered | [`simulate_genomes_ordered`][zombi2.genomes.simulate_genomes_ordered] | [`OrderedGenomesResult`][zombi2.genomes.OrderedGenomesResult] | [Genomes II](../guide/genomes-ordered.md) |
 | Genomes · nucleotide | [`simulate_genomes_nucleotide`][zombi2.genomes.simulate_genomes_nucleotide] | [`NucleotideGenomesResult`][zombi2.genomes.NucleotideGenomesResult] | [Genomes III](../guide/genomes-nucleotide.md) |
-| Sequences | [`simulate_sequences`][zombi2.sequences.simulate_sequences] | [`SequencesResult`][zombi2.sequences.SequencesResult] | [Sequence evolution](../guide/sequences.md) |
-| Traits · continuous | [`simulate_continuous`][zombi2.traits.simulate_continuous] | [`TraitsResult`][zombi2.traits.TraitsResult] | [Trait evolution](../guide/traits.md) |
-| Traits · discrete | [`simulate_discrete`][zombi2.traits.simulate_discrete] | [`TraitsResult`][zombi2.traits.TraitsResult] | [Trait evolution](../guide/traits.md) |
+| Sequences | [`simulate_sequences`][zombi2.sequences.simulate_sequences] | [`SequencesResult`][zombi2.sequences.SequencesResult] | [Sequences](../guide/sequences.md) |
+| Traits · continuous | [`simulate_continuous`][zombi2.traits.simulate_continuous] | [`TraitsResult`][zombi2.traits.TraitsResult] | [Traits](../guide/traits.md) |
+| Traits · discrete | [`simulate_discrete`][zombi2.traits.simulate_discrete] | [`TraitsResult`][zombi2.traits.TraitsResult] | [Traits](../guide/traits.md) |
 | Two levels at once | [`simulate_joint`][zombi2.joint.simulate_joint] | [`JointResult`][zombi2.joint.JointResult] | [Joining](../guide/joining.md) |
 
 Every result writes its outputs with `.write(directory)`; which files that leaves is catalogued

@@ -146,16 +146,14 @@ compatibility mode.
 
 ## What will break in your parsing code
 
-This is the part that takes the time. Six changes each break a script silently or loudly:
+This is the part that takes the time. Six changes each break a script, silently or loudly:
 
-**Event vocabulary.** v1 wrote letter codes; v2 writes words — `speciation`, `extinction`,
+**Event vocabulary.** v1 wrote letter codes; v2 writes words: `speciation`, `extinction`,
 `duplication`, `loss`, `origination`, and **two** transfer kinds, `transfer_additive` and
 `transfer_replacing`.
 
-**One row per event.** Every v2 event log opens with `time` and `kind` and then carries payload
-columns that are the same on every row of that file. v1's genome log was positional, with a `NODES`
-field whose meaning depended on the event type; `genome_events.tsv` is now five columns, and one row
-is one thing that happened (real rows from a real run, padded here to line the columns up):
+**One row per event.** v1's genome log was positional, with a `NODES` field whose meaning depended on
+the event type. `genome_events.tsv` is now five columns, and one row is one thing that happened:
 
 ```
 time                 kind                family  parents        children
@@ -167,38 +165,32 @@ time                 kind                family  parents        children
 0.36393613420080373  transfer_replacing  1       n2_g30;n1_g16  n2_g47;n1_g48
 ```
 
-The file itself is tab-separated. `parents` is what the event ended, `children` what it began, packed
-with `;` where there are two; an origination has no parents and a loss no children, so those cells
-are empty. Counting rows by kind now counts events, so a `grep -c` gives the number of events of that
-kind. `species_events.tsv` and `chromosome_events.tsv` are the same shape, with their own entities in
-the two cells. One exception: a nucleotide run's `block_events.tsv` is keyed by *ancestral interval*,
-so an event spanning several blocks writes a row per block.
+`parents` is what the event ended and `children` what it began, packed with `;` where there are two;
+an origination has no parents and a loss no children. Counting rows by kind now counts events, so
+`grep -c` gives you a number you can use. `species_events.tsv` and `chromosome_events.tsv` have the
+same shape. The exception is a nucleotide run's `block_events.tsv`, which is keyed by ancestral
+interval, so one event can write several rows.
 
-**Participants carry their own lineage.** A gene copy is written `n<species>_g<copy>`: `n2_g30` is
-copy 30 on branch `n2`. So the `lineage`, `recipient` and `donor` columns are gone — split a token
-on its single `_` and you have both halves. `species_events.tsv` names lineages the same way (`n0` →
-`n1;n2`) and `chromosome_events.tsv` names chromosomes `n<species>_c<id>`. A transfer's `children`
-read **donor first, recipient second**, so one row says which way the material went without pairing
-anything.
+**Names carry the branch.** A gene copy is written `n<species>_g<copy>`, so `n2_g30` is copy 30 on
+branch `n2`. That is why the `lineage`, `recipient` and `donor` columns are gone: split a name on its
+single `_` and you have both halves. Lineages in `species_events.tsv` (`n0` → `n1;n2`) and
+chromosomes in `chromosome_events.tsv` (`n<species>_c<id>`) follow the same pattern. A transfer's
+`children` read **donor first, recipient second**, so one row says which way the material went.
 
-**A replacing transfer writes no loss row.** `transfer_replacing` carries two parents — the
-donor's copy, then the copy it overwrote on the recipient branch — and writes **no separate `loss`
-row** for the copy it displaced. A script that counts losses straight out of the log therefore comes
-up short by exactly the number of replacing transfers. `genome_summary.json` counts the biology
-instead: `transfer` as one number over both kinds, each displaced copy under `loss`, and the
-families the run started with as `initial` rather than `origination`. This is the change that gives
-a plausible wrong number instead of an error, so it is the one to check first.
+**A replacing transfer writes no loss row.** `transfer_replacing` has two parents, the donor's copy
+and the copy it overwrote, and no separate `loss` row for the one it displaced. A script that counts
+losses straight out of the log therefore comes up short by exactly the number of replacing transfers.
+`genome_summary.json` counts the biology instead. This is the change that gives a plausible wrong
+number rather than an error, so check it first.
 
-**Rearrangements are their own file.** An inversion, a transposition or a translocation begins and
-ends no gene lineage, so it has nothing to put in `parents` and `children`. At the ordered and
-nucleotide resolutions they are in `rearrangement_events.tsv`, not in `genome_events.tsv`, and that
-file is the one place a branch is still a column (`lineage`) — a segment has no id to carry one.
+**Rearrangements are their own file.** An inversion, transposition or translocation begins and ends
+no gene lineage, so it has nothing to put in `parents` and `children`. At the ordered and nucleotide
+resolutions they live in `rearrangement_events.tsv`, which is the one place a branch is still a
+column, because a segment has no name to carry one.
 
 **Label prefixes.** A lineage that went extinct is `e<id>`, not `n<id>`, in the complete tree and the
-event logs — so a `n\d+` pattern silently drops the extinct lineages, inside a copy token
-(`e6_g138`) as well as on its own. Gene copies are `g<id>`, and a gene-tree leaf is
-`n<species>_g<copy>`, the same token the event log packs into `parents` and `children`. Everything
-that names only extant tips — the extant tree, `profiles.tsv`, the alignments — is `n<id>`
-throughout.
+event logs — including inside a copy name, as `e6_g138`. So an `n\d+` pattern silently drops every
+extinct lineage. Anything naming only extant tips (the extant tree, `profiles.tsv`, the alignments)
+is `n<id>` throughout.
 
 The full column list for every file is in [Output files](output-files.md).

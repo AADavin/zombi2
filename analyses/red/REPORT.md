@@ -33,7 +33,7 @@ Simulation avoids this. In a simulated tree the true node ages are known, so RED
 exactly. The only thing we take from the real world is how much rate variation to put in. That
 single number is all we borrow from GTDB; no real branch length enters the forward model.
 
-## The observable — how ragged are real trees?
+## The observable: how much do real trees vary?
 
 Every genome in the GTDB archaeal tree — 10,122 genomes, branch lengths in substitutions per site
 (Parks et al. 2018; Rinke et al. 2021) — is extant: all tips sit at the present. Every tip is
@@ -45,34 +45,34 @@ substitution distances. A strict clock gives CV = 0; heterogeneity spreads the t
 
 *Figure 1. The distribution of root-to-tip substitution distances across the 10,122 genomes of the
 GTDB archaeal tree. The dashed line is the mean; the CV is 0.232 — the fastest lineage has
-accumulated roughly four times the substitutions of the slowest. This is the raggedness the test
+accumulated roughly four times the substitutions of the slowest. This is the root-to-tip variation the test
 must reproduce to be realistic. It is read straight off the phylogram — no dating, no
 ultrametricising, no rate model assumed; its one assumption is that the tree is correctly rooted,
 which GTDB provides.*
 
 ## Calibrating the clock
 
-We build the simulated trees the way ZOMBI2 builds any tree, and calibrate their raggedness to the
+We build the simulated trees the way ZOMBI2 builds any tree, and calibrate their root-to-tip variation to the
 real number. We simulate 8 species trees under the Yule process (400 tips, known node ages), evolve
 each under a relaxed clock, and read the `species_phylogram`, whose branch lengths are substitutions.
 Sweeping σ and finding where the mean root-to-tip CV crosses 0.232 gives the σ that makes a simulated
-tree as ragged as real archaea (Figure 2).
+tree vary as much as real archaea (Figure 2).
 
 **Three clocks, because one number cannot pin the structure.** The CV says *how much* rate variation
 there is, not how it is arranged across the tree — and those are different things for a method that
-walks root to tip. So the sweep runs all three clocks ZOMBI2 wires at the sequence level: the
+walks root to tip. So the sweep runs all three clocks ZOMBI2 provides at the sequence level: the
 **uncorrelated** `ByLineage(spread=σ)` with a lognormal or a gamma tail (Drummond et al. 2006), where
 every lineage draws its own rate independently; and the **autocorrelated** `FromParent(spread=σ)`
 (Thorne et al. 1998), where each lineage inherits its parent's rate times a draw at the split, so
-relatives evolve at similar rates. They reach the GTDB raggedness at very different σ — 0.54
+relatives evolve at similar rates. They reach the GTDB variation at very different σ — 0.54
 (lognormal), 0.59 (gamma), 0.14 (autocorrelated), because drift compounds down the tree — which is
 exactly why the comparison has to be made at matched CV rather than at matched σ.
 
 ![Figure 2](figures/clock_recovery.png)
 
 *Figure 2. Root-to-tip substitution CV as the clock heterogeneity σ grows, for the three clocks ZOMBI2
-wires at the sequence level. Where a curve crosses the GTDB target (CV = 0.232, dashed) is the σ that
-reproduces real raggedness, marked with a filled circle. Shaded bands are ±1 s.d. across the 8 Yule
+provides at the sequence level. Where a curve crosses the GTDB target (CV = 0.232, dashed) is the σ that
+reproduces the real variation, marked with a filled circle. Shaded bands are ±1 s.d. across the 8 Yule
 trees. The amount of variation (CV) is identifiable; the σ that produces it is clock-dependent — the
 autocorrelated clock needs a quarter of the σ, because inherited drift accumulates — so all three are
 carried into the test at matched CV.*
@@ -84,7 +84,7 @@ The forward model contains no real branch lengths: the GTDB tree sets only the t
 The test itself: on the same simulated trees, apply the relaxed clock, compute RED from the resulting
 substitution branch lengths, and compare RED's recovered node ages to the truth. Plotting RED's
 accuracy against root-to-tip CV — the quantity measured on GTDB — puts the whole recipe on one axis:
-read up from the real value (CV = 0.232) to find how well RED does at realistic raggedness (Figure 3).
+read up from the real value (CV = 0.232) to find how well RED does at realistic variation (Figure 3).
 Figure 4 is the per-tree picture.
 
 ![Figure 3](figures/red_bridge.png)
@@ -92,7 +92,7 @@ Figure 4 is the per-tree picture.
 *Figure 3. RED accuracy (left, Pearson r between RED and true relative age) and error (right, nRMSE as
 a percentage of tree depth) against how rate-variable the tree is, one curve per clock. The dashed
 line is real archaea (CV = 0.232); filled markers read off RED's accuracy there. RED is near-exact for
-mild variation and degrades as trees get raggeder — but the **autocorrelated** clock degrades far more
+mild variation and degrades as trees vary more — but the **autocorrelated** clock degrades far more
 slowly, because inherited rates preserve the local ordering RED reads. Shaded bands are ±1 s.d. across
 the 8 Yule trees. The sweeps run past CV = 1.8; the axis stops at 0.8, beyond which 8 replicates no
 longer separate the curves from their own variance.*
@@ -100,12 +100,12 @@ longer separate the curves from their own variance.*
 ![Figure 4](figures/red_scatter.png)
 
 *Figure 4. RED-recovered versus true node ages on one 500-tip tree under the lognormal clock, at three
-raggedness levels: below, at, and above the real archaeal value. At CV = 0.22 (centre) RED still
+levels of root-to-tip variation: below, at, and above the real archaeal value. At CV = 0.22 (centre) RED still
 tracks the diagonal (r = 0.92); the scatter opens up well beyond real heterogeneity.*
 
 ## What it means
 
-**At the raggedness real archaea show, RED holds up — under every clock we can put it under.**
+**At the root-to-tip variation real archaea show, RED holds up — under every clock we can put it under.**
 Reading off CV = 0.232:
 
 | clock | Pearson r | nRMSE (% of tree depth) | σ at the target CV |
@@ -127,7 +127,7 @@ Three things are worth being precise about.
   r drops to ≈ 0.79 and nRMSE rises to ≈ 9%. Real archaea sit on the safe side of that.
 - **The CV pins the amount of variation, not its structure — so we bound the structure instead.**
   One root-to-tip CV cannot say whether rate variation is autocorrelated (relatives evolving at
-  similar rates) or independent, and the two are not equivalent for RED: at matched raggedness the
+  similar rates) or independent, and the two are not equivalent for RED: at matched root-to-tip variation the
   autocorrelated clock gives r = 0.993 against the uncorrelated 0.94–0.95, because inherited rates
   preserve the local ordering RED walks. Rather than assume one, the sweep runs both and reports the
   interval. **Uncorrelated is the harder case**, so the uncorrelated number is the conservative one to
@@ -142,7 +142,7 @@ Three things are worth being precise about.
 ## Assumptions and limitations
 
 - **Model-free observable, rooted tree.** The root-to-tip CV assumes the tree is correctly rooted.
-- **Two arrangements, not all of them.** The sweep covers the clocks ZOMBI2 wires at the sequence
+- **Two arrangements, not all of them.** The sweep covers the clocks ZOMBI2 provides at the sequence
   level (`WIRED_MODIFIERS = (ByLineage, FromParent, DrivenBy)`): uncorrelated with two tails, and
   autocorrelated. Those bracket the plausible range, but they are not every way rate variation can be
   arranged — a clock that shifts at particular nodes rather than drifting smoothly, say, is a third
@@ -159,7 +159,7 @@ itself. Every number regenerates deterministically from fixed seeds.
 ```bash
 cd analyses/red
 python observable.py     # the observable: GTDB root-to-tip substitution CV (= 0.232)
-python experiment.py     # calibrate the clocks, then grade RED vs raggedness -> results.json
+python experiment.py     # calibrate the clocks, then grade RED vs root-to-tip variation -> results.json
 python figures.py        # Figures 1-4 from results.json (also into docs/assets/red/)
 ```
 
