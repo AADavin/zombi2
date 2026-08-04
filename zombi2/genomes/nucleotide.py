@@ -1934,7 +1934,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     **Conditioning (a trait drives who receives).** ``transfer_to = mod.DrivenBy(source, mapping)``
     weights the candidate recipients by another level, and the numbers are **weights**, not rate
     multipliers: they are normalised across the candidates, so they leave the total amount of transfer
-    alone and only redistribute it (SPEC §5, the choice slot). Weight 0 means "cannot receive"; when
+    alone and only redistribute it (SPEC §5, a weight, not a rate). Weight 0 means "cannot receive"; when
     every candidate weighs 0 the transfer does not happen. A ``Between({...})`` mapping reads the
     **donor's** value too, so transfer can be steered between guilds rather than merely into one, and
     ``Clades({...}, Between({...}))`` is the same steering by named clade, read off the tree instead
@@ -2012,7 +2012,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 "origination_extent": origination_extent}
     if not 0.0 <= inversion_probability <= 1.0:
         raise ValueError(f"inversion_probability must be in [0, 1], got {inversion_probability}")
-    # the choice slot, validated in the one place all three resolutions share (SPEC §5): the mapping's
+    # who receives, validated in the one place all three resolutions share (SPEC §5): the mapping's
     # numbers are weights over the candidate recipients, never a rate multiplier
     transfer_to = resolve_transfer_to(transfer_to)
     if isinstance(genes, bool) or not isinstance(genes, int) or genes < 0:

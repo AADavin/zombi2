@@ -38,9 +38,9 @@ the gene-level rates are **per copy**, each lineage's weight carries its own gen
 is two-stage — a lineage by its weight, then a gene inside it. A driven extent is read at the instant
 an event fires, so it changes how much that event takes and never how often one starts.
 
-``transfer_to`` — who receives — is the third slot a driver can sit in, and the one that is **not** a
+``transfer_to`` — who receives — is the third place a driver can sit, and the one that is **not** a
 rate: there the mapping's numbers are weights normalised across the candidate recipients, so they
-redistribute the same transfers rather than change how many happen (SPEC §5, the choice slot). Its
+redistribute the same transfers rather than change how many happen (SPEC §5, a weight). Its
 four rules and the kernel that reads them are the family core's, shared through ``_transfer``.
 """
 
@@ -1153,7 +1153,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     ``initial_families`` founding genes are dealt **round-robin**; ``family_names=["toxin", …]`` additionally
     declares **named** families (remembered in ``result.family_names`` for ``result.has_family(node,
     "toxin")``), as in the family core; ``replacement`` / ``self_transfer`` behave as in the family
-    core. So does ``transfer_to``, the **choice slot** that says who receives — ``"uniform"``,
+    core. So does ``transfer_to``, which **chooses who receives** — ``"uniform"``,
     ``"distance"`` / ``Distance(decay=)`` (closer relatives likelier), ``Clades({...}, Between({...}))``
     (weight by the donor's and recipient's named clade) or ``mod.DrivenBy(source, mapping)`` (weight by
     another level; see below). What moves is a block of genes rather than a single copy, and the block
@@ -1181,7 +1181,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     **Conditioning (a trait drives who receives).** ``transfer_to = mod.DrivenBy(source, mapping)`` is
     the other half, and a different model: the mapping's numbers are per-candidate **weights**, not
     rate multipliers, so they leave the total amount of transfer alone and only redistribute it
-    (SPEC §5, the choice slot). Candidate lineage ``k`` gets weight ``mapping(driver value on k now)``
+    (SPEC §5, a weight, not a rate). Candidate lineage ``k`` gets weight ``mapping(driver value on k now)``
     and receives with probability ``w_k / Σw``. Weight 0 means "cannot receive"; when every candidate
     weighs 0 the transfer does not happen at all, and the donor's chromosome is left untouched. A
     ``Between({...})`` mapping reads the **donor's** value too, so transfer can be steered between

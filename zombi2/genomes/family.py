@@ -693,10 +693,10 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     **Conditioning (a trait drives who receives).** ``transfer_to = mod.DrivenBy(source, mapping)`` is
     the other half, and a different model: the mapping's numbers are per-candidate **weights**, not
     rate multipliers, so they leave the total amount of transfer alone and only redistribute it
-    (SPEC §5, the choice slot). Candidate lineage ``k`` gets weight ``mapping(driver value on k now)``
+    (SPEC §5, a weight, not a rate). Candidate lineage ``k`` gets weight ``mapping(driver value on k now)``
     and receives with probability ``w_k / Σw`` — five candidates at weight 1 and five at weight 2 send
     two thirds of transfers to the weight-2 group. Weight 0 means "cannot receive"; when every
-    candidate weighs 0 the transfer does not happen (see `_do_transfer()`). The two driven slots are
+    candidate weighs 0 the transfer does not happen (see `_do_transfer()`). The two driven arguments are
     independent and may be used together or apart.
 
     ``parallel`` opts into a **separate** engine that evolves the families concurrently, one per worker
@@ -755,7 +755,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     if family_speed is not None and not isinstance(family_speed, ByFamily):
         raise ValueError(
             f"family_speed takes a ByFamily modifier — family_speed=mod.ByFamily(spread=0.5) — "
-            f"got {family_speed!r}. It is the family-wide slot: one draw per family scaling every "
+            f"got {family_speed!r}. It is the family-wide argument: one draw per family scaling every "
             f"rate that family has.")
     # `family_speed` counts as a ByFamily here, and leaving it out of this guard was a real bug: with
     # family_speed set beside a driven rate the run was accepted, and then the loop below set that

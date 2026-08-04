@@ -2,7 +2,7 @@
 
 A transfer's *rate* is an ordinary rate; what is special is **who receives** once it fires. That
 mechanic is the same whether the genome is a multiset of families or an ordered set of chromosomes,
-so it lives here, imported by every resolution. ``transfer_to`` is the **choice slot** of SPEC §5 —
+so it lives here, imported by every resolution. ``transfer_to`` **chooses who receives** (SPEC §5) —
 the numbers in it are per-candidate weights, normalised across the contemporaneous lineages, so they
 change neither how fast nor how many transfers happen, only **who** receives. Three rules:
 
@@ -16,7 +16,7 @@ change neither how fast nor how many transfers happen, only **who** receives. Th
   competent to take DNA up), and with a `Between` mapping the donor's value too.
 
 All four rules work at **every** resolution — family, ordered and nucleotide. That is what
-`resolve_transfer_to()` and `prepare_transfer_to()` are for: the slot is validated and prepared here,
+`resolve_transfer_to()` and `prepare_transfer_to()` are for: it is validated and prepared here,
 once, so the three engines cannot drift apart in what they accept or in what they say when they
 refuse.
 """
@@ -171,17 +171,17 @@ def resolve_groups(tree, groups) -> dict:
     return group_of
 
 
-# --- the slot, in one place: validate it once, prepare it once ------------------------------------
+# --- who receives, in one place: validate it once, prepare it once ------------------------------------
 # Three engines take ``transfer_to``, and the words they use to refuse a bad one — and the work they
 # do before the first transfer fires — must be the same words and the same work, or the resolutions
 # quietly become three slightly different models. So both live here and each engine calls them.
 
 def resolve_transfer_to(transfer_to):
-    """Validate the ``transfer_to`` **choice slot** and return the rule the engine will run on:
+    """Validate ``transfer_to`` — who receives — and return the rule the engine will run on:
     ``"uniform"``, a `Distance`, a `Clades` or a `DrivenBy` — with the ``"distance"`` shorthand
     coerced to ``Distance()``.
 
-    A choice slot is not a rate (SPEC §5). The numbers in it are per-candidate **weights**, normalised
+    This is not a rate (SPEC §5). The numbers in it are per-candidate **weights**, normalised
     across the contemporaneous candidates, so they change neither how fast nor how many transfers
     happen — only **who** receives. Two of the four messages below exist because that distinction is
     exactly what a user coming from the rate grammar gets wrong, and the generic "must be one of …"
@@ -198,7 +198,7 @@ def resolve_transfer_to(transfer_to):
     if isinstance(transfer_to, Rate):
         raise ValueError(
             "transfer_to takes the DrivenBy modifier on its own, not a rate — write "
-            "transfer_to=mod.DrivenBy(source, {...}) with no base number. In this slot the mapping's "
+            "transfer_to=mod.DrivenBy(source, {...}) with no base number. Here the mapping's "
             "numbers are relative WEIGHTS over the candidate recipients (normalised), not a rate "
             "multiplier: they change who receives, never how much transfer happens."
         )
@@ -228,7 +228,7 @@ def prepare_transfer_to(tree, transfer_to, resolved=None):
       whole reason it can be computed here and then never touched again.
     - A `DrivenBy` weight resolves its source into a driver trajectory. ``resolved`` is the caller's
       ``{driver key: trajectory}`` cache, mutated in place, so a driver shared with a driven *rate*
-      is loaded once and the two slots read the very same trajectory.
+      is loaded once and the two read the very same trajectory.
 
     **The trajectory returned here must not join the engine's ``trajs``.** A driven ``transfer_to``
     moves no rate: its weights are read at the instant a transfer fires, and a weight that is not a
@@ -292,7 +292,7 @@ def recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_tra
             return None
         return cand[_weighted_index(rng, weights, total)]
     if isinstance(transfer_to, DrivenBy):
-        # the choice slot: candidate k's weight is the mapping of the driver on lineage k right now,
+        # who receives: candidate k's weight is the mapping of the driver on lineage k right now,
         # normalised over the candidates. A weight of 0 means "cannot receive". A Between mapping is
         # donor-conditioned — the weight reads the driver on the DONOR too — so a trait can steer
         # transfer between guilds exactly as Clades does between clades.

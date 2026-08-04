@@ -1153,7 +1153,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 "substitution carries DrivenBy(..., Between(...)), and a donor/recipient kernel is "
                 "meaningless in a rate: a rate is read on one lineage, and there is no second lineage "
                 "for the pair's first half to name. A Between belongs in the genome level's "
-                "transfer_to choice slot, where the two ends of a transfer exist. Weight the "
+                "transfer_to weight, where the two ends of a transfer exist. Weight the "
                 "substitution rate by the lineage's own state instead — DrivenBy(source, {state: "
                 "factor})."
             )
