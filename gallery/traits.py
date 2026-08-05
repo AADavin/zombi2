@@ -125,7 +125,7 @@ def driven_trait(out):
         switch={"stable->fluctuating": _SWITCH, "fluctuating->stable": _SWITCH},
         mapping={"fluctuating": _FACTOR, "stable": 1}, target="body size", target_base=_BASE,
         target_sub="variance-rate", state_colors=_HABITAT)
-    h.composite_under_diagram(out, diag, [(tree_png, "habitat")])
+    h.composite_under_diagram(out, diag, [(tree_png, "habitat", _HABITAT)])
 
 
 _C_BM = '''\

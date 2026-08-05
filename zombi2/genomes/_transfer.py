@@ -217,7 +217,7 @@ def resolve_transfer_to(transfer_to):
     return transfer_to
 
 
-def prepare_transfer_to(tree, transfer_to, resolved=None):
+def prepare_transfer_to(tree, transfer_to, resolved=None, *, level=None):
     """Everything a run must work out **once**, before its first transfer, for the ``transfer_to``
     rule it was given — returned as the pair ``(group_of, to_traj)`` that `recipient_index()` takes
     as its ``groups`` and ``to_traj``. ``(None, None)`` for ``"uniform"`` and `Distance`, which need
@@ -240,6 +240,9 @@ def prepare_transfer_to(tree, transfer_to, resolved=None):
     Both branches also refuse a mapping that could never fire, for the same reason a driven rate
     does: a kernel or table naming only states the driver never takes leaves every candidate on the
     default weight, so the recipient is drawn uniformly while the run's log records it as steered.
+
+    ``level`` names the calling engine (``"genomes.ordered"``, …), passed on so a driver this level may
+    not read at all is refused here too — who receives is as much a read of the driver as a rate is.
     """
     if isinstance(transfer_to, Clades):
         group_of = resolve_groups(tree, transfer_to.groups)
@@ -252,7 +255,8 @@ def prepare_transfer_to(tree, transfer_to, resolved=None):
         if resolved is None:
             resolved = {}
         if transfer_to.key not in resolved:
-            resolved[transfer_to.key] = resolve_driver(transfer_to.driver, tree, step=transfer_to.step)
+            resolved[transfer_to.key] = resolve_driver(transfer_to.driver, tree,
+                                                       step=transfer_to.step, level=level)
         to_traj = resolved[transfer_to.key]
         label = transfer_to.driver if isinstance(transfer_to.driver, str) \
             else f"<{type(transfer_to.driver).__name__}>"

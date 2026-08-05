@@ -185,9 +185,15 @@ zombi2 traits out/ --kind discrete \
 zombi2 traits out/ --kind discrete \
     --states cave,surface --switch 0.1 --seed 1 \
     --write values events tree
+
+# a second trait, in its own directory, whose switch rate reads the first (Chapter 9)
+zombi2 traits out/ --kind discrete --name diet --states plant,fish --seed 2 \
+    --switch "0.2 * DrivenBy('out/traits/trait_events.tsv', {'cave': 5.0, 'surface': 1.0})"
 ```
 
-An external tree works in place of a ZOMBI2 one; if it is not ultrametric you must declare each tip's fate with `--tip-fates`, because ZOMBI will not guess which early-ending tips are extinct.
+Every rate flag takes a rate in its written form, `--switch` as much as `--rate`, so the expression above is the same text the Python API takes. `--switch` reads the other two shapes its keyword does as well: a `{'a->b': rate}` dict and a `k x k` matrix.
+
+The trait evolves on the **complete** tree, extinct lineages included, so `species_complete.nwk` is the file to hand it. An external tree works too; if it is not ultrametric you must declare each tip's fate with `--tip-fates`, because ZOMBI will not guess which early-ending tips are extinct.
 
 ## Outputs
 

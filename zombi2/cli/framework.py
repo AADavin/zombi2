@@ -369,15 +369,32 @@ def _conditioned_on(run: str, level: str) -> set:
         return {ln.strip() for ln in f if ln.strip()}
 
 
+def _rate_specs(value):
+    """The rate specs inside one option's value, flattened. Most flags hold one; ``--switch`` may hold
+    a ``{'a->b': rate}`` dict or a ``k x k`` matrix, each entry of which can carry its own
+    ``DrivenBy``. A reader that walked only the top level would record a driven run as an undriven
+    one, and let its driver be re-run out from under it."""
+    if isinstance(value, dict):
+        for inner in value.values():
+            yield from _rate_specs(inner)
+    elif isinstance(value, (list, tuple)):
+        for inner in value:
+            yield from _rate_specs(inner)
+    else:
+        yield value
+
+
 def _drivenby_drivers(spec):
-    """Every ``DrivenBy`` driver in a rate spec — whether ``spec`` is a bare ``DrivenBy`` (a recipient weight
-    like ``transfer_to``) or a rate carrying ``DrivenBy`` modifiers. A plain number yields none."""
+    """Every ``DrivenBy`` driver in a rate spec — whether ``spec`` is a bare ``DrivenBy`` (a recipient
+    weight like ``transfer_to``), a rate carrying ``DrivenBy`` modifiers, or a dict / matrix of either
+    (`_rate_specs`). A plain number yields none."""
     from zombi2.rates.modifiers import DrivenBy
-    if isinstance(spec, DrivenBy):
-        yield spec.driver
-    for m in getattr(spec, "modifiers", ()):
-        if isinstance(m, DrivenBy):
-            yield m.driver
+    for one in _rate_specs(spec):
+        if isinstance(one, DrivenBy):
+            yield one.driver
+        for m in getattr(one, "modifiers", ()):
+            if isinstance(m, DrivenBy):
+                yield m.driver
 
 
 def conditioned_levels(run: str, specs) -> set:
@@ -632,6 +649,10 @@ def _log_value(value: object) -> str:
         return repr(value)
     if isinstance(value, (Rate, Scope, Modifier)):
         return written_form(value)
+    if isinstance(value, dict) and any(isinstance(v, (Rate, Scope, Modifier)) for v in value.values()):
+        # a per-transition --switch: each entry is a rate, so each is rendered in its written form.
+        # `str()` on the dict would print a Rate's repr, which no flag takes back.
+        return "{" + ", ".join(f"{k!r}: {_log_value(v)}" for k, v in value.items()) + "}"
     return str(value)
 
 
@@ -658,9 +679,12 @@ def input_digests(*values) -> list[tuple[str, str]]:
         if isinstance(value, str):
             paths.append(value)
         elif value is not None:
-            mods = getattr(value, "modifiers", (value,))     # a rate's modifiers, or a bare one
-            paths.extend(m.driver for m in mods
-                         if isinstance(m, DrivenBy) and isinstance(m.driver, str))
+            # a rate's modifiers, or a bare one — and a `--switch` dict or matrix holds several rates,
+            # so the walk goes through `_rate_specs` rather than reading the value itself
+            for one in _rate_specs(value):
+                mods = getattr(one, "modifiers", (one,))
+                paths.extend(m.driver for m in mods
+                             if isinstance(m, DrivenBy) and isinstance(m.driver, str))
     out, seen = [], set()
     for path in paths:
         if path not in seen and os.path.isfile(path):

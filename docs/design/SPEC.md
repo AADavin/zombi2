@@ -68,7 +68,7 @@ one level lives on the other or they sit on separate branches:
 | Species – Traits | no (a trait lives on the species tree) | yes — a trait drives speciation (tree grown) |
 | Genomes – Sequences | no (a sequence lives inside a gene) | in principle yes, deferred |
 | Genomes – Traits | yes, either direction | yes — the two drive each other |
-| Traits – Sequences | yes (a trait drives a sequence; the reverse is deferred) | no |
+| Traits – Sequences | yes, either direction | no |
 | Species – Sequences | no | no — too far apart to connect |
 
 The generating rule: a pair can be **conditioned** only on separate branches (Genomes–Traits,

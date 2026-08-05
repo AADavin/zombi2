@@ -6,13 +6,18 @@ family's presence can drive anything a driver reaches, a trait's switch rate inc
 The two tests worth reading are the cross-checks. The trajectory is derived from the family's gene
 tree, so both of them grade it against something derived a different way: `has_family`, which reads
 the genome at a node, and the recorded loss events, which say when a copy actually went.
+
+All three resolutions answer. The last section is the nucleotide one, where a family is a
+**declared gene** and what takes it away is an arc of DNA, so its cross-check grades the trajectory
+against the genome's own coordinates.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from zombi2.genomes import simulate_genomes_family, simulate_genomes_ordered
+from zombi2.genomes import (simulate_genomes_family, simulate_genomes_nucleotide,
+                            simulate_genomes_ordered)
 from zombi2.rates import modifiers as mod
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_discrete
@@ -191,3 +196,98 @@ def test_a_module_refuses_what_it_cannot_mean():
             simulate_genomes_family(tree, modules=bad, **kw)
     with pytest.raises(TypeError, match="must be a dict"):
         simulate_genomes_family(tree, modules=["a"], **kw)
+
+
+# --- the nucleotide resolution: a declared gene, and DNA taken away in arcs --------------------
+
+_GENES = [f"g{i}" for i in range(6)]
+
+
+def _gff(span: int = 300, gap: int = 200) -> list[str]:
+    """A GFF declaring `_GENES` evenly along one replicon — the only way a gene is named here."""
+    at, rows = 100, []
+    for name in _GENES:
+        rows.append(f"c1\tzombi2\tgene\t{at + 1}\t{at + span}\t.\t+\t.\tID={name}")
+        at += span + gap
+    return [f"##sequence-region c1 1 {at + 100}"] + rows
+
+
+def _nucleotide_run(loss=1.5, seed=9, n_extant=30):
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=n_extant, seed=4)
+    g = simulate_genomes_nucleotide(sp.complete_tree, gff=_gff(), duplication=0.2,
+                                    duplication_extent=300, loss=loss, loss_extent=300,
+                                    modules={"operon": _GENES}, seed=seed)
+    return sp.complete_tree, g
+
+
+def _carries(g, node_id: int, name: str) -> bool:
+    """Whether ``node_id``'s genome still holds the gene ``name``, read off its **blocks** — the
+    coordinates the run keeps, not the gene tree the driver is built from. The independent fact."""
+    fam = g.gene_names[name]
+    return any(b.gene == fam for chrom in g.genomes[node_id].chromosomes for b in chrom.blocks)
+
+
+def test_a_declared_gene_answers_for_every_lineage():
+    tree, g = _nucleotide_run()
+    traj = g.presence("g0").as_driver_trajectory(tree)
+    assert traj.states() == {"present", "absent"}, "this run is meant to lose the gene somewhere"
+    assert set(traj._starts) == set(tree.nodes)
+    for node in tree.nodes.values():
+        assert traj.value(node.id, node.birth_time) in ("present", "absent")
+
+
+def test_the_nucleotide_trajectory_agrees_with_the_genome_at_every_branch_end():
+    """Graded against the node's own blocks (`_carries`), which the driver never looks at — it is
+    built from the recovered gene tree. Two derivations of the same fact meeting."""
+    tree, g = _nucleotide_run()
+    for name in ("g0", "g3"):
+        traj = g.presence(name).as_driver_trajectory(tree)
+        for node in tree.nodes.values():
+            just_before_the_end = node.end_time - 1e-9
+            if just_before_the_end < node.birth_time:
+                continue                              # a zero-length branch has no interior
+            expected = "present" if _carries(g, node.id, name) else "absent"
+            assert traj.value(node.id, just_before_the_end) == expected, f"{name} on {node.id}"
+
+
+def test_a_nucleotide_gene_can_drive_a_trait():
+    tree, g = _nucleotide_run()
+    kw = dict(states=["harmless", "pathogenic"], start="harmless", seed=1)
+    plain = simulate_discrete(tree, switch=0.1, **kw)
+    driven = simulate_discrete(tree, switch=0.1 * mod.DrivenBy(
+        g.presence("g0"), {"present": 8.0, "absent": 1.0}), **kw)
+    switches = lambda r: sum(1 for e in r.events if e.kind == "on_branch")
+    assert switches(driven) > switches(plain)
+
+
+def test_a_nucleotide_module_completes_the_way_a_family_one_does():
+    from zombi2.rates.mapping import Curve
+
+    tree, g = _nucleotide_run()
+    traj = g.completion("operon").as_driver_trajectory(tree)
+    assert traj.states() <= {k / len(_GENES) for k in range(len(_GENES) + 1)}
+    for node in tree.nodes.values():
+        just_before = node.end_time - 1e-9
+        if just_before < node.birth_time:
+            continue
+        naive = sum(_carries(g, node.id, m) for m in _GENES) / len(_GENES)
+        assert traj.value(node.id, just_before) == naive
+    simulate_discrete(tree, states=["a", "b"], start="a", seed=2,           # and it drives
+                      switch=0.05 * mod.DrivenBy(g.completion("operon"), Curve(lambda f: 1.0 + f)))
+
+
+def test_the_nucleotide_resolution_refuses_what_it_cannot_answer():
+    tree, g = _nucleotide_run()
+    with pytest.raises(KeyError, match="no named gene"):
+        g.presence("nope")
+    with pytest.raises(KeyError, match="no module"):
+        g.completion("nope")
+    other = simulate_species_tree(birth=1.0, death=0.2, n_extant=9, seed=77).complete_tree
+    with pytest.raises(ValueError, match="different species trees"):
+        g.presence("g0").as_driver_trajectory(other)
+    # the evenly-spaced layout lays its genes down unnamed, so there is nothing to ask it for
+    plain = simulate_genomes_nucleotide(tree, root_length=2000, genes=3, seed=1)
+    with pytest.raises(KeyError, match="no named gene"):
+        plain.presence("g0")
+    with pytest.raises(ValueError, match="not declared families"):
+        simulate_genomes_nucleotide(tree, gff=_gff(), modules={"m": ["g0", "nope"]}, seed=1)

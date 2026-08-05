@@ -62,7 +62,10 @@ So each test here computes a quantity with a **closed form** and checks the run 
   branch is the driven rate *integrated* over the branch, so when the driver switches part-way along,
   the length the engine wrote can be checked against the trait's own segments to floating point, and
   the two "sample the driver once per branch" wirings are ruled out by how far they would land from
-  it. These matter most and are checked last, because a mis-wired driver is the one error
+  it. Each **kind of driver** gets its own such check, because each builds its trajectory by
+  different arithmetic — a trait's from its character map, a nucleotide gene's from the arcs of DNA
+  that took it away, a sequence's **GC content** from an interpolated measurement. These matter most
+  and are checked last, because a mis-wired driver is the one error
   that leaves every output well formed: a tree, a genome and a log that are all internally consistent,
   with only the strength of the association wrong, which is precisely what the run was made to
   measure.
@@ -114,9 +117,11 @@ from collections import Counter
 
 import numpy as np
 
-from zombi2.genomes import simulate_genomes_family, simulate_genomes_ordered
+from zombi2.genomes import (simulate_genomes_family, simulate_genomes_nucleotide,
+                            simulate_genomes_ordered)
 from zombi2.genomes.ordered import Inversion
 from zombi2.joint import simulate_joint
+from zombi2.rates.mapping import Curve
 from zombi2.rates.modifiers import ByLineage, DrivenBy, FromParent
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import BASES, gtr, hky85, jc69, k80, lg, poisson
@@ -497,6 +502,117 @@ def test_the_parallel_engine_realises_a_driven_multiplier_too():
         assert abs((realised - expected) / se) < Z_MAX, (
             f"{state}: the parallel engine originated at {realised:.4f} per unit time, but was told "
             f"to run at base × {factor} = {expected:.4f}")
+
+
+def _driver_integral(traj, tree, of) -> float:
+    """``Σ over every lineage of ∫ of(driver value) dt`` — the compensator of a driven **switch**
+    rate, walked the way the engine walks it: cut each branch at the driver's own changes
+    (`next_change`), and the value holds across each piece. With two states the switch rate *is* the
+    chain's out-rate, so a tree's on-branch switches are Poisson with this as their mean."""
+    total = 0.0
+    for node in tree.nodes.values():
+        t, end = node.birth_time, node.end_time
+        while t < end:
+            nxt = min(end, traj.next_change(node.id, t))
+            total += of(traj.value(node.id, t)) * (nxt - t)
+            t = nxt
+    return total
+
+
+def _gff(names, span: int = 300, gap: int = 200) -> list[str]:
+    at, rows = 100, []
+    for name in names:
+        rows.append(f"c1\tzombi2\tgene\t{at + 1}\t{at + span}\t.\t+\t.\tID={name}")
+        at += span + gap
+    return [f"##sequence-region c1 1 {at + 100}"] + rows
+
+
+def test_a_nucleotide_gene_presence_driver_realises_the_multiplier_it_was_given():
+    """The genome's third resolution as a driver. What takes a gene away here is an arc of DNA rather
+    than a whole copy, so the trajectory is built by different arithmetic from the family
+    resolution's.
+
+    A two-state Mk switch rate *is* the chain's out-rate, so each driver state's compensator is plain
+    lineage-time in that state, and each is graded against its own ``base × factor`` — a ratio would
+    pass with both scaled by the same wrong constant. A replicate whose gene survives everywhere is
+    dropped: it says nothing about the absent factor."""
+    factors, base, reps = {"present": 6.0, "absent": 1.0}, 0.4, 40
+    tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=25, seed=1).complete_tree
+    seen, lineage_time = Counter(), Counter()
+
+    for s in range(reps):
+        run = simulate_genomes_nucleotide(tree, gff=_gff([f"g{i}" for i in range(6)]),
+                                          duplication=0.2, duplication_extent=300,
+                                          loss=1.2, loss_extent=300, seed=1000 + s)
+        presence = run.presence("g0")
+        traj = presence.as_driver_trajectory(tree)
+        if traj.states() != set(factors):
+            continue
+        for state in factors:
+            lineage_time[state] += _driver_integral(traj, tree,
+                                                    lambda v, want=state: float(v == want))
+        trait = simulate_discrete(tree, states=["x", "y"], start="x", seed=s,
+                                  switch=base * DrivenBy(presence, factors))
+        for e in trait.events:
+            if e.kind == "on_branch":
+                seen[traj.value(e.lineage, e.time)] += 1
+
+    assert min(lineage_time.values()) > 50.0, "both driver states need real exposure to be checkable"
+    for state, factor in factors.items():
+        realised = seen[state] / lineage_time[state]
+        expected = base * factor
+        se = math.sqrt(seen[state]) / lineage_time[state]      # Poisson count, known exposure
+        assert abs((realised - expected) / se) < Z_MAX, (
+            f"{state}: the trait switched at {realised:.4f} per unit time on lineages carrying the "
+            f"gene, but was told to switch at base × {factor} = {expected:.4f}")
+
+
+def test_a_gc_driver_realises_the_multiplier_it_was_given():
+    """A **sequence** driving a trait, and the first driver whose value is a measurement rather than
+    a state.
+
+    A number has no states to bucket a rate by, so the compensator is an integral: the switch rate is
+    ``base × m(GC)``, the GC path is piecewise constant, and the on-branch switches are Poisson with
+    ``Σ ∫ base × m dt`` as their mean. It is split by where the GC sat when they happened, because a
+    driver attached to the wrong lineages keeps the total and moves the split.
+
+    ``step`` is given explicitly and used for both the run and the expectation: the two must be the
+    same piecewise-constant path. The last assertion is what makes the rest mean something — an
+    undriven run of the same base sits tens of standard errors away."""
+    base, step, cut, reps = 0.5, 0.05, 0.3, 40
+    response = (lambda x: 10.0 * float(x))                     # GC ≈ 0.3 here, so ≈ 3x on average
+    model = hky85(2.0, frequencies=(0.35, 0.15, 0.15, 0.35))   # AT-rich, so GC has room to vary
+    tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=25, seed=1).complete_tree
+    buckets = {"low": (lambda x: float(x) < cut), "high": (lambda x: float(x) >= cut)}
+    seen, expected, plain_time = Counter(), Counter(), Counter()
+
+    for s in range(reps):
+        genome = simulate_genomes_family(tree, initial_families=4, duplication=0.1, loss=0.05,
+                                         seed=1000 + s)
+        gc = simulate_sequences(genome, model=model, length=300, seed=2000 + s).gc()
+        traj = gc.as_driver_trajectory(tree, step=step)
+        for name, holds in buckets.items():
+            expected[name] += base * _driver_integral(traj, tree,
+                                                      lambda v, k=holds: response(v) if k(v) else 0.0)
+            plain_time[name] += base * _driver_integral(traj, tree,
+                                                        lambda v, k=holds: float(k(v)))
+        trait = simulate_discrete(tree, states=["x", "y"], start="x", seed=s,
+                                  switch=base * DrivenBy(gc, Curve(response), step=step))
+        for e in trait.events:
+            if e.kind == "on_branch":
+                value = float(traj.value(e.lineage, e.time))
+                seen["low" if value < cut else "high"] += 1
+
+    for name in buckets:
+        assert expected[name] > 100.0, f"the {name}-GC branches need real exposure to be checkable"
+        z = (seen[name] - expected[name]) / math.sqrt(expected[name])
+        assert abs(z) < Z_MAX, (
+            f"{name} GC: {seen[name]} switches where the driven rate integrates to "
+            f"{expected[name]:.1f}")
+        assert abs(plain_time[name] - expected[name]) / math.sqrt(expected[name]) > 10.0, (
+            f"an undriven run would predict {plain_time[name]:.1f} switches on the {name}-GC "
+            f"branches against this model's {expected[name]:.1f} — too close for this test to tell "
+            f"a driven run from a plain one")
 
 
 def test_a_joint_rate_realises_the_multiplier_it_was_given():

@@ -808,7 +808,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     resolved = {}
     if by_key:
         from ..rates.driver import check_mapping_fires, resolve_driver
-        resolved = {key: resolve_driver(m.driver, tree, step=m.step) for key, m in by_key.items()}
+        resolved = {key: resolve_driver(m.driver, tree, step=m.step, level="genomes.family")
+                    for key, m in by_key.items()}
         # a mapping whose states never occur in the driver leaves every lineage at the default factor,
         # so the rate is never driven and the run is secretly the undriven model — refuse it here,
         # naming the driver, rather than let it pass as a driven run
@@ -821,7 +822,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # adding horizon breakpoints (see prepare_transfer_to). `resolved` is passed along as the driver
     # cache, so a driver shared between a rate and transfer_to is loaded once.
     trajs = dict(resolved)
-    group_of, to_traj = prepare_transfer_to(tree, transfer_to, resolved)
+    group_of, to_traj = prepare_transfer_to(tree, transfer_to, resolved, level="genomes.family")
 
     # Parallel is a *separate* engine (opt-in): families are independent, so it evolves them one per
     # process (SPEC-style — serial by default). `stream_to` takes the same engine one step further —
