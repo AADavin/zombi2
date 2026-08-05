@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-08-05
+
 ### Changed
 - **One vocabulary for conditioning, across the code, the docstrings, the SPEC and the manual.** An
   audit of every surface found the four words of the mechanism used inconsistently, and several
