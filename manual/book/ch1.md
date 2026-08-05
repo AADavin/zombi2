@@ -16,7 +16,7 @@ Some questions ZOMBI2 is built to answer:
 
 - **How well does a reconciliation method recover the truth?** Evolve gene families under duplication, transfer and loss, and you get every family's true gene tree with the event behind every node. Reconcile against the species tree and score what the method found against what happened.
 
-- **Can a transfer be detected when the donor is gone?** Transfers can come from lineages that later go extinct, so a gene arrives in a survivor from a donor that leaves no other trace. The event log names that donor, so you can ask how often a detection method finds a transfer whose source is no longer on the tree.
+- **Can a transfer be detected when the donor is gone?** Transfers can come from lineages that later go extinct, so a gene arrives in a survivor from a donor that leaves no other trace. The event log names that donor, so you can ask how often a detection method finds a transfer whose donor is no longer on the tree.
 
 - **What does genome reduction look like in host-restricted bacteria?** Evolve a lifestyle trait, free-living or host-restricted, and let it drive the loss rate. Lineages that move inside a host shed genes faster, so you can measure how much of the genome-size pattern a method attributes to lifestyle rather than to shared ancestry.
 
@@ -41,14 +41,14 @@ pip install zombi2
 `zombi2 --version` confirms the install, and `zombi2 -h` lists the commands, one per level.
 
 ZOMBI2 is pure Python over NumPy, with no compiled part to build, and the test suite runs on **Linux,
-macOS and Windows** on every change — so the same command does the same thing on all three. Two
+macOS and Windows** on every change, so the same command does the same thing on all three. Two
 things differ on Windows and are worth knowing before they bite:
 
 - **Paths in a rate expression.** A driver path goes inside the rate, and ZOMBI2 reads the
   backslashes as written, so `DrivenBy('C:\Users\me\trait_events.tsv', {...})` works as pasted.
   Forward slashes work too, and Windows accepts them everywhere.
 - **Paths in a `--params` file.** TOML, not ZOMBI2, reads that file, and TOML's ordinary `"…"` string
-  treats a backslash as an escape — so `C:\Users` fails there with a message about a hex value. Put a
+  treats a backslash as an escape, so `C:\Users` fails there with a message about a hex value. Put a
   value containing a path in a TOML **literal** string instead, `'''…'''`, which is taken exactly as
   written:
 
@@ -61,11 +61,11 @@ things differ on Windows and are worth knowing before they bite:
 Two commands: build a species tree, then evolve gene families along it.
 
 ```bash
-# 1. a species tree: 
-zombi2 species out/ 
+# 1. a species tree
+zombi2 species out/
 
 # 2. gene families along it, by duplication, transfer, loss and origination
-zombi2 genomes out/ 
+zombi2 genomes out/
 ```
 
 `out/` now holds one directory per level:

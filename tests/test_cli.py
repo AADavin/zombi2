@@ -577,7 +577,7 @@ def test_traits_discrete_writes_the_event_log(tmp_path, tree_file):
                                                "trait_tree.nwk", "traits.log"}
     lines = (out / "trait_events.tsv").read_text(encoding="utf-8").splitlines()
     assert lines[0] == "time\tkind\tlineage\tfrom\tto"
-    assert lines[1].split("\t")[1] == "initial"       # the t=0 row, the conditioning file's anchor
+    assert lines[1].split("\t")[1] == "initial"       # the t=0 row, the driver file's anchor
 
 
 def test_traits_at_speciation_logs_on_speciation_changes(tmp_path, tree_file):

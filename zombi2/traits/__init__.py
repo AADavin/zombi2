@@ -34,9 +34,10 @@ same diffusion wearing different knobs, not three classes (SPEC §4):
   (``rate = σ² * mod.OnTotalDiversity(cap=100)``) and σ² slows as the clade fills — scaled by
   ``(1 − standing_diversity/cap)`` as the tree's lineages-through-time grows — the *same* ``OnTotalDiversity``
   modifier that slows species diversification, read here off the fixed tree (one-way, tree → trait).
-- **Driven by another trait**: give ``rate`` a ``DrivenBy`` modifier
-  (``rate = σ² * mod.DrivenBy(habitat, {"aquatic": 3.0, "terrestrial": 1.0})``) and σ² reads a *second*
-  trait grown first on this same tree — the *same* ``DrivenBy`` modifier that drives a genome rate.
+- **Driven by another level**: give ``rate`` a ``DrivenBy`` modifier
+  (``rate = σ² * mod.DrivenBy(habitat, {"aquatic": 3.0, "terrestrial": 1.0})``) and σ² reads a value
+  grown first on this same tree: a second trait, or a genome's ``presence`` / ``completion`` — the
+  *same* ``DrivenBy`` modifier that drives a genome rate.
   One trait driving another is conditioning like any other (SPEC §3): the driver can be finished
   before the target starts, so it is two ordinary runs in order, handed over as the grown result or
   as its written ``trait_events.tsv``. A discrete driver switches *mid-branch*, so the per-branch
@@ -58,7 +59,7 @@ simulated *exactly* by the Gillespie algorithm along every branch. Its ``events`
 timestamped, on a lineage, ``from_state → to_state``) is the source of truth, exactly as at the genome
 level; ``history`` (each node's ``(state, duration)`` segments) is the derived stochastic character
 map. ``switch`` gives the rates (symmetric shortcut, ``{"a->b": rate}`` dict, or a ``k×k`` matrix), and
-a switch rate may carry ``DrivenBy`` — the trait switching faster where another trait says so. The
+a switch rate may carry ``DrivenBy`` — the trait switching faster where another level says so. The
 **threshold** model (``liability=`` / ``threshold=``) reads a discrete state off a continuous Brownian
 liability; the crossings are un-timed, so it carries no event log or map.
 

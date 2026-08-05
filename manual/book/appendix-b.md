@@ -33,7 +33,7 @@ resolutions. `--flat` writes every file straight into the run directory instead.
 A directory of per-family files — `gene_trees/`, `alignments/`, `phylograms/` — is **emptied before a
 run fills it**.
 
-## Species trees — `simulate_species_tree`
+## Species trees: `simulate_species_tree`
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
@@ -45,7 +45,7 @@ run fills it**.
 
 ¹ written only if fossil sampling recovered any.
 
-## Genomes, family — `simulate_genomes_family`
+## Genomes, family: `simulate_genomes_family`
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
@@ -53,7 +53,7 @@ run fills it**.
 | Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
 | Genomes | `genomes.tsv` | TSV | yes | every node's gene content, ancestors included — `lineage` · `family` · `copy`, **one row per gene copy**. `copy` is the identifier the event log uses, so a gene can be traced back to the event that made it. `profiles.tsv` is the same information counted, for the extant tips only |
 | Initial genome | `initial_genome.tsv` | TSV | yes | the genome the run **started** with, at the start of the root branch — `family` · `copy`. It has no `lineage` column because it is no node's genome: every node sits at the *end* of its branch |
-| Conditioning | `conditioned_on` | text | conditioned | the levels this run's rates read via `DrivenBy`, one per line. Written only when a rate was conditioned. Re-running a driver level then refuses rather than leaving this run stale, unless you pass `--force` |
+| Conditioning | `conditioned_on` | text | conditioned | the levels this run reads via `DrivenBy`, one per line, whether a rate or `transfer_to`. Written only when something was conditioned. Re-running a driver level then refuses rather than leaving this run stale, unless you pass `--force` |
 | Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | each family's true genealogy, in `genomes/gene_trees/`. Leaves are `n<species>_g<copy>`; internal nodes are labelled `<event>_n<species>` (`duplication_n45`, `transfer_n45`), naming the event that ended that gene and the branch it was on. A family with no surviving copy writes no `_extant` file |
 | Tip names | `names.tsv` | TSV | external tree | `node` · `name`, mapping ZOMBI's `n<id>` back to the labels you supplied. Written only when the tree came from `--from` with its own tip labels; it is the join from every other output back to your taxa |
 | Species tree | `species_complete.nwk` | Newick | yes | the tree the run evolved along. Every other file here is indexed by its node labels, so the directory is not readable — by anyone or by `genomes.read_run()` — without it |
@@ -109,7 +109,7 @@ copies and their parentage. In Python an `Event` is one event; the per-edge reco
 and `zombi2.genomes.events.edges_from_tsv` expands each row into one per edge, which is what the gene
 trees are built from.
 
-## Genomes, ordered — `simulate_genomes_ordered`
+## Genomes, ordered: `simulate_genomes_ordered`
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
@@ -130,7 +130,7 @@ segment crossed the origin. `dest_position` is an index into what was left after
 segmental event acts on a run of genes of several families at once and this table has one `family`
 column, so `genome_events.tsv` writes one row per gene lineage, each repeating the same arc.
 
-## Genomes, nucleotide — `simulate_genomes_nucleotide`
+## Genomes, nucleotide: `simulate_genomes_nucleotide`
 
 From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...])`.
 
@@ -162,7 +162,7 @@ already has it; a run whose tree came from `--from` gets a copy written to its o
 sequences` can replay the gene genealogy from the run directory alone. Like `names.tsv` (external
 input trees) and the `.log`, that copy is a CLI artifact, not a `result.write()` output.
 
-## Sequences — `simulate_sequences`
+## Sequences: `simulate_sequences`
 
 The `zombi2 sequences` command replays a prior `zombi2 genomes` run — its own run directory, or `--from` another —
 its species tree and its `genome_events.tsv`. Gene outputs are written **one file per gene
@@ -188,7 +188,7 @@ and `phylogram_block6_complete.nwk` in place of `fam6.…`. The two numbering sc
 from a gene to its block with `genomes.block_of(family)` (Ch7). `zombi2 sequences` reads a nucleotide
 handoff too — it recognises one by its `blocks.tsv` — so all of this is reachable from the command line.
 
-## Joint — `simulate_joint` / `zombi2 joint`
+## Joint: `simulate_joint` / `zombi2 joint`
 
 A joint run grows two levels at once, so it writes both, each in the format its own command would
 give it: the species files, and then the driver's — the trait's or the genomes'. There is no output
@@ -203,20 +203,20 @@ of its own beyond the run log.
 
 ¹ whichever driver the run used — one per run, never both.
 
-## Traits — `simulate_continuous` / `simulate_discrete`
+## Traits: `simulate_continuous` / `simulate_discrete`
 
 | Output | File | Format | Default | Contents |
 |-----------|-----------------|-------|-----|------------------------|
 | Values | `trait_values.tsv` | TSV | yes | value at every node (tips, extinct, internal) — `node` · `kind` · `trait`, where `kind` is the tip's fate (`extant` / `extinct` / `unsampled`) or `ancestor`, so `kind == "extant"` isolates the observed tips |
-| Events | `trait_events.tsv` | TSV | yes (discrete) | the trait's whole history — an `initial` row giving the state at t=0, then every switch: `time` · `kind` · `lineage` · `from` · `to`, where `kind` is `initial` · `on_branch` · `on_speciation`. The one event log whose payload is a **state change** rather than a birth and a death, so it keeps its `lineage` and has no `parents` / `children`. Times are full precision (they drive a conditioned run's Gillespie). **This is also the conditioning file**: a genome/sequence run drives a rate with `mod.DrivenBy("trait_events.tsv", …)`, replaying it against the shared tree. A continuous trait carries only the `initial` row and any `at_speciation` jumps (a diffusion can't be rebuilt from events), and that holds for a multi-optimum (`regimes=`) run and a **correlated** multi-trait one alike. A correlated run **widens** the table instead of repeating a row per trait — `from:<trait>` · `to:<trait>`, one pair apiece, exactly as `trait_values.tsv` widens — because a correlated jump moves every trait at once and is one event |
+| Events | `trait_events.tsv` | TSV | yes (discrete) | the trait's whole history — an `initial` row giving the state at t=0, then every switch: `time` · `kind` · `lineage` · `from` · `to`, where `kind` is `initial` · `on_branch` · `on_speciation`. The one event log whose payload is a **state change** rather than a birth and a death, so it keeps its `lineage` and has no `parents` / `children`. Times are full precision (they drive a conditioned run's Gillespie). **This is also the driver file**: a genome, sequence or trait run drives a rate with `mod.DrivenBy("trait_events.tsv", …)`, replaying it against the shared tree. A continuous trait carries only the `initial` row and any `at_speciation` jumps (a diffusion can't be rebuilt from events), and that holds for a multi-optimum (`regimes=`) run and a **correlated** multi-trait one alike. A correlated run **widens** the table instead of repeating a row per trait — `from:<trait>` · `to:<trait>`, one pair apiece, exactly as `trait_values.tsv` widens — because a correlated jump moves every trait at once and is one event |
 | Trait tree | `trait_tree.nwk` | Newick | yes (CLI) | tree with every node annotated `[&trait=…]` (opens in FigTree / iTOL). `zombi2 traits` writes it by default; the Python `TraitsResult.write` default is `("values",)` alone |
 | Summary | `trait_summary.json` | JSON | yes | what came out, not what was asked for — `tips` · `nodes` · `events` (the `on_branch` and `on_speciation` counts), then `states` · `most_common_share` for a discrete trait, or `values` (min/mean/max) · `value_at_root_node` for a continuous one. The root node sits at the end of the stem, so that value is not the one the run started from |
 
-## Conditioning and joining — no new files
+## Conditioning and joining: no new files
 
-Neither adds a format. A **conditioned** run writes the target level's files plus the **driver file**
-it read (above), keeping the pairing on disk; a **joint** run writes **both** levels, each in its own
-format.
+Neither adds a format. A **conditioned** run writes the target level's own files and one extra record,
+`conditioned_on`, naming what it read (above), so the pairing is kept on disk; a **joint** run writes
+**both** levels, each in its own format.
 
 The `zombi2 tools` commands write their own files — the homology matrix and the reconciliation/scoring
 outputs — catalogued in Appendix C.

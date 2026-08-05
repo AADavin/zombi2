@@ -1,22 +1,23 @@
-"""The mapping of a `DrivenBy` rate — how a driver
-level's value becomes a rate multiplier (SPEC §2).
+"""The mapping of a `DrivenBy` — what turns the driver's value into a number (SPEC §5).
 
-A driven rate *reads the state of another level instead of being a fixed number*. The
-``DrivenBy`` modifier reads the driver's value on a lineage; the **mapping** turns that value
-into the dimensionless factor the rate is multiplied by. It is the "response" of the old coevolve
-grammar, distilled to the three shapes that **multiply a rate**:
+The ``DrivenBy`` modifier reads the driver's value on a lineage; the **mapping** turns that value
+into the number the modifier contributes — a dimensionless multiplier on a rate or an extent, a
+normalised weight on ``transfer_to``. There are four shapes:
 
 - `Table`  — a **discrete** driver → a dict of factors: ``{"aquatic": 3.0, "terrestrial": 1.0}``.
 - `Curve`  — a **continuous** driver → a function: ``lambda x: math.exp(0.5 * x)``.
 - `Scalar` — a single log-link coefficient: ``multiplier = exp(strength · value)``.
+- `Between` — a weight per **(donor group, recipient group)** pair, which only ``transfer_to``
+  takes: it reads the driver at both ends, so a rate or an extent refuses it
+  (`check_not_a_kernel()`).
 
-You rarely name these — pass a raw ``dict`` / callable / number as ``mapping=`` and
+You rarely name the first three — pass a raw ``dict`` / callable / number as ``mapping=`` and
 `as_mapping()` coerces it (a dict → ``Table``, a callable → ``Curve``, a number →
 ``Scalar``), exactly as `as_rate()` coerces a rate spec.
 
-The fourth grammar shape, **Jump** (a burst fired *at an event*, e.g. a pulse of gene
-change at each split), is **not** a rate multiplier — it changes a state at a moment, not a
-"how often" — so it does not live here and is not reachable through ``DrivenBy`` (SPEC §4).
+**Jump** (a burst fired *at an event*, e.g. a pulse of gene change at each split) is not a mapping:
+it changes a state at a moment rather than scaling a number, so it does not live here and is not
+reachable through ``DrivenBy`` (SPEC §4).
 """
 
 from __future__ import annotations
@@ -28,9 +29,10 @@ _MAX_EXPONENT = 40.0  # clamp the log-link argument so a large driver value cann
 
 
 class Mapping:
-    """Base for a driver-value → rate-multiplier response. Abstract — use `Table`,
+    """Base for a driver-value → factor mapping. Abstract — use `Table`,
     `Curve`, or `Scalar` (or pass a raw dict / callable / number, which
-    `as_mapping()` coerces). A mapping returns a **dimensionless, non-negative** factor."""
+    `as_mapping()` coerces). A mapping returns a **dimensionless, non-negative** factor — a
+    multiplier on a rate or an extent, a weight on ``transfer_to``."""
 
     def multiplier(self, value: object) -> float:
         raise NotImplementedError
@@ -102,7 +104,7 @@ class Curve(Mapping):
         f = self.fn(_numeric(value, "Curve"))
         if isinstance(f, bool) or not isinstance(f, (int, float)) or not math.isfinite(f) or f < 0:
             raise ValueError(
-                f"the Curve returned {f!r} for driver value {value!r}; a rate multiplier must be a "
+                f"the Curve returned {f!r} for driver value {value!r}; a mapping's factor must be a "
                 f"finite non-negative number"
             )
         f = float(f)
@@ -201,7 +203,7 @@ class Between:
                 and other.default == self.default)
 
 
-def check_kernel_fires(kernel: Between, available_groups, *, source_label: str) -> None:
+def check_kernel_fires(kernel: Between, available_groups, *, driver_label: str) -> None:
     """Raise if a `Between` names **no pair whose two groups both occur** among
     ``available_groups`` — the recipient-weight twin of
     `check_mapping_fires()`. Such a kernel weights every candidate at its
@@ -211,7 +213,7 @@ def check_kernel_fires(kernel: Between, available_groups, *, source_label: str) 
     have = {str(g) for g in available_groups}
     if not any(a in have and b in have for a, b in kernel.per_pair):
         raise ValueError(
-            f"Between on {source_label}: the kernel's groups {sorted(kernel.groups())} include no pair "
+            f"Between on {driver_label}: the kernel's groups {sorted(kernel.groups())} include no pair "
             f"whose two groups both occur in {sorted(have)}, so the weighting would silently do nothing "
             f"— every candidate falls to the default weight and the recipient is drawn uniformly. Check "
             f"for a typo in the group names, or a stale or mismatched driver.")
@@ -225,14 +227,14 @@ def _check_factor(x: object, where: str) -> float:
 
 
 def _numeric(value: object, cls: str) -> float:
-    """A driver value as a float, for a **continuous** response (``Curve`` / ``Scalar``). Raises a
+    """A driver value as a float, for a **continuous** mapping (``Curve`` / ``Scalar``). Raises a
     clear error if the driver is a discrete label — the usual sign a discrete driver was given a
     continuous mapping (use a ``Table`` / dict for a discrete driver)."""
     try:
         return float(value)  # type: ignore[arg-type]  # the except below is the check
     except (TypeError, ValueError):
         raise ValueError(
-            f"{cls} is a continuous-driver response but got the discrete driver value {value!r}; use a "
+            f"{cls} is a continuous-driver mapping but got the discrete driver value {value!r}; use a "
             f"Table (a dict mapping) for a discrete driver such as a habitat state."
         ) from None
 
@@ -245,8 +247,8 @@ def as_mapping(spec: object) -> Mapping:
     `as_rate()` / `as_distribution()`.
     """
     if isinstance(spec, (Mapping, Between)):
-        # a Between is a choice-slot kernel, not a rate multiplier; carried through here so
-        # DrivenBy(..., Between(...)) works, and refused in a rate slot by the engine — which is
+        # a Between is a choice's kernel, not a rate multiplier; carried through here so
+        # DrivenBy(..., Between(...)) works, and refused on a rate or an extent by the engine — which is
         # why the declared return type is the one every *rate* caller may rely on.
         return cast(Mapping, spec)
     if isinstance(spec, dict):
@@ -258,8 +260,8 @@ def as_mapping(spec: object) -> Mapping:
     if callable(spec):
         return Curve(spec)
     raise TypeError(
-        f"a DrivenBy mapping must be a dict (Table), a callable (Curve), a number (Scalar), or a "
-        f"Table/Curve/Scalar, got {spec!r}"
+        f"a DrivenBy mapping must be a dict (Table), a callable (Curve), a number (Scalar), a "
+        f"Table/Curve/Scalar, or a Between (a transfer_to kernel), got {spec!r}"
     )
 
 
@@ -281,7 +283,7 @@ def check_not_a_kernel(mapping, *, label: str) -> None:
             f"weights a recipient by the (donor, recipient) group pair — so it belongs in transfer_to "
             f"(who RECEIVES) and never in a rate or an extent, which are read on one lineage and have "
             f"no donor to condition on. Drive this with a Table (a plain dict) or a Curve, and put the "
-            f"kernel in transfer_to=mod.DrivenBy(source, Between({{...}})).")
+            f"kernel in transfer_to=mod.DrivenBy(driver, Between({{...}})).")
 
 
 __all__ = ["Mapping", "Table", "Curve", "Scalar", "Between", "check_kernel_fires",

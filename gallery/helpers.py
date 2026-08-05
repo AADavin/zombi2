@@ -255,7 +255,7 @@ def composite_markov(tree_png: str, out: str, draw_fn, *, loc=(0.02, 0.09, 0.34,
 
 def composite_under_diagram(out: str, diagram_png: str, rows, *, width=12.0, diagram_frac=0.42,
                             pad=0.03, gap=0.30, label=0.36) -> None:
-    """The driver·modifier·target diagram on top, then one labelled panel per row.
+    """The driver·mapping·target diagram on top, then one labelled panel per row.
 
     ``rows`` is ``[(png, label), ...]``. Every panel gets an axes box of **its own image's aspect
     ratio**, so nothing is letterboxed and the diagram sits on the same centre line as the panels
@@ -559,7 +559,7 @@ def rearranged_pair(genomes: dict) -> tuple:
     return best[1], best[2]
 
 
-# --- the conditioning diagram (driver · modifier · target), the manual's figure -----------
+# --- the conditioning diagram (driver · mapping · target), the manual's figure -----------
 
 _INK, _DIM = "#1a1a1a", "#6e6e6e"
 
@@ -573,8 +573,8 @@ def _conditioning_frame(ax, driver, target, target_base, target_sub):
     read ``DrivenBy``, which is passive, so an arrow drawn cause-to-effect carried a label naming the
     relation effect-to-cause — read along the arrow it said "habitat is driven by loss", the opposite
     of the model. ``DrivenBy`` now sits under the TARGET instead, which is both where it reads
-    correctly and where it is actually typed. A **choice slot** (`transfer_to`) has no base, so it
-    shows the modifier alone — which is exactly the rule that a choice slot takes it on its own."""
+    correctly and where it is actually typed. A **choice** (`transfer_to`) has no base, so it
+    shows the modifier alone. That is the rule: a choice takes the modifier on its own."""
     from matplotlib.patches import FancyArrowPatch, Rectangle
 
     ax.set_xlim(0, 660)
@@ -647,11 +647,11 @@ def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_bas
                       target_sub=None, symbol="×", state_colors=None,
                       target_states=None, target_switch=None, target_colors=None,
                       target_driven=None):
-    """The manual's driver→modifier→target diagram for a **discrete** driver. ``switch`` is a
+    """The manual's driver→mapping→target diagram for a **discrete** driver. ``switch`` is a
     {"a->b": rate} dict (an arrow is drawn for each positive rate, so an irreversible trait shows one
     arrow); ``mapping`` is the per-state multiplier; ``state_colors`` tints the state nodes to match the
     tree's palette. The state names sit *outside* (below) their circles. ``target_base`` is the rate's
-    base value (``None`` for a target that is not a rate, e.g. a recipient-choice slot); ``target_sub``
+    base value (``None`` for a target that is not a rate, e.g. a transfer recipient); ``target_sub``
     is the italic caption under TARGET. ``target_states`` / ``target_switch`` / ``target_colors``
     draw a second chain under the target box, for a target that is itself a discrete trait — the
     driven rate is then visibly *that chain's* rate, rather than an unexplained number."""

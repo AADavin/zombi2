@@ -57,7 +57,7 @@ def _correlation_matrix(traits: list, correlation) -> np.ndarray:
 
 def _driven_mods(rate) -> list:
     """The `DrivenBy` modifiers a rate carries, or ``[]`` when it carries none. A non-empty list
-    means the rate reads another trait on each lineage, so the engine must thread a ``drivers``
+    means the rate reads another level on each lineage, so the engine must thread a ``drivers``
     value and step where the driver switches."""
     return [m for m in rate.modifiers if isinstance(m, DrivenBy)]
 
@@ -67,8 +67,9 @@ def _resolve_drivers(mods: list, tree: Tree) -> dict:
     """Resolve a rate's `DrivenBy` modifiers into one `~zombi2.rates.driver.DriverTrajectory` per
     driver, keyed by the modifier's ``key`` — the per-lineage lookup the engine reads as it walks the
     tree. The genome level's shape (``genomes/family.py``): dedupe by ``key`` so a driver shared
-    across rates resolves once, resolve each source (a written trait log, or a grown trait result
-    handed over in memory), then check that the mapping can actually fire.
+    across rates resolves once, resolve each driver (a written trait log, a grown ``TraitsResult``
+    handed over in memory, or a genome's ``presence`` / ``completion``), then check that the mapping
+    can actually fire.
 
     A mapping whose states never occur in the driver would leave every lineage at the default factor
     — the run would be the undriven model wearing a driven rate — so it is refused here, naming the
@@ -82,10 +83,10 @@ def _resolve_drivers(mods: list, tree: Tree) -> dict:
     by_key: dict = {}
     for m in mods:
         by_key.setdefault(m.key, m)
-    trajs = {key: resolve_driver(m.source, tree, step=m.step) for key, m in by_key.items()}
+    trajs = {key: resolve_driver(m.driver, tree, step=m.step) for key, m in by_key.items()}
     for m in mods:
-        label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
-        check_mapping_fires(m.mapping, trajs[m.key].states(), source_label=label)
+        label = m.driver if isinstance(m.driver, str) else f"<{type(m.driver).__name__}>"
+        check_mapping_fires(m.mapping, trajs[m.key].states(), driver_label=label)
     return trajs
 
 

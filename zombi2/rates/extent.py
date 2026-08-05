@@ -82,7 +82,7 @@ def as_extent(spec) -> Extent:
     about 500 — nobody wants every inversion to be exactly the same size.
 
     A **scope** is refused. ``PerLineage(500) * …`` asks "per what?", and an extent has no answer: it
-    is already an absolute size, not a count of opportunities.
+    is already an absolute size.
     """
     from .rate import Rate                       # a `500 * modifier` product arrives as a Rate
 
@@ -91,9 +91,9 @@ def as_extent(spec) -> Extent:
     if isinstance(spec, Rate):
         if spec.scope is not None:
             raise ValueError(
-                "an extent takes no scope — it is already an absolute size, not a count of "
-                "opportunities, so there is no 'per what?' to answer (SPEC §6). Write the size and "
-                "its modifiers alone, e.g. 500 * DrivenBy(...).")
+                "an extent takes no scope — it is already an absolute size, and there is no "
+                "'per what?' to answer (SPEC §6). Write the size and its modifiers alone, "
+                "e.g. 500 * DrivenBy(...).")
         return Extent(_base(spec.base), tuple(spec.modifiers))
     return Extent(_base(spec))
 
