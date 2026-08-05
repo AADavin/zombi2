@@ -11,7 +11,7 @@ every rate takes the written form (SPEC §5): a bare number on its natural scope
 2.0})"``. Each resolution declares which modifiers it reads (its ``IMPLEMENTED_MODIFIERS``) and rejects the
 rest rather than silently ignoring them; the two structured resolutions both take ``DrivenBy``, so a
 trait can drive a rearrangement rate at either. ``--transfer-to`` is the one argument that **chooses who receives** (SPEC §5)
-and works at all three: the weight it takes says who receives, never how much transfer happens."""
+and works at all three: the weight it takes says who receives, never how often transfer happens."""
 from __future__ import annotations
 
 import argparse
@@ -46,7 +46,9 @@ RATES_HELP = _rates_help(
          "is no scope wrapper to write. On --transfer, DrivenBy drives how often a lineage DONATES; "
          "--transfer-to takes one on its own as a recipient weight, at every resolution — it "
          "chooses who receives rather than setting a rate, so the numbers are normalised weights "
-         "over the candidates. "
+         "over the candidates, and a weight of 0 means 'cannot receive'. It is also the only place "
+         "Between(...) belongs — a weight per (donor, recipient) pair — which a rate or an extent "
+         "refuses. "
          "--resolution ordered takes " + ", ".join(m.__name__ for m in _ORDERED_IMPLEMENTED) +
          ", though not ByFamily and DrivenBy in one run; nucleotide, " +
          ", ".join(m.__name__ for m in _NUC_IMPLEMENTED) + ".")
@@ -230,7 +232,8 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
         "how much each event takes (extents)",
         "with --resolution ordered or nucleotide. The unit is what the resolution counts: genes at "
         "ordered (default 1, a single gene), base pairs at nucleotide (default 50). A bare number is "
-        "the MEAN of a geometric draw, not a fixed size")
+        "the MEAN of a geometric draw, not a fixed size. An extent takes the same modifiers a rate "
+        "does (SPEC §6), but only from Python — this flag takes a plain number")
     for knob, what in (("inversion", "inverted"), ("transposition", "transposed"),
                        ("translocation", "translocated"), ("loss", "deleted"),
                        ("duplication", "copied in tandem"), ("transfer", "transferred")):
@@ -658,7 +661,7 @@ def run(args, parser):
     if not streaming and args.resolution != "nucleotide":
         _warn_if_genomes_emptied(result, args.resolution)
         _warn_if_cap_bound(result, args.max_family_size)
-    if not args.flat:                             # record which same-run levels drove a rate (if any),
+    if not args.flat:                             # record which same-run levels this run reads (if any),
         record_conditioning(out, conditioned_levels(   # so re-running one of them knows it orphans this
             args.run, _driven_specs(args)))
     # The log is this run's parameters, not the parser's: a family run has no --root-length and no

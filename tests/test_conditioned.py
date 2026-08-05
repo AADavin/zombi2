@@ -76,9 +76,9 @@ def test_table_matches_states_by_string_form():
 
 
 def test_continuous_mapping_on_discrete_driver_errors_clearly():
-    with pytest.raises(ValueError, match="continuous-driver response"):
+    with pytest.raises(ValueError, match="continuous-driver mapping"):
         Scalar(0.7).multiplier("cave")
-    with pytest.raises(ValueError, match="continuous-driver response"):
+    with pytest.raises(ValueError, match="continuous-driver mapping"):
         Curve(lambda x: x).multiplier("cave")
 
 
@@ -133,10 +133,10 @@ def test_between_repr_round_trips_through_the_parser():
 
 
 def test_check_kernel_fires_needs_a_named_pair_to_occur():
-    check_kernel_fires(Between({("A", "B"): 1.0}), {"A", "B"}, source_label="x")  # both present → ok
-    check_kernel_fires(Between({("A", "B"): 1.0, ("Q", "Z"): 1.0}), {"A", "B"}, source_label="x")  # partial ok
+    check_kernel_fires(Between({("A", "B"): 1.0}), {"A", "B"}, driver_label="x")  # both present → ok
+    check_kernel_fires(Between({("A", "B"): 1.0, ("Q", "Z"): 1.0}), {"A", "B"}, driver_label="x")  # partial ok
     with pytest.raises(ValueError, match="silently do nothing"):
-        check_kernel_fires(Between({("Q", "Z"): 1.0}), {"A", "B"}, source_label="x")  # none present
+        check_kernel_fires(Between({("Q", "Z"): 1.0}), {"A", "B"}, driver_label="x")  # none present
 
 
 # --- the DrivenBy modifier ------------------------------------------------------------------------
@@ -164,7 +164,7 @@ def test_drivenby_builds_a_rate():
     assert r.effective(copies=10, drivers={"f.tsv": "lo"}) == pytest.approx(0.25 * 10 * 1.0)  # default
 
 
-def test_drivenby_validates_source():
+def test_drivenby_validates_driver():
     with pytest.raises(ValueError):
         mod.DrivenBy("", {"a": 1.0})
     with pytest.raises(ValueError):
@@ -1363,7 +1363,7 @@ def test_the_driven_branch_length_is_the_exact_integral(tmp_path):
                       "1.0\ton_branch\tn0\ta\tb\n"
                       "1.25\ton_branch\tn0\tb\tc\n", encoding="utf-8")
     m = mod.DrivenBy(str(driver), {"a": 0.5, "b": 4.0, "c": 1.0})
-    clock = resolve_clock(None, [(m, resolve_driver(m.source, tree))], tree, {}, None)
+    clock = resolve_clock(None, [(m, resolve_driver(m.driver, tree))], tree, {}, None)
 
     assert clock.branch_length(1.0, 0, 0.0, 2.0) == pytest.approx(2.25, abs=1e-12)
     # a sub-stretch ending inside the middle piece: 0.5×1 + 4×0.1

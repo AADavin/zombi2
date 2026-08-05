@@ -81,7 +81,7 @@ permits; whether an engine implements it is a separate question, and the manual 
 
 **A level can also drive itself.** Two traits on one tree, one gene family driving another: the
 participants are at the same level, and nothing above changes. Driving is **one thing driving another**,
-and the relation is fixed by the same question as always — *can the driver be finished before the target
+and the relation is fixed by the same question as always — *can the driver be finished before the target level
 starts?* If it can, that is conditioning, whichever levels the two sit at. So:
 
 - **acyclic within a level** — trait A drives trait B, an earlier genome run drives a later one. Ordinary
@@ -185,31 +185,38 @@ factor per — and no implementation would make them mean anything; say so, and 
 modifier does belong on. The rest are **not implemented yet**, which is a statement about the code
 and not about the model; say that plainly and do not dress it up as a rule.
 
-**`DrivenBy(source, mapping)` is the one mechanism** for both conditioning and joining (§2), within a
-level as much as across two (§3). `source` says which thing is read, never how the run is organised: a
+**`DrivenBy(driver, mapping)` is the one mechanism** for both conditioning and joining (§2), within a
+level as much as across two (§3). `driver` says which thing is read, never how the run is organised: a
 **finished result** (an object in Python, its written log across two commands) makes the run
 conditioned; the **name of a level growing beside it** makes the run joint. A driver read from a file
-and the same driver held in memory are the same model, so they are the same modifier.
+and the same driver held in memory are the same model, so they are the same modifier. `mapping` says
+what the value becomes, and there are four shapes: a **`Table`** over named states, a **`Curve`** over
+a number, a **`Scalar`** log-link `exp(strength · value)`, and a **`Between`**, a weight per (donor
+group, recipient group) pair that only a choice takes (below).
 
-**What the mapping's number means depends on what it is attached to.** On a rate it is an ordinary
-modifier: dimensionless, multiplying, changing *how fast*. On a **choice** — an argument that decides
-*who*, not how fast or how many — it is a **weight**, normalised across the candidates:
+**What the mapping's number means depends on what it is attached to.** On a rate or an **extent** (§6)
+it is an ordinary modifier: dimensionless, multiplying, changing *how fast* or *how much*. On a
+**choice** — an argument that decides *who*, not how fast or how many — it is a **weight**,
+normalised across the candidates:
 
 ```
-transfer    = 0.1 * DrivenBy(habitat, {"competent": 3.0, "normal": 1.0})   # a rate:   how much transfer
-transfer_to =       DrivenBy(habitat, {"competent": 3.0, "normal": 1.0})   # a weight: where it lands
+transfer    = 0.1 * DrivenBy(habitat, {"competent": 3.0, "normal": 1.0})   # a rate:   how often transfer
+transfer_to =       DrivenBy(habitat, {"competent": 3.0, "normal": 1.0})   # a choice: which lineage receives
 ```
 
 The genome level's `transfer_to`, the "who receives" of a horizontal transfer, is the only such
 argument today. A choice takes the modifier **on its own**, never `base * modifier`, because there is
 no rate to have a base. A weight of 0 means "cannot receive"; when every candidate weighs 0 the event
-does not fire at all.
+does not fire at all. A rate, an extent and a choice are the three kinds of **target** — the three
+things a factor can be attached to — and they are not the same triple as the three questions this section opens with:
+*where* an event starts is drawn by the engine and takes no modifier, and a choice picks the lineage
+that receives, not the segment.
 
 A weight may read **both** ends: a **kernel** over `(donor group, recipient group)` pairs
 (`Between({...})`) steers transfer *between* groups rather than only *into* one. The groups come from
 the tree (named clades, reading no other level) or from a trait (`DrivenBy(trait, Between(...))`). A
-kernel only redistributes who receives, so one on a *rate* is refused: a rate has no donor to read it
-on.
+kernel only redistributes who receives, so one on a *rate* or an *extent* is refused: both are read on
+one lineage and have no donor to condition on.
 
 **Banned rate words:** "propensity" (say *rate*); "opportunity" as a noun (say **scope**, or ask **"per
 what?"**); "clock" for the scope (reserve **clock** strictly for the by-lineage substitution-rate
@@ -222,7 +229,7 @@ modifier at the sequences level). **modifier** names the third factor only.
 | `On` | covariate | a deterministic function of a measured quantity | `OnTime`, `OnTotalDiversity` |
 | `By` | independent | an i.i.d. draw, one per unit — **no memory** (uncorrelated) | `ByLineage`, `ByFamily` |
 | `From` | inherited | inherited along a genealogical edge — **continuous memory** (autocorrelated) | `FromParent` |
-| — | driver | the state of another simulated thing, read as the run walks the tree | `DrivenBy` |
+| — | driven | the state of another simulated thing, read as the run walks the tree | `DrivenBy` |
 
 `DrivenBy` sits outside the preposition scheme deliberately: the others say what kind of *function* the
 factor is, while this one says the factor comes from somewhere else entirely. Naming it `On…` would
@@ -290,6 +297,11 @@ Left column is correct; right column is a fossil to purge.
 | independent / conditioned / joint | pipeline / coevolution (as the framing) |
 | conditioning; joining; a joint model | coevolution (as a category) |
 | conditioning and joining (when the pair needs one name) | coupling (as the framing, a category or a level); the verb stays — "a transfer couples two lineages" |
+| driver — the evolved value a `DrivenBy` reads (its first argument) | source (for that argument); signal |
+| target — what a factor is attached to: a rate, an **extent**, or a **choice** | "a target is a rate"; target (for the driven level — say *the driven level*) |
+| choice — the target that decides who receives (`transfer_to`) | "which one"; slot |
+| mapping — `Table` / `Curve` / `Scalar` / `Between` | response (the coevolve word) |
+| weight — a `transfer_to` number, normalised across candidates | multiplier (there); `base * modifier` (there) |
 | rate; effective rate = scope(base) × modifiers | propensity |
 | scope; "per what?" | opportunity |
 | extent — how much a segmental event takes | extension; length (for this quantity); size |

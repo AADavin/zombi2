@@ -168,7 +168,7 @@ class TraitsResult:
         ``trait_tree.nwk``, the complete tree as Newick with **every** node annotated ``[&trait=…]``
         (a *trait tree*, carrying the exact ancestral values; opens in FigTree / iTOL).
 
-        ``trait_events.tsv`` is also the **conditioning file**: a genome / sequence run drives a rate
+        ``trait_events.tsv`` is also the **driver file**: a genome / sequence run drives a rate
         with ``mod.DrivenBy("trait_events.tsv", …)``, replaying it against the shared tree. A
         **discrete** trait's log reconstructs its state on every lineage exactly (that is what the
         ``initial`` row and the switch times are for); a continuous trait's diffusion cannot be rebuilt
@@ -274,7 +274,7 @@ def _values_tsv(values: dict[int, object], names: dict | None = None,
 def _events_tsv(changes: list[Change], names: dict | None = None) -> str:
     """The event log as ``time<TAB>kind<TAB>lineage<TAB>from<TAB>to`` (``kind`` = initial / on_branch /
     on_speciation), the ``initial`` row first, then the switches in time order — the trait twin of
-    ``genome_events.tsv``, and the conditioning file a driven run replays.
+    ``genome_events.tsv``, and the driver file a driven run replays.
 
     ``lineage · from · to`` is the shape a *state change* wants, not the ``parents`` / ``children`` of
     a birth: nothing is born or dies here, one lineage's trait simply moves from one value to another.

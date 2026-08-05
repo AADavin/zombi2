@@ -136,7 +136,7 @@ class FamilyGenomesResult:
 
     def has_family(self, node_id: int, name: str) -> bool:
         """Whether the named family ``name`` (declared via ``family_names=``) is present — has ≥ 1 copy — in
-        the genome at ``node_id``. The presence signal a joint ``DrivenBy("genomes:<name>", …)`` reads."""
+        the genome at ``node_id``. The presence a joint ``DrivenBy("genomes:<name>", …)`` reads as its driver."""
         if name not in self.family_names:
             raise KeyError(f"no named family {name!r}; declared families are {sorted(self.family_names)}")
         fid = self.family_names[name]
@@ -414,7 +414,7 @@ def _driven_mods(rate) -> list:
     plain number/scope/OnTime. A non-empty list means the rate is *per-lineage*: each lineage's factor
     depends on the driver value on that branch, so the engine evaluates the rate lineage-by-lineage and
     picks the affected lineage weighted (the ``species_tree._grow`` shape). Each modifier's ``key``
-    identifies its driver in the threaded ``drivers`` dict; its ``source`` resolves to a trajectory."""
+    identifies it in the threaded ``drivers`` dict; its ``driver`` resolves to a trajectory."""
     return [m for m in rate.modifiers if isinstance(m, DrivenBy)]
 
 
@@ -672,7 +672,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     ``transfer_to`` — ``"uniform"`` (any other contemporaneous lineage), ``"distance"`` /
     ``Distance(decay=)`` (closer relatives likelier), ``Clades({...}, Between({...}))`` (weighted by
     the donor's and recipient's **named clade**, so transfer can run *between* two clades — see below),
-    or ``mod.DrivenBy(source, mapping)`` (weighted by another level; see below). ``replacement=True``
+    or ``mod.DrivenBy(driver, mapping)`` (weighted by an evolved value; see below). ``replacement=True``
     overwrites a homologous
     copy in the recipient (additive fallback if it has none); ``self_transfer=True`` lets a lineage
     donate to itself. The root starts with ``initial_families`` families of one copy each, recorded
@@ -682,15 +682,15 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     ``DrivenBy("genomes:toxin", …)`` reads. Deterministic given ``seed``.
 
     **Conditioning (a trait drives a rate).** Any of the four rates may be *driven by another level* —
-    ``loss = 0.25 * mod.DrivenBy("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})`` scales each
+    ``loss = 0.25 * mod.DrivenBy("trait_events.tsv", {"aquatic": 3.0, "terrestrial": 1.0})`` scales each
     lineage's loss by the habitat on that branch, read from a driver file grown first
-    (``traits.simulate_discrete(...).write(dir, outputs=("driver",))``). A driven rate is then
-    *per-lineage*: it is summed over the living lineages (each with its own copy count and driver
+    (``traits.simulate_discrete(...).write(dir, outputs=("events",))``, which writes
+    ``trait_events.tsv``). A driven rate is then *per-lineage*: it is summed over the living lineages (each with its own copy count and driver
     value), the affected lineage is drawn weighted by its rate, and the Gillespie steps at every
     mid-branch switch of the driver (SPEC §2). For ``transfer`` the affected
     lineage is the **donor**, so a driven ``transfer`` says how often a lineage *donates*.
 
-    **Conditioning (a trait drives who receives).** ``transfer_to = mod.DrivenBy(source, mapping)`` is
+    **Conditioning (a trait drives who receives).** ``transfer_to = mod.DrivenBy(driver, mapping)`` is
     the other half, and a different model: the mapping's numbers are per-candidate **weights**, not
     rate multipliers, so they leave the total amount of transfer alone and only redistribute it
     (SPEC §5, a weight, not a rate). Candidate lineage ``k`` gets weight ``mapping(driver value on k now)``
@@ -728,7 +728,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # set the *total* rate one way while the engine still picks the affected copy/lineage the default
     # way — a silent mismatch (e.g. a PerCopy origination is base×0 copies, a no-op) — so reject it.
     # DrivenBy is a per-lineage driver on all four events; on transfer the driven lineage is the
-    # DONOR (who receives is the separate transfer_to slot, below).
+    # DONOR (who receives is the separate transfer_to choice, below).
     for label, rate, want in (("duplication", dup, PerCopy), ("transfer", tra, PerCopy),
                               ("loss", los, PerCopy), ("origination", org, PerLineage)):
         if not isinstance(rate.scope, want):
@@ -771,7 +771,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             "driver and the other weights copies by their family, and combining them means "
             "weighting by the product. Use one or the other for now. (family_speed= is a ByFamily "
             "draw too, so it counts here.)")
-    # the choice slot, validated in the one place all three resolutions share (SPEC §5): the mapping's
+    # the choice (SPEC §5), validated in the one place all three resolutions share: the mapping's
     # numbers are weights over the candidate recipients, never a rate multiplier
     transfer_to = resolve_transfer_to(transfer_to)
     if isinstance(initial_families, bool) or not isinstance(initial_families, int) or initial_families < 0:
@@ -795,31 +795,32 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
 
     # conditioning: a rate carrying DrivenBy reads a driver per lineage. Resolve each driver once into
     # a DriverTrajectory (value + next-switch lookups, keyed by the shared species node id) — from a
-    # file (str source) or an in-memory trait result (object source). No driven rate ⇒ this is empty
+    # file (a str driver) or an object handed over in memory (a trait result, or a genome's presence /
+    # completion). No driven rate ⇒ this is empty
     # and the loop stays byte-identical to an undriven run.
     dup_mods, los_mods = _driven_mods(dup), _driven_mods(los)
     org_mods, tra_mods = _driven_mods(org), _driven_mods(tra)
     # driver key → its DrivenBy (deduped, so a driver shared across rates resolves once);
-    # the modifier rather than the source because the driver's step rides on it
+    # the modifier rather than the driver itself, because the driver's step rides on the modifier
     by_key: dict[object, "DrivenBy"] = {}
     for m in (*dup_mods, *los_mods, *org_mods, *tra_mods):
         by_key.setdefault(m.key, m)
     resolved = {}
     if by_key:
         from ..rates.driver import check_mapping_fires, resolve_driver
-        resolved = {key: resolve_driver(m.source, tree, step=m.step, level="genomes.family")
+        resolved = {key: resolve_driver(m.driver, tree, step=m.step, level="genomes.family")
                     for key, m in by_key.items()}
         # a mapping whose states never occur in the driver leaves every lineage at the default factor,
         # so the rate is never driven and the run is secretly the undriven model — refuse it here,
         # naming the driver, rather than let it pass as a driven run
         for m in (*dup_mods, *los_mods, *org_mods, *tra_mods):
-            label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
-            check_mapping_fires(m.mapping, resolved[m.key].states(), source_label=label)
+            label = m.driver if isinstance(m.driver, str) else f"<{type(m.driver).__name__}>"
+            check_mapping_fires(m.mapping, resolved[m.key].states(), driver_label=label)
     # `trajs` is the drivers that move a RATE: they alone make the loop per-lineage and set the
-    # Gillespie horizon. It is built BEFORE the transfer_to slot is prepared, and that order is
+    # Gillespie horizon. It is built BEFORE transfer_to is prepared, and that order is
     # load-bearing — a driven transfer_to changes no rate, so its trajectory must not end up here
     # adding horizon breakpoints (see prepare_transfer_to). `resolved` is passed along as the driver
-    # cache, so a source shared between a rate and transfer_to is loaded once.
+    # cache, so a driver shared between a rate and transfer_to is loaded once.
     trajs = dict(resolved)
     group_of, to_traj = prepare_transfer_to(tree, transfer_to, resolved, level="genomes.family")
 

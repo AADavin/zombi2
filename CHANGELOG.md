@@ -9,6 +9,38 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+- **One vocabulary for conditioning, across the code, the docstrings, the SPEC and the manual.** An
+  audit of every surface found the four words of the mechanism used inconsistently, and several
+  statements that the code contradicts. A `DrivenBy` reads a **driver** and carries a **mapping**;
+  what the factor is attached to is a **target**, and a target comes in three kinds. A **rate** says
+  how often an event fires. An **extent** says how much it takes. A **choice** says who receives it,
+  and `transfer_to` is the only one today. The words settle as SPEC §5 already had them, so `choice`
+  replaces "which one" and the banned "slot". SPEC §7 gains rows for driver, target, choice, mapping
+  and weight. The changed statements: a target was defined as a rate in ch2, ch9, appendix A, the
+  README and the CLI's modifier help, though an extent and `transfer_to` take a driver too; the
+  `conditioned_on` record was described as naming the levels a run's *rates* read, though the marker
+  is written from `transfer_to` as well; `as_mapping` accepted a `Between` while its own error told
+  you the grammar was a dict, a callable or a number; and conditioning was described as reading
+  *another level*, though a level with many separable objects conditions itself. Chapter 9 now also
+  states three limits it did not: `ByFamily` and `DrivenBy` cannot share a run, a sequence cannot
+  drive anything yet, and a nucleotide run cannot be a driver because it has neither `presence` nor
+  `completion`.
+- **`DrivenBy`'s first argument is now `driver`, not `source`.** The manual, the figures and the
+  modifier's own docstring all call the thing being read the *driver*; only the parameter said
+  `source`, so one concept had two names and the chapter had to introduce a second word two
+  paragraphs after naming the first. `source` was also taken twice over elsewhere in ZOMBI2 — a
+  `blocks.tsv` column naming the ancestral replicon a block descends from, and `--from`'s destination
+  — so the same word meant three unrelated things. The argument is positional in every use in the
+  library, tests, manual and docs (`DrivenBy(source=…)` appears nowhere), so a written rate is
+  unaffected; the renamed attribute is `DrivenBy.driver`, and `resolve_driver`,
+  `names_a_live_level`, `check_mapping_fires` and `check_kernel_fires` take `driver` /
+  `driver_label` to match.
+- **`DrivenBy`'s docstring now describes all three kinds of target.** It claimed the modifier
+  "targets a **rate** (a 'how often')", which was true of only the first: an *extent* (`loss_extent`
+  and the rest, at the ordered and nucleotide resolutions) is a "how much" and `transfer_to` is a
+  a **choice**, and both have taken a driver for some time. It also now lists `Between` among the
+  mappings.
 ### Added
 - **A nucleotide genome can be a driver.** `NucleotideGenomesResult` gains `.presence(name)` and
   `.completion(name)`, the two readers the family and ordered resolutions already had, so all three

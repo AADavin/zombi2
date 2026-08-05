@@ -2,7 +2,8 @@
 
 Every rate in ZOMBI2 is ``scope(base) × modifiers``. A *modifier* multiplies a rate
 by a dimensionless factor that depends on context — the current time, the standing
-diversity, the branch, the family, a driver level. Modifiers **multiply** (that is
+diversity, the branch, the family, a driver's value. An **extent** takes the same
+modifiers (SPEC §6). Modifiers **multiply** (that is
 the whole difference from scope wrappers, which *wrap*), and the word *"per"* is
 reserved for scope, so a modifier never starts with "per".
 
@@ -57,15 +58,18 @@ class Modifier:
     #:
     #: The engine names, and the context each one supplies to `factor`:
     #:
-    #: =====================  =================================================
+    #: =====================  =================================================================
     #: ``species``            ``time``, ``lineages``, ``diversity``
-    #: ``genomes.family``     ``time``, ``lineages``, ``copies``
-    #: ``genomes.ordered``    ``time``, ``lineages``, ``copies``, ``chromosomes``
-    #: ``genomes.nucleotide`` ``time``, ``lineages``, ``copies``, ``chromosomes``
+    #: ``genomes.family``     ``time``, ``lineages``, ``copies``, ``drivers``
+    #: ``genomes.ordered``    ``time``, ``lineages``, ``copies``, ``chromosomes``, ``drivers``
+    #: ``genomes.nucleotide`` ``time``, ``lineages``, ``copies``, ``chromosomes``, ``drivers``
     #: ``traits.continuous``  ``time``, ``lineages``, ``diversity``, ``inherited``, ``drivers``
     #: ``traits.discrete``    ``time``, ``lineages``, ``drivers``
     #: ``joint``              ``time``, ``lineages``, ``diversity``, ``drivers``
-    #: =====================  =================================================
+    #: =====================  =================================================================
+    #:
+    #: The genome engines thread ``drivers`` only when some rate or extent in the run is driven, so a
+    #: modifier that reads it must default its key.
     #:
     #: **``sequences`` is not on that list, deliberately.** Every engine above evaluates its rate
     #: through `Rate.effective`, which multiplies in whatever `factor` returns. The sequence level
@@ -364,20 +368,22 @@ class ByFamily(Modifier):
 
 
 class DrivenBy(Modifier):
-    """The rate is **driven by another level** — the one mechanism behind both conditioning and
+    """The factor is read from **another evolved value** — the one mechanism behind both conditioning and
     joining (SPEC §2).
 
-    It is Ch2's definition made literal: *a rate that reads the state of another level instead of
-    being a fixed number*. ``DrivenBy`` reads the driver's value on each lineage and
-    multiplies the base rate by the mapped factor::
+    It is Ch2's definition made literal: *a rate that reads a value which varies from lineage to
+    lineage, rather than a fixed number*. ``DrivenBy`` reads the driver's value on each lineage and
+    the mapping turns it into a number — a multiplier on a rate or an extent, a weight on
+    ``transfer_to``::
 
         loss = 0.25 * mod.DrivenBy("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})
         birth = 1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": 2.0})   # a joint model
 
-    ``source`` says where the driver comes from, and that single choice splits *conditioned* from
-    *joint* — the chapter's spine, *can the driver be grown first?*:
+    ``driver`` says where the driven value comes from, and that single choice splits *conditioned*
+    from *joint* — the chapter's spine, *can the driver be grown first?*:
 
-    - a **filename** (``"habitat.tsv"``) or a **grown driver result** (a discrete ``TraitsResult``) —
+    - a **filename** (``"habitat.tsv"``), a **grown driver result** (a ``TraitsResult``, discrete or
+      continuous), or a genome result's ``presence(...)`` / ``completion(...)`` —
       the driver was grown first and handed over (**conditioned**): two ordinary runs. The result
       object is the file's in-memory shortcut — same conditioning, no ``write``/read step;
     - a **level name** (``"trait"``, ``"genomes:count"``) — the driver co-evolves in one run
@@ -385,27 +391,32 @@ class DrivenBy(Modifier):
 
     ``mapping`` says how the driver's value becomes the factor — a `Table`
     (a dict, for a discrete driver), a `Curve` (a callable, continuous),
-    or a `Scalar` (a log-link coefficient); a raw dict / callable / number
-    is coerced (`as_mapping()`).
+    a `Scalar` (a log-link coefficient), or a `Between` (a weight per donor/recipient pair, which
+    only ``transfer_to`` takes); a raw dict / callable / number is coerced (`as_mapping()`).
+
+    What a ``DrivenBy`` can be attached to comes in **three kinds**, and only the first is a rate:
+    *how often* an event fires (a rate, e.g. ``loss``), *how much* it takes (an extent, e.g.
+    ``loss_extent``, at the ordered and nucleotide resolutions), and a **choice** of who receives it
+    (``transfer_to``, a weight per candidate rather than a multiplier). It always maps a value to a
+    number; it never drives a *value*, such as an OU optimum.
 
     Like `FromParent` (``inherited``) and `ByLineage` (``bylineage``), ``DrivenBy`` reads
-    a value the **engine** threads per lineage — here a ``drivers`` mapping ``{source: value}`` — and
+    a value the **engine** threads per lineage — here a ``drivers`` mapping ``{key: value}`` — and
     is otherwise dumb: it just maps the value to a factor. The engine owns *where* the value comes from
     (a file it loaded, or the live level growing beside the tree) and *when* it changes (a discrete
     driver switches mid-branch, so the engine steps its Gillespie at each switch); a rate reaching an
-    engine that has not threaded its ``source`` gets a factor of 1.0 (inert). ``DrivenBy`` targets a
-    **rate** (a "how often") and **multiplies**; it does not drive a *value*, such as an OU optimum.
+    engine that has not threaded its ``driver`` gets a factor of 1.0 (inert).
     """
 
-    def __init__(self, source: object, mapping: object, step: float | None = None) -> None:
+    def __init__(self, driver: object, mapping: object, step: float | None = None) -> None:
         from .mapping import as_mapping
 
-        if isinstance(source, str):
-            if not source.strip():
-                raise ValueError("DrivenBy source must be a non-empty string (a filename or level name)")
-            base: object = source                    # a string source is its own context key
+        if isinstance(driver, str):
+            if not driver.strip():
+                raise ValueError("DrivenBy driver must be a non-empty string (a filename or level name)")
+            base: object = driver                    # a string driver is its own context key
         else:
-            base = id(source)                        # an in-memory driver result (conditioning): key by identity
+            base = id(driver)                        # an in-memory driver result (conditioning): key by identity
         if step is not None:
             step = float(step)
             if not (step > 0.0) or step == float("inf"):
@@ -413,16 +424,16 @@ class DrivenBy(Modifier):
                     f"DrivenBy step is the resolution a CONTINUOUS driver is read at, in the tree's own "
                     f"time units, so it must be finite and positive; got {step!r}.")
         # the step is part of the key: the same driver read at two resolutions is two trajectories, and
-        # keying on the source alone would silently resolve it once and share the first one
+        # keying on the driver alone would silently resolve it once and share the first one
         self.key: object = base if step is None else (base, step)
-        self.source = source
+        self.driver = driver
         self.step = step
         self.mapping = as_mapping(mapping)
 
     def factor(self, *, drivers: Mapping | None = None, **_: Any) -> float:
         """The mapped multiplier for this lineage's driver value — the engine threads the value under
-        ``drivers[key]`` (``key`` is the source string, or the identity of an in-memory driver). No
-        ``drivers`` (or this source absent) ⇒ 1.0, so an unthreaded rate is inert (the engine is
+        ``drivers[key]`` (``key`` is the driver string, or the identity of an in-memory driver). No
+        ``drivers`` (or this driver absent) ⇒ 1.0, so an unthreaded rate is inert (the engine is
         responsible for supplying the value where a driven rate is supported)."""
         if drivers is None:
             return 1.0
@@ -432,8 +443,8 @@ class DrivenBy(Modifier):
         return self.mapping.multiplier(value)
 
     def __repr__(self) -> str:
-        src = self.source if isinstance(self.source, str) else f"<{type(self.source).__name__}>"
-        return f"DrivenBy({src!r}, {self.mapping!r})"
+        drv = self.driver if isinstance(self.driver, str) else f"<{type(self.driver).__name__}>"
+        return f"DrivenBy({drv!r}, {self.mapping!r})"
 
     def __eq__(self, other: object) -> bool:
         return (isinstance(other, DrivenBy) and other.key == self.key

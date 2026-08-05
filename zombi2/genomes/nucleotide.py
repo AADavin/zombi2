@@ -1943,7 +1943,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
       in tandem — an ancestry-**changing** *birth*, recorded in ``events``.
     - ``transfer`` (**per lineage**) copies a geometric-length (mean ``transfer_extent``) arc into a
       **contemporaneous recipient** (``transfer_to``: ``"uniform"``, ``"distance"`` / a `Distance`,
-      ``Clades({...}, Between({...}))`` or ``mod.DrivenBy(source, mapping)`` — see below;
+      ``Clades({...}, Between({...}))`` or ``mod.DrivenBy(driver, mapping)`` — see below;
       ``self_transfer`` allows the donor itself) — a horizontal *birth*, additive (the donor keeps its
       copy). This is what needs the global timeline.
     - ``origination`` (**per lineage**) lays down a **new gene** on a fresh source (geometric length,
@@ -2097,7 +2097,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         layouts = [_even_gene_intervals(length, genes, gene_length) for (length, _t) in specs]
     # Conditioning: a rate carrying DrivenBy reads a driver **per lineage**, so the rates stop being
     # one number for the whole live set and become one per lineage. Same machinery as the family
-    # resolution — each source resolves once into a DriverTrajectory keyed by the shared species node
+    # resolution — each driver resolves once into a DriverTrajectory keyed by the shared species node
     # id, from a file or an in-memory trait result. With no driven rate this is empty and the loop
     # stays exactly the pooled one, so an undriven run is untouched.
     driven = {label: [m for m in r.modifiers if isinstance(m, DrivenBy)] for label, r in _rates.items()}
@@ -2109,14 +2109,14 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
             by_key.setdefault(m.key, m)
     resolved = {}
     if by_key:
-        resolved = {key: resolve_driver(m.source, tree, step=m.step, level="genomes.nucleotide")
+        resolved = {key: resolve_driver(m.driver, tree, step=m.step, level="genomes.nucleotide")
                     for key, m in by_key.items()}
         # a mapping whose states never occur leaves every lineage on the default factor, so the run
         # would secretly be the undriven model — refuse it here, naming the driver
         for mods in (*driven.values(), *ext_driven.values()):
             for m in mods:
-                label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
-                check_mapping_fires(m.mapping, resolved[m.key].states(), source_label=label)
+                label = m.driver if isinstance(m.driver, str) else f"<{type(m.driver).__name__}>"
+                check_mapping_fires(m.mapping, resolved[m.key].states(), driver_label=label)
     # Only a driver on a **rate** makes the loop per-lineage and adds a Gillespie breakpoint. A driver
     # on an **extent** is read at the instant an event fires — it changes how much that event takes,
     # never how often one happens — so it deliberately stays out of `trajs`: no per-lineage rate
@@ -2124,7 +2124,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     _rate_keys = {m.key for mods in driven.values() for m in mods}
     trajs = {k: v for k, v in resolved.items() if k in _rate_keys}
     any_driven = bool(trajs)
-    # The transfer_to slot is prepared **after** `trajs` is fixed, for the same reason: a driven
+    # The transfer_to choice is prepared **after** `trajs` is fixed, for the same reason: a driven
     # transfer_to is a weight, not a rate, so its trajectory must not join `trajs` and start adding
     # horizon breakpoints. `resolved` doubles as the driver cache, so a trait that drives both a rate
     # and who receives is loaded once and read from one trajectory.

@@ -198,21 +198,21 @@ def resolve_transfer_to(transfer_to):
     if isinstance(transfer_to, Rate):
         raise ValueError(
             "transfer_to takes the DrivenBy modifier on its own, not a rate — write "
-            "transfer_to=mod.DrivenBy(source, {...}) with no base number. Here the mapping's "
+            "transfer_to=mod.DrivenBy(driver, {...}) with no base number. Here the mapping's "
             "numbers are relative WEIGHTS over the candidate recipients (normalised), not a rate "
-            "multiplier: they change who receives, never how much transfer happens."
+            "multiplier: they change which lineage receives, never how often transfer happens."
         )
     if isinstance(transfer_to, (list, tuple)):
         raise ValueError(
             "transfer_to takes one recipient rule, not several — combining Distance (relatedness) "
             "with a DrivenBy weighting is a later slice. Give 'uniform', 'distance' / "
-            "Distance(decay=), or mod.DrivenBy(source, {...})."
+            "Distance(decay=), or mod.DrivenBy(driver, {...})."
         )
     if transfer_to != "uniform" and not isinstance(transfer_to, (Distance, DrivenBy, Clades)):
         raise ValueError(
             f"transfer_to must be 'uniform', 'distance' / Distance(decay=), "
             f"Clades({{...}}, Between({{...}})) (weight by named clade), or "
-            f"mod.DrivenBy(source, {{...}}) (a recipient weight driven by another level), "
+            f"mod.DrivenBy(driver, {{...}}) (a recipient weight driven by an evolved value), "
             f"got {transfer_to!r}")
     return transfer_to
 
@@ -226,7 +226,7 @@ def prepare_transfer_to(tree, transfer_to, resolved=None, *, level=None):
     - A `Clades` rule paints every lineage with its clade label. Membership is a fact about the
       **tree**, so it is constant along a branch and adds no Gillespie breakpoints — which is the
       whole reason it can be computed here and then never touched again.
-    - A `DrivenBy` weight resolves its source into a driver trajectory. ``resolved`` is the caller's
+    - A `DrivenBy` weight resolves its driver into a driver trajectory. ``resolved`` is the caller's
       ``{driver key: trajectory}`` cache, mutated in place, so a driver shared with a driven *rate*
       is loaded once and the two read the very same trajectory.
 
@@ -246,7 +246,7 @@ def prepare_transfer_to(tree, transfer_to, resolved=None, *, level=None):
     """
     if isinstance(transfer_to, Clades):
         group_of = resolve_groups(tree, transfer_to.groups)
-        check_kernel_fires(transfer_to.between, set(group_of.values()), source_label="clades")
+        check_kernel_fires(transfer_to.between, set(group_of.values()), driver_label="clades")
         return group_of, None
     if isinstance(transfer_to, DrivenBy):
         # imported here, not at module scope, so a run with no driver anywhere never pays for the
@@ -255,17 +255,17 @@ def prepare_transfer_to(tree, transfer_to, resolved=None, *, level=None):
         if resolved is None:
             resolved = {}
         if transfer_to.key not in resolved:
-            resolved[transfer_to.key] = resolve_driver(transfer_to.source, tree,
+            resolved[transfer_to.key] = resolve_driver(transfer_to.driver, tree,
                                                        step=transfer_to.step, level=level)
         to_traj = resolved[transfer_to.key]
-        label = transfer_to.source if isinstance(transfer_to.source, str) \
-            else f"<{type(transfer_to.source).__name__}>"
+        label = transfer_to.driver if isinstance(transfer_to.driver, str) \
+            else f"<{type(transfer_to.driver).__name__}>"
         if isinstance(transfer_to.mapping, Between):
             # a donor-conditioned kernel. The two checks are an either/or, not a pair:
             # check_mapping_fires only knows Table and would return without looking at a kernel.
-            check_kernel_fires(transfer_to.mapping, to_traj.states(), source_label=label)
+            check_kernel_fires(transfer_to.mapping, to_traj.states(), driver_label=label)
         else:
-            check_mapping_fires(transfer_to.mapping, to_traj.states(), source_label=label)
+            check_mapping_fires(transfer_to.mapping, to_traj.states(), driver_label=label)
         return None, to_traj
     return None, None
 
@@ -276,7 +276,7 @@ def recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_tra
     `Distance` weights by relatedness (closer relatives likelier); a `Clades` weights by
     the kernel on (donor's clade, candidate's clade), read from the precomputed ``groups`` map; a
     `DrivenBy` weights by the driver's value on each candidate, read
-    from ``to_traj`` (the trajectory the engine resolved for that source) — and, with a
+    from ``to_traj`` (the trajectory the engine resolved for that driver) — and, with a
     `Between` mapping, by the donor's value too.
 
     Returns ``None`` — "nobody can receive" — when a driven weighting gives **every** candidate a

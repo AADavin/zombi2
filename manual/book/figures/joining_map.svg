@@ -1,0 +1,100 @@
+<svg viewBox="-6 6 418 366" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
+<title>Joining: which levels have to be grown together</title>
+<desc>The four levels of ZOMBI2 in the same arrangement as the levels figure. Solid double-headed arrows join Species to Genomes and Species to Traits, the two joint models that exist. Dashed double-headed arrows and loops mark the pairs nothing rules out and nobody has written.</desc>
+<!-- Built on the four-levels figure (manual/book/figures/fig-2-1-four-levels.svg): same node
+     positions, same box style, same label baseline offset. What changes is the edges. There the
+     arrows run one way, because a level is grown and the next reads it. Here every arrow is
+     double-headed, because neither level can be finished before the other starts: a joint pair
+     still has a driver and a target, but no order to grow them in.
+     Colours stay presentation attributes so GitHub's sanitiser cannot strip them. -->
+<style>
+  @media (prefers-color-scheme: dark) {
+    .node{fill:#191d20;stroke:#e7ebe9}
+    .lbl{fill:#e7ebe9}
+    .edge{stroke:#e7ebe9}
+    .open{stroke:#8b9296}
+    .head{fill:#e7ebe9}
+    .openhead{fill:#8b9296}
+    .note{fill:#9aa1a5}
+  }
+</style>
+<defs>
+  <marker id="a" markerWidth="5" markerHeight="5" refX="4.2" refY="2.5" orient="auto">
+    <path class="head" d="M0,0 L5,2.5 L0,5 z" fill="#1a1a1a"/>
+  </marker>
+  <marker id="a0" markerWidth="5" markerHeight="5" refX="0.8" refY="2.5" orient="auto">
+    <path class="head" d="M5,0 L0,2.5 L5,5 z" fill="#1a1a1a"/>
+  </marker>
+  <marker id="o" markerWidth="5" markerHeight="5" refX="4.2" refY="2.5" orient="auto">
+    <path class="openhead" d="M0,0 L5,2.5 L0,5 z" fill="#9a9a9a"/>
+  </marker>
+  <marker id="o0" markerWidth="5" markerHeight="5" refX="0.8" refY="2.5" orient="auto">
+    <path class="openhead" d="M5,0 L0,2.5 L5,5 z" fill="#9a9a9a"/>
+  </marker>
+</defs>
+
+<!-- BUILT: the two joint models. Both reach the species tree, which is what makes the tree an
+     output of the run rather than an input to it. -->
+<g class="edge" fill="none" stroke="#1a1a1a" stroke-width="2.1">
+  <path d="M 186,74 C 162,102 120,112 120,144" marker-end="url(#a)" marker-start="url(#a0)"/>
+  <path d="M 234,74 C 258,102 300,112 300,144" marker-end="url(#a)" marker-start="url(#a0)"/>
+</g>
+
+<!-- NOT BUILT: nothing rules these out. A sequence and the species tree are deliberately absent:
+     a sequence lives on a gene tree, so joining it to the tree would mean joining the genome too. -->
+<g class="open" fill="none" stroke="#9a9a9a" stroke-width="1.6" stroke-dasharray="5 4">
+  <path d="M 120,198 L 120,264" marker-end="url(#o)" marker-start="url(#o0)"/>
+  <path d="M 182,171 L 244,171" marker-end="url(#o)" marker-start="url(#o0)"/>
+  <path d="M 178,285 C 250,276 296,238 300,198" marker-end="url(#o)" marker-start="url(#o0)"/>
+  <!-- a level joined to itself: many families, many genes, many characters, inside one run -->
+  <path d="M 62,160 C 24,146 24,196 62,182" marker-end="url(#o)" marker-start="url(#o0)"/>
+  <path d="M 62,280 C 24,266 24,316 62,302" marker-end="url(#o)" marker-start="url(#o0)"/>
+  <path d="M 352,160 C 390,146 390,196 352,182" marker-end="url(#o)" marker-start="url(#o0)"/>
+</g>
+
+<g class="node" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.6">
+  <rect x="154" y="30"  width="112" height="42" rx="21"/>
+  <rect x="64"  y="150" width="112" height="42" rx="21"/>
+  <rect x="64"  y="270" width="112" height="42" rx="21"/>
+  <rect x="250" y="150" width="100" height="42" rx="21"/>
+</g>
+
+<g class="lbl" fill="#1a1a1a" font-size="16" font-weight="600" text-anchor="middle">
+  <text x="210" y="56.66">Species</text>
+  <text x="120" y="176.66">Genomes</text>
+  <text x="120" y="296.66">Sequences</text>
+  <text x="300" y="176.66">Traits</text>
+</g>
+
+<!-- Numbers keyed to the notes. A white disc so a number never sits on a dashed stroke. -->
+<g class="mark">
+  <g fill="#ffffff" stroke="#1a1a1a" stroke-width="1.2">
+    <circle cx="146" cy="104" r="10"/>
+    <circle cx="274" cy="104" r="10"/>
+  </g>
+  <g fill="#ffffff" stroke="#9a9a9a" stroke-width="1.2">
+    <circle cx="138" cy="231" r="10"/>
+    <circle cx="213" cy="150" r="10"/>
+    <circle cx="256" cy="243" r="10"/>
+    <circle cx="34"  cy="140" r="10"/>
+    <circle cx="34"  cy="260" r="10"/>
+    <circle cx="380" cy="140" r="10"/>
+  </g>
+  <g class="lbl" fill="#1a1a1a" font-size="12" font-weight="600" text-anchor="middle">
+    <text x="146" y="108.2">1</text>
+    <text x="274" y="108.2">2</text>
+    <text x="138" y="235.2">3</text>
+    <text x="213" y="154.2">4</text>
+    <text x="256" y="247.2">5</text>
+    <text x="34"  y="144.2">6</text>
+    <text x="34"  y="264.2">7</text>
+    <text x="380" y="144.2">8</text>
+  </g>
+</g>
+
+<g class="note"
+ fill="#6a6a6a" font-size="10" text-anchor="start">
+  <text x="-2" y="344">Solid: built. Dashed: not built, nothing rules it out. A loop is a level joined to itself.</text>
+  <text x="-2" y="359">The tree and a sequence are not a pair: a sequence lives on a gene tree, two levels down.</text>
+</g>
+</svg>

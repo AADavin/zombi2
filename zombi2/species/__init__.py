@@ -528,7 +528,9 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                     f"{label} carries {type(m).__name__}, which the species engine does not "
                     f"support. It takes OnTime (skyline), OnTotalDiversity (diversity-dependent), "
                     f"FromParent (inherited rate drift, ClaDS) and ByLineage (independent "
-                    f"per-lineage rates)."
+                    f"per-lineage rates). A birth or death that reads an evolved value cannot be "
+                    f"conditioned — the tree and its driver grow together — so it is a joint run: "
+                    f"joint.simulate_joint(birth=1.0 * mod.DrivenBy('trait', {{...}}), ...)."
                 )
         # SPEC §5: one memory structure per axis. ByLineage has none and FromParent has a continuous
         # one, so a rate carrying both asks for a lineage's factor to be independent of its parent's
