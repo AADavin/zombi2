@@ -1,6 +1,6 @@
 """A conditioned `DrivenBy`'s file-backing (SPEC §2).
 
-When ``DrivenBy``'s ``source`` is a **filename**, the relation is *conditioned*: the driver was grown
+When ``DrivenBy``'s ``driver`` is a **filename**, the relation is *conditioned*: the driver was grown
 first and written to a file, and two ordinary runs in order do the rest
 (``loss = 0.25 * mod.DrivenBy("habitat.tsv", {...})``). This module — living beside ``DrivenBy`` in
 ``rates`` because it is that modifier's file end — turns the written driver into the per-lineage lookup
@@ -8,9 +8,10 @@ the target engine queries as it walks the (already-grown) tree. (Conditioning ne
 own: it *folds into the target level's* run; only genuinely-joint models get a dedicated engine,
 ``zombi2.joint``.)
 
-The driver file is the trait **event log** (``trait_events.tsv``, written by
-`zombi2.traits.TraitsResult.write()` with ``outputs=("events",)``): an ``initial`` row giving the
-state at t=0, then every switch — ``time · kind · lineage · from · to``. The driver ran on the same
+Two files can be a driver. The usual one is the trait **event log** (``trait_events.tsv``, written by
+`zombi2.traits.TraitsResult.write()` with ``outputs=("events",)``); a continuous trait's value table
+(``trait_values.tsv``) is the other, and `load_driver()` dispatches on the header. The event log
+holds an ``initial`` row giving the state at t=0, then every switch — ``time · kind · lineage · from · to``. The driver ran on the same
 complete tree the target now runs on, so replaying the log **against that tree** rebuilds each
 lineage's branch as constant stretches (a discrete driver switches *mid-branch*, so this is the exact
 stochastic character map, not one value per branch). `DriverTrajectory` then answers both
@@ -363,10 +364,11 @@ def driver_from_continuous_result(result, *, step: float | None = None) -> Drive
     return DriverTrajectory(interpolated_segments(tree, values, step))
 
 
-def check_mapping_fires(mapping, available_states, *, source_label: str, exhaustive: bool = False) -> None:
+def check_mapping_fires(mapping, available_states, *, driver_label: str, exhaustive: bool = False) -> None:
     """Raise if a **discrete** (`Table`) mapping's states do not line up
     with the states the driver can take. Such a mismatch leaves lineages at the table's default factor —
-    a rate that is never touched — so the run drifts from the model the log records. It is almost always
+    a number that is never touched — a rate's, an extent's or a ``transfer_to`` weight's — so the run
+    drifts from the model the log records. It is almost always
     a typo or a stale / mismatched driver, so it is refused. Continuous mappings (Curve / Scalar) apply
     to every value and have nothing to mismatch.
 
@@ -391,7 +393,7 @@ def check_mapping_fires(mapping, available_states, *, source_label: str, exhaust
     if available_states and all(isinstance(s, (int, float)) and not isinstance(s, bool)
                                 for s in available_states):
         raise ValueError(
-            f"DrivenBy on {source_label}: the driver is CONTINUOUS (its values are numbers), so its "
+            f"DrivenBy on {driver_label}: the driver is CONTINUOUS (its values are numbers), so its "
             "mapping must be a Curve (value -> factor) or a Scalar (a log-link), not a {state: factor} "
             "table — a table names discrete states, which a continuous value never equals.")
     named = set(mapping.per_state)
@@ -400,13 +402,13 @@ def check_mapping_fires(mapping, available_states, *, source_label: str, exhaust
         stray = named - have
         if stray:
             raise ValueError(
-                f"DrivenBy on {source_label}: the mapping names state(s) {sorted(stray)} that are not "
+                f"DrivenBy on {driver_label}: the mapping names state(s) {sorted(stray)} that are not "
                 f"among the driver's states {sorted(have)} — a factor for a state that can never occur, "
                 f"so it would silently never apply. Check for a typo in the state names.")
         return
     if not (named & have):
         raise ValueError(
-            f"DrivenBy on {source_label}: the mapping's states {sorted(named)} match none of the "
+            f"DrivenBy on {driver_label}: the mapping's states {sorted(named)} match none of the "
             f"driver's states {sorted(have)}, so the mapping would silently do nothing — every "
             f"lineage falls to the default factor and the rate is never driven. Check for a typo in "
             f"the state names, or a stale or mismatched driver file.")
@@ -418,7 +420,7 @@ def check_mapping_fires(mapping, available_states, *, source_label: str, exhaust
         # completes, the summary says it was driven, and the factor the user cared about was applied
         # to nobody. Saying so costs one line; not saying it is how a wrong result gets published.
         warnings.warn(
-            f"DrivenBy on {source_label}: the mapping names state(s) {sorted(stray)} that the "
+            f"DrivenBy on {driver_label}: the mapping names state(s) {sorted(stray)} that the "
             f"driver never takes (it takes {sorted(have)}), so those factors were never applied. "
             f"The states it did match are still driving the rate. Check for a typo — this is a "
             f"warning rather than an error only because a mapping may legitimately name a state "
@@ -428,7 +430,7 @@ def check_mapping_fires(mapping, available_states, *, source_label: str, exhaust
 
 def driven_mods(rate) -> list:
     """The `DrivenBy` modifiers a rate carries, or ``[]`` when it carries none. A non-empty list means
-    the rate reads another level on each lineage, so the engine must thread a ``drivers`` value and
+    the rate reads an evolved value on each lineage, so the engine must thread a ``drivers`` value and
     step where the driver switches.
 
     It lives here rather than in one level's package because every level that reads a driver asks the
@@ -438,24 +440,24 @@ def driven_mods(rate) -> list:
     return [m for m in rate.modifiers if isinstance(m, DrivenBy)]
 
 
-def names_a_live_level(source: object) -> bool:
-    """Whether a ``DrivenBy`` ``source`` names a **level growing beside the run** rather than a
+def names_a_live_level(driver: object) -> bool:
+    """Whether a ``DrivenBy`` ``driver`` names a **level growing beside the run** rather than a
     finished driver.
 
     SPEC §5: "a finished result makes the run conditioned, and the name of a level growing beside it
-    makes the run joint". One modifier, one spelling, and the *source* is what tells the two apart —
-    so this is the predicate that reads the source, not a judgement about what the target level then
+    makes the run joint". One modifier, one spelling, and the *driver* is what tells the two apart —
+    so this is the predicate that reads it, not a judgement about what the target level then
     does with it. The live names are the ones `zombi2.joint` accepts: ``"trait"``, ``"genomes:count"``
     and ``"genomes:<family>"``.
 
     A level that cannot be joined with the driver at all (Traits–Sequences, SPEC §3) uses this to say
     so in the modelling terms, instead of letting the string fall through to `load_driver()` and come
     back as a missing file called ``'trait'``."""
-    return isinstance(source, str) and (source == "trait" or source.startswith("genomes:"))
+    return isinstance(driver, str) and (driver == "trait" or driver.startswith("genomes:"))
 
 
-def refuse_wrong_direction(source, level: str | None) -> None:
-    """Raise when ``level``'s engine may not read ``source`` at all — a direction SPEC §3 rules out,
+def refuse_wrong_direction(driver, level: str | None) -> None:
+    """Raise when ``level``'s engine may not read ``driver`` at all — a direction SPEC §3 rules out,
     not something merely unimplemented.
 
     A driver declares this by answering ``refuses(level)`` with the reason, or ``None``. It lives on
@@ -466,7 +468,7 @@ def refuse_wrong_direction(source, level: str | None) -> None:
     … — `zombi2.rates.modifiers.Modifier.implemented_for` lists them); ``None`` checks nothing."""
     if level is None:
         return
-    refuses = getattr(source, "refuses", None)
+    refuses = getattr(driver, "refuses", None)
     if refuses is None:
         return
     why = refuses(level)
@@ -474,28 +476,28 @@ def refuse_wrong_direction(source, level: str | None) -> None:
         raise ValueError(why)
 
 
-def resolve_driver(source, tree, *, step: float | None = None,
+def resolve_driver(driver, tree, *, step: float | None = None,
                    level: str | None = None) -> DriverTrajectory:
-    """Resolve a conditioned ``DrivenBy`` ``source`` into a `DriverTrajectory` — a **filename**
+    """Resolve a conditioned ``DrivenBy`` ``driver`` into a `DriverTrajectory` — a **filename**
     (str) via `load_driver()` (replayed against ``tree``, the target run's own species tree), an
     object that answers for itself through ``as_driver_trajectory(tree, step=…)`` (a genome run's
     ``presence("name")``, a sequence run's ``gc()``), or an **in-memory** trait result via
     `driver_from_result()` (which carries its own tree).
-    Both are conditioning (the driver grown first); the object form just spares you the ``write``/read
-    step in a single session.
+    All three are conditioning (the driver grown first); the object forms just spare you the
+    ``write``/read step in a single session.
 
     ``step`` is the continuous-driver resolution (see `interpolated_segments`); it is ignored by a
     discrete driver, whose stretches are exact. ``level`` names the engine doing the reading, which is
     what lets a driver refuse a level that sits above it (`refuse_wrong_direction`)."""
-    if isinstance(source, str):
-        return load_driver(source, tree, step=step)
-    if hasattr(source, "as_driver_trajectory"):
+    if isinstance(driver, str):
+        return load_driver(driver, tree, step=step)
+    if hasattr(driver, "as_driver_trajectory"):
         # a level that knows how to answer "what state was lineage L in at time t?" for itself —
         # `genomes.presence("tox")` is the first. The protocol is one method rather than an isinstance
         # branch per level so this module stays free of imports from the levels it serves.
-        refuse_wrong_direction(source, level)
-        return source.as_driver_trajectory(tree, step=step)
-    return driver_from_result(source, step=step)
+        refuse_wrong_direction(driver, level)
+        return driver.as_driver_trajectory(tree, step=step)
+    return driver_from_result(driver, step=step)
 
 
 __all__ = ["DriverTrajectory", "load_driver", "driver_from_result", "resolve_driver",

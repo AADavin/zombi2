@@ -480,7 +480,7 @@ def _calibrate(substitution, divergence: float, tree: Tree) -> Rate:
             "root-to-tip path, which the two lineage clocks are mean-corrected to do and a driver is "
             "not — its factor is whatever the driver's state says. The realised divergence would be "
             "off by the driver's mean factor while this claimed the number you asked for. Write the "
-            "base yourself: substitution=0.01 * mod.DrivenBy(source, {…}).")
+            "base yourself: substitution=0.01 * mod.DrivenBy(driver, {…}).")
     rate = as_rate(1.0 if substitution is None else substitution, default_scope=PerSite)
     height = max(n.end_time for n in tree.nodes.values()) - min(n.birth_time for n in tree.nodes.values())
     if height <= 0:
@@ -1207,12 +1207,12 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 "meaningless in a rate: a rate is read on one lineage, and there is no second lineage "
                 "for the pair's first half to name. A Between belongs in the genome level's "
                 "transfer_to weight, where the two ends of a transfer exist. Weight the "
-                "substitution rate by the lineage's own state instead — DrivenBy(source, {state: "
+                "substitution rate by the lineage's own state instead — DrivenBy(driver, {state: "
                 "factor})."
             )
-        if names_a_live_level(m.source):
+        if names_a_live_level(m.driver):
             raise ValueError(
-                f"substitution is driven by {m.source!r}, which names a level growing beside the run "
+                f"substitution is driven by {m.driver!r}, which names a level growing beside the run "
                 "— the joint spelling of DrivenBy (SPEC §5). Traits and Sequences cannot be joined "
                 "(SPEC §3): a sequence lives inside a gene and never feeds back into the trait, so "
                 "there is nothing for the two to decide together. Grow the trait first and condition "
@@ -1232,11 +1232,11 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         by_key: dict = {}
         for m in drivers:
             by_key.setdefault(m.key, m)
-        trajs = {key: resolve_driver(m.source, species_tree, step=m.step, level="sequences")
+        trajs = {key: resolve_driver(m.driver, species_tree, step=m.step, level="sequences")
                  for key, m in by_key.items()}
         for m in drivers:
-            label = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
-            check_mapping_fires(m.mapping, trajs[m.key].states(), source_label=label)
+            label = m.driver if isinstance(m.driver, str) else f"<{type(m.driver).__name__}>"
+            check_mapping_fires(m.mapping, trajs[m.key].states(), driver_label=label)
         driven = [(m, trajs[m.key]) for m in drivers]
 
     names = species_tree.labels()   # e<id> for a lineage that died; n<id> for the rest

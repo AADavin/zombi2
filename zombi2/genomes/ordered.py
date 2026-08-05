@@ -1155,7 +1155,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     "toxin")``), as in the family core; ``replacement`` / ``self_transfer`` behave as in the family
     core. So does ``transfer_to``, which **chooses who receives** — ``"uniform"``,
     ``"distance"`` / ``Distance(decay=)`` (closer relatives likelier), ``Clades({...}, Between({...}))``
-    (weight by the donor's and recipient's named clade) or ``mod.DrivenBy(source, mapping)`` (weight by
+    (weight by the donor's and recipient's named clade) or ``mod.DrivenBy(driver, mapping)`` (weight by
     another level; see below). What moves is a block of genes rather than a single copy, and the block
     arrives whole, so the rule chooses the recipient lineage exactly as it does at the family
     resolution.
@@ -1178,7 +1178,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     mid-branch switch of the driver rather than averaging over a branch (SPEC §2). For ``transfer``
     the driven lineage is the **donor**, so a driven ``transfer`` says how often a lineage *donates*.
 
-    **Conditioning (a trait drives who receives).** ``transfer_to = mod.DrivenBy(source, mapping)`` is
+    **Conditioning (a trait drives who receives).** ``transfer_to = mod.DrivenBy(driver, mapping)`` is
     the other half, and a different model: the mapping's numbers are per-candidate **weights**, not
     rate multipliers, so they leave the total amount of transfer alone and only redistribute it
     (SPEC §5, a weight, not a rate). Candidate lineage ``k`` gets weight ``mapping(driver value on k now)``
@@ -1297,7 +1297,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         "translocation_extent": trl_ext}
     if not 0.0 <= inversion_probability <= 1.0:
         raise ValueError(f"inversion_probability must be in [0, 1], got {inversion_probability!r}")
-    # the choice slot, validated in the one place all three resolutions share (SPEC §5): the mapping's
+    # the choice (SPEC §5), validated in the one place all three resolutions share: the mapping's
     # numbers are weights over the candidate recipients, never a rate multiplier
     transfer_to = resolve_transfer_to(transfer_to)
     if isinstance(initial_families, bool) or not isinstance(initial_families, int) or initial_families < 0:
@@ -1318,7 +1318,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
 
     # Conditioning: a rate carrying DrivenBy reads a driver **per lineage**, so its rate stops being
     # one number for the whole live set and becomes one per lineage. Same machinery as the other two
-    # resolutions — each source resolves once into a DriverTrajectory keyed by the shared species node
+    # resolutions — each driver resolves once into a DriverTrajectory keyed by the shared species node
     # id, from a file or an in-memory trait result. With no driven rate and no driven extent this is
     # empty and the loop stays exactly the pooled one, so an undriven run is untouched.
     driven = {label: [m for m in r.modifiers if isinstance(m, DrivenBy)]
@@ -1331,14 +1331,14 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             by_key.setdefault(m.key, m)
     resolved: dict = {}
     if by_key:
-        resolved = {key: resolve_driver(m.source, tree, step=m.step, level="genomes.ordered")
+        resolved = {key: resolve_driver(m.driver, tree, step=m.step, level="genomes.ordered")
                     for key, m in by_key.items()}
         # a mapping whose states never occur leaves every lineage on the default factor, so the run
         # would secretly be the undriven model — refuse it here, naming the driver
         for mods in (*driven.values(), *ext_driven.values()):
             for m in mods:
-                src = m.source if isinstance(m.source, str) else f"<{type(m.source).__name__}>"
-                check_mapping_fires(m.mapping, resolved[m.key].states(), source_label=src)
+                src = m.driver if isinstance(m.driver, str) else f"<{type(m.driver).__name__}>"
+                check_mapping_fires(m.mapping, resolved[m.key].states(), driver_label=src)
     # Only a driver on a **rate** makes the loop per-lineage and adds a Gillespie breakpoint. A driver
     # on an **extent** is read at the instant an event fires — it changes how much that event takes,
     # never how often one happens — so it deliberately stays out of `trajs`: no per-lineage rate

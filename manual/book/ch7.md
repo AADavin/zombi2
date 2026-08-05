@@ -25,7 +25,7 @@ A gene tree in ZOMBI2 is by default a **chronogram**, its branch lengths measure
 
 Two things therefore have to be chosen: *what* changes (the substitution model, the chemistry of which residue turns into which) and *how fast* it changes along each branch, which is the clock.
 
-## The substitution models 
+## The substitution models
 
 ZOMBI2 implements different standard models of sequence evolution:
 
@@ -34,21 +34,21 @@ from zombi2.sequences.substitution_models import (jc69, k80, hky85, gtr,
                                                   poisson, dayhoff, jtt, wag, lg)
 
 # --- nucleotide models (4 states, ACGT) ---
-model = jc69()                    # equal rates, equal base frequencies — no parameters
+model = jc69()                    # equal rates, equal base frequencies, no parameters
 model = k80(kappa=2.0)            # a transition/transversion bias
 model = hky85(kappa=2.0, frequencies=(0.3, 0.2, 0.2, 0.3))            # bias + unequal frequencies
 model = gtr(exchangeabilities=(1,2,1,1,2,1),           # six exchangeabilities
             frequencies=(0.25,0.25,0.25,0.25))
 
 # --- protein models (20 states, amino acids) ---
-model = poisson()                 # equal rates, equal frequencies — the JC69 of proteins
+model = poisson()                 # equal rates, equal frequencies, the JC69 of proteins
 model = jtt()                     # Jones, Taylor & Thornton 1992
 model = dayhoff()                 # Dayhoff, Schwartz & Orcutt 1978
 model = wag()                     # Whelan & Goldman 2001
 model = lg()                      # Le & Gascuel 2008
 ```
 
-The four nucleotide matrices are the standard published ones [@jukes1969evolution; @kimura1980simple; @hasegawa1985dating; @tavare1986some], as are the four protein ones [@dayhoff1978model; @jones1992rapid; @whelan2001general; @le2008improved]. The model decides the alphabet, and `length` counts whatever that alphabet holds: bases for a nucleotide model, residues for a protein one. The nucleotide models are four different rate matrices, not one model with four settings, but they nest in the order written — `jc69` is `k80` with `kappa=1`, `k80` is `hky85` with equal base frequencies — so each step adds free parameters. The protein matrices are **empirical**, each estimated once from a large set of real alignments and then used as a fixed table, which is why they take no parameters.
+The four nucleotide matrices are the standard published ones [@jukes1969evolution; @kimura1980simple; @hasegawa1985dating; @tavare1986some], as are the four protein ones [@dayhoff1978model; @jones1992rapid; @whelan2001general; @le2008improved]. The model decides the alphabet, and `length` counts whatever that alphabet holds: bases for a nucleotide model, residues for a protein one. The nucleotide models are four different rate matrices, not one model with four settings, but they nest in the order written (`jc69` is `k80` with `kappa=1`, and `k80` is `hky85` with equal base frequencies) so each step adds free parameters. The protein matrices are **empirical**, each estimated once from a large set of real alignments and then used as a fixed table, which is why they take no parameters.
 
 ### Your own matrix
 
@@ -67,7 +67,7 @@ mine = reversible(S, frequencies=(0.3, 0.2, 0.2, 0.3), name="mine")
 custom = sequences.simulate_sequences(my_genomes, model=mine, length=1000, seed=1)
 ```
 
-The rate of $i \to j$ is $Q_{ij} = S_{ij}\,\pi_j$, the diagonal is minus the rest of its row, and the whole matrix is then scaled so that one unit of branch length is one expected substitution per site — the same scaling every model on the menu gets. So a phylogram from your matrix is comparable with one from `hky85` without converting anything. This is the constructor the menu itself uses: the matrix above *is* HKY85, so `mine` and `hky85(kappa=2.0, frequencies=(0.3, 0.2, 0.2, 0.3))` are the same model. Pass `alphabet=AMINO_ACIDS` for a twenty-state matrix of your own.
+The rate of $i \to j$ is $Q_{ij} = S_{ij}\,\pi_j$, the diagonal is minus the rest of its row, and the whole matrix is then scaled so that one unit of branch length is one expected substitution per site, the same scaling every model on the menu gets. So a phylogram from your matrix is comparable with one from `hky85` without converting anything. This is the constructor the menu itself uses: the matrix above *is* HKY85, so `mine` and `hky85(kappa=2.0, frequencies=(0.3, 0.2, 0.2, 0.3))` are the same model. Pass `alphabet=AMINO_ACIDS` for a twenty-state matrix of your own.
 
 You give $S$ and $\pi$ rather than $Q$ directly, and that restriction is deliberate. ZOMBI2 computes $P(t) = e^{Qt}$ through a symmetric eigendecomposition that is only valid for a **time-reversible** model, one where $\pi_i Q_{ij} = \pi_j Q_{ji}$ for every pair. A symmetric $S$ times $\pi$ satisfies that by construction, so there is no way to write a model here that the engine would evaluate wrongly. A general $Q$ handed straight to `SubstitutionModel` could be, and is refused with an error rather than run: non-reversible models such as UNREST are not implemented, and a wrong transition matrix produces plausible sequences that are not the model you asked for.
 
@@ -75,7 +75,7 @@ There is no command-line flag for a custom matrix. A twenty-state matrix is 190 
 
 ## Rate variation across sites
 
-So far every site of a gene evolves at the same speed, which is a model no real gene obeys. Some positions are held nearly fixed by what the protein has to do; others drift freely. The standard way to say so is a **Gamma distribution of rates across sites**: each site gets a multiplier drawn from a Gamma with mean 1, so one number — its **shape** — sets how unequal the sites are. A small shape means a few fast sites among many slow ones; a large one is nearly flat.
+So far every site of a gene evolves at the same speed, which is a model no real gene obeys. Some positions are held nearly fixed by what the protein has to do; others drift freely. The standard way to say so is a **Gamma distribution of rates across sites**: each site gets a multiplier drawn from a Gamma with mean 1, so one number, its **shape**, sets how unequal the sites are. A small shape means a few fast sites among many slow ones; a large one is nearly flat.
 
 You add it to the model, not to the rate:
 
@@ -84,7 +84,7 @@ gamma_model = hky85(kappa=2.0).across_sites(gamma_shape=0.5)
 varied = sequences.simulate_sequences(my_genomes, model=gamma_model, length=1000, seed=1)
 ```
 
-The Gamma is cut into a small number of equal-probability classes, each represented by its mean [@yang1994variable] — four by default, changed with `rate_categories`. Cutting it is not an approximation made for tidiness: a site's rate is what its branch length is computed from, and a continuous draw would give every site its own branch length and so its own transition matrix. With classes, the sites sharing a class share the work.
+The Gamma is cut into a small number of equal-probability classes, each represented by its mean [@yang1994variable], four by default and changed with `rate_categories`. Cutting it is not an approximation made for tidiness: a site's rate is what its branch length is computed from, and a continuous draw would give every site its own branch length and so its own transition matrix. With classes, the sites sharing a class share the work.
 
 A second knob adds a class of sites that **never** change:
 
@@ -94,7 +94,7 @@ print(both.name)                  # HKY85+I+G4
 sequences.simulate_sequences(my_genomes, model=both, length=1000, seed=1)
 ```
 
-`invariant=0.1` sets aside a tenth of the sites as unchangeable. Real alignments have columns that are constant because the site cannot change rather than because it happened not to, and a Gamma alone fits those badly. Either knob works alone, and the model's name records what you chose — `HKY85+I+G4`, the way the field writes it — which is what the run prints and logs.
+`invariant=0.1` sets aside a tenth of the sites as unchangeable. Real alignments have columns that are constant because the site cannot change rather than because it happened not to, and a Gamma alone fits those badly. Either knob works alone, and the model's name records what you chose, `HKY85+I+G4`, which is what the run prints and logs.
 
 From the command line the same three knobs are flags, and they apply to any model on the menu:
 
@@ -102,21 +102,17 @@ From the command line the same three knobs are flags, and they apply to any mode
 zombi2 sequences seqs/ --from out/ --model hky85 --gamma-shape 0.5 --invariant 0.1 --seed 1
 ```
 
-**Branch lengths do not change.** The classes are normalised so the mean rate over all sites is exactly 1, invariant sites included, so a branch length in the phylograms is still substitutions per site — now the mean over them. A run with rate variation and a run without, at the same rate, have the *same tree*; what differs is how the change is spread across the columns. That is what makes the two comparable, and it is why the mean-1 normalisation is checked rather than assumed.
+**Branch lengths do not change.** The classes are normalised so the mean rate over all sites is exactly 1, invariant sites included, so a branch length in the phylograms is still substitutions per site, now the mean over them. A run with rate variation and a run without, at the same rate, have the *same tree*; what differs is how the change is spread across the columns. That is what makes the two comparable, and it is why the mean-1 normalisation is checked rather than assumed.
 
-Two consequences worth knowing. The mean pairwise identity a run reports goes **up** under `+Γ` at the same divergence, because the slow and invariant sites keep their matches while the fast ones saturate. And on a nucleotide run the spacer between genes keeps its own model, which is flat by default: decorating `model` does not reach `intergene_model`, since the spacer's job is to be the unconstrained null.
+Two consequences worth knowing. The mean pairwise identity a run reports goes **up** under `+Γ` at the same divergence, because the slow and invariant sites keep their matches while the fast ones saturate. And on a nucleotide run the spacer between genes keeps its own model, which is flat by default: `model` does not reach `intergene_model`, since the spacer's job is to be the unconstrained null.
 
-| What it does | ZOMBI2 | From the literature |
-|---|---|---|
-| sites vary, drawn from a discretised Gamma | `.across_sites(gamma_shape=…)` | +G, discrete Gamma [@yang1994variable] |
-| a class of sites that never change | `.across_sites(invariant=…)` | +I, invariable sites |
-| both together | `.across_sites(gamma_shape=…, invariant=…)` | +I+G [@gu1995maximum] |
+The field writes these as suffixes on the model's name, and so does ZOMBI2: `gamma_shape=` is `+G` [@yang1994variable], `invariant=` is `+I`, and the two together are `+I+G` [@gu1995maximum].
 
 ## Site-specific amino-acid profiles
 
 Every model on the menu gives a gene one set of amino-acid frequencies, shared by all its sites. Real
 proteins do not work that way: a buried position is some flavour of hydrophobic and essentially never
-charged, while the loop next to it takes almost anything. A **profile** says so directly — one set of
+charged, while the loop next to it takes almost anything. A **profile** says so directly: one set of
 frequencies per position, rather than one per gene.
 
 You supply a table with a row per site and a column per amino acid, for whichever families you have
@@ -135,8 +131,8 @@ seqs = sequences.simulate_sequences(my_genomes, model=protein, length=300,
                                     profiles={0: constrained}, seed=1)
 ```
 
-Each row is normalised to sum to 1, and the exchangeabilities — which pairs of amino acids swap
-easily, the chemistry the model already encodes — are left alone. Families you leave out evolve under
+Each row is normalised to sum to 1, and the exchangeabilities (which pairs of amino acids swap
+easily, the chemistry the model already encodes) are left alone. Families you leave out evolve under
 `model` untouched. A row of exact zeros is refused, because it makes that site's matrix degenerate: a
 real profile says a residue is unlikely at a position, not that it is impossible, so add a
 pseudocount.
@@ -184,7 +180,7 @@ reproducibility promise inside your run. Save the array beside your script and l
 simulation is then bit-identical from the seed as usual, and a reader can inspect the profile without
 owning a GPU.
 
-A **flat** profile — every row the model's own frequencies — is the model without one. Statistically,
+A **flat** profile, every row the model's own frequencies, is the model without one. Statistically,
 not byte for byte: a hundred single-site models walk the random stream differently from one
 hundred-site model, so the same seed gives a different draw from the same distribution.
 
@@ -193,32 +189,26 @@ at a site; a Gamma says **how fast** sites change. Decorate the model as usual a
 
 **An amino-acid profile needs a protein model, so it belongs to a family or ordered run.** A
 nucleotide genome is measured in base pairs and its blocks are read on either strand, so that
-resolution refuses protein models altogether — there is no complement of an amino acid. Profiles are
+resolution refuses protein models altogether: there is no complement of an amino acid. Profiles are
 still accepted there, but over the four bases: a row per base pair, saying what belongs at that
 coordinate. The row count then has to match the block's length in bp, since the genome run already
 fixed it.
-
-| What it does | ZOMBI2 | From the literature |
-|---|---|---|
-| one set of frequencies per gene | `lg()`, `wag()`, … | the empirical matrices |
-| one set per **site**, supplied | `profiles={family: array}` | site-heterogeneous profile models |
-| how fast each site changes | `.across_sites(gamma_shape=…)` | +G [@yang1994variable] |
 
 ## Relaxed molecular clocks
 
 Rate variation across sites says which *positions* change fast. A clock says which *lineages* do. The two are orthogonal and compose.
 
-The rate itself is `substitution`, and it is counted **per site**: a gene-tree branch of Δ*t* time accrues `substitution · Δt` substitutions at every site. Leave it alone and it is `1.0` everywhere — the **strict clock**, one tempo for the whole tree.
+The rate itself is `substitution`, and it is counted **per site**: a gene-tree branch of Δ*t* time accrues `substitution · Δt` substitutions at every site. Leave it alone and it is `1.0` everywhere: the **strict clock**, one tempo for the whole tree.
 
 This is the one number people most often get wrong, so it is worth doing an example in full. Suppose your tree runs 20 time units from the start of the stem to the leaves, and you leave the rate at `1.0`. Then every site accumulates `1.0 × 20 = 20` substitutions on the way from the origin to a tip.
 
-Twenty substitutions per site is a great many, and this is where the intuition usually breaks: those are twenty *events*, not twenty visible differences. A site has only four states, so once it has been hit a couple of times it starts landing back on bases it already held, and the differences you can actually see stop accumulating long before the events do. Past about one substitution per site, two sequences are as different as two random ones, and the alignment no longer records where they came from. The rate has not stopped working — the history has simply been overwritten.
+Twenty substitutions per site is a great many, and this is where the intuition usually breaks: those are twenty *events*, not twenty visible differences. A site has only four states, so once it has been hit a couple of times it starts landing back on bases it already held, and the differences you can actually see stop accumulating long before the events do. Past about one substitution per site, two sequences are as different as two random ones, and the alignment no longer records where they came from. The rate has not stopped working; the history has simply been overwritten.
 
 So the rate that suits a run depends on the height of the tree it runs down, which is why no default can be right for every tree. Read it off backwards instead, from the divergence you want:
 
 $$\text{substitution} = \frac{\text{substitutions per site you want, origin to tip}}{\text{height of the tree}}$$
 
-On the 20-unit tree above, sequences around 80% identical need roughly `0.2 / 20 = 0.01`, not `1.0`. The difference is not subtle: simulated down that tree, `0.01` gives tips about 77% identical, while the default `1.0` gives **25%** — precisely the score of two sequences with no shared history at all. The table below is measured the same way, on simulated JC69 alignments, and holds for any tree, since its first column is already the product of rate and height:
+On the 20-unit tree above, sequences around 80% identical need roughly `0.2 / 20 = 0.01`, not `1.0`. The difference is not subtle: simulated down that tree, `0.01` gives tips about 77% identical, while the default `1.0` gives **25%**, precisely the score of two sequences with no shared history at all. The table below is measured the same way, on simulated JC69 alignments, and holds for any tree, since its first column is already the product of rate and height:
 
 | Substitutions per site, origin to tip | Mean identity between two tips |
 |---|---|
@@ -231,7 +221,7 @@ On the 20-unit tree above, sequences around 80% identical need roughly `0.2 / 20
 
 The last row is close to the floor: two unrelated DNA sequences already match at 25% by chance, so 34% is almost no signal at all. Every run reports the identity it actually produced in its summary line, and warns when it comes out this close to the floor, so you never have to work it out from the flags alone.
 
-You can also state the divergence and let ZOMBI2 do the division. `divergence` is that first column — substitutions per site from the root to a tip — and the rate is solved for from the height of the tree the run is about to use:
+You can also state the divergence and let ZOMBI2 do the division. `divergence` is that first column, substitutions per site from the root to a tip, and the rate is solved for from the height of the tree the run is about to use:
 
 ```python
 sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, divergence=0.2)
@@ -241,7 +231,7 @@ sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, divergence=
 zombi2 sequences out/ --model hky85 --length 1000 --divergence 0.2
 ```
 
-The two say different things and can be given together. `substitution` says what *kind* of clock — strict, or relaxed by a modifier — and `divergence` says how far it drifts, so a relaxed clock calibrated to a divergence is written with the shape alone and the scale beside it:
+The two say different things and can be given together. `substitution` says what *kind* of clock, strict or relaxed by a modifier, and `divergence` says how far it drifts, so a relaxed clock calibrated to a divergence is written with the shape alone and the scale beside it:
 
 ```python
 substitution = mod.ByLineage(spread=0.3)      # the shape: an uncorrelated clock
@@ -253,24 +243,24 @@ Giving `substitution` a base *number* as well is an error rather than an overrid
 A substitution rate that changes from lineage to lineage is what the field calls a **relaxed clock** [@lepage2007general]. It is not a new kind of object here: you multiply the rate by a modifier, exactly as at every other level.
 
 ```python
-# strict clock — one rate everywhere; the default, so write nothing
+# strict clock: one rate everywhere; the default, so write nothing
 substitution = 1.0
 
-# relaxed — each lineage draws its own rate, independently of its neighbours
+# relaxed: each lineage draws its own rate, independently of its neighbours
 substitution = 1.0 * mod.ByLineage(spread=0.3)                 # lognormal (the default)
 substitution = 1.0 * mod.ByLineage(spread=0.3, dist="gamma")   # or gamma
 
-# relaxed — each lineage inherits its parent's rate and drifts from it
+# relaxed: each lineage inherits its parent's rate and drifts from it
 substitution = 1.0 * mod.FromParent(spread=0.3)
 ```
 
 **`ByLineage`** has *no memory*: each lineage is an independent draw, so a lineage's rate tells you nothing about its neighbours'. The distribution it draws from (`dist="lognormal"` or `"gamma"`) is a parameter of the modifier.
 
-**`FromParent`** has memory: a daughter starts at its parent's rate and multiplies it by one lognormal step, so close relatives evolve at similar rates. That is the **autocorrelated** clock. Both draws are mean-corrected, so widening `spread` spreads the lineages apart without moving the average rate off the number you typed. Rate variation across sites is not a modifier, and does not belong in the rate at all — it is part of the model, as above.
+**`FromParent`** has memory: a daughter starts at its parent's rate and multiplies it by one lognormal step, so close relatives evolve at similar rates. That is the **autocorrelated** clock. Both draws are mean-corrected, so widening `spread` spreads the lineages apart without moving the average rate off the number you typed. Rate variation across sites is not a modifier, and does not belong in the rate at all: it is part of the model, as above.
 
 One important point: **the clock belongs to the species tree, not to the gene trees.**
 
-ZOMBI2 draws one rate for each species branch. Every gene that passes through that branch then evolves at that rate. Each gene-tree branch looks up the species branch it sits inside, which the genome run already recorded. The consequence is that if a species evolves quickly, all of its genes evolve quickly together. 
+ZOMBI2 draws one rate for each species branch. Every gene that passes through that branch then evolves at that rate. Each gene-tree branch looks up the species branch it sits inside, which the genome run already recorded. The consequence is that if a species evolves quickly, all of its genes evolve quickly together.
 
 A reference table that can be handy to people who want to implement a specific model from the literature:
 
@@ -295,7 +285,7 @@ result = sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, se
     substitution = 0.05 * mod.DrivenBy(habitat, {"cave": 0.5, "surface": 1.0}))
 ```
 
-Cave lineages now evolve at half the rate of surface ones. The `source` is the grown trait, or the path to the `trait_events.tsv` it wrote — the same two spellings every driven rate takes. This is conditioning, so it is two ordinary runs in order, and Chapter 9 covers the whole mechanism.
+Cave lineages now evolve at half the rate of surface ones. The driver is the grown trait, or the path to the `trait_events.tsv` it wrote, the same two spellings every driven rate takes. This is conditioning, so it is two ordinary runs in order, and Chapter 9 covers the whole mechanism.
 
 A clock and a driver **compose**, because modifiers multiply. Written together, a lineage's branch length is the base rate, times the tempo it was dealt, times the factor its state gives:
 
@@ -307,54 +297,39 @@ sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, seed=2,
 
 A discrete trait switches partway along a branch, and ZOMBI2 does not read the driver once per branch. It integrates the rate across the branch, breaking at each switch. A lineage that leaves the cave halfway down a branch of length 2 accrues `0.05 × 0.5 × 1` substitutions per site before the move and `0.05 × 1.0 × 1` after it, so the branch is `0.075` long rather than `0.05` or `0.1`. The gene phylograms and the clock species tree carry that same number, so the tree a run writes is the tree its alignments were drawn along.
 
-The reverse direction runs too: `result.gc()` makes a finished run's GC content drive a trait grown after it, or a further sequence run, and `result.composition(letters)` does the same for any letters of the run's alphabet — an amino-acid frequency (Chapter 9). What the pair cannot be is **joined**, because a sequence lives inside a gene and never feeds back into the trait, so there is nothing for the two to decide together — naming a live level (`mod.DrivenBy("trait", …)`) says so rather than looking for a file. One other limit here: `divergence` is refused alongside a driven rate, because it solves for the base by assuming the modifiers average to 1, which the two clocks are corrected to do and a driver is not. Set the base yourself there.
+The reverse direction runs too: `result.gc()` makes a finished run's GC content drive a trait grown after it, or a further sequence run, and `result.composition(letters)` does the same for any letters of the run's alphabet, an amino-acid frequency say (Chapter 9). What the pair cannot be is **joined**, because a sequence lives inside a gene and never feeds back into the trait, so there is nothing for the two to decide together. Naming a live level (`mod.DrivenBy("trait", …)`) says so rather than looking for a file. One other limit here: `divergence` is refused alongside a driven rate, because it solves for the base by assuming the modifiers average to 1, which the two clocks are corrected to do and a driver is not. Set the base yourself there.
 
 ## The objects
 
 `simulate_sequences` returns a **`SequencesResult`**, which carries:
 
-- `.alignments` — the observable data: for each family, the sequence at every **extant** gene copy. This is the alignment a phylogenetic method would be handed.
-- `.ancestral` — the sequence at every node that is **not** an extant tip: internal nodes, and the tips where a copy was lost or its species died. The run wrote a sequence at each node as it went, so these are the exact ancestors, not estimates. With `.alignments` it accounts for every node of the tree exactly once, so every label in a complete phylogram names a sequence.
-- `.founding` — for each family, the sequence it began with, at its origination.
-- `.phylograms` — for each family, its gene tree with branch lengths converted from time into substitutions per site: the tree the sequences were drawn along.
-- `.species_phylogram` — the same conversion applied to the species tree, so the clock is visible as branch lengths.
-- `.genomes`, `.initial_genome` — the assembled genome of every node, and of the run's starting point, present only when the run came from a **nucleotide** genome. See below.
+- `.alignments`, the observable data: for each family, the sequence at every **extant** gene copy. This is the alignment a phylogenetic method would be handed.
+- `.ancestral`, the sequence at every node that is **not** an extant tip: internal nodes, and the tips where a copy was lost or its species died. The run wrote a sequence at each node as it went, so these are the exact ancestors, not estimates. With `.alignments` it accounts for every node of the tree exactly once, so every label in a complete phylogram names a sequence.
+- `.founding`, for each family, the sequence it began with, at its origination.
+- `.phylograms`, for each family, its gene tree with branch lengths converted from time into substitutions per site: the tree the sequences were drawn along.
+- `.species_phylogram`, the same conversion applied to the species tree, so the clock is visible as branch lengths.
+- `.genomes`, `.initial_genome`, the assembled genome of every node, and of the run's starting point, present only when the run came from a **nucleotide** genome. See below.
 
 As with every level, the bundle also carries `.seed` and `.write(directory, outputs=[...])` to put the chosen outputs on disk.
 
 ### Where a sequence starts
 
-A family does not begin at the first branching of its gene tree. It begins when it originates, and the founding gene then lives for a while — its **stem** — before anything splits it. So that is where the sequence starts: one draw from the model's stationary frequencies at the origination, which then evolves across the stem in the ordinary way and arrives at the root gene as a sequence that has already changed. `.founding` is that first draw; `.ancestral` holds what the root gene ended up with, and the two differ by however much the stem allowed.
+A family does not begin at the first branching of its gene tree. It begins when it originates, and the founding gene then lives for a while, its **stem**, before anything splits it. So that is where the sequence starts: one draw from the model's stationary frequencies at the origination, which then evolves across the stem in the ordinary way and arrives at the root gene as a sequence that has already changed. `.founding` is that first draw; `.ancestral` holds what the root gene ended up with, and the two differ by however much the stem allowed.
 
-## Usage from Python
-
-An end-to-end run, from a species tree through genomes to alignments:
+The model and the clock are separate arguments, so any model on the menu composes with any clock:
 
 ```python
-from zombi2 import species, genomes, sequences
-from zombi2.rates import modifiers as mod
-from zombi2.sequences.substitution_models import hky85, gtr, lg
-
-tree = species.simulate_species_tree(
-    birth=1.0, death=0.3, n_extant=20, seed=1).complete_tree
-my_genomes = genomes.simulate_genomes_family(tree, duplication=0.2, transfer=0.1,
-                                             loss=0.25, origination=0.5, seed=1)
-
-# the common case: DNA under HKY85, a strict clock
-result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=2.0),
-                                      length=1000, seed=1)
-result.alignments          # {family: {gene copy: sequence}} — the observable data
-result.ancestral           # the same, at every node
-result.species_phylogram   # the species tree in substitutions per site
+from zombi2.sequences.substitution_models import gtr
 
 # GTR with unequal base frequencies, under a relaxed (uncorrelated) clock
 result = sequences.simulate_sequences(my_genomes,
     model=gtr(exchangeabilities=(1, 2, 1, 1, 2, 1), frequencies=(0.3, 0.2, 0.2, 0.3)),
-    substitution=1.0 * mod.ByLineage(spread=0.3),   # the relaxed clock
+    substitution=1.0 * mod.ByLineage(spread=0.3),
     length=500, seed=1)
 
-# proteins under LG — 300 residues per gene
-result = sequences.simulate_sequences(my_genomes, model=lg(), length=300, seed=1)
+result.alignments          # {family: {gene copy: sequence}}, the observable data
+result.ancestral           # the same, at every node
+result.species_phylogram   # the species tree in substitutions per site
 ```
 
 ## Large runs
@@ -363,12 +338,12 @@ This is the level where a run's memory goes. Every family's alignment and every 
 
 Memory then stops growing with the sequences. Two hundred species and 640 families at 300 sites costs 466 MB in memory and 329 MB streamed; raise the sites to 1500 and the in-memory run goes to 1008 MB while the streamed one barely moves, to 392 MB. What is left is the genome run being read, which is the floor.
 
-It is a memory choice and not a modelling one: the same seed writes the same files either way, so a streamed run and an in-memory one are the same dataset. `outputs=` picks which files, exactly as `.write` takes them, and it composes with `parallel`. A **nucleotide** run cannot stream — it puts whole genomes back together, which needs every block's sequence at once.
+It is a memory choice and not a modelling one: the same seed writes the same files either way, so a streamed run and an in-memory one are the same dataset. `outputs=` picks which files, exactly as `.write` takes them, and it composes with `parallel`. A **nucleotide** run cannot stream: it puts whole genomes back together, which needs every block's sequence at once.
 
 ## Running on a nucleotide genome
 
-Hand it a **nucleotide** genome run instead you get the full fasta genomes. The genome can be one
-ZOMBI2 drew, as below, or a real annotation you supply:
+Hand the level a **nucleotide** genome run and you get whole assembled genomes in FASTA. The genome
+can be one ZOMBI2 drew, as below, or a real annotation you supply:
 
 <!-- doc-test: skip — needs an annotation and its FASTA, which the reader supplies -->
 ```python
@@ -376,7 +351,8 @@ my_genomes = genomes.simulate_genomes_nucleotide(
     tree, gff="ecoli.gff", fasta="ecoli.fasta", inversion=1.0, inversion_extent=5000,
     duplication=0.3, loss=0.3, seed=1)
 ```
- Genes and spacer get their own models. `model` evolves the genes; `intergene_model` evolves the spacer, at `intergene_speed` times the rate — 3× by default, and `jc69` by default, which is flat and has no free parameters.
+
+Genes and spacer get their own models. `model` evolves the genes; `intergene_model` evolves the spacer, at `intergene_speed` times the rate (3× by default), under `jc69` by default, which is flat and has no free parameters.
 
 ```python
 from zombi2 import species, genomes, sequences
@@ -391,8 +367,8 @@ my_genomes = genomes.simulate_genomes_nucleotide(
 result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=3.0),
                                       intergene_speed=3.0, substitution=0.05, seed=1)
 
-result.genomes["n5"]             # {chromosome: sequence} — a whole assembled genome
-result.genomes["n0"]             # the same at an ancestor — reconstructed, not estimated
+result.genomes["n5"]             # {chromosome: sequence}, a whole assembled genome
+result.genomes["n0"]             # the same at an ancestor, reconstructed not estimated
 result.initial_genome            # the genome the run started with
 ```
 
@@ -408,7 +384,7 @@ zombi2 sequences out/ --model hky85 --kappa 3.0 --substitution 0.02 \
 
 ### Starting from a real sequence
 
-So far the founding sequence of each block is *drawn* — from the model's frequencies, random ACGT. Hand the genomes run a **FASTA** alongside the GFF and it starts from the sequence you supply instead:
+So far the founding sequence of each block is *drawn* from the model's frequencies, random ACGT. Hand the genomes run a **FASTA** alongside the GFF and it starts from the sequence you supply instead:
 
 <!-- doc-test: skip — needs an annotation and its FASTA, which the reader supplies -->
 ```python
@@ -421,9 +397,9 @@ result = sequences.simulate_sequences(
 
 The FASTA has one `>seqid` record per GFF `##sequence-region`, each exactly its declared length. Every block is then founded from the real DNA at its own initial coordinates, so an assembled genome descends from exactly what you gave. A gene that origination invents mid-run has no supplied DNA (it did not exist initially), so its block still draws from the model.
 
-## Usage from the CLI
+## On the command line
 
-On the command line the genome run is handed over as a **directory** — the run directory itself, which by then holds the genomes. `zombi2 sequences out/` reads that run's species tree and event log and replays the gene genealogy from them, so the two commands chain without anything else passing between them. A nucleotide run given a `--fasta` also hands its initial DNA across (in `initial_sequence.fasta`), so the sequences descend from your real sequence without you naming it twice. Point `--from` at another run to read one and write somewhere else.
+On the command line the genome run is handed over as a **directory**, the run directory itself, which by then holds the genomes. `zombi2 sequences out/` reads that run's species tree and event log and replays the gene genealogy from them, so the two commands chain without anything else passing between them. A nucleotide run given a `--fasta` also hands its initial DNA across (in `initial_sequence.fasta`), so the sequences descend from your real sequence without you naming it twice. Point `--from` at another run to read one and write somewhere else.
 
 ```bash
 # 1. genomes along a species tree (from the previous chapters)
@@ -454,10 +430,10 @@ Because a protein model has no parameters, passing one is an error rather than a
 
 | File | What it holds |
 |---|---|
-| `alignments/fam<f>.fasta` | one row per extant gene copy — the observable data |
+| `alignments/fam<f>.fasta` | one row per extant gene copy: the observable data |
 | `phylograms/phylogram_fam<f>_*.nwk` | the gene tree those sequences were drawn along, in substitutions per site |
 | `clock_species_tree_complete.nwk` · `…_extant.nwk` | the species tree under the same conversion, where the clock becomes visible |
-| `genomes/genome_<lineage>.fasta` | the assembled genome of every node — nucleotide runs only |
+| `genomes/genome_<lineage>.fasta` | the assembled genome of every node; nucleotide runs only |
 | `ancestral/sequences_ancestral_fam<f>.fasta` | the sequence at every node that is not an extant tip |
 
 Everything but the last is written by default. `--write ancestral` adds the ancestral sequences, which

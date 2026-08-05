@@ -16,7 +16,7 @@ a mutation rate is counted per site (mutations × time⁻¹ × per site): each s
 mutate. A speciation happens to a **lineage**, so the speciation rate is counted per lineage (speciations
 × time⁻¹ × per lineage): each branch alive is an independent chance for the tree to split. And a gene is
 lost one gene copy at a time, so gene loss is counted per copy (loss × time⁻¹ × per gene-copy). The unit a
-rate is counted in — per lineage, per copy, per site — is what we call its **scope**.
+rate is counted in, whether per lineage, per copy or per site, is what we call its **scope**.
 
 By default, this is the scope ZOMBI2 uses at each level:
 
@@ -46,7 +46,7 @@ death rate does not grow as the tree does.
 ## Bending a rate: modifiers
 
 A **modifier** alters a rate in context. You might give a gene family a constant loss rate across the
-tree except in one clade known to shed genes — a symbiotic bacterium — by multiplying the rate there.
+tree except in one clade known to shed genes, a symbiotic bacterium, by multiplying the rate there.
 Or let families evolve at different speeds: an antimicrobial-resistance family prone to transfer, a
 ribosomal-protein family the opposite.
 
@@ -58,24 +58,30 @@ The modifiers are:
 | `OnTotalDiversity` | **Slows as the tree fills up**: the factor falls from 1 toward 0 as the number of lineages approaches a carrying capacity, and stays there. |
 | `FromParent` | Is **inherited from the parent lineage and nudged at each split**, so the rate drifts gradually down the tree and close relatives keep similar rates. |
 | `ByLineage` | Is an **independent draw for each lineage**, with no memory of its parent, so nearby branches are no more alike than distant ones. |
-| `DrivenBy` | **Reads another level**: the factor is looked up from a driver's state, which is how one thing conditions another (Chapter 9). |
+| `ByFamily` | Is an **independent draw for each gene family**, so one family is prone to transfer and another is not, whatever lineage either sits in. |
+| `DrivenBy` | **Reads an evolved value**: the factor is looked up from a driver's state, either another level or another run of the same one, which is how one thing conditions another (Chapter 9). |
 
 The first two are **deterministic**: `OnTime` and `OnTotalDiversity` are fixed functions of the state of
 the world, so every lineage that meets the same time, or the same diversity, gets the same factor. The
 next two are **random and vary from lineage to lineage**, and they differ in *memory*: `FromParent` is
-passed down and drifts, so the rate is autocorrelated along the tree — a slowly wandering clock, or a
-clade that inherits a fast tempo — whereas `ByLineage` is drawn afresh on every branch, so the variation
-is scattered, an uncorrelated ("relaxed") clock. The random modifiers are **mean-corrected**, meaning
-their factors average to 1, so a lineage is no likelier to be sped up than slowed down.
+passed down and drifts, so the rate is autocorrelated along the tree, a slowly wandering clock or a
+clade that inherits a fast tempo, whereas `ByLineage` is drawn afresh on every branch, so the variation
+is scattered, an uncorrelated ("relaxed") clock. `ByFamily` is the same independent draw made over gene
+families rather than lineages, so it varies what a family does wherever it sits. All three random
+modifiers are **mean-corrected**, meaning their factors average to 1, so a lineage is no likelier to be
+sped up than slowed down.
 
 Be careful about what that does and does not buy you. It fixes the *factor*, not the *tree*. A birth
 rate that drifts is multiplicative, and a branching process is convex in its rate: the fast lineages
 branch, and their descendants inherit the fast tempo, so they come to dominate the tree while the slow
 ones contribute almost nothing. Standing diversity therefore **rises** as you turn `spread` up, even
-though every individual factor averages to 1 — and at moderate spread a run can grow explosively enough
+though every individual factor averages to 1, and at moderate spread a run can grow explosively enough
 to hit the `max_lineages` guard. Mean-correcting keeps the rate honest per lineage; it does not hold
 `E[N(t)]` fixed, and nothing could. `DrivenBy` is neither random nor corrected: its factor is whatever
-the driver's state says it is.
+the driver's state says it is. Like the others it is not confined to a rate: the same factor
+multiplies an **extent** at the ordered and nucleotide resolutions. `DrivenBy` alone also goes on
+`transfer_to`, where it is a normalised **weight** over the candidate recipients, taken with no base in
+front of it (Chapter 9).
 
 Modifiers **stack by multiplication**, so they combine: `1.0 * mod.OnTime({0: 1, 5: 0.3}) *
 mod.FromParent(spread=0.3)` is a rate that both follows a schedule and drifts between lineages.
@@ -88,20 +94,74 @@ accept rather than silently ignoring it. This is what each accepts today:
 | Level | The modifiers it accepts |
 |---|---|
 | Species | `OnTime` · `OnTotalDiversity` · `FromParent` · `ByLineage` |
-| Genomes — family, ordered | `OnTime` · `DrivenBy` · `ByFamily` |
-| Genomes — nucleotide | `OnTime` · `DrivenBy` |
+| Genomes, family and ordered | `OnTime` · `DrivenBy` · `ByFamily` |
+| Genomes, nucleotide | `OnTime` · `DrivenBy` |
 | Sequences | `ByLineage` · `FromParent` · `DrivenBy` |
-| Traits — continuous `rate` | `OnTime` · `FromParent` · `OnTotalDiversity` · `DrivenBy` |
-| Traits — discrete `switch` | `DrivenBy` |
-| Joint — `birth` / `death` | `OnTime` · `OnTotalDiversity` · `DrivenBy` |
+| Traits, continuous `rate` | `OnTime` · `FromParent` · `OnTotalDiversity` · `DrivenBy` |
+| Traits, discrete `switch` | `DrivenBy` |
+| Joint, `birth` / `death` | `OnTime` · `OnTotalDiversity` · `DrivenBy` |
 
 `zombi2 <command> -h` prints the same list for that command, read from the engine itself, so the two
-cannot disagree — and a test asserts this table against them.
+cannot disagree, and a test asserts this table against them.
 
-An empty cell means that level does not read that modifier **yet**. It is not a claim that the combination
-would be meaningless; each engine gains a modifier when its own code learns to read it, and some have not
-got there. You never have to guess which: give a level a modifier it does not accept and the error names
-the ones it does, so this table can always be read back off the tool itself.
+A modifier missing from a row is one that level does not read **yet**. It is not a claim that the
+combination would be meaningless; each engine gains a modifier when its own code learns to read it, and
+some have not got there. You never have to guess which: give a level a modifier it does not accept and
+the error names the ones it does, so this table can always be read back off the tool itself.
+
+### Writing your own
+
+The six modifiers above are the ones ZOMBI2 ships. If none of them says what your rate depends on,
+you can write your own. It is a small class, and it needs two things.
+
+**A `factor()` method, returning the multiplier.** The engine calls it as the run goes and hands it
+what it knows at that moment: the current `time`, the standing `diversity`, the number of `copies` in
+the gene pool, the number of `chromosomes`. Read the ones you want and ignore the rest with `**_`.
+What you return multiplies the rate, so 1.0 leaves it alone, 2.0 doubles it, 0.0 switches it off.
+
+**An `implemented_for` list, naming the engines that read it.** A modifier an engine does not read
+would silently return 1.0 and hand you a run that is not the model you asked for, so a level takes
+only the modifiers that name it and refuses the rest. The engine names are `species`,
+`genomes.family`, `genomes.ordered`, `genomes.nucleotide`, `traits.continuous`, `traits.discrete`
+and `joint`.
+
+Here is a complete one. `OnTotalDiversity` makes speciation *slow down* as lineages pile up. This
+makes extinction *speed up* instead, which is the other half of the same idea and something no
+shipped modifier can say:
+
+```python
+from zombi2 import species
+from zombi2.rates.modifiers import Modifier
+
+class OnCrowding(Modifier):
+    """Extinction rises as lineages accumulate: at `crowd` standing lineages it has doubled."""
+    implemented_for = ("species",)
+
+    def __init__(self, crowd):
+        self.crowd = float(crowd)
+
+    def factor(self, *, diversity=0.0, **_):
+        return 1.0 + diversity / self.crowd
+```
+
+That is the whole modifier. Use it the way you use a shipped one, by multiplying it onto a rate:
+
+```python
+plain   = species.simulate_species_tree(birth=1.0, death=0.2, total_time=6, seed=3)
+crowded = species.simulate_species_tree(birth=1.0, death=0.2 * OnCrowding(crowd=50),
+                                        total_time=6, seed=3)
+
+print(len(plain.complete_tree.extant_leaves()))     # 290 lineages survive
+print(len(crowded.complete_tree.extant_leaves()))   # 142 when extinction rises with crowding
+```
+
+Two limits. A modifier of your own is Python-only: `--death` and a `--params` file know the names
+ZOMBI2 ships and cannot build a class you wrote. And if your `factor` reads `time`, making it a rate
+that changes continuously rather than only when an event fires, give the class a `next_change(time)`
+method returning the next moment the rate changes, so the engine stops and re-evaluates there instead
+of holding it at whatever it was. That is the horizon stepping described at the end of this appendix.
+`OnCrowding` needs none, because diversity only changes when something is born or dies, and the engine
+already re-evaluates then.
 
 ## The Gillespie algorithm
 
@@ -110,9 +170,9 @@ birth–death tree, duplicates and loses genes, and switches a discrete trait be
 different list of events each time.
 
 That engine is the **Gillespie algorithm** [@gillespie1976; @gillespie1977], an exact, event-by-event
-recipe for a continuous-time process defined by rates. This section builds it from scratch — what a
+recipe for a continuous-time process defined by rates. This section builds it from scratch, covering what a
 rate is, why waiting times are exponential, how competing events race, and how those assemble into the
-loop — assuming no prior exposure to continuous-time Markov chains. **Rates in, a timed history out.**
+loop, assuming no prior exposure to continuous-time Markov chains. **Rates in, a timed history out.**
 
 ### From a rate to a waiting time
 
@@ -144,7 +204,7 @@ $$P(W > t) = e^{-\lambda t}.$$
 
 $W$ follows an **exponential distribution** with rate $\lambda$, whose mean is $1/\lambda$. Short waits
 are the most common. Because the exponential is memoryless, we never have to simulate the empty time
-*between* events tick by tick — we can draw the waiting time in one shot and jump to the next event.
+*between* events tick by tick: we can draw the waiting time in one shot and jump to the next event.
 Drawing it is a single line: given a uniform random number $u$ on $(0, 1)$,
 
 $$\Delta t = -\frac{\ln u}{\lambda},$$
@@ -168,7 +228,7 @@ exponential, with a rate equal to the sum of the individual rates. So with a **t
 
 $$R = \sum_i r_i,$$
 
-the time to the next event — whichever it turns out to be — is a single exponential draw with rate $R$.
+the time to the next event, whichever it turns out to be, is a single exponential draw with rate $R$.
 More possible events, or faster ones, means a larger $R$ and therefore shorter waits. This is why we need
 only one waiting-time draw per step, however long the menu.
 
@@ -179,7 +239,7 @@ $$P(\text{event } i \text{ fires}) = \frac{r_i}{R},$$
 and which event wins is independent of when it happens. So the two are decided separately: draw the time
 from the total rate, then pick the event on a weighted roulette wheel, each slice sized to a rate.
 
-![The two draws that make up one Gillespie step. **(1)** Each possible event has a rate; here duplication, transfer and loss have rates 3, 2 and 1, summing to a total rate $R = 6$. **(2)** The waiting time to the *next* event is a single exponential draw with rate $R$; larger total rates give shorter waits, with mean $1/R$. **(3)** Which event fires is a second, independent draw: event $i$ wins with probability $r_i/R$ — the rates laid end to end as a roulette wheel, here landing on transfer. The step then advances the clock by $\Delta t$, applies the chosen event to the state, and repeats.](figures/gillespie_step.pdf){width=100%}
+![The two draws that make up one Gillespie step. **(1)** Each possible event has a rate; here duplication, transfer and loss have rates 3, 2 and 1, summing to a total rate $R = 6$. **(2)** The waiting time to the *next* event is a single exponential draw with rate $R$; larger total rates give shorter waits, with mean $1/R$. **(3)** Which event fires is a second, independent draw: event $i$ wins with probability $r_i/R$: the rates laid end to end as a roulette wheel, here landing on transfer. The step then advances the clock by $\Delta t$, applies the chosen event to the state, and repeats.](figures/gillespie_step.pdf){width=100%}
 
 In code the roulette wheel is a running sum: lay the rates end to end, draw a point uniformly along their
 combined length $R$, and see which segment it lands in.
@@ -191,11 +251,11 @@ off the current rates and their total $R$; draw a waiting time and advance the c
 has run past the target time, or the process has died out; otherwise pick one event in proportion to its
 rate, apply it to the state, record it, and go round again.
 
-![The Gillespie loop. Each pass computes the current total rate, draws one exponential waiting time, and — unless the clock has passed the target age — fires a single event chosen in proportion to its rate, updates the state, and repeats. The output is a list of events with the exact times at which they occurred: a timed history.](figures/gillespie_loop.pdf){width=68%}
+![The Gillespie loop. Each pass computes the current total rate, draws one exponential waiting time, and, unless the clock has passed the target age, fires a single event chosen in proportion to its rate, updates the state, and repeats. The output is a list of events with the exact times at which they occurred: a timed history.](figures/gillespie_loop.pdf){width=68%}
 
 As pseudocode, the whole engine is short:
 
-<!-- doc-test: skip — pseudocode, deliberately not the real engine -->
+<!-- doc-test: skip - pseudocode, deliberately not the real engine -->
 ```python
 t = 0.0
 state = initial_state
@@ -214,8 +274,8 @@ while t < total_time:
 ```
 
 The result is not a snapshot but a **timed history**: the exact sequence of events and the exact
-real-valued times at which they happened. That is what a phylogenetic simulator needs — a species tree
-*is* the history of its speciation and extinction events, a gene family *is* the history of its
+real-valued times at which they happened. That is what a phylogenetic simulator needs: a species tree
+*is* the history of its speciation and extinction events, and a gene family *is* the history of its
 duplications, transfers and losses. Because the times are drawn from continuous exponentials rather than
 stepped through a fixed grid, the histories are exact: no time-step to tune, and no discretisation error.
 
@@ -235,8 +295,8 @@ time, and under `DrivenBy` the driving level changes state on its own timetable.
 target, and a draw at today's $R$ would be wrong.
 
 ZOMBI2 keeps the draw exact by never letting it cross a change. Every rate can report the next time it
-changes on its own, and the engine takes the earliest such time — together with the next scheduled pulse
-and the end of the run — as a **horizon**:
+changes on its own, and the engine takes the earliest such time, together with the next scheduled pulse
+and the end of the run, as a **horizon**:
 
 1. Compute $R$ from the rates as they stand, and the horizon.
 2. Draw $\Delta t \sim \text{Exponential}(R)$.
@@ -261,8 +321,8 @@ Each level supplies its own events and rates, and the same loop realises all of 
 
 ![One engine, many events. Each level supplies its own events and rates, but all are realised by the identical loop on the right: total rate, exponential waiting time, an event chosen in proportion to its rate, apply, repeat.](figures/gillespie_everywhere.pdf){width=100%}
 
-Swapping levels swaps the list of events and how their rates are computed; the timing machinery —
-total rate, exponential wait, proportional choice — never changes.
+Swapping levels swaps the list of events and how their rates are computed; the timing machinery of total rate,
+exponential wait and proportional choice never changes.
 
 ### …except when it isn't
 
@@ -277,13 +337,13 @@ by the matrix exponential $P(t) = e^{Qt}$, so ZOMBI2 draws each site's descendan
 $P(t)$ in one step ([Sequences](#sequences)). Running Gillespie here would generate,
 and then discard, thousands of intermediate substitutions.
 
-The second is a **continuous trait**. Brownian motion has no events to fire — it moves at every instant
-— so there is nothing for the loop to enumerate. A constant-rate run is drawn in closed form instead, as
+The second is a **continuous trait**. Brownian motion has no events to fire, since it moves at every instant,
+so there is nothing for the loop to enumerate. A constant-rate run is drawn in closed form instead, as
 one multivariate normal over the whole tree, with variance $\sigma^2 \times$ root-to-tip depth and
 covariance $\sigma^2 \times$ shared path length ([Traits](#traits)). When the rate
 varies along the tree, each branch takes the exact integral of $\sigma^2$ over it.
 
-The rule of thumb is the same each time. Reach for Gillespie when you need the whole history — every
+The rule of thumb is the same each time. Reach for Gillespie when you need the whole history, every
 branching, gain and loss at its exact time; reach for a shortcut when the endpoints are all you need. For
 the trees and genomes that are ZOMBI2's real subject the history *is* the result, so the loop is the norm
 and these two shortcuts are the exceptions.

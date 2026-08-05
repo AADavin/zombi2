@@ -44,7 +44,7 @@ RATES_HELP = _rates_help(
          "and --liability no modifier yet. --switch also reads a {'a->b': rate} dict — only the named "
          "transitions happen — or a k x k matrix of them.")
 
-# the write vocabularies, mirroring TraitsResult.write. The event log IS the conditioning file now
+# the write vocabularies, mirroring TraitsResult.write. The event log IS the driver file now
 # (a driven run replays it against the tree), so there is no separate driver output.
 _CONTINUOUS_OUTPUTS = ("values", "events", "tree", "summary")
 _DISCRETE_OUTPUTS = ("values", "events", "tree", "summary")
@@ -219,7 +219,7 @@ def run(args, parser):
         with open(os.path.join(out, "names.tsv"), "w", encoding="utf-8") as f:
             f.write("\n".join(rows) + "\n")
 
-    if not args.flat:                             # record which same-run levels drove a rate (if any),
+    if not args.flat:                             # record which same-run levels this run reads (if any),
         record_conditioning(out, conditioned_levels(  # so re-running one of them knows it orphans this
             args.run, (args.rate, args.switch)))
     n_tips = len(result.values)

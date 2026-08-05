@@ -48,7 +48,11 @@ quietly not the model you asked for.
 A modifier's name begins with the preposition that fixes its family: `On` is a covariate (a
 deterministic function of a measured quantity), `By` is an independent i.i.d. draw per unit,
 `From` is inherited along a genealogical edge. `DrivenBy` sits outside that scheme deliberately —
-it says the factor comes from another simulated level entirely.
+it says the number comes from an evolved value read on the lineage — a level grown before this run, a
+level growing beside it, or another object at the same level (a trait can drive a second trait). On a
+rate or an extent that number multiplies; on `transfer_to` it is a weight normalised across the
+candidates, which is why that one takes the modifier on its own — `transfer_to = 1.0 * DrivenBy(...)`
+is an error.
 
 ### Writing your own
 
@@ -74,9 +78,9 @@ called, and it refuses rather than ignoring you:
 | Engine | Context passed to `factor` |
 |---|---|
 | `species` | `time`, `lineages`, `diversity` |
-| `genomes.family` | `time`, `lineages`, `copies` |
-| `genomes.ordered` | `time`, `lineages`, `copies`, `chromosomes` |
-| `genomes.nucleotide` | `time`, `lineages`, `copies`, `chromosomes` |
+| `genomes.family` | `time`, `lineages`, `copies`, `drivers` |
+| `genomes.ordered` | `time`, `lineages`, `copies`, `chromosomes`, `drivers` |
+| `genomes.nucleotide` | `time`, `lineages`, `copies`, `chromosomes`, `drivers` |
 | `traits.continuous` | `time`, `lineages`, `diversity`, `inherited`, `drivers` |
 | `traits.discrete` | `time`, `lineages`, `drivers` |
 | `joint` | `time`, `lineages`, `diversity`, `drivers` |
@@ -93,6 +97,12 @@ modifier of your own is Python-only, as an object you construct has to be.
 
 **Three worked examples** — a rate following a measured curve, density dependence in the gene pool,
 and rearrangement scaling with the karyotype — are in
-[Chapter 2, "Writing your own"](../guide/tour.md#writing-your-own).
+[Appendix A, "Writing your own"](../guide/rates.md#writing-your-own).
 
 ::: zombi2.rates.modifiers
+
+## Mappings
+
+What a `DrivenBy` carries — the shape that turns the driver's value into a number.
+
+::: zombi2.rates.mapping

@@ -1,0 +1,41 @@
+<svg viewBox="0 0 640 120" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
+<title>The mappings: what turns a driver's value into a factor</title>
+<desc>Three rows. A driver with named states takes a Table, one factor per state. A driver whose value is a number takes a Curve or a Scalar. A pair of states takes a Between, which only a choice can use.</desc>
+<!-- Split out of the drivers/targets figure: a mapping is a property of the DRIVER, not of the
+     level, so it does not belong in a figure whose organising principle is one column per level.
+     Colours are presentation attributes, not CSS custom properties — see the sibling figures. -->
+<style>
+  @media (prefers-color-scheme: dark) {
+    .lbl{fill:#e7ebe9}
+    .dim{fill:#9aa3a0}
+    .band{fill:#23282b}
+    .rule{stroke:#4a5154}
+  }
+</style>
+
+<rect class="band" x="0" y="0" width="640" height="18" fill="#f2f2f2"/>
+<text class="dim" x="6" y="13" fill="#666666" font-size="9.5" font-weight="600" letter-spacing="2.2">MAPPINGS</text>
+
+<g class="dim" fill="#777777" font-size="11.5" text-anchor="end">
+  <text x="150" y="44">named states</text>
+  <text x="150" y="72">a number</text>
+  <text x="150" y="100">a pair of states</text>
+</g>
+<g class="dim" fill="#999999" font-size="11.5" text-anchor="middle">
+  <text x="168" y="44">→</text>
+  <text x="168" y="72">→</text>
+  <text x="168" y="100">→</text>
+</g>
+<g class="lbl" fill="#1a1a1a" font-size="11.5">
+  <text x="186" y="44">Table</text>
+  <text x="186" y="72">Curve, or Scalar</text>
+  <text x="186" y="100">Between</text>
+</g>
+<g class="dim" fill="#777777" font-size="10">
+  <text x="330" y="44">one factor per state</text>
+  <text x="330" y="72">any function you write, or a log-link</text>
+  <text x="330" y="100">one weight per pair, for a choice only</text>
+</g>
+
+<line class="rule" x1="316" y1="30" x2="316" y2="108" stroke="#e2e2e2" stroke-width="0.9"/>
+</svg>
