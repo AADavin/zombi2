@@ -358,8 +358,8 @@ def run(args, parser):
         elif isinstance(m, DrivenBy):
             # a driver is a second factor, not a second clock — appended rather than replacing, or a
             # driven relaxed run would report itself as one or the other and never as both
-            driven.append(os.path.basename(m.source) if isinstance(m.source, str)
-                          else type(m.source).__name__)
+            driven.append(os.path.basename(m.driver) if isinstance(m.driver, str)
+                          else type(m.driver).__name__)
     if driven:
         clock += f", driven by {', '.join(driven)}"
     # What the run actually produced, not what was asked for: the rate is per unit time, so whether
@@ -388,7 +388,7 @@ def run(args, parser):
         floor = _identity_floor(model)
         warn(f"these sequences are close to saturated — mean identity {identity:.1%}, against a "
              f"{floor:.1%} floor. Set --divergence 0.2 instead.")
-    if not args.flat:                             # record which same-run levels drove the rate (if any),
+    if not args.flat:                             # record which same-run levels this run reads (if any),
         record_conditioning(out, conditioned_levels(  # so re-running one of them knows it orphans this
             args.run, (args.substitution,)))
     # the log is the run's parameters, not the parser's: the intergene knobs are for a nucleotide

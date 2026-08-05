@@ -1,4 +1,4 @@
-"""Traits — the discrete engine: the Mk state-switching model (Gillespie, its switch rate optionally driven by another trait) and the threshold model (simulate_discrete), plus the DiscreteTrait process spec for joint runs."""
+"""Traits — the discrete engine: the Mk state-switching model (Gillespie, its switch rate optionally driven by another level) and the threshold model (simulate_discrete), plus the DiscreteTrait process spec for joint runs."""
 
 from __future__ import annotations
 
@@ -132,7 +132,7 @@ def _switch_modifiers(switch) -> list:
             if not is_implemented(m, IMPLEMENTED_MODIFIERS, "traits.discrete"):
                 raise ValueError(
                     f"a switch rate carries {type(m).__name__}, which the discrete trait engine does "
-                    f"not support. It takes DrivenBy (the switch rate driven by another trait).")
+                    f"not support. It takes DrivenBy (the switch rate driven by another level).")
             if isinstance(m, DrivenBy):     # only a driver has a mapping to check
                 check_not_a_kernel(m.mapping, label="a switch rate")
             mods.append(m)
@@ -190,7 +190,7 @@ def _merge_runs(segments: list) -> list:
 
 def _gillespie_driven(state: int, node, node_id: int, entries, k: int, trajs: dict,
                       rng) -> tuple[int, list]:
-    """Exact CTMC along one branch whose switch rates are **driven** by another trait.
+    """Exact CTMC along one branch whose switch rates are **driven** by another level.
 
     The driver is piecewise-constant along the branch, so the generator is too: the branch is cut at
     the driver's own switches (`~zombi2.rates.driver.DriverTrajectory.next_change`) and the plain
@@ -328,7 +328,7 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
       history (``.history``) and ``.events`` reads off the transitions. ``switch`` is a symmetric rate
       (``0.1``), a ``{"marine->terrestrial": 0.1}`` dict, or a ``k×k`` matrix (see `_q_matrix()`).
       ``start`` is the root state (a label in ``states``; ``None`` draws one uniformly). A switch rate
-      may be **driven by another trait** grown first on this same tree — write it as a rate
+      may be **driven by another level** grown first on this same tree — write it as a rate
       expression, ``switch=0.4 * mod.DrivenBy(habitat, {"aquatic": 3.0})`` or per transition,
       ``switch={"a->b": 0.2 * mod.DrivenBy(habitat, {"aquatic": 3.0}), "b->a": 0.2}``. The driver
       switches mid-branch, so the generator is rebuilt at each of its switches and the branch is
@@ -365,13 +365,13 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
         raise ValueError("correlation= on a discrete trait needs the threshold model — give liability= and threshold=")
     if switch is None:
         raise ValueError("give switch= — the transition rate(s) between the discrete states.")
-    # conditioning: a switch rate carrying DrivenBy reads another trait, grown first on this same
+    # conditioning: a switch rate carrying DrivenBy reads another level, grown first on this same
     # tree. The generator is then a function of the driver, so it is built per stretch rather than
     # once. No modifier at all ⇒ one constant Q and the walk below is exactly the walk it was.
     #
     # The two questions are separate, and conflating them was a bug: *any* modifier puts the run on
     # the rebuild-per-stretch path (that is what makes the generator a function of the context),
-    # while only a `DrivenBy` names a source level to resolve a trajectory from. A third-party
+    # while only a `DrivenBy` names a driver to resolve a trajectory from. A third-party
     # modifier used to pass the gate, land in the driver list, and crash the resolver looking for a
     # `.key` it does not have.
     sw_mods = _switch_modifiers(switch)
@@ -397,7 +397,7 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
     node_values: dict[int, object] = {}
     root = tree.nodes[tree.root]
     # the initial state at t=0 — the origin the log reconstructs from: tree + this + the switches give
-    # the driver on every lineage, so the event log is the conditioning file (no separate driver).
+    # the driver on every lineage, so the event log is the driver file (no separate driver).
     events: list[Change] = [Change(root.birth_time, "initial", tree.root, None, states[start_i])]
     for i in _preorder(tree, progress):
         node = tree.nodes[i]

@@ -1,7 +1,8 @@
-"""Two ways one level reads another, through the same ``DrivenBy`` mechanism.
+"""Two ways one evolved value drives another, through the same ``DrivenBy`` mechanism.
 
 **Conditioning** grows the driver first and holds it fixed: a trait is simulated on the tree, then a
-genome run reads it, so the trait's state sets a genome rate. **Joining** grows both at once, because
+second run reads it, driving a genome rate, another trait's rate, or which lineage receives a
+transfer. **Joining** grows both at once, because
 the trait drives speciation or extinction and so shapes the tree it is evolving on
 (``joint.simulate_joint``). The two lists below feed two gallery sections.
 """
@@ -105,7 +106,7 @@ def musse(out):
 
 def _conditioned_genome(out, ct, layers, sizes, tipcol, diagram):
     """The shared conditioning-figure layout: the tree painted by the driver, beside per-tip genome-size
-    bars, with the driver·modifier·target diagram small on top. ``layers`` are the Phylustrator layers
+    bars, with the driver·mapping·target diagram small on top. ``layers`` are the Phylustrator layers
     that colour the tree; ``diagram`` is the kwargs for :func:`helpers.conditioning_png`."""
     fig = ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False,
                         style=ph.Style(width=900, height=900, margin=92, branch_width=3.0))
@@ -190,7 +191,7 @@ def hgt_uptake(out):
     ct = simulate_species_tree(birth=1.0, n_extant=30, seed=4).complete_tree
     comp = simulate_discrete(ct, states=["quiet", "competent"], start="quiet", seed=8,
                              switch={"quiet->competent": 0.12, "competent->quiet": 0.05})
-    # competence conditions WHO RECEIVES a transfer (the choice slot) — competent lineages take up more
+    # competence conditions WHO RECEIVES a transfer (the choice). Competent lineages take up more
     g = simulate_genomes_family(ct, initial_families=35, transfer=0.5, loss=0.05, duplication=0.03,
             transfer_to=mod.DrivenBy(comp, {"competent": 8.0, "quiet": 1.0}), seed=3)
     sizes, tipcol = _sizes(ct, g, comp, _COMP)
@@ -463,7 +464,7 @@ fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
        + ph.trees.time_axis("time", bold=False))
 ph.beside(fig, ph.genomes.bars(sizes, colors=colors, label="genome size (genes)")).save("reduction.png")
-# the figure then composites the driver->modifier->target diagram (lifestyle -> loss) on top'''
+# the figure then composites the driver->mapping->target diagram (lifestyle -> loss) on top'''
 
 _C_EXPANSION = '''\
 ### simulate  —  a trait conditions DUPLICATION, so genomes grow
@@ -493,7 +494,7 @@ fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
        + ph.trees.time_axis("time", bold=False))
 ph.beside(fig, ph.genomes.bars(sizes, colors=colors, label="genome size (genes)")).save("expansion.png")
-# the figure then composites the driver->modifier->target diagram (selection -> duplication) on top'''
+# the figure then composites the driver->mapping->target diagram (selection -> duplication) on top'''
 
 _C_UPTAKE = '''\
 ### simulate  —  competence conditions WHO RECEIVES a transfer (uptake), not a rate
@@ -505,7 +506,7 @@ from zombi2.rates import modifiers as mod
 ct = simulate_species_tree(birth=1.0, n_extant=30, seed=4).complete_tree
 comp = simulate_discrete(ct, states=["quiet", "competent"], start="quiet", seed=8,
                          switch={"quiet->competent": 0.12, "competent->quiet": 0.05})
-# DrivenBy on transfer_to (the choice slot) makes competent lineages likelier recipients, so
+# DrivenBy on transfer_to (the choice) makes competent lineages likelier recipients, so
 # competent genomes take up more DNA
 g = simulate_genomes_family(ct, initial_families=35, transfer=0.5, loss=0.05, duplication=0.03,
         transfer_to=mod.DrivenBy(comp, {"competent": 8.0, "quiet": 1.0}), seed=3)
@@ -523,7 +524,7 @@ fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
        + ph.trees.time_axis("time", bold=False))
 ph.beside(fig, ph.genomes.bars(sizes, colors=colors, label="genome size (genes)")).save("uptake.png")
-# the figure then composites the driver->modifier->target diagram (competence -> uptake) on top'''
+# the figure then composites the driver->mapping->target diagram (competence -> uptake) on top'''
 
 _C_CONTINUOUS = '''\
 ### simulate  —  a CONTINUOUS trait conditions a genome rate (via a Curve, not a state table)
@@ -556,7 +557,7 @@ fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_branches(vals, cmap="viridis")
        + ph.trees.time_axis("time", bold=False))
 ph.beside(fig, ph.genomes.bars(sizes, colors=bar_c, label="genome size (genes)")).save("cont.png")
-# on top goes the same driver->modifier->target diagram, its middle column plotting value -> factor'''
+# on top goes the same driver->mapping->target diagram, its middle column plotting value -> factor'''
 
 
 _C_SATURATING = '''\

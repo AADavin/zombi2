@@ -1361,7 +1361,7 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
     # and also has a "| Species |" row
     text = appendix.read_text(encoding="utf-8").split("### Which level accepts which", 1)[-1]
 
-    # One row covers two engines — "Genomes — family, ordered" — and only family's tuple was ever
+    # One row covers two engines — "Genomes, family and ordered" — and only family's tuple was ever
     # checked against it, so the row was free to be false for ordered, and for a while it was: it
     # listed DrivenBy while the ordered engine refused it. Assert the two agree, and the shared row
     # cannot lie again about either.
@@ -1371,12 +1371,12 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
         f"bring them back into line or split the row")
 
     for row, wired in (("Species", SPECIES),
-                       ("Genomes — family, ordered", GENOMES),
-                       ("Genomes — nucleotide", NUCLEOTIDE),
+                       ("Genomes, family and ordered", GENOMES),
+                       ("Genomes, nucleotide", NUCLEOTIDE),
                        ("Sequences", SEQUENCES),
-                       ("Traits — continuous `rate`", TRAITS),
-                       ("Traits — discrete `switch`", TRAITS_DISCRETE),
-                       ("Joint — `birth` / `death`", JOINT)):
+                       ("Traits, continuous `rate`", TRAITS),
+                       ("Traits, discrete `switch`", TRAITS_DISCRETE),
+                       ("Joint, `birth` / `death`", JOINT)):
         line = next((ln for ln in text.splitlines() if ln.startswith(f"| {row} |")), None)
         assert line, f"appendix A has no row for {row!r}"
         # the SECOND column only: a row label may itself carry a backticked word (the rate a row is

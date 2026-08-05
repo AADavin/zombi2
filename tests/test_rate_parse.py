@@ -193,13 +193,13 @@ def test_a_windows_path_in_a_rate_is_taken_as_written():
 
     rate = parse_rate(r"0.1 * DrivenBy('C:\Users\me\trait_events.tsv', {'a': 2.0})")
     driver = next(m for m in rate.modifiers if isinstance(m, DrivenBy))
-    assert driver.source == r"C:\Users\me\trait_events.tsv"
+    assert driver.driver == r"C:\Users\me\trait_events.tsv"
 
     unc = parse_rate(r"0.1 * DrivenBy('\\server\share\trait.tsv', {'a': 2.0})")
-    assert next(m for m in unc.modifiers if isinstance(m, DrivenBy)).source == r"\\server\share\trait.tsv"
+    assert next(m for m in unc.modifiers if isinstance(m, DrivenBy)).driver == r"\\server\share\trait.tsv"
 
     posix = parse_rate("0.1 * DrivenBy('/home/me/trait.tsv', {'a': 2.0})")
-    assert next(m for m in posix.modifiers if isinstance(m, DrivenBy)).source == "/home/me/trait.tsv"
+    assert next(m for m in posix.modifiers if isinstance(m, DrivenBy)).driver == "/home/me/trait.tsv"
 
 
 def test_an_already_escaped_path_is_left_as_written():
@@ -209,7 +209,7 @@ def test_an_already_escaped_path_is_left_as_written():
 
     path = r"C:\Users\me\trait_events.tsv"
     rate = parse_rate(f"0.1 * DrivenBy({path!r}, {{'a': 2.0}})")
-    assert next(m for m in rate.modifiers if isinstance(m, DrivenBy)).source == path
+    assert next(m for m in rate.modifiers if isinstance(m, DrivenBy)).driver == path
 
 
 def test_a_path_whose_every_backslash_is_a_valid_escape_still_means_itself():
@@ -218,4 +218,4 @@ def test_a_path_whose_every_backslash_is_a_valid_escape_still_means_itself():
     from zombi2.rates.modifiers import DrivenBy
 
     rate = parse_rate(r"0.1 * DrivenBy('C:\temp\new\file.tsv', {'a': 2.0})")
-    assert next(m for m in rate.modifiers if isinstance(m, DrivenBy)).source == r"C:\temp\new\file.tsv"
+    assert next(m for m in rate.modifiers if isinstance(m, DrivenBy)).driver == r"C:\temp\new\file.tsv"

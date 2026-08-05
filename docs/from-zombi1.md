@@ -93,7 +93,7 @@ species.simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.2), n_extant=2
 |---|---|
 | `DUPLICATION` · `TRANSFER` · `LOSS` · `ORIGINATION` | `--duplication` · `--transfer` · `--loss` · `--origination`. D/T/L are **per copy**, origination **per lineage** |
 | `INVERSION` · `TRANSPOSITION` | `--inversion` · `--transposition`, with `--resolution ordered` or `nucleotide` |
-| `DUPLICATION_EXTENSION` and the other `*_EXTENSION` keys | `--duplication-extent` and friends, on `--resolution nucleotide` (in base pairs). At the ordered resolution they are Python-only, `duplication_extent=` |
+| `DUPLICATION_EXTENSION` and the other `*_EXTENSION` keys | `--duplication-extent` and friends, on `--resolution ordered` (in genes, default 1) or `--resolution nucleotide` (in base pairs, default 50). Only a *driven* extent is Python-only |
 | `REPLACEMENT_TRANSFER` | `--replacement` |
 | `ASSORTATIVE_TRANSFER` | `--transfer-to distance` — nearest equivalent, not identical: v2 weights each candidate by `exp(-decay × d / depth)` |
 | `INITIAL_GENOME_SIZE` | `--initial-families` (default 100) |

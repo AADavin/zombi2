@@ -34,7 +34,7 @@ from . import modifiers as _modifiers
 from . import scope as _scope
 from .rate import Rate
 
-#: the names an expression may call — the scope wrappers, the modifiers, and the driver responses.
+#: the names an expression may call — the scope wrappers, the modifiers, and the mappings.
 #: The abstract bases (``Scope``, ``Modifier``, ``Mapping``) are deliberately absent: they are not
 #: things a user writes. ``Curve`` needs a callable, which this grammar cannot express, so it is
 #: excluded here and reported with a pointer to the Python API.
@@ -43,7 +43,7 @@ _NAMES: dict[str, type] = {
     **{n: getattr(_modifiers, n) for n in _modifiers.__all__ if n != "Modifier"},
     "Table": _mapping.Table,
     "Scalar": _mapping.Scalar,
-    "Between": _mapping.Between,  # the choice-slot kernel: DrivenBy(source, Between({(a, b): w}))
+    "Between": _mapping.Between,  # the choice's kernel: DrivenBy(driver, Between({(a, b): w}))
 }
 
 #: the optional Python qualifiers — ``mod.OnTime(...)`` / ``scope.Global(...)`` read as themselves
@@ -171,7 +171,7 @@ def _callable(func: ast.AST, text: str) -> type:
     if name == "Curve":
         raise _fail(
             "Curve maps a driver with a function, which cannot be written on the command line — "
-            "use the Python API for a continuous response, or a Table for a discrete one", text)
+            "use the Python API for a continuous mapping, or a Table for a discrete one", text)
     if name not in _NAMES:
         raise _unknown_name(name, text)
     return _NAMES[name]

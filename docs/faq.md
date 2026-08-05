@@ -61,7 +61,7 @@ kinds, each displaced copy under `loss`.
 
 Because a later level was built from it, and re-running in place would leave that later output
 mismatched. `--force` re-runs anyway and removes the now-stale downstream. The same guard covers
-conditioning: a conditioned run writes a `conditioned_on` file naming the levels its rates read, so
+conditioning: a conditioned run writes a `conditioned_on` file naming the levels it reads, through a rate or `--transfer-to`, so
 re-running the driver afterwards refuses rather than leaving the target silently stale. It works
 **within one run directory** — a driver and a target written to two directories with `--from` are
 not linked.

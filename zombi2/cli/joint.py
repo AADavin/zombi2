@@ -33,7 +33,7 @@ from zombi2.traits import discrete
 #: OnTotalDiversity, which a joint run does thread.
 RATES_HELP = _rates_help(
     IMPLEMENTED_MODIFIERS, "--birth",
-    note="Here DrivenBy names a live level, not a file. Sources: 'trait' (the trait grown "
+    note="Here DrivenBy names a live level, not a file. Drivers: 'trait' (the trait grown "
          "alongside), 'genomes:count' (a lineage's gene count), 'genomes:<name>' (a named family, "
          "{'present': 3.0, 'absent': 1.0}). --death takes a driven rate too.")
 

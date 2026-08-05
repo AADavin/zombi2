@@ -17,7 +17,7 @@ both daughters. Because these drivers only change at events, the rate is piecewi
 them and the race is **exact** — no thinning. (A continuously-diffusing driver — QuaSSE — is not
 available: it makes the rate vary continuously, which needs thinning.)
 
-The mechanism is the same ``mod.DrivenBy`` as conditioning; only the ``source`` differs — here a
+The mechanism is the same ``mod.DrivenBy`` as conditioning; only the ``driver`` differs — here a
 **live level name** (``"trait"``, ``"genomes:count"``, ``"genomes:<family>"``) rather than a filename.
 Driving *both* birth and death recovers full state-dependent diversification (BiSSE's λ and μ)."""
 
@@ -148,7 +148,7 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
     for label, rate in (("birth", birth_rate), ("death", death_rate)):
         for m in rate.modifiers:
             if isinstance(m, DrivenBy):
-                check_mapping_fires(m.mapping, states, source_label=f"{label} (trait)", exhaustive=True)
+                check_mapping_fires(m.mapping, states, driver_label=f"{label} (trait)", exhaustive=True)
 
     nodes: dict[int, Node] = {}
     counter = 0
@@ -247,7 +247,7 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
     return Tree(nodes, root), species_events, node_values, trait_events
 
 
-def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, sources, n_extant, total_time):
+def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, driver_names, n_extant, total_time):
     """Grow a forward birth-death tree whose birth/death read the genome's **live gene content**, while
     the genome (duplication/loss/origination) evolves on that same growing tree. The species race and
     the genome's own D/L/O race run in one Gillespie over a shared living set. Returns
@@ -264,13 +264,13 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, sources,
         for m in rate.modifiers:
             if not isinstance(m, DrivenBy):
                 continue
-            if m.source == _GENOME_COUNT:
+            if m.driver == _GENOME_COUNT:
                 # a count is numeric: {state: factor} names discrete states a number never equals, and
                 # `check_mapping_fires` says exactly that when the states it is given are numbers
-                check_mapping_fires(m.mapping, {0}, source_label=f"{label} (genomes:count)")
+                check_mapping_fires(m.mapping, {0}, driver_label=f"{label} (genomes:count)")
             else:
                 check_mapping_fires(m.mapping, {"present", "absent"},
-                                    source_label=f"{label} ({m.source})", exhaustive=True)
+                                    driver_label=f"{label} ({m.driver})", exhaustive=True)
 
     nodes: dict[int, Node] = {}
     counter = 0
@@ -323,7 +323,7 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, sources,
     t = 0.0
     while alive:
         nl = len(alive)
-        drivers = [{s: driver_value(s, k) for s in sources} for k in range(nl)]
+        drivers = [{s: driver_value(s, k) for s in driver_names} for k in range(nl)]
         wb = [birth_rate.effective(lineages=1, diversity=nl, time=t, drivers=drivers[k]) for k in range(nl)]
         wd = [death_rate.effective(lineages=1, diversity=nl, time=t, drivers=drivers[k]) for k in range(nl)]
         tb, td = sum(wb), sum(wd)
@@ -408,7 +408,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
     """Grow a tree **and** the driver that drives its speciation, in one run (SPEC §2–4).
 
     ``birth`` and ``death`` are rate specs (per lineage). Make either read the driver with
-    ``mod.DrivenBy(source, mapping)`` — a **live level name** (not a filename) is what makes this
+    ``mod.DrivenBy(driver, mapping)`` — a **live level name** (not a filename) is what makes this
     *joint* rather than conditioned. Give **exactly one** driver:
 
     - ``trait = traits.discrete(...)`` — a discrete trait drives speciation (BiSSE / MuSSE), read as
@@ -439,8 +439,8 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
         raise TypeError(
             "give exactly one driver: trait=traits.discrete(...) OR genome=genomes.family(...)."
         )
-    # collect the DrivenBy sources on birth/death (a joint model's diversification must be per lineage)
-    sources: list[str] = []
+    # collect the DrivenBy driver names on birth/death (a joint model's diversification must be per lineage)
+    driver_names: list[str] = []
     for label, rate in (("birth", birth_rate), ("death", death_rate)):
         if not isinstance(rate.scope, PerLineage):
             raise ValueError(
@@ -482,19 +482,19 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 )
             if isinstance(m, DrivenBy):
                 check_not_a_kernel(m.mapping, label=label)
-                if not isinstance(m.source, str):
+                if not isinstance(m.driver, str):
                     raise TypeError(
-                        f"{label} is driven by a {type(m.source).__name__} object, but a joint model "
+                        f"{label} is driven by a {type(m.driver).__name__} object, but a joint model "
                         f"drives from a live level *name* (a string, e.g. \"trait\" / \"genomes:count\"). "
                         f"A grown result object is conditioning — pass it to the target level's run."
                     )
-                sources.append(m.source)
-    if not sources:
+                driver_names.append(m.driver)
+    if not driver_names:
         raise ValueError(
             "a joint model needs the driver to drive something: give birth (or death) a "
             "mod.DrivenBy(...). With neither driven, grow the two levels as independent runs instead."
         )
-    # the driver spec must match the sources
+    # the driver spec must match the driver names
     if trait is not None:
         if not isinstance(trait, DiscreteTrait):
             raise TypeError(
@@ -502,16 +502,16 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 "Continuous trait→speciation (QuaSSE) is not available: a continuously varying "
                 "rate needs thinning, which this exact race does not do."
             )
-        bad = sorted({s for s in sources if s != "trait"})
+        bad = sorted({s for s in driver_names if s != "trait"})
         if bad:
             raise ValueError(
-                f'with trait=, drive from the live trait — mod.DrivenBy("trait", ...); got source(s) '
-                f"{bad}. (A filename source is conditioning, not a joint run.)"
+                f'with trait=, drive from the live trait — mod.DrivenBy("trait", ...); got driver(s) '
+                f"{bad}. (A filename driver is conditioning, not a joint run.)"
             )
     else:
         if not isinstance(genome, FamilyGenome):
             raise TypeError("genome= must be genomes.family(...) — a family-genome process spec.")
-        for s in sources:
+        for s in driver_names:
             if s == _GENOME_COUNT:
                 continue
             if s.startswith("genomes:"):
@@ -535,7 +535,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
         raise ValueError(f"total_time must be a positive finite number, got {total_time!r}")
 
     rng, seed = stream("joint", seed)       # own stream, and a drawn seed if none was given
-    unique_sources = sorted(set(sources))
+    unique_driver_names = sorted(set(driver_names))
 
     def grow_once(target_n, tt) -> tuple[Tree, JointResult]:
         if trait is not None:
@@ -545,7 +545,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                                  trait=TraitsResult(tree, nv, te, seed, kind="discrete"))
         else:
             tree, se, go, ge, fn = _grow_joint_genome(
-                rng, birth_rate, death_rate, genome, unique_sources, target_n, tt)
+                rng, birth_rate, death_rate, genome, unique_driver_names, target_n, tt)
             result = JointResult(SpeciesResult(tree, se, seed, []), seed,
                                  genome=FamilyGenomesResult(tree, go, ge, seed, fn, {}))
         return tree, result

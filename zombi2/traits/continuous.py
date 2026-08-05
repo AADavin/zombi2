@@ -89,7 +89,7 @@ def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "
     reading the standing diversity on each sub-interval. ``None`` when σ² does not depend on diversity.
 
     ``trajs`` (with ``node_id``, the lineage this branch is) are the driver trajectories when the rate
-    carries a `DrivenBy` — σ² read off another trait. The driver's
+    carries a `DrivenBy` — σ² read off another level. The driver's
     value on this lineage is threaded in as ``drivers``, and the integral **steps where the driver
     switches** (``next_change``) exactly as it steps at a skyline breakpoint: a discrete driver
     switches *mid-branch*, so a single sample per branch would credit the whole branch to whichever
@@ -364,7 +364,7 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
     node_values: dict[int, dict[str, float]] = {}
     # The log every other continuous run carries: the value the run started from, and each jump at a
     # split. A diffusion cannot be rebuilt from events — that is as true here as for one trait — so
-    # this is a record of the run's discrete moments, not a conditioning file. The rows hold the whole
+    # this is a record of the run's discrete moments, not a driver file. The rows hold the whole
     # **vector**, because a correlated jump moves every trait at once and splitting it into one row per
     # trait would suggest they were separate events.
     def _vec(v) -> dict:
@@ -437,7 +437,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     a ``OnTotalDiversity(cap=…)`` modifier makes σ² **slow as the clade fills up** — diversity-dependent /
     ecological-limits trait evolution — σ² scaled by ``(1 − standing_diversity/cap)`` as the tree's
     lineages-through-time grows (the tree is a fixed input the trait reads); a
-    ``DrivenBy(driver, {…})`` modifier makes σ² **read another trait** — the driver grown first on this
+    ``DrivenBy(driver, {…})`` modifier makes σ² **read another level** — the driver grown first on this
     same tree and handed over as its result object or its written ``trait_events.tsv``, so a lineage
     diffuses faster while the driver is in one state than another. A discrete driver switches
     *mid-branch*, and the per-branch variance is the integral across those pieces, so a branch that
@@ -490,7 +490,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             f"per lineage — drop the scope wrapper (per lineage is the default)."
         )
     # OnTime (early burst), FromParent (variable-rates BM), OnTotalDiversity (diversity-dependent)
-    # and DrivenBy (σ² driven by another trait) are the σ² modifiers this engine supports; anything
+    # and DrivenBy (σ² driven by another level) are the σ² modifiers this engine supports; anything
     # else is rejected loudly — the genome engine's discipline.
     for m in r.modifiers:
         if isinstance(m, ByFamily):
@@ -503,7 +503,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             raise ValueError(
                 f"rate carries {type(m).__name__}, which the continuous trait engine does not "
                 f"support. It takes OnTime (early burst), FromParent (variable-rates BM), "
-                f"OnTotalDiversity (diversity-dependent), and DrivenBy (driven by another trait)."
+                f"OnTotalDiversity (diversity-dependent), and DrivenBy (driven by another level)."
             )
         if isinstance(m, DrivenBy):
             check_not_a_kernel(m.mapping, label="rate")
@@ -531,7 +531,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             )
         theta, alpha = float(reverts_to), float(pull)
 
-    # conditioning: a σ² carrying DrivenBy reads another trait, grown first on this same tree. Resolve
+    # conditioning: a σ² carrying DrivenBy reads another level, grown first on this same tree. Resolve
     # each driver once into a trajectory (value + next-switch, keyed by the shared node id), from a
     # written trait log or a grown result handed over in memory. Undriven ⇒ empty, and the walk below
     # is exactly the walk it was — no driver, no lookup, no change to the draw order.

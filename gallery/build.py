@@ -33,22 +33,28 @@ OUT = os.path.abspath(os.path.join(HERE, "..", "web", "gallery.html"))   # publi
 # The first section is the one that starts open; every other section starts folded.
 LEVELS = [
     ("species", "Species trees",
-     "Forward birth–death trees — the whole history, survivors and extinctions, with the diversification model made visible.",
+     "Forward birth-death trees. The run keeps the whole history, survivors and extinctions, "
+     "and the diversification model shows on the tree.",
      species.EXAMPLES),
     ("genomes", "Genomes",
-     "Genes on chromosomes — a genome as a ring, synteny between genomes, and gene-family events and copy number read against the species tree.",
+     "Genes on chromosomes. A genome draws as a ring, and two genomes show their synteny. "
+     "Gene-family events and copy number read against the species tree.",
      genomes.EXAMPLES),
     ("sequences", "Sequences",
      "The dated tree the sequences evolve down, and an alignment lined up row-for-row with its tips.",
      sequences.EXAMPLES),
     ("traits", "Traits",
-     "A trait evolving down the tree — branches coloured by its value; some paired with a companion panel.",
+     "A trait evolving down the tree. Branches take the colour of its value. Some examples add "
+     "a companion panel.",
      traits.EXAMPLES),
     ("conditioning", "Conditioning",
-     "Two runs, in order: a trait is grown on the tree and held fixed, then a genome run reads it. The trait's state sets a genome rate, so genome size follows the trait.",
+     "Two runs, in order. The first run grows the driver on the tree and holds it fixed. The "
+     "second run reads it. A driver is a trait, a gene family or a whole module. It drives a "
+     "rate, or which lineage receives a transfer.",
      joining.CONDITIONING),
     ("joining", "Joining",
-     "One run makes both. The trait sets the speciation or extinction rate of the lineage carrying it, so the trait and the tree are produced together.",
+     "One run makes both. The trait sets the speciation or extinction rate of the lineage "
+     "carrying it. The trait and the tree therefore come out together.",
      joining.JOINING),
 ]
 

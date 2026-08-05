@@ -105,7 +105,7 @@ def driven_trait(out):
     habitat is grown first and held fixed; body size then diffuses down the same tree, twenty times
     faster on the stretches of branch where the habitat fluctuates.
 
-    The figure is the tree painted by the habitat, with the driver·modifier·target diagram above it.
+    The figure is the tree painted by the habitat, with the driver·mapping·target diagram above it.
     What the driving *did* to body size is the Conditioning section's "One trait drives another",
     which paints the same tree twice; repeating it here only made this figure taller."""
     ct = simulate_species_tree(birth=1.0, n_extant=50, seed=7).complete_tree
@@ -259,7 +259,7 @@ lab = ct.labels()                                # {id: 'n<id>'}
 (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False)
  + ph.trees.color_history({lab[i]: segs for i, segs in hab.history.items()}, palette=pal)
  + ph.trees.time_axis("time", bold=False)).save("tree.png")
-# the figure then composites the driver->modifier->target diagram (habitat -> body size) on top'''
+# the figure then composites the driver->mapping->target diagram (habitat -> body size) on top'''
 
 
 EXAMPLES = [

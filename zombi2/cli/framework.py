@@ -103,7 +103,7 @@ def _rate(text: str):
 #: one gloss and one worked snippet per modifier, for the RATES help block. A modifier with no entry
 #: still lists (by name), so the help can never fall behind a level's ``IMPLEMENTED_MODIFIERS`` declaration
 #: of what it supports.
-#: ``DrivenBy`` carries no snippet: its source is a *file* on a conditioned level and a *live level*
+#: ``DrivenBy`` carries no snippet: its driver is a *file* on a conditioned level and a *live level*
 #: name on ``joint``, so one snippet would be wrong on one of the two screens (it was — the joint help
 #: showed a filename, which ``joint`` rejects). A command that wants one passes ``example=``.
 _MODIFIER_HELP = {
@@ -113,7 +113,8 @@ _MODIFIER_HELP = {
     # "clock" is reserved for the sequences by-lineage substitution modifier (SPEC §7), and this
     # string now prints on `zombi2 species -h` and `zombi2 genomes -h` too
     "ByLineage": ("ByLineage(spread=0.3)", "one independent draw per lineage — uncorrelated"),
-    "DrivenBy": (None, "the rate is driven by another level"),
+    "ByFamily": ("ByFamily(spread=0.5)", "one independent draw per gene family — uncorrelated"),
+    "DrivenBy": (None, "the number is driven by an evolved value"),
 }
 
 
@@ -338,15 +339,15 @@ _STRUCTURAL = {
     "genomes": ("sequences",),
 }
 
-#: Levels whose rates can be conditioned on another level (they take a ``DrivenBy``), so they may carry
+#: Levels that can be conditioned on another level (they take a ``DrivenBy``), so they may carry
 #: a ``conditioned_on`` record.
 _CONDITIONABLE = ("genomes", "sequences", "traits")
 
 #: Every level, in pipeline order — a stable order for listing them in a message.
 _LEVEL_ORDER = ("species", "genomes", "sequences", "traits")
 
-#: The marker a conditioned level writes, naming the levels its rates read via ``DrivenBy`` — the
-#: dynamic half of the staleness graph (the fixed half is `_STRUCTURAL`).
+#: The marker a conditioned level writes, naming the levels it reads via ``DrivenBy`` (a rate or
+#: ``transfer_to``) — the dynamic half of the staleness graph (the fixed half is `_STRUCTURAL`).
 _CONDITIONED_ON_FILE = "conditioned_on"
 
 
@@ -359,7 +360,7 @@ def _level_present(run: str, level: str) -> bool:
 
 
 def _conditioned_on(run: str, level: str) -> set:
-    """The levels ``run/<level>/`` recorded a ``DrivenBy`` conditioning on (its rates read their
+    """The levels ``run/<level>/`` recorded a ``DrivenBy`` conditioning on (it reads their
     output), from the `_CONDITIONED_ON_FILE` marker — empty if it conditioned on nothing."""
     p = os.path.join(run, level, _CONDITIONED_ON_FILE)
     if not os.path.exists(p):
@@ -368,27 +369,27 @@ def _conditioned_on(run: str, level: str) -> set:
         return {ln.strip() for ln in f if ln.strip()}
 
 
-def _drivenby_sources(spec):
-    """Every ``DrivenBy`` source in a rate spec — whether ``spec`` is a bare ``DrivenBy`` (a recipient weight
+def _drivenby_drivers(spec):
+    """Every ``DrivenBy`` driver in a rate spec — whether ``spec`` is a bare ``DrivenBy`` (a recipient weight
     like ``transfer_to``) or a rate carrying ``DrivenBy`` modifiers. A plain number yields none."""
     from zombi2.rates.modifiers import DrivenBy
     if isinstance(spec, DrivenBy):
-        yield spec.source
+        yield spec.driver
     for m in getattr(spec, "modifiers", ()):
         if isinstance(m, DrivenBy):
-            yield m.source
+            yield m.driver
 
 
-def conditioned_levels(run: str, rate_specs) -> set:
-    """Which of THIS run's levels the given rate specs are conditioned on — a same-run ``DrivenBy`` file
+def conditioned_levels(run: str, specs) -> set:
+    """Which of THIS run's levels the given specs are conditioned on — a same-run ``DrivenBy`` file
     maps to the level whose directory holds it (``run/traits/trait_events.tsv`` → ``traits``). A driver
     file outside the run does not count: re-running a level of this run cannot make it stale."""
     run_abs = os.path.abspath(run)
     levels = set()
-    for spec in rate_specs:
-        for src in _drivenby_sources(spec):
-            if isinstance(src, str):
-                first = os.path.relpath(os.path.abspath(src), run_abs).split(os.sep)[0]
+    for spec in specs:
+        for driver in _drivenby_drivers(spec):
+            if isinstance(driver, str):
+                first = os.path.relpath(os.path.abspath(driver), run_abs).split(os.sep)[0]
                 if first not in (os.curdir, os.pardir):    # a file under one of this run's level dirs
                     levels.add(first)
     return levels
@@ -396,7 +397,7 @@ def conditioned_levels(run: str, rate_specs) -> set:
 
 def record_conditioning(level_out: str, driver_levels) -> None:
     """Write (or clear) the `_CONDITIONED_ON_FILE` marker in a level's output directory: the
-    same-run levels its rates read via ``DrivenBy``, so the guard knows re-running one of them orphans
+    same-run levels it reads via ``DrivenBy``, so the guard knows re-running one of them orphans
     this level. Removes a stale marker when a re-run conditions on nothing."""
     driver_levels = sorted(set(driver_levels))
     p = os.path.join(level_out, _CONDITIONED_ON_FILE)
@@ -648,7 +649,7 @@ def input_digests(*values) -> list[tuple[str, str]]:
     What a run *read* is as much a parameter of it as any flag, and the file's **name** does not
     pin it down: two runs from two different trees log the same ``--from tree.nwk`` and the same
     seed, and nothing in the log tells them apart. The digest does. A ``value`` is either a path or
-    a rate, whose ``DrivenBy`` file source — the level a conditioned run was driven by — is as much
+    a rate, whose ``DrivenBy`` file driver — the level a conditioned run was driven by — is as much
     an input as the tree. Anything that is not an existing file is skipped."""
     from zombi2.rates.modifiers import DrivenBy
 
@@ -658,8 +659,8 @@ def input_digests(*values) -> list[tuple[str, str]]:
             paths.append(value)
         elif value is not None:
             mods = getattr(value, "modifiers", (value,))     # a rate's modifiers, or a bare one
-            paths.extend(m.source for m in mods
-                         if isinstance(m, DrivenBy) and isinstance(m.source, str))
+            paths.extend(m.driver for m in mods
+                         if isinstance(m, DrivenBy) and isinstance(m.driver, str))
     out, seen = [], set()
     for path in paths:
         if path not in seen and os.path.isfile(path):

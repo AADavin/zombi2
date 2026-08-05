@@ -85,10 +85,11 @@ evolves along a species tree, so you run whichever you need, composed into one s
 
 ## Conditioning
 
-**[Conditioning](https://aadavin.github.io/zombi2/docs/guide/conditioning/)** is a rate reading the
-state of a level that has already been grown. There are three parts: the **driver**, the level that
-is read; the **modifier**, which turns the driver's state into a factor; and the **target**, the rate
-it multiplies.
+**[Conditioning](https://aadavin.github.io/zombi2/docs/guide/conditioning/)** is a run reading a value
+that has already been grown. There are four parts: the **driver**, the value that is read; the
+**target**, what the factor is attached to (a rate, an extent, or which lineage receives a transfer);
+the **modifier**, `DrivenBy`, which joins them; and the **mapping** it carries, which says what each
+value of the driver becomes.
 
 <p align="center">
   <img alt="Conditioning: a habitat trait on the left, an arrow labelled drives running right to the gene loss rate and carrying a multiplier for each habitat state, and under the loss rate the expression you write on it, 0.25 times DrivenBy of habitat" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/conditioning.svg" width="560">
