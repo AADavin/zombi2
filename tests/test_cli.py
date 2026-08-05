@@ -632,6 +632,116 @@ def test_traits_on_external_tree_writes_a_name_map(tmp_path):
     assert set(names) <= nodes
 
 
+# ── --switch takes the written form of a rate ───────────────────────────────────────
+#
+# It used to be `type=float`, so argparse killed a rate expression before ZOMBI2 saw it —
+# "invalid float value: '0.2 * DrivenBy(...)'" — while the engine had supported a driven switch rate
+# all along. These pin the four shapes it now reads, and that a driven one is really driven.
+
+def _switch_run(tmp_path, name, tree_file, switch, seed="3"):
+    out = tmp_path / name
+    rc = main(["traits", str(out), "--from", str(tree_file), "--kind", "discrete",
+               "--states", "x,y", "--switch", switch, "--seed", seed, "--flat"])
+    assert rc == 0, switch
+    return out
+
+
+def _driver_file(tmp_path, tree_file):
+    """A discrete trait grown first, written out — the file a conditioned switch rate reads."""
+    out = _switch_run(tmp_path, "habitat", tree_file, "0.5", seed="1")
+    return out / "trait_events.tsv"
+
+
+@pytest.mark.parametrize("switch", [
+    "0.2",                                              # a bare number: the symmetric rate
+    "{'x->y': 0.4, 'y->x': 0.1}",                       # only the named transitions
+    "[[0, 0.4], [0.1, 0]]",                             # the k x k matrix
+])
+def test_traits_switch_takes_every_shape_the_keyword_does(switch, tmp_path, tree_file):
+    out = _switch_run(tmp_path, re.sub(r"\W", "", switch)[:12] or "n", tree_file, switch)
+    states = {ln.split("\t")[2] for ln in
+              (out / "trait_values.tsv").read_text(encoding="utf-8").splitlines()[1:]}
+    assert states <= {"x", "y"}
+
+
+def test_traits_switch_takes_a_rate_expression_and_the_driver_reaches_the_engine(tmp_path, tree_file):
+    from zombi2.rates.parse import parse_rate, written_form
+
+    driver = _driver_file(tmp_path, tree_file)
+    expression = f"0.2 * DrivenBy({str(driver)!r}, {{'x': 12.0, 'y': 1.0}})"
+    plain = _switch_run(tmp_path, "plain", tree_file, "0.2")
+    driven = _switch_run(tmp_path, "driven", tree_file, expression)
+    # the driver's own states are x/y here (a second trait over the same labels), so every lineage in
+    # state x switches twelve times as fast — the two runs cannot come out the same
+    events = lambda d: (d / "trait_events.tsv").read_text(encoding="utf-8")
+    assert events(plain) != events(driven)
+    # the run records what drove it, by content as well as by name, so the pair can be reproduced.
+    # Compare against the written form rather than a hand-built string: a Windows path is escaped in it
+    log = (driven / "traits.log").read_text(encoding="utf-8")
+    assert f"switch\t{written_form(parse_rate(expression))}" in log
+    assert "input\t" in log and str(driver) in log      # the digest names the file as it is on disk
+
+
+def test_traits_a_driven_switch_inside_a_per_transition_dict_is_seen_by_the_log(tmp_path, tree_file):
+    """A rate hidden in a ``{'a->b': rate}`` dict is still a driver: the log has to render it in the
+    written form and the input digest has to name the file, or a conditioned run reads as an
+    unconditioned one and its driver can be re-run out from under it."""
+    from zombi2.rates.parse import parse_rate, written_form
+
+    driver = _driver_file(tmp_path, tree_file)
+    inner = f"0.3 * DrivenBy({str(driver)!r}, {{'x': 5.0}})"
+    out = _switch_run(tmp_path, "dict_driven", tree_file, f"{{'x->y': {inner}, 'y->x': 0.1}}")
+    log = (out / "traits.log").read_text(encoding="utf-8")
+    # the entry is rendered as a rate, not as a Rate repr, which no flag would take back
+    assert f"switch\t{{'x->y': {written_form(parse_rate(inner))}, 'y->x': 0.1}}" in log
+    assert "input\t" in log and str(driver) in log
+
+
+@pytest.mark.parametrize("switch, msg", [
+    ("0.2 * OnDiversity(3)", "unknown name"),               # a rate-grammar error, reported as one
+    ("nonsense", "unknown name"),
+])
+def test_traits_a_bad_switch_expression_is_a_rate_error(switch, msg, tmp_path, tree_file, capsys):
+    with pytest.raises(SystemExit) as e:
+        main(["traits", str(tmp_path / "t"), "--from", str(tree_file), "--kind", "discrete",
+              "--states", "x,y", "--switch", switch, "--seed", "1", "--flat"])
+    assert e.value.code == 2
+    assert msg in capsys.readouterr().err
+
+
+def test_traits_liability_reads_the_grammar_and_the_engine_refuses_what_it_cannot_honour(tmp_path, tree_file, capsys):
+    """The other bare-float rate flag. A modified liability variance-rate is not implemented, and the
+    point of parsing it here is that the *engine* gets to say so — argparse's "invalid float value"
+    named neither the model nor the way out."""
+    base = ["traits", str(tmp_path / "l"), "--from", str(tree_file), "--kind", "discrete",
+            "--states", "x,y", "--threshold", "0", "--seed", "1", "--flat"]
+    assert main([*base, "--liability", "1.0"]) == 0
+    assert main([*base, "--liability", "PerLineage(1.0)"]) == 0
+    assert main([*base, "--liability", "1.0 * OnTime({0: 1.0, 2: 0.5})"]) == 1
+    assert "modified liability variance-rate is not implemented" in capsys.readouterr().err
+    # several liabilities are the correlated-traits form, which has no flag for the correlation
+    with pytest.raises(SystemExit) as e:
+        main([*base, "--liability", "{'size': 1.0, 'limb': 2.0}"])
+    assert e.value.code == 2
+    assert "--liability is one variance-rate" in capsys.readouterr().err
+
+
+def test_traits_params_file_can_carry_a_switch_expression(tmp_path, tree_file):
+    """A TOML value is a *default*, and argparse runs `type` over a string default — which is what
+    makes the SPEC's "one written form, everywhere" true of --switch as well as --birth."""
+    driver = _driver_file(tmp_path, tree_file)
+    # a TOML *literal* string ('''), so the driver path is taken as written — a basic "..." string
+    # processes backslash escapes, which eats a Windows path before ZOMBI2 sees it
+    (tmp_path / "p.toml").write_text(
+        'kind = "discrete"\nstates = "x,y"\nseed = 4\n'
+        "switch = \'\'\'0.2 * DrivenBy(\'%s\', {\'x\': 9.0, \'y\': 1.0})\'\'\'\n" % driver,
+        encoding="utf-8")
+    out = tmp_path / "fromparams"
+    assert main(["traits", str(out), "--from", str(tree_file), "--params", str(tmp_path / "p.toml"),
+                 "--flat"]) == 0
+    assert "switch\t0.2 * DrivenBy(" in (out / "traits.log").read_text(encoding="utf-8")
+
+
 def test_traits_params_file_drives_the_run_and_cli_overrides(tmp_path, tree_file):
     # a [traits] table scopes one file to this command (so one file can drive a whole pipeline)
     (tmp_path / "p.toml").write_text('[traits]\nkind = "discrete"\n'

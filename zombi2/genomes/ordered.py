@@ -1331,7 +1331,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             by_key.setdefault(m.key, m)
     resolved: dict = {}
     if by_key:
-        resolved = {key: resolve_driver(m.driver, tree, step=m.step) for key, m in by_key.items()}
+        resolved = {key: resolve_driver(m.driver, tree, step=m.step, level="genomes.ordered")
+                    for key, m in by_key.items()}
         # a mapping whose states never occur leaves every lineage on the default factor, so the run
         # would secretly be the undriven model — refuse it here, naming the driver
         for mods in (*driven.values(), *ext_driven.values()):
@@ -1350,7 +1351,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # transfer_to is a weight, not a rate, so its trajectory must not join `trajs` and start adding
     # horizon breakpoints. `resolved` doubles as the driver cache, so a trait that drives both a rate
     # and who receives is loaded once and read from one trajectory.
-    group_of, to_traj = prepare_transfer_to(tree, transfer_to, resolved)
+    group_of, to_traj = prepare_transfer_to(tree, transfer_to, resolved, level="genomes.ordered")
 
     rng, seed = stream("genomes", seed)     # own stream, and a drawn seed if none was given
     copy_counter = 0

@@ -456,26 +456,49 @@ def names_a_live_level(driver: object) -> bool:
     return isinstance(driver, str) and (driver == "trait" or driver.startswith("genomes:"))
 
 
-def resolve_driver(driver, tree, *, step: float | None = None) -> DriverTrajectory:
+def refuse_wrong_direction(driver, level: str | None) -> None:
+    """Raise when ``level``'s engine may not read ``driver`` at all — a direction SPEC §3 rules out,
+    not something merely unimplemented.
+
+    A driver declares this by answering ``refuses(level)`` with the reason, or ``None``. It lives on
+    the driver for the same reason `resolve_driver()`'s protocol does: this module serves every level
+    and must not import from any of them.
+
+    ``level`` is the engine name each level already answers to (``"genomes.family"``, ``"sequences"``,
+    … — `zombi2.rates.modifiers.Modifier.implemented_for` lists them); ``None`` checks nothing."""
+    if level is None:
+        return
+    refuses = getattr(driver, "refuses", None)
+    if refuses is None:
+        return
+    why = refuses(level)
+    if why:
+        raise ValueError(why)
+
+
+def resolve_driver(driver, tree, *, step: float | None = None,
+                   level: str | None = None) -> DriverTrajectory:
     """Resolve a conditioned ``DrivenBy`` ``driver`` into a `DriverTrajectory` — a **filename**
     (str) via `load_driver()` (replayed against ``tree``, the target run's own species tree), an
-    object that answers for itself through ``as_driver_trajectory(tree)`` (a genome run's
-    ``presence("name")``), or an **in-memory** trait result via `driver_from_result()` (which carries
-    its own tree).
-    All three are conditioning (the driver grown first); the object forms just spare you the ``write``/read
-    step in a single session.
+    object that answers for itself through ``as_driver_trajectory(tree, step=…)`` (a genome run's
+    ``presence("name")``, a sequence run's ``gc()``), or an **in-memory** trait result via
+    `driver_from_result()` (which carries its own tree).
+    All three are conditioning (the driver grown first); the object forms just spare you the
+    ``write``/read step in a single session.
 
     ``step`` is the continuous-driver resolution (see `interpolated_segments`); it is ignored by a
-    discrete driver, whose stretches are exact."""
+    discrete driver, whose stretches are exact. ``level`` names the engine doing the reading, which is
+    what lets a driver refuse a level that sits above it (`refuse_wrong_direction`)."""
     if isinstance(driver, str):
         return load_driver(driver, tree, step=step)
     if hasattr(driver, "as_driver_trajectory"):
         # a level that knows how to answer "what state was lineage L in at time t?" for itself —
         # `genomes.presence("tox")` is the first. The protocol is one method rather than an isinstance
         # branch per level so this module stays free of imports from the levels it serves.
-        return driver.as_driver_trajectory(tree)
+        refuse_wrong_direction(driver, level)
+        return driver.as_driver_trajectory(tree, step=step)
     return driver_from_result(driver, step=step)
 
 
 __all__ = ["DriverTrajectory", "load_driver", "driver_from_result", "resolve_driver",
-           "check_mapping_fires", "driven_mods", "names_a_live_level"]
+           "refuse_wrong_direction", "check_mapping_fires", "driven_mods", "names_a_live_level"]

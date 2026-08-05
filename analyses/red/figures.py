@@ -116,6 +116,11 @@ def fig_observable(res):
 
 def fig_clock_recovery(res):
     fig, ax = plt.subplots(figsize=(6.2, 4.2))
+    # The autocorrelated clock climbs steeply and its ±1 s.d. band is wide, so past its crossing the
+    # band's lower edge wanders in and out of the top of the axis and leaves pink wedges hanging
+    # there — an artefact of clipping a band, not anything in the data. Each curve is therefore drawn
+    # only while it is on the axis, one point past the top so the line still leaves the frame.
+    top = 0.7
     tgt = res["target_cv"]
     # The crossings of the two uncorrelated clocks are ~0.05 apart in σ, so their labels are
     # staggered in depth rather than laid side by side, where they would overprint.
@@ -123,6 +128,8 @@ def fig_clock_recovery(res):
         spreads = np.array(fam["spreads"])
         cv = np.array([r["cv"] for r in fam["rows"]])
         sd = np.array([r["cv_sd"] for r in fam["rows"]])
+        keep = np.searchsorted(np.maximum.accumulate(cv), top) + 1   # first point off the top, kept
+        spreads, cv, sd = spreads[:keep], cv[:keep], sd[:keep]
         ax.plot(spreads, cv, "-o", ms=3, color=COLORS[dist], label=LABELS[dist])
         ax.fill_between(spreads, cv - sd, cv + sd, color=COLORS[dist], alpha=0.15, lw=0)
         rec = fam["recovered_spread"]
@@ -132,7 +139,7 @@ def fig_clock_recovery(res):
     ax.axhline(tgt, color=INK, lw=1.2, ls="--")
     # The sweeps run to σ = 2, far past every crossing; the axis stops where the read-off is legible.
     ax.set_xlim(0, 1.0)
-    ax.set_ylim(0, 0.7)
+    ax.set_ylim(0, top)
     ax.text(0.02, tgt, f"real archaea, CV = {tgt:.3f}", va="bottom", ha="left", fontsize=10)
     ax.set_xlabel("clock heterogeneity  σ")
     ax.set_ylabel("root-to-tip variation  (CV)")
@@ -147,11 +154,17 @@ def fig_red_bridge(res):
     fig, axes = plt.subplots(1, 2, figsize=(10.2, 4.2))
     tgt = res["target_cv"]
     for dist, fam in res["families"].items():
-        cv = np.array([r["cv"] for r in fam["rows"]])
-        r = np.array([r["r"] for r in fam["rows"]])
-        rsd = np.array([r_["r_sd"] for r_ in fam["rows"]])
-        ne = np.array([r_["nrmse"] for r_ in fam["rows"]]) * 100
-        nesd = np.array([r_["nrmse_sd"] for r_ in fam["rows"]]) * 100
+        # The rows come in σ order, but this figure's x axis is the *realised* CV, and CV is a noisy
+        # estimate over 8 replicates rather than a monotone function of σ — a few steps go backwards.
+        # Plotted in row order the line therefore doubled back on itself, and `fill_between` turned
+        # each reversal into a bowtie. Sorting by x is what a line through these points means.
+        order = np.argsort([r["cv"] for r in fam["rows"]])
+        rows = [fam["rows"][i] for i in order]
+        cv = np.array([r["cv"] for r in rows])
+        r = np.array([r["r"] for r in rows])
+        rsd = np.array([r_["r_sd"] for r_ in rows])
+        ne = np.array([r_["nrmse"] for r_ in rows]) * 100
+        nesd = np.array([r_["nrmse_sd"] for r_ in rows]) * 100
         axes[0].plot(cv, r, "-o", ms=3, color=COLORS[dist], label=LABELS[dist])
         axes[0].fill_between(cv, r - rsd, r + rsd, color=COLORS[dist], alpha=0.15, lw=0)
         axes[1].plot(cv, ne, "-o", ms=3, color=COLORS[dist], label=LABELS[dist])

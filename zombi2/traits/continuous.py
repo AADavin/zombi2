@@ -535,7 +535,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     # each driver once into a trajectory (value + next-switch, keyed by the shared node id), from a
     # written trait log or a grown result handed over in memory. Undriven ⇒ empty, and the walk below
     # is exactly the walk it was — no driver, no lookup, no change to the draw order.
-    trajs = _resolve_drivers(_driven_mods(r), tree)
+    trajs = _resolve_drivers(_driven_mods(r), tree, "traits.continuous")
 
     jump_sd = _at_speciation_jump_sd(at_speciation)  # on-speciation jump width (0 if not requested)
 

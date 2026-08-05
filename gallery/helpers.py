@@ -253,24 +253,58 @@ def composite_markov(tree_png: str, out: str, draw_fn, *, loc=(0.02, 0.09, 0.34,
     plt.close(fig)
 
 
+def _draw_key(ax, key) -> None:
+    """One row's colour key, drawn into a thin axes: what the colours on the tree above it mean.
+
+    Two shapes, because the trees come in two kinds. A **dict** ``{state: colour}`` is a discrete
+    trait or a gene's presence, and each entry gets a thick line the weight of a branch. A **tuple**
+    ``(cmap, low, [middle,] high)`` is a continuous trait, and gets the ramp itself with its ends
+    named — a swatch per value would be meaningless there.
+    """
+    ax.set_axis_off()
+    if isinstance(key, dict):
+        handles = [plt.Line2D([], [], color=colour, lw=7, solid_capstyle="butt")
+                   for colour in key.values()]
+        ax.legend(handles, list(key), loc="center left", ncol=len(key), frameon=False,
+                  fontsize=13, handlelength=1.5, handletextpad=0.6, columnspacing=2.2,
+                  borderpad=0.0, borderaxespad=0.0)
+        return
+    cmap, *names = key
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    left, right = 0.055, 0.235                          # the ramp, in axes fractions
+    ax.imshow([[i / 255 for i in range(256)]], aspect="auto", cmap=cmap,
+              extent=(left, right, 0.32, 0.68), zorder=2)
+    ax.text(left - 0.012, 0.5, names[0], ha="right", va="center", fontsize=13)
+    ax.text(right + 0.012, 0.5, names[-1], ha="left", va="center", fontsize=13)
+    if len(names) == 3:                                 # a diverging scale needs its middle named
+        ax.text((left + right) / 2, 0.14, names[1], ha="center", va="top", fontsize=12,
+                color="#555555")
+
+
 def composite_under_diagram(out: str, diagram_png: str, rows, *, width=12.0, diagram_frac=0.42,
-                            pad=0.03, gap=0.30, label=0.36) -> None:
-    """The driver·mapping·target diagram on top, then one labelled panel per row.
+                            pad=0.03, gap=0.30, label=0.36, key=0.40, dpi=182) -> None:
+    """The driver·modifier·target diagram on top, then one labelled panel per row.
 
-    ``rows`` is ``[(png, label), ...]``. Every panel gets an axes box of **its own image's aspect
-    ratio**, so nothing is letterboxed and the diagram sits on the same centre line as the panels
-    under it. Saved without ``bbox_inches="tight"``: cropping to content pulled the crop in on the
-    row labels, which shifted the panels off centre and clipped the bottom one's time axis.
+    ``rows`` is ``[(png, label), ...]``, or ``[(png, label, key), ...]`` to put a colour key under
+    the label — see :func:`_draw_key` for the two shapes a key takes. Every panel gets an axes box of
+    **its own image's aspect ratio**, so nothing is letterboxed and the diagram sits on the same
+    centre line as the panels under it. Saved without ``bbox_inches="tight"``: cropping to content
+    pulled the crop in on the row labels, which shifted the panels off centre and clipped the bottom
+    one's time axis.
 
-    ``width``, ``gap`` and ``label`` are inches; ``pad`` and ``diagram_frac`` are fractions of
-    ``width``.
+    ``width``, ``gap``, ``label`` and ``key`` are inches; ``pad`` and ``diagram_frac`` are fractions
+    of ``width``. The default ``dpi`` is deliberately high: these figures are read by zooming into a
+    tree, and at 140 the tip labels went to mush.
     """
     diagram = mpimg.imread(diagram_png)
-    imgs = [mpimg.imread(png) for png, _ in rows]
+    imgs = [mpimg.imread(row[0]) for row in rows]
+    keys = [row[2] if len(row) > 2 else None for row in rows]
     body = width * (1 - 2 * pad)
     heights = [body * im.shape[0] / im.shape[1] for im in imgs]
+    tops = [label + (key if k is not None else 0.0) for k in keys]
     h_diagram = diagram_frac * width * diagram.shape[0] / diagram.shape[1]
-    height = gap + h_diagram + sum(h + label + gap for h in heights)
+    height = gap + h_diagram + sum(h + t + gap for h, t in zip(heights, tops))
     fig = plt.figure(figsize=(width, height))
 
     def box(x, y, w, h):
@@ -279,14 +313,17 @@ def composite_under_diagram(out: str, diagram_png: str, rows, *, width=12.0, dia
     y = height - h_diagram
     fig.add_axes(box(width * (1 - diagram_frac) / 2, y, diagram_frac * width,
                      h_diagram)).imshow(diagram)
-    for im, h, (_, name) in zip(imgs, heights, rows):
-        y -= label + h
+    for im, h, top, k, row in zip(imgs, heights, tops, keys, rows):
+        y -= top + h
         fig.add_axes(box(pad * width, y, body, h)).imshow(im)
-        fig.text(pad, (y + h + 0.08) / height, name, fontsize=15, ha="left", va="bottom")
+        fig.text(pad, (y + h + top - label + 0.08) / height, row[1], fontsize=15, ha="left",
+                 va="bottom")
+        if k is not None:
+            _draw_key(fig.add_axes(box(pad * width, y + h, body, key)), k)
         y -= gap
     for ax in fig.axes:
         ax.set_axis_off()
-    fig.savefig(out, dpi=140)
+    fig.savefig(out, dpi=dpi)
     plt.close(fig)
 
 

@@ -1,6 +1,6 @@
-<svg viewBox="0 0 566 392" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
+<svg viewBox="0 0 566 400" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
 <title>What can condition what</title>
-<desc>A four by four grid. Rows are the driver, columns the target: gene families, an ordered or nucleotide genome, sequences and traits. Twelve cells are numbered, keyed to the notes. Four are shaded, the pairs that would need two genomes for one lineage. Three of the four cells on the diagonal carry an inset box: a level conditioning itself.</desc>
+<desc>A four by four grid. Rows are the driver, columns the target: gene families, an ordered or nucleotide genome, sequences and traits. Eleven cells are numbered, keyed to the notes. Five are shaded: the pairs that would need two genomes for one lineage, and the pair a sequence cannot drive because it lives inside a gene. Three of the four cells on the diagonal carry an inset box: a level conditioning itself.</desc>
 <!-- Colours are presentation ATTRIBUTES and literals, not CSS custom properties: GitHub's SVG
      sanitiser drops the style element and librsvg resolves no custom properties, so a figure whose
      fills live in either renders black-on-black. The dark-mode rules below still win wherever CSS
@@ -49,6 +49,7 @@
 
 <!-- the grid: shaded cells first, then every border, so no stroke is doubled -->
 <g class="shut" fill="#ebebeb" stroke="none">
+  <rect x="150" y="190" width="92" height="62"/>
   <rect x="242" y="66"  width="92" height="62"/>
   <rect x="150" y="128" width="92" height="62"/>
   <rect x="242" y="128" width="92" height="62"/>
@@ -76,18 +77,19 @@
 <g class="num" fill="#1a1a1a" font-size="17" font-weight="600" text-anchor="middle">
   <text x="196" y="103">1</text>  <text x="380" y="103">2</text>  <text x="472" y="103">3</text>
   <text x="380" y="165">4</text>  <text x="472" y="165">5</text>
-  <text x="196" y="227">6</text>  <text x="380" y="227">7</text>  <text x="472" y="227">8</text>
-  <text x="196" y="289">9*</text> <text x="288" y="289">10*</text>
-  <text x="380" y="289">11*</text><text x="472" y="289">12*</text>
+  <text x="380" y="227">6</text>  <text x="472" y="227">7</text>
+  <text x="196" y="289">8*</text> <text x="288" y="289">9*</text>
+  <text x="380" y="289">10*</text><text x="472" y="289">11*</text>
 </g>
 
 <!-- key -->
 <rect class="shut" x="150" y="332" width="20" height="14" fill="#ebebeb" stroke="#a8a8a8" stroke-width="1.1"/>
-<rect class="cell" x="150" y="356" width="20" height="14" fill="none" stroke="#a8a8a8" stroke-width="1.1"/>
-<rect class="self" x="153" y="359" width="14" height="8" fill="none" stroke="#4a4a4a" stroke-width="1.5"/>
+<rect class="cell" x="150" y="361" width="20" height="14" fill="none" stroke="#a8a8a8" stroke-width="1.1"/>
+<rect class="self" x="153" y="364" width="14" height="8" fill="none" stroke="#4a4a4a" stroke-width="1.5"/>
 <g class="dim" fill="#666666" font-size="11">
-  <text x="178" y="343">not a model: a lineage has one ordered genome, so this would need two</text>
-  <text x="178" y="367">a level conditioning itself: two runs of the same level</text>
-  <text x="150" y="388">*  can also be written on the command line; the rest need the Python library</text>
+  <text x="178" y="340">not a model: a lineage has one ordered genome, so this would need two;</text>
+  <text x="178" y="353">or a sequence lives inside a gene, so a genome cannot read one back</text>
+  <text x="178" y="372">a level conditioning itself: two runs of the same level</text>
+  <text x="150" y="391">*  can also be written on the command line; the rest need the Python library</text>
 </g>
 </svg>
