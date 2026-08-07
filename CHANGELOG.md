@@ -28,8 +28,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   by object identity, not by equality — two modifiers that merely agree on their spread are still
   two draws, because the question is what you wrote rather than what the numbers happen to be. The
   same holds for `ByLineage` across a species run's `birth` and `death`. A run that does not reuse an
-  object draws exactly as it did, seed for seed. `family_speed=` is unchanged and still draws on its
-  own.
+  object draws exactly as it did, seed for seed. This is the rule that made `family_speed=`
+  redundant, and it is now stated in SPEC §5.
 
 ### Fixed
 - **A rate carrying two per-unit modifiers now applies both.** Each engine looked for *the*

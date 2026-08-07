@@ -235,6 +235,23 @@ modifier at the sequences level). **modifier** names the third factor only.
 factor is, while this one says the factor comes from somewhere else entirely. Naming it `On…` would
 file it as a covariate and lose that.
 
+**One object is one draw.** A `By…` or `From…` modifier carries a value the *engine* draws once per
+unit and keeps. Which rates share that value is decided by **what you wrote, not by what the numbers
+are**: one modifier object read by several rates is one draw, shared between them, and two separately
+built ones are two draws even when their arguments match.
+
+```python
+speed = ByFamily(spread=0.5)
+duplication = 0.2 * speed;  loss = 0.25 * speed     # one draw: a fast family is fast at both
+duplication = 0.2 * ByFamily(spread=0.5)            # two draws: the two rates vary independently
+loss        = 0.25 * ByFamily(spread=0.5)
+```
+
+That rule is the whole of it, and it replaces the separate family-wide argument this used to need.
+Sharing is by **identity**, never by equality, so the question a reader has to answer is only ever
+*did you write one thing or two?*. It follows that the **text form cannot express sharing** — two
+flags parse to two objects — so a shared draw is Python-only until the written form can name a value.
+
 So the uncorrelated / autocorrelated split is `ByLineage` vs `FromParent`, and one modifier —
 `FromParent` — is ClaDS (species), the autocorrelated clock (sequences), and variable-rates BM
 (traits). Three rules for naming the next one:
