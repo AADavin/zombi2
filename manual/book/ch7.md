@@ -210,7 +210,7 @@ So the rate that suits a run depends on the height of the tree it runs down, whi
 
 $$\text{substitution} = \frac{\text{substitutions per site you want, origin to tip}}{\text{height of the tree}}$$
 
-On the 20-unit tree above, sequences around 80% identical need roughly `0.2 / 20 = 0.01`, not `1.0`. The difference is not subtle: simulated down that tree, `0.01` gives tips about 77% identical, while the default `1.0` gives **25%**, precisely the score of two sequences with no shared history at all. The table below is measured the same way, on simulated JC69 alignments, and holds for any tree, since its first column is already the product of rate and height:
+On the 20-unit tree above, sequences around 80% identical need roughly `0.2 / 20 = 0.01`, not `1.0`. The difference is not subtle: simulated down that tree, `0.01` gives tips about 77% identical, while the default `1.0` gives **25%**, precisely the score of two sequences with no shared history at all. The table below is measured the same way, on simulated JC69 alignments. Its first column is rate times height, so it transfers between trees of different heights. The second column does not transfer as cleanly: the identity is a mean over pairs of tips, and how much of the tree's height separates the average pair depends on where its splits sit. A tree whose splits are close to the tips keeps more identity than one whose splits are close to the root, and at the deep end of the table two ordinary trees can differ by twenty points. Read the second column as a guide, not a lookup:
 
 | Substitutions per site, origin to tip | Mean identity between two tips |
 |---|---|
@@ -262,7 +262,7 @@ substitution = 1.0 * mod.Inherited(per="lineage", spread=0.3)
 and whichever you give, the draw is **normalised to mean 1**, so what a distribution contributes is
 its *shape* and the base keeps meaning the average rate.
 
-**`Drawn(per='lineage')`** has *no memory*: each lineage is an independent draw, so a lineage's rate tells you nothing about its neighbours'. The distribution it draws from (`dist="lognormal"` or `"gamma"`) is a parameter of the modifier.
+**`Drawn(per='lineage')`** has *no memory*: each lineage is an independent draw, so a lineage's rate tells you nothing about its neighbours'. The distribution it draws from — `spread=`, or `dist=` with a distribution object — is a parameter of the modifier.
 
 **`Inherited(per='lineage')`** has memory: a daughter starts at its parent's rate and multiplies it by one lognormal step, so close relatives evolve at similar rates. That is the **autocorrelated** clock. Both draws are mean-corrected, so widening `spread` spreads the lineages apart without moving the average rate off the number you typed. Rate variation across sites is not a modifier, and does not belong in the rate at all: it is part of the model, as above.
 
@@ -422,7 +422,7 @@ zombi2 sequences seqs/ --from out/ --model hky85 --kappa 2.0 \
 zombi2 sequences seqs/ --from out/ --model gtr \
     --frequencies 0.3 0.2 0.2 0.3 \
     --substitution "1.0 * Drawn(per='lineage', spread=0.3)" \
-    --seed 1 --write alignments phylograms ancestral species_phylogram
+    --seed 1 --write alignments phylograms species_phylogram summary ancestral
 ```
 
 A protein model is the same command with a different `--model`:
@@ -442,8 +442,16 @@ Because a protein model has no parameters, passing one is an error rather than a
 | `phylograms/phylogram_fam<f>_*.nwk` | the gene tree those sequences were drawn along, in substitutions per site |
 | `clock_species_tree_complete.nwk` · `…_extant.nwk` | the species tree under the same conversion, where the clock becomes visible |
 | `genomes/genome_<lineage>.fasta` | the assembled genome of every node; nucleotide runs only |
+| `genomes/genome_initial.fasta` | the genome the run started with, which is no node's; nucleotide runs only |
 | `ancestral/sequences_ancestral_fam<f>.fasta` | the sequence at every node that is not an extant tip |
+| `sequences_founding.fasta` | one record per family: the sequence it originated with, before its stem |
 
-Everything but the last is written by default. `--write ancestral` adds the ancestral sequences, which
-is what you need to score an ancestral-reconstruction method against the truth; Appendix B gives the
-columns and the formats.
+On a **nucleotide** run the number in those filenames is a root block index rather than a gene family
+id, and the files say so: `block<n>.fasta`, `phylogram_block<n>_*.nwk` and
+`sequences_ancestral_block<n>.fasta` in place of `fam<f>`.
+
+Everything but the last two is written by default. `--write` names the whole set rather than adding to
+it, so list the defaults alongside the extra: `--write alignments phylograms species_phylogram summary
+genomes initial_genome ancestral` writes the usual outputs and the ancestral sequences too, which is
+what you need to score an ancestral-reconstruction method against the truth. `founding` is asked for
+the same way. Appendix B gives the columns and the formats.

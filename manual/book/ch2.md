@@ -31,7 +31,7 @@ Everything depends on a species tree, so a workflow almost always begins by simu
 
 ZOMBI2 is a forward simulator: evolution runs from an ancestral state at time 0 to the present.
 
-Time is imposed by the species tree, and every rate is measured against that scale. If your tree runs from 0 at the root to 1 at the tips, the simulation lasts one unit of time. Time 0 is the origin of the founding lineage, and every time you give ZOMBI2 is measured on it: the moment of a mass extinction, the breakpoints of a rate that changes through time.
+Time is imposed by the species tree, and every rate is measured against that scale. If your tree runs from 0 at the origin to 1 at the tips, the simulation lasts one unit of time. Time 0 is the origin of the founding lineage, and every time you give ZOMBI2 is measured on it: the moment of a mass extinction, the breakpoints of a rate that changes through time.
 
 The founding lineage lives for a while before it first splits. That stretch is the tree's **stem**, and the first split is its **crown**.
 
@@ -164,6 +164,6 @@ Because the levels share one directory, a command refuses to re-run a level in p
 
 ## Output in ZOMBI2
 
-Every run can be written with `result.write("out/", outputs=[...])`; with no `outputs` it writes that level's **default** set. The formats are uniform: trees are Newick, tables and event logs are TSV, sequences are FASTA. Branch lengths are in time everywhere except the sequence phylograms, which are in substitutions per site. At every level the **event log** (`*_events.tsv`) is the true, ordered history the run followed, and Appendix B lists every file, level by level.
+Every run can be written with `result.write("out/", outputs=[...])`; with no `outputs` it writes that level's **default** set. The formats are uniform: trees are Newick, tables and event logs are TSV, sequences are FASTA. Branch lengths are in time everywhere except the sequence phylograms, which are in substitutions per site. The species, genome and trait levels write an **event log** (`*_events.tsv`), the ordered history of what fired and when; sequences write the alignments and the phylograms rather than the individual substitutions, which are not recorded. Appendix B lists every file, level by level.
 
-One stream of random numbers drives a whole run and `seed` starts it, so the same seed, the same parameters and the same ZOMBI2 version give the same run, event for event. A run given no seed draws one and writes it into the log, so it can still be repeated. Every run also writes a `run.zombi2` report holding the version and the commands that regenerate it, which is what you send with a dataset.
+Each level draws its own stream of random numbers, started by that level's `seed`, so the levels are independent of one another and the same seed, the same parameters and the same ZOMBI2 version give the same run, event for event. A run given no seed draws one and writes it into that level's summary (`*_summary.json`), so it can still be repeated. A run from the command line also writes a `run.zombi2` report holding the version and the commands that regenerate it, which is what you send with a dataset; from Python the script itself is that record.
