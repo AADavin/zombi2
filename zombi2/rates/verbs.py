@@ -20,7 +20,7 @@ which by looking at the value, so nothing downstream changes and a run is identi
 
 from __future__ import annotations
 
-from .modifiers import DrivenBy, Modifier, OnTime, describe
+from .modifiers import DrivenBy, Modifier, OnTime, SetBy, describe
 from .values import Measured, Time
 
 
@@ -71,28 +71,6 @@ def ScaledBy(value: object, mapping: object = None) -> Modifier:
     return DrivenBy(value, mapping)
 
 
-def SetBy(value: object, mapping: object = None):
-    """Replace the parameter's base with a value read from ``value``.
-
-    Its number carries the parameter's own units rather than being a factor, so it is written with no
-    base in front, and it may be negative where the parameter allows it::
-
-        loss = SetBy(habitat, {"cave": 1.0, "surface": 0.25})   # the rate itself, per state
-
-    **Not implemented.** Every engine evaluates a rate as ``scope(base) × modifiers`` and multiplies
-    whatever a modifier returns, so there is nowhere for a replaced base to go. It is here, refusing
-    with its reason, because the two value targets that need it — a trait's optimum and dN/dS — are
-    written absolutely in the literature ("omega is 2.5 on this branch", not "2.5 times the
-    background"), and spelling that as a multiplier of a background nobody stated is the kind of
-    quiet mismatch this grammar exists to avoid.
-    """
-    raise NotImplementedError(
-        "SetBy is not implemented. A rate today is base × modifiers, and every engine multiplies what "
-        "a modifier returns, so a replaced base has nowhere to go. Use ScaledBy with a base you state "
-        "yourself — `loss = 1.0 * ScaledBy(habitat, {'cave': 1.0, 'surface': 0.25})` is the same "
-        "model written as a multiple of 1.0.")
-
-
 def Weights(value: object, mapping: object = None) -> Modifier:
     """Weight the candidates of a **choice** — an argument that decides *who*, not how fast.
 
@@ -112,4 +90,7 @@ def Weights(value: object, mapping: object = None) -> Modifier:
     return DrivenBy(value, mapping)
 
 
-__all__ = ["ScaledBy", "SetBy", "Weights"]
+#: The verbs a rate may be **written** with — see `zombi2.rates.modifiers.WRITABLE`.
+WRITABLE = ("ScaledBy", "Weights")
+
+__all__ = ["ScaledBy", "SetBy", "Weights", "WRITABLE"]

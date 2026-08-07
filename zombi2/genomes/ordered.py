@@ -1250,6 +1250,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     inv, trp, trl = _rates["inversion"], _rates["transposition"], _rates["translocation"]
     fis, fus = _rates["fission"], _rates["fusion"]
     cor, clo = _rates["chromosome_origination"], _rates["chromosome_loss"]
+    for label, r in _rates.items():
+        r.check_one_base(label)
     if any(m.reads == (DRAWN, "family") for r in _rates.values() for m in r.modifiers) and \
             any(isinstance(m, DrivenBy) for r in _rates.values() for m in r.modifiers):
         raise ValueError(

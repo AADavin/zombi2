@@ -751,6 +751,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 f"support. It takes OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
                 f"ByFamily (per-family heterogeneity). Clade drift is not implemented yet."
             )
+    for label, rate in (("duplication", dup), ("transfer", tra), ("loss", los),
+                        ("origination", org)):
+        rate.check_one_base(label)
     # Getting this guard's reach wrong was a real bug once: a per-family draw the guard did not see,
     # set beside a driven rate, was accepted, and then the loop below set that rate's per-lineage
     # weights from the family sums and immediately OVERWROTE them with the driven ones — so the total

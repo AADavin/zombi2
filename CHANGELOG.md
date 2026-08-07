@@ -10,6 +10,19 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **`SetBy` states a driven parameter absolutely instead of as a multiple.** `loss = SetBy(habitat,
+  {"cave": 1.0, "surface": 0.25})` says the loss rate *is* 1.0 in caves, which is how the literature
+  usually states one — saying it before meant inventing a background and dividing by it. Written
+  with no base in front, because the driver supplies the whole number; `0.25 * SetBy(...)` raises
+  rather than discarding the 0.25 you wrote. The scope still applies, so a per-copy rate set to 1.0
+  is 1.0 per copy. A replaced base composes with any number of `ScaledBy` factors, but a rate may
+  carry only one `SetBy` — two would each claim to be the number, and no order of application is
+  more right than the other. It is a `DrivenBy`, so it works wherever a driver does and needs no new
+  machinery for trajectories, mid-branch switches or mapping checks.
+- **The written form knows the verbs and the values.** `ScaledBy`, `Weights`, `SetBy`, `Time()` and
+  `Clade({...})` now parse, so `--loss "0.2 * ScaledBy(Clade({'fast': ['n1','n2']}), {'fast': 3.0})"`
+  works on the command line and in a `--params` file. SPEC §5 says there is one written form
+  everywhere; adding a verb to Python alone would have broken that.
 - **A rate can be driven by a clade.** `Clade({"fast": ["n12", "n27"], "slow": 40})` is a value read
   off the tree itself, so `loss = 0.2 * ScaledBy(Clade({...}), {"fast": 3.0})` gives a clade its own
   rate — at every level that reads a driver, for a rate, an extent or a `transfer_to` weight. Unlike

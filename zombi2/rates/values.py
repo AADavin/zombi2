@@ -68,4 +68,8 @@ class Time(Measured):
         return hash(Time)
 
 
-__all__ = ["UNITS", "Clade", "Drawn", "Inherited", "Measured", "Time"]
+#: The values a rate may be **written** with. `Measured` is absent because it is abstract, and
+#: `Drawn` / `Inherited` because they are modifiers and `modifiers.WRITABLE` already lists them.
+WRITABLE = ("Clade", "Time")
+
+__all__ = ["UNITS", "WRITABLE", "Clade", "Drawn", "Inherited", "Measured", "Time"]
