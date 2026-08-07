@@ -179,3 +179,18 @@ class TestTheHolesAnAdversarialReviewFound:
 
     def test_a_driver_that_cannot_be_written_says_so_rather_than_looking_like_a_file(self, habitat):
         assert repr(ScaledBy(habitat, {"cave": 2.0})).startswith("DrivenBy(<TraitsResult>")
+
+    def test_a_choice_has_no_base_to_replace_either(self, tree, habitat):
+        """The same hole as the extent above, on the other kind of target. `transfer_to` weights the
+        candidate recipients against each other, so there is no base for `SetBy` to replace and the
+        word means nothing there — but `SetBy` is a `DrivenBy`, so the check that admits a driven
+        `transfer_to` admitted it, and the run went ahead treating it as an ordinary weighting."""
+        with pytest.raises(ValueError, match="transfer_to cannot be SetBy"):
+            genomes.simulate_genomes_family(
+                tree, transfer=0.5, initial_families=6, seed=2,
+                transfer_to=SetBy(habitat, {"cave": 3.0, "surface": 1.0}))
+
+        # the same numbers, spelled as what they are, still run
+        genomes.simulate_genomes_family(
+            tree, transfer=0.5, initial_families=6, seed=2,
+            transfer_to=ScaledBy(habitat, {"cave": 3.0, "surface": 1.0}))
