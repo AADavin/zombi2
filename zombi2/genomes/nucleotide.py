@@ -512,16 +512,6 @@ class NucleotideGenome:
     def length(self) -> int:
         return sum(c.length for c in self.chromosomes)
 
-    def _pick_position(self, rng) -> tuple[Chromosome, int]:
-        """A uniform nucleotide pick → ``(chromosome, physical position)`` — realises a per-nucleotide
-        (length-weighted) choice of chromosome."""
-        m = int(rng.integers(self.length))
-        for c in self.chromosomes:
-            if m < c.length:
-                return c, m
-            m -= c.length
-        raise AssertionError("length out of sync with the chromosomes")  # unreachable
-
     def _pick_legal_cut(self, rng) -> tuple[Chromosome, int] | None:
         """A uniform pick over the **whole genome's** legal breakpoints → ``(chromosome, physical
         position)``. `Chromosome._legal_cuts()` one scope up: it is where an event *starts*, as

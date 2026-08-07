@@ -4,7 +4,7 @@ A transfer's *rate* is an ordinary rate; what is special is **who receives** onc
 mechanic is the same whether the genome is a multiset of families or an ordered set of chromosomes,
 so it lives here, imported by every resolution. ``transfer_to`` **chooses who receives** (SPEC §5) —
 the numbers in it are per-candidate weights, normalised across the contemporaneous lineages, so they
-change neither how fast nor how many transfers happen, only **who** receives. Three rules:
+change neither how fast nor how many transfers happen, only **who** receives. Four rules:
 
 - ``"uniform"`` — every contemporaneous lineage gets equal weight;
 - `Distance` — weight by relatedness (closer relatives likelier), which needs the tree's mean

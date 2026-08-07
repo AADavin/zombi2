@@ -117,7 +117,16 @@ def _node(node: ast.AST, text: str):
         left, right = _node(node.left, text), _node(node.right, text)
         try:
             return left * right
-        except TypeError:                         # e.g. a list or a string on one side of the '*'
+        except TypeError as e:
+            # `SetBy.__rmul__` and `Rate.__mul__` raise TypeError with a message written for exactly
+            # this mistake — "SetBy replaces the base, so there is no base to write in front of it".
+            # Replacing it with the generic one below threw away the sentence that says what to do.
+            # Only ours are trusted, and the test for that is that both operands are things the
+            # grammar knows: CPython's own operand TypeError ("can't multiply sequence by non-int")
+            # arises when one of them is not, and says nothing a reader of a rate can act on.
+            grammar = (int, float, Rate, _modifiers.Modifier, _scope.Scope)
+            if isinstance(left, grammar) and isinstance(right, grammar):
+                raise _fail(str(e), text) from None
             raise _fail(
                 f"cannot compose {type(left).__name__} with {type(right).__name__} — '*' puts a "
                 f"modifier on a base or a scope", text) from None

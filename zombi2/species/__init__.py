@@ -211,7 +211,7 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
     """Grow one forward birth-death tree until it reaches ``n_extant`` living lineages,
     reaches ``total_time``, or dies out. Returns the complete tree and the event log.
 
-    When ``birth`` or ``death`` carries a an inherited value or a per-lineage draw modifier
+    When ``birth`` or ``death`` carries an inherited value or a per-lineage draw
     the rate is *per-lineage*: every lineage threads its own factor, so the lineage that speciates or
     dies is drawn **weighted** by its effective rate rather than uniformly. Under an inherited value a
     daughter's factor is its parent's, nudged at the split (clade drift); under a per-lineage draw it is an

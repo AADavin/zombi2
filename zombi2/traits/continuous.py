@@ -83,7 +83,7 @@ def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "
 
     ``inherited`` is the lineage's an inherited value factor (variable-rates
     BM), constant along the branch, threaded in by the caller and passed through to the rate; it
-    factors straight out of the integral. A rate with no an inherited value modifier ignores it.
+    factors straight out of the integral. A rate with no inherited value ignores it.
 
     ``ltt`` is the tree's lineages-through-time function when the rate carries a ``OnTotalDiversity`` modifier
     (diversity-dependent σ²): the integral then also steps at the tree's speciation / extinction times,
@@ -404,7 +404,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     """Evolve a continuous trait down a tree and return a `TraitsResult`. One process, its
     variants selected by knobs (SPEC §4): **Brownian motion** (bare ``rate``), **Ornstein–Uhlenbeck**
     (add ``reverts_to`` + ``pull``), **early burst** (a ``OnTime`` skyline on ``rate``), and
-    **variable-rates BM** (an an inherited value modifier on ``rate``).
+    **variable-rates BM** (an ``Inherited`` modifier on ``rate``).
 
     **Correlated traits** ride together in **one call** (the joint rule inside a level): pass
     ``start`` and ``rate`` as dicts keyed by trait name and a ``correlation={(a, b): ρ}`` overlay

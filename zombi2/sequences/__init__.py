@@ -934,7 +934,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     lineage's dealt tempo and its state both count — and several drivers on one rate multiply too.
     A discrete driver switches *mid-branch*, and the branch length is the driver **integrated** across
     the branch rather than one sample of it (`clock`), so the phylograms are the trees the alignments
-    were actually drawn along. Any other modifier (the ``Markov`` clock, the a per-family draw per-family
+    were actually drawn along. Any other modifier (the ``Markov`` clock, a per-family
     speed), a second lineage clock, or a non-``PerSite`` scope raises.
 
     Rate variation **across sites** rides on ``model``, not on ``substitution``:

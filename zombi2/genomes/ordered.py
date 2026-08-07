@@ -77,11 +77,11 @@ from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
 
 #: The rate grammar this engine supports (SPEC §5) — read by the gate below and by the CLI's help, so
-#: a modifier is never advertised without being implemented. The same three the family core takes,
+#: a modifier is never advertised without being implemented. The same four the family core takes,
 #: because the two are the same model at two resolutions: ``OnTime`` (a skyline in time), ``DrivenBy``
-#: (a conditioned or joint driver) and a per-family draw (per-family heterogeneity, weighted on the segment
-#: an event covers rather than on the gene it started from — SPEC §6). One combination is refused: see
-#: the gate.
+#: (a conditioned or joint driver), ``SetBy`` (a driver that replaces the base rather than scaling
+#: it) and a per-family draw (per-family heterogeneity, weighted on the segment an event covers
+#: rather than on the gene it started from — SPEC §6). One combination is refused: see the gate.
 IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, SetBy, (DRAWN, "family"))
 
 #: What an **extent** takes here (SPEC §6). An extent takes the modifiers a rate does, and at this
@@ -1363,7 +1363,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         return g
 
     # Per-family multipliers, drawn once when a family is created and fixed for its whole life,
-    # exactly as at the family resolution: one a per-family draw object read by two rates is one draw for
+    # exactly as at the family resolution: one `Drawn` object read by two rates is one draw for
     # both, two objects are two draws. What differs here is where the weight lands — on the run an
     # event covers, not on the gene it started from (SPEC §6). Empty unless some rate carries one.
     fam_by = {"duplication": tuple(m for m, _ in dup.carried_modifiers(unit="family")),

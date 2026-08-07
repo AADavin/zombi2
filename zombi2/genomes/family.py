@@ -370,7 +370,7 @@ class _FamilyWeights:
     which is quadratic in genome size — and it is nearly all waste, because one event changes one
     lineage by one copy and leaves the rest untouched. So the sums are kept here across events and
     only the lineage an event actually touched is rebuilt. Rates that share a multiplier table
-    (`simulate_genomes_family()` hands the same dict to each rate carrying no a per-family draw of its
+    (`simulate_genomes_family()` hands the same dict to each rate carrying no per-family draw of its
     own) share the array too, and so are summed once between them rather than once each.
 
     A rebuilt sum is the same expression over the same list in the same order, so it is the same
@@ -858,7 +858,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         return c
 
     # Per-family multipliers, drawn once when a family is created and then fixed for its whole life.
-    # Whether a family's rates move together is decided by what was written: one a per-family draw object read
+    # Whether a family's rates move together is decided by what was written: one `Drawn` object read
     # by two rates is one draw for both, two objects are two draws. Empty unless some rate carries
     # one, and then the engine takes its weighted path; a run carrying none draws nothing here.
     fam_by = {"duplication": tuple(m for m, _ in dup.carried_modifiers(unit="family")),
@@ -877,7 +877,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         family_counter += 1
         if any_family:
             # one draw per distinct modifier *object* for this family, shared across its rates: the
-            # same a per-family draw written on duplication and on loss means one number, so a fast family is
+            # same `Drawn` object written on duplication and on loss means one number, so a fast family is
             # fast at both. Two separately built ones are two draws even with the same spread.
             shared: dict[int, float] = {}
             for key, mods in fam_by.items():
