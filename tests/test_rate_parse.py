@@ -43,19 +43,27 @@ def test_number_times_modifier_matches_the_python_expression():
 
 
 def test_keyword_arguments():
-    assert parse_rate("1.0 * FromParent(spread=0.2)") == 1.0 * mod.FromParent(spread=0.2)
+    assert parse_rate("1.0 * Inherited(per='lineage', spread=0.2)") == 1.0 * mod.Inherited(per='lineage', spread=0.2)
     assert parse_rate("1.0 * OnTotalDiversity(cap=100)") == 1.0 * mod.OnTotalDiversity(cap=100)
 
 
 def test_a_string_argument():
-    assert parse_rate("1.0 * ByLineage(spread=0.3, dist='gamma')") == \
-        1.0 * mod.ByLineage(spread=0.3, dist="gamma")
+    assert parse_rate("1.0 * Drawn(per='lineage', spread=0.3)") == \
+        1.0 * mod.Drawn(per="lineage", spread=0.3)
+
+
+def test_a_distribution_argument():
+    """A distribution is built from literals, so it is writable and round-trips — which the
+    one-written-form rule needs, now that `dist=` takes an object rather than a name."""
+    from zombi2.rates.distributions import Gamma
+    assert parse_rate("0.25 * Drawn(per='family', dist=Gamma(shape=4.0, scale=0.25))") == \
+        0.25 * mod.Drawn(per="family", dist=Gamma(4.0, 0.25))
 
 
 def test_modifiers_stack():
-    r = parse_rate("1.0 * FromParent(spread=0.2) * OnTotalDiversity(cap=100)")
+    r = parse_rate("1.0 * Inherited(per='lineage', spread=0.2) * OnTotalDiversity(cap=100)")
     assert isinstance(r, Rate)
-    assert r.modifiers == (mod.FromParent(spread=0.2), mod.OnTotalDiversity(cap=100))
+    assert r.modifiers == (mod.Inherited(per='lineage', spread=0.2), mod.OnTotalDiversity(cap=100))
 
 
 def test_a_scope_and_a_modifier_compose():
@@ -132,8 +140,8 @@ def test_a_modifier_used_as_a_value_says_to_call_it():
 
 
 def test_a_misspelt_keyword_names_the_modifier():
-    with pytest.raises(RateSyntaxError, match="ByLineage:"):
-        parse_rate("1.0 * ByLineage(spred=0.3)")
+    with pytest.raises(RateSyntaxError, match="Drawn:"):
+        parse_rate("1.0 * Drawn(per='lineage', spred=0.3)")
 
 
 def test_curve_points_at_the_python_api():
@@ -170,8 +178,8 @@ def test_a_syntax_error_quotes_the_expression():
     "1.0",
     "Global(1.0)",
     "1.0 * OnTime({0: 1.0, 3: 0.3})",
-    "1.0 * FromParent(spread=0.2) * OnTotalDiversity(cap=100)",
-    "1.0 * ByLineage(spread=0.3, dist='gamma')",
+    "1.0 * Inherited(per='lineage', spread=0.2) * OnTotalDiversity(cap=100)",
+    "1.0 * Drawn(per='lineage', dist=Gamma(shape=11.11, scale=0.09))",
     "0.25 * DrivenBy('habitat.tsv', {'aquatic': 3.0})",
 ])
 def test_written_form_round_trips(text):

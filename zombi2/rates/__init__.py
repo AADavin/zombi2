@@ -7,9 +7,19 @@ Shared by every level, so it lives in one place. Reach the pieces as submodules:
     birth = 1.0 * modifiers.OnTime({0: 1.0, 3: 0.3})
 
 - ``scope`` — *per what?* ``PerCopy`` · ``PerLineage`` · ``PerSite`` · ``Global``
-- ``modifiers`` — *depends on what?* ``OnTime`` · ``OnTotalDiversity`` · ``FromParent``
+- ``modifiers`` — *depends on what?* ``OnTime`` · ``OnTotalDiversity`` · an inherited value
+- ``values`` / ``verbs`` — the grammar's two halves, written as a grid rather than a list:
+  ``Drawn(per="family", spread=0.5)`` is what a value *is*, ``ScaledBy(habitat, {...})`` what a
+  parameter *does* with it. They build the same objects ``modifiers`` does, so both spellings run
+  identically; the grid is what makes the next cell free rather than a new class.
 - ``rate`` — the internal ``Rate`` plumbing (users never build a ``Rate`` directly)
 - ``parse`` — ``parse_rate("1.0 * OnTime({0: 1.0, 3: 0.3})")``: the same expression written as text,
   which is how the CLI and a ``--params`` file take a rate (SPEC §5, *one written form*)
 - ``distributions`` — value/length distributions
 """
+
+from .values import UNITS, Clade, Drawn, Inherited, Measured, Time
+from .verbs import ScaledBy, SetBy, Weights
+
+__all__ = ["UNITS", "Clade", "Drawn", "Inherited", "Measured", "Time",
+           "ScaledBy", "SetBy", "Weights"]

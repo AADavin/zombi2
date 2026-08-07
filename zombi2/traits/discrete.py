@@ -9,7 +9,7 @@ import numpy as np
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import DrivenBy, Modifier, is_implemented
+from ..rates.modifiers import describe, DrivenBy, Modifier, is_implemented
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerLineage
 from ..tree import as_tree
@@ -131,7 +131,7 @@ def _switch_modifiers(switch) -> list:
         for m in r.modifiers:
             if not is_implemented(m, IMPLEMENTED_MODIFIERS, "traits.discrete"):
                 raise ValueError(
-                    f"a switch rate carries {type(m).__name__}, which the discrete trait engine does "
+                    f"a switch rate carries {describe(m)}, which the discrete trait engine does "
                     f"not support. It takes DrivenBy (the switch rate driven by another level).")
             if isinstance(m, DrivenBy):     # only a driver has a mapping to check
                 check_not_a_kernel(m.mapping, label="a switch rate")

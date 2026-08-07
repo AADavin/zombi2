@@ -328,7 +328,7 @@ def test_genomes_is_deterministic_across_resolutions(tmp_path, tree_file):
 @pytest.mark.parametrize("argv, why", [
     (["--initial-families", "5"], "nucleotide has no initial-families"),
     (["--replacement"], "nucleotide transfers are additive"),
-    (["--loss", "0.2 * ByFamily(spread=0.5)"], "nucleotide wires OnTime and DrivenBy, not ByFamily"),
+    (["--loss", "0.2 * Drawn(per='family', spread=0.5)"], "nucleotide wires OnTime and DrivenBy, not ByFamily"),
     (["--gff", "x.gff", "--genes", "3"], "gff and genes are mutually exclusive"),
     (["--write", "gene_order"], "gene_order is an ordered output"),
     (["--write", "profiles"], "the nucleotide resolution has no profiles"),
@@ -470,12 +470,25 @@ def test_sequences_write_selects_ancestral_and_species_phylogram(tmp_path, genom
 def test_sequences_relaxed_clock_runs_and_is_logged(tmp_path, genomes_dir):
     # the relaxed clock is not its own flag: it is a ByLineage modifier on the substitution rate
     out = tmp_path / "s"
-    rc = main(["sequences", str(out), "--from", str(genomes_dir), "--model", "gtr", "--frequencies", "0.3", "0.2", "0.2", "0.3", "--substitution", "1.0 * ByLineage(spread=0.4, dist='gamma')", "--seed", "1", "--flat"])
+    rc = main(["sequences", str(out), "--from", str(genomes_dir), "--model", "gtr", "--frequencies", "0.3", "0.2", "0.2", "0.3", "--substitution", "1.0 * Drawn(per='lineage', dist=Gamma(shape=6.25, scale=0.16))", "--seed", "1", "--flat"])
     assert rc == 0
     log = (out / "sequences.log").read_text(encoding="utf-8")
-    assert "gamma lineage clock, spread 0.4" in log
+    assert "lineage clock, Gamma(shape=6.25, scale=0.16)" in log
     # the rate is logged in its written form, so the log line pastes back into --substitution
-    assert "substitution\t1.0 * ByLineage(spread=0.4, dist='gamma')" in log
+    assert "substitution\t1.0 * Drawn(per='lineage', dist=Gamma(shape=6.25, scale=0.16))" in log
+
+
+def test_the_summary_names_every_clock_a_rate_carries(tmp_path, genomes_dir):
+    """Several drawn clocks compose now, and the line that describes the run was built by
+    overwriting a variable in a loop — so a rate carrying two was summarised as carrying one, which
+    states a model that is not the model simulated."""
+    out = tmp_path / "s"
+    rc = main(["sequences", str(out), "--from", str(genomes_dir), "--model", "jc69",
+               "--substitution", "1.0 * Drawn(per='lineage', spread=0.3) * Drawn(per='lineage', spread=0.5)",
+               "--seed", "1", "--flat"])
+    assert rc == 0
+    log = (out / "sequences.log").read_text(encoding="utf-8")
+    assert "spread 0.3" in log and "spread 0.5" in log
 
 
 def test_sequences_rejects_a_model_foreign_parameter(tmp_path, genomes_dir):
@@ -1039,9 +1052,9 @@ def test_genomes_params_file_carries_a_driven_transfer_to(tmp_path, driver_file,
 
 def test_traits_takes_a_rate_expression(tmp_path, tree_file):
     out = tmp_path / "t"
-    rc = main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0 * FromParent(spread=0.2)", "--seed", "1", "--flat"])
+    rc = main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0 * Inherited(per='lineage', spread=0.2)", "--seed", "1", "--flat"])
     assert rc == 0
-    assert "rate\t1.0 * FromParent(spread=0.2)" in (out / "traits.log").read_text(encoding="utf-8")
+    assert "rate\t1.0 * Inherited(per='lineage', spread=0.2)" in (out / "traits.log").read_text(encoding="utf-8")
 
 
 def test_params_file_takes_a_rate_expression(tmp_path):
@@ -1066,9 +1079,11 @@ def test_params_file_rate_expression_matches_the_flag(tmp_path):
 def test_the_rates_help_lists_only_what_the_level_wires(capsys):
     # the help is built from each level's IMPLEMENTED_MODIFIERS, so it cannot advertise the unwired
     for command, present, absent in [
-            ("species", ["FromParent", "ByLineage"], ["ByFamily"]),   # both per-lineage forms wired
+            # both per-lineage cells are wired; the per-family one is not
+            ("species", ["inherited per lineage", "drawn per lineage"], ["drawn per family"]),
             # both clocks and the trait driver are wired; the diversity covariate is not
-            ("sequences", ["ByLineage", "FromParent", "DrivenBy"], ["OnTotalDiversity"])]:
+            ("sequences", ["drawn per lineage", "inherited per lineage", "DrivenBy"],
+             ["OnTotalDiversity"])]:
         with pytest.raises(SystemExit):
             main([command, "--help", "--flat"])
         out = capsys.readouterr().out
@@ -1804,23 +1819,7 @@ def test_max_family_size_rejects_a_non_number(tmp_path, tree_file):
     assert e.value.code == 2
 
 
-def test_family_speed_takes_a_byfamily_draw(tmp_path, tree_file):
-    rc = main(["genomes", str(tmp_path / "fs"), "--from", str(tree_file), "--duplication", "0.4",
-               "--loss", "0.2", "--origination", "0.3", "--initial-families", "8",
-               "--family-speed", "ByFamily(spread=0.6)", "--seed", "1", "--flat", "--quiet"])
-    assert rc == 0
-
-
-def test_family_speed_rejects_a_bare_number(tmp_path, tree_file):
-    """It is a *draw*, not a factor — a plain number would silently mean something else."""
-    with pytest.raises(SystemExit) as e:
-        main(["genomes", str(tmp_path / "g"), "--from", str(tree_file),
-              "--family-speed", "2.0", "--flat"])
-    assert e.value.code == 2
-
-
-@pytest.mark.parametrize("flag, value", [("--max-family-size", "5"),
-                                         ("--family-speed", "ByFamily(spread=0.5)")])
+@pytest.mark.parametrize("flag, value", [("--max-family-size", "5")])
 def test_the_family_knobs_are_refused_under_nucleotide(tmp_path, tree_file, flag, value):
     """Each is absent there for its own reason, and the error says which rather than giving one
     blanket explanation that fits some of the group and not the rest."""
@@ -1920,7 +1919,7 @@ def test_the_log_records_the_options_this_resolution_has(tmp_path, tree_file):
     keys = lambda log: {ln.split("\t")[0] for ln in log.splitlines() if "\t" in ln}
 
     assert not keys(fam_log) & {"root_length", "gene_length", "inversion", "chromosomes", "gff"}
-    assert not keys(nuc_log) & {"initial_families", "replacement", "family_speed"}
+    assert not keys(nuc_log) & {"initial_families", "replacement", "max_family_size"}
     assert "root_length" in keys(nuc_log)          # ...and it does record what it HAS
     assert {"duplication", "seed", "resolution"} <= keys(fam_log)
 

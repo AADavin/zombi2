@@ -15,6 +15,7 @@ import textwrap
 import numpy as np
 
 from zombi2 import __version__
+from zombi2.rates.modifiers import cell_name
 from zombi2.rng import draw_seed
 
 
@@ -109,11 +110,14 @@ def _rate(text: str):
 _MODIFIER_HELP = {
     "OnTime": ("OnTime({0: 1.0, 3: 0.3})", "the rate changes in time — a skyline"),
     "OnTotalDiversity": ("OnTotalDiversity(cap=100)", "the rate slows as the clade fills up"),
-    "FromParent": ("FromParent(spread=0.2)", "the rate drifts down the tree"),
-    # "clock" is reserved for the sequences by-lineage substitution modifier (SPEC §7), and this
+    "inherited per lineage": ("Inherited(per='lineage', spread=0.2)",
+                              "the rate drifts down the tree — autocorrelated"),
+    # "clock" is reserved for the sequences per-lineage substitution modifier (SPEC §7), and this
     # string now prints on `zombi2 species -h` and `zombi2 genomes -h` too
-    "ByLineage": ("ByLineage(spread=0.3)", "one independent draw per lineage — uncorrelated"),
-    "ByFamily": ("ByFamily(spread=0.5)", "one independent draw per gene family — uncorrelated"),
+    "drawn per lineage": ("Drawn(per='lineage', spread=0.3)",
+                          "one independent draw per lineage — uncorrelated"),
+    "drawn per family": ("Drawn(per='family', spread=0.5)",
+                         "one independent draw per gene family — uncorrelated"),
     "DrivenBy": (None, "the number is driven by an evolved value"),
 }
 
@@ -131,7 +135,8 @@ def _rates_help(supported, flag: str, *, scopes: str | None = None, note: str | 
     here either — and the worked example is drawn from the same list, so it is always a modifier that
     runs. ``example`` overrides that snippet for a level whose form differs (see `_MODIFIER_HELP`).
     """
-    snippets = [_MODIFIER_HELP[m.__name__][0] for m in supported if m.__name__ in _MODIFIER_HELP]
+    names = [cell_name(m) for m in supported]
+    snippets = [_MODIFIER_HELP[n][0] for n in names if n in _MODIFIER_HELP]
     shown = example or next((s for s in snippets if s), None)
 
     header = _BOLD + "RATES" + _RESET if _use_color() else "RATES"
@@ -142,8 +147,7 @@ def _rates_help(supported, flag: str, *, scopes: str | None = None, note: str | 
     if scopes:
         lines.append(f'    {flag} "{scopes}"')
     lines.append("  Modifiers this level takes (anything else is an error):")
-    for m in supported:
-        name = m.__name__
+    for name in names:
         entry = _MODIFIER_HELP.get(name)
         lines.append(f"    {name:<20}{entry[1]}" if entry else f"    {name}")
     if note:

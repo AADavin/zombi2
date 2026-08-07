@@ -10,7 +10,8 @@ import numpy as np
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import ByFamily, DrivenBy, FromParent, OnTime, OnTotalDiversity, is_implemented
+from ..rates.modifiers import (describe, DRAWN, INHERITED, DrivenBy, OnTime, OnTotalDiversity, SetBy,
+                               check_one_memory, is_implemented, values_at_birth, values_at_split)
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..tree import Tree, as_tree
@@ -18,7 +19,7 @@ from ..tree import Tree, as_tree
 from ._shared import _correlation_matrix, _driven_mods, _preorder, _resolve_drivers, _symmetric_sqrt
 from .result import Change, TraitsResult
 
-IMPLEMENTED_MODIFIERS = (OnTime, FromParent, OnTotalDiversity, DrivenBy)  #: the modifiers a continuous rate takes
+IMPLEMENTED_MODIFIERS = (OnTime, (INHERITED, "lineage"), OnTotalDiversity, DrivenBy, SetBy)  #: the cells a continuous rate takes
 
 class _LTT:
     """The tree's lineages-through-time step function — how many lineages are alive at time ``t``
@@ -77,12 +78,12 @@ def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "
     exactly ``σ²·e^{−2α(t1−b)}·(1−e^{−2α(b−a)})/(2α)``, written below with ``expm1`` because for a
     small α the difference of two exponentials both close to 1 loses most of its significant digits.
 
-    A modifier that is constant along the branch — ``FromParent``, the variable-rates σ² drift —
+    A modifier that is constant along the branch — an inherited value, the variable-rates σ² drift —
     factors straight out of either integral, so it composes with OU for free.
 
-    ``inherited`` is the lineage's `FromParent` factor (variable-rates
+    ``inherited`` is the lineage's an inherited value factor (variable-rates
     BM), constant along the branch, threaded in by the caller and passed through to the rate; it
-    factors straight out of the integral. A rate with no ``FromParent`` modifier ignores it.
+    factors straight out of the integral. A rate with no an inherited value modifier ignores it.
 
     ``ltt`` is the tree's lineages-through-time function when the rate carries a ``OnTotalDiversity`` modifier
     (diversity-dependent σ²): the integral then also steps at the tree's speciation / extinction times,
@@ -115,7 +116,7 @@ def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "
             drivers = {key: traj.value(node_id, t) for key, traj in trajs.items()}
             for traj in trajs.values():
                 nxt = min(nxt, traj.next_change(node_id, t))
-        sigma2 = rate.effective(lineages=1, time=t, inherited=inherited, diversity=div,
+        sigma2 = rate.effective(lineages=1, time=t, carried_factor=inherited, diversity=div,
                                 drivers=drivers)
         if pull > 0.0:
             # the OU weight for this piece: what survives of the noise injected in [t, nxt) once the
@@ -228,7 +229,7 @@ def _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciatio
         # this path walks the regime map's (state, duration) segments, not absolute time, so it has
         # none of the plumbing a modified σ² needs (the schedule's breakpoints, the standing
         # diversity, a driver's switch times). The single-optimum OU path does take them.
-        carried = ", ".join(dict.fromkeys(type(m).__name__ for m in r.modifiers))
+        carried = ", ".join(dict.fromkeys(describe(m) for m in r.modifiers))
         raise ValueError(
             f"rate carries {carried}, and a modified variance-rate combined with regimes is not "
             f"implemented yet — give a bare variance-rate here, or drop regimes and use "
@@ -331,7 +332,7 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
         if not isinstance(r.scope, PerLineage):
             raise ValueError(f"rate[{name!r}] must be per lineage — drop the scope wrapper.")
         if r.modifiers:
-            carried = ", ".join(dict.fromkeys(type(m).__name__ for m in r.modifiers))
+            carried = ", ".join(dict.fromkeys(describe(m) for m in r.modifiers))
             raise ValueError(
                 f"rate[{name!r}] carries {carried}; per-trait modifiers combined with correlation "
                 f"are not implemented yet — with a σ² that moves, the branch covariance is "
@@ -403,7 +404,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     """Evolve a continuous trait down a tree and return a `TraitsResult`. One process, its
     variants selected by knobs (SPEC §4): **Brownian motion** (bare ``rate``), **Ornstein–Uhlenbeck**
     (add ``reverts_to`` + ``pull``), **early burst** (a ``OnTime`` skyline on ``rate``), and
-    **variable-rates BM** (an ``FromParent`` modifier on ``rate``).
+    **variable-rates BM** (an an inherited value modifier on ``rate``).
 
     **Correlated traits** ride together in **one call** (the joint rule inside a level): pass
     ``start`` and ``rate`` as dicts keyed by trait name and a ``correlation={(a, b): ρ}`` overlay
@@ -432,7 +433,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     lineage diffuses independently at σ², never pooled across the tree. A bare number is Brownian
     motion (``Normal(0, σ²·dt)`` over a branch); a ``OnTime`` modifier makes σ² change through time —
     early burst / ACDC — with the per-branch variance the exact integral ``∫ σ²(t) dt``; an
-    ``FromParent(spread=…)`` modifier makes σ² **drift branch-to-branch** — variable-rates BM ("ClaDS
+    ``Inherited(per="lineage", spread=…)`` modifier makes σ² **drift branch-to-branch** — variable-rates BM ("ClaDS
     for traits") — each lineage inheriting its parent's σ² times a lognormal kick drawn at the split;
     a ``OnTotalDiversity(cap=…)`` modifier makes σ² **slow as the clade fills up** — diversity-dependent /
     ecological-limits trait evolution — σ² scaled by ``(1 − standing_diversity/cap)`` as the tree's
@@ -489,28 +490,30 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             f"rate has a {type(r.scope).__name__} scope, but a continuous trait's variance-rate is "
             f"per lineage — drop the scope wrapper (per lineage is the default)."
         )
-    # OnTime (early burst), FromParent (variable-rates BM), OnTotalDiversity (diversity-dependent)
+    # OnTime (early burst), Inherited(per='lineage') (variable-rates BM), OnTotalDiversity (diversity-dependent)
     # and DrivenBy (σ² driven by another level) are the σ² modifiers this engine supports; anything
     # else is rejected loudly — the genome engine's discipline.
     for m in r.modifiers:
-        if isinstance(m, ByFamily):
+        if m.reads == (DRAWN, "family"):
             # not a missing feature: there is nothing here for it to mean
             raise ValueError(
-                "rate carries ByFamily, but a trait has no gene families — ByFamily belongs on a "
-                "genomes rate. For per-lineage heterogeneity here use FromParent (variable-rates BM)."
+                "rate carries a per-family draw, but a trait has no gene families — Drawn(per='family') "
+                "belongs on a "
+                "genomes rate. For per-lineage heterogeneity here use Inherited(per='lineage') (variable-rates BM)."
             )
         if not is_implemented(m, IMPLEMENTED_MODIFIERS, "traits.continuous"):
             raise ValueError(
-                f"rate carries {type(m).__name__}, which the continuous trait engine does not "
-                f"support. It takes OnTime (early burst), FromParent (variable-rates BM), "
+                f"rate carries {describe(m)}, which the continuous trait engine does not "
+                f"support. It takes OnTime (early burst), Inherited(per='lineage') (variable-rates BM), "
                 f"OnTotalDiversity (diversity-dependent), and DrivenBy (driven by another level)."
             )
         if isinstance(m, DrivenBy):
             check_not_a_kernel(m.mapping, label="rate")
-    drifts = [m for m in r.modifiers if isinstance(m, FromParent)]
-    if len(drifts) > 1:
-        raise ValueError("rate carries more than one FromParent modifier; a variance-rate drifts one way")
-    drift = drifts[0] if drifts else None  # the per-lineage σ² drift (variable-rates BM), or None
+    # the per-lineage modifiers σ² carries (variable-rates BM), asked for the same way every level
+    # asks — and every one of them is kept, so two compose rather than the second going quietly.
+    drift = tuple(m for m, _ in r.carried_modifiers(unit="lineage"))
+    check_one_memory(drift, label="rate", unit="lineage")
+    r.check_one_base("rate")
     has_diversity = any(isinstance(m, OnTotalDiversity) for m in r.modifiers)  # σ² reads the standing LTT
 
     # OU: reverts_to (θ) + pull (α) turn the diffusion into mean-reversion — both or neither.
@@ -546,7 +549,8 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     # the initial value at t=0 — the origin the log reconstructs from (SPEC §2). A diffusion cannot be
     # rebuilt from events, but the row keeps the file's shape uniform across trait kinds.
     events: list[Change] = [Change(root.birth_time, "initial", tree.root, None, float(start))]
-    inh: dict[int, float] = {}  # each lineage's σ² drift factor (variable-rates BM), constant per branch
+    inh: dict[int, tuple[float, ...]] = {}  # each lineage's σ² drift factors (variable-rates BM),
+                                           # one per carried modifier, constant along its branch
     for i in _preorder(tree, progress):
         node = tree.nodes[i]
         # the root starts from `start` at t=0; every other node from its parent's end value (parent
@@ -559,20 +563,20 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
         # thread the inherited factor: the root's is 1.0, each daughter's is its parent's times a
         # lognormal kick drawn at the split (so σ² is autocorrelated down the tree). None ⇒ 1.0, no draw.
         if node.parent is None:
-            inh[i] = drift.initial() if drift else 1.0
+            inh[i] = values_at_birth(drift, rng)
         else:
-            inh[i] = drift.descend(inh[node.parent], rng) if drift else 1.0
+            inh[i] = values_at_split(drift, inh[node.parent], rng)
         t0, t1 = node.birth_time, node.end_time
         if is_ou:
             e = math.exp(-alpha * (t1 - t0))       # mean-reversion toward θ over the branch
             mean = theta + (x - theta) * e         # the mean does not read σ², so a modified σ² leaves it
             # …and the variance is the pull-weighted integral, which for a bare σ² is exactly the
             # closed form σ²/(2α)·(1−e^{−2α·dt}) this branch used before the weight existed.
-            var = _accrued_variance(r, t0, t1, inherited=inh[i], ltt=ltt, trajs=trajs, node_id=i,
+            var = _accrued_variance(r, t0, t1, inherited=math.prod(inh[i]), ltt=ltt, trajs=trajs, node_id=i,
                                     pull=alpha)
         else:
             mean = x                                # pure diffusion (BM / early burst / variable-rates)
-            var = _accrued_variance(r, t0, t1, inherited=inh[i], ltt=ltt, trajs=trajs, node_id=i)
+            var = _accrued_variance(r, t0, t1, inherited=math.prod(inh[i]), ltt=ltt, trajs=trajs, node_id=i)
         std = math.sqrt(var) if var > 0.0 else 0.0
         node_values[i] = mean + (float(rng.normal(0.0, std)) if std > 0.0 else 0.0)
 

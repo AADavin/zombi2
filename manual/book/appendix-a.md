@@ -56,17 +56,17 @@ The modifiers are:
 |---|---|
 | `OnTime` | Follows a **time schedule**: one factor up to a breakpoint, another after it. |
 | `OnTotalDiversity` | **Slows as the tree fills up**: the factor falls from 1 toward 0 as the number of lineages approaches a carrying capacity, and stays there. |
-| `FromParent` | Is **inherited from the parent lineage and nudged at each split**, so the rate drifts gradually down the tree and close relatives keep similar rates. |
-| `ByLineage` | Is an **independent draw for each lineage**, with no memory of its parent, so nearby branches are no more alike than distant ones. |
-| `ByFamily` | Is an **independent draw for each gene family**, so one family is prone to transfer and another is not, whatever lineage either sits in. |
+| `Inherited(per='lineage')` | Is **inherited from the parent lineage and nudged at each split**, so the rate drifts gradually down the tree and close relatives keep similar rates. |
+| `Drawn(per='lineage')` | Is an **independent draw for each lineage**, with no memory of its parent, so nearby branches are no more alike than distant ones. |
+| `Drawn(per='family')` | Is an **independent draw for each gene family**, so one family is prone to transfer and another is not, whatever lineage either sits in. |
 | `DrivenBy` | **Reads an evolved value**: the factor is looked up from a driver's state, either another level or another run of the same one, which is how one thing conditions another (Chapter 9). |
 
 The first two are **deterministic**: `OnTime` and `OnTotalDiversity` are fixed functions of the state of
 the world, so every lineage that meets the same time, or the same diversity, gets the same factor. The
-next two are **random and vary from lineage to lineage**, and they differ in *memory*: `FromParent` is
+next two are **random and vary from lineage to lineage**, and they differ in *memory*: `Inherited(per='lineage')` is
 passed down and drifts, so the rate is autocorrelated along the tree, a slowly wandering clock or a
-clade that inherits a fast tempo, whereas `ByLineage` is drawn afresh on every branch, so the variation
-is scattered, an uncorrelated ("relaxed") clock. `ByFamily` is the same independent draw made over gene
+clade that inherits a fast tempo, whereas `Drawn(per='lineage')` is drawn afresh on every branch, so the variation
+is scattered, an uncorrelated ("relaxed") clock. `Drawn(per='family')` is the same independent draw made over gene
 families rather than lineages, so it varies what a family does wherever it sits. All three random
 modifiers are **mean-corrected**, meaning their factors average to 1, so a lineage is no likelier to be
 sped up than slowed down.
@@ -84,20 +84,22 @@ multiplies an **extent** at the ordered and nucleotide resolutions. `DrivenBy` a
 front of it (Chapter 9).
 
 Modifiers **stack by multiplication**, so they combine: `1.0 * mod.OnTime({0: 1, 5: 0.3}) *
-mod.FromParent(spread=0.3)` is a rate that both follows a schedule and drifts between lineages.
+mod.Inherited(per='lineage', spread=0.3)` is a rate that both follows a schedule and drifts between lineages.
 
 ### Which level accepts which
 
 A modifier only makes sense where the level can act on it, and a level **rejects** one it does not
-accept rather than silently ignoring it. This is what each accepts today:
+accept rather than silently ignoring it. `SetBy` is listed separately from `DrivenBy` even though it
+is one, because replacing a base is a capability an engine has or has not: the three levels below can
+do it and the rest refuse. This is what each accepts today:
 
 | Level | The modifiers it accepts |
 |---|---|
-| Species | `OnTime` · `OnTotalDiversity` · `FromParent` · `ByLineage` |
-| Genomes, family and ordered | `OnTime` · `DrivenBy` · `ByFamily` |
+| Species | `OnTime` · `OnTotalDiversity` · `inherited per lineage` · `drawn per lineage` |
+| Genomes, family and ordered | `OnTime` · `DrivenBy` · `SetBy` · `drawn per family` |
 | Genomes, nucleotide | `OnTime` · `DrivenBy` |
-| Sequences | `ByLineage` · `FromParent` · `DrivenBy` |
-| Traits, continuous `rate` | `OnTime` · `FromParent` · `OnTotalDiversity` · `DrivenBy` |
+| Sequences | `drawn per lineage` · `inherited per lineage` · `DrivenBy` |
+| Traits, continuous `rate` | `OnTime` · `inherited per lineage` · `OnTotalDiversity` · `DrivenBy` · `SetBy` |
 | Traits, discrete `switch` | `DrivenBy` |
 | Joint, `birth` / `death` | `OnTime` · `OnTotalDiversity` · `DrivenBy` |
 

@@ -33,7 +33,8 @@ from ..genomes import GeneEdge, GeneCopy, FamilyGenomesResult, FamilyGenome
 from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
 from ..rates.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import ByFamily, ByLineage, DrivenBy, FromParent, OnTime, OnTotalDiversity, is_implemented
+from ..rates.modifiers import (DRAWN, INHERITED, DrivenBy, OnTime, OnTotalDiversity, describe,
+                               is_implemented)
 
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
@@ -430,7 +431,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
     living lineages (conditioned on survival — a birth-death tree can die out, so it restarts,
     advancing the same generator) **or** at ``total_time`` — give exactly one. Returns a
     `JointResult` carrying the grown tree and the driver level (``.trait`` or ``.genome``).
-    Deterministic given ``seed``. Continuous trait→speciation (QuaSSE), clade drift (``FromParent``)
+    Deterministic given ``seed``. Continuous trait→speciation (QuaSSE), clade drift (an inherited value)
     combined with driving, and gene transfer in a joint run are not available.
     """
     birth_rate = as_rate(birth, default_scope=PerLineage)
@@ -448,35 +449,35 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 f"per lineage — drop the scope wrapper (per lineage is the default)."
             )
         for m in rate.modifiers:
-            if isinstance(m, ByFamily):
+            if m.reads == (DRAWN, "family"):
                 # not a missing feature: there is nothing here for it to mean (the species level
                 # says the same thing about the same modifier, for the same reason)
                 raise ValueError(
-                    f"{label} carries ByFamily, but a diversification rate has no gene families — "
-                    f"ByFamily belongs on a genomes rate. To make speciation depend on gene content, "
+                    f"{label} carries Drawn(per='family'), but a diversification rate has no gene families — "
+                    f"Drawn(per='family') belongs on a genomes rate. To make speciation depend on gene content, "
                     f"drive it: birth = 1.0 * mod.DrivenBy(\"genomes:count\", ...)."
                 )
-            if isinstance(m, FromParent):
+            if m.reads == (INHERITED, "lineage"):
                 raise ValueError(
-                    f"{label} carries FromParent (clade drift); drift and a driven rate are not available "
+                    f"{label} carries Inherited(per='lineage') (clade drift); drift and a driven rate are not available "
                     f"together — use one or the other."
                 )
-            if isinstance(m, ByLineage):
+            if m.reads == (DRAWN, "lineage"):
                 # The species level takes this; the joint engine does not thread it, so accepting it
                 # here would run the model without the rate variation the user asked for — and the
                 # same `--birth` expression working on `zombi2 species` makes that a trap rather than
                 # merely a gap (SPEC §5: reject, never silently ignore).
                 raise ValueError(
-                    f"{label} carries ByLineage (independent per-lineage rates); per-lineage rate "
+                    f"{label} carries Drawn(per='lineage') (independent per-lineage rates); per-lineage rate "
                     f"variation and a driven rate are not available together in a joint run — use "
-                    f"one or the other. On its own, ByLineage works at the species level."
+                    f"one or the other. On its own, Drawn(per='lineage') works at the species level."
                 )
             if not is_implemented(m, IMPLEMENTED_MODIFIERS, "joint"):
                 # the backstop: anything this engine does not thread would come back as its default
                 # factor of 1.0, which is a run quietly not the model that was asked for (SPEC §5).
                 # Declared rather than enumerated here, so a modifier added later cannot slip through.
                 raise ValueError(
-                    f"{label} carries {type(m).__name__}, which a joint run does not support. It "
+                    f"{label} carries {describe(m)}, which a joint run does not support. It "
                     f"takes OnTime (skyline), OnTotalDiversity (diversity-dependent) and DrivenBy "
                     f"(the driver that makes the run joint)."
                 )
@@ -486,7 +487,10 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                     raise TypeError(
                         f"{label} is driven by a {type(m.driver).__name__} object, but a joint model "
                         f"drives from a live level *name* (a string, e.g. \"trait\" / \"genomes:count\"). "
-                        f"A grown result object is conditioning — pass it to the target level's run."
+                        + ("A clade is read off a finished tree, and a joint run grows the tree as it "
+                           "goes, so there is no clade to read yet."
+                           if type(m.driver).__name__ == "Clade" else
+                           "A grown result object is conditioning — pass it to the target level's run.")
                     )
                 driver_names.append(m.driver)
     if not driver_names:

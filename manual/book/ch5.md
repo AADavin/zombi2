@@ -109,7 +109,7 @@ The same reading holds at the nucleotide resolution of Chapter 6, where the exte
 
 ### Families that differ, once events cover several at once
 
-`ByFamily` and `family_speed` work here as they do in Chapter 4, but with one difference that matters. A run covers several families at once, so the weight is applied to **the run, averaged over the genes it covers**, not to the gene the run happened to start on.
+`Drawn(per='family')` works here as it does in Chapter 4, but with one difference that matters. A run covers several families at once, so the weight is applied to **the run, averaged over the genes it covers**, not to the gene the run happened to start on.
 
 Weighting the starting gene is the obvious implementation and the wrong one: a fast family's rate would then apply to whatever sat beside it, so you would be describing the *neighbourhood* of a fast family rather than the family, and the neighbourhood is reshuffled by every inversion and translocation, so the parameter would not name a stable thing. Averaging over the run keeps what you wrote true: a run of heavily-weighted genes is favoured, a mixed one sits between, an ordinary one is unweighted.
 
@@ -135,7 +135,7 @@ One thing to watch when you combine a restrictive rule with a tight `max_family_
 
 Every rate here also takes `DrivenBy`, so a habitat can decide how often a lineage rearranges its gene order, and every extent takes it too, so the same habitat can decide how long the rearranged runs are. The mechanism is Chapter 9's and is not repeated here.
 
-What belongs here is why the two per-family knobs above and a trait driver sit apart. A trait `DrivenBy` attaches to the **lineage**: at any instant it is one factor for that lineage's whole genome, so it composes with any extent unchanged and the run is drawn exactly as it would be without it. `ByFamily` attaches to the **contents**, so it has to weight the run by what the run covers. The two therefore cannot be set in the same run yet: combining them means weighting by the product of a lineage factor and a segment factor, which is neither model on its own. `family_speed` counts as a `ByFamily` here.
+What belongs here is why the two per-family knobs above and a trait driver sit apart. A trait `DrivenBy` attaches to the **lineage**: at any instant it is one factor for that lineage's whole genome, so it composes with any extent unchanged and the run is drawn exactly as it would be without it. `Drawn(per='family')` attaches to the **contents**, so it has to weight the run by what the run covers. The two therefore cannot be set in the same run yet: combining them means weighting by the product of a lineage factor and a segment factor, which is neither model on its own.
 
 ## Rearrangements: inversion, transposition, translocation
 

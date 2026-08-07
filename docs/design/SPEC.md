@@ -132,7 +132,20 @@ effective rate  =  scope(base)  ×  modifiers
   factor.
 - **modifiers** — dimensionless context multipliers (by lineage, by family). They change *how fast*,
   never *how many*. "per" is the scope word; a modifier is named for its family — `On` / `By` / `From`,
-  plus `DrivenBy` (below) — so `PerLineage` is a scope and `ByLineage` a modifier.
+  plus `DrivenBy` (below) — so `PerLineage` is a scope and `Drawn(per='lineage')` a modifier.
+
+**One modifier replaces the base rather than multiplying it: `SetBy`.** Two things are stated
+absolutely in the literature rather than as a multiple — a driven rate ("the loss rate is 1.0 in
+caves") and a trait's optimum — and writing those as a factor means inventing a background nobody
+stated and dividing by it. So `loss = SetBy(habitat, {"cave": 1.0, "surface": 0.25})` takes **no base
+in front**: the driver supplies the whole number, in the rate's own units. The scope is untouched —
+a per-copy rate set to 1.0 is still 1.0 *per copy* — because `SetBy` answers *how fast*, never *per
+what*. A rate carries **one** `SetBy` and any number of multiplying modifiers, and the `SetBy` is
+written first, because everything to its left is a base it would discard.
+
+`SetBy` is a `DrivenBy`, and a level must therefore declare it **separately**: replacing a base is a
+capability an engine has or has not, and a gate that admitted it through `DrivenBy` would accept it
+at four levels that cannot honour it.
 
 "Per what" by level:
 
@@ -153,7 +166,7 @@ Time is imposed by the species tree, at the beginning of the **stem**.
 
 **How a rate is written (same at every level):** the scope wraps (`PerCopy(0.2)`, `PerLineage(0.5)`,
 `Global(1.0)` — `Global` capitalised, since `global` is a Python keyword) and modifiers multiply
-(`0.2 * ByFamily(...)`, `1.0 * OnTotalDiversity(cap=100)`); a bare number uses the rate's natural scope,
+(`0.2 * Drawn(per='family', spread=...)`, `1.0 * OnTotalDiversity(cap=100)`); a bare number uses the rate's natural scope,
 so the common case is just `birth=1.0`. There is **no `per=` argument** — the scope lives on each rate.
 Two rules: (a) `*` composes only dimensionless modifiers onto one base (multiplying two rates is
 `time⁻²`, impossible by construction); (b) **"per" is reserved for scopes** — a modifier never starts
@@ -180,7 +193,7 @@ takes (`IMPLEMENTED_MODIFIERS`), the CLI's help is **built from that declaration
 and the engine's own gate may be stricter still where a rate takes less than the level does.
 
 Two different things get rejected, and the message must say which. A few combinations are
-**meaningless** — `ByFamily` on a species or trait rate, where there are no gene families to draw a
+**meaningless** — `Drawn(per='family')` on a species or trait rate, where there are no gene families to draw a
 factor per — and no implementation would make them mean anything; say so, and name the argument the
 modifier does belong on. The rest are **not implemented yet**, which is a statement about the code
 and not about the model; say that plainly and do not dress it up as a rule.
@@ -195,7 +208,9 @@ a number, a **`Scalar`** log-link `exp(strength · value)`, and a **`Between`**,
 group, recipient group) pair that only a choice takes (below).
 
 **What the mapping's number means depends on what it is attached to.** On a rate or an **extent** (§6)
-it is an ordinary modifier: dimensionless, multiplying, changing *how fast* or *how much*. On a
+it is an ordinary modifier: dimensionless, multiplying, changing *how fast* or *how much* — unless the
+verb is `SetBy`, whose number carries the rate's own units and replaces the base. An extent takes no
+`SetBy`: it is already an absolute size drawn from a distribution, so there is no base to replace. On a
 **choice** — an argument that decides *who*, not how fast or how many — it is a **weight**,
 normalised across the candidates:
 
@@ -222,29 +237,62 @@ one lineage and have no donor to condition on.
 what?"**); "clock" for the scope (reserve **clock** strictly for the by-lineage substitution-rate
 modifier at the sequences level). **modifier** names the third factor only.
 
-**The modifier families.** A modifier's name begins with the preposition that fixes its family:
+**A drawn value takes any distribution.** ``Drawn(per=…, spread=σ)`` is the common case and means a
+lognormal of that log-scale. ``dist=`` takes a distribution object instead — the same ones an extent
+takes — so ``Gamma``, ``Exponential``, ``Uniform``, a scipy frozen distribution or a callable all
+work. Give one or the other, never both.
 
-| Preposition | Family | The factor is… | Examples |
-|---|---|---|---|
-| `On` | covariate | a deterministic function of a measured quantity | `OnTime`, `OnTotalDiversity` |
-| `By` | independent | an i.i.d. draw, one per unit — **no memory** (uncorrelated) | `ByLineage`, `ByFamily` |
-| `From` | inherited | inherited along a genealogical edge — **continuous memory** (autocorrelated) | `FromParent` |
-| — | driven | the state of another simulated thing, read as the run walks the tree | `DrivenBy` |
+Whatever the distribution, **the draw is normalised to mean 1**, by dividing by that distribution's
+own mean. A drawn value is a *multiplier*, and one that does not average to 1 changes what the base
+means — a base of 0.25 would stop being the average rate. So a distribution's **location is
+normalised away** and what it contributes is its *shape*; ``Exponential(1.0)`` and ``Exponential(7.0)``
+are one modifier. A distribution that cannot state its mean is refused rather than normalised by a
+guess. A number that *is* the rate rather than a factor is `SetBy`, where nothing is normalised.
 
-`DrivenBy` sits outside the preposition scheme deliberately: the others say what kind of *function* the
-factor is, while this one says the factor comes from somewhere else entirely. Naming it `On…` would
-file it as a covariate and lose that.
+**The modifier families.** Four kinds, and a modifier's kind says who produces its number:
 
-So the uncorrelated / autocorrelated split is `ByLineage` vs `FromParent`, and one modifier —
-`FromParent` — is ClaDS (species), the autocorrelated clock (sequences), and variable-rates BM
-(traits). Three rules for naming the next one:
+| Kind | The factor is… | Written |
+|---|---|---|
+| covariate | a deterministic function of a measured quantity | `OnTime`, `OnTotalDiversity` |
+| drawn | an i.i.d. draw, one per unit — **no memory** (uncorrelated) | `Drawn(per=…)` |
+| inherited | the parent's, perturbed — **continuous memory** (autocorrelated) | `Inherited(per=…)` |
+| driven | the state of another simulated thing, read as the run walks the tree | `DrivenBy`, `SetBy` |
 
-- **Fully qualify an `On` covariate** (`OnTotalDiversity`), since the preposition does not fix its scope.
-- **One memory structure per axis**: `By…` none, `From…` continuous, and never two at once. Orthogonal
-  axes compose. A discrete-memory mechanism would be named for the mechanism rather than a preposition
-  (`Markov`); none is implemented.
-- **A modifier multiplies one rate.** A process on the *value* rather than the rate — the OU trait's
-  `reverts_to` / `pull` — is a function argument, not a modifier.
+**The unit is an argument, not a class.** A draw per family and a draw per lineage are one model at
+two attachments, so a unit nobody has carried yet needs no name invented for it — which is what
+`Drawn(per="chromosome", …)` is. `ByFamily`, `ByLineage` and `FromParent` were names for three of
+those cells and are **removed**: they were our coinages rather than the field's, and the field's own
+names — the relaxed clock, ClaDS, rate heterogeneity across families — are what the prose uses.
+
+**One object is one draw.** A drawn or inherited modifier carries a value the *engine* draws once per
+unit and keeps. Which rates share that value is decided by **what you wrote, not by what the numbers
+are**: one modifier object read by several rates is one draw, shared between them, and two separately
+built ones are two draws even when their arguments match.
+
+```python
+speed = Drawn(per='family', spread=0.5)
+duplication = 0.2 * speed;  loss = 0.25 * speed     # one draw: a fast family is fast at both
+duplication = 0.2 * Drawn(per='family', spread=0.5)            # two draws: the two rates vary independently
+loss        = 0.25 * Drawn(per='family', spread=0.5)
+```
+
+That rule is the whole of it, and it replaces the separate family-wide argument this used to need.
+Sharing is by **identity**, never by equality, so the question a reader has to answer is only ever
+*did you write one thing or two?*. It follows that the **text form cannot express sharing** — two
+flags parse to two objects — so a shared draw is Python-only until the written form can name a value.
+
+So the uncorrelated / autocorrelated split is `Drawn(per=…)` against `Inherited(per=…)`, and one
+modifier — `Inherited(per="lineage")` — is ClaDS at Species, the autocorrelated clock at Sequences,
+and variable-rates BM at Traits. Three rules for the next one:
+
+- **Fully qualify an `On` covariate** (`OnTotalDiversity`), since `On` alone does not fix what is measured.
+- **One memory structure per axis**: drawn has none, inherited has continuous memory, and a rate
+  carries one or the other on a unit, never both. Several of the *same* kind compose and multiply, as
+  any modifiers do. A discrete-memory mechanism would be named for the mechanism (`Markov`); none is
+  implemented.
+- **A modifier multiplies one rate**, except `SetBy`, which replaces its base. A process on the
+  *value* rather than the rate — the OU trait's `reverts_to` / `pull` — is a function argument, not a
+  modifier.
 
 ---
 
@@ -271,9 +319,9 @@ segment is therefore affected more often than the rate reads — about `rate × 
 is taken whenever any event begins on a segment that covers it. The two axes **multiply**, and quoting
 one without the other describes nothing.
 
-**A modifier attaches either to the lineage or to the contents.** `OnTime`, `ByLineage`, `FromParent`
+**A modifier attaches either to the lineage or to the contents.** `OnTime`, `Drawn(per='lineage')`, `Inherited(per='lineage')`
 and a trait-`DrivenBy` attach to the **lineage**: at any instant they are uniform across that lineage's
-whole genome, so they compose with any extent unchanged. `ByFamily` attaches to the **contents**, and a
+whole genome, so they compose with any extent unchanged. `Drawn(per='family')` attaches to the **contents**, and a
 segment has several — so a content-attached modifier must weight the **segment, by what it covers**,
 never the position the event started from. Weighting the start applies a family's own rate to its
 *neighbours*, and the neighbourhood is reshuffled by every rearrangement, so the parameter would not

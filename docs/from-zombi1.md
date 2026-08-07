@@ -72,7 +72,7 @@ Every rate takes the same written form in the flag, in the file and in Python.
 | `SCALE_TREE` | `zombi2 tools tree TREE --rescale-height H` or `--rescale-factor F` |
 | `VERBOSE` | `--quiet` (inverted) |
 | `SEED` | `--seed` |
-| `SHIFT_SPECIATION_RATE_FREQUENCY`, `NUM_SPECIATION_RATE_CATEGORIES`, `BASE_SPECIATION` (and the `EXTINCTION` trio) | the rate grammar: `--birth "1.0 * FromParent(spread=0.2)"` for a rate inherited and nudged at each split, `OnTime` for a schedule, `OnTotalDiversity` for a ceiling. v2 has no *category* count — the drift is continuous |
+| `SHIFT_SPECIATION_RATE_FREQUENCY`, `NUM_SPECIATION_RATE_CATEGORIES`, `BASE_SPECIATION` (and the `EXTINCTION` trio) | the rate grammar: `--birth "1.0 * Inherited(per='lineage', spread=0.2)"` for a rate inherited and nudged at each split, `OnTime` for a schedule, `OnTotalDiversity` for a ceiling. v2 has no *category* count — the drift is continuous |
 | `TURNOVER` | **no equivalent.** v2 parameterises `birth` and `death` directly |
 | `LINEAGE_PROFILE` | **no direct equivalent.** The nearest thing is `--birth "1.0 * OnTotalDiversity(cap=N)"`, which levels diversity off at a ceiling |
 
@@ -84,7 +84,7 @@ from zombi2 import species
 from zombi2.rates import modifiers as mod
 
 species.simulate_species_tree(birth=1.0, death=0.2, n_extant=20, seed=1)                 # fixed
-species.simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.2), n_extant=20, seed=1)  # drifting
+species.simulate_species_tree(birth=1.0 * mod.Inherited(per='lineage', spread=0.2), n_extant=20, seed=1)  # drifting
 ```
 
 ## Parameters: genomes
@@ -101,7 +101,7 @@ species.simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.2), n_extant=2
 | `EVENTS_PER_BRANCH` | gone, and there is no `lineage` column to replace it: a participant carries its own branch, so a gene copy reads `n<species>_g<copy>`. Split a token on its single `_` and group on the left half — see [What will break in your parsing code](#what-will-break-in-your-parsing-code) below |
 | `PROFILES` · `GENE_TREES` | `--write profiles gene_trees` |
 | `RECONCILED_TREES` | `zombi2 tools format DIR --format recphylo` — **recPhyloXML, not Newick**, so this needs a new parser |
-| `RATE_FILE` · `SCALE_RATES` | the rate grammar. For **per-family** variation — what these keys were usually for — that is `ByFamily`: `--loss "0.25 * ByFamily(spread=0.5)"` draws one factor per family, or `--family-speed "ByFamily(spread=0.5)"` draws one tempo per family and scales every rate that family has. `OnTime` varies a rate in *time* instead, and `DrivenBy` reads another level |
+| `RATE_FILE` · `SCALE_RATES` | the rate grammar. For **per-family** variation — what these keys were usually for — that is `Drawn(per='family')`: `--loss "0.25 * Drawn(per='family', spread=0.5)"` draws one factor per family. From Python, one `Drawn(per='family')` object read by several rates gives a family a single tempo across all of them. `OnTime` varies a rate in *time* instead, and `DrivenBy` reads another level |
 | `GENE_LENGTH` · `INTERGENE_LENGTH` | `--gene-length` · the spacer is what lies between genes on `--resolution nucleotide` |
 | `MIN_GENOME_SIZE` | **not a setting.** On `--resolution ordered` and `nucleotide` a loss never takes a chromosome below its last gene: the run that would empty it does not fire. That is a floor on a chromosome, not on a genome — at `ordered` a `chromosome_loss` can still take the only chromosome that had genes on it. On `--resolution family` there is no floor at all: a high loss rate empties a genome completely, and the run says so — `empty_genomes` in `genome_summary.json`, and a line on standard error |
 | `ALPHA` | **no equivalent** as a genome parameter |
@@ -115,7 +115,7 @@ species.simulate_species_tree(birth=1.0 * mod.FromParent(spread=0.2), n_extant=2
 | `AA_MODEL` | `--model wag` (also `jtt`, `dayhoff`, `lg`, `poisson`) |
 | the `AC`…`TG` and `A`/`C`/`G`/`T` keys | `--model gtr --exchangeabilities … --frequencies …`, or `hky85` / `k80` / `jc69` |
 | `KAPPA` | `--kappa` |
-| `ST_RATE_MULTIPLIERS` · `GF_RATE_MULTIPLIERS` | the lineage clock: `--substitution "1.0 * ByLineage(spread=0.3)"` (uncorrelated) or `FromParent` (autocorrelated) |
+| `ST_RATE_MULTIPLIERS` · `GF_RATE_MULTIPLIERS` | the lineage clock: `--substitution "1.0 * Drawn(per='lineage', spread=0.3)"` (uncorrelated) or `Inherited(per='lineage')` (autocorrelated) |
 | `SHIFT_SUBSTITUTION_RATE` · `SHIFT_CATEGORIES` · `BASE_RATE` | the same clock. No category count |
 | `SCALING` · `SCALE_GENE_TREES` | `--divergence D` sets the rate from the height of the tree, which is what scaling was for |
 | `SEQUENCE codon` · `CODON_MODEL` | **not in v2.** There are no codon models, so no dN/dS |

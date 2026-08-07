@@ -9,7 +9,7 @@ would type in Python and returns the same object, so a snippet pastes between th
     parse_rate("1.0 * OnTime({0: 1.0, 3: 0.3})")   -> a Rate carrying that modifier
 
 The ``mod.`` / ``scope.`` qualifiers Python needs are optional here, so
-``1.0 * mod.FromParent(spread=0.2)`` and ``1.0 * FromParent(spread=0.2)`` both read.
+``1.0 * mod.Inherited(per="lineage", spread=0.2)`` and ``1.0 * Inherited(per="lineage", spread=0.2)`` both read.
 
 **It parses, it does not evaluate.** The text is parsed to a syntax tree and walked against a
 whitelist — the scope wrappers, the modifiers, numbers, strings, dicts/lists, keyword arguments, and
@@ -30,7 +30,10 @@ import difflib
 from typing import cast
 
 from . import mapping as _mapping
+from . import distributions as _distributions
 from . import modifiers as _modifiers
+from . import values as _values
+from . import verbs as _verbs
 from . import scope as _scope
 from .rate import Rate
 
@@ -40,7 +43,10 @@ from .rate import Rate
 #: excluded here and reported with a pointer to the Python API.
 _NAMES: dict[str, type] = {
     **{n: getattr(_scope, n) for n in _scope.__all__ if n != "Scope"},
-    **{n: getattr(_modifiers, n) for n in _modifiers.__all__ if n != "Modifier"},
+    **{n: getattr(_modifiers, n) for n in _modifiers.WRITABLE},
+    **{n: getattr(_values, n) for n in _values.WRITABLE},
+    **{n: getattr(_distributions, n) for n in _distributions.WRITABLE},
+    **{n: getattr(_verbs, n) for n in _verbs.WRITABLE},
     "Table": _mapping.Table,
     "Scalar": _mapping.Scalar,
     "Between": _mapping.Between,  # the choice's kernel: DrivenBy(driver, Between({(a, b): w}))
@@ -84,7 +90,9 @@ def _unknown_name(name: str, text: str) -> RateSyntaxError:
     close = difflib.get_close_matches(name, _NAMES, n=1, cutoff=0.6)
     hint = f" — did you mean {close[0]!r}?" if close else ""
     scopes = ", ".join(n for n in _NAMES if n in _scope.__all__)
-    mods = ", ".join(n for n in _NAMES if n in _modifiers.__all__)
+    mods = ", ".join(n for n in _NAMES
+                     if n in _modifiers.WRITABLE + _values.WRITABLE + _verbs.WRITABLE
+                     + _distributions.WRITABLE)
     return _fail(
         f"unknown name {name!r}{hint}\n"
         f"  scopes:    {scopes}\n"

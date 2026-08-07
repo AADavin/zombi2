@@ -13,7 +13,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from .modifiers import Modifier
+from .modifiers import CARRIED_KINDS, Modifier, SetBy
 from .scope import Scope
 
 
@@ -31,19 +31,68 @@ class Rate:
             return self
         return Rate(self.base, default(self.base), self.modifiers)
 
-    def effective(self, **context: Any) -> float:
+    def effective(self, *, carried_factor: float = 1.0, **context: Any) -> float:
         """The rate *right now*: the scope-applied base times the product of the modifier factors.
 
         ``context`` carries the current state (``time``, ``diversity``, the counts ``lineages`` /
         ``copies`` / …); the scope reads the count it needs and each modifier the keys it needs.
         Requires a scope — resolve a bare-number rate with `with_default_scope()` first.
+
+        ``carried_factor`` is the product of the values the engine drew and kept for the unit being
+        evaluated — per lineage, per family (`carried_modifiers`). Those modifiers
+        are skipped in the loop below, because their number does not come from the context: the
+        engine already holds it and hands it in here, multiplied out. One float rather than a value
+        per modifier, so a rate carrying several costs no more to evaluate than one carrying one.
         """
         if self.scope is None:
             raise ValueError("this rate has no scope yet; resolve it with with_default_scope(...)")
-        value = self.scope.total(**context)
+        base = self.base
         for m in self.modifiers:
+            if isinstance(m, SetBy):
+                base = m.factor(**context)   # the driver supplies the number itself, not a factor
+        value = self.scope.total_of(base, **context)
+        for m in self.modifiers:
+            if isinstance(m, SetBy):
+                continue  # already used, as the base
+            reads = getattr(m, "reads", None)
+            if reads is not None and reads[0] in CARRIED_KINDS:
+                continue  # its factor arrives through `carried`, drawn and kept by the engine
             value *= m.factor(**context)
-        return value
+        return value * carried_factor
+
+    def check_one_base(self, label: str = "this rate") -> None:
+        """A rate may carry **one** `SetBy`. Two would each claim to *be* the
+        base, and no order of application is more right than another, so this raises rather than
+        letting the last one written win in silence."""
+        set_by = [m for m in self.modifiers if isinstance(m, SetBy)]
+        if len(set_by) > 1:
+            raise ValueError(
+                f"{label} carries {len(set_by)} SetBy modifiers, and a base can only be replaced "
+                f"once — each of them claims to be the whole number. Keep one; if you meant to scale "
+                f"the result, that is ScaledBy, which multiplies and composes freely.")
+
+    def carried_modifiers(self, unit: str | None = None) -> tuple[tuple[Modifier, str], ...]:
+        """Every modifier on this rate that reads a value the **engine** has to draw and carry,
+        paired with the unit it is carried per (see `Modifier.reads`).
+
+        A modifier reading a *measured* value computes its own factor from the context and needs
+        nothing from the engine. A *drawn* or *inherited* one does: its number is produced once
+        when a unit is born, kept for that unit's life, and handed back at every evaluation, and
+        only the engine can do that. This is the one query for finding them, so a level does not
+        have to know which modifier classes exist to thread them.
+
+        ``unit`` narrows the answer to one kind of unit (``"lineage"``, ``"family"``). The result
+        keeps the order the modifiers were written in, and it keeps **all** of them — a rate
+        carrying two drawn values answers with two.
+        """
+        found = []
+        for m in self.modifiers:
+            reads = getattr(m, "reads", None)
+            if reads is None or reads[0] not in CARRIED_KINDS:
+                continue
+            if unit is None or reads[1] == unit:
+                found.append((m, reads[1]))
+        return tuple(found)
 
     def next_change(self, time: float) -> float:
         """The next time a component of this rate changes on its own — the earliest skyline
@@ -54,6 +103,12 @@ class Rate:
         return nc
 
     def __mul__(self, other: object):
+        if isinstance(other, SetBy):
+            raise TypeError(
+                "SetBy replaces the base, so it cannot follow one: everything to its left — the "
+                "number, the scope, any factors — is a base it would silently discard. Write it "
+                "first instead: SetBy(driver, mapping) * ScaledBy(...). `0.25 * SetBy(...)` is "
+                "refused for the same reason, and this is that hole one operand further along.")
         if isinstance(other, Modifier):
             return Rate(self.base, self.scope, self.modifiers + (other,))
         return NotImplemented
@@ -61,12 +116,17 @@ class Rate:
     __rmul__ = __mul__  # a number/scope on the left is handled there; only Modifier*Rate reaches here
 
 
-def as_rate(spec: object, *, default_scope: type[Scope]) -> Rate:
+def as_rate(spec: object, *, default_scope: type[Scope], label: str = "this rate") -> Rate:
     """Coerce a user rate spec into a resolved `Rate`, filling the level's default scope.
 
     Accepts a number, a scope wrapper, a modifier (product), or an already-built ``Rate``.
+
+    Every level coerces its rates through here, which is why the one-base rule is checked here
+    rather than in each level's own validation: a rule enforced by whoever remembers to call it is a
+    rule three levels did not have.
     """
     if isinstance(spec, Rate):
+        spec.check_one_base(label)
         return spec.with_default_scope(default_scope)
     if isinstance(spec, Scope):
         return Rate(spec.base, spec, ())

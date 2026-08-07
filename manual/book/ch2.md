@@ -61,9 +61,9 @@ The base of a rate says how fast. A modifier says **what it depends on**:
 |---|---|---|
 | `OnTime` | the clock: a schedule of intervals | `OnTime({0: 1.0, 3: 0.3})` |
 | `OnTotalDiversity` | how many lineages are standing right now | `OnTotalDiversity(cap=100)` |
-| `FromParent` | the parent's value, drifting at each split | `FromParent(spread=0.3)` |
-| `ByLineage` | the lineage, drawn independently | `ByLineage(spread=0.3)` |
-| `ByFamily` | the gene family, drawn independently | `ByFamily(spread=0.5)` |
+| `Inherited(per='lineage')` | the parent's value, drifting at each split | `Inherited(per='lineage', spread=0.3)` |
+| `Drawn(per='lineage')` | the lineage, drawn independently | `Drawn(per='lineage', spread=0.3)` |
+| `Drawn(per='family')` | the gene family, drawn independently | `Drawn(per='family', spread=0.5)` |
 | `DrivenBy` | **a driver**: a trait's state, a gene's presence | `DrivenBy('trait', {'hot': 4.0})` |
 
 Each is a dimensionless multiplier, so they multiply, and a rate can carry several:
@@ -72,7 +72,7 @@ Each is a dimensionless multiplier, so they multiply, and a rate can carry sever
 from zombi2.rates import modifiers as mod
 
 # loss triples after time 2, and varies from family to family on top of that
-loss = 0.25 * mod.OnTime({0: 1.0, 2: 3.0}) * mod.ByFamily(spread=0.5)
+loss = 0.25 * mod.OnTime({0: 1.0, 2: 3.0}) * mod.Drawn(per='family', spread=0.5)
 ```
 
 Much of what the literature names as a model is one modifier on one rate:
@@ -81,14 +81,14 @@ Much of what the literature names as a model is one modifier on one rate:
 |---|---|
 | skyline / episodic birth–death | `OnTime` on `birth` |
 | diversity-dependent diversification | `OnTotalDiversity` on `birth` |
-| uncorrelated ("relaxed") molecular clock | `ByLineage` on `substitution` |
-| autocorrelated clock | `FromParent` on `substitution` |
-| rate heterogeneity across gene families | `ByFamily` on a genome rate |
+| uncorrelated ("relaxed") molecular clock | `Drawn(per='lineage')` on `substitution` |
+| autocorrelated clock | `Inherited(per='lineage')` on `substitution` |
+| rate heterogeneity across gene families | `Drawn(per='family')` on a genome rate |
 | state-dependent diversification (BiSSE and kin) | `DrivenBy` on `birth` |
 
 None of those is a separate code path with its own function and its own parameters. They are the same grammar pointed at different rates, which is why they combine: a relaxed clock *and* an early burst is one rate with two modifiers, not two models.
 
-Not every modifier is available at every level. Some combinations mean nothing, since a species tree has no gene families for `ByFamily` to vary over, and others are simply not implemented yet. Either way the level refuses the rate and says which modifiers it does take, rather than ignoring it. `zombi2 <command> -h` lists them for that level, Appendix A gives the full table, and if none of the six says what your rate depends on, Appendix A also shows how to write one.
+Not every modifier is available at every level. Some combinations mean nothing, since a species tree has no gene families for `Drawn(per='family')` to vary over, and others are simply not implemented yet. Either way the level refuses the rate and says which modifiers it does take, rather than ignoring it. `zombi2 <command> -h` lists them for that level, Appendix A gives the full table, and if none of the six says what your rate depends on, Appendix A also shows how to write one.
 
 ## Conditioning
 

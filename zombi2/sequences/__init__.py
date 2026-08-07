@@ -18,14 +18,14 @@ gene trees would run, but silently without either, so they are rejected.
 
 ``substitution`` is a per-site rate (a bare number, default ``1.0``: a gene-tree branch of ``Δt`` time
 gets ``substitution · Δt`` substitutions/site — the **strict clock**), optionally times a **lineage
-clock**: ``substitution = 1.0 * mod.ByLineage(spread=)`` is the uncorrelated ("relaxed") clock, one
+clock**: ``substitution = 1.0 * mod.Drawn(per="lineage", spread=)`` is the uncorrelated ("relaxed") clock, one
 i.i.d. rate multiplier drawn per **species lineage** and shared by every gene passing through it, and
-``substitution = 1.0 * mod.FromParent(spread=)`` is the **autocorrelated** clock, where the rate drifts
+``substitution = 1.0 * mod.Inherited(per="lineage", spread=)`` is the **autocorrelated** clock, where the rate drifts
 parent→child down the species tree so close relatives run at similar rates (``SPEC §5``). It may also
 carry a ``mod.DrivenBy(trait, {...})``, which reads a **trait grown first** and lets a lineage's state
 set how fast its sequences evolve; a clock and a driver compose (modifiers multiply), and a driver that
 switches mid-branch is **integrated** across the switch rather than sampled once for the branch
-(`clock`). Any other modifier — ``Markov`` hops, the per-family ``ByFamily`` speed — raises.
+(`clock`). Any other modifier — ``Markov`` hops, the per-family a per-family draw speed — raises.
 
 Rate variation **across sites** is not a modifier and does not go in ``substitution``: it belongs to
 the model, where the field puts it. ``model=hky85(2.0).across_sites(gamma_shape=0.5, invariant=0.1)``
@@ -62,7 +62,8 @@ from ..genomes.gene_trees import GeneNode, GeneTree
 from ..rates.driver import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
 from ..rng import resolve_seed, seed_sequence, stream
 from ..rates.mapping import Between
-from ..rates.modifiers import ByLineage, DrivenBy, FromParent, Modifier
+from ..rates.modifiers import (DRAWN, INHERITED, DrivenBy, Modifier,
+                              check_one_memory, describe, matches_declared)
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerSite
 from ..tree import Node, Tree, prune
@@ -82,11 +83,11 @@ _COMPLEMENT = str.maketrans("ACGT", "TGCA")
 
 #: The rate grammar this level supports (SPEC §5) — read by the engine gate in `simulate_sequences()`
 #: and by the CLI's help, so a modifier is never advertised without being implemented. On the
-#: substitution rate these are the two lineage clocks — ``ByLineage`` the uncorrelated ("relaxed")
-#: clock, ``FromParent`` the autocorrelated clock (the rate drifts parent→child down the species
+#: substitution rate these are the two lineage clocks — a per-lineage draw the uncorrelated ("relaxed")
+#: clock, an inherited value the autocorrelated clock (the rate drifts parent→child down the species
 #: tree) — and ``DrivenBy``, the conditioned driver a trait grown first supplies (SPEC §3:
 #: Traits→Sequences can be conditioned). A clock and a driver compose: modifiers multiply.
-IMPLEMENTED_MODIFIERS = (ByLineage, FromParent, DrivenBy)
+IMPLEMENTED_MODIFIERS = ((DRAWN, "lineage"), (INHERITED, "lineage"), DrivenBy)
 
 
 @dataclass
@@ -456,7 +457,7 @@ def _calibrate(substitution, divergence: float, tree: Tree) -> Rate:
 
     A **driven** rate is refused here for a modelling reason, not a coding one: ``divergence / height``
     is the base only when the modifiers average to 1 along a root-to-tip path, which is what
-    mean-correcting ``ByLineage`` and ``FromParent`` buys (SPEC §5) and what a driver deliberately does
+    mean-correcting a per-lineage draw and an inherited value buys (SPEC §5) and what a driver deliberately does
     not promise — its factor is whatever the trait's state says. Solving as though it did would
     produce a run whose realised divergence is off by the driver's mean factor while the log claims
     the number that was asked for. Set the base yourself alongside the driver.
@@ -471,7 +472,7 @@ def _calibrate(substitution, divergence: float, tree: Tree) -> Rate:
         raise ValueError(
             f"substitution names a base, and divergence={divergence} would override it — the base is "
             f"what divergence solves for. Give the clock's shape alone "
-            f"(substitution=ByLineage(spread=…)) to calibrate a relaxed clock, or drop divergence "
+            f"(substitution=Drawn(per='lineage', spread=…)) to calibrate a relaxed clock, or drop divergence "
             f"and set the base yourself.")
     if isinstance(substitution, DrivenBy):
         raise ValueError(
@@ -921,8 +922,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
 
     ``substitution`` may carry a **lineage clock** — one factor per species branch, shared across
     families, computed once before evolving, rescaling each gene-tree branch by the clock of the species
-    branch it sits on: ``1.0 * mod.ByLineage(spread=)`` is the uncorrelated clock (each branch drawn
-    i.i.d.), and ``1.0 * mod.FromParent(spread=)`` is the autocorrelated clock (the factor drifts
+    branch it sits on: ``1.0 * mod.Drawn(per="lineage", spread=)`` is the uncorrelated clock (each branch drawn
+    i.i.d.), and ``1.0 * mod.Inherited(per="lineage", spread=)`` is the autocorrelated clock (the factor drifts
     parent→child down the species tree).
 
     It may also carry a **driver** — ``1.0 * mod.DrivenBy(habitat, {"cave": 0.5, "surface": 1.0})``,
@@ -933,7 +934,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     lineage's dealt tempo and its state both count — and several drivers on one rate multiply too.
     A discrete driver switches *mid-branch*, and the branch length is the driver **integrated** across
     the branch rather than one sample of it (`clock`), so the phylograms are the trees the alignments
-    were actually drawn along. Any other modifier (the ``Markov`` clock, the ``ByFamily`` per-family
+    were actually drawn along. Any other modifier (the ``Markov`` clock, the a per-family draw per-family
     speed), a second lineage clock, or a non-``PerSite`` scope raises.
 
     Rate variation **across sites** rides on ``model``, not on ``substitution``:
@@ -1167,7 +1168,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     # The rate's modifiers, sorted into the two things this level reads. SPEC §5: modifiers multiply,
     # so a clock and a driver compose — one says which lineages were dealt a fast tempo, the other
     # what their state makes of it — and the gate below rejects only what the level cannot honour.
-    clocks = [m for m in rate.modifiers if isinstance(m, (ByLineage, FromParent))]
+    clocks = tuple(m for m, _ in rate.carried_modifiers(unit='lineage'))
     drivers = driven_mods(rate)
     # This level is the one that does NOT take a third-party modifier, so the gate is a plain
     # isinstance rather than `is_implemented`. Every other engine evaluates its rate through
@@ -1176,30 +1177,26 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     # an event — so a modifier declaring itself implemented here would be accepted and then never
     # called. Silently returning the undriven answer is precisely what SPEC §5 forbids, so it is
     # refused by name instead, and `Modifier.implemented_for` documents the omission.
-    unimplemented = sorted({type(m).__name__ for m in rate.modifiers
-                            if not isinstance(m, IMPLEMENTED_MODIFIERS)})
+    unimplemented = sorted({describe(m) for m in rate.modifiers
+                            if not matches_declared(m, IMPLEMENTED_MODIFIERS)})
     if unimplemented:
         raise ValueError(
             f"substitution carries {', '.join(unimplemented)}, which the sequence engine does not read. It "
-            "takes a lineage clock — one ByLineage (uncorrelated) or one FromParent (autocorrelated) "
-            "— and any number of DrivenBy drivers, which multiply. The Markov clock and the ByFamily "
-            "per-family speed are not implemented here, and neither is a modifier of your own: this "
+            "takes a lineage clock — ByLineage (uncorrelated) or FromParent (autocorrelated), and "
+            "several of one kind compose — and any number of DrivenBy drivers, which multiply. "
+            "SetBy is not read here (a replaced base has nowhere to go: this level draws its clock "
+            "per lineage rather than evaluating a rate), and neither is the Markov clock, a per-family draw, "
+            "or a modifier of your own: this "
             "level reads its modifiers directly rather than through the rate, so one it did not ship "
             "could not be honoured. Rate variation across sites is not a modifier "
             "at all — it belongs to the model: model=hky85(...).across_sites(gamma_shape=0.5), or "
             "--gamma-shape."
         )
-    if len(clocks) > 1:
-        # SPEC §5's one-memory-structure-per-axis rule: ByLineage is no memory and FromParent is
-        # continuous memory, over the same axis (the species lineage), so two of them are two
-        # incompatible accounts of the same thing rather than a composition.
-        raise ValueError(
-            f"substitution carries {len(clocks)} lineage clocks "
-            f"({', '.join(type(m).__name__ for m in clocks)}), and a lineage can only have one: "
-            "ByLineage is an independent draw per lineage and FromParent an inherited one, two "
-            "accounts of the same per-lineage factor. Keep one. A DrivenBy is a different axis and "
-            "does compose with either."
-        )
+    # SPEC §5's one-memory-structure-per-axis rule, in the one place every level calls: a lineage's
+    # factor is either drawn afresh or inherited and perturbed, and those are two accounts of the same
+    # thing. Several of one kind compose, as any two modifiers do; a DrivenBy is a different axis and
+    # composes with either.
+    check_one_memory(clocks, label="substitution", unit="lineage")
     for m in drivers:
         if isinstance(m.mapping, Between):
             raise ValueError(
@@ -1218,7 +1215,6 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 "there is nothing for the two to decide together. Grow the trait first and condition "
                 "on it — pass the TraitsResult, or the path to the trait_events.tsv it wrote."
             )
-    clock_mod = clocks[0] if clocks else None
     rate_base = rate.base
 
     # Conditioning: resolve each driver ONCE into a DriverTrajectory (value + next-switch lookups,
@@ -1257,7 +1253,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         # clock, then each family is walked in turn. `parallel` selects a *separate* engine (decision A),
         # so turning it on gives a different-but-valid realisation for a seed; this path never changes.
         rng, _ = stream("sequences", seed)
-        clock = resolve_clock(clock_mod, driven, species_tree, gene_trees, rng)
+        clock = resolve_clock(clocks, driven, species_tree, gene_trees, rng)
         # One transition-CDF cache per model, shared across every block that model evolves. Branch lengths
         # recur across blocks (a block passing straight through a species branch reuses its length), so a
         # run-wide cache builds a few hundred matrices where a per-block cache rebuilt tens of thousands.
@@ -1313,7 +1309,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         from ._pergenetree import evolve_families
         workers = guard_pool_workers(resolve_workers(parallel))
         spawned = seed_sequence("sequences", seed)[0].spawn(1 + len(gene_trees))
-        clock = resolve_clock(clock_mod, driven, species_tree, gene_trees,
+        clock = resolve_clock(clocks, driven, species_tree, gene_trees,
                               np.random.default_rng(spawned[0]))
         alignments, ancestral, founding, phylograms = evolve_families(
             gene_trees, per_block, model, intergene_model, length, rate_base, clock,

@@ -9,6 +9,138 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **Appendix B states the output-table contract: columns may be added, so read them by name.** New
+  columns go at the end of a row; an existing column's name and meaning never change, and none is
+  removed within a major version. It documents what these tables have always required — the same
+  filename already has five columns at the family resolution and ten at the ordered one — and it is
+  what lets a later version record something new (a mechanism, a second subject) without breaking
+  every script that parses a run.
+- **`SetBy` states a driven parameter absolutely instead of as a multiple.** Only the three levels
+  that can honour a replaced base accept it — the family and ordered genome resolutions, and a
+  continuous trait's rate — and each declares it by name, because `SetBy` is a `DrivenBy` and a gate
+  listing `DrivenBy` would otherwise admit it at four levels that cannot. An extent takes none: it is
+  already an absolute size drawn from a distribution, so there is no base to replace. `loss = SetBy(habitat,
+  {"cave": 1.0, "surface": 0.25})` says the loss rate *is* 1.0 in caves, which is how the literature
+  usually states one — saying it before meant inventing a background and dividing by it. Written
+  with no base in front, because the driver supplies the whole number; `0.25 * SetBy(...)` raises
+  rather than discarding the 0.25 you wrote. The scope still applies, so a per-copy rate set to 1.0
+  is 1.0 per copy. A replaced base composes with any number of `ScaledBy` factors, but a rate may
+  carry only one `SetBy` — two would each claim to be the number, and no order of application is
+  more right than the other. It is a `DrivenBy`, so it works wherever a driver does and needs no new
+  machinery for trajectories, mid-branch switches or mapping checks.
+- **The written form knows the verbs and the values.** `ScaledBy`, `Weights`, `SetBy`, `Time()` and
+  `Clade({...})` now parse, so `--loss "0.2 * ScaledBy(Clade({'fast': ['n1','n2']}), {'fast': 3.0})"`
+  works on the command line and in a `--params` file. SPEC §5 says there is one written form
+  everywhere; adding a verb to Python alone would have broken that.
+- **A rate can be driven by a clade.** `Clade({"fast": ["n12", "n27"], "slow": 40})` is a value read
+  off the tree itself, so `loss = 0.2 * ScaledBy(Clade({...}), {"fast": 3.0})` gives a clade its own
+  rate — at every level that reads a driver, for a rate, an extent or a `transfer_to` weight. Unlike
+  every other driver there is nothing to grow first: a clade is a fact about the tree the run is
+  already walking, so it is painted once and adds no Gillespie breakpoints, because membership never
+  changes along a branch. A lineage in no named clade is in the implicit group `"rest"`, which a
+  mapping may name. A joint run refuses it, and that is about the model rather than the code: a
+  growing tree has no clades yet. The plural `Clades(...)` stays what it was — the `transfer_to`
+  rule that weights the donor's clade against the recipient's — and the two share one definition of
+  what a clade is.
+- **The grid is real: one class per way of making a value, with the unit as data.** `Drawn(per=…)`
+  and `Inherited(per=…)` are now the classes themselves rather than a shim over three others, so
+  `ByFamily`, `ByLineage` and `FromParent` are the *names of cells* — kept, because each names a
+  model people cite, and each still builds the identical object. What this buys is that a cell
+  nobody has built needs no new class and no invented name: `Drawn(per="chromosome", spread=0.5)`
+  constructs, and the level that cannot carry a number per chromosome refuses it saying so —
+  *"birth carries drawn per chromosome, which the species engine does not support"* — rather than
+  reading as an unknown name. A level's `IMPLEMENTED_MODIFIERS` accordingly declares **cells**
+  (`(DRAWN, "family")`) as well as classes, and the classes remain where the grain needs them:
+  `OnTime` and `OnTotalDiversity` both read a measured value on the run, yet an engine can thread a
+  schedule's breakpoints without threading standing diversity, so the two stay separately
+  declarable.
+- **A second way to write a modifier, as a grid rather than a list.** Each of the six modifiers says
+  two independent things at once — where its number comes from, and what it is attached to — and the
+  new spelling separates them: `Drawn(per="family", spread=0.5)` is `ByFamily(spread=0.5)`,
+  `Inherited(per="lineage", spread=0.2)` is `FromParent(spread=0.2)`, and
+  `ScaledBy(Time(), {0: 1.0, 3: 0.3})` is `OnTime({0: 1.0, 3: 0.3})`. Both spellings build the
+  identical object, so a run is unchanged seed for seed and the old names stay — they are the names
+  of cells. `ScaledBy(driver, mapping)` replaces `DrivenBy` for a rate and `Weights(driver, mapping)`
+  for a `transfer_to` choice, the verb saying what the number does now that the value names itself.
+  What the grid buys is the next cell: a per-chromosome draw is `Drawn(per="chromosome", …)` rather
+  than a `ByChromosome` that has to be invented, documented and remembered, and a cell no engine
+  carries refuses by name — *"drawn per chromosome, which the species engine does not support"* —
+  instead of reading as a typo.
+
+### Changed
+- **`Drawn` takes a distribution object, not the name of one.** `spread=σ` remains the short spelling
+  and means a lognormal of that log-scale; `dist=` now takes any `Distribution` — `Gamma`,
+  `Exponential`, `Uniform`, a scipy frozen distribution, a callable — where before it was the string
+  `"lognormal"` or `"gamma"` and nothing else. Give one or the other, never both. **Whatever the
+  distribution, the draw is normalised to mean 1** by dividing by that distribution's own mean, so a
+  drawn multiplier leaves the base meaning the average rate; a distribution's location is therefore
+  normalised away and what it contributes is its shape, making `Exponential(1.0)` and
+  `Exponential(7.0)` one modifier. A distribution that cannot state its mean is refused rather than
+  normalised by a guess. The distributions are writable, so
+  `--loss "0.25 * Drawn(per='family', dist=Gamma(shape=4.0, scale=0.25))"` works on the command line
+  and round-trips through a run's log.
+
+- **One rule for mixing per-lineage modifiers, instead of three.** Each level had grown its own: the
+  species engine refused `FromParent` beside `ByLineage`, the continuous-trait engine refused more
+  than one `FromParent`, and the sequence engine refused more than one clock of *any* kind. SPEC §5
+  says something narrower — **one memory structure per axis** — so what raises now, everywhere, is
+  mixing a drawn value with an inherited one on the same unit; several of the same kind compose and
+  multiply, as any two modifiers do. In practice that means `1.0 * ByLineage(spread=0.3) *
+  ByLineage(spread=0.2)` on a substitution rate now runs instead of raising, and two `FromParent` on
+  a trait's variance-rate compose instead of raising. Every level calls the one check, so the rule
+  cannot be strict in one place and lax in another again.
+- **One modifier object read by two rates is now one draw, shared between them.** Writing
+  `s = mod.ByFamily(spread=0.5)` and putting `s` on both `duplication` and `loss` makes a family
+  that duplicates fast also lose fast; building two separate `ByFamily(spread=0.5)` keeps the two
+  rates independent, as before. So "fast at everything" against "fast at one thing" is now the
+  difference between writing one object and writing two, with no extra argument to learn. Sharing is
+  by object identity, not by equality — two modifiers that merely agree on their spread are still
+  two draws, because the question is what you wrote rather than what the numbers happen to be. The
+  same holds for `ByLineage` across a species run's `birth` and `death`. A run that does not reuse an
+  object draws exactly as it did, seed for seed. This is the rule that made `family_speed=`
+  redundant, and it is now stated in SPEC §5.
+
+### Removed
+- **`ByFamily`, `ByLineage` and `FromParent` are gone**, replaced by the general spelling they were
+  aliases for: `Drawn(per="family", …)`, `Drawn(per="lineage", …)` and `Inherited(per="lineage", …)`.
+  They were never the field's names — the literature says *the relaxed clock*, *ClaDS*, *rate
+  heterogeneity across families* — so they were our own coinages pointing at those, and keeping three
+  aliases for three cells of a grid is two ways to write one thing. A unit nobody has carried yet now
+  needs no name invented for it. Every refusal, the CLI help, Appendix A and the manual name cells
+  the same way (*"drawn per family"*), so one vocabulary reaches the reader.
+
+- **`family_speed=` and `--family-speed` are gone**, replaced by reading one `ByFamily` object from
+  several rates, which now says the same thing (see below). `simulate_genomes_family(tree,
+  duplication=0.2, loss=0.25, family_speed=mod.ByFamily(spread=0.5))` becomes `speed =
+  mod.ByFamily(spread=0.5)` and then `duplication=0.2 * speed, loss=0.25 * speed`. The tempo now has
+  to be written on each rate it applies to rather than covering rates you had not thought about,
+  which is more to type and visible in the model instead of in a side argument. **The command line
+  cannot express it for now:** two `--` flags parse to two separate objects, so they are two
+  independent draws.
+
+### Fixed
+- **A modifier of your own can no longer vouch for a value the engine has to draw.**
+  `Modifier.implemented_for` lets a third-party modifier declare which engines it works with, which
+  it can promise for a factor it *computes* — that promise is the modifier's alone to keep. It
+  cannot promise it for a `Drawn` or `Inherited` value: that number is drawn by the engine when a
+  unit is born and handed back, which an engine can only do for the units it declares. One admitted
+  that way was dropped twice over — nothing drew it, and `Rate.effective` skips carried modifiers —
+  so the rate ran undriven in silence. Such a modifier is now admitted by a level naming its cell
+  and by nothing else.
+- **A sequence run's summary names every clock the rate carries, not the last one written.** Several
+  drawn clocks compose now, so a rate carrying two was described as carrying one — a summary stating
+  a model that was not the model simulated.
+- **A rate carrying two per-unit modifiers now applies both.** Each engine looked for *the*
+  `FromParent` / `ByLineage` modifier on a species rate, or *the* `ByFamily` on a genome rate, and
+  stopped at the first match — so a second one was dropped without a word, while the run's own log
+  still reported the rate as written, and the recorded model was not the model simulated. Every
+  modifier now declares which kind of value it reads and on what unit (`Modifier.reads`), and a
+  level asks for them with `Rate.carried` rather than testing classes, which also means a per-unit
+  modifier an engine has never heard of is threaded like the ones it knows. Fixed in all four
+  places it occurred: species, and the family, ordered and parallel genome engines. A rate with one
+  such modifier draws exactly as before, seed for seed.
+
 ## [0.31.0] - 2026-08-05
 
 ### Changed

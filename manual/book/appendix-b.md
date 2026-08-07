@@ -5,6 +5,14 @@ arguments (**yes**), only when you name its token (**no**), or is reachable from
 (**Python**). Trees are Newick, tables and logs TSV, sequences FASTA; branch lengths are time, except
 in the sequence phylograms, which are in substitutions per site.
 
+**Columns may be added; read them by name.** A later version may add a column to any of these tables —
+a new kind of event needs somewhere to say what it did. What will not change is an existing column's
+name or its meaning, and no column is removed within a major version. So a script that reads a column
+by its header keeps working across upgrades, and one that reads by position, or assumes a column
+count, does not. New columns go at the **end** of the row. The same file already differs by
+resolution — `genome_events.tsv` has five columns at the family resolution and ten at the ordered
+one — so matching by name is what these tables have always required.
+
 ## Where the files go
 
 ```
