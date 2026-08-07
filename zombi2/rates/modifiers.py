@@ -697,10 +697,49 @@ class DrivenBy(Modifier):
 #: also carries the helpers an engine uses: a whitelist that grows whenever a helper is exported is
 #: a whitelist that stops meaning anything.
 WRITABLE = ("OnTime", "OnTotalDiversity", "Drawn", "Inherited",
-            "FromParent", "ByLineage", "ByFamily", "DrivenBy")
+            "FromParent", "ByLineage", "ByFamily", "DrivenBy", "SetBy")
+
+class SetBy(DrivenBy):
+    """**Replace** the parameter's base with a value read from a driver, rather than multiplying it::
+
+        loss = SetBy(habitat, {"cave": 1.0, "surface": 0.25})   # the rate itself, per state
+
+    Written with **no base in front**, because there is none to write: the driver supplies the whole
+    number, in the parameter's own units rather than as a dimensionless factor. That is what the
+    literature usually means — "the loss rate is 1.0 in caves", not "four times a background nobody
+    stated" — and spelling an absolute statement as a multiple of an invented background is the kind
+    of quiet mismatch this grammar exists to avoid.
+
+    **The scope still applies.** ``SetBy`` replaces the base, not the *per what?*: a per-copy rate set
+    to 1.0 is still 1.0 per copy, so it is multiplied by the copies present exactly as a written base
+    would be. Only the number changes.
+
+    It is a `DrivenBy`, so every engine that resolves drivers resolves this one too — the trajectory,
+    the mid-branch switches, the mapping checks are all the same machinery. What differs is one line
+    in `Rate.effective`, which asks a ``SetBy`` for the base and every
+    other modifier for a factor. The two compose: a replaced base may still be scaled.
+
+        loss = SetBy(habitat, {...}) * ScaledBy(size, Scalar(0.5))
+
+    A rate may carry **one** ``SetBy``. Two would be two answers to the same question, and neither
+    order of application is more right than the other, so it raises rather than picking.
+    """
+
+    def __rmul__(self, other: object):
+        if isinstance(other, (int, float)) and not isinstance(other, bool):
+            raise TypeError(
+                f"SetBy replaces the base, so there is no base to write in front of it: use "
+                f"`SetBy(driver, mapping)` on its own rather than `{other!r} * SetBy(...)`. If you "
+                f"meant to scale a base you state yourself, that is ScaledBy.")
+        return super().__rmul__(other)
+
+    def __repr__(self) -> str:
+        drv = self.driver if isinstance(self.driver, str) else f"<{type(self.driver).__name__}>"
+        return f"SetBy({drv!r}, {self.mapping!r})"
+
 
 __all__ = ["Modifier", "OnTime", "OnTotalDiversity", "Drawn", "Inherited",
-           "FromParent", "ByLineage", "ByFamily", "DrivenBy",
+           "FromParent", "ByLineage", "ByFamily", "DrivenBy", "SetBy",
            "MEASURED", "DRAWN", "INHERITED", "DRIVEN", "CARRIED_KINDS", "UNITS",
            "product", "draw_product", "carried_at_birth", "carried_at_split", "check_one_memory",
            "cell_name", "describe", "is_implemented", "matches_declared", "WRITABLE"]

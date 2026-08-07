@@ -13,7 +13,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from .modifiers import CARRIED_KINDS, Modifier
+from .modifiers import CARRIED_KINDS, Modifier, SetBy
 from .scope import Scope
 
 
@@ -46,13 +46,30 @@ class Rate:
         """
         if self.scope is None:
             raise ValueError("this rate has no scope yet; resolve it with with_default_scope(...)")
-        value = self.scope.total(**context)
+        base = self.base
         for m in self.modifiers:
+            if isinstance(m, SetBy):
+                base = m.factor(**context)   # the driver supplies the number itself, not a factor
+        value = self.scope.total_of(base, **context)
+        for m in self.modifiers:
+            if isinstance(m, SetBy):
+                continue  # already used, as the base
             reads = getattr(m, "reads", None)
             if reads is not None and reads[0] in CARRIED_KINDS:
                 continue  # its factor arrives through `carried`, drawn and kept by the engine
             value *= m.factor(**context)
         return value * carried
+
+    def check_one_base(self, label: str = "this rate") -> None:
+        """A rate may carry **one** `SetBy`. Two would each claim to *be* the
+        base, and no order of application is more right than another, so this raises rather than
+        letting the last one written win in silence."""
+        set_by = [m for m in self.modifiers if isinstance(m, SetBy)]
+        if len(set_by) > 1:
+            raise ValueError(
+                f"{label} carries {len(set_by)} SetBy modifiers, and a base can only be replaced "
+                f"once — each of them claims to be the whole number. Keep one; if you meant to scale "
+                f"the result, that is ScaledBy, which multiplies and composes freely.")
 
     def carried(self, unit: str | None = None) -> tuple[tuple[Modifier, str], ...]:
         """Every modifier on this rate that reads a value the **engine** has to draw and carry,

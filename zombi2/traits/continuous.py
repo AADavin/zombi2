@@ -513,6 +513,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     # asks — and every one of them is kept, so two compose rather than the second going quietly.
     drift = tuple(m for m, _ in r.carried(unit="lineage"))
     check_one_memory(drift, label="rate", unit="lineage")
+    r.check_one_base("rate")
     has_diversity = any(isinstance(m, OnTotalDiversity) for m in r.modifiers)  # σ² reads the standing LTT
 
     # OU: reverts_to (θ) + pull (α) turn the diffusion into mean-reversion — both or neither.

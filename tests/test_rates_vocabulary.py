@@ -94,9 +94,10 @@ class TestACellNobodyBuiltRefusesByName:
         with pytest.raises(ValueError, match="smooth function of|takes a schedule"):
             ScaledBy(Time(), lambda t: 2.0 ** -t)
 
-    def test_setby_says_what_it_would_take(self):
-        with pytest.raises(NotImplementedError, match="base × modifiers"):
-            SetBy("habitat.tsv", {"cave": 1.0})
+    def test_setby_is_now_implemented(self):
+        """It refused, with its reason, until the engines could take a replaced base. They can, so
+        it builds — see `test_rates_setby.py` for what it does."""
+        assert SetBy("habitat.tsv", {"cave": 1.0}).reads == ("driven", "lineage")
 
 
 class TestTheVerbsAreForValuesNotFactors:

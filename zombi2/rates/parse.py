@@ -31,6 +31,8 @@ from typing import cast
 
 from . import mapping as _mapping
 from . import modifiers as _modifiers
+from . import values as _values
+from . import verbs as _verbs
 from . import scope as _scope
 from .rate import Rate
 
@@ -41,6 +43,8 @@ from .rate import Rate
 _NAMES: dict[str, type] = {
     **{n: getattr(_scope, n) for n in _scope.__all__ if n != "Scope"},
     **{n: getattr(_modifiers, n) for n in _modifiers.WRITABLE},
+    **{n: getattr(_values, n) for n in _values.WRITABLE},
+    **{n: getattr(_verbs, n) for n in _verbs.WRITABLE},
     "Table": _mapping.Table,
     "Scalar": _mapping.Scalar,
     "Between": _mapping.Between,  # the choice's kernel: DrivenBy(driver, Between({(a, b): w}))
@@ -84,7 +88,8 @@ def _unknown_name(name: str, text: str) -> RateSyntaxError:
     close = difflib.get_close_matches(name, _NAMES, n=1, cutoff=0.6)
     hint = f" — did you mean {close[0]!r}?" if close else ""
     scopes = ", ".join(n for n in _NAMES if n in _scope.__all__)
-    mods = ", ".join(n for n in _NAMES if n in _modifiers.WRITABLE)
+    mods = ", ".join(n for n in _NAMES
+                     if n in _modifiers.WRITABLE + _values.WRITABLE + _verbs.WRITABLE)
     return _fail(
         f"unknown name {name!r}{hint}\n"
         f"  scopes:    {scopes}\n"

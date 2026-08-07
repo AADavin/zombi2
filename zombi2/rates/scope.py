@@ -55,10 +55,19 @@ class Scope:
         ``sites``, ``chromosomes``); each wrapper reads only the one it needs and
         ignores the rest. `Global` reads none.
         """
+        return self.total_of(self.base, **counts)
+
+    def total_of(self, base: float, **counts: Any) -> float:
+        """The total for a base that is **not** this wrapper's own — what a `SetBy` needs.
+
+        A scope answers *per what?*, and that question is unchanged when a driver replaces the
+        number: "0.5 per copy in cave lineages" still multiplies by the copies present. Keeping the
+        two apart here is what lets a replaced base keep its scope instead of quietly becoming a
+        total."""
         if self.unit is None:
-            return self.base
+            return base
         try:
-            return self.base * counts[self.unit]
+            return base * counts[self.unit]
         except KeyError:
             raise KeyError(
                 f"{type(self).__name__} needs a {self.unit!r} count; got {sorted(counts)}"
