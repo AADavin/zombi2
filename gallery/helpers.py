@@ -484,7 +484,7 @@ def events_run() -> str:
 
 
 def phylo_run() -> str:
-    """A cached run whose sequences evolve under an **uncorrelated relaxed clock** (ByLineage), so the
+    """A cached run whose sequences evolve under an **uncorrelated relaxed clock** (Drawn(per='lineage')), so the
     clock tree (branch lengths in substitutions/site) is non-ultrametric. 35 species, for the phylogram."""
     run = os.path.join(_DATA, "phylo")
     if _stale(run):
@@ -492,7 +492,7 @@ def phylo_run() -> str:
         _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 40,
                "--duplication", 0.15, "--loss", 0.12, "--seed", 9)
         _zombi("sequences", run, "--model", "hky85", "--kappa", 2.0, "--length", 500,
-               "--substitution", "1.0 * ByLineage(spread=0.6)", "--seed", 7)
+               "--substitution", "1.0 * Drawn(per='lineage')(spread=0.6)", "--seed", 7)
     return _stamp(run)
 
 

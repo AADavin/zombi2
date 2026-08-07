@@ -18,14 +18,14 @@ gene trees would run, but silently without either, so they are rejected.
 
 ``substitution`` is a per-site rate (a bare number, default ``1.0``: a gene-tree branch of ``Δt`` time
 gets ``substitution · Δt`` substitutions/site — the **strict clock**), optionally times a **lineage
-clock**: ``substitution = 1.0 * mod.ByLineage(spread=)`` is the uncorrelated ("relaxed") clock, one
+clock**: ``substitution = 1.0 * mod.Drawn(per="lineage", spread=)`` is the uncorrelated ("relaxed") clock, one
 i.i.d. rate multiplier drawn per **species lineage** and shared by every gene passing through it, and
-``substitution = 1.0 * mod.FromParent(spread=)`` is the **autocorrelated** clock, where the rate drifts
+``substitution = 1.0 * mod.Inherited(per="lineage", spread=)`` is the **autocorrelated** clock, where the rate drifts
 parent→child down the species tree so close relatives run at similar rates (``SPEC §5``). It may also
 carry a ``mod.DrivenBy(trait, {...})``, which reads a **trait grown first** and lets a lineage's state
 set how fast its sequences evolve; a clock and a driver compose (modifiers multiply), and a driver that
 switches mid-branch is **integrated** across the switch rather than sampled once for the branch
-(`clock`). Any other modifier — ``Markov`` hops, the per-family ``ByFamily`` speed — raises.
+(`clock`). Any other modifier — ``Markov`` hops, the per-family a per-family draw speed — raises.
 
 Rate variation **across sites** is not a modifier and does not go in ``substitution``: it belongs to
 the model, where the field puts it. ``model=hky85(2.0).across_sites(gamma_shape=0.5, invariant=0.1)``
@@ -83,8 +83,8 @@ _COMPLEMENT = str.maketrans("ACGT", "TGCA")
 
 #: The rate grammar this level supports (SPEC §5) — read by the engine gate in `simulate_sequences()`
 #: and by the CLI's help, so a modifier is never advertised without being implemented. On the
-#: substitution rate these are the two lineage clocks — ``ByLineage`` the uncorrelated ("relaxed")
-#: clock, ``FromParent`` the autocorrelated clock (the rate drifts parent→child down the species
+#: substitution rate these are the two lineage clocks — a per-lineage draw the uncorrelated ("relaxed")
+#: clock, an inherited value the autocorrelated clock (the rate drifts parent→child down the species
 #: tree) — and ``DrivenBy``, the conditioned driver a trait grown first supplies (SPEC §3:
 #: Traits→Sequences can be conditioned). A clock and a driver compose: modifiers multiply.
 IMPLEMENTED_MODIFIERS = ((DRAWN, "lineage"), (INHERITED, "lineage"), DrivenBy)
@@ -457,7 +457,7 @@ def _calibrate(substitution, divergence: float, tree: Tree) -> Rate:
 
     A **driven** rate is refused here for a modelling reason, not a coding one: ``divergence / height``
     is the base only when the modifiers average to 1 along a root-to-tip path, which is what
-    mean-correcting ``ByLineage`` and ``FromParent`` buys (SPEC §5) and what a driver deliberately does
+    mean-correcting a per-lineage draw and an inherited value buys (SPEC §5) and what a driver deliberately does
     not promise — its factor is whatever the trait's state says. Solving as though it did would
     produce a run whose realised divergence is off by the driver's mean factor while the log claims
     the number that was asked for. Set the base yourself alongside the driver.
@@ -472,7 +472,7 @@ def _calibrate(substitution, divergence: float, tree: Tree) -> Rate:
         raise ValueError(
             f"substitution names a base, and divergence={divergence} would override it — the base is "
             f"what divergence solves for. Give the clock's shape alone "
-            f"(substitution=ByLineage(spread=…)) to calibrate a relaxed clock, or drop divergence "
+            f"(substitution=Drawn(per='lineage', spread=…)) to calibrate a relaxed clock, or drop divergence "
             f"and set the base yourself.")
     if isinstance(substitution, DrivenBy):
         raise ValueError(
@@ -922,8 +922,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
 
     ``substitution`` may carry a **lineage clock** — one factor per species branch, shared across
     families, computed once before evolving, rescaling each gene-tree branch by the clock of the species
-    branch it sits on: ``1.0 * mod.ByLineage(spread=)`` is the uncorrelated clock (each branch drawn
-    i.i.d.), and ``1.0 * mod.FromParent(spread=)`` is the autocorrelated clock (the factor drifts
+    branch it sits on: ``1.0 * mod.Drawn(per="lineage", spread=)`` is the uncorrelated clock (each branch drawn
+    i.i.d.), and ``1.0 * mod.Inherited(per="lineage", spread=)`` is the autocorrelated clock (the factor drifts
     parent→child down the species tree).
 
     It may also carry a **driver** — ``1.0 * mod.DrivenBy(habitat, {"cave": 0.5, "surface": 1.0})``,
@@ -934,7 +934,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     lineage's dealt tempo and its state both count — and several drivers on one rate multiply too.
     A discrete driver switches *mid-branch*, and the branch length is the driver **integrated** across
     the branch rather than one sample of it (`clock`), so the phylograms are the trees the alignments
-    were actually drawn along. Any other modifier (the ``Markov`` clock, the ``ByFamily`` per-family
+    were actually drawn along. Any other modifier (the ``Markov`` clock, the a per-family draw per-family
     speed), a second lineage clock, or a non-``PerSite`` scope raises.
 
     Rate variation **across sites** rides on ``model``, not on ``substitution``:
@@ -1185,7 +1185,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             "takes a lineage clock — ByLineage (uncorrelated) or FromParent (autocorrelated), and "
             "several of one kind compose — and any number of DrivenBy drivers, which multiply. "
             "SetBy is not read here (a replaced base has nowhere to go: this level draws its clock "
-            "per lineage rather than evaluating a rate), and neither is the Markov clock, ByFamily, "
+            "per lineage rather than evaluating a rate), and neither is the Markov clock, a per-family draw, "
             "or a modifier of your own: this "
             "level reads its modifiers directly rather than through the rate, so one it did not ship "
             "could not be honoured. Rate variation across sites is not a modifier "

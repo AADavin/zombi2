@@ -9,7 +9,7 @@ produced, and evolves one sequence down each family's *complete* gene tree under
 
 Long options are the API keyword names, and ``--substitution`` takes the written form of a rate
 (SPEC §5): a bare number is the strict clock, and the uncorrelated ("relaxed") lineage clock is that
-rate times a ``ByLineage`` modifier — ``--substitution "1.0 * ByLineage(spread=0.3)"``. The model's
+rate times a per-lineage draw — ``--substitution "1.0 * Drawn(per='lineage', spread=0.3)"``. The model's
 physical parameters (``--kappa`` / ``--frequencies`` / ``--exchangeabilities``) are rejected for a model that
 does not use them — including *every* protein model, which is empirical and takes none — so a
 silently-ignored flag can't give a misleading run. See
@@ -42,7 +42,7 @@ from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg,
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
     IMPLEMENTED_MODIFIERS, "--substitution",
-    note="ByLineage draws one rate per species lineage, shared by every gene in it. spread is σ; "
+    note="Drawn(per='lineage') draws one rate per species lineage, shared by every gene in it. spread is σ; "
          "dist is 'lognormal' (default) or 'gamma' (σ = the coefficient of variation). DrivenBy "
          "reads a trait grown first — the trait_events.tsv a 'zombi2 traits' run wrote, in this run "
          "or another: \"1.0 * DrivenBy('out/traits/trait_events.tsv', {'cave': 0.5, 'surface': "
@@ -124,11 +124,11 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("substitution rate & clock", "see RATES below")
     g.add_argument("--substitution", type=_rate, default=None, metavar="RATE",
                    help="substitutions per site per unit time (default 1.0, a strict clock); a "
-                        "ByLineage modifier relaxes it, and a DrivenBy reads a trait grown first")
+                        "Drawn(per='lineage') modifier relaxes it, and a DrivenBy reads a trait grown first")
     g.add_argument("--divergence", type=float, default=None, metavar="D",
                    help="solve for the rate instead, so a site accrues D substitutions from root to "
                         "tip. Composes with --substitution: give the clock's shape alone "
-                        "(\"ByLineage(spread=0.3)\") and this sets its scale")
+                        "(\"Drawn(per='lineage', spread=0.3)\") and this sets its scale")
 
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=_SEQUENCE_OUTPUTS, default=None, metavar="PART",
@@ -339,21 +339,24 @@ def run(args, parser):
         result.write(out, outputs=wanted, flat=args.flat)
         n_families = sum(1 for aln in result.alignments.values() if aln)
         n_seqs = sum(len(aln) for aln in result.alignments.values())
-    # the clock is now read off the rate itself: a ByLineage modifier is the relaxed clock
+    # the clock is now read off the rate itself: a Drawn(per='lineage') modifier is the relaxed clock
     # --substitution may now be a bare modifier (the clock's shape, with --divergence setting its
     # scale), which carries no `.modifiers` of its own — so look at the modifier itself as well, or a
     # relaxed run reports itself as strict.
     _sub = args.substitution
     _mods = (_sub,) if isinstance(_sub, Modifier) else getattr(_sub, "modifiers", ())
-    # Both clock modifiers, not just the uncorrelated one: a FromParent run is autocorrelated, and
-    # reporting it as "strict" was the same bug the ByLineage branch above was written to fix.
+    # Both clock modifiers, not just the uncorrelated one: a Inherited(per='lineage') run is autocorrelated, and
+    # reporting it as "strict" was the same bug the Drawn(per='lineage') branch above was written to fix.
     # Every clock, not the last one written: several of one kind compose now, and describing a rate
     # that carries two as though it carried one states a model that was not the model simulated.
     clocks = []
     driven = []
     for m in _mods:
         if m.reads == (DRAWN, "lineage"):
-            clocks.append(f"{m.dist} lineage clock, spread {m.spread:g}")
+            # `spread` is set only when the short spelling was used; a distribution given outright
+            # describes itself, and formatting a None spread was a real crash
+            clocks.append(f"lognormal lineage clock, spread {m.spread:g}" if m.spread is not None
+                          else f"lineage clock, {m.dist!r}")
         elif m.reads == (INHERITED, "lineage"):
             clocks.append(f"discrete-bin clock, {m.bins} bins, spread {m.spread:g}" if m.bins
                           else f"autocorrelated clock, spread {m.spread:g}")

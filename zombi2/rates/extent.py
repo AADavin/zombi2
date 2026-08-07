@@ -60,7 +60,7 @@ class Extent:
             raise ValueError(
                 f"this extent's base is {type(self.base).__name__}, which has no mean to scale — an "
                 f"engine parameterised by the mean takes a geometric extent only.")
-        return self.base.mean * self._factor(**context)
+        return self.base.mean() * self._factor(**context)
 
     @property
     def is_driven(self) -> bool:

@@ -62,17 +62,19 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   carries refuses by name — *"drawn per chromosome, which the species engine does not support"* —
   instead of reading as a typo.
 
-### Removed
-- **`family_speed=` and `--family-speed` are gone**, replaced by reading one `ByFamily` object from
-  several rates, which now says the same thing (see below). `simulate_genomes_family(tree,
-  duplication=0.2, loss=0.25, family_speed=mod.ByFamily(spread=0.5))` becomes `speed =
-  mod.ByFamily(spread=0.5)` and then `duplication=0.2 * speed, loss=0.25 * speed`. The tempo now has
-  to be written on each rate it applies to rather than covering rates you had not thought about,
-  which is more to type and visible in the model instead of in a side argument. **The command line
-  cannot express it for now:** two `--` flags parse to two separate objects, so they are two
-  independent draws.
-
 ### Changed
+- **`Drawn` takes a distribution object, not the name of one.** `spread=σ` remains the short spelling
+  and means a lognormal of that log-scale; `dist=` now takes any `Distribution` — `Gamma`,
+  `Exponential`, `Uniform`, a scipy frozen distribution, a callable — where before it was the string
+  `"lognormal"` or `"gamma"` and nothing else. Give one or the other, never both. **Whatever the
+  distribution, the draw is normalised to mean 1** by dividing by that distribution's own mean, so a
+  drawn multiplier leaves the base meaning the average rate; a distribution's location is therefore
+  normalised away and what it contributes is its shape, making `Exponential(1.0)` and
+  `Exponential(7.0)` one modifier. A distribution that cannot state its mean is refused rather than
+  normalised by a guess. The distributions are writable, so
+  `--loss "0.25 * Drawn(per='family', dist=Gamma(shape=4.0, scale=0.25))"` works on the command line
+  and round-trips through a run's log.
+
 - **One rule for mixing per-lineage modifiers, instead of three.** Each level had grown its own: the
   species engine refused `FromParent` beside `ByLineage`, the continuous-trait engine refused more
   than one `FromParent`, and the sequence engine refused more than one clock of *any* kind. SPEC §5
@@ -92,6 +94,24 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   same holds for `ByLineage` across a species run's `birth` and `death`. A run that does not reuse an
   object draws exactly as it did, seed for seed. This is the rule that made `family_speed=`
   redundant, and it is now stated in SPEC §5.
+
+### Removed
+- **`ByFamily`, `ByLineage` and `FromParent` are gone**, replaced by the general spelling they were
+  aliases for: `Drawn(per="family", …)`, `Drawn(per="lineage", …)` and `Inherited(per="lineage", …)`.
+  They were never the field's names — the literature says *the relaxed clock*, *ClaDS*, *rate
+  heterogeneity across families* — so they were our own coinages pointing at those, and keeping three
+  aliases for three cells of a grid is two ways to write one thing. A unit nobody has carried yet now
+  needs no name invented for it. Every refusal, the CLI help, Appendix A and the manual name cells
+  the same way (*"drawn per family"*), so one vocabulary reaches the reader.
+
+- **`family_speed=` and `--family-speed` are gone**, replaced by reading one `ByFamily` object from
+  several rates, which now says the same thing (see below). `simulate_genomes_family(tree,
+  duplication=0.2, loss=0.25, family_speed=mod.ByFamily(spread=0.5))` becomes `speed =
+  mod.ByFamily(spread=0.5)` and then `duplication=0.2 * speed, loss=0.25 * speed`. The tempo now has
+  to be written on each rate it applies to rather than covering rates you had not thought about,
+  which is more to type and visible in the model instead of in a side argument. **The command line
+  cannot express it for now:** two `--` flags parse to two separate objects, so they are two
+  independent draws.
 
 ### Fixed
 - **A modifier of your own can no longer vouch for a value the engine has to draw.**

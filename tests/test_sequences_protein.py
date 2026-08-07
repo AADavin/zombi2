@@ -208,7 +208,7 @@ def test_determinism_and_the_lineage_clock_carry_over_to_proteins():
     b = simulate_sequences(run, model=wag(), length=500, seed=2)
     assert a.alignments == b.alignments and a.ancestral == b.ancestral
     clocked = simulate_sequences(run, model=wag(), length=500,
-                                 substitution=1.0 * mod.ByLineage(spread=0.5), seed=2)
+                                 substitution=1.0 * mod.Drawn(per='lineage', spread=0.5), seed=2)
     assert clocked.alignments != a.alignments                # the clock rescales the branches
     assert set(clocked.alignments[0]["n1_g1"]) <= set(AMINO_ACIDS)
 

@@ -30,16 +30,16 @@ A birth or death rate need not be constant. It can depend on **time**, on **how 
 
 - **On time.** The rates change at set points in time. This is the skyline, or episodic, tree. `birth = 1.0 * mod.OnTime({0: 1.0, 3: 0.3})` runs at full rate until time 3, then at a third of it. Each entry holds from its own time up to the next, and the earliest entry also applies *backwards* to the origin, so `OnTime({3: 0.3})`, with no entry at 0, runs at a third of the rate for the whole tree rather than only after time 3. Start the schedule at 0 whenever you mean "full rate until".
 - **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound: `birth = 1.0 * mod.OnTotalDiversity(cap=100)`.
-- **On the parent's rate.** Each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * mod.FromParent(spread=0.2)`.
-- **By lineage.** Each lineage draws its own rate independently, with no memory of its parent: `birth = 1.0 * mod.ByLineage(spread=0.2)`. Same spread of rates as `FromParent`, none of it inherited.
+- **On the parent's rate.** Each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * mod.Inherited(per='lineage', spread=0.2)`.
+- **By lineage.** Each lineage draws its own rate independently, with no memory of its parent: `birth = 1.0 * mod.Drawn(per='lineage', spread=0.2)`. Same spread of rates as `Inherited(per='lineage')`, none of it inherited.
 
-The last two are the two answers to one question, where a lineage's rate comes from, and they are worth holding side by side, because they differ in what they do to the *shape* of the tree and not to the spread of rates. Inherited variation lets a fast clade stay fast, so it hoards the tips and the tree comes out lopsided; independent variation reshuffles at every split, so imbalance stays near what a constant rate gives. `FromParent` is the model to fit when you believe diversification is a heritable property of a clade; `ByLineage` is its null, and the honest thing to compare against. A rate carrying both is refused: there is no model in which a lineage's rate is inherited from its parent and independent of it at once.
+The last two are the two answers to one question, where a lineage's rate comes from, and they are worth holding side by side, because they differ in what they do to the *shape* of the tree and not to the spread of rates. Inherited variation lets a fast clade stay fast, so it hoards the tips and the tree comes out lopsided; independent variation reshuffles at every split, so imbalance stays near what a constant rate gives. `Inherited(per='lineage')` is the model to fit when you believe diversification is a heritable property of a clade; `Drawn(per='lineage')` is its null, and the honest thing to compare against. A rate carrying both is refused: there is no model in which a lineage's rate is inherited from its parent and independent of it at once.
 
-![Three ways a rate can vary, one tree apiece, all three stopped at the same 25 surviving lineages, so what differs is how they got there. **A** `OnTime`: the rate drops at time 2, so an early burst gives way to a long slow tail. **B** `OnTotalDiversity`: the rate falls as the tree fills toward its cap, and splits thin out near the present. **C** `FromParent`: each lineage inherits its parent's rate, so one clade radiates late while its sister stays sparse. Solid lineages survive to the present and dashed ones died, as in the previous figure.](figures/variable_rates.pdf){width=100%}
+![Three ways a rate can vary, one tree apiece, all three stopped at the same 25 surviving lineages, so what differs is how they got there. **A** `OnTime`: the rate drops at time 2, so an early burst gives way to a long slow tail. **B** `OnTotalDiversity`: the rate falls as the tree fills toward its cap, and splits thin out near the present. **C** `Inherited(per='lineage')`: each lineage inherits its parent's rate, so one clade radiates late while its sister stays sparse. Solid lineages survive to the present and dashed ones died, as in the previous figure.](figures/variable_rates.pdf){width=100%}
 
 The modifiers live in `zombi2.rates.modifiers`. Each is a dimensionless factor on the base rate, and you can stack them with `*` to get a rate that changes in time *and* saturates.
 
-Birth and death are modified independently. Give both a `FromParent` and each lineage draws its own speciation factor and its own extinction factor at every split, so the two rates drift without correlation; the same holds for `ByLineage`.
+Birth and death are modified independently. Give both a `Inherited(per='lineage')` and each lineage draws its own speciation factor and its own extinction factor at every split, so the two rates drift without correlation; the same holds for `Drawn(per='lineage')`.
 
 Both draws are **mean-corrected**, so widening `spread` spreads the lineages out without moving the average one off the base rate you typed. And under either, the lineage that speciates or dies is drawn in proportion to its own rate rather than uniformly, which is the point: a fast lineage is likelier to be the one that splits.
 
@@ -55,8 +55,8 @@ One model does not fit the modifier framework: a **mass extinction**, where at o
 |---|---|---|
 | rates change at set times | `1.0 * mod.OnTime({…})` | skyline / episodic birth–death [@stadler2011mammalian] |
 | rate slows as the tree fills | `1.0 * mod.OnTotalDiversity(cap=…)` | diversity-dependent diversification [@rabosky2008densitydependent; @etienne2012diversitydependence] |
-| rates drift, inherited at each split | `1.0 * mod.FromParent(spread=…)` | ClaDS [@maliet2019clads] |
-| rates vary, drawn afresh per lineage | `1.0 * mod.ByLineage(spread=…)` | uncorrelated ("relaxed") rates |
+| rates drift, inherited at each split | `1.0 * mod.Inherited(per='lineage', spread=…)` | ClaDS [@maliet2019clads] |
+| rates vary, drawn afresh per lineage | `1.0 * mod.Drawn(per='lineage', spread=…)` | uncorrelated ("relaxed") rates |
 | a fraction culled at an instant | `mass_extinctions=[(t, f)]` | mass extinction |
 
 ## Sampling

@@ -431,7 +431,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
     living lineages (conditioned on survival — a birth-death tree can die out, so it restarts,
     advancing the same generator) **or** at ``total_time`` — give exactly one. Returns a
     `JointResult` carrying the grown tree and the driver level (``.trait`` or ``.genome``).
-    Deterministic given ``seed``. Continuous trait→speciation (QuaSSE), clade drift (``FromParent``)
+    Deterministic given ``seed``. Continuous trait→speciation (QuaSSE), clade drift (an inherited value)
     combined with driving, and gene transfer in a joint run are not available.
     """
     birth_rate = as_rate(birth, default_scope=PerLineage)
@@ -453,13 +453,13 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 # not a missing feature: there is nothing here for it to mean (the species level
                 # says the same thing about the same modifier, for the same reason)
                 raise ValueError(
-                    f"{label} carries ByFamily, but a diversification rate has no gene families — "
-                    f"ByFamily belongs on a genomes rate. To make speciation depend on gene content, "
+                    f"{label} carries Drawn(per='family'), but a diversification rate has no gene families — "
+                    f"Drawn(per='family') belongs on a genomes rate. To make speciation depend on gene content, "
                     f"drive it: birth = 1.0 * mod.DrivenBy(\"genomes:count\", ...)."
                 )
             if m.reads == (INHERITED, "lineage"):
                 raise ValueError(
-                    f"{label} carries FromParent (clade drift); drift and a driven rate are not available "
+                    f"{label} carries Inherited(per='lineage') (clade drift); drift and a driven rate are not available "
                     f"together — use one or the other."
                 )
             if m.reads == (DRAWN, "lineage"):
@@ -468,9 +468,9 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 # same `--birth` expression working on `zombi2 species` makes that a trap rather than
                 # merely a gap (SPEC §5: reject, never silently ignore).
                 raise ValueError(
-                    f"{label} carries ByLineage (independent per-lineage rates); per-lineage rate "
+                    f"{label} carries Drawn(per='lineage') (independent per-lineage rates); per-lineage rate "
                     f"variation and a driven rate are not available together in a joint run — use "
-                    f"one or the other. On its own, ByLineage works at the species level."
+                    f"one or the other. On its own, Drawn(per='lineage') works at the species level."
                 )
             if not is_implemented(m, IMPLEMENTED_MODIFIERS, "joint"):
                 # the backstop: anything this engine does not thread would come back as its default

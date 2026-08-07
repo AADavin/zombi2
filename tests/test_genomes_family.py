@@ -207,7 +207,7 @@ def test_unsupported_modifiers_are_rejected_not_silently_dropped():
     sp = _tree(seed=1)
     # clade drift would need per-lineage threading the walk doesn't do → reject, don't no-op
     with pytest.raises(ValueError, match="does not support"):
-        simulate_genomes_family(sp, duplication=0.5 * mod.FromParent(spread=0.8), initial_families=3, seed=1)
+        simulate_genomes_family(sp, duplication=0.5 * mod.Inherited(per='lineage', spread=0.8), initial_families=3, seed=1)
     # OnTotalDiversity reads a `diversity` context the genome walk doesn't supply → reject, don't crash raw
     with pytest.raises(ValueError, match="does not support"):
         simulate_genomes_family(sp, loss=0.25 * mod.OnTotalDiversity(cap=100), initial_families=3, seed=1)
@@ -562,7 +562,7 @@ def test_by_family_spreads_the_rates_without_moving_their_mean():
     # so widening the spread must widen the spread of outcomes without inflating the average.
     sp = _tree(seed=7, n_extant=20, death=0.0)
     flat = simulate_genomes_family(sp, duplication=0.25, loss=0.25, initial_families=150, seed=3)
-    varied = simulate_genomes_family(sp, duplication=0.25 * mod.ByFamily(spread=0.5),
+    varied = simulate_genomes_family(sp, duplication=0.25 * mod.Drawn(per='family', spread=0.5),
                                      loss=0.25, initial_families=150, seed=3)
     f, v = _dup_per_family(flat, 150), _dup_per_family(varied, 150)
     import statistics
@@ -582,7 +582,7 @@ def test_a_run_with_no_by_family_is_untouched():
 
 def test_by_family_is_deterministic_given_the_seed():
     sp = _tree(seed=2, n_extant=12)
-    kw = dict(duplication=0.2 * mod.ByFamily(spread=0.6), loss=0.2, initial_families=20, seed=5)
+    kw = dict(duplication=0.2 * mod.Drawn(per='family', spread=0.6), loss=0.2, initial_families=20, seed=5)
     a = simulate_genomes_family(sp, **kw)
     b = simulate_genomes_family(sp, **kw)
     assert [(e.time, e.kind, e.copy) for e in a.edges] == [(e.time, e.kind, e.copy) for e in b.edges]
@@ -592,7 +592,7 @@ def test_one_shared_draw_moves_every_rate_of_a_family_together():
     # the other placement: ONE ByFamily object read by both rates, so one draw per family scales
     # them together. A family that duplicates a lot should also be losing a lot — which is exactly
     # what two separately built ByFamily draws do NOT give.
-    speed = mod.ByFamily(spread=0.6)
+    speed = mod.Drawn(per='family', spread=0.6)
     sp = _tree(seed=1, n_extant=20, death=0.0)
     g = simulate_genomes_family(sp, duplication=0.25 * speed, loss=0.25 * speed,
                                 initial_families=150, seed=3)
@@ -627,7 +627,7 @@ def test_the_carried_family_weights_match_a_full_recompute(monkeypatch):
         return out
 
     monkeypatch.setattr(_FamilyWeights, "current", current)
-    speed = mod.ByFamily(spread=0.7)
+    speed = mod.Drawn(per='family', spread=0.7)
     sp = _tree(seed=4, n_extant=16, death=0.3)
     g = simulate_genomes_family(sp, duplication=0.3 * speed, transfer=0.2 * speed,
                                 loss=0.3 * speed, origination=0.4, replacement=True,
@@ -640,13 +640,13 @@ def test_the_carried_family_weights_match_a_full_recompute(monkeypatch):
 def test_by_family_is_refused_on_origination():
     sp = _tree(seed=1, n_extant=8)
     with pytest.raises(ValueError, match="families are CREATED"):
-        simulate_genomes_family(sp, origination=0.5 * mod.ByFamily(spread=0.3), seed=1)
+        simulate_genomes_family(sp, origination=0.5 * mod.Drawn(per='family', spread=0.3), seed=1)
 
 
 def test_by_family_with_driven_by_is_refused_for_now():
     sp = _tree(seed=1, n_extant=8)
     with pytest.raises(ValueError, match="later slice"):
-        simulate_genomes_family(sp, loss=0.2 * mod.ByFamily(spread=0.3),
+        simulate_genomes_family(sp, loss=0.2 * mod.Drawn(per='family', spread=0.3),
                                 duplication=0.2 * mod.DrivenBy("x.tsv", {"a": 2.0}), seed=1)
 
 

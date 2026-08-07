@@ -2268,7 +2268,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
             raced to."""
             e = _extents[label]
             if not e.is_driven:
-                return e.base.mean
+                return e.base.mean()
             return e.mean(time=t, drivers={key: resolved[key].value(alive[k], t) for key in resolved})
 
         def _pick(label, fallback=None):

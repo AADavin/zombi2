@@ -79,13 +79,13 @@ from .profiles import Profiles, profiles_from_genomes
 #: The rate grammar this engine supports (SPEC §5) — read by the gate below and by the CLI's help, so
 #: a modifier is never advertised without being implemented. The same three the family core takes,
 #: because the two are the same model at two resolutions: ``OnTime`` (a skyline in time), ``DrivenBy``
-#: (a conditioned or joint driver) and ``ByFamily`` (per-family heterogeneity, weighted on the segment
+#: (a conditioned or joint driver) and a per-family draw (per-family heterogeneity, weighted on the segment
 #: an event covers rather than on the gene it started from — SPEC §6). One combination is refused: see
 #: the gate.
 IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, SetBy, (DRAWN, "family"))
 
 #: What an **extent** takes here (SPEC §6). An extent takes the modifiers a rate does, and at this
-#: resolution that is one fewer: ``ByFamily`` attaches to the *contents*, and an extent is drawn
+#: resolution that is one fewer: a per-family draw attaches to the *contents*, and an extent is drawn
 #: before the run's genes are known — a run covers several families, so there is no one family to
 #: draw a factor for. The two lists are declared separately rather than hidden in an ``if``, because
 #: the difference is a modelling fact, not an implementation detail.
@@ -748,7 +748,7 @@ def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ext_ctx, w=None):
       `_pick_run_by_family()`, so the weight reaches the segment rather than its starting gene.
     - **plain** — one uniform draw over the whole live gene pool.
 
-    The two weighted paths are mutually exclusive: the engine refuses ``ByFamily`` and ``DrivenBy`` in
+    The two weighted paths are mutually exclusive: the engine refuses a per-family draw and ``DrivenBy`` in
     one run, because combining them would weight by the product of a lineage factor and a segment
     factor, which is a model neither of them is on its own."""
     if w is not None:
@@ -1195,14 +1195,14 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     its inversion rate. An extent's modifier is read at the instant an event fires, so it changes how
     much a run takes and never how often one starts, and it adds no Gillespie breakpoint.
 
-    ``ByFamily`` and ``DrivenBy`` cannot be set in the same run: one weights lineages by a driver and
+    a per-family draw and ``DrivenBy`` cannot be set in the same run: one weights lineages by a driver and
     the other weights the segment by what it covers.
     """
     tree = as_tree(tree, level="genomes")
     labels = _topologies(chromosomes, topology)
     n_initial_chrom = chromosomes
     # this slice implements each event's default scope and the three modifiers IMPLEMENTED_MODIFIERS
-    # declares: OnTime (skyline), DrivenBy (a conditioned/joint driver, per lineage) and ByFamily —
+    # declares: OnTime (skyline), DrivenBy (a conditioned/joint driver, per lineage) and a per-family draw —
     # the last with the weight on the SEGMENT rather than on its starting gene (SPEC §6, and
     # _pick_run_by_family). A scope override or a clade-drift modifier is a later slice, so reject it
     # rather than silently mis-scale (see the family engine for the reasoning).
@@ -1224,14 +1224,14 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         for m in rate.modifiers:
             if m.reads == (DRAWN, "family") and label == "origination":
                 raise ValueError(
-                    "origination carries ByFamily, but origination is the rate at which families are "
+                    "origination carries a per-family draw, but origination is the rate at which families are "
                     "CREATED — when it is read there is no family yet to have drawn a factor for. "
-                    "Put ByFamily on duplication, transfer, loss, inversion, transposition or "
-                    "translocation; writing one ByFamily object on several of them gives a "
+                    "Put Drawn(per='family') on duplication, transfer, loss, inversion, transposition "
+                    "or translocation; writing one such object on several of them gives a "
                     "family-wide tempo, since one object is one draw.")
             if m.reads == (DRAWN, "family") and not isinstance(rate.scope, PerCopy):
                 raise ValueError(
-                    f"{label} carries ByFamily on a {type(rate.scope).__name__} scope. A per-family "
+                    f"{label} carries a per-family draw on a {type(rate.scope).__name__} scope. A per-family "
                     f"weight has to reach the genes an event covers, so it applies to the per-copy "
                     f"gene events only — not to the chromosome tier, which acts on whole replicons.")
             if isinstance(m, DrivenBy):
@@ -1240,7 +1240,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 raise ValueError(
                     f"{label} carries {describe(m)}, which the ordered genome engine does not "
                     f"support. It takes OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
-                    f"ByFamily (per-family heterogeneity, weighted on the segment an event covers). "
+                    f"Drawn(per='family') (per-family heterogeneity, weighted on the segment an event covers). "
                     f"Clade drift is not implemented yet."
                 )
         _rates[label] = rate
@@ -1256,13 +1256,13 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     if any(m.reads == (DRAWN, "family") for r in _rates.values() for m in r.modifiers) and \
             any(isinstance(m, DrivenBy) for r in _rates.values() for m in r.modifiers):
         raise ValueError(
-            "ByFamily and DrivenBy on the same run is a later slice: one weights lineages by a "
+            "a per-family draw and DrivenBy on the same run is a later slice: one weights lineages by a "
             "driver and the other weights the segment by what it covers, so combining them means "
             "weighting by the product. Use one or the other for now.")
     # per-event extent distributions (segment size in genes); a bare number is the mean, None a single gene
     def _ext_spec(spec, label):
         """One event's extent (SPEC §6): ``base × modifiers``, no scope, in **genes** here. An extent
-        takes the modifiers a rate takes at this resolution minus ``ByFamily`` (see
+        takes the modifiers a rate takes at this resolution minus a per-family draw (see
         `IMPLEMENTED_EXTENT_MODIFIERS`), and they scale the size drawn — ``OnTime`` in time, ``DrivenBy``
         on the lineage the event lands on."""
         e = as_extent(spec)
@@ -1272,9 +1272,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 check_not_a_kernel(m.mapping, label=label)
             if m.reads == (DRAWN, "family"):
                 raise ValueError(
-                    f"{label} carries ByFamily, which an extent cannot mean: the size is drawn before "
+                    f"{label} carries a per-family draw, which an extent cannot mean: the size is drawn before "
                     f"the run's genes are known, and a run covers several families, so there is no "
-                    f"one family to draw a factor for. Put ByFamily on {rate_slot}, where it weights "
+                    f"one family to draw a factor for. Put it on {rate_slot}, where it weights "
                     f"the segment by what it covers.")
             if not is_implemented(m, IMPLEMENTED_EXTENT_MODIFIERS, "genomes.ordered"):
                 raise ValueError(
@@ -1309,7 +1309,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     module_map = resolve_modules(modules, family_names)
 
     # The growth guard, as at the family resolution: duplication compounds, so a run whose rate sits
-    # above its loss rate — or a family that drew a high ByFamily factor — multiplies without bound
+    # above its loss rate — or a family that drew a high a per-family draw factor — multiplies without bound
     # unless something stops it. A segment may carry several families, and several copies of one, so
     # the run is refused when it would take *any* of them past the quota (see _run_over_cap).
     cap = resolve_max_family_size(max_family_size)
@@ -1363,7 +1363,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         return g
 
     # Per-family multipliers, drawn once when a family is created and fixed for its whole life,
-    # exactly as at the family resolution: one ByFamily object read by two rates is one draw for
+    # exactly as at the family resolution: one a per-family draw object read by two rates is one draw for
     # both, two objects are two draws. What differs here is where the weight lands — on the run an
     # event covers, not on the gene it started from (SPEC §6). Empty unless some rate carries one.
     fam_by = {"duplication": tuple(m for m, _ in dup.carried(unit="family")),

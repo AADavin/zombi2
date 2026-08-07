@@ -65,7 +65,7 @@ g = genomes.simulate_genomes_family(sp.complete_tree, initial_families=5,
                                     duplication=0.01, loss=0.01, seed=100)
 seq = sequences.simulate_sequences(
     g, model=sm.jc69(), length=1,
-    substitution=1.0 * mod.ByLineage(spread=0.544, dist="lognormal"), seed=7)
+    substitution=1.0 * mod.Drawn(per='lineage', spread=0.544), seed=7)
 
 phylogram, _ = read_newick(seq.species_phylogram["extant"])
 estimate = red_of(phylogram)                   # RED, now on substitutions instead of time
@@ -81,9 +81,9 @@ comes with an error bar rather than a seed.
 It also runs three clocks rather than one. A CV says how much rate variation there is, but not how it
 is arranged, and arrangement matters for a method that walks from root to tip:
 
-- **uncorrelated** (`ByLineage`), where each lineage draws its own rate independently, with either a
+- **uncorrelated** (`Drawn(per='lineage')`), where each lineage draws its own rate independently, with either a
   lognormal or a gamma tail;
-- **autocorrelated** (`FromParent`), where each lineage inherits its parent's rate and drifts from
+- **autocorrelated** (`Inherited(per='lineage')`), where each lineage inherits its parent's rate and drifts from
   it, so close relatives evolve at similar rates.
 
 Each clock has a spread parameter σ. Turning σ up makes the simulated trees vary more, so for each

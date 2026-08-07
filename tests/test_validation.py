@@ -122,7 +122,7 @@ from zombi2.genomes import (simulate_genomes_family, simulate_genomes_nucleotide
 from zombi2.genomes.ordered import Inversion
 from zombi2.joint import simulate_joint
 from zombi2.rates.mapping import Curve
-from zombi2.rates.modifiers import ByLineage, DrivenBy, FromParent
+from zombi2.rates.modifiers import Drawn, DrivenBy, Inherited
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import BASES, gtr, hky85, jc69, k80, lg, poisson
 from zombi2.species import simulate_species_tree
@@ -1170,8 +1170,8 @@ def test_the_lineage_clocks_are_mean_one_so_the_tree_is_not_inflated():
 
     The realised factor is recoverable from the run itself: a species-phylogram branch is
     ``base × factor × Δt``, so dividing out the base rate and the branch's time gives the factor the
-    engine actually used. `ByLineage` draws one per branch independently, so the factors themselves
-    are the sample; `FromParent` drifts parent→child, so the *ratios* down each branch are."""
+    engine actually used. a per-lineage draw draws one per branch independently, so the factors themselves
+    are the sample; an inherited value drifts parent→child, so the *ratios* down each branch are."""
     label = re.compile(r"[ne](\d+):([0-9.eE+-]+)")
 
     def realised_factors(modifier, base=1.0, reps=25):
@@ -1188,11 +1188,11 @@ def test_the_lineage_clocks_are_mean_one_so_the_tree_is_not_inflated():
         return out
 
     spread = 0.5
-    drawn = np.array([f for _, factors in realised_factors(ByLineage(spread=spread)).values()
+    drawn = np.array([f for _, factors in realised_factors(Drawn(per='lineage', spread=spread)).values()
                       for f in factors.values()])
     assert len(drawn) > 1000, "too few branches to judge the clock by"
     assert abs(_z(drawn, 1.0)) < Z_MAX, (
-        f"ByLineage(spread={spread}) factors average {drawn.mean():.4f}, not 1 — every branch in the "
+        f"Drawn(per='lineage', spread={spread}) factors average {drawn.mean():.4f}, not 1 — every branch in the "
         f"phylogram is scaled by that")
     assert abs(np.log(drawn).std(ddof=1) - spread) < 0.05, (
         f"the log-scale spread is {np.log(drawn).std(ddof=1):.4f}, not the {spread} it was given")
@@ -1201,14 +1201,14 @@ def test_the_lineage_clocks_are_mean_one_so_the_tree_is_not_inflated():
 
     spread = 0.4
     ratios = []
-    for tree, factors in realised_factors(FromParent(spread=spread)).values():
+    for tree, factors in realised_factors(Inherited(per='lineage', spread=spread)).values():
         for i, factor in factors.items():
             parent = tree.nodes[i].parent
             if parent is not None:
                 ratios.append(factor / factors[parent])
     ratios = np.array(ratios)
     assert abs(_z(ratios, 1.0)) < Z_MAX, (
-        f"FromParent(spread={spread}) drifts by {ratios.mean():.4f} per branch on average, not 1 — "
+        f"Inherited(per='lineage', spread={spread}) drifts by {ratios.mean():.4f} per branch on average, not 1 — "
         f"the rate ratchets down the tree")
     assert abs(np.log(ratios).std(ddof=1) - spread) < 0.05, (
         f"the log-scale spread of the drift is {np.log(ratios).std(ddof=1):.4f}, not {spread}")
@@ -1453,7 +1453,7 @@ def test_correlated_traits_realise_the_correlation_they_were_given():
 def test_the_manual_modifier_table_matches_what_the_engines_wire():
     """Appendix A's "which level accepts which" table, checked against the engines it describes.
 
-    It had drifted: `ByFamily` was missing from the genome row and `FromParent` from the sequence
+    It had drifted: a per-family draw was missing from the genome row and an inherited value from the sequence
     row, so a reader who trusted the appendix would think two working things were unsupported. A
     tester found the contradiction against `--help`, trusted the CLI, and was right — but said the
     appendix had lost her confidence, which is the real cost of a doc that disagrees with the code."""
@@ -1499,7 +1499,8 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
         # the SECOND column only: a row label may itself carry a backticked word (the rate a row is
         # about — `rate`, `switch`, `birth`), and scanning the whole line would read those as
         # modifiers.
-        listed = set(re.findall(r"`(\w+)`", line.split("|")[2]))
+        # a cell name is several words ("drawn per lineage"), so match anything inside backticks
+        listed = set(re.findall(r"`([^`]+)`", line.split("|")[2]))
         assert listed == {cell_name(m) for m in wired}, (
             f"appendix A's {row!r} row lists {sorted(listed)}, but the engine wires "
             f"{sorted(cell_name(m) for m in wired)}")

@@ -764,9 +764,9 @@ def test_a_family_draw_on_one_rate_beside_a_driven_rate_is_refused(tmp_path):
     tree = simulate_species_tree(birth=1.2, death=0.2, total_time=1.5, seed=11).complete_tree
     driver = tmp_path / "d.tsv"
     _write_driver(driver, tree, {i: ("hi" if i % 2 else "lo") for i in tree.nodes})
-    with pytest.raises(ValueError, match="ByFamily and DrivenBy on the same run"):
+    with pytest.raises(ValueError, match="per-family draw and DrivenBy on the same run"):
         genomes.simulate_genomes_family(
-            tree, duplication=0.3 * mod.ByFamily(spread=0.5),
+            tree, duplication=0.3 * mod.Drawn(per='family', spread=0.5),
             loss=0.2 * mod.DrivenBy(str(driver), {"lo": 0.0, "hi": 5.0}),
             initial_families=6, seed=3)
 
@@ -1071,9 +1071,9 @@ def test_ordered_refuses_byfamily_and_a_driver_together(tmp_path):
     driver, the other weights the segment by what it covers."""
     tree = _ord_tree()
     _state_of, driver = _ord_driver(tmp_path, tree)
-    with pytest.raises(ValueError, match="ByFamily and DrivenBy on the same run"):
+    with pytest.raises(ValueError, match="per-family draw and DrivenBy on the same run"):
         genomes.simulate_genomes_ordered(
-            tree, duplication=0.2 * mod.ByFamily(spread=0.5),
+            tree, duplication=0.2 * mod.Drawn(per='family', spread=0.5),
             loss=0.2 * mod.DrivenBy(driver, {"host": 3.0, "free": 1.0}),
             initial_families=6, seed=1)
 
@@ -1083,9 +1083,9 @@ def test_ordered_refuses_a_family_draw_and_a_driver_together(tmp_path):
     what it covers rather than the lineage."""
     tree = _ord_tree()
     _state_of, driver = _ord_driver(tmp_path, tree)
-    with pytest.raises(ValueError, match="ByFamily and DrivenBy on the same run"):
+    with pytest.raises(ValueError, match="per-family draw and DrivenBy on the same run"):
         genomes.simulate_genomes_ordered(
-            tree, duplication=0.3 * mod.ByFamily(spread=0.5),
+            tree, duplication=0.3 * mod.Drawn(per='family', spread=0.5),
             loss=0.2 * mod.DrivenBy(driver, {"host": 3.0, "free": 1.0}),
             initial_families=6, seed=1)
 
@@ -1105,9 +1105,9 @@ def test_ordered_refuses_byfamily_on_an_extent():
     are known, so there is no one family to draw a factor for — and the message must name the slot
     ByFamily does belong in rather than merely refuse."""
     tree = _ord_tree()
-    with pytest.raises(ValueError, match="Put ByFamily on inversion"):
+    with pytest.raises(ValueError, match="Put it on inversion"):
         genomes.simulate_genomes_ordered(
-            tree, inversion=0.5, inversion_extent=3 * mod.ByFamily(spread=0.5),
+            tree, inversion=0.5, inversion_extent=3 * mod.Drawn(per='family', spread=0.5),
             initial_families=6, seed=1)
 
 
@@ -1394,7 +1394,7 @@ def test_driven_divergence_matches_jukes_cantor(tmp_path):
 
 
 def test_a_driver_composes_with_a_lineage_clock():
-    """SPEC §5: modifiers multiply. A ``ByLineage`` clock and a ``DrivenBy`` driver on one rate give a
+    """SPEC §5: modifiers multiply. A `a per-lineage draw` clock and a ``DrivenBy`` driver on one rate give a
     branch ``base × clock × ∫driver``, and each factor is recovered here independently — the clock
     from an otherwise-identical undriven run at the same seed (the draw comes first and consumes the
     same randomness either way), the integral by walking the trait's own trajectory."""
@@ -1407,9 +1407,9 @@ def test_a_driver_composes_with_a_lineage_clock():
     base, kw = 0.4, dict(model=jc69(), length=20, seed=24)
 
     clocked = sequences.simulate_sequences(
-        run, substitution=base * mod.ByLineage(spread=0.5), **kw)
+        run, substitution=base * mod.Drawn(per='lineage', spread=0.5), **kw)
     both = sequences.simulate_sequences(
-        run, substitution=base * mod.ByLineage(spread=0.5) * mod.DrivenBy(habitat, table), **kw)
+        run, substitution=base * mod.Drawn(per='lineage', spread=0.5) * mod.DrivenBy(habitat, table), **kw)
 
     by_clock = _branch_lengths(clocked.species_phylogram["complete"])
     by_both = _branch_lengths(both.species_phylogram["complete"])
@@ -1470,7 +1470,7 @@ def test_driven_substitution_is_deterministic():
     tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=51).complete_tree
     habitat = traits.simulate_discrete(tree, states=["cave", "surface"], switch=1.5, seed=52)
     run = genomes.simulate_genomes_family(tree, duplication=0.2, initial_families=4, seed=53)
-    spec = 0.3 * mod.ByLineage(spread=0.3) * mod.DrivenBy(habitat, {"cave": 0.5, "surface": 2.0})
+    spec = 0.3 * mod.Drawn(per='lineage', spread=0.3) * mod.DrivenBy(habitat, {"cave": 0.5, "surface": 2.0})
     kw = dict(model=jc69(), length=120, substitution=spec, seed=54)
     a = sequences.simulate_sequences(run, **kw)
     b = sequences.simulate_sequences(run, **kw)
