@@ -33,7 +33,8 @@ from ..genomes import GeneEdge, GeneCopy, FamilyGenomesResult, FamilyGenome
 from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
 from ..rates.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import DRAWN, INHERITED, DrivenBy, OnTime, OnTotalDiversity, is_implemented
+from ..rates.modifiers import (DRAWN, INHERITED, DrivenBy, OnTime, OnTotalDiversity, describe,
+                               is_implemented)
 
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
@@ -476,7 +477,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 # factor of 1.0, which is a run quietly not the model that was asked for (SPEC §5).
                 # Declared rather than enumerated here, so a modifier added later cannot slip through.
                 raise ValueError(
-                    f"{label} carries {type(m).__name__}, which a joint run does not support. It "
+                    f"{label} carries {describe(m)}, which a joint run does not support. It "
                     f"takes OnTime (skyline), OnTotalDiversity (diversity-dependent) and DrivenBy "
                     f"(the driver that makes the run joint)."
                 )
@@ -486,7 +487,10 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                     raise TypeError(
                         f"{label} is driven by a {type(m.driver).__name__} object, but a joint model "
                         f"drives from a live level *name* (a string, e.g. \"trait\" / \"genomes:count\"). "
-                        f"A grown result object is conditioning — pass it to the target level's run."
+                        + ("A clade is read off a finished tree, and a joint run grows the tree as it "
+                           "goes, so there is no clade to read yet."
+                           if type(m.driver).__name__ == "Clade" else
+                           "A grown result object is conditioning — pass it to the target level's run.")
                     )
                 driver_names.append(m.driver)
     if not driver_names:

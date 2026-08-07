@@ -63,7 +63,7 @@ from ..rates.driver import check_mapping_fires, driven_mods, names_a_live_level,
 from ..rng import resolve_seed, seed_sequence, stream
 from ..rates.mapping import Between
 from ..rates.modifiers import (DRAWN, INHERITED, DrivenBy, Modifier,
-                              check_one_memory, matches_declared)
+                              check_one_memory, describe, matches_declared)
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerSite
 from ..tree import Node, Tree, prune
@@ -1177,14 +1177,16 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     # an event — so a modifier declaring itself implemented here would be accepted and then never
     # called. Silently returning the undriven answer is precisely what SPEC §5 forbids, so it is
     # refused by name instead, and `Modifier.implemented_for` documents the omission.
-    unimplemented = sorted({type(m).__name__ for m in rate.modifiers
+    unimplemented = sorted({describe(m) for m in rate.modifiers
                             if not matches_declared(m, IMPLEMENTED_MODIFIERS)})
     if unimplemented:
         raise ValueError(
             f"substitution carries {', '.join(unimplemented)}, which the sequence engine does not read. It "
-            "takes a lineage clock — one ByLineage (uncorrelated) or one FromParent (autocorrelated) "
-            "— and any number of DrivenBy drivers, which multiply. The Markov clock and ByFamily "
-            "are not implemented here, and neither is a modifier of your own: this "
+            "takes a lineage clock — ByLineage (uncorrelated) or FromParent (autocorrelated), and "
+            "several of one kind compose — and any number of DrivenBy drivers, which multiply. "
+            "SetBy is not read here (a replaced base has nowhere to go: this level draws its clock "
+            "per lineage rather than evaluating a rate), and neither is the Markov clock, ByFamily, "
+            "or a modifier of your own: this "
             "level reads its modifiers directly rather than through the rate, so one it did not ship "
             "could not be honoured. Rate variation across sites is not a modifier "
             "at all — it belongs to the model: model=hky85(...).across_sites(gamma_shape=0.5), or "

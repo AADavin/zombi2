@@ -58,6 +58,12 @@ class Clade:
         painted = resolve_groups(tree, self.groups)
         return DriverTrajectory({i: [(tree.nodes[i].birth_time, painted[i])] for i in tree.nodes})
 
+    def written_form(self) -> str:
+        """A clade is built from literals — labels, node ids, tip names — so unlike every other
+        driver it can be written into a run's log and pasted back. `DrivenBy`
+        asks for this when recording the rate."""
+        return repr(self)
+
     def __repr__(self) -> str:
         return f"Clade({self.groups!r})"
 

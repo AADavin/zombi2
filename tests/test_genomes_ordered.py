@@ -325,8 +325,10 @@ def test_the_extent_declaration_is_the_rate_declaration_minus_byfamily():
     """The one difference between the two lists is a modelling fact, not an accident: ``ByFamily``
     attaches to the contents, and an extent is drawn before the run's genes are known."""
     from zombi2.genomes.ordered import IMPLEMENTED_EXTENT_MODIFIERS, IMPLEMENTED_MODIFIERS
-    from zombi2.rates.modifiers import DRAWN
-    assert set(IMPLEMENTED_MODIFIERS) - set(IMPLEMENTED_EXTENT_MODIFIERS) == {(DRAWN, "family")}
+    from zombi2.rates.modifiers import DRAWN, SetBy
+    # both differences are modelling facts. ByFamily attaches to the contents, and an extent is drawn
+    # before the run's genes are known; SetBy replaces a base, and an extent has none to replace.
+    assert set(IMPLEMENTED_MODIFIERS) - set(IMPLEMENTED_EXTENT_MODIFIERS) == {(DRAWN, "family"), SetBy}
 
 
 def test_scope_override_is_rejected_this_slice():

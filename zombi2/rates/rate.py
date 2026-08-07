@@ -103,6 +103,12 @@ class Rate:
         return nc
 
     def __mul__(self, other: object):
+        if isinstance(other, SetBy):
+            raise TypeError(
+                "SetBy replaces the base, so it cannot follow one: everything to its left — the "
+                "number, the scope, any factors — is a base it would silently discard. Write it "
+                "first instead: SetBy(driver, mapping) * ScaledBy(...). `0.25 * SetBy(...)` is "
+                "refused for the same reason, and this is that hole one operand further along.")
         if isinstance(other, Modifier):
             return Rate(self.base, self.scope, self.modifiers + (other,))
         return NotImplemented
@@ -110,12 +116,17 @@ class Rate:
     __rmul__ = __mul__  # a number/scope on the left is handled there; only Modifier*Rate reaches here
 
 
-def as_rate(spec: object, *, default_scope: type[Scope]) -> Rate:
+def as_rate(spec: object, *, default_scope: type[Scope], label: str = "this rate") -> Rate:
     """Coerce a user rate spec into a resolved `Rate`, filling the level's default scope.
 
     Accepts a number, a scope wrapper, a modifier (product), or an already-built ``Rate``.
+
+    Every level coerces its rates through here, which is why the one-base rule is checked here
+    rather than in each level's own validation: a rule enforced by whoever remembers to call it is a
+    rule three levels did not have.
     """
     if isinstance(spec, Rate):
+        spec.check_one_base(label)
         return spec.with_default_scope(default_scope)
     if isinstance(spec, Scope):
         return Rate(spec.base, spec, ())

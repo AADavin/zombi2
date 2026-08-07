@@ -89,15 +89,17 @@ mod.FromParent(spread=0.3)` is a rate that both follows a schedule and drifts be
 ### Which level accepts which
 
 A modifier only makes sense where the level can act on it, and a level **rejects** one it does not
-accept rather than silently ignoring it. This is what each accepts today:
+accept rather than silently ignoring it. `SetBy` is listed separately from `DrivenBy` even though it
+is one, because replacing a base is a capability an engine has or has not: the three levels below can
+do it and the rest refuse. This is what each accepts today:
 
 | Level | The modifiers it accepts |
 |---|---|
 | Species | `OnTime` · `OnTotalDiversity` · `FromParent` · `ByLineage` |
-| Genomes, family and ordered | `OnTime` · `DrivenBy` · `ByFamily` |
+| Genomes, family and ordered | `OnTime` · `DrivenBy` · `SetBy` · `ByFamily` |
 | Genomes, nucleotide | `OnTime` · `DrivenBy` |
 | Sequences | `ByLineage` · `FromParent` · `DrivenBy` |
-| Traits, continuous `rate` | `OnTime` · `FromParent` · `OnTotalDiversity` · `DrivenBy` |
+| Traits, continuous `rate` | `OnTime` · `FromParent` · `OnTotalDiversity` · `DrivenBy` · `SetBy` |
 | Traits, discrete `switch` | `DrivenBy` |
 | Joint, `birth` / `death` | `OnTime` · `OnTotalDiversity` · `DrivenBy` |
 

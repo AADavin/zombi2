@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import resolve_seed, stream
-from ..rates.modifiers import describe, DRAWN, DrivenBy, OnTime, draw_product, is_implemented
+from ..rates.modifiers import describe, DRAWN, DrivenBy, OnTime, SetBy, draw_product, is_implemented
 from ..rates.rate import as_rate
 from ..rates.scope import PerCopy, PerLineage, Scope
 from ..tree import Tree, as_tree
@@ -54,7 +54,7 @@ if TYPE_CHECKING:  # a streamed run returns a StreamedRun (built by the per-fami
 #: scope this slice, and ``DrivenBy`` is implemented for the single-lineage events; the ordered engine
 #: takes ``OnTime`` and ``ByFamily``, the nucleotide one ``OnTime`` and ``DrivenBy``. The gates say so
 #: per rate.
-IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, (DRAWN, "family"))
+IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, SetBy, (DRAWN, "family"))
 
 
 @dataclass(frozen=True)

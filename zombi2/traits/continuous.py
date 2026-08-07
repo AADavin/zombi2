@@ -10,7 +10,7 @@ import numpy as np
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import (describe, DRAWN, INHERITED, DrivenBy, OnTime, OnTotalDiversity,
+from ..rates.modifiers import (describe, DRAWN, INHERITED, DrivenBy, OnTime, OnTotalDiversity, SetBy,
                                carried_at_birth, carried_at_split, check_one_memory,
                                is_implemented, product)
 from ..rates.rate import as_rate
@@ -20,7 +20,7 @@ from ..tree import Tree, as_tree
 from ._shared import _correlation_matrix, _driven_mods, _preorder, _resolve_drivers, _symmetric_sqrt
 from .result import Change, TraitsResult
 
-IMPLEMENTED_MODIFIERS = (OnTime, (INHERITED, "lineage"), OnTotalDiversity, DrivenBy)  #: the cells a continuous rate takes
+IMPLEMENTED_MODIFIERS = (OnTime, (INHERITED, "lineage"), OnTotalDiversity, DrivenBy, SetBy)  #: the cells a continuous rate takes
 
 class _LTT:
     """The tree's lineages-through-time step function — how many lineages are alive at time ``t``
