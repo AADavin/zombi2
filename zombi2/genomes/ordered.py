@@ -58,7 +58,7 @@ from ..rates.driver import check_mapping_fires, resolve_driver
 from ..rng import stream
 from ..rates.extent import Extent, as_extent
 from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import ByFamily, DrivenBy, OnTime, is_implemented
+from ..rates.modifiers import ByFamily, DrivenBy, OnTime, draw_product, is_implemented
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
@@ -1369,12 +1369,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # ByFamily on a single rate varies that rate alone (its own draw). What differs here is where the
     # weight lands — on the run an event covers, not on the gene it started from (SPEC §6). Empty
     # unless one of them is used, and a run without either is byte-identical to the plain path.
-    fam_by = {"duplication": next((m for m in dup.modifiers if isinstance(m, ByFamily)), None),
-              "transfer": next((m for m in tra.modifiers if isinstance(m, ByFamily)), None),
-              "loss": next((m for m in los.modifiers if isinstance(m, ByFamily)), None),
-              "inversion": next((m for m in inv.modifiers if isinstance(m, ByFamily)), None),
-              "transposition": next((m for m in trp.modifiers if isinstance(m, ByFamily)), None),
-              "translocation": next((m for m in trl.modifiers if isinstance(m, ByFamily)), None)}
+    fam_by = {"duplication": tuple(m for m, _ in dup.carried(unit="family")),
+              "transfer": tuple(m for m, _ in tra.carried(unit="family")),
+              "loss": tuple(m for m, _ in los.carried(unit="family")),
+              "inversion": tuple(m for m, _ in inv.carried(unit="family")),
+              "transposition": tuple(m for m, _ in trp.carried(unit="family")),
+              "translocation": tuple(m for m, _ in trl.carried(unit="family"))}
     any_family = family_speed is not None or any(fam_by.values())
     fam_mult: dict[str, dict[int, float]] = {key: {} for key in fam_by}
 
@@ -1384,8 +1384,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         family_counter += 1
         if any_family:
             speed = family_speed.draw(rng) if family_speed is not None else 1.0
-            for key, m in fam_by.items():
-                fam_mult[key][f] = speed * (m.draw(rng) if m is not None else 1.0)
+            for key, mods in fam_by.items():
+                fam_mult[key][f] = speed * draw_product(mods, rng)
         return f
 
     def new_chromosome() -> int:

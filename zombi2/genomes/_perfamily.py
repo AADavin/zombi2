@@ -44,7 +44,7 @@ import numpy as np
 
 from .._runtime.parallel import guard_pool_workers, pool_errors, resolve_workers
 from .._runtime.progress import progress_bar
-from ..rates.modifiers import ByFamily
+from ..rates.modifiers import draw_product
 from ..rng import seed_sequence
 from ._live import enter, retire, weighted_index
 from ._transfer import mean_root_to_tip, recipient_index
@@ -199,9 +199,9 @@ def prepare_family_context(tree, *, dup, tra, los, transfer_to, replacement, sel
     depth = mean_root_to_tip(tree)
     # which single rate each per-family ByFamily slot sits on (origination is excluded upstream) — drawn
     # once per family and multiplied onto that rate, exactly the serial engine's fam_mult placement.
-    fam_by = {"duplication": next((m for m in dup.modifiers if isinstance(m, ByFamily)), None),
-              "transfer": next((m for m in tra.modifiers if isinstance(m, ByFamily)), None),
-              "loss": next((m for m in los.modifiers if isinstance(m, ByFamily)), None)}
+    fam_by = {"duplication": tuple(m for m, _ in dup.carried(unit="family")),
+              "transfer": tuple(m for m, _ in tra.carried(unit="family")),
+              "loss": tuple(m for m, _ in los.carried(unit="family"))}
     # the contemporaneous-lineage machinery: sorted birth / death times (two pointers give the set alive
     # at any t) and the times can_xfer (≥ 2 lineages alive) flips.
     births = sorted((tree.nodes[i].birth_time, i) for i in tree.nodes)
@@ -231,13 +231,12 @@ def _init_worker(ctx, stream=None) -> None:
 def _family_mults(rng, family_speed, fam_by):
     """The family's rate multipliers, drawn once from its own stream (so they are worker-invariant):
     ``family_speed`` scales every rate together (one draw), a per-rate ``ByFamily`` varies that rate on
-    its own. The draw order is fixed — speed, then duplication / transfer / loss — so it is
-    reproducible. ``1.0`` where a slot carries neither."""
+    its own. The draw order is fixed — speed, then duplication / transfer / loss, and within a rate the
+    order its modifiers were written — so it is reproducible. ``1.0`` where a rate carries neither."""
     speed = family_speed.draw(rng) if family_speed is not None else 1.0
     out = {}
     for key in ("duplication", "transfer", "loss"):
-        m = fam_by.get(key)
-        out[key] = speed * (m.draw(rng) if m is not None else 1.0)
+        out[key] = speed * draw_product(fam_by.get(key, ()), rng)
     return out
 
 

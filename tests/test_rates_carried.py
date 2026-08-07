@@ -121,3 +121,28 @@ def test_the_species_engine_now_applies_every_per_lineage_modifier():
     assert len(drawn) == 2                                   # both drew, not just the first
     effective = rate.effective(lineages=1, carried=_product(drawn))
     assert effective == pytest.approx(drawn[0] * drawn[1])   # and both reached the rate
+
+
+def test_the_genome_engines_now_apply_every_per_family_modifier():
+    """The same regression on the other side. `draw_product` is what the three genome engines use to
+    give a new family its factor, and it draws from every modifier the rate carries."""
+    import numpy as np
+
+    a, b = mod.ByFamily(spread=0.4), mod.ByFamily(spread=0.9)
+    rate = as_rate(0.25 * a * b, default_scope=scope.PerCopy)
+    carried = tuple(m for m, _ in rate.carried(unit="family"))
+    assert carried == (a, b)
+
+    seen = mod.draw_product(carried, np.random.default_rng(7))
+    rng = np.random.default_rng(7)
+    assert seen == pytest.approx(a.draw(rng) * b.draw(rng))   # both draws, in written order
+
+
+def test_a_modifier_that_does_not_draw_says_so():
+    """`FromParent` starts from its parent rather than from nothing, so it has no `draw`. The base
+    raises with the reason instead of handing back a plausible 1.0."""
+    with pytest.raises(NotImplementedError, match="does not draw a value per unit"):
+        mod.FromParent(spread=0.2).draw(object())
+
+    with pytest.raises(NotImplementedError):
+        mod.OnTime({0: 1.0}).draw(object())
