@@ -12,10 +12,19 @@ Where the figures live:
 A generator calls `save(d, name)` from `zombi_style`, which writes both. `docs/img/` holds symlinks
 into `figures/svg/`, because MkDocs can only serve what is under `docs/`.
 
-The reference implementations — `fig_diversity_dependent.py`, `fig_species_tree_events.py`,
-`fig_gene_tree.py`, `fig_clads.py`, `fig_mass_extinction.py`, `fig_trait_ou.py` — are in
-`legacy/figures/scripts/`, along with every other generator whose figure the rewritten manual no
-longer uses. They are still the reference for *how to draw*; read them there.
+Two kinds of generator live in `figures/scripts/`, and which one a figure wants follows from
+whether it shows **data** or an **idea**:
+
+- A figure of a real run is drawn with **Phylustrator** — `ph.trees.plot(tree) + layer + layer`,
+  saved through `save()`. `fig_species_tree_extinct.py` is the short reference: read a tree, work
+  out which lineages have no surviving descendant, plot it dashed, add a time axis.
+  `fig_variable_rates.py` shows how to stack several such panels into one figure.
+- A figure with nothing to simulate — the levels, the Gillespie loop — is drawn straight in
+  `drawsvg`; `fig_stem.py` is the short reference.
+
+A **conceptual diagram that sits inside a chapter** is a third thing and does not live here at all:
+it is hand-authored SVG in `manual/book/figures/`, theme-aware so the docs site can render it in
+either colour scheme. `manual/book/figures/conditioning.svg` is the reference for those.
 
 ## What every figure must obey
 
