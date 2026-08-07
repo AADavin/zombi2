@@ -110,16 +110,16 @@ def test_the_species_engine_now_applies_every_per_lineage_modifier():
     reported a model it had not simulated."""
     import numpy as np
 
-    from zombi2.species import _born, _per_lineage, _product
+    from zombi2.species import _per_lineage
 
     a, b = mod.ByLineage(spread=0.4), mod.ByLineage(spread=0.9)
     rate = _rate(1.0 * a * b)
 
     assert _per_lineage(rate) == (a, b)
 
-    drawn = _born(_per_lineage(rate), np.random.default_rng(1))
+    drawn = mod.carried_at_birth(_per_lineage(rate), np.random.default_rng(1))
     assert len(drawn) == 2                                   # both drew, not just the first
-    effective = rate.effective(lineages=1, carried=_product(drawn))
+    effective = rate.effective(lineages=1, carried=mod.product(drawn))
     assert effective == pytest.approx(drawn[0] * drawn[1])   # and both reached the rate
 
 
@@ -188,7 +188,7 @@ class TestOneObjectIsOneDraw:
         number per lineage — the two rates rise and fall together."""
         import numpy as np
 
-        from zombi2.species import _born, _per_lineage
+        from zombi2.species import _per_lineage
 
         s = mod.ByLineage(spread=0.4)
         birth = _per_lineage(_rate(1.0 * s))
@@ -196,22 +196,22 @@ class TestOneObjectIsOneDraw:
 
         lineage: dict[int, float] = {}
         rng = np.random.default_rng(4)
-        (b,) = _born(birth, rng, lineage)
-        (d,) = _born(death, rng, lineage)
+        (b,) = mod.carried_at_birth(birth, rng, lineage)
+        (d,) = mod.carried_at_birth(death, rng, lineage)
         assert b == d
 
     def test_species_keeps_two_objects_independent(self):
         import numpy as np
 
-        from zombi2.species import _born, _per_lineage
+        from zombi2.species import _per_lineage
 
         birth = _per_lineage(_rate(1.0 * mod.ByLineage(spread=0.4)))
         death = _per_lineage(_rate(0.5 * mod.ByLineage(spread=0.4)))
 
         lineage: dict[int, float] = {}
         rng = np.random.default_rng(4)
-        (b,) = _born(birth, rng, lineage)
-        (d,) = _born(death, rng, lineage)
+        (b,) = mod.carried_at_birth(birth, rng, lineage)
+        (d,) = mod.carried_at_birth(death, rng, lineage)
         assert b != d
 
 

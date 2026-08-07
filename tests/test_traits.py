@@ -434,10 +434,19 @@ def test_ou_with_from_parent_keeps_the_ou_variance_and_gets_heavy_tails():
     assert np.mean([_kurtosis(drift[:, j]) for j in range(drift.shape[1])]) > 4.0   # drift: heavy tails
 
 
-def test_rejects_multiple_inherited():
+def test_two_inherited_drifts_compose_rather_than_being_refused():
+    """SPEC §5's rule is *one memory structure per axis*, not *one modifier*: two inherited factors
+    are the same structure and multiply, exactly as any two modifiers do. (Two lognormal drifts are
+    one lognormal drift of the combined spread, so this is redundant rather than useful — but it is
+    a composition, and refusing it was a stricter rule than the spec has.) Mixing an inherited factor
+    with a drawn one is what raises, and that check now lives in one place for every level."""
     sp = _tree(seed=1)
-    with pytest.raises(ValueError, match="one FromParent|drifts one way"):
-        simulate_continuous(sp, rate=1.0 * mod.FromParent(spread=0.2) * mod.FromParent(spread=0.3), seed=1)
+    res = simulate_continuous(
+        sp, rate=1.0 * mod.FromParent(spread=0.2) * mod.FromParent(spread=0.3), seed=1)
+    assert len(res.node_values) == len(sp.complete_tree.nodes)
+
+    one = simulate_continuous(sp, rate=1.0 * mod.FromParent(spread=0.2), seed=1)
+    assert res.node_values != one.node_values          # the second drift really is in the run
 
 
 def test_bm_unchanged_by_the_inherited_wiring():

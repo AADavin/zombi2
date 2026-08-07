@@ -20,7 +20,9 @@ import pathlib
 from dataclasses import dataclass, field
 
 
-from ..rates.modifiers import ByFamily, ByLineage, FromParent, OnTime, OnTotalDiversity, is_implemented
+from ..rates.modifiers import (ByFamily, ByLineage, FromParent, OnTime, OnTotalDiversity,
+                               carried_at_birth, carried_at_split, check_one_memory,
+                               is_implemented, product)
 from ..rng import stream
 from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
@@ -192,48 +194,6 @@ def _per_lineage(rate) -> tuple:
     return tuple(m for m, _ in rate.carried(unit="lineage"))
 
 
-def _shared(mods: tuple, drawn: dict, make) -> tuple[float, ...]:
-    """``make(modifier, index)`` for each modifier, through a **per-lineage** cache keyed by modifier
-    identity.
-
-    One `ByLineage` object written on both birth and death is one number for that lineage, so the two
-    rates move together; two separately built ones move independently even with the same spread. The
-    cache is per lineage and never outlives it, so the question it answers is only ever "did you write
-    one thing or two?"."""
-    out = []
-    for i, m in enumerate(mods):
-        key = id(m)
-        if key not in drawn:
-            drawn[key] = make(m, i)
-        out.append(drawn[key])
-    return tuple(out)
-
-
-def _born(mods: tuple, rng, drawn: dict | None = None) -> tuple[float, ...]:
-    """The factors a lineage starts life with, one per carried modifier: the root's under
-    `FromParent` (1.0, or the middle rung when binned), and an independent draw under `ByLineage`."""
-    return _shared(mods, {} if drawn is None else drawn,
-                   lambda m, _i: m.initial() if isinstance(m, FromParent) else m.draw(rng))
-
-
-def _inherit(mods: tuple, parent_values: tuple[float, ...], rng,
-             drawn: dict | None = None) -> tuple[float, ...]:
-    """A daughter's factors at a split: its parent's, nudged (`FromParent`), or an independent draw
-    that ignores the parent (`ByLineage`) — the one line where the two differ."""
-    return _shared(mods, {} if drawn is None else drawn,
-                   lambda m, i: (m.descend(parent_values[i], rng) if isinstance(m, FromParent)
-                                 else m.draw(rng)))
-
-
-def _product(values: tuple[float, ...]) -> float:
-    """The carried factors multiplied out — what `Rate.effective` takes as
-    ``carried``. Empty (a rate with no per-lineage modifier) is 1.0."""
-    out = 1.0
-    for v in values:
-        out *= v
-    return out
-
-
 def _weighted_index(rng, weights: list[float], total: float) -> int:
     """Pick an index in proportion to ``weights`` (which must sum to ``total``)."""
     r = rng.random() * total
@@ -281,10 +241,10 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
     # swap-remove; a rate with no per-lineage modifier holds an empty tuple, whose product is 1.0, so
     # its total is just scope(base) × modifiers over n, picked uniform. The root draws under
     # ByLineage (it is a lineage like any other) and does not under FromParent (its factor is the
-    # ladder's starting point), which is what `_born` decides.
+    # ladder's starting point), which is what `carried_at_birth` decides.
     root_drawn: dict = {}  # the root lineage's cache, so an object on both rates draws once
-    inh_b = [_born(birth_drift, rng, root_drawn)]
-    inh_d = [_born(death_drift, rng, root_drawn)]
+    inh_b = [carried_at_birth(birth_drift, rng, root_drawn)]
+    inh_d = [carried_at_birth(death_drift, rng, root_drawn)]
     t = 0.0
     events: list[Event] = []
     pulse_idx = 0  # the next unfired mass extinction in `pulses`
@@ -315,12 +275,12 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
         # scope(base) × modifiers evaluated per lineage through its inherited factor (lineages=1
         # is one lineage); a non-drifting rate is scope(base) × modifiers once, over all n lineages
         if birth_drift:
-            w_b = [birth_rate.effective(lineages=1, carried=_product(x), **ctx) for x in inh_b]
+            w_b = [birth_rate.effective(lineages=1, carried=product(x), **ctx) for x in inh_b]
             total_birth = sum(w_b)
         else:
             total_birth = birth_rate.effective(lineages=n, **ctx)
         if death_drift:
-            w_d = [death_rate.effective(lineages=1, carried=_product(x), **ctx) for x in inh_d]
+            w_d = [death_rate.effective(lineages=1, carried=product(x), **ctx) for x in inh_d]
             total_death = sum(w_d)
         else:
             total_death = death_rate.effective(lineages=n, **ctx)
@@ -369,10 +329,10 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
                     # of a run that shares nothing exactly as it was.
                     d1: dict[int, float] = {}
                     d2: dict[int, float] = {}
-                    inh_b.extend((_inherit(birth_drift, parent_b, rng, d1),
-                                  _inherit(birth_drift, parent_b, rng, d2)))
-                    inh_d.extend((_inherit(death_drift, parent_d, rng, d1),
-                                  _inherit(death_drift, parent_d, rng, d2)))
+                    inh_b.extend((carried_at_split(birth_drift, parent_b, rng, d1),
+                                  carried_at_split(birth_drift, parent_b, rng, d2)))
+                    inh_d.extend((carried_at_split(death_drift, parent_d, rng, d1),
+                                  carried_at_split(death_drift, parent_d, rng, d2)))
                     events.append(Event(t, "speciation", node, (c1, c2)))
                 else:
                     nodes[node].end_time = t
@@ -567,14 +527,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
         # one, so a rate carrying both asks for a lineage's factor to be independent of its parent's
         # and inherited from it at once — there is no model there to implement, so say so rather than
         # silently letting whichever comes first win.
-        if any(isinstance(m, FromParent) for m in rate.modifiers) \
-                and any(isinstance(m, ByLineage) for m in rate.modifiers):
-            raise ValueError(
-                f"{label} carries both FromParent and ByLineage, which are the two answers to the "
-                f"same question — where a lineage's rate comes from. FromParent inherits it from the "
-                f"parent and nudges it (autocorrelated); ByLineage draws it afresh with no memory "
-                f"(uncorrelated). Pick one."
-            )
+        check_one_memory(_per_lineage(rate), label=label, unit="lineage")
         if (per_lineage := _per_lineage(rate)) and not isinstance(rate.scope, PerLineage):
             raise ValueError(
                 f"{label} carries {type(per_lineage[0]).__name__} (a factor per lineage) but its scope "

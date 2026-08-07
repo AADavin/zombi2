@@ -62,7 +62,7 @@ from ..genomes.gene_trees import GeneNode, GeneTree
 from ..rates.driver import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
 from ..rng import resolve_seed, seed_sequence, stream
 from ..rates.mapping import Between
-from ..rates.modifiers import ByLineage, DrivenBy, FromParent, Modifier
+from ..rates.modifiers import ByLineage, DrivenBy, FromParent, Modifier, check_one_memory
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerSite
 from ..tree import Node, Tree, prune
@@ -1167,7 +1167,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     # The rate's modifiers, sorted into the two things this level reads. SPEC §5: modifiers multiply,
     # so a clock and a driver compose — one says which lineages were dealt a fast tempo, the other
     # what their state makes of it — and the gate below rejects only what the level cannot honour.
-    clocks = [m for m in rate.modifiers if isinstance(m, (ByLineage, FromParent))]
+    clocks = tuple(m for m, _ in rate.carried(unit='lineage'))
     drivers = driven_mods(rate)
     # This level is the one that does NOT take a third-party modifier, so the gate is a plain
     # isinstance rather than `is_implemented`. Every other engine evaluates its rate through
@@ -1189,17 +1189,11 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             "at all — it belongs to the model: model=hky85(...).across_sites(gamma_shape=0.5), or "
             "--gamma-shape."
         )
-    if len(clocks) > 1:
-        # SPEC §5's one-memory-structure-per-axis rule: ByLineage is no memory and FromParent is
-        # continuous memory, over the same axis (the species lineage), so two of them are two
-        # incompatible accounts of the same thing rather than a composition.
-        raise ValueError(
-            f"substitution carries {len(clocks)} lineage clocks "
-            f"({', '.join(type(m).__name__ for m in clocks)}), and a lineage can only have one: "
-            "ByLineage is an independent draw per lineage and FromParent an inherited one, two "
-            "accounts of the same per-lineage factor. Keep one. A DrivenBy is a different axis and "
-            "does compose with either."
-        )
+    # SPEC §5's one-memory-structure-per-axis rule, in the one place every level calls: a lineage's
+    # factor is either drawn afresh or inherited and perturbed, and those are two accounts of the same
+    # thing. Several of one kind compose, as any two modifiers do; a DrivenBy is a different axis and
+    # composes with either.
+    check_one_memory(clocks, label="substitution", unit="lineage")
     for m in drivers:
         if isinstance(m.mapping, Between):
             raise ValueError(
@@ -1218,7 +1212,6 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 "there is nothing for the two to decide together. Grow the trait first and condition "
                 "on it — pass the TraitsResult, or the path to the trait_events.tsv it wrote."
             )
-    clock_mod = clocks[0] if clocks else None
     rate_base = rate.base
 
     # Conditioning: resolve each driver ONCE into a DriverTrajectory (value + next-switch lookups,
@@ -1257,7 +1250,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         # clock, then each family is walked in turn. `parallel` selects a *separate* engine (decision A),
         # so turning it on gives a different-but-valid realisation for a seed; this path never changes.
         rng, _ = stream("sequences", seed)
-        clock = resolve_clock(clock_mod, driven, species_tree, gene_trees, rng)
+        clock = resolve_clock(clocks, driven, species_tree, gene_trees, rng)
         # One transition-CDF cache per model, shared across every block that model evolves. Branch lengths
         # recur across blocks (a block passing straight through a species branch reuses its length), so a
         # run-wide cache builds a few hundred matrices where a per-block cache rebuilt tens of thousands.
@@ -1313,7 +1306,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         from ._pergenetree import evolve_families
         workers = guard_pool_workers(resolve_workers(parallel))
         spawned = seed_sequence("sequences", seed)[0].spawn(1 + len(gene_trees))
-        clock = resolve_clock(clock_mod, driven, species_tree, gene_trees,
+        clock = resolve_clock(clocks, driven, species_tree, gene_trees,
                               np.random.default_rng(spawned[0]))
         alignments, ancestral, founding, phylograms = evolve_families(
             gene_trees, per_block, model, intergene_model, length, rate_base, clock,
