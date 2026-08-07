@@ -168,6 +168,24 @@ def cell_name(entry) -> str:
     return _CELL_NAMES.get(entry, f"{entry[0]} per {entry[1]}")
 
 
+def _driver_form(driver: object) -> str:
+    """How a driver is written in a run's log — which has to be either the expression that
+    reproduces it, or something that plainly is not one.
+
+    A string driver is a filename or a level name and writes itself. A driver that knows its own
+    written form (a `Clade`, which is built from literals) gives it. Anything else — a grown
+    ``TraitsResult``, a genome's ``presence(...)`` — is an object from an earlier run and cannot be
+    written at all, so it is recorded as ``<TraitsResult>``: a placeholder that fails loudly if
+    pasted back, rather than a quoted ``'<TraitsResult>'`` that would be read as a *filename* and
+    look like a run someone could reproduce."""
+    if isinstance(driver, str):
+        return repr(driver)
+    written = getattr(driver, "written_form", None)
+    if callable(written):
+        return written()
+    return f"<{type(driver).__name__}>"
+
+
 def describe(m: "Modifier") -> str:
     """What to call one modifier **instance** in a message.
 
@@ -206,6 +224,15 @@ def matches_declared(m: "Modifier", entries: tuple) -> bool:
     for entry in entries:
         if isinstance(entry, tuple):
             if m.reads == entry:
+                return True
+        elif isinstance(m, SetBy) or isinstance(entry, type) and issubclass(entry, SetBy):
+            # A `SetBy` is a `DrivenBy`, so a plain isinstance would let it in wherever a driver is
+            # allowed — and replacing a base is a capability an engine has or has not, which
+            # DrivenBy's declaration says nothing about. Four levels admitted it that way and then
+            # could not honour it: three overwrote the base in a loop so the last one written won,
+            # and the sequence level multiplied them together. Match it by exact type instead, so a
+            # level has to name `SetBy` to accept one.
+            if type(m) is entry:
                 return True
         elif isinstance(m, entry):
             return True
@@ -679,8 +706,7 @@ class DrivenBy(Modifier):
         return self.mapping.multiplier(value)
 
     def __repr__(self) -> str:
-        drv = self.driver if isinstance(self.driver, str) else f"<{type(self.driver).__name__}>"
-        return f"DrivenBy({drv!r}, {self.mapping!r})"
+        return f"DrivenBy({_driver_form(self.driver)}, {self.mapping!r})"
 
     def __eq__(self, other: object) -> bool:
         return (isinstance(other, DrivenBy) and other.key == self.key
@@ -733,9 +759,16 @@ class SetBy(DrivenBy):
                 f"meant to scale a base you state yourself, that is ScaledBy.")
         return super().__rmul__(other)
 
+    def __mul__(self, other: object):
+        if isinstance(other, SetBy):
+            raise TypeError(
+                "a rate carries one SetBy: each of two would claim to be the whole number, and no "
+                "order of application is more right than the other. Keep one; if you meant to scale "
+                "the result, that is ScaledBy, which multiplies and composes freely.")
+        return super().__mul__(other)
+
     def __repr__(self) -> str:
-        drv = self.driver if isinstance(self.driver, str) else f"<{type(self.driver).__name__}>"
-        return f"SetBy({drv!r}, {self.mapping!r})"
+        return f"SetBy({_driver_form(self.driver)}, {self.mapping!r})"
 
 
 __all__ = ["Modifier", "OnTime", "OnTotalDiversity", "Drawn", "Inherited",

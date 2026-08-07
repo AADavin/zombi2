@@ -71,10 +71,18 @@ class TestInARealRun:
         assert run(SetBy(habitat, {"cave": 1.0, "surface": 0.05})) == \
             run(1.0 * ScaledBy(habitat, {"cave": 1.0, "surface": 0.05}))
 
-    def test_it_drives_a_trait_rate_too(self, tree, habitat):
-        run = traits.simulate_discrete(tree, states=["a", "b"],
-                                       switch=SetBy(habitat, {"cave": 2.0, "surface": 0.1}), seed=1)
-        assert run.events
+    def test_it_drives_a_continuous_trait_rate_too(self, tree, habitat):
+        run = traits.simulate_continuous(
+            tree, rate=SetBy(habitat, {"cave": 2.0, "surface": 0.1}), seed=1)
+        assert run.node_values
+
+    def test_a_level_that_cannot_replace_a_base_refuses_it(self, tree, habitat):
+        """A `SetBy` is a `DrivenBy`, so a gate listing DrivenBy would let it in anywhere a driver
+        goes — and four levels admitted it that way and could not honour it. A level has to name
+        `SetBy` to accept one."""
+        with pytest.raises(ValueError, match="does not support|does not read"):
+            traits.simulate_discrete(tree, states=["a", "b"],
+                                     switch=SetBy(habitat, {"cave": 2.0, "surface": 0.1}), seed=1)
 
 
 class TestWhatItRefuses:
@@ -82,15 +90,20 @@ class TestWhatItRefuses:
     def test_two_bases_on_one_rate(self):
         """Each claims to *be* the number, and no order of application is more right than the other,
         so it raises rather than letting whichever was written last win."""
-        r = _rate(SetBy("h.tsv", {"cave": 1.0}) * SetBy("h.tsv", {"cave": 2.0}))
-        with pytest.raises(ValueError, match="a base can only be replaced once"):
-            r.check_one_base("loss")
+        with pytest.raises(TypeError, match="a rate carries one SetBy"):
+            SetBy("h.tsv", {"cave": 1.0}) * SetBy("h.tsv", {"cave": 2.0})
 
-    def test_two_bases_are_refused_by_the_engine(self, tree, habitat):
+    def test_two_bases_are_refused_however_they_are_assembled(self):
+        """The product refuses them, and `as_rate` refuses them again for anything that reaches it
+        another way — the guard lives at the choke point every level already calls, because a rule
+        enforced by whoever remembers to call it is a rule three levels did not have."""
+        from zombi2.rates.rate import Rate
+        from zombi2.rates.scope import PerCopy
+
+        smuggled = Rate(1.0, PerCopy(1.0),
+                        (SetBy("h", {"c": 1.0}), SetBy("h", {"c": 2.0})))
         with pytest.raises(ValueError, match="a base can only be replaced once"):
-            genomes.simulate_genomes_family(
-                tree, loss=SetBy(habitat, {"cave": 1.0}) * SetBy(habitat, {"cave": 2.0}),
-                initial_families=5, seed=1)
+            as_rate(smuggled, default_scope=PerCopy, label="loss")
 
     def test_one_base_and_any_number_of_factors_is_fine(self):
         r = _rate(SetBy("h.tsv", {"cave": 1.0}) * ScaledBy("a", {"x": 2.0}) * ScaledBy("b", {"y": 3.0}))
@@ -107,3 +120,62 @@ def test_it_is_written_the_way_it_is_read():
     assert isinstance(parse_rate('SetBy("h.tsv", {"cave": 1.0})'), SetBy)
     assert isinstance(parse_rate('SetBy("h.tsv", {"cave": 1.0}) * ScaledBy("s", {"x": 2.0})')
                       .modifiers[0], SetBy)
+
+
+class TestTheHolesAnAdversarialReviewFound:
+    """Every one of these shipped broken for a few hours. `SetBy` is a `DrivenBy`, so it passed every
+    gate that listed `DrivenBy` — including four levels that could not honour a replaced base — and
+    the "no base in front of it" guard only ever saw the operand immediately to its left."""
+
+    @pytest.mark.parametrize("build", [
+        pytest.param(lambda: 0.25 * SetBy("h", {"c": 1.0}), id="number * SetBy"),
+        pytest.param(lambda: 0.25 * ScaledBy("s", {"b": 1.0}) * SetBy("h", {"c": 1.0}),
+                     id="number * ScaledBy * SetBy"),
+        pytest.param(lambda: scope.PerCopy(0.25) * SetBy("h", {"c": 1.0}), id="scope * SetBy"),
+        pytest.param(lambda: SetBy("h", {"c": 1.0}) * SetBy("h", {"c": 2.0}), id="SetBy * SetBy"),
+    ])
+    def test_a_base_can_never_be_written_where_it_would_be_discarded(self, build):
+        """Only the first of these was caught. The others each built a Rate whose written base was
+        then silently overwritten by the driver's number."""
+        with pytest.raises(TypeError):
+            build()
+
+    @pytest.mark.parametrize("level", ["discrete-trait", "nucleotide", "sequences"])
+    def test_a_level_that_cannot_replace_a_base_refuses_rather_than_mangling_it(self, level, tree):
+        """Three of these took two `SetBy` and ran the last one written; the sequence level, which
+        reads its modifiers itself, multiplied them together instead. Both are the silence the whole
+        declaration mechanism exists to prevent."""
+        one = SetBy("h.tsv", {"cave": 1.0, "surface": 0.5})
+        if level == "discrete-trait":
+            with pytest.raises(ValueError, match="does not support"):
+                traits.simulate_discrete(tree, states=["a", "b"], switch=one, seed=1)
+        elif level == "nucleotide":
+            with pytest.raises(ValueError, match="does not support"):
+                genomes.simulate_genomes_nucleotide(tree, loss=one, root_length=1000, seed=1)
+        else:
+            from zombi2.sequences import jc69, simulate_sequences
+            g = genomes.simulate_genomes_family(tree, duplication=0.1, loss=0.1,
+                                                initial_families=3, seed=5)
+            with pytest.raises(ValueError, match="does not read"):
+                simulate_sequences(g, model=jc69(), length=40, substitution=one, seed=1)
+
+    def test_an_extent_has_no_base_to_replace(self):
+        """An extent is already an absolute size drawn from a distribution. A `SetBy` there was
+        admitted and applied as a multiplier, which is a different model wearing the same words."""
+        from zombi2.rates.extent import as_extent
+        with pytest.raises(ValueError, match="an extent cannot be SetBy"):
+            as_extent(SetBy("h", {"c": 5.0}))
+
+    def test_a_clade_driven_rate_is_written_so_it_can_be_pasted_back(self):
+        """It recorded `DrivenBy('<Clade>', ...)` — which parses, as a *filename*, so the log looked
+        reproducible and was not. A driver that can write itself now does; one that cannot records an
+        unquoted placeholder that fails loudly."""
+        from zombi2.rates import Clade
+        from zombi2.rates.parse import parse_rate
+
+        written = repr(ScaledBy(Clade({"fast": ["n1", "n2"]}), {"fast": 3.0}))
+        assert "<Clade>" not in written
+        assert parse_rate(f"0.2 * {written}").modifiers[0].driver == Clade({"fast": ["n1", "n2"]})
+
+    def test_a_driver_that_cannot_be_written_says_so_rather_than_looking_like_a_file(self, habitat):
+        assert repr(ScaledBy(habitat, {"cave": 2.0})).startswith("DrivenBy(<TraitsResult>")

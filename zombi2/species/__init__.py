@@ -530,7 +530,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
         check_one_memory(_per_lineage(rate), label=label, unit="lineage")
         if (per_lineage := _per_lineage(rate)) and not isinstance(rate.scope, PerLineage):
             raise ValueError(
-                f"{label} carries {type(per_lineage[0]).__name__} (a factor per lineage) but its scope "
+                f"{label} carries {describe(per_lineage[0])} (a factor per lineage) but its scope "
                 f"is {type(rate.scope).__name__}; a rate that varies by lineage must be counted per "
                 f"lineage — drop the scope wrapper (per lineage is the default) or use PerLineage(...)"
             )

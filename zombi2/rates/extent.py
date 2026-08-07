@@ -84,8 +84,15 @@ def as_extent(spec) -> Extent:
     A **scope** is refused. ``PerLineage(500) * …`` asks "per what?", and an extent has no answer: it
     is already an absolute size.
     """
+    from .modifiers import SetBy
     from .rate import Rate                       # a `500 * modifier` product arrives as a Rate
 
+    if isinstance(spec, SetBy):
+        raise ValueError(
+            "an extent cannot be SetBy. An extent is already an absolute size drawn from a "
+            "distribution, so there is no base for a driver to replace — and a replaced one would "
+            "fix every event to the same size, which is not what any of the sizes here mean. Scale "
+            "the distribution instead: 500 * ScaledBy(driver, {...}) (SPEC §6).")
     if isinstance(spec, Extent):
         return spec
     if isinstance(spec, Rate):

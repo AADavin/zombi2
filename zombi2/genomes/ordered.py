@@ -58,7 +58,8 @@ from ..rates.driver import check_mapping_fires, resolve_driver
 from ..rng import stream
 from ..rates.extent import Extent, as_extent
 from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import describe, DRAWN, DrivenBy, OnTime, cell_name, draw_product, is_implemented
+from ..rates.modifiers import (describe, DRAWN, DrivenBy, OnTime, SetBy, cell_name, draw_product,
+                               is_implemented)
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
@@ -81,7 +82,7 @@ from .profiles import Profiles, profiles_from_genomes
 #: (a conditioned or joint driver) and ``ByFamily`` (per-family heterogeneity, weighted on the segment
 #: an event covers rather than on the gene it started from — SPEC §6). One combination is refused: see
 #: the gate.
-IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, (DRAWN, "family"))
+IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, SetBy, (DRAWN, "family"))
 
 #: What an **extent** takes here (SPEC §6). An extent takes the modifiers a rate does, and at this
 #: resolution that is one fewer: ``ByFamily`` attaches to the *contents*, and an extent is drawn

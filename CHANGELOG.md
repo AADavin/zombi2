@@ -10,7 +10,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
-- **`SetBy` states a driven parameter absolutely instead of as a multiple.** `loss = SetBy(habitat,
+- **`SetBy` states a driven parameter absolutely instead of as a multiple.** Only the three levels
+  that can honour a replaced base accept it — the family and ordered genome resolutions, and a
+  continuous trait's rate — and each declares it by name, because `SetBy` is a `DrivenBy` and a gate
+  listing `DrivenBy` would otherwise admit it at four levels that cannot. An extent takes none: it is
+  already an absolute size drawn from a distribution, so there is no base to replace. `loss = SetBy(habitat,
   {"cave": 1.0, "surface": 0.25})` says the loss rate *is* 1.0 in caves, which is how the literature
   usually states one — saying it before meant inventing a background and dividing by it. Written
   with no base in front, because the driver supplies the whole number; `0.25 * SetBy(...)` raises
@@ -55,9 +59,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   for a `transfer_to` choice, the verb saying what the number does now that the value names itself.
   What the grid buys is the next cell: a per-chromosome draw is `Drawn(per="chromosome", …)` rather
   than a `ByChromosome` that has to be invented, documented and remembered, and a cell no engine
-  carries refuses by name — *"a drawn value per 'chromosome' is not implemented"* — instead of
-  reading as a typo. `SetBy` is present and refuses, naming what it would take: every engine
-  evaluates a rate as `scope(base) × modifiers`, so a replaced base has nowhere to go yet.
+  carries refuses by name — *"drawn per chromosome, which the species engine does not support"* —
+  instead of reading as a typo.
 
 ### Removed
 - **`family_speed=` and `--family-speed` are gone**, replaced by reading one `ByFamily` object from

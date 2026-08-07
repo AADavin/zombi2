@@ -134,6 +134,19 @@ effective rate  =  scope(base)  ×  modifiers
   never *how many*. "per" is the scope word; a modifier is named for its family — `On` / `By` / `From`,
   plus `DrivenBy` (below) — so `PerLineage` is a scope and `ByLineage` a modifier.
 
+**One modifier replaces the base rather than multiplying it: `SetBy`.** Two things are stated
+absolutely in the literature rather than as a multiple — a driven rate ("the loss rate is 1.0 in
+caves") and a trait's optimum — and writing those as a factor means inventing a background nobody
+stated and dividing by it. So `loss = SetBy(habitat, {"cave": 1.0, "surface": 0.25})` takes **no base
+in front**: the driver supplies the whole number, in the rate's own units. The scope is untouched —
+a per-copy rate set to 1.0 is still 1.0 *per copy* — because `SetBy` answers *how fast*, never *per
+what*. A rate carries **one** `SetBy` and any number of multiplying modifiers, and the `SetBy` is
+written first, because everything to its left is a base it would discard.
+
+`SetBy` is a `DrivenBy`, and a level must therefore declare it **separately**: replacing a base is a
+capability an engine has or has not, and a gate that admitted it through `DrivenBy` would accept it
+at four levels that cannot honour it.
+
 "Per what" by level:
 
 | Level | Counted per | "How fast" set by |
@@ -195,7 +208,9 @@ a number, a **`Scalar`** log-link `exp(strength · value)`, and a **`Between`**,
 group, recipient group) pair that only a choice takes (below).
 
 **What the mapping's number means depends on what it is attached to.** On a rate or an **extent** (§6)
-it is an ordinary modifier: dimensionless, multiplying, changing *how fast* or *how much*. On a
+it is an ordinary modifier: dimensionless, multiplying, changing *how fast* or *how much* — unless the
+verb is `SetBy`, whose number carries the rate's own units and replaces the base. An extent takes no
+`SetBy`: it is already an absolute size drawn from a distribution, so there is no base to replace. On a
 **choice** — an argument that decides *who*, not how fast or how many — it is a **weight**,
 normalised across the candidates:
 
