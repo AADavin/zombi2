@@ -1182,8 +1182,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         raise ValueError(
             f"substitution carries {', '.join(unimplemented)}, which the sequence engine does not read. It "
             "takes a lineage clock — one ByLineage (uncorrelated) or one FromParent (autocorrelated) "
-            "— and any number of DrivenBy drivers, which multiply. The Markov clock and the ByFamily "
-            "per-family speed are not implemented here, and neither is a modifier of your own: this "
+            "— and any number of DrivenBy drivers, which multiply. The Markov clock and ByFamily "
+            "are not implemented here, and neither is a modifier of your own: this "
             "level reads its modifiers directly rather than through the rate, so one it did not ship "
             "could not be honoured. Rate variation across sites is not a modifier "
             "at all — it belongs to the model: model=hky85(...).across_sites(gamma_shape=0.5), or "
