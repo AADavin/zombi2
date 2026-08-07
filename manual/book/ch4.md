@@ -33,11 +33,11 @@ The initial genome, at the beginning of the stem, starts with `initial_families`
 - **Families need not evolve at the same pace.** `Drawn(per='family')` draws a factor per family (`--loss "0.25 * Drawn(per='family', spread=0.6)"`). Whether you write one draw or two decides what varies together: two separately built `Drawn(per='family')` draws vary their rates independently, while **one** object read by several rates gives that family a single tempo across all of them — `speed = mod.Drawn(per='family', spread=0.5)`, then `duplication=0.2 * speed, loss=0.25 * speed`.
 - **A family's copies within one genome are capped**, at `max_family_size=10` by default, because a duplication rate above the loss rate grows without bound. Set `max_family_size=None` when you are measuring rates: a cap that binds discards events and pulls the realised rates below the ones you declared.
 - **There is no floor.** Loss is counted per copy and the last copy is a copy like any other, so a high loss rate can leave a lineage with nothing. `genome_summary.json` reports `empty_genomes` and the command warns, because an empty genome is otherwise invisible.
-- **The chromosome-based resolutions do have a floor**: a loss never takes a chromosome below its last gene (Chapter 5). That is what a chromosome is, not a bound on genome size.
+- **The chromosome-based resolutions do have a floor**: a loss never takes a chromosome below its last gene. That is what a chromosome is, not a bound on genome size.
 
 ## What the rate depends on
 
-The rates follow the **same grammar as the species level** (`base` optionally wrapped in a scope, optionally multiplied by modifiers). The scope answers *per what*, and the default is the natural one for each event. Duplication, transfer, and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is what you want: more genes, more chances. Origination is counted **per lineage** (i.e. per branch of the species tree): acquiring a wholly new family is a property of the lineage, not of any gene it already has.
+The rates follow the **same grammar as the species level** — a `base`, optionally multiplied by modifiers — with one difference: what a rate is counted *per* is fixed by the event here rather than chosen, so any scope wrapper other than the event's own is refused. Duplication, transfer, and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is what you want: more genes, more chances. Origination is counted **per lineage** (i.e. per branch of the species tree): acquiring a wholly new family is a property of the lineage, not of any gene it already has.
 
 Rates can also depend on **time**. Multiplying a base rate by an `OnTime` modifier makes it change at set moments. That is the skyline, or episodic, genome: fast early and slow later, or any schedule you give.
 
@@ -45,6 +45,17 @@ Rates can also depend on **time**. Multiplying a base rate by an `OnTime` modifi
 # lots of new families early, then origination shuts off after time 2
 g = genomes.simulate_genomes_family(
     tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
+```
+
+Rates can also depend on **where in the tree** a lineage sits. `Clade` names a group by a few of its tips — the clade is the subtree below their most recent common ancestor — and the rate reads which group a lineage is in, exactly as it would read an evolved trait (Chapter 9). A lineage in no named clade falls in the group `"rest"`. It is the rate-side counterpart of the `Clades` transfer rule below, reading the same fact off the same tree.
+
+```python
+from zombi2.rates import Clade
+
+# the clade below the MRCA of n27 and n51 loses genes three times as fast
+g = genomes.simulate_genomes_family(
+    tree, loss=0.25 * mod.DrivenBy(Clade({"fast": ["n27", "n51"]}), {"fast": 3.0}),
+    duplication=0.2, origination=0.5, seed=1)
 ```
 
 ## Lateral gene transfers
@@ -97,14 +108,17 @@ Each entry is a weight, read the same way `"distance"`'s weights are: normalised
 - `.complete_tree`, the species tree the genomes ran on, extinct lineages and all.
 - `.genomes`, a dict from node to that node's genome.
 - `.initial_genome`, the genome the run **started** with, at the root lineage's origination. It is not `.genomes[root]`: a node sits at the **end** of its branch, and the root branch is real simulated time, so events happen along it. Written to its own `initial_genome.tsv`, with no `lineage` column, because it belongs to no node.
-- `.events`, the event log: every gene event with its time and lineage, covering origination, duplication, transfer, loss, and the *speciations* at a split. A transfer is written under the kind that says what it did on arrival: `transfer_additive` when the arriving copy is an addition, `transfer_replacing` when it overwrote a homolog. So filter for both, or on the prefix: there is no bare `transfer` row.
+- `.events`, the event log: every gene event with its time, its family, and the gene copies it ended and began, covering origination, duplication, transfer, loss, and the *speciations* at a split. A transfer is written under the kind that says what it did on arrival: `transfer_additive` when the arriving copy is an addition, `transfer_replacing` when it overwrote a homolog. So filter for both, or on the prefix: there is no bare `transfer` row.
 - `.profiles`, the family × extant-species copy-count table.
 - `.gene_trees`, one `GeneTree` per family.
 - `.seed`, so the run reproduces.
 
-and two methods:
+and its methods:
 
 - `.family_counts(node_id)`, a `Counter` collapsing a node's genome to `family → number of copies`, when you want the multiset rather than the individual copies.
+- `.has_family(node_id, name)`, whether a family you named with `family_names=` has at least one copy in that node's genome.
+- `.presence(name)` and `.completion(name)`, a named family's presence and a module's completion along every lineage at every instant rather than at one node — the driver views a conditioned rate reads (Chapter 9). They need `family_names=` or `modules=` to have been declared.
+- `.summary()`, what the run produced, as a dict — the payload of `genome_summary.json`.
 - `.write(dir, outputs=[...])`, materialise the outputs to disk, listed under *Outputs* below.
 
 ```python
@@ -125,7 +139,7 @@ g.profiles.presence      # the same as 0/1 presence/absence
 g.profiles.to_tsv()      # the table as text
 ```
 
-**Gene trees** are the deeper output. Every family has two trees: the `.complete` tree with every gene lineage, and the `.extant` tree pruned to the genes that survive.
+**Gene trees** are the deeper output. Every family has a `.complete` tree with every gene lineage, and, when at least one copy survives, an `.extant` tree pruned to the genes that do. A family that died out has no extant tree: `.extant` is `None`, `to_newick("extant")` returns `None`, and the run writes no `_extant` file for it.
 
 ```python
 gt = g.gene_trees[7]                 # the gene tree of family 7
@@ -134,7 +148,7 @@ gt.to_newick("complete")             # ... or the whole genealogy
 gt.origination                       # when the family began
 ```
 
-The root of a gene tree carries a branch length, as the species tree's does. A family starts at its origination, and the founding gene lives a while before its first duplication, transfer or speciation; that wait is the root's branch, the family's stem. A gene that originated and never split at all is a one-node tree, written as its own lifespan, `g55:0.263097;`.
+The root of a gene tree carries a branch length, as the species tree's does. A family starts at its origination, and the founding gene lives a while before its first duplication, transfer or speciation; that wait is the root's branch, the family's stem. A gene that originated and never split at all is a one-node tree, written as its own lifespan, `n26_g545:0.6614353;`.
 
 ## Evolving families in parallel
 
@@ -164,7 +178,7 @@ For very large runs of hundreds of thousands of families, or a million, the diff
 ```python
 run = genomes.simulate_genomes_family(
     tree, origination=2.0, initial_families=5000, seed=1,
-    parallel=8, stream_to="out/", outputs=("events", "profiles"))
+    parallel=8, stream_to="out/", outputs=("events", "profiles", "species_tree"))
 run.path("events")            # out/genome_events.tsv, the log, ready to replay
 ```
 
@@ -172,7 +186,7 @@ The handle goes straight into the next level, and so does the directory: `sequen
 
 ## On the command line
 
-`zombi2 genomes` evolves gene families along a species tree read from a Newick file. The family resolution is the default, and each rate is a plain number.
+`zombi2 genomes` evolves gene families along the species tree already in the run directory, or one given with `--from` (a Newick file, or another run). The family resolution is the default, and a rate is a plain number or a quoted expression in the written form of Chapter 2.
 
 ```bash
 # duplication–loss–origination along a species tree
@@ -187,12 +201,16 @@ zombi2 genomes out/ --transfer 0.5 --transfer-to distance --replacement \
 
 | File | What it holds |
 |---|---|
-| `genome_events.tsv` | the gene genealogy: every event with its time and lineage |
+| `genome_events.tsv` | the gene genealogy: every event with its time, its family, and the copies it ended and began |
 | `profiles.tsv` | family × extant-species copy counts |
 | `genomes.tsv` | every node's gene content, ancestors included, one row per copy |
 | `initial_genome.tsv` | the genome the run started with |
-| `gene_trees/` | one Newick per family, complete and extant |
+| `gene_trees/` | each family's genealogy, complete and extant |
+| `species_complete.nwk` | the species tree the run evolved along, so the run stands alone; every other file is indexed by its node labels. Written by `result.write()` and by `--stream`, not by an ordinary `zombi2 genomes`, which leaves the copy under `species/` to serve |
+| `genome_summary.json` | what came out: events and families counted, `empty_genomes`, and whether the family-size cap bound |
 
-A gene copy is written `g<id>`, the same token the gene-tree leaf and the alignment header carry, so a
-row of `genomes.tsv` joins straight onto a tree or a sequence, and onto the event that made it.
-Appendix B gives the columns and the formats.
+A gene copy is written `n<species>_g<copy>` — `n19_g358` — the token the gene-tree leaf, the
+alignment header and the event log all carry. `genomes.tsv` gives the two halves in their own
+columns, `n19` and `g358`, so join a row to a tree, a sequence or an event by putting them back
+together with the `_`. The copy id alone is unique across the run, so splitting the composite the
+other way works just as well. Appendix B gives the columns and the formats.

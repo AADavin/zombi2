@@ -5,26 +5,26 @@ The previous chapter put genes on the tree as a *bag of families*, how many copi
 ```python
 from zombi2 import species, genomes
 
-tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=2)
+tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=231)
 g = genomes.simulate_genomes_ordered(
     tree, duplication=0.3, loss=0.2, origination=0.15, inversion=0.5,
-    chromosomes=1, initial_families=5, seed=2)
+    chromosomes=1, initial_families=5, seed=231)
 ```
 
 Reading one extant leaf:
 
 ```
-leaf n2, chromosome 2 (circular):  [ 0+ 1+ 3+ 3+ 4− ]
+leaf n4, chromosome 4 (circular):  [ 0+ 0+ 1+ 3+ 4− ]
 ```
 
-Each gene is written as its family with the strand as `+` or `−` (the strand is the integer `+1` or `−1`). This leaf has one chromosome of five genes, in which family `3` sits in a run of two tandem copies and family `4` points backwards, left that way by an inversion. The gene tree of a family is unchanged from Chapter 4, the true genealogy read off the same event log:
+Each gene is written as its family with the strand as `+` or `−` (the strand is the integer `+1` or `−1`). This leaf has one chromosome of five genes, in which family `0` sits in a run of two tandem copies and family `4` points backwards, left that way by an inversion. The gene tree of a family is unchanged from Chapter 4, the true genealogy read off the same event log:
 
 ```python
 g.gene_trees[0].to_newick("extant")
-# (((n5_g24:0.03965611,n6_g28:0.03965611)speciation_n3:0.4059919,n4_g19:0.445648)speciation_n1:0.2333995,n2_g9:0.6790475)speciation_n0:0.1180556;
+# (((n5_g25:0.02994724,n6_g30:0.02994724)speciation_n3:0.3253988,(n4_g21:0.227248,n4_g22:0.227248)duplication_n4:0.128098)speciation_n1:0.1181814,n2_g9:0.4735275)speciation_n0:1.090775;
 ```
 
-![Leaf `n2`, the same chromosome `[ 0+ 1+ 3+ 3+ 4− ]` drawn as the ring it is. Each gene is an arrow that points the way its strand reads, and its shade marks its family. The two copies of family `3` are a tandem duplication, one shade side by side; family `4`, left backward by an inversion, is the one arrow pointing against the flow.](figures/ordered_chromosome.pdf){width=58%}
+![Leaf `n4`, the same chromosome `[ 0+ 0+ 1+ 3+ 4− ]` drawn as the ring it is. Each gene is an arrow that points the way its strand reads, and its shade marks its family. The two copies of family `0` are a tandem duplication, one shade side by side; family `4`, left backward by an inversion, is the one arrow pointing against the flow.](figures/ordered_chromosome.pdf){width=58%}
 
 ## The karyotype
 
@@ -62,11 +62,15 @@ It is a **network** and not a tree because of one event: **fusion joins two chro
   time   kind          parents -> children
   0.00   initial            -  -> 0          a chromosome the run started with
   0.00   initial            -  -> 1          a chromosome the run started with
-  0.97   loss               1  -> -          chromosome 1 (and its genes) dies
-  2.19   speciation         0  -> 2, 3
-  3.27   speciation         2  -> 4, 5
-  3.35   fission            4  -> 6, 7        a bifurcation
-  3.67   fusion          6, 7  -> 8           a reticulation (two parents)
+  0.75   fission            0  -> 2, 3       a bifurcation
+  1.52   fusion          2, 1  -> 4          a reticulation (two parents)
+  1.52   fission            4  -> 5, 6
+  2.02   fusion          3, 5  -> 7
+  2.11   loss               7  -> -          chromosome 7 (and its genes) dies
+  2.19   speciation         6  -> 8, 9
+  2.49   fission            9  -> 10, 11
+  3.27   speciation         8  -> 12, 13
+  3.30   fusion        10, 11  -> 14
 ```
 
 ## Events act on segments
@@ -78,15 +82,15 @@ How much does an event take? That is its **extent**, set per event type as `<eve
 ```python
 from zombi2.rates.distributions import Geometric
 
-tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=27)
+tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=332)
 g = genomes.simulate_genomes_ordered(
     tree, duplication=0.35, loss=0.3,
     duplication_extent=Geometric(mean=3),      # ~3 adjacent genes copied at once
-    chromosomes=1, initial_families=5, seed=27)
+    chromosomes=1, initial_families=5, seed=332)
 ```
 
 ```
-leaf n2:  [ 4+ 1+ 4+ 1+ 2+ 3+ ]
+leaf n3:  [ 4+ 1+ 4+ 1+ 2+ 3+ ]
             └────┘ └────┘
             the segment 4 1, duplicated as a unit and landed in tandem
 ```
@@ -113,7 +117,7 @@ The same reading holds at the nucleotide resolution of Chapter 6, where the exte
 
 Weighting the starting gene is the obvious implementation and the wrong one: a fast family's rate would then apply to whatever sat beside it, so you would be describing the *neighbourhood* of a fast family rather than the family, and the neighbourhood is reshuffled by every inversion and translocation, so the parameter would not name a stable thing. Averaging over the run keeps what you wrote true: a run of heavily-weighted genes is favoured, a mixed one sits between, an ordinary one is unweighted.
 
-With no weights set every run averages to one, so a run using neither knob is unchanged.
+With no weights set every run averages to one, so a run without it is unchanged.
 
 ### Who receives a transfer
 
@@ -135,7 +139,7 @@ One thing to watch when you combine a restrictive rule with a tight `max_family_
 
 Every rate here also takes `DrivenBy`, so a habitat can decide how often a lineage rearranges its gene order, and every extent takes it too, so the same habitat can decide how long the rearranged runs are. The mechanism is Chapter 9's and is not repeated here.
 
-What belongs here is why the two per-family knobs above and a trait driver sit apart. A trait `DrivenBy` attaches to the **lineage**: at any instant it is one factor for that lineage's whole genome, so it composes with any extent unchanged and the run is drawn exactly as it would be without it. `Drawn(per='family')` attaches to the **contents**, so it has to weight the run by what the run covers. The two therefore cannot be set in the same run yet: combining them means weighting by the product of a lineage factor and a segment factor, which is neither model on its own.
+What belongs here is why the per-family knob above and a trait driver sit apart. A trait `DrivenBy` attaches to the **lineage**: at any instant it is one factor for that lineage's whole genome, so it composes with any extent unchanged and the run is drawn exactly as it would be without it. `Drawn(per='family')` attaches to the **contents**, so it has to weight the run by what the run covers. The two therefore cannot be set on the **rates** of one run yet: combining them there means weighting by the product of a lineage factor and a segment factor, which is neither model on its own. A driven extent, or a driven `transfer_to`, is a different axis and runs alongside a per-family draw unchanged.
 
 ## Rearrangements: inversion, transposition, translocation
 
@@ -225,8 +229,9 @@ zombi2 genomes out/ --resolution ordered \
 | `gene_order.tsv` | every node's layout, one row per gene |
 | `initial_genome.tsv` | the genome the run started with |
 | `chromosome_events.tsv` | the chromosome network, one row per edge: `time · kind · parents · children` (no lineage column: each `n<species>_c<id>` token already names its branch) |
+| `genome_summary.json` | what the run produced: events counted as biology, families born, surviving and died out, genes and chromosomes per genome, and the rearrangements and chromosome events by kind |
 | `gene_trees/` | one Newick per family, complete and extant |
 
 `.write(dir, outputs=[...])` picks which of these go to disk, by the tokens `events`, `profiles`,
-`gene_order`, `initial_genome`, `chromosome_events`, `gene_trees` and `species_tree`. Appendix B gives the columns and
+`gene_order`, `initial_genome`, `chromosome_events`, `gene_trees`, `species_tree` and `summary`. Appendix B gives the columns and
 the formats.

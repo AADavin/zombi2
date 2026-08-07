@@ -37,7 +37,7 @@ traits.simulate_continuous(tree, start=0.0,
 
 The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root; it is written with the same `mod.OnTime` that gives the species tree its skyline.
 
-That is the pattern for everything past Brownian motion here, and it is not a longer menu of models. The diffusion rate is a rate like any other in ZOMBI2, so the rest of the modifier vocabulary applies to it unchanged, each with a name in the comparative-methods literature:
+That is the pattern for everything past Brownian motion here, and it is not a longer menu of models. The diffusion rate is a rate like any other in ZOMBI2, so the modifiers this level reads apply to it unchanged, each with a name in the comparative-methods literature:
 
 ```python
 rate = 1.0 * mod.OnTime({0: 4.0, 1: 1.0})       # fast early, then settling: early burst
@@ -52,7 +52,9 @@ size = traits.simulate_continuous(tree, start=0.0, seed=2,
 
 The last is one trait driving another, which is the conditioning of Chapter 9: the driver is grown first, and the run that reads it comes second.
 
-Two more knobs sit alongside `rate`. `regimes=` paints a multi-optimum OU, where clades pull toward different optima (a discrete trait supplies the painting and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches, so change concentrates at branching. None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one modifier and two arguments.
+`Drawn(per='lineage')`, Chapter 3's null for inherited tempo, is not among them: the level refuses it by name. Appendix A lists what each level accepts.
+
+Two more knobs sit alongside `rate`. `regimes=` paints a multi-optimum OU, where clades pull toward different optima (a discrete trait supplies the painting and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches, so change concentrates at branching. The value is the jump variance, so `at_speciation=0.5` gives a jump of width √0.5. None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one modifier and two arguments.
 
 ```python
 # a burst that decays, under a pull toward an optimum of 2
@@ -60,7 +62,7 @@ traits.simulate_continuous(tree, start=0.0, reverts_to=2.0, pull=0.5, seed=1,
                            rate=1.0 * mod.OnTime({0: 4.0, 1: 1.0}))
 ```
 
-The combination is exact, not an approximation of one. A branch running from `t₀` to `t₁` ends normally distributed around `θ + (x−θ)·e^{−α(t₁−t₀)}` with variance `∫ e^{−2α(t₁−s)}·σ²(s) ds`, integrated across every point where the schedule, the standing diversity or a driver changes σ². The weight inside that integral is what mean reversion does to old variance: what the trait accrued early has been pulled back toward the optimum by the time the branch ends, so it counts for less than what it accrued late. Dropping the weight and using Brownian motion's `∫ σ²(s) ds` would overstate the variance by an order of magnitude on a typical branch.
+The combination is exact, not an approximation of one. A branch running from `t₀` to `t₁` ends normally distributed around `θ + (x−θ)·e^{−α(t₁−t₀)}` with variance `∫ e^{−2α(t₁−s)}·σ²(s) ds`, integrated across every point where the schedule, the standing diversity or a driver changes σ². The weight inside that integral is what mean reversion does to old variance: what the trait accrued early has been pulled back toward the optimum by the time the branch ends, so it counts for less than what it accrued late. Dropping the weight and using Brownian motion's `∫ σ²(s) ds` would overstate the variance — by about a quarter on an average branch of this tree at `pull=0.5`, and by more the longer the branch or the stronger the pull.
 
 `regimes=` is the one knob that asks you to give things up, and it says so rather than ignoring them: it takes a plain σ² (not a modified one), one jump variance shared across regimes (not one per regime), and one trait (so not `correlation=`).
 
@@ -84,6 +86,8 @@ traits.simulate_discrete(tree, states=["absent", "present"],
 ```
 
 Either of those two shapes may carry a modifier, a bare rate or a `{'from->to': rate}` entry, though not the third spelling, a `k×k` matrix, whose entries are numbers by construction. So a switch rate can be **driven by another trait** grown first on the same tree: `switch = 0.2 * mod.DrivenBy(habitat, {"marine": 5.0, "terrestrial": 1.0})`. That is the conditioning of Chapter 9.
+
+`at_speciation=` works here too, and means something different: it is the probability, in `[0, 1]`, that a daughter hops at the split, to a state drawn uniformly from the others.
 
 A **threshold** trait is the third case, and it is a bridge back to the continuous world. An observed discrete state can be driven by an underlying continuous **liability** that itself does Brownian motion; the state you see is which side of a threshold the liability currently sits on:
 
@@ -152,9 +156,9 @@ Trait models arrive under a thicket of names, and a reader who wants "an OU mode
 
 A run returns a **`TraitsResult`** bundle:
 
-- `.values`, the observable vector: the trait's value at each **extant tip**, keyed by the tip's name (`n5`, or `e5` for a lineage that died), the same names the Newick and `trait_values.tsv` use, so the dataset joins the tree it came from. `.values_by_id` is the same thing keyed by bare node id, for joining against `.node_values`. This is the comparative-data matrix a method would be handed.
+- `.values`, the observable vector: the trait's value at each **extant tip**, keyed by the tip's name (`n5`), the same names the Newick and `trait_values.tsv` use, so the dataset joins the tree it came from. `.values_by_id` is the same thing keyed by bare node id, for joining against `.node_values`. This is the comparative-data matrix a method would be handed.
 - `.node_values`, the value at **every** node (extant, extinct, and internal alike), the true ancestors at each split, from the same process that produced the tips.
-- `.events`, the timestamped event log, the same shape as the genome level's: each entry is a change on a lineage at a time, from one state to another, and its `kind` is `initial` (the value at t=0), `on_branch` (a switch along a branch) or `on_speciation` (a jump at a split). For a discrete trait this log is the source of truth. A continuous trait diffuses with no along-branch events, so its log holds the `initial` row and any `at_speciation` jumps. The `initial` row is always written, so a plain Brownian run's log has exactly one entry.
+- `.events`, the timestamped event log — one row per change, like the genome level's, but with its own columns: each entry is a change on a lineage at a time, from one state to another, and its `kind` is `initial` (the value at t=0), `on_branch` (a switch along a branch) or `on_speciation` (a jump at a split). For an Mk (`switch=`) trait this log is the source of truth. A continuous trait diffuses with no along-branch events, so its log holds the `initial` row and any `at_speciation` jumps. The `initial` row is written for a continuous and an Mk trait, so a plain Brownian run's log has exactly one entry. A threshold trait keeps no log at all: its state is read off a continuous liability, so there are no timed crossings to record and `.events` is empty — its `.node_values` is the record.
 - `.history`, for a **discrete** trait, the per-branch stochastic character map derived from that log: the ordered list of `(state, duration)` segments each branch passed through. It is `None` for a continuous trait, which has no map, and for a threshold trait, whose liability crossings are un-timed.
 
 For discrete traits the stored values are the state labels you gave (not integer indices), so `.values` and `.node_values` already read back in your own vocabulary.
@@ -183,10 +187,10 @@ zombi2 traits out/ --kind continuous \
 zombi2 traits out/ --kind discrete \
     --states marine,terrestrial --switch 0.1 --seed 1
 
-# the same, also writing the driver file a conditioned genome, sequence or trait run reads (Chapter 9)
+# the states the next command drives from — a discrete run writes trait_events.tsv by default,
+# the driver file a conditioned genome, sequence or trait run reads (Chapter 9)
 zombi2 traits out/ --kind discrete \
-    --states cave,surface --switch 0.1 --seed 1 \
-    --write values events tree
+    --states cave,surface --switch 0.1 --seed 1
 
 # a second trait, in its own directory, whose switch rate reads the first (Chapter 9)
 zombi2 traits out/ --kind discrete --name diet --states plant,fish --seed 2 \
@@ -194,6 +198,8 @@ zombi2 traits out/ --kind discrete --name diet --states plant,fish --seed 2 \
 ```
 
 Every rate flag takes a rate in its written form, `--switch` as much as `--rate`, so the expression above is the same text the Python API takes. `--switch` reads the other two shapes its keyword does as well: a `{'a->b': rate}` dict and a `k x k` matrix.
+
+Two keywords have no flag. `correlation=` grows several traits in one call, and the command line grows one trait per run. `regimes=` takes a discrete result object, the painting, handed to the call. Both stay in the Python API.
 
 The trait evolves on the **complete** tree, extinct lineages included, so `species_complete.nwk` is the file to hand it. An external tree works too; if it is not ultrametric you must declare each tip's fate with `--tip-fates`, because ZOMBI will not guess which early-ending tips are extinct.
 

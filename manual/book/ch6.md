@@ -5,11 +5,11 @@ At the **nucleotide** resolution a chromosome is a **coordinate axis of DNA** ra
 ```python
 from zombi2 import species, genomes
 
-tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=2)
+tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=56)
 g = genomes.simulate_genomes_nucleotide(
     tree, root_length=3000, genes=3, gene_length=400,
     inversion=1.0, inversion_extent=600,
-    duplication=0.3, duplication_extent=300, loss=0.3, loss_extent=300, seed=2)
+    duplication=0.3, duplication_extent=300, loss=0.3, loss_extent=300, seed=56)
 ```
 
 This starts the run from a 3000 bp circular chromosome carrying three 400 bp genes, evenly spaced, and evolves it down the tree.
@@ -36,13 +36,13 @@ There is one important consequence: **the realised extent is not always the exte
 
 A 500 bp event has nowhere to go but inside a spacer, so it comes out at 59 bp. Long events land near what you asked for, because they can span whole genes.
 
-**The correction runs both ways.** When every legal end lies *further* out than you asked, with a long gene sitting just past the start, the arc snaps to the nearest legal breakpoint, which is **longer** than the extent you set. That is the `10 000 → 10 315` row above. When the genome cannot give what you asked at all, the arc is capped by the replicon and comes out shorter. Either way the event still fires: an extent is a request, and the genome answers it.
+**The correction can also run the other way.** When no legal end lies within reach of the extent you asked for, the arc snaps out to the nearest legal breakpoint, which is **longer** than the extent you set. Ask for a 5 bp inversion on a genome that is all gene — ten 100 bp genes in 1000 bp — and every event comes out at 100 bp, because the gene joins are the only places a breakpoint may fall. When the genome cannot give what you asked at all, the arc is capped by the replicon and comes out shorter. Either way the event still fires: an extent is a request, and the genome answers it.
 
 The one case that yields no event is degenerate: a replicon with no legal end within reach at all, such as one under 2 bp, where the event is skipped rather than forced.
 
 ## A note on rates
 
-**Every rate here is per lineage.** The rate sets how often a lineage does the event; the extent (above) sets how much DNA it touches. Keeping the rate per lineage means the number you type reads the same whatever the genome's size: a rate counted per base pair would rise as the genome grew, so `inversion=5.0` would mean one thing at 10 kb and another at 1 Mb. Per lineage, the event count stays flat as the genome grows. The same tree at `inversion=5.0`, with the genome a hundred times longer each row, gives:
+**Every rate here is per lineage.** The rate sets how often a lineage does the event; the extent (above) sets how much DNA it touches. Keeping the rate per lineage means the number you type reads the same whatever the genome's size: a rate counted per base pair would rise as the genome grew, so `inversion=5.0` would mean one thing at 10 kb and another at 1 Mb. Per lineage, the event count stays flat as the genome grows. The same tree at `inversion=5.0`, with the genome ten times longer each row, gives:
 
 ```
    10 000 bp  ->  77 inversions
@@ -82,7 +82,7 @@ A modifier on an *extent* is read when an event fires, so unlike the same modifi
 ```python
 tree6 = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=6)
 flows = genomes.Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)
-g = genomes.simulate_genomes_nucleotide(
+g6 = genomes.simulate_genomes_nucleotide(
     tree6, root_length=6000, genes=6, gene_length=400,
     transfer=2.0, transfer_extent=900, seed=6,
     transfer_to=genomes.Clades({"A": ["n49", "n50"], "B": ["n30", "n36"]}, flows))
@@ -96,25 +96,48 @@ A transfer here is always **additive**, since the donor keeps its copy, so steer
 
 An event either **engulfs a gene whole** or leaves it alone; a breakpoint never falls strictly inside one. So an event does not pick an arc and then clean up afterwards. Both of its ends are drawn **directly from the positions where a breakpoint is legal**. A genome can therefore be **all gene, with no spacer at all**: ten 100 bp genes in 1000 bp is a legal genome, and it evolves. Its breakpoints simply all fall at the joins between genes, so genes are inverted, moved, duplicated and lost whole. Genes may sit flush; they are not required to leave a gap.
 
-Two leaves of the same run show what those events did. Each line is a **block**: a stretch of DNA with one unbroken ancestry, written as the interval it came from on the initial sequence, read forward (`+`) or reverse-complemented (`−`). A gene is always one block, because nothing may cut it. Spacer is not, so a run of several intergene lines in a row is simply spacer that has been cut apart and rearranged: the accumulated breakpoints of everything that happened to that lineage.
+Two leaves of the run at the top of the chapter show what those events did. Each line is a **block**: a stretch of DNA with one unbroken ancestry, written as the interval it came from on the initial sequence, read forward (`+`) or reverse-complemented (`−`). A gene is always one block, because nothing may cut it. Spacer is not, so a run of several intergene lines in a row is simply spacer that has been cut apart and rearranged: the accumulated breakpoints of everything that happened to that lineage.
 
-```
-leaf n2, chromosome 2 (circular), 3000 bp        leaf n5, chromosome 5 (circular), 3000 bp
-  [   0,  600) +   600 bp  intergene               [   0,  599) +   599 bp  intergene
-  [ 600, 1000) +   400 bp  gene 1                  [1174, 1374) +   200 bp  intergene
-  [1000, 1144) +   144 bp  intergene               [1000, 1144) −   144 bp  intergene
-  [1144, 1374) −   230 bp  intergene               [ 600, 1000) −   400 bp  gene 1
-  [1374, 1404) +    30 bp  intergene               [ 599,  600) −     1 bp  intergene
-  [2000, 2262) −   262 bp  intergene               [1144, 1174) −    30 bp  intergene
-  [1600, 2000) −   400 bp  gene 2                  [1374, 1600) +   226 bp  intergene
-  [1404, 1600) −   196 bp  intergene               [1600, 2000) +   400 bp  gene 2
-  [2262, 2600) +   338 bp  intergene               [2000, 2021) +    21 bp  intergene
-  [2600, 3000) +   400 bp  gene 3                  [2021, 2319) −   298 bp  intergene
-                                                   [2319, 2600) +   281 bp  intergene
-                                                   [2600, 3000) +   400 bp  gene 3
+```python
+def show(node):
+    for chromosome, blocks in g.mosaic(node).items():
+        print(f"n{node}, chromosome {chromosome}")
+        for source, start, end, strand in blocks:
+            gene = next((f"gene {f}" for f, span in g.gene_spans.items()
+                         if span == (source, start, end)), "intergene")
+            print(f"  [{start:4d},{end:4d}) {'+' if strand == 1 else '−'} "
+                  f"{end - start:4d} bp  {gene}")
+
+show(2)
+show(5)
 ```
 
-Both leaves still carry all three genes. In `n2` an inversion covered gene 2, which now reads on the `−` strand with the spacer around it reversed; in `n5` a different inversion covered gene 1 instead. The coordinates are what make this readable: every block still names where it came from in the root, so `[600, 1000)` is gene 1 wherever it turns up and whichever way it points.
+```
+n2, chromosome 2
+  [   0, 600) +  600 bp  intergene
+  [ 600,1000) +  400 bp  gene 1
+  [1000,1140) +  140 bp  intergene
+  [2000,2065) −   65 bp  intergene
+  [1600,2000) −  400 bp  gene 2
+  [1573,1600) −   27 bp  intergene
+  [1410,1573) +  163 bp  intergene
+  [1140,1410) −  270 bp  intergene
+  [2065,2563) +  498 bp  intergene
+  [2563,2596) −   33 bp  intergene
+  [2596,2600) +    4 bp  intergene
+  [2600,3000) +  400 bp  gene 3
+n5, chromosome 5
+  [   0, 512) −  512 bp  intergene
+  [2600,3000) −  400 bp  gene 3
+  [2532,2600) −   68 bp  intergene
+  [ 512, 600) +   88 bp  intergene
+  [ 600,1000) +  400 bp  gene 1
+  [1000,1600) +  600 bp  intergene
+  [1600,2000) +  400 bp  gene 2
+  [2000,2532) +  532 bp  intergene
+```
+
+Both leaves still carry all three genes, and both are still 3000 bp. In `n2` an inversion covered gene 2, which now reads on the `−` strand with the spacer around it reversed; in `n5` a different inversion covered gene 3 instead, taking the spacer on either side of it with it. The coordinates are what make this readable: every block still names where it came from in the root, so `[600, 1000)` is gene 1 wherever it turns up and whichever way it points.
 
 ## The initial genome
 
@@ -122,7 +145,9 @@ The **initial genome**, the genome the run starts from at time 0 before any even
 
 **Evenly spaced genes.** `genes=N, gene_length=L` lays down `N` genes of `L` bp on each replicon, spreading the leftover DNA evenly between them. Good for controlled experiments, since gene density is then a number you set.
 
-**A GFF file.** `gff="genome.gff"` takes exact coordinates from a real annotation. `##sequence-region` gives each replicon's extent, `gene` features give coordinates, strand and name, and other feature types are ignored. Names land in `result.gene_names`, so you can follow a named gene through the run. `gff=` and `genes=` are mutually exclusive; a GFF already declares the genes.
+**A GFF file.** `gff="genome.gff"` takes exact coordinates from a real annotation. `##sequence-region` gives each replicon's extent, `gene` features give coordinates, strand and name, and other feature types are ignored. Names land in `result.gene_names`, so you can follow a named gene through the run. `gff=` and `genes=` are mutually exclusive; a GFF already declares the genes. Genes may touch but never overlap, since a gene is one indivisible block. Real annotations do overlap, usually by a base or two where genes abut in an operon, so an overlap is refused rather than guessed at: `trim_overlaps=True` (`--trim-overlaps`) pushes each overlapping gene's start to its neighbour's end instead, and drops any gene swallowed whole.
+
+A GFF gives coordinates, not letters. `fasta="genome.fasta"` supplies the DNA those coordinates hold — one record per replicon, matched by id, each exactly its declared length — and a later `zombi2 sequences` run founds its blocks from that DNA (Chapter 7).
 
 ## The `NucleotideGenomesResult` object
 
