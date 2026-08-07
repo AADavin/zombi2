@@ -97,7 +97,7 @@ modifier of your own is Python-only, as an object you construct has to be.
 
 **Three worked examples** — a rate following a measured curve, density dependence in the gene pool,
 and rearrangement scaling with the karyotype — are in
-[Appendix A, "Writing your own"](../guide/rates.md#writing-your-own).
+[Appendix A, "Writing your own"](../rates.md#writing-your-own).
 
 ::: zombi2.rates.modifiers
 
@@ -106,3 +106,15 @@ and rearrangement scaling with the karyotype — are in
 What a `DrivenBy` carries — the shape that turns the driver's value into a number.
 
 ::: zombi2.rates.mapping
+
+## Values
+
+::: zombi2.rates.values
+
+## Verbs
+
+::: zombi2.rates.verbs
+
+## Clades
+
+::: zombi2.rates.clade
