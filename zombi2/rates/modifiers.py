@@ -44,6 +44,23 @@ DRIVEN = "driven"          # another level's value: recorded beforehand, or grow
 CARRIED_KINDS = (DRAWN, INHERITED)
 
 
+def draw_product(mods: "tuple[Modifier, ...]", rng) -> float:
+    """One draw from each modifier, multiplied — the factor a newly created unit carries.
+
+    For a unit that never splits, the carried value is fixed for its whole life and only the product
+    is ever needed, so the engine keeps one number per unit (a gene family). Where a unit *does*
+    split, the engine keeps the factors separately instead, because `FromParent` has to
+    nudge its parent's own number rather than a product.
+
+    Drawing in written order is what keeps a run reproducible, and drawing from **every** modifier
+    is the point: taking only the first was how a second one silently left the model.
+    """
+    out = 1.0
+    for m in mods:
+        out *= m.draw(rng)
+    return out
+
+
 def is_implemented(m: "Modifier", engines: tuple[type, ...], engine: str) -> bool:
     """Whether ``engine`` may run modifier ``m``: it is one of the types that engine threads
     (``engines``, the level's ``IMPLEMENTED_MODIFIERS``), or it names that engine in its own
@@ -117,6 +134,15 @@ class Modifier:
 
     def factor(self, **context: Any) -> float:
         raise NotImplementedError
+
+    def draw(self, rng) -> float:
+        """One value for a newly created unit — what a modifier reading a `DRAWN` value provides.
+
+        A modifier reading an `INHERITED` value implements ``initial()`` and ``descend()`` instead,
+        because a daughter's number starts from its parent's rather than from nothing. Everything
+        else needs neither, so the default says so rather than returning a plausible 1.0."""
+        raise NotImplementedError(
+            f"{type(self).__name__} does not draw a value per unit; it reads {self.reads!r}")
 
     def next_change(self, time: float) -> float:
         """The next time strictly after ``time`` at which this modifier's factor changes on

@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import resolve_seed, stream
-from ..rates.modifiers import ByFamily, DrivenBy, OnTime, is_implemented
+from ..rates.modifiers import ByFamily, DrivenBy, OnTime, draw_product, is_implemented
 from ..rates.rate import as_rate
 from ..rates.scope import PerCopy, PerLineage, Scope
 from ..tree import Tree, as_tree
@@ -867,16 +867,16 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # varies that rate on its own (a separate draw). Placement is what decides whether a family's
     # rates move together. Empty unless one of them is used, and then the engine takes its weighted
     # path; a run without either draws nothing here and is byte-identical to before.
-    fam_by = {"duplication": next((m for m in dup.modifiers if isinstance(m, ByFamily)), None),
-              "transfer": next((m for m in tra.modifiers if isinstance(m, ByFamily)), None),
-              "loss": next((m for m in los.modifiers if isinstance(m, ByFamily)), None)}
+    fam_by = {"duplication": tuple(m for m, _ in dup.carried(unit="family")),
+              "transfer": tuple(m for m, _ in tra.carried(unit="family")),
+              "loss": tuple(m for m, _ in los.carried(unit="family"))}
     any_family = family_speed is not None or any(fam_by.values())
     # A rate with no ByFamily of its own carries family_speed and nothing else, so every such rate
     # holds the same multiplier for the same family: one table shared between them, which is what
     # lets _FamilyWeights sum them once rather than once per rate.
     speed_only: dict[int, float] = {}
     fam_mult: dict[str, dict[int, float]] = {
-        key: ({} if m is not None else speed_only) for key, m in fam_by.items()}
+        key: ({} if mods else speed_only) for key, mods in fam_by.items()}
 
     def new_family() -> int:
         nonlocal family_counter
@@ -884,8 +884,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         family_counter += 1
         if any_family:
             speed = family_speed.draw(rng) if family_speed is not None else 1.0
-            for key, m in fam_by.items():
-                fam_mult[key][f] = speed * (m.draw(rng) if m is not None else 1.0)
+            for key, mods in fam_by.items():
+                fam_mult[key][f] = speed * draw_product(mods, rng)
         return f
 
     depth = mean_root_to_tip(tree)  # timescale for Distance weighting (unused by "uniform")
