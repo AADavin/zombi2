@@ -36,9 +36,11 @@ build time and dropped; only numbers cross the process boundary.
 
 from __future__ import annotations
 
+import math
+
 import bisect
 
-from ..rates.modifiers import INHERITED, product
+from ..rates.modifiers import INHERITED
 
 
 def _all_species(gene_trees) -> list[int]:
@@ -76,7 +78,7 @@ def _draw_clock(clock_mods, species_tree, gene_trees, rng) -> "dict[int, float]"
     parent→child down the species tree (autocorrelated). ``{}`` for a strict clock — no draw is
     taken, and no randomness consumed.
 
-    ``clock_mods`` is what the rate carries per lineage, from `Rate.carried`, and
+    ``clock_mods`` is what the rate carries per lineage, from `Rate.carried_modifiers`, and
     **every** one of them is drawn and multiplied in. The two kinds cannot be mixed on one rate
     (`check_one_memory`), so the walk below is one shape or
     the other, never both.
@@ -92,8 +94,8 @@ def _draw_clock(clock_mods, species_tree, gene_trees, rng) -> "dict[int, float]"
             p = species_tree.nodes[i].parent
             walk[i] = (tuple(m.initial() for m in clock_mods) if p is None
                        else tuple(m.descend(v, rng) for m, v in zip(clock_mods, walk[p])))
-        return {i: product(v) for i, v in walk.items()}
-    return {sid: product(tuple(m.draw(rng) for m in clock_mods))
+        return {i: math.prod(v) for i, v in walk.items()}
+    return {sid: math.prod(tuple(m.draw(rng) for m in clock_mods))
             for sid in _all_species(gene_trees)}
 
 

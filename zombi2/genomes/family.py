@@ -31,7 +31,8 @@ from typing import TYPE_CHECKING
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import resolve_seed, stream
-from ..rates.modifiers import describe, DRAWN, DrivenBy, OnTime, SetBy, draw_product, is_implemented
+from ..rates.modifiers import (describe, DRAWN, DrivenBy, OnTime, SetBy, is_implemented,
+                               values_at_birth)
 from ..rates.rate import as_rate
 from ..rates.scope import PerCopy, PerLineage, Scope
 from ..tree import Tree, as_tree
@@ -860,15 +861,15 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # Whether a family's rates move together is decided by what was written: one a per-family draw object read
     # by two rates is one draw for both, two objects are two draws. Empty unless some rate carries
     # one, and then the engine takes its weighted path; a run carrying none draws nothing here.
-    fam_by = {"duplication": tuple(m for m, _ in dup.carried(unit="family")),
-              "transfer": tuple(m for m, _ in tra.carried(unit="family")),
-              "loss": tuple(m for m, _ in los.carried(unit="family"))}
+    fam_by = {"duplication": tuple(m for m, _ in dup.carried_modifiers(unit="family")),
+              "transfer": tuple(m for m, _ in tra.carried_modifiers(unit="family")),
+              "loss": tuple(m for m, _ in los.carried_modifiers(unit="family"))}
     any_family = any(fam_by.values())
     # A rate carrying nothing per family holds 1.0 for every family, so all such rates share one
     # empty table rather than each filling its own — which is what lets _FamilyWeights sum them once.
-    none_carried: dict[int, float] = {}
+    no_variation: dict[int, float] = {}
     fam_mult: dict[str, dict[int, float]] = {
-        key: ({} if mods else none_carried) for key, mods in fam_by.items()}
+        key: ({} if mods else no_variation) for key, mods in fam_by.items()}
 
     def new_family() -> int:
         nonlocal family_counter
@@ -878,9 +879,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             # one draw per distinct modifier *object* for this family, shared across its rates: the
             # same a per-family draw written on duplication and on loss means one number, so a fast family is
             # fast at both. Two separately built ones are two draws even with the same spread.
-            drawn: dict[int, float] = {}
+            shared: dict[int, float] = {}
             for key, mods in fam_by.items():
-                fam_mult[key][f] = draw_product(mods, rng, drawn)
+                fam_mult[key][f] = math.prod(values_at_birth(mods, rng, shared))
         return f
 
     depth = mean_root_to_tip(tree)  # timescale for Distance weighting (unused by "uniform")

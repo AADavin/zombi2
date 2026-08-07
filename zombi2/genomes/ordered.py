@@ -58,8 +58,8 @@ from ..rates.driver import check_mapping_fires, resolve_driver
 from ..rng import stream
 from ..rates.extent import Extent, as_extent
 from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import (describe, DRAWN, DrivenBy, OnTime, SetBy, cell_name, draw_product,
-                               is_implemented)
+from ..rates.modifiers import (describe, DRAWN, DrivenBy, OnTime, SetBy, cell_name, is_implemented,
+                               values_at_birth)
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
@@ -1366,12 +1366,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # exactly as at the family resolution: one a per-family draw object read by two rates is one draw for
     # both, two objects are two draws. What differs here is where the weight lands — on the run an
     # event covers, not on the gene it started from (SPEC §6). Empty unless some rate carries one.
-    fam_by = {"duplication": tuple(m for m, _ in dup.carried(unit="family")),
-              "transfer": tuple(m for m, _ in tra.carried(unit="family")),
-              "loss": tuple(m for m, _ in los.carried(unit="family")),
-              "inversion": tuple(m for m, _ in inv.carried(unit="family")),
-              "transposition": tuple(m for m, _ in trp.carried(unit="family")),
-              "translocation": tuple(m for m, _ in trl.carried(unit="family"))}
+    fam_by = {"duplication": tuple(m for m, _ in dup.carried_modifiers(unit="family")),
+              "transfer": tuple(m for m, _ in tra.carried_modifiers(unit="family")),
+              "loss": tuple(m for m, _ in los.carried_modifiers(unit="family")),
+              "inversion": tuple(m for m, _ in inv.carried_modifiers(unit="family")),
+              "transposition": tuple(m for m, _ in trp.carried_modifiers(unit="family")),
+              "translocation": tuple(m for m, _ in trl.carried_modifiers(unit="family"))}
     any_family = any(fam_by.values())
     fam_mult: dict[str, dict[int, float]] = {key: {} for key in fam_by}
 
@@ -1381,10 +1381,10 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         family_counter += 1
         if any_family:
             # one draw per distinct modifier object for this family, shared across its rates (see
-            # `draw_product`): one object written on two rates is one number.
-            drawn: dict[int, float] = {}
+            # `values_at_birth`): one object written on two rates is one number.
+            shared: dict[int, float] = {}
             for key, mods in fam_by.items():
-                fam_mult[key][f] = draw_product(mods, rng, drawn)
+                fam_mult[key][f] = math.prod(values_at_birth(mods, rng, shared))
         return f
 
     def new_chromosome() -> int:

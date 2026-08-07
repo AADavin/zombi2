@@ -1168,7 +1168,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     # The rate's modifiers, sorted into the two things this level reads. SPEC §5: modifiers multiply,
     # so a clock and a driver compose — one says which lineages were dealt a fast tempo, the other
     # what their state makes of it — and the gate below rejects only what the level cannot honour.
-    clocks = tuple(m for m, _ in rate.carried(unit='lineage'))
+    clocks = tuple(m for m, _ in rate.carried_modifiers(unit='lineage'))
     drivers = driven_mods(rate)
     # This level is the one that does NOT take a third-party modifier, so the gate is a plain
     # isinstance rather than `is_implemented`. Every other engine evaluates its rate through
