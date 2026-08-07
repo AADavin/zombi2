@@ -10,6 +10,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **A rate can be driven by a clade.** `Clade({"fast": ["n12", "n27"], "slow": 40})` is a value read
+  off the tree itself, so `loss = 0.2 * ScaledBy(Clade({...}), {"fast": 3.0})` gives a clade its own
+  rate — at every level that reads a driver, for a rate, an extent or a `transfer_to` weight. Unlike
+  every other driver there is nothing to grow first: a clade is a fact about the tree the run is
+  already walking, so it is painted once and adds no Gillespie breakpoints, because membership never
+  changes along a branch. A lineage in no named clade is in the implicit group `"rest"`, which a
+  mapping may name. A joint run refuses it, and that is about the model rather than the code: a
+  growing tree has no clades yet. The plural `Clades(...)` stays what it was — the `transfer_to`
+  rule that weights the donor's clade against the recipient's — and the two share one definition of
+  what a clade is.
 - **The grid is real: one class per way of making a value, with the unit as data.** `Drawn(per=…)`
   and `Inherited(per=…)` are now the classes themselves rather than a shim over three others, so
   `ByFamily`, `ByLineage` and `FromParent` are the *names of cells* — kept, because each names a

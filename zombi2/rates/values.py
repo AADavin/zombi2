@@ -8,6 +8,7 @@ independent, and keeping them apart is what stops the grammar needing a new clas
     Drawn(per="lineage", spread=0.3)      # made by a draw,      attached to a lineage
     Inherited(per="lineage", spread=0.2)  # made by inheritance, attached to a lineage
     Time()                                # measured from the run
+    Clade({"fast": [...]})                # read off the tree itself
 
 The `verbs` module is the other half — what a parameter *does* with the number.
 
@@ -29,6 +30,7 @@ species engine does not support"*), rather than reading as a typo.
 
 from __future__ import annotations
 
+from .clade import Clade
 from .modifiers import UNITS, Drawn, Inherited
 
 
@@ -66,4 +68,4 @@ class Time(Measured):
         return hash(Time)
 
 
-__all__ = ["UNITS", "Drawn", "Inherited", "Measured", "Time"]
+__all__ = ["UNITS", "Clade", "Drawn", "Inherited", "Measured", "Time"]
