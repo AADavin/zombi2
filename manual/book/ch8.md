@@ -39,7 +39,7 @@ That is the pattern for everything past Brownian motion here, and it is not a lo
 
 ```python
 rate = 1.0 * mod.OnTime({0: 4.0, 1: 1.0})       # fast early, then settling: early burst
-rate = 1.0 * mod.FromParent(spread=0.3)         # each clade inherits and drifts in tempo
+rate = 1.0 * mod.Inherited(per='lineage', spread=0.3)         # each clade inherits and drifts in tempo
 rate = 1.0 * mod.OnTotalDiversity(cap=100)      # the rate eases off as the clade fills
 
 # σ² reads a second trait, grown first on the same tree
@@ -136,7 +136,7 @@ Trait models arrive under a thicket of names, and a reader who wants "an OU mode
 | a value diffusing | `simulate_continuous(rate=…)` | Brownian motion (BM) [@felsenstein1985comparative] |
 | diffusion pulled to an optimum | `simulate_continuous(rate=…, reverts_to=…, pull=…)` | Ornstein–Uhlenbeck (OU) [@hansen1997stabilizing; @butler2004phylogenetic] |
 | diffusion rate decays through time | `simulate_continuous(rate=1.0 * mod.OnTime({…}))` | Early burst (EB / ACDC) [@harmon2010earlyburst] |
-| diffusion rate drifts between lineages | `simulate_continuous(rate=1.0 * mod.FromParent(spread=…))` | Variable-rates BM [@maliet2019clads] |
+| diffusion rate drifts between lineages | `simulate_continuous(rate=1.0 * mod.Inherited(per='lineage', spread=…))` | Variable-rates BM [@maliet2019clads] |
 | diffusion rate slows as the clade fills | `simulate_continuous(rate=1.0 * mod.OnTotalDiversity(cap=…))` | Diversity-dependent / ecological limits [@etienne2012diversitydependence] |
 | the optimum differs between painted clades | `simulate_continuous(regimes=…, reverts_to={…}, pull=…)` | Multi-optimum OU (OUM) [@beaulieu2012ouwie] |
 | the value jumps at each split | `at_speciation=…` (continuous, and Mk `switch=` traits, not threshold ones) | Cladogenetic / punctuational change |

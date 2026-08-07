@@ -25,6 +25,7 @@ from zombi2.genomes.ordered import OrderedGenomesResult
 from zombi2.genomes.nucleotide import NucleotideGenomesResult
 from zombi2.genomes.nucleotide import IMPLEMENTED_MODIFIERS as _NUC_IMPLEMENTED
 from zombi2.genomes.ordered import IMPLEMENTED_MODIFIERS as _ORDERED_IMPLEMENTED
+from zombi2.rates.modifiers import cell_name
 from zombi2.rates.parse import parse_rate
 from zombi2.rates.scope import Global, PerLineage
 from zombi2.tree import node_label, read_newick
@@ -49,9 +50,9 @@ RATES_HELP = _rates_help(
          "over the candidates, and a weight of 0 means 'cannot receive'. It is also the only place "
          "Between(...) belongs — a weight per (donor, recipient) pair — which a rate or an extent "
          "refuses. "
-         "--resolution ordered takes " + ", ".join(m.__name__ for m in _ORDERED_IMPLEMENTED) +
-         ", though not ByFamily and DrivenBy in one run; nucleotide, " +
-         ", ".join(m.__name__ for m in _NUC_IMPLEMENTED) + ".")
+         "--resolution ordered takes " + ", ".join(cell_name(m) for m in _ORDERED_IMPLEMENTED) +
+         ", though not Drawn(per='family') and DrivenBy in one run; nucleotide, " +
+         ", ".join(cell_name(m) for m in _NUC_IMPLEMENTED) + ".")
 
 # The write vocabularies, read off the results themselves. They used to be hand-copied here, with a
 # comment saying so, and they drifted: `species_tree` and `initial_sequence` were writable from
@@ -113,7 +114,7 @@ _DEFAULT_INITIAL_FAMILIES = 100
 _DEFAULT_MAX_FAMILY_SIZE = 10
 
 _NOT_IN_NUCLEOTIDE = (("initial_families", None), ("replacement", False),
-                      ("max_family_size", _DEFAULT_MAX_FAMILY_SIZE), ("family_speed", None))
+                      ("max_family_size", _DEFAULT_MAX_FAMILY_SIZE))
 
 
 def _topology(text: str):
@@ -176,11 +177,6 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    metavar="CAP", dest="max_family_size",
                    help=f"cap on copies of one family in one genome (default "
                         f"{_DEFAULT_MAX_FAMILY_SIZE}), or 'none' for no cap")
-    g.add_argument("--family-speed", type=_family_speed, default=None, metavar="DRAW",
-                   dest="family_speed",
-                   help="one per-family tempo on every rate that family has, as a ByFamily draw — "
-                        "\"ByFamily(spread=0.5)\"")
-
     g = p.add_argument_group("structured genome", "only with --resolution ordered or nucleotide")
     g.add_argument("--inversion", type=_rate, default=0.0, metavar="RATE",
                    help="segmental inversion rate (per copy)")
@@ -302,27 +298,6 @@ def _positive_int(s: str) -> int:
     if n < 1:
         raise ValueError(n)
     return n
-
-
-def _family_speed(text: str):
-    """The argparse ``type`` for ``--family-speed``: one per-family tempo scaling every rate a family
-    has, written as a ``ByFamily`` draw — ``--family-speed "ByFamily(spread=0.5)"``.
-
-    Parsed by the same ast-whitelist parser every rate flag uses, so the expression is the one you
-    would write in Python and nothing is evaluated. It differs from a ``ByFamily`` on a single rate:
-    there each rate varies on its own, here one draw moves them together.
-    """
-    from zombi2.rates.modifiers import ByFamily
-    from zombi2.rates.parse import parse_rate
-
-    try:
-        value = parse_rate(text)
-    except ValueError as e:
-        raise argparse.ArgumentTypeError(f"--family-speed: {e}") from None
-    if not isinstance(value, ByFamily):
-        raise argparse.ArgumentTypeError(
-            f"--family-speed takes a ByFamily draw, e.g. \"ByFamily(spread=0.5)\"; got {text!r}")
-    return value
 
 
 def _transfer_to(text: str):
@@ -505,9 +480,7 @@ def run(args, parser):
                                          "count — see --root-length / --genes / --gff",
                    "--replacement": "a nucleotide transfer is always additive",
                    "--max-family-size": "a quota counts copies of a family, and here an event takes "
-                                        "an arc of DNA that may cover several families or none",
-                   "--family-speed": "a per-family tempo has to reach the arc an event covers, which "
-                                     "is per-family weighting this resolution does not support"}
+                                        "an arc of DNA that may cover several families or none"}
             parser.error("; ".join(f"the nucleotide resolution has no {f} ({why[f]})"
                                    for f in stray))
         if args.gff and args.genes:
@@ -530,7 +503,7 @@ def run(args, parser):
                      and any(not isinstance(m, _NUC_IMPLEMENTED) for m in getattr(args, n).modifiers)]
         if modulated:
             parser.error(f"--resolution nucleotide takes only "
-                         f"{', '.join(w.__name__ for w in _NUC_IMPLEMENTED)}, but "
+                         f"{', '.join(cell_name(w) for w in _NUC_IMPLEMENTED)}, but "
                          f"{', '.join(modulated)} carries another modifier")
 
     vocab = _OUTPUTS[args.resolution]
@@ -558,9 +531,9 @@ def run(args, parser):
     common = dict(duplication=args.duplication, transfer=args.transfer, loss=args.loss,
                   origination=args.origination, transfer_to=args.transfer_to,
                   self_transfer=args.self_transfer, seed=args.seed)
-    # the two knobs only the family-tier engines have — kept out of `common`, which the nucleotide
-    # engine shares and which has neither
-    family_knobs = dict(max_family_size=args.max_family_size, family_speed=args.family_speed)
+    # the knob only the family-tier engines have — kept out of `common`, which the nucleotide
+    # engine shares and which does not have it
+    family_knobs = dict(max_family_size=args.max_family_size)
     structured = dict(inversion=args.inversion, transposition=args.transposition,
                       translocation=args.translocation, chromosomes=args.chromosomes,
                       topology=args.topology, fission=args.fission, fusion=args.fusion,

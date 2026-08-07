@@ -234,7 +234,7 @@ zombi2 sequences out/ --model hky85 --length 1000 --divergence 0.2
 The two say different things and can be given together. `substitution` says what *kind* of clock, strict or relaxed by a modifier, and `divergence` says how far it drifts, so a relaxed clock calibrated to a divergence is written with the shape alone and the scale beside it:
 
 ```python
-substitution = mod.ByLineage(spread=0.3)      # the shape: an uncorrelated clock
+substitution = mod.Drawn(per='lineage', spread=0.3)      # the shape: an uncorrelated clock
 divergence   = 0.2                            # the scale: 0.2 substitutions per site
 ```
 
@@ -243,20 +243,26 @@ Giving `substitution` a base *number* as well is an error rather than an overrid
 A substitution rate that changes from lineage to lineage is what the field calls a **relaxed clock** [@lepage2007general]. It is not a new kind of object here: you multiply the rate by a modifier, exactly as at every other level.
 
 ```python
+from zombi2.rates.distributions import Gamma
+
 # strict clock: one rate everywhere; the default, so write nothing
 substitution = 1.0
 
 # relaxed: each lineage draws its own rate, independently of its neighbours
-substitution = 1.0 * mod.ByLineage(spread=0.3)                 # lognormal (the default)
-substitution = 1.0 * mod.ByLineage(spread=0.3, dist="gamma")   # or gamma
+substitution = 1.0 * mod.Drawn(per="lineage", spread=0.3)                     # lognormal
+substitution = 1.0 * mod.Drawn(per="lineage", dist=Gamma(shape=4.0, scale=0.25))   # or any other
 
 # relaxed: each lineage inherits its parent's rate and drifts from it
-substitution = 1.0 * mod.FromParent(spread=0.3)
+substitution = 1.0 * mod.Inherited(per="lineage", spread=0.3)
 ```
 
-**`ByLineage`** has *no memory*: each lineage is an independent draw, so a lineage's rate tells you nothing about its neighbours'. The distribution it draws from (`dist="lognormal"` or `"gamma"`) is a parameter of the modifier.
+`spread` is the log-scale σ of a lognormal, the common case. `dist=` takes any distribution instead —
+and whichever you give, the draw is **normalised to mean 1**, so what a distribution contributes is
+its *shape* and the base keeps meaning the average rate.
 
-**`FromParent`** has memory: a daughter starts at its parent's rate and multiplies it by one lognormal step, so close relatives evolve at similar rates. That is the **autocorrelated** clock. Both draws are mean-corrected, so widening `spread` spreads the lineages apart without moving the average rate off the number you typed. Rate variation across sites is not a modifier, and does not belong in the rate at all: it is part of the model, as above.
+**`Drawn(per='lineage')`** has *no memory*: each lineage is an independent draw, so a lineage's rate tells you nothing about its neighbours'. The distribution it draws from (`dist="lognormal"` or `"gamma"`) is a parameter of the modifier.
+
+**`Inherited(per='lineage')`** has memory: a daughter starts at its parent's rate and multiplies it by one lognormal step, so close relatives evolve at similar rates. That is the **autocorrelated** clock. Both draws are mean-corrected, so widening `spread` spreads the lineages apart without moving the average rate off the number you typed. Rate variation across sites is not a modifier, and does not belong in the rate at all: it is part of the model, as above.
 
 One important point: **the clock belongs to the species tree, not to the gene trees.**
 
@@ -267,9 +273,9 @@ A reference table that can be handy to people who want to implement a specific m
 | What it does | ZOMBI2 | From the literature |
 |---|---|---|
 | one rate everywhere | `substitution = 1.0` (default) | Strict / global clock |
-| each lineage i.i.d. lognormal | `1.0 * mod.ByLineage(spread=…)` | Uncorrelated lognormal (UCLN) |
-| each lineage i.i.d. gamma | `1.0 * mod.ByLineage(spread=…, dist="gamma")` | Uncorrelated gamma (UGAM) |
-| the rate drifts parent to daughter | `1.0 * mod.FromParent(spread=…)` | Autocorrelated lognormal |
+| each lineage i.i.d. lognormal | `1.0 * mod.Drawn(per='lineage', spread=…)` | Uncorrelated lognormal (UCLN) |
+| each lineage i.i.d. gamma | `1.0 * mod.Drawn(per='lineage', dist=Gamma(...))` | Uncorrelated gamma (UGAM) |
+| the rate drifts parent to daughter | `1.0 * mod.Inherited(per='lineage', spread=…)` | Autocorrelated lognormal |
 | the rate reads another level | `1.0 * mod.DrivenBy(trait, {…})` | Trait-dependent rate of molecular evolution |
 
 ### A trait can drive the rate
@@ -291,7 +297,7 @@ A clock and a driver **compose**, because modifiers multiply. Written together, 
 
 ```python
 sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, seed=2,
-    substitution = 0.05 * mod.ByLineage(spread=0.3)
+    substitution = 0.05 * mod.Drawn(per='lineage', spread=0.3)
                         * mod.DrivenBy(habitat, {"cave": 0.5, "surface": 1.0}))
 ```
 
@@ -324,7 +330,7 @@ from zombi2.sequences.substitution_models import gtr
 # GTR with unequal base frequencies, under a relaxed (uncorrelated) clock
 result = sequences.simulate_sequences(my_genomes,
     model=gtr(exchangeabilities=(1, 2, 1, 1, 2, 1), frequencies=(0.3, 0.2, 0.2, 0.3)),
-    substitution=1.0 * mod.ByLineage(spread=0.3),
+    substitution=1.0 * mod.Drawn(per='lineage', spread=0.3),
     length=500, seed=1)
 
 result.alignments          # {family: {gene copy: sequence}}, the observable data
@@ -413,7 +419,7 @@ zombi2 sequences seqs/ --from out/ --model hky85 --kappa 2.0 \
 # GTR with unequal frequencies under a relaxed clock, also writing the ancestral sequences
 zombi2 sequences seqs/ --from out/ --model gtr \
     --frequencies 0.3 0.2 0.2 0.3 \
-    --substitution "1.0 * ByLineage(spread=0.3)" \
+    --substitution "1.0 * Drawn(per='lineage', spread=0.3)" \
     --seed 1 --write alignments phylograms ancestral species_phylogram
 ```
 

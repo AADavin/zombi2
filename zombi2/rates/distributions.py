@@ -11,11 +11,17 @@ Ships a handful of built-in distributions and also accepts, via
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
+
+#: The distributions a rate or an extent may be **written** with — every one is built from literals,
+#: so it round-trips through a run's log and a ``--params`` file. ``Distribution`` itself is absent:
+#: it is abstract, and not a thing a user writes.
+WRITABLE = ("Fixed", "Exponential", "Gamma", "LogNormal", "Uniform", "Geometric")
 
 __all__ = [
     "Distribution", "Fixed", "Exponential", "Gamma", "LogNormal", "Uniform", "Geometric",
-    "as_distribution",
+    "as_distribution", "WRITABLE",
 ]
 
 
@@ -25,6 +31,18 @@ class Distribution(ABC):
     @abstractmethod
     def sample(self, rng) -> float:
         ...
+
+    def mean(self) -> float:
+        """This distribution's mean, where it is known in closed form.
+
+        A `Drawn` value divides by it, because a drawn value is a
+        *multiplier* and a multiplier whose average is not 1 changes what the base means. A
+        distribution whose mean cannot be computed — a bare callable, a scipy frozen distribution —
+        raises here rather than being normalised by a guess."""
+        raise NotImplementedError(
+            f"{type(self).__name__} does not know its own mean, so it cannot be normalised to a "
+            f"multiplier. Use one of the built-in distributions, or scale it yourself and read it "
+            f"with SetBy, where the number is the value rather than a factor.")
 
 
 class Fixed(Distribution):
@@ -36,6 +54,18 @@ class Fixed(Distribution):
     def sample(self, rng) -> float:
         return self.value
 
+    def mean(self) -> float:
+        return self.value
+
+    def __repr__(self) -> str:
+        return f'Fixed({self.value!r})'
+
+    def __eq__(self, other: object) -> bool:
+        return type(other) is type(self) and other.__dict__ == self.__dict__
+
+    def __hash__(self) -> int:
+        return hash((type(self), tuple(sorted(self.__dict__.items()))))
+
 
 class Exponential(Distribution):
     """Exponential with the given mean."""
@@ -43,10 +73,22 @@ class Exponential(Distribution):
     def __init__(self, mean: float):
         if mean <= 0:
             raise ValueError(f"Exponential mean must be > 0, got {mean}")
-        self.mean = float(mean)
+        self.mean_ = float(mean)
 
     def sample(self, rng) -> float:
-        return float(rng.exponential(self.mean))
+        return float(rng.exponential(self.mean_))
+
+    def mean(self) -> float:
+        return self.mean_
+
+    def __repr__(self) -> str:
+        return f'Exponential({self.mean_!r})'
+
+    def __eq__(self, other: object) -> bool:
+        return type(other) is type(self) and other.__dict__ == self.__dict__
+
+    def __hash__(self) -> int:
+        return hash((type(self), tuple(sorted(self.__dict__.items()))))
 
 
 class Gamma(Distribution):
@@ -61,6 +103,18 @@ class Gamma(Distribution):
     def sample(self, rng) -> float:
         return float(rng.gamma(self.shape, self.scale))
 
+    def mean(self) -> float:
+        return self.shape * self.scale
+
+    def __repr__(self) -> str:
+        return f'Gamma(shape={self.shape!r}, scale={self.scale!r})'
+
+    def __eq__(self, other: object) -> bool:
+        return type(other) is type(self) and other.__dict__ == self.__dict__
+
+    def __hash__(self) -> int:
+        return hash((type(self), tuple(sorted(self.__dict__.items()))))
+
 
 class LogNormal(Distribution):
     """Log-normal parameterised by the underlying normal's ``mu`` and ``sigma``."""
@@ -73,6 +127,18 @@ class LogNormal(Distribution):
 
     def sample(self, rng) -> float:
         return float(rng.lognormal(self.mu, self.sigma))
+
+    def mean(self) -> float:
+        return math.exp(self.mu + 0.5 * self.sigma * self.sigma)
+
+    def __repr__(self) -> str:
+        return f'LogNormal({self.mu!r}, {self.sigma!r})'
+
+    def __eq__(self, other: object) -> bool:
+        return type(other) is type(self) and other.__dict__ == self.__dict__
+
+    def __hash__(self) -> int:
+        return hash((type(self), tuple(sorted(self.__dict__.items()))))
 
 
 class Uniform(Distribution):
@@ -87,6 +153,18 @@ class Uniform(Distribution):
     def sample(self, rng) -> float:
         return float(rng.uniform(self.low, self.high))
 
+    def mean(self) -> float:
+        return 0.5 * (self.low + self.high)
+
+    def __repr__(self) -> str:
+        return f'Uniform({self.low!r}, {self.high!r})'
+
+    def __eq__(self, other: object) -> bool:
+        return type(other) is type(self) and other.__dict__ == self.__dict__
+
+    def __hash__(self) -> int:
+        return hash((type(self), tuple(sorted(self.__dict__.items()))))
+
 
 class Geometric(Distribution):
     """Geometric on ``{1, 2, 3, …}`` with the given ``mean`` (≥ 1) — a positive integer count, e.g. a
@@ -95,10 +173,22 @@ class Geometric(Distribution):
     def __init__(self, mean: float):
         if mean < 1:
             raise ValueError(f"Geometric mean must be >= 1, got {mean}")
-        self.mean = float(mean)
+        self.mean_ = float(mean)
 
     def sample(self, rng) -> float:
-        return float(rng.geometric(1.0 / self.mean))
+        return float(rng.geometric(1.0 / self.mean_))
+
+    def mean(self) -> float:
+        return self.mean_
+
+    def __repr__(self) -> str:
+        return f'Geometric({self.mean_!r})'
+
+    def __eq__(self, other: object) -> bool:
+        return type(other) is type(self) and other.__dict__ == self.__dict__
+
+    def __hash__(self) -> int:
+        return hash((type(self), tuple(sorted(self.__dict__.items()))))
 
 
 class _ScipyDist(Distribution):

@@ -87,7 +87,7 @@ def test_no_family_weight_is_byte_identical(tree):
 
 
 def test_byfamily_is_accepted_and_spreads_families_apart(tree):
-    """A per-family weight should leave the average family alone (``ByFamily`` is mean-corrected) but
+    """A per-family weight should leave the average family alone (`a per-family draw` is mean-corrected) but
     pull families apart — measured on inversion, which changes no copy numbers and so cannot feed
     back on itself the way duplication does."""
     import collections
@@ -95,7 +95,7 @@ def test_byfamily_is_accepted_and_spreads_families_apart(tree):
     def per_family_inversions(spread):
         counts = []
         for s in range(6):
-            inv = 1.2 if spread is None else 1.2 * mod.ByFamily(spread=spread)
+            inv = 1.2 if spread is None else 1.2 * mod.Drawn(per='family', spread=spread)
             g = genomes.simulate_genomes_ordered(
                 tree, origination=0.5, inversion=inv, inversion_extent=1,
                 initial_families=25, chromosomes=1, seed=300 + s)
@@ -107,31 +107,28 @@ def test_byfamily_is_accepted_and_spreads_families_apart(tree):
     assert per_family_inversions(0.9) > 0.0            # and with a weight set
 
 
-def test_family_speed_is_now_accepted(tree):
-    g = genomes.simulate_genomes_ordered(tree, duplication=0.3, loss=0.2, origination=0.3,
-                                         family_speed=mod.ByFamily(spread=0.6),
+def test_one_object_shared_across_rates_is_accepted(tree):
+    """A family-wide tempo here is one ByFamily object read by every rate — one draw per family."""
+    speed = mod.Drawn(per='family', spread=0.6)
+    g = genomes.simulate_genomes_ordered(tree, duplication=0.3 * speed, loss=0.2 * speed,
+                                         origination=0.3,
                                          initial_families=15, chromosomes=1, seed=7)
     assert g.events
-
-
-def test_family_speed_must_be_a_byfamily_draw(tree):
-    with pytest.raises(ValueError, match="family_speed must be a ByFamily"):
-        genomes.simulate_genomes_ordered(tree, duplication=0.3, family_speed=2.0, seed=1)
 
 
 def test_byfamily_still_refused_on_origination(tree):
     """Origination is the rate at which families are *created*: when it is read there is no family
     yet to have drawn a factor. Unchanged from the family resolution."""
     with pytest.raises(ValueError, match="no family yet"):
-        genomes.simulate_genomes_ordered(tree, origination=0.3 * mod.ByFamily(spread=0.5), seed=1)
+        genomes.simulate_genomes_ordered(tree, origination=0.3 * mod.Drawn(per='family', spread=0.5), seed=1)
 
 
 def test_byfamily_refused_on_the_chromosome_tier(tree):
     """A per-family weight has to reach the genes an event covers; a fission acts on a whole
     replicon, so there is nothing for it to attach to."""
-    with pytest.raises(ValueError, match="ByFamily on a PerChromosome scope"):
+    with pytest.raises(ValueError, match="per-family draw on a PerChromosome scope"):
         genomes.simulate_genomes_ordered(tree, origination=0.3, chromosomes=2,
-                                         fission=0.2 * mod.ByFamily(spread=0.5), seed=1)
+                                         fission=0.2 * mod.Drawn(per='family', spread=0.5), seed=1)
 
 
 # --- the growth guard -----------------------------------------------------------------------------

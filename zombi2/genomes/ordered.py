@@ -58,7 +58,8 @@ from ..rates.driver import check_mapping_fires, resolve_driver
 from ..rng import stream
 from ..rates.extent import Extent, as_extent
 from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import ByFamily, DrivenBy, OnTime, is_implemented
+from ..rates.modifiers import (describe, DRAWN, DrivenBy, OnTime, SetBy, cell_name, is_implemented,
+                               values_at_birth)
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
@@ -78,13 +79,13 @@ from .profiles import Profiles, profiles_from_genomes
 #: The rate grammar this engine supports (SPEC §5) — read by the gate below and by the CLI's help, so
 #: a modifier is never advertised without being implemented. The same three the family core takes,
 #: because the two are the same model at two resolutions: ``OnTime`` (a skyline in time), ``DrivenBy``
-#: (a conditioned or joint driver) and ``ByFamily`` (per-family heterogeneity, weighted on the segment
+#: (a conditioned or joint driver) and a per-family draw (per-family heterogeneity, weighted on the segment
 #: an event covers rather than on the gene it started from — SPEC §6). One combination is refused: see
 #: the gate.
-IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, ByFamily)
+IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, SetBy, (DRAWN, "family"))
 
 #: What an **extent** takes here (SPEC §6). An extent takes the modifiers a rate does, and at this
-#: resolution that is one fewer: ``ByFamily`` attaches to the *contents*, and an extent is drawn
+#: resolution that is one fewer: a per-family draw attaches to the *contents*, and an extent is drawn
 #: before the run's genes are known — a run covers several families, so there is no one family to
 #: draw a factor for. The two lists are declared separately rather than hidden in an ``if``, because
 #: the difference is a modelling fact, not an implementation detail.
@@ -747,7 +748,7 @@ def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ext_ctx, w=None):
       `_pick_run_by_family()`, so the weight reaches the segment rather than its starting gene.
     - **plain** — one uniform draw over the whole live gene pool.
 
-    The two weighted paths are mutually exclusive: the engine refuses ``ByFamily`` and ``DrivenBy`` in
+    The two weighted paths are mutually exclusive: the engine refuses a per-family draw and ``DrivenBy`` in
     one run, because combining them would weight by the product of a lineage factor and a segment
     factor, which is a model neither of them is on its own."""
     if w is not None:
@@ -1121,7 +1122,6 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              translocation_extent=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
                              initial_families=100, family_names=None, modules=None,
-                             family_speed=None,
                              max_family_size=10, seed=None,
                              progress=False) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
@@ -1195,14 +1195,14 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     its inversion rate. An extent's modifier is read at the instant an event fires, so it changes how
     much a run takes and never how often one starts, and it adds no Gillespie breakpoint.
 
-    ``ByFamily`` and ``DrivenBy`` cannot be set in the same run: one weights lineages by a driver and
+    a per-family draw and ``DrivenBy`` cannot be set in the same run: one weights lineages by a driver and
     the other weights the segment by what it covers.
     """
     tree = as_tree(tree, level="genomes")
     labels = _topologies(chromosomes, topology)
     n_initial_chrom = chromosomes
     # this slice implements each event's default scope and the three modifiers IMPLEMENTED_MODIFIERS
-    # declares: OnTime (skyline), DrivenBy (a conditioned/joint driver, per lineage) and ByFamily —
+    # declares: OnTime (skyline), DrivenBy (a conditioned/joint driver, per lineage) and a per-family draw —
     # the last with the weight on the SEGMENT rather than on its starting gene (SPEC §6, and
     # _pick_run_by_family). A scope override or a clade-drift modifier is a later slice, so reject it
     # rather than silently mis-scale (see the family engine for the reasoning).
@@ -1222,24 +1222,25 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 f"takes only {want.__name__} for {label} this slice — scope overrides are a later slice."
             )
         for m in rate.modifiers:
-            if isinstance(m, ByFamily) and label == "origination":
+            if m.reads == (DRAWN, "family") and label == "origination":
                 raise ValueError(
-                    "origination carries ByFamily, but origination is the rate at which families are "
+                    "origination carries a per-family draw, but origination is the rate at which families are "
                     "CREATED — when it is read there is no family yet to have drawn a factor for. "
-                    "Put ByFamily on duplication, transfer, loss, inversion, transposition or "
-                    "translocation, or use family_speed= for a family-wide tempo.")
-            if isinstance(m, ByFamily) and not isinstance(rate.scope, PerCopy):
+                    "Put Drawn(per='family') on duplication, transfer, loss, inversion, transposition "
+                    "or translocation; writing one such object on several of them gives a "
+                    "family-wide tempo, since one object is one draw.")
+            if m.reads == (DRAWN, "family") and not isinstance(rate.scope, PerCopy):
                 raise ValueError(
-                    f"{label} carries ByFamily on a {type(rate.scope).__name__} scope. A per-family "
+                    f"{label} carries a per-family draw on a {type(rate.scope).__name__} scope. A per-family "
                     f"weight has to reach the genes an event covers, so it applies to the per-copy "
                     f"gene events only — not to the chromosome tier, which acts on whole replicons.")
             if isinstance(m, DrivenBy):
                 check_not_a_kernel(m.mapping, label=label)
             if not is_implemented(m, IMPLEMENTED_MODIFIERS, "genomes.ordered"):
                 raise ValueError(
-                    f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
+                    f"{label} carries {describe(m)}, which the ordered genome engine does not "
                     f"support. It takes OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
-                    f"ByFamily (per-family heterogeneity, weighted on the segment an event covers). "
+                    f"Drawn(per='family') (per-family heterogeneity, weighted on the segment an event covers). "
                     f"Clade drift is not implemented yet."
                 )
         _rates[label] = rate
@@ -1250,21 +1251,18 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     inv, trp, trl = _rates["inversion"], _rates["transposition"], _rates["translocation"]
     fis, fus = _rates["fission"], _rates["fusion"]
     cor, clo = _rates["chromosome_origination"], _rates["chromosome_loss"]
-    if family_speed is not None and not isinstance(family_speed, ByFamily):
-        raise ValueError(
-            f"family_speed must be a ByFamily(...) draw, got {type(family_speed).__name__}.")
-    if (family_speed is not None
-            or any(isinstance(m, ByFamily) for r in _rates.values() for m in r.modifiers)) and \
+    for label, r in _rates.items():
+        r.check_one_base(label)
+    if any(m.reads == (DRAWN, "family") for r in _rates.values() for m in r.modifiers) and \
             any(isinstance(m, DrivenBy) for r in _rates.values() for m in r.modifiers):
         raise ValueError(
-            "ByFamily and DrivenBy on the same run is a later slice: one weights lineages by a "
+            "a per-family draw and DrivenBy on the same run is a later slice: one weights lineages by a "
             "driver and the other weights the segment by what it covers, so combining them means "
-            "weighting by the product. Use one or the other for now. (family_speed= is a ByFamily "
-            "draw too, so it counts here.)")
+            "weighting by the product. Use one or the other for now.")
     # per-event extent distributions (segment size in genes); a bare number is the mean, None a single gene
     def _ext_spec(spec, label):
         """One event's extent (SPEC §6): ``base × modifiers``, no scope, in **genes** here. An extent
-        takes the modifiers a rate takes at this resolution minus ``ByFamily`` (see
+        takes the modifiers a rate takes at this resolution minus a per-family draw (see
         `IMPLEMENTED_EXTENT_MODIFIERS`), and they scale the size drawn — ``OnTime`` in time, ``DrivenBy``
         on the lineage the event lands on."""
         e = as_extent(spec)
@@ -1272,17 +1270,17 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         for m in e.modifiers:
             if isinstance(m, DrivenBy):
                 check_not_a_kernel(m.mapping, label=label)
-            if isinstance(m, ByFamily):
+            if m.reads == (DRAWN, "family"):
                 raise ValueError(
-                    f"{label} carries ByFamily, which an extent cannot mean: the size is drawn before "
+                    f"{label} carries a per-family draw, which an extent cannot mean: the size is drawn before "
                     f"the run's genes are known, and a run covers several families, so there is no "
-                    f"one family to draw a factor for. Put ByFamily on {rate_slot}, where it weights "
-                    f"the segment by what it covers, or use family_speed= for a family-wide tempo.")
+                    f"one family to draw a factor for. Put it on {rate_slot}, where it weights "
+                    f"the segment by what it covers.")
             if not is_implemented(m, IMPLEMENTED_EXTENT_MODIFIERS, "genomes.ordered"):
                 raise ValueError(
-                    f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
+                    f"{label} carries {describe(m)}, which the ordered genome engine does not "
                     f"support on an extent — it takes "
-                    f"{', '.join(w.__name__ for w in IMPLEMENTED_EXTENT_MODIFIERS)}.")
+                    f"{', '.join(cell_name(w) for w in IMPLEMENTED_EXTENT_MODIFIERS)}.")
         return e
 
     dup_ext, los_ext, tra_ext = (_ext_spec(duplication_extent, "duplication_extent"),
@@ -1311,7 +1309,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     module_map = resolve_modules(modules, family_names)
 
     # The growth guard, as at the family resolution: duplication compounds, so a run whose rate sits
-    # above its loss rate — or a family that drew a high ByFamily factor — multiplies without bound
+    # above its loss rate — or a family that drew a high a per-family draw factor — multiplies without bound
     # unless something stops it. A segment may carry several families, and several copies of one, so
     # the run is refused when it would take *any* of them past the quota (see _run_over_cap).
     cap = resolve_max_family_size(max_family_size)
@@ -1364,18 +1362,17 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         copy_counter += 1
         return g
 
-    # Per-family multipliers, drawn once when a family is minted and fixed for its whole life, exactly
-    # as at the family resolution: family_speed scales every rate that family has (one draw), a
-    # ByFamily on a single rate varies that rate alone (its own draw). What differs here is where the
-    # weight lands — on the run an event covers, not on the gene it started from (SPEC §6). Empty
-    # unless one of them is used, and a run without either is byte-identical to the plain path.
-    fam_by = {"duplication": next((m for m in dup.modifiers if isinstance(m, ByFamily)), None),
-              "transfer": next((m for m in tra.modifiers if isinstance(m, ByFamily)), None),
-              "loss": next((m for m in los.modifiers if isinstance(m, ByFamily)), None),
-              "inversion": next((m for m in inv.modifiers if isinstance(m, ByFamily)), None),
-              "transposition": next((m for m in trp.modifiers if isinstance(m, ByFamily)), None),
-              "translocation": next((m for m in trl.modifiers if isinstance(m, ByFamily)), None)}
-    any_family = family_speed is not None or any(fam_by.values())
+    # Per-family multipliers, drawn once when a family is created and fixed for its whole life,
+    # exactly as at the family resolution: one a per-family draw object read by two rates is one draw for
+    # both, two objects are two draws. What differs here is where the weight lands — on the run an
+    # event covers, not on the gene it started from (SPEC §6). Empty unless some rate carries one.
+    fam_by = {"duplication": tuple(m for m, _ in dup.carried_modifiers(unit="family")),
+              "transfer": tuple(m for m, _ in tra.carried_modifiers(unit="family")),
+              "loss": tuple(m for m, _ in los.carried_modifiers(unit="family")),
+              "inversion": tuple(m for m, _ in inv.carried_modifiers(unit="family")),
+              "transposition": tuple(m for m, _ in trp.carried_modifiers(unit="family")),
+              "translocation": tuple(m for m, _ in trl.carried_modifiers(unit="family"))}
+    any_family = any(fam_by.values())
     fam_mult: dict[str, dict[int, float]] = {key: {} for key in fam_by}
 
     def new_family() -> int:
@@ -1383,9 +1380,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         f = family_counter
         family_counter += 1
         if any_family:
-            speed = family_speed.draw(rng) if family_speed is not None else 1.0
-            for key, m in fam_by.items():
-                fam_mult[key][f] = speed * (m.draw(rng) if m is not None else 1.0)
+            # one draw per distinct modifier object for this family, shared across its rates (see
+            # `values_at_birth`): one object written on two rates is one number.
+            shared: dict[int, float] = {}
+            for key, mods in fam_by.items():
+                fam_mult[key][f] = math.prod(values_at_birth(mods, rng, shared))
         return f
 
     def new_chromosome() -> int:
