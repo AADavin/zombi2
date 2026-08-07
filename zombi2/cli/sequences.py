@@ -42,8 +42,10 @@ from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg,
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
     IMPLEMENTED_MODIFIERS, "--substitution",
-    note="Drawn(per='lineage') draws one rate per species lineage, shared by every gene in it. spread is σ; "
-         "dist is 'lognormal' (default) or 'gamma' (σ = the coefficient of variation). DrivenBy "
+    note="Drawn(per='lineage') draws one rate per species lineage, shared by every gene in it. "
+         "spread=σ is the short spelling and means a lognormal of that log-scale; dist= takes any "
+         "distribution instead — Gamma(shape=…, scale=…), Exponential(…) — normalised to mean 1, so "
+         "what it contributes is its shape. Give one or the other. DrivenBy "
          "reads a trait grown first — the trait_events.tsv a 'zombi2 traits' run wrote, in this run "
          "or another: \"1.0 * DrivenBy('out/traits/trait_events.tsv', {'cave': 0.5, 'surface': "
          "1.0})\". A clock and a driver compose; a driver that switches mid-branch is integrated "

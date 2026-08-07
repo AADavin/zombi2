@@ -187,8 +187,11 @@ def is_implemented(m: "Modifier", engines: tuple, engine: str) -> bool:
     # only the engine can do those, for the units it declares. Accepting one on a unit the level does
     # not carry would draw nothing and skip its factor, so the rate would run undriven in silence —
     # the exact failure this whole gate exists to prevent, so the hatch stops here.
+    # A `SetBy` is refused here for the same reason wearing a different hat: replacing a base is a
+    # capability an engine has or has not, and only three declare it. A subclass of `SetBy` vouching
+    # for itself would be admitted at the four that cannot honour one.
     reads = getattr(m, "reads", None)
-    return not (reads is not None and reads[0] in CARRIED_KINDS)
+    return not (isinstance(m, SetBy) or (reads is not None and reads[0] in CARRIED_KINDS))
 
 
 def matches_declared(m: "Modifier", entries: tuple) -> bool:
@@ -265,7 +268,14 @@ class Modifier:
     #: =====================  =================================================================
     #:
     #: The genome engines thread ``drivers`` only when some rate or extent in the run is driven, so a
-    #: modifier that reads it must default its key.
+    #: modifier that reads it must default its key. An **extent** is read in the same context as its
+    #: level's rates, so one list serves both.
+    #:
+    #: Two things this cannot vouch for, whatever it names. A **carried** value — drawn or inherited
+    #: — is produced by the engine when a unit is born and handed back, which only the engine can do,
+    #: for the units it declares. And a **`SetBy`**, which replaces a base rather than scaling one,
+    #: is a capability three levels have and four do not. Either is admitted by a level naming it and
+    #: by nothing else.
     #:
     #: **``sequences`` is not on that list, deliberately.** Every engine above evaluates its rate
     #: through `Rate.effective`, which multiplies in whatever `factor` returns. The sequence level
@@ -439,7 +449,7 @@ class Inherited(Modifier):
     Geometric Brownian motion on the rate: the per-split factor is lognormal and **mean-corrected**
     so ``E[factor] = 1``. Without the correction the rate inflates down the tree
     (``E[rate] ≈ e^{σ²/2}``) — a real historical bug. The engine drives `initial` / `descend`,
-    threading each unit's current factor back through `Rate.effective`'s ``carried``.
+    threading each unit's current factor back through `Rate.effective`'s ``carried_factor``.
 
     ``bins`` discretises the drift: the rate takes one of ``bins`` values on a geometric ladder and a
     daughter moves to a **neighbouring rung**, or stays — the rate-category clock. It is a knob rather
@@ -472,19 +482,19 @@ class Inherited(Modifier):
 
     def __repr__(self) -> str:
         """The written form a run's log records and a reader pastes back into a flag, so it has to be
-        an expression that reproduces the rate. The named cell is used where one exists, because that
-        is the spelling the parser and the manual have always shown."""
+        an expression that reproduces the rate. ``bins`` is omitted when it is unset, because the
+        parser refuses ``bins=None``: a written form that will not parse is not a written form."""
         extra = f", bins={self.bins}" if self.bins is not None else ""
         return f"Inherited(per={self.per!r}, spread={self.spread!r}{extra})"
 
     def factor(self, **_: Any) -> float:
         """A carried modifier has no factor to compute. Its number is drawn when the unit is born and
-        kept by the engine, which hands it back through `Rate.effective`'s ``carried`` — so asking
+        kept by the engine, which hands it back through `Rate.effective`'s ``carried_factor`` — so asking
         for one here, without that stored value, could only ever return a plausible 1.0 for a rate
         that should have varied."""
         raise NotImplementedError(
             f"{type(self).__name__} is carried, not computed: the engine draws its value per "
-            f"{self.per} and passes it to Rate.effective(carried=...). It has no factor of its own.")
+            f"{self.per} and passes it to Rate.effective(carried_factor=...). It has no factor of its own.")
 
     def _ladder(self) -> list[float]:
         """The ``bins`` rungs, geometric in ``spread`` and scaled so their mean is 1.
@@ -580,7 +590,7 @@ class Drawn(Modifier):
         """A carried modifier has no factor to compute — see `Inherited.factor`."""
         raise NotImplementedError(
             f"Drawn is carried, not computed: the engine draws its value per {self.per} and passes "
-            f"it to Rate.effective(carried=...). It has no factor of its own.")
+            f"it to Rate.effective(carried_factor=...). It has no factor of its own.")
 
     def draw(self, rng) -> float:
         """One independent multiplier for a unit, with mean 1. A zero spread gives exactly 1.0 and

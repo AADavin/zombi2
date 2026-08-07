@@ -56,7 +56,7 @@ class Rate:
                 continue  # already used, as the base
             reads = getattr(m, "reads", None)
             if reads is not None and reads[0] in CARRIED_KINDS:
-                continue  # its factor arrives through `carried`, drawn and kept by the engine
+                continue  # its factor arrives through `carried_factor`, drawn and kept by the engine
             value *= m.factor(**context)
         return value * carried_factor
 

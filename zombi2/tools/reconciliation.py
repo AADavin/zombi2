@@ -128,7 +128,7 @@ def _moved_child(n: GeneNode) -> GeneNode | None:
     return next((c for c in n.children if c.species != n.species), n.children[-1])
 
 
-def _project(node: GeneNode, tree: Tree, kept: set[int], image: dict[int, int],
+def _project(node: GeneNode, tree: Tree, image: dict[int, int],
              counter: list[int]) -> tuple[GeneNode | None, int | None]:
     """The projection proper, bottom-up over the complete gene tree.
 
@@ -223,9 +223,9 @@ def extant_reconciliation(gene_tree: GeneTree, tree: Tree, *, scope: str = "true
         raise ValueError(f"scope is 'true' or 'recoverable', got {scope!r}")
     if gene_tree.extant is None:
         return None
-    kept, image = visible if visible is not None else visible_branches(tree)
+    _, image = visible if visible is not None else visible_branches(tree)
     counter = [0]
-    root, arrived = _project(gene_tree.complete, tree, kept, image, counter)
+    root, arrived = _project(gene_tree.complete, tree, image, counter)
     if root is None:                                   # cannot happen with an extant tree, but say so
         return None
     # `arrived` survives all the way up exactly when the family's whole visible history hangs off one

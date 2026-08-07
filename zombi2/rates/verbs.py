@@ -59,11 +59,13 @@ def ScaledBy(value: object, mapping: object = None) -> Modifier:
             f"ScaledBy({type(value).__name__}(), ...) is not implemented — that value exists in the "
             f"grammar but no engine supplies it yet.")
     if isinstance(value, Modifier):
-        name = describe(value)
+        # `describe` gives the cell — "drawn per family" — which reads well in the sentence and is
+        # not something you can type, so the code half of the message shows the class instead.
         raise TypeError(
-            f"{name} is already a factor, so it needs no verb: write `rate = base * {name}(...)` "
-            f"rather than wrapping it in ScaledBy. Verbs are for values a mapping has to turn into a "
-            f"number — a trait, a clock, a count.")
+            f"{describe(value)} is already a factor, so it needs no verb: write it on the base "
+            f"directly, `rate = 0.25 * {type(value).__name__}(...)`, rather than wrapping it in "
+            f"ScaledBy. Verbs are for values a mapping has to turn into a number — a trait, a "
+            f"clock, a count.")
     if mapping is None:
         raise ValueError(
             "ScaledBy(value, mapping) needs a mapping: a dict for a categorical value, a callable "

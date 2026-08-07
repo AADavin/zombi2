@@ -119,6 +119,9 @@ _MODIFIER_HELP = {
     "drawn per family": ("Drawn(per='family', spread=0.5)",
                          "one independent draw per gene family — uncorrelated"),
     "DrivenBy": (None, "the number is driven by an evolved value"),
+    # No snippet either, and for a sharper reason than DrivenBy's: `SetBy` takes no base, so the
+    # `1.0 * {snippet}` line above would print the one spelling it refuses.
+    "SetBy": (None, "an evolved value replaces the base, rather than scaling it"),
 }
 
 
@@ -147,9 +150,11 @@ def _rates_help(supported, flag: str, *, scopes: str | None = None, note: str | 
     if scopes:
         lines.append(f'    {flag} "{scopes}"')
     lines.append("  Modifiers this level takes (anything else is an error):")
+    # Wide enough for the longest name this level declares, so a long one cannot run into its gloss.
+    width = max((len(n) for n in names), default=0) + 2
     for name in names:
         entry = _MODIFIER_HELP.get(name)
-        lines.append(f"    {name:<20}{entry[1]}" if entry else f"    {name}")
+        lines.append(f"    {name:<{width}}{entry[1]}" if entry else f"    {name}")
     if note:
         lines += _wrap_note(note)
     return "\n".join(lines)

@@ -99,8 +99,8 @@ def read_run(directory) -> FamilyGenomesResult:
     if os.path.exists(os.path.join(handoff, "blocks.tsv")):
         raise NotImplementedError(
             f"{handoff} is a nucleotide genome run (it has blocks.tsv), which reads back through "
-            f"genomes.read_nucleotide_genomes(directory, tree) — it needs the blocks as well as the "
-            f"events, so it takes the tree explicitly.")
+            f"zombi2.genomes.nucleotide.read_nucleotide_genomes(directory, tree) — it needs the "
+            f"blocks as well as the events, so it takes the tree explicitly.")
     tree = _tree(handoff, directory)
     with open(os.path.join(handoff, "genome_events.tsv"), encoding="utf-8") as f:
         edges = edges_from_tsv(f.read())

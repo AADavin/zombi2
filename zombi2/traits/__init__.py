@@ -24,9 +24,9 @@ same diffusion wearing different knobs, not three classes (SPEC §4):
 - **Early burst / ACDC**: give ``rate`` a ``OnTime`` skyline (``rate = σ² * mod.OnTime({0: 1, 5: 0.2})``)
   and σ² changes through time — the *same* ``OnTime`` modifier that gives the species tree its skyline.
   The per-branch variance is then the exact integral ``∫ σ²(t) dt`` over the branch.
-- **Variable-rates BM** ("ClaDS for traits"): give ``rate`` an an inherited value modifier
+- **Variable-rates BM** ("ClaDS for traits"): give ``rate`` an ``Inherited`` modifier
   (``rate = σ² * mod.Inherited(per="lineage", spread=0.3)``) and σ² drifts branch-to-branch — each lineage inherits
-  its parent's σ² times a lognormal kick at the split — the *same* an inherited value modifier that drifts
+  its parent's σ² times a lognormal kick at the split — the *same* ``Inherited`` modifier that drifts
   the species rate (ClaDS) and the autocorrelated clock, one level over. (``reverts_to`` / ``pull`` are
   OU function arguments that revert the trait *value*, **not** a modifier — a rate modifier reverts a
   *rate*, which is the sequences level's CIR clock, a different mechanism.)
