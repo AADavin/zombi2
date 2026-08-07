@@ -201,7 +201,10 @@ and not about the model; say that plainly and do not dress it up as a rule.
 **`DrivenBy(driver, mapping)` is the one mechanism** for both conditioning and joining (§2), within a
 level as much as across two (§3). `driver` says which thing is read, never how the run is organised: a
 **finished result** (an object in Python, its written log across two commands) makes the run
-conditioned; the **name of a level growing beside it** makes the run joint. A driver read from a file
+conditioned; the **name of a level growing beside it** makes the run joint. A **`Clade`** is
+conditioned too, and the limiting case of it: its value is a fact about the tree the run is already
+walking, so there is nothing to grow first and no file — and a joint run refuses it, because a
+growing tree has no clades yet. A driver read from a file
 and the same driver held in memory are the same model, so they are the same modifier. `mapping` says
 what the value becomes, and there are four shapes: a **`Table`** over named states, a **`Curve`** over
 a number, a **`Scalar`** log-link `exp(strength · value)`, and a **`Between`**, a weight per (donor
@@ -237,10 +240,12 @@ one lineage and have no donor to condition on.
 what?"**); "clock" for the scope (reserve **clock** strictly for the by-lineage substitution-rate
 modifier at the sequences level). **modifier** names the third factor only.
 
-**A drawn value takes any distribution.** ``Drawn(per=…, spread=σ)`` is the common case and means a
-lognormal of that log-scale. ``dist=`` takes a distribution object instead — the same ones an extent
-takes — so ``Gamma``, ``Exponential``, ``Uniform``, a scipy frozen distribution or a callable all
-work. Give one or the other, never both.
+**A drawn value takes any distribution that can state its mean.** ``Drawn(per=…, spread=σ)`` is the
+common case and means a lognormal of that log-scale. ``dist=`` takes a distribution object instead —
+any of the built-ins: ``Fixed``, ``Exponential``, ``Gamma``, ``LogNormal``, ``Uniform``,
+``Geometric``. A bare callable or a scipy frozen distribution is refused here, though an **extent**
+takes either, because an extent is a size used as written rather than a multiplier normalised to
+mean 1 (below). Give a spread or a dist, never both.
 
 Whatever the distribution, **the draw is normalised to mean 1**, by dividing by that distribution's
 own mean. A drawn value is a *multiplier*, and one that does not average to 1 changes what the base
@@ -345,7 +350,7 @@ Left column is correct; right column is a fossil to purge.
 | independent / conditioned / joint | pipeline / coevolution (as the framing) |
 | conditioning; joining; a joint model | coevolution (as a category) |
 | conditioning and joining (when the pair needs one name) | coupling (as the framing, a category or a level); the verb stays — "a transfer couples two lineages" |
-| driver — the evolved value a `DrivenBy` reads (its first argument) | source (for that argument); signal |
+| driver — the value a `DrivenBy` reads, per lineage, as the run walks the tree (its first argument): grown by another level, or read off the tree itself (a clade) | source (for that argument); signal |
 | target — what a factor is attached to: a rate, an **extent**, or a **choice** | "a target is a rate"; target (for the driven level — say *the driven level*) |
 | choice — the target that decides who receives (`transfer_to`) | "which one"; slot |
 | mapping — `Table` / `Curve` / `Scalar` / `Between` | response (the coevolve word) |

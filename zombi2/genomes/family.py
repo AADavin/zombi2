@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import resolve_seed, stream
-from ..rates.modifiers import (describe, DRAWN, DrivenBy, OnTime, SetBy, is_implemented,
+from ..rates.modifiers import (describe, DRAWN, DrivenBy, OnTime, SetBy, is_implemented, matches_declared,
                                values_at_birth)
 from ..rates.rate import as_rate
 from ..rates.scope import PerCopy, PerLineage, Scope
@@ -1101,12 +1101,19 @@ class FamilyGenome:
                     f"{want.__name__} for {label} — drop the scope wrapper."
                 )
             for m in rate.modifiers:
-                if not isinstance(m, OnTime):
+                if not matches_declared(m, JOINT_IMPLEMENTED_MODIFIERS):
                     raise ValueError(
                         f"{label} carries {describe(m)}; a joint genome's own rates take only "
                         f"OnTime — the genome is the DRIVER of speciation here, not a driven target."
                     )
         return dup, los, org
+
+
+#: What a **joint** genome's own rates take (SPEC §5). Declared, like every other level's gate,
+#: rather than tested by hand: the genome is the driver of speciation in a joint run, not a driven
+#: target, so it takes a schedule and nothing else. `matches_declared` rather than `is_implemented`,
+#: because a third-party modifier vouching for itself would still not be threaded by this loop.
+JOINT_IMPLEMENTED_MODIFIERS = (OnTime,)
 
 
 def family(*, duplication=0.0, loss=0.0, origination=0.0, initial_families=100,

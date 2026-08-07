@@ -45,14 +45,23 @@ quietly not the model you asked for.
 
 ## Modifiers
 
-A modifier's name begins with the preposition that fixes its family: `On` is a covariate (a
-deterministic function of a measured quantity), `By` is an independent i.i.d. draw per unit,
-`From` is inherited along a genealogical edge. `DrivenBy` sits outside that scheme deliberately —
-it says the number comes from an evolved value read on the lineage — a level grown before this run, a
-level growing beside it, or another object at the same level (a trait can drive a second trait). On a
-rate or an extent that number multiplies; on `transfer_to` it is a weight normalised across the
-candidates, which is why that one takes the modifier on its own — `transfer_to = 1.0 * DrivenBy(...)`
-is an error.
+A modifier's **kind** says who produces its number, and there are four (SPEC §5):
+
+| Kind | The factor is… | Written |
+|---|---|---|
+| covariate | a deterministic function of a measured quantity | `OnTime`, `OnTotalDiversity` |
+| drawn | an i.i.d. draw, one per unit — no memory | `Drawn(per=…)` |
+| inherited | the parent's, perturbed — continuous memory | `Inherited(per=…)` |
+| driven | the state of another simulated thing, read as the run walks the tree | `DrivenBy`, `SetBy` |
+
+A **driven** value comes from a level grown before this run, a level growing beside it, another
+object at the same level (a trait can drive a second trait), or the tree itself (`Clade`). On a rate
+or an extent that number multiplies, unless the modifier is `SetBy`, which replaces the base instead.
+On `transfer_to` it is a weight normalised across the candidates, which is why that one takes the
+modifier on its own — `transfer_to = 1.0 * DrivenBy(...)` is an error.
+
+The **unit** a drawn or inherited value is attached to is an argument, not a class, so a draw per
+family and a draw per lineage are one class and two cells of a grid.
 
 ### Writing your own
 

@@ -77,11 +77,20 @@ class TestItDrivesARate:
         assert no_fast["slow"] > 0
 
     def test_it_drives_a_trait_too(self, tree, halves):
-        """Nothing about it is genome-specific — any level that reads a driver reads this one."""
+        """Nothing about it is genome-specific — any level that reads a driver reads this one.
+
+        Asserting that the run produced events would pass with the clade doing nothing at all, so
+        the mapping switches one group off: no lineage of the "slow" clade may switch, and some
+        lineage outside it must."""
+        painted = resolve_groups(tree, halves.groups)
+        slow = {i for i, label in painted.items() if label == "slow"}
         run = traits.simulate_discrete(
             tree, states=["a", "b"],
-            switch=0.2 * ScaledBy(halves, {"fast": 4.0, "slow": 0.25, "rest": 1.0}), seed=1)
-        assert run.events
+            switch=0.2 * ScaledBy(halves, {"fast": 4.0, "slow": 0.0, "rest": 1.0}), seed=1)
+
+        switches = [c for c in run.events if c.kind != "initial"]
+        assert switches, "nothing switched anywhere, so the zero proves nothing"
+        assert not [c for c in switches if c.lineage in slow], "a clade weighted 0.0 still switched"
 
 
 class TestWhatItRefuses:

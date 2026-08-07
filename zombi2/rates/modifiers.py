@@ -537,9 +537,10 @@ class Drawn(Modifier):
         substitution = 1.0 * Drawn(per="lineage", spread=0.3)  # the uncorrelated relaxed clock
 
     ``spread`` is the common case and means a **lognormal** of that log-scale σ. For any other shape,
-    pass a distribution instead — the same `Distribution` objects an
-    extent takes, so ``Gamma``, ``Exponential``, ``Uniform``, a scipy frozen distribution or a plain
-    callable all work::
+    pass a distribution instead — any built-in `Distribution`:
+    ``Fixed``, ``Exponential``, ``Gamma``, ``LogNormal``, ``Uniform``, ``Geometric``. A callable or a
+    scipy frozen distribution is refused here, because neither states a mean to normalise by; an
+    extent takes both, being a size rather than a multiplier::
 
         loss = 0.25 * Drawn(per="family", dist=Gamma(shape=4.0, scale=0.25))
 

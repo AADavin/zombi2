@@ -72,9 +72,18 @@ class TestInARealRun:
             run(1.0 * ScaledBy(habitat, {"cave": 1.0, "surface": 0.05}))
 
     def test_it_drives_a_continuous_trait_rate_too(self, tree, habitat):
-        run = traits.simulate_continuous(
+        """`node_values` is non-empty whatever the rate is, so the assertion has to be about the
+        number `SetBy` supplied: the same model written as a multiple of 1.0 must give the same
+        run, and a different set of numbers a different one."""
+        driven = traits.simulate_continuous(
             tree, rate=SetBy(habitat, {"cave": 2.0, "surface": 0.1}), seed=1)
-        assert run.node_values
+        same = traits.simulate_continuous(
+            tree, rate=1.0 * ScaledBy(habitat, {"cave": 2.0, "surface": 0.1}), seed=1)
+        other = traits.simulate_continuous(
+            tree, rate=SetBy(habitat, {"cave": 0.1, "surface": 2.0}), seed=1)
+
+        assert driven.node_values == pytest.approx(same.node_values)
+        assert driven.node_values != pytest.approx(other.node_values)
 
     def test_a_level_that_cannot_replace_a_base_refuses_it(self, tree, habitat):
         """A `SetBy` is a `DrivenBy`, so a gate listing DrivenBy would let it in anywhere a driver
