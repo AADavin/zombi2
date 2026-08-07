@@ -223,3 +223,54 @@ def test_a_modifier_that_does_not_draw_says_so():
 
     with pytest.raises(NotImplementedError):
         mod.OnTime({0: 1.0}).draw(object())
+
+
+class TestTheEscapeHatchCannotVouchForACarriedValue:
+    """`implemented_for` lets a modifier of your own declare which engines it works with. It can
+    promise that for a factor it *computes* — that is a promise only the modifier has to keep. It
+    cannot promise it for a carried value, because that number is drawn by the engine when a unit is
+    born and handed back, and an engine can only do that for the units it declares.
+
+    Admitting one anyway drops it twice: `Rate.carried` never returns it (wrong unit, so nothing
+    draws it) and `Rate.effective` skips it because its kind is carried, so `factor` is never called
+    either. The rate then runs undriven in silence — the exact failure this gate exists to prevent,
+    and newly possible because `reads` did not exist before.
+    """
+
+    def _third_party(self, reads, engine):
+        class Mine(mod.Modifier):
+            implemented_for = (engine,)
+
+            def factor(self, **_):
+                return 2.0
+
+            def draw(self, rng):
+                return 2.0
+
+        Mine.reads = reads
+        return Mine()
+
+    def test_it_vouches_for_a_computed_factor(self):
+        for kind in (MEASURED, DRIVEN):
+            m = self._third_party((kind, "run"), "species")
+            assert mod.is_implemented(m, (), "species")
+
+    def test_it_does_not_vouch_for_a_drawn_or_inherited_one(self):
+        for kind in (DRAWN, INHERITED):
+            m = self._third_party((kind, "site"), "genomes.family")
+            assert not mod.is_implemented(m, (), "genomes.family")
+
+    def test_a_modifier_with_no_reads_is_unaffected(self):
+        """The pre-existing case: a modifier written before `reads` existed computes its own factor,
+        which is what it always did, so the hatch keeps working for it."""
+        m = self._third_party(None, "species")
+        assert mod.is_implemented(m, (), "species")
+
+    def test_the_engine_refuses_it_rather_than_running_undriven(self):
+        from zombi2 import genomes
+        from zombi2.species import simulate_species_tree
+
+        tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=1).complete_tree
+        m = self._third_party((DRAWN, "site"), "genomes.family")
+        with pytest.raises(ValueError, match="does not support"):
+            genomes.simulate_genomes_family(tree, loss=0.2 * m, initial_families=3, seed=1)

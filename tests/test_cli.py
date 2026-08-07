@@ -478,6 +478,19 @@ def test_sequences_relaxed_clock_runs_and_is_logged(tmp_path, genomes_dir):
     assert "substitution\t1.0 * ByLineage(spread=0.4, dist='gamma')" in log
 
 
+def test_the_summary_names_every_clock_a_rate_carries(tmp_path, genomes_dir):
+    """Several drawn clocks compose now, and the line that describes the run was built by
+    overwriting a variable in a loop — so a rate carrying two was summarised as carrying one, which
+    states a model that is not the model simulated."""
+    out = tmp_path / "s"
+    rc = main(["sequences", str(out), "--from", str(genomes_dir), "--model", "jc69",
+               "--substitution", "1.0 * ByLineage(spread=0.3) * ByLineage(spread=0.5)",
+               "--seed", "1", "--flat"])
+    assert rc == 0
+    log = (out / "sequences.log").read_text(encoding="utf-8")
+    assert "spread 0.3" in log and "spread 0.5" in log
+
+
 def test_sequences_rejects_a_model_foreign_parameter(tmp_path, genomes_dir):
     with pytest.raises(SystemExit) as e:                         # --kappa is meaningless for jc69
         main(["sequences", str(tmp_path / "s"), "--from", str(genomes_dir), "--model", "jc69", "--kappa", "2", "--flat"])
