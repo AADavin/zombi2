@@ -192,17 +192,37 @@ def _per_lineage(rate) -> tuple:
     return tuple(m for m, _ in rate.carried(unit="lineage"))
 
 
-def _born(mods: tuple, rng) -> tuple[float, ...]:
+def _shared(mods: tuple, drawn: dict, make) -> tuple[float, ...]:
+    """``make(modifier, index)`` for each modifier, through a **per-lineage** cache keyed by modifier
+    identity.
+
+    One `ByLineage` object written on both birth and death is one number for that lineage, so the two
+    rates move together; two separately built ones move independently even with the same spread. The
+    cache is per lineage and never outlives it, so the question it answers is only ever "did you write
+    one thing or two?"."""
+    out = []
+    for i, m in enumerate(mods):
+        key = id(m)
+        if key not in drawn:
+            drawn[key] = make(m, i)
+        out.append(drawn[key])
+    return tuple(out)
+
+
+def _born(mods: tuple, rng, drawn: dict | None = None) -> tuple[float, ...]:
     """The factors a lineage starts life with, one per carried modifier: the root's under
     `FromParent` (1.0, or the middle rung when binned), and an independent draw under `ByLineage`."""
-    return tuple(m.initial() if isinstance(m, FromParent) else m.draw(rng) for m in mods)
+    return _shared(mods, {} if drawn is None else drawn,
+                   lambda m, _i: m.initial() if isinstance(m, FromParent) else m.draw(rng))
 
 
-def _inherit(mods: tuple, parent_values: tuple[float, ...], rng) -> tuple[float, ...]:
+def _inherit(mods: tuple, parent_values: tuple[float, ...], rng,
+             drawn: dict | None = None) -> tuple[float, ...]:
     """A daughter's factors at a split: its parent's, nudged (`FromParent`), or an independent draw
     that ignores the parent (`ByLineage`) — the one line where the two differ."""
-    return tuple(m.descend(p, rng) if isinstance(m, FromParent) else m.draw(rng)
-                 for m, p in zip(mods, parent_values))
+    return _shared(mods, {} if drawn is None else drawn,
+                   lambda m, i: (m.descend(parent_values[i], rng) if isinstance(m, FromParent)
+                                 else m.draw(rng)))
 
 
 def _product(values: tuple[float, ...]) -> float:
@@ -262,8 +282,9 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
     # its total is just scope(base) × modifiers over n, picked uniform. The root draws under
     # ByLineage (it is a lineage like any other) and does not under FromParent (its factor is the
     # ladder's starting point), which is what `_born` decides.
-    inh_b = [_born(birth_drift, rng)]
-    inh_d = [_born(death_drift, rng)]
+    root_drawn: dict = {}  # the root lineage's cache, so an object on both rates draws once
+    inh_b = [_born(birth_drift, rng, root_drawn)]
+    inh_d = [_born(death_drift, rng, root_drawn)]
     t = 0.0
     events: list[Event] = []
     pulse_idx = 0  # the next unfired mass extinction in `pulses`
@@ -342,11 +363,16 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
                     alive.extend((c1, c2))
                     # each daughter takes its own factors — the parent's nudged under FromParent, a
                     # fresh independent draw under ByLineage (an empty tuple when the rate carries
-                    # neither, so nothing is drawn and the product stays 1.0)
-                    inh_b.extend((_inherit(birth_drift, parent_b, rng),
-                                  _inherit(birth_drift, parent_b, rng)))
-                    inh_d.extend((_inherit(death_drift, parent_d, rng),
-                                  _inherit(death_drift, parent_d, rng)))
+                    # neither, so nothing is drawn and the product stays 1.0). One cache per
+                    # daughter, so a modifier written on both rates draws once for that daughter;
+                    # the birth pass still runs before the death pass, which keeps the draw order
+                    # of a run that shares nothing exactly as it was.
+                    d1: dict[int, float] = {}
+                    d2: dict[int, float] = {}
+                    inh_b.extend((_inherit(birth_drift, parent_b, rng, d1),
+                                  _inherit(birth_drift, parent_b, rng, d2)))
+                    inh_d.extend((_inherit(death_drift, parent_d, rng, d1),
+                                  _inherit(death_drift, parent_d, rng, d2)))
                     events.append(Event(t, "speciation", node, (c1, c2)))
                 else:
                     nodes[node].end_time = t

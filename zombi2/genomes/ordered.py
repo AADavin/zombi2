@@ -1384,8 +1384,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         family_counter += 1
         if any_family:
             speed = family_speed.draw(rng) if family_speed is not None else 1.0
+            # one draw per distinct modifier object for this family, shared across its rates (see
+            # `draw_product`): one object written on two rates is one number.
+            drawn: dict[int, float] = {}
             for key, mods in fam_by.items():
-                fam_mult[key][f] = speed * draw_product(mods, rng)
+                fam_mult[key][f] = speed * draw_product(mods, rng, drawn)
         return f
 
     def new_chromosome() -> int:

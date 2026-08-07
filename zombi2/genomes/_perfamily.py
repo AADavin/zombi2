@@ -234,9 +234,10 @@ def _family_mults(rng, family_speed, fam_by):
     its own. The draw order is fixed — speed, then duplication / transfer / loss, and within a rate the
     order its modifiers were written — so it is reproducible. ``1.0`` where a rate carries neither."""
     speed = family_speed.draw(rng) if family_speed is not None else 1.0
+    drawn: dict[int, float] = {}     # shared across this family's rates: one object, one number
     out = {}
     for key in ("duplication", "transfer", "loss"):
-        out[key] = speed * draw_product(fam_by.get(key, ()), rng)
+        out[key] = speed * draw_product(fam_by.get(key, ()), rng, drawn)
     return out
 
 
