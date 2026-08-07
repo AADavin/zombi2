@@ -9,6 +9,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+- **A species rate carrying two per-lineage modifiers now applies both.** The engine looked for
+  *the* `FromParent` or `ByLineage` modifier on a rate and stopped at the first match, so a second
+  one was dropped without a word — while the run's own log still reported the rate as written, so
+  the recorded model was not the model simulated. Every modifier now declares which kind of value
+  it reads and on what unit (`Modifier.reads`), and a level asks for them with `Rate.carried`
+  rather than testing classes, which also means a per-lineage modifier the species engine has never
+  heard of is threaded like the two it has. A rate with one such modifier draws exactly as before,
+  seed for seed.
+
 ## [0.31.0] - 2026-08-05
 
 ### Changed

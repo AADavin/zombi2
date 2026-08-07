@@ -25,7 +25,23 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, ClassVar, Mapping
+
+#: The kinds of value a modifier can read, as the second half of `Modifier.reads`.
+#:
+#: A modifier is a *reading* of a **value**, and a value is made in one of a few ways. The kind says
+#: which, and it decides who is responsible for the number: ``measured`` values the engine already
+#: knows (the clock, a count) and a modifier computes its factor from the context; ``drawn`` and
+#: ``inherited`` values have to be produced once per unit, remembered, and handed back, which only
+#: the engine can do because it owns the generator and knows when units are born.
+MEASURED = "measured"      # computed from the run's state whenever it is read
+DRAWN = "drawn"            # drawn at random when the unit is created, then fixed
+INHERITED = "inherited"    # the parent's, perturbed at each split
+DRIVEN = "driven"          # another level's value: recorded beforehand, or growing alongside
+
+#: The kinds the **engine** must draw and carry per unit, rather than a modifier computing them.
+#: `Rate.carried` is the query that finds them.
+CARRIED_KINDS = (DRAWN, INHERITED)
 
 
 def is_implemented(m: "Modifier", engines: tuple[type, ...], engine: str) -> bool:
@@ -43,6 +59,20 @@ class Modifier:
     ``branch``, ``family``, …) and returns a dimensionless, non-negative multiplier;
     it ignores the rest. Abstract — use a subclass.
     """
+
+    #: What this modifier reads, as ``(kind, unit)`` — the value's kind (one of `MEASURED`,
+    #: `DRAWN`, `INHERITED`, `DRIVEN`) and the unit it lives on (``"run"``, ``"lineage"``,
+    #: ``"family"``, …). It is SPEC §5's preposition table, written where the code can read it:
+    #: ``On`` is a measured value, ``By`` a drawn one, ``From`` an inherited one, and ``DrivenBy``
+    #: another level's.
+    #:
+    #: The split it records is the useful one. A **measured** value is one the engine already has,
+    #: so the modifier computes its own factor from the context and the engine does nothing. A
+    #: **drawn** or **inherited** value has to be produced once per unit, remembered for that
+    #: unit's life, and handed back at every evaluation — which only the engine can do, because it
+    #: owns the generator and knows when a unit is born. Those are the kinds in `CARRIED_KINDS`,
+    #: and `Rate.carried` is how an engine asks for them without knowing which classes exist.
+    reads: ClassVar[tuple[str, str] | None] = None
 
     #: The engines a **third-party** modifier declares itself implemented for. Each engine ships an
     #: ``IMPLEMENTED_MODIFIERS`` tuple and refuses anything outside it, because a modifier it never
@@ -131,6 +161,8 @@ class OnTime(Modifier):
     from time 0 to avoid surprise).
     """
 
+    reads: ClassVar[tuple[str, str] | None] = (MEASURED, "run")
+
     def __init__(self, schedule: Mapping[float, float]) -> None:
         steps = tuple(sorted((float(t), float(f)) for t, f in schedule.items()))
         if not steps:
@@ -181,6 +213,8 @@ class OnTotalDiversity(Modifier):
     lineages and stops it at 100.
     """
 
+    reads: ClassVar[tuple[str, str] | None] = (MEASURED, "run")
+
     cap: float
 
     def __post_init__(self) -> None:
@@ -217,6 +251,8 @@ class FromParent(Modifier):
     perturbed. ``None`` (the default) is the continuous form, so a run written before this existed
     draws exactly as it did.
     """
+
+    reads: ClassVar[tuple[str, str] | None] = (INHERITED, "lineage")
 
     spread: float
     bins: int | None = None
@@ -291,6 +327,8 @@ class ByLineage(Modifier):
     It is the lineage-twin of the genome level's ``ByFamily``.
     """
 
+    reads: ClassVar[tuple[str, str] | None] = (DRAWN, "lineage")
+
     spread: float
     dist: str = "lognormal"
 
@@ -342,6 +380,8 @@ class ByFamily(Modifier):
     it is read there is no family to have drawn a factor for. The engine rejects it rather than
     quietly ignoring it.
     """
+
+    reads: ClassVar[tuple[str, str] | None] = (DRAWN, "family")
 
     spread: float
     dist: str = "lognormal"
@@ -408,6 +448,12 @@ class DrivenBy(Modifier):
     engine that has not threaded its ``driver`` gets a factor of 1.0 (inert).
     """
 
+    #: A driven value is *not* carried: the engine resolves it per lineage into ``drivers`` and this
+    #: modifier maps it, whether it was recorded beforehand (conditioned) or is growing alongside
+    #: (joint). Which of those it is depends on the ``driver`` argument, not on the class, so the
+    #: kind here is the pair's shared name rather than one of them.
+    reads: ClassVar[tuple[str, str] | None] = (DRIVEN, "lineage")
+
     def __init__(self, driver: object, mapping: object, step: float | None = None) -> None:
         from .mapping import as_mapping
 
@@ -457,4 +503,5 @@ class DrivenBy(Modifier):
 
 
 __all__ = ["Modifier", "OnTime", "OnTotalDiversity", "FromParent", "ByLineage",
-           "ByFamily", "DrivenBy"]
+           "ByFamily", "DrivenBy",
+           "MEASURED", "DRAWN", "INHERITED", "DRIVEN", "CARRIED_KINDS"]
