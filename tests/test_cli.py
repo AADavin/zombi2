@@ -1804,23 +1804,7 @@ def test_max_family_size_rejects_a_non_number(tmp_path, tree_file):
     assert e.value.code == 2
 
 
-def test_family_speed_takes_a_byfamily_draw(tmp_path, tree_file):
-    rc = main(["genomes", str(tmp_path / "fs"), "--from", str(tree_file), "--duplication", "0.4",
-               "--loss", "0.2", "--origination", "0.3", "--initial-families", "8",
-               "--family-speed", "ByFamily(spread=0.6)", "--seed", "1", "--flat", "--quiet"])
-    assert rc == 0
-
-
-def test_family_speed_rejects_a_bare_number(tmp_path, tree_file):
-    """It is a *draw*, not a factor — a plain number would silently mean something else."""
-    with pytest.raises(SystemExit) as e:
-        main(["genomes", str(tmp_path / "g"), "--from", str(tree_file),
-              "--family-speed", "2.0", "--flat"])
-    assert e.value.code == 2
-
-
-@pytest.mark.parametrize("flag, value", [("--max-family-size", "5"),
-                                         ("--family-speed", "ByFamily(spread=0.5)")])
+@pytest.mark.parametrize("flag, value", [("--max-family-size", "5")])
 def test_the_family_knobs_are_refused_under_nucleotide(tmp_path, tree_file, flag, value):
     """Each is absent there for its own reason, and the error says which rather than giving one
     blanket explanation that fits some of the group and not the rest."""
@@ -1920,7 +1904,7 @@ def test_the_log_records_the_options_this_resolution_has(tmp_path, tree_file):
     keys = lambda log: {ln.split("\t")[0] for ln in log.splitlines() if "\t" in ln}
 
     assert not keys(fam_log) & {"root_length", "gene_length", "inversion", "chromosomes", "gff"}
-    assert not keys(nuc_log) & {"initial_families", "replacement", "family_speed"}
+    assert not keys(nuc_log) & {"initial_families", "replacement", "max_family_size"}
     assert "root_length" in keys(nuc_log)          # ...and it does record what it HAS
     assert {"duplication", "seed", "resolution"} <= keys(fam_log)
 

@@ -51,7 +51,7 @@ _PARAM_ORDER = ("resolution", "kind", "model", "birth", "death", "n_extant", "to
                 "fossils", "mass_extinction", "initial_families", "origination", "duplication",
                 "transfer", "loss", "transfer_to", "self_transfer", "replacement", "max_family_size",
                 "inversion", "chromosomes", "length", "divergence", "kappa", "frequencies",
-                "substitution", "family_speed", "rate", "reverts_to", "pull", "states", "switch")
+                "substitution", "rate", "reverts_to", "pull", "states", "switch")
 
 #: Prettier labels for a few summary keys / parameters; everything else has its underscores turned to
 #: spaces. Kept small on purpose — a key that reads fine as-is does not need an entry.

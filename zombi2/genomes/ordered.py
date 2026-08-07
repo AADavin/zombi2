@@ -1121,7 +1121,6 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              translocation_extent=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
                              initial_families=100, family_names=None, modules=None,
-                             family_speed=None,
                              max_family_size=10, seed=None,
                              progress=False) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
@@ -1227,7 +1226,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     "origination carries ByFamily, but origination is the rate at which families are "
                     "CREATED — when it is read there is no family yet to have drawn a factor for. "
                     "Put ByFamily on duplication, transfer, loss, inversion, transposition or "
-                    "translocation, or use family_speed= for a family-wide tempo.")
+                    "translocation; writing one ByFamily object on several of them gives a "
+                    "family-wide tempo, since one object is one draw.")
             if isinstance(m, ByFamily) and not isinstance(rate.scope, PerCopy):
                 raise ValueError(
                     f"{label} carries ByFamily on a {type(rate.scope).__name__} scope. A per-family "
@@ -1250,17 +1250,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     inv, trp, trl = _rates["inversion"], _rates["transposition"], _rates["translocation"]
     fis, fus = _rates["fission"], _rates["fusion"]
     cor, clo = _rates["chromosome_origination"], _rates["chromosome_loss"]
-    if family_speed is not None and not isinstance(family_speed, ByFamily):
-        raise ValueError(
-            f"family_speed must be a ByFamily(...) draw, got {type(family_speed).__name__}.")
-    if (family_speed is not None
-            or any(isinstance(m, ByFamily) for r in _rates.values() for m in r.modifiers)) and \
+    if any(isinstance(m, ByFamily) for r in _rates.values() for m in r.modifiers) and \
             any(isinstance(m, DrivenBy) for r in _rates.values() for m in r.modifiers):
         raise ValueError(
             "ByFamily and DrivenBy on the same run is a later slice: one weights lineages by a "
             "driver and the other weights the segment by what it covers, so combining them means "
-            "weighting by the product. Use one or the other for now. (family_speed= is a ByFamily "
-            "draw too, so it counts here.)")
+            "weighting by the product. Use one or the other for now.")
     # per-event extent distributions (segment size in genes); a bare number is the mean, None a single gene
     def _ext_spec(spec, label):
         """One event's extent (SPEC §6): ``base × modifiers``, no scope, in **genes** here. An extent
@@ -1277,7 +1272,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     f"{label} carries ByFamily, which an extent cannot mean: the size is drawn before "
                     f"the run's genes are known, and a run covers several families, so there is no "
                     f"one family to draw a factor for. Put ByFamily on {rate_slot}, where it weights "
-                    f"the segment by what it covers, or use family_speed= for a family-wide tempo.")
+                    f"the segment by what it covers.")
             if not is_implemented(m, IMPLEMENTED_EXTENT_MODIFIERS, "genomes.ordered"):
                 raise ValueError(
                     f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
@@ -1364,18 +1359,17 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         copy_counter += 1
         return g
 
-    # Per-family multipliers, drawn once when a family is minted and fixed for its whole life, exactly
-    # as at the family resolution: family_speed scales every rate that family has (one draw), a
-    # ByFamily on a single rate varies that rate alone (its own draw). What differs here is where the
-    # weight lands — on the run an event covers, not on the gene it started from (SPEC §6). Empty
-    # unless one of them is used, and a run without either is byte-identical to the plain path.
+    # Per-family multipliers, drawn once when a family is created and fixed for its whole life,
+    # exactly as at the family resolution: one ByFamily object read by two rates is one draw for
+    # both, two objects are two draws. What differs here is where the weight lands — on the run an
+    # event covers, not on the gene it started from (SPEC §6). Empty unless some rate carries one.
     fam_by = {"duplication": tuple(m for m, _ in dup.carried(unit="family")),
               "transfer": tuple(m for m, _ in tra.carried(unit="family")),
               "loss": tuple(m for m, _ in los.carried(unit="family")),
               "inversion": tuple(m for m, _ in inv.carried(unit="family")),
               "transposition": tuple(m for m, _ in trp.carried(unit="family")),
               "translocation": tuple(m for m, _ in trl.carried(unit="family"))}
-    any_family = family_speed is not None or any(fam_by.values())
+    any_family = any(fam_by.values())
     fam_mult: dict[str, dict[int, float]] = {key: {} for key in fam_by}
 
     def new_family() -> int:
@@ -1383,12 +1377,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         f = family_counter
         family_counter += 1
         if any_family:
-            speed = family_speed.draw(rng) if family_speed is not None else 1.0
             # one draw per distinct modifier object for this family, shared across its rates (see
             # `draw_product`): one object written on two rates is one number.
             drawn: dict[int, float] = {}
             for key, mods in fam_by.items():
-                fam_mult[key][f] = speed * draw_product(mods, rng, drawn)
+                fam_mult[key][f] = draw_product(mods, rng, drawn)
         return f
 
     def new_chromosome() -> int:
