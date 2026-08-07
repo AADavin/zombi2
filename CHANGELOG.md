@@ -10,6 +10,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **Appendix B states the output-table contract: columns may be added, so read them by name.** New
+  columns go at the end of a row; an existing column's name and meaning never change, and none is
+  removed within a major version. It documents what these tables have always required — the same
+  filename already has five columns at the family resolution and ten at the ordered one — and it is
+  what lets a later version record something new (a mechanism, a second subject) without breaking
+  every script that parses a run.
 - **`SetBy` states a driven parameter absolutely instead of as a multiple.** Only the three levels
   that can honour a replaced base accept it — the family and ordered genome resolutions, and a
   continuous trait's rate — and each declares it by name, because `SetBy` is a `DrivenBy` and a gate
