@@ -1,0 +1,89 @@
+<svg viewBox="0 0 660 252" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
+<title>The two kinds of trait: a value that drifts, and a state that switches</title>
+<desc>The same four-tip tree twice. On the left a continuous trait: it starts at 0 at the origin and drifts along every branch, so each tip ends at its own number. On the right a discrete trait: it sits in one state and switches to the other at two moments, marked with dots, so the branches below each switch are in the second state and the tips are chips of one state or the other.</desc>
+<!-- The same tree twice, so the only difference a reader sees is the trait. Drawing two different
+     trees would invite the difference to be read as something about the trees.
+     The continuous panel puts the number at the tip rather than drawing a wandering line along the
+     branch: chapter 8's continuous run reports a value per node, and a drawn path would promise a
+     within-branch trajectory the output does not contain.
+     The discrete panel marks the switch with a dot because that is the event the log records
+     (`on_branch`); a switch AT a split is a different record and is not drawn here.
+     Colours are presentation ATTRIBUTES and literals, not CSS custom properties: GitHub's SVG
+     sanitiser drops the style element and librsvg resolves no custom properties, so a figure whose
+     fills live in either renders as black-on-black. The dark-mode rules below still win wherever
+     CSS survives, because CSS outranks a presentation attribute. Keep it this way. -->
+<style>
+  @media (prefers-color-scheme: dark) {
+    .lbl{fill:#e7ebe9}
+    .dim{fill:#9aa3a0}
+    .edge{stroke:#e7ebe9}
+    .edge2{stroke:#8d9599}
+    .on{fill:#e7ebe9;stroke:#e7ebe9}
+    .off{fill:#191d20;stroke:#e7ebe9}
+  }
+</style>
+
+<!-- panel headings -->
+<g class="lbl" fill="#1a1a1a" font-size="15" text-anchor="middle">
+  <text x="140" y="24">a continuous trait</text>
+  <text x="490" y="24">a discrete trait</text>
+</g>
+<g class="dim" fill="#6e6e6e" font-size="12.5" font-style="italic" text-anchor="middle">
+  <text x="140" y="43">a value that drifts along every branch</text>
+  <text x="490" y="43">a state that switches now and then</text>
+</g>
+
+<!-- LEFT: one tree, one number per tip -->
+<g class="edge" stroke="#1a1a1a" stroke-width="1.9" fill="none" stroke-linecap="round">
+  <path d="M 20,140 L 70,140"/>
+  <path d="M 70,90 L 70,190"/>
+  <path d="M 70,90 L 130,90"/>
+  <path d="M 130,65 L 130,115"/>
+  <path d="M 130,65 L 250,65"/>
+  <path d="M 130,115 L 250,115"/>
+  <path d="M 70,190 L 170,190"/>
+  <path d="M 170,165 L 170,215"/>
+  <path d="M 170,165 L 250,165"/>
+  <path d="M 170,215 L 250,215"/>
+</g>
+<g class="dim" fill="#6e6e6e" font-size="12.5" text-anchor="middle">
+  <text x="45" y="132">0.0</text>
+</g>
+<g class="lbl" fill="#1a1a1a" font-size="13">
+  <text x="258" y="70">1.4</text>
+  <text x="258" y="120">-0.6</text>
+  <text x="258" y="170">2.7</text>
+  <text x="258" y="220">2.2</text>
+</g>
+
+<!-- RIGHT: the same tree, in two states, with the switch marked where it happens -->
+<g class="edge" stroke="#1a1a1a" stroke-width="1.9" fill="none" stroke-linecap="round">
+  <path d="M 370,140 L 420,140"/>
+  <path d="M 420,90 L 420,190"/>
+  <path d="M 420,90 L 480,90"/>
+  <path d="M 480,65 L 480,115"/>
+  <path d="M 480,65 L 600,65"/>
+  <path d="M 480,115 L 540,115"/>
+  <path d="M 420,190 L 470,190"/>
+</g>
+<g class="edge2" stroke="#9a9a9a" stroke-width="1.9" fill="none" stroke-linecap="round">
+  <path d="M 540,115 L 600,115"/>
+  <path d="M 470,190 L 520,190"/>
+  <path d="M 520,165 L 520,215"/>
+  <path d="M 520,165 L 600,165"/>
+  <path d="M 520,215 L 600,215"/>
+</g>
+<g class="on" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.2">
+  <circle cx="540" cy="115" r="3.4"/>
+  <circle cx="470" cy="190" r="3.4"/>
+</g>
+<!-- the tips, as a chip of the state they ended in -->
+<g class="on" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.3">
+  <rect x="608" y="59" width="11" height="11"/>
+</g>
+<g class="off" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.3">
+  <rect x="608" y="109" width="11" height="11"/>
+  <rect x="608" y="159" width="11" height="11"/>
+  <rect x="608" y="209" width="11" height="11"/>
+</g>
+</svg>

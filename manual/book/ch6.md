@@ -92,6 +92,8 @@ A transfer here is always **additive**, since the donor keeps its copy, so steer
 
 ## Genes are never split
 
+![Why a gene is never split. The strip beneath the replicon is the set of positions a breakpoint may take: every stretch of spacer, and no part of a gene. An event's two ends are drawn from that strip in the first place, rather than drawn anywhere and repaired afterwards, so the deletion above either takes gene 2 whole or does not touch it. A genome with no spacer at all is still legal: the strip is then just the joins between genes, and events move genes around whole.](figures/legal_breakpoints_print.png){width=100%}
+
 An event either **engulfs a gene whole** or leaves it alone; a breakpoint never falls strictly inside one. So an event does not pick an arc and then clean up afterwards. Both of its ends are drawn **directly from the positions where a breakpoint is legal**. A genome can therefore be **all gene, with no spacer at all**: ten 100 bp genes in 1000 bp is a legal genome, and it evolves. Its breakpoints simply all fall at the joins between genes, so genes are inverted, moved, duplicated and lost whole. Genes may sit flush; they are not required to leave a gap.
 
 Two leaves of the same run show what those events did. Each line is a **block**: a stretch of DNA with one unbroken ancestry, written as the interval it came from on the initial sequence, read forward (`+`) or reverse-complemented (`−`). A gene is always one block, because nothing may cut it. Spacer is not, so a run of several intergene lines in a row is simply spacer that has been cut apart and rearranged: the accumulated breakpoints of everything that happened to that lineage.
