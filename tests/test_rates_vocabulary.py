@@ -1,9 +1,8 @@
 """The grid spelling — `values` and `verbs`.
 
-A value is two independent facts, what it is attached to and how its number is made, and a verb says
-what a parameter does with that number. The six modifiers are six cells of that grid rather than six
-mechanisms, so both spellings build the same object and a run is unchanged. What the grid buys is
-that the *next* cell needs no new class and no invented name.
+A value is two independent facts: what it is attached to, and how its number is made. A verb says
+what a parameter does with that number. Keeping the two apart is what lets one class cover a whole
+row, so the *next* cell needs no new class and no invented name.
 """
 
 from __future__ import annotations
@@ -16,50 +15,36 @@ from zombi2.rates import modifiers as mod
 from zombi2.species import simulate_species_tree
 
 
-class TestTheGridBuildsTodaysObjects:
-    """Each cell is a name for something that already exists, so nothing downstream changes."""
+class TestTheGridBuildsWhatTheEnginesRun:
+    """A value is a unit plus a way of making its number, and the verbs build the objects the engines
+    already dispatch on — so the grammar is a spelling, not a second machine."""
 
-    @pytest.mark.parametrize("grid, listed", [
-        (Drawn(per="family", spread=0.5), mod.ByFamily(spread=0.5)),
-        (Drawn(per="lineage", spread=0.3), mod.ByLineage(spread=0.3)),
-        (Drawn(per="family", spread=0.5, dist="gamma"), mod.ByFamily(spread=0.5, dist="gamma")),
-        (Inherited(per="lineage", spread=0.2), mod.FromParent(spread=0.2)),
-        (Inherited(per="lineage", spread=0.2, bins=4), mod.FromParent(spread=0.2, bins=4)),
-        (ScaledBy(Time(), {0: 1.0, 3: 0.3}), mod.OnTime({0: 1.0, 3: 0.3})),
-        (ScaledBy("habitat.tsv", {"cave": 4.0}), mod.DrivenBy("habitat.tsv", {"cave": 4.0})),
-        (Weights("habitat.tsv", {"cave": 4.0}), mod.DrivenBy("habitat.tsv", {"cave": 4.0})),
+    def test_a_drawn_cell_reports_its_kind_and_unit(self):
+        for unit in ("family", "lineage", "chromosome", "site"):
+            assert Drawn(per=unit, spread=0.5).reads == ("drawn", unit)
+
+    def test_an_inherited_cell_reports_its_kind_and_unit(self):
+        assert Inherited(per="lineage", spread=0.2).reads == ("inherited", "lineage")
+
+    @pytest.mark.parametrize("built, expected", [
+        (ScaledBy(Time(), {0: 1.0, 3: 0.3}), mod.OnTime),
+        (ScaledBy("habitat.tsv", {"cave": 4.0}), mod.DrivenBy),
+        (Weights("habitat.tsv", {"cave": 4.0}), mod.DrivenBy),
+        (SetBy("habitat.tsv", {"cave": 1.0}), mod.SetBy),
     ])
-    def test_a_cell_is_the_modifier_it_names(self, grid, listed):
-        assert grid == listed
-        assert type(grid) is type(listed)
+    def test_a_verb_builds_the_modifier_the_engines_dispatch_on(self, built, expected):
+        assert type(built) is expected
 
+    def test_spread_is_a_lognormal_and_dist_is_anything_else(self):
+        """``spread=σ`` *is* ``dist=LogNormal(0.0, σ)``; the two spellings are one modifier."""
+        from zombi2.rates.distributions import LogNormal
+        assert Drawn(per="family", spread=0.5) == Drawn(per="family", dist=LogNormal(0.0, 0.5))
 
-class TestARunIsUnchanged:
-    """The point of a renaming that is not a rewrite: seed for seed, the same events."""
-
-    def test_inherited_matches_fromparent(self):
-        def run(m):
-            return [(e.time, e.kind, e.node) for e in
-                    simulate_species_tree(birth=1.0 * m, death=0.2, n_extant=40, seed=9).events]
-
-        assert run(Inherited(per="lineage", spread=0.2)) == run(mod.FromParent(spread=0.2))
-
-    def test_scaledby_time_matches_ontime(self):
-        def run(m):
-            return [(e.time, e.kind) for e in
-                    simulate_species_tree(birth=1.0 * m, death=0.2, n_extant=40, seed=9).events]
-
-        assert run(ScaledBy(Time(), {0: 1.0, 1: 0.3})) == run(mod.OnTime({0: 1.0, 1: 0.3}))
-
-    def test_drawn_per_family_matches_byfamily(self):
-        tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=20, seed=4).complete_tree
-
-        def run(m):
-            g = genomes.simulate_genomes_family(tree, duplication=0.3, loss=0.3 * m,
-                                                initial_families=30, seed=2)
-            return [(e.time, e.kind, e.family) for e in g.events]
-
-        assert run(Drawn(per="family", spread=0.6)) == run(mod.ByFamily(spread=0.6))
+    def test_giving_both_or_neither_is_refused(self):
+        from zombi2.rates.distributions import Gamma
+        for kwargs in ({}, {"spread": 0.5, "dist": Gamma(2.0, 0.5)}):
+            with pytest.raises(ValueError, match="a spread or a dist"):
+                Drawn(per="family", **kwargs)
 
 
 class TestACellNobodyBuiltRefusesByName:
@@ -79,7 +64,7 @@ class TestACellNobodyBuiltRefusesByName:
     def test_a_cell_the_wrong_level_carries_is_named_by_its_cell(self):
         """`Drawn` covers a whole row, so "carries Drawn" would be true and useless — the question is
         always *per what*."""
-        with pytest.raises(ValueError, match="ByLineage"):
+        with pytest.raises(ValueError, match="drawn per lineage"):
             genomes.simulate_genomes_family(
                 simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=1).complete_tree,
                 loss=0.2 * Drawn(per="lineage", spread=0.5), initial_families=3, seed=1)
@@ -104,10 +89,10 @@ class TestTheVerbsAreForValuesNotFactors:
 
     def test_wrapping_a_draw_in_a_verb_is_refused(self):
         """A draw is already a factor; a verb is for a value a mapping has to turn into one. Catching
-        it here is worth a line, because `ScaledBy(ByFamily(...))` reads plausibly and would
+        it here is worth a line, because `ScaledBy(Drawn(per='family', ...))` reads plausibly and would
         otherwise be threaded as a driver that never resolves."""
         with pytest.raises(TypeError, match="already a factor"):
-            ScaledBy(mod.ByFamily(spread=0.5))
+            ScaledBy(Drawn(per="family", spread=0.5))
 
     def test_a_verb_without_a_mapping_says_what_a_mapping_is(self):
         with pytest.raises(ValueError, match="needs a mapping"):

@@ -137,7 +137,7 @@ def test_write_rejects_unknown_output(tmp_path):
 # --- input validation (what the engine deliberately does not wire) --------------
 
 def test_rejects_an_unknown_modifier():
-    # OnTime (early burst), FromParent (variable-rates BM) and OnTotalDiversity (diversity-dependent) are wired;
+    # OnTime (early burst) (variable-rates BM) and OnTotalDiversity (diversity-dependent) are wired;
     # any other Modifier is rejected loudly
     class _Bogus(mod.Modifier):
         def factor(self, **_):
@@ -363,7 +363,7 @@ def _vrbm_tips(spread, n_rep=2500):
     tips = sorted(n.id for n in tree.extant_leaves())
     depth = tree.nodes[tips[0]].end_time
     data = np.array([
-        [simulate_continuous(tree, start=0.0, rate=2.0 * mod.FromParent(spread=spread),
+        [simulate_continuous(tree, start=0.0, rate=2.0 * mod.Inherited(per='lineage', spread=spread),
                              seed=s).node_values[i] for i in tips] for s in range(n_rep)
     ])
     return data, depth
@@ -394,7 +394,7 @@ def test_variable_rates_composes_with_time():
     tips = sorted(n.id for n in tree.extant_leaves())
     T = tree.nodes[tips[0]].end_time
     base, c, tau = 2.0, 0.25, 0.4 * T
-    rate = base * mod.OnTime({0.0: 1.0, tau: c}) * mod.FromParent(spread=0.8)
+    rate = base * mod.OnTime({0.0: 1.0, tau: c}) * mod.Inherited(per='lineage', spread=0.8)
     data = np.array([
         [simulate_continuous(tree, start=0.0, rate=rate, seed=s).node_values[i] for i in tips]
         for s in range(2500)
@@ -404,7 +404,7 @@ def test_variable_rates_composes_with_time():
 
 def test_variable_rates_deterministic():
     sp = _tree(seed=2)
-    rate = 1.0 * mod.FromParent(spread=0.5)
+    rate = 1.0 * mod.Inherited(per='lineage', spread=0.5)
     assert simulate_continuous(sp, rate=rate, seed=4).node_values == \
         simulate_continuous(sp, rate=rate, seed=4).node_values
 
@@ -425,7 +425,7 @@ def test_ou_with_from_parent_keeps_the_ou_variance_and_gets_heavy_tails():
                                               seed=s).node_values[i] for i in tips]
                          for s in range(n_rep)])
 
-    drift = tips_under(sigma2 * mod.FromParent(spread=0.8))
+    drift = tips_under(sigma2 * mod.Inherited(per='lineage', spread=0.8))
     flat = tips_under(sigma2)
     expected = sigma2 / (2 * alpha) * (1 - math.exp(-2 * alpha * T))
     assert np.allclose(drift.var(axis=0), expected, rtol=0.12)
@@ -442,15 +442,15 @@ def test_two_inherited_drifts_compose_rather_than_being_refused():
     with a drawn one is what raises, and that check now lives in one place for every level."""
     sp = _tree(seed=1)
     res = simulate_continuous(
-        sp, rate=1.0 * mod.FromParent(spread=0.2) * mod.FromParent(spread=0.3), seed=1)
+        sp, rate=1.0 * mod.Inherited(per='lineage', spread=0.2) * mod.Inherited(per='lineage', spread=0.3), seed=1)
     assert len(res.node_values) == len(sp.complete_tree.nodes)
 
-    one = simulate_continuous(sp, rate=1.0 * mod.FromParent(spread=0.2), seed=1)
+    one = simulate_continuous(sp, rate=1.0 * mod.Inherited(per='lineage', spread=0.2), seed=1)
     assert res.node_values != one.node_values          # the second drift really is in the run
 
 
 def test_bm_unchanged_by_the_inherited_wiring():
-    # a bare rate carries no FromParent, so it must draw no extra rng and stay byte-identical to slice 1
+    # a bare rate carries no so it must draw no extra rng and stay byte-identical to slice 1
     sp = _tree(seed=3, death=0.4)
     a = simulate_continuous(sp, start=0.0, rate=1.5, seed=1)
     # reproduced from an independent run — the plain-BM path is untouched by the drift threading
@@ -533,7 +533,7 @@ def test_diversity_composes_with_inherited():
     tips = sorted(n.id for n in tree.extant_leaves())
     T = tree.nodes[tips[0]].end_time
     base, cap = 2.0, 6.0
-    rate = base * mod.OnTotalDiversity(cap=cap) * mod.FromParent(spread=0.6)
+    rate = base * mod.OnTotalDiversity(cap=cap) * mod.Inherited(per='lineage', spread=0.6)
     data = np.array([
         [simulate_continuous(tree, start=0.0, rate=rate, seed=s).node_values[i] for i in tips]
         for s in range(2000)

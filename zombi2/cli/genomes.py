@@ -51,7 +51,7 @@ RATES_HELP = _rates_help(
          "Between(...) belongs — a weight per (donor, recipient) pair — which a rate or an extent "
          "refuses. "
          "--resolution ordered takes " + ", ".join(cell_name(m) for m in _ORDERED_IMPLEMENTED) +
-         ", though not ByFamily and DrivenBy in one run; nucleotide, " +
+         ", though not Drawn(per='family') and DrivenBy in one run; nucleotide, " +
          ", ".join(cell_name(m) for m in _NUC_IMPLEMENTED) + ".")
 
 # The write vocabularies, read off the results themselves. They used to be hand-copied here, with a

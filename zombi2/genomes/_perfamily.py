@@ -22,7 +22,7 @@ and read it from module state.
 
 The realisation differs from the serial reference engine for a given seed (a different, equally valid
 draw — the "A" decision). Everything the family resolution accepts runs here: duplication / transfer /
-loss / origination, every recipient rule, skyline ``OnTime``, the family cap, ``ByFamily``
+loss / origination, every recipient rule, skyline ``OnTime``, the family cap, a per-family draw
 heterogeneity, ``self_transfer``, ``replacement``, named families — and a
 **conditioned** rate, which does not couple families either: a ``DrivenBy`` driver was grown before
 this run and is an input to it, so a lineage's factor is the same number whichever family is asking.
@@ -153,7 +153,7 @@ class FamilyContext:
     """Everything constant across a run's families — the read-only context `simulate_one_family()`
     evolves each family against. Built once by `prepare_family_context()` and, in the parallel
     engine, shipped to each worker a single time via the pool initializer (never re-pickled per family).
-    Holds the tree, the D/T/L rates and their per-family ``ByFamily`` slots, the transfer settings, the
+    Holds the tree, the D/T/L rates and their per-family a per-family draw slots, the transfer settings, the
     family cap, and the precomputed contemporaneous-lineage schedule (sorted birth / death times whose
     two pointers give the set alive at any instant, plus the times the "≥ 2 lineages" transfer gate
     flips). Origination is *not* here: a family's origination point is an input to
@@ -230,7 +230,7 @@ def _init_worker(ctx, stream=None) -> None:
 def _family_mults(rng, fam_by):
     """The family's rate multipliers, drawn once from its own stream (so they are worker-invariant).
     The draw order is fixed — duplication, then transfer, then loss, and within a rate the order its
-    modifiers were written — so it is reproducible. ``1.0`` where a rate carries none. One ByFamily
+    modifiers were written — so it is reproducible. ``1.0`` where a rate carries none. One per-family draw
     object read by two rates is one draw shared between them, which is how a family-wide tempo is
     said."""
     drawn: dict[int, float] = {}     # shared across this family's rates: one object, one number

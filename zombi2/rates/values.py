@@ -18,7 +18,7 @@ imported as one surface. `Time` is here because it is a value that is **not** a 
 through a verb (``ScaledBy(Time(), …)``), where a draw is already a factor and needs none.
 
 **The named cells are the same six models the ``mod.`` names have always given you**, written as a
-grid rather than as a list: ``Drawn(per="family", …)`` *is* ``ByFamily(…)``, and both build the
+grid rather than as a list: ``Drawn(per="family", …)`` says a draw attached to a family, and one class covers
 identical object, so a run is unchanged and a script written either way behaves the same. The old
 names stay; they are the names of cells, kept because each names a model people cite.
 

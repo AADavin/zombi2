@@ -27,7 +27,7 @@ def test_a_bare_number_is_the_mean_not_a_fixed_size():
     ``Fixed`` — the right call for a sampled rate, the wrong one for a segment size."""
     d = as_extent(5)
     assert isinstance(d, Extent)
-    assert isinstance(d.base, Geometric) and d.base.mean == 5.0
+    assert isinstance(d.base, Geometric) and d.base.mean() == 5.0
     assert isinstance(as_distribution(5), Fixed)          # the sibling reading, deliberately unchanged
 
     rng = np.random.default_rng(0)
@@ -38,7 +38,7 @@ def test_a_bare_number_is_the_mean_not_a_fixed_size():
 
 def test_none_is_a_single_unit():
     d = as_extent(None)
-    assert isinstance(d.base, Geometric) and d.base.mean == 1.0
+    assert isinstance(d.base, Geometric) and d.base.mean() == 1.0
     rng = np.random.default_rng(0)
     assert {d.sample(rng) for _ in range(200)} == {1.0}    # Geometric(mean=1) is degenerate at 1
 
@@ -208,4 +208,4 @@ def test_nucleotide_refuses_an_unwired_extent_modifier(tree):
     from zombi2.rates import modifiers as mod
     with pytest.raises(ValueError, match="an extent takes the same modifiers a rate does"):
         simulate_genomes_nucleotide(tree, root_length=2000, loss=0.5,
-                                    loss_extent=200 * mod.ByFamily(spread=0.5), seed=1)
+                                    loss_extent=200 * mod.Drawn(per='family', spread=0.5), seed=1)

@@ -7,7 +7,7 @@ Shared by every level, so it lives in one place. Reach the pieces as submodules:
     birth = 1.0 * modifiers.OnTime({0: 1.0, 3: 0.3})
 
 - ``scope`` — *per what?* ``PerCopy`` · ``PerLineage`` · ``PerSite`` · ``Global``
-- ``modifiers`` — *depends on what?* ``OnTime`` · ``OnTotalDiversity`` · ``FromParent``
+- ``modifiers`` — *depends on what?* ``OnTime`` · ``OnTotalDiversity`` · an inherited value
 - ``values`` / ``verbs`` — the grammar's two halves, written as a grid rather than a list:
   ``Drawn(per="family", spread=0.5)`` is what a value *is*, ``ScaledBy(habitat, {...})`` what a
   parameter *does* with it. They build the same objects ``modifiers`` does, so both spellings run

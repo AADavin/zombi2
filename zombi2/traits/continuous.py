@@ -79,12 +79,12 @@ def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "
     exactly ``σ²·e^{−2α(t1−b)}·(1−e^{−2α(b−a)})/(2α)``, written below with ``expm1`` because for a
     small α the difference of two exponentials both close to 1 loses most of its significant digits.
 
-    A modifier that is constant along the branch — ``FromParent``, the variable-rates σ² drift —
+    A modifier that is constant along the branch — an inherited value, the variable-rates σ² drift —
     factors straight out of either integral, so it composes with OU for free.
 
-    ``inherited`` is the lineage's `FromParent` factor (variable-rates
+    ``inherited`` is the lineage's an inherited value factor (variable-rates
     BM), constant along the branch, threaded in by the caller and passed through to the rate; it
-    factors straight out of the integral. A rate with no ``FromParent`` modifier ignores it.
+    factors straight out of the integral. A rate with no an inherited value modifier ignores it.
 
     ``ltt`` is the tree's lineages-through-time function when the rate carries a ``OnTotalDiversity`` modifier
     (diversity-dependent σ²): the integral then also steps at the tree's speciation / extinction times,
@@ -405,7 +405,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     """Evolve a continuous trait down a tree and return a `TraitsResult`. One process, its
     variants selected by knobs (SPEC §4): **Brownian motion** (bare ``rate``), **Ornstein–Uhlenbeck**
     (add ``reverts_to`` + ``pull``), **early burst** (a ``OnTime`` skyline on ``rate``), and
-    **variable-rates BM** (an ``FromParent`` modifier on ``rate``).
+    **variable-rates BM** (an an inherited value modifier on ``rate``).
 
     **Correlated traits** ride together in **one call** (the joint rule inside a level): pass
     ``start`` and ``rate`` as dicts keyed by trait name and a ``correlation={(a, b): ρ}`` overlay
@@ -434,7 +434,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     lineage diffuses independently at σ², never pooled across the tree. A bare number is Brownian
     motion (``Normal(0, σ²·dt)`` over a branch); a ``OnTime`` modifier makes σ² change through time —
     early burst / ACDC — with the per-branch variance the exact integral ``∫ σ²(t) dt``; an
-    ``FromParent(spread=…)`` modifier makes σ² **drift branch-to-branch** — variable-rates BM ("ClaDS
+    ``Inherited(per="lineage", spread=…)`` modifier makes σ² **drift branch-to-branch** — variable-rates BM ("ClaDS
     for traits") — each lineage inheriting its parent's σ² times a lognormal kick drawn at the split;
     a ``OnTotalDiversity(cap=…)`` modifier makes σ² **slow as the clade fills up** — diversity-dependent /
     ecological-limits trait evolution — σ² scaled by ``(1 − standing_diversity/cap)`` as the tree's
@@ -491,20 +491,21 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             f"rate has a {type(r.scope).__name__} scope, but a continuous trait's variance-rate is "
             f"per lineage — drop the scope wrapper (per lineage is the default)."
         )
-    # OnTime (early burst), FromParent (variable-rates BM), OnTotalDiversity (diversity-dependent)
+    # OnTime (early burst), Inherited(per='lineage') (variable-rates BM), OnTotalDiversity (diversity-dependent)
     # and DrivenBy (σ² driven by another level) are the σ² modifiers this engine supports; anything
     # else is rejected loudly — the genome engine's discipline.
     for m in r.modifiers:
         if m.reads == (DRAWN, "family"):
             # not a missing feature: there is nothing here for it to mean
             raise ValueError(
-                "rate carries ByFamily, but a trait has no gene families — ByFamily belongs on a "
-                "genomes rate. For per-lineage heterogeneity here use FromParent (variable-rates BM)."
+                "rate carries a per-family draw, but a trait has no gene families — Drawn(per='family') "
+                "belongs on a "
+                "genomes rate. For per-lineage heterogeneity here use Inherited(per='lineage') (variable-rates BM)."
             )
         if not is_implemented(m, IMPLEMENTED_MODIFIERS, "traits.continuous"):
             raise ValueError(
                 f"rate carries {describe(m)}, which the continuous trait engine does not "
-                f"support. It takes OnTime (early burst), FromParent (variable-rates BM), "
+                f"support. It takes OnTime (early burst), Inherited(per='lineage') (variable-rates BM), "
                 f"OnTotalDiversity (diversity-dependent), and DrivenBy (driven by another level)."
             )
         if isinstance(m, DrivenBy):

@@ -2084,13 +2084,13 @@ def test_a_gff_we_wrote_reads_back_through_our_own_gff_reader(tmp_path):
 def test_an_unwired_modifier_is_still_refused_cleanly():
     """The engine declares what it wires and refuses the rest, rather than silently ignoring it — a
     modifier that returns a factor of 1.0 unnoticed is a run that is quietly not the model asked for.
-    ``ByFamily`` is per-family heterogeneity, which needs the segment machinery the ordered resolution
+    `a per-family draw` is per-family heterogeneity, which needs the segment machinery the ordered resolution
     has; it is not wired here."""
     from zombi2.rates import modifiers as mod
     sp = simulate_species_tree(birth=1.0, n_extant=4, seed=1)
     with pytest.raises(ValueError, match="does not support"):
         simulate_genomes_nucleotide(sp, root_length=200,
-                                    inversion=2.0 * mod.ByFamily(spread=0.5), seed=1)
+                                    inversion=2.0 * mod.Drawn(per='family', spread=0.5), seed=1)
     # a plain number is of course fine
     assert simulate_genomes_nucleotide(sp, root_length=200, inversion=2.0, seed=1).genomes
 

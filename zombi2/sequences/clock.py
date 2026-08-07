@@ -4,8 +4,8 @@ SPEC §7 reserves the word *clock* for one thing: the sequences level's by-linea
 modifier. That is exactly and only what this module is about — how the substitution rate varies from
 lineage to lineage, and nothing else. There are two ways it can vary, and they compose:
 
-- **drawn** — ``ByLineage`` gives every species branch one i.i.d. multiplier (the uncorrelated,
-  "relaxed" clock), ``FromParent`` lets the multiplier drift parent→child down the species tree (the
+- **drawn** — a per-lineage draw gives every species branch one i.i.d. multiplier (the uncorrelated,
+  "relaxed" clock), an inherited value lets the multiplier drift parent→child down the species tree (the
   autocorrelated clock). One draw per *species* branch, shared by every gene family passing through
   it: a species that runs hot runs hot for all of its genes.
 - **read off a driver** — ``DrivenBy`` reads a **trait** grown first and maps its state to a factor,

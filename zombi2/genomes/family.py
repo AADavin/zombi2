@@ -52,7 +52,7 @@ if TYPE_CHECKING:  # a streamed run returns a StreamedRun (built by the per-fami
 #: The rate grammar this level supports (SPEC §5) — read by the engine gates below and by the CLI's
 #: help, so a modifier is never advertised without being implemented. Each rate keeps its natural
 #: scope this slice, and ``DrivenBy`` is implemented for the single-lineage events; the ordered engine
-#: takes ``OnTime`` and ``ByFamily``, the nucleotide one ``OnTime`` and ``DrivenBy``. The gates say so
+#: takes ``OnTime`` and a per-family draw, the nucleotide one ``OnTime`` and ``DrivenBy``. The gates say so
 #: per rate.
 IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, SetBy, (DRAWN, "family"))
 
@@ -369,7 +369,7 @@ class _FamilyWeights:
     which is quadratic in genome size — and it is nearly all waste, because one event changes one
     lineage by one copy and leaves the rest untouched. So the sums are kept here across events and
     only the lineage an event actually touched is rebuilt. Rates that share a multiplier table
-    (`simulate_genomes_family()` hands the same dict to each rate carrying no ``ByFamily`` of its
+    (`simulate_genomes_family()` hands the same dict to each rate carrying no a per-family draw of its
     own) share the array too, and so are summed once between them rather than once each.
 
     A rebuilt sum is the same expression over the same list in the same order, so it is the same
@@ -738,9 +738,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         for m in rate.modifiers:
             if m.reads == (DRAWN, "family") and label == "origination":
                 raise ValueError(
-                    "origination carries ByFamily, but origination is the rate at which families are "
+                    "origination carries a per-family draw, but origination is the rate at which families are "
                     "CREATED — when it is read there is no family yet to have drawn a factor for. "
-                    "Put ByFamily on duplication, transfer or loss; writing one ByFamily object on "
+                    "Put Drawn(per='family') on duplication, transfer or loss; writing one such object on "
                     "several of them gives a family-wide tempo, since one object is one draw.")
             if isinstance(m, DrivenBy):
                 check_not_a_kernel(m.mapping, label=label)
@@ -749,7 +749,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             raise ValueError(
                 f"{label} carries {describe(m)}, which the family genome engine does not "
                 f"support. It takes OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
-                f"ByFamily (per-family heterogeneity). Clade drift is not implemented yet."
+                f"Drawn(per='family') (per-family heterogeneity). Clade drift is not implemented yet."
             )
     for label, rate in (("duplication", dup), ("transfer", tra), ("loss", los),
                         ("origination", org)):
@@ -762,7 +762,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     if any(m.reads == (DRAWN, "family") for rate in (dup, tra, los) for m in rate.modifiers) and \
             any(isinstance(m, DrivenBy) for rate in (dup, tra, los, org) for m in rate.modifiers):
         raise ValueError(
-            "ByFamily and DrivenBy on the same run is a later slice: one weights lineages by a "
+            "a per-family draw and DrivenBy on the same run is a later slice: one weights lineages by a "
             "driver and the other weights copies by their family, and combining them means "
             "weighting by the product. Use one or the other for now.")
     # the choice (SPEC §5), validated in the one place all three resolutions share: the mapping's
@@ -857,7 +857,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         return c
 
     # Per-family multipliers, drawn once when a family is created and then fixed for its whole life.
-    # Whether a family's rates move together is decided by what was written: one ByFamily object read
+    # Whether a family's rates move together is decided by what was written: one a per-family draw object read
     # by two rates is one draw for both, two objects are two draws. Empty unless some rate carries
     # one, and then the engine takes its weighted path; a run carrying none draws nothing here.
     fam_by = {"duplication": tuple(m for m, _ in dup.carried(unit="family")),
@@ -876,7 +876,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         family_counter += 1
         if any_family:
             # one draw per distinct modifier *object* for this family, shared across its rates: the
-            # same ByFamily written on duplication and on loss means one number, so a fast family is
+            # same a per-family draw written on duplication and on loss means one number, so a fast family is
             # fast at both. Two separately built ones are two draws even with the same spread.
             drawn: dict[int, float] = {}
             for key, mods in fam_by.items():
