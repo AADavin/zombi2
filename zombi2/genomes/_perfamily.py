@@ -36,6 +36,7 @@ import bisect
 import heapq
 import math
 import os
+import pathlib
 import shutil
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -49,6 +50,7 @@ from ..rng import seed_sequence
 from ._live import enter, retire, weighted_index
 from ._transfer import mean_root_to_tip, recipient_index
 from .events import EVENTS_HEADER, GeneEdge, event_rows, gene_label, node_label
+from .._runtime.outputs import fresh_dirs
 from .gene_trees import gene_trees_from_edges, write_gene_trees
 
 
@@ -684,6 +686,10 @@ def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_fam
     per-chunk shards, concatenated in chunk order (so the files are byte-identical for any worker
     count), then the shards removed. Returns a `StreamedRun`."""
     os.makedirs(out_dir, exist_ok=True)
+    # `gene_trees/` is emptied first, as every other writer of a per-family directory does: a
+    # streamed run writes each family as it goes rather than through `.write()`, so it skipped this
+    # and a re-run with fewer families left the previous run's trees sitting beside the new ones.
+    fresh_dirs(pathlib.Path(out_dir), ("gene_trees",), flat=False)
     shard_dir = os.path.join(out_dir, "_shards")
     os.makedirs(shard_dir, exist_ok=True)
     extant_ids = sorted(n.id for n in tree.extant_leaves())
