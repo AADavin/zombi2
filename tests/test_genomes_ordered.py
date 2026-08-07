@@ -17,7 +17,7 @@ from zombi2.rates import modifiers as mod
 from zombi2.genomes.events import gene_from_label, node_from_label
 from zombi2.rates import scope
 from zombi2.rates.distributions import Fixed, Geometric
-from zombi2.rates.modifiers import ByFamily, ByLineage, FromParent, OnTime, OnTotalDiversity
+from zombi2.rates.modifiers import ByLineage, FromParent, OnTime, OnTotalDiversity
 from zombi2.species import simulate_species_tree
 from zombi2.tree import Node, Tree
 from zombi2.genomes import (
@@ -325,7 +325,8 @@ def test_the_extent_declaration_is_the_rate_declaration_minus_byfamily():
     """The one difference between the two lists is a modelling fact, not an accident: ``ByFamily``
     attaches to the contents, and an extent is drawn before the run's genes are known."""
     from zombi2.genomes.ordered import IMPLEMENTED_EXTENT_MODIFIERS, IMPLEMENTED_MODIFIERS
-    assert set(IMPLEMENTED_MODIFIERS) - set(IMPLEMENTED_EXTENT_MODIFIERS) == {ByFamily}
+    from zombi2.rates.modifiers import DRAWN
+    assert set(IMPLEMENTED_MODIFIERS) - set(IMPLEMENTED_EXTENT_MODIFIERS) == {(DRAWN, "family")}
 
 
 def test_scope_override_is_rejected_this_slice():

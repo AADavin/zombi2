@@ -20,7 +20,7 @@ which by looking at the value, so nothing downstream changes and a run is identi
 
 from __future__ import annotations
 
-from .modifiers import DrivenBy, Modifier, OnTime
+from .modifiers import DrivenBy, Modifier, OnTime, describe
 from .values import Measured, Time
 
 
@@ -59,10 +59,11 @@ def ScaledBy(value: object, mapping: object = None) -> Modifier:
             f"ScaledBy({type(value).__name__}(), ...) is not implemented — that value exists in the "
             f"grammar but no engine supplies it yet.")
     if isinstance(value, Modifier):
+        name = describe(value)
         raise TypeError(
-            f"{type(value).__name__} is already a factor, so it needs no verb: write "
-            f"`rate = base * {type(value).__name__}(...)` rather than wrapping it in ScaledBy. Verbs "
-            f"are for values a mapping has to turn into a number — a trait, a clock, a count.")
+            f"{name} is already a factor, so it needs no verb: write `rate = base * {name}(...)` "
+            f"rather than wrapping it in ScaledBy. Verbs are for values a mapping has to turn into a "
+            f"number — a trait, a clock, a count.")
     if mapping is None:
         raise ValueError(
             "ScaledBy(value, mapping) needs a mapping: a dict for a categorical value, a callable "

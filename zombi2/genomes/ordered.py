@@ -58,7 +58,7 @@ from ..rates.driver import check_mapping_fires, resolve_driver
 from ..rng import stream
 from ..rates.extent import Extent, as_extent
 from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import ByFamily, DrivenBy, OnTime, draw_product, is_implemented
+from ..rates.modifiers import describe, DRAWN, DrivenBy, OnTime, cell_name, draw_product, is_implemented
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
@@ -81,7 +81,7 @@ from .profiles import Profiles, profiles_from_genomes
 #: (a conditioned or joint driver) and ``ByFamily`` (per-family heterogeneity, weighted on the segment
 #: an event covers rather than on the gene it started from — SPEC §6). One combination is refused: see
 #: the gate.
-IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, ByFamily)
+IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, (DRAWN, "family"))
 
 #: What an **extent** takes here (SPEC §6). An extent takes the modifiers a rate does, and at this
 #: resolution that is one fewer: ``ByFamily`` attaches to the *contents*, and an extent is drawn
@@ -1221,14 +1221,14 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 f"takes only {want.__name__} for {label} this slice — scope overrides are a later slice."
             )
         for m in rate.modifiers:
-            if isinstance(m, ByFamily) and label == "origination":
+            if m.reads == (DRAWN, "family") and label == "origination":
                 raise ValueError(
                     "origination carries ByFamily, but origination is the rate at which families are "
                     "CREATED — when it is read there is no family yet to have drawn a factor for. "
                     "Put ByFamily on duplication, transfer, loss, inversion, transposition or "
                     "translocation; writing one ByFamily object on several of them gives a "
                     "family-wide tempo, since one object is one draw.")
-            if isinstance(m, ByFamily) and not isinstance(rate.scope, PerCopy):
+            if m.reads == (DRAWN, "family") and not isinstance(rate.scope, PerCopy):
                 raise ValueError(
                     f"{label} carries ByFamily on a {type(rate.scope).__name__} scope. A per-family "
                     f"weight has to reach the genes an event covers, so it applies to the per-copy "
@@ -1237,7 +1237,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 check_not_a_kernel(m.mapping, label=label)
             if not is_implemented(m, IMPLEMENTED_MODIFIERS, "genomes.ordered"):
                 raise ValueError(
-                    f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
+                    f"{label} carries {describe(m)}, which the ordered genome engine does not "
                     f"support. It takes OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
                     f"ByFamily (per-family heterogeneity, weighted on the segment an event covers). "
                     f"Clade drift is not implemented yet."
@@ -1250,7 +1250,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     inv, trp, trl = _rates["inversion"], _rates["transposition"], _rates["translocation"]
     fis, fus = _rates["fission"], _rates["fusion"]
     cor, clo = _rates["chromosome_origination"], _rates["chromosome_loss"]
-    if any(isinstance(m, ByFamily) for r in _rates.values() for m in r.modifiers) and \
+    if any(m.reads == (DRAWN, "family") for r in _rates.values() for m in r.modifiers) and \
             any(isinstance(m, DrivenBy) for r in _rates.values() for m in r.modifiers):
         raise ValueError(
             "ByFamily and DrivenBy on the same run is a later slice: one weights lineages by a "
@@ -1267,7 +1267,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         for m in e.modifiers:
             if isinstance(m, DrivenBy):
                 check_not_a_kernel(m.mapping, label=label)
-            if isinstance(m, ByFamily):
+            if m.reads == (DRAWN, "family"):
                 raise ValueError(
                     f"{label} carries ByFamily, which an extent cannot mean: the size is drawn before "
                     f"the run's genes are known, and a run covers several families, so there is no "
@@ -1275,9 +1275,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     f"the segment by what it covers.")
             if not is_implemented(m, IMPLEMENTED_EXTENT_MODIFIERS, "genomes.ordered"):
                 raise ValueError(
-                    f"{label} carries {type(m).__name__}, which the ordered genome engine does not "
+                    f"{label} carries {describe(m)}, which the ordered genome engine does not "
                     f"support on an extent — it takes "
-                    f"{', '.join(w.__name__ for w in IMPLEMENTED_EXTENT_MODIFIERS)}.")
+                    f"{', '.join(cell_name(w) for w in IMPLEMENTED_EXTENT_MODIFIERS)}.")
         return e
 
     dup_ext, los_ext, tra_ext = (_ext_spec(duplication_extent, "duplication_extent"),

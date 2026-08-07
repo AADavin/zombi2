@@ -62,7 +62,8 @@ from ..genomes.gene_trees import GeneNode, GeneTree
 from ..rates.driver import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
 from ..rng import resolve_seed, seed_sequence, stream
 from ..rates.mapping import Between
-from ..rates.modifiers import ByLineage, DrivenBy, FromParent, Modifier, check_one_memory
+from ..rates.modifiers import (DRAWN, INHERITED, DrivenBy, Modifier,
+                              check_one_memory, matches_declared)
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerSite
 from ..tree import Node, Tree, prune
@@ -86,7 +87,7 @@ _COMPLEMENT = str.maketrans("ACGT", "TGCA")
 #: clock, ``FromParent`` the autocorrelated clock (the rate drifts parent→child down the species
 #: tree) — and ``DrivenBy``, the conditioned driver a trait grown first supplies (SPEC §3:
 #: Traits→Sequences can be conditioned). A clock and a driver compose: modifiers multiply.
-IMPLEMENTED_MODIFIERS = (ByLineage, FromParent, DrivenBy)
+IMPLEMENTED_MODIFIERS = ((DRAWN, "lineage"), (INHERITED, "lineage"), DrivenBy)
 
 
 @dataclass
@@ -1177,7 +1178,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     # called. Silently returning the undriven answer is precisely what SPEC §5 forbids, so it is
     # refused by name instead, and `Modifier.implemented_for` documents the omission.
     unimplemented = sorted({type(m).__name__ for m in rate.modifiers
-                            if not isinstance(m, IMPLEMENTED_MODIFIERS)})
+                            if not matches_declared(m, IMPLEMENTED_MODIFIERS)})
     if unimplemented:
         raise ValueError(
             f"substitution carries {', '.join(unimplemented)}, which the sequence engine does not read. It "

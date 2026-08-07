@@ -15,6 +15,7 @@ import textwrap
 import numpy as np
 
 from zombi2 import __version__
+from zombi2.rates.modifiers import cell_name
 from zombi2.rng import draw_seed
 
 
@@ -131,7 +132,8 @@ def _rates_help(supported, flag: str, *, scopes: str | None = None, note: str | 
     here either — and the worked example is drawn from the same list, so it is always a modifier that
     runs. ``example`` overrides that snippet for a level whose form differs (see `_MODIFIER_HELP`).
     """
-    snippets = [_MODIFIER_HELP[m.__name__][0] for m in supported if m.__name__ in _MODIFIER_HELP]
+    names = [cell_name(m) for m in supported]
+    snippets = [_MODIFIER_HELP[n][0] for n in names if n in _MODIFIER_HELP]
     shown = example or next((s for s in snippets if s), None)
 
     header = _BOLD + "RATES" + _RESET if _use_color() else "RATES"
@@ -142,8 +144,7 @@ def _rates_help(supported, flag: str, *, scopes: str | None = None, note: str | 
     if scopes:
         lines.append(f'    {flag} "{scopes}"')
     lines.append("  Modifiers this level takes (anything else is an error):")
-    for m in supported:
-        name = m.__name__
+    for name in names:
         entry = _MODIFIER_HELP.get(name)
         lines.append(f"    {name:<20}{entry[1]}" if entry else f"    {name}")
     if note:

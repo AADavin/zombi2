@@ -10,7 +10,7 @@ import numpy as np
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import (ByFamily, DrivenBy, FromParent, OnTime, OnTotalDiversity,
+from ..rates.modifiers import (describe, DRAWN, INHERITED, DrivenBy, OnTime, OnTotalDiversity,
                                carried_at_birth, carried_at_split, check_one_memory,
                                is_implemented, product)
 from ..rates.rate import as_rate
@@ -20,7 +20,7 @@ from ..tree import Tree, as_tree
 from ._shared import _correlation_matrix, _driven_mods, _preorder, _resolve_drivers, _symmetric_sqrt
 from .result import Change, TraitsResult
 
-IMPLEMENTED_MODIFIERS = (OnTime, FromParent, OnTotalDiversity, DrivenBy)  #: the modifiers a continuous rate takes
+IMPLEMENTED_MODIFIERS = (OnTime, (INHERITED, "lineage"), OnTotalDiversity, DrivenBy)  #: the cells a continuous rate takes
 
 class _LTT:
     """The tree's lineages-through-time step function — how many lineages are alive at time ``t``
@@ -230,7 +230,7 @@ def _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciatio
         # this path walks the regime map's (state, duration) segments, not absolute time, so it has
         # none of the plumbing a modified σ² needs (the schedule's breakpoints, the standing
         # diversity, a driver's switch times). The single-optimum OU path does take them.
-        carried = ", ".join(dict.fromkeys(type(m).__name__ for m in r.modifiers))
+        carried = ", ".join(dict.fromkeys(describe(m) for m in r.modifiers))
         raise ValueError(
             f"rate carries {carried}, and a modified variance-rate combined with regimes is not "
             f"implemented yet — give a bare variance-rate here, or drop regimes and use "
@@ -333,7 +333,7 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
         if not isinstance(r.scope, PerLineage):
             raise ValueError(f"rate[{name!r}] must be per lineage — drop the scope wrapper.")
         if r.modifiers:
-            carried = ", ".join(dict.fromkeys(type(m).__name__ for m in r.modifiers))
+            carried = ", ".join(dict.fromkeys(describe(m) for m in r.modifiers))
             raise ValueError(
                 f"rate[{name!r}] carries {carried}; per-trait modifiers combined with correlation "
                 f"are not implemented yet — with a σ² that moves, the branch covariance is "
@@ -495,7 +495,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     # and DrivenBy (σ² driven by another level) are the σ² modifiers this engine supports; anything
     # else is rejected loudly — the genome engine's discipline.
     for m in r.modifiers:
-        if isinstance(m, ByFamily):
+        if m.reads == (DRAWN, "family"):
             # not a missing feature: there is nothing here for it to mean
             raise ValueError(
                 "rate carries ByFamily, but a trait has no gene families — ByFamily belongs on a "
@@ -503,7 +503,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             )
         if not is_implemented(m, IMPLEMENTED_MODIFIERS, "traits.continuous"):
             raise ValueError(
-                f"rate carries {type(m).__name__}, which the continuous trait engine does not "
+                f"rate carries {describe(m)}, which the continuous trait engine does not "
                 f"support. It takes OnTime (early burst), FromParent (variable-rates BM), "
                 f"OnTotalDiversity (diversity-dependent), and DrivenBy (driven by another level)."
             )
