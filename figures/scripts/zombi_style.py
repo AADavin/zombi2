@@ -20,8 +20,13 @@ DPI_SCALE = 300 / 72.0      # 300 dpi from drawsvg's 72-unit canvas
 
 
 def save(drawing, name: str) -> None:
-    """Write one figure as both `figures/svg/<name>.svg` and `figures/png/<name>.png`."""
-    svg = drawing.as_svg()
+    """Write one figure as both `figures/svg/<name>.svg` and `figures/png/<name>.png`.
+
+    ``drawing`` is anything with an ``as_svg()`` — a `drawsvg.Drawing` or a
+    `phylustrator.trees.Figure` — or the SVG text itself, which is what a figure stacked out of
+    several panels hands over.
+    """
+    svg = drawing if isinstance(drawing, str) else drawing.as_svg()
     for sub in ("svg", "png"):
         (FIG_DIR / sub).mkdir(parents=True, exist_ok=True)
     (FIG_DIR / "svg" / f"{name}.svg").write_text(svg, encoding="utf-8")
@@ -75,31 +80,31 @@ MODULE_COLORS = ["#4477AA", "#E08A3C", "#7B5EA7", "#4C9AA6"]   # blue, orange, p
 COOCCUR = "#2f8f4e"         # partners present / kept / protected  (green)
 AVOID   = "#cc4b3c"         # partners absent / purged / fast loss (red)
 
-# Only the generators in legacy/figures/scripts/ use the three blocks above today. They stay here
-# so a figure ported back out of legacy still finds its palette.
+# No generator here uses the three blocks above today — the figures the rewritten manual kept are
+# black and white. They stay because they are the agreed answer to "what colour, when a figure does
+# need one" (figures/STYLE.md), so the next figure that needs one does not invent its own.
 
 # --- Stroke weights (px) --------------------------------------------------
 BRANCH_W = 2.6
 
 
-def species_style(width: int = 820, height: int = 680, **overrides) -> ph.TreeStyle:
-    """House style for a time-calibrated species tree.
+def tree_style(width: int = 820, height: int = 680, **overrides) -> ph.Style:
+    """House style for a time-calibrated species tree drawn by `phylustrator.trees`.
 
-    Clean rectangular cladogram: no tip/node dots by default (labels carry the
-    identity), near-black branches, generous margins for labels and a time axis.
-    Pass any :class:`phylustrator.TreeStyle` field as a keyword to override.
+    A clean rectangular cladogram: near-black branches, a white ground, and margins generous
+    enough for tip labels and a time axis. Pass any :class:`phylustrator.Style` field as a
+    keyword to override.
     """
     params = dict(
         width=width,
         height=height,
         margin=82.0,
-        root_stub_length=14.0,
-        branch_stroke_width=BRANCH_W,
+        branch_width=BRANCH_W,
         branch_color=INK,
-        leaf_r=0.0,          # no dot at the tip; the label is enough
-        node_r=0.0,          # clean bifurcations, no internal-node dots
+        label_color=INK,
         font_size=17,
         font_family=FONT,
+        background=PANEL,
     )
     params.update(overrides)
-    return ph.TreeStyle(**params)
+    return ph.Style(**params)

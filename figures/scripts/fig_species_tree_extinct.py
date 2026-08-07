@@ -1,162 +1,94 @@
-"""Figure: a complete species tree with extinct lineages (forward ZOMBI2 sim).
+"""Figure: a complete species tree with the extinct lineages still on it.
 
-The forward birth-death process keeps the lineages that died out. We draw the
-*complete* tree so the surviving skeleton and the extinct history read as one
-picture — the point that motivates ZOMBI2's forward engine (backward simulation
-only ever sees the solid tree; the dashes are what really happened).
+The forward birth-death process keeps the lineages that died out. Drawing the *complete* tree puts
+the surviving skeleton and the extinct history in one picture, which is the point that motivates
+ZOMBI2's forward engine: a backward simulation only ever sees the solid tree, and the dashes are
+what really happened.
 
-Encoding
---------
-Any segment pointing at a node ``x`` is drawn **dashed** iff ``x`` has no surviving
-descendant. Applied to horizontal branches and to each half of a fork's vertical
-connector, this gives exactly:
-
-  * both children survive        -> fully solid fork
-  * one survives, one dies out   -> half-solid / half-dashed fork
-  * speciation inside a dead clade -> fully dashed fork
-
-Extinct tips get a Greek-letter name and their dashed branch simply stops at the
-death time; survivors get Latin letters and reach the present.
-
-Extinct tips are found geometrically (a leaf whose root-distance falls short of
+A branch is drawn **dashed** when the node it leads to has no surviving descendant. Applied to every
+branch that gives exactly the three cases you want — a fork whose daughters both survive is solid, a
+fork that loses one daughter is half dashed, and a speciation inside a dead clade is fully dashed.
+Which lineages survived is read off the tree geometrically (a leaf whose root-distance falls short of
 the present), so this works on any complete-tree Newick.
+
+No legend inside the figure: solid-surviving / dashed-extinct is stated in the chapter's caption,
+which is where this book says a figure's words belong.
+
+This module also exports `dead_ends` and `present_of`, which `fig_variable_rates.py` reuses.
 
 Run:  python figures/scripts/fig_species_tree_extinct.py
 """
 
 from __future__ import annotations
 
-import string
 from pathlib import Path
 
-import drawsvg as draw
 import phylustrator as ph
-from phylustrator.io import read_newick
 
-from zombi_style import save, INK, species_style, FS_LABEL, FS_TICK
+from zombi_style import save, FS_TICK, tree_style
 
 FIG_DIR = Path(__file__).resolve().parent.parent
 TREE_NWK = FIG_DIR / "species_tree_extinct" / "species_tree.nwk"
 
-# ASCII-only names for the extinct tips (e1, e2, ...); survivors keep Latin letters.
+# ASCII-only names for the extinct tips; survivors are left unlabelled so a dense tree stays legible.
 EXTINCT_NAMES = [f"e{i}" for i in range(1, 25)]
-DASH = "6,5"                 # dash pattern for extinct lineages
-PRESENT = "#c9c9c9"          # faint "today" reference line
 
 
-def annotate_depths(tree) -> float:
-    """Set ``node.depth`` = root-to-node distance; return the max (the present)."""
-    max_depth = 0.0
-    for n in tree.traverse("preorder"):
-        n.depth = 0.0 if n.is_root() else n.up.depth + n.dist
-        max_depth = max(max_depth, n.depth)
-    return max_depth
+def present_of(tree) -> float:
+    """The distance from the origin to the furthest tip — where "today" is."""
+    return max(tree.depth(node) for node in tree.walk())
 
 
-def mark_survival(tree, present: float, tol: float) -> None:
-    """Flag ``is_extant`` (leaf reaches the present) and ``has_survivor``
-    (subtree contains an extant leaf)."""
-    for n in tree.traverse("postorder"):
-        if n.is_leaf():
-            n.is_extant = abs(n.depth - present) <= tol
-            n.has_survivor = n.is_extant
-        else:
-            n.has_survivor = any(c.has_survivor for c in n.children)
+def dead_ends(tree, survivor) -> list:
+    """Every node with **no** surviving descendant, as nodes rather than names.
 
-
-def _seg(d, x1, y1, x2, y2, dashed: bool) -> None:
-    """Draw one branch segment; dashed (butt caps) if extinct, else solid (round)."""
-    sw = d.style.branch_stroke_width
-    if dashed:
-        d.drawing.append(draw.Line(x1, y1, x2, y2, stroke=INK, stroke_width=sw,
-                                   stroke_dasharray=DASH, stroke_linecap="butt"))
-    else:
-        d.drawing.append(draw.Line(x1, y1, x2, y2, stroke=INK, stroke_width=sw,
-                                   stroke_linecap="round"))
-
-
-def draw_skeleton(d, tree) -> None:
-    """Draw the tree by hand so each segment can be solid or dashed independently.
-
-    A segment is dashed iff the node it points at has no surviving descendant.
+    `plot(dashed=…)` matches by name, so a caller that renames its tips has to take the names
+    *after* renaming; handing back nodes is what makes that impossible to get wrong.
+    ``survivor(leaf)`` says whether one leaf reached the present.
     """
-    stub = d.style.root_stub_length
-    for n in tree.traverse("postorder"):
-        x, y = n.coordinates
-        if n.is_root():
-            _seg(d, x - stub, y, x, y, dashed=not n.has_survivor)
-        else:
-            px, _ = n.up.coordinates
-            _seg(d, px, y, x, y, dashed=not n.has_survivor)          # branch above n
-        if not n.is_leaf():
-            for c in n.children:                                      # fork: one stub per child
-                _seg(d, x, y, x, c.coordinates[1], dashed=not c.has_survivor)
+    alive: dict[int, bool] = {}
+    for node in reversed(list(tree.walk())):        # children before parents
+        alive[id(node)] = (survivor(node) if not node.children
+                           else any(alive[id(c)] for c in node.children))
+    return [node for node in tree.walk() if not alive[id(node)]]
 
 
-def add_legend(d, x, y) -> None:
-    """Line-swatch legend (single column, shared font scale): solid = surviving
-    lineage, grey dashed = extinct lineage — the fig_diversity_dependent convention."""
-    sw = d.style.branch_stroke_width
-    L = 34
-    d.drawing.append(draw.Text("Lineages", FS_LABEL, x, y, font_weight="bold",
-                               font_family=d.style.font_family, text_anchor="start",
-                               dominant_baseline="central", fill=INK))
-    rows = [("surviving lineage", False), ("extinct lineage", True)]
-    cy = y + FS_LABEL * 1.8
-    for label, dashed in rows:
-        kw = dict(stroke=INK, stroke_width=sw, stroke_linecap="round")
-        if dashed:
-            kw = dict(stroke=INK, stroke_width=sw, stroke_dasharray=DASH, stroke_linecap="butt")
-        d.drawing.append(draw.Line(x, cy, x + L, cy, **kw))
-        d.drawing.append(draw.Text(label, FS_LABEL, x + L + 12, cy,
-                                   font_family=d.style.font_family, text_anchor="start",
-                                   dominant_baseline="central", fill=INK))
-        cy += FS_LABEL * 1.8
+def reaches_present(tree, present: float, tol: float | None = None):
+    """A `survivor` test for `dead_ends`: a leaf survives when its root-distance reaches the present.
+
+    `to_newick` prints six significant figures and that rounding accumulates along a deep path, so
+    the test needs a tolerance rather than equality. A caller that knows which tips survived — a run
+    in hand rather than a Newick file — should test that instead.
+    """
+    tol = present * 1e-6 if tol is None else tol
+    return lambda leaf: abs(tree.depth(leaf) - present) <= tol
 
 
-def main() -> None:
-    tree = read_newick(TREE_NWK)
-    present = annotate_depths(tree)
-    mark_survival(tree, present, tol=1e-6 * present)
+def render() -> None:
+    tree = ph.trees.read(TREE_NWK)
+    present = present_of(tree)
+    dead = dead_ends(tree, reaches_present(tree, present))
 
-    leaves = tree.get_leaves()                     # top-to-bottom order
-    extant = [l for l in leaves if l.is_extant]
-    extinct = [l for l in leaves if not l.is_extant]
+    # `plot(dashed=…)` and `tip_labels()` both work off `node.name`, so every node that has to be
+    # dashed needs a name of its own before the surviving tips are blanked — otherwise a nameless
+    # internal branch and every unlabelled survivor share the name "" and all of them go dashed.
+    for i, node in enumerate(tree.walk()):
+        if not node.name:
+            node.name = f"_i{i}"
 
-    # Only the extinct tips carry a name (e1, e2, ...): they are the point of the
-    # figure and the caption references them. Extant tips are left unlabelled so a
-    # dense tree stays legible (matching the trait-tree aesthetic).
-    for leaf in extant:
+    extinct = [node for node in dead if not node.children]
+    for leaf in tree.leaves:                       # only the extinct tips are named: they are the point
         leaf.name = ""
     for leaf, name in zip(extinct, EXTINCT_NAMES):
         leaf.name = name
+    dashed = {node.name for node in dead}          # names last: `plot(dashed=…)` matches by name
 
-    # wide, dense canvas (landscape ~1.6:1) with a generous top margin for the title
-    style = species_style(width=1320, height=820, margin=118, font_size=FS_TICK)
-    d = ph.VerticalTreeDrawer(tree, style=style)
-    d._calculate_layout()
-
-    # faint "present" reference (behind everything)
-    ys = [l.y_coord for l in leaves]
-    present_x = d.root_x + present * d.sf
-    d.drawing.append(draw.Line(present_x, min(ys) - 14, present_x, max(ys) + 14,
-                               stroke=PRESENT, stroke_width=1.0, stroke_dasharray="2,4"))
-
-    draw_skeleton(d, tree)
-    d.add_leaf_names(color=INK, padding=12)
-
-    ticks = [round(present * i / 4, 6) for i in range(5)]
-    d.add_time_axis(ticks=ticks, tick_labels=[f"{t:.2f}" for t in ticks],
-                    label="Time (root to present)", tick_size=6.0, padding=14.0,
-                    stroke_width=1.6)
-
-    # No title inside the figure: the manual captions it, and a title would say it twice.
-    # top-left open band, left of where the crown spreads
-    add_legend(d, x=-style.width / 2 + 40, y=-style.height / 2 + 110)
-
-    save(d.drawing, "species_tree")
-    print(f"  ({len(extant)} extant + {len(extinct)} extinct tips)")
+    figure = (ph.trees.plot(tree, dashed=dashed, style=tree_style(1320, 820))
+              + ph.trees.tip_labels(size=FS_TICK)
+              + ph.trees.time_axis("time (origin to present)"))
+    save(figure, "species_tree")
+    print(f"  ({len(tree.leaves) - len(extinct)} extant + {len(extinct)} extinct tips)")
 
 
 if __name__ == "__main__":
-    main()
+    render()
