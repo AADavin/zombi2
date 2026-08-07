@@ -9,6 +9,21 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **A second way to write a modifier, as a grid rather than a list.** Each of the six modifiers says
+  two independent things at once — where its number comes from, and what it is attached to — and the
+  new spelling separates them: `Drawn(per="family", spread=0.5)` is `ByFamily(spread=0.5)`,
+  `Inherited(per="lineage", spread=0.2)` is `FromParent(spread=0.2)`, and
+  `ScaledBy(Time(), {0: 1.0, 3: 0.3})` is `OnTime({0: 1.0, 3: 0.3})`. Both spellings build the
+  identical object, so a run is unchanged seed for seed and the old names stay — they are the names
+  of cells. `ScaledBy(driver, mapping)` replaces `DrivenBy` for a rate and `Weights(driver, mapping)`
+  for a `transfer_to` choice, the verb saying what the number does now that the value names itself.
+  What the grid buys is the next cell: a per-chromosome draw is `Drawn(per="chromosome", …)` rather
+  than a `ByChromosome` that has to be invented, documented and remembered, and a cell no engine
+  carries refuses by name — *"a drawn value per 'chromosome' is not implemented"* — instead of
+  reading as a typo. `SetBy` is present and refuses, naming what it would take: every engine
+  evaluates a rate as `scope(base) × modifiers`, so a replaced base has nowhere to go yet.
+
 ### Removed
 - **`family_speed=` and `--family-speed` are gone**, replaced by reading one `ByFamily` object from
   several rates, which now says the same thing (see below). `simulate_genomes_family(tree,
