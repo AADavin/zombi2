@@ -21,8 +21,8 @@ from dataclasses import dataclass, field
 
 
 from ..rates.modifiers import (describe, DRAWN, INHERITED, OnTime, OnTotalDiversity,
-                               carried_at_birth, carried_at_split, check_one_memory,
-                               is_implemented, product)
+                               check_one_memory, is_implemented, values_at_birth,
+                               values_at_split)
 from ..rng import stream
 from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
@@ -187,11 +187,11 @@ def _per_lineage(rate) -> tuple:
     draws a fresh one with no memory of the parent (*relaxed* rates). A rate carrying neither keeps a
     factor of 1 throughout and its lineage is picked uniformly, exactly as before.
 
-    The list comes from `Rate.carried`, which reports what each modifier
+    The list comes from `Rate.carried_modifiers`, which reports what each modifier
     declares it reads rather than testing its class — so a per-lineage modifier this engine has never
     heard of is threaded like the two it has, and **every** one is kept. Taking only the first was
     how a second silently vanished from a run that still reported it."""
-    return tuple(m for m, _ in rate.carried(unit="lineage"))
+    return tuple(m for m, _ in rate.carried_modifiers(unit="lineage"))
 
 
 def _weighted_index(rng, weights: list[float], total: float) -> int:
@@ -241,10 +241,10 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
     # swap-remove; a rate with no per-lineage modifier holds an empty tuple, whose product is 1.0, so
     # its total is just scope(base) × modifiers over n, picked uniform. The root draws under
     # Drawn(per='lineage') (it is a lineage like any other) and does not under Inherited(per='lineage') (its factor is the
-    # ladder's starting point), which is what `carried_at_birth` decides.
-    root_drawn: dict = {}  # the root lineage's cache, so an object on both rates draws once
-    inh_b = [carried_at_birth(birth_drift, rng, root_drawn)]
-    inh_d = [carried_at_birth(death_drift, rng, root_drawn)]
+    # ladder's starting point), which is what `values_at_birth` decides.
+    root_shared: dict = {}  # the root lineage's cache, so an object on both rates draws once
+    inh_b = [values_at_birth(birth_drift, rng, root_shared)]
+    inh_d = [values_at_birth(death_drift, rng, root_shared)]
     t = 0.0
     events: list[Event] = []
     pulse_idx = 0  # the next unfired mass extinction in `pulses`
@@ -275,12 +275,12 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
         # scope(base) × modifiers evaluated per lineage through its inherited factor (lineages=1
         # is one lineage); a non-drifting rate is scope(base) × modifiers once, over all n lineages
         if birth_drift:
-            w_b = [birth_rate.effective(lineages=1, carried=product(x), **ctx) for x in inh_b]
+            w_b = [birth_rate.effective(lineages=1, carried_factor=math.prod(x), **ctx) for x in inh_b]
             total_birth = sum(w_b)
         else:
             total_birth = birth_rate.effective(lineages=n, **ctx)
         if death_drift:
-            w_d = [death_rate.effective(lineages=1, carried=product(x), **ctx) for x in inh_d]
+            w_d = [death_rate.effective(lineages=1, carried_factor=math.prod(x), **ctx) for x in inh_d]
             total_death = sum(w_d)
         else:
             total_death = death_rate.effective(lineages=n, **ctx)
@@ -329,10 +329,10 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
                     # of a run that shares nothing exactly as it was.
                     d1: dict[int, float] = {}
                     d2: dict[int, float] = {}
-                    inh_b.extend((carried_at_split(birth_drift, parent_b, rng, d1),
-                                  carried_at_split(birth_drift, parent_b, rng, d2)))
-                    inh_d.extend((carried_at_split(death_drift, parent_d, rng, d1),
-                                  carried_at_split(death_drift, parent_d, rng, d2)))
+                    inh_b.extend((values_at_split(birth_drift, parent_b, rng, d1),
+                                  values_at_split(birth_drift, parent_b, rng, d2)))
+                    inh_d.extend((values_at_split(death_drift, parent_d, rng, d1),
+                                  values_at_split(death_drift, parent_d, rng, d2)))
                     events.append(Event(t, "speciation", node, (c1, c2)))
                 else:
                     nodes[node].end_time = t

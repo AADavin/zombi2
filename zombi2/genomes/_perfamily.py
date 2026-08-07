@@ -44,7 +44,7 @@ import numpy as np
 
 from .._runtime.parallel import guard_pool_workers, pool_errors, resolve_workers
 from .._runtime.progress import progress_bar
-from ..rates.modifiers import draw_product
+from ..rates.modifiers import values_at_birth
 from ..rng import seed_sequence
 from ._live import enter, retire, weighted_index
 from ._transfer import mean_root_to_tip, recipient_index
@@ -198,9 +198,9 @@ def prepare_family_context(tree, *, dup, tra, los, transfer_to, replacement, sel
     depth = mean_root_to_tip(tree)
     # the per-family modifiers each rate carries (origination is excluded upstream) — drawn once per
     # family and multiplied onto that rate, exactly the serial engine's fam_mult placement.
-    fam_by = {"duplication": tuple(m for m, _ in dup.carried(unit="family")),
-              "transfer": tuple(m for m, _ in tra.carried(unit="family")),
-              "loss": tuple(m for m, _ in los.carried(unit="family"))}
+    fam_by = {"duplication": tuple(m for m, _ in dup.carried_modifiers(unit="family")),
+              "transfer": tuple(m for m, _ in tra.carried_modifiers(unit="family")),
+              "loss": tuple(m for m, _ in los.carried_modifiers(unit="family"))}
     # the contemporaneous-lineage machinery: sorted birth / death times (two pointers give the set alive
     # at any t) and the times can_xfer (≥ 2 lineages alive) flips.
     births = sorted((tree.nodes[i].birth_time, i) for i in tree.nodes)
@@ -233,10 +233,10 @@ def _family_mults(rng, fam_by):
     modifiers were written — so it is reproducible. ``1.0`` where a rate carries none. One per-family draw
     object read by two rates is one draw shared between them, which is how a family-wide tempo is
     said."""
-    drawn: dict[int, float] = {}     # shared across this family's rates: one object, one number
+    shared: dict[int, float] = {}    # across this family's rates: one object, one number
     out = {}
     for key in ("duplication", "transfer", "loss"):
-        out[key] = draw_product(fam_by.get(key, ()), rng, drawn)
+        out[key] = math.prod(values_at_birth(fam_by.get(key, ()), rng, shared))
     return out
 
 

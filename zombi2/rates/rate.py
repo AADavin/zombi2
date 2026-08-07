@@ -31,15 +31,15 @@ class Rate:
             return self
         return Rate(self.base, default(self.base), self.modifiers)
 
-    def effective(self, *, carried: float = 1.0, **context: Any) -> float:
+    def effective(self, *, carried_factor: float = 1.0, **context: Any) -> float:
         """The rate *right now*: the scope-applied base times the product of the modifier factors.
 
         ``context`` carries the current state (``time``, ``diversity``, the counts ``lineages`` /
         ``copies`` / …); the scope reads the count it needs and each modifier the keys it needs.
         Requires a scope — resolve a bare-number rate with `with_default_scope()` first.
 
-        ``carried`` is the product of this rate's **carried** factors for the unit being evaluated —
-        the values the engine drew and kept per lineage or per family (`carried`). Those modifiers
+        ``carried_factor`` is the product of the values the engine drew and kept for the unit being
+        evaluated — per lineage, per family (`carried_modifiers`). Those modifiers
         are skipped in the loop below, because their number does not come from the context: the
         engine already holds it and hands it in here, multiplied out. One float rather than a value
         per modifier, so a rate carrying several costs no more to evaluate than one carrying one.
@@ -58,7 +58,7 @@ class Rate:
             if reads is not None and reads[0] in CARRIED_KINDS:
                 continue  # its factor arrives through `carried`, drawn and kept by the engine
             value *= m.factor(**context)
-        return value * carried
+        return value * carried_factor
 
     def check_one_base(self, label: str = "this rate") -> None:
         """A rate may carry **one** `SetBy`. Two would each claim to *be* the
@@ -71,7 +71,7 @@ class Rate:
                 f"once — each of them claims to be the whole number. Keep one; if you meant to scale "
                 f"the result, that is ScaledBy, which multiplies and composes freely.")
 
-    def carried(self, unit: str | None = None) -> tuple[tuple[Modifier, str], ...]:
+    def carried_modifiers(self, unit: str | None = None) -> tuple[tuple[Modifier, str], ...]:
         """Every modifier on this rate that reads a value the **engine** has to draw and carry,
         paired with the unit it is carried per (see `Modifier.reads`).
 

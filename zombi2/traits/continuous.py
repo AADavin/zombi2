@@ -11,8 +11,7 @@ import numpy as np
 from ..rates.mapping import check_not_a_kernel
 from ..rng import stream
 from ..rates.modifiers import (describe, DRAWN, INHERITED, DrivenBy, OnTime, OnTotalDiversity, SetBy,
-                               carried_at_birth, carried_at_split, check_one_memory,
-                               is_implemented, product)
+                               check_one_memory, is_implemented, values_at_birth, values_at_split)
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..tree import Tree, as_tree
@@ -117,7 +116,7 @@ def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "
             drivers = {key: traj.value(node_id, t) for key, traj in trajs.items()}
             for traj in trajs.values():
                 nxt = min(nxt, traj.next_change(node_id, t))
-        sigma2 = rate.effective(lineages=1, time=t, carried=inherited, diversity=div,
+        sigma2 = rate.effective(lineages=1, time=t, carried_factor=inherited, diversity=div,
                                 drivers=drivers)
         if pull > 0.0:
             # the OU weight for this piece: what survives of the noise injected in [t, nxt) once the
@@ -512,7 +511,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             check_not_a_kernel(m.mapping, label="rate")
     # the per-lineage modifiers σ² carries (variable-rates BM), asked for the same way every level
     # asks — and every one of them is kept, so two compose rather than the second going quietly.
-    drift = tuple(m for m, _ in r.carried(unit="lineage"))
+    drift = tuple(m for m, _ in r.carried_modifiers(unit="lineage"))
     check_one_memory(drift, label="rate", unit="lineage")
     r.check_one_base("rate")
     has_diversity = any(isinstance(m, OnTotalDiversity) for m in r.modifiers)  # σ² reads the standing LTT
@@ -564,20 +563,20 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
         # thread the inherited factor: the root's is 1.0, each daughter's is its parent's times a
         # lognormal kick drawn at the split (so σ² is autocorrelated down the tree). None ⇒ 1.0, no draw.
         if node.parent is None:
-            inh[i] = carried_at_birth(drift, rng)
+            inh[i] = values_at_birth(drift, rng)
         else:
-            inh[i] = carried_at_split(drift, inh[node.parent], rng)
+            inh[i] = values_at_split(drift, inh[node.parent], rng)
         t0, t1 = node.birth_time, node.end_time
         if is_ou:
             e = math.exp(-alpha * (t1 - t0))       # mean-reversion toward θ over the branch
             mean = theta + (x - theta) * e         # the mean does not read σ², so a modified σ² leaves it
             # …and the variance is the pull-weighted integral, which for a bare σ² is exactly the
             # closed form σ²/(2α)·(1−e^{−2α·dt}) this branch used before the weight existed.
-            var = _accrued_variance(r, t0, t1, inherited=product(inh[i]), ltt=ltt, trajs=trajs, node_id=i,
+            var = _accrued_variance(r, t0, t1, inherited=math.prod(inh[i]), ltt=ltt, trajs=trajs, node_id=i,
                                     pull=alpha)
         else:
             mean = x                                # pure diffusion (BM / early burst / variable-rates)
-            var = _accrued_variance(r, t0, t1, inherited=product(inh[i]), ltt=ltt, trajs=trajs, node_id=i)
+            var = _accrued_variance(r, t0, t1, inherited=math.prod(inh[i]), ltt=ltt, trajs=trajs, node_id=i)
         std = math.sqrt(var) if var > 0.0 else 0.0
         node_values[i] = mean + (float(rng.normal(0.0, std)) if std > 0.0 else 0.0)
 

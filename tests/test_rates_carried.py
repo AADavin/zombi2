@@ -1,13 +1,15 @@
-"""`Modifier.reads` and `Rate.carried` — which value a modifier reads, and on what unit.
+"""`Modifier.reads` and `Rate.carried_modifiers` — which value a modifier reads, and on what unit.
 
 These are the two halves of the grammar written where the code can see them: a modifier is a
 *reading* of a **value**, and a value's kind decides who produces the number. A measured value the
 modifier computes for itself; a drawn or inherited one the engine has to draw when a unit is born
-and hand back afterwards. `Rate.carried` is how a level asks for the second sort without knowing
+and hand back afterwards. `Rate.carried_modifiers` is how a level asks for the second sort without knowing
 which modifier classes exist.
 """
 
 from __future__ import annotations
+
+import math
 
 import pytest
 
@@ -38,39 +40,39 @@ def test_measured_and_driven_are_not_carried():
     resolves per lineage into ``drivers``."""
     rate = _rate(1.0 * mod.OnTime({0: 1.0}) * mod.OnTotalDiversity(cap=50)
                  * mod.DrivenBy("habitat.tsv", {"cave": 2.0}))
-    assert rate.carried() == ()
+    assert rate.carried_modifiers() == ()
 
 
 def test_a_carried_modifier_is_reported_with_its_unit():
     drift = mod.Inherited(per='lineage', spread=0.2)
-    assert _rate(1.0 * drift).carried() == ((drift, "lineage"),)
+    assert _rate(1.0 * drift).carried_modifiers() == ((drift, "lineage"),)
 
     speed = mod.Drawn(per='family', spread=0.5)
-    assert _rate(0.25 * speed).carried() == ((speed, "family"),)
+    assert _rate(0.25 * speed).carried_modifiers() == ((speed, "family"),)
 
 
 def test_all_of_them_are_kept_not_just_the_first():
     """The point of the query. Each engine used to hunt for *the* per-unit modifier and take the
     first match, so a second one was silently dropped and the run was not the model asked for."""
     a, b = mod.Drawn(per='family', spread=0.5), mod.Drawn(per='family', spread=2.0)
-    assert _rate(0.25 * a * b).carried() == ((a, "family"), (b, "family"))
+    assert _rate(0.25 * a * b).carried_modifiers() == ((a, "family"), (b, "family"))
 
 
 def test_written_order_is_kept():
     first, second = mod.Drawn(per='lineage', spread=0.3), mod.Drawn(per='family', spread=0.5)
-    assert [m for m, _ in _rate(0.25 * first * second).carried()] == [first, second]
+    assert [m for m, _ in _rate(0.25 * first * second).carried_modifiers()] == [first, second]
 
 
 def test_unit_narrows_the_answer():
     per_lineage, per_family = mod.Drawn(per='lineage', spread=0.3), mod.Drawn(per='family', spread=0.5)
     rate = _rate(0.25 * per_lineage * per_family)
-    assert rate.carried(unit="lineage") == ((per_lineage, "lineage"),)
-    assert rate.carried(unit="family") == ((per_family, "family"),)
-    assert rate.carried(unit="site") == ()
+    assert rate.carried_modifiers(unit="lineage") == ((per_lineage, "lineage"),)
+    assert rate.carried_modifiers(unit="family") == ((per_family, "family"),)
+    assert rate.carried_modifiers(unit="site") == ()
 
 
 def test_a_bare_rate_carries_nothing():
-    assert _rate(1.0).carried() == ()
+    assert _rate(1.0).carried_modifiers() == ()
 
 
 def test_a_third_party_modifier_without_reads_is_not_carried():
@@ -83,7 +85,7 @@ def test_a_third_party_modifier_without_reads_is_not_carried():
             return 1.0 / (1.0 + time)
 
     assert OnLogTime.reads is None
-    assert _rate(1.0 * OnLogTime()).carried() == ()
+    assert _rate(1.0 * OnLogTime()).carried_modifiers() == ()
 
 
 def test_carried_kinds_are_the_ones_needing_a_generator():
@@ -96,7 +98,7 @@ def test_effective_skips_carried_modifiers_and_takes_their_product_instead():
     for one — the engine holds it and passes it in as ``carried``, already multiplied out."""
     rate = _rate(2.0 * mod.Drawn(per='lineage', spread=0.5))
     assert rate.effective(lineages=1) == pytest.approx(2.0)            # no factor supplied yet
-    assert rate.effective(lineages=1, carried=3.0) == pytest.approx(6.0)
+    assert rate.effective(lineages=1, carried_factor=3.0) == pytest.approx(6.0)
 
 
 def test_a_measured_modifier_still_computes_its_own_factor():
@@ -117,25 +119,27 @@ def test_the_species_engine_now_applies_every_per_lineage_modifier():
 
     assert _per_lineage(rate) == (a, b)
 
-    drawn = mod.carried_at_birth(_per_lineage(rate), np.random.default_rng(1))
+    drawn = mod.values_at_birth(_per_lineage(rate), np.random.default_rng(1))
     assert len(drawn) == 2                                   # both drew, not just the first
-    effective = rate.effective(lineages=1, carried=mod.product(drawn))
+    effective = rate.effective(lineages=1, carried_factor=math.prod(drawn))
     assert effective == pytest.approx(drawn[0] * drawn[1])   # and both reached the rate
 
 
 def test_the_genome_engines_now_apply_every_per_family_modifier():
-    """The same regression on the other side. `draw_product` is what the three genome engines use to
-    give a new family its factor, and it draws from every modifier the rate carries."""
+    """The same regression on the other side. `values_at_birth` is what the three genome engines use
+    to give a new family its values, and it draws from every modifier the rate carries — they take
+    `math.prod` of the result, because a family never splits and only the combined factor matters."""
     import numpy as np
 
     a, b = mod.Drawn(per='family', spread=0.4), mod.Drawn(per='family', spread=0.9)
     rate = as_rate(0.25 * a * b, default_scope=scope.PerCopy)
-    carried = tuple(m for m, _ in rate.carried(unit="family"))
+    carried = tuple(m for m, _ in rate.carried_modifiers(unit="family"))
     assert carried == (a, b)
 
-    seen = mod.draw_product(carried, np.random.default_rng(7))
+    seen = mod.values_at_birth(carried, np.random.default_rng(7))
     rng = np.random.default_rng(7)
-    assert seen == pytest.approx(a.draw(rng) * b.draw(rng))   # both draws, in written order
+    assert seen == pytest.approx((a.draw(rng), b.draw(rng)))   # both draws, in written order
+    assert math.prod(seen) == pytest.approx(seen[0] * seen[1])
 
 
 class TestOneObjectIsOneDraw:
@@ -150,12 +154,12 @@ class TestOneObjectIsOneDraw:
         shared: dict[int, float] = {}       # one unit's cache, passed to each of its rates
         rng = np.random.default_rng(11)
 
-        first = mod.draw_product((speed,), rng, shared)
-        second = mod.draw_product((speed,), rng, shared)
+        first = mod.values_at_birth((speed,), rng, shared)
+        second = mod.values_at_birth((speed,), rng, shared)
         assert first == second                                  # the same number both times
 
         expected = mod.Drawn(per='family', spread=0.5).draw(np.random.default_rng(11))
-        assert first == pytest.approx(expected)                 # and the generator moved once
+        assert first == pytest.approx((expected,))              # and the generator moved once
 
     def test_two_objects_of_the_same_spread_draw_separately(self):
         import numpy as np
@@ -164,24 +168,23 @@ class TestOneObjectIsOneDraw:
         shared: dict[int, float] = {}
         rng = np.random.default_rng(11)
 
-        assert mod.draw_product((a,), rng, shared) != mod.draw_product((b,), rng, shared)
+        assert mod.values_at_birth((a,), rng, shared) != mod.values_at_birth((b,), rng, shared)
 
     def test_the_cache_is_per_unit_so_a_later_unit_draws_afresh(self):
         import numpy as np
 
         speed = mod.Drawn(per='family', spread=0.5)
         rng = np.random.default_rng(11)
-        one = mod.draw_product((speed,), rng, {})               # family one
-        two = mod.draw_product((speed,), rng, {})               # family two
+        one = mod.values_at_birth((speed,), rng, {})               # family one
+        two = mod.values_at_birth((speed,), rng, {})               # family two
         assert one != two
 
     def test_without_a_cache_every_modifier_draws_for_itself(self):
         import numpy as np
 
         speed = mod.Drawn(per='family', spread=0.5)
-        rng = np.random.default_rng(11)
-        assert mod.draw_product((speed, speed), rng) != pytest.approx(
-            mod.draw_product((speed,), np.random.default_rng(11), {}) ** 2)
+        one, two = mod.values_at_birth((speed, speed), np.random.default_rng(11))
+        assert one != two          # the same object, twice, but no cache — so two draws
 
     def test_species_shares_one_object_between_birth_and_death(self):
         """A lineage's cache spans both rates, so `1.0 * s` on birth and `0.5 * s` on death is one
@@ -196,8 +199,8 @@ class TestOneObjectIsOneDraw:
 
         lineage: dict[int, float] = {}
         rng = np.random.default_rng(4)
-        (b,) = mod.carried_at_birth(birth, rng, lineage)
-        (d,) = mod.carried_at_birth(death, rng, lineage)
+        (b,) = mod.values_at_birth(birth, rng, lineage)
+        (d,) = mod.values_at_birth(death, rng, lineage)
         assert b == d
 
     def test_species_keeps_two_objects_independent(self):
@@ -210,8 +213,8 @@ class TestOneObjectIsOneDraw:
 
         lineage: dict[int, float] = {}
         rng = np.random.default_rng(4)
-        (b,) = mod.carried_at_birth(birth, rng, lineage)
-        (d,) = mod.carried_at_birth(death, rng, lineage)
+        (b,) = mod.values_at_birth(birth, rng, lineage)
+        (d,) = mod.values_at_birth(death, rng, lineage)
         assert b != d
 
 
@@ -231,7 +234,7 @@ class TestTheEscapeHatchCannotVouchForACarriedValue:
     cannot promise it for a carried value, because that number is drawn by the engine when a unit is
     born and handed back, and an engine can only do that for the units it declares.
 
-    Admitting one anyway drops it twice: `Rate.carried` never returns it (wrong unit, so nothing
+    Admitting one anyway drops it twice: `Rate.carried_modifiers` never returns it (wrong unit, so nothing
     draws it) and `Rate.effective` skips it because its kind is carried, so `factor` is never called
     either. The rate then runs undriven in silence — the exact failure this gate exists to prevent,
     and newly possible because `reads` did not exist before.

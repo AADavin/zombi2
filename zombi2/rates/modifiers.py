@@ -43,7 +43,7 @@ INHERITED = "inherited"    # the parent's, perturbed at each split
 DRIVEN = "driven"          # another level's value: recorded beforehand, or growing alongside
 
 #: The kinds the **engine** must draw and carry per unit, rather than a modifier computing them.
-#: `Rate.carried` is the query that finds them.
+#: `Rate.carried_modifiers` is the query that finds them.
 CARRIED_KINDS = (DRAWN, INHERITED)
 
 #: The units a value can be attached to, in the order they nest — the other half of `Modifier.reads`.
@@ -55,84 +55,56 @@ UNITS = ("run", "lineage", "chromosome", "family", "copy", "site")
 
 
 
-def draw_product(mods: "tuple[Modifier, ...]", rng,
-                 drawn: "dict[int, float] | None" = None) -> float:
-    """One draw from each modifier, multiplied — the factor a newly created unit carries.
-
-    For a unit that never splits, the carried value is fixed for its whole life and only the product
-    is ever needed, so the engine keeps one number per unit (a gene family). Where a unit *does*
-    split, the engine keeps the factors separately instead, because an inherited value has to
-    nudge its parent's own number rather than a product.
-
-    Drawing in written order is what keeps a run reproducible, and drawing from **every** modifier
-    is the point: taking only the first was how a second one silently left the model.
-
-    ``drawn`` makes one value shared. It is a cache for a **single unit**, keyed by modifier
-    identity: pass the same dict while drawing each of that unit's rates, and a modifier written on
-    two of them is drawn once and both rates get the same number. That is how "a family that loses
-    fast also duplicates fast" is said — one object, read twice — against "fast at losing only",
-    which is two objects. Two modifiers that merely compare equal are still two draws, because the
-    question is whether you wrote one thing or two, not whether their spreads match. Omit the cache
-    and every modifier draws for itself.
-    """
-    out = 1.0
-    for m in mods:
-        if drawn is None:
-            out *= m.draw(rng)
-            continue
-        key = id(m)
-        if key not in drawn:
-            drawn[key] = m.draw(rng)
-        out *= drawn[key]
-    return out
-
-
-def product(values) -> float:
-    """The carried factors multiplied out — what `Rate.effective` takes as
-    ``carried``. Empty (a rate carrying nothing per unit) is 1.0."""
-    out = 1.0
-    for v in values:
-        out *= v
-    return out
-
-
-def carried_at_birth(mods: "tuple[Modifier, ...]", rng,
-                     drawn: "dict[int, float] | None" = None) -> tuple[float, ...]:
-    """The factors a newly created unit carries, one per modifier, in written order.
+def values_at_birth(mods: "tuple[Modifier, ...]", rng,
+                    shared: "dict[int, float] | None" = None) -> tuple[float, ...]:
+    """The value a newly created unit carries, one per modifier, in written order.
 
     An `INHERITED` value starts from its own beginning (`Inherited.initial`); a `DRAWN` one is drawn.
-    The dispatch reads `Modifier.reads`, not the class, so a per-unit modifier this
-    engine has never heard of is handled like the ones it has. ``drawn`` shares one number between
-    the rates of a single unit — see `draw_product`."""
+    The dispatch reads `Modifier.reads`, not the class, so a per-unit modifier an engine has never
+    heard of is handled like the ones it has. Drawing in written order is what keeps a run
+    reproducible, and drawing from **every** modifier is the point: taking only the first was how a
+    second one silently left the model.
+
+    ``shared`` makes one value shared between the rates of a **single unit**. It is a cache keyed by
+    modifier identity: pass the same dict while producing each of that unit's rates, and a modifier
+    written on two of them is drawn once and both rates get the same number. That is how "a family
+    that loses fast also duplicates fast" is said — one object, read twice — against "fast at losing
+    only", which is two objects. Two modifiers that merely compare equal are still two values,
+    because the question is whether you wrote one thing or two. Omit the cache and each draws for
+    itself.
+
+    Callers wanting the combined factor take ``math.prod`` of the result; a unit that never splits
+    (a gene family) needs only that, while one that does keeps the values apart, because an
+    inherited value has to perturb its parent's own number rather than a product."""
     out = []
     for m in mods:
         key = id(m)
-        if drawn is None or key not in drawn:
+        if shared is None or key not in shared:
             value = m.initial() if m.reads and m.reads[0] == INHERITED else m.draw(rng)
-            if drawn is None:
+            if shared is None:
                 out.append(value)
                 continue
-            drawn[key] = value
-        out.append(drawn[key])
+            shared[key] = value
+        out.append(shared[key])
     return tuple(out)
 
 
-def carried_at_split(mods: "tuple[Modifier, ...]", parent_values: tuple[float, ...], rng,
-                     drawn: "dict[int, float] | None" = None) -> tuple[float, ...]:
-    """A daughter's carried factors: its parent's, perturbed (`INHERITED`), or a fresh independent
+def values_at_split(mods: "tuple[Modifier, ...]", parent_values: tuple[float, ...], rng,
+                    shared: "dict[int, float] | None" = None) -> tuple[float, ...]:
+    """A daughter's carried values: its parent's, perturbed (`INHERITED`), or a fresh independent
     draw that ignores the parent (`DRAWN`). That one line is the whole autocorrelated / uncorrelated
-    split (SPEC §5)."""
+    split (SPEC §5). ``shared`` works as in `values_at_birth`."""
     out = []
     for i, m in enumerate(mods):
         key = id(m)
-        if drawn is None or key not in drawn:
+        if shared is None or key not in shared:
             value = (m.descend(parent_values[i], rng)
                      if m.reads and m.reads[0] == INHERITED else m.draw(rng))
-            if drawn is None:
+            if shared is None:
                 out.append(value)
                 continue
-            drawn[key] = value
-        out.append(drawn[key])
+            shared[key] = value
+        out.append(shared[key])
     return tuple(out)
 
 
@@ -265,7 +237,7 @@ class Modifier:
     #: **drawn** or **inherited** value has to be produced once per unit, remembered for that
     #: unit's life, and handed back at every evaluation — which only the engine can do, because it
     #: owns the generator and knows when a unit is born. Those are the kinds in `CARRIED_KINDS`,
-    #: and `Rate.carried` is how an engine asks for them without knowing which classes exist.
+    #: and `Rate.carried_modifiers` is how an engine asks for them without knowing which classes exist.
     reads: ClassVar[tuple[str, str] | None] = None
 
     #: The engines a **third-party** modifier declares itself implemented for. Each engine ships an
@@ -778,5 +750,5 @@ class SetBy(DrivenBy):
 
 __all__ = ["Modifier", "OnTime", "OnTotalDiversity", "Drawn", "Inherited", "DrivenBy", "SetBy",
            "MEASURED", "DRAWN", "INHERITED", "DRIVEN", "CARRIED_KINDS", "UNITS",
-           "product", "draw_product", "carried_at_birth", "carried_at_split", "check_one_memory",
+           "values_at_birth", "values_at_split", "check_one_memory",
            "cell_name", "describe", "is_implemented", "matches_declared", "WRITABLE"]
