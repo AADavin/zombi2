@@ -18,7 +18,8 @@ Shared by every level, so it lives in one place. Reach the pieces as submodules:
 - ``distributions`` — value/length distributions
 """
 
-from .values import UNITS, Drawn, Inherited, Measured, Time
+from .values import UNITS, Clade, Drawn, Inherited, Measured, Time
 from .verbs import ScaledBy, SetBy, Weights
 
-__all__ = ["UNITS", "Drawn", "Inherited", "Measured", "Time", "ScaledBy", "SetBy", "Weights"]
+__all__ = ["UNITS", "Clade", "Drawn", "Inherited", "Measured", "Time",
+           "ScaledBy", "SetBy", "Weights"]
