@@ -655,7 +655,6 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
 def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, origination=0.0,
                             transfer_to="uniform", replacement=False, self_transfer=False,
                             initial_families=100, family_names=None, modules=None,
-                            family_speed=None,
                             max_family_size=10, seed=None, parallel=False, stream_to=None,
                             outputs=None, progress=False) -> "FamilyGenomesResult | StreamedRun":
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
@@ -741,8 +740,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 raise ValueError(
                     "origination carries ByFamily, but origination is the rate at which families are "
                     "CREATED — when it is read there is no family yet to have drawn a factor for. "
-                    "Put ByFamily on duplication, transfer or loss, or use family_speed= for a "
-                    "family-wide tempo.")
+                    "Put ByFamily on duplication, transfer or loss; writing one ByFamily object on "
+                    "several of them gives a family-wide tempo, since one object is one draw.")
             if isinstance(m, DrivenBy):
                 check_not_a_kernel(m.mapping, label=label)
             if is_implemented(m, IMPLEMENTED_MODIFIERS, "genomes.family"):
@@ -752,25 +751,17 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 f"support. It takes OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
                 f"ByFamily (per-family heterogeneity). Clade drift is not implemented yet."
             )
-    if family_speed is not None and not isinstance(family_speed, ByFamily):
-        raise ValueError(
-            f"family_speed takes a ByFamily modifier — family_speed=mod.ByFamily(spread=0.5) — "
-            f"got {family_speed!r}. It is the family-wide argument: one draw per family scaling every "
-            f"rate that family has.")
-    # `family_speed` counts as a ByFamily here, and leaving it out of this guard was a real bug: with
-    # family_speed set beside a driven rate the run was accepted, and then the loop below set that
-    # rate's per-lineage weights from the family sums and immediately OVERWROTE them with the driven
-    # ones — so the total was summed WITHOUT the family multipliers while the copy was still drawn
-    # WITH them. A total that says one thing and a pick that does another is the one failure this
-    # engine must not have.
-    if (family_speed is not None
-            or any(isinstance(m, ByFamily) for rate in (dup, tra, los) for m in rate.modifiers)) and \
+    # Getting this guard's reach wrong was a real bug once: a per-family draw the guard did not see,
+    # set beside a driven rate, was accepted, and then the loop below set that rate's per-lineage
+    # weights from the family sums and immediately OVERWROTE them with the driven ones — so the total
+    # was summed WITHOUT the family multipliers while the copy was still drawn WITH them. A total
+    # that says one thing and a pick that does another is the one failure this engine must not have.
+    if any(isinstance(m, ByFamily) for rate in (dup, tra, los) for m in rate.modifiers) and \
             any(isinstance(m, DrivenBy) for rate in (dup, tra, los, org) for m in rate.modifiers):
         raise ValueError(
             "ByFamily and DrivenBy on the same run is a later slice: one weights lineages by a "
             "driver and the other weights copies by their family, and combining them means "
-            "weighting by the product. Use one or the other for now. (family_speed= is a ByFamily "
-            "draw too, so it counts here.)")
+            "weighting by the product. Use one or the other for now.")
     # the choice (SPEC §5), validated in the one place all three resolutions share: the mapping's
     # numbers are weights over the candidate recipients, never a rate multiplier
     transfer_to = resolve_transfer_to(transfer_to)
@@ -843,7 +834,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         result = run_parallel_family(
             tree, dup=dup, tra=tra, los=los, org=org, transfer_to=transfer_to,
             replacement=replacement, self_transfer=self_transfer, initial_families=initial_families,
-            family_names=family_names, modules=module_map, family_speed=family_speed, cap=cap,
+            family_names=family_names, modules=module_map, cap=cap,
             seed=seed, parallel=parallel,
             progress=progress, stream_to=stream_to, outputs=outputs,
             trajs=trajs, to_traj=to_traj, group_of=group_of,
@@ -862,34 +853,31 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         copy_counter += 1
         return c
 
-    # Per-family multipliers, drawn once when a family is minted and then fixed for its whole life:
-    # family_speed scales every rate that family has (one draw), and a ByFamily on a single rate
-    # varies that rate on its own (a separate draw). Placement is what decides whether a family's
-    # rates move together. Empty unless one of them is used, and then the engine takes its weighted
-    # path; a run without either draws nothing here and is byte-identical to before.
+    # Per-family multipliers, drawn once when a family is created and then fixed for its whole life.
+    # Whether a family's rates move together is decided by what was written: one ByFamily object read
+    # by two rates is one draw for both, two objects are two draws. Empty unless some rate carries
+    # one, and then the engine takes its weighted path; a run carrying none draws nothing here.
     fam_by = {"duplication": tuple(m for m, _ in dup.carried(unit="family")),
               "transfer": tuple(m for m, _ in tra.carried(unit="family")),
               "loss": tuple(m for m, _ in los.carried(unit="family"))}
-    any_family = family_speed is not None or any(fam_by.values())
-    # A rate with no ByFamily of its own carries family_speed and nothing else, so every such rate
-    # holds the same multiplier for the same family: one table shared between them, which is what
-    # lets _FamilyWeights sum them once rather than once per rate.
-    speed_only: dict[int, float] = {}
+    any_family = any(fam_by.values())
+    # A rate carrying nothing per family holds 1.0 for every family, so all such rates share one
+    # empty table rather than each filling its own — which is what lets _FamilyWeights sum them once.
+    none_carried: dict[int, float] = {}
     fam_mult: dict[str, dict[int, float]] = {
-        key: ({} if mods else speed_only) for key, mods in fam_by.items()}
+        key: ({} if mods else none_carried) for key, mods in fam_by.items()}
 
     def new_family() -> int:
         nonlocal family_counter
         f = family_counter
         family_counter += 1
         if any_family:
-            speed = family_speed.draw(rng) if family_speed is not None else 1.0
             # one draw per distinct modifier *object* for this family, shared across its rates: the
             # same ByFamily written on duplication and on loss means one number, so a fast family is
             # fast at both. Two separately built ones are two draws even with the same spread.
             drawn: dict[int, float] = {}
             for key, mods in fam_by.items():
-                fam_mult[key][f] = speed * draw_product(mods, rng, drawn)
+                fam_mult[key][f] = draw_product(mods, rng, drawn)
         return f
 
     depth = mean_root_to_tip(tree)  # timescale for Distance weighting (unused by "uniform")

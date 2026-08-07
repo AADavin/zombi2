@@ -756,17 +756,17 @@ def test_the_trait_and_joint_engines_refuse_a_between_kernel_on_a_rate():
                              n_extant=20, seed=3)
 
 
-def test_family_speed_beside_a_driven_rate_is_refused(tmp_path):
-    """Regression. ``family_speed`` is a ``ByFamily`` draw, so it belongs in the guard that refuses
-    ByFamily beside DrivenBy — and it was missing from it. The run was accepted, and then the loss
-    total was summed WITHOUT the family multipliers while the copy was still drawn WITH them: a total
-    saying one thing and a pick doing another."""
+def test_a_family_draw_on_one_rate_beside_a_driven_rate_is_refused(tmp_path):
+    """Regression. The guard has to see every per-family draw in the run, not the one on the driven
+    rate: a draw it missed was accepted, and then the loss total was summed WITHOUT the family
+    multipliers while the copy was still drawn WITH them — a total saying one thing and a pick doing
+    another."""
     tree = simulate_species_tree(birth=1.2, death=0.2, total_time=1.5, seed=11).complete_tree
     driver = tmp_path / "d.tsv"
     _write_driver(driver, tree, {i: ("hi" if i % 2 else "lo") for i in tree.nodes})
     with pytest.raises(ValueError, match="ByFamily and DrivenBy on the same run"):
         genomes.simulate_genomes_family(
-            tree, family_speed=mod.ByFamily(spread=0.5),
+            tree, duplication=0.3 * mod.ByFamily(spread=0.5),
             loss=0.2 * mod.DrivenBy(str(driver), {"lo": 0.0, "hi": 5.0}),
             initial_families=6, seed=3)
 
@@ -1078,14 +1078,14 @@ def test_ordered_refuses_byfamily_and_a_driver_together(tmp_path):
             initial_families=6, seed=1)
 
 
-def test_ordered_refuses_family_speed_and_a_driver_together(tmp_path):
-    """``family_speed`` is a ByFamily draw, so it falls under the same refusal. This is the half the
-    family engine's guard missed."""
+def test_ordered_refuses_a_family_draw_and_a_driver_together(tmp_path):
+    """The same refusal at the ordered resolution, where a per-family draw weights the segment by
+    what it covers rather than the lineage."""
     tree = _ord_tree()
     _state_of, driver = _ord_driver(tmp_path, tree)
     with pytest.raises(ValueError, match="ByFamily and DrivenBy on the same run"):
         genomes.simulate_genomes_ordered(
-            tree, family_speed=mod.ByFamily(spread=0.5),
+            tree, duplication=0.3 * mod.ByFamily(spread=0.5),
             loss=0.2 * mod.DrivenBy(driver, {"host": 3.0, "free": 1.0}),
             initial_families=6, seed=1)
 

@@ -588,12 +588,13 @@ def test_by_family_is_deterministic_given_the_seed():
     assert [(e.time, e.kind, e.copy) for e in a.edges] == [(e.time, e.kind, e.copy) for e in b.edges]
 
 
-def test_family_speed_moves_every_rate_of_a_family_together():
-    # the other placement: one draw per family, scaling all its rates. A family that duplicates a
-    # lot should also be losing a lot — which is exactly what a per-rate ByFamily does NOT give.
+def test_one_shared_draw_moves_every_rate_of_a_family_together():
+    # the other placement: ONE ByFamily object read by both rates, so one draw per family scales
+    # them together. A family that duplicates a lot should also be losing a lot — which is exactly
+    # what two separately built ByFamily draws do NOT give.
+    speed = mod.ByFamily(spread=0.6)
     sp = _tree(seed=1, n_extant=20, death=0.0)
-    g = simulate_genomes_family(sp, duplication=0.25, loss=0.25,
-                                family_speed=mod.ByFamily(spread=0.6),
+    g = simulate_genomes_family(sp, duplication=0.25 * speed, loss=0.25 * speed,
                                 initial_families=150, seed=3)
     dup = collections.Counter(e.family for e in g.events if e.kind == "duplication")
     los = collections.Counter(e.family for e in g.events if e.kind == "loss")
@@ -626,9 +627,10 @@ def test_the_carried_family_weights_match_a_full_recompute(monkeypatch):
         return out
 
     monkeypatch.setattr(_FamilyWeights, "current", current)
+    speed = mod.ByFamily(spread=0.7)
     sp = _tree(seed=4, n_extant=16, death=0.3)
-    g = simulate_genomes_family(sp, duplication=0.3, transfer=0.2, loss=0.3, origination=0.4,
-                                family_speed=mod.ByFamily(spread=0.7), replacement=True,
+    g = simulate_genomes_family(sp, duplication=0.3 * speed, transfer=0.2 * speed,
+                                loss=0.3 * speed, origination=0.4, replacement=True,
                                 max_family_size=4, initial_families=40, seed=6)
     assert len(checked) > 500                      # the run really did exercise the loop
     assert {e.kind for e in g.edges} == {"origination", "duplication", "loss", "transfer",
@@ -639,12 +641,6 @@ def test_by_family_is_refused_on_origination():
     sp = _tree(seed=1, n_extant=8)
     with pytest.raises(ValueError, match="families are CREATED"):
         simulate_genomes_family(sp, origination=0.5 * mod.ByFamily(spread=0.3), seed=1)
-
-
-def test_family_speed_takes_a_by_family_modifier():
-    sp = _tree(seed=1, n_extant=8)
-    with pytest.raises(ValueError, match="family_speed takes a ByFamily"):
-        simulate_genomes_family(sp, loss=0.2, family_speed=0.5, seed=1)
 
 
 def test_by_family_with_driven_by_is_refused_for_now():

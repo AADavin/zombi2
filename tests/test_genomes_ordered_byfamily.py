@@ -107,16 +107,13 @@ def test_byfamily_is_accepted_and_spreads_families_apart(tree):
     assert per_family_inversions(0.9) > 0.0            # and with a weight set
 
 
-def test_family_speed_is_now_accepted(tree):
-    g = genomes.simulate_genomes_ordered(tree, duplication=0.3, loss=0.2, origination=0.3,
-                                         family_speed=mod.ByFamily(spread=0.6),
+def test_one_object_shared_across_rates_is_accepted(tree):
+    """A family-wide tempo here is one ByFamily object read by every rate — one draw per family."""
+    speed = mod.ByFamily(spread=0.6)
+    g = genomes.simulate_genomes_ordered(tree, duplication=0.3 * speed, loss=0.2 * speed,
+                                         origination=0.3,
                                          initial_families=15, chromosomes=1, seed=7)
     assert g.events
-
-
-def test_family_speed_must_be_a_byfamily_draw(tree):
-    with pytest.raises(ValueError, match="family_speed must be a ByFamily"):
-        genomes.simulate_genomes_ordered(tree, duplication=0.3, family_speed=2.0, seed=1)
 
 
 def test_byfamily_still_refused_on_origination(tree):

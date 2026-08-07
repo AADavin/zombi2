@@ -403,19 +403,19 @@ class ByFamily(Modifier):
     spreads the families out without moving the average one off the base rate. ``dist`` is
     ``"lognormal"`` (default; σ = the log-scale) or ``"gamma"`` (σ = the coefficient of variation).
 
-    **Where you put it decides what varies together**. On a single rate, that rate
-    varies by family on its own::
+    **Whether you write one object or two decides what varies together.** Two separately built
+    draws are independent, even with the same spread::
 
-        loss = 0.25 * mod.ByFamily(spread=0.5)      # a family that loses fast is not thereby
-        duplication = 0.2 * mod.ByFamily(spread=0.5)   # duplicating fast — independent draws
+        loss = 0.25 * mod.ByFamily(spread=0.5)         # a family that loses fast is not thereby
+        duplication = 0.2 * mod.ByFamily(spread=0.5)   # duplicating fast — two objects, two draws
 
-    As ``family_speed=``, one draw scales **every** rate that family has, so a
-    fast family is fast at everything::
+    One object read by both rates is one draw per family, so a fast family is fast at everything::
 
-        simulate_genomes_family(tree, duplication=0.2, loss=0.25,
-                                family_speed=mod.ByFamily(spread=0.5))
+        speed = mod.ByFamily(spread=0.5)
+        simulate_genomes_family(tree, duplication=0.2 * speed, loss=0.25 * speed)
 
-    The two compose: a family-wide tempo, plus extra variation on one rate.
+    The two compose: a family-wide tempo, plus extra variation on one rate, is the shared object on
+    every rate and a second one on the rate that varies further.
 
     Not accepted on ``origination``, which is the rate at which families are *created* — at the moment
     it is read there is no family to have drawn a factor for. The engine rejects it rather than

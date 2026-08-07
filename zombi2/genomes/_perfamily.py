@@ -22,8 +22,8 @@ and read it from module state.
 
 The realisation differs from the serial reference engine for a given seed (a different, equally valid
 draw — the "A" decision). Everything the family resolution accepts runs here: duplication / transfer /
-loss / origination, every recipient rule, skyline ``OnTime``, the family cap, ``ByFamily`` /
-``family_speed`` heterogeneity, ``self_transfer``, ``replacement``, named families — and a
+loss / origination, every recipient rule, skyline ``OnTime``, the family cap, ``ByFamily``
+heterogeneity, ``self_transfer``, ``replacement``, named families — and a
 **conditioned** rate, which does not couple families either: a ``DrivenBy`` driver was grown before
 this run and is an input to it, so a lineage's factor is the same number whichever family is asking.
 The workers thread the driver trajectories with the rest of the context. The engine still *has* a
@@ -168,7 +168,6 @@ class FamilyContext:
     self_transfer: bool
     cap: "int | None"
     depth: float
-    family_speed: object
     fam_by: dict
     birth_times: list
     birth_nodes: list
@@ -190,15 +189,15 @@ class FamilyContext:
 
 
 def prepare_family_context(tree, *, dup, tra, los, transfer_to, replacement, self_transfer,
-                           cap, family_speed, trajs=None, to_traj=None, group_of=None,
+                           cap, trajs=None, to_traj=None, group_of=None,
                            driven=None) -> FamilyContext:
     """Precompute the per-run `FamilyContext` — the schedule and rate metadata every family
     reuses — so `simulate_one_family()` can evolve any family from any origination point without
     recomputing it. ``dup`` / ``tra`` / ``los`` are resolved `Rate`s (per
     copy)."""
     depth = mean_root_to_tip(tree)
-    # which single rate each per-family ByFamily slot sits on (origination is excluded upstream) — drawn
-    # once per family and multiplied onto that rate, exactly the serial engine's fam_mult placement.
+    # the per-family modifiers each rate carries (origination is excluded upstream) — drawn once per
+    # family and multiplied onto that rate, exactly the serial engine's fam_mult placement.
     fam_by = {"duplication": tuple(m for m, _ in dup.carried(unit="family")),
               "transfer": tuple(m for m, _ in tra.carried(unit="family")),
               "loss": tuple(m for m, _ in los.carried(unit="family"))}
@@ -208,7 +207,7 @@ def prepare_family_context(tree, *, dup, tra, los, transfer_to, replacement, sel
     deaths = sorted((tree.nodes[i].end_time, i) for i in tree.nodes)
     return FamilyContext(
         tree=tree, dup=dup, tra=tra, los=los, transfer_to=transfer_to, replacement=replacement,
-        self_transfer=self_transfer, cap=cap, depth=depth, family_speed=family_speed, fam_by=fam_by,
+        self_transfer=self_transfer, cap=cap, depth=depth, fam_by=fam_by,
         birth_times=[t for t, _ in births], birth_nodes=[i for _, i in births],
         death_times=[t for t, _ in deaths], death_nodes=[i for _, i in deaths],
         cross2=_cross2_times(tree),
@@ -228,16 +227,16 @@ def _init_worker(ctx, stream=None) -> None:
     _STREAM = stream
 
 
-def _family_mults(rng, family_speed, fam_by):
-    """The family's rate multipliers, drawn once from its own stream (so they are worker-invariant):
-    ``family_speed`` scales every rate together (one draw), a per-rate ``ByFamily`` varies that rate on
-    its own. The draw order is fixed — speed, then duplication / transfer / loss, and within a rate the
-    order its modifiers were written — so it is reproducible. ``1.0`` where a rate carries neither."""
-    speed = family_speed.draw(rng) if family_speed is not None else 1.0
+def _family_mults(rng, fam_by):
+    """The family's rate multipliers, drawn once from its own stream (so they are worker-invariant).
+    The draw order is fixed — duplication, then transfer, then loss, and within a rate the order its
+    modifiers were written — so it is reproducible. ``1.0`` where a rate carries none. One ByFamily
+    object read by two rates is one draw shared between them, which is how a family-wide tempo is
+    said."""
     drawn: dict[int, float] = {}     # shared across this family's rates: one object, one number
     out = {}
     for key in ("duplication", "transfer", "loss"):
-        out[key] = speed * draw_product(fam_by.get(key, ()), rng, drawn)
+        out[key] = draw_product(fam_by.get(key, ()), rng, drawn)
     return out
 
 
@@ -261,14 +260,14 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
 
     tree, dup, tra, los = ctx.tree, ctx.dup, ctx.tra, ctx.los
     transfer_to, replacement, self_transfer = ctx.transfer_to, ctx.replacement, ctx.self_transfer
-    cap, depth, family_speed, fam_by = ctx.cap, ctx.depth, ctx.family_speed, ctx.fam_by
+    cap, depth, fam_by = ctx.cap, ctx.depth, ctx.fam_by
     birth_times, birth_nodes = ctx.birth_times, ctx.birth_nodes
     death_times, death_nodes = ctx.death_times, ctx.death_nodes
     cross2 = ctx.cross2
     trajs, to_traj, group_of, driven = ctx.trajs, ctx.to_traj, ctx.group_of, ctx.driven
     any_driven = bool(trajs)
 
-    mult = _family_mults(rng, family_speed, fam_by)
+    mult = _family_mults(rng, fam_by)
     m_dup, m_tra, m_los = mult["duplication"], mult["transfer"], mult["loss"]
 
     events: list[GeneEdge] = []
@@ -593,7 +592,7 @@ def _stream_chunk(task):
 # --- the public entry: two passes, then either an in-memory merge or a stream to disk -------------
 
 def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, self_transfer,
-                        initial_families, family_names, modules, family_speed, cap, seed, parallel,
+                        initial_families, family_names, modules, cap, seed, parallel,
                         progress, stream_to=None, outputs=None,
                         trajs=None, to_traj=None, group_of=None, driven=None):
     """Run the per-family engine. Returns a `FamilyGenomesResult` (the in-memory
@@ -627,7 +626,7 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
     driven = driven or {}
     ctx = prepare_family_context(
         tree, dup=dup, tra=tra, los=los, transfer_to=transfer_to, replacement=replacement,
-        self_transfer=self_transfer, cap=cap, family_speed=family_speed,
+        self_transfer=self_transfer, cap=cap,
         trajs=trajs, to_traj=to_traj, group_of=group_of, driven=driven)
 
     # Pass 1: who originates, and where. One reserved stream for it; one per family after.

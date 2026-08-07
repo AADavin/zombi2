@@ -9,6 +9,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Removed
+- **`family_speed=` and `--family-speed` are gone**, replaced by reading one `ByFamily` object from
+  several rates, which now says the same thing (see below). `simulate_genomes_family(tree,
+  duplication=0.2, loss=0.25, family_speed=mod.ByFamily(spread=0.5))` becomes `speed =
+  mod.ByFamily(spread=0.5)` and then `duplication=0.2 * speed, loss=0.25 * speed`. The tempo now has
+  to be written on each rate it applies to rather than covering rates you had not thought about,
+  which is more to type and visible in the model instead of in a side argument. **The command line
+  cannot express it for now:** two `--` flags parse to two separate objects, so they are two
+  independent draws.
+
 ### Changed
 - **One modifier object read by two rates is now one draw, shared between them.** Writing
   `s = mod.ByFamily(spread=0.5)` and putting `s` on both `duplication` and `loss` makes a family
