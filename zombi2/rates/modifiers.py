@@ -76,6 +76,75 @@ def draw_product(mods: "tuple[Modifier, ...]", rng,
     return out
 
 
+def product(values) -> float:
+    """The carried factors multiplied out — what `Rate.effective` takes as
+    ``carried``. Empty (a rate carrying nothing per unit) is 1.0."""
+    out = 1.0
+    for v in values:
+        out *= v
+    return out
+
+
+def carried_at_birth(mods: "tuple[Modifier, ...]", rng,
+                     drawn: "dict[int, float] | None" = None) -> tuple[float, ...]:
+    """The factors a newly created unit carries, one per modifier, in written order.
+
+    An `INHERITED` value starts from its own beginning (`FromParent.initial`); a `DRAWN` one is drawn.
+    The dispatch reads `Modifier.reads`, not the class, so a per-unit modifier this
+    engine has never heard of is handled like the ones it has. ``drawn`` shares one number between
+    the rates of a single unit — see `draw_product`."""
+    out = []
+    for m in mods:
+        key = id(m)
+        if drawn is None or key not in drawn:
+            value = m.initial() if m.reads and m.reads[0] == INHERITED else m.draw(rng)
+            if drawn is None:
+                out.append(value)
+                continue
+            drawn[key] = value
+        out.append(drawn[key])
+    return tuple(out)
+
+
+def carried_at_split(mods: "tuple[Modifier, ...]", parent_values: tuple[float, ...], rng,
+                     drawn: "dict[int, float] | None" = None) -> tuple[float, ...]:
+    """A daughter's carried factors: its parent's, perturbed (`INHERITED`), or a fresh independent
+    draw that ignores the parent (`DRAWN`). That one line is the whole autocorrelated / uncorrelated
+    split (SPEC §5)."""
+    out = []
+    for i, m in enumerate(mods):
+        key = id(m)
+        if drawn is None or key not in drawn:
+            value = (m.descend(parent_values[i], rng)
+                     if m.reads and m.reads[0] == INHERITED else m.draw(rng))
+            if drawn is None:
+                out.append(value)
+                continue
+            drawn[key] = value
+        out.append(drawn[key])
+    return tuple(out)
+
+
+def check_one_memory(mods: "tuple[Modifier, ...]", *, label: str, unit: str) -> None:
+    """SPEC §5's **one memory structure per axis**: a value on one unit is either drawn afresh each
+    time (no memory) or inherited and perturbed (continuous memory), and those are two accounts of
+    the same thing rather than a composition.
+
+    So mixing the two kinds on one unit raises. Several of the **same** kind do not: two drawn
+    factors multiply to one drawn factor, which is an ordinary composition and is what modifiers do.
+    Every level calls this rather than writing its own count, so the rule cannot be strict in one
+    place and lax in another — it used to be three different rules in three engines."""
+    kinds = {m.reads[0] for m in mods if m.reads}
+    if DRAWN in kinds and INHERITED in kinds:
+        names = ", ".join(sorted(type(m).__name__ for m in mods))
+        raise ValueError(
+            f"{label} carries both a drawn and an inherited value per {unit} ({names}), which are "
+            f"the two answers to the same question — where that {unit}'s factor comes from. An "
+            f"inherited one starts from its parent's and is perturbed (autocorrelated); a drawn one "
+            f"starts afresh with no memory of the parent (uncorrelated). Pick one. Several of the "
+            f"same kind are fine and multiply.")
+
+
 def is_implemented(m: "Modifier", engines: tuple[type, ...], engine: str) -> bool:
     """Whether ``engine`` may run modifier ``m``: it is one of the types that engine threads
     (``engines``, the level's ``IMPLEMENTED_MODIFIERS``), or it names that engine in its own
@@ -153,11 +222,24 @@ class Modifier:
     def draw(self, rng) -> float:
         """One value for a newly created unit — what a modifier reading a `DRAWN` value provides.
 
-        A modifier reading an `INHERITED` value implements ``initial()`` and ``descend()`` instead,
-        because a daughter's number starts from its parent's rather than from nothing. Everything
-        else needs neither, so the default says so rather than returning a plausible 1.0."""
+        A modifier reading an `INHERITED` value implements `initial` and `descend` instead, because a
+        daughter's number starts from its parent's rather than from nothing. Everything else needs
+        neither, so the default says so rather than returning a plausible 1.0."""
         raise NotImplementedError(
             f"{type(self).__name__} does not draw a value per unit; it reads {self.reads!r}")
+
+    def initial(self) -> float:
+        """The value a **root** unit starts with, for a modifier reading an `INHERITED` value —
+        where the walk down the tree begins. A `DRAWN` one has `draw` instead."""
+        raise NotImplementedError(
+            f"{type(self).__name__} does not inherit a value per unit; it reads {self.reads!r}")
+
+    def descend(self, parent_value: float, rng) -> float:
+        """A daughter's value from its parent's, for a modifier reading an `INHERITED` value. This is
+        the whole autocorrelated / uncorrelated split: an inherited value starts here, a drawn one
+        ignores its parent entirely."""
+        raise NotImplementedError(
+            f"{type(self).__name__} does not inherit a value per unit; it reads {self.reads!r}")
 
     def next_change(self, time: float) -> float:
         """The next time strictly after ``time`` at which this modifier's factor changes on
@@ -545,4 +627,5 @@ class DrivenBy(Modifier):
 
 __all__ = ["Modifier", "OnTime", "OnTotalDiversity", "FromParent", "ByLineage",
            "ByFamily", "DrivenBy",
-           "MEASURED", "DRAWN", "INHERITED", "DRIVEN", "CARRIED_KINDS"]
+           "MEASURED", "DRAWN", "INHERITED", "DRIVEN", "CARRIED_KINDS",
+           "product", "draw_product", "carried_at_birth", "carried_at_split", "check_one_memory"]

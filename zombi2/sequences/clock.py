@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import bisect
 
-from ..rates.modifiers import FromParent
+from ..rates.modifiers import INHERITED, product
 
 
 def _all_species(gene_trees) -> list[int]:
@@ -69,24 +69,32 @@ def _preorder(tree) -> list[int]:
     return order
 
 
-def _draw_clock(clock_mod, species_tree, gene_trees, rng) -> "dict[int, float]":
+def _draw_clock(clock_mods, species_tree, gene_trees, rng) -> "dict[int, float]":
     """The drawn part of the clock: one factor per species branch, drawn once and shared by every
-    family (a hot species runs hot for all its genes). ``ByLineage`` draws each branch i.i.d.;
-    ``FromParent`` drifts the factor parent→child down the species tree (autocorrelated). ``{}`` for
-    a strict clock — no draw is taken, and no randomness consumed.
+    family (a hot species runs hot for all its genes). A `DRAWN`
+    modifier draws each branch i.i.d.; an `INHERITED` one drifts the factor
+    parent→child down the species tree (autocorrelated). ``{}`` for a strict clock — no draw is
+    taken, and no randomness consumed.
+
+    ``clock_mods`` is what the rate carries per lineage, from `Rate.carried`, and
+    **every** one of them is drawn and multiplied in. The two kinds cannot be mixed on one rate
+    (`check_one_memory`), so the walk below is one shape or
+    the other, never both.
 
     Factored out so the serial loop and the parallel engine draw it the same way — each just hands in
     its own ``rng`` (the serial run's shared generator, or a stream spawned for the clock so the
     parallel engine is worker-count invariant)."""
-    if isinstance(clock_mod, FromParent):
-        clock: dict[int, float] = {}
+    if not clock_mods:
+        return {}
+    if clock_mods[0].reads[0] == INHERITED:
+        walk: dict[int, tuple[float, ...]] = {}
         for i in _preorder(species_tree):                       # parent before child
             p = species_tree.nodes[i].parent
-            clock[i] = clock_mod.initial() if p is None else clock_mod.descend(clock[p], rng)
-        return clock
-    if clock_mod is not None:
-        return {sid: clock_mod.draw(rng) for sid in _all_species(gene_trees)}
-    return {}
+            walk[i] = (tuple(m.initial() for m in clock_mods) if p is None
+                       else tuple(m.descend(v, rng) for m, v in zip(clock_mods, walk[p])))
+        return {i: product(v) for i, v in walk.items()}
+    return {sid: product(tuple(m.draw(rng) for m in clock_mods))
+            for sid in _all_species(gene_trees)}
 
 
 class Clock:
@@ -148,11 +156,11 @@ class Clock:
         return self._cum[species][i] + self._level[species][i] * (t - breaks[i])  # type: ignore[index]
 
 
-def resolve_clock(clock_mod, driven, species_tree, gene_trees, rng) -> "Clock | None":
+def resolve_clock(clock_mods, driven, species_tree, gene_trees, rng) -> "Clock | None":
     """Build the run's `Clock` from the substitution rate's modifiers, or ``None`` when the rate
     carries neither a lineage clock nor a driver.
 
-    ``clock_mod`` is the rate's ``ByLineage`` / ``FromParent`` (or ``None``), and ``driven`` the list
+    ``clock_mods`` is what the rate carries per lineage (possibly none), and ``driven`` the list
     of ``(DrivenBy modifier, DriverTrajectory)`` pairs the caller already resolved. Returning ``None``
     for a strict, undriven rate keeps ``clock is None`` meaning what it has always meant downstream:
     the fast path with no lookups at all.
@@ -165,7 +173,7 @@ def resolve_clock(clock_mod, driven, species_tree, gene_trees, rng) -> "Clock | 
     engines advance their own integrals. Several ``DrivenBy`` on one rate are allowed and their factors
     multiply, which is what SPEC §5 says modifiers do; a branch the drivers never switch on gets a
     single stretch, and the arithmetic degenerates to a constant factor times Δt."""
-    factor = _draw_clock(clock_mod, species_tree, gene_trees, rng)
+    factor = _draw_clock(clock_mods, species_tree, gene_trees, rng)
     if not driven:
         return Clock(factor) if factor else None
     breaks: dict[int, list[float]] = {}

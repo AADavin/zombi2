@@ -378,12 +378,14 @@ def test_bylineage_clock_is_shared_across_families_on_a_lineage():
 
 def test_sequence_clock_rejects_multiple_or_unwired_modifiers(tmp_path):
     run = _pair_run(1.0, 2.0)
-    with pytest.raises(ValueError, match="lineage clocks"):   # two clocks — a lineage has one
+    # mixing the two memory structures on one lineage is what raises — an inherited factor and a
+    # drawn one are two accounts of the same per-lineage number, not a composition (SPEC §5)
+    with pytest.raises(ValueError, match="drawn and an inherited value per lineage"):
         simulate_sequences(run, model=jc69(), length=10,
                            substitution=1.0 * mod.FromParent(spread=0.3) * mod.ByLineage(spread=0.2))
-    with pytest.raises(ValueError, match="lineage clocks"):   # two ByLineage
-        simulate_sequences(run, model=jc69(), length=10,
-                           substitution=1.0 * mod.ByLineage(spread=0.3) * mod.ByLineage(spread=0.2))
+    # two of the SAME kind are an ordinary composition and multiply, as any two modifiers do
+    simulate_sequences(run, model=jc69(), length=10, seed=1,
+                       substitution=1.0 * mod.ByLineage(spread=0.3) * mod.ByLineage(spread=0.2))
     with pytest.raises(ValueError, match="OnTime"):  # ByLineage × OnTime — a modifier this level
         simulate_sequences(run, model=jc69(), length=10,   # does not read
                            substitution=1.0 * mod.ByLineage(spread=0.3) * mod.OnTime({0: 1.0}))

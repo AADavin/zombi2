@@ -10,7 +10,9 @@ import numpy as np
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import ByFamily, DrivenBy, FromParent, OnTime, OnTotalDiversity, is_implemented
+from ..rates.modifiers import (ByFamily, DrivenBy, FromParent, OnTime, OnTotalDiversity,
+                               carried_at_birth, carried_at_split, check_one_memory,
+                               is_implemented, product)
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
 from ..tree import Tree, as_tree
@@ -507,10 +509,10 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             )
         if isinstance(m, DrivenBy):
             check_not_a_kernel(m.mapping, label="rate")
-    drifts = [m for m in r.modifiers if isinstance(m, FromParent)]
-    if len(drifts) > 1:
-        raise ValueError("rate carries more than one FromParent modifier; a variance-rate drifts one way")
-    drift = drifts[0] if drifts else None  # the per-lineage σ² drift (variable-rates BM), or None
+    # the per-lineage modifiers σ² carries (variable-rates BM), asked for the same way every level
+    # asks — and every one of them is kept, so two compose rather than the second going quietly.
+    drift = tuple(m for m, _ in r.carried(unit="lineage"))
+    check_one_memory(drift, label="rate", unit="lineage")
     has_diversity = any(isinstance(m, OnTotalDiversity) for m in r.modifiers)  # σ² reads the standing LTT
 
     # OU: reverts_to (θ) + pull (α) turn the diffusion into mean-reversion — both or neither.
@@ -546,7 +548,8 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     # the initial value at t=0 — the origin the log reconstructs from (SPEC §2). A diffusion cannot be
     # rebuilt from events, but the row keeps the file's shape uniform across trait kinds.
     events: list[Change] = [Change(root.birth_time, "initial", tree.root, None, float(start))]
-    inh: dict[int, float] = {}  # each lineage's σ² drift factor (variable-rates BM), constant per branch
+    inh: dict[int, tuple[float, ...]] = {}  # each lineage's σ² drift factors (variable-rates BM),
+                                           # one per carried modifier, constant along its branch
     for i in _preorder(tree, progress):
         node = tree.nodes[i]
         # the root starts from `start` at t=0; every other node from its parent's end value (parent
@@ -559,20 +562,20 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
         # thread the inherited factor: the root's is 1.0, each daughter's is its parent's times a
         # lognormal kick drawn at the split (so σ² is autocorrelated down the tree). None ⇒ 1.0, no draw.
         if node.parent is None:
-            inh[i] = drift.initial() if drift else 1.0
+            inh[i] = carried_at_birth(drift, rng)
         else:
-            inh[i] = drift.descend(inh[node.parent], rng) if drift else 1.0
+            inh[i] = carried_at_split(drift, inh[node.parent], rng)
         t0, t1 = node.birth_time, node.end_time
         if is_ou:
             e = math.exp(-alpha * (t1 - t0))       # mean-reversion toward θ over the branch
             mean = theta + (x - theta) * e         # the mean does not read σ², so a modified σ² leaves it
             # …and the variance is the pull-weighted integral, which for a bare σ² is exactly the
             # closed form σ²/(2α)·(1−e^{−2α·dt}) this branch used before the weight existed.
-            var = _accrued_variance(r, t0, t1, inherited=inh[i], ltt=ltt, trajs=trajs, node_id=i,
+            var = _accrued_variance(r, t0, t1, inherited=product(inh[i]), ltt=ltt, trajs=trajs, node_id=i,
                                     pull=alpha)
         else:
             mean = x                                # pure diffusion (BM / early burst / variable-rates)
-            var = _accrued_variance(r, t0, t1, inherited=inh[i], ltt=ltt, trajs=trajs, node_id=i)
+            var = _accrued_variance(r, t0, t1, inherited=product(inh[i]), ltt=ltt, trajs=trajs, node_id=i)
         std = math.sqrt(var) if var > 0.0 else 0.0
         node_values[i] = mean + (float(rng.normal(0.0, std)) if std > 0.0 else 0.0)
 

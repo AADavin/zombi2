@@ -20,6 +20,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   independent draws.
 
 ### Changed
+- **One rule for mixing per-lineage modifiers, instead of three.** Each level had grown its own: the
+  species engine refused `FromParent` beside `ByLineage`, the continuous-trait engine refused more
+  than one `FromParent`, and the sequence engine refused more than one clock of *any* kind. SPEC §5
+  says something narrower — **one memory structure per axis** — so what raises now, everywhere, is
+  mixing a drawn value with an inherited one on the same unit; several of the same kind compose and
+  multiply, as any two modifiers do. In practice that means `1.0 * ByLineage(spread=0.3) *
+  ByLineage(spread=0.2)` on a substitution rate now runs instead of raising, and two `FromParent` on
+  a trait's variance-rate compose instead of raising. Every level calls the one check, so the rule
+  cannot be strict in one place and lax in another again.
 - **One modifier object read by two rates is now one draw, shared between them.** Writing
   `s = mod.ByFamily(spread=0.5)` and putting `s` on both `duplication` and `loss` makes a family
   that duplicates fast also lose fast; building two separate `ByFamily(spread=0.5)` keeps the two
