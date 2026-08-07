@@ -227,3 +227,28 @@ def test_a_path_whose_every_backslash_is_a_valid_escape_still_means_itself():
 
     rate = parse_rate(r"0.1 * DrivenBy('C:\temp\new\file.tsv', {'a': 2.0})")
     assert next(m for m in rate.modifiers if isinstance(m, DrivenBy)).driver == r"C:\temp\new\file.tsv"
+
+
+
+def test_a_rate_is_written_to_full_precision():
+    """The written form is a reproducibility record: a run's log holds it, and a reader pastes it
+    back into a flag. Every mapping printed its numbers with `:g`, which rounds to six significant
+    figures, so a factor of 0.0123456789012 was logged as 0.0123457 — the same run recorded as a
+    different model, with nothing to say so. Only the base was exact.
+    """
+    from zombi2.rates.mapping import Between, Scalar
+    from zombi2.rates.rate import as_rate
+
+    exact = 0.0123456789012
+    for spec in (1.0 * mod.OnTime({0: 1.0, 3: exact}),
+                 1.0 * mod.DrivenBy("h.tsv", {"cave": exact}),
+                 1.0 * mod.DrivenBy("h.tsv", {"cave": 1.0}, ),
+                 1.0 * mod.DrivenBy("h.tsv", Scalar(exact)),
+                 1.0 * mod.DrivenBy("h.tsv", Between({("a", "b"): exact}, default=exact))):
+        rate = as_rate(spec, default_scope=scope.PerLineage)
+        text = written_form(rate)
+        assert parse_rate(text) == rate, text
+
+    # and the digits really are all there, not merely equal after a lucky round
+    assert repr(exact) in written_form(as_rate(1.0 * mod.OnTime({0: 1.0, 3: exact}),
+                                               default_scope=scope.PerLineage))

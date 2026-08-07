@@ -70,8 +70,10 @@ class Table(Mapping):
         return self.per_state.get(str(value), self.default)
 
     def __repr__(self) -> str:
-        inner = ", ".join(f"{s!r}: {f:g}" for s, f in self.per_state.items())
-        tail = "" if self.default == 1.0 else f", default={self.default:g}"
+        # `repr(float)`, not `:g` — see `OnTime.__repr__`: six significant figures in a run's log
+        # is a record of a different model.
+        inner = ", ".join(f"{s!r}: {float(f)!r}" for s, f in self.per_state.items())
+        tail = "" if self.default == 1.0 else f", default={float(self.default)!r}"
         return f"Table({{{inner}}}{tail})"
 
     def __eq__(self, other: object) -> bool:
@@ -137,7 +139,7 @@ class Scalar(Mapping):
         return math.exp(x)
 
     def __repr__(self) -> str:
-        return f"Scalar(strength={self.strength:g})"
+        return f"Scalar(strength={float(self.strength)!r})"
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, Scalar) and other.strength == self.strength
@@ -194,8 +196,8 @@ class Between:
         return {g for pair in self.per_pair for g in pair}
 
     def __repr__(self) -> str:
-        inner = ", ".join(f"({a!r}, {b!r}): {w:g}" for (a, b), w in self.per_pair.items())
-        tail = "" if self.default == 1.0 else f", default={self.default:g}"
+        inner = ", ".join(f"({a!r}, {b!r}): {float(w)!r}" for (a, b), w in self.per_pair.items())
+        tail = "" if self.default == 1.0 else f", default={float(self.default)!r}"
         return f"Between({{{inner}}}{tail})"
 
     def __eq__(self, other: object) -> bool:

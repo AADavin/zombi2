@@ -1535,3 +1535,38 @@ def test_summary_of_a_single_trait_run_is_unchanged():
     assert "traits" not in c and "mean" in c["values"]
     d = traits.simulate_discrete(tree, states=["a", "b"], switch=0.3, seed=6).summary()
     assert "traits" not in d and set(d["states"]) <= {"a", "b"}
+
+
+
+def test_a_discrete_trait_steps_at_a_rate_that_changes_on_its_own_clock():
+    """`traits.discrete` built its stretch horizon from the drivers alone and never asked
+    `Rate.next_change`, so a switch rate that changes with time was read once at the start of a
+    stretch and held for the rest of the branch — the run silently not the model asked for, which
+    is exactly what the modifier gate exists to prevent. Every other engine steps to it.
+
+    Only a modifier of your own can reach this: the engine's own declaration takes `DrivenBy`
+    alone, and a driver's switches were already stepped to. Appendix A publishes `traits.discrete`
+    as an engine an `implemented_for` may name, so this is a path the manual invites."""
+    import math
+
+    from zombi2 import species, traits
+    from zombi2.rates.modifiers import Modifier
+
+    class StopsAtOne(Modifier):
+        """Full rate until time 1, nothing after — and it says so, as a modifier must."""
+
+        implemented_for = ("traits.discrete",)
+
+        def factor(self, *, time=0.0, **_):
+            return 1.0 if time < 1.0 else 0.0
+
+        def next_change(self, time):
+            return 1.0 if time < 1.0 else math.inf
+
+    tree = species.simulate_species_tree(birth=1.0, death=0.0, total_time=3.0, seed=5).complete_tree
+    result = traits.simulate_discrete(tree, states=["a", "b"], seed=3,
+                                      switch=3.0 * StopsAtOne())
+
+    late = [c.time for c in result.events if c.time > 1.0 + 1e-9]
+    assert not late, f"switched after the rate went to zero: {late[:5]}"
+    assert result.events, "the test proves nothing if nothing switched before time 1 either"

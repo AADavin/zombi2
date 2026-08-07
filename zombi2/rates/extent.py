@@ -63,9 +63,12 @@ class Extent:
         return self.base.mean() * self._factor(**context)
 
     @property
-    def is_driven(self) -> bool:
+    def has_modifiers(self) -> bool:
         """Whether anything about this extent varies with context. ``False`` is the common case, and
-        lets an engine skip building a context it would not read."""
+        lets an engine skip building a context it would not read.
+
+        Not called ``is_driven``: *driven* is one of the four modifier kinds (SPEC §5), and this is
+        true of an ``OnTime`` too, which is measured."""
         return bool(self.modifiers)
 
 
