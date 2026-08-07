@@ -115,7 +115,7 @@ def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "
             drivers = {key: traj.value(node_id, t) for key, traj in trajs.items()}
             for traj in trajs.values():
                 nxt = min(nxt, traj.next_change(node_id, t))
-        sigma2 = rate.effective(lineages=1, time=t, inherited=inherited, diversity=div,
+        sigma2 = rate.effective(lineages=1, time=t, carried=inherited, diversity=div,
                                 drivers=drivers)
         if pull > 0.0:
             # the OU weight for this piece: what survives of the noise injected in [t, nxt) once the

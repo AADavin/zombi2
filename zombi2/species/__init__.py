@@ -174,8 +174,8 @@ class SpeciesResult:
 _MAX_ATTEMPTS = 1000  # survival-conditioned retries before giving up on n_extant
 
 
-def _per_lineage(rate) -> "FromParent | ByLineage | None":
-    """The per-lineage modifier a rate carries, or ``None``.
+def _per_lineage(rate) -> tuple:
+    """The modifiers a rate carries **per lineage**, in the order they were written.
 
     Two modifiers make a rate vary from lineage to lineage, and the engine threads both the same way —
     one factor per living lineage, with the lineage that speciates or dies drawn **weighted** by its
@@ -183,29 +183,35 @@ def _per_lineage(rate) -> "FromParent | ByLineage | None":
     which is the whole uncorrelated / autocorrelated split (``SPEC §5``): `FromParent`
     inherits it from the parent and nudges it (clade drift, ClaDS), `ByLineage`
     draws a fresh one with no memory of the parent (*relaxed* rates). A rate carrying neither keeps a
-    factor of 1 throughout and its lineage is picked uniformly, exactly as before."""
-    for m in rate.modifiers:
-        if isinstance(m, (FromParent, ByLineage)):
-            return m
-    return None
+    factor of 1 throughout and its lineage is picked uniformly, exactly as before.
+
+    The list comes from `Rate.carried`, which reports what each modifier
+    declares it reads rather than testing its class — so a per-lineage modifier this engine has never
+    heard of is threaded like the two it has, and **every** one is kept. Taking only the first was
+    how a second silently vanished from a run that still reported it."""
+    return tuple(m for m, _ in rate.carried(unit="lineage"))
 
 
-def _born(mod, rng) -> float:
-    """The factor a lineage starts life with: the root's under `FromParent` (1.0, or the middle rung
-    when binned), and an independent draw under `ByLineage`."""
-    return mod.initial() if isinstance(mod, FromParent) else mod.draw(rng)
+def _born(mods: tuple, rng) -> tuple[float, ...]:
+    """The factors a lineage starts life with, one per carried modifier: the root's under
+    `FromParent` (1.0, or the middle rung when binned), and an independent draw under `ByLineage`."""
+    return tuple(m.initial() if isinstance(m, FromParent) else m.draw(rng) for m in mods)
 
 
-def _inherit(mod, parent_value: float, rng) -> float:
-    """A daughter's factor at a split: its parent's, nudged (`FromParent`), or an independent draw that
-    ignores the parent (`ByLineage`) — the one line where the two differ."""
-    return mod.descend(parent_value, rng) if isinstance(mod, FromParent) else mod.draw(rng)
+def _inherit(mods: tuple, parent_values: tuple[float, ...], rng) -> tuple[float, ...]:
+    """A daughter's factors at a split: its parent's, nudged (`FromParent`), or an independent draw
+    that ignores the parent (`ByLineage`) — the one line where the two differ."""
+    return tuple(m.descend(p, rng) if isinstance(m, FromParent) else m.draw(rng)
+                 for m, p in zip(mods, parent_values))
 
 
-def _threads_as(mod) -> str:
-    """The keyword the modifier reads its threaded factor back under — ``inherited`` for
-    `FromParent`, ``bylineage`` for `ByLineage` (each modifier names its own)."""
-    return "inherited" if isinstance(mod, FromParent) else "bylineage"
+def _product(values: tuple[float, ...]) -> float:
+    """The carried factors multiplied out — what `Rate.effective` takes as
+    ``carried``. Empty (a rate with no per-lineage modifier) is 1.0."""
+    out = 1.0
+    for v in values:
+        out *= v
+    return out
 
 
 def _weighted_index(rng, weights: list[float], total: float) -> int:
@@ -246,20 +252,18 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
         nodes[i] = Node(i, parent, t)
         return i
 
-    birth_drift = _per_lineage(birth_rate)  # the FromParent / ByLineage modifier on each rate, or None
+    birth_drift = _per_lineage(birth_rate)  # the per-lineage modifiers on each rate, possibly none
     death_drift = _per_lineage(death_rate)
-    # the keyword each modifier reads its threaded factor back under, resolved once rather than per step
-    key_b = _threads_as(birth_drift) if birth_drift else ""
-    key_d = _threads_as(death_drift) if death_drift else ""
 
     root = new_node(None, 0.0)
     alive = [root]  # a list so picks are reproducible given the seed
-    # each lineage's own factor, kept in lock-step with `alive` under swap-remove; a rate with no
-    # per-lineage modifier stays at 1.0, so its total is just scope(base) × modifiers over n, picked
-    # uniform. The root draws under ByLineage (it is a lineage like any other) and does not under
-    # FromParent (its factor is the ladder's starting point), which is what `_born` decides.
-    inh_b = [_born(birth_drift, rng) if birth_drift else 1.0]
-    inh_d = [_born(death_drift, rng) if death_drift else 1.0]
+    # each lineage's own factors — one per carried modifier — kept in lock-step with `alive` under
+    # swap-remove; a rate with no per-lineage modifier holds an empty tuple, whose product is 1.0, so
+    # its total is just scope(base) × modifiers over n, picked uniform. The root draws under
+    # ByLineage (it is a lineage like any other) and does not under FromParent (its factor is the
+    # ladder's starting point), which is what `_born` decides.
+    inh_b = [_born(birth_drift, rng)]
+    inh_d = [_born(death_drift, rng)]
     t = 0.0
     events: list[Event] = []
     pulse_idx = 0  # the next unfired mass extinction in `pulses`
@@ -290,12 +294,12 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
         # scope(base) × modifiers evaluated per lineage through its inherited factor (lineages=1
         # is one lineage); a non-drifting rate is scope(base) × modifiers once, over all n lineages
         if birth_drift:
-            w_b = [birth_rate.effective(lineages=1, **{key_b: x}, **ctx) for x in inh_b]
+            w_b = [birth_rate.effective(lineages=1, carried=_product(x), **ctx) for x in inh_b]
             total_birth = sum(w_b)
         else:
             total_birth = birth_rate.effective(lineages=n, **ctx)
         if death_drift:
-            w_d = [death_rate.effective(lineages=1, **{key_d: x}, **ctx) for x in inh_d]
+            w_d = [death_rate.effective(lineages=1, carried=_product(x), **ctx) for x in inh_d]
             total_death = sum(w_d)
         else:
             total_death = death_rate.effective(lineages=n, **ctx)
@@ -336,12 +340,13 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
                     c1, c2 = new_node(node, t), new_node(node, t)
                     nodes[node].children = (c1, c2)
                     alive.extend((c1, c2))
-                    # each daughter takes its own factor — the parent's nudged under FromParent, a
-                    # fresh independent draw under ByLineage (1.0 when the rate carries neither)
-                    inh_b.extend((_inherit(birth_drift, parent_b, rng), _inherit(birth_drift, parent_b, rng))
-                                 if birth_drift else (1.0, 1.0))
-                    inh_d.extend((_inherit(death_drift, parent_d, rng), _inherit(death_drift, parent_d, rng))
-                                 if death_drift else (1.0, 1.0))
+                    # each daughter takes its own factors — the parent's nudged under FromParent, a
+                    # fresh independent draw under ByLineage (an empty tuple when the rate carries
+                    # neither, so nothing is drawn and the product stays 1.0)
+                    inh_b.extend((_inherit(birth_drift, parent_b, rng),
+                                  _inherit(birth_drift, parent_b, rng)))
+                    inh_d.extend((_inherit(death_drift, parent_d, rng),
+                                  _inherit(death_drift, parent_d, rng)))
                     events.append(Event(t, "speciation", node, (c1, c2)))
                 else:
                     nodes[node].end_time = t
@@ -362,8 +367,8 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
             survival = pulses[pulse_idx][1]
             pulse_idx += 1
             kept_a: list[int] = []
-            kept_b: list[float] = []
-            kept_d: list[float] = []
+            kept_b: list[tuple[float, ...]] = []
+            kept_d: list[tuple[float, ...]] = []
             for k, node_id in enumerate(alive):
                 if survival >= 1.0 or rng.random() < survival:
                     kept_a.append(node_id)
@@ -544,9 +549,9 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                 f"parent and nudges it (autocorrelated); ByLineage draws it afresh with no memory "
                 f"(uncorrelated). Pick one."
             )
-        if (per_lineage := _per_lineage(rate)) is not None and not isinstance(rate.scope, PerLineage):
+        if (per_lineage := _per_lineage(rate)) and not isinstance(rate.scope, PerLineage):
             raise ValueError(
-                f"{label} carries {type(per_lineage).__name__} (a factor per lineage) but its scope "
+                f"{label} carries {type(per_lineage[0]).__name__} (a factor per lineage) but its scope "
                 f"is {type(rate.scope).__name__}; a rate that varies by lineage must be counted per "
                 f"lineage — drop the scope wrapper (per lineage is the default) or use PerLineage(...)"
             )
