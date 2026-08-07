@@ -25,7 +25,7 @@ import numpy as np
 from zombi2.genomes import FamilyGenomesResult
 from zombi2.genomes.events import edges_from_tsv
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
-from zombi2.rates.modifiers import ByLineage, DrivenBy, FromParent, Modifier
+from zombi2.rates.modifiers import DRAWN, INHERITED, DrivenBy, Modifier
 from zombi2._runtime.report import write_run_report
 from zombi2.sequences import (IMPLEMENTED_MODIFIERS, _calibrate, mean_pairwise_identity,
                               simulate_sequences)
@@ -350,9 +350,9 @@ def run(args, parser):
     clock = "strict clock"
     driven = []
     for m in _mods:
-        if isinstance(m, ByLineage):
+        if m.reads == (DRAWN, "lineage"):
             clock = f"{m.dist} lineage clock, spread {m.spread:g}"
-        elif isinstance(m, FromParent):
+        elif m.reads == (INHERITED, "lineage"):
             clock = (f"discrete-bin clock, {m.bins} bins, spread {m.spread:g}" if m.bins
                      else f"autocorrelated clock, spread {m.spread:g}")
         elif isinstance(m, DrivenBy):

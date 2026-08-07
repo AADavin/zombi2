@@ -66,11 +66,23 @@ class TestACellNobodyBuiltRefusesByName:
     """The grid makes the empty cells visible, so the refusal can say *which* cell and why, rather
     than reading as an unknown name."""
 
-    def test_a_unit_no_engine_carries_says_so(self):
-        with pytest.raises(ValueError, match="drawn value per 'chromosome' is not implemented"):
-            Drawn(per="chromosome", spread=0.5)
-        with pytest.raises(ValueError, match="inherited value per 'family' is not implemented"):
-            Inherited(per="family", spread=0.5)
+    def test_a_cell_nobody_built_constructs_and_the_engine_refuses_it(self):
+        """The grid is real, so any unit builds a value — no new class, no invented name. What
+        decides whether a run happens is the *level*, which declares the cells it can carry a number
+        for, and refuses the rest naming which cell it was rather than which class."""
+        cell = Drawn(per="chromosome", spread=0.5)
+        assert cell.reads == ("drawn", "chromosome")
+
+        with pytest.raises(ValueError, match="drawn per chromosome"):
+            simulate_species_tree(birth=1.0 * cell, death=0.2, n_extant=5, seed=1)
+
+    def test_a_cell_the_wrong_level_carries_is_named_by_its_cell(self):
+        """`Drawn` covers a whole row, so "carries Drawn" would be true and useless — the question is
+        always *per what*."""
+        with pytest.raises(ValueError, match="ByLineage"):
+            genomes.simulate_genomes_family(
+                simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=1).complete_tree,
+                loss=0.2 * Drawn(per="lineage", spread=0.5), initial_families=3, seed=1)
 
     def test_a_unit_that_is_not_a_unit_lists_the_units(self):
         with pytest.raises(ValueError, match="unknown unit 'banana'"):

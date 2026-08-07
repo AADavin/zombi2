@@ -20,7 +20,7 @@ import pathlib
 from dataclasses import dataclass, field
 
 
-from ..rates.modifiers import (ByFamily, ByLineage, FromParent, OnTime, OnTotalDiversity,
+from ..rates.modifiers import (describe, DRAWN, INHERITED, OnTime, OnTotalDiversity,
                                carried_at_birth, carried_at_split, check_one_memory,
                                is_implemented, product)
 from ..rng import stream
@@ -33,7 +33,7 @@ from ..tree import Node, Tree, prune
 #: The rate grammar this level supports (SPEC §5). Both the engine's gate below and the CLI's help
 #: read this, so a modifier can never be advertised without being implemented — or silently ignored.
 IMPLEMENTED_SCOPES = (PerLineage, Global)
-IMPLEMENTED_MODIFIERS = (OnTime, OnTotalDiversity, FromParent, ByLineage)
+IMPLEMENTED_MODIFIERS = (OnTime, OnTotalDiversity, (INHERITED, "lineage"), (DRAWN, "lineage"))
 
 
 
@@ -507,7 +507,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                 f"Global(...) for one shared budget."
             )
         for m in rate.modifiers:
-            if isinstance(m, ByFamily):
+            if m.reads == (DRAWN, "family"):
                 # not a missing feature: there is nothing here for it to mean
                 raise ValueError(
                     f"{label} carries ByFamily, but a species tree has no gene families — ByFamily "
@@ -516,7 +516,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                 )
             if not is_implemented(m, IMPLEMENTED_MODIFIERS, "species"):
                 raise ValueError(
-                    f"{label} carries {type(m).__name__}, which the species engine does not "
+                    f"{label} carries {describe(m)}, which the species engine does not "
                     f"support. It takes OnTime (skyline), OnTotalDiversity (diversity-dependent), "
                     f"FromParent (inherited rate drift, ClaDS) and ByLineage (independent "
                     f"per-lineage rates). A birth or death that reads an evolved value cannot be "

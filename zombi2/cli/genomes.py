@@ -25,6 +25,7 @@ from zombi2.genomes.ordered import OrderedGenomesResult
 from zombi2.genomes.nucleotide import NucleotideGenomesResult
 from zombi2.genomes.nucleotide import IMPLEMENTED_MODIFIERS as _NUC_IMPLEMENTED
 from zombi2.genomes.ordered import IMPLEMENTED_MODIFIERS as _ORDERED_IMPLEMENTED
+from zombi2.rates.modifiers import cell_name
 from zombi2.rates.parse import parse_rate
 from zombi2.rates.scope import Global, PerLineage
 from zombi2.tree import node_label, read_newick
@@ -49,9 +50,9 @@ RATES_HELP = _rates_help(
          "over the candidates, and a weight of 0 means 'cannot receive'. It is also the only place "
          "Between(...) belongs — a weight per (donor, recipient) pair — which a rate or an extent "
          "refuses. "
-         "--resolution ordered takes " + ", ".join(m.__name__ for m in _ORDERED_IMPLEMENTED) +
+         "--resolution ordered takes " + ", ".join(cell_name(m) for m in _ORDERED_IMPLEMENTED) +
          ", though not ByFamily and DrivenBy in one run; nucleotide, " +
-         ", ".join(m.__name__ for m in _NUC_IMPLEMENTED) + ".")
+         ", ".join(cell_name(m) for m in _NUC_IMPLEMENTED) + ".")
 
 # The write vocabularies, read off the results themselves. They used to be hand-copied here, with a
 # comment saying so, and they drifted: `species_tree` and `initial_sequence` were writable from
@@ -502,7 +503,7 @@ def run(args, parser):
                      and any(not isinstance(m, _NUC_IMPLEMENTED) for m in getattr(args, n).modifiers)]
         if modulated:
             parser.error(f"--resolution nucleotide takes only "
-                         f"{', '.join(w.__name__ for w in _NUC_IMPLEMENTED)}, but "
+                         f"{', '.join(cell_name(w) for w in _NUC_IMPLEMENTED)}, but "
                          f"{', '.join(modulated)} carries another modifier")
 
     vocab = _OUTPUTS[args.resolution]

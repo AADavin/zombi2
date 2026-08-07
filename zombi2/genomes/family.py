@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import resolve_seed, stream
-from ..rates.modifiers import ByFamily, DrivenBy, OnTime, draw_product, is_implemented
+from ..rates.modifiers import describe, DRAWN, DrivenBy, OnTime, draw_product, is_implemented
 from ..rates.rate import as_rate
 from ..rates.scope import PerCopy, PerLineage, Scope
 from ..tree import Tree, as_tree
@@ -54,7 +54,7 @@ if TYPE_CHECKING:  # a streamed run returns a StreamedRun (built by the per-fami
 #: scope this slice, and ``DrivenBy`` is implemented for the single-lineage events; the ordered engine
 #: takes ``OnTime`` and ``ByFamily``, the nucleotide one ``OnTime`` and ``DrivenBy``. The gates say so
 #: per rate.
-IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, ByFamily)
+IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, (DRAWN, "family"))
 
 
 @dataclass(frozen=True)
@@ -736,7 +736,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 f"takes only {want.__name__} for {label} this slice — scope overrides are a later slice."
             )
         for m in rate.modifiers:
-            if isinstance(m, ByFamily) and label == "origination":
+            if m.reads == (DRAWN, "family") and label == "origination":
                 raise ValueError(
                     "origination carries ByFamily, but origination is the rate at which families are "
                     "CREATED — when it is read there is no family yet to have drawn a factor for. "
@@ -747,7 +747,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             if is_implemented(m, IMPLEMENTED_MODIFIERS, "genomes.family"):
                 continue
             raise ValueError(
-                f"{label} carries {type(m).__name__}, which the family genome engine does not "
+                f"{label} carries {describe(m)}, which the family genome engine does not "
                 f"support. It takes OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
                 f"ByFamily (per-family heterogeneity). Clade drift is not implemented yet."
             )
@@ -756,7 +756,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # weights from the family sums and immediately OVERWROTE them with the driven ones — so the total
     # was summed WITHOUT the family multipliers while the copy was still drawn WITH them. A total
     # that says one thing and a pick that does another is the one failure this engine must not have.
-    if any(isinstance(m, ByFamily) for rate in (dup, tra, los) for m in rate.modifiers) and \
+    if any(m.reads == (DRAWN, "family") for rate in (dup, tra, los) for m in rate.modifiers) and \
             any(isinstance(m, DrivenBy) for rate in (dup, tra, los, org) for m in rate.modifiers):
         raise ValueError(
             "ByFamily and DrivenBy on the same run is a later slice: one weights lineages by a "
@@ -1099,7 +1099,7 @@ class FamilyGenome:
             for m in rate.modifiers:
                 if not isinstance(m, OnTime):
                     raise ValueError(
-                        f"{label} carries {type(m).__name__}; a joint genome's own rates take only "
+                        f"{label} carries {describe(m)}; a joint genome's own rates take only "
                         f"OnTime — the genome is the DRIVER of speciation here, not a driven target."
                     )
         return dup, los, org

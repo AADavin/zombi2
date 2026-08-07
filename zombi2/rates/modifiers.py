@@ -43,6 +43,20 @@ DRIVEN = "driven"          # another level's value: recorded beforehand, or grow
 #: `Rate.carried` is the query that finds them.
 CARRIED_KINDS = (DRAWN, INHERITED)
 
+#: The units a value can be attached to, in the order they nest — the other half of `Modifier.reads`.
+#: A value's unit decides what may read it: a parameter may read a value when the parameter's own
+#: units include the value's (SPEC §5), so a trait on a lineage can drive gene loss, and a family's
+#: tempo cannot drive speciation. A unit here that no engine carries is a cell nobody has built, not
+#: a different kind of model.
+UNITS = ("run", "lineage", "chromosome", "family", "copy", "site")
+
+#: The cells that have a name of their own, because each names a model people cite. A cell without an
+#: entry here is written the general way — ``Drawn(per="chromosome", …)`` — which is the point: a new
+#: unit needs no name invented for it.
+_CELL_NAMES = {(DRAWN, "family"): "ByFamily",
+               (DRAWN, "lineage"): "ByLineage",
+               (INHERITED, "lineage"): "FromParent"}
+
 
 def draw_product(mods: "tuple[Modifier, ...]", rng,
                  drawn: "dict[int, float] | None" = None) -> float:
@@ -136,7 +150,7 @@ def check_one_memory(mods: "tuple[Modifier, ...]", *, label: str, unit: str) -> 
     place and lax in another — it used to be three different rules in three engines."""
     kinds = {m.reads[0] for m in mods if m.reads}
     if DRAWN in kinds and INHERITED in kinds:
-        names = ", ".join(sorted(type(m).__name__ for m in mods))
+        names = ", ".join(sorted(describe(m) for m in mods))
         raise ValueError(
             f"{label} carries both a drawn and an inherited value per {unit} ({names}), which are "
             f"the two answers to the same question — where that {unit}'s factor comes from. An "
@@ -145,12 +159,57 @@ def check_one_memory(mods: "tuple[Modifier, ...]", *, label: str, unit: str) -> 
             f"same kind are fine and multiply.")
 
 
-def is_implemented(m: "Modifier", engines: tuple[type, ...], engine: str) -> bool:
-    """Whether ``engine`` may run modifier ``m``: it is one of the types that engine threads
-    (``engines``, the level's ``IMPLEMENTED_MODIFIERS``), or it names that engine in its own
-    `Modifier.implemented_for`. Every engine gate goes through here, so the escape hatch cannot be
-    honoured in one level and forgotten in another."""
-    return isinstance(m, engines) or engine in getattr(m, "implemented_for", ())
+def cell_name(entry) -> str:
+    """What to call one entry of a level's ``IMPLEMENTED_MODIFIERS`` in a message — a class's name,
+    or the named cell for a ``(kind, unit)`` pair. Shared so an error and the CLI's help cannot
+    describe the same declaration two different ways."""
+    if not isinstance(entry, tuple):
+        return entry.__name__
+    return _CELL_NAMES.get(entry, f"{entry[0]} per {entry[1]}")
+
+
+def describe(m: "Modifier") -> str:
+    """What to call one modifier **instance** in a message.
+
+    Its class name, except for the two classes that cover a whole row of the grid: a `Drawn` or an
+    `Inherited` is named by its cell, so a refusal says ``ByFamily`` where that cell has a name and
+    ``drawn per chromosome`` where it does not. Saying "carries Drawn" would be true and useless,
+    since the whole question is *per what*."""
+    if isinstance(m, (Drawn, Inherited)):
+        return cell_name(m.reads)
+    return type(m).__name__
+
+
+def is_implemented(m: "Modifier", engines: tuple, engine: str) -> bool:
+    """Whether ``engine`` may run modifier ``m``: it matches one entry of that level's
+    ``IMPLEMENTED_MODIFIERS``, or it names that engine in its own `Modifier.implemented_for`. Every
+    engine gate goes through here, so the escape hatch cannot be honoured in one level and forgotten
+    in another.
+
+    An entry is **a class** or **a cell**. A class is the right grain for `OnTime` against
+    `OnTotalDiversity`: both read a measured value on the run, yet an engine can thread a schedule's
+    breakpoints without threading the standing diversity, so the two are separately declarable. A
+    cell — ``(DRAWN, "family")`` — is the right grain for `Drawn` and `Inherited`, which are one class
+    covering every unit, where what an engine supports is the *unit* it can carry a number for."""
+    return matches_declared(m, engines) or engine in getattr(m, "implemented_for", ())
+
+
+def matches_declared(m: "Modifier", entries: tuple) -> bool:
+    """Whether ``m`` is one of the entries a level declares — **without** the third-party escape
+    hatch of `Modifier.implemented_for`.
+
+    The sequences level needs this rather than `is_implemented`, and the reason is worth keeping: it
+    is the one engine that reads its modifiers itself instead of evaluating them through
+    `Rate.effective`, because its clock is drawn per lineage before any site
+    evolves. A modifier of someone else's could therefore be accepted by the hatch and then never
+    called, which is exactly the silence the whole declaration mechanism exists to prevent."""
+    for entry in entries:
+        if isinstance(entry, tuple):
+            if m.reads == entry:
+                return True
+        elif isinstance(m, entry):
+            return True
+    return False
 
 
 class Modifier:
@@ -355,48 +414,65 @@ class OnTotalDiversity(Modifier):
 
 
 @dataclass(frozen=True)
-class FromParent(Modifier):
-    """The rate drifts along the tree — each lineage inherits its parent's rate times a random
-    factor drawn at the split (geometric Brownian motion on the rate: clade drift at the species
-    level, the autocorrelated clock at the sequence level). ``spread`` (σ) sets the drift width.
+class Inherited(Modifier):
+    """A value **inherited from a parent and perturbed** at each split — continuous memory down a
+    genealogy. ``per`` names the unit it is carried on, so the class is one model and the unit is
+    data::
 
-    The per-split factor is lognormal, **mean-corrected** so ``E[factor] = 1``. Without the
-    correction the rate inflates down the tree (``E[rate] ≈ e^{σ²/2}`` instead of 1) — a real
-    historical bug. The draw logic (`initial()` / `descend()`) is driven by the engine,
-    which threads each lineage's current factor and passes it back to `factor()` as
-    ``inherited``.
+        birth = 1.0 * Inherited(per="lineage", spread=0.2)     # rate drift down a clade (ClaDS)
 
-    ``bins`` discretises the drift: instead of a continuous step, the rate takes one of ``bins``
-    values on a geometric ladder and a daughter moves to a **neighbouring rung**, or stays. That is
-    the discrete-bin (rate-category) clock — the same inherit-and-perturb idea, in steps rather than
-    continuously, which is what a lineage-category model assumes. It is a knob rather than a modifier
-    of its own because the model is `FromParent`'s: a daughter starts from its parent and is
-    perturbed. ``None`` (the default) is the continuous form, so a run written before this existed
-    draws exactly as it did.
+    Geometric Brownian motion on the rate: the per-split factor is lognormal and **mean-corrected**
+    so ``E[factor] = 1``. Without the correction the rate inflates down the tree
+    (``E[rate] ≈ e^{σ²/2}``) — a real historical bug. The engine drives `initial` / `descend`,
+    threading each unit's current factor back through `Rate.effective`'s ``carried``.
+
+    ``bins`` discretises the drift: the rate takes one of ``bins`` values on a geometric ladder and a
+    daughter moves to a **neighbouring rung**, or stays — the rate-category clock. It is a knob rather
+    than a model of its own because the model is unchanged: a daughter starts from its parent and is
+    perturbed. ``None`` is the continuous form.
+
+    `FromParent` is this with ``per="lineage"``, kept as the name of that cell.
     """
 
-    reads: ClassVar[tuple[str, str] | None] = (INHERITED, "lineage")
-
+    per: str
     spread: float
     bins: int | None = None
 
+    @property
+    def reads(self) -> tuple[str, str]:      # type: ignore[override]
+        return (INHERITED, self.per)
+
     def __post_init__(self) -> None:
+        if self.per not in UNITS:
+            raise ValueError(
+                f"unknown unit {self.per!r}; a value is attached to one of {list(UNITS)}")
         if isinstance(self.spread, bool) or not isinstance(self.spread, (int, float)):
-            raise TypeError(f"FromParent spread must be a real number, got {self.spread!r}")
+            raise TypeError(f"Inherited spread must be a real number, got {self.spread!r}")
         if not math.isfinite(self.spread) or self.spread < 0:
-            raise ValueError(f"FromParent spread must be finite and non-negative, got {self.spread!r}")
+            raise ValueError(f"Inherited spread must be finite and non-negative, got {self.spread!r}")
         if self.bins is not None:
             if isinstance(self.bins, bool) or not isinstance(self.bins, int):
-                raise TypeError(f"FromParent bins must be a whole number, got {self.bins!r}")
+                raise TypeError(f"Inherited bins must be a whole number, got {self.bins!r}")
             if self.bins < 2:
-                raise ValueError(f"FromParent bins must be at least 2, got {self.bins}")
+                raise ValueError(f"Inherited bins must be at least 2, got {self.bins}")
 
     def __repr__(self) -> str:
-        """Omit ``bins`` when it is unset. The repr is what `written_form()` records in a run's log
-        and what a reader pastes back into a flag, so it has to be the expression that reproduces the
-        rate — and the dataclass default would render ``bins=None``, which the rate grammar rejects."""
+        """The written form a run's log records and a reader pastes back into a flag, so it has to be
+        an expression that reproduces the rate. The named cell is used where one exists, because that
+        is the spelling the parser and the manual have always shown."""
         extra = f", bins={self.bins}" if self.bins is not None else ""
-        return f"FromParent(spread={self.spread!r}{extra})"
+        if self.per == "lineage":
+            return f"FromParent(spread={self.spread!r}{extra})"
+        return f"Inherited(per={self.per!r}, spread={self.spread!r}{extra})"
+
+    def factor(self, **_: Any) -> float:
+        """A carried modifier has no factor to compute. Its number is drawn when the unit is born and
+        kept by the engine, which hands it back through `Rate.effective`'s ``carried`` — so asking
+        for one here, without that stored value, could only ever return a plausible 1.0 for a rate
+        that should have varied."""
+        raise NotImplementedError(
+            f"{type(self).__name__} is carried, not computed: the engine draws its value per "
+            f"{self.per} and passes it to Rate.effective(carried=...). It has no factor of its own.")
 
     def _ladder(self) -> list[float]:
         """The ``bins`` rungs, geometric in ``spread`` and scaled so their mean is 1.
@@ -430,40 +506,64 @@ class FromParent(Modifier):
         step = int(rng.integers(-1, 2))                      # -1, 0 or +1
         return rungs[min(max(here + step, 0), len(rungs) - 1)]
 
-    def factor(self, *, inherited: float = 1.0, **_: Any) -> float:
-        """The lineage's current factor — the engine threads it and passes it back as ``inherited``."""
-        return inherited
-
 
 @dataclass(frozen=True)
-class ByLineage(Modifier):
-    """The rate varies independently from lineage to lineage — an *uncorrelated* ("relaxed") clock.
+class Drawn(Modifier):
+    """A value **drawn once per unit** and then fixed for that unit's life — i.i.d. heterogeneity
+    with no memory. ``per`` names the unit, so one class covers every cell::
 
-    Each lineage draws **one** i.i.d. multiplier with **no memory** of its parent (contrast
-    `FromParent`, whose rate drifts parent→child). The draw is **mean-corrected** so
-    ``E[factor] = 1`` — without it the mean rate inflates down the tree (the historical lognormal-clock
-    bug). ``spread`` (σ) sets the width; ``dist`` is ``"lognormal"`` (default; σ = the log-scale) or
-    ``"gamma"`` (σ = the coefficient of variation) — the two agree to first order in σ.
+        loss = 0.25 * Drawn(per="family", spread=0.5)          # family rate heterogeneity
+        substitution = 1.0 * Drawn(per="lineage", spread=0.3)  # the uncorrelated relaxed clock
 
-    At the sequence level this is the lineage clock: the engine draws one value per **species lineage**
-    (via `draw()`) and shares it across every gene family passing through that lineage.
-    It is the lineage-twin of the genome level's ``ByFamily``.
+    Each draw is **mean-corrected** so ``E[factor] = 1`` — widening ``spread`` spreads the units out
+    without moving the average one off the base. ``dist`` is ``"lognormal"`` (σ = the log-scale) or
+    ``"gamma"`` (σ = the coefficient of variation); the two agree to first order in σ.
+
+    **Writing one object or two decides what varies together.** One `Drawn` read by several rates is
+    one draw for that unit, so a family that loses fast also duplicates fast; two separately built
+    ones are independent even with identical arguments (SPEC §5).
+
+    `ByFamily` and `ByLineage` are this with ``per`` fixed, kept as the names of those cells. A unit
+    no engine carries is refused at that level's gate, by name, rather than ignored.
     """
 
-    reads: ClassVar[tuple[str, str] | None] = (DRAWN, "lineage")
-
+    per: str
     spread: float
     dist: str = "lognormal"
 
+    @property
+    def reads(self) -> tuple[str, str]:      # type: ignore[override]
+        return (DRAWN, self.per)
+
     def __post_init__(self) -> None:
+        if self.per not in UNITS:
+            raise ValueError(
+                f"unknown unit {self.per!r}; a value is attached to one of {list(UNITS)}")
         if isinstance(self.spread, bool) or not isinstance(self.spread, (int, float)) \
                 or not math.isfinite(self.spread) or self.spread < 0:
-            raise ValueError(f"ByLineage spread must be a finite non-negative number, got {self.spread!r}")
+            raise ValueError(f"Drawn spread must be a finite non-negative number, got {self.spread!r}")
         if self.dist not in ("lognormal", "gamma"):
-            raise ValueError(f"ByLineage dist must be 'lognormal' or 'gamma', got {self.dist!r}")
+            raise ValueError(f"Drawn dist must be 'lognormal' or 'gamma', got {self.dist!r}")
+
+    def __repr__(self) -> str:
+        """The written form — the named cell where one exists, so a run's log and a ``--params`` file
+        keep the spelling the parser and the manual have always shown."""
+        named = {"family": "ByFamily", "lineage": "ByLineage"}.get(self.per)
+        if named is not None:
+            return f"{named}(spread={self.spread!r}, dist={self.dist!r})"
+        return f"Drawn(per={self.per!r}, spread={self.spread!r}, dist={self.dist!r})"
+
+    def factor(self, **_: Any) -> float:
+        """A carried modifier has no factor to compute. Its number is drawn when the unit is born and
+        kept by the engine, which hands it back through `Rate.effective`'s ``carried`` — so asking
+        for one here, without that stored value, could only ever return a plausible 1.0 for a rate
+        that should have varied."""
+        raise NotImplementedError(
+            f"{type(self).__name__} is carried, not computed: the engine draws its value per "
+            f"{self.per} and passes it to Rate.effective(carried=...). It has no factor of its own.")
 
     def draw(self, rng) -> float:
-        """One independent, mean-1 multiplier for a lineage. ``spread = 0`` gives 1.0 (a strict clock)."""
+        """One independent, mean-1 multiplier for a unit. ``spread = 0`` gives 1.0 (no variation)."""
         s = self.spread
         if s == 0.0:
             return 1.0
@@ -471,63 +571,30 @@ class ByLineage(Modifier):
             return math.exp(rng.normal(-0.5 * s * s, s))     # mean-corrected lognormal
         return float(rng.gamma(1.0 / (s * s), s * s))        # mean-1 gamma, coefficient of variation = s
 
-    def factor(self, *, bylineage: float = 1.0, **_: Any) -> float:
-        """The lineage's drawn factor — the engine threads it and passes it back as ``bylineage``."""
-        return bylineage
+
+def FromParent(spread: float, bins: int | None = None) -> Inherited:
+    """The inherited cell on a lineage — ``Inherited(per="lineage", …)``.
+
+    Kept as its own name because it names a model people cite: clade drift at the species level
+    (ClaDS), the autocorrelated clock at the sequence level, variable-rates BM at the trait level."""
+    return Inherited(per="lineage", spread=spread, bins=bins)
 
 
-@dataclass(frozen=True)
-class ByFamily(Modifier):
-    """The rate varies independently from gene family to gene family.
+def ByLineage(spread: float, dist: str = "lognormal") -> Drawn:
+    """The drawn cell on a lineage — ``Drawn(per="lineage", …)``, the uncorrelated ("relaxed") clock.
 
-    The family-twin of `ByLineage`, and the same i.i.d.-heterogeneity idea: each **family**
-    draws one multiplier with no memory, mean-corrected so ``E[factor] = 1`` — so widening ``spread``
-    spreads the families out without moving the average one off the base rate. ``dist`` is
-    ``"lognormal"`` (default; σ = the log-scale) or ``"gamma"`` (σ = the coefficient of variation).
+    At the sequence level the engine draws one value per **species lineage** and shares it across
+    every gene family passing through that lineage."""
+    return Drawn(per="lineage", spread=spread, dist=dist)
 
-    **Whether you write one object or two decides what varies together.** Two separately built
-    draws are independent, even with the same spread::
 
-        loss = 0.25 * mod.ByFamily(spread=0.5)         # a family that loses fast is not thereby
-        duplication = 0.2 * mod.ByFamily(spread=0.5)   # duplicating fast — two objects, two draws
+def ByFamily(spread: float, dist: str = "lognormal") -> Drawn:
+    """The drawn cell on a gene family — ``Drawn(per="family", …)``.
 
-    One object read by both rates is one draw per family, so a fast family is fast at everything::
-
-        speed = mod.ByFamily(spread=0.5)
-        simulate_genomes_family(tree, duplication=0.2 * speed, loss=0.25 * speed)
-
-    The two compose: a family-wide tempo, plus extra variation on one rate, is the shared object on
-    every rate and a second one on the rate that varies further.
-
-    Not accepted on ``origination``, which is the rate at which families are *created* — at the moment
+    Not accepted on ``origination``, which is the rate at which families are *created*: at the moment
     it is read there is no family to have drawn a factor for. The engine rejects it rather than
-    quietly ignoring it.
-    """
-
-    reads: ClassVar[tuple[str, str] | None] = (DRAWN, "family")
-
-    spread: float
-    dist: str = "lognormal"
-
-    def __post_init__(self) -> None:
-        if isinstance(self.spread, bool) or not isinstance(self.spread, (int, float)) \
-                or not math.isfinite(self.spread) or self.spread < 0:
-            raise ValueError(f"ByFamily spread must be a finite non-negative number, got {self.spread!r}")
-        if self.dist not in ("lognormal", "gamma"):
-            raise ValueError(f"ByFamily dist must be 'lognormal' or 'gamma', got {self.dist!r}")
-
-    def draw(self, rng) -> float:
-        """One independent, mean-1 multiplier for a family. ``spread = 0`` gives 1.0 (no variation)."""
-        s = self.spread
-        if s == 0.0:
-            return 1.0
-        if self.dist == "lognormal":
-            return math.exp(rng.normal(-0.5 * s * s, s))     # mean-corrected lognormal
-        return float(rng.gamma(1.0 / (s * s), s * s))        # mean-1 gamma, coefficient of variation = s
-
-    def factor(self, *, byfamily: float = 1.0, **_: Any) -> float:
-        """The family's drawn factor — the engine threads it and passes it back as ``byfamily``."""
-        return byfamily
+    quietly ignoring it."""
+    return Drawn(per="family", spread=spread, dist=dist)
 
 
 class DrivenBy(Modifier):
@@ -625,7 +692,15 @@ class DrivenBy(Modifier):
         return hash((DrivenBy, self.key))
 
 
-__all__ = ["Modifier", "OnTime", "OnTotalDiversity", "FromParent", "ByLineage",
-           "ByFamily", "DrivenBy",
-           "MEASURED", "DRAWN", "INHERITED", "DRIVEN", "CARRIED_KINDS",
-           "product", "draw_product", "carried_at_birth", "carried_at_split", "check_one_memory"]
+#: The names a rate may be **written** with — what `zombi2.rates.parse` whitelists, and the only
+#: things in this module a user ever calls. Kept explicit rather than derived from ``__all__``, which
+#: also carries the helpers an engine uses: a whitelist that grows whenever a helper is exported is
+#: a whitelist that stops meaning anything.
+WRITABLE = ("OnTime", "OnTotalDiversity", "Drawn", "Inherited",
+            "FromParent", "ByLineage", "ByFamily", "DrivenBy")
+
+__all__ = ["Modifier", "OnTime", "OnTotalDiversity", "Drawn", "Inherited",
+           "FromParent", "ByLineage", "ByFamily", "DrivenBy",
+           "MEASURED", "DRAWN", "INHERITED", "DRIVEN", "CARRIED_KINDS", "UNITS",
+           "product", "draw_product", "carried_at_birth", "carried_at_split", "check_one_memory",
+           "cell_name", "describe", "is_implemented", "matches_declared", "WRITABLE"]

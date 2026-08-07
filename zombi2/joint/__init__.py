@@ -33,7 +33,7 @@ from ..genomes import GeneEdge, GeneCopy, FamilyGenomesResult, FamilyGenome
 from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
 from ..rates.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import ByFamily, ByLineage, DrivenBy, FromParent, OnTime, OnTotalDiversity, is_implemented
+from ..rates.modifiers import DRAWN, INHERITED, DrivenBy, OnTime, OnTotalDiversity, is_implemented
 
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
@@ -448,7 +448,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 f"per lineage — drop the scope wrapper (per lineage is the default)."
             )
         for m in rate.modifiers:
-            if isinstance(m, ByFamily):
+            if m.reads == (DRAWN, "family"):
                 # not a missing feature: there is nothing here for it to mean (the species level
                 # says the same thing about the same modifier, for the same reason)
                 raise ValueError(
@@ -456,12 +456,12 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                     f"ByFamily belongs on a genomes rate. To make speciation depend on gene content, "
                     f"drive it: birth = 1.0 * mod.DrivenBy(\"genomes:count\", ...)."
                 )
-            if isinstance(m, FromParent):
+            if m.reads == (INHERITED, "lineage"):
                 raise ValueError(
                     f"{label} carries FromParent (clade drift); drift and a driven rate are not available "
                     f"together — use one or the other."
                 )
-            if isinstance(m, ByLineage):
+            if m.reads == (DRAWN, "lineage"):
                 # The species level takes this; the joint engine does not thread it, so accepting it
                 # here would run the model without the rate variation the user asked for — and the
                 # same `--birth` expression working on `zombi2 species` makes that a trap rather than

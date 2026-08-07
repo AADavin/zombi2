@@ -174,10 +174,13 @@ def test_binned_drift_needs_at_least_two_bins(bad):
         mod.FromParent(spread=0.3, bins=bad)
 
 
-def test_inherited_factor_reads_lineage_multiplier():
-    inh = mod.FromParent(spread=0.3)
-    assert inh.factor(inherited=2.5, time=1.0) == 2.5
-    assert inh.factor() == 1.0  # default: no drift
+def test_a_carried_modifier_has_no_factor_to_give():
+    """Its number never came from the context: the engine draws it when a unit is born, keeps it, and
+    hands it back through `Rate.effective`'s ``carried``. Asking for a factor without that is
+    meaningless, so it raises with the reason rather than returning a plausible 1.0."""
+    for m in (mod.FromParent(spread=0.3), mod.ByLineage(spread=0.3), mod.ByFamily(spread=0.3)):
+        with pytest.raises(NotImplementedError, match="carried"):
+            m.factor()
 
 
 # --- ByLineage (the uncorrelated / relaxed clock): i.i.d. mean-corrected draws ---
@@ -223,12 +226,6 @@ def test_bylineage_deterministic():
     a = mod.ByLineage(spread=0.3).draw(np.random.default_rng(7))
     b = mod.ByLineage(spread=0.3).draw(np.random.default_rng(7))
     assert a == b
-
-
-def test_bylineage_factor_reads_lineage_multiplier():
-    byl = mod.ByLineage(spread=0.3)
-    assert byl.factor(bylineage=2.5) == 2.5
-    assert byl.factor() == 1.0  # default: no clock
 
 
 def test_bylineage_validates_its_arguments():

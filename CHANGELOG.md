@@ -10,6 +10,18 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **The grid is real: one class per way of making a value, with the unit as data.** `Drawn(per=…)`
+  and `Inherited(per=…)` are now the classes themselves rather than a shim over three others, so
+  `ByFamily`, `ByLineage` and `FromParent` are the *names of cells* — kept, because each names a
+  model people cite, and each still builds the identical object. What this buys is that a cell
+  nobody has built needs no new class and no invented name: `Drawn(per="chromosome", spread=0.5)`
+  constructs, and the level that cannot carry a number per chromosome refuses it saying so —
+  *"birth carries drawn per chromosome, which the species engine does not support"* — rather than
+  reading as an unknown name. A level's `IMPLEMENTED_MODIFIERS` accordingly declares **cells**
+  (`(DRAWN, "family")`) as well as classes, and the classes remain where the grain needs them:
+  `OnTime` and `OnTotalDiversity` both read a measured value on the run, yet an engine can thread a
+  schedule's breakpoints without threading standing diversity, so the two stay separately
+  declarable.
 - **A second way to write a modifier, as a grid rather than a list.** Each of the six modifiers says
   two independent things at once — where its number comes from, and what it is attached to — and the
   new spelling separates them: `Drawn(per="family", spread=0.5)` is `ByFamily(spread=0.5)`,

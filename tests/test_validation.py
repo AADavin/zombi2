@@ -1460,6 +1460,7 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
     import pathlib
     import re
 
+    from zombi2.rates.modifiers import cell_name
     from zombi2.genomes import IMPLEMENTED_MODIFIERS as GENOMES
     from zombi2.genomes.nucleotide import IMPLEMENTED_MODIFIERS as NUCLEOTIDE
     from zombi2.genomes.ordered import IMPLEMENTED_MODIFIERS as ORDERED
@@ -1483,8 +1484,8 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
     # cannot lie again about either.
     assert set(ORDERED) == set(GENOMES), (
         f"appendix A lists family and ordered under one row, but they wire "
-        f"{sorted(m.__name__ for m in GENOMES)} and {sorted(m.__name__ for m in ORDERED)} — either "
-        f"bring them back into line or split the row")
+        f"{sorted(cell_name(m) for m in GENOMES)} and {sorted(cell_name(m) for m in ORDERED)} — "
+        f"either bring them back into line or split the row")
 
     for row, wired in (("Species", SPECIES),
                        ("Genomes, family and ordered", GENOMES),
@@ -1499,6 +1500,6 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
         # about — `rate`, `switch`, `birth`), and scanning the whole line would read those as
         # modifiers.
         listed = set(re.findall(r"`(\w+)`", line.split("|")[2]))
-        assert listed == {m.__name__ for m in wired}, (
+        assert listed == {cell_name(m) for m in wired}, (
             f"appendix A's {row!r} row lists {sorted(listed)}, but the engine wires "
-            f"{sorted(m.__name__ for m in wired)}")
+            f"{sorted(cell_name(m) for m in wired)}")
