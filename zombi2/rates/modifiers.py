@@ -209,7 +209,18 @@ def is_implemented(m: "Modifier", engines: tuple, engine: str) -> bool:
     breakpoints without threading the standing diversity, so the two are separately declarable. A
     cell — ``(DRAWN, "family")`` — is the right grain for `Drawn` and `Inherited`, which are one class
     covering every unit, where what an engine supports is the *unit* it can carry a number for."""
-    return matches_declared(m, engines) or engine in getattr(m, "implemented_for", ())
+    if matches_declared(m, engines):
+        return True
+    if engine not in getattr(m, "implemented_for", ()):
+        return False
+    # The hatch lets a modifier of your own vouch for itself, and it can — for a factor it *computes*
+    # from the context, which is a promise only the modifier has to keep. It cannot vouch for a
+    # **carried** value: that number has to be drawn when a unit is born, kept, and handed back, and
+    # only the engine can do those, for the units it declares. Accepting one on a unit the level does
+    # not carry would draw nothing and skip its factor, so the rate would run undriven in silence —
+    # the exact failure this whole gate exists to prevent, so the hatch stops here.
+    reads = getattr(m, "reads", None)
+    return not (reads is not None and reads[0] in CARRIED_KINDS)
 
 
 def matches_declared(m: "Modifier", entries: tuple) -> bool:
@@ -294,6 +305,12 @@ class Modifier:
     #: evolves, not evaluated at an event — so a modifier declaring itself implemented there would be
     #: accepted and then never called, which is the silence this whole mechanism exists to prevent.
     #: It refuses instead, and says why.
+    #:
+    #: **The hatch cannot vouch for a carried value.** It works for a modifier that computes its own
+    #: factor from the context — ``reads`` unset, or `MEASURED` / `DRIVEN`. A modifier declaring
+    #: `DRAWN` or `INHERITED` needs the *engine* to draw its number per unit and hand it back, which
+    #: an engine can only do for the units it declares, so such a modifier is admitted by a level
+    #: naming its cell and by nothing else.
     #:
     #: Declaring an engine is a claim you are making: it calls `factor` with the context above and
     #: nothing more, so take ``**_`` and default every key you read. Built-in modifiers leave this

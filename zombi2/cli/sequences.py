@@ -347,19 +347,22 @@ def run(args, parser):
     _mods = (_sub,) if isinstance(_sub, Modifier) else getattr(_sub, "modifiers", ())
     # Both clock modifiers, not just the uncorrelated one: a FromParent run is autocorrelated, and
     # reporting it as "strict" was the same bug the ByLineage branch above was written to fix.
-    clock = "strict clock"
+    # Every clock, not the last one written: several of one kind compose now, and describing a rate
+    # that carries two as though it carried one states a model that was not the model simulated.
+    clocks = []
     driven = []
     for m in _mods:
         if m.reads == (DRAWN, "lineage"):
-            clock = f"{m.dist} lineage clock, spread {m.spread:g}"
+            clocks.append(f"{m.dist} lineage clock, spread {m.spread:g}")
         elif m.reads == (INHERITED, "lineage"):
-            clock = (f"discrete-bin clock, {m.bins} bins, spread {m.spread:g}" if m.bins
-                     else f"autocorrelated clock, spread {m.spread:g}")
+            clocks.append(f"discrete-bin clock, {m.bins} bins, spread {m.spread:g}" if m.bins
+                          else f"autocorrelated clock, spread {m.spread:g}")
         elif isinstance(m, DrivenBy):
             # a driver is a second factor, not a second clock — appended rather than replacing, or a
             # driven relaxed run would report itself as one or the other and never as both
             driven.append(os.path.basename(m.driver) if isinstance(m.driver, str)
                           else type(m.driver).__name__)
+    clock = " + ".join(clocks) if clocks else "strict clock"
     if driven:
         clock += f", driven by {', '.join(driven)}"
     # What the run actually produced, not what was asked for: the rate is per unit time, so whether

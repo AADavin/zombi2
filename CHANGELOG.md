@@ -94,6 +94,17 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   redundant, and it is now stated in SPEC §5.
 
 ### Fixed
+- **A modifier of your own can no longer vouch for a value the engine has to draw.**
+  `Modifier.implemented_for` lets a third-party modifier declare which engines it works with, which
+  it can promise for a factor it *computes* — that promise is the modifier's alone to keep. It
+  cannot promise it for a `Drawn` or `Inherited` value: that number is drawn by the engine when a
+  unit is born and handed back, which an engine can only do for the units it declares. One admitted
+  that way was dropped twice over — nothing drew it, and `Rate.effective` skips carried modifiers —
+  so the rate ran undriven in silence. Such a modifier is now admitted by a level naming its cell
+  and by nothing else.
+- **A sequence run's summary names every clock the rate carries, not the last one written.** Several
+  drawn clocks compose now, so a rate carrying two was described as carrying one — a summary stating
+  a model that was not the model simulated.
 - **A rate carrying two per-unit modifiers now applies both.** Each engine looked for *the*
   `FromParent` / `ByLineage` modifier on a species rate, or *the* `ByFamily` on a genome rate, and
   stopped at the first match — so a second one was dropped without a word, while the run's own log
