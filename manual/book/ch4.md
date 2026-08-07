@@ -13,6 +13,8 @@ A genome at the family resolution evolves by four kinds of event, applied to eve
 - **Loss.** A gene copy is deleted; a family that loses its last copy is gone from that lineage.
 - **Origination.** A brand-new family appears in a lineage, with one copy.
 
+![The four events, one to a panel. The pale band is a **lineage** of the species tree and the dark line inside it a **gene copy**; time runs left to right. A duplication splits one copy into two inside the one lineage. A transfer sends a copy into another lineage alive at that same moment, where it appears as a new copy. A loss ends a copy. An origination starts one, and a family with it, from nothing. Speciation is not here: it is the species level's event, and what it does to a genome is hand the whole of it to both daughters.](figures/four_events_print.png){width=100%}
+
 You give a rate for each, and the events play out along the tree from the initial genome, speciation handing a lineage's genome down to both children. Out comes the genome of *every* lineage together with the event log that produced it.
 
 ```python

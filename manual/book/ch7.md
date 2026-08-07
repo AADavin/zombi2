@@ -5,6 +5,8 @@ The sequence level does two main things:
 * It rescales the gene trees and the species tree from time into substitutions per site (**phylograms**).
 * It evolves the residues that sit inside every gene, so each family ends with an alignment.
 
+![Where a sequence lives. A sequence is not evolved along the species tree: it is evolved along the **gene tree**, which the genome run produced and which runs inside the species tree. The two forks are different events. The first is a speciation, which hands the gene to both daughters; the second, marked with a square, is a duplication, and it happens inside one lineage — which is why one lineage can hold two tips of the same family. A run gives one sequence per node of that gene tree, so the tips come out as an alignment.](figures/sequence_nesting_print.png){width=88%}
+
 The sequence level always follows a genome run, and takes that run's result directly:
 
 ```python
