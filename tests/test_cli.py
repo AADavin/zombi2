@@ -578,7 +578,7 @@ def test_traits_continuous_ou_with_a_modified_rate(tmp_path, tree_file):
     assert rc == 0
     assert (out / "trait_values.tsv").exists()
     log = (out / "traits.log").read_text(encoding="utf-8")
-    assert "rate\t1.0 * OnTime({0: 4, 1: 1})" in log            # the rate, as the run resolved it
+    assert "rate\t1.0 * OnTime({0.0: 4.0, 1.0: 1.0})" in log            # the rate, as the run resolved it
     assert "reverts_to\t2.0" in log and "pull\t0.5" in log       # alongside the OU knobs, not instead
 
 
@@ -936,7 +936,7 @@ def test_species_records_the_rate_in_its_written_form(tmp_path):
     # the log line is the flag value again — a reproducibility record you can paste back
     out = tmp_path / "o"
     main(["species", str(out), "--birth", "1.0 * OnTime({0: 1.0, 3: 0.3})", "--total-time", "4", "--seed", "1", "--flat"])
-    assert "birth\t1.0 * OnTime({0: 1, 3: 0.3})" in (out / "species.log").read_text(encoding="utf-8")
+    assert "birth\t1.0 * OnTime({0.0: 1.0, 3.0: 0.3})" in (out / "species.log").read_text(encoding="utf-8")
 
 
 def test_species_refuses_a_modifier_it_does_not_wire(tmp_path, capsys):
@@ -967,7 +967,7 @@ def test_genomes_takes_a_rate_expression(tmp_path, tree_file):
     out = tmp_path / "g"
     rc = main(["genomes", str(out), "--from", str(tree_file), "--duplication", "0.2", "--loss", "0.25 * OnTime({0: 1.0, 2: 3.0})", "--origination", "0.5", "--seed", "42", "--flat"])
     assert rc == 0
-    assert "loss\t0.25 * OnTime({0: 1, 2: 3})" in (out / "genomes.log").read_text(encoding="utf-8")
+    assert "loss\t0.25 * OnTime({0.0: 1.0, 2.0: 3.0})" in (out / "genomes.log").read_text(encoding="utf-8")
 
 
 @pytest.fixture
@@ -1064,7 +1064,7 @@ def test_params_file_takes_a_rate_expression(tmp_path):
     out = tmp_path / "o"
     rc = main(["species", str(out), "--params", str(tmp_path / "p.toml"), "--seed", "2", "--flat"])
     assert rc == 0
-    assert "birth\t1.0 * OnTime({0: 1, 3: 0.3})" in (out / "species.log").read_text(encoding="utf-8")
+    assert "birth\t1.0 * OnTime({0.0: 1.0, 3.0: 0.3})" in (out / "species.log").read_text(encoding="utf-8")
 
 
 def test_params_file_rate_expression_matches_the_flag(tmp_path):

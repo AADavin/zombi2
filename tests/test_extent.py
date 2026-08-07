@@ -113,7 +113,7 @@ def test_a_modifier_scales_the_size():
     """``500 * OnTime(...)`` is an extent, not a rate: the factor scales the size drawn."""
     from zombi2.rates import modifiers as mod
     e = as_extent(400 * mod.OnTime({0: 1.0, 5.0: 3.0}))
-    assert isinstance(e, Extent) and e.is_driven
+    assert isinstance(e, Extent) and e.has_modifiers
     assert e.mean(time=0.0) == pytest.approx(400.0)
     assert e.mean(time=6.0) == pytest.approx(1200.0)     # past the step, three times as long
 
@@ -133,8 +133,8 @@ def test_an_extent_takes_no_scope():
 
 def test_a_plain_extent_is_not_driven():
     """The common case reads no context at all, which is what lets an engine skip building one."""
-    assert as_extent(500).is_driven is False
-    assert as_extent(None).is_driven is False
+    assert as_extent(500).has_modifiers is False
+    assert as_extent(None).has_modifiers is False
 
 
 def test_mean_needs_a_geometric_base():
@@ -209,3 +209,32 @@ def test_nucleotide_refuses_an_unwired_extent_modifier(tree):
     with pytest.raises(ValueError, match="an extent takes the same modifiers a rate does"):
         simulate_genomes_nucleotide(tree, root_length=2000, loss=0.5,
                                     loss_extent=200 * mod.Drawn(per='family', spread=0.5), seed=1)
+
+
+def test_an_extent_is_read_in_the_same_context_as_a_rate():
+    """One gate admits a modifier onto a rate and onto an extent, so both have to be handed the
+    context `Modifier.implemented_for` promises. The extent sites passed `{"time": t}` alone, so a
+    modifier written the documented way (`**_`, with defaults) silently read zeros there while
+    reading real counts on a rate, and one with a required keyword died mid-run."""
+    from zombi2 import genomes, species
+    from zombi2.rates.modifiers import Modifier
+
+    seen: dict[str, list[tuple]] = {"rate": [], "extent": []}
+
+    class Records(Modifier):
+        implemented_for = ("genomes.ordered", "genomes.nucleotide")
+
+        def __init__(self, where):
+            self.where = where
+
+        def factor(self, *, time=0.0, copies=0, lineages=0, chromosomes=0, **_):
+            seen[self.where].append((copies, lineages, chromosomes))
+            return 1.0
+
+    tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=1).complete_tree
+    genomes.simulate_genomes_ordered(tree, initial_families=20, loss=0.4 * Records("rate"),
+                                     loss_extent=3 * Records("extent"), seed=2)
+
+    assert seen["rate"] and seen["extent"]
+    # the counts an extent is given are the run's, not zeros
+    assert any(c or ln or ch for c, ln, ch in seen["extent"])

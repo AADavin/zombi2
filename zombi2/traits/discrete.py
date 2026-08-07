@@ -206,7 +206,13 @@ def _gillespie_driven(state: int, node, node_id: int, entries, k: int, trajs: di
     segments: list[tuple[int, float]] = []
     t, cur = t0, state
     while t < t1:
+        # The stretch ends at whichever comes first: a driver switching, or a rate changing on its
+        # own clock. Only the drivers were asked, so a modifier that varies with time — a skyline, or
+        # one of your own admitted by `implemented_for` — was read once at the start of the stretch
+        # and then held for the rest of the branch, which every other engine steps to.
         nxt = t1
+        for _i, _j, r in entries:
+            nxt = min(nxt, r.next_change(t))
         for traj in trajs.values():
             nxt = min(nxt, traj.next_change(node_id, t))
         drivers = {key: traj.value(node_id, t) for key, traj in trajs.items()}

@@ -1516,10 +1516,16 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             It cannot be built before the lineage is drawn, because a driven extent is read on the
             **acting** lineage at the instant the event fires — which is also why an extent adds no
             Gillespie breakpoint and never enters the horizon above (SPEC §6). With no driven extent
-            this is the ``{"time": t}`` the skyline has always been read from, unchanged."""
+            this is the same context the rates were read in.
+
+            The rest of `ctx` — the gene, lineage and chromosome counts — goes with it, because
+            `Modifier.implemented_for` promises this engine supplies them and a modifier of your own
+            is admitted onto an extent by the same gate that admits it onto a rate. Handing an
+            extent a thinner context meant one gate certifying two different contracts: a modifier
+            written the documented way read zeros, and one with a required keyword died mid-run."""
             if not any_ext_driven:
-                return {"time": t}
-            return {"time": t,
+                return dict(ctx)
+            return {**ctx,
                     "drivers": {key: resolved[key].value(alive[k], t) for key in resolved}}
 
         if total > 0.0:

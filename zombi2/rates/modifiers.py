@@ -388,7 +388,10 @@ class OnTime(Modifier):
         return math.inf
 
     def __repr__(self) -> str:
-        inner = ", ".join(f"{t:g}: {f:g}" for t, f in self._steps)
+        # `repr(float)` rather than `:g`, which rounds to six significant figures: this text is what
+        # a run's log records and what a reader pastes back into a flag, so a rate that prints
+        # rounded is a log naming a model that is not the one that ran.
+        inner = ", ".join(f"{float(t)!r}: {float(f)!r}" for t, f in self._steps)
         return f"OnTime({{{inner}}})"
 
     def __eq__(self, other: object) -> bool:
