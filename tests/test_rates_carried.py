@@ -138,6 +138,83 @@ def test_the_genome_engines_now_apply_every_per_family_modifier():
     assert seen == pytest.approx(a.draw(rng) * b.draw(rng))   # both draws, in written order
 
 
+class TestOneObjectIsOneDraw:
+    """Sharing is by **object**, not by value. Writing one modifier and reading it from two rates
+    says "these move together"; building two says "these are independent". Nothing else is needed to
+    tell the two models apart, and no extra argument."""
+
+    def test_one_object_on_two_rates_draws_once(self):
+        import numpy as np
+
+        speed = mod.ByFamily(spread=0.5)
+        shared: dict[int, float] = {}       # one unit's cache, passed to each of its rates
+        rng = np.random.default_rng(11)
+
+        first = mod.draw_product((speed,), rng, shared)
+        second = mod.draw_product((speed,), rng, shared)
+        assert first == second                                  # the same number both times
+
+        expected = mod.ByFamily(spread=0.5).draw(np.random.default_rng(11))
+        assert first == pytest.approx(expected)                 # and the generator moved once
+
+    def test_two_objects_of_the_same_spread_draw_separately(self):
+        import numpy as np
+
+        a, b = mod.ByFamily(spread=0.5), mod.ByFamily(spread=0.5)
+        shared: dict[int, float] = {}
+        rng = np.random.default_rng(11)
+
+        assert mod.draw_product((a,), rng, shared) != mod.draw_product((b,), rng, shared)
+
+    def test_the_cache_is_per_unit_so_a_later_unit_draws_afresh(self):
+        import numpy as np
+
+        speed = mod.ByFamily(spread=0.5)
+        rng = np.random.default_rng(11)
+        one = mod.draw_product((speed,), rng, {})               # family one
+        two = mod.draw_product((speed,), rng, {})               # family two
+        assert one != two
+
+    def test_without_a_cache_every_modifier_draws_for_itself(self):
+        import numpy as np
+
+        speed = mod.ByFamily(spread=0.5)
+        rng = np.random.default_rng(11)
+        assert mod.draw_product((speed, speed), rng) != pytest.approx(
+            mod.draw_product((speed,), np.random.default_rng(11), {}) ** 2)
+
+    def test_species_shares_one_object_between_birth_and_death(self):
+        """A lineage's cache spans both rates, so `1.0 * s` on birth and `0.5 * s` on death is one
+        number per lineage — the two rates rise and fall together."""
+        import numpy as np
+
+        from zombi2.species import _born, _per_lineage
+
+        s = mod.ByLineage(spread=0.4)
+        birth = _per_lineage(_rate(1.0 * s))
+        death = _per_lineage(_rate(0.5 * s))
+
+        lineage: dict[int, float] = {}
+        rng = np.random.default_rng(4)
+        (b,) = _born(birth, rng, lineage)
+        (d,) = _born(death, rng, lineage)
+        assert b == d
+
+    def test_species_keeps_two_objects_independent(self):
+        import numpy as np
+
+        from zombi2.species import _born, _per_lineage
+
+        birth = _per_lineage(_rate(1.0 * mod.ByLineage(spread=0.4)))
+        death = _per_lineage(_rate(0.5 * mod.ByLineage(spread=0.4)))
+
+        lineage: dict[int, float] = {}
+        rng = np.random.default_rng(4)
+        (b,) = _born(birth, rng, lineage)
+        (d,) = _born(death, rng, lineage)
+        assert b != d
+
+
 def test_a_modifier_that_does_not_draw_says_so():
     """`FromParent` starts from its parent rather than from nothing, so it has no `draw`. The base
     raises with the reason instead of handing back a plausible 1.0."""

@@ -9,6 +9,18 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+- **One modifier object read by two rates is now one draw, shared between them.** Writing
+  `s = mod.ByFamily(spread=0.5)` and putting `s` on both `duplication` and `loss` makes a family
+  that duplicates fast also lose fast; building two separate `ByFamily(spread=0.5)` keeps the two
+  rates independent, as before. So "fast at everything" against "fast at one thing" is now the
+  difference between writing one object and writing two, with no extra argument to learn. Sharing is
+  by object identity, not by equality — two modifiers that merely agree on their spread are still
+  two draws, because the question is what you wrote rather than what the numbers happen to be. The
+  same holds for `ByLineage` across a species run's `birth` and `death`. A run that does not reuse an
+  object draws exactly as it did, seed for seed. `family_speed=` is unchanged and still draws on its
+  own.
+
 ### Fixed
 - **A rate carrying two per-unit modifiers now applies both.** Each engine looked for *the*
   `FromParent` / `ByLineage` modifier on a species rate, or *the* `ByFamily` on a genome rate, and

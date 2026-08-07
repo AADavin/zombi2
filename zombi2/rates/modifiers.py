@@ -44,7 +44,8 @@ DRIVEN = "driven"          # another level's value: recorded beforehand, or grow
 CARRIED_KINDS = (DRAWN, INHERITED)
 
 
-def draw_product(mods: "tuple[Modifier, ...]", rng) -> float:
+def draw_product(mods: "tuple[Modifier, ...]", rng,
+                 drawn: "dict[int, float] | None" = None) -> float:
     """One draw from each modifier, multiplied — the factor a newly created unit carries.
 
     For a unit that never splits, the carried value is fixed for its whole life and only the product
@@ -54,10 +55,24 @@ def draw_product(mods: "tuple[Modifier, ...]", rng) -> float:
 
     Drawing in written order is what keeps a run reproducible, and drawing from **every** modifier
     is the point: taking only the first was how a second one silently left the model.
+
+    ``drawn`` makes one value shared. It is a cache for a **single unit**, keyed by modifier
+    identity: pass the same dict while drawing each of that unit's rates, and a modifier written on
+    two of them is drawn once and both rates get the same number. That is how "a family that loses
+    fast also duplicates fast" is said — one object, read twice — against "fast at losing only",
+    which is two objects. Two modifiers that merely compare equal are still two draws, because the
+    question is whether you wrote one thing or two, not whether their spreads match. Omit the cache
+    and every modifier draws for itself.
     """
     out = 1.0
     for m in mods:
-        out *= m.draw(rng)
+        if drawn is None:
+            out *= m.draw(rng)
+            continue
+        key = id(m)
+        if key not in drawn:
+            drawn[key] = m.draw(rng)
+        out *= drawn[key]
     return out
 
 
