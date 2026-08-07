@@ -253,11 +253,24 @@ def written_form(spec: object) -> str:
     if isinstance(spec, _scope.Scope):
         return f"{type(spec).__name__}({float(spec.base)!r})"
     if isinstance(spec, _modifiers.Modifier):
+        # A `SetBy` replaces the base, so writing one in front of it produces the very expression
+        # `SetBy` refuses — and that expression is what a run's log records, so the record of the
+        # model was one that could not be run again.
+        if isinstance(spec, _modifiers.SetBy):
+            return repr(spec)
         return f"1.0 * {spec!r}"
     if isinstance(spec, Rate):
+        # SPEC §5: a replaced base is written first, because anything to its left is a base it would
+        # discard. `sorted` is stable, so the factors keep the order they were written in.
+        mods = sorted(spec.modifiers, key=lambda m: not isinstance(m, _modifiers.SetBy))
+        if mods and isinstance(mods[0], _modifiers.SetBy):
+            # no head: the driver supplies the number. The scope goes with it and loses nothing —
+            # a scope cannot wrap a `SetBy` (there is no base for it to wrap), so the scope here is
+            # always the level's default, which reading the text back at that level restores.
+            return " * ".join(repr(m) for m in mods)
         head = (f"{type(spec.scope).__name__}({float(spec.base)!r})" if spec.scope is not None
                 else repr(float(spec.base)))
-        return " * ".join([head, *(repr(m) for m in spec.modifiers)])
+        return " * ".join([head, *(repr(m) for m in mods)])
     return repr(spec)
 
 

@@ -1453,7 +1453,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         # the weights are kept, because the affected lineage must then be drawn with them too. The
         # gene count sits inside the weight, which is what makes a driven per-copy rate a two-stage
         # pick (a lineage, then a gene in it) rather than the one-stage lineage draw a per-lineage
-        # rate takes. ByFamily and DrivenBy cannot both be set, so `w` and `fw` never coexist.
+        # rate takes. A per-family draw and a DrivenBy cannot both be set, so `w` and `fw` never
+        # coexist.
         w: dict[str, list[float]] = {}
         if any_driven:
             drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(k_alive)]

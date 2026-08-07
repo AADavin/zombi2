@@ -27,7 +27,7 @@ import math
 from dataclasses import dataclass
 
 from ..rates.mapping import Between, check_kernel_fires
-from ..rates.modifiers import DrivenBy
+from ..rates.modifiers import DrivenBy, SetBy
 from ..rates.rate import Rate
 from ..species import _weighted_index
 from ..tree import node_label
@@ -208,6 +208,14 @@ def resolve_transfer_to(transfer_to):
             "with a DrivenBy weighting is a later slice. Give 'uniform', 'distance' / "
             "Distance(decay=), or mod.DrivenBy(driver, {...})."
         )
+    if isinstance(transfer_to, SetBy):
+        # `SetBy` is a `DrivenBy`, so the test below admits it — and admitting it runs the model the
+        # user did not write. A choice has no base: only the ratios between the candidates are read,
+        # so there is nothing here for a replaced base to mean, and it ran as an ordinary weighting.
+        raise ValueError(
+            "transfer_to cannot be SetBy: it weights the candidate recipients against each other, "
+            "so there is no base for a driver to replace. The same numbers, spelled as what they "
+            "are, is Weights(driver, {...}).")
     if transfer_to != "uniform" and not isinstance(transfer_to, (Distance, DrivenBy, Clades)):
         raise ValueError(
             f"transfer_to must be 'uniform', 'distance' / Distance(decay=), "

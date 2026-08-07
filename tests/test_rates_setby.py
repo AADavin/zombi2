@@ -180,6 +180,26 @@ class TestTheHolesAnAdversarialReviewFound:
     def test_a_driver_that_cannot_be_written_says_so_rather_than_looking_like_a_file(self, habitat):
         assert repr(ScaledBy(habitat, {"cave": 2.0})).startswith("DrivenBy(<TraitsResult>")
 
+    def test_a_replaced_base_is_written_so_it_can_be_pasted_back(self):
+        """A run records its rates in the written form, and a `SetBy` rate was recorded with a base
+        in front of it — `1.0 * SetBy(...)`, or `PerCopy(1.0) * SetBy(...)` — which is exactly the
+        spelling `SetBy` refuses. So every log naming a replaced base named a rate that would not
+        parse, and the record of the model was not one you could run again.
+
+        The scope goes with the base, and loses nothing: a scope cannot be written round a `SetBy`
+        (there is no base for it to wrap), so a `SetBy` rate always carries its level's default, and
+        reading the text back at that level restores it."""
+        from zombi2.rates.parse import parse_rate, written_form
+
+        alone = SetBy("h.tsv", {"cave": 1.0})
+        assert written_form(alone) == repr(alone)
+        assert parse_rate(written_form(alone)) == alone
+
+        both = _rate(SetBy("h.tsv", {"cave": 1.0}) * ScaledBy("g.tsv", {"x": 2.0}))
+        text = written_form(both)
+        assert text.startswith("SetBy(")                    # written first: nothing may precede it
+        assert parse_rate(text).modifiers == both.modifiers
+
     def test_a_choice_has_no_base_to_replace_either(self, tree, habitat):
         """The same hole as the extent above, on the other kind of target. `transfer_to` weights the
         candidate recipients against each other, so there is no base for `SetBy` to replace and the
