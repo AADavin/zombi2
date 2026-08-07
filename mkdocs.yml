@@ -69,6 +69,7 @@ hooks:
   - hooks/manual_callouts.py
   - hooks/manual_figures.py
   - hooks/manual_citations.py
+  - hooks/manual_raw_latex.py
 
 plugins:
   - search
@@ -141,6 +142,7 @@ nav:
       - Traits: guide/traits.md
       - Conditioning: guide/conditioning.md
       - Joining: guide/joining.md
+  - Rates in detail: rates.md
   - Output files: output-files.md
   - Tools:
       - Overview: tools.md

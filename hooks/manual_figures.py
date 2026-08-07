@@ -37,10 +37,21 @@ _FIGURE = re.compile(
 # Just below pymdownx.snippets (32), so chapters are inlined before this runs.
 _PRIORITY = 31
 
+#: How deep the page being rendered sits under `docs/`, so the rewritten path can climb back to
+#: `img/`. A chapter page is one level down (`guide/tour.md` → `../img/`) and an appendix page could
+#: be at the top (`output-files.md` → `img/`); writing `../img/` for both silently breaks the second,
+#: which is a figure that does not appear rather than a build that fails. `on_page_markdown` fires
+#: once per page, before the extensions run, so the preprocessor below can read it.
+_DEPTH = [1]
+
+
+def _prefix() -> str:
+    return "../" * _DEPTH[0] + "img/"
+
 
 def _rewrite(m: re.Match[str]) -> str:
     width = f'{{ width="{m.group(2)}" }}' if m.group(2) else ""
-    return f"](../img/{m.group(1)}.svg){width}"
+    return f"]({_prefix()}{m.group(1)}.svg){width}"
 
 
 class _FigurePreprocessor(Preprocessor):
@@ -56,3 +67,10 @@ class _FigureExtension(Extension):
 def on_config(config):
     config.markdown_extensions.append(_FigureExtension())
     return config
+
+
+def on_page_markdown(markdown, page, config, files):
+    """Record how deep this page sits, for `_prefix`. The markdown is returned untouched: the
+    include has not expanded yet, so there is nothing here to rewrite."""
+    _DEPTH[0] = page.file.src_uri.count("/")
+    return markdown
