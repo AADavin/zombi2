@@ -732,7 +732,7 @@ def _run_over_cap(genome, chrom, start, m, cap) -> bool:
     return False
 
 
-def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ext_ctx, w=None):
+def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ext_ctx, w=None, hosts=None):
     """``(lineage, chromosome index, start, run size)`` for one gene-level event, or ``None`` when
     there is nothing to act on.
 
@@ -760,6 +760,15 @@ def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ext_ctx, w=None):
         if not size:  # only via weighted_index's r == total float guard — a zero-weight lineage has
             return None                     # no gene to act on, so the event is declined (thinning)
         ci, j = _gene_in(gen[k], int(rng.integers(size)))
+        return k, ci, j, _extent(rng, ext, gen[k][ci], j, ext_ctx(k))
+    if hosts is not None:
+        # per-lineage scope: the total counted one share per occupied genome, so the pick is one
+        # occupied genome uniformly and then a gene uniformly inside it. A big genome is no more
+        # likely to be chosen than a small one — which is the whole difference from per copy.
+        if not hosts:
+            return None
+        k = hosts[int(rng.integers(len(hosts)))]
+        ci, j = _gene_in(gen[k], int(rng.integers(_genome_size(gen[k]))))
         return k, ci, j, _extent(rng, ext, gen[k][ci], j, ext_ctx(k))
     if fw is None:
         k, ci, j = _pick_gene(rng, gen, n)
@@ -1216,11 +1225,25 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                               ("chromosome_origination", chromosome_origination, PerLineage),
                               ("chromosome_loss", chromosome_loss, PerChromosome)):
         rate = as_rate(spec, default_scope=want)
-        if not isinstance(rate.scope, want):
+        # An event that acts on **genes** takes either answer to *per what?*: per copy (the default —
+        # each gene independently at risk, so a bigger genome turns over faster) or per lineage (a
+        # fixed budget, the same however much the genome holds). The chromosome tier and origination
+        # keep one scope each: origination creates families, so per copy it would be base × 0 in an
+        # empty genome, and the chromosome events are not implemented per lineage yet.
+        legal = (want, PerLineage) if want is PerCopy else (want,)
+        if not isinstance(rate.scope, legal):
             raise ValueError(
                 f"{label} has a {type(rate.scope).__name__} scope, but the ordered genome engine "
-                f"takes only {want.__name__} for {label} this slice — scope overrides are a later slice."
+                f"takes {' or '.join(s.__name__ for s in legal)} for {label}."
             )
+        if isinstance(rate.scope, PerLineage) and want is PerCopy and any(
+                m.reads == (DRAWN, "family") for m in rate.modifiers):
+            raise ValueError(
+                f"{label} is PerLineage and carries a per-family draw. Under PerCopy that multiplier "
+                f"scales each gene's rate, so it changes the lineage's total; under PerLineage the "
+                f"total is fixed whatever the genome holds, so the multiplier could only choose which "
+                f"segment is taken. Those are different models and the choice is not made yet — write "
+                f"PerCopy for the first, or drop the per-family draw for the second.")
         for m in rate.modifiers:
             if m.reads == (DRAWN, "family") and label == "origination":
                 raise ValueError(
@@ -1375,6 +1398,14 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     any_family = any(fam_by.values())
     fam_mult: dict[str, dict[int, float]] = {key: {} for key in fam_by}
 
+    # Which gene-level rates are a fixed per-lineage budget rather than a per-gene risk. Read once:
+    # it decides both how the total is counted and how the acting lineage is picked, and those two
+    # must never disagree.
+    per_lineage = {label: isinstance(_rates[label].scope, PerLineage)
+                   for label in ("duplication", "transfer", "loss",
+                                 "inversion", "transposition", "translocation")}
+    any_per_lineage = any(per_lineage.values())
+
     def new_family() -> int:
         nonlocal family_counter
         f = family_counter
@@ -1447,6 +1478,15 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         k_alive = len(alive)
         ctx = {"copies": n, "lineages": k_alive, "chromosomes": total_chromosomes, "time": t}
         c = total_chromosomes
+        # A gene-level event counted PER LINEAGE is counted per lineage that HOLDS a gene: an empty
+        # genome offers nothing to act on, so it must not take a share of the total and then be
+        # picked with no victim inside it. Built only when some rate needs it, so the per-copy path
+        # does exactly the work it did before.
+        if any_per_lineage:
+            gene_hosts = [k for k in range(k_alive) if _genome_size(gen[k])]
+            gene_ctx = {**ctx, "lineages": len(gene_hosts)}
+        else:
+            gene_hosts, gene_ctx = None, ctx
         can_xfer = n > 0 and (k_alive >= 2 or self_transfer)
         # A driven rate differs from lineage to lineage, so it is summed **over the living lineages**,
         # each read with its own driver value, its own gene count and its own chromosome count — and
@@ -1488,12 +1528,20 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             r_trp = trp.effective(**one) * sum(fw["transposition"]) if n else 0.0
             r_trl = trl.effective(**one) * sum(fw["translocation"]) if n else 0.0
         else:
-            r_dup = _r("duplication", dup.effective(**ctx) if n else 0.0, live=bool(n))
-            r_los = _r("loss", los.effective(**ctx) if n else 0.0, live=bool(n))
-            r_tra = _r("transfer", tra.effective(**ctx) if can_xfer else 0.0, live=can_xfer)
-            r_inv = _r("inversion", inv.effective(**ctx) if n else 0.0, live=bool(n))  # per copy
-            r_trp = _r("transposition", trp.effective(**ctx) if n else 0.0, live=bool(n))  # per copy
-            r_trl = _r("translocation", trl.effective(**ctx) if n else 0.0, live=bool(n))  # per copy
+            # each gene-level rate is read in the context its own scope asks for: `gene_ctx` counts
+            # only the occupied genomes, which is what a per-lineage budget is counted over
+            def _gc(label):
+                return gene_ctx if per_lineage[label] else ctx
+
+            r_dup = _r("duplication", dup.effective(**_gc("duplication")) if n else 0.0, live=bool(n))
+            r_los = _r("loss", los.effective(**_gc("loss")) if n else 0.0, live=bool(n))
+            r_tra = _r("transfer", tra.effective(**_gc("transfer")) if can_xfer else 0.0,
+                       live=can_xfer)
+            r_inv = _r("inversion", inv.effective(**_gc("inversion")) if n else 0.0, live=bool(n))
+            r_trp = _r("transposition", trp.effective(**_gc("transposition")) if n else 0.0,
+                       live=bool(n))
+            r_trl = _r("translocation", trl.effective(**_gc("translocation")) if n else 0.0,
+                       live=bool(n))
         r_org = _r("origination", org.effective(**ctx))                 # per lineage
         r_fis = _r("fission", fis.effective(**ctx) if c else 0.0, live=bool(c))  # per chromosome
         r_fus = _r("fusion", fus.effective(**ctx) if c else 0.0, live=bool(c))
@@ -1548,7 +1596,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 b_cor = b_fus + r_cor                    # ... and the remainder (to total) is clo
                 if r < r_dup:                            # every gene-level event acts on an extent
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "duplication", dup_ext,
-                                             _ext_ctx, w.get("duplication"))
+                                             _ext_ctx, w.get("duplication"),
+                                             gene_hosts if per_lineage["duplication"] else None)
                     if picked is not None:
                         k, ci, j, m = picked
                         if not _run_over_cap(gen[k], gen[k][ci], j, m, cap):
@@ -1556,7 +1605,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                                        events, event_positions, new_gene)
                 elif r < b_los:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "loss", los_ext,
-                                             _ext_ctx, w.get("loss"))
+                                             _ext_ctx, w.get("loss"),
+                                             gene_hosts if per_lineage["loss"] else None)
                     if picked is not None:
                         k, ci, j, m = picked
                         total_copies -= _lose_at(gen[k][ci], j, m, tree.nodes[alive[k]], t, events,
@@ -1571,7 +1621,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     total_copies += 1
                 elif r < b_tra:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "transfer", tra_ext,
-                                             _ext_ctx, w.get("transfer"))
+                                             _ext_ctx, w.get("transfer"),
+                                             gene_hosts if per_lineage["transfer"] else None)
                     if picked is not None:                # driven: the weighted lineage is the DONOR
                         kd, cdi, jd, m = picked
                         total_copies += _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events,
@@ -1580,20 +1631,23 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                                      to_traj, group_of)
                 elif r < b_inv:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "inversion", inv_ext,
-                                             _ext_ctx, w.get("inversion"))
+                                             _ext_ctx, w.get("inversion"),
+                                             gene_hosts if per_lineage["inversion"] else None)
                     if picked is not None:                # the run starts at a gene, so: per copy
                         k, ci, i0, m = picked
                         _invert(gen[k][ci], i0, m, tree.nodes[alive[k]], t, rearrangements)
                 elif r < b_trp:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "transposition", trp_ext,
-                                             _ext_ctx, w.get("transposition"))
+                                             _ext_ctx, w.get("transposition"),
+                                             gene_hosts if per_lineage["transposition"] else None)
                     if picked is not None:
                         k, ci, i0, m = picked
                         _transpose(gen[k][ci], i0, m, tree.nodes[alive[k]], t, rearrangements, rng,
                                    inversion_probability)
                 elif r < b_trl:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "translocation", trl_ext,
-                                             _ext_ctx, w.get("translocation"))
+                                             _ext_ctx, w.get("translocation"),
+                                             gene_hosts if per_lineage["translocation"] else None)
                     if picked is not None:
                         k, ci, j, m = picked
                         _translocate(gen[k], ci, j, m, tree.nodes[alive[k]], t, rearrangements, rng,

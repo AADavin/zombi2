@@ -35,8 +35,26 @@ By default, this is the scope ZOMBI2 uses at each level:
 
 A bare number takes the default. Writing the default wrapper explicitly is accepted at every level
 but one: a discrete trait's `switch` takes a number, a `{'from->to': rate}` dict or a matrix, and a
-bare `PerLineage(0.5)` is none of those. Overriding the default is something one level does: the
-species engine also accepts `Global` on `birth` and `death`.
+bare `PerLineage(0.5)` is none of those.
+
+Three levels accept more than their default, and each extra scope is a different model rather than a
+different spelling:
+
+| Rate | Also accepts | What that means |
+|---|---|---|
+| Species `birth`, `death` | `Global` | one budget for the whole tree: linear growth, not exponential |
+| Genomes, family and ordered: `duplication`, `transfer`, `loss` | `PerLineage` | a fixed budget per lineage — the rate is the same however much the genome holds |
+| Genomes, ordered: `inversion`, `transposition`, `translocation` | `PerLineage` | the same, for the rearrangements |
+
+The difference is large and worth stating plainly. `loss = PerCopy(0.25)` puts every copy
+independently at risk, so a genome of a thousand genes loses ten times as often as one of a hundred.
+`loss = PerLineage(0.25)` is a deletion budget: the lineage loses at 0.25 whatever it holds, and the
+genome's size never enters. The same number, a hundredfold different model.
+
+`origination` stays per lineage — it is the rate at which *new* families arrive, so per copy it would
+be zero in an empty genome — and the chromosome tier stays per chromosome. The nucleotide resolution
+already counts its gene events per lineage, which is why it has no second scope to offer: there the
+rate says how often a lineage does the thing and the extent says how much DNA it touches.
 
 ```python
 from zombi2 import species
