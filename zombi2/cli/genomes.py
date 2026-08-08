@@ -43,8 +43,11 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
 #: here. It had been typed out, and it went stale the moment the ordered engine learned ``ScaledBy``.
 RATES_HELP = _rates_help(
     IMPLEMENTED_MODIFIERS, "--loss",
-    note="Rates keep their natural scope here (D/T/L per copy, origination per lineage), so there "
-         "is no scope wrapper to write. On --transfer, ScaledBy drives how often a lineage DONATES; "
+    note="Duplication, transfer and loss are counted per copy by default — every copy independently "
+         "at risk, so a bigger genome turns over faster — and also take PerLineage(...), a fixed "
+         "budget the genome's size never enters: --loss \"PerLineage(0.25)\". At --resolution "
+         "ordered the rearrangements take both too. Origination is per lineage only, and the "
+         "chromosome tier per chromosome. On --transfer, ScaledBy drives how often a lineage DONATES; "
          "--transfer-to takes one on its own as a recipient weight, at every resolution — it "
          "chooses who receives rather than setting a rate, so the numbers are normalised weights "
          "over the candidates, and a weight of 0 means 'cannot receive'. It is also the only place "

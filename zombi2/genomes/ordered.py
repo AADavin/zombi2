@@ -1236,14 +1236,6 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 f"{label} has a {type(rate.scope).__name__} scope, but the ordered genome engine "
                 f"takes {' or '.join(s.__name__ for s in legal)} for {label}."
             )
-        if isinstance(rate.scope, PerLineage) and want is PerCopy and any(
-                m.reads == (DRAWN, "family") for m in rate.modifiers):
-            raise ValueError(
-                f"{label} is PerLineage and carries a per-family draw. Under PerCopy that multiplier "
-                f"scales each gene's rate, so it changes the lineage's total; under PerLineage the "
-                f"total is fixed whatever the genome holds, so the multiplier could only choose which "
-                f"segment is taken. Those are different models and the choice is not made yet — write "
-                f"PerCopy for the first, or drop the per-family draw for the second.")
         for m in rate.modifiers:
             if m.reads == (DRAWN, "family") and label == "origination":
                 raise ValueError(
@@ -1276,6 +1268,23 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     cor, clo = _rates["chromosome_origination"], _rates["chromosome_loss"]
     for label, r in _rates.items():
         r.check_one_base(label)
+    # Over the whole RUN, not per rate, and getting that wrong was a real bug: a per-family draw
+    # anywhere makes the engine take its per-family path for **every** gene rate, summing each one
+    # over the live genes — so a `PerLineage` rate elsewhere in the same run had its total counted
+    # per copy while its acting lineage was still drawn uniformly among occupied genomes. The total
+    # and the pick then said different things, which is the one failure this engine must not have.
+    _GENE_EVENTS = ("duplication", "transfer", "loss", "inversion", "transposition", "translocation")
+    per_lineage_here = [lbl for lbl in _GENE_EVENTS if isinstance(_rates[lbl].scope, PerLineage)]
+    drawn_here = [lbl for lbl in _GENE_EVENTS
+                  if any(m.reads == (DRAWN, "family") for m in _rates[lbl].modifiers)]
+    if per_lineage_here and drawn_here:
+        raise ValueError(
+            f"{', '.join(per_lineage_here)} is PerLineage while {', '.join(drawn_here)} carries a "
+            f"per-family draw, and the two cannot share a run. Under PerCopy a family's multiplier "
+            f"scales each gene's rate, so it changes the lineage's total; under PerLineage the total "
+            f"is fixed whatever the genome holds, so the multiplier could only choose which segment "
+            f"is taken. Those are different models and the choice is not made yet — write PerCopy "
+            f"throughout for the first, or drop the per-family draw for the second.")
     if any(m.reads == (DRAWN, "family") for r in _rates.values() for m in r.modifiers) and \
             any(isinstance(m, Driven) for r in _rates.values() for m in r.modifiers):
         raise ValueError(

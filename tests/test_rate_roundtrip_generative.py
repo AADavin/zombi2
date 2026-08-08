@@ -65,7 +65,9 @@ MODIFIERS: list[tuple[str, object, tuple]] = [
     ("driven-clade", lambda: ScaledBy(Clade({"A": ["n1", "n2"], "B": 3}), {"A": 2.0}),
      ("A", "B", "rest")),
     ("driven-time", lambda: ScaledBy(Time(), {0: 1.0, 2: 0.4}), ()),
+    ("driven-step", lambda: ScaledBy("h.tsv", {"a": 2.0, "b": 0.5}, step=0.05), ("a", "b")),
     ("set-by", lambda: SetBy("h.tsv", {"a": 1.0, "b": 0.25}), ("a", "b")),
+    ("set-by-step", lambda: SetBy("h.tsv", {"a": 1.0, "b": 0.25}, step=0.05), ("a", "b")),
 ]
 
 SCOPES = (scope.Global, scope.PerLineage, scope.PerCopy, scope.PerSite, scope.PerChromosome)

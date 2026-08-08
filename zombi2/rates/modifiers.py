@@ -726,21 +726,25 @@ class Driven(Modifier):
         return f"{self.verb}({_driver_form(self.driver)}, {self.mapping!r}{step})"
 
     def __eq__(self, other: object) -> bool:
-        # By the **driver**, not by `key`. `key` is a runtime lookup handle: it is the path itself
-        # for a file, and `id()` for a driver that is an object — so comparing keys made two rates
+        # By the **driver**, not by `key`. `key` is a runtime lookup handle: it is `(path, step)`
+        # for a file and `id()` for a driver that is an object — so comparing keys made two rates
         # reading the same `Clade` unequal, and a clade is the one driver written from literals
         # precisely so that it round-trips. Two equal clades describe one partition of one tree, and
         # nothing is drawn, so there is no sense in which they could be two different drivers. (That
         # is what separates this from `Drawn`, where writing one object or two is the model.)
+        #
+        # ``step`` is compared explicitly because it used to ride along inside `key`: two drivers
+        # read at different resolutions are different models, and dropping it here would have made
+        # them equal.
         return (isinstance(other, Driven) and other.driver == self.driver
-                and other.mapping == self.mapping)
+                and other.mapping == self.mapping and other.step == self.step)
 
     def __hash__(self) -> int:
         # by the driver alone: a mapping is a dict or a callable and need not be hashable, so this is
         # coarser than __eq__ rather than inconsistent with it, which is all a hash owes. A driver
         # that is itself unhashable falls back to the class, keeping a Rate carrying one hashable.
         try:
-            return hash((Driven, self.driver))
+            return hash((Driven, self.driver, self.step))
         except TypeError:
             return hash(Driven)
 
@@ -800,7 +804,12 @@ class SetBy(Driven):
         return super().__mul__(other)
 
     def __repr__(self) -> str:
-        return f"SetBy({_driver_form(self.driver)}, {self.mapping!r})"
+        """``step`` is written here for the same reason `Driven` writes it: a written form that
+        omits an argument records a different model. Leaving it out meant a `SetBy` with a step
+        rendered as one without, reparsed as one without, and compared equal to one without —
+        so a run's log said something the run had not done, and every round-trip check agreed."""
+        step = f", step={self.step!r}" if self.step is not None else ""
+        return f"SetBy({_driver_form(self.driver)}, {self.mapping!r}{step})"
 
 
 __all__ = ["Modifier", "OnTime", "OnTotalDiversity", "Drawn", "Inherited", "Driven", "SetBy",
