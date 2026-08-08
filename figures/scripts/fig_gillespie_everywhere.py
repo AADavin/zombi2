@@ -81,12 +81,12 @@ def g_state(d, x, y):
 
 # (title, rate line, [ (glyph, label), ... ])
 LEVELS = [
-    ("Species tree", "rates: lambda, mu",
+    ("Species tree", "rates: birth, death",
      [(g_speciation, "speciation"), (g_cross, "extinction")]),
     ("Gene families", "rates: one per event",
      [(g_square, "duplication"), (g_transfer, "transfer"), (g_cross, "loss"),
       (g_ring, "origination")]),
-    ("Discrete trait (Mk)", "rates: Q-matrix entries",
+    ("Discrete trait (Mk)", "rates: the switch matrix",
      [(g_state, "state change")]),
 ]
 

@@ -24,4 +24,16 @@ tree or an external one, so a genome run can start from a published phylogeny.
 
 ::: zombi2.tree.read_newick
 
-::: zombi2.tree.as_tree
+::: zombi2.tree.with_stem
+
+::: zombi2.tree.make_ultrametric
+
+::: zombi2.tree.rescale
+
+::: zombi2.tree.relative_evolutionary_divergence
+
+::: zombi2.tree.red_scaled
+
+::: zombi2.tree.gamma_statistic
+
+::: zombi2.tree.distance
