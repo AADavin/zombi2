@@ -14,7 +14,7 @@ decided by what you are attaching to rather than by taste::
 all, because only the ratios between candidates are read.
 
 **These build the objects the engines already run.** ``ScaledBy(Time(), {...})`` *is*
-``OnTime({...})``; ``ScaledBy(habitat, {...})`` *is* ``Driven(habitat, {...})``. The verb chooses
+``OnTime({...})``; ``ScaledBy(habitat, {...})`` *is* ``ScaledBy(habitat, {...})``. The verb chooses
 which by looking at the value, so nothing downstream changes and a run is identical either way.
 """
 

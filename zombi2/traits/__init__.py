@@ -35,7 +35,7 @@ same diffusion wearing different knobs, not three classes (SPEC §4):
   ``(1 − standing_diversity/cap)`` as the tree's lineages-through-time grows — the *same* ``OnTotalDiversity``
   modifier that slows species diversification, read here off the fixed tree (one-way, tree → trait).
 - **Driven by another level**: give ``rate`` a ``ScaledBy`` modifier
-  (``rate = σ² * mod.Driven(habitat, {"aquatic": 3.0, "terrestrial": 1.0})``) and σ² reads a value
+  (``rate = σ² * ScaledBy(habitat, {"aquatic": 3.0, "terrestrial": 1.0})``) and σ² reads a value
   grown first on this same tree: a second trait, or a genome's ``presence`` / ``completion`` — the
   *same* ``ScaledBy`` modifier that drives a genome rate.
   One trait driving another is conditioning like any other (SPEC §3): the driver can be finished

@@ -438,7 +438,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     a ``OnTotalDiversity(cap=…)`` modifier makes σ² **slow as the clade fills up** — diversity-dependent /
     ecological-limits trait evolution — σ² scaled by ``(1 − standing_diversity/cap)`` as the tree's
     lineages-through-time grows (the tree is a fixed input the trait reads); a
-    ``Driven(driver, {…})`` modifier makes σ² **read another level** — the driver grown first on this
+    ``ScaledBy(driver, {…})`` modifier makes σ² **read another level** — the driver grown first on this
     same tree and handed over as its result object or its written ``trait_events.tsv``, so a lineage
     diffuses faster while the driver is in one state than another. A discrete driver switches
     *mid-branch*, and the per-branch variance is the integral across those pieces, so a branch that

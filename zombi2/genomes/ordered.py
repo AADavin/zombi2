@@ -295,7 +295,7 @@ class OrderedGenomesResult:
         ``has_family`` answers for one node; this answers for every lineage at every instant, which
         is what a driven rate needs::
 
-            switch=0.1 * mod.Driven(g.presence("tox"), {"present": 5.0, "absent": 1.0})
+            switch=0.1 * ScaledBy(g.presence("tox"), {"present": 5.0, "absent": 1.0})
         """
         from .presence import GenePresence
         if name not in self.family_names:
@@ -1155,7 +1155,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     "toxin")``), as in the family core; ``replacement`` / ``self_transfer`` behave as in the family
     core. So does ``transfer_to``, which **chooses who receives** — ``"uniform"``,
     ``"distance"`` / ``Distance(decay=)`` (closer relatives likelier), ``Clades({...}, Between({...}))``
-    (weight by the donor's and recipient's named clade) or ``mod.Driven(driver, mapping)`` (weight by
+    (weight by the donor's and recipient's named clade) or ``ScaledBy(driver, mapping)`` (weight by
     another level; see below). What moves is a block of genes rather than a single copy, and the block
     arrives whole, so the rule chooses the recipient lineage exactly as it does at the family
     resolution.
@@ -1169,7 +1169,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     genealogy, rooted at the initial and de-novo originations. Deterministic given ``seed``.
 
     **Conditioning (a trait drives a rate).** Any rate here may be *driven by another level* —
-    ``inversion = 0.3 * mod.Driven(habitat, {"host": 4.0, "free": 1.0})`` scales each lineage's
+    ``inversion = 0.3 * ScaledBy(habitat, {"host": 4.0, "free": 1.0})`` scales each lineage's
     inversion rate by the habitat on that branch, read from a trait grown first (the finished
     ``TraitsResult``, or the ``trait_events.tsv`` it wrote). A driven rate is then *per lineage*: it is
     summed over the living lineages, each read with its own gene count, chromosome count and driver
@@ -1178,7 +1178,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     mid-branch switch of the driver rather than averaging over a branch (SPEC §2). For ``transfer``
     the driven lineage is the **donor**, so a driven ``transfer`` says how often a lineage *donates*.
 
-    **Conditioning (a trait drives who receives).** ``transfer_to = mod.Driven(driver, mapping)`` is
+    **Conditioning (a trait drives who receives).** ``transfer_to = Weights(driver, mapping)`` is
     the other half, and a different model: the mapping's numbers are per-candidate **weights**, not
     rate multipliers, so they leave the total amount of transfer alone and only redistribute it
     (SPEC §5, a weight, not a rate). Candidate lineage ``k`` gets weight ``mapping(driver value on k now)``
@@ -1190,7 +1190,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     breakpoint and composes freely with a driven ``transfer`` rate.
 
     **Conditioning (a trait drives an extent).** An extent takes the same modifiers a rate does
-    (SPEC §6) — ``inversion_extent = 4 * mod.Driven(habitat, {"host": 3.0, "free": 1.0})`` makes a
+    (SPEC §6) — ``inversion_extent = 4 * ScaledBy(habitat, {"host": 3.0, "free": 1.0})`` makes a
     host-restricted lineage invert *longer runs of genes*, which is a different statement from raising
     its inversion rate. An extent's modifier is read at the instant an event fires, so it changes how
     much a run takes and never how often one starts, and it adds no Gillespie breakpoint.

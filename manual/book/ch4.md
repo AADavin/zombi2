@@ -19,6 +19,7 @@ You give a rate for each, and the events play out along the tree from the initia
 
 ```python
 from zombi2 import species, genomes
+from zombi2.rates import ScaledBy
 from zombi2.rates import modifiers as mod
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
@@ -54,7 +55,7 @@ from zombi2.rates import Clade
 
 # the clade below the MRCA of n27 and n51 loses genes three times as fast
 g = genomes.simulate_genomes_family(
-    tree, loss=0.25 * mod.DrivenBy(Clade({"fast": ["n27", "n51"]}), {"fast": 3.0}),
+    tree, loss=0.25 * ScaledBy(Clade({"fast": ["n27", "n51"]}), {"fast": 3.0}),
     duplication=0.2, origination=0.5, seed=1)
 ```
 
@@ -97,9 +98,9 @@ There is one group you do not have to name: **`"rest"`** is every lineage outsid
 
 Each entry is a weight, read the same way `"distance"`'s weights are: normalised over the lineages alive at the instant a transfer fires. Naming only `("A", "B")` and `("B", "A")` and setting `default=0.0` means every other pairing weighs 0: a clade-A donor can reach clade B but not another clade-A lineage, and the rest of the tree neither sends nor receives. Drop the `default=0.0` and unlisted pairs return to weight 1 (baseline), so `Between({("A", "B"): 5.0})` *enriches* A→B fivefold while leaving everything else to happen normally. A weight of 0 means "cannot receive", exactly as in Chapter 9: when a donor's every candidate weighs 0, the transfer has nowhere to land and does not fire.
 
-`Clades` is written in Python. On the command line `--transfer-to` takes `uniform`, `distance`, or a `DrivenBy` recipient weight (Chapter 9).
+`Clades` is written in Python. On the command line `--transfer-to` takes `uniform`, `distance`, or a `Weights` recipient weight (Chapter 9).
 
-`transfer_to` chooses who receives, and takes one rule. All four rules (`"uniform"`, `"distance"` / `Distance(decay=)`, `Clades(...)` and a `DrivenBy` weight) work unchanged at the ordered and nucleotide resolutions. What differs between the resolutions is *what moves*: one gene copy here, a block of consecutive genes in Chapter 5, an arc of DNA in Chapter 6. Who receives it is chosen the same way in all three, so the rules are described once, here.
+`transfer_to` chooses who receives, and takes one rule. All four rules (`"uniform"`, `"distance"` / `Distance(decay=)`, `Clades(...)` and `Weights(driver, {...})`) work unchanged at the ordered and nucleotide resolutions. What differs between the resolutions is *what moves*: one gene copy here, a block of consecutive genes in Chapter 5, an arc of DNA in Chapter 6. Who receives it is chosen the same way in all three, so the rules are described once, here.
 
 ## The `FamilyGenomesResult` object
 

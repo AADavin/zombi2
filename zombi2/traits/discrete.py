@@ -111,7 +111,7 @@ def _switch_specs(switch) -> list:
 
 def _switch_modifiers(switch) -> list:
     """Every modifier the switch rates carry — a switch rate written as a rate expression
-    (``0.4 * mod.Driven(habitat, {"aquatic": 3.0})``) rather than as a bare number, so the trait
+    (``0.4 * ScaledBy(habitat, {"aquatic": 3.0})``) rather than as a bare number, so the trait
     switches faster on the lineages where the driver is in one state than another.
 
     ``ScaledBy`` is the only modifier this engine ships for a switch rate; anything else built in
@@ -335,8 +335,8 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
       (``0.1``), a ``{"marine->terrestrial": 0.1}`` dict, or a ``k×k`` matrix (see `_q_matrix()`).
       ``start`` is the root state (a label in ``states``; ``None`` draws one uniformly). A switch rate
       may be **driven by another level** grown first on this same tree — write it as a rate
-      expression, ``switch=0.4 * mod.Driven(habitat, {"aquatic": 3.0})`` or per transition,
-      ``switch={"a->b": 0.2 * mod.Driven(habitat, {"aquatic": 3.0}), "b->a": 0.2}``. The driver
+      expression, ``switch=0.4 * ScaledBy(habitat, {"aquatic": 3.0})`` or per transition,
+      ``switch={"a->b": 0.2 * ScaledBy(habitat, {"aquatic": 3.0}), "b->a": 0.2}``. The driver
       switches mid-branch, so the generator is rebuilt at each of its switches and the branch is
       simulated piece by piece — the exact CTMC with a time-varying generator, not one sample per
       branch.

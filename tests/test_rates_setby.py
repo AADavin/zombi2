@@ -241,3 +241,28 @@ def test_a_modifier_of_your_own_cannot_vouch_for_a_replaced_base():
 
     # a level that names SetBy still takes it — the hatch is what closed, not the gate
     assert matches_declared(SetBy("h.tsv", {"cave": 1.0}), (SetBy,))
+
+
+def test_the_verb_has_to_match_what_it_is_attached_to(tree, habitat):
+    """Retiring `DrivenBy` made this checkable. `ScaledBy` and `Weights` build the same object, so
+    before the verbs there was nothing to test — a weight written on a rate simply behaved as a
+    factor, and a factor written on `transfer_to` as a weight, both in silence. The verb says which
+    the number is, so each side now refuses the other and names the one that fits."""
+    from zombi2 import genomes
+    from zombi2.rates import Weights
+
+    with pytest.raises(ValueError, match="carries Weights"):
+        genomes.simulate_genomes_family(
+            tree, loss=0.25 * Weights(habitat, {"cave": 2.0}), initial_families=5, seed=1)
+
+    with pytest.raises(ValueError, match="transfer_to takes Weights"):
+        genomes.simulate_genomes_family(
+            tree, transfer=0.4, initial_families=5, seed=1,
+            transfer_to=ScaledBy(habitat, {"cave": 2.0}))
+
+    # each with the verb that fits: both run
+    genomes.simulate_genomes_family(
+        tree, loss=0.25 * ScaledBy(habitat, {"cave": 2.0}), initial_families=5, seed=1)
+    genomes.simulate_genomes_family(
+        tree, transfer=0.4, initial_families=5, seed=1,
+        transfer_to=Weights(habitat, {"cave": 2.0}))

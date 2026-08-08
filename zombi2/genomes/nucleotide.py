@@ -754,7 +754,7 @@ class NucleotideGenomesResult:
         """The named gene's presence as a **conditioning driver** — `GenePresence`, the same reader
         the other two resolutions hand out, read off the gene's own recovered tree::
 
-            switch=0.1 * mod.Driven(g.presence("dnaA"), {"present": 5.0, "absent": 1.0})
+            switch=0.1 * ScaledBy(g.presence("dnaA"), {"present": 5.0, "absent": 1.0})
 
         A gene is named here by the GFF that declared it (its ``ID`` / ``Name``); the evenly-spaced
         ``genes=`` layout lays its genes down unnamed."""
@@ -1933,7 +1933,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
       in tandem — an ancestry-**changing** *birth*, recorded in ``events``.
     - ``transfer`` (**per lineage**) copies a geometric-length (mean ``transfer_extent``) arc into a
       **contemporaneous recipient** (``transfer_to``: ``"uniform"``, ``"distance"`` / a `Distance`,
-      ``Clades({...}, Between({...}))`` or ``mod.Driven(driver, mapping)`` — see below;
+      ``Clades({...}, Between({...}))`` or ``ScaledBy(driver, mapping)`` — see below;
       ``self_transfer`` allows the donor itself) — a horizontal *birth*, additive (the donor keeps its
       copy). This is what needs the global timeline.
     - ``origination`` (**per lineage**) lays down a **new gene** on a fresh source (geometric length,
@@ -1964,7 +1964,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     ``result.completion("flagellum")`` gives the fraction of the group a lineage carries; a module
     changes nothing about how the genome evolves.
 
-    **Conditioning (a trait drives who receives).** ``transfer_to = mod.Driven(source, mapping)``
+    **Conditioning (a trait drives who receives).** ``transfer_to = Weights(source, mapping)``
     weights the candidate recipients by another level, and the numbers are **weights**, not rate
     multipliers: they are normalised across the candidates, so they leave the total amount of transfer
     alone and only redistribute it (SPEC §5, a weight, not a rate). Weight 0 means "cannot receive"; when

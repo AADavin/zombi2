@@ -45,7 +45,7 @@ macOS and Windows** on every change, so the same command does the same thing on 
 things differ on Windows and are worth knowing before they bite:
 
 - **Paths in a rate expression.** A driver path goes inside the rate. On the command line ZOMBI2
-  reads the backslashes as written, so `DrivenBy('C:\Users\me\trait_events.tsv', {...})` works as
+  reads the backslashes as written, so `ScaledBy('C:\Users\me\trait_events.tsv', {...})` works as
   pasted. In a Python script the same line is Python source, and Python reads `\U` as an escape, so
   it is a `SyntaxError` — worse, `C:\temp` is read quietly as `C:` followed by a tab. Write the path
   as a raw string there: `r'C:\Users\me\trait_events.tsv'`. Forward slashes work in all three
@@ -56,7 +56,7 @@ things differ on Windows and are worth knowing before they bite:
   written:
 
   ```toml
-  transfer-to = '''DrivenBy('C:\Users\me\trait_events.tsv', {'competent': 2.0})'''
+  transfer-to = '''Weights('C:\Users\me\trait_events.tsv', {'competent': 2.0})'''
   ```
 
 ## For the impatient

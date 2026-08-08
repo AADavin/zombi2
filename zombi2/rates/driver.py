@@ -2,7 +2,7 @@
 
 When ``Driven``'s ``driver`` is a **filename**, the relation is *conditioned*: the driver was grown
 first and written to a file, and two ordinary runs in order do the rest
-(``loss = 0.25 * mod.Driven("habitat.tsv", {...})``). This module — living beside ``ScaledBy`` in
+(``loss = 0.25 * ScaledBy("habitat.tsv", {...})``). This module — living beside ``ScaledBy`` in
 ``rates`` because it is that modifier's file end — turns the written driver into the per-lineage lookup
 the target engine queries as it walks the (already-grown) tree. (Conditioning needs no engine of its
 own: it *folds into the target level's* run; only genuinely-joint models get a dedicated engine,
@@ -250,7 +250,7 @@ CONTINUOUS_DRIVER_FRACTION = 0.01
 def driver_from_result(result, *, step: float | None = None) -> DriverTrajectory:
     """Build a `DriverTrajectory` **directly from a grown trait result** — the same per-lineage lookup
     `load_driver()` builds from a file, but skipping the file round-trip. This is how a conditioned
-    ``Driven(trait, …)`` reads a trait grown in the same Python session: still conditioning (the
+    ``ScaledBy(trait, …)`` reads a trait grown in the same Python session: still conditioning (the
     driver was grown first and is held fixed), just handed over in memory.
 
     A **discrete** trait (`traits.simulate_discrete`) has a stochastic character map, so each branch is

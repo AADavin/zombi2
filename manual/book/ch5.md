@@ -121,7 +121,7 @@ With no weights set every run averages to one, so a run without it is unchanged.
 
 ### Who receives a transfer
 
-The recipient rule is Chapter 4's, unchanged: `transfer_to` takes `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or a `DrivenBy` weight read off a trait (Chapter 9). What is ordered about an ordered transfer is the block that moves; who receives it is the same question and the same answer as at the family resolution.
+The recipient rule is Chapter 4's, unchanged: `transfer_to` takes `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or `Weights(...)` read off a trait (Chapter 9). What is ordered about an ordered transfer is the block that moves; who receives it is the same question and the same answer as at the family resolution.
 
 ```python
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1)
@@ -137,9 +137,9 @@ One thing to watch when you combine a restrictive rule with a tight `max_family_
 
 ### A rate or an extent can be driven by a trait
 
-Every rate here also takes `DrivenBy`, so a habitat can decide how often a lineage rearranges its gene order, and every extent takes it too, so the same habitat can decide how long the rearranged runs are. The mechanism is Chapter 9's and is not repeated here.
+Every rate here also takes `ScaledBy`, so a habitat can decide how often a lineage rearranges its gene order, and every extent takes it too, so the same habitat can decide how long the rearranged runs are. The mechanism is Chapter 9's and is not repeated here.
 
-What belongs here is why the per-family knob above and a trait driver sit apart. A trait `DrivenBy` attaches to the **lineage**: at any instant it is one factor for that lineage's whole genome, so it composes with any extent unchanged and the run is drawn exactly as it would be without it. `Drawn(per='family')` attaches to the **contents**, so it has to weight the run by what the run covers. The two therefore cannot be set on the **rates** of one run yet: combining them there means weighting by the product of a lineage factor and a segment factor, which is neither model on its own. A driven extent, or a driven `transfer_to`, is a different axis and runs alongside a per-family draw unchanged.
+What belongs here is why the per-family knob above and a trait driver sit apart. A trait driver attaches to the **lineage**: at any instant it is one factor for that lineage's whole genome, so it composes with any extent unchanged and the run is drawn exactly as it would be without it. `Drawn(per='family')` attaches to the **contents**, so it has to weight the run by what the run covers. The two therefore cannot be set on the **rates** of one run yet: combining them there means weighting by the product of a lineage factor and a segment factor, which is neither model on its own. A driven extent, or a driven `transfer_to`, is a different axis and runs alongside a per-family draw unchanged.
 
 ## Rearrangements: inversion, transposition, translocation
 
@@ -185,7 +185,7 @@ Every knob in this chapter is an argument of the one call, so a rate and its ext
 
 ```python
 from zombi2 import species, genomes, traits
-from zombi2.rates import modifiers as mod
+from zombi2.rates import ScaledBy
 
 tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=30, seed=1)
 
@@ -194,8 +194,8 @@ tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=30, seed=1)
 habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.5, seed=1)
 g = genomes.simulate_genomes_ordered(
     tree,
-    inversion=0.3 * mod.DrivenBy(habitat, {"host": 4.0, "free": 1.0}),
-    inversion_extent=4 * mod.DrivenBy(habitat, {"host": 3.0, "free": 1.0}),
+    inversion=0.3 * ScaledBy(habitat, {"host": 4.0, "free": 1.0}),
+    inversion_extent=4 * ScaledBy(habitat, {"host": 3.0, "free": 1.0}),
     initial_families=10, seed=1)
 ```
 

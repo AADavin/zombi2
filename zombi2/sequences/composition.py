@@ -39,7 +39,7 @@ class Composition:
 
         seqs = simulate_sequences(g, model=hky85(2.0), length=300, seed=1)
         simulate_discrete(tree, states=["mesophile", "thermophile"], start="mesophile",
-                          switch=0.2 * mod.Driven(seqs.gc(), Curve(lambda x: 20.0 ** (x - 0.5))),
+                          switch=0.2 * ScaledBy(seqs.gc(), Curve(lambda x: 20.0 ** (x - 0.5))),
                           seed=2)
 
         proteins = simulate_sequences(g, model=lg(), length=300, seed=1)

@@ -64,15 +64,15 @@ The base of a rate says how fast. A modifier says **what it depends on**:
 | `Inherited(per='lineage')` | the parent's value, drifting at each split | `Inherited(per='lineage', spread=0.3)` |
 | `Drawn(per='lineage')` | the lineage, drawn independently | `Drawn(per='lineage', spread=0.3)` |
 | `Drawn(per='family')` | the gene family, drawn independently | `Drawn(per='family', spread=0.5)` |
-| `DrivenBy` | **a driver**: a trait's state, a gene's presence | `DrivenBy('trait', {'hot': 4.0})` |
+| `ScaledBy` | **a driver**: a trait's state, a gene's presence | `ScaledBy(habitat, {'aquatic': 4.0, 'terrestrial': 1.0})` |
 
 Each is a dimensionless multiplier, so they multiply, and a rate can carry several:
 
 ```python
-from zombi2.rates import modifiers as mod
+from zombi2.rates import Drawn, OnTime
 
 # loss triples after time 2, and varies from family to family on top of that
-loss = 0.25 * mod.OnTime({0: 1.0, 2: 3.0}) * mod.Drawn(per='family', spread=0.5)
+loss = 0.25 * OnTime({0: 1.0, 2: 3.0}) * Drawn(per='family', spread=0.5)
 ```
 
 Much of what the literature names as a model is one modifier on one rate:
@@ -84,7 +84,7 @@ Much of what the literature names as a model is one modifier on one rate:
 | uncorrelated ("relaxed") molecular clock | `Drawn(per='lineage')` on `substitution` |
 | autocorrelated clock | `Inherited(per='lineage')` on `substitution` |
 | rate heterogeneity across gene families | `Drawn(per='family')` on a genome rate |
-| state-dependent diversification (BiSSE and kin) | `DrivenBy` on `birth` |
+| state-dependent diversification (BiSSE and kin) | `ScaledBy` on `birth`, in a joint run |
 
 None of those is a separate code path with its own function and its own parameters. They are the same grammar pointed at different rates, which is why they combine: a relaxed clock *and* an early burst is one rate with two modifiers, not two models.
 
@@ -96,10 +96,10 @@ Running the levels in sequence already makes each one depend on the tree. Someti
 
 - the **driver**, the value that is read: a trait's state, a gene family's presence, a sequence's GC content.
 - the **target**, what the value is attached to: a rate, or, at the genome level, an **extent** (how much an event takes) or the **transfer recipient** (which lineage a transfer goes to: Chapter 9).
-- the **modifier**, `DrivenBy`, which joins them.
-- the **mapping** it carries, which says what each value of the driver becomes: a table over named states, a curve over a number.
+- the **modifier** that joins them, named for what the value does: `ScaledBy` multiplies a rate or an extent, `Weights` compares candidate recipients, `SetBy` replaces the base.
+- the **mapping** the modifier carries, which says what each value of the driver becomes: a table over named states, a curve over a number.
 
-Take olfactory genes. A habitat trait switches between aquatic and terrestrial along the tree, and aquatic lineages lose those genes four times faster. The habitat is the driver, gene loss is the target, and the mapping the modifier carries turns one into the other: on a branch that is aquatic the loss rate is `0.25 × 4`, and elsewhere it is `0.25 × 1`.
+Take olfactory genes. A habitat trait switches between aquatic and terrestrial along the tree, and aquatic lineages lose those genes four times faster. The habitat is the driver, gene loss is the target, and the mapping turns one into the other: on a branch that is aquatic the loss rate is `0.25 × 4`, and elsewhere it is `0.25 × 1`.
 
 What makes this **conditioning** is that the driver can be finished before the target starts. The habitat is unaffected by how many genes a lineage has, so the trait run completes and writes its event log, and the genome run reads that log and looks up a multiplier per branch. Nothing about it needs a special engine, and the run factorises:
 

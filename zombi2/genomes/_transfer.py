@@ -188,9 +188,9 @@ def resolve_transfer_to(transfer_to):
     message would list the alternatives without saying why what they wrote is a different kind of
     thing:
 
-    - ``transfer_to = 0.1 * mod.Driven(...)`` is the *rate* spelling. There is no base here, because
+    - ``transfer_to = 0.1 * Weights(...)`` is the *rate* spelling. There is no base here, because
       there is no rate, so the modifier is given on its own.
-    - ``transfer_to = (Distance(), mod.Driven(...))`` asks for two rules at once. Composing a
+    - ``transfer_to = (Distance(), Weights(...))`` asks for two rules at once. Composing a
       topological weight with a driven one is a later slice, not a thing that is refused on principle.
     """
     if transfer_to == "distance":
@@ -198,7 +198,7 @@ def resolve_transfer_to(transfer_to):
     if isinstance(transfer_to, Rate):
         raise ValueError(
             "transfer_to takes the Weights modifier on its own, not a rate — write "
-            "transfer_to=mod.Driven(driver, {...}) with no base number. Here the mapping's "
+            "transfer_to=Weights(driver, {...}) with no base number. Here the mapping's "
             "numbers are relative WEIGHTS over the candidate recipients (normalised), not a rate "
             "multiplier: they change which lineage receives, never how often transfer happens."
         )
@@ -206,7 +206,7 @@ def resolve_transfer_to(transfer_to):
         raise ValueError(
             "transfer_to takes one recipient rule, not several — combining Distance (relatedness) "
             "with a Weights rule is a later slice. Give 'uniform', 'distance' / "
-            "Distance(decay=), or mod.Driven(driver, {...})."
+            "Distance(decay=), or ScaledBy(driver, {...})."
         )
     if isinstance(transfer_to, Driven) and type(transfer_to) is Driven and transfer_to.verb == "ScaledBy":
         # Now that the verb carries the meaning, a mismatched one is catchable: `ScaledBy` says the
@@ -228,7 +228,7 @@ def resolve_transfer_to(transfer_to):
         raise ValueError(
             f"transfer_to must be 'uniform', 'distance' / Distance(decay=), "
             f"Clades({{...}}, Between({{...}})) (weight by named clade), or "
-            f"mod.Driven(driver, {{...}}) (a recipient weight driven by an evolved value), "
+            f"ScaledBy(driver, {{...}}) (a recipient weight driven by an evolved value), "
             f"got {transfer_to!r}")
     return transfer_to
 

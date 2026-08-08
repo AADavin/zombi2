@@ -1,6 +1,6 @@
 <svg viewBox="0 0 820 240" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
 <title>Joining: the trait, the rate it drives, and the tree that closes the loop</title>
-<desc>Body size drives the speciation rate, through an arrow carrying a multiplier per state; under the speciation rate is the expression you write on it, 1.0 times DrivenBy of trait. The speciation rate creates the tree. An arrow runs back underneath from the tree to body size, because the trait and the tree are growing at the same time.</desc>
+<desc>Body size drives the speciation rate, through an arrow carrying a multiplier per state; under the speciation rate is the expression you write on it, 1.0 times ScaledBy of trait. The speciation rate creates the tree. An arrow runs back underneath from the tree to body size, because the trait and the tree are growing at the same time.</desc>
 <!-- Both arrows carry ACTIVE verbs, read in the direction they are drawn: body size drives
      speciation, speciation creates the tree. The first used to read "DrivenBy" — passive — so one
      arrow of this figure read forwards and the other backwards. The verb now sits under the rate,

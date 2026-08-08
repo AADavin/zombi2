@@ -52,13 +52,14 @@ A modifier's **kind** says who produces its number, and there are four (SPEC §5
 | covariate | a deterministic function of a measured quantity | `OnTime`, `OnTotalDiversity` |
 | drawn | an i.i.d. draw, one per unit — no memory | `Drawn(per=…)` |
 | inherited | the parent's, perturbed — continuous memory | `Inherited(per=…)` |
-| driven | the state of another simulated thing, read as the run walks the tree | `DrivenBy`, `SetBy` |
+| driven | the state of another simulated thing, read as the run walks the tree | `ScaledBy`, `SetBy`, `Weights` |
 
 A **driven** value comes from a level grown before this run, a level growing beside it, another
-object at the same level (a trait can drive a second trait), or the tree itself (`Clade`). On a rate
-or an extent that number multiplies, unless the modifier is `SetBy`, which replaces the base instead.
-On `transfer_to` it is a weight normalised across the candidates, which is why that one takes the
-modifier on its own — `transfer_to = 1.0 * DrivenBy(...)` is an error.
+object at the same level (a trait can drive a second trait), or the tree itself (`Clade`). Which of
+the three you write follows from what you attach it to: on a rate or an extent the number multiplies
+the base (`ScaledBy`) or replaces it (`SetBy`). On `transfer_to` it is a weight normalised across
+the candidates (`Weights`), which is why that one takes the modifier on its own —
+`transfer_to = 1.0 * Weights(...)` is an error.
 
 The **unit** a drawn or inherited value is attached to is an argument, not a class, so a draw per
 family and a draw per lineage are one class and two cells of a grid.
@@ -112,7 +113,7 @@ your own has to provide and the one it may.
 
 ## Mappings
 
-What a `DrivenBy` carries — the shape that turns the driver's value into a number.
+What a driven parameter carries — the shape that turns the driver's value into a number.
 
 ::: zombi2.rates.mapping
 

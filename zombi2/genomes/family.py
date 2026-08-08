@@ -127,7 +127,7 @@ class FamilyGenomesResult:
         ``has_family`` answers for one node; this answers for every lineage at every instant, which
         is what a driven rate needs::
 
-            switch=0.1 * mod.Driven(g.presence("tox"), {"present": 5.0, "absent": 1.0})
+            switch=0.1 * ScaledBy(g.presence("tox"), {"present": 5.0, "absent": 1.0})
         """
         from .presence import GenePresence
         if name not in self.family_names:
@@ -137,7 +137,7 @@ class FamilyGenomesResult:
 
     def has_family(self, node_id: int, name: str) -> bool:
         """Whether the named family ``name`` (declared via ``family_names=``) is present — has ≥ 1 copy — in
-        the genome at ``node_id``. The presence a joint ``Driven("genomes:<name>", …)`` reads as its driver."""
+        the genome at ``node_id``. The presence a joint ``ScaledBy("genomes:<name>", …)`` reads as its driver."""
         if name not in self.family_names:
             raise KeyError(f"no named family {name!r}; declared families are {sorted(self.family_names)}")
         fid = self.family_names[name]
@@ -672,7 +672,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     ``transfer_to`` — ``"uniform"`` (any other contemporaneous lineage), ``"distance"`` /
     ``Distance(decay=)`` (closer relatives likelier), ``Clades({...}, Between({...}))`` (weighted by
     the donor's and recipient's **named clade**, so transfer can run *between* two clades — see below),
-    or ``mod.Driven(driver, mapping)`` (weighted by an evolved value; see below). ``replacement=True``
+    or ``ScaledBy(driver, mapping)`` (weighted by an evolved value; see below). ``replacement=True``
     overwrites a homologous
     copy in the recipient (additive fallback if it has none); ``self_transfer=True`` lets a lineage
     donate to itself. The root starts with ``initial_families`` families of one copy each, recorded
@@ -682,7 +682,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     ``ScaledBy("genomes:toxin", …)`` reads. Deterministic given ``seed``.
 
     **Conditioning (a trait drives a rate).** Any of the four rates may be *driven by another level* —
-    ``loss = 0.25 * mod.Driven("trait_events.tsv", {"aquatic": 3.0, "terrestrial": 1.0})`` scales each
+    ``loss = 0.25 * ScaledBy("trait_events.tsv", {"aquatic": 3.0, "terrestrial": 1.0})`` scales each
     lineage's loss by the habitat on that branch, read from a driver file grown first
     (``traits.simulate_discrete(...).write(dir, outputs=("events",))``, which writes
     ``trait_events.tsv``). A driven rate is then *per-lineage*: it is summed over the living lineages (each with its own copy count and driver
@@ -690,7 +690,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     mid-branch switch of the driver (SPEC §2). For ``transfer`` the affected
     lineage is the **donor**, so a driven ``transfer`` says how often a lineage *donates*.
 
-    **Conditioning (a trait drives who receives).** ``transfer_to = mod.Driven(driver, mapping)`` is
+    **Conditioning (a trait drives who receives).** ``transfer_to = Weights(driver, mapping)`` is
     the other half, and a different model: the mapping's numbers are per-candidate **weights**, not
     rate multipliers, so they leave the total amount of transfer alone and only redistribute it
     (SPEC §5, a weight, not a rate). Candidate lineage ``k`` gets weight ``mapping(driver value on k now)``
@@ -1077,7 +1077,7 @@ class FamilyGenome:
     this on a *fixed* tree; a **joint** model (``joint.simulate_joint(genome=genomes.family(...))``)
     grows the genome *with* the tree whose speciation its gene content drives. Duplication, loss, and
     origination (each a ``scope(base) × modifiers`` rate, ``OnTime`` allowed) plus ``initial_families``
-    and named ``family_names`` (the handle a ``Driven("genomes:<name>", …)`` reads). Transfer is not
+    and named ``family_names`` (the handle a ``ScaledBy("genomes:<name>", …)`` reads). Transfer is not
     available in a joint run: a growing tree's contemporaneous set is still forming as events fire."""
 
     duplication: object

@@ -73,13 +73,23 @@ class Rate:
     def check_one_base(self, label: str = "this rate") -> None:
         """A rate may carry **one** `SetBy`. Two would each claim to *be* the
         base, and no order of application is more right than another, so this raises rather than
-        letting the last one written win in silence."""
+        letting the last one written win in silence.
+
+        And none of its modifiers may be a `Weights`: that verb says the numbers are compared
+        against each other and normalised, which only a **choice** does — on a rate they would
+        silently behave as factors, which is the other model. The class is the same either way, so
+        before the verbs there was nothing here to check."""
         set_by = [m for m in self.modifiers if isinstance(m, SetBy)]
         if len(set_by) > 1:
             raise ValueError(
                 f"{label} carries {len(set_by)} SetBy modifiers, and a base can only be replaced "
                 f"once — each of them claims to be the whole number. Keep one; if you meant to scale "
                 f"the result, that is ScaledBy, which multiplies and composes freely.")
+        if any(getattr(m, "verb", None) == "Weights" for m in self.modifiers):
+            raise ValueError(
+                f"{label} carries Weights, which weights the candidates of a choice against each "
+                f"other — transfer_to is the only one. On a rate the number multiplies a base, so "
+                f"the verb is ScaledBy: the same driver and the same mapping, read as a factor.")
 
     def carried_modifiers(self, unit: str | None = None) -> tuple[tuple[Modifier, str], ...]:
         """Every modifier on this rate that reads a value the **engine** has to draw and carry,

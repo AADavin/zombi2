@@ -54,21 +54,21 @@ The chromosome tier below is the exception: `fission`, `fusion` and `chromosome_
 
 Rates here take the same written form as everywhere else, `scope(base) × modifiers`, and the scopes above are the defaults, so a bare number stays a bare number. The **skyline** works: `inversion = 5.0 * OnTime({0: 1.0, 3: 0.2})` drops the inversion rate fivefold at time 3, and the run re-reads its rates at each step rather than racing past it.
 
-So does **conditioning**. Every rate here takes a `DrivenBy`, so a trait can drive how much DNA a lineage sheds, which is genome reduction as it is usually meant, and can drive the rearrangements too:
+So does **conditioning**. Every rate here takes a `ScaledBy`, so a trait can drive how much DNA a lineage sheds, which is genome reduction as it is usually meant, and can drive the rearrangements too:
 
 ```python
 from zombi2 import traits
-from zombi2.rates import modifiers as mod
+from zombi2.rates import ScaledBy
 
 habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=2)
-loss = 0.8 * mod.DrivenBy(habitat, {"host": 20.0, "free": 0.5})
+loss = 0.8 * ScaledBy(habitat, {"host": 20.0, "free": 0.5})
 ```
 
 **The extent takes the same modifiers**, and that is a different statement:
 
 ```python
-loss        = 0.8 * mod.DrivenBy(habitat, {"host": 20.0, "free": 0.5})  # more often
-loss_extent = 150 * mod.DrivenBy(habitat, {"host": 6.0,  "free": 1.0})  # bigger chunks
+loss        = 0.8 * ScaledBy(habitat, {"host": 20.0, "free": 0.5})  # more often
+loss_extent = 150 * ScaledBy(habitat, {"host": 6.0,  "free": 1.0})  # bigger chunks
 ```
 
 The first raises how often a host-restricted lineage deletes, the second how much each deletion takes. Set both and they multiply: the DNA shed per unit time goes up by the product, not the sum.
@@ -77,7 +77,7 @@ A modifier on an *extent* is read when an event fires, so unlike the same modifi
 
 ## Who receives a transfer
 
-`transfer_to` is Chapter 4's recipient rule, and it works here unchanged: `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or a `DrivenBy` weight read off a trait. It is not a rate: the numbers are weights normalised over the lineages alive when a transfer fires, so it says who receives and never how much transfer happens.
+`transfer_to` is Chapter 4's recipient rule, and it works here unchanged: `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or a `Weights(...)` mapping read off a trait. It is not a rate: the numbers are weights normalised over the lineages alive when a transfer fires, so it says who receives and never how much transfer happens.
 
 ```python
 tree6 = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=6)
