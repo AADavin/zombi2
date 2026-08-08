@@ -726,13 +726,23 @@ class Driven(Modifier):
         return f"{self.verb}({_driver_form(self.driver)}, {self.mapping!r}{step})"
 
     def __eq__(self, other: object) -> bool:
-        return (isinstance(other, Driven) and other.key == self.key
+        # By the **driver**, not by `key`. `key` is a runtime lookup handle: it is the path itself
+        # for a file, and `id()` for a driver that is an object — so comparing keys made two rates
+        # reading the same `Clade` unequal, and a clade is the one driver written from literals
+        # precisely so that it round-trips. Two equal clades describe one partition of one tree, and
+        # nothing is drawn, so there is no sense in which they could be two different drivers. (That
+        # is what separates this from `Drawn`, where writing one object or two is the model.)
+        return (isinstance(other, Driven) and other.driver == self.driver
                 and other.mapping == self.mapping)
 
     def __hash__(self) -> int:
-        # by key only (a mapping — a dict or callable — need not be hashable); equal ScaledBy share a
-        # key, so this stays consistent with __eq__ and keeps a Rate carrying it hashable.
-        return hash((Driven, self.key))
+        # by the driver alone: a mapping is a dict or a callable and need not be hashable, so this is
+        # coarser than __eq__ rather than inconsistent with it, which is all a hash owes. A driver
+        # that is itself unhashable falls back to the class, keeping a Rate carrying one hashable.
+        try:
+            return hash((Driven, self.driver))
+        except TypeError:
+            return hash(Driven)
 
 
 #: The names a rate may be **written** with — what `zombi2.rates.parse` whitelists, and the only
