@@ -1,6 +1,6 @@
 <svg viewBox="0 0 660 250" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
 <title>Conditioning: a driver, the rate it drives, and where the verb is written</title>
-<desc>On the left, a box labelled habitat, with a small two-state diagram below it showing aquatic and terrestrial switching between each other. An arrow runs right to the gene loss rate, the target, labelled drives, carrying a multiplier for each habitat state. Under the loss rate is the expression you write on it, 0.25 times DrivenBy of habitat.</desc>
+<desc>On the left, a box labelled habitat, with a small two-state diagram below it showing aquatic and terrestrial switching between each other. An arrow runs right to the gene loss rate, the target, labelled drives, carrying a multiplier for each habitat state. Under the loss rate is the expression you write on it, 0.25 times ScaledBy of habitat.</desc>
 <!-- The arrow's verb is ACTIVE and points the way the causation does: habitat drives loss. It used
      to read "DrivenBy", which was passive, so an arrow drawn cause-to-effect carried a label that
      names the relation effect-to-cause — read along the arrow it said "habitat is driven by loss",

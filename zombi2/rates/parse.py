@@ -49,7 +49,7 @@ _NAMES: dict[str, type] = {
     **{n: getattr(_verbs, n) for n in _verbs.WRITABLE},
     "Table": _mapping.Table,
     "Scalar": _mapping.Scalar,
-    "Between": _mapping.Between,  # the choice's kernel: Driven(driver, Between({(a, b): w}))
+    "Between": _mapping.Between,  # the choice's kernel: ScaledBy(driver, Between({(a, b): w}))
 }
 
 #: the optional Python qualifiers — ``mod.OnTime(...)`` / ``scope.Global(...)`` read as themselves
@@ -227,7 +227,7 @@ def parse_rate(text: object):
         raise RateSyntaxError(f"a rate must be a number or an expression, got {text!r}")
     if not text.strip():
         raise RateSyntaxError("a rate cannot be empty")
-    # A backslash in a path is not an escape. `Driven('C:\\Users\\me\\t.tsv', …)` is well formed to
+    # A backslash in a path is not an escape. `ScaledBy('C:\\Users\\me\\t.tsv', …)` is well formed to
     # the person who pasted it and a truncated \\UXXXXXXXX escape to Python's parser, and `C:\\temp`
     # is worse — it parses, silently, as a tab. But an expression may equally have its backslashes
     # already escaped, which is what repr() of a path gives, and that must be left alone. There is no

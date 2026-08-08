@@ -41,7 +41,7 @@ class GenePresence:
 
         g = simulate_genomes_family(sp, family_names=["tox"], loss=0.3, seed=1)
         simulate_discrete(sp.complete_tree, states=["harmless", "pathogenic"], start="harmless",
-                          switch=0.1 * mod.Driven(g.presence("tox"),
+                          switch=0.1 * ScaledBy(g.presence("tox"),
                                                     {"present": 5.0, "absent": 1.0}), seed=2)
 
     This is **conditioning**: the genome is grown first and held fixed while the trait reads it. For
@@ -87,7 +87,7 @@ class ModuleCompletion:
         g = simulate_genomes_family(sp, family_names=[...],
                                     modules={"flagellum": ["flgA", "flgB", "flgC"]}, seed=1)
         simulate_discrete(sp.complete_tree, states=["sessile", "motile"], start="sessile",
-                          switch=0.05 * mod.Driven(g.completion("flagellum"),
+                          switch=0.05 * ScaledBy(g.completion("flagellum"),
                                                      Curve(lambda f: 0.2 + 20.0 * f ** 4)), seed=2)
 
     **A fraction rather than a yes/no, deliberately.** Under independent loss the chance that *every*

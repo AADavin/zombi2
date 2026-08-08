@@ -250,7 +250,7 @@ def as_mapping(spec: object) -> Mapping:
     """
     if isinstance(spec, (Mapping, Between)):
         # a Between is a choice's kernel, not a rate multiplier; carried through here so
-        # Driven(..., Between(...)) works, and refused on a rate or an extent by the engine — which is
+        # ScaledBy(..., Between(...)) works, and refused on a rate or an extent by the engine — which is
         # why the declared return type is the one every *rate* caller may rely on.
         return cast(Mapping, spec)
     if isinstance(spec, dict):
@@ -281,11 +281,11 @@ def check_not_a_kernel(mapping, *, label: str) -> None:
     same one wherever the kernel was put."""
     if isinstance(mapping, Between):
         raise ValueError(
-            f"{label} carries Driven(…, Between(…)); a Between kernel is donor-conditioned — it "
+            f"{label} carries ScaledBy(…, Between(…)); a Between kernel is donor-conditioned — it "
             f"weights a recipient by the (donor, recipient) group pair — so it belongs in transfer_to "
             f"(who RECEIVES) and never in a rate or an extent, which are read on one lineage and have "
             f"no donor to condition on. Drive this with a Table (a plain dict) or a Curve, and put the "
-            f"kernel in transfer_to=mod.Driven(driver, Between({{...}})).")
+            f"kernel in transfer_to=Weights(driver, Between({{...}})).")
 
 
 __all__ = ["Mapping", "Table", "Curve", "Scalar", "Between", "check_kernel_fires",

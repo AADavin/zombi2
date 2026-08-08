@@ -12,6 +12,7 @@ The sequence level always follows a genome run, and takes that run's result dire
 ```python
 from zombi2 import species, genomes, sequences
 from zombi2.sequences.substitution_models import hky85
+from zombi2.rates import ScaledBy
 from zombi2.rates import modifiers as mod
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
@@ -278,11 +279,11 @@ A reference table that can be handy to people who want to implement a specific m
 | each lineage i.i.d. lognormal | `1.0 * mod.Drawn(per='lineage', spread=…)` | Uncorrelated lognormal (UCLN) |
 | each lineage i.i.d. gamma | `1.0 * mod.Drawn(per='lineage', dist=Gamma(...))` | Uncorrelated gamma (UGAM) |
 | the rate drifts parent to daughter | `1.0 * mod.Inherited(per='lineage', spread=…)` | Autocorrelated lognormal |
-| the rate reads another level | `1.0 * mod.DrivenBy(trait, {…})` | Trait-dependent rate of molecular evolution |
+| the rate reads another level | `1.0 * ScaledBy(trait, {…})` | Trait-dependent rate of molecular evolution |
 
 ### A trait can drive the rate
 
-The two clocks above make a lineage fast or slow at random. A third modifier makes it fast or slow for a *reason*: `DrivenBy` reads a trait grown first and looks the factor up from that lineage's state.
+The two clocks above make a lineage fast or slow at random. A third modifier makes it fast or slow for a *reason*: `ScaledBy` reads a trait grown first and looks the factor up from that lineage's state.
 
 ```python
 from zombi2 import traits
@@ -290,7 +291,7 @@ from zombi2 import traits
 habitat = traits.simulate_discrete(tree, states=["cave", "surface"], switch=0.3, seed=1)
 
 result = sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, seed=2,
-    substitution = 0.05 * mod.DrivenBy(habitat, {"cave": 0.5, "surface": 1.0}))
+    substitution = 0.05 * ScaledBy(habitat, {"cave": 0.5, "surface": 1.0}))
 ```
 
 Cave lineages now evolve at half the rate of surface ones. The driver is the grown trait, or the path to the `trait_events.tsv` it wrote, the same two spellings every driven rate takes. This is conditioning, so it is two ordinary runs in order, and Chapter 9 covers the whole mechanism.
@@ -300,12 +301,12 @@ A clock and a driver **compose**, because modifiers multiply. Written together, 
 ```python
 sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, seed=2,
     substitution = 0.05 * mod.Drawn(per='lineage', spread=0.3)
-                        * mod.DrivenBy(habitat, {"cave": 0.5, "surface": 1.0}))
+                        * ScaledBy(habitat, {"cave": 0.5, "surface": 1.0}))
 ```
 
 A discrete trait switches partway along a branch, and ZOMBI2 does not read the driver once per branch. It integrates the rate across the branch, breaking at each switch. A lineage that leaves the cave halfway down a branch of length 2 accrues `0.05 × 0.5 × 1` substitutions per site before the move and `0.05 × 1.0 × 1` after it, so the branch is `0.075` long rather than `0.05` or `0.1`. The gene phylograms and the clock species tree carry that same number, so the tree a run writes is the tree its alignments were drawn along.
 
-The reverse direction runs too: `result.gc()` makes a finished run's GC content drive a trait grown after it, or a further sequence run, and `result.composition(letters)` does the same for any letters of the run's alphabet, an amino-acid frequency say (Chapter 9). What the pair cannot be is **joined**, because a sequence lives inside a gene and never feeds back into the trait, so there is nothing for the two to decide together. Naming a live level (`mod.DrivenBy("trait", …)`) says so rather than looking for a file. One other limit here: `divergence` is refused alongside a driven rate, because it solves for the base by assuming the modifiers average to 1, which the two clocks are corrected to do and a driver is not. Set the base yourself there.
+The reverse direction runs too: `result.gc()` makes a finished run's GC content drive a trait grown after it, or a further sequence run, and `result.composition(letters)` does the same for any letters of the run's alphabet, an amino-acid frequency say (Chapter 9). What the pair cannot be is **joined**, because a sequence lives inside a gene and never feeds back into the trait, so there is nothing for the two to decide together. Naming a live level (`ScaledBy("trait", …)`) says so rather than looking for a file. One other limit here: `divergence` is refused alongside a driven rate, because it solves for the base by assuming the modifiers average to 1, which the two clocks are corrected to do and a driver is not. Set the base yourself there.
 
 ## The objects
 

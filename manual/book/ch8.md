@@ -6,6 +6,7 @@ The trait level evolves **phenotypes**: a body size, a habitat, the presence or 
 
 ```python
 from zombi2 import species, traits
+from zombi2.rates import ScaledBy
 from zombi2.rates import modifiers as mod
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
@@ -47,7 +48,7 @@ rate = 1.0 * mod.OnTotalDiversity(cap=100)      # the rate eases off as the clad
 # σ² reads a second trait, grown first on the same tree
 habitat = traits.simulate_discrete(tree, states=["marine", "terrestrial"], switch=0.3, seed=1)
 size = traits.simulate_continuous(tree, start=0.0, seed=2,
-    rate=1.0 * mod.DrivenBy(habitat, {"marine": 4.0, "terrestrial": 1.0}))
+    rate=1.0 * ScaledBy(habitat, {"marine": 4.0, "terrestrial": 1.0}))
 ```
 
 The last is one trait driving another, which is the conditioning of Chapter 9: the driver is grown first, and the run that reads it comes second.
@@ -85,7 +86,7 @@ traits.simulate_discrete(tree, states=["absent", "present"],
                          seed=1)
 ```
 
-Either of those two shapes may carry a modifier, a bare rate or a `{'from->to': rate}` entry, though not the third spelling, a `k×k` matrix, whose entries are numbers by construction. So a switch rate can be **driven by another trait** grown first on the same tree: `switch = 0.2 * mod.DrivenBy(habitat, {"marine": 5.0, "terrestrial": 1.0})`. That is the conditioning of Chapter 9.
+Either of those two shapes may carry a modifier, a bare rate or a `{'from->to': rate}` entry, though not the third spelling, a `k×k` matrix, whose entries are numbers by construction. So a switch rate can be **driven by another trait** grown first on the same tree: `switch = 0.2 * ScaledBy(habitat, {"marine": 5.0, "terrestrial": 1.0})`. That is the conditioning of Chapter 9.
 
 `at_speciation=` works here too, and means something different: it is the probability, in `[0, 1]`, that a daughter hops at the split, to a state drawn uniformly from the others.
 
@@ -194,7 +195,7 @@ zombi2 traits out/ --kind discrete \
 
 # a second trait, in its own directory, whose switch rate reads the first (Chapter 9)
 zombi2 traits out/ --kind discrete --name diet --states plant,fish --seed 2 \
-    --switch "0.2 * DrivenBy('out/traits/trait_events.tsv', {'cave': 5.0, 'surface': 1.0})"
+    --switch "0.2 * ScaledBy('out/traits/trait_events.tsv', {'cave': 5.0, 'surface': 1.0})"
 ```
 
 Every rate flag takes a rate in its written form, `--switch` as much as `--rate`, so the expression above is the same text the Python API takes. `--switch` reads the other two shapes its keyword does as well: a `{'a->b': rate}` dict and a `k x k` matrix.
