@@ -409,22 +409,32 @@ def _zombi(*args) -> None:
 
 
 def _stale(run: str) -> bool:
-    """Is this cached run older than the ZOMBI2 that would build it now?
+    """Is this cached run older than the ZOMBI2 that would build it now — and if so, **clear it**?
 
     The caches under ``figures/_data/`` used to be guarded on "does the file exist", which never
     expires. Four of them survived the one-row-per-event redesign holding the *old* columns
     (``lineage`` · ``copy`` · ``parent`` · ``recipient`` · ``donor``), so the events figure read a
     format zombi2 had not written in months and the rebuild tracebacked. Stamping the cache with the
     version that produced it is what makes it a cache rather than a fossil.
+
+    Clearing it is the other half, and it was missing: the rebuild writes with the CLI, and a run
+    directory that already holds a downstream level refuses a re-run of the level above it — "would
+    leave them stale" — which is right, and meant every stale cache failed to rebuild and the
+    gallery could not be regenerated at all. An expired cache is exactly the thing to throw away, so
+    it is thrown away here rather than at each of the five call sites, none of which would have
+    remembered.
     """
     from zombi2 import __version__
 
     stamp = os.path.join(run, ".zombi2-version")
     try:
         with open(stamp) as fh:
-            return fh.read().strip() != __version__
+            if fh.read().strip() == __version__:
+                return False
     except OSError:
-        return True
+        pass
+    shutil.rmtree(run, ignore_errors=True)
+    return True
 
 
 def _stamp(run: str) -> str:
