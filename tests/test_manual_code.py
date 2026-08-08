@@ -312,3 +312,33 @@ def test_every_figure_is_well_formed_xml():
         except ET.ParseError as e:
             broken.append(f"{svg.name}: {e}")
     assert not broken, "these figures will not render:\n  " + "\n  ".join(broken)
+
+
+def test_every_figure_the_book_names_can_be_built_and_served():
+    """A chapter names a figure as the artefact the *book* builds — `figures/NAME_print.png` for a
+    hand-authored chapter diagram, `figures/NAME.pdf` for a generated one. The website reaches the
+    same figure by a different route: a docs hook rewrites the name to `../img/NAME.svg`, which has
+    to be a symlink under `docs/`, because MkDocs serves only what is there.
+
+    Four figures had no symlink, so a reader of the Conditioning chapter on the site saw one of its
+    four figures and a reader of Joining one of two, while the PDF had them all — for weeks.
+    `mkdocs --strict` does not catch it: `validation.links` reports a missing target at `info`.
+    """
+    named, missing = set(), []
+    for chapter in sorted(MANUAL.glob("*.md")):
+        for m in re.finditer(r"\]\(figures/([A-Za-z0-9_-]+?)(_print\.png|\.pdf)\)", chapter.read_text()):
+            named.add((m.group(1), m.group(2), chapter.name))
+
+    root = MANUAL.parent.parent
+    for name, kind, chapter in sorted(named):
+        source = (MANUAL / "figures" / f"{name}.svg" if kind == "_print.png"
+                  else root / "figures" / "svg" / f"{name}.svg")
+        if not source.exists():
+            missing.append(f"{chapter} names {name}{kind}, but {source.relative_to(root)} is not there")
+        link = root / "docs" / "img" / f"{name}.svg"
+        if not link.exists():
+            missing.append(f"{chapter} names {name}{kind}, but docs/img/{name}.svg is not there, "
+                           f"so the figure is missing on the website")
+
+    assert named, "no figures found; this test would pass vacuously"
+    assert not missing, "\n  ".join(["", *missing])
