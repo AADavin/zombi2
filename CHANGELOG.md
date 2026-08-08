@@ -169,6 +169,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   independent draws.
 
 ### Fixed
+- **Two rates reading the same clade never compared equal.** `ScaledBy` compared drivers by their
+  runtime lookup key, which is the path itself for a file but `id()` for a driver that is an object —
+  so `ScaledBy(Clade({...}), m) == ScaledBy(Clade({...}), m)` was `False` for identical clades, and a
+  rate carrying one could not be compared with its own written form read back. It now compares the
+  driver. A clade is written from literals precisely so that it round-trips, and two equal clades
+  describe one partition of one tree with nothing drawn, so there is no sense in which they could be
+  two different drivers — unlike `Drawn`, where writing one object or two *is* the model. (#326)
 - **A run's log rounded every rate to six significant figures.** `OnTime`, `Table`, `Scalar` and
   `Between` printed their numbers with `:g`, and the written form is built from those — so a rate
   typed as `1.0 * OnTime({0: 1.0, 3: 0.0123456789})` was recorded as `0.0123457`, a different model,
