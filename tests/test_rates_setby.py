@@ -266,3 +266,17 @@ def test_the_verb_has_to_match_what_it_is_attached_to(tree, habitat):
     genomes.simulate_genomes_family(
         tree, transfer=0.4, initial_families=5, seed=1,
         transfer_to=Weights(habitat, {"cave": 2.0}))
+
+
+def test_all_three_verbs_name_their_first_argument_the_same():
+    """SPEC §7 and every error message call the thing a driven parameter reads a **driver**, and the
+    manual writes `ScaledBy(driver, mapping)` in the sentence that introduces it. Two of the three
+    verbs called it `value`, so `SetBy(driver=…)` worked and `ScaledBy(driver=…)` raised — one
+    keyword that lands on one verb and not on its siblings, which is the drift this project's
+    one-concept-one-word rule exists to stop."""
+    from zombi2.rates import Weights
+
+    for verb in (ScaledBy, Weights, SetBy):
+        made = verb(driver="h.tsv", mapping={"cave": 2.0})
+        assert made.driver == "h.tsv", verb
+        assert repr(made).startswith(f"{verb.__name__}("), repr(made)

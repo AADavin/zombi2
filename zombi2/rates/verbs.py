@@ -15,7 +15,7 @@ all, because only the ratios between candidates are read.
 
 **These build the objects the engines already run.** ``ScaledBy(Time(), {...})`` *is*
 ``OnTime({...})``; ``ScaledBy(habitat, {...})`` *is* ``ScaledBy(habitat, {...})``. The verb chooses
-which by looking at the value, so nothing downstream changes and a run is identical either way.
+which by looking at the driver, so nothing downstream changes and a run is identical either way.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ def _mapping_for_time(mapping: object) -> dict:
         "the engine to integrate the rate rather than read it at a point.")
 
 
-def ScaledBy(value: object, mapping: object = None, *, step: float | None = None) -> Modifier:
+def ScaledBy(driver: object, mapping: object = None, *, step: float | None = None) -> Modifier:
     """Multiply the parameter's base by a factor read from ``value``.
 
     The factor is dimensionless, and almost every parameter takes one::
@@ -55,28 +55,28 @@ def ScaledBy(value: object, mapping: object = None, *, step: float | None = None
     ``step`` is the resolution a **continuous** driver is read at, in the tree's own time units. A
     categorical driver switches at moments the engine can step to exactly and ignores it.
     """
-    if isinstance(value, Time):
+    if isinstance(driver, Time):
         return OnTime(_mapping_for_time(mapping))
-    if isinstance(value, Measured):
+    if isinstance(driver, Measured):
         raise ValueError(
-            f"ScaledBy({type(value).__name__}(), ...) is not implemented — that value exists in the "
+            f"ScaledBy({type(driver).__name__}(), ...) is not implemented — that value exists in the "
             f"grammar but no engine supplies it yet.")
-    if isinstance(value, Modifier):
+    if isinstance(driver, Modifier):
         # `describe` gives the cell — "drawn per family" — which reads well in the sentence and is
         # not something you can type, so the code half of the message shows the class instead.
         raise TypeError(
-            f"{describe(value)} is already a factor, so it needs no verb: write it on the base "
-            f"directly, `rate = 0.25 * {type(value).__name__}(...)`, rather than wrapping it in "
+            f"{describe(driver)} is already a factor, so it needs no verb: write it on the base "
+            f"directly, `rate = 0.25 * {type(driver).__name__}(...)`, rather than wrapping it in "
             f"ScaledBy. Verbs are for values a mapping has to turn into a number — a trait, a "
             f"clock, a count.")
     if mapping is None:
         raise ValueError(
-            "ScaledBy(value, mapping) needs a mapping: a dict for a categorical value, a callable "
+            "ScaledBy(driver, mapping) needs a mapping: a dict for a categorical driver, a callable "
             "for a numerical one.")
-    return Driven(value, mapping, step, verb="ScaledBy")
+    return Driven(driver, mapping, step, verb="ScaledBy")
 
 
-def Weights(value: object, mapping: object = None, *, step: float | None = None) -> Modifier:
+def Weights(driver: object, mapping: object = None, *, step: float | None = None) -> Modifier:
     """Weight the candidates of a **choice** — an argument that decides *who*, not how fast.
 
     ``transfer_to``, the recipient of a horizontal transfer, is the only choice today. A choice has no
@@ -90,9 +90,9 @@ def Weights(value: object, mapping: object = None, *, step: float | None = None)
     """
     if mapping is None:
         raise ValueError(
-            "Weights(value, mapping) needs a mapping: a dict of per-candidate weights, a callable, or "
+            "Weights(driver, mapping) needs a mapping: a dict of per-candidate weights, a callable, or "
             "a Between kernel to weight the (donor, recipient) pair.")
-    return Driven(value, mapping, step, verb="Weights")
+    return Driven(driver, mapping, step, verb="Weights")
 
 
 #: The verbs a rate may be **written** with — see `zombi2.rates.modifiers.WRITABLE`.

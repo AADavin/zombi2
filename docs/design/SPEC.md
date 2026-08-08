@@ -235,7 +235,7 @@ that receives, not the segment.
 
 A weight may read **both** ends: a **kernel** over `(donor group, recipient group)` pairs
 (`Between({...})`) steers transfer *between* groups rather than only *into* one. The groups come from
-the tree (named clades, reading no other level) or from a trait (`ScaledBy(trait, Between(...))`). A
+the tree (named clades, reading no other level) or from a trait (`Weights(trait, Between(...))`). A
 kernel only redistributes who receives, so one on a *rate* or an *extent* is refused: both are read on
 one lineage and have no donor to condition on.
 

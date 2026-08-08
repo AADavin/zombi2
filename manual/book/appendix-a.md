@@ -97,7 +97,7 @@ factor multiplies an **extent** at the ordered and nucleotide resolutions. An ex
 `OnTime` and `ScaledBy` — a per-family draw has no one family to read (a run covers several), and
 `SetBy` has no base to replace. Drivers also go on `transfer_to`, written `Weights` rather than
 `ScaledBy` because there the numbers are normalised **weights** over the candidate recipients,
-compared with no base in front of them (Chapter 9).
+compared against each other, with no base in front of them (Chapter 9).
 
 **How wide the variation is, and what shape it takes.** A drawn or inherited value takes `spread=σ`,
 which means a lognormal of that log-scale, and the number it means is different in the two: under
