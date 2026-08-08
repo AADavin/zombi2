@@ -2195,16 +2195,16 @@ def test_joint_takes_at_speciation_and_the_api_default_for_initial_families(tmp_
     assert main(["joint", str(out), "--death", "0.2", "--states", "small,large",
                  "--switch", "0.3", "--at-speciation", "0.5", "--n-extant", "40", "--seed", "1",
                  "--birth", "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})"]) == 0
-    events = (out / "traits" / "trait_events.tsv").read_text()
+    events = (out / "traits" / "trait_events.tsv").read_text(encoding="utf-8")
     assert "on_speciation" in events, "--at-speciation put no jump at a split"
 
     gene = tmp_path / "content"
     assert main(["joint", str(gene), "--origination", "0.2", "--loss", "0.1",
                  "--n-extant", "20", "--seed", "1",
                  "--birth", "1.0 * DrivenBy('genomes:count', Scalar(0.01))"]) == 0
-    summary = json.loads((gene / "joint_summary.json").read_text())
+    summary = json.loads((gene / "joint_summary.json").read_text(encoding="utf-8"))
     # `initial` is the count of families present at time 0 — the root genome's
     assert summary["genome"]["events"]["initial"] == 100, summary["genome"]["events"]
 
     # and the log records the number the run used, not the sentinel
-    assert "initial_families\tNone" not in (gene / "species" / "joint.log").read_text()
+    assert "initial_families\tNone" not in (gene / "species" / "joint.log").read_text(encoding="utf-8")

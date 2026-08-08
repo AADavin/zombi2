@@ -326,7 +326,7 @@ def test_every_figure_the_book_names_can_be_built_and_served():
     """
     named, missing = set(), []
     for chapter in sorted(MANUAL.glob("*.md")):
-        for m in re.finditer(r"\]\(figures/([A-Za-z0-9_-]+?)(_print\.png|\.pdf)\)", chapter.read_text()):
+        for m in re.finditer(r"\]\(figures/([A-Za-z0-9_-]+?)(_print\.png|\.pdf)\)", chapter.read_text(encoding="utf-8")):
             named.add((m.group(1), m.group(2), chapter.name))
 
     root = MANUAL.parent.parent
