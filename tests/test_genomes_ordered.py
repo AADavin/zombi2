@@ -354,7 +354,26 @@ def test_a_per_lineage_gene_rate_does_not_scale_with_genome_size():
             for s in range(1, 7))
 
     assert losses(scope.PerCopy(0.02), 30) < losses(scope.PerCopy(0.02), 300)
-    assert losses(scope.PerLineage(0.02), 30) == losses(scope.PerLineage(0.02), 300)
+    # big enough to fire: comparing 0 == 0 would pass with the per-lineage path deleted entirely
+    per_lineage = losses(scope.PerLineage(0.2), 30)
+    assert per_lineage > 0, "the per-lineage arm never fired, so it asserts nothing"
+    assert per_lineage == losses(scope.PerLineage(0.2), 300)
+
+
+def test_a_per_family_draw_anywhere_in_the_run_refuses_a_per_lineage_scope():
+    """A per-family draw on any gene rate routes *every* gene total through the per-family path,
+    which sums over the live genes — so a per-lineage rate elsewhere had a per-copy total while its
+    lineage was still drawn uniformly among occupied genomes. Total and pick disagreed outright."""
+    from zombi2.rates import Drawn
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)
+    with pytest.raises(ValueError, match="cannot share a run"):
+        simulate_genomes_ordered(sp, loss=scope.PerLineage(0.2),
+                                 duplication=0.05 * Drawn(per="family", spread=0.5),
+                                 chromosomes=1, seed=1)
+    with pytest.raises(ValueError, match="cannot share a run"):
+        simulate_genomes_ordered(sp, inversion=scope.PerLineage(0.2),
+                                 loss=0.05 * Drawn(per="family", spread=0.5),
+                                 chromosomes=1, seed=1)
 
 
 def test_topology_validation():

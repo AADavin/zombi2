@@ -248,17 +248,28 @@ def test_a_per_lineage_rate_does_not_scale_with_genome_size():
     small, large = losses(scope.PerCopy(0.02), 20), losses(scope.PerCopy(0.02), 200)
     assert large > 5 * small > 0
 
-    # per lineage, the genome's size does not enter at all — the same events, identically
-    assert losses(scope.PerLineage(0.02), 20) == losses(scope.PerLineage(0.02), 200)
+    # per lineage, the genome's size does not enter at all — the same events, identically. The rate
+    # has to be big enough to fire: comparing 0 == 0 would pass with the per-lineage path deleted.
+    per_lineage = losses(scope.PerLineage(0.2), 20)
+    assert per_lineage > 0, "the per-lineage arm never fired, so it asserts nothing"
+    assert per_lineage == losses(scope.PerLineage(0.2), 200)
 
 
-def test_a_per_family_draw_under_a_per_lineage_scope_is_refused():
-    # the two say different things about what the multiplier does — it moves the total under
-    # PerCopy and could only choose the victim under PerLineage — and that choice is not made yet
+def test_a_per_family_draw_anywhere_in_the_run_refuses_a_per_lineage_scope():
+    """The check is over the run, not the rate, and that distinction was a live bug.
+
+    A per-family draw on *any* gene rate makes the engine take its per-family path for *every* one
+    of them, summing each over the live copies — so a `PerLineage` rate elsewhere in the same run
+    was silently counted per copy. One draw on duplication turned a per-lineage loss back into a
+    per-copy loss, with nothing on the page saying so."""
     from zombi2.rates import Drawn, scope
     sp = _tree(seed=1)
-    with pytest.raises(ValueError, match="Under PerCopy that multiplier"):
+    with pytest.raises(ValueError, match="cannot share a run"):
         simulate_genomes_family(sp, loss=scope.PerLineage(0.2) * Drawn(per="family", spread=0.5),
+                                initial_families=5, seed=1)
+    with pytest.raises(ValueError, match="cannot share a run"):        # the cross-rate case
+        simulate_genomes_family(sp, loss=scope.PerLineage(0.2),
+                                duplication=0.05 * Drawn(per="family", spread=0.5),
                                 initial_families=5, seed=1)
 
 

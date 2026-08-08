@@ -794,15 +794,23 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # multiplier could only decide *which* copy the event takes, normalised within the lineage. Those
     # are two different models, and running one while the user wrote the other is exactly the silent
     # mismatch this engine refuses everywhere else.
-    for label, rate in (("duplication", dup), ("transfer", tra), ("loss", los)):
-        if isinstance(rate.scope, PerLineage) and any(m.reads == (DRAWN, "family")
-                                                      for m in rate.modifiers):
-            raise ValueError(
-                f"{label} is PerLineage and carries a per-family draw. Under PerCopy that multiplier "
-                f"scales each copy's rate, so it changes the lineage's total; under PerLineage the "
-                f"total is fixed whatever the genome holds, so the multiplier could only choose which "
-                f"copy is taken. Those are different models and the choice is not made yet — write "
-                f"PerCopy for the first, or drop the per-family draw for the second.")
+    # The check is over the whole RUN, not per rate, and getting that wrong was a real bug: a
+    # per-family draw anywhere makes the engine take its per-family path for **every** gene rate,
+    # summing each one over the live copies — so a `PerLineage` rate elsewhere in the same run was
+    # silently counted per copy while nothing on the page said so. One draw on duplication was
+    # enough to turn a `PerLineage` loss back into a `PerCopy` one.
+    per_lineage_here = [lbl for lbl, r in (("duplication", dup), ("transfer", tra), ("loss", los))
+                        if isinstance(r.scope, PerLineage)]
+    drawn_here = [lbl for lbl, r in (("duplication", dup), ("transfer", tra), ("loss", los))
+                  if any(m.reads == (DRAWN, "family") for m in r.modifiers)]
+    if per_lineage_here and drawn_here:
+        raise ValueError(
+            f"{', '.join(per_lineage_here)} is PerLineage while {', '.join(drawn_here)} carries a "
+            f"per-family draw, and the two cannot share a run. Under PerCopy a family's multiplier "
+            f"scales each copy's rate, so it changes the lineage's total; under PerLineage the total "
+            f"is fixed whatever the genome holds, so the multiplier could only choose which copy is "
+            f"taken. Those are different models and the choice is not made yet — write PerCopy "
+            f"throughout for the first, or drop the per-family draw for the second.")
     # the choice (SPEC §5), validated in the one place all three resolutions share: the mapping's
     # numbers are weights over the candidate recipients, never a rate multiplier
     transfer_to = resolve_transfer_to(transfer_to)

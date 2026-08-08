@@ -17,9 +17,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   resolutions, and to inversion, transposition and translocation at the ordered one; the nucleotide
   engine already counted these per lineage. The total and the pick move together, so a per-lineage
   rate draws one occupied genome uniformly and then a gene inside it. Origination stays per lineage
-  and the chromosome tier per chromosome. A per-family draw under a per-lineage scope is refused for
-  now, because what the multiplier should do there — move the total, or choose the victim — is two
-  different models. (#326)
+  and the chromosome tier per chromosome. A per-family draw **anywhere in the run** refuses a
+  per-lineage scope, because what the multiplier should do there — move the total, or choose the
+  victim — is two different models; the check is over the run rather than the rate, since one draw
+  makes the engine take its per-family path for every gene rate at once. (#326)
 - **Appendix B states the output-table contract: columns may be added, so read them by name.** New
   columns go at the end of a row; an existing column's name and meaning never change, and none is
   removed within a major version. It documents what these tables have always required — the same
@@ -169,6 +170,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   independent draws.
 
 ### Fixed
+- **A `SetBy` written with a `step` recorded itself without one.** Its written form omitted the
+  argument, so a run's log said something the run had not done — and because equality omitted it too,
+  the record reparsed to a rate that compared *equal* to the original while reading its driver at a
+  different resolution. Both now carry it. (#326)
 - **Two rates reading the same clade never compared equal.** `ScaledBy` compared drivers by their
   runtime lookup key, which is the path itself for a file but `id()` for a driver that is an object —
   so `ScaledBy(Clade({...}), m) == ScaledBy(Clade({...}), m)` was `False` for identical clades, and a
