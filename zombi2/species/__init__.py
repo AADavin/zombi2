@@ -24,6 +24,7 @@ from ..rates.modifiers import (describe, DRAWN, INHERITED, OnTime, OnTotalDivers
                                check_one_memory, is_implemented, values_at_birth,
                                values_at_split)
 from ..rng import stream
+from .._runtime.draw import weighted_index as _weighted_index
 from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
 from ..rates.rate import as_rate
@@ -194,15 +195,6 @@ def _per_lineage(rate) -> tuple:
     return tuple(m for m, _ in rate.carried_modifiers(unit="lineage"))
 
 
-def _weighted_index(rng, weights: list[float], total: float) -> int:
-    """Pick an index in proportion to ``weights`` (which must sum to ``total``)."""
-    r = rng.random() * total
-    acc = 0.0
-    for i, w in enumerate(weights):
-        acc += w
-        if r < acc:
-            return i
-    return len(weights) - 1  # floating-point guard: r == total lands on the last lineage
 
 
 def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float | None,
@@ -211,7 +203,7 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
     """Grow one forward birth-death tree until it reaches ``n_extant`` living lineages,
     reaches ``total_time``, or dies out. Returns the complete tree and the event log.
 
-    When ``birth`` or ``death`` carries a an inherited value or a per-lineage draw modifier
+    When ``birth`` or ``death`` carries an inherited value or a per-lineage draw
     the rate is *per-lineage*: every lineage threads its own factor, so the lineage that speciates or
     dies is drawn **weighted** by its effective rate rather than uniformly. Under an inherited value a
     daughter's factor is its parent's, nudged at the split (clade drift); under a per-lineage draw it is an
@@ -521,7 +513,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                     f"Inherited(per='lineage') (inherited rate drift, ClaDS) and Drawn(per='lineage') (independent "
                     f"per-lineage rates). A birth or death that reads an evolved value cannot be "
                     f"conditioned — the tree and its driver grow together — so it is a joint run: "
-                    f"joint.simulate_joint(birth=1.0 * mod.DrivenBy('trait', {{...}}), ...)."
+                    f"joint.simulate_joint(birth=1.0 * ScaledBy('trait', {{...}}), ...)."
                 )
         # SPEC §5: one memory structure per axis. Drawn(per='lineage') has none and Inherited(per='lineage') has a continuous
         # one, so a rate carrying both asks for a lineage's factor to be independent of its parent's

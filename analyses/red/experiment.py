@@ -14,8 +14,9 @@ an ultrametric tree); RED of the phylogram is the estimate. Sweep ``sigma`` to t
 archaea actually show.
 
 Three clocks, because the *structure* of rate variation is the one thing a single CV cannot pin.
-Two are **uncorrelated** — ``ByLineage``, every lineage drawing its own rate independently, with a
-lognormal or a gamma tail. The third is **autocorrelated** — ``FromParent``, each lineage inheriting
+Two are **uncorrelated** — ``Drawn(per='lineage')``, every lineage drawing its own rate
+independently, with a lognormal or a gamma tail. The third is **autocorrelated** —
+``Inherited(per='lineage')``, each lineage inheriting
 its parent's rate times a draw at the split, so relatives evolve at similar rates (Thorne et al.
 1998). The CV measured on GTDB says how much variation there is, not how it is arranged; running all
 three at the same CV is what turns that ambiguity into a bound.
@@ -30,6 +31,7 @@ from scipy.stats import pearsonr
 
 from zombi2 import genomes, sequences, species
 from zombi2.rates import modifiers as mod
+from zombi2.rates.distributions import Gamma
 from zombi2.sequences import substitution_models as sm
 from zombi2.tree import read_newick
 from zombi2.tree import relative_evolutionary_divergence as red_of
@@ -45,12 +47,26 @@ REPS = 8
 #: The grids differ because the clocks reach a given root-to-tip variation at very different sigma: drift
 #: compounds down the tree, so the autocorrelated clock hits the GTDB CV near 0.22 where the
 #: uncorrelated ones need ~0.55. Each grid is chosen to bracket the target with room either side.
+def _gamma(s: float):
+    """A gamma clock at coefficient of variation ``s``.
+
+    ``dist=`` used to take the string ``"gamma"``, where σ meant the coefficient of variation; it
+    now takes a distribution object, so the parameterisation is written out. A gamma of shape ``k``
+    has CV ``1/sqrt(k)``, and the draw is normalised to mean 1 whatever the scale, so ``scale`` only
+    has to keep the numbers in a sensible range. σ = 0 is no variation at all, which no gamma can
+    express — ``spread=0`` is the degenerate case the engine already short-circuits.
+    """
+    if s == 0.0:
+        return mod.Drawn(per="lineage", spread=0.0)
+    return mod.Drawn(per="lineage", dist=Gamma(shape=1.0 / (s * s), scale=s * s))
+
+
 CLOCKS = {
-    "lognormal":      (lambda s: mod.ByLineage(spread=s, dist="lognormal"),
+    "lognormal":      (lambda s: mod.Drawn(per="lineage", spread=s),
                        np.round(np.arange(0.0, 2.001, 0.1), 3)),
-    "gamma":          (lambda s: mod.ByLineage(spread=s, dist="gamma"),
+    "gamma":          (_gamma,
                        np.round(np.arange(0.0, 2.001, 0.1), 3)),
-    "autocorrelated": (lambda s: mod.FromParent(spread=s),
+    "autocorrelated": (lambda s: mod.Inherited(per="lineage", spread=s),
                        np.round(np.arange(0.0, 1.001, 0.05), 3)),
 }
 

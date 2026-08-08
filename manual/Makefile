@@ -52,7 +52,7 @@ COMMON := --from=markdown --pdf-engine=$(ENGINE) --top-level-division=chapter \
 
 DEPS := preamble.tex callouts.lua metadata.yaml $(BIB) $(FIGS) ../zombi2/__init__.py
 
-.PHONY: all manual chapters figures clean
+.PHONY: all manual chapters figures docx clean
 all: manual
 
 # --- figures: SVG -> PDF (vector) ---
@@ -78,6 +78,27 @@ manual: build/zombi2-manual.pdf
 build/zombi2-manual.pdf: $(CHAPTERS) $(DEPS) $(BOOK_FIGS)
 	@mkdir -p build
 	$(PANDOC) $(COMMON) --toc --toc-depth=2 $(CHAPTERS) -o $@
+
+# --- the book as .docx, for reading and commenting ---
+# Word cannot show a PDF image, and the chapters name one of two artefacts: `figures/NAME.pdf` for a
+# generated figure and `figures/NAME_print.png` for a hand-authored chapter diagram. So the sources
+# are staged with every image as PNG and the .pdf references rewritten, and pandoc is pointed at the
+# staging directory. No `--pdf-engine`, no LaTeX filter: a docx takes neither.
+docx: build/zombi2-manual.docx
+build/zombi2-manual.docx: $(CHAPTERS) $(BIB) $(BOOK_FIGS) $(FIGS)
+	@mkdir -p build/docx/figures
+	@cp ../figures/png/*.png build/docx/figures/ 2>/dev/null || true
+	@cp $(BOOK_FIGDIR)/*_print.png build/docx/figures/ 2>/dev/null || true
+	@for f in $(CHAP_MDS); do \
+		sed -e 's|(figures/\([A-Za-z0-9_-]*\)\.pdf)|(figures/\1.png)|g' $(BOOK)/$$f > build/docx/$$f; \
+	done
+	$(PANDOC) --from=markdown --number-sections --citeproc --bibliography=$(BIB) \
+	          --resource-path=build/docx --metadata-file=metadata.yaml \
+	          --metadata=date:"Version $(VERSION) — $(DATE)" --toc --toc-depth=2 \
+	          $(addprefix build/docx/,$(CHAP_MDS)) -o $@
+	@$(PYTHON) fix_docx_images.py $@
+
+PYTHON ?= python3
 
 clean:
 	rm -rf build figures

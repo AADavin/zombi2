@@ -339,7 +339,7 @@ def test_every_advertised_engine_actually_calls_a_third_party_modifier(engine, r
     """The gate opening is only half of it: the engine has to *call* the thing it let through.
 
     `traits.discrete` did not. It chose between a constant generator and a rebuilt-per-stretch one by
-    asking "are there drivers?", so a modifier that was not a `DrivenBy` fell between the two and
+    asking "are there drivers?", so a modifier that was not a `Driven` fell between the two and
     crashed the driver resolver looking for a `.key`. This asserts the whole advertised list, because
     the failure mode is per engine and invisible from the outside."""
     calls: list[tuple[str, ...]] = []

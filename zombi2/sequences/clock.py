@@ -8,7 +8,7 @@ lineage to lineage, and nothing else. There are two ways it can vary, and they c
   "relaxed" clock), an inherited value lets the multiplier drift parent→child down the species tree (the
   autocorrelated clock). One draw per *species* branch, shared by every gene family passing through
   it: a species that runs hot runs hot for all of its genes.
-- **read off a driver** — ``DrivenBy`` reads a **trait** grown first and maps its state to a factor,
+- **read off a driver** — ``ScaledBy`` reads a **trait** grown first and maps its state to a factor,
   so a lineage's habitat or lifestyle sets how fast its sequences evolve. SPEC §3 allows the pair
   Traits→Sequences to be *conditioned* (the trait can be grown first and held fixed), which is what
   makes this an ordinary modifier on an ordinary run rather than a joint engine.
@@ -103,7 +103,7 @@ class Clock:
     """The resolved per-species-branch rate variation of one run — what `resolve_clock()` returns.
 
     It holds the drawn clock factor per species branch and, when the substitution rate carries a
-    ``DrivenBy``, that branch's driver factor as a piecewise-constant function of time already
+    ``ScaledBy``, that branch's driver factor as a piecewise-constant function of time already
     integrated into a running total. Both are plain numbers: the object is read-only, is shipped
     to the parallel engine's workers, and holds no trajectory, mapping or tree.
 
@@ -118,7 +118,7 @@ class Clock:
                  level: "dict[int, list[float]] | None" = None,
                  cum: "dict[int, list[float]] | None" = None) -> None:
         self._factor = factor       # {species branch: the drawn clock factor}; empty ⇒ strict
-        # The driver track, or None throughout when the rate carries no DrivenBy. Per species branch:
+        # The driver track, or None throughout when the rate carries no Driven. Per species branch:
         # the times the driver factor changes (the first is the branch's birth), the factor on each
         # stretch, and the integral of the factor from the branch's birth to each breakpoint.
         self._breaks = breaks
@@ -163,7 +163,7 @@ def resolve_clock(clock_mods, driven, species_tree, gene_trees, rng) -> "Clock |
     carries neither a lineage clock nor a driver.
 
     ``clock_mods`` is what the rate carries per lineage (possibly none), and ``driven`` the list
-    of ``(DrivenBy modifier, DriverTrajectory)`` pairs the caller already resolved. Returning ``None``
+    of ``(ScaledBy modifier, DriverTrajectory)`` pairs the caller already resolved. Returning ``None``
     for a strict, undriven rate keeps ``clock is None`` meaning what it has always meant downstream:
     the fast path with no lookups at all.
 
@@ -172,7 +172,7 @@ def resolve_clock(clock_mods, driven, species_tree, gene_trees, rng) -> "Clock |
 
     The track is built by walking each species branch from its birth, asking each driver where it next
     switches (`DriverTrajectory.next_change`) and taking the earliest, exactly as the genome and trait
-    engines advance their own integrals. Several ``DrivenBy`` on one rate are allowed and their factors
+    engines advance their own integrals. Several ``ScaledBy`` on one rate are allowed and their factors
     multiply, which is what SPEC §5 says modifiers do; a branch the drivers never switch on gets a
     single stretch, and the arithmetic degenerates to a constant factor times Δt."""
     factor = _draw_clock(clock_mods, species_tree, gene_trees, rng)

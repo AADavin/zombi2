@@ -18,7 +18,7 @@ import pytest
 
 from zombi2.genomes import (simulate_genomes_family, simulate_genomes_nucleotide,
                             simulate_genomes_ordered)
-from zombi2.rates import modifiers as mod
+from zombi2.rates import ScaledBy
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_discrete
 
@@ -72,7 +72,7 @@ def test_a_gene_can_drive_a_trait():
     tree, g = _run()
     kw = dict(states=["harmless", "pathogenic"], start="harmless", seed=1)
     plain = simulate_discrete(tree, switch=0.1, **kw)
-    driven = simulate_discrete(tree, switch=0.1 * mod.DrivenBy(
+    driven = simulate_discrete(tree, switch=0.1 * ScaledBy(
         g.presence("tox"), {"present": 8.0, "absent": 1.0}), **kw)
     switches = lambda r: sum(1 for e in r.events if e.kind == "on_branch")
     assert switches(driven) > switches(plain)
@@ -87,7 +87,7 @@ def test_a_driver_that_never_changes_leaves_the_run_byte_identical():
     assert traj.states() == {"present"}
     kw = dict(states=["x", "y"], start="x", seed=2)
     plain = simulate_discrete(tree, switch=0.2, **kw)
-    driven = simulate_discrete(tree, switch=0.2 * mod.DrivenBy(g.presence("tox"), {"present": 1.0}),
+    driven = simulate_discrete(tree, switch=0.2 * ScaledBy(g.presence("tox"), {"present": 1.0}),
                                **kw)
     assert plain.values == driven.values
 
@@ -170,7 +170,7 @@ def test_completion_drives_a_trait():
     tree, g = _module_run()
     kw = dict(states=["sessile", "motile"], start="sessile", seed=2)
     plain = simulate_discrete(tree, switch=0.05, **kw)
-    driven = simulate_discrete(tree, switch=0.05 * mod.DrivenBy(
+    driven = simulate_discrete(tree, switch=0.05 * ScaledBy(
         g.completion("flagellum"), Curve(lambda f: 0.05 + 30.0 * f ** 4)), **kw)
     switches = lambda r: sum(1 for e in r.events if e.kind == "on_branch")
     assert switches(driven) != switches(plain)
@@ -254,7 +254,7 @@ def test_a_nucleotide_gene_can_drive_a_trait():
     tree, g = _nucleotide_run()
     kw = dict(states=["harmless", "pathogenic"], start="harmless", seed=1)
     plain = simulate_discrete(tree, switch=0.1, **kw)
-    driven = simulate_discrete(tree, switch=0.1 * mod.DrivenBy(
+    driven = simulate_discrete(tree, switch=0.1 * ScaledBy(
         g.presence("g0"), {"present": 8.0, "absent": 1.0}), **kw)
     switches = lambda r: sum(1 for e in r.events if e.kind == "on_branch")
     assert switches(driven) > switches(plain)
@@ -273,7 +273,7 @@ def test_a_nucleotide_module_completes_the_way_a_family_one_does():
         naive = sum(_carries(g, node.id, m) for m in _GENES) / len(_GENES)
         assert traj.value(node.id, just_before) == naive
     simulate_discrete(tree, states=["a", "b"], start="a", seed=2,           # and it drives
-                      switch=0.05 * mod.DrivenBy(g.completion("operon"), Curve(lambda f: 1.0 + f)))
+                      switch=0.05 * ScaledBy(g.completion("operon"), Curve(lambda f: 1.0 + f)))
 
 
 def test_the_nucleotide_resolution_refuses_what_it_cannot_answer():

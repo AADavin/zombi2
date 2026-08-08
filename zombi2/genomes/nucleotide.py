@@ -100,7 +100,7 @@ from ..rng import stream
 from ..rates.extent import Extent, as_extent
 from ..rates.driver import check_mapping_fires, resolve_driver
 from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import describe, DrivenBy, OnTime, cell_name, is_implemented
+from ..rates.modifiers import describe, Driven, OnTime, cell_name, is_implemented
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerLineage
 from ..tree import Tree, as_tree
@@ -122,7 +122,7 @@ from .gff import read_fasta, read_gff
 #: The rate grammar this engine supports (SPEC §5). Only the skyline this slice: a modifier it does
 #: not support raises rather than being silently ignored, so a run is never quietly not the model
 #: asked for.
-IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy)
+IMPLEMENTED_MODIFIERS = (OnTime, Driven)
 
 
 @dataclass(slots=True)
@@ -512,16 +512,6 @@ class NucleotideGenome:
     def length(self) -> int:
         return sum(c.length for c in self.chromosomes)
 
-    def _pick_position(self, rng) -> tuple[Chromosome, int]:
-        """A uniform nucleotide pick → ``(chromosome, physical position)`` — realises a per-nucleotide
-        (length-weighted) choice of chromosome."""
-        m = int(rng.integers(self.length))
-        for c in self.chromosomes:
-            if m < c.length:
-                return c, m
-            m -= c.length
-        raise AssertionError("length out of sync with the chromosomes")  # unreachable
-
     def _pick_legal_cut(self, rng) -> tuple[Chromosome, int] | None:
         """A uniform pick over the **whole genome's** legal breakpoints → ``(chromosome, physical
         position)``. `Chromosome._legal_cuts()` one scope up: it is where an event *starts*, as
@@ -764,7 +754,7 @@ class NucleotideGenomesResult:
         """The named gene's presence as a **conditioning driver** — `GenePresence`, the same reader
         the other two resolutions hand out, read off the gene's own recovered tree::
 
-            switch=0.1 * mod.DrivenBy(g.presence("dnaA"), {"present": 5.0, "absent": 1.0})
+            switch=0.1 * ScaledBy(g.presence("dnaA"), {"present": 5.0, "absent": 1.0})
 
         A gene is named here by the GFF that declared it (its ``ID`` / ``Name``); the evenly-spaced
         ``genes=`` layout lays its genes down unnamed."""
@@ -1639,7 +1629,7 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_extent, transfer_to, sel
             return 0
         i = int(rng.integers(npool))
         kr = i if (self_transfer or i < kd) else i + 1
-    else:  # the weighted rules (Distance / Clades / DrivenBy) weigh every candidate — O(alive)
+    else:  # the weighted rules (Distance / Clades / Driven) weigh every candidate — O(alive)
         cand = [k for k in range(len(alive)) if self_transfer or k != kd]
         if not cand:
             return 0
@@ -1943,7 +1933,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
       in tandem — an ancestry-**changing** *birth*, recorded in ``events``.
     - ``transfer`` (**per lineage**) copies a geometric-length (mean ``transfer_extent``) arc into a
       **contemporaneous recipient** (``transfer_to``: ``"uniform"``, ``"distance"`` / a `Distance`,
-      ``Clades({...}, Between({...}))`` or ``mod.DrivenBy(driver, mapping)`` — see below;
+      ``Clades({...}, Between({...}))`` or ``ScaledBy(driver, mapping)`` — see below;
       ``self_transfer`` allows the donor itself) — a horizontal *birth*, additive (the donor keeps its
       copy). This is what needs the global timeline.
     - ``origination`` (**per lineage**) lays down a **new gene** on a fresh source (geometric length,
@@ -1974,7 +1964,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     ``result.completion("flagellum")`` gives the fraction of the group a lineage carries; a module
     changes nothing about how the genome evolves.
 
-    **Conditioning (a trait drives who receives).** ``transfer_to = mod.DrivenBy(source, mapping)``
+    **Conditioning (a trait drives who receives).** ``transfer_to = Weights(source, mapping)``
     weights the candidate recipients by another level, and the numbers are **weights**, not rate
     multipliers: they are normalised across the candidates, so they leave the total amount of transfer
     alone and only redistribute it (SPEC §5, a weight, not a rate). Weight 0 means "cannot receive"; when
@@ -2006,7 +1996,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 f"{label} has a {type(r.scope).__name__} scope, but the nucleotide engine takes only "
                 f"{want.__name__} for {label} this slice — scope overrides are a later slice.")
         for m in r.modifiers:
-            if isinstance(m, DrivenBy):
+            if isinstance(m, Driven):
                 check_not_a_kernel(m.mapping, label=label)
             if not is_implemented(m, IMPLEMENTED_MODIFIERS, "genomes.nucleotide"):
                 raise ValueError(
@@ -2033,7 +2023,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 f"breakpoints, so another shape would have to be re-weighted over that set rather "
                 f"than drawn. Pass a number (the mean in bp) or Geometric(mean=...).")
         for m in e.modifiers:
-            if isinstance(m, DrivenBy):
+            if isinstance(m, Driven):
                 check_not_a_kernel(m.mapping, label=label)
             if not is_implemented(m, IMPLEMENTED_MODIFIERS, "genomes.nucleotide"):
                 raise ValueError(
@@ -2095,15 +2085,15 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 raise ValueError(f"{genes} genes of {gene_length} bp do not fit in a {_length} bp "
                                  f"replicon")
         layouts = [_even_gene_intervals(length, genes, gene_length) for (length, _t) in specs]
-    # Conditioning: a rate carrying DrivenBy reads a driver **per lineage**, so the rates stop being
+    # Conditioning: a rate carrying ScaledBy reads a driver **per lineage**, so the rates stop being
     # one number for the whole live set and become one per lineage. Same machinery as the family
     # resolution — each driver resolves once into a DriverTrajectory keyed by the shared species node
     # id, from a file or an in-memory trait result. With no driven rate this is empty and the loop
     # stays exactly the pooled one, so an undriven run is untouched.
-    driven = {label: [m for m in r.modifiers if isinstance(m, DrivenBy)] for label, r in _rates.items()}
-    ext_driven = {label: [m for m in e.modifiers if isinstance(m, DrivenBy)]
+    driven = {label: [m for m in r.modifiers if isinstance(m, Driven)] for label, r in _rates.items()}
+    ext_driven = {label: [m for m in e.modifiers if isinstance(m, Driven)]
                   for label, e in _extents.items()}
-    by_key: dict[object, "DrivenBy"] = {}
+    by_key: dict[object, "Driven"] = {}
     for mods in (*driven.values(), *ext_driven.values()):
         for m in mods:
             by_key.setdefault(m.key, m)
@@ -2267,9 +2257,15 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
             here rather than in the rate loop is that an extent changes no rate, so it never had to be
             raced to."""
             e = _extents[label]
-            if not e.is_driven:
+            if not e.has_modifiers:
                 return e.base.mean()
-            return e.mean(time=t, drivers={key: resolved[key].value(alive[k], t) for key in resolved})
+            # the same `ctx` the rates were read in, not a thinner one: an extent's modifiers pass
+            # the gate that admits a rate's, so they are promised the same context (see `_ext_ctx`
+            # in the ordered engine, which had the same hole).
+            # `time` fresh, not `ctx`'s: `ctx` predates `t = t_ev`, and an extent is read at the
+            # instant the event fires (see `_ext_ctx` in the ordered engine, same hole).
+            return e.mean(**{**ctx, "time": t},
+                          drivers={key: resolved[key].value(alive[k], t) for key in resolved})
 
         def _pick(label, fallback=None):
             """The affected lineage: drawn by its own effective rate where that rate is driven — the

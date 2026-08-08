@@ -12,7 +12,7 @@ import inspect
 import numpy as np
 import pytest
 
-from zombi2.rates import modifiers as mod
+from zombi2.rates import Weights
 
 from zombi2.genomes.events import gene_from_label, node_from_label
 from zombi2.rates import scope
@@ -253,7 +253,7 @@ def test_deterministic_given_seed():
     assert r.chromosome_events == r2.chromosome_events
 
 
-#: The digest of one seeded run exercising **every** event class, captured BEFORE ``DrivenBy`` was
+#: The digest of one seeded run exercising **every** event class, captured BEFORE ``Driven`` was
 #: wired into this engine. Every driven-path addition is behind ``if any_driven`` / a ``w`` argument
 #: and draws nothing from the rng, so an undriven run must hash the same: the draw order of the plain
 #: path is what a hundred seeded tests, the gallery and every analysis depend on.
@@ -1193,10 +1193,10 @@ def test_the_ordered_choice_slot_refuses_what_the_family_one_refuses():
         simulate_genomes_ordered(sp, transfer=0.1, transfer_to="closest", initial_families=2, seed=1)
     with pytest.raises(ValueError, match="on its own, not a rate"):
         simulate_genomes_ordered(sp, transfer=0.1, initial_families=2, seed=1,
-                                 transfer_to=1.0 * mod.DrivenBy("f.tsv", {"a": 2.0}))
+                                 transfer_to=1.0 * Weights("f.tsv", {"a": 2.0}))
     with pytest.raises(ValueError, match="one recipient rule"):
         simulate_genomes_ordered(sp, transfer=0.1, initial_families=2, seed=1,
-                                 transfer_to=(Distance(), mod.DrivenBy("f.tsv", {"a": 2.0})))
+                                 transfer_to=(Distance(), Weights("f.tsv", {"a": 2.0})))
     with pytest.raises(ValueError, match="silently do nothing"):
         simulate_genomes_ordered(sp, transfer=0.1, initial_families=2, seed=1,
                                  transfer_to=Clades({"A": 0}, Between({("A", "rest"): 1.0})))

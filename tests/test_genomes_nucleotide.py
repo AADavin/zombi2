@@ -14,6 +14,7 @@ import collections
 import numpy as np
 import pytest
 
+from zombi2.rates import Weights
 from zombi2.genomes.chromosomes import chromosome_from_label
 from zombi2.genomes.events import gene_from_label, node_from_label, node_label
 from zombi2.species import simulate_species_tree
@@ -803,10 +804,9 @@ def test_transfer_validation():
         simulate_genomes_nucleotide(sp, transfer=5, transfer_extent=0)
     with pytest.raises(ValueError, match="transfer_to must be"):
         simulate_genomes_nucleotide(sp, transfer=5, transfer_to="nearest")
-    from zombi2.rates import modifiers as mod
     with pytest.raises(ValueError, match="on its own, not a rate"):
         simulate_genomes_nucleotide(sp, transfer=5,
-                                    transfer_to=1.0 * mod.DrivenBy("f.tsv", {"a": 2.0}))
+                                    transfer_to=1.0 * Weights("f.tsv", {"a": 2.0}))
 
 
 # --- transfer_to: steering who receives -----------------------------------------------------------

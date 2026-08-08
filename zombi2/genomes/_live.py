@@ -10,6 +10,9 @@ home, shared by the family core and the ordered engine.
 
 from __future__ import annotations
 
+# re-exported: the three genome engines import it from here, and it is plumbing, not genome code
+from .._runtime.draw import weighted_index  # noqa: F401
+
 import functools
 import gc
 
@@ -38,22 +41,6 @@ def without_cyclic_gc(fn):
             if was_enabled:
                 gc.enable()
     return wrapper
-
-
-def weighted_index(rng, weights, total: float) -> int:
-    """Pick an index in proportion to ``weights``, which sum to ``total``.
-
-    Whenever a rate differs across the living lineages — because it is driven by a trait, or carries
-    per-family weights — the total is summed with those weights, so the lineage has to be **drawn**
-    with them too, or the rate would say one thing and the picking another. All three genome engines
-    need exactly that, so it lives here rather than three times over."""
-    r = float(rng.random()) * total
-    acc = 0.0
-    for i, w in enumerate(weights):
-        acc += w
-        if r < acc:
-            return i
-    return len(weights) - 1                  # float guard: r == total lands on the last
 
 
 def enter(alive, gen, pos, node_id, genome) -> None:

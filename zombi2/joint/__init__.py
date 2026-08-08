@@ -17,7 +17,7 @@ both daughters. Because these drivers only change at events, the rate is piecewi
 them and the race is **exact** — no thinning. (A continuously-diffusing driver — QuaSSE — is not
 available: it makes the rate vary continuously, which needs thinning.)
 
-The mechanism is the same ``mod.DrivenBy`` as conditioning; only the ``driver`` differs — here a
+The mechanism is the same ``mod.ScaledBy`` as conditioning; only the ``driver`` differs — here a
 **live level name** (``"trait"``, ``"genomes:count"``, ``"genomes:<family>"``) rather than a filename.
 Driving *both* birth and death recovers full state-dependent diversification (BiSSE's λ and μ)."""
 
@@ -28,12 +28,13 @@ import pathlib
 from dataclasses import dataclass
 
 
+from .._runtime.draw import weighted_index as _weighted_index
 from .._runtime.summary import write_summary
 from ..genomes import GeneEdge, GeneCopy, FamilyGenomesResult, FamilyGenome
 from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
 from ..rates.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import (DRAWN, INHERITED, DrivenBy, OnTime, OnTotalDiversity, describe,
+from ..rates.modifiers import (DRAWN, INHERITED, Driven, OnTime, OnTotalDiversity, describe,
                                is_implemented)
 
 from ..rates.rate import as_rate
@@ -45,9 +46,9 @@ from ..traits import Change, DiscreteTrait, TraitsResult
 #: The rate grammar a joint run supports on ``birth`` / ``death`` (SPEC §5). Declared, like every
 #: other level, so the gate below cannot fall behind what the engine threads: the loop passes ``time``
 #: and ``diversity`` into every rate and steps its Gillespie at each ``next_change``, so the two
-#: covariates are as real here as at the species level, and ``DrivenBy`` is what makes the run joint
+#: covariates are as real here as at the species level, and ``ScaledBy`` is what makes the run joint
 #: at all. What is missing is missing on purpose — see the rejections in `simulate_joint()`.
-IMPLEMENTED_MODIFIERS = (OnTime, OnTotalDiversity, DrivenBy)
+IMPLEMENTED_MODIFIERS = (OnTime, OnTotalDiversity, Driven)
 
 _MAX_ATTEMPTS = 1000  # survival-conditioned retries before giving up on n_extant
 _GENOME_COUNT = "genomes:count"  # the live gene-content driver source for a count → Curve/Scalar
@@ -121,18 +122,6 @@ class JointResult:
             self.genome.write(directory, outputs=("events", "profiles"), flat=flat)
 
 
-def _weighted_index(rng, weights: list[float], total: float) -> int:
-    """Pick a lineage index in proportion to ``weights`` (which sum to ``total``) — the same
-    per-lineage pick the species and genome engines use when a rate varies across lineages."""
-    r = rng.random() * total
-    acc = 0.0
-    for i, w in enumerate(weights):
-        acc += w
-        if r < acc:
-            return i
-    return len(weights) - 1  # floating-point guard: r == total lands on the last lineage
-
-
 def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, total_time):
     """Grow a forward birth-death tree whose birth/death read a discrete trait that evolves on it.
     Returns ``(tree, species_events, node_values, trait_events)`` — the complete tree, the
@@ -148,7 +137,7 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
     from ..rates.driver import check_mapping_fires
     for label, rate in (("birth", birth_rate), ("death", death_rate)):
         for m in rate.modifiers:
-            if isinstance(m, DrivenBy):
+            if isinstance(m, Driven):
                 check_mapping_fires(m.mapping, states, driver_label=f"{label} (trait)", exhaustive=True)
 
     nodes: dict[int, Node] = {}
@@ -172,7 +161,7 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
     while alive:
         n = len(alive)
         ctx = {"diversity": n, "time": t}
-        # per-lineage rates: birth/death read the lineage's trait state (DrivenBy("trait", …)); the
+        # per-lineage rates: birth/death read the lineage's trait state (ScaledBy("trait", …)); the
         # trait switch rate is the CTMC out-rate for that state (the trait's own dynamics, undriven).
         wb = [birth_rate.effective(lineages=1, drivers={"trait": states[st[k]]}, **ctx) for k in range(n)]
         wd = [death_rate.effective(lineages=1, drivers={"trait": states[st[k]]}, **ctx) for k in range(n)]
@@ -263,7 +252,7 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, driver_n
     from ..rates.driver import check_mapping_fires
     for label, rate in (("birth", birth_rate), ("death", death_rate)):
         for m in rate.modifiers:
-            if not isinstance(m, DrivenBy):
+            if not isinstance(m, Driven):
                 continue
             if m.driver == _GENOME_COUNT:
                 # a count is numeric: {state: factor} names discrete states a number never equals, and
@@ -305,7 +294,7 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, driver_n
     genome_events: list[GeneEdge] = []
     for _ in range(spec.initial_families):  # anonymous families at the origin (t = 0)
         _originate(gen[0], nodes[root], 0.0, genome_events, new_copy, new_family)
-    named: dict[str, int] = {}              # a minted id per declared name (the DrivenBy("genomes:<name>") handles)
+    named: dict[str, int] = {}              # a minted id per declared name (the ScaledBy("genomes:<name>") handles)
     for name in spec.family_names:
         fid = new_family()
         named[name] = fid
@@ -409,21 +398,21 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
     """Grow a tree **and** the driver that drives its speciation, in one run (SPEC §2–4).
 
     ``birth`` and ``death`` are rate specs (per lineage). Make either read the driver with
-    ``mod.DrivenBy(driver, mapping)`` — a **live level name** (not a filename) is what makes this
+    ``ScaledBy(driver, mapping)`` — a **live level name** (not a filename) is what makes this
     *joint* rather than conditioned. Give **exactly one** driver:
 
     - ``trait = traits.discrete(...)`` — a discrete trait drives speciation (BiSSE / MuSSE), read as
-      ``mod.DrivenBy("trait", {"small": 1.0, "large": 2.0})``. Driving both birth and death gives
+      ``ScaledBy("trait", {"small": 1.0, "large": 2.0})``. Driving both birth and death gives
       state-dependent λ *and* μ.
     - ``genome = genomes.family(...)`` — **gene content** drives speciation (``P(Species, Genomes)``),
-      read as the total gene count ``mod.DrivenBy("genomes:count", curve)`` or the presence of a named
-      family ``mod.DrivenBy("genomes:toxin", {"present": 2.0, "absent": 1.0})`` (declare it with
+      read as the total gene count ``ScaledBy("genomes:count", curve)`` or the presence of a named
+      family ``ScaledBy("genomes:toxin", {"present": 2.0, "absent": 1.0})`` (declare it with
       ``family_names=["toxin"]``).
 
     ::
 
         joint.simulate_joint(
-            birth  = 1.0 * mod.DrivenBy("genomes:toxin", {"present": 3.0, "absent": 1.0}),
+            birth  = 1.0 * ScaledBy("genomes:toxin", {"present": 3.0, "absent": 1.0}),
             genome = genomes.family(origination=0.2, loss=0.1, family_names=["toxin"]),
             n_extant = 100, seed = 1)
 
@@ -440,7 +429,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
         raise TypeError(
             "give exactly one driver: trait=traits.discrete(...) OR genome=genomes.family(...)."
         )
-    # collect the DrivenBy driver names on birth/death (a joint model's diversification must be per lineage)
+    # collect the Driven driver names on birth/death (a joint model's diversification must be per lineage)
     driver_names: list[str] = []
     for label, rate in (("birth", birth_rate), ("death", death_rate)):
         if not isinstance(rate.scope, PerLineage):
@@ -455,7 +444,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 raise ValueError(
                     f"{label} carries Drawn(per='family'), but a diversification rate has no gene families — "
                     f"Drawn(per='family') belongs on a genomes rate. To make speciation depend on gene content, "
-                    f"drive it: birth = 1.0 * mod.DrivenBy(\"genomes:count\", ...)."
+                    f"drive it: birth = 1.0 * ScaledBy(\"genomes:count\", ...)."
                 )
             if m.reads == (INHERITED, "lineage"):
                 raise ValueError(
@@ -478,10 +467,10 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 # Declared rather than enumerated here, so a modifier added later cannot slip through.
                 raise ValueError(
                     f"{label} carries {describe(m)}, which a joint run does not support. It "
-                    f"takes OnTime (skyline), OnTotalDiversity (diversity-dependent) and DrivenBy "
+                    f"takes OnTime (skyline), OnTotalDiversity (diversity-dependent) and ScaledBy "
                     f"(the driver that makes the run joint)."
                 )
-            if isinstance(m, DrivenBy):
+            if isinstance(m, Driven):
                 check_not_a_kernel(m.mapping, label=label)
                 if not isinstance(m.driver, str):
                     raise TypeError(
@@ -496,7 +485,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
     if not driver_names:
         raise ValueError(
             "a joint model needs the driver to drive something: give birth (or death) a "
-            "mod.DrivenBy(...). With neither driven, grow the two levels as independent runs instead."
+            "ScaledBy(...). With neither driven, grow the two levels as independent runs instead."
         )
     # the driver spec must match the driver names
     if trait is not None:
@@ -509,7 +498,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
         bad = sorted({s for s in driver_names if s != "trait"})
         if bad:
             raise ValueError(
-                f'with trait=, drive from the live trait — mod.DrivenBy("trait", ...); got driver(s) '
+                f'with trait=, drive from the live trait — ScaledBy("trait", ...); got driver(s) '
                 f"{bad}. (A filename driver is conditioning, not a joint run.)"
             )
     else:
@@ -522,7 +511,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 name = s.split(":", 1)[1]
                 if name not in genome.family_names:
                     raise ValueError(
-                        f'DrivenBy("{s}", ...) names family {name!r}, but genomes.family was not '
+                        f'ScaledBy("{s}", ...) names family {name!r}, but genomes.family was not '
                         f"declared with it — add family_names=[…, {name!r}]."
                     )
                 continue

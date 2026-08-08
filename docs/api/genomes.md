@@ -41,7 +41,7 @@ accepts a directory or a `StreamedRun` wherever it accepts a result.
 `transfer_to` **chooses who receives** a horizontal transfer. It redistributes the transfers without
 changing how many happen. A weight of 0 means "cannot receive", and when every candidate weighs 0 the
 transfer does not fire. The numbers are weights, not rate multipliers, so `transfer_to` takes the
-modifier on its own with no base in front of it — `transfer_to = 1.0 * mod.DrivenBy(...)` is an error.
+modifier on its own with no base in front of it — `transfer_to = 1.0 * Weights(...)` is an error.
 
 ::: zombi2.genomes.Distance
 

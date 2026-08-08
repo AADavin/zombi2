@@ -9,7 +9,7 @@ because it is already an absolute quantity and has no "per what?" to answer::
 ``base`` is a size — a number (the mean) or a `Distribution` — and
 the modifiers are the same dimensionless multipliers a rate takes, scaling the size::
 
-    loss_extent = 800 * mod.DrivenBy(habitat, {"host": 3.0, "free": 1.0})
+    loss_extent = 800 * ScaledBy(habitat, {"host": 3.0, "free": 1.0})
 
 reads as "host-restricted lineages delete stretches three times as long", which is a different
 statement from raising the loss *rate*: one deletes more often, the other deletes in bigger chunks.
@@ -63,9 +63,12 @@ class Extent:
         return self.base.mean() * self._factor(**context)
 
     @property
-    def is_driven(self) -> bool:
+    def has_modifiers(self) -> bool:
         """Whether anything about this extent varies with context. ``False`` is the common case, and
-        lets an engine skip building a context it would not read."""
+        lets an engine skip building a context it would not read.
+
+        Not called ``is_driven``: *driven* is one of the four modifier kinds (SPEC §5), and this is
+        true of an ``OnTime`` too, which is measured."""
         return bool(self.modifiers)
 
 
@@ -100,7 +103,7 @@ def as_extent(spec) -> Extent:
             raise ValueError(
                 "an extent takes no scope — it is already an absolute size, and there is no "
                 "'per what?' to answer (SPEC §6). Write the size and its modifiers alone, "
-                "e.g. 500 * DrivenBy(...).")
+                "e.g. 500 * ScaledBy(...).")
         return Extent(_base(spec.base), tuple(spec.modifiers))
     return Extent(_base(spec))
 

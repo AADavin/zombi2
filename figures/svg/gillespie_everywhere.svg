@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="1240" height="516" viewBox="0 0 1240 516">
+     width="1240" height="460" viewBox="0 0 1240 460">
 <defs>
 </defs>
+<rect x="0" y="0" width="1240" height="460" fill="white" />
+<g transform="translate(0,-56)">
 <rect x="0" y="0" width="1240" height="516" fill="white" />
-<text x="620.0" y="42" font-size="32" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">One engine, many events: it's all Gillespie</text>
 <rect x="50" y="91.0" width="700" height="104" rx="16" ry="16" fill="white" stroke="#1a1a1a" stroke-width="2.4" />
 <text x="195" y="129" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">Species tree</text>
-<text x="195" y="159" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" font-weight="normal">rates: lambda, mu</text>
+<text x="195" y="159" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" font-weight="normal">rates: birth, death</text>
 <path d="M477.0,117 L477.0,135" stroke="#999999" stroke-width="3.8" />
 <path d="M477.0,135 L462.0,151" stroke="#999999" stroke-width="3.8" />
 <path d="M477.0,135 L492.0,151" stroke="#999999" stroke-width="3.8" />
@@ -30,7 +31,7 @@
 <text x="677.0" y="309" font-size="18" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">origination</text>
 <rect x="50" y="371.0" width="700" height="104" rx="16" ry="16" fill="white" stroke="#1a1a1a" stroke-width="2.4" />
 <text x="195" y="409" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">Discrete trait (Mk)</text>
-<text x="195" y="439" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" font-weight="normal">rates: Q-matrix entries</text>
+<text x="195" y="439" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" font-weight="normal">rates: the switch matrix</text>
 <rect x="498.0" y="405" width="20" height="20" fill="#dddddd" stroke="#1a1a1a" stroke-width="1.8" />
 <rect x="537.0" y="405" width="20" height="20" fill="#1a1a1a" />
 <path d="M521.0,415 L535.0,415" stroke="#1a1a1a" stroke-width="2.8" />
@@ -54,4 +55,5 @@
 <path d="M811,283.0 L800.0429327162523,287.89312543671485 L800.0429327162523,278.10687456328515 Z" fill="#8a8a8a" />
 <path d="M750,423 L811,283.0" stroke="#8a8a8a" stroke-width="2.4" />
 <path d="M811,283.0 L811.1090709357574,294.99950430355244 L802.1374524722968,291.09044197304456 Z" fill="#8a8a8a" />
+</g>
 </svg>

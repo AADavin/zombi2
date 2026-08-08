@@ -301,7 +301,7 @@ def _assign_external_fates(leaves: list[Node], names: dict[int, str],
 
 def as_tree(tree, *, level: str) -> Tree:
     """The complete `Tree` a level runs on, from a ``Tree`` or a
-    `SpeciesResult`.
+    `SpeciesResult`. Internal — every level's entry point calls it, and it is not in ``__all__``.
 
     Every level opens with this, so what a level accepts is decided in one place — and anything else
     is refused *here*, where the caller can see it, instead of surfacing later as an ``AttributeError``
