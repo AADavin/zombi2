@@ -98,6 +98,19 @@ multiplies an **extent** at the ordered and nucleotide resolutions. An extent ta
 base to replace. `DrivenBy` alone also goes on `transfer_to`, where it is a normalised **weight** over
 the candidate recipients, taken with no base in front of it (Chapter 9).
 
+**How wide the variation is, and what shape it takes.** A drawn or inherited value takes `spread=σ`,
+which means a lognormal of that log-scale, and the number it means is different in the two: under
+`Drawn` it is the spread of the values themselves, and under `Inherited` it is the step taken at each
+split, which accumulates down the tree. `Drawn` also takes `dist=` instead — any built-in
+distribution, so `Drawn(per='family', dist=Gamma(shape=4.0, scale=0.25))` gives the draws a gamma's
+shape. Whatever the distribution, the draw is divided by its own mean, so what a distribution
+contributes is its shape and not where it sits; give a spread or a dist, never both.
+
+`Inherited` takes one more, `bins=`. With it the value moves in **steps** rather than continuously:
+it takes one of `bins` values on a log-spaced ladder, and a daughter moves to a neighbouring rung or
+stays. `Inherited(per='lineage', spread=0.45, bins=6)` is the discrete-bin clock, where a clade's
+rate is one of a handful rather than anything at all.
+
 Modifiers **stack by multiplication**, so they combine: `1.0 * mod.OnTime({0: 1, 5: 0.3}) *
 mod.Inherited(per='lineage', spread=0.3)` is a rate that both follows a schedule and drifts between lineages.
 

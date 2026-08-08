@@ -28,6 +28,7 @@ import pathlib
 from dataclasses import dataclass
 
 
+from .._runtime.draw import weighted_index as _weighted_index
 from .._runtime.summary import write_summary
 from ..genomes import GeneEdge, GeneCopy, FamilyGenomesResult, FamilyGenome
 from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
@@ -119,18 +120,6 @@ class JointResult:
             self.trait.write(directory, outputs=("values", "events", "tree"))
         if self.genome is not None:
             self.genome.write(directory, outputs=("events", "profiles"), flat=flat)
-
-
-def _weighted_index(rng, weights: list[float], total: float) -> int:
-    """Pick a lineage index in proportion to ``weights`` (which sum to ``total``) — the same
-    per-lineage pick the species and genome engines use when a rate varies across lineages."""
-    r = rng.random() * total
-    acc = 0.0
-    for i, w in enumerate(weights):
-        acc += w
-        if r < acc:
-            return i
-    return len(weights) - 1  # floating-point guard: r == total lands on the last lineage
 
 
 def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, total_time):

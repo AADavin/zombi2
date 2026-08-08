@@ -24,6 +24,7 @@ from ..rates.modifiers import (describe, DRAWN, INHERITED, OnTime, OnTotalDivers
                                check_one_memory, is_implemented, values_at_birth,
                                values_at_split)
 from ..rng import stream
+from .._runtime.draw import weighted_index as _weighted_index
 from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
 from ..rates.rate import as_rate
@@ -194,15 +195,6 @@ def _per_lineage(rate) -> tuple:
     return tuple(m for m, _ in rate.carried_modifiers(unit="lineage"))
 
 
-def _weighted_index(rng, weights: list[float], total: float) -> int:
-    """Pick an index in proportion to ``weights`` (which must sum to ``total``)."""
-    r = rng.random() * total
-    acc = 0.0
-    for i, w in enumerate(weights):
-        acc += w
-        if r < acc:
-            return i
-    return len(weights) - 1  # floating-point guard: r == total lands on the last lineage
 
 
 def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float | None,

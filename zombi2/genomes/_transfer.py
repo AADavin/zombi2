@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from ..rates.mapping import Between, check_kernel_fires
 from ..rates.modifiers import DrivenBy, SetBy
 from ..rates.rate import Rate
-from ..species import _weighted_index
+from .._runtime.draw import weighted_index as _weighted_index
 from ..tree import node_label
 
 
