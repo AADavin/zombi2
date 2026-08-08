@@ -99,6 +99,19 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   seed for seed. This is the rule that made `family_speed=` redundant, and it is now stated in
   SPEC §5.
 
+- **The Conditioning and Joining chapters are rewritten to be read rather than studied**, and the
+  manual gains 82 corrections an audit reproduced one at a time. Chapter 9's eleven conditioned
+  models are a table keyed to its map rather than eleven numbered paragraphs, and it documents
+  `SetBy` and `Clade`, which shipped with no chapter naming them. Chapter 5's first example did not
+  reproduce — `seed=2` prints a different chromosome now, and the figure had drifted from its own
+  caption — and Chapter 1 said the library asks when a Python call names no rates, which it does
+  not. (#325)
+- **Four figures that never reached the docs site now do**, and Appendix A is published for the
+  first time, though Chapter 2 sends a reader to it twice. Chapters 4, 6, 7 and 8 gain a figure
+  each: the four gene-family events, why a gene is never split, where a sequence lives, and the two
+  kinds of trait. Figure 3.2 is regenerated — it printed `FromParent` inside the panel while its
+  caption said `Inherited(per='lineage')`. (#325)
+
 ### Removed
 - **`ByFamily`, `ByLineage` and `FromParent` are gone**, replaced by the general spelling they were
   aliases for: `Drawn(per="family", …)`, `Drawn(per="lineage", …)` and `Inherited(per="lineage", …)`.
@@ -118,6 +131,35 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   independent draws.
 
 ### Fixed
+- **A run's log rounded every rate to six significant figures.** `OnTime`, `Table`, `Scalar` and
+  `Between` printed their numbers with `:g`, and the written form is built from those — so a rate
+  typed as `1.0 * OnTime({0: 1.0, 3: 0.0123456789})` was recorded as `0.0123457`, a different model,
+  with nothing to say so. Only the base was exact. They print with `repr(float)` now, the shortest
+  text that reads back as the same float, so a round number still reads `1.0`; the visible change is
+  that a breakpoint prints `0.0` rather than `0`. (#325)
+- **`transfer_to = SetBy(...)` ran as an ordinary weighting instead of being refused.** A choice
+  weights the candidate recipients against each other and only the ratios are read, so there is no
+  base for a driver to replace — but `SetBy` is a `DrivenBy`, and the check that admits a driven
+  `transfer_to` tests for `DrivenBy`. (#325)
+- **A `SetBy` rate was written in a form that will not parse.** The written form put a base in front
+  of every modifier, which is exactly the spelling `SetBy` refuses, so a log naming a replaced base
+  named a rate you could not run again. (#325)
+- **An extent was read in a thinner context than its gate promises.** One helper admits a modifier
+  onto a rate and onto an extent, and `implemented_for` publishes one context per engine, but the
+  extent sites passed the time alone. A modifier of your own read `copies=0, lineages=0,
+  chromosomes=0` there while reading the real counts on a rate. (#325)
+- **`traits.discrete` never asked when its rate next changes.** Its stretch horizon came from the
+  drivers alone, so a rate that varies with time was read once at the start of a stretch and held
+  for the rest of the branch. Only a modifier of your own reaches it, and Appendix A publishes that
+  engine name as one an `implemented_for` may claim. (#325)
+- **A streamed genomes run left the previous run's gene trees behind.** Every other writer of a
+  per-family directory empties it first; `--stream` writes each family as it goes and never did, so
+  re-running with fewer families left the extra trees in place. (#325)
+- **The sequence level's refusal named two deleted classes.** A substitution rate it cannot read was
+  answered with "it takes a lineage clock — ByLineage or FromParent", so a user doing what the error
+  said got an `AttributeError`. It names the cells now. (#325)
+- **A modifier of your own can no longer vouch for a `SetBy`** either, beside the carried value it
+  already could not: replacing a base is a capability three levels have and four do not. (#325)
 - **A modifier of your own can no longer vouch for a value the engine has to draw.**
   `Modifier.implemented_for` lets a third-party modifier declare which engines it works with, which
   it can promise for a factor it *computes* — that promise is the modifier's alone to keep. It
