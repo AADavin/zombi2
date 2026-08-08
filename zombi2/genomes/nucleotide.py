@@ -2262,7 +2262,10 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
             # the same `ctx` the rates were read in, not a thinner one: an extent's modifiers pass
             # the gate that admits a rate's, so they are promised the same context (see `_ext_ctx`
             # in the ordered engine, which had the same hole).
-            return e.mean(**ctx, drivers={key: resolved[key].value(alive[k], t) for key in resolved})
+            # `time` fresh, not `ctx`'s: `ctx` predates `t = t_ev`, and an extent is read at the
+            # instant the event fires (see `_ext_ctx` in the ordered engine, same hole).
+            return e.mean(**{**ctx, "time": t},
+                          drivers={key: resolved[key].value(alive[k], t) for key in resolved})
 
         def _pick(label, fallback=None):
             """The affected lineage: drawn by its own effective rate where that rate is driven — the

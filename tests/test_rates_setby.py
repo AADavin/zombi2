@@ -223,3 +223,21 @@ class TestTheHolesAnAdversarialReviewFound:
         genomes.simulate_genomes_family(
             tree, transfer=0.5, initial_families=6, seed=2,
             transfer_to=ScaledBy(habitat, {"cave": 3.0, "surface": 1.0}))
+
+
+def test_a_modifier_of_your_own_cannot_vouch_for_a_replaced_base():
+    """`implemented_for` lets a third-party modifier declare which engines read it, and it may
+    promise that for a factor it *computes*. Replacing a base is not that: it is a capability three
+    levels have and four do not, so a `SetBy` subclass admitted through the hatch would be honoured
+    nowhere. The same reason a carried value cannot go through it."""
+    from zombi2.rates.modifiers import is_implemented, matches_declared
+
+    class Mine(SetBy):
+        implemented_for = ("species", "genomes.family", "traits.discrete")
+
+    m = Mine("h.tsv", {"cave": 1.0})
+    for engine in Mine.implemented_for:
+        assert not is_implemented(m, (), engine), f"the hatch vouched for a SetBy at {engine}"
+
+    # a level that names SetBy still takes it — the hatch is what closed, not the gate
+    assert matches_declared(SetBy("h.tsv", {"cave": 1.0}), (SetBy,))

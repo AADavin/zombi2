@@ -133,8 +133,12 @@ def run(args, parser):
                  if args.family_names else None)
         counts = ({} if args.initial_families is None
                   else {"initial_families": args.initial_families})
-        driver = dict(genome=family(duplication=args.duplication, loss=args.loss,
-                                    origination=args.origination, family_names=names, **counts))
+        spec = family(duplication=args.duplication, loss=args.loss,
+                      origination=args.origination, family_names=names, **counts)
+        # the log is written from `args`, and the sentinel is not a number anyone ran with: put back
+        # what the spec resolved to, so the record says what the run did
+        args.initial_families = spec.initial_families
+        driver = dict(genome=spec)
 
     t0 = time.perf_counter()
     result = simulate_joint(birth=args.birth, death=args.death, n_extant=args.n_extant,

@@ -152,15 +152,16 @@ the context that engine has. Every engine passes `time` and `lineages`; the rest
 | `species` | `time`, `lineages`, `diversity` |
 | `genomes.family` | `time`, `lineages`, `copies`, `drivers` |
 | `genomes.ordered` | `time`, `lineages`, `copies`, `chromosomes`, `drivers` |
-| `genomes.nucleotide` | `time`, `lineages`, `chromosomes`, `drivers` |
+| `genomes.nucleotide` | `time`, `lineages`, `copies`, `chromosomes`, `drivers` |
 | `traits.continuous` | `time`, `lineages`, `diversity`, `drivers` |
 | `traits.discrete` | `time`, `lineages`, `drivers` |
 | `joint` | `time`, `lineages`, `diversity`, `drivers` |
 
 Take `**_` and default every key you read. A key your engine does not supply never arrives, and the
 genome engines pass `drivers` only on a rate that is itself driven, so it can be missing even on an
-engine that lists it. What you return multiplies the rate, so 1.0 leaves it alone, 2.0 doubles it,
-0.0 switches it off.
+engine that lists it. One key is there and is always 0: `copies` at the nucleotide resolution, where
+gene events are counted per lineage rather than per copy, so there is no copy count to pass. What you
+return multiplies the rate, so 1.0 leaves it alone, 2.0 doubles it, 0.0 switches it off.
 
 **An `implemented_for` list, naming the engines that read it.** A modifier an engine does not read
 would silently return 1.0 and hand you a run that is not the model you asked for, so a level takes
@@ -377,13 +378,13 @@ The first is **sequence substitution along a branch**. Once a gene tree and its 
 settled, evolving a sequence down a branch does not require the individual substitution events, only the
 state at each end. The probability of ending in each state after a branch of length $t$ is given exactly
 by the matrix exponential $P(t) = e^{Qt}$, so ZOMBI2 draws each site's descendant state straight from
-$P(t)$ in one step ([Sequences](#sequences)). Running Gillespie here would generate,
+$P(t)$ in one step (Chapter 7). Running Gillespie here would generate,
 and then discard, thousands of intermediate substitutions.
 
 The second is a **continuous trait**. Brownian motion has no events to fire, since it moves at every instant,
 so there is nothing for the loop to enumerate. ZOMBI2 walks the tree branch by branch instead, in
 preorder, and draws one normal per branch: mean the parent's end value, variance the exact integral of
-$\sigma^2$ along the branch ([Traits](#traits)). With a constant $\sigma^2$ that integral is just
+$\sigma^2$ along the branch (Chapter 8). With a constant $\sigma^2$ that integral is just
 $\sigma^2 \times$ branch length, and the values that come out have the Brownian structure exactly —
 variance $\sigma^2 \times$ root-to-tip depth at a tip, covariance $\sigma^2 \times$ shared path length
 between two — with no event drawn anywhere. A $\sigma^2$ that varies along the branch changes only the

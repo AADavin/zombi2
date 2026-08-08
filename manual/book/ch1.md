@@ -79,12 +79,14 @@ out/species/    species_complete.nwk   the tree, extinct lineages kept
                 species_extant.nwk     the survivors only
                 species_events.tsv     every speciation and extinction, with its time
                 species_fates.tsv      which tips survived, died out, or went unsampled
+                species_summary.json   what the run produced, in numbers
                 species.log            what was run, and with which parameters
 out/genomes/    genome_events.tsv      every duplication, transfer, loss and origination
                 genomes.tsv            the genes each species ends up with, ancestors included
                 profiles.tsv           gene-family copy numbers, extant species only
                 initial_genome.tsv     the genome the run started from
                 gene_trees/            one true gene tree per family
+                genome_summary.json    what the run produced, in numbers
                 genomes.log
 ```
 

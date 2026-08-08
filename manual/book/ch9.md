@@ -145,7 +145,7 @@ Three of those need a word more.
 
 Two things are refused, for different reasons.
 
-**`Drawn(per='family')` and `DrivenBy` cannot be set in the same run**, at the family or ordered resolution. One weights the lineages by a driver; the other weights by family. Setting both means weighting by the product, which is not what either says. That is a limit of the code.
+**`Drawn(per='family')` and a `DrivenBy` on a rate cannot be set in the same run**, at the family or ordered resolution. One weights the lineages by a driver; the other weights by family. Setting both on the rates means weighting by the product, which is not what either says. A driven *extent*, or a driven `transfer_to`, is a different axis and runs alongside a per-family draw unchanged. That is a limit of the code.
 
 **A genome cannot be driven by a sequence**, and that is a limit of the model. A sequence was grown along the gene trees the genome run produced, so a genome reading it back would condition a run on its own output. Those cells are shaded on the map, and the pair can only be joined (Chapter 10).
 
@@ -217,7 +217,7 @@ zombi2 traits size/ --from out/ --kind discrete --name diet --states plant,fish 
     --switch "0.2 * DrivenBy('out/traits/trait_events.tsv', {'aquatic': 5.0, 'terrestrial': 1.0})"
 ```
 
-Only a trait driver and a clade have a written form — a path to an event log, and the clade's own literal — so every other cell of the map is Python only. That is the asterisk on the map.
+Only a trait driver and a clade have a written form — a path to the file the trait wrote, and the clade's own literal — so every other cell of the map is Python only. That is the asterisk on the map.
 
 ## A sequence as the driver
 
@@ -260,4 +260,4 @@ What this does **not** reach is a pattern — a motif, a site. A composition is 
 
 ## Outputs
 
-Conditioning adds no format. A conditioned run writes the target level's own files, listed in that level's own chapter, and adds one record: `conditioned_on`, naming the levels this run reads through `DrivenBy`, whether on a rate, an extent or `transfer_to`, one per line. When the driver was grown in the same run directory its own files sit beside them, so the pairing that produced the pattern is kept on disk. Appendix B gives the columns and the formats.
+Conditioning adds no format. A conditioned run writes the target level's own files, listed in that level's own chapter, and adds one record: `conditioned_on`, naming the levels this run reads through `DrivenBy`, on a rate or on `transfer_to`, one per line. When the driver was grown in the same run directory its own files sit beside them, so the pairing that produced the pattern is kept on disk. Appendix B gives the columns and the formats.

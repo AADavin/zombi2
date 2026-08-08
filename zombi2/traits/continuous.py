@@ -81,7 +81,7 @@ def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "
     A modifier that is constant along the branch — an inherited value, the variable-rates σ² drift —
     factors straight out of either integral, so it composes with OU for free.
 
-    ``inherited`` is the lineage's an inherited value factor (variable-rates
+    ``inherited`` is the lineage's inherited-value factor (variable-rates
     BM), constant along the branch, threaded in by the caller and passed through to the rate; it
     factors straight out of the integral. A rate with no inherited value ignores it.
 

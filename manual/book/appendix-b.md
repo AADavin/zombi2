@@ -66,6 +66,7 @@ writes, which are left as they are.
 | Event log | `species_events.tsv` | TSV | yes | every speciation/extinction — `time` · `kind` · `parents` · `children`, one row per event. A `speciation` row is the lineage that ended and its two children, `;`-packed (`n0` → `n1;n2`); an `extinction` row is the dying lineage as the parent with no children. A lineage that died is written `e<id>` |
 | Tip fates | `species_fates.tsv` | TSV | yes | each tip's resolved fate — `lineage` · `fate` (`extant` / `extinct` / `unsampled`) |
 | Fossils | `species_fossils.tsv` | TSV | yes¹ | sampled fossil lineages — `lineage` · `time` |
+| Summary | `species_summary.json` | JSON | yes | what the run produced — counts by fate, tree height, stem, total branch length, the realised birth and death rates, and the seed |
 
 ¹ written only if fossil sampling recovered any.
 
@@ -80,6 +81,7 @@ writes, which are left as they are.
 | Conditioning | `conditioned_on` | text | conditioned | the levels this run reads via `DrivenBy`, one per line, whether a rate or `transfer_to`. Written only when something was conditioned. Re-running a driver level then refuses rather than leaving this run stale, unless you pass `--force` |
 | Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | each family's true genealogy, in `genomes/gene_trees/`. Leaves are `n<species>_g<copy>`; internal nodes are labelled `<event>_n<species>` (`duplication_n45`, `transfer_n45`), naming the event that ended that gene and the branch it was on. A family with no surviving copy writes no `_extant` file |
 | Tip names | `names.tsv` | TSV | external tree | `node` · `name`, mapping ZOMBI's `n<id>` back to the labels you supplied. Written only when the tree came from `--from` with its own tip labels; it is the join from every other output back to your taxa |
+| Summary | `genome_summary.json` | JSON | yes | what the run produced — events by kind, families born, surviving and died out, genes per genome, `empty_genomes`, whether the family-size cap bound, and the seed |
 | Species tree | `species_complete.nwk` | Newick | yes (Python) | the tree the run evolved along. Every other file here is indexed by its node labels, so the directory is not readable — by anyone or by `genomes.read_run()` — without it. `result.write()` writes it by default, so a directory written from Python stands alone; `zombi2 genomes` leaves it out — except under `--stream` — because a run already keeps one copy at `species/species_complete.nwk`, shared by every level |
 | Tip fates | `species/species_fates.tsv` | TSV | external tree | each tip's resolved fate — `lineage` · `fate`, in the format the species level writes. Written beside the copied tree, only when the tree came from `--from` |
 | Family origination | `.gene_trees[f].origination` | float | Python | when the family was founded — where its gene tree's root branch begins |
@@ -212,6 +214,7 @@ ancestral sequences.
 | Genomes | `genome_<lineage>.fasta` | FASTA | yes | one file per **node** of the complete tree — extant, extinct and ancestral alike — one record `<lineage>_chr<c>` per chromosome: the assembled genome, its blocks concatenated in physical order, in `genomes/`. **Nucleotide genome runs only**: a family or ordered run has gene families, not coordinates, so there is nothing to lay out, and no `genomes/` is created. The biggest thing this level writes — a whole genome times every node |
 | Initial genome | `genome_initial.fasta` | FASTA | yes | the genome the run **started** with, as sequence — the state the stem leads *from*, which is not any node's. In `genomes/` with the rest, being a whole-genome FASTA like they are. Nucleotide runs only |
 | Driver views | `.gc()` · `.composition(letters)` | driver | Python | the share of a lineage's sequence that is those letters, pooled over all its families, for a conditioned `DrivenBy` (Ch9) — GC content, or any amino-acid frequency. A number, so it takes a `Curve` or a `Scalar`; it drives a trait or a further sequence run, never the genome its gene trees came from |
+| Summary | `sequences_summary.json` | JSON | yes | what came out — `unit` (`family` or `block`), families with sequences, how many sequences, sites min/max, `mean_pairwise_identity` (the saturation check the command warns on), assembled genomes, and the seed |
 
 On a **nucleotide** genome run every block evolves, spacer as well as gene, so a genome of *b* blocks
 writes *b* alignments and *b* phylograms — that is what makes the genomes assemblable. The number in

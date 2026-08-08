@@ -17,6 +17,16 @@ from .modifiers import CARRIED_KINDS, Modifier, SetBy
 from .scope import Scope
 
 
+class RateCompositionError(TypeError):
+    """A `*` the grammar itself refuses, with a message written for that mistake.
+
+    A `TypeError` so nothing that catches one stops catching it, and its own class so the written
+    form can tell it from CPython's ``unsupported operand type(s)``: the parser re-raises ours
+    verbatim, because the sentence says what to write instead, and answers CPython's generically,
+    because "Rate and float" is about types rather than about the rate.
+    """
+
+
 @dataclass(frozen=True)
 class Rate:
     """``base × scope × modifiers``, not yet evaluated. Internal — never built by users directly."""
@@ -104,7 +114,7 @@ class Rate:
 
     def __mul__(self, other: object):
         if isinstance(other, SetBy):
-            raise TypeError(
+            raise RateCompositionError(
                 "SetBy replaces the base, so it cannot follow one: everything to its left — the "
                 "number, the scope, any factors — is a base it would silently discard. Write it "
                 "first instead: SetBy(driver, mapping) * ScaledBy(...). `0.25 * SetBy(...)` is "

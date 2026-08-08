@@ -35,7 +35,7 @@ from . import modifiers as _modifiers
 from . import values as _values
 from . import verbs as _verbs
 from . import scope as _scope
-from .rate import Rate
+from .rate import Rate, RateCompositionError
 
 #: the names an expression may call — the scope wrappers, the modifiers, and the mappings.
 #: The abstract bases (``Scope``, ``Modifier``, ``Mapping``) are deliberately absent: they are not
@@ -121,11 +121,10 @@ def _node(node: ast.AST, text: str):
             # `SetBy.__rmul__` and `Rate.__mul__` raise TypeError with a message written for exactly
             # this mistake — "SetBy replaces the base, so there is no base to write in front of it".
             # Replacing it with the generic one below threw away the sentence that says what to do.
-            # Only ours are trusted, and the test for that is that both operands are things the
-            # grammar knows: CPython's own operand TypeError ("can't multiply sequence by non-int")
-            # arises when one of them is not, and says nothing a reader of a rate can act on.
-            grammar = (int, float, Rate, _modifiers.Modifier, _scope.Scope)
-            if isinstance(left, grammar) and isinstance(right, grammar):
+            # Only ours, told apart by its class rather than by the operand types: two grammar
+            # objects can also fail with CPython's own "unsupported operand type(s)" — `Rate * Rate`,
+            # `PerCopy * PerCopy` — and that message says nothing a reader of a rate can act on.
+            if isinstance(e, RateCompositionError):
                 raise _fail(str(e), text) from None
             raise _fail(
                 f"cannot compose {type(left).__name__} with {type(right).__name__} — '*' puts a "

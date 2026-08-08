@@ -90,7 +90,7 @@ called, and it refuses rather than ignoring you:
 | `genomes.family` | `time`, `lineages`, `copies`, `drivers` |
 | `genomes.ordered` | `time`, `lineages`, `copies`, `chromosomes`, `drivers` |
 | `genomes.nucleotide` | `time`, `lineages`, `copies`, `chromosomes`, `drivers` |
-| `traits.continuous` | `time`, `lineages`, `diversity`, `inherited`, `drivers` |
+| `traits.continuous` | `time`, `lineages`, `diversity`, `drivers` |
 | `traits.discrete` | `time`, `lineages`, `drivers` |
 | `joint` | `time`, `lineages`, `diversity`, `drivers` |
 
@@ -104,9 +104,9 @@ curve is frozen at whatever it was when the last event fired.
 The rate *text* grammar (a `--birth` flag, a `--params` file) knows only the built-in names, so a
 modifier of your own is Python-only, as an object you construct has to be.
 
-**Three worked examples** — a rate following a measured curve, density dependence in the gene pool,
-and rearrangement scaling with the karyotype — are in
-[Appendix A, "Writing your own"](../rates.md#writing-your-own).
+**A worked example** — `OnCrowding`, a death rate that rises as the tree fills — is in
+[Appendix A, "Writing your own"](../rates.md#writing-your-own), with the two things a modifier of
+your own has to provide and the one it may.
 
 ::: zombi2.rates.modifiers
 

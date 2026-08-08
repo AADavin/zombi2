@@ -1523,9 +1523,13 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             is admitted onto an extent by the same gate that admits it onto a rate. Handing an
             extent a thinner context meant one gate certifying two different contracts: a modifier
             written the documented way read zeros, and one with a required keyword died mid-run."""
+            # `ctx` was snapshotted at the top of the loop, before `t` advanced to the firing
+            # instant, so `time` has to be taken fresh: an extent's own breakpoints are kept out of
+            # the horizon, so a schedule's breakpoint routinely falls inside a stretch, and reading
+            # the stale `t` would size the event on the wrong side of it.
             if not any_ext_driven:
-                return dict(ctx)
-            return {**ctx,
+                return {**ctx, "time": t}
+            return {**ctx, "time": t,
                     "drivers": {key: resolved[key].value(alive[k], t) for key in resolved}}
 
         if total > 0.0:

@@ -21,7 +21,8 @@ import drawsvg as draw
 from zombi_style import save, FONT, INK, MUTED, ACCENT, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 
-W, H = 1000, 900
+_LIFT = 56          # the band the in-figure title used to take
+W, H = 1000, 844
 CX = 430                 # centre x of the main column
 BW, BH = 380, 74         # box width / height
 
@@ -57,9 +58,11 @@ def box(d, cy, rows, *, fill="white", stroke=INK, rx=14, w=BW, h=BH):
 
 
 def render():
-    d = draw.Drawing(W, H, origin=(0, 0))
-    d.append(draw.Rectangle(0, 0, W, H, fill="white"))
-    text(d, "The Gillespie loop", CX, 40, FS_TITLE, weight="bold")
+    # No title inside the figure (figures/STYLE.md): the manual captions every one, and a title
+    # repeats the caption in a second voice a few millimetres above it. `_LIFT` is the band the
+    # title used to occupy, taken back off the top so the drawing keeps its own coordinates.
+    d = draw.Drawing(W, H + _LIFT, origin=(0, 0))
+    d.append(draw.Rectangle(0, 0, W, H + _LIFT, fill="white"))
 
     y_start = 118
     y_rate = 250
@@ -116,7 +119,13 @@ def render():
          fill=MUTED, weight="bold")
 
     name = "gillespie_loop"
-    save(d, name)
+    lifted = draw.Group(transform="translate(0,-56)")
+    for element in d.elements:
+        lifted.append(element)
+    out = draw.Drawing(W, H, origin=(0, 0))
+    out.append(draw.Rectangle(0, 0, W, H, fill="white"))
+    out.append(lifted)
+    save(out, name)
 
 
 if __name__ == "__main__":
