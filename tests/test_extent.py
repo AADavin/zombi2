@@ -228,7 +228,7 @@ def test_an_extent_is_read_in_the_same_context_as_a_rate():
             self.where = where
 
         def factor(self, *, time=0.0, copies=0, lineages=0, chromosomes=0, **_):
-            seen[self.where].append((copies, lineages, chromosomes))
+            seen[self.where].append((copies, lineages, chromosomes, time))
             return 1.0
 
     tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=1).complete_tree
@@ -237,4 +237,79 @@ def test_an_extent_is_read_in_the_same_context_as_a_rate():
 
     assert seen["rate"] and seen["extent"]
     # the counts an extent is given are the run's, not zeros
-    assert any(c or ln or ch for c, ln, ch in seen["extent"])
+    assert any(c or ln or ch for c, ln, ch, _ in seen["extent"])
+
+
+def test_an_extent_is_read_at_the_instant_the_event_fires():
+    """An extent is sampled when the event fires, not when the Gillespie stretch it fell in began.
+    An extent's own breakpoints are deliberately kept out of the horizon, so a schedule's breakpoint
+    routinely falls *inside* a stretch, and reading the stretch's start time would size the event on
+    the wrong side of it. Threading the rate loop's whole context to the extent is what made that
+    possible: the context is snapshotted before `t` advances to the firing instant."""
+    from zombi2 import genomes, species
+    from zombi2.rates import modifiers as mod
+
+    tree = species.simulate_species_tree(birth=0.4, death=0.05, total_time=12.0,
+                                         seed=3).complete_tree
+    times: list[float] = []
+
+    class RecordsTime(mod.Modifier):
+        implemented_for = ("genomes.ordered",)
+
+        def factor(self, *, time=0.0, **_):
+            times.append(time)
+            return 1.0
+
+    run = genomes.simulate_genomes_ordered(
+        tree, inversion=0.3, inversion_extent=8 * RecordsTime(),
+        initial_families=40, chromosomes=1, seed=11)
+
+    fired = {round(e.time, 9) for e in run.rearrangements}
+    assert times, "the extent's modifier was never read"
+    assert all(round(t, 9) in fired for t in times), \
+        "an extent was read at a time no event fired at — the stretch's start, not the event's"
+
+
+def test_a_scheduled_extent_changes_size_on_the_right_side_of_its_breakpoint():
+    """The consequence of the above, on a shipped modifier. A schedule that collapses the extent
+    after time 2 must give small events after time 2 and full-sized ones before it — which is only
+    true if the schedule is read at the firing instant."""
+    from zombi2 import genomes, species
+    from zombi2.rates import modifiers as mod
+
+    tree = species.simulate_species_tree(birth=0.4, death=0.05, total_time=12.0,
+                                         seed=3).complete_tree
+    run = genomes.simulate_genomes_ordered(
+        tree, inversion=0.3, inversion_extent=20 * mod.OnTime({0: 1.0, 2.0: 0.05}),
+        initial_families=40, chromosomes=1, seed=11)
+
+    early = [e.length for e in run.rearrangements if e.time < 2.0]
+    late = [e.length for e in run.rearrangements if e.time > 2.0]
+    assert early and late
+    assert sum(early) / len(early) > 3 * (sum(late) / len(late))
+
+
+def test_the_nucleotide_engine_reads_an_extent_the_same_way():
+    """The same fix landed at two sites, and only the ordered one was covered. A future edit could
+    put the thin context back at the nucleotide site and nothing would say so."""
+    from zombi2 import genomes, species
+    from zombi2.rates.modifiers import Modifier
+
+    seen: list[tuple] = []
+
+    class Records(Modifier):
+        implemented_for = ("genomes.nucleotide",)
+
+        def factor(self, *, time=0.0, lineages=0, chromosomes=0, **_):
+            seen.append((lineages, chromosomes, time))
+            return 1.0
+
+    tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=1).complete_tree
+    genomes.simulate_genomes_nucleotide(
+        tree, genes=4, gene_length=200, root_length=3000,
+        loss=0.6, loss_extent=100 * Records(), seed=2)
+
+    assert seen, "the extent's modifier was never read"
+    # the counts are the run's, not zeros — `copies` is excluded, being 0 by design here
+    assert any(ln or ch for ln, ch, _ in seen)
+    assert all(t > 0.0 for _, _, t in seen), "an extent was read at time 0, i.e. the stretch's start"

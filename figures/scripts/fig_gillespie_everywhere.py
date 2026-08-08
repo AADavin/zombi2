@@ -25,7 +25,8 @@ import drawsvg as draw
 from zombi_style import save, FONT, INK, MUTED, ACCENT, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 
-W, H = 1240, 516
+_LIFT = 56          # the band the in-figure title used to take
+W, H = 1240, 460
 
 
 def text(d, s, x, y, size, *, anchor="middle", fill=INK, weight="normal"):
@@ -101,9 +102,11 @@ FS_CAP = 18                 # glyph caption size (a touch smaller than the block
 
 
 def render():
-    d = draw.Drawing(W, H, origin=(0, 0))
-    d.append(draw.Rectangle(0, 0, W, H, fill="white"))
-    text(d, "One engine, many events: it's all Gillespie", W / 2, 42, FS_TITLE, weight="bold")
+    # No title inside the figure (figures/STYLE.md): the manual captions every one, and a title
+    # repeats the caption in a second voice a few millimetres above it. `_LIFT` is the band the
+    # title used to occupy, taken back off the top so the drawing keeps its own coordinates.
+    d = draw.Drawing(W, H + _LIFT, origin=(0, 0))
+    d.append(draw.Rectangle(0, 0, W, H + _LIFT, fill="white"))
 
     for (title, rate, events), cy in zip(LEVELS, YS):
         d.append(draw.Rectangle(CARD_X, cy - CARD_H / 2, CARD_W, CARD_H, rx=16, ry=16,
@@ -152,7 +155,13 @@ def render():
         arrowhead(d, ex0 - 3, ey0 + eh / 2, CARD_X + CARD_W, cy, MUTED, ah=12.0)
 
     name = "gillespie_everywhere"
-    save(d, name)
+    lifted = draw.Group(transform="translate(0,-56)")
+    for element in d.elements:
+        lifted.append(element)
+    out = draw.Drawing(W, H, origin=(0, 0))
+    out.append(draw.Rectangle(0, 0, W, H, fill="white"))
+    out.append(lifted)
+    save(out, name)
 
 
 if __name__ == "__main__":

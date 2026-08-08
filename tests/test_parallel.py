@@ -337,3 +337,25 @@ def test_sequences_rate_variation_is_worker_count_invariant(genome_run):
     def run(p):
         return simulate_sequences(genome_run, model=model, length=200, seed=7, parallel=p)
     assert _seq_fingerprint(run(1)) == _seq_fingerprint(run(3))
+
+
+def test_a_streamed_rerun_clears_the_gene_trees_of_the_last_one(tmp_path):
+    """Every writer of a per-family directory empties it first, so its contents describe one run and
+    nothing else. A streamed run writes each family straight to disk as it goes rather than through
+    `.write()`, and so never did: re-running into the same directory with fewer families left the
+    previous run's trees sitting beside the new ones, and nothing said so."""
+    from zombi2 import genomes, species
+
+    tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=1).complete_tree
+    out = tmp_path / "stream"
+
+    genomes.simulate_genomes_family(tree, initial_families=40, duplication=0.2, loss=0.2,
+                                    seed=1, stream_to=str(out), outputs=("gene_trees",))
+    many = len(list((out / "gene_trees").iterdir()))
+
+    genomes.simulate_genomes_family(tree, initial_families=5, duplication=0.2, loss=0.2,
+                                    seed=2, stream_to=str(out), outputs=("gene_trees",))
+    few = len(list((out / "gene_trees").iterdir()))
+
+    assert many > few, "the second run must write fewer trees for this to prove anything"
+    assert few <= 2 * 5, f"{few} gene trees for 5 families — the first run's are still there"

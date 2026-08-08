@@ -2181,3 +2181,30 @@ def test_fasta_is_refused_on_a_family_run(tmp_path):
         main(["genomes", str(tmp_path), "--duplication", "0.2", "--loss", "0.25",
               "--origination", "0.5", "--fasta", str(fasta), "--seed", "1"])
     assert e.value.code == 2
+
+
+def test_joint_takes_at_speciation_and_the_api_default_for_initial_families(tmp_path):
+    """Two gaps in `zombi2 joint`'s driver flags. `at_speciation=` is a `traits.discrete` option, so
+    ClaSSE was reachable from Python and not from the command line, with nothing saying so. And
+    `--initial-families` defaulted to 0 here while `genomes.family()` and `zombi2 genomes` default
+    to 100 — the flag's 0 was doing double duty as the "was it given?" sentinel, which is a value a
+    user may mean."""
+    import json
+
+    out = tmp_path / "classe"
+    assert main(["joint", str(out), "--death", "0.2", "--states", "small,large",
+                 "--switch", "0.3", "--at-speciation", "0.5", "--n-extant", "40", "--seed", "1",
+                 "--birth", "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})"]) == 0
+    events = (out / "traits" / "trait_events.tsv").read_text()
+    assert "on_speciation" in events, "--at-speciation put no jump at a split"
+
+    gene = tmp_path / "content"
+    assert main(["joint", str(gene), "--origination", "0.2", "--loss", "0.1",
+                 "--n-extant", "20", "--seed", "1",
+                 "--birth", "1.0 * DrivenBy('genomes:count', Scalar(0.01))"]) == 0
+    summary = json.loads((gene / "joint_summary.json").read_text())
+    # `initial` is the count of families present at time 0 — the root genome's
+    assert summary["genome"]["events"]["initial"] == 100, summary["genome"]["events"]
+
+    # and the log records the number the run used, not the sentinel
+    assert "initial_families\tNone" not in (gene / "species" / "joint.log").read_text()

@@ -262,14 +262,15 @@ class Modifier:
     #: ``genomes.family``     ``time``, ``lineages``, ``copies``, ``drivers``
     #: ``genomes.ordered``    ``time``, ``lineages``, ``copies``, ``chromosomes``, ``drivers``
     #: ``genomes.nucleotide`` ``time``, ``lineages``, ``copies``, ``chromosomes``, ``drivers``
-    #: ``traits.continuous``  ``time``, ``lineages``, ``diversity``, ``inherited``, ``drivers``
+    #: ``traits.continuous``  ``time``, ``lineages``, ``diversity``, ``drivers``
     #: ``traits.discrete``    ``time``, ``lineages``, ``drivers``
     #: ``joint``              ``time``, ``lineages``, ``diversity``, ``drivers``
     #: =====================  =================================================================
     #:
     #: The genome engines thread ``drivers`` only when some rate or extent in the run is driven, so a
-    #: modifier that reads it must default its key. An **extent** is read in the same context as its
-    #: level's rates, so one list serves both.
+    #: modifier that reads it must default its key. At the nucleotide resolution ``copies`` is always
+    #: 0 — gene events there are counted per lineage, not per copy, so there is no copy count to
+    #: pass. An **extent** is read in the same context as its level's rates, so one list serves both.
     #:
     #: Two things this cannot vouch for, whatever it names. A **carried** value — drawn or inherited
     #: — is produced by the engine when a unit is born and handed back, which only the engine can do,
@@ -744,7 +745,8 @@ class SetBy(DrivenBy):
 
     def __rmul__(self, other: object):
         if isinstance(other, (int, float)) and not isinstance(other, bool):
-            raise TypeError(
+            from .rate import RateCompositionError
+            raise RateCompositionError(
                 f"SetBy replaces the base, so there is no base to write in front of it: use "
                 f"`SetBy(driver, mapping)` on its own rather than `{other!r} * SetBy(...)`. If you "
                 f"meant to scale a base you state yourself, that is ScaledBy.")
@@ -752,7 +754,8 @@ class SetBy(DrivenBy):
 
     def __mul__(self, other: object):
         if isinstance(other, SetBy):
-            raise TypeError(
+            from .rate import RateCompositionError
+            raise RateCompositionError(
                 "a rate carries one SetBy: each of two would claim to be the whole number, and no "
                 "order of application is more right than the other. Keep one; if you meant to scale "
                 "the result, that is ScaledBy, which multiplies and composes freely.")

@@ -47,18 +47,14 @@ theme:
         icon: material/weather-sunny
         name: Switch to light mode
 
-# TEMPORARY — until the chapter figures are wired into the site.
-# The chapters reference their figures as `figures/<name>_print.png`: the flattened raster the PDF
-# build generates from `manual/book/figures/<name>.svg` and never commits, so nothing under that
-# path exists for MkDocs to serve. Under `--strict` each one is a build-breaking warning. Left at
-# `info` the text of every chapter publishes now and the figures follow in their own commit, which
-# should point the chapters at the tracked, theme-aware `.svg` (it honours the site's dark mode)
-# and teach the PDF build to swap in the raster. Restore the default then.
-# The guard that matters is untouched: a renamed chapter still fails the build, because the
-# snippets plugin checks its own include paths (`check_paths: true` below).
+# The chapter figures ARE wired in: `hooks/manual_figures.py` rewrites the book's
+# `figures/<name>_print.png` to `../img/<name>.svg`, the tracked theme-aware source, and every one
+# has a symlink under `docs/img/`. So the default (`warn`, which `--strict` makes fatal) is back:
+# lowering it to `info` is what let four figures go missing from the site for weeks without the
+# build saying a word. `tests/test_manual_code.py` checks the same thing from the other side.
 validation:
   links:
-    not_found: info
+    not_found: warn
 
 # The chapters are written for pandoc, whose callouts are fenced divs (`::: note`). MkDocs has no
 # such syntax and mkdocstrings claims every `::: identifier` line, so this rewrites the book's

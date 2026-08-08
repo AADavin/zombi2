@@ -252,3 +252,35 @@ def test_a_rate_is_written_to_full_precision():
     # and the digits really are all there, not merely equal after a lucky round
     assert repr(exact) in written_form(as_rate(1.0 * mod.OnTime({0: 1.0, 3: exact}),
                                                default_scope=scope.PerLineage))
+
+
+def test_the_written_form_keeps_the_grammars_own_message_for_a_misplaced_setby():
+    """`SetBy.__rmul__` and `Rate.__mul__` raise with a sentence written for exactly this mistake.
+    The parser caught every `TypeError` from composing and replaced it with "cannot compose X with
+    Y", so `--loss "0.25 * SetBy(...)"` lost the sentence that says what to write instead. Ours are
+    kept; CPython's own operand error, which is about types rather than the grammar, is not."""
+    # matched on the GUIDANCE, not on the class name: the generic message names the operands too,
+    # so "SetBy" alone would pass whether the sentence survived or not
+    for text, guidance in (
+            ("0.25 * SetBy('h', {'c': 1.0})", "no base to write in front of it"),
+            ("PerCopy(0.25) * SetBy('h', {'c': 1.0})", "no base to write in front of it"),
+            ("0.25 * ScaledBy('s', {'b': 1.0}) * SetBy('h', {'c': 1.0})", "cannot follow one"),
+            ("SetBy('h', {'c': 1.0}) * SetBy('h', {'c': 2.0})", "carries one SetBy")):
+        with pytest.raises(RateSyntaxError, match=guidance):
+            parse_rate(text)
+
+    # not ours: a string on one side is a type mistake, and gets the parser's own wording
+    with pytest.raises(RateSyntaxError, match="cannot compose"):
+        parse_rate("'abc' * OnTime({0: 1.0})")
+
+
+def test_a_composition_cpython_refuses_gets_the_parsers_own_wording():
+    """The other half of the rule above. Two grammar objects can also fail with CPython's own
+    `unsupported operand type(s)` — `Rate * float`, `PerCopy * PerCopy` — and that message is about
+    types rather than about the rate, so the parser answers it generically. Telling ours apart by
+    the operand types got this wrong; they are told apart by the exception's class."""
+    for text in ("OnTime({0: 1.0}) * OnTotalDiversity(cap=5) * 2.0",
+                 "PerCopy(1.0) * PerCopy(2.0)",
+                 "'abc' * OnTime({0: 1.0})"):
+        with pytest.raises(RateSyntaxError, match="cannot compose"):
+            parse_rate(text)

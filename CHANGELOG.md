@@ -66,9 +66,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Changed
 - **`Drawn` takes a distribution object, not the name of one.** `spread=σ` remains the short spelling
-  and means a lognormal of that log-scale; `dist=` now takes any `Distribution` — `Gamma`,
-  `Exponential`, `Uniform`, a scipy frozen distribution, a callable — where before it was the string
-  `"lognormal"` or `"gamma"` and nothing else. Give one or the other, never both. **Whatever the
+  and means a lognormal of that log-scale; `dist=` now takes a built-in `Distribution` — `Fixed`,
+  `Exponential`, `Gamma`, `LogNormal`, `Uniform`, `Geometric` — where before it was the string
+  `"lognormal"` or `"gamma"` and nothing else. A callable or a scipy frozen distribution is refused
+  here, because neither states a mean to normalise by; an **extent** takes either, being a size
+  rather than a multiplier. Give a spread or a dist, never both. **Whatever the
   distribution, the draw is normalised to mean 1** by dividing by that distribution's own mean, so a
   drawn multiplier leaves the base meaning the average rate; a distribution's location is therefore
   normalised away and what it contributes is its shape, making `Exponential(1.0)` and
@@ -77,6 +79,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   `--loss "0.25 * Drawn(per='family', dist=Gamma(shape=4.0, scale=0.25))"` works on the command line
   and round-trips through a run's log.
 
+- **`zombi2 joint --initial-families` now defaults to 100**, as `genomes.family()` and
+  `zombi2 genomes` do. It defaulted to 0, because 0 was doing double duty as the "was it given?"
+  sentinel that decides which driver a joint run is using — and 0 is a number a user may mean. A
+  gene-content joint command written before this and re-run now starts from 100 families rather than
+  none, and because the genome drives speciation there, **the tree it grows changes too**: the same
+  seed no longer reproduces the same run. Pass `--initial-families 0` for the old behaviour. (#325)
 - **One rule for mixing per-lineage modifiers, instead of three.** Each level had grown its own: the
   species engine refused an inherited value beside a drawn one, the continuous-trait engine refused
   more than one inherited value, and the sequence engine refused more than one clock of *any* kind.
@@ -111,6 +119,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   each: the four gene-family events, why a gene is never split, where a sequence lives, and the two
   kinds of trait. Figure 3.2 is regenerated — it printed `FromParent` inside the panel while its
   caption said `Inherited(per='lineage')`. (#325)
+
+- **`zombi2 joint --at-speciation`.** The trait spec has always taken `at_speciation=`, so ClaSSE —
+  a trait that drives speciation *and* jumps at the split — was reachable from Python and not from
+  the command line, with nothing saying so. (#325)
 
 ### Removed
 - **`ByFamily`, `ByLineage` and `FromParent` are gone**, replaced by the general spelling they were

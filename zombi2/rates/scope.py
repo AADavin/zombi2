@@ -76,10 +76,10 @@ class Scope:
     def __mul__(self, other: object):
         # composing a scope with a modifier builds a Rate (internal plumbing, see zombi2.rate)
         from .modifiers import Modifier, SetBy
-        from .rate import Rate
+        from .rate import Rate, RateCompositionError
 
         if isinstance(other, SetBy):
-            raise TypeError(
+            raise RateCompositionError(
                 f"SetBy replaces the base, so there is no base to write in front of it — "
                 f"{type(self).__name__}({self.base!r}) is one. Write SetBy(driver, mapping) on its "
                 f"own; it keeps the rate's natural scope, and the driver supplies the number.")
