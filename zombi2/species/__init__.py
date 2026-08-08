@@ -513,7 +513,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                     f"Inherited(per='lineage') (inherited rate drift, ClaDS) and Drawn(per='lineage') (independent "
                     f"per-lineage rates). A birth or death that reads an evolved value cannot be "
                     f"conditioned — the tree and its driver grow together — so it is a joint run: "
-                    f"joint.simulate_joint(birth=1.0 * mod.DrivenBy('trait', {{...}}), ...)."
+                    f"joint.simulate_joint(birth=1.0 * mod.Driven('trait', {{...}}), ...)."
                 )
         # SPEC §5: one memory structure per axis. Drawn(per='lineage') has none and Inherited(per='lineage') has a continuous
         # one, so a rate carrying both asks for a lineage's factor to be independent of its parent's

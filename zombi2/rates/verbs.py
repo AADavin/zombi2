@@ -14,13 +14,13 @@ decided by what you are attaching to rather than by taste::
 all, because only the ratios between candidates are read.
 
 **These build the objects the engines already run.** ``ScaledBy(Time(), {...})`` *is*
-``OnTime({...})``; ``ScaledBy(habitat, {...})`` *is* ``DrivenBy(habitat, {...})``. The verb chooses
+``OnTime({...})``; ``ScaledBy(habitat, {...})`` *is* ``Driven(habitat, {...})``. The verb chooses
 which by looking at the value, so nothing downstream changes and a run is identical either way.
 """
 
 from __future__ import annotations
 
-from .modifiers import DrivenBy, Modifier, OnTime, SetBy, describe
+from .modifiers import Driven, Modifier, OnTime, SetBy, describe
 from .values import Measured, Time
 
 
@@ -39,7 +39,7 @@ def _mapping_for_time(mapping: object) -> dict:
         "the engine to integrate the rate rather than read it at a point.")
 
 
-def ScaledBy(value: object, mapping: object = None) -> Modifier:
+def ScaledBy(value: object, mapping: object = None, *, step: float | None = None) -> Modifier:
     """Multiply the parameter's base by a factor read from ``value``.
 
     The factor is dimensionless, and almost every parameter takes one::
@@ -51,6 +51,9 @@ def ScaledBy(value: object, mapping: object = None) -> Modifier:
     categorical value takes a table (a dict), a numerical one takes a curve (a callable) or a
     ``Scalar`` log-link. A `Drawn` or `Inherited`
     value is already a factor, so it is written on its own without a verb.
+
+    ``step`` is the resolution a **continuous** driver is read at, in the tree's own time units. A
+    categorical driver switches at moments the engine can step to exactly and ignores it.
     """
     if isinstance(value, Time):
         return OnTime(_mapping_for_time(mapping))
@@ -70,10 +73,10 @@ def ScaledBy(value: object, mapping: object = None) -> Modifier:
         raise ValueError(
             "ScaledBy(value, mapping) needs a mapping: a dict for a categorical value, a callable "
             "for a numerical one.")
-    return DrivenBy(value, mapping)
+    return Driven(value, mapping, step, verb="ScaledBy")
 
 
-def Weights(value: object, mapping: object = None) -> Modifier:
+def Weights(value: object, mapping: object = None, *, step: float | None = None) -> Modifier:
     """Weight the candidates of a **choice** — an argument that decides *who*, not how fast.
 
     ``transfer_to``, the recipient of a horizontal transfer, is the only choice today. A choice has no
@@ -89,7 +92,7 @@ def Weights(value: object, mapping: object = None) -> Modifier:
         raise ValueError(
             "Weights(value, mapping) needs a mapping: a dict of per-candidate weights, a callable, or "
             "a Between kernel to weight the (donor, recipient) pair.")
-    return DrivenBy(value, mapping)
+    return Driven(value, mapping, step, verb="Weights")
 
 
 #: The verbs a rate may be **written** with — see `zombi2.rates.modifiers.WRITABLE`.

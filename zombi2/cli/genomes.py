@@ -9,7 +9,7 @@ sequence of ancestry blocks, with declared indivisible genes and intergenic spac
 every rate takes the written form (SPEC §5): a bare number on its natural scope, or the same
 ``scope(base) × modifiers`` expression the Python API takes — ``--loss "0.25 * OnTime({0: 1.0, 3:
 2.0})"``. Each resolution declares which modifiers it reads (its ``IMPLEMENTED_MODIFIERS``) and rejects the
-rest rather than silently ignoring them; the two structured resolutions both take ``DrivenBy``, so a
+rest rather than silently ignoring them; the two structured resolutions both take ``ScaledBy``, so a
 trait can drive a rearrangement rate at either. ``--transfer-to`` is the one argument that **chooses who receives** (SPEC §5)
 and works at all three: the weight it takes says who receives, never how often transfer happens."""
 from __future__ import annotations
@@ -40,18 +40,18 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration — including the
 #: per-resolution sentence, which is read off each engine's ``IMPLEMENTED_MODIFIERS`` rather than typed out
-#: here. It had been typed out, and it went stale the moment the ordered engine learned ``DrivenBy``.
+#: here. It had been typed out, and it went stale the moment the ordered engine learned ``ScaledBy``.
 RATES_HELP = _rates_help(
     IMPLEMENTED_MODIFIERS, "--loss",
     note="Rates keep their natural scope here (D/T/L per copy, origination per lineage), so there "
-         "is no scope wrapper to write. On --transfer, DrivenBy drives how often a lineage DONATES; "
+         "is no scope wrapper to write. On --transfer, ScaledBy drives how often a lineage DONATES; "
          "--transfer-to takes one on its own as a recipient weight, at every resolution — it "
          "chooses who receives rather than setting a rate, so the numbers are normalised weights "
          "over the candidates, and a weight of 0 means 'cannot receive'. It is also the only place "
          "Between(...) belongs — a weight per (donor, recipient) pair — which a rate or an extent "
          "refuses. "
          "--resolution ordered takes " + ", ".join(cell_name(m) for m in _ORDERED_IMPLEMENTED) +
-         ", though not Drawn(per='family') and DrivenBy in one run; nucleotide, " +
+         ", though not Drawn(per='family') and ScaledBy in one run; nucleotide, " +
          ", ".join(cell_name(m) for m in _NUC_IMPLEMENTED) + ".")
 
 # The write vocabularies, read off the results themselves. They used to be hand-copied here, with a
@@ -164,7 +164,7 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--transfer-to", type=_transfer_to, default="uniform",
                    metavar="RULE", dest="transfer_to",
                    help="recipient rule, at any resolution: uniform (any contemporaneous lineage, "
-                        "default), distance (closer relatives likelier), or a DrivenBy weight")
+                        "default), distance (closer relatives likelier), or a Weights(driver, {...}) rule")
     g.add_argument("--replacement", action="store_true",
                    help="a transfer overwrites a homologous copy (replacing HGT)")
     g.add_argument("--self-transfer", action="store_true", dest="self_transfer",
@@ -304,12 +304,12 @@ def _transfer_to(text: str):
     """The argparse ``type`` for ``--transfer-to``: the recipient rule of a transfer.
 
     ``uniform`` and ``distance`` are the two named rules; anything else is read as the written form
-    of a ``DrivenBy`` — ``--transfer-to "DrivenBy('trait_events.tsv', {'competent': 2.0})"`` — the
+    of a ``Weights`` — ``--transfer-to "ScaledBy('trait_events.tsv', {'competent': 2.0})"`` — the
     **choice** of SPEC §5, where the mapping's numbers are per-candidate weights rather than
     rate multipliers. Parsed by the same ast-whitelist parser every rate flag uses, so the expression
     is the one you would write in Python and nothing is evaluated.
     """
-    from zombi2.rates.modifiers import DrivenBy
+    from zombi2.rates.modifiers import Driven
     from zombi2.rates.parse import parse_rate
 
     if text in ("uniform", "distance"):
@@ -321,10 +321,10 @@ def _transfer_to(text: str):
         # only quote the parser when the text was meant as an expression; for a plain misspelt rule
         # ("uniforn") its "unknown name" reading is noise, and the flag's own list is the answer
         detail = f"\n{e}" if "(" in text else ""
-    if not isinstance(value, DrivenBy):
+    if not isinstance(value, Driven):
         raise argparse.ArgumentTypeError(
-            f"--transfer-to takes 'uniform', 'distance', or a DrivenBy recipient weight written on "
-            f"its own — e.g. \"DrivenBy('trait_events.tsv', {{'competent': 2.0}})\" — got {text!r}. "
+            f"--transfer-to takes 'uniform', 'distance', or a Weights recipient weight written on "
+            f"its own — e.g. \"ScaledBy('trait_events.tsv', {{'competent': 2.0}})\" — got {text!r}. "
             f"The numbers there are weights over the candidate recipients, not a rate, so there is "
             f"no base number in front of it.{detail}")
     return value
@@ -340,7 +340,7 @@ _RATE_FLAGS = (("duplication", None), ("transfer", None), ("loss", None), ("orig
                ("chromosome_origination", 0.0), ("chromosome_loss", 0.0))
 
 
-#: Every rate flag that may carry a ``DrivenBy`` — what the run's conditioning bookkeeping has to
+#: Every rate flag that may carry a ``Driven`` — what the run's conditioning bookkeeping has to
 #: scan. It is *all* of them at the two structured resolutions, not just D/T/L/O: a driven
 #: ``--inversion`` or ``--fission`` is as much a conditioned run as a driven ``--loss``, and reading
 #: only the four meant such a run recorded no ``conditioned_on`` marker (so re-running the driver

@@ -617,11 +617,11 @@ def _conditioning_frame(ax, driver, target, target_base, target_sub):
     between a discrete driver (a per-state multiplier) and a continuous one (a value→factor curve).
 
     The arrow's verb is **active** and runs the way the arrow does: *habitat drives loss*. It used to
-    read ``DrivenBy``, which is passive, so an arrow drawn cause-to-effect carried a label naming the
+    read ``DrivenBy``, which was passive, so an arrow drawn cause-to-effect carried a label naming the
     relation effect-to-cause — read along the arrow it said "habitat is driven by loss", the opposite
-    of the model. ``DrivenBy`` now sits under the TARGET instead, which is both where it reads
-    correctly and where it is actually typed. A **choice** (`transfer_to`) has no base, so it
-    shows the modifier alone. That is the rule: a choice takes the modifier on its own."""
+    of the model. The verb now sits under the TARGET instead, which is both where it reads correctly
+    and where it is actually typed: ``ScaledBy`` on a rate, ``Weights`` on a choice. A **choice**
+    (`transfer_to`) has no base, so it shows the modifier alone."""
     from matplotlib.patches import FancyArrowPatch, Rectangle
 
     ax.set_xlim(0, 660)
@@ -644,11 +644,11 @@ def _conditioning_frame(ax, driver, target, target_base, target_sub):
                            lw=1.6, joinstyle="round"))
     if target_base is None:
         ax.text(555, 126, target, ha="center", va="center", color=_INK, fontsize=15)
-        written = f"DrivenBy({driver}, …)"
+        written = f"ScaledBy({driver}, …)"
     else:
         ax.text(555, 120, target, ha="center", va="center", color=_INK, fontsize=15)
         ax.text(555, 142, f"base {target_base}", ha="center", va="center", color=_DIM, fontsize=13)
-        written = f"{target_base} * DrivenBy({driver}, …)"
+        written = f"{target_base} * ScaledBy({driver}, …)"
     # the expression this diagram is a picture of, under the thing you write it on
     ax.text(555, 176, written, ha="center", va="center", color=_DIM, fontsize=10.5,
             family="monospace")

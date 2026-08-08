@@ -11,7 +11,7 @@ change neither how fast nor how many transfers happen, only **who** receives. Fo
   root-to-tip time to stay scale-free;
 - `Clades` — weight by the **pair** (donor's named clade, recipient's named clade), a fact read from
   the tree;
-- `DrivenBy` — weight by **another level**: candidate ``k``'s weight is
+- `ScaledBy` — weight by **another level**: candidate ``k``'s weight is
   the mapping of the driver's value on lineage ``k`` at this instant (a trait that makes a lineage
   competent to take DNA up), and with a `Between` mapping the donor's value too.
 
@@ -27,7 +27,7 @@ import math
 from dataclasses import dataclass
 
 from ..rates.mapping import Between, check_kernel_fires
-from ..rates.modifiers import DrivenBy, SetBy
+from ..rates.modifiers import Driven, SetBy
 from ..rates.rate import Rate
 from .._runtime.draw import weighted_index as _weighted_index
 from ..tree import node_label
@@ -54,7 +54,7 @@ class Clades:
     `Distance`. Each group is a clade of the species tree, and a
     `Between` kernel weights a candidate recipient by the **pair** (donor's
     clade, recipient's clade), so a transfer can be steered to run *between* two clades rather than
-    within them — which the per-recipient weight of a `DrivenBy` cannot
+    within them — which the per-recipient weight of a `Driven` cannot
     express::
 
         transfer_to = Clades({"A": ["n12", "n27"], "B": 40},
@@ -65,7 +65,7 @@ class Clades:
     Groups must be disjoint; a lineage in none of them is in the implicit group ``"rest"``, usable as a
     kernel key. Membership is read from the **tree** (a clade is a fact about the tree, not another
     level), so this is a topological rule like ``"distance"``, resolved once per run — **not** a
-    ``DrivenBy`` driver and needing no driver file."""
+    ``ScaledBy`` driver and needing no driver file."""
 
     groups: dict
     between: object
@@ -178,7 +178,7 @@ def resolve_groups(tree, groups) -> dict:
 
 def resolve_transfer_to(transfer_to):
     """Validate ``transfer_to`` — who receives — and return the rule the engine will run on:
-    ``"uniform"``, a `Distance`, a `Clades` or a `DrivenBy` — with the ``"distance"`` shorthand
+    ``"uniform"``, a `Distance`, a `Clades` or a `Driven` — with the ``"distance"`` shorthand
     coerced to ``Distance()``.
 
     This is not a rate (SPEC §5). The numbers in it are per-candidate **weights**, normalised
@@ -188,39 +188,47 @@ def resolve_transfer_to(transfer_to):
     message would list the alternatives without saying why what they wrote is a different kind of
     thing:
 
-    - ``transfer_to = 0.1 * mod.DrivenBy(...)`` is the *rate* spelling. There is no base here, because
+    - ``transfer_to = 0.1 * mod.Driven(...)`` is the *rate* spelling. There is no base here, because
       there is no rate, so the modifier is given on its own.
-    - ``transfer_to = (Distance(), mod.DrivenBy(...))`` asks for two rules at once. Composing a
+    - ``transfer_to = (Distance(), mod.Driven(...))`` asks for two rules at once. Composing a
       topological weight with a driven one is a later slice, not a thing that is refused on principle.
     """
     if transfer_to == "distance":
         return Distance()
     if isinstance(transfer_to, Rate):
         raise ValueError(
-            "transfer_to takes the DrivenBy modifier on its own, not a rate — write "
-            "transfer_to=mod.DrivenBy(driver, {...}) with no base number. Here the mapping's "
+            "transfer_to takes the Weights modifier on its own, not a rate — write "
+            "transfer_to=mod.Driven(driver, {...}) with no base number. Here the mapping's "
             "numbers are relative WEIGHTS over the candidate recipients (normalised), not a rate "
             "multiplier: they change which lineage receives, never how often transfer happens."
         )
     if isinstance(transfer_to, (list, tuple)):
         raise ValueError(
             "transfer_to takes one recipient rule, not several — combining Distance (relatedness) "
-            "with a DrivenBy weighting is a later slice. Give 'uniform', 'distance' / "
-            "Distance(decay=), or mod.DrivenBy(driver, {...})."
+            "with a Weights rule is a later slice. Give 'uniform', 'distance' / "
+            "Distance(decay=), or mod.Driven(driver, {...})."
         )
+    if isinstance(transfer_to, Driven) and type(transfer_to) is Driven and transfer_to.verb == "ScaledBy":
+        # Now that the verb carries the meaning, a mismatched one is catchable: `ScaledBy` says the
+        # number multiplies a base, and a choice has none. Same object, wrong word — and saying so
+        # is cheaper than a reader wondering why their "factor" behaved like a weight.
+        raise ValueError(
+            "transfer_to takes Weights(driver, {...}), not ScaledBy: its numbers are weights over "
+            "the candidate recipients, compared against each other and normalised, rather than a "
+            "factor on a base. The same driver and the same mapping — only the verb changes.")
     if isinstance(transfer_to, SetBy):
-        # `SetBy` is a `DrivenBy`, so the test below admits it — and admitting it runs the model the
+        # `SetBy` is a `Driven`, so the test below admits it — and admitting it runs the model the
         # user did not write. A choice has no base: only the ratios between the candidates are read,
         # so there is nothing here for a replaced base to mean, and it ran as an ordinary weighting.
         raise ValueError(
             "transfer_to cannot be SetBy: it weights the candidate recipients against each other, "
             "so there is no base for a driver to replace. The same numbers, spelled as what they "
             "are, is Weights(driver, {...}).")
-    if transfer_to != "uniform" and not isinstance(transfer_to, (Distance, DrivenBy, Clades)):
+    if transfer_to != "uniform" and not isinstance(transfer_to, (Distance, Driven, Clades)):
         raise ValueError(
             f"transfer_to must be 'uniform', 'distance' / Distance(decay=), "
             f"Clades({{...}}, Between({{...}})) (weight by named clade), or "
-            f"mod.DrivenBy(driver, {{...}}) (a recipient weight driven by an evolved value), "
+            f"mod.Driven(driver, {{...}}) (a recipient weight driven by an evolved value), "
             f"got {transfer_to!r}")
     return transfer_to
 
@@ -234,7 +242,7 @@ def prepare_transfer_to(tree, transfer_to, resolved=None, *, level=None):
     - A `Clades` rule paints every lineage with its clade label. Membership is a fact about the
       **tree**, so it is constant along a branch and adds no Gillespie breakpoints — which is the
       whole reason it can be computed here and then never touched again.
-    - A `DrivenBy` weight resolves its driver into a driver trajectory. ``resolved`` is the caller's
+    - A `ScaledBy` weight resolves its driver into a driver trajectory. ``resolved`` is the caller's
       ``{driver key: trajectory}`` cache, mutated in place, so a driver shared with a driven *rate*
       is loaded once and the two read the very same trajectory.
 
@@ -256,7 +264,7 @@ def prepare_transfer_to(tree, transfer_to, resolved=None, *, level=None):
         group_of = resolve_groups(tree, transfer_to.groups)
         check_kernel_fires(transfer_to.between, set(group_of.values()), driver_label="clades")
         return group_of, None
-    if isinstance(transfer_to, DrivenBy):
+    if isinstance(transfer_to, Driven):
         # imported here, not at module scope, so a run with no driver anywhere never pays for the
         # driver machinery (the same lazy import the family engine makes for its rate drivers)
         from ..rates.driver import check_mapping_fires, resolve_driver
@@ -283,7 +291,7 @@ def recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_tra
     ``transfer_to`` rule: ``"uniform"`` gives every contemporaneous lineage equal weight; a
     `Distance` weights by relatedness (closer relatives likelier); a `Clades` weights by
     the kernel on (donor's clade, candidate's clade), read from the precomputed ``groups`` map; a
-    `DrivenBy` weights by the driver's value on each candidate, read
+    `ScaledBy` weights by the driver's value on each candidate, read
     from ``to_traj`` (the trajectory the engine resolved for that driver) — and, with a
     `Between` mapping, by the donor's value too.
 
@@ -303,7 +311,7 @@ def recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_tra
         if total <= 0.0:
             return None
         return cand[_weighted_index(rng, weights, total)]
-    if isinstance(transfer_to, DrivenBy):
+    if isinstance(transfer_to, Driven):
         # who receives: candidate k's weight is the mapping of the driver on lineage k right now,
         # normalised over the candidates. A weight of 0 means "cannot receive". A Between mapping is
         # donor-conditioned — the weight reads the driver on the DONOR too — so a trait can steer

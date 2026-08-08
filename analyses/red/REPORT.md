@@ -143,7 +143,7 @@ Three things are worth being precise about.
 
 - **Model-free observable, rooted tree.** The root-to-tip CV assumes the tree is correctly rooted.
 - **Two arrangements, not all of them.** The sweep covers the clocks ZOMBI2 provides at the sequence
-  level (`IMPLEMENTED_MODIFIERS`, which declares a drawn and an inherited value per lineage beside `DrivenBy`): uncorrelated with two tails, and
+  level (`IMPLEMENTED_MODIFIERS`, which declares a drawn and an inherited value per lineage beside `ScaledBy`): uncorrelated with two tails, and
   autocorrelated. Those bracket the plausible range, but they are not every way rate variation can be
   arranged — a clock that shifts at particular nodes rather than drifting smoothly, say, is a third
   shape neither end covers.

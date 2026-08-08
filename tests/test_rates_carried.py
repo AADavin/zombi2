@@ -13,7 +13,7 @@ import math
 
 import pytest
 
-from zombi2.rates import modifiers as mod
+from zombi2.rates import ScaledBy, modifiers as mod
 from zombi2.rates import scope
 from zombi2.rates.modifiers import CARRIED_KINDS, DRAWN, DRIVEN, INHERITED, MEASURED
 from zombi2.rates.rate import as_rate
@@ -29,7 +29,7 @@ def _rate(spec):
     (mod.Inherited(per='lineage', spread=0.2), (INHERITED, "lineage")),
     (mod.Drawn(per='lineage', spread=0.3), (DRAWN, "lineage")),
     (mod.Drawn(per='family', spread=0.5), (DRAWN, "family")),
-    (mod.DrivenBy("habitat.tsv", {"cave": 2.0}), (DRIVEN, "lineage")),
+    (ScaledBy("habitat.tsv", {"cave": 2.0}), (DRIVEN, "lineage")),
 ])
 def test_every_modifier_declares_what_it_reads(modifier, expected):
     assert modifier.reads == expected
@@ -39,7 +39,7 @@ def test_measured_and_driven_are_not_carried():
     """The engine draws nothing for these: a measured value it already has, and a driven one it
     resolves per lineage into ``drivers``."""
     rate = _rate(1.0 * mod.OnTime({0: 1.0}) * mod.OnTotalDiversity(cap=50)
-                 * mod.DrivenBy("habitat.tsv", {"cave": 2.0}))
+                 * ScaledBy("habitat.tsv", {"cave": 2.0}))
     assert rate.carried_modifiers() == ()
 
 

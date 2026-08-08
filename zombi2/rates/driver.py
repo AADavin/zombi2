@@ -1,8 +1,8 @@
-"""A conditioned `DrivenBy`'s file-backing (SPEC §2).
+"""A conditioned `Driven`'s file-backing (SPEC §2).
 
-When ``DrivenBy``'s ``driver`` is a **filename**, the relation is *conditioned*: the driver was grown
+When ``Driven``'s ``driver`` is a **filename**, the relation is *conditioned*: the driver was grown
 first and written to a file, and two ordinary runs in order do the rest
-(``loss = 0.25 * mod.DrivenBy("habitat.tsv", {...})``). This module — living beside ``DrivenBy`` in
+(``loss = 0.25 * mod.Driven("habitat.tsv", {...})``). This module — living beside ``ScaledBy`` in
 ``rates`` because it is that modifier's file end — turns the written driver into the per-lineage lookup
 the target engine queries as it walks the (already-grown) tree. (Conditioning needs no engine of its
 own: it *folds into the target level's* run; only genuinely-joint models get a dedicated engine,
@@ -29,13 +29,13 @@ import bisect
 import math
 import pathlib
 
-from .modifiers import DrivenBy
+from .modifiers import Driven
 from ..tree import node_from_label, node_label
 
 
 class DriverTrajectory:
     """A driver's value along every lineage, as a piecewise-constant function of time — the
-    per-lineage lookup a conditioned `DrivenBy` reads.
+    per-lineage lookup a conditioned `ScaledBy` reads.
 
     Built from segments ``{node_id: [(start_time, state), …]}`` (each lineage's branch cut into
     constant stretches, sorted by start). The engine calls `value()` to get a lineage's driver
@@ -105,7 +105,7 @@ def load_driver(path, tree, *, step: float | None = None) -> DriverTrajectory:
         text = pathlib.Path(path).read_text(encoding="utf-8")
     except FileNotFoundError:
         raise FileNotFoundError(
-            f"DrivenBy driver file not found: {str(path)!r}. A conditioned rate points at this file, but "
+            f"driver file not found: {str(path)!r}. A conditioned rate points at this file, but "
             f"it is not there — check the path (it is relative to where you run zombi2), or grow the "
             f"driver first (run the level that writes it) so there is something to condition on."
         ) from None
@@ -250,7 +250,7 @@ CONTINUOUS_DRIVER_FRACTION = 0.01
 def driver_from_result(result, *, step: float | None = None) -> DriverTrajectory:
     """Build a `DriverTrajectory` **directly from a grown trait result** — the same per-lineage lookup
     `load_driver()` builds from a file, but skipping the file round-trip. This is how a conditioned
-    ``DrivenBy(trait, …)`` reads a trait grown in the same Python session: still conditioning (the
+    ``Driven(trait, …)`` reads a trait grown in the same Python session: still conditioning (the
     driver was grown first and is held fixed), just handed over in memory.
 
     A **discrete** trait (`traits.simulate_discrete`) has a stochastic character map, so each branch is
@@ -349,7 +349,7 @@ def driver_from_continuous_result(result, *, step: float | None = None) -> Drive
     driver does not. And under a non-linear response curve those dropped excursions do not average
     out, so a smaller ``step`` is not only more precise, it removes a bias.
 
-    The driver's values are **floats**, so its `DrivenBy` needs a continuous mapping (a
+    The driver's values are **floats**, so its `Driven` needs a continuous mapping (a
     `~zombi2.rates.mapping.Curve` or `~zombi2.rates.mapping.Scalar`), not a discrete
     ``{state: factor}`` `~zombi2.rates.mapping.Table` (which would match no float and never fire)."""
     tree = result.complete_tree
@@ -393,7 +393,7 @@ def check_mapping_fires(mapping, available_states, *, driver_label: str, exhaust
     if available_states and all(isinstance(s, (int, float)) and not isinstance(s, bool)
                                 for s in available_states):
         raise ValueError(
-            f"DrivenBy on {driver_label}: the driver is CONTINUOUS (its values are numbers), so its "
+            f"the driver on {driver_label}: the driver is CONTINUOUS (its values are numbers), so its "
             "mapping must be a Curve (value -> factor) or a Scalar (a log-link), not a {state: factor} "
             "table — a table names discrete states, which a continuous value never equals.")
     named = set(mapping.per_state)
@@ -402,13 +402,13 @@ def check_mapping_fires(mapping, available_states, *, driver_label: str, exhaust
         stray = named - have
         if stray:
             raise ValueError(
-                f"DrivenBy on {driver_label}: the mapping names state(s) {sorted(stray)} that are not "
+                f"the driver on {driver_label}: the mapping names state(s) {sorted(stray)} that are not "
                 f"among the driver's states {sorted(have)} — a factor for a state that can never occur, "
                 f"so it would silently never apply. Check for a typo in the state names.")
         return
     if not (named & have):
         raise ValueError(
-            f"DrivenBy on {driver_label}: the mapping's states {sorted(named)} match none of the "
+            f"the driver on {driver_label}: the mapping's states {sorted(named)} match none of the "
             f"driver's states {sorted(have)}, so the mapping would silently do nothing — every "
             f"lineage falls to the default factor and the rate is never driven. Check for a typo in "
             f"the state names, or a stale or mismatched driver file.")
@@ -420,7 +420,7 @@ def check_mapping_fires(mapping, available_states, *, driver_label: str, exhaust
         # completes, the summary says it was driven, and the factor the user cared about was applied
         # to nobody. Saying so costs one line; not saying it is how a wrong result gets published.
         warnings.warn(
-            f"DrivenBy on {driver_label}: the mapping names state(s) {sorted(stray)} that the "
+            f"the driver on {driver_label}: the mapping names state(s) {sorted(stray)} that the "
             f"driver never takes (it takes {sorted(have)}), so those factors were never applied. "
             f"The states it did match are still driving the rate. Check for a typo — this is a "
             f"warning rather than an error only because a mapping may legitimately name a state "
@@ -429,7 +429,7 @@ def check_mapping_fires(mapping, available_states, *, driver_label: str, exhaust
 
 
 def driven_mods(rate) -> list:
-    """The `DrivenBy` modifiers a rate carries, or ``[]`` when it carries none. A non-empty list means
+    """The `ScaledBy` modifiers a rate carries, or ``[]`` when it carries none. A non-empty list means
     the rate reads an evolved value on each lineage, so the engine must thread a ``drivers`` value and
     step where the driver switches.
 
@@ -437,11 +437,11 @@ def driven_mods(rate) -> list:
     same question first, and the answer is a fact about the rate grammar (SPEC §5), not about any one
     engine. (The trait and genome engines still each carry a private copy from before this existed;
     folding them onto this one is a tidy-up, not a behaviour change.)"""
-    return [m for m in rate.modifiers if isinstance(m, DrivenBy)]
+    return [m for m in rate.modifiers if isinstance(m, Driven)]
 
 
 def names_a_live_level(driver: object) -> bool:
-    """Whether a ``DrivenBy`` ``driver`` names a **level growing beside the run** rather than a
+    """Whether a ``Driven`` ``driver`` names a **level growing beside the run** rather than a
     finished driver.
 
     SPEC §5: "a finished result makes the run conditioned, and the name of a level growing beside it
@@ -478,7 +478,7 @@ def refuse_wrong_direction(driver, level: str | None) -> None:
 
 def resolve_driver(driver, tree, *, step: float | None = None,
                    level: str | None = None) -> DriverTrajectory:
-    """Resolve a conditioned ``DrivenBy`` ``driver`` into a `DriverTrajectory` — a **filename**
+    """Resolve a conditioned ``ScaledBy`` ``driver`` into a `DriverTrajectory` — a **filename**
     (str) via `load_driver()` (replayed against ``tree``, the target run's own species tree), an
     object that answers for itself through ``as_driver_trajectory(tree, step=…)`` (a genome run's
     ``presence("name")``, a sequence run's ``gc()``), or an **in-memory** trait result via

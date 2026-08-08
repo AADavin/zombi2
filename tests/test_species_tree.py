@@ -4,6 +4,7 @@ import re
 
 import pytest
 
+from zombi2.rates import ScaledBy
 from zombi2.rates import modifiers as mod
 from zombi2.rates import scope
 from zombi2.species import Event, simulate_species_tree
@@ -303,7 +304,7 @@ def test_drifting_birth_with_non_drifting_global_death_is_allowed():
 
 # --- the level rejects what it does not wire (SPEC §5) --------------------
 
-@pytest.mark.parametrize("modifier", [mod.DrivenBy("habitat.tsv", {"a": 2.0})])
+@pytest.mark.parametrize("modifier", [ScaledBy("habitat.tsv", {"a": 2.0})])
 def test_an_unwired_modifier_raises_rather_than_being_ignored(modifier):
     # an unthreaded modifier returns its default factor of 1.0, so silently accepting one would run
     # a model the user did not ask for — the whole point of declaring IMPLEMENTED_MODIFIERS

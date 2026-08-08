@@ -8,6 +8,7 @@ parts company with :func:`as_distribution`, and each resolution's gate on what i
 import numpy as np
 import pytest
 
+from zombi2.rates import ScaledBy
 from zombi2 import species
 from zombi2.genomes import simulate_genomes_nucleotide, simulate_genomes_ordered
 from zombi2.rates.distributions import Fixed, Geometric, as_distribution
@@ -150,7 +151,6 @@ def test_nucleotide_extent_can_be_driven_by_a_trait(tree):
     **bigger chunks**, which is a different model from deleting more often. The rate is left
     undriven here, so only the sizes may differ."""
     from zombi2 import traits
-    from zombi2.rates import modifiers as mod
     from zombi2.rates.driver import driver_from_result
 
     # the trait and the genome take *different* seeds, as two levels of one study should: each level
@@ -159,7 +159,7 @@ def test_nucleotide_extent_can_be_driven_by_a_trait(tree):
     traj = driver_from_result(habitat)
     res = simulate_genomes_nucleotide(
         tree, root_length=20000, genes=4, gene_length=300, loss=0.6,
-        loss_extent=150 * mod.DrivenBy(habitat, {"host": 6.0, "free": 1.0}), seed=5)
+        loss_extent=150 * ScaledBy(habitat, {"host": 6.0, "free": 1.0}), seed=5)
 
     sizes = {"host": [], "free": []}
     for e in res.events:
@@ -187,14 +187,13 @@ def test_ordered_extent_can_be_driven_by_a_trait(tree):
     host-restricted lineage duplicates in **longer runs**, not more often. The duplication rate is
     left undriven, so only the sizes may differ."""
     from zombi2 import traits
-    from zombi2.rates import modifiers as mod
     from zombi2.rates.driver import driver_from_result
 
     habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=2)
     traj = driver_from_result(habitat)
     g = simulate_genomes_ordered(
         tree, duplication=0.5, chromosomes=1, initial_families=30,
-        duplication_extent=2 * mod.DrivenBy(habitat, {"host": 6.0, "free": 1.0}), seed=2)
+        duplication_extent=2 * ScaledBy(habitat, {"host": 6.0, "free": 1.0}), seed=2)
 
     sizes = {"host": [], "free": []}
     for p in g.event_positions:

@@ -13,7 +13,7 @@ from zombi2 import species
 from zombi2.genomes import FamilyGenomesResult, simulate_genomes_family
 from zombi2.genomes.events import copy_label
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
-from zombi2.rates import modifiers as mod
+from zombi2.rates import ScaledBy, modifiers as mod
 from zombi2.sequences import SequencesResult, simulate_sequences
 from zombi2.sequences.substitution_models import (AMINO_ACIDS, SubstitutionModel, dayhoff, gtr,
                                                   hky85, jc69, jtt, k80, lg, poisson, reversible,
@@ -395,7 +395,7 @@ def test_sequence_clock_rejects_multiple_or_unwired_modifiers(tmp_path):
     driver.write_text("time\tkind\tlineage\tfrom\tto\n0.0\tinitial\tn0\t\ta\n", encoding="utf-8")
     simulate_sequences(run, model=jc69(), length=10, seed=1,
                        substitution=1.0 * mod.Drawn(per='lineage', spread=0.3)
-                       * mod.DrivenBy(str(driver), {"a": 2.0}))
+                       * ScaledBy(str(driver), {"a": 2.0}))
 
 
 def test_a_between_kernel_is_refused_on_the_substitution_rate(tmp_path):
@@ -409,18 +409,18 @@ def test_a_between_kernel_is_refused_on_the_substitution_rate(tmp_path):
     driver.write_text("time\tkind\tlineage\tfrom\tto\n0.0\tinitial\tn0\t\ta\n", encoding="utf-8")
     with pytest.raises(ValueError, match="transfer_to"):
         simulate_sequences(run, model=jc69(), length=10,
-                           substitution=1.0 * mod.DrivenBy(str(driver),
+                           substitution=1.0 * ScaledBy(str(driver),
                                                            Between({("a", "b"): 1.0})))
 
 
 def test_a_live_level_source_is_refused_as_a_joint_run():
     """SPEC §3: Traits and Sequences can be conditioned and never joined. A live-level source is the
-    joint spelling of DrivenBy, so it must come back as the modelling answer rather than as a missing
+    joint spelling of Driven, so it must come back as the modelling answer rather than as a missing
     file called 'trait'."""
     run = _pair_run(1.0, 2.0)
     with pytest.raises(ValueError, match="cannot be joined"):
         simulate_sequences(run, model=jc69(), length=10,
-                           substitution=1.0 * mod.DrivenBy("trait", {"a": 2.0}))
+                           substitution=1.0 * ScaledBy("trait", {"a": 2.0}))
 
 
 def test_divergence_is_refused_alongside_a_driven_rate():
@@ -430,7 +430,7 @@ def test_divergence_is_refused_alongside_a_driven_rate():
     run = _pair_run(1.0, 2.0)
     with pytest.raises(ValueError, match="divergence"):
         simulate_sequences(run, model=jc69(), length=10, divergence=0.2,
-                           substitution=mod.DrivenBy("trait_events.tsv", {"a": 2.0}))
+                           substitution=ScaledBy("trait_events.tsv", {"a": 2.0}))
 
 
 # --- the lineage clock (FromParent): the autocorrelated clock ---------------------------------------

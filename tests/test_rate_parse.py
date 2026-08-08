@@ -8,6 +8,7 @@ that text from a file: it parses, it never evaluates, and only ``*`` composes.
 
 import pytest
 
+from zombi2.rates import ScaledBy
 from zombi2.rates import modifiers as mod
 from zombi2.rates import scope
 from zombi2.rates.rate import Rate
@@ -78,14 +79,14 @@ def test_the_python_qualifiers_are_optional():
 
 
 def test_a_driver_reads_as_a_drivenby():
-    r = parse_rate("0.25 * DrivenBy('habitat.tsv', {'aquatic': 3.0, 'terrestrial': 1.0})")
-    assert r == 0.25 * mod.DrivenBy("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})
+    r = parse_rate("0.25 * ScaledBy('habitat.tsv', {'aquatic': 3.0, 'terrestrial': 1.0})")
+    assert r == 0.25 * ScaledBy("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})
 
 
 def test_a_between_kernel_reads_as_a_choice_slot_weight():
     from zombi2.rates.mapping import Between
-    r = parse_rate("DrivenBy('habitat.tsv', Between({('marine', 'soil'): 3.0, ('soil', 'marine'): 3.0}))")
-    assert r == mod.DrivenBy("habitat.tsv", Between({("marine", "soil"): 3.0, ("soil", "marine"): 3.0}))
+    r = parse_rate("ScaledBy('habitat.tsv', Between({('marine', 'soil'): 3.0, ('soil', 'marine'): 3.0}))")
+    assert r == ScaledBy("habitat.tsv", Between({("marine", "soil"): 3.0, ("soil", "marine"): 3.0}))
 
 
 # --- it parses; it never evaluates ---------------------------------------
@@ -180,7 +181,7 @@ def test_a_syntax_error_quotes_the_expression():
     "1.0 * OnTime({0: 1.0, 3: 0.3})",
     "1.0 * Inherited(per='lineage', spread=0.2) * OnTotalDiversity(cap=100)",
     "1.0 * Drawn(per='lineage', dist=Gamma(shape=11.11, scale=0.09))",
-    "0.25 * DrivenBy('habitat.tsv', {'aquatic': 3.0})",
+    "0.25 * ScaledBy('habitat.tsv', {'aquatic': 3.0})",
 ])
 def test_written_form_round_trips(text):
     once = written_form(parse_rate(text))
@@ -197,36 +198,36 @@ def test_a_windows_path_in_a_rate_is_taken_as_written():
     # the strings in a rate are paths and state labels, never escape sequences — but the expression
     # is read by Python's own parser, which sees C:\Users and reports a truncated \UXXXXXXXX escape.
     # A pasted path is the normal way to write one, so it has to mean itself.
-    from zombi2.rates.modifiers import DrivenBy
+    from zombi2.rates.modifiers import Driven
 
-    rate = parse_rate(r"0.1 * DrivenBy('C:\Users\me\trait_events.tsv', {'a': 2.0})")
-    driver = next(m for m in rate.modifiers if isinstance(m, DrivenBy))
+    rate = parse_rate(r"0.1 * ScaledBy('C:\Users\me\trait_events.tsv', {'a': 2.0})")
+    driver = next(m for m in rate.modifiers if isinstance(m, Driven))
     assert driver.driver == r"C:\Users\me\trait_events.tsv"
 
-    unc = parse_rate(r"0.1 * DrivenBy('\\server\share\trait.tsv', {'a': 2.0})")
-    assert next(m for m in unc.modifiers if isinstance(m, DrivenBy)).driver == r"\\server\share\trait.tsv"
+    unc = parse_rate(r"0.1 * ScaledBy('\\server\share\trait.tsv', {'a': 2.0})")
+    assert next(m for m in unc.modifiers if isinstance(m, Driven)).driver == r"\\server\share\trait.tsv"
 
-    posix = parse_rate("0.1 * DrivenBy('/home/me/trait.tsv', {'a': 2.0})")
-    assert next(m for m in posix.modifiers if isinstance(m, DrivenBy)).driver == "/home/me/trait.tsv"
+    posix = parse_rate("0.1 * ScaledBy('/home/me/trait.tsv', {'a': 2.0})")
+    assert next(m for m in posix.modifiers if isinstance(m, Driven)).driver == "/home/me/trait.tsv"
 
 
 def test_an_already_escaped_path_is_left_as_written():
     # repr() of a path is the natural way to build an expression in Python, and it escapes the
     # backslashes properly — reading those literally as well would double them.
-    from zombi2.rates.modifiers import DrivenBy
+    from zombi2.rates.modifiers import Driven
 
     path = r"C:\Users\me\trait_events.tsv"
-    rate = parse_rate(f"0.1 * DrivenBy({path!r}, {{'a': 2.0}})")
-    assert next(m for m in rate.modifiers if isinstance(m, DrivenBy)).driver == path
+    rate = parse_rate(f"0.1 * ScaledBy({path!r}, {{'a': 2.0}})")
+    assert next(m for m in rate.modifiers if isinstance(m, Driven)).driver == path
 
 
 def test_a_path_whose_every_backslash_is_a_valid_escape_still_means_itself():
     # the dangerous one: \t \n \f are all real escapes, so this PARSES and silently becomes control
     # characters. A path never contains one, which is how it is caught.
-    from zombi2.rates.modifiers import DrivenBy
+    from zombi2.rates.modifiers import Driven
 
-    rate = parse_rate(r"0.1 * DrivenBy('C:\temp\new\file.tsv', {'a': 2.0})")
-    assert next(m for m in rate.modifiers if isinstance(m, DrivenBy)).driver == r"C:\temp\new\file.tsv"
+    rate = parse_rate(r"0.1 * ScaledBy('C:\temp\new\file.tsv', {'a': 2.0})")
+    assert next(m for m in rate.modifiers if isinstance(m, Driven)).driver == r"C:\temp\new\file.tsv"
 
 
 
@@ -241,10 +242,10 @@ def test_a_rate_is_written_to_full_precision():
 
     exact = 0.0123456789012
     for spec in (1.0 * mod.OnTime({0: 1.0, 3: exact}),
-                 1.0 * mod.DrivenBy("h.tsv", {"cave": exact}),
-                 1.0 * mod.DrivenBy("h.tsv", {"cave": 1.0}, ),
-                 1.0 * mod.DrivenBy("h.tsv", Scalar(exact)),
-                 1.0 * mod.DrivenBy("h.tsv", Between({("a", "b"): exact}, default=exact))):
+                 1.0 * ScaledBy("h.tsv", {"cave": exact}),
+                 1.0 * ScaledBy("h.tsv", {"cave": 1.0}, ),
+                 1.0 * ScaledBy("h.tsv", Scalar(exact)),
+                 1.0 * ScaledBy("h.tsv", Between({("a", "b"): exact}, default=exact))):
         rate = as_rate(spec, default_scope=scope.PerLineage)
         text = written_form(rate)
         assert parse_rate(text) == rate, text

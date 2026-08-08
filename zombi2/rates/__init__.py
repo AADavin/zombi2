@@ -18,8 +18,12 @@ Shared by every level, so it lives in one place. Reach the pieces as submodules:
 - ``distributions`` — value/length distributions
 """
 
+from .modifiers import OnTime, OnTotalDiversity
 from .values import UNITS, Clade, Drawn, Inherited, Measured, Time
 from .verbs import ScaledBy, SetBy, Weights
 
-__all__ = ["UNITS", "Clade", "Drawn", "Inherited", "Measured", "Time",
-           "ScaledBy", "SetBy", "Weights"]
+#: The whole written vocabulary, from one place. `modifiers.WRITABLE` + `values.WRITABLE` +
+#: `verbs.WRITABLE` is the same list the text form whitelists, so what you can import here and what
+#: you can write in a `--birth` flag are one surface rather than two.
+__all__ = ["UNITS", "Clade", "Drawn", "Inherited", "Measured", "OnTime", "OnTotalDiversity",
+           "ScaledBy", "SetBy", "Time", "Weights"]
