@@ -9,7 +9,7 @@ import pytest
 
 from zombi2.rates.scope import Global, PerCopy, PerLineage
 
-from zombi2.rates import modifiers as mod
+from zombi2.rates import ScaledBy, modifiers as mod
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_family
 from zombi2.tree import Node, Tree
@@ -647,7 +647,7 @@ def test_by_family_with_driven_by_is_refused_for_now():
     sp = _tree(seed=1, n_extant=8)
     with pytest.raises(ValueError, match="later slice"):
         simulate_genomes_family(sp, loss=0.2 * mod.Drawn(per='family', spread=0.3),
-                                duplication=0.2 * mod.DrivenBy("x.tsv", {"a": 2.0}), seed=1)
+                                duplication=0.2 * ScaledBy("x.tsv", {"a": 2.0}), seed=1)
 
 
 # --- max_family_size: a per-genome ceiling on a family's copies ------------

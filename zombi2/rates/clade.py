@@ -60,7 +60,7 @@ class Clade:
 
     def written_form(self) -> str:
         """A clade is built from literals — labels, node ids, tip names — so unlike every other
-        driver it can be written into a run's log and pasted back. `DrivenBy`
+        driver it can be written into a run's log and pasted back. `ScaledBy`
         asks for this when recording the rate."""
         return repr(self)
 

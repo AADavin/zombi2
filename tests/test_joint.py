@@ -1,6 +1,6 @@
 """Joint slice 2 — a discrete trait drives speciation, grown jointly (BiSSE/MuSSE).
 
-The joint half of the one mechanism: `mod.DrivenBy("trait", mapping)` with the live level name
+The joint half of the one mechanism: `ScaledBy("trait", mapping)` with the live level name
 "trait" instead of a file, grown by `joint.simulate`. Covers the process spec, the result shape,
 determinism, the state-dependent-diversification signal, MuSSE, full BiSSE (λ and μ), and validation.
 """
@@ -12,13 +12,13 @@ import pytest
 from zombi2 import traits
 from zombi2 import joint
 from zombi2.joint import JointResult
-from zombi2.rates import modifiers as mod
+from zombi2.rates import ScaledBy, modifiers as mod
 from zombi2.traits import DiscreteTrait, TraitsResult
 
 
 def _bisse(birth_large=4.0, death=0.2, switch=0.15, n_extant=200, seed=1):
     return joint.simulate_joint(
-        birth=1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": birth_large}),
+        birth=1.0 * ScaledBy("trait", {"small": 1.0, "large": birth_large}),
         death=death,
         trait=traits.discrete(states=["small", "large"], switch=switch),
         n_extant=n_extant, seed=seed,
@@ -97,7 +97,7 @@ def test_asymmetry_beats_symmetry():
 
 def test_musse_three_states_runs():
     res = joint.simulate_joint(
-        birth=1.0 * mod.DrivenBy("trait", {"lo": 1.0, "mid": 2.0, "hi": 4.0}),
+        birth=1.0 * ScaledBy("trait", {"lo": 1.0, "mid": 2.0, "hi": 4.0}),
         death=0.1,
         trait=traits.discrete(states=["lo", "mid", "hi"], switch=0.2),
         n_extant=150, seed=4,
@@ -109,8 +109,8 @@ def test_musse_three_states_runs():
 def test_full_bisse_drives_birth_and_death():
     # both λ and μ state-dependent: "large" speciates faster AND goes extinct slower
     res = joint.simulate_joint(
-        birth=1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": 3.0}),
-        death=0.3 * mod.DrivenBy("trait", {"small": 2.0, "large": 0.5}),
+        birth=1.0 * ScaledBy("trait", {"small": 1.0, "large": 3.0}),
+        death=0.3 * ScaledBy("trait", {"small": 2.0, "large": 0.5}),
         trait=traits.discrete(states=["small", "large"], switch=0.2),
         n_extant=150, seed=5,
     )
@@ -119,7 +119,7 @@ def test_full_bisse_drives_birth_and_death():
 
 def test_total_time_mode():
     res = joint.simulate_joint(
-        birth=1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": 2.0}),
+        birth=1.0 * ScaledBy("trait", {"small": 1.0, "large": 2.0}),
         death=0.1,
         trait=traits.discrete(states=["small", "large"], switch=0.3),
         total_time=4.0, seed=6,
@@ -132,13 +132,13 @@ def test_total_time_mode():
 
 def test_trait_must_be_a_process_spec():
     with pytest.raises(TypeError, match="traits.discrete"):        # a dict is not a DiscreteTrait spec
-        joint.simulate_joint(birth=1.0 * mod.DrivenBy("trait", {"a": 1.0}),
+        joint.simulate_joint(birth=1.0 * ScaledBy("trait", {"a": 1.0}),
                        trait={"states": ["a", "b"]}, n_extant=10, seed=1)
 
 
 def test_non_trait_source_rejected():
     with pytest.raises(ValueError, match="trait"):
-        joint.simulate_joint(birth=1.0 * mod.DrivenBy("habitat.tsv", {"a": 1.0}),
+        joint.simulate_joint(birth=1.0 * ScaledBy("habitat.tsv", {"a": 1.0}),
                        trait=traits.discrete(states=["a", "b"], switch=0.1), n_extant=10, seed=1)
 
 
@@ -150,14 +150,14 @@ def test_must_actually_drive_something():
 
 def test_one_of_n_extant_or_total_time():
     with pytest.raises(ValueError, match="exactly one"):
-        joint.simulate_joint(birth=1.0 * mod.DrivenBy("trait", {"a": 2.0}),
+        joint.simulate_joint(birth=1.0 * ScaledBy("trait", {"a": 2.0}),
                        trait=traits.discrete(states=["a", "b"], switch=0.1),
                        n_extant=10, total_time=3.0, seed=1)
 
 
 def test_fromparent_rejected():
     with pytest.raises(ValueError, match="Inherited"):
-        joint.simulate_joint(birth=1.0 * mod.Inherited(per='lineage', spread=0.2) * mod.DrivenBy("trait", {"a": 2.0}),
+        joint.simulate_joint(birth=1.0 * mod.Inherited(per='lineage', spread=0.2) * ScaledBy("trait", {"a": 2.0}),
                        trait=traits.discrete(states=["a", "b"], switch=0.1), n_extant=10, seed=1)
 
 
@@ -166,7 +166,7 @@ def test_mapping_matching_no_trait_state_is_refused():
     # factor — a silently undriven run — so it is refused rather than run as if it were driven. The
     # trait's alphabet is known up front, so the exhaustive check names the offending key precisely.
     with pytest.raises(ValueError, match="not among the driver's states"):
-        joint.simulate_joint(birth=1.0 * mod.DrivenBy("trait", {"tiny": 2.0}),   # trait is small/large
+        joint.simulate_joint(birth=1.0 * ScaledBy("trait", {"tiny": 2.0}),   # trait is small/large
                        death=0.2, trait=traits.discrete(states=["small", "large"], switch=0.15),
                        n_extant=10, seed=1)
 
@@ -176,7 +176,7 @@ def test_mapping_naming_a_non_trait_state_is_refused():
     # keys match, a key outside the alphabet ('tiny' ∉ small/large) is a state that can never occur — a
     # typo whose factor would silently never apply — so the whole mapping is refused, not run as driven
     with pytest.raises(ValueError, match="not among the driver's states"):
-        joint.simulate_joint(birth=1.0 * mod.DrivenBy("trait", {"small": 2.0, "tiny": 3.0}),
+        joint.simulate_joint(birth=1.0 * ScaledBy("trait", {"small": 2.0, "tiny": 3.0}),
                        death=0.2, trait=traits.discrete(states=["small", "large"], switch=0.15),
                        n_extant=10, seed=1)
 
@@ -197,7 +197,7 @@ def test_a_gene_content_mapping_that_can_never_fire_is_refused_too():
 
     def run(mapping, **kw):
         return joint.simulate_joint(
-            birth=1.0 * mod.DrivenBy(kw.pop("source"), mapping),
+            birth=1.0 * ScaledBy(kw.pop("source"), mapping),
             genome=g.family(duplication=0.1, loss=0.1, origination=0.2, initial_families=3,
                             family_names=["toxin"]),
             n_extant=15, seed=1)
@@ -219,10 +219,9 @@ def test_joint_trait_can_jump_at_speciation_while_driving_it():
     log, distinguishable, or the model is only one of its two halves."""
     import collections
     from zombi2 import joint, traits
-    from zombi2.rates import modifiers as mod
 
     res = joint.simulate_joint(
-        birth=1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": 2.5}),
+        birth=1.0 * ScaledBy("trait", {"small": 1.0, "large": 2.5}),
         death=0.2,
         trait=traits.discrete(states=["small", "large"], switch=0.3, at_speciation=0.4),
         n_extant=30, seed=1)
@@ -237,10 +236,9 @@ def test_joint_speciation_jump_is_off_by_default():
     a run that does not ask for it must not get it."""
     import collections
     from zombi2 import joint, traits
-    from zombi2.rates import modifiers as mod
 
     res = joint.simulate_joint(
-        birth=1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": 2.5}),
+        birth=1.0 * ScaledBy("trait", {"small": 1.0, "large": 2.5}),
         death=0.2,
         trait=traits.discrete(states=["small", "large"], switch=0.3),
         n_extant=30, seed=1)
@@ -253,7 +251,7 @@ def test_joint_refuses_per_lineage_rate_variation():
     Accepting it here would run a model without the rate variation that was asked for — and because
     the same ``--birth`` expression works on ``zombi2 species``, silently ignoring it is a trap rather
     than merely a gap. It used to be accepted (SPEC §5's rejection rule was applied to FromParent and
-    DrivenBy but not to this one)."""
+    Driven but not to this one)."""
     import pytest
 
     from zombi2 import joint, traits
@@ -261,13 +259,13 @@ def test_joint_refuses_per_lineage_rate_variation():
 
     with pytest.raises(ValueError, match="Drawn"):
         joint.simulate_joint(
-            birth=1.0 * mod.Drawn(per='lineage', spread=0.5) * mod.DrivenBy("trait", {"small": 1.0, "large": 2.0}),
+            birth=1.0 * mod.Drawn(per='lineage', spread=0.5) * ScaledBy("trait", {"small": 1.0, "large": 2.0}),
             death=0.1, n_extant=8, seed=1,
             trait=traits.DiscreteTrait(states=("small", "large"), switch=0.3))
 
 
 def test_joint_refuses_a_modifier_it_does_not_thread():
-    """The gate was a negative list — it named FromParent and DrivenBy and let everything else
+    """The gate was a negative list — it named FromParent and Driven and let everything else
     through — where every other level declares what it takes. a per-family draw was the one that slipped:
     accepted, then returning its default factor of 1.0, so the run was quietly not the model asked
     for. `OnTime` and `OnTotalDiversity` were never the problem; the loop threads both and steps at
@@ -278,7 +276,7 @@ def test_joint_refuses_a_modifier_it_does_not_thread():
     from zombi2.rates import modifiers as mod
 
     trait = traits.DiscreteTrait(states=("small", "large"), switch=0.3)
-    driven = mod.DrivenBy("trait", {"small": 1.0, "large": 2.0})
+    driven = ScaledBy("trait", {"small": 1.0, "large": 2.0})
     with pytest.raises(ValueError, match="no gene families"):
         joint.simulate_joint(birth=1.0 * mod.Drawn(per='family', spread=0.5) * driven, death=0.1,
                              n_extant=8, seed=1, trait=trait)

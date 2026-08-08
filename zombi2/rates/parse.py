@@ -49,7 +49,7 @@ _NAMES: dict[str, type] = {
     **{n: getattr(_verbs, n) for n in _verbs.WRITABLE},
     "Table": _mapping.Table,
     "Scalar": _mapping.Scalar,
-    "Between": _mapping.Between,  # the choice's kernel: DrivenBy(driver, Between({(a, b): w}))
+    "Between": _mapping.Between,  # the choice's kernel: Driven(driver, Between({(a, b): w}))
 }
 
 #: the optional Python qualifiers — ``mod.OnTime(...)`` / ``scope.Global(...)`` read as themselves
@@ -86,7 +86,22 @@ def _fail(message: str, text: str) -> RateSyntaxError:
     return RateSyntaxError(f"{message}\n  in the rate {text!r}")
 
 
+#: Names that were the written form and are not any more, each with the sentence a reader needs.
+#: A difflib guess would offer one of the three verbs at random; which one is right depends on what
+#: the rate is attached to, so the message says all three and what each is for.
+_RETIRED = {
+    "DrivenBy": ("write the verb that says what the number does: ScaledBy(driver, mapping) on a "
+                 "rate or an extent, Weights(driver, mapping) on transfer_to, SetBy(driver, "
+                 "mapping) to replace the base rather than scale it"),
+    "ByFamily": ("write Drawn(per='family', spread=...)"),
+    "ByLineage": ("write Drawn(per='lineage', spread=...)"),
+    "FromParent": ("write Inherited(per='lineage', spread=...)"),
+}
+
+
 def _unknown_name(name: str, text: str) -> RateSyntaxError:
+    if name in _RETIRED:
+        return _fail(f"{name} is no longer a rate name — {_RETIRED[name]}", text)
     close = difflib.get_close_matches(name, _NAMES, n=1, cutoff=0.6)
     hint = f" — did you mean {close[0]!r}?" if close else ""
     scopes = ", ".join(n for n in _NAMES if n in _scope.__all__)
@@ -212,7 +227,7 @@ def parse_rate(text: object):
         raise RateSyntaxError(f"a rate must be a number or an expression, got {text!r}")
     if not text.strip():
         raise RateSyntaxError("a rate cannot be empty")
-    # A backslash in a path is not an escape. `DrivenBy('C:\\Users\\me\\t.tsv', …)` is well formed to
+    # A backslash in a path is not an escape. `Driven('C:\\Users\\me\\t.tsv', …)` is well formed to
     # the person who pasted it and a truncated \\UXXXXXXXX escape to Python's parser, and `C:\\temp`
     # is worse — it parses, silently, as a tab. But an expression may equally have its backslashes
     # already escaped, which is what repr() of a path gives, and that must be left alone. There is no

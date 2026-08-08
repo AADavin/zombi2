@@ -328,7 +328,7 @@ def test_genomes_is_deterministic_across_resolutions(tmp_path, tree_file):
 @pytest.mark.parametrize("argv, why", [
     (["--initial-families", "5"], "nucleotide has no initial-families"),
     (["--replacement"], "nucleotide transfers are additive"),
-    (["--loss", "0.2 * Drawn(per='family', spread=0.5)"], "nucleotide wires OnTime and DrivenBy, not ByFamily"),
+    (["--loss", "0.2 * Drawn(per='family', spread=0.5)"], "nucleotide wires OnTime and Driven, not ByFamily"),
     (["--gff", "x.gff", "--genes", "3"], "gff and genes are mutually exclusive"),
     (["--write", "gene_order"], "gene_order is an ordered output"),
     (["--write", "profiles"], "the nucleotide resolution has no profiles"),
@@ -648,7 +648,7 @@ def test_traits_on_external_tree_writes_a_name_map(tmp_path):
 # ── --switch takes the written form of a rate ───────────────────────────────────────
 #
 # It used to be `type=float`, so argparse killed a rate expression before ZOMBI2 saw it —
-# "invalid float value: '0.2 * DrivenBy(...)'" — while the engine had supported a driven switch rate
+# "invalid float value: '0.2 * ScaledBy(...)'" — while the engine had supported a driven switch rate
 # all along. These pin the four shapes it now reads, and that a driven one is really driven.
 
 def _switch_run(tmp_path, name, tree_file, switch, seed="3"):
@@ -681,7 +681,7 @@ def test_traits_switch_takes_a_rate_expression_and_the_driver_reaches_the_engine
     from zombi2.rates.parse import parse_rate, written_form
 
     driver = _driver_file(tmp_path, tree_file)
-    expression = f"0.2 * DrivenBy({str(driver)!r}, {{'x': 12.0, 'y': 1.0}})"
+    expression = f"0.2 * ScaledBy({str(driver)!r}, {{'x': 12.0, 'y': 1.0}})"
     plain = _switch_run(tmp_path, "plain", tree_file, "0.2")
     driven = _switch_run(tmp_path, "driven", tree_file, expression)
     # the driver's own states are x/y here (a second trait over the same labels), so every lineage in
@@ -702,7 +702,7 @@ def test_traits_a_driven_switch_inside_a_per_transition_dict_is_seen_by_the_log(
     from zombi2.rates.parse import parse_rate, written_form
 
     driver = _driver_file(tmp_path, tree_file)
-    inner = f"0.3 * DrivenBy({str(driver)!r}, {{'x': 5.0}})"
+    inner = f"0.3 * ScaledBy({str(driver)!r}, {{'x': 5.0}})"
     out = _switch_run(tmp_path, "dict_driven", tree_file, f"{{'x->y': {inner}, 'y->x': 0.1}}")
     log = (out / "traits.log").read_text(encoding="utf-8")
     # the entry is rendered as a rate, not as a Rate repr, which no flag would take back
@@ -747,12 +747,12 @@ def test_traits_params_file_can_carry_a_switch_expression(tmp_path, tree_file):
     # processes backslash escapes, which eats a Windows path before ZOMBI2 sees it
     (tmp_path / "p.toml").write_text(
         'kind = "discrete"\nstates = "x,y"\nseed = 4\n'
-        "switch = \'\'\'0.2 * DrivenBy(\'%s\', {\'x\': 9.0, \'y\': 1.0})\'\'\'\n" % driver,
+        "switch = \'\'\'0.2 * ScaledBy(\'%s\', {\'x\': 9.0, \'y\': 1.0})\'\'\'\n" % driver,
         encoding="utf-8")
     out = tmp_path / "fromparams"
     assert main(["traits", str(out), "--from", str(tree_file), "--params", str(tmp_path / "p.toml"),
                  "--flat"]) == 0
-    assert "switch\t0.2 * DrivenBy(" in (out / "traits.log").read_text(encoding="utf-8")
+    assert "switch\t0.2 * ScaledBy(" in (out / "traits.log").read_text(encoding="utf-8")
 
 
 def test_traits_params_file_drives_the_run_and_cli_overrides(tmp_path, tree_file):
@@ -809,7 +809,7 @@ def test_the_log_records_a_driver_file_as_an_input(tmp_path):
           "--seed", "1", "--quiet"])
     driver = str(run / "traits" / "trait_events.tsv")
     main(["genomes", str(run), "--duplication", "0.2", "--seed", "1", "--quiet",
-          "--loss", f"0.25 * DrivenBy({driver!r}, {{'cave': 4.0, 'surface': 1.0}})"])
+          "--loss", f"0.25 * ScaledBy({driver!r}, {{'cave': 4.0, 'surface': 1.0}})"])
     inputs = [ln.split("\t")[2] for ln in (run / "genomes" / "genomes.log").read_text(encoding="utf-8").splitlines()
               if ln.startswith("input\t")]
     assert driver in inputs
@@ -940,10 +940,10 @@ def test_species_records_the_rate_in_its_written_form(tmp_path):
 
 
 def test_species_refuses_a_modifier_it_does_not_wire(tmp_path, capsys):
-    # DrivenBy would return a factor of 1.0 at this level — a run quietly not the model asked for.
+    # Driven would return a factor of 1.0 at this level — a run quietly not the model asked for.
     # (Driving speciation is a *joint* model, so it is `zombi2 joint`'s business, not this command's.)
     rc = main(["species", str(tmp_path / "o"), "--birth",
-               "1.0 * DrivenBy('habitat.tsv', Table({'a': 2.0}))", "--total-time", "3",
+               "1.0 * ScaledBy('habitat.tsv', Table({'a': 2.0}))", "--total-time", "3",
                "--seed", "1", "--flat"])
     assert rc == 1
     assert "does not support" in capsys.readouterr().err
@@ -973,7 +973,7 @@ def test_genomes_takes_a_rate_expression(tmp_path, tree_file):
 @pytest.fixture
 def driver_file(tmp_path, tree_file):
     """A discrete habitat trait grown on ``tree_file`` and written as its event log — the file a
-    conditioned ``DrivenBy`` names as its source and replays against the shared tree."""
+    conditioned ``Driven`` names as its source and replays against the shared tree."""
     main(["traits", str(tmp_path), "--kind", "discrete", "--from", str(tree_file), "--states", "competent,normal", "--switch", "0.4", "--seed", "1", "--write", "events", "--flat"])
     return tmp_path / "trait_events.tsv"
 
@@ -981,12 +981,12 @@ def driver_file(tmp_path, tree_file):
 def test_genomes_transfer_can_be_driven_from_the_cli(tmp_path, driver_file, tree_file):
     # the DONOR side: a rate, so it takes the ordinary written form and changes how much HGT happens
     out = tmp_path / "g"
-    rc = main(["genomes", str(out), "--from", str(tree_file), "--initial-families", "5", "--transfer", f"0.2 * DrivenBy('{driver_file}', {{'competent': 4.0, 'normal': 1.0}})", "--seed", "2", "--flat"])
+    rc = main(["genomes", str(out), "--from", str(tree_file), "--initial-families", "5", "--transfer", f"0.2 * ScaledBy('{driver_file}', {{'competent': 4.0, 'normal': 1.0}})", "--seed", "2", "--flat"])
     assert rc == 0
     # the log records the rate in its written form, which is what pastes back into the flag — so
     # compare against that rather than a hand-built string (a Windows path is escaped in it)
     from zombi2.rates.parse import parse_rate, written_form
-    written = written_form(parse_rate(f"0.2 * DrivenBy('{driver_file}', "
+    written = written_form(parse_rate(f"0.2 * ScaledBy('{driver_file}', "
                                       f"{{'competent': 4.0, 'normal': 1.0}})"))
     assert f"transfer\t{written}" in (out / "genomes.log").read_text(encoding="utf-8")
 
@@ -994,10 +994,10 @@ def test_genomes_transfer_can_be_driven_from_the_cli(tmp_path, driver_file, tree
 def test_genomes_transfer_to_takes_a_driven_recipient_weight(tmp_path, driver_file, tree_file):
     # the RECIPIENT side: the choice slot, so the modifier is written on its own, with no base
     out = tmp_path / "g"
-    rc = main(["genomes", str(out), "--from", str(tree_file), "--initial-families", "5", "--transfer", "0.5", "--transfer-to", f"DrivenBy('{driver_file}', {{'competent': 2.0, 'normal': 1.0}})", "--seed", "2", "--flat"])
+    rc = main(["genomes", str(out), "--from", str(tree_file), "--initial-families", "5", "--transfer", "0.5", "--transfer-to", f"Weights('{driver_file}', {{'competent': 2.0, 'normal': 1.0}})", "--seed", "2", "--flat"])
     assert rc == 0
     from zombi2.cli.genomes import _transfer_to
-    written = repr(_transfer_to(f"DrivenBy('{driver_file}', "
+    written = repr(_transfer_to(f"Weights('{driver_file}', "
                                 f"{{'competent': 2.0, 'normal': 1.0}})"))
     assert f"transfer_to\t{written}" in (out / "genomes.log").read_text(encoding="utf-8")
 
@@ -1012,18 +1012,18 @@ def test_genomes_transfer_to_takes_a_driven_weight_at_every_resolution(
     extra = ["--root-length", "2000"] if resolution == "nucleotide" else ["--initial-families", "5"]
     rc = main(["genomes", str(out), "--from", str(tree_file), "--resolution", resolution,
                "--transfer", "0.5", "--transfer-to",
-               f"DrivenBy('{driver_file}', {{'competent': 2.0, 'normal': 1.0}})",
+               f"Weights('{driver_file}', {{'competent': 2.0, 'normal': 1.0}})",
                "--seed", "2", "--flat", *extra])
     assert rc == 0
     from zombi2.cli.genomes import _transfer_to
-    written = repr(_transfer_to(f"DrivenBy('{driver_file}', "
+    written = repr(_transfer_to(f"Weights('{driver_file}', "
                                 f"{{'competent': 2.0, 'normal': 1.0}})"))
     assert f"transfer_to\t{written}" in (out / "genomes.log").read_text(encoding="utf-8")
 
 
 def test_genomes_transfer_to_rejects_a_rate_expression(tmp_path, tree_file, capsys):
     with pytest.raises(SystemExit) as e:
-        main(["genomes", str(tmp_path / "g"), "--from", str(tree_file), "--transfer-to", "1.0 * DrivenBy('d.tsv', {'a': 2})", "--flat"])
+        main(["genomes", str(tmp_path / "g"), "--from", str(tree_file), "--transfer-to", "1.0 * Weights('d.tsv', {'a': 2})", "--flat"])
     assert e.value.code == 2
     assert "written on its own" in capsys.readouterr().err
 
@@ -1033,7 +1033,7 @@ def test_genomes_transfer_to_names_its_rules_for_a_misspelt_one(tmp_path, tree_f
     with pytest.raises(SystemExit) as e:
         main(["genomes", str(tmp_path / "g"), "--from", str(tree_file), "--transfer-to", "uniforn", "--flat"])
     assert e.value.code == 2
-    assert "'uniform', 'distance', or a DrivenBy" in capsys.readouterr().err
+    assert "'uniform', 'distance', or a Weights" in capsys.readouterr().err
 
 
 def test_genomes_params_file_carries_a_driven_transfer_to(tmp_path, driver_file, tree_file):
@@ -1042,12 +1042,12 @@ def test_genomes_params_file_carries_a_driven_transfer_to(tmp_path, driver_file,
     # "..." string processes backslash escapes, which eats a Windows path before ZOMBI2 sees it
     (tmp_path / "p.toml").write_text(
         "transfer = 0.5\ninitial-families = 5\n"
-        "transfer-to = \'\'\'DrivenBy(\'%s\', {\'competent\': 2.0, \'normal\': 1.0})\'\'\'\n" % driver_file,
+        "transfer-to = \'\'\'Weights(\'%s\', {\'competent\': 2.0, \'normal\': 1.0})\'\'\'\n" % driver_file,
         encoding="utf-8")
     out = tmp_path / "g"
     rc = main(["genomes", str(out), "--params", str(tmp_path / "p.toml"), "--from", str(tree_file), "--seed", "2", "--flat"])
     assert rc == 0
-    assert "transfer_to\tDrivenBy(" in (out / "genomes.log").read_text(encoding="utf-8")
+    assert "transfer_to\tWeights(" in (out / "genomes.log").read_text(encoding="utf-8")
 
 
 def test_traits_takes_a_rate_expression(tmp_path, tree_file):
@@ -1082,7 +1082,7 @@ def test_the_rates_help_lists_only_what_the_level_wires(capsys):
             # both per-lineage cells are wired; the per-family one is not
             ("species", ["inherited per lineage", "drawn per lineage"], ["drawn per family"]),
             # both clocks and the trait driver are wired; the diversity covariate is not
-            ("sequences", ["drawn per lineage", "inherited per lineage", "DrivenBy"],
+            ("sequences", ["drawn per lineage", "inherited per lineage", "ScaledBy"],
              ["OnTotalDiversity"])]:
         with pytest.raises(SystemExit):
             main([command, "--help", "--flat"])
@@ -1248,7 +1248,7 @@ def test_the_directory_and_the_file_give_the_same_run(tmp_path):
 def test_joint_trait_writes_both_levels(tmp_path):
     # BiSSE: the trait drives which lineages speciate, so neither level can be grown first
     rc = main(["joint", str(tmp_path),
-               "--birth", "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})", "--death", "0.2",
+               "--birth", "1.0 * ScaledBy('trait', {'small': 1.0, 'large': 3.0})", "--death", "0.2",
                "--states", "small,large", "--switch", "0.3", "--n-extant", "30", "--seed", "1"])
     assert rc == 0
     assert (tmp_path / "species" / "species_complete.nwk").exists()
@@ -1262,7 +1262,7 @@ def test_joint_trait_writes_both_levels(tmp_path):
 
 def test_joint_genome_driver_nests_its_gene_trees(tmp_path):
     rc = main(["joint", str(tmp_path),
-               "--birth", "1.0 * DrivenBy('genomes:toxin', {'present': 3.0, 'absent': 1.0})",
+               "--birth", "1.0 * ScaledBy('genomes:toxin', {'present': 3.0, 'absent': 1.0})",
                "--origination", "0.2", "--loss", "0.1", "--family-names", "toxin",
                "--n-extant", "20", "--seed", "1"])
     assert rc == 0
@@ -1273,7 +1273,7 @@ def test_joint_genome_driver_nests_its_gene_trees(tmp_path):
 
 
 def test_joint_is_deterministic_given_the_seed(tmp_path):
-    argv = ["--birth", "1.0 * DrivenBy('trait', {'a': 1.0, 'b': 2.0})",
+    argv = ["--birth", "1.0 * ScaledBy('trait', {'a': 1.0, 'b': 2.0})",
             "--states", "a,b", "--switch", "0.3", "--n-extant", "20", "--seed", "5"]
     for name in ("x", "y"):
         main(["joint", str(tmp_path / name), *argv])
@@ -1629,7 +1629,7 @@ def test_flat_layout_is_left_to_the_user(tmp_path):
                  "2", "--quiet", "--flat"]) == 0
 
 
-# ── the staleness guard: DrivenBy conditioning edges ────────────────────────────────
+# ── the staleness guard: Driven conditioning edges ────────────────────────────────
 
 def _conditioned_pipeline(run):
     """species -> discrete trait -> genomes with a loss *driven by* that trait -> sequences."""
@@ -1638,7 +1638,7 @@ def _conditioned_pipeline(run):
     main(["traits", str(run), "--kind", "discrete", "--states", "cave,surface", "--switch", "0.4",
           "--seed", "5", "--quiet"])
     main(["genomes", str(run), "--duplication", "0.2", "--origination", "0.5", "--seed", "3", "--quiet",
-          "--loss", f"0.25 * DrivenBy('{run}/traits/trait_events.tsv', {{'cave': 4.0}})"])
+          "--loss", f"0.25 * ScaledBy('{run}/traits/trait_events.tsv', {{'cave': 4.0}})"])
     main(["sequences", str(run), "--model", "jc69", "--length", "20", "--seed", "1", "--quiet"])
 
 
@@ -1663,7 +1663,7 @@ def test_genomes_ordered_takes_a_driven_rate_from_the_command_line(tmp_path):
           "--seed", "5", "--quiet"])
     driver = f"{run}/traits/trait_events.tsv"
     rc = main(["genomes", str(run), "--resolution", "ordered", "--initial-families", "12",
-               "--inversion", f"0.3 * DrivenBy('{driver}', {{'cave': 4.0, 'surface': 1.0}})",
+               "--inversion", f"0.3 * ScaledBy('{driver}', {{'cave': 4.0, 'surface': 1.0}})",
                "--seed", "3", "--quiet"])
     assert rc == 0
     assert (run / "genomes" / "rearrangement_events.tsv").exists()
@@ -1708,7 +1708,7 @@ def test_a_trait_drives_the_substitution_rate_from_the_command_line(tmp_path, ca
     main(["genomes", str(run), "--duplication", "0.2", "--loss", "0.2", "--origination", "0.5",
           "--seed", "3", "--quiet"])
     driver = f"{run}/traits/trait_events.tsv"
-    rate = f"0.05 * DrivenBy('{driver}', {{'cave': 0.2, 'surface': 1.0}})"
+    rate = f"0.05 * ScaledBy('{driver}', {{'cave': 0.2, 'surface': 1.0}})"
     capsys.readouterr()
     assert main(["sequences", str(run), "--model", "jc69", "--length", "200", "--seed", "1",
                  "--quiet", "--substitution", rate]) == 0
@@ -1716,7 +1716,7 @@ def test_a_trait_drives_the_substitution_rate_from_the_command_line(tmp_path, ca
 
     assert (run / "sequences" / "conditioned_on").read_text(encoding="utf-8").split() == ["traits"]
     log = (run / "sequences" / "sequences.log").read_text(encoding="utf-8")
-    assert "DrivenBy(" in log and "trait_events.tsv" in log       # the rate in its written form
+    assert "ScaledBy(" in log and "trait_events.tsv" in log       # the rate in its written form
     assert any(line.startswith("input\t") and driver in line for line in log.splitlines())
 
     # and the trait is now a driver of this run: re-running it without --force would orphan the run
@@ -1884,7 +1884,7 @@ def test_a_broken_params_file_names_the_file_and_the_path_trap(tmp_path, capsys)
     # TOML reads a backslash in a "..." string as an escape, so a Windows path is rejected with a
     # message about hex values that says nothing about paths
     bad = tmp_path / "p.toml"
-    bad.write_text('birth = 1.0\ntransfer-to = "DrivenBy(\'C:\\Users\\x\', {})"\n', encoding="utf-8")
+    bad.write_text('birth = 1.0\ntransfer-to = "Weights(\'C:\\Users\\x\', {})"\n', encoding="utf-8")
     with pytest.raises(SystemExit):
         main(["genomes", str(tmp_path / "o"), "--params", str(bad)])
     err = capsys.readouterr().err
@@ -2125,7 +2125,7 @@ def test_named_traits_sit_side_by_side_and_one_can_drive_the_other(tmp_path):
     before = driver.read_text(encoding="utf-8")
 
     assert main(["traits", str(run), "--name", "size", "--kind", "continuous", "--rate",
-                 f"1.0 * DrivenBy('{driver}', {{'fast': 6.0}})", "--seed", "2", "--quiet"]) == 0
+                 f"1.0 * ScaledBy('{driver}', {{'fast': 6.0}})", "--seed", "2", "--quiet"]) == 0
     # the driver is untouched, and the target is beside it rather than on top of it
     assert driver.read_text(encoding="utf-8") == before
     assert (run / "traits" / "size" / "trait_values.tsv").is_file()
@@ -2157,7 +2157,7 @@ def test_traits_records_which_level_drove_its_rate(tmp_path):
                  "cave,surface", "--switch", "0.5", "--seed", "1", "--quiet"]) == 0
     driver = run / "traits" / "habitat" / "trait_events.tsv"
     assert main(["traits", str(run), "--name", "size", "--kind", "continuous", "--rate",
-                 f"1.0 * DrivenBy('{driver}', {{'cave': 0.2, 'surface': 1.0}})",
+                 f"1.0 * ScaledBy('{driver}', {{'cave': 0.2, 'surface': 1.0}})",
                  "--seed", "1", "--quiet"]) == 0
 
     assert (run / "traits" / "size" / "conditioned_on").read_text().split() == ["traits"]
@@ -2194,14 +2194,14 @@ def test_joint_takes_at_speciation_and_the_api_default_for_initial_families(tmp_
     out = tmp_path / "classe"
     assert main(["joint", str(out), "--death", "0.2", "--states", "small,large",
                  "--switch", "0.3", "--at-speciation", "0.5", "--n-extant", "40", "--seed", "1",
-                 "--birth", "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})"]) == 0
+                 "--birth", "1.0 * ScaledBy('trait', {'small': 1.0, 'large': 3.0})"]) == 0
     events = (out / "traits" / "trait_events.tsv").read_text(encoding="utf-8")
     assert "on_speciation" in events, "--at-speciation put no jump at a split"
 
     gene = tmp_path / "content"
     assert main(["joint", str(gene), "--origination", "0.2", "--loss", "0.1",
                  "--n-extant", "20", "--seed", "1",
-                 "--birth", "1.0 * DrivenBy('genomes:count', Scalar(0.01))"]) == 0
+                 "--birth", "1.0 * ScaledBy('genomes:count', Scalar(0.01))"]) == 0
     summary = json.loads((gene / "joint_summary.json").read_text(encoding="utf-8"))
     # `initial` is the count of families present at time 0 — the root genome's
     assert summary["genome"]["events"]["initial"] == 100, summary["genome"]["events"]

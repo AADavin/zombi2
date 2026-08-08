@@ -9,7 +9,7 @@ import numpy as np
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import describe, DrivenBy, Modifier, is_implemented
+from ..rates.modifiers import describe, Driven, Modifier, is_implemented
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerLineage
 from ..tree import as_tree
@@ -20,7 +20,7 @@ from .result import Change, TraitsResult
 #: the modifiers a discrete trait's ``switch`` rate takes — declared, as every level declares its
 #: own, so Appendix A and the CLI help are built from the engine rather than kept by hand. It is a
 #: shorter list than the continuous rate's: a switch rate reads a driver and nothing else.
-IMPLEMENTED_MODIFIERS = (DrivenBy,)
+IMPLEMENTED_MODIFIERS = (Driven,)
 
 
 def _q_matrix(states, switch) -> np.ndarray:
@@ -111,10 +111,10 @@ def _switch_specs(switch) -> list:
 
 def _switch_modifiers(switch) -> list:
     """Every modifier the switch rates carry — a switch rate written as a rate expression
-    (``0.4 * mod.DrivenBy(habitat, {"aquatic": 3.0})``) rather than as a bare number, so the trait
+    (``0.4 * mod.Driven(habitat, {"aquatic": 3.0})``) rather than as a bare number, so the trait
     switches faster on the lineages where the driver is in one state than another.
 
-    ``DrivenBy`` is the only modifier this engine ships for a switch rate; anything else built in
+    ``ScaledBy`` is the only modifier this engine ships for a switch rate; anything else built in
     would be read by no part of it, so it is refused by name rather than silently ignored. A
     third-party modifier that named this engine in its `Modifier.implemented_for` is returned here
     too — carrying *any* modifier is what puts the run on the rebuild-per-stretch path below, where
@@ -132,8 +132,8 @@ def _switch_modifiers(switch) -> list:
             if not is_implemented(m, IMPLEMENTED_MODIFIERS, "traits.discrete"):
                 raise ValueError(
                     f"a switch rate carries {describe(m)}, which the discrete trait engine does "
-                    f"not support. It takes DrivenBy (the switch rate driven by another level).")
-            if isinstance(m, DrivenBy):     # only a driver has a mapping to check
+                    f"not support. It takes ScaledBy (the switch rate driven by another level).")
+            if isinstance(m, Driven):     # only a driver has a mapping to check
                 check_not_a_kernel(m.mapping, label="a switch rate")
             mods.append(m)
     return mods
@@ -335,8 +335,8 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
       (``0.1``), a ``{"marine->terrestrial": 0.1}`` dict, or a ``k×k`` matrix (see `_q_matrix()`).
       ``start`` is the root state (a label in ``states``; ``None`` draws one uniformly). A switch rate
       may be **driven by another level** grown first on this same tree — write it as a rate
-      expression, ``switch=0.4 * mod.DrivenBy(habitat, {"aquatic": 3.0})`` or per transition,
-      ``switch={"a->b": 0.2 * mod.DrivenBy(habitat, {"aquatic": 3.0}), "b->a": 0.2}``. The driver
+      expression, ``switch=0.4 * mod.Driven(habitat, {"aquatic": 3.0})`` or per transition,
+      ``switch={"a->b": 0.2 * mod.Driven(habitat, {"aquatic": 3.0}), "b->a": 0.2}``. The driver
       switches mid-branch, so the generator is rebuilt at each of its switches and the branch is
       simulated piece by piece — the exact CTMC with a time-varying generator, not one sample per
       branch.
@@ -371,19 +371,19 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
         raise ValueError("correlation= on a discrete trait needs the threshold model — give liability= and threshold=")
     if switch is None:
         raise ValueError("give switch= — the transition rate(s) between the discrete states.")
-    # conditioning: a switch rate carrying DrivenBy reads another level, grown first on this same
+    # conditioning: a switch rate carrying ScaledBy reads another level, grown first on this same
     # tree. The generator is then a function of the driver, so it is built per stretch rather than
     # once. No modifier at all ⇒ one constant Q and the walk below is exactly the walk it was.
     #
     # The two questions are separate, and conflating them was a bug: *any* modifier puts the run on
     # the rebuild-per-stretch path (that is what makes the generator a function of the context),
-    # while only a `DrivenBy` names a driver to resolve a trajectory from. A third-party
+    # while only a `Driven` names a driver to resolve a trajectory from. A third-party
     # modifier used to pass the gate, land in the driver list, and crash the resolver looking for a
     # `.key` it does not have.
     sw_mods = _switch_modifiers(switch)
     entries = _driven_entries(states, switch) if sw_mods else None
     Q = None if sw_mods else _q_matrix(states, switch)
-    trajs = _resolve_drivers([m for m in sw_mods if isinstance(m, DrivenBy)], tree, "traits.discrete")
+    trajs = _resolve_drivers([m for m in sw_mods if isinstance(m, Driven)], tree, "traits.discrete")
     if at_speciation is not None and (isinstance(at_speciation, bool)
             or not isinstance(at_speciation, (int, float)) or not 0.0 <= at_speciation <= 1.0):
         raise ValueError(f"at_speciation must be a probability in [0, 1] (the shift chance), got {at_speciation!r}")

@@ -4,7 +4,7 @@ The literature usually states a driven rate absolutely: *the loss rate is 1.0 in
 times a background nobody wrote down*. `ScaledBy` can only say the second, so saying the first meant
 inventing a background and dividing by it. `SetBy` says it directly.
 
-It is a `DrivenBy`, so every engine that resolves drivers resolves this one — the trajectory, the
+It is a `Driven`, so every engine that resolves drivers resolves this one — the trajectory, the
 mid-branch switches and the mapping checks are all the same machinery. One line in `Rate.effective`
 asks a `SetBy` for the base and everything else for a factor.
 """
@@ -14,7 +14,7 @@ from __future__ import annotations
 import pytest
 
 from zombi2 import genomes, traits
-from zombi2.rates import ScaledBy, SetBy
+from zombi2.rates import ScaledBy, SetBy, Weights
 from zombi2.rates import scope
 from zombi2.rates.rate import as_rate
 from zombi2.species import simulate_species_tree
@@ -86,7 +86,7 @@ class TestInARealRun:
         assert driven.node_values != pytest.approx(other.node_values)
 
     def test_a_level_that_cannot_replace_a_base_refuses_it(self, tree, habitat):
-        """A `SetBy` is a `DrivenBy`, so a gate listing DrivenBy would let it in anywhere a driver
+        """A `SetBy` is a `Driven`, so a gate listing Driven would let it in anywhere a driver
         goes — and four levels admitted it that way and could not honour it. A level has to name
         `SetBy` to accept one."""
         with pytest.raises(ValueError, match="does not support|does not read"):
@@ -132,8 +132,8 @@ def test_it_is_written_the_way_it_is_read():
 
 
 class TestTheHolesAnAdversarialReviewFound:
-    """Every one of these shipped broken for a few hours. `SetBy` is a `DrivenBy`, so it passed every
-    gate that listed `DrivenBy` — including four levels that could not honour a replaced base — and
+    """Every one of these shipped broken for a few hours. `SetBy` is a `Driven`, so it passed every
+    gate that listed `Driven` — including four levels that could not honour a replaced base — and
     the "no base in front of it" guard only ever saw the operand immediately to its left."""
 
     @pytest.mark.parametrize("build", [
@@ -176,7 +176,7 @@ class TestTheHolesAnAdversarialReviewFound:
             as_extent(SetBy("h", {"c": 5.0}))
 
     def test_a_clade_driven_rate_is_written_so_it_can_be_pasted_back(self):
-        """It recorded `DrivenBy('<Clade>', ...)` — which parses, as a *filename*, so the log looked
+        """It recorded `ScaledBy('<Clade>', ...)` — which parses, as a *filename*, so the log looked
         reproducible and was not. A driver that can write itself now does; one that cannot records an
         unquoted placeholder that fails loudly."""
         from zombi2.rates import Clade
@@ -187,7 +187,7 @@ class TestTheHolesAnAdversarialReviewFound:
         assert parse_rate(f"0.2 * {written}").modifiers[0].driver == Clade({"fast": ["n1", "n2"]})
 
     def test_a_driver_that_cannot_be_written_says_so_rather_than_looking_like_a_file(self, habitat):
-        assert repr(ScaledBy(habitat, {"cave": 2.0})).startswith("DrivenBy(<TraitsResult>")
+        assert repr(ScaledBy(habitat, {"cave": 2.0})).startswith("ScaledBy(<TraitsResult>")
 
     def test_a_replaced_base_is_written_so_it_can_be_pasted_back(self):
         """A run records its rates in the written form, and a `SetBy` rate was recorded with a base
@@ -212,7 +212,7 @@ class TestTheHolesAnAdversarialReviewFound:
     def test_a_choice_has_no_base_to_replace_either(self, tree, habitat):
         """The same hole as the extent above, on the other kind of target. `transfer_to` weights the
         candidate recipients against each other, so there is no base for `SetBy` to replace and the
-        word means nothing there — but `SetBy` is a `DrivenBy`, so the check that admits a driven
+        word means nothing there — but `SetBy` is a `Driven`, so the check that admits a driven
         `transfer_to` admitted it, and the run went ahead treating it as an ordinary weighting."""
         with pytest.raises(ValueError, match="transfer_to cannot be SetBy"):
             genomes.simulate_genomes_family(
@@ -222,7 +222,7 @@ class TestTheHolesAnAdversarialReviewFound:
         # the same numbers, spelled as what they are, still run
         genomes.simulate_genomes_family(
             tree, transfer=0.5, initial_families=6, seed=2,
-            transfer_to=ScaledBy(habitat, {"cave": 3.0, "surface": 1.0}))
+            transfer_to=Weights(habitat, {"cave": 3.0, "surface": 1.0}))
 
 
 def test_a_modifier_of_your_own_cannot_vouch_for_a_replaced_base():

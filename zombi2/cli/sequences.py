@@ -25,7 +25,7 @@ import numpy as np
 from zombi2.genomes import FamilyGenomesResult
 from zombi2.genomes.events import edges_from_tsv
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
-from zombi2.rates.modifiers import DRAWN, INHERITED, DrivenBy, Modifier
+from zombi2.rates.modifiers import DRAWN, INHERITED, Driven, Modifier
 from zombi2._runtime.report import write_run_report
 from zombi2.sequences import (IMPLEMENTED_MODIFIERS, _calibrate, mean_pairwise_identity,
                               simulate_sequences)
@@ -45,9 +45,9 @@ RATES_HELP = _rates_help(
     note="Drawn(per='lineage') draws one rate per species lineage, shared by every gene in it. "
          "spread=σ is the short spelling and means a lognormal of that log-scale; dist= takes any "
          "distribution instead — Gamma(shape=…, scale=…), Exponential(…) — normalised to mean 1, so "
-         "what it contributes is its shape. Give one or the other. DrivenBy "
+         "what it contributes is its shape. Give one or the other. ScaledBy "
          "reads a trait grown first — the trait_events.tsv a 'zombi2 traits' run wrote, in this run "
-         "or another: \"1.0 * DrivenBy('out/traits/trait_events.tsv', {'cave': 0.5, 'surface': "
+         "or another: \"1.0 * ScaledBy('out/traits/trait_events.tsv', {'cave': 0.5, 'surface': "
          "1.0})\". A clock and a driver compose; a driver that switches mid-branch is integrated "
          "across the switch, not sampled once for the branch.")
 
@@ -126,7 +126,7 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("substitution rate & clock", "see RATES below")
     g.add_argument("--substitution", type=_rate, default=None, metavar="RATE",
                    help="substitutions per site per unit time (default 1.0, a strict clock); a "
-                        "Drawn(per='lineage') modifier relaxes it, and a DrivenBy reads a trait grown first")
+                        "Drawn(per='lineage') modifier relaxes it, and a ScaledBy reads a trait grown first")
     g.add_argument("--divergence", type=float, default=None, metavar="D",
                    help="solve for the rate instead, so a site accrues D substitutions from root to "
                         "tip. Composes with --substitution: give the clock's shape alone "
@@ -362,7 +362,7 @@ def run(args, parser):
         elif m.reads == (INHERITED, "lineage"):
             clocks.append(f"discrete-bin clock, {m.bins} bins, spread {m.spread:g}" if m.bins
                           else f"autocorrelated clock, spread {m.spread:g}")
-        elif isinstance(m, DrivenBy):
+        elif isinstance(m, Driven):
             # a driver is a second factor, not a second clock — appended rather than replacing, or a
             # driven relaxed run would report itself as one or the other and never as both
             driven.append(os.path.basename(m.driver) if isinstance(m.driver, str)

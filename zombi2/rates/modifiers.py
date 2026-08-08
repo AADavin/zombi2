@@ -131,9 +131,15 @@ def check_one_memory(mods: "tuple[Modifier, ...]", *, label: str, unit: str) -> 
 def cell_name(entry) -> str:
     """What to call one entry of a level's ``IMPLEMENTED_MODIFIERS`` in a message — a class's name,
     or the named cell for a ``(kind, unit)`` pair. Shared so an error and the CLI's help cannot
-    describe the same declaration two different ways."""
+    describe the same declaration two different ways.
+
+    A `Driven` is named ``ScaledBy``, the verb that writes one on a rate: a declaration is a
+    promise about what you may *write*, and the class name is not something anyone writes. The
+    other two verbs are elsewhere by construction — ``SetBy`` is declared separately, because
+    replacing a base is its own capability, and ``Weights`` goes on ``transfer_to``, which is not a
+    rate and so is not in this list at all."""
     if not isinstance(entry, tuple):
-        return entry.__name__
+        return "ScaledBy" if entry is Driven else entry.__name__
     return f"{entry[0]} per {entry[1]}"
 
 
@@ -158,11 +164,15 @@ def _driver_form(driver: object) -> str:
 def describe(m: "Modifier") -> str:
     """What to call one modifier **instance** in a message.
 
-    Its class name, except for the two classes that cover a whole row of the grid: a `Drawn` or an
-    `Inherited` is named by its cell — ``drawn per family``, ``inherited per lineage`` — because
-    saying "carries Drawn" would be true and useless when the whole question is *per what*."""
+    Its class name, except for two cases where the class name is not what anyone wrote. A `Drawn`
+    or an `Inherited` covers a whole row of the grid and is named by its cell — ``drawn per
+    family``, ``inherited per lineage`` — because "carries Drawn" would be true and useless when the
+    whole question is *per what*. And a `Driven` is named by the **verb** that built it, which is
+    the word the user actually typed and the one that says what the number does."""
     if isinstance(m, (Drawn, Inherited)):
         return cell_name(m.reads)
+    if type(m) is Driven:
+        return m.verb
     return type(m).__name__
 
 
@@ -208,9 +218,9 @@ def matches_declared(m: "Modifier", entries: tuple) -> bool:
             if m.reads == entry:
                 return True
         elif isinstance(m, SetBy) or isinstance(entry, type) and issubclass(entry, SetBy):
-            # A `SetBy` is a `DrivenBy`, so a plain isinstance would let it in wherever a driver is
+            # A `SetBy` is a `Driven`, so a plain isinstance would let it in wherever a driver is
             # allowed — and replacing a base is a capability an engine has or has not, which
-            # DrivenBy's declaration says nothing about. Four levels admitted it that way and then
+            # Driven's declaration says nothing about. Four levels admitted it that way and then
             # could not honour it: three overwrote the base in a loop so the last one written won,
             # and the sequence level multiplied them together. Match it by exact type instead, so a
             # level has to name `SetBy` to accept one.
@@ -232,7 +242,7 @@ class Modifier:
     #: What this modifier reads, as ``(kind, unit)`` — the value's kind (one of `MEASURED`,
     #: `DRAWN`, `INHERITED`, `DRIVEN`) and the unit it lives on (``"run"``, ``"lineage"``,
     #: ``"family"``, …). It is SPEC §5's preposition table, written where the code can read it:
-    #: ``On`` is a measured value, ``By`` a drawn one, ``From`` an inherited one, and ``DrivenBy``
+    #: ``On`` is a measured value, ``By`` a drawn one, ``From`` an inherited one, and ``ScaledBy``
     #: another level's.
     #:
     #: The split it records is the useful one. A **measured** value is one the engine already has,
@@ -617,17 +627,21 @@ class Drawn(Modifier):
         return hash((Drawn, self.per, self.dist))
 
 
-class DrivenBy(Modifier):
+class Driven(Modifier):
     """The factor is read from **another evolved value** — the one mechanism behind both conditioning and
     joining (SPEC §2).
 
-    It is Ch2's definition made literal: *a rate that reads a value which varies from lineage to
-    lineage, rather than a fixed number*. ``DrivenBy`` reads the driver's value on each lineage and
-    the mapping turns it into a number — a multiplier on a rate or an extent, a weight on
-    ``transfer_to``::
+    **You do not write this class; you write a verb.** Which verb says what the number does, and is
+    decided by what you are attaching it to: `ScaledBy` multiplies a rate or an extent, `Weights`
+    compares the candidates of a choice, `SetBy` replaces a base. All three build this::
 
-        loss = 0.25 * mod.DrivenBy("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})
-        birth = 1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": 2.0})   # a joint model
+        loss        = 0.25 * ScaledBy("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})
+        birth       = 1.0  * ScaledBy("trait", {"small": 1.0, "large": 2.0})   # a joint model
+        transfer_to =        Weights("competence.tsv", {"competent": 3.0, "normal": 1.0})
+
+    It is Ch2's definition made literal: *a rate that reads a value which varies from lineage to
+    lineage, rather than a fixed number*. It reads the driver's value on each lineage and the mapping
+    turns it into a number.
 
     ``driver`` says where the driven value comes from, and that single choice splits *conditioned*
     from *joint* — the chapter's spine, *can the driver be grown first?*:
@@ -644,13 +658,13 @@ class DrivenBy(Modifier):
     a `Scalar` (a log-link coefficient), or a `Between` (a weight per donor/recipient pair, which
     only ``transfer_to`` takes); a raw dict / callable / number is coerced (`as_mapping()`).
 
-    What a ``DrivenBy`` can be attached to comes in **three kinds**, and only the first is a rate:
+    What a ``Driven`` can be attached to comes in **three kinds**, and only the first is a rate:
     *how often* an event fires (a rate, e.g. ``loss``), *how much* it takes (an extent, e.g.
     ``loss_extent``, at the ordered and nucleotide resolutions), and a **choice** of who receives it
     (``transfer_to``, a weight per candidate rather than a multiplier). It always maps a value to a
     number; it never drives a *value*, such as an OU optimum.
 
-    Like a carried modifier, ``DrivenBy`` reads
+    Like a carried modifier, ``ScaledBy`` reads
     a value the **engine** threads per lineage — here a ``drivers`` mapping ``{key: value}`` — and
     is otherwise dumb: it just maps the value to a factor. The engine owns *where* the value comes from
     (a file it loaded, or the live level growing beside the tree) and *when* it changes (a discrete
@@ -664,12 +678,19 @@ class DrivenBy(Modifier):
     #: kind here is the pair's shared name rather than one of them.
     reads: ClassVar[tuple[str, str] | None] = (DRIVEN, "lineage")
 
-    def __init__(self, driver: object, mapping: object, step: float | None = None) -> None:
+    #: The verb that wrote this one, and so how it prints. A driven value is written with the verb
+    #: that says what its number does — and only the writer knows which, because it follows from
+    #: what the value is attached to, not from anything the value itself holds. Recording it is what
+    #: lets a run's log say back exactly what was typed.
+    verb: str = "ScaledBy"
+
+    def __init__(self, driver: object, mapping: object, step: float | None = None, *,
+                 verb: str | None = None) -> None:
         from .mapping import as_mapping
 
         if isinstance(driver, str):
             if not driver.strip():
-                raise ValueError("DrivenBy driver must be a non-empty string (a filename or level name)")
+                raise ValueError("a driver must be a non-empty string (a filename or level name)")
             base: object = driver                    # a string driver is its own context key
         else:
             base = id(driver)                        # an in-memory driver result (conditioning): key by identity
@@ -677,7 +698,7 @@ class DrivenBy(Modifier):
             step = float(step)
             if not (step > 0.0) or step == float("inf"):
                 raise ValueError(
-                    f"DrivenBy step is the resolution a CONTINUOUS driver is read at, in the tree's own "
+                    f"step is the resolution a CONTINUOUS driver is read at, in the tree's own "
                     f"time units, so it must be finite and positive; got {step!r}.")
         # the step is part of the key: the same driver read at two resolutions is two trajectories, and
         # keying on the driver alone would silently resolve it once and share the first one
@@ -685,6 +706,8 @@ class DrivenBy(Modifier):
         self.driver = driver
         self.step = step
         self.mapping = as_mapping(mapping)
+        if verb is not None:
+            self.verb = verb
 
     def factor(self, *, drivers: Mapping | None = None, **_: Any) -> float:
         """The mapped multiplier for this lineage's driver value — the engine threads the value under
@@ -699,25 +722,30 @@ class DrivenBy(Modifier):
         return self.mapping.multiplier(value)
 
     def __repr__(self) -> str:
-        return f"DrivenBy({_driver_form(self.driver)}, {self.mapping!r})"
+        step = f", step={self.step!r}" if self.step is not None else ""
+        return f"{self.verb}({_driver_form(self.driver)}, {self.mapping!r}{step})"
 
     def __eq__(self, other: object) -> bool:
-        return (isinstance(other, DrivenBy) and other.key == self.key
+        return (isinstance(other, Driven) and other.key == self.key
                 and other.mapping == self.mapping)
 
     def __hash__(self) -> int:
-        # by key only (a mapping — a dict or callable — need not be hashable); equal DrivenBy share a
+        # by key only (a mapping — a dict or callable — need not be hashable); equal ScaledBy share a
         # key, so this stays consistent with __eq__ and keeps a Rate carrying it hashable.
-        return hash((DrivenBy, self.key))
+        return hash((Driven, self.key))
 
 
 #: The names a rate may be **written** with — what `zombi2.rates.parse` whitelists, and the only
 #: things in this module a user ever calls. Kept explicit rather than derived from ``__all__``, which
 #: also carries the helpers an engine uses: a whitelist that grows whenever a helper is exported is
 #: a whitelist that stops meaning anything.
-WRITABLE = ("OnTime", "OnTotalDiversity", "Drawn", "Inherited", "DrivenBy", "SetBy")
+#:
+#: `Driven` is deliberately absent. It is the object a driven parameter carries, and it is written
+#: with the **verb** that says what its number does — `ScaledBy`, `Weights` or the `SetBy` below —
+#: because that is the one thing the class name never said.
+WRITABLE = ("OnTime", "OnTotalDiversity", "Drawn", "Inherited", "SetBy")
 
-class SetBy(DrivenBy):
+class SetBy(Driven):
     """**Replace** the parameter's base with a value read from a driver, rather than multiplying it::
 
         loss = SetBy(habitat, {"cave": 1.0, "surface": 0.25})   # the rate itself, per state
@@ -732,7 +760,7 @@ class SetBy(DrivenBy):
     to 1.0 is still 1.0 per copy, so it is multiplied by the copies present exactly as a written base
     would be. Only the number changes.
 
-    It is a `DrivenBy`, so every engine that resolves drivers resolves this one too — the trajectory,
+    It is a `Driven`, so every engine that resolves drivers resolves this one too — the trajectory,
     the mid-branch switches, the mapping checks are all the same machinery. What differs is one line
     in `Rate.effective`, which asks a ``SetBy`` for the base and every
     other modifier for a factor. The two compose: a replaced base may still be scaled.
@@ -765,7 +793,7 @@ class SetBy(DrivenBy):
         return f"SetBy({_driver_form(self.driver)}, {self.mapping!r})"
 
 
-__all__ = ["Modifier", "OnTime", "OnTotalDiversity", "Drawn", "Inherited", "DrivenBy", "SetBy",
+__all__ = ["Modifier", "OnTime", "OnTotalDiversity", "Drawn", "Inherited", "Driven", "SetBy",
            "MEASURED", "DRAWN", "INHERITED", "DRIVEN", "CARRIED_KINDS", "UNITS",
            "values_at_birth", "values_at_split", "check_one_memory",
            "cell_name", "describe", "is_implemented", "matches_declared", "WRITABLE"]

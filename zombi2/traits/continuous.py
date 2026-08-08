@@ -10,7 +10,7 @@ import numpy as np
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import (describe, DRAWN, INHERITED, DrivenBy, OnTime, OnTotalDiversity, SetBy,
+from ..rates.modifiers import (describe, DRAWN, INHERITED, Driven, OnTime, OnTotalDiversity, SetBy,
                                check_one_memory, is_implemented, values_at_birth, values_at_split)
 from ..rates.rate import as_rate
 from ..rates.scope import PerLineage
@@ -19,7 +19,7 @@ from ..tree import Tree, as_tree
 from ._shared import _correlation_matrix, _driven_mods, _preorder, _resolve_drivers, _symmetric_sqrt
 from .result import Change, TraitsResult
 
-IMPLEMENTED_MODIFIERS = (OnTime, (INHERITED, "lineage"), OnTotalDiversity, DrivenBy, SetBy)  #: the cells a continuous rate takes
+IMPLEMENTED_MODIFIERS = (OnTime, (INHERITED, "lineage"), OnTotalDiversity, Driven, SetBy)  #: the cells a continuous rate takes
 
 class _LTT:
     """The tree's lineages-through-time step function — how many lineages are alive at time ``t``
@@ -90,7 +90,7 @@ def _accrued_variance(rate, t0: float, t1: float, inherited: float = 1.0, ltt: "
     reading the standing diversity on each sub-interval. ``None`` when σ² does not depend on diversity.
 
     ``trajs`` (with ``node_id``, the lineage this branch is) are the driver trajectories when the rate
-    carries a `DrivenBy` — σ² read off another level. The driver's
+    carries a `Driven` — σ² read off another level. The driver's
     value on this lineage is threaded in as ``drivers``, and the integral **steps where the driver
     switches** (``next_change``) exactly as it steps at a skyline breakpoint: a discrete driver
     switches *mid-branch*, so a single sample per branch would credit the whole branch to whichever
@@ -438,7 +438,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     a ``OnTotalDiversity(cap=…)`` modifier makes σ² **slow as the clade fills up** — diversity-dependent /
     ecological-limits trait evolution — σ² scaled by ``(1 − standing_diversity/cap)`` as the tree's
     lineages-through-time grows (the tree is a fixed input the trait reads); a
-    ``DrivenBy(driver, {…})`` modifier makes σ² **read another level** — the driver grown first on this
+    ``Driven(driver, {…})`` modifier makes σ² **read another level** — the driver grown first on this
     same tree and handed over as its result object or its written ``trait_events.tsv``, so a lineage
     diffuses faster while the driver is in one state than another. A discrete driver switches
     *mid-branch*, and the per-branch variance is the integral across those pieces, so a branch that
@@ -491,7 +491,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             f"per lineage — drop the scope wrapper (per lineage is the default)."
         )
     # OnTime (early burst), Inherited(per='lineage') (variable-rates BM), OnTotalDiversity (diversity-dependent)
-    # and DrivenBy (σ² driven by another level) are the σ² modifiers this engine supports; anything
+    # and Driven (σ² driven by another level) are the σ² modifiers this engine supports; anything
     # else is rejected loudly — the genome engine's discipline.
     for m in r.modifiers:
         if m.reads == (DRAWN, "family"):
@@ -505,9 +505,9 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             raise ValueError(
                 f"rate carries {describe(m)}, which the continuous trait engine does not "
                 f"support. It takes OnTime (early burst), Inherited(per='lineage') (variable-rates BM), "
-                f"OnTotalDiversity (diversity-dependent), and DrivenBy (driven by another level)."
+                f"OnTotalDiversity (diversity-dependent), and Driven (driven by another level)."
             )
-        if isinstance(m, DrivenBy):
+        if isinstance(m, Driven):
             check_not_a_kernel(m.mapping, label="rate")
     # the per-lineage modifiers σ² carries (variable-rates BM), asked for the same way every level
     # asks — and every one of them is kept, so two compose rather than the second going quietly.
@@ -534,7 +534,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             )
         theta, alpha = float(reverts_to), float(pull)
 
-    # conditioning: a σ² carrying DrivenBy reads another level, grown first on this same tree. Resolve
+    # conditioning: a σ² carrying ScaledBy reads another level, grown first on this same tree. Resolve
     # each driver once into a trajectory (value + next-switch, keyed by the shared node id), from a
     # written trait log or a grown result handed over in memory. Undriven ⇒ empty, and the walk below
     # is exactly the walk it was — no driver, no lookup, no change to the draw order.
