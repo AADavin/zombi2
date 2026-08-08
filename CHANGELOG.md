@@ -10,6 +10,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **A genome rate can be counted per lineage instead of per copy.** `loss = PerLineage(0.25)` gives a
+  lineage a fixed deletion budget — it loses genes at that rate whatever its genome holds — against
+  `PerCopy(0.25)`, which puts every copy independently at risk so a genome ten times the size turns
+  over ten times as fast. It applies to duplication, transfer and loss at both the family and ordered
+  resolutions, and to inversion, transposition and translocation at the ordered one; the nucleotide
+  engine already counted these per lineage. The total and the pick move together, so a per-lineage
+  rate draws one occupied genome uniformly and then a gene inside it. Origination stays per lineage
+  and the chromosome tier per chromosome. A per-family draw under a per-lineage scope is refused for
+  now, because what the multiplier should do there — move the total, or choose the victim — is two
+  different models. (#326)
 - **Appendix B states the output-table contract: columns may be added, so read them by name.** New
   columns go at the end of a row; an existing column's name and meaning never change, and none is
   removed within a major version. It documents what these tables have always required — the same

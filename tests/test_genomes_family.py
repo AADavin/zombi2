@@ -213,20 +213,53 @@ def test_unsupported_modifiers_are_rejected_not_silently_dropped():
         simulate_genomes_family(sp, loss=0.25 * mod.OnTotalDiversity(cap=100), initial_families=3, seed=1)
 
 
-def test_non_default_scope_is_rejected_not_silently_mismatched():
-    # a non-default scope sets the total rate one way while the engine still picks the affected
-    # copy/lineage the default way — reject it (a PerCopy origination would be base×0 copies, a no-op)
+def test_a_scope_the_engine_cannot_honour_is_rejected():
+    # origination is the rate at which families are CREATED, so per copy it would be base × 0 in an
+    # empty genome — a silent no-op. Global is a statement about the whole tree and would make one
+    # genome's rate depend on how many other lineages exist.
     from zombi2.rates import scope
     sp = _tree(seed=1)
-    with pytest.raises(ValueError, match="scope overrides are a later slice"):
+    with pytest.raises(ValueError, match="takes PerLineage for origination"):
         simulate_genomes_family(sp, origination=scope.PerCopy(2.0), seed=1)
-    with pytest.raises(ValueError, match="scope overrides are a later slice"):
-        simulate_genomes_family(sp, duplication=scope.PerLineage(0.5), initial_families=3, seed=1)
-    with pytest.raises(ValueError, match="scope overrides are a later slice"):
+    with pytest.raises(ValueError, match="takes PerCopy or PerLineage for loss"):
         simulate_genomes_family(sp, loss=scope.Global(0.3), initial_families=3, seed=1)
     # the defaults — bare number and the explicit default scope — are accepted
     simulate_genomes_family(sp, origination=scope.PerLineage(0.5), duplication=scope.PerCopy(0.5),
                             initial_families=1, seed=1)
+
+
+def test_a_per_lineage_rate_does_not_scale_with_genome_size():
+    """The deletion-budget model: a lineage loses genes at its rate whatever its genome holds.
+
+    This is the whole point of the scope choice, and it is a hundredfold difference in the model
+    rather than a detail — so it is asserted on the event counts, not on the rate object."""
+    from zombi2.rates import scope
+    sp = _tree(seed=1)
+
+    def losses(loss, initial):
+        return sum(
+            sum(1 for e in simulate_genomes_family(
+                    sp, initial_families=initial, duplication=scope.PerCopy(0.0),
+                    transfer=scope.PerCopy(0.0), loss=loss, origination=0.0, seed=s
+                ).events if e.kind == "loss")
+            for s in range(1, 9))
+
+    # per copy, ten times the genome is ~ten times the losses
+    small, large = losses(scope.PerCopy(0.02), 20), losses(scope.PerCopy(0.02), 200)
+    assert large > 5 * small > 0
+
+    # per lineage, the genome's size does not enter at all — the same events, identically
+    assert losses(scope.PerLineage(0.02), 20) == losses(scope.PerLineage(0.02), 200)
+
+
+def test_a_per_family_draw_under_a_per_lineage_scope_is_refused():
+    # the two say different things about what the multiplier does — it moves the total under
+    # PerCopy and could only choose the victim under PerLineage — and that choice is not made yet
+    from zombi2.rates import Drawn, scope
+    sp = _tree(seed=1)
+    with pytest.raises(ValueError, match="Under PerCopy that multiplier"):
+        simulate_genomes_family(sp, loss=scope.PerLineage(0.2) * Drawn(per="family", spread=0.5),
+                                initial_families=5, seed=1)
 
 
 # --- transfer: horizontal moves between contemporaneous lineages -----------

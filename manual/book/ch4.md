@@ -38,7 +38,18 @@ The initial genome, at the beginning of the stem, starts with `initial_families`
 
 ## What the rate depends on
 
-The rates follow the **same grammar as the species level** — a `base`, optionally multiplied by modifiers — with one difference: what a rate is counted *per* is fixed by the event here rather than chosen, so any scope wrapper other than the event's own is refused. Duplication, transfer, and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is what you want: more genes, more chances. Origination is counted **per lineage** (i.e. per branch of the species tree): acquiring a wholly new family is a property of the lineage, not of any gene it already has.
+The rates follow the **same grammar as the species level** — a `base`, optionally multiplied by modifiers. By default, duplication, transfer, and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is usually what you want — more genes, more chances. Origination is counted **per lineage** (i.e. per branch of the species tree): acquiring a wholly new family is a property of the lineage, not of any gene it already has, and it takes no other scope.
+
+Duplication, transfer and loss do take another, and it is worth knowing because it is a different model rather than a different spelling:
+
+```python
+from zombi2.rates.scope import PerCopy, PerLineage
+
+loss = PerCopy(0.25)      # every copy independently at risk — a big genome loses often
+loss = PerLineage(0.25)   # a deletion budget — the lineage loses at 0.25 whatever it holds
+```
+
+The second is how you write a lineage whose losses are set by its own biology rather than by how many genes it happens to carry: deletion-biased genomes lose at their own pace, and shrinking does not slow them down. The same `0.25` means something a hundred times different in a genome of a hundred genes, so this is a choice to make deliberately rather than a default to leave alone.
 
 Rates can also depend on **time**. Multiplying a base rate by an `OnTime` modifier makes it change at set moments. That is the skyline, or episodic, genome: fast early and slow later, or any schedule you give.
 

@@ -331,12 +331,30 @@ def test_the_extent_declaration_is_the_rate_declaration_minus_byfamily():
     assert set(IMPLEMENTED_MODIFIERS) - set(IMPLEMENTED_EXTENT_MODIFIERS) == {(DRAWN, "family"), SetBy}
 
 
-def test_scope_override_is_rejected_this_slice():
+def test_a_scope_the_ordered_engine_cannot_honour_is_rejected():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)
-    with pytest.raises(ValueError, match="scope"):
+    with pytest.raises(ValueError, match="takes PerCopy or PerLineage for duplication"):
         simulate_genomes_ordered(sp, duplication=scope.Global(0.3), chromosomes=2, seed=1)
-    with pytest.raises(ValueError, match="scope"):
-        simulate_genomes_ordered(sp, inversion=scope.PerLineage(0.3), chromosomes=2, seed=1)
+    with pytest.raises(ValueError, match="takes PerChromosome for fission"):
+        simulate_genomes_ordered(sp, fission=scope.PerLineage(0.3), chromosomes=2, seed=1)
+    # a gene-level event takes either answer, and a rearrangement is a gene-level event
+    simulate_genomes_ordered(sp, inversion=scope.PerLineage(0.3), chromosomes=2, seed=1)
+
+
+def test_a_per_lineage_gene_rate_does_not_scale_with_genome_size():
+    """The deletion budget at the ordered resolution: the same events whatever the genome holds."""
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)
+
+    def losses(loss, genes):
+        return sum(
+            sum(1 for e in simulate_genomes_ordered(
+                    sp, initial_families=genes, duplication=0.0, transfer=0.0, loss=loss,
+                    origination=0.0, inversion=0.0, transposition=0.0, translocation=0.0,
+                    chromosomes=1, seed=s).events if e.kind == "loss")
+            for s in range(1, 7))
+
+    assert losses(scope.PerCopy(0.02), 30) < losses(scope.PerCopy(0.02), 300)
+    assert losses(scope.PerLineage(0.02), 30) == losses(scope.PerLineage(0.02), 300)
 
 
 def test_topology_validation():
