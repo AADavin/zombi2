@@ -77,7 +77,7 @@ A modifier on an *extent* is read when an event fires, so unlike the same modifi
 
 ## Who receives a transfer
 
-`transfer_to` is Chapter 4's recipient rule, and it works here unchanged: `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or a `Weights(...)` mapping read off a trait. It is not a rate: the numbers are weights normalised over the lineages alive when a transfer fires, so it says who receives and never how much transfer happens.
+`transfer_to` is Chapter 4's recipient rule, and it works here unchanged: `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or `Weights(...)` read off a trait. It is not a rate: the numbers are weights normalised over the lineages alive when a transfer fires, so it says who receives and never how much transfer happens.
 
 ```python
 tree6 = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=6)

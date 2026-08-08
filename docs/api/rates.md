@@ -56,8 +56,9 @@ A modifier's **kind** says who produces its number, and there are four (SPEC §5
 
 A **driven** value comes from a level grown before this run, a level growing beside it, another
 object at the same level (a trait can drive a second trait), or the tree itself (`Clade`). Which of
-the three you write follows from what you attach it to: on a rate or an extent the number multiplies
-the base (`ScaledBy`) or replaces it (`SetBy`). On `transfer_to` it is a weight normalised across
+the three you write follows from what you attach it to: on a rate the number multiplies the base
+(`ScaledBy`) or replaces it (`SetBy`); on an extent it multiplies only, an extent being an absolute
+size with no base to replace. On `transfer_to` it is a weight normalised across
 the candidates (`Weights`), which is why that one takes the modifier on its own —
 `transfer_to = 1.0 * Weights(...)` is an error.
 
