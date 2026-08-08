@@ -18,8 +18,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   every script that parses a run.
 - **`SetBy` states a driven parameter absolutely instead of as a multiple.** Only the three levels
   that can honour a replaced base accept it — the family and ordered genome resolutions, and a
-  continuous trait's rate — and each declares it by name, because `SetBy` is a `DrivenBy` and a gate
-  listing `DrivenBy` would otherwise admit it at four levels that cannot. An extent takes none: it is
+  continuous trait's rate — and each declares it by name, because `SetBy` is a `Driven` and a gate
+  listing `Driven` would otherwise admit it at four levels that cannot. An extent takes none: it is
   already an absolute size drawn from a distribution, so there is no base to replace. `loss = SetBy(habitat,
   {"cave": 1.0, "surface": 0.25})` says the loss rate *is* 1.0 in caves, which is how the literature
   usually states one — saying it before meant inventing a background and dividing by it. Written
@@ -27,7 +27,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   rather than discarding the 0.25 you wrote. The scope still applies, so a per-copy rate set to 1.0
   is 1.0 per copy. A replaced base composes with any number of `ScaledBy` factors, but a rate may
   carry only one `SetBy` — two would each claim to be the number, and no order of application is
-  more right than the other. It is a `DrivenBy`, so it works wherever a driver does and needs no new
+  more right than the other. It is a `Driven`, so it works wherever a driver does and needs no new
   machinery for trajectories, mid-branch switches or mapping checks.
 - **The written form knows the verbs and the values.** `ScaledBy`, `Weights`, `SetBy`, `Time()` and
   `Clade({...})` now parse, so `--loss "0.2 * ScaledBy(Clade({'fast': ['n1','n2']}), {'fast': 3.0})"`
@@ -56,13 +56,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   and the classes remain where the grain needs them: `OnTime` and `OnTotalDiversity` both read a
   measured value on the run, yet an engine can thread a schedule's breakpoints without threading
   standing diversity, so the two stay separately declarable.
-- **A verb says what a driven number does to the parameter.** `ScaledBy(driver, mapping)` multiplies
-  the base and `Weights(driver, mapping)` compares candidates for a `transfer_to` choice, beside the
-  `SetBy` above, which replaces the base. The verb picks its modifier by looking at the value, so
-  `ScaledBy(habitat, {…})` *is* `DrivenBy(habitat, {…})` and `ScaledBy(Time(), {0: 1.0, 3: 0.3})` *is*
-  `OnTime({0: 1.0, 3: 0.3})`: both spellings build the identical object and a run is unchanged seed
-  for seed. What the verb adds is that `transfer_to`'s number stops having to be explained — a weight
-  is not a factor, and `Weights` says so where `DrivenBy` did not.
+- **A verb says what a driven number does to the parameter**, and is the only way to write one (the
+  name it replaces is under *Removed*). `ScaledBy(driver, mapping)` multiplies the base,
+  `Weights(driver, mapping)` compares the candidates of a `transfer_to` choice, and the `SetBy`
+  above replaces the base. The verb picks its object by looking at the value, so
+  `ScaledBy(Time(), {0: 1.0, 3: 0.3})` *is* `OnTime({0: 1.0, 3: 0.3})` — one object, and a run
+  unchanged seed for seed. `zombi2.rates` now exports the whole written vocabulary, `OnTime` and
+  `OnTotalDiversity` included, so what you can import and what you can write in a flag are one
+  surface rather than two.
 
 ### Changed
 - **`Drawn` takes a distribution object, not the name of one.** `spread=σ` remains the short spelling
@@ -125,6 +126,21 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   the command line, with nothing saying so. (#325)
 
 ### Removed
+- **`DrivenBy` is retired: a driven parameter is written with a verb.** The class said where a
+  number came from and never what it did to the parameter — and it does three different things
+  depending on what it is attached to. `ScaledBy(driver, mapping)` multiplies a rate or an extent,
+  `Weights(driver, mapping)` compares the candidates of a choice, and `SetBy(driver, mapping)`
+  replaces the base. `transfer_to` is the case that shows why: its numbers are weights, normalised
+  against each other with no base, which Chapter 9 needed a paragraph to explain and `Weights` says
+  in the name. The class is internal now (`Driven`), and `DrivenBy` is not writable in Python, on
+  the command line or in a `--params` file; `parse_rate` answers it with the sentence naming all
+  three verbs and what each is for, rather than a difflib guess that would pick one at random —
+  and `ByFamily`, `ByLineage` and `FromParent`, retired earlier, now get that treatment too. A
+  `Driven` records the verb that wrote it, so a run's log says back what was typed and it parses
+  back; the verb takes no part in equality. And because the verb now carries meaning the class
+  never did, a mismatch is catchable: `transfer_to = ScaledBy(...)` is refused, naming `Weights`.
+  (#325)
+
 - **`ByFamily`, `ByLineage` and `FromParent` are gone**, replaced by the general spelling they were
   aliases for: `Drawn(per="family", …)`, `Drawn(per="lineage", …)` and `Inherited(per="lineage", …)`.
   They were never the field's names — the literature says *the relaxed clock*, *ClaDS*, *rate
@@ -151,8 +167,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   that a breakpoint prints `0.0` rather than `0`. (#325)
 - **`transfer_to = SetBy(...)` ran as an ordinary weighting instead of being refused.** A choice
   weights the candidate recipients against each other and only the ratios are read, so there is no
-  base for a driver to replace — but `SetBy` is a `DrivenBy`, and the check that admits a driven
-  `transfer_to` tests for `DrivenBy`. (#325)
+  base for a driver to replace — but `SetBy` is a `Driven`, and the check that admits a driven
+  `transfer_to` tests for `Driven`. (#325)
 - **A `SetBy` rate was written in a form that will not parse.** The written form put a base in front
   of every modifier, which is exactly the spelling `SetBy` refuses, so a log naming a replaced base
   named a rate you could not run again. (#325)
