@@ -9,6 +9,37 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The docstrings, the manual, the docs, the SPEC, the website and the gallery say what the code
+  does.** Reading every one of them against the running code fixed about 130 small defects: pointers
+  to sections and chapters that had moved or gone, module and file names left over from renames,
+  output tables missing a file the code writes, a level's declared modifiers listed short of what it
+  takes, captions whose numbers did not match their own figure, and examples that no longer ran. The
+  gallery's displayed code now runs as shown, and the landing page names the shipped version. (#332)
+- **`zombi2 tools tree --round` writes the tree round-trip exact**, which is what Appendix C promises
+  of it. It wrote 15 significant digits, which is not exact and re-read *less* ultrametric than the
+  default does. (#332)
+- **`zombi2 tools tree --prune` refuses a tree whose tips it cannot fate** with a message naming what
+  can be done from here, instead of a `--tip-fates` flag this command does not have. (#332)
+- **`run.zombi2` describes every file it lists.** `species_fossils.tsv`, `sequences_founding.fasta`,
+  the sequences level's `genomes/` directory and `conditioned_on` were listed with a blank
+  description, and an unnamed `zombi2 traits` run listed a named trait's directory it had not
+  written. (#332)
+- **`zombi2 genomes -h` says which rates are per lineage.** Every gene and segmental rate read
+  "(per copy)" unqualified, but at `--resolution nucleotide` they are per lineage and a `PerCopy`
+  scope is refused there. (#332)
+- **Two error messages named spellings that are gone.** "Does not state its own mean" recommended
+  `SetBy`, which the package itself refuses. (#332)
+- **`varying_among('run', …)` is refused where it is written.** `'run'` is a measured driver's
+  attachment, not a unit a value varies among, but it was accepted and only failed later, in the
+  engine, with an unrelated message. The five plural units are unaffected. (#332)
+
+### Changed
+
+- **The written form no longer accepts the `mod.` / `modifiers.` module qualifiers.** They named a
+  module that no longer exists. `scope.`, the one SPEC sanctions, is unaffected. (#332)
+
 ## [0.32.0] - 2026-08-10
 
 ### Changed

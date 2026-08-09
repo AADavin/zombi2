@@ -32,7 +32,7 @@ _LEVEL_KEYS: dict[str, int | None] = {
     "genomes": 1,
     "sequences": 2,
     "traits": 3,
-    "joint": 4,          # species and trait grown together — one engine, so one stream
+    "joint": 4,  # species grown with its driver (a trait or gene content) — one engine, so one stream
 }
 
 

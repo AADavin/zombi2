@@ -73,6 +73,7 @@ _GLOSS = {
     "species_complete.nwk": "Newick — the whole tree, all nodes including extinct lineages",
     "species_events.tsv": "one row per speciation/extinction (time, kind, parents, children)",
     "species_fates.tsv": "each tip's fate: extant / extinct / unsampled",
+    "species_fossils.tsv": "sampled fossil lineages — the lineage and the time it was recovered",
     # genomes/ (family resolution)
     "genomes.tsv": "gene content of every genome — one row per gene copy (lineage, family, copy)",
     "profiles.tsv": "family × extant-genome copy-number matrix",
@@ -94,12 +95,16 @@ _GLOSS = {
     "clock_species_tree_extant.nwk": "the clock-rescaled tree, sampled tips only",
     "alignments": "one FASTA alignment per family (the extant sequences)",
     "phylograms": "gene trees with branch lengths in substitutions/site, one per family",
+    "sequences_founding.fasta": "the sequence each family (or block) originated with, before its stem — one record apiece",
+    "genomes": "one assembled genome FASTA per node of the complete tree, plus the initial genome when it was written",
     # traits/
     "trait_tree.nwk": "the tree with every node's trait annotated ([&trait=…])",
     "trait_values.tsv": "the trait value (or state) at every node (tips, extinct lineages, internal)",
     "trait_events.tsv": "each discrete state change along a branch (time, lineage, from→to)",
     # written by genomes / traits when the input tree came from elsewhere and carries its own labels
-    "names.tsv": "your tree's tip labels, mapped to ZOMBI's n<id> node ids",
+    "names.tsv": "your tree's tip labels, mapped to ZOMBI2's n<id> node ids",
+    # written by genomes / sequences / traits alike, when a rate or transfer_to was conditioned
+    "conditioned_on": "the levels this run read as a driver, one per line",
 }
 
 _RULE = "─" * 80
@@ -221,10 +226,11 @@ _SCOPE_UNITS = {
 }
 
 #: What each rate slot is counted per when this run left the scope unwritten — the level's default,
-#: which a bare number takes (SPEC §18). A written scope wins over it, because since scope overrides
-#: landed the unit is a property of the **value** wherever one was written: ``--loss PerLineage(0.4)``
-#: is a per-lineage budget however this table reads. Time is time⁻¹ throughout — tree time, in
-#: whatever unit the tree is in, which is the run's own and is not calibrated to anything.
+#: which a bare number takes (docs/design/parameter-grammar.md §18). A written scope wins over it,
+#: because since scope overrides landed the unit is a property of the **value** wherever one was
+#: written: ``--loss PerLineage(0.4)`` is a per-lineage budget however this table reads. Time is
+#: time⁻¹ throughout — tree time, in whatever unit the tree is in, which is the run's own and is
+#: not calibrated to anything.
 _DEFAULT_SCOPES = {
     "birth": "PerLineage", "death": "PerLineage", "fossils": "PerLineage",
     "origination": "PerLineage", "chromosome_origination": "PerLineage", "switch": "PerLineage",
@@ -236,7 +242,8 @@ _DEFAULT_SCOPES = {
 
 #: The nucleotide resolution counts a gene event per lineage rather than per copy: the rate says how
 #: often a lineage does the event and the extent says how much DNA it moves, so the number means the
-#: same whatever the genome holds (SPEC §18, and the scopes ``genomes/nucleotide.py`` fills in).
+#: same whatever the genome holds (docs/design/parameter-grammar.md §18, and the scopes
+#: ``genomes/nucleotide.py`` fills in).
 _NUCLEOTIDE_SCOPES = dict.fromkeys(("duplication", "transfer", "loss", "inversion", "transposition",
                                     "translocation"), "PerLineage")
 
@@ -452,6 +459,8 @@ def _list_outputs(level_dir: str) -> tuple[list[tuple[str, str]], list[str]]:
         if name.endswith(_RECORD_SUFFIXES):
             records.append(name)
         elif os.path.isdir(full):
+            if os.path.isfile(os.path.join(full, "traits.log")):
+                continue                    # a named trait: its own section, not this run's output
             n = len([f for f in os.listdir(full) if not f.startswith(".")])
             gloss = _GLOSS.get(name, "per-family output files")
             data.append((f"{name}/", f"{gloss} ({n} files)"))
@@ -523,8 +532,8 @@ def _collect_sections(run: str) -> list[dict]:
             log = _read_log(os.path.join(level_dir, f"{level}.log"))
             if log is None:
                 continue                                 # this level was not run into this directory
-        # the summary is the numbers; a level that writes none (nucleotide genomes today) still gets a
-        # section from its log, falling back to the log's own result line.
+        # the summary is the numbers; a level that writes none (a streamed genomes run today) still
+        # gets a section from its log, falling back to the log's own result line.
             summary_path = os.path.join(level_dir, _SUMMARY_FILE.get(level, f"{level}_summary.json"))
             summary = read_summary(summary_path) if os.path.isfile(summary_path) else {}
             sections.append(_section(run, label, level, level_dir, log, summary))
@@ -549,7 +558,8 @@ def _level_dirs(run: str, level: str):
             yield nested, f"TRAITS ({name})"
 
 
-#: the summary file each level writes (all ``<level>_summary.json`` except genomes' ``genome_summary``).
+#: the summary file each level writes (``<level>_summary.json``, except genomes' ``genome_summary.json``
+#: and traits' ``trait_summary.json``).
 _SUMMARY_FILE = {"genomes": "genome_summary.json", "traits": "trait_summary.json"}
 
 
@@ -567,7 +577,8 @@ def _joint_section(run: str, summary: dict) -> dict:
 
 def _one_liner(sections: list[dict]) -> str:
     """A single sentence for the top of the report, synthesised from the sections present. Every summary
-    lookup is guarded — a level that wrote no summary (nucleotide genomes) still contributes a phrase."""
+    lookup is guarded — a level that wrote no summary (a streamed genomes run) still contributes a
+    phrase."""
     by = {s["command"]: s["summary"] for s in sections}
     if "joint" in by:
         n = by["joint"].get("species", {}).get("tips", {}).get("extant", "?")
@@ -754,7 +765,7 @@ def _render_section(run: str, sec: dict, i: int, n: int) -> list[str]:
     file_lines = [f"{name:<28}  {gloss}".rstrip() for name, gloss in data]
     if records:
         # the .log is always here; only some resolutions also drop a _summary.json — don't advertise
-        # machine-readable stats for one (ordered/nucleotide genomes) that wrote only the log.
+        # machine-readable stats for one (a streamed genomes run) that wrote only the log.
         has_stats = any(r.endswith("_summary.json") for r in records)
         gloss = "run parameters + machine-readable stats" if has_stats else "run parameters"
         file_lines.append(f"records: {', '.join(records)}  ({gloss})")

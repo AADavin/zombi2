@@ -434,7 +434,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
     driver_names: list[str] = []
     for label, rate in (("birth", birth_rate), ("death", death_rate)):
         # `Rate.scope` holds the scope **class**, so this is an identity test rather than an
-        # isinstance: a scope instance never exists (SPEC §16).
+        # isinstance: a scope instance never exists (SPEC §5).
         if rate.scope is not PerLineage:
             assert rate.scope is not None      # `as_rate` above fills in the default scope
             raise ValueError(
@@ -485,7 +485,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                         + ("A clade is read off a finished tree, and a joint run grows the tree as it "
                            "goes, so there is no clade to read yet."
                            if type(m.driver).__name__ == "Clade" else
-                           "A grown result object is conditioning — pass it to the target level's run.")
+                           "A grown result object is conditioning — pass it to the driven level's run.")
                     )
                 driver_names.append(m.driver)
     if not driver_names:

@@ -33,7 +33,7 @@ from dataclasses import dataclass
 import math
 from typing import Any, ClassVar, Mapping
 
-from .evaluate import (CHANGING_AT, MEASURED, SCALED_BY, SET_BY, UNITS,
+from .evaluate import (CHANGING_AT, MEASURED, SCALED_BY, SET_BY, UNITS, VARYING_UNITS,
                       Modifier, _WRITTEN_AS)
 from .law import Drawn, Drift, Inherited
 from .retired import check_no_retired_keywords
@@ -218,7 +218,7 @@ class TotalDiversity:
     The carrying capacity is written on the driver rather than in a mapping beside it, and that is
     a limit rather than a design: the factor an engine reads is the linear fall to a cap, and a
     general curve of diversity would have to be integrated rather than read at a point, exactly as
-    a smooth function of time would (SPEC §10). So there is one shape, and it takes its one number
+    a smooth function of time would (SPEC §5). So there is one shape, and it takes its one number
     here. `scaled_by` refuses a mapping alongside, rather than accepting one and ignoring it.
     """
 
@@ -307,7 +307,7 @@ def Random(unit: str | None = None, law: object = None, **retired: Any) -> Modif
     if unit is None:
         raise TypeError(
             f"a Random needs the plural unit its value varies among — Random('families', "
-            f"LogNormal(0.0, 0.5)); one of {list(UNITS)}.")
+            f"LogNormal(0.0, 0.5)); one of {list(VARYING_UNITS)}.")
     if isinstance(law, Drift):
         return Inherited(unit, law.dist, law.bins)
     return Drawn(unit, law)

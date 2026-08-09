@@ -76,7 +76,9 @@ def dashed_extinct(tree, ct) -> set:
 # --- matplotlib companion panels (precise time-aligned compositing) --------
 
 def _extent(present: float, canvas_w: int = COMP_W, margin: int = MARGIN):
-    """Map the tree image's pixels to time so px(t) == t (see the derivation in the gallery README)."""
+    """Map the tree image's pixels to time so px(t) == t: the tree spans ``canvas_w - 2*margin``
+    px for ``present`` time units, so each margin is ``margin * present / (canvas_w - 2*margin)``
+    time units of overhang."""
     off = margin * present / (canvas_w - 2 * margin)
     return -off, present + off
 
@@ -490,21 +492,6 @@ def events_run() -> str:
         _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 45,
                "--duplication", 0.3, "--loss", 0.2, "--transfer", 0.15, "--inversion", 0.5,
                "--seed", 11)
-    return _stamp(run)
-
-
-def phylo_run() -> str:
-    """A cached run whose sequences evolve under an **uncorrelated relaxed clock** (a rate drawn among
-    lineages), so the clock tree (branch lengths in substitutions/site) is non-ultrametric. 35
-    species, for the phylogram."""
-    run = os.path.join(_DATA, "phylo")
-    if _stale(run):
-        _zombi("species", run, "--birth", 1.4, "--death", 0.2, "--n-extant", 35, "--seed", 7)
-        _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 40,
-               "--duplication", 0.15, "--loss", 0.12, "--seed", 9)
-        _zombi("sequences", run, "--model", "hky85", "--kappa", 2.0, "--length", 500,
-               "--substitution", "PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.6))",
-               "--seed", 7)
     return _stamp(run)
 
 

@@ -12,7 +12,7 @@ level's package. ::
 ZOMBI2 is a **clean core grown from** ``docs/design/SPEC.md`` — pure Python, one concept
 per name across the API, the CLI and a ``--params`` file: ``zombi2.params`` · ``zombi2.species`` ·
 ``zombi2.genomes`` · ``zombi2.sequences`` · ``zombi2.traits`` · ``zombi2.joint`` (only joint models
-need an engine of their own; conditioning folds into the target level's own run, so it has no
+need an engine of their own; conditioning folds into the driven level's own run, so it has no
 package — SPEC §2–4).
 """
 

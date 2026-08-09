@@ -67,7 +67,7 @@ _PARAMETERS: dict[type, str] = {
 }
 
 #: the optional Python qualifiers — ``scope.Global(...)`` reads as itself
-_QUALIFIERS = frozenset({"mod", "modifiers", "scope", "scopes"})
+_QUALIFIERS = frozenset({"scope", "scopes"})
 
 _OP_NAMES = {ast.Add: "+", ast.Sub: "-", ast.Div: "/", ast.FloorDiv: "//", ast.Mod: "%",
              ast.Pow: "**", ast.MatMult: "@"}
@@ -128,7 +128,7 @@ def _node(node: ast.AST, text: str):
             op = _OP_NAMES.get(type(node.op), type(node.op).__name__)
             raise _fail(
                 f"only a verb composes a rate, got {op!r} — a rate is a scope with verbs chained "
-                f"onto it, and each verb reads one thing (SPEC §4)", text)
+                f"onto it, and each verb reads one thing (SPEC §5)", text)
         # `*` composed a rate until the verbs replaced it, and it is still recognised this far so
         # that an old expression reaches the name inside it: `0.25 * Drawn(per='family', ...)` is
         # answered by the retired-name entry for `Drawn`, which says what to write, rather than by a
@@ -226,8 +226,9 @@ def _verb(func: ast.Attribute, text: str):
         # not enumerated from `target`, because the verbs a parameter refuses are still methods on
         # it — they exist to carry the sentence that says which verb to write instead
         raise _fail(
-            f"{kind} takes no {name!r}: a rate is scaled, replaced or varied, an extent is scaled "
-            f"or varied, and a choice is weighted (SPEC §3)", text)
+            f"{kind} takes no {name!r}: a rate takes scaled_by, set_by, varying_among and "
+            f"changing_at, an extent takes scaled_by and changing_at, and a choice takes "
+            f"weighted_by (SPEC §5–6)", text)
     return verb
 
 

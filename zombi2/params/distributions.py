@@ -57,7 +57,8 @@ class Distribution(ABC):
         raise NotImplementedError(
             f"a {self.written} does not state its own mean, so it cannot be normalised to a "
             f"multiplier. Use one of the built-in distributions, or scale it yourself and read it "
-            f"with SetBy, where the number is the value rather than a factor.")
+            f"with set_by — PerCopy().set_by(driver, mapping) — where the number is the value "
+            f"rather than a factor.")
 
 
 class Fixed(Distribution):

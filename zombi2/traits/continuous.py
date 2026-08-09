@@ -514,8 +514,9 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
                 f"rate carries {describe(m)}, which the continuous trait engine does not "
                 f"support. It takes changing_at (early burst), "
                 f"varying_among('lineages', Drift(...)) (variable-rates BM), "
-                f"scaled_by(TotalDiversity(cap=...)) (diversity-dependent), and "
-                f"scaled_by(driver, mapping) (driven by another level)."
+                f"scaled_by(TotalDiversity(cap=...)) (diversity-dependent), "
+                f"scaled_by(driver, mapping) (driven by another level), and "
+                f"set_by(driver, mapping) (the driver supplies σ² itself, in σ²'s own units)."
             )
         if isinstance(m, Driven):
             check_not_a_kernel(m.mapping, label="rate")

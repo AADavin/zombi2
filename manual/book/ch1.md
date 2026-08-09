@@ -32,7 +32,7 @@ Some questions ZOMBI2 is built to answer:
 
 ## Installing it
 
-ZOMBI2 needs Python 3.10 or newer and depends only on NumPy and tqdm:
+ZOMBI2 needs Python 3.10 or newer and depends on NumPy and tqdm, plus the `tomli` backport on Python 3.10:
 
 ```bash
 pip install zombi2

@@ -28,10 +28,10 @@ chain onto it::
 - ``Extent(...)`` and ``Recipients()`` — the entry points of the other two parameter kinds, written
   only when a verb is chained onto them
 
-Reach the plumbing as submodules: ``rate`` (the `Rate` the whole expression evaluates to),
-``parse`` (``parse_rate("PerLineage(0.5).changing_at({0: 1.0, 3: 0.3})")``, which is how the CLI and
-a ``--params`` file take a parameter — SPEC §5, *one written form*), ``modifiers`` (what a verb
-records), ``mapping``, ``distributions``.
+Reach the plumbing as submodules: ``parameter`` (the `Rate` and `Extent` the whole expression
+evaluates to), ``parse`` (``parse_rate("PerLineage(0.5).changing_at({0: 1.0, 3: 0.3})")``, which is
+how the CLI and a ``--params`` file take a parameter — SPEC §5, *one written form*), ``connection``
+(what a verb records), ``evaluate`` (what an engine calls), ``mapping``, ``distributions``.
 """
 
 from .choice import Clades, Distance, Recipients
@@ -54,8 +54,8 @@ from .driver import Time
 #:
 #: Two entries are here and not in the text form's whitelist, and both for a stated reason. `Curve`
 #: takes a function, which no flag can carry, so it is the one mapping that is Python-only (the
-#: parser says so and points here). ``UNITS`` is data rather than a name you call — the plural units
-#: a value may vary among, which an error quotes back at you.
+#: parser says so and points here). ``UNITS`` is data rather than a name you call — every unit the
+#: grammar knows; an error quotes back the five a value may vary among (`evaluate.VARYING_UNITS`).
 __all__ = ["UNITS", "Between", "Clade", "Clades", "Curve", "Distance", "Drift", "Exponential",
            "Extent", "Fixed", "Gamma", "Geometric", "Global", "LogNormal", "PerChromosome",
            "PerCopy", "PerLineage", "PerSite", "Random", "Recipients", "Scalar", "Table", "Time",

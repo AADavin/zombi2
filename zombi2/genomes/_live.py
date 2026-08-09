@@ -1,11 +1,11 @@
 """The live lineage set — parallel arrays every genome engine grows over, the ``species._grow`` shape.
 
-Both resolutions evolve **all lineages alive at once** along one global clock (a transfer couples two
-contemporaneous lineages), so both keep the same three parallel structures: ``alive`` (species node
+All three resolutions evolve **all lineages alive at once** along one global clock (a transfer couples
+two contemporaneous lineages), so all keep the same three parallel structures: ``alive`` (species node
 ids), ``gen`` (each lineage's working genome, at whatever resolution), and ``pos`` (node id → its
 index, so a lineage can be retired in O(1)). These two helpers manage that set and are
 genome-shape-agnostic — ``gen`` may hold multisets or lists of chromosomes — so they live here, one
-home, shared by the family core and the ordered engine.
+home, shared by the family core, the ordered engine and the nucleotide one.
 """
 
 from __future__ import annotations

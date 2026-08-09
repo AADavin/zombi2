@@ -16,7 +16,7 @@ Chapter 2 named the three, and this chapter takes them one at a time. The **driv
 
 ### Across levels, and within one
 
-![What can condition what. Rows drive, columns are driven, and the eleven numbered pairs are the models. The five shaded cells are the pairs that are not: three would need two genomes for one lineage, and two are a sequence driving a genome, which would condition a run on its own output. The four boxed cells are on the diagonal — a level conditioning itself.](figures/conditioning_map_print.png){width=95%}
+![What can condition what. Rows drive, columns are driven, and the eleven numbered pairs are the models. The five shaded cells are the pairs that are not: three would need two genomes for one lineage, and two are a sequence driving a genome, which would condition a run on its own output. The three boxed cells are on the diagonal — a level conditioning itself.](figures/conditioning_map_print.png){width=95%}
 
 Not everything can act as a driver and not everything can be a target. A sequence cannot control the gene it grows inside, by construction — although it can control a different one, if the two are simulated in order. The map has every pair that is a model, and the eleven are these:
 

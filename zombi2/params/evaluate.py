@@ -44,6 +44,9 @@ CARRIED_KINDS = (DRAWN, INHERITED)
 #: instead of quietly meaning something new.
 UNITS = ("run", "lineages", "chromosomes", "families", "copies", "sites")
 
+#: The units a *value* varies among — ``'run'`` is a measured driver's attachment, not one of these.
+VARYING_UNITS = tuple(u for u in UNITS if u != "run")
+
 #: The name of each verb, as a constant. A verb is not only called: it is **recorded** on what it
 #: builds (``Driven.verb``, ``OnTime.verb``), because the same object serves more than one verb and
 #: only the writer knows which was typed. That makes the name a contract read outside this module —
@@ -275,9 +278,10 @@ def _no_longer_multiplied(left: object, right: object) -> Exception:
 class Modifier:
     """Base for rate modifiers.
 
-    A modifier reads the context keys it cares about (``time``, ``diversity``,
-    ``branch``, ``family``, …) and returns a dimensionless, non-negative multiplier;
-    it ignores the rest. Abstract — use a subclass, and write a verb rather than a subclass.
+    A modifier reads the context keys it cares about (``time``, ``lineages``, ``diversity``,
+    ``copies``, ``chromosomes``, ``drivers``, …) and returns a dimensionless, non-negative
+    multiplier; it ignores the rest. Abstract — use a subclass, and write a verb rather than a
+    subclass.
     """
 
     #: What this modifier reads, as ``(kind, unit)`` — the value's kind (one of `MEASURED`,
@@ -331,8 +335,8 @@ class Modifier:
     #: Two things this cannot vouch for, whatever it names. A **carried** value — drawn or inherited
     #: — is produced by the engine when a unit is born and handed back, which only the engine can do,
     #: for the units it declares. And a **`SetBy`**, which replaces a base rather than scaling one,
-    #: is a capability three levels have and four do not. Either is admitted by a level naming it and
-    #: by nothing else.
+    #: is a capability three of the engines above have and four do not. Either is admitted by a
+    #: level naming it and by nothing else.
     #:
     #: **``sequences`` is not on that list, deliberately.** Every engine above evaluates its rate
     #: through `Rate.effective`, which multiplies in whatever `factor` returns. The sequence level
@@ -351,7 +355,7 @@ class Modifier:
     #: nothing more, so take ``**_`` and default every key you read. Built-in modifiers leave this
     #: empty; the engine lists them by type. The rate *text* grammar (a `--birth` flag, a ``--params``
     #: file) knows only the built-in names, so a modifier of your own is Python-only — as an object
-    #: you constructed has to be. Worked examples: Chapter 2, "Writing your own".
+    #: you constructed has to be. Worked example: Appendix A, "Writing your own".
     implemented_for: tuple[str, ...] = ()
 
     def factor(self, **context: Any) -> float:
@@ -405,7 +409,7 @@ class Modifier:
     def __repr__(self) -> str:
         """The verb call, because for most modifiers that is the only way to write one. `Drawn` and
         `Inherited` override this with their standalone ``Random(...)`` form, which is a thing you
-        can name and share (SPEC §6); nothing else has a name of its own."""
+        can name and share (SPEC §5); nothing else has a name of its own."""
         return self.written_call()
 
     def __mul__(self, other: object):

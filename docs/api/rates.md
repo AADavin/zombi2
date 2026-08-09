@@ -40,8 +40,8 @@ zombi2 species out/ --params params.toml --seed 1
 ```
 
 Every name the written form may call is importable from `zombi2.params`, so a snippet pastes across
-unchanged. Four qualifiers are tolerated where Python needs one — `mod.`, `modifiers.`, `scope.` and
-`scopes.` — and nothing else, so `rates.PerCopy(...)` or a dotted `zombi2.params.PerCopy(...)` is
+unchanged. Two qualifiers are tolerated where Python needs one — `scope.` and `scopes.` — and
+nothing else, so `rates.PerCopy(...)` or a dotted `zombi2.params.PerCopy(...)` is
 refused: the parser reads a whitelist of names, not attribute paths. A bare number stays a bare
 number everywhere (`birth = 1.0`, `--birth 1.0`).
 
@@ -58,8 +58,6 @@ The three chainable parameters, and the verbs that live on them. A rate is writt
 extent from `Extent(...)`, and a choice from `Recipients()` — the last two only when a verb is
 chained onto them, since a bare distribution is already an extent and `"uniform"` is already a
 choice.
-
-::: zombi2.params.parameter
 
 ::: zombi2.params.parameter
 

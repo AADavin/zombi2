@@ -293,7 +293,7 @@ _C_CIRC_ORD = _SIM_ORDERED + '''
 ### plot  —  Phylustrator
 import phylustrator as ph
 
-g = ph.zombi.read_genomes("run/genomes")["n55"]            # the genome with the most genes
+g = ph.zombi.read_genomes("run/genomes")["n50"]            # the genome with the most genes
 (ph.genomes.plot(g, layout="circular")
  + ph.genomes.genes(by="family")).save("ring.png")'''
 
@@ -303,7 +303,7 @@ _C_SYNTENY = _SIM_ORDERED + '''
 import phylustrator as ph
 
 G = ph.zombi.read_genomes("run/genomes")
-(ph.genomes.stack([G["n37"], G["n54"]])              # one genome per row
+(ph.genomes.stack([G["n50"], G["n55"]])              # one genome per row
  + ph.genomes.genes(by="family")
  + ph.genomes.synteny()).save("synteny.png")         # ribbons link same-family genes'''
 
@@ -315,11 +315,13 @@ zombi2 genomes run --resolution ordered --initial-families 14 \\
                    --inversion 0.10 --inversion-extent 3 --seed 5
 
 ### plot  —  Phylustrator
+import csv
 import phylustrator as ph
 
 tree = ph.trees.read("run/species/species_extant.nwk")
 G = ph.zombi.read_genomes("run")
-ancestral = [g.family for g in ph.zombi.read_genomes("run")["initial"].genes]
+with open("run/genomes/initial_genome.tsv") as fh:            # the ancestral arrangement
+    ancestral = [r["family"] for r in csv.DictReader(fh, delimiter="\\t")]
 
 style = ph.Style(width=1240, height=840, margin=72, branch_width=2.4)
 panel = ph.genomes.tracks(list(G.values()),      # one gene track per genome
@@ -386,22 +388,33 @@ genome = next(iter(G.values()))              # one circular chromosome, 546 gene
 
 _C_INVERSION = '''\
 ### simulate  —  a small ordered genome, inversions only; take one recorded inversion
+import copy, dataclasses
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_ordered
 
 ct = simulate_species_tree(birth=1.0, n_extant=2, seed=1).complete_tree
-r = simulate_genomes_ordered(ct, initial_families=12, inversion=0.5, inversion_extent=4, seed=SEED)
-before = r.initial_genome[0]            # the starting ring
+r = simulate_genomes_ordered(ct, initial_families=12, inversion=0.5, inversion_extent=4, seed=3)
+chrom = r.initial_genome[0]             # the starting ring
 inv = r.rearrangements[0]               # its first inversion: a (start, length) block
+s, L = inv.start, inv.length
 # "after" = that block reversed with strands flipped — ZOMBI2's inversion operator
+flipped = copy.copy(chrom)
+flipped.genes = (chrom.genes[:s]
+                 + [dataclasses.replace(g, strand=-g.strand) for g in reversed(chrom.genes[s:s + L])]
+                 + chrom.genes[s + L:])
 
 ### plot  —  Phylustrator circular; highlight() before genes() sits the band behind them
 import phylustrator as ph
 
-for genome in (before, after):
+def as_genome(c, name):                 # a ZOMBI2 chromosome -> a Phylustrator genome
+    genes = [ph.genomes.Gene(family=str(g.family), strand=g.strand, position=i)
+             for i, g in enumerate(c.genes)]
+    return ph.genomes.Genome(name, [ph.genomes.Chromosome(str(c.id), genes, topology=c.topology)])
+
+for genome in (as_genome(chrom, "before"), as_genome(flipped, "after")):
     (ph.genomes.plot(genome, layout="circular")
-     + ph.genomes.highlight(genome, start=inv.start, end=inv.start + inv.length - 1)
-     + ph.genomes.genes(by="family")).save(...)'''
+     + ph.genomes.highlight(genome, start=s, end=s + L - 1)
+     + ph.genomes.genes(by="family")).save(genome.name + ".png")'''
 
 _C_HIGHWAY = '''\
 ### simulate  —  transfers steered to run BETWEEN two clades (a HGT highway)
@@ -471,7 +484,7 @@ def pangenome_by_family(out):
     Let families differ and it goes bimodal — a spike of universal families over a flat cloud, the
     U-shape real pangenomes show.
 
-    The genome sizes differ too (90 against 248 genes), and that is not a flaw in the comparison: a
+    The genome sizes differ too (90 against 120 genes), and that is not a flaw in the comparison: a
     per-copy rate compounds, so spreading it around a fixed mean raises the expected copy number."""
     import numpy as np
 
@@ -595,6 +608,6 @@ EXAMPLES = [
             "clades · transfer_to", transfer_highway, code=_C_HIGHWAY),
     Example("genome_pangenome_by_family", "Core and accessory, from one parameter",
             "Two runs at the same mean rates. Every family alike gives no core at all; letting families "
-            "differ gives 62 universal ones and a U-shaped spectrum.",
+            "differ gives 28 core families and a U-shaped spectrum.",
             "phylustrator · heterogeneity", pangenome_by_family, code=_C_PANGENOME),
 ]

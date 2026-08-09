@@ -59,7 +59,7 @@ class Rate:
             raise ValueError(f"a rate base must be finite and non-negative, got {self.base!r}")
         object.__setattr__(self, "base", float(self.base))
 
-    # --- the verbs (SPEC §4): each returns a NEW rate, so they chain and nothing is mutated -------
+    # --- the verbs (SPEC §5): each returns a NEW rate, so they chain and nothing is mutated -------
 
     def scaled_by(self, driver: object, mapping: object = None, *,
                   step: float | None = None) -> "Rate":
@@ -234,7 +234,7 @@ class Rate:
         return head + "".join(f".{m.written_call()}" for m in mods)
 
     def _ordered(self) -> tuple[Modifier, ...]:
-        """The modifiers as written, except that a `SetBy` moves to the front (SPEC §8). ``sorted``
+        """The modifiers as written, except that a `SetBy` moves to the front (SPEC §5). ``sorted``
         is stable, so everything else keeps the order it was written in."""
         return tuple(sorted(self.modifiers, key=lambda m: not getattr(m, "replaces_base", False)))
 
@@ -270,10 +270,7 @@ def as_rate(spec: object, *, default_scope: type[Scope], label: str = "this rate
     return Rate(float(spec)).with_default_scope(default_scope)
 
 
-__all__ = ["Rate", "RateCompositionError", "as_rate"]
-
-
-__all__ = ["Extent", "as_extent"]
+__all__ = ["Rate", "RateCompositionError", "as_rate", "Extent", "as_extent"]
 
 
 @dataclass(frozen=True, repr=False)     # repr=False: `__repr__` below is the written form
@@ -288,7 +285,7 @@ class Extent:
     def __post_init__(self) -> None:
         object.__setattr__(self, "base", _base(self.base))
 
-    # --- the verbs (SPEC §4) ---------------------------------------------------------------------
+    # --- the verbs (SPEC §5) ---------------------------------------------------------------------
 
     def scaled_by(self, driver: object, mapping: object = None, *,
                   step: float | None = None) -> "Extent":

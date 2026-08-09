@@ -45,8 +45,9 @@ class TraitsResult:
 
     ``events`` is the timestamped event log — the **same shape as the genome level's** and the source
     of truth for a discrete (Mk) trait, from which ``history`` (the per-branch stochastic character
-    map) is derived. A continuous trait has no along-branch events, so its log holds only the
-    on-speciation jumps (empty without ``at_speciation``) while ``node_values`` carries the diffusion;
+    map) is derived. A continuous trait has no along-branch events, so its log holds the ``initial``
+    row and the on-speciation jumps (just the ``initial`` row without ``at_speciation``) while
+    ``node_values`` carries the diffusion;
     a threshold trait's crossings are un-timed, so its log is empty and it has no map.
     """
 
@@ -102,7 +103,7 @@ class TraitsResult:
         by its switches: how many, and how the tips ended up distributed over the states — which is the
         thing you look at first, because a run whose tips are all in one state has told you nothing.
         A **continuous** one is described by where the values got to, since there are no along-branch
-        events to count; its log holds only the on-speciation jumps, and that count is here so an
+        events to count; its log holds the on-speciation jumps, and that count is here so an
         empty one is visibly empty rather than ambiguous."""
         values = list(self.values.values())
         switches = sum(1 for e in self.events if e.kind == "on_branch")
@@ -164,7 +165,8 @@ class TraitsResult:
         under incomplete sampling) — or ``ancestor`` for an internal node, so the extant tips filter out
         with ``kind == "extant"``); ``"events"`` →
         ``trait_events.tsv``, the event log (``time · kind · lineage · from · to``) — one ``initial``
-        row at t=0 giving the initial state, then every switch in time order; ``"tree"`` →
+        row at t=0 giving the initial state, then every switch in time order; ``"summary"`` →
+        ``trait_summary.json``, what came out, as JSON (`summary`); ``"tree"`` →
         ``trait_tree.nwk``, the complete tree as Newick with **every** node annotated ``[&trait=…]``
         (a *trait tree*, carrying the exact ancestral values; opens in FigTree / iTOL).
 
