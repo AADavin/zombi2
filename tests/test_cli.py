@@ -328,7 +328,7 @@ def test_genomes_is_deterministic_across_resolutions(tmp_path, tree_file):
 @pytest.mark.parametrize("argv, why", [
     (["--initial-families", "5"], "nucleotide has no initial-families"),
     (["--replacement"], "nucleotide transfers are additive"),
-    (["--loss", "0.2 * Drawn(per='family', spread=0.5)"], "nucleotide wires OnTime and Driven, not ByFamily"),
+    (["--loss", "0.2 * Drawn(per='family', dist=LogNormal(0.0, 0.5))"], "nucleotide wires OnTime and Driven, not ByFamily"),
     (["--gff", "x.gff", "--genes", "3"], "gff and genes are mutually exclusive"),
     (["--write", "gene_order"], "gene_order is an ordered output"),
     (["--write", "profiles"], "the nucleotide resolution has no profiles"),
@@ -484,11 +484,11 @@ def test_the_summary_names_every_clock_a_rate_carries(tmp_path, genomes_dir):
     states a model that is not the model simulated."""
     out = tmp_path / "s"
     rc = main(["sequences", str(out), "--from", str(genomes_dir), "--model", "jc69",
-               "--substitution", "1.0 * Drawn(per='lineage', spread=0.3) * Drawn(per='lineage', spread=0.5)",
+               "--substitution", "1.0 * Drawn(per='lineage', dist=LogNormal(0.0, 0.3)) * Drawn(per='lineage', dist=LogNormal(0.0, 0.5))",
                "--seed", "1", "--flat"])
     assert rc == 0
     log = (out / "sequences.log").read_text(encoding="utf-8")
-    assert "spread 0.3" in log and "spread 0.5" in log
+    assert "LogNormal(0.0, 0.3)" in log and "LogNormal(0.0, 0.5)" in log
 
 
 def test_sequences_rejects_a_model_foreign_parameter(tmp_path, genomes_dir):
@@ -1052,9 +1052,9 @@ def test_genomes_params_file_carries_a_driven_transfer_to(tmp_path, driver_file,
 
 def test_traits_takes_a_rate_expression(tmp_path, tree_file):
     out = tmp_path / "t"
-    rc = main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0 * Inherited(per='lineage', spread=0.2)", "--seed", "1", "--flat"])
+    rc = main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0 * Inherited(per='lineage', dist=LogNormal(0.0, 0.2))", "--seed", "1", "--flat"])
     assert rc == 0
-    assert "rate\t1.0 * Inherited(per='lineage', spread=0.2)" in (out / "traits.log").read_text(encoding="utf-8")
+    assert "rate\t1.0 * Inherited(per='lineage', dist=LogNormal(0.0, 0.2))" in (out / "traits.log").read_text(encoding="utf-8")
 
 
 def test_params_file_takes_a_rate_expression(tmp_path):

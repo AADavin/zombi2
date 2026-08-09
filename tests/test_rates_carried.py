@@ -13,7 +13,7 @@ import math
 
 import pytest
 
-from zombi2.rates import ScaledBy, modifiers as mod
+from zombi2.rates import LogNormal, ScaledBy, modifiers as mod
 from zombi2.rates import scope
 from zombi2.rates.modifiers import CARRIED_KINDS, DRAWN, DRIVEN, INHERITED, MEASURED
 from zombi2.rates.rate import as_rate
@@ -26,9 +26,9 @@ def _rate(spec):
 @pytest.mark.parametrize("modifier, expected", [
     (mod.OnTime({0: 1.0, 3: 0.3}), (MEASURED, "run")),
     (mod.OnTotalDiversity(cap=100), (MEASURED, "run")),
-    (mod.Inherited(per='lineage', spread=0.2), (INHERITED, "lineage")),
-    (mod.Drawn(per='lineage', spread=0.3), (DRAWN, "lineage")),
-    (mod.Drawn(per='family', spread=0.5), (DRAWN, "family")),
+    (mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.2)), (INHERITED, "lineage")),
+    (mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3)), (DRAWN, "lineage")),
+    (mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)), (DRAWN, "family")),
     (ScaledBy("habitat.tsv", {"cave": 2.0}), (DRIVEN, "lineage")),
 ])
 def test_every_modifier_declares_what_it_reads(modifier, expected):
@@ -44,27 +44,27 @@ def test_measured_and_driven_are_not_carried():
 
 
 def test_a_carried_modifier_is_reported_with_its_unit():
-    drift = mod.Inherited(per='lineage', spread=0.2)
+    drift = mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.2))
     assert _rate(1.0 * drift).carried_modifiers() == ((drift, "lineage"),)
 
-    speed = mod.Drawn(per='family', spread=0.5)
+    speed = mod.Drawn(per='family', dist=LogNormal(0.0, 0.5))
     assert _rate(0.25 * speed).carried_modifiers() == ((speed, "family"),)
 
 
 def test_all_of_them_are_kept_not_just_the_first():
     """The point of the query. Each engine used to hunt for *the* per-unit modifier and take the
     first match, so a second one was silently dropped and the run was not the model asked for."""
-    a, b = mod.Drawn(per='family', spread=0.5), mod.Drawn(per='family', spread=2.0)
+    a, b = mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)), mod.Drawn(per='family', dist=LogNormal(0.0, 2.0))
     assert _rate(0.25 * a * b).carried_modifiers() == ((a, "family"), (b, "family"))
 
 
 def test_written_order_is_kept():
-    first, second = mod.Drawn(per='lineage', spread=0.3), mod.Drawn(per='family', spread=0.5)
+    first, second = mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3)), mod.Drawn(per='family', dist=LogNormal(0.0, 0.5))
     assert [m for m, _ in _rate(0.25 * first * second).carried_modifiers()] == [first, second]
 
 
 def test_unit_narrows_the_answer():
-    per_lineage, per_family = mod.Drawn(per='lineage', spread=0.3), mod.Drawn(per='family', spread=0.5)
+    per_lineage, per_family = mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3)), mod.Drawn(per='family', dist=LogNormal(0.0, 0.5))
     rate = _rate(0.25 * per_lineage * per_family)
     assert rate.carried_modifiers(unit="lineage") == ((per_lineage, "lineage"),)
     assert rate.carried_modifiers(unit="family") == ((per_family, "family"),)
@@ -96,7 +96,7 @@ def test_carried_kinds_are_the_ones_needing_a_generator():
 def test_effective_skips_carried_modifiers_and_takes_their_product_instead():
     """A carried modifier's number does not come from the context, so `effective` must not ask it
     for one — the engine holds it and passes it in as ``carried``, already multiplied out."""
-    rate = _rate(2.0 * mod.Drawn(per='lineage', spread=0.5))
+    rate = _rate(2.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.5)))
     assert rate.effective(lineages=1) == pytest.approx(2.0)            # no factor supplied yet
     assert rate.effective(lineages=1, carried_factor=3.0) == pytest.approx(6.0)
 
@@ -114,7 +114,7 @@ def test_the_species_engine_now_applies_every_per_lineage_modifier():
 
     from zombi2.species import _per_lineage
 
-    a, b = mod.Drawn(per='lineage', spread=0.4), mod.Drawn(per='lineage', spread=0.9)
+    a, b = mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.4)), mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.9))
     rate = _rate(1.0 * a * b)
 
     assert _per_lineage(rate) == (a, b)
@@ -131,7 +131,7 @@ def test_the_genome_engines_now_apply_every_per_family_modifier():
     `math.prod` of the result, because a family never splits and only the combined factor matters."""
     import numpy as np
 
-    a, b = mod.Drawn(per='family', spread=0.4), mod.Drawn(per='family', spread=0.9)
+    a, b = mod.Drawn(per='family', dist=LogNormal(0.0, 0.4)), mod.Drawn(per='family', dist=LogNormal(0.0, 0.9))
     rate = as_rate(0.25 * a * b, default_scope=scope.PerCopy)
     carried = tuple(m for m, _ in rate.carried_modifiers(unit="family"))
     assert carried == (a, b)
@@ -150,7 +150,7 @@ class TestOneObjectIsOneDraw:
     def test_one_object_on_two_rates_draws_once(self):
         import numpy as np
 
-        speed = mod.Drawn(per='family', spread=0.5)
+        speed = mod.Drawn(per='family', dist=LogNormal(0.0, 0.5))
         shared: dict[int, float] = {}       # one unit's cache, passed to each of its rates
         rng = np.random.default_rng(11)
 
@@ -158,13 +158,13 @@ class TestOneObjectIsOneDraw:
         second = mod.values_at_birth((speed,), rng, shared)
         assert first == second                                  # the same number both times
 
-        expected = mod.Drawn(per='family', spread=0.5).draw(np.random.default_rng(11))
+        expected = mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)).draw(np.random.default_rng(11))
         assert first == pytest.approx((expected,))              # and the generator moved once
 
     def test_two_objects_of_the_same_spread_draw_separately(self):
         import numpy as np
 
-        a, b = mod.Drawn(per='family', spread=0.5), mod.Drawn(per='family', spread=0.5)
+        a, b = mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)), mod.Drawn(per='family', dist=LogNormal(0.0, 0.5))
         shared: dict[int, float] = {}
         rng = np.random.default_rng(11)
 
@@ -173,7 +173,7 @@ class TestOneObjectIsOneDraw:
     def test_the_cache_is_per_unit_so_a_later_unit_draws_afresh(self):
         import numpy as np
 
-        speed = mod.Drawn(per='family', spread=0.5)
+        speed = mod.Drawn(per='family', dist=LogNormal(0.0, 0.5))
         rng = np.random.default_rng(11)
         one = mod.values_at_birth((speed,), rng, {})               # family one
         two = mod.values_at_birth((speed,), rng, {})               # family two
@@ -182,7 +182,7 @@ class TestOneObjectIsOneDraw:
     def test_without_a_cache_every_modifier_draws_for_itself(self):
         import numpy as np
 
-        speed = mod.Drawn(per='family', spread=0.5)
+        speed = mod.Drawn(per='family', dist=LogNormal(0.0, 0.5))
         one, two = mod.values_at_birth((speed, speed), np.random.default_rng(11))
         assert one != two          # the same object, twice, but no cache — so two draws
 
@@ -193,7 +193,7 @@ class TestOneObjectIsOneDraw:
 
         from zombi2.species import _per_lineage
 
-        s = mod.Drawn(per='lineage', spread=0.4)
+        s = mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.4))
         birth = _per_lineage(_rate(1.0 * s))
         death = _per_lineage(_rate(0.5 * s))
 
@@ -208,8 +208,8 @@ class TestOneObjectIsOneDraw:
 
         from zombi2.species import _per_lineage
 
-        birth = _per_lineage(_rate(1.0 * mod.Drawn(per='lineage', spread=0.4)))
-        death = _per_lineage(_rate(0.5 * mod.Drawn(per='lineage', spread=0.4)))
+        birth = _per_lineage(_rate(1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.4))))
+        death = _per_lineage(_rate(0.5 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.4))))
 
         lineage: dict[int, float] = {}
         rng = np.random.default_rng(4)
@@ -222,7 +222,7 @@ def test_a_modifier_that_does_not_draw_says_so():
     """an inherited value starts from its parent rather than from nothing, so it has no `draw`. The base
     raises with the reason instead of handing back a plausible 1.0."""
     with pytest.raises(NotImplementedError, match="does not draw a value per unit"):
-        mod.Inherited(per='lineage', spread=0.2).draw(object())
+        mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.2)).draw(object())
 
     with pytest.raises(NotImplementedError):
         mod.OnTime({0: 1.0}).draw(object())

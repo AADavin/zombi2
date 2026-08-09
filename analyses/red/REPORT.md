@@ -61,8 +61,8 @@ tree vary as much as real archaea (Figure 2).
 **Three clocks, because one number cannot pin the structure.** The CV says *how much* rate variation
 there is, not how it is arranged across the tree — and those are different things for a method that
 walks root to tip. So the sweep runs all three clocks ZOMBI2 provides at the sequence level: the
-**uncorrelated** `Drawn(per='lineage', spread=σ)` with a lognormal or a gamma tail (Drummond et al. 2006), where
-every lineage draws its own rate independently; and the **autocorrelated** `Inherited(per='lineage', spread=σ)`
+**uncorrelated** `Drawn(per='lineage', dist=LogNormal(0.0, σ))` with a lognormal or a gamma tail (Drummond et al. 2006), where
+every lineage draws its own rate independently; and the **autocorrelated** `Inherited(per='lineage', dist=LogNormal(0.0, σ))`
 (Thorne et al. 1998), where each lineage inherits its parent's rate times a draw at the split, so
 relatives evolve at similar rates. They reach the GTDB variation at very different σ — 0.54
 (lognormal), 0.59 (gamma), 0.14 (autocorrelated), because drift compounds down the tree — which is

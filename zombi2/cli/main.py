@@ -121,7 +121,7 @@ def main(argv: list[str] | None = None) -> int:
             "",
             "  # GTR with an uncorrelated (relaxed) lineage clock",
             "  zombi2 sequences out/ --model gtr --frequencies 0.3 0.2 0.2 0.3 "
-            "--substitution \"1.0 * Drawn(per='lineage', spread=0.3)\" --seed 1",
+            "--substitution \"1.0 * Drawn(per='lineage', dist=LogNormal(0.0, 0.3))\" --seed 1",
             "",
             "  # a protein alignment: LG, 300 residues (an empirical model takes no parameters)",
             "  # replaying one genomes run into a separate output run",

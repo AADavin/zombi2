@@ -502,7 +502,7 @@ def phylo_run() -> str:
         _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 40,
                "--duplication", 0.15, "--loss", 0.12, "--seed", 9)
         _zombi("sequences", run, "--model", "hky85", "--kappa", 2.0, "--length", 500,
-               "--substitution", "1.0 * Drawn(per='lineage', spread=0.6)", "--seed", 7)
+               "--substitution", "1.0 * Drawn(per='lineage', dist=LogNormal(0.0, 0.6))", "--seed", 7)
     return _stamp(run)
 
 

@@ -9,7 +9,7 @@ produced, and evolves one sequence down each family's *complete* gene tree under
 
 Long options are the API keyword names, and ``--substitution`` takes the written form of a rate
 (SPEC §5): a bare number is the strict clock, and the uncorrelated ("relaxed") lineage clock is that
-rate times a per-lineage draw — ``--substitution "1.0 * Drawn(per='lineage', spread=0.3)"``. The model's
+rate times a per-lineage draw — ``--substitution "1.0 * Drawn(per='lineage', dist=LogNormal(0.0, 0.3))"``. The model's
 physical parameters (``--kappa`` / ``--frequencies`` / ``--exchangeabilities``) are rejected for a model that
 does not use them — including *every* protein model, which is empirical and takes none — so a
 silently-ignored flag can't give a misleading run. See
@@ -43,9 +43,9 @@ from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg,
 RATES_HELP = _rates_help(
     IMPLEMENTED_MODIFIERS, "--substitution",
     note="Drawn(per='lineage') draws one rate per species lineage, shared by every gene in it. "
-         "spread=σ is the short spelling and means a lognormal of that log-scale; dist= takes any "
-         "distribution instead — Gamma(shape=…, scale=…), Exponential(…) — normalised to mean 1, so "
-         "what it contributes is its shape. Give one or the other. ScaledBy "
+         "dist= is the distribution it is drawn from, written out — LogNormal(0.0, sigma), "
+         "Gamma(shape=…, scale=…), Exponential(…) — and every one is normalised to mean 1, so what "
+         "it contributes is its shape and not where it sits. ScaledBy "
          "reads a trait grown first — the trait_events.tsv a 'zombi2 traits' run wrote, in this run "
          "or another: \"1.0 * ScaledBy('out/traits/trait_events.tsv', {'cave': 0.5, 'surface': "
          "1.0})\". A clock and a driver compose; a driver that switches mid-branch is integrated "
@@ -130,7 +130,7 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--divergence", type=float, default=None, metavar="D",
                    help="solve for the rate instead, so a site accrues D substitutions from root to "
                         "tip. Composes with --substitution: give the clock's shape alone "
-                        "(\"Drawn(per='lineage', spread=0.3)\") and this sets its scale")
+                        "(\"Drawn(per='lineage', dist=LogNormal(0.0, 0.3))\") and this sets its scale")
 
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=_SEQUENCE_OUTPUTS, default=None, metavar="PART",
@@ -355,13 +355,12 @@ def run(args, parser):
     driven = []
     for m in _mods:
         if m.reads == (DRAWN, "lineage"):
-            # `spread` is set only when the short spelling was used; a distribution given outright
-            # describes itself, and formatting a None spread was a real crash
-            clocks.append(f"lognormal lineage clock, spread {m.spread:g}" if m.spread is not None
-                          else f"lineage clock, {m.dist!r}")
+            # the distribution describes itself, which is the point of writing it out: there is no
+            # longer a short spelling whose number the summary would have to name on its behalf
+            clocks.append(f"uncorrelated lineage clock, {m.dist!r}")
         elif m.reads == (INHERITED, "lineage"):
-            clocks.append(f"discrete-bin clock, {m.bins} bins, spread {m.spread:g}" if m.bins
-                          else f"autocorrelated clock, spread {m.spread:g}")
+            clocks.append(f"discrete-bin clock, {m.bins} bins, step {m.dist!r}" if m.bins
+                          else f"autocorrelated clock, step {m.dist!r}")
         elif isinstance(m, Driven):
             # a driver is a second factor, not a second clock — appended rather than replacing, or a
             # driven relaxed run would report itself as one or the other and never as both

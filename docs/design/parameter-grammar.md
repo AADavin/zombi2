@@ -594,7 +594,7 @@ names must be checked against the verb set, not just call names against a class 
 the migration has that property.
 
 **Keep `*` parseable for one release, as a reader only.** An old `--params` file says
-`0.25 * Drawn(per='family', spread=0.5)`. If `BinOp` stops parsing entirely, that fails with a syntax
+`0.25 * Drawn(per='family', dist=LogNormal(0.0, 0.5))`. If `BinOp` stops parsing entirely, that fails with a syntax
 error instead of the retired-name message that names the replacement. The parser should still
 *recognise* a product far enough to reach the name and refuse it properly.
 

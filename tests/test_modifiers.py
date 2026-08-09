@@ -2,7 +2,7 @@
 
 import pytest
 
-from zombi2.rates import modifiers as mod
+from zombi2.rates import Gamma, LogNormal, modifiers as mod
 
 
 # --- OnTime -----------------------------------------------------------------
@@ -109,13 +109,13 @@ def test_stochastic_status_built_vs_deferred():
 # --- FromParent (clade drift): the mean-corrected drift ---------------------
 
 def test_inherited_initial_is_one():
-    assert mod.Inherited(per='lineage', spread=0.3).initial() == 1.0
+    assert mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.3)).initial() == 1.0
 
 
 def test_inherited_descend_is_mean_corrected():
     import numpy as np
     rng = np.random.default_rng(0)
-    inh = mod.Inherited(per='lineage', spread=0.5)
+    inh = mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.5))
     vals = [inh.descend(1.0, rng) for _ in range(50000)]
     # E[factor] = 1 exactly (the -σ²/2 correction); the buggy version gives E ≈ e^{σ²/2} = 1.13
     assert abs(sum(vals) / len(vals) - 1.0) < 0.02
@@ -124,7 +124,7 @@ def test_inherited_descend_is_mean_corrected():
 def test_inherited_no_inflation_over_a_chain():
     import numpy as np
     rng = np.random.default_rng(1)
-    inh = mod.Inherited(per='lineage', spread=0.4)
+    inh = mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.4))
     ends = []
     for _ in range(20000):
         v = 1.0
@@ -137,8 +137,8 @@ def test_inherited_no_inflation_over_a_chain():
 
 def test_inherited_deterministic():
     import numpy as np
-    a = mod.Inherited(per='lineage', spread=0.3).descend(1.0, np.random.default_rng(7))
-    b = mod.Inherited(per='lineage', spread=0.3).descend(1.0, np.random.default_rng(7))
+    a = mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.3)).descend(1.0, np.random.default_rng(7))
+    b = mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.3)).descend(1.0, np.random.default_rng(7))
     assert a == b
 
 
@@ -147,7 +147,7 @@ def test_binned_drift_stays_on_its_ladder_and_averages_one():
     parent's rung or one either side, the ends reflect, and the ladder is scaled so the mean is 1 —
     which holds because a reflecting nearest-neighbour walk is uniform at stationarity."""
     import numpy as np
-    inh = mod.Inherited(per='lineage', spread=0.35, bins=6)
+    inh = mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.35), bins=6)
     rungs = {round(r, 9) for r in inh._ladder()}
     rng = np.random.default_rng(0)
     v, seen = inh.initial(), []
@@ -162,23 +162,23 @@ def test_binned_drift_stays_on_its_ladder_and_averages_one():
 def test_binned_drift_leaves_the_continuous_form_alone():
     # `bins` defaults to None, so a run written before it existed draws exactly as it did
     import numpy as np
-    assert mod.Inherited(per='lineage', spread=0.3).bins is None
-    a = mod.Inherited(per='lineage', spread=0.3).descend(1.0, np.random.default_rng(7))
-    b = mod.Inherited(per='lineage', spread=0.3, bins=None).descend(1.0, np.random.default_rng(7))
+    assert mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.3)).bins is None
+    a = mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.3)).descend(1.0, np.random.default_rng(7))
+    b = mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.3), bins=None).descend(1.0, np.random.default_rng(7))
     assert a == b
 
 
 @pytest.mark.parametrize("bad", [1, 0, -3])
 def test_binned_drift_needs_at_least_two_bins(bad):
     with pytest.raises(ValueError, match="at least 2"):
-        mod.Inherited(per='lineage', spread=0.3, bins=bad)
+        mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.3), bins=bad)
 
 
 def test_a_carried_modifier_has_no_factor_to_give():
     """Its number never came from the context: the engine draws it when a unit is born, keeps it, and
     hands it back through `Rate.effective`'s ``carried``. Asking for a factor without that is
     meaningless, so it raises with the reason rather than returning a plausible 1.0."""
-    for m in (mod.Inherited(per='lineage', spread=0.3), mod.Drawn(per='lineage', spread=0.3), mod.Drawn(per='family', spread=0.3)):
+    for m in (mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.3)), mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3)), mod.Drawn(per='family', dist=LogNormal(0.0, 0.3))):
         with pytest.raises(NotImplementedError, match="carried"):
             m.factor()
 
@@ -188,14 +188,14 @@ def test_a_carried_modifier_has_no_factor_to_give():
 def test_bylineage_zero_spread_is_a_strict_clock():
     import numpy as np
     rng = np.random.default_rng(0)
-    byl = mod.Drawn(per='lineage', spread=0.0)
+    byl = mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.0))
     assert all(byl.draw(rng) == 1.0 for _ in range(100))
 
 
 def test_bylineage_draw_is_mean_corrected_lognormal():
     import numpy as np
     rng = np.random.default_rng(0)
-    byl = mod.Drawn(per='lineage', spread=0.5)  # default dist = lognormal
+    byl = mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.5))  # default dist = lognormal
     vals = [byl.draw(rng) for _ in range(100000)]
     # E[factor] = 1 (the -σ²/2 correction); the buggy uncorrected draw gives E ≈ e^{σ²/2} = 1.13
     assert abs(sum(vals) / len(vals) - 1.0) < 0.02
@@ -218,7 +218,7 @@ def test_a_gamma_draw_is_normalised_to_mean_one():
 def test_bylineage_draws_are_independent_no_memory():
     import numpy as np
     rng = np.random.default_rng(2)
-    byl = mod.Drawn(per='lineage', spread=0.6)
+    byl = mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.6))
     a = [byl.draw(rng) for _ in range(2000)]
     # i.i.d.: successive draws are uncorrelated (unlike whose draws depend on the parent)
     lag1 = sum((a[i] - 1) * (a[i + 1] - 1) for i in range(len(a) - 1)) / (len(a) - 1)
@@ -227,26 +227,37 @@ def test_bylineage_draws_are_independent_no_memory():
 
 def test_bylineage_deterministic():
     import numpy as np
-    a = mod.Drawn(per='lineage', spread=0.3).draw(np.random.default_rng(7))
-    b = mod.Drawn(per='lineage', spread=0.3).draw(np.random.default_rng(7))
+    a = mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3)).draw(np.random.default_rng(7))
+    b = mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3)).draw(np.random.default_rng(7))
     assert a == b
 
 
-def test_bylineage_validates_its_arguments():
-    for bad in (-0.1, float("inf"), float("nan"), True):
-        with pytest.raises((ValueError, TypeError)):
-            mod.Drawn(per='lineage', spread=bad)
-    with pytest.raises(ValueError, match="a spread or a dist"):
-        mod.Drawn(per="lineage")                     # neither given
+def test_drawn_validates_its_arguments():
+    with pytest.raises(ValueError, match="LogNormal sigma must be >= 0"):
+        mod.Drawn(per='lineage', dist=LogNormal(0.0, -0.1))
+    with pytest.raises(ValueError, match="needs the distribution"):
+        mod.Drawn(per="lineage")                     # no distribution given
+    with pytest.raises(ValueError, match="unknown unit"):
+        mod.Drawn(per="genome", dist=LogNormal(0.0, 0.3))
 
 
-def test_inherited_validation():
-    with pytest.raises(ValueError):
-        mod.Inherited(per='lineage', spread=-0.1)
-    with pytest.raises(ValueError):
-        mod.Inherited(per='lineage', spread=float("inf"))
-    with pytest.raises(TypeError):
-        mod.Inherited(per='lineage', spread="wide")  # type: ignore[arg-type]
+def test_inherited_validates_its_arguments():
+    with pytest.raises(ValueError, match="LogNormal sigma must be >= 0"):
+        mod.Inherited(per='lineage', dist=LogNormal(0.0, -0.1))
+    with pytest.raises(ValueError, match="needs the distribution of its per-split step"):
+        mod.Inherited(per='lineage')
+    with pytest.raises(ValueError, match="bins= takes a LogNormal step"):
+        mod.Inherited(per='lineage', dist=Gamma(shape=4.0, scale=0.25), bins=8)
+
+
+def test_the_retired_spread_names_its_replacement():
+    """`spread` meant the drawn value in one class and the per-split step in the other, so it is
+    gone rather than aliased — and the error has to say what to write instead, including the
+    argument it stood for, or the reader has to guess a distribution."""
+    with pytest.raises(ValueError, match=r"Drawn\(per='family', dist=LogNormal\(0.0, 0.5\)\)"):
+        mod.Drawn(per='family', spread=0.5)          # type: ignore[call-arg]
+    with pytest.raises(ValueError, match=r"Inherited\(per='lineage', dist=LogNormal\(0.0, 0.2\)\)"):
+        mod.Inherited(per='lineage', spread=0.2)     # type: ignore[call-arg]
 
 
 def test_time_next_change():

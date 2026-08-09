@@ -28,7 +28,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, ClassVar, Mapping
 
-from .distributions import LogNormal, as_distribution
+from .distributions import Distribution, LogNormal, as_distribution
 
 #: The kinds of value a modifier can read, as the second half of `Modifier.reads`.
 #:
@@ -455,23 +455,32 @@ class Inherited(Modifier):
     genealogy. ``per`` names the unit it is carried on, so the class is one model and the unit is
     data::
 
-        birth = 1.0 * Inherited(per="lineage", spread=0.2)     # rate drift down a clade (ClaDS)
+        birth = 1.0 * Inherited(per="lineage", dist=LogNormal(0.0, 0.2))   # drift down a clade (ClaDS)
 
-    Geometric Brownian motion on the rate: the per-split factor is lognormal and **mean-corrected**
-    so ``E[factor] = 1``. Without the correction the rate inflates down the tree
-    (``E[rate] ≈ e^{σ²/2}``) — a real historical bug. The engine drives `initial` / `descend`,
-    threading each unit's current factor back through `Rate.effective`'s ``carried_factor``.
+    ``dist`` is the **per-split step**, not the value: a daughter's factor is its parent's times one
+    draw from it. That is the distinction the retired ``spread=`` hid — it named the value's spread
+    in `Drawn` and the step's in `Inherited`, and nothing on the page said which.
+
+    Geometric Brownian motion on the rate: the step is **mean-corrected** so ``E[factor] = 1``.
+    Without the correction the rate inflates down the tree (``E[rate] ≈ e^{σ²/2}``) — a real
+    historical bug. Any distribution that states a mean works, and is corrected by dividing by it,
+    exactly as `Drawn` does. The engine drives `initial` / `descend`, threading each unit's current
+    factor back through `Rate.effective`'s ``carried_factor``.
 
     ``bins`` discretises the drift: the rate takes one of ``bins`` values on a geometric ladder and a
     daughter moves to a **neighbouring rung**, or stays — the rate-category clock. It is a knob rather
     than a model of its own because the model is unchanged: a daughter starts from its parent and is
-    perturbed. ``None`` is the continuous form.
-
+    perturbed. ``None`` is the continuous form. It takes a `LogNormal` step and nothing else, because
+    the ladder's spacing *is* that step's σ — with any other shape there is no rung spacing to read,
+    and inventing one would be a model nobody wrote.
     """
 
     per: str
-    spread: float
+    # `Distribution` after `__post_init__` coerces it; `object` in the annotation so a caller may
+    # hand in anything `as_distribution` accepts, exactly as `Drawn` does
+    dist: "Distribution" = None    # type: ignore[assignment]
     bins: int | None = None
+    spread: float | None = None       # retired; a trap that names the replacement (see __post_init__)
 
     @property
     def reads(self) -> tuple[str, str]:      # type: ignore[override]
@@ -481,22 +490,49 @@ class Inherited(Modifier):
         if self.per not in UNITS:
             raise ValueError(
                 f"unknown unit {self.per!r}; a value is attached to one of {list(UNITS)}")
-        if isinstance(self.spread, bool) or not isinstance(self.spread, (int, float)):
-            raise TypeError(f"Inherited spread must be a real number, got {self.spread!r}")
-        if not math.isfinite(self.spread) or self.spread < 0:
-            raise ValueError(f"Inherited spread must be finite and non-negative, got {self.spread!r}")
+        if self.spread is not None:
+            raise ValueError(
+                f"Inherited no longer takes spread=. Write the distribution, so the page says which "
+                f"one it is and what it distributes: Inherited(per={self.per!r}, "
+                f"dist=LogNormal(0.0, {self.spread!r})) is the same model. `spread` named the "
+                f"per-split STEP here and the drawn VALUE in Drawn, which is why it is gone.")
+        if self.dist is None:
+            raise ValueError(
+                f"Inherited needs the distribution of its per-split step — "
+                f"Inherited(per={self.per!r}, dist=LogNormal(0.0, 0.2)).")
+        object.__setattr__(self, "dist", as_distribution(self.dist))
+        mean = self.dist.mean()       # raises for a distribution that cannot state one
+        if not math.isfinite(mean) or mean <= 0:
+            raise ValueError(
+                f"an inherited step is mean-corrected by its distribution's mean, which must be "
+                f"finite and positive; {self.dist!r} has a mean of {mean!r}")
         if self.bins is not None:
             if isinstance(self.bins, bool) or not isinstance(self.bins, int):
                 raise TypeError(f"Inherited bins must be a whole number, got {self.bins!r}")
             if self.bins < 2:
                 raise ValueError(f"Inherited bins must be at least 2, got {self.bins}")
+            if not isinstance(self.dist, LogNormal):
+                raise ValueError(
+                    f"Inherited bins= takes a LogNormal step and got {self.dist!r}. The ladder's "
+                    f"rungs are spaced by that step's sigma, so another shape leaves no spacing to "
+                    f"read — write dist=LogNormal(0.0, sigma) with bins, or drop bins for the "
+                    f"continuous drift, which takes any distribution.")
 
     def __repr__(self) -> str:
         """The written form a run's log records and a reader pastes back into a flag, so it has to be
         an expression that reproduces the rate. ``bins`` is omitted when it is unset, because the
         parser refuses ``bins=None``: a written form that will not parse is not a written form."""
         extra = f", bins={self.bins}" if self.bins is not None else ""
-        return f"Inherited(per={self.per!r}, spread={self.spread!r}{extra})"
+        return f"Inherited(per={self.per!r}, dist={self.dist!r}{extra})"
+
+    def __eq__(self, other: object) -> bool:
+        """By unit, step and bins — never by the retired ``spread`` field, which is always None on a
+        constructed object and exists only to catch the old spelling."""
+        return (isinstance(other, Inherited) and other.per == self.per
+                and other.dist == self.dist and other.bins == self.bins)
+
+    def __hash__(self) -> int:
+        return hash((Inherited, self.per, self.dist, self.bins))
 
     def factor(self, **_: Any) -> float:
         """A carried modifier has no factor to compute. Its number is drawn when the unit is born and
@@ -514,7 +550,9 @@ class Inherited(Modifier):
         uniform at stationarity, so an even ladder gives ``E[factor] = 1`` — the same promise the
         continuous form keeps with its lognormal correction."""
         n = self.bins or 0
-        raw = [math.exp(self.spread * (k - (n - 1) / 2)) for k in range(n)]
+        assert isinstance(self.dist, LogNormal)   # __post_init__ refuses bins with anything else
+        sigma = self.dist.sigma
+        raw = [math.exp(sigma * (k - (n - 1) / 2)) for k in range(n)]
         mean = sum(raw) / n
         return [r / mean for r in raw]
 
@@ -526,14 +564,22 @@ class Inherited(Modifier):
         return rungs[len(rungs) // 2]
 
     def descend(self, parent_value: float, rng) -> float:
-        """A daughter's factor: the parent's, times one mean-corrected lognormal step — or, when
-        binned, its parent's rung or one either side, with the ends reflecting.
+        """A daughter's factor: the parent's, times one mean-corrected step — or, when binned, its
+        parent's rung or one either side, with the ends reflecting.
 
         The parent's rung is recovered by nearest match rather than by inverting the ladder, so no
-        float drift down a deep tree can put a lineage between two rungs."""
-        sigma = self.spread
+        float drift down a deep tree can put a lineage between two rungs.
+
+        A lognormal step keeps its closed form, ``exp(N(-σ²/2, σ))``, rather than going through
+        ``sample()/mean()``. The two are the same distribution and consume the same one draw, but they
+        differ in the last bit — and a one-ULP change to a step is enough to move a Gillespie
+        comparison, so every autocorrelated run in the repository would have shifted for nothing.
+        ``mu`` cancels in the correction, which is why only ``sigma`` appears."""
         if self.bins is None:
-            return parent_value * math.exp(rng.normal(-0.5 * sigma * sigma, sigma))
+            if isinstance(self.dist, LogNormal):
+                sigma = self.dist.sigma
+                return parent_value * math.exp(rng.normal(-0.5 * sigma * sigma, sigma))
+            return parent_value * (self.dist.sample(rng) / self.dist.mean())
         rungs = self._ladder()
         here = min(range(len(rungs)), key=lambda i: abs(math.log(rungs[i] / parent_value)))
         step = int(rng.integers(-1, 2))                      # -1, 0 or +1
@@ -544,18 +590,18 @@ class Drawn(Modifier):
     """A value **drawn once per unit** and then fixed for that unit's life — i.i.d. heterogeneity
     with no memory. ``per`` names the unit, so one class covers every cell::
 
-        loss = 0.25 * Drawn(per="family", spread=0.5)          # family rate heterogeneity
-        substitution = 1.0 * Drawn(per="lineage", spread=0.3)  # the uncorrelated relaxed clock
+        loss = 0.25 * Drawn(per="family", dist=LogNormal(0.0, 0.5))          # family heterogeneity
+        substitution = 1.0 * Drawn(per="lineage", dist=LogNormal(0.0, 0.3))  # uncorrelated clock
+        loss = 0.25 * Drawn(per="family", dist=Gamma(shape=4.0, scale=0.25)) # any other shape
 
-    ``spread`` is the common case and means a **lognormal** of that log-scale σ. For any other shape,
-    pass a distribution instead — any built-in `Distribution`:
+    ``dist`` is the distribution the **value** is drawn from — any built-in `Distribution`:
     ``Fixed``, ``Exponential``, ``Gamma``, ``LogNormal``, ``Uniform``, ``Geometric``. A callable or a
     scipy frozen distribution is refused here, because neither states a mean to normalise by; an
-    extent takes both, being a size rather than a multiplier::
+    extent takes both, being a size rather than a multiplier.
 
-        loss = 0.25 * Drawn(per="family", dist=Gamma(shape=4.0, scale=0.25))
-
-    Give one or the other, never both: ``spread=σ`` *is* ``dist=LogNormal(0.0, σ)``.
+    It is written out rather than abbreviated because the retired ``spread=σ`` said neither which
+    distribution it meant nor what it distributed — the drawn value here, the per-split step in
+    `Inherited`, two different quantities under one name.
 
     **Every draw is normalised to mean 1**, by dividing by the distribution's own mean. A drawn value
     is a *multiplier*, and one that does not average to 1 changes what the base means — a base of 0.25
@@ -571,22 +617,20 @@ class Drawn(Modifier):
     ones are independent even with identical arguments (SPEC §5).
     """
 
-    def __init__(self, *, per: str, spread: float | None = None, dist: object = None) -> None:
+    def __init__(self, *, per: str, dist: object = None, spread: float | None = None) -> None:
         if per not in UNITS:
             raise ValueError(f"unknown unit {per!r}; a value is attached to one of {list(UNITS)}")
-        if (spread is None) == (dist is None):
-            raise ValueError(
-                "Drawn takes a spread or a dist, not both and not neither: spread=0.5 is a lognormal "
-                "of that log-scale, and dist=Gamma(...) is any distribution, normalised to mean 1.")
         if spread is not None:
-            if isinstance(spread, bool) or not isinstance(spread, (int, float)) \
-                    or not math.isfinite(spread) or spread < 0:
-                raise ValueError(
-                    f"Drawn spread must be a finite non-negative number, got {spread!r}")
-            spread = float(spread)
-            dist = LogNormal(0.0, spread)
+            raise ValueError(
+                f"Drawn no longer takes spread=. Write the distribution, so the page says which one "
+                f"it is: Drawn(per={per!r}, dist=LogNormal(0.0, {spread!r})) is the same model. "
+                f"`spread` named the drawn VALUE here and the per-split STEP in Inherited, which is "
+                f"why it is gone.")
+        if dist is None:
+            raise ValueError(
+                f"Drawn needs the distribution its value is drawn from — "
+                f"Drawn(per={per!r}, dist=LogNormal(0.0, 0.5)).")
         self.per = per
-        self.spread = spread          # kept only so the written form can use the short spelling
         self.dist = as_distribution(dist)
         mean = self.dist.mean()       # raises for a distribution that cannot state one
         if not math.isfinite(mean) or mean <= 0:
@@ -605,22 +649,22 @@ class Drawn(Modifier):
             f"it to Rate.effective(carried_factor=...). It has no factor of its own.")
 
     def draw(self, rng) -> float:
-        """One independent multiplier for a unit, with mean 1. A zero spread gives exactly 1.0 and
-        consumes no randomness, so switching heterogeneity off leaves every other draw where it was."""
-        if self.spread == 0.0:
+        """One independent multiplier for a unit, with mean 1.
+
+        A degenerate distribution gives exactly 1.0 and consumes no randomness, so switching
+        heterogeneity off leaves every other draw in the run where it was — which is what makes a
+        zero-variation control comparable to the run it controls for."""
+        if isinstance(self.dist, LogNormal) and self.dist.sigma == 0.0:
             return 1.0
         return self.dist.sample(rng) / self.dist.mean()
 
     def __repr__(self) -> str:
-        """The written form a run's log records and a reader pastes back into a flag — in the short
-        ``spread=`` spelling where that is how it was written."""
-        inner = f"spread={self.spread!r}" if self.spread is not None else f"dist={self.dist!r}"
-        return f"Drawn(per={self.per!r}, {inner})"
+        """The written form a run's log records and a reader pastes back into a flag."""
+        return f"Drawn(per={self.per!r}, dist={self.dist!r})"
 
     def __eq__(self, other: object) -> bool:
         """Two draws are the same modifier when they are on the same unit with the same
-        distribution. ``spread`` is not compared: it records only *how it was written*, and
-        ``spread=0.5`` and ``dist=LogNormal(0.0, 0.5)`` are one modifier spelled two ways."""
+        distribution."""
         return isinstance(other, Drawn) and other.per == self.per and other.dist == self.dist
 
     def __hash__(self) -> int:

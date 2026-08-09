@@ -9,7 +9,7 @@ would type in Python and returns the same object, so a snippet pastes between th
     parse_rate("1.0 * OnTime({0: 1.0, 3: 0.3})")   -> a Rate carrying that modifier
 
 The ``mod.`` / ``scope.`` qualifiers Python needs are optional here, so
-``1.0 * mod.Inherited(per="lineage", spread=0.2)`` and ``1.0 * Inherited(per="lineage", spread=0.2)`` both read.
+``1.0 * mod.Inherited(per="lineage", dist=LogNormal(0.0, 0.2))`` and ``1.0 * Inherited(per="lineage", dist=LogNormal(0.0, 0.2))`` both read.
 
 **It parses, it does not evaluate.** The text is parsed to a syntax tree and walked against a
 whitelist — the scope wrappers, the modifiers, numbers, strings, dicts/lists, keyword arguments, and
@@ -93,9 +93,9 @@ _RETIRED = {
     "DrivenBy": ("write the verb that says what the number does: ScaledBy(driver, mapping) on a "
                  "rate or an extent, Weights(driver, mapping) on transfer_to, SetBy(driver, "
                  "mapping) to replace the base rather than scale it"),
-    "ByFamily": ("write Drawn(per='family', spread=...)"),
-    "ByLineage": ("write Drawn(per='lineage', spread=...)"),
-    "FromParent": ("write Inherited(per='lineage', spread=...)"),
+    "ByFamily": ("write Drawn(per='family', dist=LogNormal(0.0, ...))"),
+    "ByLineage": ("write Drawn(per='lineage', dist=LogNormal(0.0, ...))"),
+    "FromParent": ("write Inherited(per='lineage', dist=LogNormal(0.0, ...))"),
 }
 
 

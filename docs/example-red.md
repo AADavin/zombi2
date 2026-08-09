@@ -50,7 +50,7 @@ tree is the truth. RED on the phylogram is what a real study would have seen.
 ```python
 import numpy as np
 from zombi2 import genomes, sequences, species
-from zombi2.rates import modifiers as mod
+from zombi2.rates import LogNormal, modifiers as mod
 from zombi2.sequences import substitution_models as sm
 from zombi2.tree import read_newick
 from zombi2.tree import relative_evolutionary_divergence as red_of
@@ -65,7 +65,7 @@ g = genomes.simulate_genomes_family(sp.complete_tree, initial_families=5,
                                     duplication=0.01, loss=0.01, seed=100)
 seq = sequences.simulate_sequences(
     g, model=sm.jc69(), length=1,
-    substitution=1.0 * mod.Drawn(per='lineage', spread=0.544), seed=7)
+    substitution=1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.544)), seed=7)
 
 phylogram, _ = read_newick(seq.species_phylogram["extant"])
 estimate = red_of(phylogram)                   # RED, now on substitutions instead of time
