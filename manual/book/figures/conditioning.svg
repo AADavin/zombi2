@@ -1,20 +1,20 @@
-<svg viewBox="0 0 690 250" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
-<title>Conditioning: a driver, the rate it drives, and where the verb is written</title>
-<desc>On the left, a box labelled habitat, with a small two-state diagram below it showing aquatic and terrestrial switching between each other. An arrow runs right to the gene loss rate, the target, labelled drives, carrying a multiplier for each habitat state. Under the loss rate is the expression you write on it, a per-copy loss rate of 0.25 scaled by habitat.</desc>
-<!-- The arrow's verb is ACTIVE and points the way the causation does: habitat drives loss. It used
-     to read "DrivenBy", which was passive, so an arrow drawn cause-to-effect carried a label that
-     names the relation effect-to-cause — read along the arrow it said "habitat is driven by loss",
-     the exact opposite of the model. The verb now sits under the TARGET, which is both where it
-     reads correctly and where it is actually typed: loss = PerCopy(0.25).scaled_by(habitat, ...).
-     That expression is copied from Chapter 9's own example, so the picture and the sentence beside
-     it say the same thing. It has been restated at every change to how a rate is written — first
-     DrivenBy, then ScaledBy, now the verb as a method on the scope that carries the base — and
-     each time the figure was found last, so check it whenever the grammar moves.
-     The canvas gained 30 units on the right for it, 660 to 690: with the scope written the
-     expression is the widest thing in the figure, and it is set in a monospace the two renderers
-     disagree about. librsvg, which builds the book's PNG, sets it about 25% narrower than Menlo,
-     which is what a mac browser reaches for on the docs site. Sized for the wider of the two, so
-     neither clips it.
+<svg viewBox="0 0 660 240" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
+<title>Conditioning: a driver, the rate it conditions, and the mapping between them</title>
+<desc>On the left, a box labelled habitat, with a small two-state diagram below it showing aquatic and terrestrial switching between each other. An arrow runs right to the gene loss rate, the target, labelled conditions, carrying a multiplier for each habitat state.</desc>
+<!-- The arrow's verb is ACTIVE and points the way the causation does: habitat conditions loss. It
+     used to read "DrivenBy", which was passive, so an arrow drawn cause-to-effect carried a label
+     that names the relation effect-to-cause — read along the arrow it said "habitat is driven by
+     loss", the exact opposite of the model.
+     This is Chapter 2's figure, and Chapter 2 is a tour: it names the three parts and stops. It
+     therefore carries NO Python, and the target box carries no base — a reader meeting the idea for
+     the first time does not need a number to see that one thing sets another. Chapter 9 is where
+     the expression gets written out, and it has figures of its own for that. The arrow's word is
+     "conditions" because it is the same word the chapter's heading uses; the verbs (scaled_by and
+     the rest) are a Chapter 9 distinction.
+     The canvas was 690 wide when a monospace expression sat under the target box and was the widest
+     thing in the figure. With that gone the target box is, ending at x=638, so 660 leaves the same
+     margin on the right as the driver box has on the left. -->
+<!-- The dark-mode note:
      Colours are presentation ATTRIBUTES, not CSS, and are literals rather than a CSS custom property: GitHub's
      SVG sanitiser drops the style element, and librsvg resolves no custom properties, so a figure
      whose fills live in either renders as black-on-black. The dark-mode rules below still win
@@ -56,16 +56,16 @@
 
 <!-- its states, small: what the driver is made of -->
 <g class="node" fill="#f7f7f5" stroke="#1a1a1a" stroke-width="1.2">
-  <ellipse cx="66" cy="212" rx="36" ry="17"/>
-  <ellipse cx="174" cy="212" rx="36" ry="17"/>
+  <ellipse cx="66" cy="202" rx="36" ry="17"/>
+  <ellipse cx="174" cy="202" rx="36" ry="17"/>
 </g>
 <g class="lbl" fill="#1a1a1a" font-size="11" text-anchor="middle">
-  <text x="66" y="216">aquatic</text>
-  <text x="174" y="216">terrestrial</text>
+  <text x="66" y="206">aquatic</text>
+  <text x="174" y="206">terrestrial</text>
 </g>
 <g class="edge" fill="none" stroke="#1a1a1a" stroke-width="1.2">
-  <path d="M 103,204 C 112,195 128,195 137,204" marker-end="url(#cb)"/>
-  <path d="M 137,220 C 128,229 112,229 103,220" marker-end="url(#cb)"/>
+  <path d="M 103,194 C 112,185 128,185 137,194" marker-end="url(#cb)"/>
+  <path d="M 137,210 C 128,219 112,219 103,210" marker-end="url(#cb)"/>
 </g>
 
 <!-- the relation, read in the direction it is drawn; the mapping is what it carries -->
@@ -73,23 +73,19 @@
   <line x1="203" y1="126" x2="462" y2="126" marker-end="url(#cb)"/>
 </g>
 <g class="lbl" fill="#1a1a1a" font-size="14.5" text-anchor="middle">
-  <text x="332" y="116" font-style="italic">drives</text>
+  <text x="332" y="116" font-style="italic">conditions</text>
 </g>
 <g class="dim" fill="#6e6e6e" font-size="13.5" text-anchor="middle">
   <text x="332" y="153">aquatic &#215;&#8202;4</text>
   <text x="332" y="171">terrestrial &#215;&#8202;1</text>
 </g>
 
-<!-- the target rate, and the expression that carries the driver -->
+<!-- the target rate: named, and nothing else. Set like the driver box opposite it, so the two read
+     as the same kind of thing. -->
 <g class="node" fill="#f2f2f0" stroke="#1a1a1a" stroke-width="1.6">
   <rect x="472" y="96" width="166" height="60" rx="7"/>
 </g>
-<g class="lbl" fill="#1a1a1a" text-anchor="middle">
-  <text x="555" y="120" font-size="15">loss</text>
-  <text x="555" y="142" font-size="13.5" fill="#6e6e6e">base 0.25</text>
-</g>
-<g class="dim" fill="#6e6e6e" font-size="10.5" text-anchor="middle"
-   font-family="SFMono-Regular, Menlo, Consolas, monospace">
-  <text x="555" y="180">PerCopy(0.25).scaled_by(habitat, &#8230;)</text>
+<g class="lbl" fill="#1a1a1a" font-size="16" text-anchor="middle">
+  <text x="555" y="132">loss</text>
 </g>
 </svg>
