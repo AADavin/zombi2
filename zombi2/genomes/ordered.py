@@ -54,7 +54,7 @@ from dataclasses import dataclass, field
 from functools import cached_property
 
 
-from ..params.driver import check_mapping_fires, resolve_driver
+from ..params.conditioned import check_mapping_fires, resolve_driver
 from ..rng import stream
 from ..params.extent import Extent, as_extent
 from ..params.mapping import check_not_a_kernel

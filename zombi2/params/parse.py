@@ -37,7 +37,7 @@ from . import extent as _extent
 from . import mapping as _mapping
 from . import distributions as _distributions
 from . import modifiers as _modifiers
-from . import values as _values
+from . import driver as _driver
 from . import verbs as _verbs
 from . import scope as _scope
 from .rate import Rate, RateCompositionError
@@ -51,7 +51,7 @@ from .retired import RETIRED, RETIRED_KEYWORDS, keyword_message, name_message
 _NAMES: dict[str, Any] = {
     **{n: getattr(_scope, n) for n in _scope.__all__ if n != "Scope"},
     **{n: getattr(_modifiers, n) for n in _modifiers.WRITABLE},
-    **{n: getattr(_values, n) for n in _values.WRITABLE},
+    **{n: getattr(_driver, n) for n in _driver.WRITABLE},
     **{n: getattr(_distributions, n) for n in _distributions.WRITABLE},
     **{n: getattr(_choice, n) for n in _choice.WRITABLE},
     "Extent": _extent.Extent,

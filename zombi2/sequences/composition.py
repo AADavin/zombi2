@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..params.driver import DriverTrajectory, interpolated_segments
+from ..params.conditioned import DriverTrajectory, interpolated_segments
 from ..tree import node_from_label, node_label
 
 if TYPE_CHECKING:                      # `gc()` imports this module, so a run-time import back is a cycle
@@ -78,7 +78,7 @@ class Composition:
 
     def refuses(self, level: str) -> str | None:
         """Why ``level`` may not read this driver, or ``None`` when it may — the hook
-        `~zombi2.params.driver.refuse_wrong_direction` calls. It lives on the driver because direction
+        `~zombi2.params.conditioned.refuse_wrong_direction` calls. It lives on the driver because direction
         is a fact about the pair, and this is the half of the pair that knows it."""
         if level not in _UPSTREAM:
             return None
@@ -123,9 +123,9 @@ class Composition:
         return values
 
     def as_driver_trajectory(self, tree, *, step: float | None = None) -> DriverTrajectory:
-        """The per-lineage trajectory, for `zombi2.params.driver.resolve_driver`. ``step`` is the
+        """The per-lineage trajectory, for `zombi2.params.conditioned.resolve_driver`. ``step`` is the
         resolution the path between two nodes is read at; ``None`` takes
-        `~zombi2.params.driver.CONTINUOUS_DRIVER_FRACTION` of the tree's height."""
+        `~zombi2.params.conditioned.CONTINUOUS_DRIVER_FRACTION` of the tree's height."""
         return DriverTrajectory(interpolated_segments(tree, self._node_values(tree), step))
 
     def __repr__(self) -> str:

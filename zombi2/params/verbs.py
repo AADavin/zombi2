@@ -34,7 +34,7 @@ from .modifiers import (CHANGING_AT, SCALED_BY, SET_BY, VARYING_AMONG, WEIGHTED_
                         Drift, Inherited, Modifier, OnTime, OnTotalDiversity, Random, SetBy,
                         TotalDiversity, describe)
 from .retired import check_no_retired_keywords
-from .values import Measured, Time
+from .driver import Measured, Time
 
 #: The verb names, and so the attribute names `zombi2.params.parse` will follow in an expression.
 #: The written form is a call on an attribute, so this is the parser's whitelist for the attribute

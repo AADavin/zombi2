@@ -61,7 +61,7 @@ import numpy as np
 from ..genomes import FamilyGenomesResult
 from ..genomes.events import gene_label
 from ..genomes.gene_trees import GeneNode, GeneTree
-from ..params.driver import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
+from ..params.conditioned import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
 from ..rng import resolve_seed, seed_sequence, stream
 from ..params.mapping import Between
 from ..params.modifiers import (DRAWN, INHERITED, Driven, Modifier,

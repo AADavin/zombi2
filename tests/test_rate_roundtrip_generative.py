@@ -34,7 +34,7 @@ import pytest
 from zombi2.params import Clade, Extent, Recipients, Time
 from zombi2.params import modifiers as mod
 from zombi2.params import scope
-from zombi2.params import values as values_mod
+from zombi2.params import driver as driver_mod
 from zombi2.params.distributions import Exponential, Fixed, Gamma, Geometric, LogNormal, Uniform
 from zombi2.params.mapping import Between, Scalar, Table
 from zombi2.params.modifiers import Driven, Drift, values_at_birth
@@ -227,7 +227,7 @@ def test_the_enumeration_is_actually_covering_the_grammar():
     # appears in the alternate spellings rather than in a rendering — one canonical form per rate is
     # the point, not an omission.
     corpus = rendered + " " + " ".join(t for t, _ in ALTERNATE_SPELLINGS)
-    missing = [name for name in mod.WRITABLE + values_mod.WRITABLE if name not in corpus]
+    missing = [name for name in mod.WRITABLE + driver_mod.WRITABLE if name not in corpus]
     assert not missing, f"writable but never written: {missing}"
 
 

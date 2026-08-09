@@ -240,7 +240,7 @@ def prepare_transfer_to(tree, transfer_to, resolved=None, *, level=None):
     if isinstance(transfer_to, Driven):
         # imported here, not at module scope, so a run with no driver anywhere never pays for the
         # driver machinery (the same lazy import the family engine makes for its rate drivers)
-        from ..params.driver import check_mapping_fires, resolve_driver
+        from ..params.conditioned import check_mapping_fires, resolve_driver
         if resolved is None:
             resolved = {}
         if transfer_to.key not in resolved:
