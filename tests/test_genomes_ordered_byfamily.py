@@ -14,7 +14,7 @@ import pytest
 
 from zombi2 import species, genomes
 from zombi2.genomes.ordered import Chromosome, Gene, _run_means
-from zombi2.rates import LogNormal, modifiers as mod
+from zombi2.rates import LogNormal, PerChromosome, PerCopy, PerLineage, Random
 
 
 def _chrom(families, topology="circular"):
@@ -95,7 +95,7 @@ def test_byfamily_is_accepted_and_spreads_families_apart(tree):
     def per_family_inversions(spread):
         counts = []
         for s in range(6):
-            inv = 1.2 if spread is None else 1.2 * mod.Drawn(per='family', dist=LogNormal(0.0, spread))
+            inv = 1.2 if spread is None else PerCopy(1.2).varying_among('families', LogNormal(0.0, spread))
             g = genomes.simulate_genomes_ordered(
                 tree, origination=0.5, inversion=inv, inversion_extent=1,
                 initial_families=25, chromosomes=1, seed=300 + s)
@@ -108,9 +108,10 @@ def test_byfamily_is_accepted_and_spreads_families_apart(tree):
 
 
 def test_one_object_shared_across_rates_is_accepted(tree):
-    """A family-wide tempo here is one ByFamily object read by every rate — one draw per family."""
-    speed = mod.Drawn(per='family', dist=LogNormal(0.0, 0.6))
-    g = genomes.simulate_genomes_ordered(tree, duplication=0.3 * speed, loss=0.2 * speed,
+    """A family-wide tempo here is one Random object read by every rate — one draw per family."""
+    speed = Random('families', LogNormal(0.0, 0.6))
+    g = genomes.simulate_genomes_ordered(tree, duplication=PerCopy(0.3).varying_among(speed),
+                                         loss=PerCopy(0.2).varying_among(speed),
                                          origination=0.3,
                                          initial_families=15, chromosomes=1, seed=7)
     assert g.events
@@ -120,7 +121,7 @@ def test_byfamily_still_refused_on_origination(tree):
     """Origination is the rate at which families are *created*: when it is read there is no family
     yet to have drawn a factor. Unchanged from the family resolution."""
     with pytest.raises(ValueError, match="no family yet"):
-        genomes.simulate_genomes_ordered(tree, origination=0.3 * mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)), seed=1)
+        genomes.simulate_genomes_ordered(tree, origination=PerLineage(0.3).varying_among('families', LogNormal(0.0, 0.5)), seed=1)
 
 
 def test_byfamily_refused_on_the_chromosome_tier(tree):
@@ -128,7 +129,7 @@ def test_byfamily_refused_on_the_chromosome_tier(tree):
     replicon, so there is nothing for it to attach to."""
     with pytest.raises(ValueError, match="per-family draw on a PerChromosome scope"):
         genomes.simulate_genomes_ordered(tree, origination=0.3, chromosomes=2,
-                                         fission=0.2 * mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)), seed=1)
+                                         fission=PerChromosome(0.2).varying_among('families', LogNormal(0.0, 0.5)), seed=1)
 
 
 # --- the growth guard -----------------------------------------------------------------------------

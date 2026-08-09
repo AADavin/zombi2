@@ -13,7 +13,7 @@ read a finished run:
 - ``zombi2 tools``      → analyses that read a run someone has already made
 
 Each subcommand's long options **are** the API keyword names (one word per concept across the API,
-the CLI, and a ``--params`` file), and rates are bare numbers using their natural scope — the
-``scope(base) × modifiers`` richness (SPEC §5) is written in full form on the rate flags.
+the CLI, and a ``--params`` file), and rates are bare numbers using their natural scope — a rate
+written from its scope with verbs chained onto it (SPEC §5) goes in full form on the rate flags.
 """
 from __future__ import annotations

@@ -9,7 +9,8 @@ produced, and evolves one sequence down each family's *complete* gene tree under
 
 Long options are the API keyword names, and ``--substitution`` takes the written form of a rate
 (SPEC §5): a bare number is the strict clock, and the uncorrelated ("relaxed") lineage clock is that
-rate times a per-lineage draw — ``--substitution "1.0 * Drawn(per='lineage', dist=LogNormal(0.0, 0.3))"``. The model's
+rate times a per-lineage draw — ``--substitution "PerSite(1.0).varying_among('lineages',
+LogNormal(0.0, 0.3))"``. The model's
 physical parameters (``--kappa`` / ``--frequencies`` / ``--exchangeabilities``) are rejected for a model that
 does not use them — including *every* protein model, which is empirical and takes none — so a
 silently-ignored flag can't give a misleading run. See
@@ -41,15 +42,16 @@ from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg,
 
 #: the RATES block for ``zombi2 sequences -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
-    IMPLEMENTED_MODIFIERS, "--substitution",
-    note="Drawn(per='lineage') draws one rate per species lineage, shared by every gene in it. "
-         "dist= is the distribution it is drawn from, written out — LogNormal(0.0, sigma), "
+    IMPLEMENTED_MODIFIERS, "--substitution", scope="PerSite",
+    note="varying_among('lineages', ...) draws one rate per species lineage, shared by every gene "
+         "in it. The law beside the unit is the distribution it is drawn from, written out — "
+         "LogNormal(0.0, sigma), "
          "Gamma(shape=…, scale=…), Exponential(…) — and every one is normalised to mean 1, so what "
-         "it contributes is its shape and not where it sits. ScaledBy "
+         "it contributes is its shape and not where it sits. scaled_by "
          "reads a trait grown first — the trait_events.tsv a 'zombi2 traits' run wrote, in this run "
-         "or another: \"1.0 * ScaledBy('out/traits/trait_events.tsv', {'cave': 0.5, 'surface': "
-         "1.0})\". A clock and a driver compose; a driver that switches mid-branch is integrated "
-         "across the switch, not sampled once for the branch.")
+         "or another: \"PerSite(1.0).scaled_by('out/traits/trait_events.tsv', {'cave': 0.5, "
+         "'surface': 1.0})\". A clock and a driver compose; a driver that switches mid-branch is "
+         "integrated across the switch, not sampled once for the branch.")
 
 # the write vocabulary, mirroring SequencesResult.write (there is no exported constant to import).
 # The last two exist only for a nucleotide handoff, which is the only run with coordinates to lay a
@@ -125,12 +127,14 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group("substitution rate & clock", "see RATES below")
     g.add_argument("--substitution", type=_rate, default=None, metavar="RATE",
-                   help="substitutions per site per unit time (default 1.0, a strict clock); a "
-                        "Drawn(per='lineage') modifier relaxes it, and a ScaledBy reads a trait grown first")
+                   help="substitutions per site per unit time (default 1.0, a strict clock); "
+                        "varying_among('lineages', ...) relaxes it, and scaled_by reads a trait "
+                        "grown first")
     g.add_argument("--divergence", type=float, default=None, metavar="D",
                    help="solve for the rate instead, so a site accrues D substitutions from root to "
-                        "tip. Composes with --substitution: give the clock's shape alone "
-                        "(\"Drawn(per='lineage', dist=LogNormal(0.0, 0.3))\") and this sets its scale")
+                        "tip. Composes with --substitution: give the clock's shape on a scope with "
+                        "no base (\"PerSite().varying_among('lineages', LogNormal(0.0, 0.3))\") and "
+                        "this sets its scale")
 
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=_SEQUENCE_OUTPUTS, default=None, metavar="PART",
@@ -341,24 +345,28 @@ def run(args, parser):
         result.write(out, outputs=wanted, flat=args.flat)
         n_families = sum(1 for aln in result.alignments.values() if aln)
         n_seqs = sum(len(aln) for aln in result.alignments.values())
-    # the clock is now read off the rate itself: a Drawn(per='lineage') modifier is the relaxed clock
-    # --substitution may now be a bare modifier (the clock's shape, with --divergence setting its
-    # scale), which carries no `.modifiers` of its own — so look at the modifier itself as well, or a
-    # relaxed run reports itself as strict.
+    # the clock is read off the rate itself: a value varying among lineages is the relaxed clock.
+    # A clock calibrated by --divergence is written on a scope with no base, which is still a rate
+    # and still carries its `.modifiers`; a bare law reaching here from Python is not, so it is read
+    # as its own single modifier rather than reported as a strict clock.
     _sub = args.substitution
     _mods = (_sub,) if isinstance(_sub, Modifier) else getattr(_sub, "modifiers", ())
-    # Both clock modifiers, not just the uncorrelated one: a Inherited(per='lineage') run is autocorrelated, and
-    # reporting it as "strict" was the same bug the Drawn(per='lineage') branch above was written to fix.
+    # Both clock laws, not just the uncorrelated one: a run that drifts down the tree is
+    # autocorrelated, and reporting it as "strict" was the same bug the drawn branch below was
+    # written to fix.
     # Every clock, not the last one written: several of one kind compose now, and describing a rate
     # that carries two as though it carried one states a model that was not the model simulated.
+    #
+    # The unit is **plural** (SPEC §5). It is compared as a string, so 'lineage' would match nothing
+    # and every relaxed run would quietly report — and summarise — as a strict one.
     clocks = []
     driven = []
     for m in _mods:
-        if m.reads == (DRAWN, "lineage"):
+        if m.reads == (DRAWN, "lineages"):
             # the distribution describes itself, which is the point of writing it out: there is no
             # longer a short spelling whose number the summary would have to name on its behalf
             clocks.append(f"uncorrelated lineage clock, {m.dist!r}")
-        elif m.reads == (INHERITED, "lineage"):
+        elif m.reads == (INHERITED, "lineages"):
             clocks.append(f"discrete-bin clock, {m.bins} bins, step {m.dist!r}" if m.bins
                           else f"autocorrelated clock, step {m.dist!r}")
         elif isinstance(m, Driven):

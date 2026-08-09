@@ -14,7 +14,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from zombi2.rates import LogNormal, modifiers as mod
+from zombi2.rates import LogNormal, PerSite
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences._site_rates import _gamma_quantile, _incomplete_gamma, discrete_gamma
 from zombi2.sequences.substitution_models import hky85, jc69
@@ -221,7 +221,7 @@ def test_rate_variation_composes_with_the_lineage_clock():
     — and both apply at once, deterministically."""
     run = _pair_run(1.0, 2.0)
     model = jc69().across_sites(gamma_shape=0.5, invariant=0.1)
-    kwargs = dict(model=model, length=300, substitution=1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3)), seed=3)
+    kwargs = dict(model=model, length=300, substitution=PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3)), seed=3)
     a = simulate_sequences(run, **kwargs)
     b = simulate_sequences(run, **kwargs)
     strict = simulate_sequences(run, model=model, length=300, seed=3)

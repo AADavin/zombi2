@@ -117,13 +117,12 @@ from collections import Counter
 
 import numpy as np
 
-from zombi2.rates import LogNormal, ScaledBy
+from zombi2.rates import Drift, LogNormal, PerLineage, PerSite, Random
 from zombi2.genomes import (simulate_genomes_family, simulate_genomes_nucleotide,
                             simulate_genomes_ordered)
 from zombi2.genomes.ordered import Inversion
 from zombi2.joint import simulate_joint
 from zombi2.rates.mapping import Curve
-from zombi2.rates.modifiers import Drawn, Inherited
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import BASES, gtr, hky85, jc69, k80, lg, poisson
 from zombi2.species import simulate_species_tree
@@ -456,7 +455,7 @@ def test_a_conditioned_rate_realises_the_multiplier_it_was_given():
             for state, duration in segments:
                 lineage_time[state] += duration
         run = simulate_genomes_family(tree, initial_families=0, seed=s,
-                                      origination=base * ScaledBy(habitat, factors))
+                                      origination=PerLineage(base).scaled_by(habitat, factors))
         for e in run.edges:
             if e.kind == "origination":
                 seen[_state_at(habitat.history, e.lineage, tree, e.time)] += 1
@@ -491,7 +490,7 @@ def test_the_parallel_engine_realises_a_driven_multiplier_too():
             for state, duration in segments:
                 lineage_time[state] += duration
         run = simulate_genomes_family(tree, initial_families=0, seed=s, parallel=1,
-                                      origination=base * ScaledBy(habitat, factors))
+                                      origination=PerLineage(base).scaled_by(habitat, factors))
         for e in run.edges:
             if e.kind == "origination":
                 seen[_state_at(habitat.history, e.lineage, tree, e.time)] += 1
@@ -553,7 +552,7 @@ def test_a_nucleotide_gene_presence_driver_realises_the_multiplier_it_was_given(
             lineage_time[state] += _driver_integral(traj, tree,
                                                     lambda v, want=state: float(v == want))
         trait = simulate_discrete(tree, states=["x", "y"], start="x", seed=s,
-                                  switch=base * ScaledBy(presence, factors))
+                                  switch=PerLineage(base).scaled_by(presence, factors))
         for e in trait.events:
             if e.kind == "on_branch":
                 seen[traj.value(e.lineage, e.time)] += 1
@@ -598,7 +597,8 @@ def test_a_gc_driver_realises_the_multiplier_it_was_given():
             plain_time[name] += base * _driver_integral(traj, tree,
                                                         lambda v, k=holds: float(k(v)))
         trait = simulate_discrete(tree, states=["x", "y"], start="x", seed=s,
-                                  switch=base * ScaledBy(gc, Curve(response), step=step))
+                                  switch=PerLineage(base).scaled_by(gc, Curve(response),
+                                                                    step=step))
         for e in trait.events:
             if e.kind == "on_branch":
                 value = float(traj.value(e.lineage, e.time))
@@ -630,7 +630,7 @@ def test_a_joint_rate_realises_the_multiplier_it_was_given():
     splits, lineage_time = Counter(), Counter()
 
     for s in range(60):
-        run = simulate_joint(birth=base * ScaledBy("trait", factors),
+        run = simulate_joint(birth=PerLineage(base).scaled_by("trait", factors),
                              trait=discrete(states=list(factors), switch=0.4),
                              n_extant=120, seed=s)
         for segments in run.trait.history.values():
@@ -1081,7 +1081,8 @@ def test_a_trait_driving_the_substitution_rate_is_integrated_across_the_branch()
         tree, genomes = _one_copy_per_lineage(n_extant=20, families=1, seed=seed)
         habitat = simulate_discrete(tree, states=list(factors), switch=switch, start="hot", seed=seed)
         run = simulate_sequences(genomes, model=jc69(), length=1,
-                                 substitution=base * ScaledBy(habitat, factors), seed=seed)
+                                 substitution=PerSite(base).scaled_by(habitat, factors),
+                                 seed=seed)
         lengths = {int(i): float(v)
                    for i, v in label.findall(run.species_phylogram["complete"])}
 
@@ -1172,16 +1173,19 @@ def test_the_lineage_clocks_are_mean_one_so_the_tree_is_not_inflated():
     The realised factor is recoverable from the run itself: a species-phylogram branch is
     ``base × factor × Δt``, so dividing out the base rate and the branch's time gives the factor the
     engine actually used. a per-lineage draw draws one per branch independently, so the factors themselves
-    are the sample; an inherited value drifts parent→child, so the *ratios* down each branch are."""
+    are the sample; an inherited value drifts parent→child, so the *ratios* down each branch are.
+
+    ``law`` is a `Random` — the value the clock varies among lineages by — passed to the one verb
+    that reads it."""
     label = re.compile(r"[ne](\d+):([0-9.eE+-]+)")
 
-    def realised_factors(modifier, base=1.0, reps=25):
+    def realised_factors(law, base=1.0, reps=25):
         """``{seed: (tree, {node id: the clock factor the engine used on its branch})}``."""
         out = {}
         for seed in range(reps):
             tree, genomes = _one_copy_per_lineage(n_extant=25, families=1, seed=seed)
-            run = simulate_sequences(genomes, model=jc69(), length=1, substitution=base * modifier,
-                                     seed=seed)
+            run = simulate_sequences(genomes, model=jc69(), length=1, seed=seed,
+                                     substitution=PerSite(base).varying_among(law))
             lengths = {int(i): float(v)
                        for i, v in label.findall(run.species_phylogram["complete"])}
             out[seed] = (tree, {i: length / (base * (tree.nodes[i].end_time - tree.nodes[i].birth_time))
@@ -1189,12 +1193,13 @@ def test_the_lineage_clocks_are_mean_one_so_the_tree_is_not_inflated():
         return out
 
     spread = 0.5
-    drawn = np.array([f for _, factors in realised_factors(Drawn(per='lineage', dist=LogNormal(0.0, spread))).values()
-                      for f in factors.values()])
+    drawn = np.array(
+        [f for _, factors in realised_factors(Random('lineages', LogNormal(0.0, spread))).values()
+         for f in factors.values()])
     assert len(drawn) > 1000, "too few branches to judge the clock by"
     assert abs(_z(drawn, 1.0)) < Z_MAX, (
-        f"Drawn(per='lineage', dist=LogNormal(0.0, {spread})) factors average {drawn.mean():.4f}, not 1 — every branch in the "
-        f"phylogram is scaled by that")
+        f"varying_among('lineages', LogNormal(0.0, {spread})) factors average "
+        f"{drawn.mean():.4f}, not 1 — every branch in the phylogram is scaled by that")
     assert abs(np.log(drawn).std(ddof=1) - spread) < 0.05, (
         f"the log-scale spread is {np.log(drawn).std(ddof=1):.4f}, not the {spread} it was given")
     assert _z(drawn, math.exp(spread ** 2 / 2)) < -5, (
@@ -1202,15 +1207,16 @@ def test_the_lineage_clocks_are_mean_one_so_the_tree_is_not_inflated():
 
     spread = 0.4
     ratios = []
-    for tree, factors in realised_factors(Inherited(per='lineage', dist=LogNormal(0.0, spread))).values():
+    for tree, factors in realised_factors(
+            Random('lineages', Drift(LogNormal(0.0, spread)))).values():
         for i, factor in factors.items():
             parent = tree.nodes[i].parent
             if parent is not None:
                 ratios.append(factor / factors[parent])
     ratios = np.array(ratios)
     assert abs(_z(ratios, 1.0)) < Z_MAX, (
-        f"Inherited(per='lineage', dist=LogNormal(0.0, {spread})) drifts by {ratios.mean():.4f} per branch on average, not 1 — "
-        f"the rate ratchets down the tree")
+        f"varying_among('lineages', Drift(LogNormal(0.0, {spread}))) drifts by "
+        f"{ratios.mean():.4f} per branch on average, not 1 — the rate ratchets down the tree")
     assert abs(np.log(ratios).std(ddof=1) - spread) < 0.05, (
         f"the log-scale spread of the drift is {np.log(ratios).std(ddof=1):.4f}, not {spread}")
     assert _z(ratios, math.exp(spread ** 2 / 2)) < -5, (
@@ -1500,7 +1506,8 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
         # the SECOND column only: a row label may itself carry a backticked word (the rate a row is
         # about — `rate`, `switch`, `birth`), and scanning the whole line would read those as
         # modifiers.
-        # a cell name is several words ("drawn per lineage"), so match anything inside backticks
+        # a cell name is an expression with commas and quotes in it
+        # ("varying_among('lineages', Drift(...))"), so match anything inside backticks
         listed = set(re.findall(r"`([^`]+)`", line.split("|")[2]))
         assert listed == {cell_name(m) for m in wired}, (
             f"appendix A's {row!r} row lists {sorted(listed)}, but the engine wires "

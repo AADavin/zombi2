@@ -83,8 +83,8 @@ def main(argv: list[str] | None = None) -> int:
             "--mass-extinction 3 0.75 --seed 2",
             "",
             "  # a skyline: speciation drops to a third at time 3 (see RATES)",
-            "  zombi2 species out/ --birth \"1.0 * OnTime({0: 1.0, 3: 0.3})\" --death 0.3 "
-            "--total-time 5 --seed 2",
+            "  zombi2 species out/ --birth \"PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})\" "
+            "--death 0.3 --total-time 5 --seed 2",
         ) + "\n\n" + species.RATES_HELP)
 
     _add_subcommand(
@@ -105,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
             "  # loss twice as fast from time 2 onward (see RATES)",
             "  # a tree from somewhere else, written to a run of its own",
             "  zombi2 genomes run/ --from mytree.nwk --duplication 0.2 "
-            "--loss \"0.25 * OnTime({0: 1.0, 2: 2.0})\" --origination 0.5 --seed 42",
+            "--loss \"PerCopy(0.25).changing_at({0: 1.0, 2: 2.0})\" --origination 0.5 --seed 42",
         ) + "\n\n" + genomes.RATES_HELP)
 
     _add_subcommand(
@@ -121,7 +121,8 @@ def main(argv: list[str] | None = None) -> int:
             "",
             "  # GTR with an uncorrelated (relaxed) lineage clock",
             "  zombi2 sequences out/ --model gtr --frequencies 0.3 0.2 0.2 0.3 "
-            "--substitution \"1.0 * Drawn(per='lineage', dist=LogNormal(0.0, 0.3))\" --seed 1",
+            "--substitution \"PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3))\" "
+            "--seed 1",
             "",
             "  # a protein alignment: LG, 300 residues (an empirical model takes no parameters)",
             "  # replaying one genomes run into a separate output run",
@@ -147,14 +148,14 @@ def main(argv: list[str] | None = None) -> int:
             "",
             "  # an early burst: the variance-rate starts at 4 and settles to 1 (see RATES)",
             "  zombi2 traits out/ --kind continuous "
-            "--rate \"1.0 * OnTime({0: 4.0, 1: 1.0})\" --seed 1",
+            "--rate \"PerLineage(1.0).changing_at({0: 4.0, 1: 1.0})\" --seed 1",
             "",
             "  # a diet conditioned on a habitat grown first: it switches 5x faster in aquatic",
             "  # lineages (--name puts each trait in its own directory, so one can drive the other)",
             "  zombi2 traits out/ --kind discrete --name habitat "
             "--states aquatic,terrestrial --switch 0.4 --seed 1",
             "  zombi2 traits out/ --kind discrete --name diet --states plant,fish \\",
-            "      --switch \"0.2 * ScaledBy('out/traits/habitat/trait_events.tsv', "
+            "      --switch \"PerLineage(0.2).scaled_by('out/traits/habitat/trait_events.tsv', "
             "{'aquatic': 5.0, 'terrestrial': 1.0})\" --seed 2",
         ) + "\n\n" + traits.RATES_HELP)
 
@@ -162,23 +163,24 @@ def main(argv: list[str] | None = None) -> int:
         sub, "joint", "grow a species tree and the level driving it, in one pass",
         "Grow a species tree and the level that drives its diversification in one pass, for when "
         "neither can be simulated first because each depends on the other. The driver is named in "
-        "the rate — ScaledBy('trait', ...) or ScaledBy('genomes:<name>', ...) — and is a live level, "
-        "not a file.",
+        "the rate — scaled_by('trait', ...) or scaled_by('genomes:<name>', ...) — and is a live "
+        "level, not a file.",
         "zombi2 joint DIR --birth RATE (--n-extant N | --total-time T) [driver] [options]",
         joint._add_joint_args,
         epilog=_examples(
             "  # BiSSE: a two-state trait where 'large' lineages speciate three times as fast",
-            "  zombi2 joint out/ --birth \"1.0 * ScaledBy('trait', {'small': 1.0, 'large': 3.0})\" "
-            "--death 0.2 \\",
-            "      --states small,large --switch 0.3 --n-extant 100 --seed 1",
+            "  zombi2 joint out/ "
+            "--birth \"PerLineage(1.0).scaled_by('trait', {'small': 1.0, 'large': 3.0})\" \\",
+            "      --death 0.2 --states small,large --switch 0.3 --n-extant 100 --seed 1",
             "",
             "  # state-dependent extinction too: 'small' lineages also die faster",
-            "  zombi2 joint out/ --birth \"1.0 * ScaledBy('trait', {'small': 1.0, 'large': 3.0})\" \\",
-            "      --death \"0.2 * ScaledBy('trait', {'small': 2.0, 'large': 1.0})\" \\",
+            "  zombi2 joint out/ "
+            "--birth \"PerLineage(1.0).scaled_by('trait', {'small': 1.0, 'large': 3.0})\" \\",
+            "      --death \"PerLineage(0.2).scaled_by('trait', {'small': 2.0, 'large': 1.0})\" \\",
             "      --states small,large --switch 0.3 --n-extant 100 --seed 1",
             "",
             "  # gene content drives it: carrying the 'toxin' family triples the speciation rate",
-            "  zombi2 joint out/ --birth \"1.0 * ScaledBy('genomes:toxin', "
+            "  zombi2 joint out/ --birth \"PerLineage(1.0).scaled_by('genomes:toxin', "
             "{'present': 3.0, 'absent': 1.0})\" \\",
             "      --origination 0.2 --loss 0.1 --family-names toxin --n-extant 60 --seed 1",
         ) + "\n\n" + joint.RATES_HELP)

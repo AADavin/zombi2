@@ -2,8 +2,9 @@
 `zombi2.species.simulate_species_tree()`).
 
 The long options are the API keyword names, and ``--birth`` / ``--death`` take a rate in its written
-form (SPEC §5): a bare number on its natural scope (per lineage), or the same ``scope(base) ×
-modifiers`` expression the Python API takes — ``--birth "1.0 * OnTime({0: 1.0, 3: 0.3})"``."""
+form (SPEC §5): a bare number on its natural scope (per lineage), or the same ``scope(base)`` with
+verbs chained onto it that the Python API takes — ``--birth "PerLineage(1.0).changing_at({0: 1.0,
+3: 0.3})"``."""
 from __future__ import annotations
 
 import argparse
@@ -20,7 +21,7 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
 
 #: the RATES block for ``zombi2 species -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
-    IMPLEMENTED_MODIFIERS, "--birth", scopes="Global(1.0)",
+    IMPLEMENTED_MODIFIERS, "--birth", scope="PerLineage", scopes="Global(1.0)",
     note="Global(base) is one budget for the tree (linear growth); a bare number is per lineage.")
 
 

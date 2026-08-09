@@ -13,7 +13,7 @@ from zombi2 import species
 from zombi2.genomes import FamilyGenomesResult, simulate_genomes_family
 from zombi2.genomes.events import copy_label
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
-from zombi2.rates import LogNormal, ScaledBy, modifiers as mod
+from zombi2.rates import Drift, LogNormal, PerSite, Random
 from zombi2.sequences import SequencesResult, simulate_sequences
 from zombi2.sequences.substitution_models import (AMINO_ACIDS, SubstitutionModel, dayhoff, gtr,
                                                   hky85, jc69, jtt, k80, lg, poisson, reversible,
@@ -330,46 +330,46 @@ def test_integration_is_deterministic_given_the_seed():
     assert a.alignments == b.alignments and a.ancestral == b.ancestral
 
 
-# --- the lineage clock (ByLineage): the uncorrelated / relaxed clock --------------------------------
+# --- the lineage clock, drawn: the uncorrelated / relaxed clock -------------------------------------
 
 def _pdist(a: str, b: str) -> float:
     return sum(x != y for x, y in zip(a, b)) / len(a)
 
 
-def test_bylineage_zero_spread_is_bit_identical_to_the_strict_clock():
+def test_a_zero_spread_draw_is_bit_identical_to_the_strict_clock():
     # dist=LogNormal(0.0, 0) draws 1.0 without touching the rng, so the run matches the strict clock exactly
     run = _pair_run(1.0, 2.0)
     strict = simulate_sequences(run, model=jc69(), length=300, seed=5)
     clocked = simulate_sequences(run, model=jc69(), length=300,
-                                 substitution=1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.0)), seed=5)
+                                 substitution=PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.0)), seed=5)
     assert clocked.alignments == strict.alignments and clocked.ancestral == strict.ancestral
 
 
-def test_bylineage_perturbs_the_output_and_stays_valid():
+def test_a_drawn_clock_perturbs_the_output_and_stays_valid():
     run = _pair_run(1.0, 2.0)
     strict = simulate_sequences(run, model=jc69(), length=300, seed=5)
     clocked = simulate_sequences(run, model=jc69(), length=300,
-                                 substitution=1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.5)), seed=5)
+                                 substitution=PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.5)), seed=5)
     assert clocked.alignments != strict.alignments          # the clock rescales branch lengths
     for seq in _seqs(clocked):
         assert len(seq) == 300 and set(seq) <= set("ACGT")
 
 
-def test_bylineage_is_deterministic():
+def test_a_drawn_clock_is_deterministic():
     run = _pair_run(1.0, 2.0)
-    spec = 1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.4))
+    spec = PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.4))
     a = simulate_sequences(run, model=hky85(2.0), length=200, substitution=spec, seed=9)
     b = simulate_sequences(run, model=hky85(2.0), length=200, substitution=spec, seed=9)
     assert a.alignments == b.alignments and a.ancestral == b.ancestral
 
 
-def test_bylineage_clock_is_shared_across_families_on_a_lineage():
+def test_a_drawn_clock_is_shared_across_families_on_a_lineage():
     # 20 identical single-branch families, ALL on species lineage 0 → all feel the SAME clock[0].
     # A per-family clock would scatter their root→tip divergences by ~spread; a shared clock leaves
     # only sampling noise, so the across-family spread collapses.
     run = _run({f: _one_lineage(f, lineage=0, t_tip=1.0) for f in range(20)}, t_split=0.0, t_now=1.0)
     r = simulate_sequences(run, model=jc69(), length=5000,
-                           substitution=1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.8)), seed=4)
+                           substitution=PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.8)), seed=4)
     ds = [_pdist(r.ancestral[f]["n0_g0"], r.alignments[f]["n0_g1"]) for f in range(20)]
     mean = sum(ds) / len(ds)
     std = (sum((d - mean) ** 2 for d in ds) / len(ds)) ** 0.5
@@ -380,22 +380,26 @@ def test_sequence_clock_rejects_multiple_or_unwired_modifiers(tmp_path):
     run = _pair_run(1.0, 2.0)
     # mixing the two memory structures on one lineage is what raises — an inherited factor and a
     # drawn one are two accounts of the same per-lineage number, not a composition (SPEC §5)
-    with pytest.raises(ValueError, match="drawn and an inherited value per lineage"):
+    with pytest.raises(ValueError, match="drawn and an inherited value among lineages"):
         simulate_sequences(run, model=jc69(), length=10,
-                           substitution=1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.3)) * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.2)))
+                           substitution=PerSite(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.3)))
+                           .varying_among('lineages', LogNormal(0.0, 0.2)))
     # two of the SAME kind are an ordinary composition and multiply, as any two modifiers do
     simulate_sequences(run, model=jc69(), length=10, seed=1,
-                       substitution=1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3)) * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.2)))
-    with pytest.raises(ValueError, match="OnTime"):  # ByLineage × OnTime — a modifier this level
-        simulate_sequences(run, model=jc69(), length=10,   # does not read
-                           substitution=1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3)) * mod.OnTime({0: 1.0}))
+                       substitution=PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3))
+                       .varying_among('lineages', LogNormal(0.0, 0.2)))
+    # a draw among lineages × a schedule — a modifier this level does not read
+    with pytest.raises(ValueError, match="changing_at"):
+        simulate_sequences(run, model=jc69(), length=10,
+                           substitution=PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3))
+                           .changing_at({0: 1.0}))
     # A clock and a driver, though, are two different axes and DO compose (SPEC §5: modifiers
     # multiply) — so this one has to run rather than raise.
     driver = tmp_path / "d.tsv"
     driver.write_text("time\tkind\tlineage\tfrom\tto\n0.0\tinitial\tn0\t\ta\n", encoding="utf-8")
     simulate_sequences(run, model=jc69(), length=10, seed=1,
-                       substitution=1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3))
-                       * ScaledBy(str(driver), {"a": 2.0}))
+                       substitution=PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3))
+                       .scaled_by(str(driver), {"a": 2.0}))
 
 
 def test_a_between_kernel_is_refused_on_the_substitution_rate(tmp_path):
@@ -409,8 +413,8 @@ def test_a_between_kernel_is_refused_on_the_substitution_rate(tmp_path):
     driver.write_text("time\tkind\tlineage\tfrom\tto\n0.0\tinitial\tn0\t\ta\n", encoding="utf-8")
     with pytest.raises(ValueError, match="transfer_to"):
         simulate_sequences(run, model=jc69(), length=10,
-                           substitution=1.0 * ScaledBy(str(driver),
-                                                           Between({("a", "b"): 1.0})))
+                           substitution=PerSite(1.0).scaled_by(
+                               str(driver), Between({("a", "b"): 1.0})))
 
 
 def test_a_live_level_source_is_refused_as_a_joint_run():
@@ -420,7 +424,7 @@ def test_a_live_level_source_is_refused_as_a_joint_run():
     run = _pair_run(1.0, 2.0)
     with pytest.raises(ValueError, match="cannot be joined"):
         simulate_sequences(run, model=jc69(), length=10,
-                           substitution=1.0 * ScaledBy("trait", {"a": 2.0}))
+                           substitution=PerSite(1.0).scaled_by("trait", {"a": 2.0}))
 
 
 def test_divergence_is_refused_alongside_a_driven_rate():
@@ -430,24 +434,24 @@ def test_divergence_is_refused_alongside_a_driven_rate():
     run = _pair_run(1.0, 2.0)
     with pytest.raises(ValueError, match="divergence"):
         simulate_sequences(run, model=jc69(), length=10, divergence=0.2,
-                           substitution=ScaledBy("trait_events.tsv", {"a": 2.0}))
+                           substitution=PerSite().scaled_by("trait_events.tsv", {"a": 2.0}))
 
 
-# --- the lineage clock (FromParent): the autocorrelated clock ---------------------------------------
+# --- the lineage clock, inherited: the autocorrelated clock ------------------------------------------
 
-def test_fromparent_perturbs_the_output_and_stays_valid():
+def test_an_inherited_clock_perturbs_the_output_and_stays_valid():
     run = _pair_run(1.0, 2.0)
     strict = simulate_sequences(run, model=jc69(), length=300, seed=5)
     clocked = simulate_sequences(run, model=jc69(), length=300,
-                                 substitution=1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.5)), seed=5)
+                                 substitution=PerSite(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.5))), seed=5)
     assert clocked.alignments != strict.alignments          # the clock rescales branch lengths
     for seq in _seqs(clocked):
         assert len(seq) == 300 and set(seq) <= set("ACGT")
 
 
-def test_fromparent_is_deterministic():
+def test_an_inherited_clock_is_deterministic():
     run = _pair_run(1.0, 2.0)
-    spec = 1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.4))
+    spec = PerSite(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.4)))
     a = simulate_sequences(run, model=hky85(2.0), length=200, substitution=spec, seed=9)
     b = simulate_sequences(run, model=hky85(2.0), length=200, substitution=spec, seed=9)
     assert a.alignments == b.alignments and a.ancestral == b.ancestral
@@ -542,7 +546,7 @@ def test_base_rate_scales_the_phylogram_branch_lengths():
 
 def test_lineage_clock_reshapes_the_phylograms():
     g, strict = _small_run(clock=1.0)
-    _, clocked = _small_run(clock=1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.7)))
+    _, clocked = _small_run(clock=PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.7)))
     assert any(clocked.phylograms[f]["complete"] != strict.phylograms[f]["complete"] for f in g.gene_trees)
 
 
@@ -573,7 +577,7 @@ def test_rejects_bad_arguments_and_unwired_rate_specs():
     with pytest.raises(ValueError):
         simulate_sequences(run, model=jc69(), length=0)                   # non-positive length
     with pytest.raises(ValueError):
-        simulate_sequences(run, model=jc69(), length=10, substitution=1.0 * mod.OnTime({0: 1.0}))
+        simulate_sequences(run, model=jc69(), length=10, substitution=PerSite(1.0).changing_at({0: 1.0}))
     with pytest.raises(ValueError):
         simulate_sequences(run, model=jc69(), length=10, substitution=PerLineage(1.0))
     with pytest.raises(TypeError, match="genome run"):                    # a species run is not one
@@ -617,11 +621,16 @@ def test_divergence_composes_with_a_clock_shape_but_refuses_a_base():
     ct = rescale(_tree_for_divergence(), height=10.0)
     g = simulate_genomes_family(ct, initial_families=6, seed=1)
     # the shape alone composes: divergence sets the scale of a relaxed clock
-    r = simulate_sequences(g, model=jc69(), length=200,
-                           divergence=0.2, substitution=mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3)), seed=7)
+    r = simulate_sequences(g, model=jc69(), length=200, divergence=0.2,
+                           substitution=PerSite().varying_among('lineages', LogNormal(0.0, 0.3)),
+                           seed=7)
+    assert 0.5 < _mean_identity(r) < 0.98
+    # a bare Random says the same thing without a scope, and is the shape the Python API takes
+    r = simulate_sequences(g, model=jc69(), length=200, divergence=0.2,
+                           substitution=Random('lineages', LogNormal(0.0, 0.3)), seed=7)
     assert 0.5 < _mean_identity(r) < 0.98
     # a base alongside is refused rather than silently overridden
-    for base in (1.0, 0.5, 1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3))):
+    for base in (1.0, 0.5, PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3))):
         with pytest.raises(ValueError, match="names a base"):
             simulate_sequences(g, model=jc69(), length=50,
                                divergence=0.2, substitution=base, seed=7)

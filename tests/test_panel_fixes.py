@@ -17,7 +17,7 @@ import pytest
 
 from zombi2 import genomes, sequences, species, traits
 from zombi2.cli.main import main
-from zombi2.rates import modifiers as mod
+from zombi2.rates import PerCopy, PerLineage, PerSite
 from zombi2.rates.modifiers import Modifier
 from zombi2.rng import seed_sequence, stream
 from zombi2.sequences.substitution_models import hky85, jc69
@@ -303,7 +303,8 @@ def test_a_declared_third_party_modifier_runs():
     """`Modifier` is public with a clean ``factor(**context)`` contract, and a subclass composed into
     a `Rate` correctly — and was then refused by every level, with no registry and no entry point, so
     extending the grammar meant forking the package."""
-    result = species.simulate_species_tree(birth=2.0 * OnLogTime(), n_extant=20, seed=1)
+    result = species.simulate_species_tree(birth=PerLineage(2.0)._and(OnLogTime()),
+                                           n_extant=20, seed=1)
     assert len(result.complete_tree.extant_leaves()) == 20
 
 
@@ -316,24 +317,28 @@ def test_the_gate_still_holds_for_everything_undeclared():
             return 2.0
 
     with pytest.raises(ValueError, match="does not support"):
-        species.simulate_species_tree(birth=1.0 * Undeclared(), n_extant=8, seed=1)
+        species.simulate_species_tree(birth=PerLineage(1.0)._and(Undeclared()),
+                                      n_extant=8, seed=1)
 
     tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
     with pytest.raises(ValueError, match="does not support"):   # wired for species, not for traits
-        traits.simulate_continuous(tree, rate=1.0 * OnLogTime(), seed=1)
+        traits.simulate_continuous(tree, rate=PerLineage(1.0)._and(OnLogTime()), seed=1)
 
 
 @pytest.mark.parametrize("engine, run", [
-    ("species", lambda m: species.simulate_species_tree(birth=1.0 * m, death=0.2, n_extant=8, seed=1)),
+    ("species", lambda m: species.simulate_species_tree(
+        birth=PerLineage(1.0)._and(m), death=0.2, n_extant=8, seed=1)),
     ("genomes.family", lambda m: genomes.simulate_genomes_family(
-        _TREE, duplication=0.2 * m, loss=0.2, initial_families=4, seed=1)),
+        _TREE, duplication=PerCopy(0.2)._and(m), loss=0.2, initial_families=4, seed=1)),
     ("genomes.ordered", lambda m: genomes.simulate_genomes_ordered(
-        _TREE, duplication=0.2 * m, loss=0.2, initial_families=4, chromosomes=1, seed=1)),
+        _TREE, duplication=PerCopy(0.2)._and(m), loss=0.2, initial_families=4, chromosomes=1,
+        seed=1)),
     ("genomes.nucleotide", lambda m: genomes.simulate_genomes_nucleotide(
-        _TREE, loss=0.5 * m, root_length=400, seed=1)),
-    ("traits.continuous", lambda m: traits.simulate_continuous(_TREE, rate=1.0 * m, seed=1)),
+        _TREE, loss=PerLineage(0.5)._and(m), root_length=400, seed=1)),
+    ("traits.continuous", lambda m: traits.simulate_continuous(
+        _TREE, rate=PerLineage(1.0)._and(m), seed=1)),
     ("traits.discrete", lambda m: traits.simulate_discrete(
-        _TREE, states=["a", "b"], switch=0.5 * m, seed=1)),
+        _TREE, states=["a", "b"], switch=PerLineage(0.5)._and(m), seed=1)),
 ])
 def test_every_advertised_engine_actually_calls_a_third_party_modifier(engine, run):
     """The gate opening is only half of it: the engine has to *call* the thing it let through.
@@ -367,10 +372,11 @@ def test_the_sequence_level_refuses_rather_than_ignoring():
 
     g = genomes.simulate_genomes_family(_TREE, duplication=0.2, loss=0.2, initial_families=4, seed=1)
     with pytest.raises(ValueError, match="does not read"):
-        sequences.simulate_sequences(g, model=jc69(), length=20, substitution=1.0 * Spy(), seed=1)
+        sequences.simulate_sequences(g, model=jc69(), length=20,
+                                     substitution=PerSite(1.0)._and(Spy()), seed=1)
 
 
 def test_the_built_in_modifiers_are_unaffected():
-    tree = species.simulate_species_tree(birth=1.0 * mod.OnTime({0: 1.0, 3: 0.3}), death=0.2,
+    tree = species.simulate_species_tree(birth=PerLineage(1.0).changing_at({0: 1.0, 3: 0.3}), death=0.2,
                                          n_extant=15, seed=1)
     assert len(tree.complete_tree.extant_leaves()) == 15

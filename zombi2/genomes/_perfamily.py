@@ -22,7 +22,7 @@ and read it from module state.
 
 The realisation differs from the serial reference engine for a given seed (a different, equally valid
 draw — the "A" decision). Everything the family resolution accepts runs here: duplication / transfer /
-loss / origination, every recipient rule, skyline ``OnTime``, the family cap, a per-family draw
+loss / origination, every recipient rule, a skyline ``changing_at``, the family cap, a per-family draw
 heterogeneity, ``self_transfer``, ``replacement``, named families — and a
 **conditioned** rate, which does not couple families either: a ``Driven`` driver was grown before
 this run and is an input to it, so a lineage's factor is the same number whichever family is asking.
@@ -200,9 +200,9 @@ def prepare_family_context(tree, *, dup, tra, los, transfer_to, replacement, sel
     depth = mean_root_to_tip(tree)
     # the per-family modifiers each rate carries (origination is excluded upstream) — drawn once per
     # family and multiplied onto that rate, exactly the serial engine's fam_mult placement.
-    fam_by = {"duplication": tuple(m for m, _ in dup.carried_modifiers(unit="family")),
-              "transfer": tuple(m for m, _ in tra.carried_modifiers(unit="family")),
-              "loss": tuple(m for m, _ in los.carried_modifiers(unit="family"))}
+    fam_by = {"duplication": tuple(m for m, _ in dup.carried_modifiers(unit="families")),
+              "transfer": tuple(m for m, _ in tra.carried_modifiers(unit="families")),
+              "loss": tuple(m for m, _ in los.carried_modifiers(unit="families"))}
     # the contemporaneous-lineage machinery: sorted birth / death times (two pointers give the set alive
     # at any t) and the times can_xfer (≥ 2 lineages alive) flips.
     births = sorted((tree.nodes[i].birth_time, i) for i in tree.nodes)

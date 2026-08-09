@@ -5,9 +5,9 @@ the wrong sample: the written form is a **reproducibility record**, so a run's l
 the model whatever the model was, and a list someone remembered to extend covers only the shapes
 someone remembered.
 
-So this file enumerates the space instead. Every scope is crossed with every modifier and with every
-ordered *pair* of modifiers; whatever the grammar refuses to build is skipped, and whatever it builds
-is written, reparsed, and compared four ways:
+So this file enumerates the space instead. Every scope is crossed with every verb call and with every
+ordered *pair* of them; whatever the grammar refuses to build is skipped, and whatever it builds is
+written, reparsed, and compared four ways:
 
 1. **the written form is a fixed point** — rendering the reparsed rate gives the same text back;
 2. **the objects are equal** — the cheap pre-filter;
@@ -15,13 +15,13 @@ is written, reparsed, and compared four ways:
 4. **the carried values agree**, drawn from a seeded generator.
 
 Numbers 3 and 4 are the ones that matter, and 2 alone would not do. `Rate` is a frozen dataclass, so
-``==`` compares fields — and some fields are deliberately outside ``__eq__`` (a `Driven`'s verb, a
-`Drawn`'s spread), so a rendering can compare equal while behaving differently. Number 4 exists
-because a carried modifier's factor never passes through `Rate.effective` at all: the engine draws it
-and hands it back, so a mangled ``spread`` is invisible to number 3.
+``==`` compares fields — and some fields are deliberately outside ``__eq__`` (a `Driven`'s verb, an
+`OnTime`'s) — so a rendering can compare equal while behaving differently. Number 4 exists because a
+carried modifier's factor never passes through `Rate.effective` at all: the engine draws it and hands
+it back, so a mangled law is invisible to number 3.
 
-Written against the grammar as it stands, deliberately. A test that guards a migration has to be
-known-good *before* the migration, not written in the same change it is meant to check.
+The expressions are built through the **verbs**, not by assembling modifiers, so the sample is rates
+a user could have typed rather than objects only this file knows how to make.
 """
 
 from __future__ import annotations
@@ -31,43 +31,48 @@ import itertools
 import numpy as np
 import pytest
 
-from zombi2.rates import Clade, ScaledBy, SetBy, Time
+from zombi2.rates import Clade, Extent, Recipients, Time
 from zombi2.rates import modifiers as mod
 from zombi2.rates import scope
 from zombi2.rates import values as values_mod
 from zombi2.rates.distributions import Exponential, Fixed, Gamma, Geometric, LogNormal, Uniform
 from zombi2.rates.mapping import Between, Scalar, Table
-from zombi2.rates.modifiers import CARRIED_KINDS, Driven, values_at_birth
+from zombi2.rates.modifiers import Driven, Drift, values_at_birth
 from zombi2.rates.parse import parse_rate, written_form
 from zombi2.rates.rate import Rate, as_rate
 
-#: (name, build a fresh one, the values this modifier's driver can take)
+#: (name, chain one verb onto a rate, the values this verb's driver can take, does it replace the base)
 #:
-#: Fresh objects each time, never a shared instance: two rates reading one object share a draw by
-#: identity (SPEC §5), and a fixture that handed out the same `Drawn` twice would be testing that.
-MODIFIERS: list[tuple[str, object, tuple]] = [
-    ("skyline", lambda: mod.OnTime({0: 1.0, 1.5: 0.3, 4: 2.25}), ()),
-    ("skyline-flat", lambda: mod.OnTime({0: 0.5}), ()),
-    ("diversity", lambda: mod.OnTotalDiversity(cap=100), ()),
-    ("drawn-lineage", lambda: mod.Drawn(per="lineage", dist=LogNormal(0.0, 0.35)), ()),
-    ("drawn-family", lambda: mod.Drawn(per="family", dist=LogNormal(0.0, 0.6)), ()),
-    ("drawn-gamma", lambda: mod.Drawn(per="family", dist=Gamma(shape=4.0, scale=0.25)), ()),
-    ("drawn-lognormal", lambda: mod.Drawn(per="lineage", dist=LogNormal(0.0, 0.4)), ()),
-    ("drawn-exponential", lambda: mod.Drawn(per="family", dist=Exponential(1.0)), ()),
-    ("drawn-uniform", lambda: mod.Drawn(per="lineage", dist=Uniform(0.5, 1.5)), ()),
-    ("drawn-geometric", lambda: mod.Drawn(per="family", dist=Geometric(3.0)), ()),
-    ("drawn-fixed", lambda: mod.Drawn(per="lineage", dist=Fixed(2.0)), ()),
-    ("inherited", lambda: mod.Inherited(per="lineage", dist=LogNormal(0.0, 0.2)), ()),
-    ("inherited-binned", lambda: mod.Inherited(per="lineage", dist=LogNormal(0.0, 0.2), bins=8), ()),
-    ("driven-table", lambda: ScaledBy("h.tsv", {"a": 2.0, "b": 0.5}), ("a", "b")),
-    ("driven-table-default", lambda: ScaledBy("h.tsv", Table({"a": 2.0}, default=0.75)), ("a", "z")),
-    ("driven-scalar", lambda: ScaledBy("x.tsv", Scalar(0.7)), (0.0, 1.25, -2.0)),
-    ("driven-clade", lambda: ScaledBy(Clade({"A": ["n1", "n2"], "B": 3}), {"A": 2.0}),
-     ("A", "B", "rest")),
-    ("driven-time", lambda: ScaledBy(Time(), {0: 1.0, 2: 0.4}), ()),
-    ("driven-step", lambda: ScaledBy("h.tsv", {"a": 2.0, "b": 0.5}, step=0.05), ("a", "b")),
-    ("set-by", lambda: SetBy("h.tsv", {"a": 1.0, "b": 0.25}), ("a", "b")),
-    ("set-by-step", lambda: SetBy("h.tsv", {"a": 1.0, "b": 0.25}, step=0.05), ("a", "b")),
+#: A fresh object every time, never a shared instance: two rates reading one object share a draw by
+#: identity (SPEC §6), and a fixture that handed out the same `Random` twice would be testing that.
+VERB_CALLS: list[tuple[str, object, tuple, bool]] = [
+    ("skyline", lambda r: r.changing_at({0: 1.0, 1.5: 0.3, 4: 2.25}), (), False),
+    ("skyline-flat", lambda r: r.changing_at({0: 0.5}), (), False),
+    ("diversity", lambda r: r.scaled_by(mod.TotalDiversity(cap=100)), (), False),
+    ("drawn-lineage", lambda r: r.varying_among("lineages", LogNormal(0.0, 0.35)), (), False),
+    ("drawn-family", lambda r: r.varying_among("families", LogNormal(0.0, 0.6)), (), False),
+    ("drawn-gamma", lambda r: r.varying_among("families", Gamma(shape=4.0, scale=0.25)), (), False),
+    ("drawn-lognormal", lambda r: r.varying_among("lineages", LogNormal(0.0, 0.4)), (), False),
+    ("drawn-exponential", lambda r: r.varying_among("families", Exponential(1.0)), (), False),
+    ("drawn-uniform", lambda r: r.varying_among("lineages", Uniform(0.5, 1.5)), (), False),
+    ("drawn-geometric", lambda r: r.varying_among("families", Geometric(3.0)), (), False),
+    ("drawn-fixed", lambda r: r.varying_among("lineages", Fixed(2.0)), (), False),
+    ("inherited", lambda r: r.varying_among("lineages", Drift(LogNormal(0.0, 0.2))), (), False),
+    ("inherited-binned",
+     lambda r: r.varying_among("lineages", Drift(LogNormal(0.0, 0.2), bins=8)), (), False),
+    ("scaled-table", lambda r: r.scaled_by("h.tsv", {"a": 2.0, "b": 0.5}), ("a", "b"), False),
+    ("scaled-table-default",
+     lambda r: r.scaled_by("h.tsv", Table({"a": 2.0}, default=0.75)), ("a", "z"), False),
+    ("scaled-scalar", lambda r: r.scaled_by("x.tsv", Scalar(0.7)), (0.0, 1.25, -2.0), False),
+    ("scaled-clade",
+     lambda r: r.scaled_by(Clade({"A": ["n1", "n2"], "B": 3}), {"A": 2.0}), ("A", "B", "rest"),
+     False),
+    ("scaled-step",
+     lambda r: r.scaled_by("h.tsv", {"a": 2.0, "b": 0.5}, step=0.05), ("a", "b"), False),
+    ("set-by", lambda r: r.set_by("h.tsv", {"a": 1.0, "b": 0.25}), ("a", "b"), True),
+    ("set-by-step",
+     lambda r: r.set_by("h.tsv", {"a": 1.0, "b": 0.25}, step=0.05), ("a", "b"), True),
+    ("set-by-time", lambda r: r.set_by(Time(), {0: 1.0, 2: 0.4}), (), True),
 ]
 
 SCOPES = (scope.Global, scope.PerLineage, scope.PerCopy, scope.PerSite, scope.PerChromosome)
@@ -82,39 +87,36 @@ COUNTS = [
 TIMES = (0.0, 0.75, 1.5, 1.6, 2.0, 3.999, 4.0, 9.0)
 
 
-def _build(scope_cls, factories):
-    """``scope(base) × modifiers``, or ``None`` where the grammar refuses that combination.
+def _build(scope_cls, calls):
+    """``scope(base)`` with those verbs chained on, or ``None`` where the grammar refuses that
+    combination.
 
     Refusals are the point rather than an inconvenience: one memory structure per axis, one base per
-    rate, a `SetBy` with nothing in front of it. Whatever survives is a rate a user could have
+    rate, a `set_by` with nothing in front of it. Whatever survives is a rate a user could have
     written, so it is a rate the written form has to reproduce."""
-    mods = [f() for f in factories]
     try:
-        if isinstance(mods[0], mod.SetBy):     # a replaced base is written first, with no number
-            spec: object = mods[0]
-            for m in mods[1:]:
-                spec = spec * m
-        else:
-            spec = scope_cls(0.37)
-            for m in mods:
-                spec = spec * m
-        rate = as_rate(spec, default_scope=scope_cls)
+        # a replaced base is written first, from the bare scope: everything to its left is a base it
+        # would discard, so a rate that starts with `set_by` starts with no number
+        rate = scope_cls() if calls[0][1] else scope_cls(0.37)
+        for apply, _replaces in calls:
+            rate = apply(rate)
+        rate = as_rate(rate, default_scope=scope_cls)
         rate.check_one_base("this rate")
-        mod.check_one_memory(tuple(rate.modifiers), label="this rate", unit="lineage")
-        mod.check_one_memory(tuple(rate.modifiers), label="this rate", unit="family")
+        mod.check_one_memory(tuple(rate.modifiers), label="this rate", unit="lineages")
+        mod.check_one_memory(tuple(rate.modifiers), label="this rate", unit="families")
     except (ValueError, TypeError):
         return None
     return rate
 
 
 def _cases():
-    """Every scope crossed with every modifier and every ordered pair of them."""
-    singles = [((name,), (f,), probes) for name, f, probes in MODIFIERS]
-    pairs = [((a[0], b[0]), (a[1], b[1]), a[2] + b[2])
-             for a, b in itertools.permutations(MODIFIERS, 2)]
+    """Every scope crossed with every verb call and every ordered pair of them."""
+    singles = [((name,), ((f, sets),), probes) for name, f, probes, sets in VERB_CALLS]
+    pairs = [((a[0], b[0]), ((a[1], a[3]), (b[1], b[3])), a[2] + b[2])
+             for a, b in itertools.permutations(VERB_CALLS, 2)]
     for scope_cls in SCOPES:
-        for names, factories, probes in singles + pairs:
-            rate = _build(scope_cls, factories)
+        for names, calls, probes in singles + pairs:
+            rate = _build(scope_cls, calls)
             if rate is not None:
                 yield pytest.param(rate, probes,
                                    id=f"{scope_cls.__name__}-{'+'.join(names)}")
@@ -145,8 +147,8 @@ def _carried(rate: Rate, seed: int = 20260809) -> list:
     """What the engine would draw and keep for one unit, and how it descends.
 
     A carried modifier's factor never reaches `Rate.effective` — the engine draws it once per unit
-    and hands it back — so `_values` above cannot see it at all. Same seed, same sequence: a spread
-    or a distribution that came back changed shows up here and nowhere else."""
+    and hands it back — so `_values` above cannot see it at all. Same seed, same sequence: a law or a
+    distribution that came back changed shows up here and nowhere else."""
     out: list = []
     for m, _unit in rate.carried_modifiers():
         rng = np.random.default_rng(seed)
@@ -164,12 +166,10 @@ def _carried(rate: Rate, seed: int = 20260809) -> list:
 @pytest.mark.parametrize("rate,probes", list(_cases()))
 def test_a_rate_survives_being_written_down_and_read_back(rate, probes):
     text = written_form(rate)
-    # Resolved the way a level resolves the text it is handed. A bare number comes back a number, a
-    # lone `SetBy` comes back a modifier, and `SetBy(...) * OnTime(...)` comes back a Rate with no
-    # scope at all — because the written form of a **replaced base carries no scope**, there being no
-    # way to write one in front of `SetBy` today. Applying the same default the original was resolved
-    # with is therefore the honest comparison, and it is exactly what a level does.
-    back = as_rate(parse_rate(text), default_scope=type(rate.scope))
+    # Resolved the way a level resolves the text it is handed: every written rate now carries its
+    # scope, including a replaced base — `PerCopy().set_by(...)` — so the default only ever fills in
+    # a bare number, which is exactly what a level does.
+    back = as_rate(parse_rate(text), default_scope=rate.scope)
 
     assert written_form(back) == text, "the written form is not a fixed point"
     assert back == rate, f"reparsed to a different object: {text}"
@@ -178,24 +178,57 @@ def test_a_rate_survives_being_written_down_and_read_back(rate, probes):
     assert [back.next_change(t) for t in TIMES] == [rate.next_change(t) for t in TIMES], text
 
 
+#: Spellings a user may type that render back in the canonical short form. There is one written form
+#: per rate, so these are not second spellings of the *record* — they are the longer things a person
+#: writes, which have to read as the same rate.
+ALTERNATE_SPELLINGS = [
+    # a named Random, which is how two rates share one draw (SPEC §6); on one rate it is the same
+    # model as the unit-and-law form, and renders as it
+    ("PerCopy(0.25).varying_among(Random('families', LogNormal(0.0, 0.5)))",
+     "PerCopy(0.25).varying_among('families', LogNormal(0.0, 0.5))"),
+    ("PerLineage(1.0).varying_among(Random('lineages', Drift(LogNormal(0.0, 0.2))))",
+     "PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2)))"),
+    # the Python qualifier a manual snippet carries
+    ("scope.PerCopy(0.25).changing_at({0: 1.0, 3: 0.3})",
+     "PerCopy(0.25).changing_at({0.0: 1.0, 3.0: 0.3})"),
+]
+
+
+@pytest.mark.parametrize("typed,canonical", ALTERNATE_SPELLINGS,
+                         ids=[t.split("(")[0] + "-" + str(i)
+                              for i, (t, _) in enumerate(ALTERNATE_SPELLINGS)])
+def test_a_longer_spelling_reads_as_the_rate_it_names(typed, canonical):
+    assert written_form(parse_rate(typed)) == canonical
+    assert parse_rate(typed) == parse_rate(canonical)
+
+
 def test_the_enumeration_is_actually_covering_the_grammar():
     """A generative test that silently stopped generating would pass forever.
 
-    So assert the shape of the sample itself: every writable modifier reaches at least one case, and
-    the case count stays in the hundreds rather than collapsing to the handful this file replaced."""
+    So assert the shape of the sample itself: every verb call reaches at least one case, and the case
+    count stays in the hundreds rather than collapsing to the handful this file replaced."""
     cases = list(_cases())
     assert len(cases) > 1000, f"only {len(cases)} rates generated"
 
-    # every modifier in the fixture reaches at least one built rate (an id is "Scope-a+b")
+    # every verb call in the fixture reaches at least one built rate (an id is "Scope-a+b")
     covered = {part for case in cases
                for part in case.id.split("-", 1)[1].split("+")}
-    assert {name for name, _, _ in MODIFIERS} <= covered
+    assert {name for name, _, _, _ in VERB_CALLS} <= covered
 
-    # and every name the grammar says is writable appears in some rendered expression, so a modifier
-    # added to `WRITABLE` without a fixture entry fails here rather than going quietly untested
+    # every verb a rate can take is written by some case, so a verb added without a fixture entry
+    # fails here rather than going quietly untested. `weighted_by` is the one a rate refuses — it
+    # belongs to a choice — and it is covered by the choice round trips below.
+    from zombi2.rates import verbs
     rendered = " ".join(written_form(case.values[0]) for case in cases)
-    missing = [name for name in mod.WRITABLE + values_mod.WRITABLE if name not in rendered]
-    assert not missing, f"writable but never rendered: {missing}"
+    on_a_rate = [v for v in verbs.VERBS if v != verbs.WEIGHTED_BY]
+    assert not [v for v in on_a_rate if v not in rendered], rendered[:200]
+
+    # and so is every name the grammar says is writable. `Random` is written through its verb, so it
+    # appears in the alternate spellings rather than in a rendering — one canonical form per rate is
+    # the point, not an omission.
+    corpus = rendered + " " + " ".join(t for t, _ in ALTERNATE_SPELLINGS)
+    missing = [name for name in mod.WRITABLE + values_mod.WRITABLE if name not in corpus]
+    assert not missing, f"writable but never written: {missing}"
 
 
 def test_a_written_form_that_cannot_be_reparsed_is_a_known_hole_not_a_surprise():
@@ -203,7 +236,8 @@ def test_a_written_form_that_cannot_be_reparsed_is_a_known_hole_not_a_surprise()
 
     Kept as a test so the limit is stated where the guarantee is, rather than discovered by someone
     whose run log turned out not to reproduce their model."""
-    rate = as_rate(0.1 * ScaledBy("gc.tsv", lambda x: 1 + 2 * x), default_scope=scope.PerLineage)
+    rate = as_rate(scope.PerLineage(0.1).scaled_by("gc.tsv", lambda x: 1 + 2 * x),
+                   default_scope=scope.PerLineage)
     text = written_form(rate)
     assert "<lambda>" in text
     with pytest.raises(Exception):
@@ -212,7 +246,7 @@ def test_a_written_form_that_cannot_be_reparsed_is_a_known_hole_not_a_surprise()
 
 # --- the other two parameter kinds ----------------------------------------
 #
-# The `SetBy`-drops-`step` hole above was found by checking rates. An extent and a choice are the
+# The `set_by`-drops-`step` hole above was found by checking rates. An extent and a choice are the
 # other two things you can attach a driver to, and neither was checked anywhere.
 
 EXTENTS = [
@@ -220,9 +254,10 @@ EXTENTS = [
     ("fixed", Fixed(3.0)),
     ("geometric", Geometric(250.0)),
     ("gamma", Gamma(shape=2.0, scale=250.0)),
-    ("driven", 800 * ScaledBy("h.tsv", {"host": 3.0, "free": 1.0})),
-    ("skyline", 800 * mod.OnTime({0: 1.0, 3: 0.5})),
-    ("drawn", 800 * mod.Drawn(per="family", dist=LogNormal(0.0, 0.4))),
+    ("scaled", Extent(800).scaled_by("h.tsv", {"host": 3.0, "free": 1.0})),
+    ("scaled-step", Extent(800).scaled_by("h.tsv", {"host": 3.0}, step=0.25)),
+    ("skyline", Extent(800).changing_at({0: 1.0, 3: 0.5})),
+    ("both", Extent(800).changing_at({0: 1.0, 3: 0.5}).scaled_by("h.tsv", {"host": 3.0})),
 ]
 
 
@@ -238,9 +273,6 @@ def test_an_extent_survives_being_written_down_and_read_back(name, spec):
 
     a, b = as_extent(spec), as_extent(back)
     assert a == b, f"reparsed to a different extent: {text}"
-    if any(m.reads and m.reads[0] in CARRIED_KINDS for m in a.modifiers):
-        return   # a carried factor never reaches Extent.sample: the engine weights the segment by
-                 # what it covers (SPEC §6), so there is no number here to compare
     ctx = {"copies": 12, "lineages": 3, "chromosomes": 1, "sites": 90, "time": 1.0,
            "drivers": {m.key: "host" for m in a.modifiers if isinstance(m, Driven)}}
     # same seed, same sizes: an extent's number is drawn, so equality of objects is not enough
@@ -254,11 +286,10 @@ def test_a_transfer_choice_is_written_as_the_form_that_takes_it_back():
     """A choice is not a rate, and its written form differs in ways that bit twice.
 
     A named rule is written bare, because `--transfer-to` takes `uniform` and not `'uniform'`. And a
-    `Weights` is written on its own, without the ``1.0 *`` a rate carries — a choice has no base and
+    weighting is written from `Recipients()`, without the base a rate carries — a choice has none and
     the flag refuses one in front, so the rate writer's output was an expression the CLI rejects."""
-    from zombi2.genomes._transfer import Clades, Distance, resolve_transfer_to
-    from zombi2.rates import Weights
-    from zombi2.rates.mapping import Between
+    from zombi2.genomes._transfer import resolve_transfer_to
+    from zombi2.rates.choice import Clades, Distance
     from zombi2.rates.parse import written_choice
 
     assert written_choice("uniform") == "uniform"
@@ -267,11 +298,11 @@ def test_a_transfer_choice_is_written_as_the_form_that_takes_it_back():
     assert written_choice(Clades({"A": ["n1"]}, Between({("A", "A"): 1.0}, default=0.0))) == \
         "Clades({'A': ['n1']}, Between({('A', 'A'): 1.0}, default=0.0))"
 
-    w = Weights("gc.tsv", {"a": 2.0})
-    assert written_choice(w) == "Weights('gc.tsv', Table({'a': 2.0}))"
-    assert not written_choice(w).startswith("1.0 *"), "a choice has no base to write in front of it"
+    w = Recipients().weighted_by("gc.tsv", {"a": 2.0})
+    assert written_choice(w) == "Recipients().weighted_by('gc.tsv', Table({'a': 2.0}))"
+    assert not written_choice(w).startswith("1.0"), "a choice has no base to write in front of it"
     # and what it writes is what the engine takes back
-    assert resolve_transfer_to(parse_rate(written_choice(w))) == w
+    assert resolve_transfer_to(parse_rate(written_choice(w))) == resolve_transfer_to(w)
     for rule in ("uniform", "distance"):
         resolve_transfer_to(written_choice(rule))
 
@@ -287,7 +318,10 @@ def test_every_choice_rule_reads_back_from_its_own_written_form():
 
     for spec in (Distance(decay=3.0),
                  Clades({"A": ["n1", "n2"], "B": 40},
-                        Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0))):
+                        Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)),
+                 Recipients(),
+                 Recipients().weighted_by("gc.tsv", Table({"a": 2.0}, default=0.5)),
+                 Recipients().weighted_by("gc.tsv", {"a": 2.0}).weighted_by("h.tsv", {"b": 3.0})):
         text = written_choice(spec)
         assert parse_rate(text) == spec, text
         assert written_choice(parse_rate(text)) == text, "not a fixed point"

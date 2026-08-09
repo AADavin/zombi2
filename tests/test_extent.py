@@ -8,11 +8,11 @@ parts company with :func:`as_distribution`, and each resolution's gate on what i
 import numpy as np
 import pytest
 
-from zombi2.rates import LogNormal, ScaledBy
+from zombi2.rates import Extent, LogNormal, PerCopy
 from zombi2 import species
 from zombi2.genomes import simulate_genomes_nucleotide, simulate_genomes_ordered
 from zombi2.rates.distributions import Fixed, Geometric, as_distribution
-from zombi2.rates.extent import Extent, as_extent
+from zombi2.rates.extent import as_extent
 
 
 @pytest.fixture
@@ -56,6 +56,14 @@ def test_a_distribution_passes_through_untouched():
 def test_a_callable_still_works():
     d = as_extent(lambda rng: 4.0)
     assert d.sample(np.random.default_rng(0)) == 4.0
+
+
+def test_a_plain_size_is_written_without_the_wrapper():
+    """``Extent(...)`` appears only when a verb is chained onto it, so the record of a plain extent
+    is the distribution alone — which is how it was typed."""
+    assert repr(as_extent(500)) == "Geometric(500.0)"
+    assert repr(Extent(500).changing_at({0: 1.0, 3: 0.3})) \
+        == "Extent(Geometric(500.0)).changing_at({0.0: 1.0, 3.0: 0.3})"
 
 
 # --- ordered: extents are in genes ----------------------------------------------------------------
@@ -111,9 +119,8 @@ def test_nucleotide_accepts_an_explicit_geometric_identically(tree):
 # --- extent × modifiers (SPEC §6): how much, not how often ---------------------------------------
 
 def test_a_modifier_scales_the_size():
-    """``500 * OnTime(...)`` is an extent, not a rate: the factor scales the size drawn."""
-    from zombi2.rates import modifiers as mod
-    e = as_extent(400 * mod.OnTime({0: 1.0, 5.0: 3.0}))
+    """``Extent(400).changing_at(...)`` is an extent, not a rate: the factor scales the size drawn."""
+    e = as_extent(Extent(400).changing_at({0: 1.0, 5.0: 3.0}))
     assert isinstance(e, Extent) and e.has_modifiers
     assert e.mean(time=0.0) == pytest.approx(400.0)
     assert e.mean(time=6.0) == pytest.approx(1200.0)     # past the step, three times as long
@@ -126,10 +133,34 @@ def test_a_modifier_scales_the_size():
 
 def test_an_extent_takes_no_scope():
     """An extent is already an absolute size, so there is no 'per what?' to answer (SPEC §6)."""
-    from zombi2.rates import modifiers as mod
     from zombi2.rates.scope import PerLineage
     with pytest.raises(ValueError, match="an extent takes no scope"):
-        as_extent(PerLineage(500) * mod.OnTime({0: 1.0}))
+        as_extent(PerLineage(500).changing_at({0: 1.0}))
+
+
+def test_an_extent_cannot_be_set_by_because_its_base_is_a_distribution():
+    with pytest.raises(ValueError, match="an extent cannot be set_by"):
+        Extent(500).set_by("habitat.tsv", {"host": 3.0})
+    with pytest.raises(ValueError, match="an extent cannot be set_by"):
+        as_extent(PerCopy().set_by("habitat.tsv", {"host": 3.0}))
+
+
+def test_an_extent_cannot_vary_at_random_and_says_so_where_it_is_written():
+    """No level draws a per-unit value for an extent, and there is nowhere for one to arrive: an
+    extent reads its modifiers through ``factor()``, which a carried value deliberately has none of.
+    So the refusal is on the verb rather than mid-run from inside `_factor`."""
+    with pytest.raises(ValueError, match="an extent cannot vary at random among units"):
+        Extent(200).varying_among('families', LogNormal(0.0, 0.5))
+    # and it names both of the things this usually means
+    with pytest.raises(ValueError, match=r"PerCopy\(0.25\).varying_among\('families'"):
+        Extent(200).varying_among('lineages', LogNormal(0.0, 0.5))
+
+
+def test_the_retired_keywords_reach_that_sentence_too():
+    """``per=`` on an extent is answered by "an extent cannot vary at all", which is the more useful
+    thing to be told than what the keyword became."""
+    with pytest.raises(ValueError, match="an extent cannot vary at random"):
+        Extent(200).varying_among(per='family')          # type: ignore[call-arg]
 
 
 def test_a_plain_extent_is_not_driven():
@@ -159,7 +190,7 @@ def test_nucleotide_extent_can_be_driven_by_a_trait(tree):
     traj = driver_from_result(habitat)
     res = simulate_genomes_nucleotide(
         tree, root_length=20000, genes=4, gene_length=300, loss=0.6,
-        loss_extent=150 * ScaledBy(habitat, {"host": 6.0, "free": 1.0}), seed=5)
+        loss_extent=Extent(150).scaled_by(habitat, {"host": 6.0, "free": 1.0}), seed=5)
 
     sizes = {"host": [], "free": []}
     for e in res.events:
@@ -170,11 +201,10 @@ def test_nucleotide_extent_can_be_driven_by_a_trait(tree):
 
 
 def test_ordered_extent_takes_a_skyline(tree):
-    """``OnTime`` on an extent works at the ordered resolution, where the unit is genes."""
-    from zombi2.rates import modifiers as mod
+    """``changing_at`` on an extent works at the ordered resolution, where the unit is genes."""
     g = simulate_genomes_ordered(
         tree, duplication=0.5, loss=0.2, origination=0.4, inversion=1.0,
-        inversion_extent=1 * mod.OnTime({0: 1.0, 0.5: 6.0}),
+        inversion_extent=Extent(1).changing_at({0: 1.0, 0.5: 6.0}),
         initial_families=15, chromosomes=1, seed=5)
     early = [r.length for r in g.rearrangements if r.time < 0.5]
     late = [r.length for r in g.rearrangements if r.time >= 0.5]
@@ -193,7 +223,7 @@ def test_ordered_extent_can_be_driven_by_a_trait(tree):
     traj = driver_from_result(habitat)
     g = simulate_genomes_ordered(
         tree, duplication=0.5, chromosomes=1, initial_families=30,
-        duplication_extent=2 * ScaledBy(habitat, {"host": 6.0, "free": 1.0}), seed=2)
+        duplication_extent=Extent(2).scaled_by(habitat, {"host": 6.0, "free": 1.0}), seed=2)
 
     sizes = {"host": [], "free": []}
     for p in g.event_positions:
@@ -203,11 +233,18 @@ def test_ordered_extent_can_be_driven_by_a_trait(tree):
     assert np.mean(sizes["host"]) > np.mean(sizes["free"])
 
 
-def test_nucleotide_refuses_an_unwired_extent_modifier(tree):
-    from zombi2.rates import modifiers as mod
+def test_nucleotide_refuses_an_extent_modifier_it_does_not_read(tree):
+    """The engine's own gate, behind the write-time refusal above: a modifier of someone else's that
+    vouches for no engine is refused rather than read as a factor of 1.0."""
+    from zombi2.rates.modifiers import Modifier
+
+    class Mine(Modifier):
+        def factor(self, **_):
+            return 2.0
+
     with pytest.raises(ValueError, match="an extent takes the same modifiers a rate does"):
         simulate_genomes_nucleotide(tree, root_length=2000, loss=0.5,
-                                    loss_extent=200 * mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)), seed=1)
+                                    loss_extent=Extent(200)._and(Mine()), seed=1)
 
 
 def test_an_extent_is_read_in_the_same_context_as_a_rate():
@@ -231,8 +268,9 @@ def test_an_extent_is_read_in_the_same_context_as_a_rate():
             return 1.0
 
     tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=1).complete_tree
-    genomes.simulate_genomes_ordered(tree, initial_families=20, loss=0.4 * Records("rate"),
-                                     loss_extent=3 * Records("extent"), seed=2)
+    genomes.simulate_genomes_ordered(tree, initial_families=20,
+                                     loss=PerCopy(0.4)._and(Records("rate")),
+                                     loss_extent=Extent(3)._and(Records("extent")), seed=2)
 
     assert seen["rate"] and seen["extent"]
     # the counts an extent is given are the run's, not zeros
@@ -260,7 +298,7 @@ def test_an_extent_is_read_at_the_instant_the_event_fires():
             return 1.0
 
     run = genomes.simulate_genomes_ordered(
-        tree, inversion=0.3, inversion_extent=8 * RecordsTime(),
+        tree, inversion=0.3, inversion_extent=Extent(8)._and(RecordsTime()),
         initial_families=40, chromosomes=1, seed=11)
 
     fired = {round(e.time, 9) for e in run.rearrangements}
@@ -274,12 +312,11 @@ def test_a_scheduled_extent_changes_size_on_the_right_side_of_its_breakpoint():
     after time 2 must give small events after time 2 and full-sized ones before it — which is only
     true if the schedule is read at the firing instant."""
     from zombi2 import genomes, species
-    from zombi2.rates import modifiers as mod
 
     tree = species.simulate_species_tree(birth=0.4, death=0.05, total_time=12.0,
                                          seed=3).complete_tree
     run = genomes.simulate_genomes_ordered(
-        tree, inversion=0.3, inversion_extent=20 * mod.OnTime({0: 1.0, 2.0: 0.05}),
+        tree, inversion=0.3, inversion_extent=Extent(20).changing_at({0: 1.0, 2.0: 0.05}),
         initial_families=40, chromosomes=1, seed=11)
 
     early = [e.length for e in run.rearrangements if e.time < 2.0]
@@ -306,7 +343,7 @@ def test_the_nucleotide_engine_reads_an_extent_the_same_way():
     tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=1).complete_tree
     genomes.simulate_genomes_nucleotide(
         tree, genes=4, gene_length=200, root_length=3000,
-        loss=0.6, loss_extent=100 * Records(), seed=2)
+        loss=0.6, loss_extent=Extent(100)._and(Records()), seed=2)
 
     assert seen, "the extent's modifier was never read"
     # the counts are the run's, not zeros — `copies` is excluded, being 0 by design here

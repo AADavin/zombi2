@@ -113,10 +113,10 @@ def test_gamma_goes_negative_when_speciation_slows_toward_the_present():
     """The reason to compute it at all: diversity dependence bunches the branching times early."""
     import statistics
 
-    from zombi2.rates import modifiers as mod
+    from zombi2.rates import PerLineage, TotalDiversity
     from zombi2.species import simulate_species_tree
 
-    gs = [T.gamma_statistic(simulate_species_tree(birth=1.0 * mod.OnTotalDiversity(cap=110),
+    gs = [T.gamma_statistic(simulate_species_tree(birth=PerLineage(1.0).scaled_by(TotalDiversity(cap=110)),
                                                   n_extant=100, seed=s).extant_tree)
           for s in range(1, 51)]
     assert statistics.mean(gs) < -3.0

@@ -56,7 +56,8 @@ def _correlation_matrix(traits: list, correlation) -> np.ndarray:
 
 
 def _driven_mods(rate) -> list:
-    """The `ScaledBy` modifiers a rate carries, or ``[]`` when it carries none. A non-empty list
+    """The **driven** modifiers a rate carries — the ones written with ``scaled_by(driver,
+    mapping)`` — or ``[]`` when it carries none. A non-empty list
     means the rate reads another level on each lineage, so the engine must thread a ``drivers``
     value and step where the driver switches."""
     return [m for m in rate.modifiers if isinstance(m, Driven)]
@@ -64,7 +65,7 @@ def _driven_mods(rate) -> list:
 
 
 def _resolve_drivers(mods: list, tree: Tree, level: str) -> dict:
-    """Resolve a rate's `ScaledBy` modifiers into one `~zombi2.rates.driver.DriverTrajectory` per
+    """Resolve a rate's driven modifiers into one `~zombi2.rates.driver.DriverTrajectory` per
     driver, keyed by the modifier's ``key`` — the per-lineage lookup the engine reads as it walks the
     tree. The genome level's shape (``genomes/family.py``): dedupe by ``key`` so a driver shared
     across rates resolves once, resolve each driver (a written trait log, a grown ``TraitsResult``
@@ -79,7 +80,7 @@ def _resolve_drivers(mods: list, tree: Tree, level: str) -> dict:
     is what lets a driver refuse a level that may not read it at all — a trait may read anything, but
     the resolver is one and the name is what makes that a decision rather than an omission.
 
-    No ``ScaledBy`` ⇒ an empty dict, and the engine's loop stays exactly what it was."""
+    No driver ⇒ an empty dict, and the engine's loop stays exactly what it was."""
     if not mods:
         return {}
     from ..rates.driver import check_mapping_fires, resolve_driver
