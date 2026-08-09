@@ -340,6 +340,23 @@ def _pick_copy(rng, gen, total_copies) -> tuple[int, int]:
     raise AssertionError("total_copies out of sync with the genomes")  # unreachable
 
 
+def _pick_host(rng, gen, n_hosts: int) -> int:
+    """A uniform pick among the lineages holding at least one copy — the per-lineage twin of
+    `_pick_copy`.
+
+    Under a per-lineage scope every occupied genome has the same chance whatever its size, which is
+    the whole difference from per-copy. Empty genomes are skipped rather than picked and re-drawn:
+    they contribute no share of the total either (see ``n_hosts``), and a lineage that contributed
+    nothing must not be able to be chosen."""
+    i = int(rng.integers(n_hosts))
+    for k, g in enumerate(gen):
+        if g:
+            if i == 0:
+                return k
+            i -= 1
+    raise AssertionError("n_hosts out of sync with the genomes")  # unreachable
+
+
 def _pick_copy_by_family(rng, genome, mult: dict[int, float]) -> int:
     """A copy index within one lineage, drawn in proportion to each copy's family multiplier.
 
@@ -723,18 +740,22 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     tra = as_rate(transfer, default_scope=PerCopy)
     los = as_rate(loss, default_scope=PerCopy)
     org = as_rate(origination, default_scope=PerLineage)
-    # this slice implements only the default scope (D/T/L per copy, origination per lineage), and the
-    # modifiers OnTime (skyline) and Driven (a conditioned/joint driver). A non-default scope would
-    # set the *total* rate one way while the engine still picks the affected copy/lineage the default
-    # way — a silent mismatch (e.g. a PerCopy origination is base×0 copies, a no-op) — so reject it.
-    # ScaledBy is a per-lineage driver on all four events; on transfer the driven lineage is the
-    # DONOR (who receives is the separate transfer_to choice, below).
-    for label, rate, want in (("duplication", dup, PerCopy), ("transfer", tra, PerCopy),
-                              ("loss", los, PerCopy), ("origination", org, PerLineage)):
-        if not isinstance(rate.scope, want):
+    # A scope says *per what* a rate is counted, and the three copy-consuming events implement two
+    # answers. **Per copy** (the default) puts every copy independently at risk, so a bigger genome
+    # turns over faster. **Per lineage** is a fixed budget: the lineage duplicates or loses at its
+    # rate whatever its genome size — and then the total and the pick both have to change, or the
+    # rate would say one thing and the picking another. Origination is per lineage alone, because it
+    # is the rate at which families are CREATED: per copy it would be base × 0 in an empty genome, a
+    # silent no-op. ScaledBy is a per-lineage driver on all four events; on transfer the driven
+    # lineage is the DONOR (who receives is the separate transfer_to choice, below).
+    for label, rate, legal in (("duplication", dup, (PerCopy, PerLineage)),
+                               ("transfer", tra, (PerCopy, PerLineage)),
+                               ("loss", los, (PerCopy, PerLineage)),
+                               ("origination", org, (PerLineage,))):
+        if not isinstance(rate.scope, legal):
             raise ValueError(
                 f"{label} has a {type(rate.scope).__name__} scope, but the family genome engine "
-                f"takes only {want.__name__} for {label} this slice — scope overrides are a later slice."
+                f"takes {' or '.join(s.__name__ for s in legal)} for {label}."
             )
         for m in rate.modifiers:
             if m.reads == (DRAWN, "family") and label == "origination":
@@ -766,6 +787,30 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             "a per-family draw and a driver on the same run is a later slice: one weights lineages by a "
             "driver and the other weights copies by their family, and combining them means "
             "weighting by the product. Use one or the other for now.")
+    # A per-family draw under a per-lineage scope is refused because what it should MEAN is a
+    # modelling decision nobody has taken, not because it is hard. Under PerCopy a family's
+    # multiplier scales each copy's own rate, so a genome full of fast families turns over faster —
+    # the multiplier moves the total. Under PerLineage the total is fixed by definition, so the same
+    # multiplier could only decide *which* copy the event takes, normalised within the lineage. Those
+    # are two different models, and running one while the user wrote the other is exactly the silent
+    # mismatch this engine refuses everywhere else.
+    # The check is over the whole RUN, not per rate, and getting that wrong was a real bug: a
+    # per-family draw anywhere makes the engine take its per-family path for **every** gene rate,
+    # summing each one over the live copies — so a `PerLineage` rate elsewhere in the same run was
+    # silently counted per copy while nothing on the page said so. One draw on duplication was
+    # enough to turn a `PerLineage` loss back into a `PerCopy` one.
+    per_lineage_here = [lbl for lbl, r in (("duplication", dup), ("transfer", tra), ("loss", los))
+                        if isinstance(r.scope, PerLineage)]
+    drawn_here = [lbl for lbl, r in (("duplication", dup), ("transfer", tra), ("loss", los))
+                  if any(m.reads == (DRAWN, "family") for m in r.modifiers)]
+    if per_lineage_here and drawn_here:
+        raise ValueError(
+            f"{', '.join(per_lineage_here)} is PerLineage while {', '.join(drawn_here)} carries a "
+            f"per-family draw, and the two cannot share a run. Under PerCopy a family's multiplier "
+            f"scales each copy's rate, so it changes the lineage's total; under PerLineage the total "
+            f"is fixed whatever the genome holds, so the multiplier could only choose which copy is "
+            f"taken. Those are different models and the choice is not made yet — write PerCopy "
+            f"throughout for the first, or drop the per-family draw for the second.")
     # the choice (SPEC §5), validated in the one place all three resolutions share: the mapping's
     # numbers are weights over the candidate recipients, never a rate multiplier
     transfer_to = resolve_transfer_to(transfer_to)
@@ -884,6 +929,14 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 fam_mult[key][f] = math.prod(values_at_birth(mods, rng, shared))
         return f
 
+    # Which of the three copy-consuming rates is a fixed per-lineage budget rather than a per-copy
+    # risk. Read once: it decides both how the total is counted and how the affected lineage is
+    # picked, and those two must never disagree.
+    dup_per_lineage = isinstance(dup.scope, PerLineage)
+    los_per_lineage = isinstance(los.scope, PerLineage)
+    tra_per_lineage = isinstance(tra.scope, PerLineage)
+    any_per_lineage = dup_per_lineage or los_per_lineage or tra_per_lineage
+
     depth = mean_root_to_tip(tree)  # timescale for Distance weighting (unused by "uniform")
     schedule = sorted((tree.nodes[i].end_time, i) for i in tree.nodes)  # (end_time, node_id)
 
@@ -921,6 +974,16 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         n = total_copies
         k_alive = len(alive)
         ctx = {"copies": n, "lineages": k_alive, "time": t}
+        # A copy-consuming event counted *per lineage* is counted per lineage that HOLDS a copy: an
+        # empty genome offers nothing to duplicate or lose, so it must not contribute its share of
+        # the total and then be picked with no victim inside it. Origination keeps `ctx` — an empty
+        # genome can still gain a family. Computed only when some rate needs it, so the per-copy
+        # path does exactly the work it did before.
+        if any_per_lineage:
+            n_hosts = sum(1 for g in gen if g)
+            host_ctx = {"copies": n, "lineages": n_hosts, "time": t}
+        else:
+            n_hosts, host_ctx = 0, ctx
         can_xfer = n > 0 and (k_alive >= 2 or self_transfer)  # a recipient must be able to exist
         # a driven rate is per-lineage: sum its effective rate over the living lineages (each read with
         # its own copy count and its branch's driver value), keeping the weights for the affected-lineage
@@ -944,22 +1007,29 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 w_tra = [unit["transfer"] * s for s in fw["transfer"]]
         if any_driven:
             drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(k_alive)]
+            # `lineages=1` reads one lineage's own share, so a PerLineage rate contributes its base
+            # and a PerCopy one its base times that lineage's copies. An empty genome is zeroed
+            # explicitly: under PerCopy `effective` already returns 0 for it, so this changes nothing
+            # there, and under PerLineage it is what stops a lineage with no victim taking a share.
             if dup_mods:
                 w_dup = [dup.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
-                         for k in range(k_alive)]
+                         if gen[k] else 0.0 for k in range(k_alive)]
             if los_mods:
                 w_los = [los.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
-                         for k in range(k_alive)]
+                         if gen[k] else 0.0 for k in range(k_alive)]
             if org_mods:
                 w_org = [org.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
                          for k in range(k_alive)]
             if tra_mods and can_xfer:
                 w_tra = [tra.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
-                         for k in range(k_alive)]
-        r_dup = sum(w_dup) if w_dup is not None else (dup.effective(**ctx) if n else 0.0)
-        r_los = sum(w_los) if w_los is not None else (los.effective(**ctx) if n else 0.0)
+                         if gen[k] else 0.0 for k in range(k_alive)]
+        r_dup = sum(w_dup) if w_dup is not None else (
+            dup.effective(**(host_ctx if dup_per_lineage else ctx)) if n else 0.0)
+        r_los = sum(w_los) if w_los is not None else (
+            los.effective(**(host_ctx if los_per_lineage else ctx)) if n else 0.0)
         r_org = sum(w_org) if w_org is not None else org.effective(**ctx)
-        r_tra = sum(w_tra) if w_tra is not None else (tra.effective(**ctx) if can_xfer else 0.0)
+        r_tra = sum(w_tra) if w_tra is not None else (
+            tra.effective(**(host_ctx if tra_per_lineage else ctx)) if can_xfer else 0.0)
         total = r_dup + r_los + r_org + r_tra
 
         next_species = schedule[si][0]  # the tree's own next event: who is alive changes only here
@@ -980,6 +1050,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                         k = weighted_index(rng, w_dup, r_dup)
                         j = (_pick_copy_by_family(rng, gen[k], fam_mult["duplication"])
                              if any_family else int(rng.integers(len(gen[k]))))
+                    elif dup_per_lineage:  # every occupied genome equally likely, then a copy in it
+                        k = _pick_host(rng, gen, n_hosts)
+                        j = int(rng.integers(len(gen[k])))
                     else:
                         k, j = _pick_copy(rng, gen, n)
                     fam = gen[k][j].family
@@ -994,6 +1067,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                         k = weighted_index(rng, w_los, r_los)
                         j = (_pick_copy_by_family(rng, gen[k], fam_mult["loss"])
                              if any_family else int(rng.integers(len(gen[k]))))
+                    elif los_per_lineage:
+                        k = _pick_host(rng, gen, n_hosts)
+                        j = int(rng.integers(len(gen[k])))
                     else:
                         k, j = _pick_copy(rng, gen, n)
                     counts.removed(k, gen[k][j].family)      # before the copy leaves the genome
@@ -1017,6 +1093,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                             kd = max(range(k_alive), key=lambda k: w_tra[k])
                         jd = (_pick_copy_by_family(rng, gen[kd], fam_mult["transfer"])
                               if any_family else int(rng.integers(len(gen[kd]))))
+                    elif tra_per_lineage:  # every occupied genome donates equally often
+                        kd = _pick_host(rng, gen, n_hosts)
+                        jd = int(rng.integers(len(gen[kd])))
                     else:
                         kd, jd = _pick_copy(rng, gen, n)
                     delta, kr = _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events,
