@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-08-10
+
 ### Changed
 
 - **A parameter is written from its scope, with verbs chained onto it. `*` is gone.** One grammar now
