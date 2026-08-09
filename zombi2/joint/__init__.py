@@ -34,8 +34,8 @@ from ..genomes import GeneEdge, GeneCopy, FamilyGenomesResult, FamilyGenome
 from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
 from ..params.mapping import check_not_a_kernel
 from ..rng import stream
-from ..params.modifiers import (DRAWN, INHERITED, OnTime, OnTotalDiversity, describe,
-                               is_implemented)
+from ..params.driver import OnTime, OnTotalDiversity
+from ..params.evaluate import DRAWN, INHERITED, describe, is_implemented
 from ..params.connection import Driven
 
 from ..params.rate import as_rate

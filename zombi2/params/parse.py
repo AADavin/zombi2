@@ -36,7 +36,8 @@ from . import choice as _choice
 from . import extent as _extent
 from . import mapping as _mapping
 from . import distributions as _distributions
-from . import modifiers as _modifiers
+from . import evaluate as _evaluate
+from . import law as _law
 from . import driver as _driver
 from . import connection as _verbs
 from . import scope as _scope
@@ -50,7 +51,7 @@ from .retired import RETIRED, RETIRED_KEYWORDS, keyword_message, name_message
 #: reported with a pointer to the Python API.
 _NAMES: dict[str, Any] = {
     **{n: getattr(_scope, n) for n in _scope.__all__ if n != "Scope"},
-    **{n: getattr(_modifiers, n) for n in _modifiers.WRITABLE},
+    **{n: getattr(_law, n) for n in _law.WRITABLE},
     **{n: getattr(_driver, n) for n in _driver.WRITABLE},
     **{n: getattr(_distributions, n) for n in _distributions.WRITABLE},
     **{n: getattr(_choice, n) for n in _choice.WRITABLE},
@@ -299,7 +300,7 @@ def parse_rate(text: object):
     value = _node(tree.body, text)
     if isinstance(value, str):
         raise _fail("a rate is a number, not text", text)
-    if isinstance(value, _modifiers.Modifier):
+    if isinstance(value, _evaluate.Modifier):
         # a `Random(...)` written on its own. It is a value, not a parameter: it says how something
         # varies without saying what varies or per what.
         raise _fail(

@@ -97,7 +97,7 @@ modifier of your own opens that gate by naming the engines you implemented it fo
 ```python
 from zombi2 import species
 from zombi2.params import PerLineage
-from zombi2.params.modifiers import Modifier
+from zombi2.params.evaluate import Modifier
 from zombi2.params.rate import Rate
 
 class OnLogTime(Modifier):
@@ -141,7 +141,7 @@ modifier of your own is Python-only, as an object you construct has to be.
 [Appendix A, "Writing your own"](../rates.md#writing-your-own), with the two things a modifier of
 your own has to provide and the one it may.
 
-::: zombi2.params.modifiers
+::: zombi2.params.evaluate
 
 ## Mappings
 

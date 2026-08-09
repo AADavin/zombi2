@@ -207,7 +207,7 @@ shipped modifier can say:
 
 ```python
 from zombi2 import species
-from zombi2.params.modifiers import Modifier
+from zombi2.params.evaluate import Modifier
 
 class OnCrowding(Modifier):
     """Extinction rises as lineages accumulate: at `crowd` standing lineages it has doubled."""

@@ -13,9 +13,12 @@ import math
 
 import pytest
 
-from zombi2.params import Drift, LogNormal, PerCopy, PerLineage, Random, modifiers as mod
+from zombi2.params import Drift, LogNormal, PerCopy, PerLineage, Random
+from zombi2.params import driver as drv
+from zombi2.params import evaluate as ev
+from zombi2.params import law as law
 from zombi2.params import scope
-from zombi2.params.modifiers import CARRIED_KINDS, DRAWN, DRIVEN, INHERITED, MEASURED
+from zombi2.params.evaluate import CARRIED_KINDS, DRAWN, DRIVEN, INHERITED, MEASURED
 from zombi2.params.rate import as_rate
 
 
@@ -24,8 +27,8 @@ def _rate(spec):
 
 
 @pytest.mark.parametrize("modifier, expected", [
-    (mod.OnTime({0: 1.0, 3: 0.3}), (MEASURED, "run")),
-    (mod.OnTotalDiversity(cap=100), (MEASURED, "run")),
+    (drv.OnTime({0: 1.0, 3: 0.3}), (MEASURED, "run")),
+    (drv.OnTotalDiversity(cap=100), (MEASURED, "run")),
     (Random('lineages', Drift(LogNormal(0.0, 0.2))), (INHERITED, "lineages")),
     (Random('lineages', LogNormal(0.0, 0.3)), (DRAWN, "lineages")),
     (Random('families', LogNormal(0.0, 0.5)), (DRAWN, "families")),
@@ -39,7 +42,7 @@ def test_measured_and_driven_are_not_carried():
     """The engine draws nothing for these: a measured value it already has, and a driven one it
     resolves per lineage into ``drivers``."""
     rate = _rate(PerLineage(1.0).changing_at({0: 1.0})
-                 .scaled_by(mod.TotalDiversity(cap=50))
+                 .scaled_by(drv.TotalDiversity(cap=50))
                  .scaled_by("habitat.tsv", {"cave": 2.0}))
     assert rate.carried_modifiers() == ()
 
@@ -86,7 +89,7 @@ def test_a_bare_rate_carries_nothing():
 def test_a_third_party_modifier_without_reads_is_not_carried():
     """`reads` defaults to None, so a modifier written before this existed — or one of a user's
     own — is treated as computing its own factor, which is what it was already doing."""
-    class OnLogTime(mod.Modifier):
+    class OnLogTime(ev.Modifier):
         implemented_for = ("species",)
 
         def factor(self, *, time: float = 0.0, **_):
@@ -110,7 +113,7 @@ def test_effective_skips_carried_modifiers_and_takes_their_product_instead():
 
 
 def test_a_measured_modifier_still_computes_its_own_factor():
-    rate = _rate(PerLineage(2.0).scaled_by(mod.TotalDiversity(cap=100)))
+    rate = _rate(PerLineage(2.0).scaled_by(drv.TotalDiversity(cap=100)))
     assert rate.effective(lineages=1, diversity=50) == pytest.approx(1.0)
 
 
@@ -127,7 +130,7 @@ def test_the_species_engine_now_applies_every_per_lineage_modifier():
 
     assert _per_lineage(rate) == (a, b)
 
-    drawn = mod.values_at_birth(_per_lineage(rate), np.random.default_rng(1))
+    drawn = ev.values_at_birth(_per_lineage(rate), np.random.default_rng(1))
     assert len(drawn) == 2                                   # both drew, not just the first
     effective = rate.effective(lineages=1, carried_factor=math.prod(drawn))
     assert effective == pytest.approx(drawn[0] * drawn[1])   # and both reached the rate
@@ -144,7 +147,7 @@ def test_the_genome_engines_now_apply_every_per_family_modifier():
     carried = tuple(m for m, _ in rate.carried_modifiers(unit="families"))
     assert carried == (a, b)
 
-    seen = mod.values_at_birth(carried, np.random.default_rng(7))
+    seen = ev.values_at_birth(carried, np.random.default_rng(7))
     rng = np.random.default_rng(7)
     assert seen == pytest.approx((a.draw(rng), b.draw(rng)))   # both draws, in written order
     assert math.prod(seen) == pytest.approx(seen[0] * seen[1])
@@ -162,8 +165,8 @@ class TestOneObjectIsOneDraw:
         shared: dict[int, float] = {}       # one unit's cache, passed to each of its rates
         rng = np.random.default_rng(11)
 
-        first = mod.values_at_birth((speed,), rng, shared)
-        second = mod.values_at_birth((speed,), rng, shared)
+        first = ev.values_at_birth((speed,), rng, shared)
+        second = ev.values_at_birth((speed,), rng, shared)
         assert first == second                                  # the same number both times
 
         expected = Random('families', LogNormal(0.0, 0.5)).draw(np.random.default_rng(11))
@@ -177,22 +180,22 @@ class TestOneObjectIsOneDraw:
         shared: dict[int, float] = {}
         rng = np.random.default_rng(11)
 
-        assert mod.values_at_birth((a,), rng, shared) != mod.values_at_birth((b,), rng, shared)
+        assert ev.values_at_birth((a,), rng, shared) != ev.values_at_birth((b,), rng, shared)
 
     def test_the_cache_is_per_unit_so_a_later_unit_draws_afresh(self):
         import numpy as np
 
         speed = Random('families', LogNormal(0.0, 0.5))
         rng = np.random.default_rng(11)
-        one = mod.values_at_birth((speed,), rng, {})               # family one
-        two = mod.values_at_birth((speed,), rng, {})               # family two
+        one = ev.values_at_birth((speed,), rng, {})               # family one
+        two = ev.values_at_birth((speed,), rng, {})               # family two
         assert one != two
 
     def test_without_a_cache_every_modifier_draws_for_itself(self):
         import numpy as np
 
         speed = Random('families', LogNormal(0.0, 0.5))
-        one, two = mod.values_at_birth((speed, speed), np.random.default_rng(11))
+        one, two = ev.values_at_birth((speed, speed), np.random.default_rng(11))
         assert one != two          # the same object, twice, but no cache — so two draws
 
     def test_species_shares_one_object_between_birth_and_death(self):
@@ -208,8 +211,8 @@ class TestOneObjectIsOneDraw:
 
         lineage: dict[int, float] = {}
         rng = np.random.default_rng(4)
-        (b,) = mod.values_at_birth(birth, rng, lineage)
-        (d,) = mod.values_at_birth(death, rng, lineage)
+        (b,) = ev.values_at_birth(birth, rng, lineage)
+        (d,) = ev.values_at_birth(death, rng, lineage)
         assert b == d
 
     def test_species_keeps_two_objects_independent(self):
@@ -222,8 +225,8 @@ class TestOneObjectIsOneDraw:
 
         lineage: dict[int, float] = {}
         rng = np.random.default_rng(4)
-        (b,) = mod.values_at_birth(birth, rng, lineage)
-        (d,) = mod.values_at_birth(death, rng, lineage)
+        (b,) = ev.values_at_birth(birth, rng, lineage)
+        (d,) = ev.values_at_birth(death, rng, lineage)
         assert b != d
 
 
@@ -234,7 +237,7 @@ def test_a_modifier_that_does_not_draw_says_so():
         Random('lineages', Drift(LogNormal(0.0, 0.2))).draw(object())
 
     with pytest.raises(NotImplementedError):
-        mod.OnTime({0: 1.0}).draw(object())
+        drv.OnTime({0: 1.0}).draw(object())
 
 
 class TestTheEscapeHatchCannotVouchForACarriedValue:
@@ -250,7 +253,7 @@ class TestTheEscapeHatchCannotVouchForACarriedValue:
     """
 
     def _third_party(self, reads, engine):
-        class Mine(mod.Modifier):
+        class Mine(ev.Modifier):
             implemented_for = (engine,)
 
             def factor(self, **_):
@@ -265,18 +268,18 @@ class TestTheEscapeHatchCannotVouchForACarriedValue:
     def test_it_vouches_for_a_computed_factor(self):
         for kind in (MEASURED, DRIVEN):
             m = self._third_party((kind, "run"), "species")
-            assert mod.is_implemented(m, (), "species")
+            assert ev.is_implemented(m, (), "species")
 
     def test_it_does_not_vouch_for_a_drawn_or_inherited_one(self):
         for kind in (DRAWN, INHERITED):
             m = self._third_party((kind, "sites"), "genomes.family")
-            assert not mod.is_implemented(m, (), "genomes.family")
+            assert not ev.is_implemented(m, (), "genomes.family")
 
     def test_a_modifier_with_no_reads_is_unaffected(self):
         """The pre-existing case: a modifier written before `reads` existed computes its own factor,
         which is what it always did, so the hatch keeps working for it."""
         m = self._third_party(None, "species")
-        assert mod.is_implemented(m, (), "species")
+        assert ev.is_implemented(m, (), "species")
 
     def test_the_engine_refuses_it_rather_than_running_undriven(self):
         from zombi2 import genomes

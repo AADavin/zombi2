@@ -22,9 +22,9 @@ from __future__ import annotations
 
 from typing import Any, ClassVar, Mapping
 
-from .modifiers import (CHANGING_AT, DRIVEN, SCALED_BY, SET_BY, VARYING_AMONG, WEIGHTED_BY, Drawn,
-                        Drift, Inherited, Modifier, OnTime, OnTotalDiversity, Random,
-                        TotalDiversity, _WRITTEN_AS, _driver_form, describe)
+from .driver import OnTime, OnTotalDiversity, Random, TotalDiversity
+from .evaluate import CHANGING_AT, DRIVEN, Modifier, SCALED_BY, SET_BY, VARYING_AMONG, WEIGHTED_BY, _WRITTEN_AS, _driver_form, describe
+from .law import Drawn, Drift, Inherited
 from .retired import check_no_retired_keywords
 from .driver import Measured, Time
 
@@ -32,7 +32,7 @@ from .driver import Measured, Time
 #: The written form is a call on an attribute, so this is the parser's whitelist for the attribute
 #: half — the other half being `_NAMES`, the things it may call by name.
 #:
-#: Built from the constants defined in `zombi2.params.modifiers`, beside the ``verb`` field that
+#: Built from the constants defined in `zombi2.params.evaluate`, beside the ``verb`` field that
 #: records which verb was written, and re-exported here so a reader outside this package compares
 #: against ``verbs.SCALED_BY`` rather than against a string it spelled out itself.
 VERBS = (SCALED_BY, SET_BY, WEIGHTED_BY, VARYING_AMONG, CHANGING_AT)

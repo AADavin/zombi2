@@ -32,12 +32,15 @@ import numpy as np
 import pytest
 
 from zombi2.params import Clade, Extent, Recipients, Time
-from zombi2.params import modifiers as mod
+from zombi2.params import driver as drv
+from zombi2.params import evaluate as ev
+from zombi2.params import law as law
 from zombi2.params import scope
 from zombi2.params import driver as driver_mod
 from zombi2.params.distributions import Exponential, Fixed, Gamma, Geometric, LogNormal, Uniform
 from zombi2.params.mapping import Between, Scalar, Table
-from zombi2.params.modifiers import Drift, values_at_birth
+from zombi2.params.evaluate import values_at_birth
+from zombi2.params.law import Drift
 from zombi2.params.connection import Driven
 from zombi2.params.parse import parse_rate, written_form
 from zombi2.params.rate import Rate, as_rate
@@ -49,7 +52,7 @@ from zombi2.params.rate import Rate, as_rate
 VERB_CALLS: list[tuple[str, object, tuple, bool]] = [
     ("skyline", lambda r: r.changing_at({0: 1.0, 1.5: 0.3, 4: 2.25}), (), False),
     ("skyline-flat", lambda r: r.changing_at({0: 0.5}), (), False),
-    ("diversity", lambda r: r.scaled_by(mod.TotalDiversity(cap=100)), (), False),
+    ("diversity", lambda r: r.scaled_by(drv.TotalDiversity(cap=100)), (), False),
     ("drawn-lineage", lambda r: r.varying_among("lineages", LogNormal(0.0, 0.35)), (), False),
     ("drawn-family", lambda r: r.varying_among("families", LogNormal(0.0, 0.6)), (), False),
     ("drawn-gamma", lambda r: r.varying_among("families", Gamma(shape=4.0, scale=0.25)), (), False),
@@ -103,8 +106,8 @@ def _build(scope_cls, calls):
             rate = apply(rate)
         rate = as_rate(rate, default_scope=scope_cls)
         rate.check_one_base("this rate")
-        mod.check_one_memory(tuple(rate.modifiers), label="this rate", unit="lineages")
-        mod.check_one_memory(tuple(rate.modifiers), label="this rate", unit="families")
+        ev.check_one_memory(tuple(rate.modifiers), label="this rate", unit="lineages")
+        ev.check_one_memory(tuple(rate.modifiers), label="this rate", unit="families")
     except (ValueError, TypeError):
         return None
     return rate
@@ -154,7 +157,7 @@ def _carried(rate: Rate, seed: int = 20260809) -> list:
     for m, _unit in rate.carried_modifiers():
         rng = np.random.default_rng(seed)
         out.append(tuple(round(v, 12) for v in values_at_birth((m,), rng)))
-        if m.reads[0] == mod.INHERITED:
+        if m.reads[0] == ev.INHERITED:
             v = m.initial()
             walk = [v]
             for _ in range(6):
@@ -228,7 +231,7 @@ def test_the_enumeration_is_actually_covering_the_grammar():
     # appears in the alternate spellings rather than in a rendering — one canonical form per rate is
     # the point, not an omission.
     corpus = rendered + " " + " ".join(t for t, _ in ALTERNATE_SPELLINGS)
-    missing = [name for name in mod.WRITABLE + driver_mod.WRITABLE if name not in corpus]
+    missing = [name for name in drv.WRITABLE + driver_mod.WRITABLE if name not in corpus]
     assert not missing, f"writable but never written: {missing}"
 
 

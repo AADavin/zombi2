@@ -26,7 +26,7 @@ from zombi2.genomes.ordered import OrderedGenomesResult
 from zombi2.genomes.nucleotide import NucleotideGenomesResult
 from zombi2.genomes.nucleotide import IMPLEMENTED_MODIFIERS as _NUC_IMPLEMENTED
 from zombi2.genomes.ordered import IMPLEMENTED_MODIFIERS as _ORDERED_IMPLEMENTED
-from zombi2.params.modifiers import cell_name
+from zombi2.params.evaluate import cell_name
 from zombi2.params.parse import parse_rate
 from zombi2.params.scope import Global, PerLineage
 from zombi2.tree import node_label, read_newick

@@ -1467,7 +1467,7 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
     import pathlib
     import re
 
-    from zombi2.params.modifiers import cell_name
+    from zombi2.params.evaluate import cell_name
     from zombi2.genomes import IMPLEMENTED_MODIFIERS as GENOMES
     from zombi2.genomes.nucleotide import IMPLEMENTED_MODIFIERS as NUCLEOTIDE
     from zombi2.genomes.ordered import IMPLEMENTED_MODIFIERS as ORDERED

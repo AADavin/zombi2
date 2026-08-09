@@ -11,7 +11,8 @@ import pytest
 
 from zombi2.params import (Between, Drift, Extent, Gamma, LogNormal, PerCopy, PerLineage,
                           Random, Recipients, Scalar, TotalDiversity)
-from zombi2.params import modifiers as mod
+from zombi2.params import driver as drv
+from zombi2.params import law as law
 from zombi2.params import scope
 from zombi2.params.rate import Rate
 from zombi2.params.parse import RateSyntaxError, parse_rate, written_form
@@ -71,12 +72,12 @@ def test_verbs_chain():
                    ".scaled_by(TotalDiversity(cap=100))")
     assert isinstance(r, Rate)
     assert r.modifiers == (Random('lineages', Drift(LogNormal(0.0, 0.2))),
-                           mod.OnTotalDiversity(cap=100))
+                           drv.OnTotalDiversity(cap=100))
 
 
 def test_a_scope_and_a_verb_compose():
     r = parse_rate("Global(1.0).changing_at({0: 1.0, 3: 0.3})")
-    assert r.scope is scope.Global and r.modifiers == (mod.OnTime({0: 1.0, 3: 0.3}),)
+    assert r.scope is scope.Global and r.modifiers == (drv.OnTime({0: 1.0, 3: 0.3}),)
 
 
 def test_the_python_qualifiers_are_optional():

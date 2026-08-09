@@ -31,8 +31,8 @@ from typing import TYPE_CHECKING
 
 from ..params.mapping import check_not_a_kernel
 from ..rng import resolve_seed, stream
-from ..params.modifiers import (describe, DRAWN, OnTime, is_implemented, matches_declared,
-                                values_at_birth)
+from ..params.driver import OnTime
+from ..params.evaluate import DRAWN, describe, is_implemented, matches_declared, values_at_birth
 from ..params.connection import Driven, SetBy
 from ..params.rate import Rate, as_rate
 from ..params.scope import PerCopy, PerLineage
