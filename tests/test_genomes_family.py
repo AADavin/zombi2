@@ -7,9 +7,9 @@ import tempfile
 
 import pytest
 
-from zombi2.rates.scope import Global, PerCopy, PerLineage
+from zombi2.params.scope import Global, PerCopy, PerLineage
 
-from zombi2.rates import Drift, LogNormal, Random, TotalDiversity
+from zombi2.params import Drift, LogNormal, Random, TotalDiversity
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_family
 from zombi2.tree import Node, Tree
@@ -217,7 +217,7 @@ def test_a_scope_the_engine_cannot_honour_is_rejected():
     # origination is the rate at which families are CREATED, so per copy it would be base × 0 in an
     # empty genome — a silent no-op. Global is a statement about the whole tree and would make one
     # genome's rate depend on how many other lineages exist.
-    from zombi2.rates import scope
+    from zombi2.params import scope
     sp = _tree(seed=1)
     with pytest.raises(ValueError, match="takes PerLineage for origination"):
         simulate_genomes_family(sp, origination=scope.PerCopy(2.0), seed=1)
@@ -233,7 +233,7 @@ def test_a_per_lineage_rate_does_not_scale_with_genome_size():
 
     This is the whole point of the scope choice, and it is a hundredfold difference in the model
     rather than a detail — so it is asserted on the event counts, not on the rate object."""
-    from zombi2.rates import scope
+    from zombi2.params import scope
     sp = _tree(seed=1)
 
     def losses(loss, initial):
@@ -262,7 +262,7 @@ def test_a_per_family_draw_anywhere_in_the_run_refuses_a_per_lineage_scope():
     of them, summing each over the live copies — so a `PerLineage` rate elsewhere in the same run
     was silently counted per copy. One draw on duplication turned a per-lineage loss back into a
     per-copy loss, with nothing on the page saying so."""
-    from zombi2.rates import scope
+    from zombi2.params import scope
     sp = _tree(seed=1)
     with pytest.raises(ValueError, match="cannot share a run"):
         simulate_genomes_family(sp, loss=PerLineage(0.2).varying_among('families', LogNormal(0.0, 0.5)),

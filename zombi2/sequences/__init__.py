@@ -61,13 +61,13 @@ import numpy as np
 from ..genomes import FamilyGenomesResult
 from ..genomes.events import gene_label
 from ..genomes.gene_trees import GeneNode, GeneTree
-from ..rates.driver import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
+from ..params.driver import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
 from ..rng import resolve_seed, seed_sequence, stream
-from ..rates.mapping import Between
-from ..rates.modifiers import (DRAWN, INHERITED, Driven, Modifier,
+from ..params.mapping import Between
+from ..params.modifiers import (DRAWN, INHERITED, Driven, Modifier,
                               check_one_memory, describe, matches_declared)
-from ..rates.rate import Rate, as_rate
-from ..rates.scope import PerSite
+from ..params.rate import Rate, as_rate
+from ..params.scope import PerSite
 from ..tree import Node, Tree, prune
 from .._runtime.outputs import fresh_dirs, grouped_dir
 from .._runtime.progress import progress_bar
@@ -171,7 +171,7 @@ class SequencesResult:
         (``"KR"``, ``"AVLIMFWP"``). The letters must be in this run's `alphabet`; `gc` is the same
         driver over ``"GC"``, named because it is the one people ask for by name.
 
-        A number, so it takes a `~zombi2.rates.mapping.Curve` or a `~zombi2.rates.mapping.Scalar`, and
+        A number, so it takes a `~zombi2.params.mapping.Curve` or a `~zombi2.params.mapping.Scalar`, and
         it drives what comes **after** a sequence — a trait, or a further sequence run — never the
         genome the gene trees came from."""
         from .composition import Composition
@@ -1395,7 +1395,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
 
 
 # The substitution-model menu is reached through its own module — the one canonical path,
-# like `zombi2.rates.scope` / `zombi2.rates.modifiers` — never re-exported here:
+# like `zombi2.params.scope` / `zombi2.params.modifiers` — never re-exported here:
 #     from zombi2.sequences import substitution_models as sm;  sm.hky85(2.0)
 __all__ = ["simulate_sequences", "SequencesResult", "StreamedSequences",
            "mean_pairwise_identity",

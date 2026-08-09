@@ -12,7 +12,7 @@ import pytest
 from zombi2 import traits
 from zombi2 import joint
 from zombi2.joint import JointResult
-from zombi2.rates import Drift, LogNormal, PerLineage
+from zombi2.params import Drift, LogNormal, PerLineage
 from zombi2.traits import DiscreteTrait, TraitsResult
 
 
@@ -273,7 +273,7 @@ def test_joint_refuses_a_modifier_it_does_not_thread():
     import pytest
 
     from zombi2 import joint, traits
-    from zombi2.rates import TotalDiversity
+    from zombi2.params import TotalDiversity
 
     trait = traits.DiscreteTrait(states=("small", "large"), switch=0.3)
     mapping = {"small": 1.0, "large": 2.0}

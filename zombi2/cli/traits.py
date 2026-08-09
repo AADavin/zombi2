@@ -31,7 +31,7 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   _write_params_log, check_stale_downstream, clear_stale_downstream,
                                   signpost, input_digests, level_dir, resolve_tree, sibling_fates,
                                   conditioned_levels, record_conditioning)
-from zombi2.rates.modifiers import cell_name
+from zombi2.params.modifiers import cell_name
 from zombi2.tree import node_label, read_newick
 from zombi2._runtime.report import write_run_report
 from zombi2.traits import IMPLEMENTED_MODIFIERS, simulate_continuous, simulate_discrete

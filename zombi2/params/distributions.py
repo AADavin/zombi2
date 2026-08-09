@@ -1,6 +1,6 @@
 """The shapes a run draws its numbers from: a `Random` value's law, and a segmental event's extent.
 
-    from zombi2.rates import Gamma, PerCopy
+    from zombi2.params import Gamma, PerCopy
 
     loss        = PerCopy(0.25).varying_among("families", Gamma(shape=4.0, scale=0.25))
     loss_extent = Gamma(shape=2.0, scale=250.0)

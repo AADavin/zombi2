@@ -54,14 +54,14 @@ from dataclasses import dataclass, field
 from functools import cached_property
 
 
-from ..rates.driver import check_mapping_fires, resolve_driver
+from ..params.driver import check_mapping_fires, resolve_driver
 from ..rng import stream
-from ..rates.extent import Extent, as_extent
-from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import (describe, DRAWN, Driven, OnTime, SetBy, cell_name, is_implemented,
+from ..params.extent import Extent, as_extent
+from ..params.mapping import check_not_a_kernel
+from ..params.modifiers import (describe, DRAWN, Driven, OnTime, SetBy, cell_name, is_implemented,
                                values_at_birth)
-from ..rates.rate import Rate, as_rate
-from ..rates.scope import PerChromosome, PerCopy, PerLineage
+from ..params.rate import Rate, as_rate
+from ..params.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv, rearrangement_events_tsv
 from .family import resolve_modules, resolve_max_family_size

@@ -6,7 +6,7 @@ from __future__ import annotations
 import numpy as np
 
 from .._runtime.progress import track
-from ..rates.modifiers import Driven
+from ..params.modifiers import Driven
 from ..tree import Tree
 
 
@@ -65,7 +65,7 @@ def _driven_mods(rate) -> list:
 
 
 def _resolve_drivers(mods: list, tree: Tree, level: str) -> dict:
-    """Resolve a rate's driven modifiers into one `~zombi2.rates.driver.DriverTrajectory` per
+    """Resolve a rate's driven modifiers into one `~zombi2.params.driver.DriverTrajectory` per
     driver, keyed by the modifier's ``key`` — the per-lineage lookup the engine reads as it walks the
     tree. The genome level's shape (``genomes/family.py``): dedupe by ``key`` so a driver shared
     across rates resolves once, resolve each driver (a written trait log, a grown ``TraitsResult``
@@ -83,7 +83,7 @@ def _resolve_drivers(mods: list, tree: Tree, level: str) -> dict:
     No driver ⇒ an empty dict, and the engine's loop stays exactly what it was."""
     if not mods:
         return {}
-    from ..rates.driver import check_mapping_fires, resolve_driver
+    from ..params.driver import check_mapping_fires, resolve_driver
 
     by_key: dict = {}
     for m in mods:

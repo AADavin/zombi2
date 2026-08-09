@@ -18,7 +18,7 @@ import pytest
 from zombi2 import species
 from zombi2.genomes import FamilyGenomesResult, simulate_genomes_family
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
-from zombi2.rates import LogNormal, PerSite
+from zombi2.params import LogNormal, PerSite
 from zombi2.sequences import _aa_matrices, simulate_sequences
 from zombi2.sequences.substitution_models import (
     AMINO_ACIDS, _lower_triangle, dayhoff, jc69, jtt, lg, poisson, wag,

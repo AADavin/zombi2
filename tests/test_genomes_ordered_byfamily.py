@@ -14,7 +14,7 @@ import pytest
 
 from zombi2 import species, genomes
 from zombi2.genomes.ordered import Chromosome, Gene, _run_means
-from zombi2.rates import LogNormal, PerChromosome, PerCopy, PerLineage, Random
+from zombi2.params import LogNormal, PerChromosome, PerCopy, PerLineage, Random
 
 
 def _chrom(families, topology="circular"):

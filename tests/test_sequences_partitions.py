@@ -28,7 +28,7 @@ import pytest
 from zombi2 import species
 from zombi2.genomes import FamilyGenomesResult, simulate_genomes_family, simulate_genomes_nucleotide
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
-from zombi2.rates import LogNormal, PerSite
+from zombi2.params import LogNormal, PerSite
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85, jc69, lg
 from zombi2.species import simulate_species_tree

@@ -327,8 +327,8 @@ def _clock_shape(written: str) -> str | None:
     unreadable parameter must not be what turns a finished run into a traceback."""
     import dataclasses
 
-    from zombi2.rates.parse import parse_rate
-    from zombi2.rates.rate import Rate
+    from zombi2.params.parse import parse_rate
+    from zombi2.params.rate import Rate
     try:
         rate = parse_rate(written)
     except ValueError:            # every parser refusal, including an old log's retired spelling

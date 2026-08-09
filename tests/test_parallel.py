@@ -21,7 +21,7 @@ from zombi2._runtime.parallel import flatten_gene_tree, rebuild_gene_tree, resol
 from zombi2.genomes import StreamedRun, simulate_genomes_nucleotide, simulate_genomes_family
 from zombi2.genomes.events import edges_from_tsv, node_label
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
-from zombi2.rates import PerCopy, PerLineage, Recipients
+from zombi2.params import PerCopy, PerLineage, Recipients
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85, jc69
 from zombi2.species import simulate_species_tree

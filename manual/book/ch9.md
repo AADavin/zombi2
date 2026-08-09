@@ -31,7 +31,7 @@ Written out, the canonical case is two ordinary runs:
 
 ```python
 from zombi2 import species, traits, genomes
-from zombi2.rates import PerCopy, PerLineage, Recipients
+from zombi2.params import PerCopy, PerLineage, Recipients
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 # 1. grow the driver: a habitat trait down the species tree
@@ -104,7 +104,7 @@ So the number means something else. It is a **weight**. The engine reads it on e
 A plain table reads the driver on the recipient only. That says "competent lineages take DNA up more often", but it cannot say "genes move between two habitats and not within them". `Between` closes that gap: it gives a weight per ordered (donor state, recipient state) pair, so it reads the driver on the donor as well as on the candidate.
 
 ```python
-from zombi2.rates import Between, Recipients
+from zombi2.params import Between, Recipients
 
 habitat = traits.simulate_discrete(tree, states=["marine", "soil"], switch=0.3, seed=1)
 within = Between({("marine", "marine"): 1.0, ("soil", "soil"): 1.0}, default=0.0)
@@ -224,7 +224,7 @@ Only a trait driver and a clade have a written form — a path to the file the t
 The level furthest down can drive too, through the one number a finished sequence says that another level can use: its **GC content**. `result.gc()` gives the fraction of a lineage's DNA that is G or C at every instant, and it is read like any other continuous driver.
 
 ```python
-from zombi2.rates import Curve, PerLineage
+from zombi2.params import Curve, PerLineage
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85, lg
 
