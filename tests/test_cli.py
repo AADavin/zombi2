@@ -1033,7 +1033,25 @@ def test_genomes_transfer_to_names_its_rules_for_a_misspelt_one(tmp_path, tree_f
     with pytest.raises(SystemExit) as e:
         main(["genomes", str(tmp_path / "g"), "--from", str(tree_file), "--transfer-to", "uniforn", "--flat"])
     assert e.value.code == 2
-    assert "'uniform', 'distance', or a Weights" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    for rule in ("'uniform'", "'distance'", "Distance(decay=", "Clades(", "Weights"):
+        assert rule in err, f"the flag's own list omits {rule}"
+
+
+def test_genomes_transfer_to_takes_every_rule_the_python_api_takes(tmp_path, tree_file):
+    """One notation, including for the two topological rules.
+
+    `Distance` and `Clades` used to live at the genome level where the parser could not see them, so
+    a non-default decay was Python-only and `Clades(...)` could not be typed at all."""
+    for i, rule in enumerate(("Distance(decay=3.0)",
+                              "Clades({'A': ['n1', 'n2']}, Between({('A', 'A'): 1.0}, default=0.2))")):
+        out = tmp_path / f"g{i}"
+        assert main(["genomes", str(out), "--from", str(tree_file), "--transfer", "0.4",
+                     "--transfer-to", rule, "--initial-families", "5", "--seed", "1",
+                     "--flat"]) == 0
+        # the log records the text the flag takes back, not a repr the reader has to translate
+        log = (out / "genomes.log").read_text(encoding="utf-8")
+        assert f"transfer_to\t{rule}" in log, log
 
 
 def test_genomes_params_file_carries_a_driven_transfer_to(tmp_path, driver_file, tree_file):
