@@ -647,15 +647,15 @@ def _log_value(value: object) -> str:
     line can be pasted straight back into the flag (or a ``--params`` file) rather than being a repr
     the reader has to translate."""
     from zombi2.rates.modifiers import Driven, Modifier
-    from zombi2.rates.parse import written_form
+    from zombi2.rates.parse import written_choice, written_form
     from zombi2.rates.rate import Rate
     from zombi2.rates.scope import Scope
 
-    if isinstance(value, Driven):
-        # a bare Weights is how a recipient weight is written (--transfer-to), where there is no base
-        # number to print; its repr is the same expression the flag takes, and it also round-trips as
-        # a rate (a bare modifier is base 1.0), so both readings paste straight back in.
-        return repr(value)
+    if isinstance(value, Driven) or type(value).__name__ in ("Distance", "Clades"):
+        # the three shapes a `transfer_to` takes besides a named rule. `written_choice` knows what a
+        # choice's written form is — no base in front, since a choice has none — so the rule lives
+        # beside the rates grammar rather than being restated here.
+        return written_choice(value)
     if isinstance(value, (Rate, Scope, Modifier)):
         return written_form(value)
     if isinstance(value, dict) and any(isinstance(v, (Rate, Scope, Modifier)) for v in value.values()):
