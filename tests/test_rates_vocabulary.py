@@ -28,8 +28,8 @@ class TestTheGridBuildsWhatTheEnginesRun:
 
     @pytest.mark.parametrize("built, expected", [
         (ScaledBy(Time(), {0: 1.0, 3: 0.3}), mod.OnTime),
-        (ScaledBy("habitat.tsv", {"cave": 4.0}), mod.DrivenBy),
-        (Weights("habitat.tsv", {"cave": 4.0}), mod.DrivenBy),
+        (ScaledBy("habitat.tsv", {"cave": 4.0}), mod.Driven),
+        (Weights("habitat.tsv", {"cave": 4.0}), mod.Driven),
         (SetBy("habitat.tsv", {"cave": 1.0}), mod.SetBy),
     ])
     def test_a_verb_builds_the_modifier_the_engines_dispatch_on(self, built, expected):

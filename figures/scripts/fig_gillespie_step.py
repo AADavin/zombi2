@@ -26,7 +26,8 @@ import drawsvg as draw
 from zombi_style import save, FONT, INK, MUTED, ACCENT, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK
 
 
-W, H = 1260, 512
+_LIFT = 56          # the band the in-figure title used to take
+W, H = 1260, 456
 
 # The three illustrative events and their (aggregate) rates. Round numbers so the
 # probabilities are clean: R = 6, shares 1/2, 1/3, 1/6.
@@ -58,9 +59,11 @@ def flow_arrow(d, x1, y, x2, col=MUTED, lw=2.6):
 
 
 def render():
-    d = draw.Drawing(W, H, origin=(0, 0))
-    d.append(draw.Rectangle(0, 0, W, H, fill="white"))
-    text(d, "The anatomy of one Gillespie step", W / 2, 40, FS_TITLE, weight="bold")
+    # No title inside the figure (figures/STYLE.md): the manual captions every one, and a title
+    # repeats the caption in a second voice a few millimetres above it. `_LIFT` is the band the
+    # title used to occupy, taken back off the top so the drawing keeps its own coordinates.
+    d = draw.Drawing(W, H + _LIFT, origin=(0, 0))
+    d.append(draw.Rectangle(0, 0, W, H + _LIFT, fill="white"))
 
     top = 120                      # top of the panel content
     band_y = (top + H - 60) / 2    # vertical centre line for the connecting arrows
@@ -162,7 +165,13 @@ def render():
          FS_TICK, fill=MUTED)
 
     name = "gillespie_step"
-    save(d, name)
+    lifted = draw.Group(transform="translate(0,-56)")
+    for element in d.elements:
+        lifted.append(element)
+    out = draw.Drawing(W, H, origin=(0, 0))
+    out.append(draw.Rectangle(0, 0, W, H, fill="white"))
+    out.append(lifted)
+    save(out, name)
 
 
 if __name__ == "__main__":

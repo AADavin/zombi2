@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING
 
 from ..rates.mapping import check_not_a_kernel
 from ..rng import resolve_seed, stream
-from ..rates.modifiers import (describe, DRAWN, DrivenBy, OnTime, SetBy, is_implemented,
+from ..rates.modifiers import (describe, DRAWN, Driven, OnTime, SetBy, is_implemented, matches_declared,
                                values_at_birth)
 from ..rates.rate import as_rate
 from ..rates.scope import PerCopy, PerLineage, Scope
@@ -52,10 +52,10 @@ if TYPE_CHECKING:  # a streamed run returns a StreamedRun (built by the per-fami
 
 #: The rate grammar this level supports (SPEC §5) — read by the engine gates below and by the CLI's
 #: help, so a modifier is never advertised without being implemented. Each rate keeps its natural
-#: scope this slice, and ``DrivenBy`` is implemented for the single-lineage events; the ordered engine
-#: takes ``OnTime`` and a per-family draw, the nucleotide one ``OnTime`` and ``DrivenBy``. The gates say so
+#: scope this slice, and ``ScaledBy`` is implemented for the single-lineage events; the ordered engine
+#: takes ``OnTime`` and a per-family draw, the nucleotide one ``OnTime`` and ``ScaledBy``. The gates say so
 #: per rate.
-IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, SetBy, (DRAWN, "family"))
+IMPLEMENTED_MODIFIERS = (OnTime, Driven, SetBy, (DRAWN, "family"))
 
 
 @dataclass(frozen=True)
@@ -127,7 +127,7 @@ class FamilyGenomesResult:
         ``has_family`` answers for one node; this answers for every lineage at every instant, which
         is what a driven rate needs::
 
-            switch=0.1 * mod.DrivenBy(g.presence("tox"), {"present": 5.0, "absent": 1.0})
+            switch=0.1 * ScaledBy(g.presence("tox"), {"present": 5.0, "absent": 1.0})
         """
         from .presence import GenePresence
         if name not in self.family_names:
@@ -137,7 +137,7 @@ class FamilyGenomesResult:
 
     def has_family(self, node_id: int, name: str) -> bool:
         """Whether the named family ``name`` (declared via ``family_names=``) is present — has ≥ 1 copy — in
-        the genome at ``node_id``. The presence a joint ``DrivenBy("genomes:<name>", …)`` reads as its driver."""
+        the genome at ``node_id``. The presence a joint ``ScaledBy("genomes:<name>", …)`` reads as its driver."""
         if name not in self.family_names:
             raise KeyError(f"no named family {name!r}; declared families are {sorted(self.family_names)}")
         fid = self.family_names[name]
@@ -370,7 +370,7 @@ class _FamilyWeights:
     which is quadratic in genome size — and it is nearly all waste, because one event changes one
     lineage by one copy and leaves the rest untouched. So the sums are kept here across events and
     only the lineage an event actually touched is rebuilt. Rates that share a multiplier table
-    (`simulate_genomes_family()` hands the same dict to each rate carrying no a per-family draw of its
+    (`simulate_genomes_family()` hands the same dict to each rate carrying no per-family draw of its
     own) share the array too, and so are summed once between them rather than once each.
 
     A rebuilt sum is the same expression over the same list in the same order, so it is the same
@@ -411,12 +411,12 @@ class _FamilyWeights:
 
 
 def _driven_mods(rate) -> list:
-    """The `DrivenBy` modifiers a rate carries, or ``[]`` when it is a
+    """The `ScaledBy` modifiers a rate carries, or ``[]`` when it is a
     plain number/scope/OnTime. A non-empty list means the rate is *per-lineage*: each lineage's factor
     depends on the driver value on that branch, so the engine evaluates the rate lineage-by-lineage and
     picks the affected lineage weighted (the ``species_tree._grow`` shape). Each modifier's ``key``
     identifies it in the threaded ``drivers`` dict; its ``driver`` resolves to a trajectory."""
-    return [m for m in rate.modifiers if isinstance(m, DrivenBy)]
+    return [m for m in rate.modifiers if isinstance(m, Driven)]
 
 
 # --- the D/T/L/O mutators (each records to the event log; ids from the minters) -------------------
@@ -609,7 +609,7 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
         m = len(alive) if self_transfer else len(alive) - 1
         i = int(rng.integers(m))
         kr = i if (self_transfer or i < kd) else i + 1
-    else:  # weighted rules (Distance / Clades / DrivenBy) weigh every candidate — inherently O(alive)
+    else:  # weighted rules (Distance / Clades / Driven) weigh every candidate — inherently O(alive)
         cand = [k for k in range(len(alive)) if self_transfer or k != kd]
         kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_traj, groups)
     if kr is None:                                     # every candidate weighs 0 — no-op (see above)
@@ -672,17 +672,17 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     ``transfer_to`` — ``"uniform"`` (any other contemporaneous lineage), ``"distance"`` /
     ``Distance(decay=)`` (closer relatives likelier), ``Clades({...}, Between({...}))`` (weighted by
     the donor's and recipient's **named clade**, so transfer can run *between* two clades — see below),
-    or ``mod.DrivenBy(driver, mapping)`` (weighted by an evolved value; see below). ``replacement=True``
+    or ``ScaledBy(driver, mapping)`` (weighted by an evolved value; see below). ``replacement=True``
     overwrites a homologous
     copy in the recipient (additive fallback if it has none); ``self_transfer=True`` lets a lineage
     donate to itself. The root starts with ``initial_families`` families of one copy each, recorded
     as originations at the origin. ``family_names=["toxin", …]`` additionally declares **named** families —
     each gets a normal (integer) family id, but its name is remembered in ``result.family_names`` so
     you can track a specific family (``result.has_family(node, "toxin")``); this is the handle a joint
-    ``DrivenBy("genomes:toxin", …)`` reads. Deterministic given ``seed``.
+    ``ScaledBy("genomes:toxin", …)`` reads. Deterministic given ``seed``.
 
     **Conditioning (a trait drives a rate).** Any of the four rates may be *driven by another level* —
-    ``loss = 0.25 * mod.DrivenBy("trait_events.tsv", {"aquatic": 3.0, "terrestrial": 1.0})`` scales each
+    ``loss = 0.25 * ScaledBy("trait_events.tsv", {"aquatic": 3.0, "terrestrial": 1.0})`` scales each
     lineage's loss by the habitat on that branch, read from a driver file grown first
     (``traits.simulate_discrete(...).write(dir, outputs=("events",))``, which writes
     ``trait_events.tsv``). A driven rate is then *per-lineage*: it is summed over the living lineages (each with its own copy count and driver
@@ -690,7 +690,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     mid-branch switch of the driver (SPEC §2). For ``transfer`` the affected
     lineage is the **donor**, so a driven ``transfer`` says how often a lineage *donates*.
 
-    **Conditioning (a trait drives who receives).** ``transfer_to = mod.DrivenBy(driver, mapping)`` is
+    **Conditioning (a trait drives who receives).** ``transfer_to = Weights(driver, mapping)`` is
     the other half, and a different model: the mapping's numbers are per-candidate **weights**, not
     rate multipliers, so they leave the total amount of transfer alone and only redistribute it
     (SPEC §5, a weight, not a rate). Candidate lineage ``k`` gets weight ``mapping(driver value on k now)``
@@ -705,7 +705,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     worker-count invariant (each family draws from its own stream spawned off ``seed``) but gives a
     different-though-equally-valid draw than the serial default for a given seed. ``False`` (default)
     runs the serial loop; ``True`` uses every core; an ``int`` sets the worker count. A **driven** rate
-    or ``transfer_to`` (``DrivenBy``) runs on the per-family engine too — conditioning does not couple
+    or ``transfer_to`` (``Weights``) runs on the per-family engine too — conditioning does not couple
     families, so nothing here forces a fallback. The gain is real but modest (a merge over the whole event log stays
     serial), so a handful of workers is the sweet spot; unlike the sequences level it does not scale far.
     Because it spawns processes, a calling script must guard its entry with ``if __name__ ==
@@ -724,10 +724,10 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     los = as_rate(loss, default_scope=PerCopy)
     org = as_rate(origination, default_scope=PerLineage)
     # this slice implements only the default scope (D/T/L per copy, origination per lineage), and the
-    # modifiers OnTime (skyline) and DrivenBy (a conditioned/joint driver). A non-default scope would
+    # modifiers OnTime (skyline) and Driven (a conditioned/joint driver). A non-default scope would
     # set the *total* rate one way while the engine still picks the affected copy/lineage the default
     # way — a silent mismatch (e.g. a PerCopy origination is base×0 copies, a no-op) — so reject it.
-    # DrivenBy is a per-lineage driver on all four events; on transfer the driven lineage is the
+    # ScaledBy is a per-lineage driver on all four events; on transfer the driven lineage is the
     # DONOR (who receives is the separate transfer_to choice, below).
     for label, rate, want in (("duplication", dup, PerCopy), ("transfer", tra, PerCopy),
                               ("loss", los, PerCopy), ("origination", org, PerLineage)):
@@ -743,13 +743,13 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     "CREATED — when it is read there is no family yet to have drawn a factor for. "
                     "Put Drawn(per='family') on duplication, transfer or loss; writing one such object on "
                     "several of them gives a family-wide tempo, since one object is one draw.")
-            if isinstance(m, DrivenBy):
+            if isinstance(m, Driven):
                 check_not_a_kernel(m.mapping, label=label)
             if is_implemented(m, IMPLEMENTED_MODIFIERS, "genomes.family"):
                 continue
             raise ValueError(
                 f"{label} carries {describe(m)}, which the family genome engine does not "
-                f"support. It takes OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
+                f"support. It takes OnTime (skyline), ScaledBy (a conditioned or joint driver) and "
                 f"Drawn(per='family') (per-family heterogeneity). Clade drift is not implemented yet."
             )
     for label, rate in (("duplication", dup), ("transfer", tra), ("loss", los),
@@ -761,9 +761,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # was summed WITHOUT the family multipliers while the copy was still drawn WITH them. A total
     # that says one thing and a pick that does another is the one failure this engine must not have.
     if any(m.reads == (DRAWN, "family") for rate in (dup, tra, los) for m in rate.modifiers) and \
-            any(isinstance(m, DrivenBy) for rate in (dup, tra, los, org) for m in rate.modifiers):
+            any(isinstance(m, Driven) for rate in (dup, tra, los, org) for m in rate.modifiers):
         raise ValueError(
-            "a per-family draw and DrivenBy on the same run is a later slice: one weights lineages by a "
+            "a per-family draw and a driver on the same run is a later slice: one weights lineages by a "
             "driver and the other weights copies by their family, and combining them means "
             "weighting by the product. Use one or the other for now.")
     # the choice (SPEC §5), validated in the one place all three resolutions share: the mapping's
@@ -788,16 +788,16 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # truncated run. ``None`` removes it.
     cap = resolve_max_family_size(max_family_size)
 
-    # conditioning: a rate carrying DrivenBy reads a driver per lineage. Resolve each driver once into
+    # conditioning: a rate carrying ScaledBy reads a driver per lineage. Resolve each driver once into
     # a DriverTrajectory (value + next-switch lookups, keyed by the shared species node id) — from a
     # file (a str driver) or an object handed over in memory (a trait result, or a genome's presence /
     # completion). No driven rate ⇒ this is empty
     # and the loop stays byte-identical to an undriven run.
     dup_mods, los_mods = _driven_mods(dup), _driven_mods(los)
     org_mods, tra_mods = _driven_mods(org), _driven_mods(tra)
-    # driver key → its DrivenBy (deduped, so a driver shared across rates resolves once);
+    # driver key → its Driven (deduped, so a driver shared across rates resolves once);
     # the modifier rather than the driver itself, because the driver's step rides on the modifier
-    by_key: dict[object, "DrivenBy"] = {}
+    by_key: dict[object, "Driven"] = {}
     for m in (*dup_mods, *los_mods, *org_mods, *tra_mods):
         by_key.setdefault(m.key, m)
     resolved = {}
@@ -858,7 +858,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         return c
 
     # Per-family multipliers, drawn once when a family is created and then fixed for its whole life.
-    # Whether a family's rates move together is decided by what was written: one a per-family draw object read
+    # Whether a family's rates move together is decided by what was written: one `Drawn` object read
     # by two rates is one draw for both, two objects are two draws. Empty unless some rate carries
     # one, and then the engine takes its weighted path; a run carrying none draws nothing here.
     fam_by = {"duplication": tuple(m for m, _ in dup.carried_modifiers(unit="family")),
@@ -877,7 +877,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         family_counter += 1
         if any_family:
             # one draw per distinct modifier *object* for this family, shared across its rates: the
-            # same a per-family draw written on duplication and on loss means one number, so a fast family is
+            # same `Drawn` object written on duplication and on loss means one number, so a fast family is
             # fast at both. Two separately built ones are two draws even with the same spread.
             shared: dict[int, float] = {}
             for key, mods in fam_by.items():
@@ -1077,7 +1077,7 @@ class FamilyGenome:
     this on a *fixed* tree; a **joint** model (``joint.simulate_joint(genome=genomes.family(...))``)
     grows the genome *with* the tree whose speciation its gene content drives. Duplication, loss, and
     origination (each a ``scope(base) × modifiers`` rate, ``OnTime`` allowed) plus ``initial_families``
-    and named ``family_names`` (the handle a ``DrivenBy("genomes:<name>", …)`` reads). Transfer is not
+    and named ``family_names`` (the handle a ``ScaledBy("genomes:<name>", …)`` reads). Transfer is not
     available in a joint run: a growing tree's contemporaneous set is still forming as events fire."""
 
     duplication: object
@@ -1101,12 +1101,19 @@ class FamilyGenome:
                     f"{want.__name__} for {label} — drop the scope wrapper."
                 )
             for m in rate.modifiers:
-                if not isinstance(m, OnTime):
+                if not matches_declared(m, JOINT_IMPLEMENTED_MODIFIERS):
                     raise ValueError(
                         f"{label} carries {describe(m)}; a joint genome's own rates take only "
                         f"OnTime — the genome is the DRIVER of speciation here, not a driven target."
                     )
         return dup, los, org
+
+
+#: What a **joint** genome's own rates take (SPEC §5). Declared, like every other level's gate,
+#: rather than tested by hand: the genome is the driver of speciation in a joint run, not a driven
+#: target, so it takes a schedule and nothing else. `matches_declared` rather than `is_implemented`,
+#: because a third-party modifier vouching for itself would still not be threaded by this loop.
+JOINT_IMPLEMENTED_MODIFIERS = (OnTime,)
 
 
 def family(*, duplication=0.0, loss=0.0, origination=0.0, initial_families=100,

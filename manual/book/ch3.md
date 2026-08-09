@@ -31,21 +31,21 @@ A birth or death rate need not be constant. It can depend on **time**, on **how 
 - **On time.** The rates change at set points in time. This is the skyline, or episodic, tree. `birth = 1.0 * mod.OnTime({0: 1.0, 3: 0.3})` runs at full rate until time 3, then at a third of it. Each entry holds from its own time up to the next, and the earliest entry also applies *backwards* to the origin, so `OnTime({3: 0.3})`, with no entry at 0, runs at a third of the rate for the whole tree rather than only after time 3. Start the schedule at 0 whenever you mean "full rate until".
 - **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound: `birth = 1.0 * mod.OnTotalDiversity(cap=100)`.
 - **On the parent's rate.** Each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * mod.Inherited(per='lineage', spread=0.2)`.
-- **By lineage.** Each lineage draws its own rate independently, with no memory of its parent: `birth = 1.0 * mod.Drawn(per='lineage', spread=0.2)`. Same spread of rates as `Inherited(per='lineage')`, none of it inherited.
+- **By lineage.** Each lineage draws its own rate independently, with no memory of its parent: `birth = 1.0 * mod.Drawn(per='lineage', spread=0.2)`. `spread` means a different thing in the two: under `Drawn` it is the spread of rates across lineages, while under `Inherited` it is the step taken at each split, which accumulates, so lineages deeper in the tree spread further apart.
 
-The last two are the two answers to one question, where a lineage's rate comes from, and they are worth holding side by side, because they differ in what they do to the *shape* of the tree and not to the spread of rates. Inherited variation lets a fast clade stay fast, so it hoards the tips and the tree comes out lopsided; independent variation reshuffles at every split, so imbalance stays near what a constant rate gives. `Inherited(per='lineage')` is the model to fit when you believe diversification is a heritable property of a clade; `Drawn(per='lineage')` is its null, and the honest thing to compare against. A rate carrying both is refused: there is no model in which a lineage's rate is inherited from its parent and independent of it at once.
+The last two are the two answers to one question, where a lineage's rate comes from, and they are worth holding side by side, because what differs is whether relatives resemble each other, and with it the *shape* of the tree. Inherited variation lets a fast clade stay fast, so it hoards the tips and the tree comes out lopsided; independent variation reshuffles at every split, so imbalance stays near what a constant rate gives. `Inherited(per='lineage')` is the model to fit when you believe diversification is a heritable property of a clade; `Drawn(per='lineage')` is its null, and the honest thing to compare against. A rate carrying both is refused: there is no model in which a lineage's rate is inherited from its parent and independent of it at once.
 
 ![Three ways a rate can vary, one tree apiece, all three stopped at the same 25 surviving lineages, so what differs is how they got there. **A** `OnTime`: the rate drops at time 2, so an early burst gives way to a long slow tail. **B** `OnTotalDiversity`: the rate falls as the tree fills toward its cap, and splits thin out near the present. **C** `Inherited(per='lineage')`: each lineage inherits its parent's rate, so one clade radiates late while its sister stays sparse. Solid lineages survive to the present and dashed ones died, as in the previous figure.](figures/variable_rates.pdf){width=100%}
 
 The modifiers live in `zombi2.rates.modifiers`. Each is a dimensionless factor on the base rate, and you can stack them with `*` to get a rate that changes in time *and* saturates.
 
-Birth and death are modified independently. Give both a `Inherited(per='lineage')` and each lineage draws its own speciation factor and its own extinction factor at every split, so the two rates drift without correlation; the same holds for `Drawn(per='lineage')`.
+Whether birth and death vary together is decided by what you wrote. Two modifier objects — `birth = 1.0 * mod.Inherited(per='lineage', spread=0.2)` and `death = 0.3 * mod.Inherited(per='lineage', spread=0.2)` — are two values, so each lineage gets its own speciation factor and its own extinction factor and the two rates drift without correlation; the same holds for `Drawn(per='lineage')`. Build the modifier once and give that same object to both rates and the lineage gets a single number instead, so a lineage that speciates fast also goes extinct fast. Sharing is by identity, not by matching arguments, and only Python can express it: two flags on the command line are always two objects.
 
 Both draws are **mean-corrected**, so widening `spread` spreads the lineages out without moving the average one off the base rate you typed. And under either, the lineage that speciates or dies is drawn in proportion to its own rate rather than uniformly, which is the point: a fast lineage is likelier to be the one that splits.
 
 ## Other models
 
-One model does not fit the modifier framework: a **mass extinction**, where at one instant only a fraction of the living lineages survive. `mass_extinctions=[(3.0, 0.75)]` kills three-quarters of those alive at time 3.
+One model does not fit the modifier framework: a **mass extinction**, where at one instant only a fraction of the living lineages survive. `mass_extinctions=[(3.0, 0.75)]` kills three-quarters of those alive at time 3. A pulse is placed at a point in time, so it needs a run with a fixed end: give `total_time`, not `n_extant`, and put each pulse time strictly between 0 and `total_time`.
 
 ![A mass extinction as a survival pulse. The tree grows under a constant birth–death process until, at one instant, a fraction of the standing lineages die together, the cohort of dots along the vertical wall. Survivors are solid and extinct lineages dashed. The lineages-through-time curve below shares the time axis and shows the diversity crash at the pulse and the recovery after it. This tree was grown with `mass_extinctions=[(2.5, 0.75)]`.](figures/mass_extinction.pdf){width=100%}
 
@@ -87,10 +87,10 @@ result = species.simulate_species_tree(
 
 - `.complete_tree`, the whole tree that grew, with the extinct lineages still on it. **This is what the next level runs along**, which is what lets a gene be transferred out of a lineage that later dies.
 - `.extant_tree`, the survivors' tree, dated and bifurcating: the tree an analysis would be handed, and a projection of the run rather than its substrate.
-- `.fossils`, the sampled fossil lineages and their ages, present when you asked for `fossils`.
+- `.fossils`, the sampled fossil lineages and the times they were sampled at, present when you asked for `fossils`.
 - `.events`, the event log: every speciation and extinction with its time, the source of truth the run exists to record.
 
-As at every level it also carries `.seed` and `.write(dir, outputs=[...])`. Each tree carries its topology and dated branch lengths, and lets you ask for its tips, its internal nodes, and which are extant.
+As at every level it also carries `.seed` and `.write(dir, outputs=[...])`. Each tree carries its topology and dated branch lengths, holds every node — internal ones included — in `.nodes`, and lets you ask for its tips with `.leaves()` and, among them, the extant, the extinct and the unsampled (`.extant_leaves()`, `.extinct_leaves()`, `.unsampled_leaves()`).
 
 Everything in this chapter is one function call, so the modifiers, the sampling and a mass extinction all compose in a single line:
 
@@ -127,7 +127,7 @@ zombi2 species out/ --birth 1.0 --death 0.4 --total-time 5 \
 | `species_extant.nwk` | the tree of sampled survivors: what an analysis would be handed |
 | `species_events.tsv` | every speciation and extinction, with its time |
 | `species_fates.tsv` | each tip's fate: `extant`, `extinct` or `unsampled` |
-| `species_fossils.tsv` | the sampled fossil lineages and their ages, when you asked for `fossils` |
+| `species_fossils.tsv` | the sampled fossil lineages and the times they were sampled at, when you asked for `fossils` |
 | `species_summary.json` | what the run produced: counts, tree height, stem, total branch length, realised rates |
 
 Both trees give the root a branch length, the stem of Chapter 2: in the complete tree it runs from the origin to the first speciation, in the extant tree from the origin to the most recent common ancestor of the survivors, absorbing whatever branches were pruned away above it. They land in `out/species/`, or straight into `out/` with `--flat`; Appendix B lists every file with its format and its default.

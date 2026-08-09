@@ -1,0 +1,63 @@
+<svg viewBox="0 0 660 214" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
+<title>Why a gene is never split: both ends of an event are drawn from the legal positions</title>
+<desc>A horizontal replicon with three gene boxes and spacer between them. Below it a strip marks where a breakpoint may fall: it is solid over every stretch of spacer and blank over every gene. Above the replicon a bracket shows one deletion, whose two ends sit on the strip either side of gene 2, so the deletion takes that gene whole.</desc>
+<!-- The chapter's claim is easy to misread as "an event is drawn and then cleaned up if it lands
+     badly". It is not: the two ends are drawn from the legal positions in the first place, and the
+     strip is those positions. Once a reader can see the strip, "a gene is never split" needs no
+     further argument — there is nowhere inside a gene for an end to land.
+     One event, not an event and a crossed-out counterexample: the strip already says what cannot
+     happen, and drawing the impossible case invites it to be remembered as possible.
+     Colours are presentation ATTRIBUTES and literals, not CSS custom properties: GitHub's SVG
+     sanitiser drops the style element and librsvg resolves no custom properties, so a figure whose
+     fills live in either renders as black-on-black. The dark-mode rules below still win wherever
+     CSS survives, because CSS outranks a presentation attribute. Keep it this way. -->
+<style>
+  @media (prefers-color-scheme: dark) {
+    .rep{fill:#22272b;stroke:#6d7478}
+    .gene{fill:#3d454a;stroke:#e7ebe9}
+    .lbl{fill:#e7ebe9}
+    .dim{fill:#9aa3a0}
+    .edge{stroke:#e7ebe9}
+  }
+</style>
+
+<!-- the event, above: a bracket whose two ends sit on the strip below -->
+<g class="edge" stroke="#1a1a1a" stroke-width="1.7" fill="none" stroke-linecap="round">
+  <path d="M 250,80 L 250,58 L 420,58 L 420,80"/>
+</g>
+<g class="lbl" fill="#1a1a1a" font-size="14.5" text-anchor="middle">
+  <text x="335" y="46">a deletion</text>
+</g>
+<g class="dim" fill="#6e6e6e" font-size="12.5" font-style="italic" text-anchor="middle">
+  <text x="335" y="74">gene 2 goes whole</text>
+</g>
+
+<!-- the replicon, and the genes on it -->
+<g class="rep" fill="#f2f2f0" stroke="#8a8a8a" stroke-width="1">
+  <rect x="50" y="88" width="560" height="28"/>
+</g>
+<g class="gene" fill="#d9d9d4" stroke="#1a1a1a" stroke-width="1.4">
+  <rect x="120" y="88" width="95" height="28"/>
+  <rect x="285" y="88" width="100" height="28"/>
+  <rect x="455" y="88" width="100" height="28"/>
+</g>
+<g class="lbl" fill="#1a1a1a" font-size="12.5" text-anchor="middle">
+  <text x="167" y="107">gene 1</text>
+  <text x="335" y="107">gene 2</text>
+  <text x="505" y="107">gene 3</text>
+</g>
+
+<!-- where a breakpoint may fall: every stretch of spacer, and no part of a gene -->
+<g class="edge" stroke="#1a1a1a" stroke-width="6" fill="none" stroke-linecap="butt">
+  <line x1="50"  y1="140" x2="120" y2="140"/>
+  <line x1="215" y1="140" x2="285" y2="140"/>
+  <line x1="385" y1="140" x2="455" y2="140"/>
+  <line x1="555" y1="140" x2="610" y2="140"/>
+</g>
+<g class="dim" fill="#6e6e6e" font-size="13" text-anchor="middle">
+  <text x="330" y="168">where a breakpoint may fall</text>
+</g>
+<g class="dim" fill="#6e6e6e" font-size="12.5" font-style="italic" text-anchor="middle">
+  <text x="330" y="188">both ends of every event are drawn from here, so no end lands inside a gene</text>
+</g>
+</svg>

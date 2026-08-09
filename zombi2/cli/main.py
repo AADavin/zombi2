@@ -154,7 +154,7 @@ def main(argv: list[str] | None = None) -> int:
             "  zombi2 traits out/ --kind discrete --name habitat "
             "--states aquatic,terrestrial --switch 0.4 --seed 1",
             "  zombi2 traits out/ --kind discrete --name diet --states plant,fish \\",
-            "      --switch \"0.2 * DrivenBy('out/traits/habitat/trait_events.tsv', "
+            "      --switch \"0.2 * ScaledBy('out/traits/habitat/trait_events.tsv', "
             "{'aquatic': 5.0, 'terrestrial': 1.0})\" --seed 2",
         ) + "\n\n" + traits.RATES_HELP)
 
@@ -162,23 +162,23 @@ def main(argv: list[str] | None = None) -> int:
         sub, "joint", "grow a species tree and the level driving it, in one pass",
         "Grow a species tree and the level that drives its diversification in one pass, for when "
         "neither can be simulated first because each depends on the other. The driver is named in "
-        "the rate — DrivenBy('trait', ...) or DrivenBy('genomes:<name>', ...) — and is a live level, "
+        "the rate — ScaledBy('trait', ...) or ScaledBy('genomes:<name>', ...) — and is a live level, "
         "not a file.",
         "zombi2 joint DIR --birth RATE (--n-extant N | --total-time T) [driver] [options]",
         joint._add_joint_args,
         epilog=_examples(
             "  # BiSSE: a two-state trait where 'large' lineages speciate three times as fast",
-            "  zombi2 joint out/ --birth \"1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})\" "
+            "  zombi2 joint out/ --birth \"1.0 * ScaledBy('trait', {'small': 1.0, 'large': 3.0})\" "
             "--death 0.2 \\",
             "      --states small,large --switch 0.3 --n-extant 100 --seed 1",
             "",
             "  # state-dependent extinction too: 'small' lineages also die faster",
-            "  zombi2 joint out/ --birth \"1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})\" \\",
-            "      --death \"0.2 * DrivenBy('trait', {'small': 2.0, 'large': 1.0})\" \\",
+            "  zombi2 joint out/ --birth \"1.0 * ScaledBy('trait', {'small': 1.0, 'large': 3.0})\" \\",
+            "      --death \"0.2 * ScaledBy('trait', {'small': 2.0, 'large': 1.0})\" \\",
             "      --states small,large --switch 0.3 --n-extant 100 --seed 1",
             "",
             "  # gene content drives it: carrying the 'toxin' family triples the speciation rate",
-            "  zombi2 joint out/ --birth \"1.0 * DrivenBy('genomes:toxin', "
+            "  zombi2 joint out/ --birth \"1.0 * ScaledBy('genomes:toxin', "
             "{'present': 3.0, 'absent': 1.0})\" \\",
             "      --origination 0.2 --loss 0.1 --family-names toxin --n-extant 60 --seed 1",
         ) + "\n\n" + joint.RATES_HELP)

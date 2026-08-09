@@ -117,12 +117,13 @@ from collections import Counter
 
 import numpy as np
 
+from zombi2.rates import ScaledBy
 from zombi2.genomes import (simulate_genomes_family, simulate_genomes_nucleotide,
                             simulate_genomes_ordered)
 from zombi2.genomes.ordered import Inversion
 from zombi2.joint import simulate_joint
 from zombi2.rates.mapping import Curve
-from zombi2.rates.modifiers import Drawn, DrivenBy, Inherited
+from zombi2.rates.modifiers import Drawn, Inherited
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import BASES, gtr, hky85, jc69, k80, lg, poisson
 from zombi2.species import simulate_species_tree
@@ -435,7 +436,7 @@ def _state_at(history, node, tree, when):
 def test_a_conditioned_rate_realises_the_multiplier_it_was_given():
     """The driving mechanism itself, on the conditioned path (the driver is a finished level).
 
-    This is the one a downstream invariant cannot catch. If ``DrivenBy`` attached its factors to the
+    This is the one a downstream invariant cannot catch. If ``Driven`` attached its factors to the
     wrong branches, or applied them a step late, every output would still be well formed — a tree, a
     genome, an event log, all internally consistent — and only the *strength* of the association
     would be wrong, which is exactly the quantity a user is measuring when they reach for a
@@ -455,7 +456,7 @@ def test_a_conditioned_rate_realises_the_multiplier_it_was_given():
             for state, duration in segments:
                 lineage_time[state] += duration
         run = simulate_genomes_family(tree, initial_families=0, seed=s,
-                                      origination=base * DrivenBy(habitat, factors))
+                                      origination=base * ScaledBy(habitat, factors))
         for e in run.edges:
             if e.kind == "origination":
                 seen[_state_at(habitat.history, e.lineage, tree, e.time)] += 1
@@ -490,7 +491,7 @@ def test_the_parallel_engine_realises_a_driven_multiplier_too():
             for state, duration in segments:
                 lineage_time[state] += duration
         run = simulate_genomes_family(tree, initial_families=0, seed=s, parallel=1,
-                                      origination=base * DrivenBy(habitat, factors))
+                                      origination=base * ScaledBy(habitat, factors))
         for e in run.edges:
             if e.kind == "origination":
                 seen[_state_at(habitat.history, e.lineage, tree, e.time)] += 1
@@ -552,7 +553,7 @@ def test_a_nucleotide_gene_presence_driver_realises_the_multiplier_it_was_given(
             lineage_time[state] += _driver_integral(traj, tree,
                                                     lambda v, want=state: float(v == want))
         trait = simulate_discrete(tree, states=["x", "y"], start="x", seed=s,
-                                  switch=base * DrivenBy(presence, factors))
+                                  switch=base * ScaledBy(presence, factors))
         for e in trait.events:
             if e.kind == "on_branch":
                 seen[traj.value(e.lineage, e.time)] += 1
@@ -597,7 +598,7 @@ def test_a_gc_driver_realises_the_multiplier_it_was_given():
             plain_time[name] += base * _driver_integral(traj, tree,
                                                         lambda v, k=holds: float(k(v)))
         trait = simulate_discrete(tree, states=["x", "y"], start="x", seed=s,
-                                  switch=base * DrivenBy(gc, Curve(response), step=step))
+                                  switch=base * ScaledBy(gc, Curve(response), step=step))
         for e in trait.events:
             if e.kind == "on_branch":
                 value = float(traj.value(e.lineage, e.time))
@@ -629,7 +630,7 @@ def test_a_joint_rate_realises_the_multiplier_it_was_given():
     splits, lineage_time = Counter(), Counter()
 
     for s in range(60):
-        run = simulate_joint(birth=base * DrivenBy("trait", factors),
+        run = simulate_joint(birth=base * ScaledBy("trait", factors),
                              trait=discrete(states=list(factors), switch=0.4),
                              n_extant=120, seed=s)
         for segments in run.trait.history.values():
@@ -1080,7 +1081,7 @@ def test_a_trait_driving_the_substitution_rate_is_integrated_across_the_branch()
         tree, genomes = _one_copy_per_lineage(n_extant=20, families=1, seed=seed)
         habitat = simulate_discrete(tree, states=list(factors), switch=switch, start="hot", seed=seed)
         run = simulate_sequences(genomes, model=jc69(), length=1,
-                                 substitution=base * DrivenBy(habitat, factors), seed=seed)
+                                 substitution=base * ScaledBy(habitat, factors), seed=seed)
         lengths = {int(i): float(v)
                    for i, v in label.findall(run.species_phylogram["complete"])}
 
@@ -1480,7 +1481,7 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
 
     # One row covers two engines — "Genomes, family and ordered" — and only family's tuple was ever
     # checked against it, so the row was free to be false for ordered, and for a while it was: it
-    # listed DrivenBy while the ordered engine refused it. Assert the two agree, and the shared row
+    # listed Driven while the ordered engine refused it. Assert the two agree, and the shared row
     # cannot lie again about either.
     assert set(ORDERED) == set(GENOMES), (
         f"appendix A lists family and ordered under one row, but they wire "

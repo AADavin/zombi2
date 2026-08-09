@@ -24,7 +24,7 @@ The realisation differs from the serial reference engine for a given seed (a dif
 draw — the "A" decision). Everything the family resolution accepts runs here: duplication / transfer /
 loss / origination, every recipient rule, skyline ``OnTime``, the family cap, a per-family draw
 heterogeneity, ``self_transfer``, ``replacement``, named families — and a
-**conditioned** rate, which does not couple families either: a ``DrivenBy`` driver was grown before
+**conditioned** rate, which does not couple families either: a ``Driven`` driver was grown before
 this run and is an input to it, so a lineage's factor is the same number whichever family is asking.
 The workers thread the driver trajectories with the rest of the context. The engine still *has* a
 loud fallback, for the next model that genuinely couples families.
@@ -36,6 +36,7 @@ import bisect
 import heapq
 import math
 import os
+import pathlib
 import shutil
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -49,6 +50,7 @@ from ..rng import seed_sequence
 from ._live import enter, retire, weighted_index
 from ._transfer import mean_root_to_tip, recipient_index
 from .events import EVENTS_HEADER, GeneEdge, event_rows, gene_label, node_label
+from .._runtime.outputs import fresh_dirs
 from .gene_trees import gene_trees_from_edges, write_gene_trees
 
 
@@ -57,7 +59,7 @@ def _unsupported_reason(dup, tra, los, org, transfer_to) -> str | None:
     serial loop, loudly), or ``None`` when it can.
 
     Nothing is left in this list. **Conditioning does not couple families**, which is what makes the
-    decomposition survive it: a ``DrivenBy`` rate reads a driver that was grown *before* this run and
+    decomposition survive it: a ``Driven`` rate reads a driver that was grown *before* this run and
     is an input to it, so a lineage's factor at time ``t`` is the same number whichever family is
     asking, and no family can influence another through it. The workers thread the driver
     trajectories, and a ``Clades`` recipient rule threads the same way — clade membership is a fact
@@ -174,7 +176,7 @@ class FamilyContext:
     death_times: list
     death_nodes: list
     cross2: list
-    #: driver key -> DriverTrajectory, for the rates a DrivenBy conditions. Resolved once in
+    #: driver key -> DriverTrajectory, for the rates a Driven conditions. Resolved once in
     #: `simulate_genomes_family()`, before the engines split, and shipped to each worker with the rest
     #: of the context — a trajectory is per-lineage segment lists, so it pickles like any other data.
     trajs: dict
@@ -183,7 +185,7 @@ class FamilyContext:
     to_traj: object
     #: lineage -> its named clade, for a Clades recipient rule; ``None`` otherwise
     group_of: object
-    #: which of duplication / transfer / loss carry a DrivenBy — the per-lineage path is taken only
+    #: which of duplication / transfer / loss carry a Driven — the per-lineage path is taken only
     #: for those, so an unconditioned run keeps the pooled arithmetic exactly as it was
     driven: dict
 
@@ -684,6 +686,10 @@ def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_fam
     per-chunk shards, concatenated in chunk order (so the files are byte-identical for any worker
     count), then the shards removed. Returns a `StreamedRun`."""
     os.makedirs(out_dir, exist_ok=True)
+    # `gene_trees/` is emptied first, as every other writer of a per-family directory does: a
+    # streamed run writes each family as it goes rather than through `.write()`, so it skipped this
+    # and a re-run with fewer families left the previous run's trees sitting beside the new ones.
+    fresh_dirs(pathlib.Path(out_dir), ("gene_trees",), flat=False)
     shard_dir = os.path.join(out_dir, "_shards")
     os.makedirs(shard_dir, exist_ok=True)
     extant_ids = sorted(n.id for n in tree.extant_leaves())

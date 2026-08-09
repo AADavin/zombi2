@@ -35,7 +35,7 @@ from . import modifiers as _modifiers
 from . import values as _values
 from . import verbs as _verbs
 from . import scope as _scope
-from .rate import Rate
+from .rate import Rate, RateCompositionError
 
 #: the names an expression may call — the scope wrappers, the modifiers, and the mappings.
 #: The abstract bases (``Scope``, ``Modifier``, ``Mapping``) are deliberately absent: they are not
@@ -49,7 +49,7 @@ _NAMES: dict[str, type] = {
     **{n: getattr(_verbs, n) for n in _verbs.WRITABLE},
     "Table": _mapping.Table,
     "Scalar": _mapping.Scalar,
-    "Between": _mapping.Between,  # the choice's kernel: DrivenBy(driver, Between({(a, b): w}))
+    "Between": _mapping.Between,  # the choice's kernel: ScaledBy(driver, Between({(a, b): w}))
 }
 
 #: the optional Python qualifiers — ``mod.OnTime(...)`` / ``scope.Global(...)`` read as themselves
@@ -86,7 +86,22 @@ def _fail(message: str, text: str) -> RateSyntaxError:
     return RateSyntaxError(f"{message}\n  in the rate {text!r}")
 
 
+#: Names that were the written form and are not any more, each with the sentence a reader needs.
+#: A difflib guess would offer one of the three verbs at random; which one is right depends on what
+#: the rate is attached to, so the message says all three and what each is for.
+_RETIRED = {
+    "DrivenBy": ("write the verb that says what the number does: ScaledBy(driver, mapping) on a "
+                 "rate or an extent, Weights(driver, mapping) on transfer_to, SetBy(driver, "
+                 "mapping) to replace the base rather than scale it"),
+    "ByFamily": ("write Drawn(per='family', spread=...)"),
+    "ByLineage": ("write Drawn(per='lineage', spread=...)"),
+    "FromParent": ("write Inherited(per='lineage', spread=...)"),
+}
+
+
 def _unknown_name(name: str, text: str) -> RateSyntaxError:
+    if name in _RETIRED:
+        return _fail(f"{name} is no longer a rate name — {_RETIRED[name]}", text)
     close = difflib.get_close_matches(name, _NAMES, n=1, cutoff=0.6)
     hint = f" — did you mean {close[0]!r}?" if close else ""
     scopes = ", ".join(n for n in _NAMES if n in _scope.__all__)
@@ -117,7 +132,15 @@ def _node(node: ast.AST, text: str):
         left, right = _node(node.left, text), _node(node.right, text)
         try:
             return left * right
-        except TypeError:                         # e.g. a list or a string on one side of the '*'
+        except TypeError as e:
+            # `SetBy.__rmul__` and `Rate.__mul__` raise TypeError with a message written for exactly
+            # this mistake — "SetBy replaces the base, so there is no base to write in front of it".
+            # Replacing it with the generic one below threw away the sentence that says what to do.
+            # Only ours, told apart by its class rather than by the operand types: two grammar
+            # objects can also fail with CPython's own "unsupported operand type(s)" — `Rate * Rate`,
+            # `PerCopy * PerCopy` — and that message says nothing a reader of a rate can act on.
+            if isinstance(e, RateCompositionError):
+                raise _fail(str(e), text) from None
             raise _fail(
                 f"cannot compose {type(left).__name__} with {type(right).__name__} — '*' puts a "
                 f"modifier on a base or a scope", text) from None
@@ -204,7 +227,7 @@ def parse_rate(text: object):
         raise RateSyntaxError(f"a rate must be a number or an expression, got {text!r}")
     if not text.strip():
         raise RateSyntaxError("a rate cannot be empty")
-    # A backslash in a path is not an escape. `DrivenBy('C:\\Users\\me\\t.tsv', …)` is well formed to
+    # A backslash in a path is not an escape. `ScaledBy('C:\\Users\\me\\t.tsv', …)` is well formed to
     # the person who pasted it and a truncated \\UXXXXXXXX escape to Python's parser, and `C:\\temp`
     # is worse — it parses, silently, as a tab. But an expression may equally have its backslashes
     # already escaped, which is what repr() of a path gives, and that must be left alone. There is no
@@ -253,11 +276,24 @@ def written_form(spec: object) -> str:
     if isinstance(spec, _scope.Scope):
         return f"{type(spec).__name__}({float(spec.base)!r})"
     if isinstance(spec, _modifiers.Modifier):
+        # A `SetBy` replaces the base, so writing one in front of it produces the very expression
+        # `SetBy` refuses — and that expression is what a run's log records, so the record of the
+        # model was one that could not be run again.
+        if isinstance(spec, _modifiers.SetBy):
+            return repr(spec)
         return f"1.0 * {spec!r}"
     if isinstance(spec, Rate):
+        # SPEC §5: a replaced base is written first, because anything to its left is a base it would
+        # discard. `sorted` is stable, so the factors keep the order they were written in.
+        mods = sorted(spec.modifiers, key=lambda m: not isinstance(m, _modifiers.SetBy))
+        if mods and isinstance(mods[0], _modifiers.SetBy):
+            # no head: the driver supplies the number. The scope goes with it and loses nothing —
+            # a scope cannot wrap a `SetBy` (there is no base for it to wrap), so the scope here is
+            # always the level's default, which reading the text back at that level restores.
+            return " * ".join(repr(m) for m in mods)
         head = (f"{type(spec.scope).__name__}({float(spec.base)!r})" if spec.scope is not None
                 else repr(float(spec.base)))
-        return " * ".join([head, *(repr(m) for m in spec.modifiers)])
+        return " * ".join([head, *(repr(m) for m in mods)])
     return repr(spec)
 
 

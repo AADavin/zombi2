@@ -31,7 +31,7 @@ of chromosomes) and the segmental, position-aware mutators, plus the ``rearrange
 ``chromosome_events`` logs. The nucleotide resolution (genes/intergenes, indels) is
 `simulate_genomes_nucleotide()`.
 
-**A rate here may be driven by another level** (``DrivenBy``, SPEC §2 and §5) — and so may an extent
+**A rate here may be driven by another level** (``ScaledBy``, SPEC §2 and §5) — and so may an extent
 (SPEC §6). A driven rate is *per lineage*: it is summed over the living lineages, each read with its
 own driver value, and the lineage an event lands on is then drawn with those same weights. Because
 the gene-level rates are **per copy**, each lineage's weight carries its own gene count, so the pick
@@ -58,7 +58,7 @@ from ..rates.driver import check_mapping_fires, resolve_driver
 from ..rng import stream
 from ..rates.extent import Extent, as_extent
 from ..rates.mapping import check_not_a_kernel
-from ..rates.modifiers import (describe, DRAWN, DrivenBy, OnTime, SetBy, cell_name, is_implemented,
+from ..rates.modifiers import (describe, DRAWN, Driven, OnTime, SetBy, cell_name, is_implemented,
                                values_at_birth)
 from ..rates.rate import Rate, as_rate
 from ..rates.scope import PerChromosome, PerCopy, PerLineage
@@ -77,19 +77,19 @@ from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
 from .profiles import Profiles, profiles_from_genomes
 
 #: The rate grammar this engine supports (SPEC §5) — read by the gate below and by the CLI's help, so
-#: a modifier is never advertised without being implemented. The same three the family core takes,
-#: because the two are the same model at two resolutions: ``OnTime`` (a skyline in time), ``DrivenBy``
-#: (a conditioned or joint driver) and a per-family draw (per-family heterogeneity, weighted on the segment
-#: an event covers rather than on the gene it started from — SPEC §6). One combination is refused: see
-#: the gate.
-IMPLEMENTED_MODIFIERS = (OnTime, DrivenBy, SetBy, (DRAWN, "family"))
+#: a modifier is never advertised without being implemented. The same four the family core takes,
+#: because the two are the same model at two resolutions: ``OnTime`` (a skyline in time), ``ScaledBy``
+#: (a conditioned or joint driver), ``SetBy`` (a driver that replaces the base rather than scaling
+#: it) and a per-family draw (per-family heterogeneity, weighted on the segment an event covers
+#: rather than on the gene it started from — SPEC §6). One combination is refused: see the gate.
+IMPLEMENTED_MODIFIERS = (OnTime, Driven, SetBy, (DRAWN, "family"))
 
 #: What an **extent** takes here (SPEC §6). An extent takes the modifiers a rate does, and at this
 #: resolution that is one fewer: a per-family draw attaches to the *contents*, and an extent is drawn
 #: before the run's genes are known — a run covers several families, so there is no one family to
 #: draw a factor for. The two lists are declared separately rather than hidden in an ``if``, because
 #: the difference is a modelling fact, not an implementation detail.
-IMPLEMENTED_EXTENT_MODIFIERS = (OnTime, DrivenBy)
+IMPLEMENTED_EXTENT_MODIFIERS = (OnTime, Driven)
 
 
 @dataclass(frozen=True)
@@ -295,7 +295,7 @@ class OrderedGenomesResult:
         ``has_family`` answers for one node; this answers for every lineage at every instant, which
         is what a driven rate needs::
 
-            switch=0.1 * mod.DrivenBy(g.presence("tox"), {"present": 5.0, "absent": 1.0})
+            switch=0.1 * ScaledBy(g.presence("tox"), {"present": 5.0, "absent": 1.0})
         """
         from .presence import GenePresence
         if name not in self.family_names:
@@ -740,7 +740,7 @@ def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ext_ctx, w=None):
     ``ext_ctx(k)`` builds the context the extent is sampled in, per lineage — it cannot be built
     before the lineage is known, because a driven extent is read on the lineage the event lands on.
 
-    - **driven** (``w`` given, the per-lineage totals of a `DrivenBy` rate) — the lineage is drawn by
+    - **driven** (``w`` given, the per-lineage totals of a `Driven` rate) — the lineage is drawn by
       its own rate, then a gene uniformly inside it. Two stages, because a per-copy rate's per-lineage
       total is ``base × copies_k × factor_k``: the gene count is already in the weight, so within the
       lineage every gene is equally likely.
@@ -748,7 +748,7 @@ def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ext_ctx, w=None):
       `_pick_run_by_family()`, so the weight reaches the segment rather than its starting gene.
     - **plain** — one uniform draw over the whole live gene pool.
 
-    The two weighted paths are mutually exclusive: the engine refuses a per-family draw and ``DrivenBy`` in
+    The two weighted paths are mutually exclusive: the engine refuses a per-family draw and ``ScaledBy`` in
     one run, because combining them would weight by the product of a lineage factor and a segment
     factor, which is a model neither of them is on its own."""
     if w is not None:
@@ -939,7 +939,7 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, ne
             return 0
         i = int(rng.integers(npool))
         kr = i if (self_transfer or i < kd) else i + 1
-    else:  # the weighted rules (Distance / Clades / DrivenBy) weigh every candidate — O(alive)
+    else:  # the weighted rules (Distance / Clades / Driven) weigh every candidate — O(alive)
         cand = [k for k in range(len(alive)) if self_transfer or k != kd]
         if not cand:                                   # the uniform branch's npool guard, restated
             return 0
@@ -1155,7 +1155,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     "toxin")``), as in the family core; ``replacement`` / ``self_transfer`` behave as in the family
     core. So does ``transfer_to``, which **chooses who receives** — ``"uniform"``,
     ``"distance"`` / ``Distance(decay=)`` (closer relatives likelier), ``Clades({...}, Between({...}))``
-    (weight by the donor's and recipient's named clade) or ``mod.DrivenBy(driver, mapping)`` (weight by
+    (weight by the donor's and recipient's named clade) or ``ScaledBy(driver, mapping)`` (weight by
     another level; see below). What moves is a block of genes rather than a single copy, and the block
     arrives whole, so the rule chooses the recipient lineage exactly as it does at the family
     resolution.
@@ -1169,7 +1169,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     genealogy, rooted at the initial and de-novo originations. Deterministic given ``seed``.
 
     **Conditioning (a trait drives a rate).** Any rate here may be *driven by another level* —
-    ``inversion = 0.3 * mod.DrivenBy(habitat, {"host": 4.0, "free": 1.0})`` scales each lineage's
+    ``inversion = 0.3 * ScaledBy(habitat, {"host": 4.0, "free": 1.0})`` scales each lineage's
     inversion rate by the habitat on that branch, read from a trait grown first (the finished
     ``TraitsResult``, or the ``trait_events.tsv`` it wrote). A driven rate is then *per lineage*: it is
     summed over the living lineages, each read with its own gene count, chromosome count and driver
@@ -1178,7 +1178,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     mid-branch switch of the driver rather than averaging over a branch (SPEC §2). For ``transfer``
     the driven lineage is the **donor**, so a driven ``transfer`` says how often a lineage *donates*.
 
-    **Conditioning (a trait drives who receives).** ``transfer_to = mod.DrivenBy(driver, mapping)`` is
+    **Conditioning (a trait drives who receives).** ``transfer_to = Weights(driver, mapping)`` is
     the other half, and a different model: the mapping's numbers are per-candidate **weights**, not
     rate multipliers, so they leave the total amount of transfer alone and only redistribute it
     (SPEC §5, a weight, not a rate). Candidate lineage ``k`` gets weight ``mapping(driver value on k now)``
@@ -1190,19 +1190,19 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     breakpoint and composes freely with a driven ``transfer`` rate.
 
     **Conditioning (a trait drives an extent).** An extent takes the same modifiers a rate does
-    (SPEC §6) — ``inversion_extent = 4 * mod.DrivenBy(habitat, {"host": 3.0, "free": 1.0})`` makes a
+    (SPEC §6) — ``inversion_extent = 4 * ScaledBy(habitat, {"host": 3.0, "free": 1.0})`` makes a
     host-restricted lineage invert *longer runs of genes*, which is a different statement from raising
     its inversion rate. An extent's modifier is read at the instant an event fires, so it changes how
     much a run takes and never how often one starts, and it adds no Gillespie breakpoint.
 
-    a per-family draw and ``DrivenBy`` cannot be set in the same run: one weights lineages by a driver and
+    a per-family draw and ``ScaledBy`` cannot be set in the same run: one weights lineages by a driver and
     the other weights the segment by what it covers.
     """
     tree = as_tree(tree, level="genomes")
     labels = _topologies(chromosomes, topology)
     n_initial_chrom = chromosomes
     # this slice implements each event's default scope and the three modifiers IMPLEMENTED_MODIFIERS
-    # declares: OnTime (skyline), DrivenBy (a conditioned/joint driver, per lineage) and a per-family draw —
+    # declares: OnTime (skyline), Driven (a conditioned/joint driver, per lineage) and a per-family draw —
     # the last with the weight on the SEGMENT rather than on its starting gene (SPEC §6, and
     # _pick_run_by_family). A scope override or a clade-drift modifier is a later slice, so reject it
     # rather than silently mis-scale (see the family engine for the reasoning).
@@ -1234,12 +1234,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     f"{label} carries a per-family draw on a {type(rate.scope).__name__} scope. A per-family "
                     f"weight has to reach the genes an event covers, so it applies to the per-copy "
                     f"gene events only — not to the chromosome tier, which acts on whole replicons.")
-            if isinstance(m, DrivenBy):
+            if isinstance(m, Driven):
                 check_not_a_kernel(m.mapping, label=label)
             if not is_implemented(m, IMPLEMENTED_MODIFIERS, "genomes.ordered"):
                 raise ValueError(
                     f"{label} carries {describe(m)}, which the ordered genome engine does not "
-                    f"support. It takes OnTime (skyline), DrivenBy (a conditioned/joint driver) and "
+                    f"support. It takes OnTime (skyline), ScaledBy (a conditioned or joint driver) and "
                     f"Drawn(per='family') (per-family heterogeneity, weighted on the segment an event covers). "
                     f"Clade drift is not implemented yet."
                 )
@@ -1254,21 +1254,21 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     for label, r in _rates.items():
         r.check_one_base(label)
     if any(m.reads == (DRAWN, "family") for r in _rates.values() for m in r.modifiers) and \
-            any(isinstance(m, DrivenBy) for r in _rates.values() for m in r.modifiers):
+            any(isinstance(m, Driven) for r in _rates.values() for m in r.modifiers):
         raise ValueError(
-            "a per-family draw and DrivenBy on the same run is a later slice: one weights lineages by a "
+            "a per-family draw and a driver on the same run is a later slice: one weights lineages by a "
             "driver and the other weights the segment by what it covers, so combining them means "
             "weighting by the product. Use one or the other for now.")
     # per-event extent distributions (segment size in genes); a bare number is the mean, None a single gene
     def _ext_spec(spec, label):
         """One event's extent (SPEC §6): ``base × modifiers``, no scope, in **genes** here. An extent
         takes the modifiers a rate takes at this resolution minus a per-family draw (see
-        `IMPLEMENTED_EXTENT_MODIFIERS`), and they scale the size drawn — ``OnTime`` in time, ``DrivenBy``
+        `IMPLEMENTED_EXTENT_MODIFIERS`), and they scale the size drawn — ``OnTime`` in time, ``ScaledBy``
         on the lineage the event lands on."""
         e = as_extent(spec)
         rate_slot = label.removesuffix("_extent")
         for m in e.modifiers:
-            if isinstance(m, DrivenBy):
+            if isinstance(m, Driven):
                 check_not_a_kernel(m.mapping, label=label)
             if m.reads == (DRAWN, "family"):
                 raise ValueError(
@@ -1314,16 +1314,16 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # the run is refused when it would take *any* of them past the quota (see _run_over_cap).
     cap = resolve_max_family_size(max_family_size)
 
-    # Conditioning: a rate carrying DrivenBy reads a driver **per lineage**, so its rate stops being
+    # Conditioning: a rate carrying ScaledBy reads a driver **per lineage**, so its rate stops being
     # one number for the whole live set and becomes one per lineage. Same machinery as the other two
     # resolutions — each driver resolves once into a DriverTrajectory keyed by the shared species node
     # id, from a file or an in-memory trait result. With no driven rate and no driven extent this is
     # empty and the loop stays exactly the pooled one, so an undriven run is untouched.
-    driven = {label: [m for m in r.modifiers if isinstance(m, DrivenBy)]
+    driven = {label: [m for m in r.modifiers if isinstance(m, Driven)]
               for label, r in _rates.items()}
-    ext_driven = {label: [m for m in e.modifiers if isinstance(m, DrivenBy)]
+    ext_driven = {label: [m for m in e.modifiers if isinstance(m, Driven)]
                   for label, e in _extents.items()}
-    by_key: dict = {}                   # driver key → its DrivenBy (deduped: one driver resolves once)
+    by_key: dict = {}                   # driver key → its Driven (deduped: one driver resolves once)
     for mods in (*driven.values(), *ext_driven.values()):
         for m in mods:
             by_key.setdefault(m.key, m)
@@ -1363,7 +1363,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         return g
 
     # Per-family multipliers, drawn once when a family is created and fixed for its whole life,
-    # exactly as at the family resolution: one a per-family draw object read by two rates is one draw for
+    # exactly as at the family resolution: one `Drawn` object read by two rates is one draw for
     # both, two objects are two draws. What differs here is where the weight lands — on the run an
     # event covers, not on the gene it started from (SPEC §6). Empty unless some rate carries one.
     fam_by = {"duplication": tuple(m for m, _ in dup.carried_modifiers(unit="family")),
@@ -1453,7 +1453,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         # the weights are kept, because the affected lineage must then be drawn with them too. The
         # gene count sits inside the weight, which is what makes a driven per-copy rate a two-stage
         # pick (a lineage, then a gene in it) rather than the one-stage lineage draw a per-lineage
-        # rate takes. ByFamily and DrivenBy cannot both be set, so `w` and `fw` never coexist.
+        # rate takes. A per-family draw and a Driven cannot both be set, so `w` and `fw` never
+        # coexist.
         w: dict[str, list[float]] = {}
         if any_driven:
             drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(k_alive)]
@@ -1515,10 +1516,20 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             It cannot be built before the lineage is drawn, because a driven extent is read on the
             **acting** lineage at the instant the event fires — which is also why an extent adds no
             Gillespie breakpoint and never enters the horizon above (SPEC §6). With no driven extent
-            this is the ``{"time": t}`` the skyline has always been read from, unchanged."""
+            this is the same context the rates were read in.
+
+            The rest of `ctx` — the gene, lineage and chromosome counts — goes with it, because
+            `Modifier.implemented_for` promises this engine supplies them and a modifier of your own
+            is admitted onto an extent by the same gate that admits it onto a rate. Handing an
+            extent a thinner context meant one gate certifying two different contracts: a modifier
+            written the documented way read zeros, and one with a required keyword died mid-run."""
+            # `ctx` was snapshotted at the top of the loop, before `t` advanced to the firing
+            # instant, so `time` has to be taken fresh: an extent's own breakpoints are kept out of
+            # the horizon, so a schedule's breakpoint routinely falls inside a stretch, and reading
+            # the stale `t` would size the event on the wrong side of it.
             if not any_ext_driven:
-                return {"time": t}
-            return {"time": t,
+                return {**ctx, "time": t}
+            return {**ctx, "time": t,
                     "drivers": {key: resolved[key].value(alive[k], t) for key in resolved}}
 
         if total > 0.0:

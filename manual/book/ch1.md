@@ -38,22 +38,25 @@ ZOMBI2 needs Python 3.10 or newer and depends only on NumPy and tqdm:
 pip install zombi2
 ```
 
-`zombi2 --version` confirms the install, and `zombi2 -h` lists the commands, one per level.
+`zombi2 --version` confirms the install, and `zombi2 -h` lists the commands: one per level, plus `joint`, which grows a tree and the level driving it together (Chapter 10), and `tools`, analyses that read a finished run (Appendix C).
 
 ZOMBI2 is pure Python over NumPy, with no compiled part to build, and the test suite runs on **Linux,
 macOS and Windows** on every change, so the same command does the same thing on all three. Two
 things differ on Windows and are worth knowing before they bite:
 
-- **Paths in a rate expression.** A driver path goes inside the rate, and ZOMBI2 reads the
-  backslashes as written, so `DrivenBy('C:\Users\me\trait_events.tsv', {...})` works as pasted.
-  Forward slashes work too, and Windows accepts them everywhere.
+- **Paths in a rate expression.** A driver path goes inside the rate. On the command line ZOMBI2
+  reads the backslashes as written, so `ScaledBy('C:\Users\me\trait_events.tsv', {...})` works as
+  pasted. In a Python script the same line is Python source, and Python reads `\U` as an escape, so
+  it is a `SyntaxError` — worse, `C:\temp` is read quietly as `C:` followed by a tab. Write the path
+  as a raw string there: `r'C:\Users\me\trait_events.tsv'`. Forward slashes work in all three
+  places, and Windows accepts them.
 - **Paths in a `--params` file.** TOML, not ZOMBI2, reads that file, and TOML's ordinary `"…"` string
   treats a backslash as an escape, so `C:\Users` fails there with a message about a hex value. Put a
   value containing a path in a TOML **literal** string instead, `'''…'''`, which is taken exactly as
   written:
 
   ```toml
-  transfer-to = '''DrivenBy('C:\Users\me\trait_events.tsv', {'competent': 2.0})'''
+  transfer-to = '''Weights('C:\Users\me\trait_events.tsv', {'competent': 2.0})'''
   ```
 
 ## For the impatient
@@ -68,25 +71,28 @@ zombi2 species out/
 zombi2 genomes out/
 ```
 
-`out/` now holds one directory per level:
+`out/` now holds a report of the whole run, and one directory per level:
 
 ```
+out/run.zombi2                         every file the run wrote, and how to reproduce it
 out/species/    species_complete.nwk   the tree, extinct lineages kept
                 species_extant.nwk     the survivors only
                 species_events.tsv     every speciation and extinction, with its time
                 species_fates.tsv      which tips survived, died out, or went unsampled
+                species_summary.json   what the run produced, in numbers
                 species.log            what was run, and with which parameters
 out/genomes/    genome_events.tsv      every duplication, transfer, loss and origination
                 genomes.tsv            the genes each species ends up with, ancestors included
-                profiles.tsv           gene-family copy numbers per species
+                profiles.tsv           gene-family copy numbers, extant species only
                 initial_genome.tsv     the genome the run started from
                 gene_trees/            one true gene tree per family
+                genome_summary.json    what the run produced, in numbers
                 genomes.log
 ```
 
-Each level keeps to its own directory, run log included, and outputs that run to one file per gene family get a directory of their own inside it, so a few hundred families stay legible. `--flat` writes everything straight into `out/` instead; `--quiet` turns off the progress bar.
+Open `run.zombi2` first: it names every file the run wrote and carries the commands that rebuild it. Below it each level keeps to its own directory, run log included, and outputs that run to one file per gene family get a directory of their own inside it, so a few hundred families stay legible. `--flat` writes every file straight into `out/` instead, and writes no run report; `--quiet` turns off the progress bar.
 
-Here is the same run from Python. The rates are written out, because the defaults above belong to the command line: a function has no way to tell you it chose them for you, so the library asks.
+Here is the same run from Python. The rates are written out because the defaults above are the command line's: in Python every genome rate starts at 0, so a call that names none of them still runs, and gives a history with no duplication, transfer or loss — just the families it started with, copied down the tree.
 
 ```python
 from zombi2 import species, genomes

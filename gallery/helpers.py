@@ -409,22 +409,32 @@ def _zombi(*args) -> None:
 
 
 def _stale(run: str) -> bool:
-    """Is this cached run older than the ZOMBI2 that would build it now?
+    """Is this cached run older than the ZOMBI2 that would build it now — and if so, **clear it**?
 
     The caches under ``figures/_data/`` used to be guarded on "does the file exist", which never
     expires. Four of them survived the one-row-per-event redesign holding the *old* columns
     (``lineage`` · ``copy`` · ``parent`` · ``recipient`` · ``donor``), so the events figure read a
     format zombi2 had not written in months and the rebuild tracebacked. Stamping the cache with the
     version that produced it is what makes it a cache rather than a fossil.
+
+    Clearing it is the other half, and it was missing: the rebuild writes with the CLI, and a run
+    directory that already holds a downstream level refuses a re-run of the level above it — "would
+    leave them stale" — which is right, and meant every stale cache failed to rebuild and the
+    gallery could not be regenerated at all. An expired cache is exactly the thing to throw away, so
+    it is thrown away here rather than at each of the five call sites, none of which would have
+    remembered.
     """
     from zombi2 import __version__
 
     stamp = os.path.join(run, ".zombi2-version")
     try:
         with open(stamp) as fh:
-            return fh.read().strip() != __version__
+            if fh.read().strip() == __version__:
+                return False
     except OSError:
-        return True
+        pass
+    shutil.rmtree(run, ignore_errors=True)
+    return True
 
 
 def _stamp(run: str) -> str:
@@ -492,7 +502,7 @@ def phylo_run() -> str:
         _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 40,
                "--duplication", 0.15, "--loss", 0.12, "--seed", 9)
         _zombi("sequences", run, "--model", "hky85", "--kappa", 2.0, "--length", 500,
-               "--substitution", "1.0 * Drawn(per='lineage')(spread=0.6)", "--seed", 7)
+               "--substitution", "1.0 * Drawn(per='lineage', spread=0.6)", "--seed", 7)
     return _stamp(run)
 
 
@@ -607,11 +617,11 @@ def _conditioning_frame(ax, driver, target, target_base, target_sub):
     between a discrete driver (a per-state multiplier) and a continuous one (a value→factor curve).
 
     The arrow's verb is **active** and runs the way the arrow does: *habitat drives loss*. It used to
-    read ``DrivenBy``, which is passive, so an arrow drawn cause-to-effect carried a label naming the
+    read ``DrivenBy``, which was passive, so an arrow drawn cause-to-effect carried a label naming the
     relation effect-to-cause — read along the arrow it said "habitat is driven by loss", the opposite
-    of the model. ``DrivenBy`` now sits under the TARGET instead, which is both where it reads
-    correctly and where it is actually typed. A **choice** (`transfer_to`) has no base, so it
-    shows the modifier alone. That is the rule: a choice takes the modifier on its own."""
+    of the model. The verb now sits under the TARGET instead, which is both where it reads correctly
+    and where it is actually typed: ``ScaledBy`` on a rate, ``Weights`` on a choice. A **choice**
+    (`transfer_to`) has no base, so it shows the modifier alone."""
     from matplotlib.patches import FancyArrowPatch, Rectangle
 
     ax.set_xlim(0, 660)
@@ -634,11 +644,11 @@ def _conditioning_frame(ax, driver, target, target_base, target_sub):
                            lw=1.6, joinstyle="round"))
     if target_base is None:
         ax.text(555, 126, target, ha="center", va="center", color=_INK, fontsize=15)
-        written = f"DrivenBy({driver}, …)"
+        written = f"ScaledBy({driver}, …)"
     else:
         ax.text(555, 120, target, ha="center", va="center", color=_INK, fontsize=15)
         ax.text(555, 142, f"base {target_base}", ha="center", va="center", color=_DIM, fontsize=13)
-        written = f"{target_base} * DrivenBy({driver}, …)"
+        written = f"{target_base} * ScaledBy({driver}, …)"
     # the expression this diagram is a picture of, under the thing you write it on
     ax.text(555, 176, written, ha="center", va="center", color=_DIM, fontsize=10.5,
             family="monospace")

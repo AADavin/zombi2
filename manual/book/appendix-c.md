@@ -16,13 +16,14 @@
 trees, beside the run under `genomes/`. `--format` is required and takes several at once:
 `--format homology recphylo`. Family and ordered runs rebuild their gene trees from the event log; a
 nucleotide run recovers them from the genome, one file per **declared gene** (the intergenic spacer is
-not a gene, so it gets none). `--from PATH` reads a run elsewhere; `--flat` writes straight into the
-output directory.
+not a gene, so it gets none). A nucleotide run that declared no genes at all is one uninterrupted
+intergene, and `format` refuses it: there is nothing to relate. `--from PATH` reads a run elsewhere;
+`--flat` writes straight into the output directory.
 
 | Output | File | Format | Ask for | Contents |
 |-----------|-----------------|-------|-----|------------------------|
 | Homology matrix | `homology_fam<f>.tsv` | TSV | `--format homology` | one **n×n** table per family (n the extant leaves), in `genomes/homology/`. Row and column headers are the leaves `n<species>_g<copy>`; each off-diagonal cell says how that pair diverged and whether transfer is in its history since — `S`, `D` or `T`, each optionally with an `x` (see below) — and the diagonal is `-`. Symmetric. A family with no surviving copy writes no table |
-| Marker table | `markers.tsv` | TSV | `--format markers` | **one row per family** for the whole run, a single file at `genomes/markers.tsv`: is it single-copy, is it universal, and does its true tree match the species tree |
+| Marker table | `markers.tsv` | TSV | `--format markers` | **one row per family that left a surviving copy**, a single file at `genomes/markers.tsv`: is it single-copy, is it universal, and does its true tree match the species tree |
 | recPhyloXML | `recphylo_fam<f>.xml` | XML | `--format recphylo` | one file per family, in `genomes/recphylo/`: that family's **complete** gene tree written inside the **complete** species tree, in the recPhyloXML format. Written for every family, extinct ones included |
 | extant-only reconciliation | `recphylo_fam<f>_{true,recoverable}.xml`, `family_origins.tsv` | XML + TSV | `--format recphylo --recphylo extant` | the same history projected onto what a dataset holds — the extant gene tree inside the extant species tree — written twice, and a table saying how each family entered |
 
@@ -170,11 +171,11 @@ action ignores fates and loads any tree.
 | Action | What it writes |
 |-----------------------------------|-------------------------------------------------|
 | `--prune` | the extant tree: the dead and unsampled lineages dropped, and the unifurcations they leave behind suppressed so the tree stays bifurcating |
-| `--round` | the tree snapped to exactly ultrametric, by extending the terminal branches to a common depth. `--tol` is the tolerance as a fraction of tree height (default `1e-3`); a wider tip-depth spread raises, because it is real tip-date signal, not rounding. Written round-trip exact: this is the flag whose whole promise is the exactness of the file. (Every tree ZOMBI2 writes now carries 12 significant digits, which is already well inside `ape::is.ultrametric()`'s tolerance — so an extant tree from a dated run no longer needs this flag to survive R. It is for trees that arrive near-ultrametric from somewhere else) |
+| `--round` | the tree snapped to exactly ultrametric, by extending the terminal branches to a common depth. `--tol` is the tolerance as a fraction of tree height (default `1e-3`); a wider tip-depth spread raises, because it is real tip-date signal, not rounding. Written round-trip exact: this is the flag whose whole promise is the exactness of the file. (A **species** tree is written at full precision — the shortest string that reads back as exactly the same float — which is well inside `ape::is.ultrametric()`'s tolerance, so an extant species tree from a dated run does not need this flag to survive R. A gene tree and a trait tree are written to seven significant figures, so those, and any tree that arrives near-ultrametric from somewhere else, are what this is for.) |
 | `--stem LEN` / `--stem-add LEN` | the branch above the crown set to `LEN`, or extended by `LEN`; nothing below the crown moves |
 | `--rescale-height H` / `--rescale-factor F` | every branch length scaled — so the root-to-tip height becomes `H`, or by a raw multiplier `F` |
-| `--red` | the RED-rescaled tree: node depths become their Relative Evolutionary Divergence (Parks et al. 2018), ultrametric on `[0, 1]` with the root at 0 and every tip at 1. `--red --values` writes a two-column `node<TAB>RED` table instead of a tree |
-| `--gamma` | Pybus & Harvey's γ, as `gamma<TAB><value>`: where the branching times sit relative to what a constant rate would give. Standard normal under constant-rate pure birth, so 0 is the null; it goes negative when speciation slows toward the present, because the branching times bunch up early. It reads waiting times, so the tree must be **dated and ultrametric** — `--prune` first, and do not pass a phylogram |
+| `--red` | the RED-rescaled tree: node depths become their Relative Evolutionary Divergence [@parks2018standardized], ultrametric on `[0, 1]` with the root at 0 and every tip at 1. `--red --values` writes a two-column `node<TAB>RED` table instead of a tree |
+| `--gamma` | Pybus and Harvey's γ [@pybus2000testing], as `gamma<TAB><value>`: where the branching times sit relative to what a constant rate would give. Standard normal under constant-rate pure birth, so 0 is the null; it goes negative when speciation slows toward the present, because the branching times bunch up early. It reads waiting times, so the tree must be **dated and ultrametric** — `--prune` first, and do not pass a phylogram |
 
 ```bash
 # drop the extinct lineages, extant tree to stdout
@@ -209,7 +210,10 @@ tips, printed as `<metric><TAB><value>` to stdout (or a file with `-o`). Pick th
 
 Tips are matched by **label** — the tip name for an external tree, or `n<id>` for a ZOMBI tree — so a
 true tree and an inferred tree line up by taxon whatever order their files list them in. The two trees
-must carry the same tip set: a differing leaf set is an error, not a partial score.
+must carry the same tip set, or `--restrict` prunes both to the taxa they share and scores them
+there, saying on stderr how many that left; fewer than three shared taxa is refused, since there is
+no clade to disagree about. Without `--restrict` a differing leaf set is an error, not a partial
+score.
 
 ```bash
 # Robinson–Foulds between a true tree and an inferred one over the same tips
@@ -225,9 +229,14 @@ family is **single-copy**, so the mapping is one-to-one; a family with two copie
 refused, naming the genomes at fault, rather than answered with a plausible number. Two trees of the
 same kind are left alone and nothing is printed.
 
+A family rarely sits in every genome, so the two tip sets usually still differ after that mapping,
+even when the family is single-copy. Pass `--restrict` to score them on the genomes the family
+occupies. `zombi2 tools format DIR --format markers` names the single-copy families to choose from.
+
 ```bash
-zombi2 tools treedist out/genomes/gene_trees/gene_tree_fam3_extant.nwk \
-                      out/species/species_extant.nwk --metric all
+# fam72 here is a single-copy family from out/genomes/markers.tsv
+zombi2 tools treedist out/genomes/gene_trees/gene_tree_fam72_extant.nwk \
+                      out/species/species_extant.nwk --metric all --restrict
 ```
 
 <!-- --8<-- [end:treedist] -->

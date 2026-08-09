@@ -104,7 +104,7 @@ def _rate(text: str):
 #: one gloss and one worked snippet per modifier, for the RATES help block. A modifier with no entry
 #: still lists (by name), so the help can never fall behind a level's ``IMPLEMENTED_MODIFIERS`` declaration
 #: of what it supports.
-#: ``DrivenBy`` carries no snippet: its driver is a *file* on a conditioned level and a *live level*
+#: ``ScaledBy`` carries no snippet: its driver is a *file* on a conditioned level and a *live level*
 #: name on ``joint``, so one snippet would be wrong on one of the two screens (it was — the joint help
 #: showed a filename, which ``joint`` rejects). A command that wants one passes ``example=``.
 _MODIFIER_HELP = {
@@ -118,7 +118,10 @@ _MODIFIER_HELP = {
                           "one independent draw per lineage — uncorrelated"),
     "drawn per family": ("Drawn(per='family', spread=0.5)",
                          "one independent draw per gene family — uncorrelated"),
-    "DrivenBy": (None, "the number is driven by an evolved value"),
+    "ScaledBy": (None, "an evolved value scales the base — a driver"),
+    # No snippet either, and for a sharper reason than ScaledBy's: `SetBy` takes no base, so the
+    # `1.0 * {snippet}` line above would print the one spelling it refuses.
+    "SetBy": (None, "an evolved value replaces the base, rather than scaling it"),
 }
 
 
@@ -147,9 +150,11 @@ def _rates_help(supported, flag: str, *, scopes: str | None = None, note: str | 
     if scopes:
         lines.append(f'    {flag} "{scopes}"')
     lines.append("  Modifiers this level takes (anything else is an error):")
+    # Wide enough for the longest name this level declares, so a long one cannot run into its gloss.
+    width = max((len(n) for n in names), default=0) + 2
     for name in names:
         entry = _MODIFIER_HELP.get(name)
-        lines.append(f"    {name:<20}{entry[1]}" if entry else f"    {name}")
+        lines.append(f"    {name:<{width}}{entry[1]}" if entry else f"    {name}")
     if note:
         lines += _wrap_note(note)
     return "\n".join(lines)
@@ -337,20 +342,20 @@ def warn(message: str) -> None:
 #: The fixed pipeline edges — a level → the levels that read its output *directly*. ``species`` feeds
 #: ``genomes`` and ``traits`` (both read the species tree); ``genomes`` feeds ``sequences`` (the gene
 #: trees). Re-running a level orphans everything reachable from it here, plus any level that recorded a
-#: DrivenBy *conditioning* on it (a dynamic edge — see `_conditioned_on()`).
+#: ScaledBy *conditioning* on it (a dynamic edge — see `_conditioned_on()`).
 _STRUCTURAL = {
     "species": ("genomes", "traits"),
     "genomes": ("sequences",),
 }
 
-#: Levels that can be conditioned on another level (they take a ``DrivenBy``), so they may carry
+#: Levels that can be conditioned on another level (they take a ``Driven``), so they may carry
 #: a ``conditioned_on`` record.
 _CONDITIONABLE = ("genomes", "sequences", "traits")
 
 #: Every level, in pipeline order — a stable order for listing them in a message.
 _LEVEL_ORDER = ("species", "genomes", "sequences", "traits")
 
-#: The marker a conditioned level writes, naming the levels it reads via ``DrivenBy`` (a rate or
+#: The marker a conditioned level writes, naming the levels it reads via ``ScaledBy`` (a rate or
 #: ``transfer_to``) — the dynamic half of the staleness graph (the fixed half is `_STRUCTURAL`).
 _CONDITIONED_ON_FILE = "conditioned_on"
 
@@ -364,7 +369,7 @@ def _level_present(run: str, level: str) -> bool:
 
 
 def _conditioned_on(run: str, level: str) -> set:
-    """The levels ``run/<level>/`` recorded a ``DrivenBy`` conditioning on (it reads their
+    """The levels ``run/<level>/`` recorded a ``Driven`` conditioning on (it reads their
     output), from the `_CONDITIONED_ON_FILE` marker — empty if it conditioned on nothing."""
     p = os.path.join(run, level, _CONDITIONED_ON_FILE)
     if not os.path.exists(p):
@@ -376,7 +381,7 @@ def _conditioned_on(run: str, level: str) -> set:
 def _rate_specs(value):
     """The rate specs inside one option's value, flattened. Most flags hold one; ``--switch`` may hold
     a ``{'a->b': rate}`` dict or a ``k x k`` matrix, each entry of which can carry its own
-    ``DrivenBy``. A reader that walked only the top level would record a driven run as an undriven
+    ``ScaledBy``. A reader that walked only the top level would record a driven run as an undriven
     one, and let its driver be re-run out from under it."""
     if isinstance(value, dict):
         for inner in value.values():
@@ -389,20 +394,20 @@ def _rate_specs(value):
 
 
 def _drivenby_drivers(spec):
-    """Every ``DrivenBy`` driver in a rate spec — whether ``spec`` is a bare ``DrivenBy`` (a recipient
-    weight like ``transfer_to``), a rate carrying ``DrivenBy`` modifiers, or a dict / matrix of either
+    """Every ``ScaledBy`` driver in a rate spec — whether ``spec`` is a bare ``ScaledBy`` (a recipient
+    weight like ``transfer_to``), a rate carrying ``Weights`` modifiers, or a dict / matrix of either
     (`_rate_specs`). A plain number yields none."""
-    from zombi2.rates.modifiers import DrivenBy
+    from zombi2.rates.modifiers import Driven
     for one in _rate_specs(spec):
-        if isinstance(one, DrivenBy):
+        if isinstance(one, Driven):
             yield one.driver
         for m in getattr(one, "modifiers", ()):
-            if isinstance(m, DrivenBy):
+            if isinstance(m, Driven):
                 yield m.driver
 
 
 def conditioned_levels(run: str, specs) -> set:
-    """Which of THIS run's levels the given specs are conditioned on — a same-run ``DrivenBy`` file
+    """Which of THIS run's levels the given specs are conditioned on — a same-run ``ScaledBy`` file
     maps to the level whose directory holds it (``run/traits/trait_events.tsv`` → ``traits``). A driver
     file outside the run does not count: re-running a level of this run cannot make it stale."""
     run_abs = os.path.abspath(run)
@@ -418,7 +423,7 @@ def conditioned_levels(run: str, specs) -> set:
 
 def record_conditioning(level_out: str, driver_levels) -> None:
     """Write (or clear) the `_CONDITIONED_ON_FILE` marker in a level's output directory: the
-    same-run levels it reads via ``DrivenBy``, so the guard knows re-running one of them orphans
+    same-run levels it reads via ``ScaledBy``, so the guard knows re-running one of them orphans
     this level. Removes a stale marker when a re-run conditions on nothing."""
     driver_levels = sorted(set(driver_levels))
     p = os.path.join(level_out, _CONDITIONED_ON_FILE)
@@ -432,7 +437,7 @@ def record_conditioning(level_out: str, driver_levels) -> None:
 def _stale_downstream(args, level: str) -> list:
     """The downstream levels already present that re-running ``level`` would orphan — everything
     reachable from it by a 'reads its output' edge (the fixed pipeline `_STRUCTURAL` plus recorded
-    ``DrivenBy`` conditioning), listed in pipeline order. Empty under ``--flat`` (not guarded)."""
+    ``ScaledBy`` conditioning), listed in pipeline order. Empty under ``--flat`` (not guarded)."""
     if getattr(args, "flat", False):
         return []
     run = args.run
@@ -641,13 +646,13 @@ def _log_value(value: object) -> str:
     """Render one parameter for the run log. A rate is recorded in its **written form**, so the log
     line can be pasted straight back into the flag (or a ``--params`` file) rather than being a repr
     the reader has to translate."""
-    from zombi2.rates.modifiers import DrivenBy, Modifier
+    from zombi2.rates.modifiers import Driven, Modifier
     from zombi2.rates.parse import written_form
     from zombi2.rates.rate import Rate
     from zombi2.rates.scope import Scope
 
-    if isinstance(value, DrivenBy):
-        # a bare DrivenBy is how a recipient weight is written (--transfer-to), where there is no base
+    if isinstance(value, Driven):
+        # a bare Weights is how a recipient weight is written (--transfer-to), where there is no base
         # number to print; its repr is the same expression the flag takes, and it also round-trips as
         # a rate (a bare modifier is base 1.0), so both readings paste straight back in.
         return repr(value)
@@ -674,9 +679,9 @@ def input_digests(*values) -> list[tuple[str, str]]:
     What a run *read* is as much a parameter of it as any flag, and the file's **name** does not
     pin it down: two runs from two different trees log the same ``--from tree.nwk`` and the same
     seed, and nothing in the log tells them apart. The digest does. A ``value`` is either a path or
-    a rate, whose ``DrivenBy`` file driver — the level a conditioned run was driven by — is as much
+    a rate, whose file driver — the level a conditioned run was driven by — is as much
     an input as the tree. Anything that is not an existing file is skipped."""
-    from zombi2.rates.modifiers import DrivenBy
+    from zombi2.rates.modifiers import Driven
 
     paths: list[str] = []
     for value in values:
@@ -688,7 +693,7 @@ def input_digests(*values) -> list[tuple[str, str]]:
             for one in _rate_specs(value):
                 mods = getattr(one, "modifiers", (one,))
                 paths.extend(m.driver for m in mods
-                             if isinstance(m, DrivenBy) and isinstance(m.driver, str))
+                             if isinstance(m, Driven) and isinstance(m.driver, str))
     out, seen = [], set()
     for path in paths:
         if path not in seen and os.path.isfile(path):

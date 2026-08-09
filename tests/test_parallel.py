@@ -21,7 +21,7 @@ from zombi2._runtime.parallel import flatten_gene_tree, rebuild_gene_tree, resol
 from zombi2.genomes import StreamedRun, simulate_genomes_nucleotide, simulate_genomes_family
 from zombi2.genomes.events import edges_from_tsv, node_label
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
-from zombi2.rates import modifiers as mod
+from zombi2.rates import ScaledBy, Weights
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85, jc69
 from zombi2.species import simulate_species_tree
@@ -189,7 +189,7 @@ def test_a_driven_rate_runs_in_parallel_rather_than_falling_back(species_for_gen
     # it — so the per-family decomposition survives it and there is nothing to fall back from.
     sp = species_for_genomes
     habitat = simulate_discrete(sp, states=["a", "b"], switch=0.8, seed=2)
-    kw = dict(duplication=0.5, loss=0.25 * mod.DrivenBy(habitat, {"a": 2.0, "b": 1.0}),
+    kw = dict(duplication=0.5, loss=0.25 * ScaledBy(habitat, {"a": 2.0, "b": 1.0}),
               origination=0.2, initial_families=25, seed=5)
     par = simulate_genomes_family(sp, parallel=4, **kw)
     assert "not applied" not in capsys.readouterr().out
@@ -202,11 +202,13 @@ def test_every_driven_slot_runs_in_parallel(species_for_genomes, capsys):
     # each of the four rates, and the recipient rule, threads its driver to the workers
     sp = species_for_genomes
     habitat = simulate_discrete(sp, states=["a", "b"], switch=0.8, seed=2)
-    driver = mod.DrivenBy(habitat, {"a": 3.0, "b": 1.0})
+    mapping = {"a": 3.0, "b": 1.0}
     for slot in ("duplication", "transfer", "loss", "origination", "transfer_to"):
         kw = dict(duplication=0.3, transfer=0.3, loss=0.3, origination=0.3,
                   initial_families=15, seed=5)
-        kw[slot] = driver if slot == "transfer_to" else kw[slot] * driver
+        # the verb follows what it is attached to: a rate is scaled, a choice is weighted
+        kw[slot] = (Weights(habitat, mapping) if slot == "transfer_to"
+                    else kw[slot] * ScaledBy(habitat, mapping))
         run = simulate_genomes_family(sp, parallel=2, **kw)
         assert "not applied" not in capsys.readouterr().out, slot
         assert run.events, slot
@@ -231,7 +233,7 @@ def test_a_driven_parallel_run_is_worker_count_invariant(species_for_genomes):
     sp = species_for_genomes
     habitat = simulate_discrete(sp, states=["a", "b"], switch=0.8, seed=2)
     kw = dict(duplication=0.3, transfer=0.2, origination=0.3, initial_families=20, seed=11,
-              loss=0.3 * mod.DrivenBy(habitat, {"a": 4.0, "b": 1.0}))
+              loss=0.3 * ScaledBy(habitat, {"a": 4.0, "b": 1.0}))
     one, four = (simulate_genomes_family(sp, parallel=w, **kw) for w in (1, 4))
     assert _gen_fingerprint(one) == _gen_fingerprint(four)
 
@@ -242,7 +244,7 @@ def test_a_driven_streamed_run_no_longer_raises(species_for_genomes, tmp_path):
     habitat = simulate_discrete(sp, states=["a", "b"], switch=0.8, seed=2)
     run = simulate_genomes_family(
         sp, duplication=0.3, origination=0.3, initial_families=15, seed=5, parallel=2,
-        loss=0.3 * mod.DrivenBy(habitat, {"a": 4.0, "b": 1.0}),
+        loss=0.3 * ScaledBy(habitat, {"a": 4.0, "b": 1.0}),
         stream_to=tmp_path / "s", outputs=("events", "profiles"))
     assert isinstance(run, StreamedRun) and run.n_events > 0
 
@@ -337,3 +339,25 @@ def test_sequences_rate_variation_is_worker_count_invariant(genome_run):
     def run(p):
         return simulate_sequences(genome_run, model=model, length=200, seed=7, parallel=p)
     assert _seq_fingerprint(run(1)) == _seq_fingerprint(run(3))
+
+
+def test_a_streamed_rerun_clears_the_gene_trees_of_the_last_one(tmp_path):
+    """Every writer of a per-family directory empties it first, so its contents describe one run and
+    nothing else. A streamed run writes each family straight to disk as it goes rather than through
+    `.write()`, and so never did: re-running into the same directory with fewer families left the
+    previous run's trees sitting beside the new ones, and nothing said so."""
+    from zombi2 import genomes, species
+
+    tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=1).complete_tree
+    out = tmp_path / "stream"
+
+    genomes.simulate_genomes_family(tree, initial_families=40, duplication=0.2, loss=0.2,
+                                    seed=1, stream_to=str(out), outputs=("gene_trees",))
+    many = len(list((out / "gene_trees").iterdir()))
+
+    genomes.simulate_genomes_family(tree, initial_families=5, duplication=0.2, loss=0.2,
+                                    seed=2, stream_to=str(out), outputs=("gene_trees",))
+    few = len(list((out / "gene_trees").iterdir()))
+
+    assert many > few, "the second run must write fewer trees for this to prove anything"
+    assert few <= 2 * 5, f"{few} gene trees for 5 families — the first run's are still there"

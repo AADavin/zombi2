@@ -7,7 +7,7 @@ and the trait each depend on the other at every instant, and neither exists befo
 are grown in one pass (``SPEC §2–4``), which is what this command does.
 
 The driver is named in the rate rather than passed as a file, and that is the whole difference:
-``--birth "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})"`` reads a **live level**, not a
+``--birth "1.0 * ScaledBy('trait', {'small': 1.0, 'large': 3.0})"`` reads a **live level**, not a
 path. Give exactly one driver — a discrete trait (``--states``), which is the BiSSE/MuSSE family, or
 gene content (``--origination`` and friends), where a lineage's genome decides how fast it splits.
 """
@@ -29,19 +29,19 @@ from zombi2.joint import IMPLEMENTED_MODIFIERS
 from zombi2.traits import discrete
 
 #: the RATES block for ``zombi2 joint -h``, built from the engine's own declaration like every other
-#: command's — it used to hard-code ``(DrivenBy,)`` and so under-reported OnTime and
+#: command's — it used to hard-code ``(Driven,)`` and so under-reported OnTime and
 #: OnTotalDiversity, which a joint run does thread.
 RATES_HELP = _rates_help(
     IMPLEMENTED_MODIFIERS, "--birth",
-    note="Here DrivenBy names a live level, not a file. Drivers: 'trait' (the trait grown "
+    note="Here ScaledBy names a live level, not a file. Drivers: 'trait' (the trait grown "
          "alongside), 'genomes:count' (a lineage's gene count), 'genomes:<name>' (a named family, "
          "{'present': 3.0, 'absent': 1.0}). --death takes a driven rate too.")
 
 #: the driver flags, by which driver they build — used to reject the other driver's flags rather
 #: than ignore them, the discipline every other command follows
-_TRAIT_ONLY = (("states", None), ("switch", None), ("start", None))
+_TRAIT_ONLY = (("states", None), ("switch", None), ("start", None), ("at_speciation", None))
 _GENOME_ONLY = (("duplication", 0.0), ("loss", 0.0), ("origination", 0.0),
-                ("initial_families", 0), ("family_names", None))
+                ("initial_families", None), ("family_names", None))
 
 
 def _add_joint_args(p: argparse.ArgumentParser) -> None:
@@ -72,6 +72,9 @@ def _add_joint_args(p: argparse.ArgumentParser) -> None:
                    help="symmetric switching rate between states")
     g.add_argument("--start", metavar="STATE", default=None,
                    help="the root state (default: uniform over --states)")
+    g.add_argument("--at-speciation", type=float, default=None, metavar="P", dest="at_speciation",
+                   help="chance in [0, 1] that a daughter jumps to another state AT each split "
+                        "(ClaSSE); the trait's log records it as on_speciation")
 
     g = p.add_argument_group("driver: gene content",
                              "a lineage's gene content drives its rate; any flag here selects it")
@@ -81,8 +84,10 @@ def _add_joint_args(p: argparse.ArgumentParser) -> None:
                    help="gene loss rate, per copy")
     g.add_argument("--origination", type=_rate, default=0.0, metavar="RATE",
                    help="new-family origination rate, per lineage")
-    g.add_argument("--initial-families", type=int, default=0, metavar="N", dest="initial_families",
-                   help="gene families the root genome starts with (default 0)")
+    # `None`, not 0: this doubles as the "was it given?" sentinel above, and 0 is a value a user
+    # may mean. Left out, `genomes.family()`'s own default applies, as it does for `zombi2 genomes`.
+    g.add_argument("--initial-families", type=int, default=None, metavar="N", dest="initial_families",
+                   help="gene families the root genome starts with (default 100, as zombi2 genomes)")
     g.add_argument("--family-names", metavar="A,B,...", default=None, dest="family_names",
                    help="named families, comma-separated — what 'genomes:<name>' reads")
 
@@ -121,13 +126,19 @@ def run(args, parser):
         states = [s.strip() for s in args.states.split(",") if s.strip()]
         if len(states) < 2:
             parser.error(f"--states needs at least two, got {args.states!r}")
-        driver = dict(trait=discrete(states=states, switch=args.switch, start=args.start))
+        jump = {} if args.at_speciation is None else {"at_speciation": args.at_speciation}
+        driver = dict(trait=discrete(states=states, switch=args.switch, start=args.start, **jump))
     else:
         names = ([s.strip() for s in args.family_names.split(",") if s.strip()]
                  if args.family_names else None)
-        driver = dict(genome=family(duplication=args.duplication, loss=args.loss,
-                                    origination=args.origination,
-                                    initial_families=args.initial_families, family_names=names))
+        counts = ({} if args.initial_families is None
+                  else {"initial_families": args.initial_families})
+        spec = family(duplication=args.duplication, loss=args.loss,
+                      origination=args.origination, family_names=names, **counts)
+        # the log is written from `args`, and the sentinel is not a number anyone ran with: put back
+        # what the spec resolved to, so the record says what the run did
+        args.initial_families = spec.initial_families
+        driver = dict(genome=spec)
 
     t0 = time.perf_counter()
     result = simulate_joint(birth=args.birth, death=args.death, n_extant=args.n_extant,
