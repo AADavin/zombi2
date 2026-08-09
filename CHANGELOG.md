@@ -9,15 +9,22 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+- **`Distance(decay=…)` and `Clades(…)` can be written on the command line and in a `--params`
+  file.** Both moved from the transfer engine into the rate grammar, where everything a user *writes*
+  lives, so the parser can see them: `--transfer-to "Distance(decay=3.0)"` and `--transfer-to
+  "Clades({'A': ['n1','n2']}, Between({('A','A'): 1.0}, default=0.2))"` now run. Until now a
+  non-default decay was reachable only from Python and a clade rule not at all, which was the
+  project's one departure from a single notation across Python, the CLI and TOML. Turning the tree
+  into clade membership stays with the engine, because that needs a tree and a written rule does
+  not. (#327)
+
 ### Fixed
 - **A `transfer_to` rule is recorded in the form that takes it back.** A choice is not a rate: a
   named rule is written bare (`uniform`, not `'uniform'`, which the flag refuses) and a `Weights` is
   written on its own, without the `1.0 *` a rate carries, because a choice has no base and
   `--transfer-to` rejects one in front. `Distance` and `Clades` now render as the constructor calls
-  the API takes rather than as dataclass reprs. Those two remain Python-only — they are not in the
-  parser's whitelist, so a non-default `Distance(decay=…)` still cannot be written on the command
-  line, which is the project's one departure from a single notation and is now covered by a test that
-  will fail the day it is closed. (#327)
+  the API and the parser both take, rather than as dataclass reprs. (#327)
 
 ### Removed
 - **`spread=` on `Drawn` and `Inherited`. Write the distribution instead.** `Drawn(per='family',

@@ -36,7 +36,7 @@ from zombi2.rates import modifiers as mod
 from zombi2.rates import scope
 from zombi2.rates import values as values_mod
 from zombi2.rates.distributions import Exponential, Fixed, Gamma, Geometric, LogNormal, Uniform
-from zombi2.rates.mapping import Scalar, Table
+from zombi2.rates.mapping import Between, Scalar, Table
 from zombi2.rates.modifiers import CARRIED_KINDS, Driven, values_at_birth
 from zombi2.rates.parse import parse_rate, written_form
 from zombi2.rates.rate import Rate, as_rate
@@ -276,12 +276,28 @@ def test_a_transfer_choice_is_written_as_the_form_that_takes_it_back():
         resolve_transfer_to(written_choice(rule))
 
 
-def test_the_cli_cannot_yet_write_two_choice_rules_that_python_can():
-    """`Distance(decay=)` and `Clades(...)` are not in the parser's whitelist, so they are Python-only.
+def test_every_choice_rule_reads_back_from_its_own_written_form():
+    """One notation across Python, the CLI and a --params file — for choices too.
 
-    Recorded as a test rather than left to be discovered: the project's rule is one notation across
-    Python, the CLI and a --params file, and these two are the exception. The day they are added,
-    this test fails and says so."""
-    for text in ("Distance(decay=3.0)", "Clades({'A': ['n1']}, Between({('A', 'A'): 1.0}))"):
-        with pytest.raises(ValueError, match="unknown name"):
-            parse_rate(text)
+    `Distance` and `Clades` used to live at the genome level, where the parser could not see them, so
+    a non-default `Distance(decay=…)` was Python-only and `Clades(...)` could not be typed at all.
+    They are grammar objects — things a user writes — so they now live beside the rest of it."""
+    from zombi2.rates.choice import Clades, Distance
+    from zombi2.rates.parse import written_choice
+
+    for spec in (Distance(decay=3.0),
+                 Clades({"A": ["n1", "n2"], "B": 40},
+                        Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0))):
+        text = written_choice(spec)
+        assert parse_rate(text) == spec, text
+        assert written_choice(parse_rate(text)) == text, "not a fixed point"
+
+
+def test_a_clades_repr_is_the_call_that_reads_back_not_the_dataclass_one():
+    """A dataclass gives `Clades(groups=…, between=…)`. That is valid Python but not what the parser
+    or the docs use, and a run's log is a record you paste back."""
+    from zombi2.rates.choice import Clades
+
+    c = Clades({"A": ["n1"]}, Between({("A", "A"): 1.0}, default=0.0))
+    assert repr(c).startswith("Clades({'A': ['n1']}, Between(")
+    assert "groups=" not in repr(c)

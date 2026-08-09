@@ -29,6 +29,7 @@ import warnings
 import difflib
 from typing import cast
 
+from . import choice as _choice
 from . import mapping as _mapping
 from . import distributions as _distributions
 from . import modifiers as _modifiers
@@ -47,6 +48,7 @@ _NAMES: dict[str, type] = {
     **{n: getattr(_values, n) for n in _values.WRITABLE},
     **{n: getattr(_distributions, n) for n in _distributions.WRITABLE},
     **{n: getattr(_verbs, n) for n in _verbs.WRITABLE},
+    **{n: getattr(_choice, n) for n in _choice.WRITABLE},
     "Table": _mapping.Table,
     "Scalar": _mapping.Scalar,
     "Between": _mapping.Between,  # the choice's kernel: ScaledBy(driver, Between({(a, b): w}))
