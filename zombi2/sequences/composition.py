@@ -24,7 +24,7 @@ if TYPE_CHECKING:                      # `gc()` imports this module, so a run-ti
     from . import SequencesResult
 
 #: the engines that may not read this driver, named as each level names itself
-#: (`zombi2.params.modifiers.Modifier.implemented_for`). All three are the genome — a sequence is
+#: (`zombi2.params.evaluate.Modifier.implemented_for`). All three are the genome — a sequence is
 #: downstream of every one of them. ``species`` and ``joint`` cannot read it either but never reach
 #: here: species takes no ``scaled_by`` at all, and joint refuses every object source up front.
 _UPSTREAM = frozenset({"genomes.family", "genomes.ordered", "genomes.nucleotide"})

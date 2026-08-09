@@ -26,7 +26,7 @@ from dataclasses import dataclass
 
 from . import connection as verbs
 from .distributions import Distribution, Geometric, as_distribution
-from .modifiers import Modifier
+from .evaluate import Modifier
 
 __all__ = ["Extent", "as_extent"]
 
@@ -132,11 +132,11 @@ class Extent:
         return f"Extent({self.base!r})" + "".join(f".{m.written_call()}" for m in self.modifiers)
 
     def __mul__(self, other: object):
-        from .modifiers import _no_longer_multiplied
+        from .evaluate import _no_longer_multiplied
         raise _no_longer_multiplied(self, other)
 
     def __rmul__(self, other: object):
-        from .modifiers import _no_longer_multiplied
+        from .evaluate import _no_longer_multiplied
         raise _no_longer_multiplied(other, self)
 
 

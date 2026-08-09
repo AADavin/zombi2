@@ -246,7 +246,7 @@ def test_a_modifier_of_your_own_cannot_vouch_for_a_replaced_base():
     promise that for a factor it *computes*. Replacing a base is not that: it is a capability three
     levels have and four do not, so a `SetBy` subclass admitted through the hatch would be honoured
     nowhere. The same reason a carried value cannot go through it."""
-    from zombi2.params.modifiers import is_implemented, matches_declared
+    from zombi2.params.evaluate import is_implemented, matches_declared
 
     class Mine(SetBy):
         implemented_for = ("species", "genomes.family", "traits.discrete")

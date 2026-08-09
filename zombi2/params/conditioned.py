@@ -465,7 +465,7 @@ def refuse_wrong_direction(driver, level: str | None) -> None:
     and must not import from any of them.
 
     ``level`` is the engine name each level already answers to (``"genomes.family"``, ``"sequences"``,
-    … — `zombi2.params.modifiers.Modifier.implemented_for` lists them); ``None`` checks nothing."""
+    … — `zombi2.params.evaluate.Modifier.implemented_for` lists them); ``None`` checks nothing."""
     if level is None:
         return
     refuses = getattr(driver, "refuses", None)

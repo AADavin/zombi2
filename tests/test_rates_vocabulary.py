@@ -13,7 +13,9 @@ import pytest
 
 from zombi2 import genomes
 from zombi2.params import (Drift, LogNormal, PerCopy, PerLineage, Random, Recipients, Time,
-                          modifiers as mod)
+)
+from zombi2.params import driver as drv
+from zombi2.params import law as law
 from zombi2.params import connection as conn
 from zombi2.species import simulate_species_tree
 
@@ -46,8 +48,8 @@ class TestTheGridBuildsWhatTheEnginesRun:
         assert Random("lineages", Drift(LogNormal(0.0, 0.2))).reads == ("inherited", "lineages")
 
     @pytest.mark.parametrize("written, expected", [
-        (PerLineage(0.5).changing_at({0: 1.0, 3: 0.3}), mod.OnTime),
-        (PerLineage().set_by(Time(), {0: 0.5, 3: 0.15}), mod.OnTime),
+        (PerLineage(0.5).changing_at({0: 1.0, 3: 0.3}), drv.OnTime),
+        (PerLineage().set_by(Time(), {0: 0.5, 3: 0.15}), drv.OnTime),
         (PerCopy(0.25).scaled_by("habitat.tsv", {"cave": 4.0}), conn.Driven),
         (Recipients().weighted_by("habitat.tsv", {"cave": 4.0}), conn.Driven),
         (PerCopy().set_by("habitat.tsv", {"cave": 1.0}), conn.SetBy),

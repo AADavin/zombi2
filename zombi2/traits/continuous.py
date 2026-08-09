@@ -10,8 +10,8 @@ import numpy as np
 
 from ..params.mapping import check_not_a_kernel
 from ..rng import stream
-from ..params.modifiers import (describe, DRAWN, INHERITED, OnTime, OnTotalDiversity,
-                                check_one_memory, is_implemented, values_at_birth, values_at_split)
+from ..params.driver import OnTime, OnTotalDiversity
+from ..params.evaluate import (DRAWN, INHERITED, check_one_memory, describe, is_implemented, values_at_birth, values_at_split)
 from ..params.connection import Driven, SetBy
 from ..params.rate import as_rate
 from ..params.scope import PerLineage

@@ -40,7 +40,7 @@ import math
 
 import bisect
 
-from ..params.modifiers import INHERITED
+from ..params.evaluate import INHERITED
 
 
 def _all_species(gene_trees) -> list[int]:

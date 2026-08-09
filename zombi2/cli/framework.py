@@ -15,7 +15,7 @@ import textwrap
 import numpy as np
 
 from zombi2 import __version__
-from zombi2.params.modifiers import cell_name
+from zombi2.params.evaluate import cell_name
 from zombi2.rng import draw_seed
 
 
@@ -661,7 +661,7 @@ def _log_value(value: object) -> str:
     line can be pasted straight back into the flag (or a ``--params`` file) rather than being a repr
     the reader has to translate."""
     from zombi2.params.choice import Choice, Clades, Distance
-    from zombi2.params.modifiers import Modifier
+    from zombi2.params.evaluate import Modifier
     from zombi2.params.parse import written_choice, written_form
     from zombi2.params.rate import Rate
 

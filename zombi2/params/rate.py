@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import connection as verbs
-from .modifiers import CARRIED_KINDS, Modifier
+from .evaluate import CARRIED_KINDS, Modifier
 from .scope import Scope
 
 
@@ -237,11 +237,11 @@ class Rate:
     # --- the retired spelling -------------------------------------------------------------------
 
     def __mul__(self, other: object):
-        from .modifiers import _no_longer_multiplied
+        from .evaluate import _no_longer_multiplied
         raise _no_longer_multiplied(self, other)
 
     def __rmul__(self, other: object):
-        from .modifiers import _no_longer_multiplied
+        from .evaluate import _no_longer_multiplied
         raise _no_longer_multiplied(other, self)
 
 
