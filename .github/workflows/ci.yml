@@ -77,6 +77,13 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Measure coverage
+        # `sysmon` puts coverage.py on CPython 3.12's sys.monitoring instead of a trace function,
+        # which is what made this the slowest job by far: measured on a 324-test subset, the same
+        # suite ran in 32s plain, 197s traced and 45s monitored — 6.1x overhead down to 1.4x — and
+        # the reported percentage is identical to four decimal places, so it is the same measurement
+        # taken a cheaper way. Requires Python >= 3.12 and coverage >= 7.4, both pinned above.
+        env:
+          COVERAGE_CORE: sysmon
         run: |
           pytest -q --cov=zombi2 --cov-report=term:skip-covered --cov-report=json
           python - <<'PY'
