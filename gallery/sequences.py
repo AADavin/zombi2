@@ -10,7 +10,7 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 
 import helpers as h
-from zombi2.rates import LogNormal
+from zombi2.rates import Drift, LogNormal, PerSite
 from helpers import Example
 
 import phylustrator as ph
@@ -25,10 +25,10 @@ _CLOCK_SEED, _CLOCK_TIPS, _CLOCK_DIV = 11, 70, 1.0
 #: same root-to-tip divergence and only their *pattern* of rate variation differs — which is the
 #: whole comparison. `bins` is the discrete-bin (rate-category) form of the autocorrelated clock.
 _CLOCKS = {
-    "ucln":  lambda mod: mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.55)),
-    "ugam":  lambda mod: mod.Drawn(per='lineage', dist=Gamma(shape=3.31, scale=0.302)),
-    "auto":  lambda mod: mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.4)),
-    "bins":  lambda mod: mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.45), bins=6),
+    "ucln":  PerSite().varying_among('lineages', LogNormal(0.0, 0.55)),
+    "ugam":  PerSite().varying_among('lineages', Gamma(shape=3.31, scale=0.302)),
+    "auto":  PerSite().varying_among('lineages', Drift(LogNormal(0.0, 0.4))),
+    "bins":  PerSite().varying_among('lineages', Drift(LogNormal(0.0, 0.45), bins=6)),
 }
 
 _CLOCK_CACHE: dict = {}
@@ -44,7 +44,6 @@ def _clock_panels() -> dict:
     cannot flatten the rest, and it is logarithmic because these clocks are lognormal."""
     import math
     from zombi2.genomes import simulate_genomes_family
-    from zombi2.rates import modifiers as mod
     from zombi2.sequences import hky85, simulate_sequences
     from zombi2.species import simulate_species_tree
 
@@ -56,7 +55,7 @@ def _clock_panels() -> dict:
     panels, every = {}, []
     for name, shape in _CLOCKS.items():
         seqs = simulate_sequences(g, model=hky85(kappa=2.0), length=600,
-                                  substitution=shape(mod), divergence=_CLOCK_DIV, seed=_CLOCK_SEED)
+                                  substitution=shape, divergence=_CLOCK_DIV, seed=_CLOCK_SEED)
         tree = ph.trees.loads(seqs.species_phylogram["extant"])
         logr = {}
         for n in tree.walk():
@@ -219,17 +218,17 @@ def numbered_ancestral(out):
 
 
 _C_AUTOCORR = '''\
-### simulate  —  a Yule tree, sequences under the AUTOCORRELATED clock (Inherited(per='lineage'))
+### simulate  —  a Yule tree, sequences under the AUTOCORRELATED clock (Drift among lineages)
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_family
 from zombi2.sequences import simulate_sequences, hky85
-from zombi2.rates import LogNormal, modifiers as mod
+from zombi2.rates import Drift, LogNormal, PerSite
 
 sp = simulate_species_tree(birth=1.0, n_extant=120, seed=7)          # pure birth: no extinction
 ct = sp.complete_tree
 g = simulate_genomes_family(ct, initial_families=1, seed=9)
 seqs = simulate_sequences(g, model=hky85(kappa=2), length=600,
-                          substitution=1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.6)), seed=7)  # rate drifts parent->child
+                          substitution=PerSite(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.6))), seed=7)  # rate drifts parent->child
 
 ### plot  —  the clock tree, branches coloured by lineage rate (= clock length / time)
 import phylustrator as ph
@@ -273,7 +272,7 @@ _C_PHYLO = '''\
 zombi2 species   run --birth 1.4 --death 0.2 --n-extant 35 --seed 7
 zombi2 genomes   run --resolution ordered --initial-families 40 --duplication 0.15 --loss 0.12 --seed 9
 zombi2 sequences run --model hky85 --kappa 2 --length 500 \\
-                     --substitution "1.0 * Drawn(per='lineage', dist=LogNormal(0.0, 0.6))" --seed 7
+                     --substitution "PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.6))" --seed 7
 
 ### plot  —  the clock tree (branch lengths in substitutions/site)
 import phylustrator as ph
@@ -281,7 +280,7 @@ import phylustrator as ph
 tree = ph.trees.read("run/sequences/clock_species_tree_extant.nwk")
 (ph.trees.plot(tree)
  + ph.trees.tip_labels()
- + ph.trees.note("uncorrelated relaxed clock (Drawn(per='lineage'))", loc="top-left", size=22)
+ + ph.trees.note("uncorrelated relaxed clock (varying_among('lineages', LogNormal))", loc="top-left", size=22)
  + ph.trees.time_axis("substitutions / site", tick_size=20, label_size=26)).save("phylogram.png")'''
 
 _C_ALN = '''\
@@ -306,16 +305,16 @@ _C_CLOCKS = '''\
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_family
 from zombi2.sequences import simulate_sequences, hky85
-from zombi2.rates import modifiers as mod
+from zombi2.rates import Drift, Gamma, LogNormal, PerSite
 
 sp = simulate_species_tree(birth=1.0, n_extant=70, seed=11)     # pure birth: no extinction
 ct = sp.complete_tree
 g = simulate_genomes_family(ct, initial_families=1, seed=11)
 
-clocks = {"uncorrelated lognormal": mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.55)),
-          "uncorrelated gamma":     mod.Drawn(per='lineage', dist=Gamma(shape=3.31, scale=0.302)),
-          "autocorrelated":         mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.4)),
-          "discrete-bin":           mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.45), bins=6)}
+clocks = {"uncorrelated lognormal": PerSite().varying_among('lineages', LogNormal(0.0, 0.55)),
+          "uncorrelated gamma":     PerSite().varying_among('lineages', Gamma(shape=3.31, scale=0.302)),
+          "autocorrelated":         PerSite().varying_among('lineages', Drift(LogNormal(0.0, 0.4))),
+          "discrete-bin":           PerSite().varying_among('lineages', Drift(LogNormal(0.0, 0.45), bins=6))}
 
 # the clock's SHAPE alone, with divergence solving for the base — so the four differ only in
 # their pattern of rate variation, not in how far the sequences ran
@@ -341,19 +340,19 @@ rate = {n.name: math.log10(n.length / (ct.nodes[int(n.name[1:])].end_time
 EXAMPLES = [
     Example("clock_ucln", "Uncorrelated lognormal clock",
             "Every lineage draws its own rate, with no memory of its parent, so the colour is "
-            "salt-and-pepper. <code>substitution&nbsp;=&nbsp;Drawn(per='lineage',&nbsp;dist=LogNormal(0.0, 0.55))</code>.",
+            "salt-and-pepper. <code>substitution&nbsp;=&nbsp;PerSite().varying_among('lineages',&nbsp;LogNormal(0.0, 0.55))</code>.",
             "phylustrator · clocks", clock_ucln, code=_C_CLOCKS),
     Example("clock_ugam", "Uncorrelated gamma clock",
             "The same independent draw with a gamma instead of a lognormal. "
-            "<code>Drawn(per='lineage',&nbsp;dist=Gamma(shape=3.31,&nbsp;scale=0.302))</code>.",
+            "<code>varying_among('lineages',&nbsp;Gamma(shape=3.31,&nbsp;scale=0.302))</code>.",
             "phylustrator · clocks", clock_ugam, code=_C_CLOCKS),
     Example("clock_autocorrelated", "Autocorrelated clock",
             "A daughter starts at its parent's rate and is nudged, so the colour moves in <b>clades</b> "
-            "rather than branch to branch. <code>substitution&nbsp;=&nbsp;Inherited(per='lineage',&nbsp;dist=LogNormal(0.0, 0.4))</code>.",
+            "rather than branch to branch. <code>substitution&nbsp;=&nbsp;PerSite().varying_among('lineages',&nbsp;Drift(LogNormal(0.0, 0.4)))</code>.",
             "phylustrator · clocks", clock_autocorrelated, code=_C_CLOCKS),
     Example("clock_discrete_bin", "Discrete-bin clock",
             "The same inherited drift in <b>steps</b>: the rate takes one of a few values and a daughter "
-            "moves to a neighbouring one. <code>Inherited(per='lineage',&nbsp;dist=LogNormal(0.0, 0.45),&nbsp;bins=6)</code>.",
+            "moves to a neighbouring one. <code>varying_among('lineages',&nbsp;Drift(LogNormal(0.0, 0.45),&nbsp;bins=6))</code>.",
             "phylustrator · clocks", clock_discrete_bin, code=_C_CLOCKS),
     Example("seq_ancestral", "Ancestral sequences at the nodes",
             "A small tree with its internal nodes numbered, and beside it the sequence at each. The rows "

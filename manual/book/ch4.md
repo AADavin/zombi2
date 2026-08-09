@@ -19,8 +19,7 @@ You give a rate for each, and the events play out along the tree from the initia
 
 ```python
 from zombi2 import species, genomes
-from zombi2.rates import ScaledBy
-from zombi2.rates import modifiers as mod
+from zombi2.rates import PerCopy, PerLineage
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 g = genomes.simulate_genomes_family(
@@ -31,19 +30,19 @@ The initial genome, at the beginning of the stem, starts with `initial_families`
 
 ### Four things to know
 
-- **Families need not evolve at the same pace.** `Drawn(per='family')` draws a factor per family (`--loss "0.25 * Drawn(per='family', dist=LogNormal(0.0, 0.6))"`). Whether you write one draw or two decides what varies together: two separately built `Drawn(per='family')` draws vary their rates independently, while **one** object read by several rates gives that family a single tempo across all of them — `speed = mod.Drawn(per='family', dist=LogNormal(0.0, 0.5))`, then `duplication=0.2 * speed, loss=0.25 * speed`.
+- **Families need not evolve at the same pace.** `varying_among('families', ...)` draws a factor per family (`--loss "PerCopy(0.25).varying_among('families', LogNormal(0.0, 0.6))"`). Whether you write one draw or two decides what varies together: two separately written draws vary their rates independently, while **one** `Random` object read by several rates gives that family a single tempo across all of them — `speed = Random('families', LogNormal(0.0, 0.5))`, then `duplication=PerCopy(0.2).varying_among(speed), loss=PerCopy(0.25).varying_among(speed)`.
 - **A family's copies within one genome are capped**, at `max_family_size=10` by default, because a duplication rate above the loss rate grows without bound. Set `max_family_size=None` when you are measuring rates: a cap that binds discards events and pulls the realised rates below the ones you declared.
 - **There is no floor.** Loss is counted per copy and the last copy is a copy like any other, so a high loss rate can leave a lineage with nothing. `genome_summary.json` reports `empty_genomes` and the command warns, because an empty genome is otherwise invisible.
 - **The chromosome-based resolutions do have a floor**: a loss never takes a chromosome below its last gene. That is what a chromosome is, not a bound on genome size.
 
 ## What the rate depends on
 
-The rates follow the **same grammar as the species level** — a `base`, optionally multiplied by modifiers. By default, duplication, transfer, and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is usually what you want — more genes, more chances. Origination is counted **per lineage** (i.e. per branch of the species tree): acquiring a wholly new family is a property of the lineage, not of any gene it already has, and it takes no other scope.
+The rates follow the **same grammar as the species level** — a `base` in its scope, with verbs chained onto it. By default, duplication, transfer, and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is usually what you want — more genes, more chances. Origination is counted **per lineage** (i.e. per branch of the species tree): acquiring a wholly new family is a property of the lineage, not of any gene it already has, and it takes no other scope.
 
 Duplication, transfer and loss do take another, and it is worth knowing because it is a different model rather than a different spelling:
 
 ```python
-from zombi2.rates.scope import PerCopy, PerLineage
+from zombi2.rates import PerCopy, PerLineage
 
 loss = PerCopy(0.25)      # every copy independently at risk — a big genome loses often
 loss = PerLineage(0.25)   # a deletion budget — the lineage loses at 0.25 whatever it holds
@@ -51,12 +50,12 @@ loss = PerLineage(0.25)   # a deletion budget — the lineage loses at 0.25 what
 
 The second is how you write a lineage whose losses are set by its own biology rather than by how many genes it happens to carry: deletion-biased genomes lose at their own pace, and shrinking does not slow them down. The same `0.25` means something a hundred times different in a genome of a hundred genes, so this is a choice to make deliberately rather than a default to leave alone.
 
-Rates can also depend on **time**. Multiplying a base rate by an `OnTime` modifier makes it change at set moments. That is the skyline, or episodic, genome: fast early and slow later, or any schedule you give.
+Rates can also depend on **time**. Chaining `changing_at` onto a rate makes it change at set moments. That is the skyline, or episodic, genome: fast early and slow later, or any schedule you give.
 
 ```python
 # lots of new families early, then origination shuts off after time 2
 g = genomes.simulate_genomes_family(
-    tree, origination=1.0 * mod.OnTime({0: 1.0, 2: 0.0}), seed=1)
+    tree, origination=PerLineage(1.0).changing_at({0: 1.0, 2: 0.0}), seed=1)
 ```
 
 Rates can also depend on **where in the tree** a lineage sits. `Clade` names a group by a few of its tips — the clade is the subtree below their most recent common ancestor — and the rate reads which group a lineage is in, exactly as it would read an evolved trait (Chapter 9). A lineage in no named clade falls in the group `"rest"`. It is the rate-side counterpart of the `Clades` transfer rule below, reading the same fact off the same tree.
@@ -66,7 +65,7 @@ from zombi2.rates import Clade
 
 # the clade below the MRCA of n27 and n51 loses genes three times as fast
 g = genomes.simulate_genomes_family(
-    tree, loss=0.25 * ScaledBy(Clade({"fast": ["n27", "n51"]}), {"fast": 3.0}),
+    tree, loss=PerCopy(0.25).scaled_by(Clade({"fast": ["n27", "n51"]}), {"fast": 3.0}),
     duplication=0.2, origination=0.5, seed=1)
 ```
 
@@ -109,9 +108,9 @@ There is one group you do not have to name: **`"rest"`** is every lineage outsid
 
 Each entry is a weight, read the same way `"distance"`'s weights are: normalised over the lineages alive at the instant a transfer fires. Naming only `("A", "B")` and `("B", "A")` and setting `default=0.0` means every other pairing weighs 0: a clade-A donor can reach clade B but not another clade-A lineage, and the rest of the tree neither sends nor receives. Drop the `default=0.0` and unlisted pairs return to weight 1 (baseline), so `Between({("A", "B"): 5.0})` *enriches* A→B fivefold while leaving everything else to happen normally. A weight of 0 means "cannot receive", exactly as in Chapter 9: when a donor's every candidate weighs 0, the transfer has nowhere to land and does not fire.
 
-`--transfer-to` takes the same four rules on the command line, in the same written form: `uniform`, `distance`, `Distance(decay=3.0)`, a `Clades(...)` expression, or a `Weights` recipient weight (Chapter 9). The bare `distance` is `Distance(decay=1.0)`, so write the constructor when you want another decay.
+`--transfer-to` takes the same four rules on the command line, in the same written form: `uniform`, `distance`, `Distance(decay=3.0)`, a `Clades(...)` expression, or a `Recipients().weighted_by(...)` recipient weight (Chapter 9). The bare `distance` is `Distance(decay=1.0)`, so write the constructor when you want another decay.
 
-`transfer_to` chooses who receives, and takes one rule. All four rules (`"uniform"`, `"distance"` / `Distance(decay=)`, `Clades(...)` and `Weights(driver, {...})`) work unchanged at the ordered and nucleotide resolutions. What differs between the resolutions is *what moves*: one gene copy here, a block of consecutive genes in Chapter 5, an arc of DNA in Chapter 6. Who receives it is chosen the same way in all three, so the rules are described once, here.
+`transfer_to` chooses who receives, and takes one rule. All four rules (`"uniform"`, `"distance"` / `Distance(decay=)`, `Clades(...)` and `Recipients().weighted_by(driver, {...})`) work unchanged at the ordered and nucleotide resolutions. What differs between the resolutions is *what moves*: one gene copy here, a block of consecutive genes in Chapter 5, an arc of DNA in Chapter 6. Who receives it is chosen the same way in all three, so the rules are described once, here.
 
 ## The `FamilyGenomesResult` object
 

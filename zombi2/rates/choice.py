@@ -5,13 +5,14 @@ it*, and `transfer_to` is the only one. Its numbers are per-candidate **weights*
 each other and normalised across the contemporaneous lineages, so they change neither how fast nor
 how many transfers happen — only which lineage receives.
 
-Four rules, and the two written here are the **topological** ones: they read a fact about the
-species tree rather than a value another level evolved.
+Four rules, and the two written here as classes are the **topological** ones: they read a fact about
+the species tree rather than a value another level evolved.
 
 - ``"uniform"`` — every contemporaneous lineage equally likely;
 - `Distance` — closer relatives likelier, in units of tree depth;
 - `Clades` — weight by the **pair** (donor's named clade, recipient's named clade);
-- `Weights(driver, mapping)` — weight by another level, which is the rest of the grammar.
+- ``Recipients().weighted_by(driver, mapping)`` — weight by another level, which is the rest of the
+  grammar.
 
 They live beside the rate grammar and not with the transfer engine because they are things a user
 **writes**, and everything a user writes belongs to one vocabulary: the same expression has to read
@@ -26,13 +27,70 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from . import verbs
 from .mapping import Between
+from .modifiers import Driven
 
 #: The choice rules a `transfer_to` may be **written** with, for the parser's whitelist. The two
 #: named strings (``"uniform"`` / ``"distance"``) are not here: they are values, not calls.
-WRITABLE = ("Distance", "Clades")
+WRITABLE = ("Recipients", "Distance", "Clades")
 
-__all__ = ["Distance", "Clades", "WRITABLE"]
+__all__ = ["Choice", "Recipients", "Distance", "Clades", "WRITABLE"]
+
+
+@dataclass(frozen=True, repr=False)     # repr=False: `__repr__` below is the written form
+class Choice:
+    """Which candidate receives — the parameter `Recipients()` opens and `weighted_by` fills in.
+
+    A choice has no base: only the ratios between candidates are read, so there is nothing to write
+    in front of the first verb. ``Recipients()`` on its own is the uniform rule, every
+    contemporaneous lineage equally likely, which is what a choice with no weights says.
+    """
+
+    weights: tuple[Driven, ...] = ()
+
+    def weighted_by(self, driver: object, mapping: object = None, *,
+                    step: float | None = None) -> "Choice":
+        """Weight the candidates by ``driver`` — see `verbs.weighted_by`.
+
+        Weights **multiply and are then normalised across the candidates**, so chaining two is
+        meaningful: prefer close relatives *and* run a highway between two distant clades. Whether a
+        given engine reads more than one is that level's declaration.
+        """
+        return Choice(self.weights + (verbs.weighted_by(driver, mapping, step=step),))
+
+    def scaled_by(self, driver: object, mapping: object = None, *,
+                  step: float | None = None) -> "Choice":
+        """Refused. A choice has no base to scale."""
+        from .rate import RateCompositionError
+        raise RateCompositionError(
+            "a choice has no base to scale: its numbers are weights, compared against each other "
+            "and normalised across the candidates. The verb is weighted_by — the same driver and "
+            "the same mapping, read as a weight.")
+
+    def set_by(self, driver: object, mapping: object = None, *,
+               step: float | None = None) -> "Choice":
+        """Refused. A choice has no base to replace."""
+        from .rate import RateCompositionError
+        raise RateCompositionError(
+            "a choice has no base to replace: its numbers are weights, compared against each other "
+            "and normalised across the candidates. The verb is weighted_by.")
+
+    def __repr__(self) -> str:
+        """The expression that produced this rule, written with no base in front — because a choice
+        has none, and the flag refuses one there."""
+        return "Recipients()" + "".join(f".{w.written_call()}" for w in self.weights)
+
+
+def Recipients() -> Choice:
+    """Open a ``transfer_to`` rule: the candidates that could receive a transfer::
+
+        transfer_to = Recipients().weighted_by(competence, {"competent": 3.0, "normal": 1.0})
+
+    On its own it is the uniform rule. It is a function rather than a class for the same reason a
+    scope constructor returns a rate: what you get back is the parameter, ready for a verb.
+    """
+    return Choice()
 
 
 @dataclass(frozen=True)
@@ -67,7 +125,7 @@ class Clades:
     Groups must be disjoint; a lineage in none of them is in the implicit group ``"rest"``, usable as a
     kernel key. Membership is read from the **tree** (a clade is a fact about the tree, not another
     level), so this is a topological rule like ``"distance"``, resolved once per run — **not** a
-    ``ScaledBy`` driver and needing no driver file."""
+    ``weighted_by`` reading another level, and needing no driver file."""
 
     groups: dict
     between: object

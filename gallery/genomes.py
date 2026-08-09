@@ -16,7 +16,7 @@ import helpers as h
 from helpers import Example
 
 import phylustrator as ph
-from zombi2.rates import LogNormal
+from zombi2.rates import LogNormal, PerCopy, Random
 
 # a square style for the ring figures — the classic thin genes on a solid backbone (Adrián's preference
 # for the dense real-genome-style rings; the chunky "arrow" style is reserved for the sparse inversion figure)
@@ -441,23 +441,24 @@ def _pangenome_runs():
     """Two genome runs on one species tree: every family alike, then each rate varying by family.
 
     Same tree, same seed, and the same mean duplication / transfer / loss rate in both — only how
-    much families differ from one another changes. The Python API rather than the CLI, because a
-    Drawn(per='family') draw is an object and the point of the figure is the one line that differs."""
+    much families differ from one another changes. The Python API rather than the CLI, because the
+    per-family draw is an object and the point of the figure is the one line that differs."""
     from zombi2 import genomes as zg
     from zombi2 import species as zs
-    from zombi2.rates import modifiers as zmod
 
     tree = zs.simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=11)
     base = dict(duplication=0.06, transfer=0.10, loss=0.30, origination=0.30,
                 initial_families=200, max_family_size=6, seed=7)
-    spread = zmod.Drawn(per='family', dist=LogNormal(0.0, _PANGENOME_SPREAD))
-    varied = dict(base, duplication=0.06 * spread, transfer=0.10 * spread, loss=0.30 * spread)
+    spread = Random('families', LogNormal(0.0, _PANGENOME_SPREAD))
+    varied = dict(base, duplication=PerCopy(0.06).varying_among(spread),
+                  transfer=PerCopy(0.10).varying_among(spread),
+                  loss=PerCopy(0.30).varying_among(spread))
     return tree, [("Every family alike", "duplication=0.06\ntransfer=0.10\nloss=0.30",
                    zg.simulate_genomes_family(tree, **base)),
                   ("Each rate varies by family",
-                   f"duplication=0.06 * Drawn(per='family', dist=LogNormal(0.0, {_PANGENOME_SPREAD}))\n"
-                   f"transfer=0.10 * Drawn(per='family', dist=LogNormal(0.0, {_PANGENOME_SPREAD}))\n"
-                   f"loss=0.30 * Drawn(per='family', dist=LogNormal(0.0, {_PANGENOME_SPREAD}))",
+                   f"duplication=PerCopy(0.06).varying_among('families', LogNormal(0.0, {_PANGENOME_SPREAD}))\n"
+                   f"transfer=PerCopy(0.10).varying_among('families', LogNormal(0.0, {_PANGENOME_SPREAD}))\n"
+                   f"loss=PerCopy(0.30).varying_among('families', LogNormal(0.0, {_PANGENOME_SPREAD}))",
                    zg.simulate_genomes_family(tree, **varied))]
 
 
@@ -531,7 +532,7 @@ def pangenome_by_family(out):
 
 _C_PANGENOME = '''### simulate  —  two runs, one species tree, the same mean rates
 from zombi2 import genomes, species
-from zombi2.rates import LogNormal, modifiers as mod
+from zombi2.rates import LogNormal, PerCopy, Random
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=11)
 base = dict(duplication=0.06, transfer=0.10, loss=0.30, origination=0.30,
@@ -539,10 +540,11 @@ base = dict(duplication=0.06, transfer=0.10, loss=0.30, origination=0.30,
 
 alike  = genomes.simulate_genomes_family(tree, **base)
 
-spread = mod.Drawn(per='family', dist=LogNormal(0.0, 1.4))                  # one draw per family, mean unchanged
+spread = Random('families', LogNormal(0.0, 1.4))            # one draw per family, mean unchanged
 varied = genomes.simulate_genomes_family(
-    tree, **dict(base, duplication=0.06 * spread,
-                 transfer=0.10 * spread, loss=0.30 * spread))
+    tree, **dict(base, duplication=PerCopy(0.06).varying_among(spread),
+                 transfer=PerCopy(0.10).varying_among(spread),
+                 loss=PerCopy(0.30).varying_among(spread)))
 
 ### plot  —  the profile matrix (ph.genomes.grid) over its frequency spectrum
 import numpy as np, phylustrator as ph

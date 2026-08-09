@@ -1,25 +1,28 @@
-"""The **written form** of a rate (SPEC §5): text in, a rate spec out.
+"""The **written form** of a parameter (SPEC §5): text in, a parameter spec out.
 
-``scope(base) × modifiers`` is written the same way everywhere — in Python, on the command line, and
-in a ``--params`` file. This module is what makes the last two true: it reads the expression a user
-would type in Python and returns the same object, so a snippet pastes between the three unchanged::
+A rate is written the same way everywhere — in Python, on the command line, and in a ``--params``
+file. This module is what makes the last two true: it reads the expression a user would type in
+Python and returns the same object, so a snippet pastes between the three unchanged::
 
-    parse_rate("1.0")                              -> 1.0
-    parse_rate("Global(1.0)")                      -> scope.Global(1.0)
-    parse_rate("1.0 * OnTime({0: 1.0, 3: 0.3})")   -> a Rate carrying that modifier
+    parse_rate("1.0")                                     -> 1.0
+    parse_rate("Global(1.0)")                             -> a Rate scoped to the whole run
+    parse_rate("PerLineage(0.5).changing_at({0: 1.0, 3: 0.3})")   -> a Rate carrying that schedule
 
-The ``mod.`` / ``scope.`` qualifiers Python needs are optional here, so
-``1.0 * mod.Inherited(per="lineage", dist=LogNormal(0.0, 0.2))`` and ``1.0 * Inherited(per="lineage", dist=LogNormal(0.0, 0.2))`` both read.
+The ``scope.`` qualifier Python needs is optional here, so ``scope.PerCopy(0.25)`` and
+``PerCopy(0.25)`` both read.
 
-**It parses, it does not evaluate.** The text is parsed to a syntax tree and walked against a
-whitelist — the scope wrappers, the modifiers, numbers, strings, dicts/lists, keyword arguments, and
-``*``. There is no ``eval``, no builtins, no attribute access beyond the two optional qualifiers, so
-a parameters file from a colleague cannot run code.
+**It parses, it does not evaluate.** The text is parsed to a syntax tree and walked against two
+whitelists — the names it may **call** (the scopes, the drivers, the laws, the distributions, the
+mappings) and the verbs it may follow as an **attribute**. Numbers, strings, dicts, lists and
+keyword arguments come through; nothing else does. There is no ``eval``, no builtins, and no
+attribute access beyond those verbs and the optional qualifier, so a parameters file from a
+colleague cannot run code.
 
-Only ``*`` composes, because that is the only operation the grammar defines: a rate is ``time⁻¹`` and
-a modifier dimensionless, so ``+`` and ``/`` between them mean nothing (SPEC §5). Whether a given
-modifier is *supported* is not this module's business — each level declares what it takes and rejects
-the rest, with a message naming the alternatives.
+The verb whitelist is the shape this grammar needs and the older one did not: an expression is now a
+call **on an attribute** (``PerCopy(0.25).scaled_by(...)``) rather than a product, so checking the
+names being called is only half the check. Whether a given verb is *supported* by a level is not
+this module's business — each level declares what it takes and rejects the rest, with a message
+naming the alternatives.
 """
 
 from __future__ import annotations
@@ -27,9 +30,10 @@ from __future__ import annotations
 import ast
 import warnings
 import difflib
-from typing import cast
+from typing import Any, cast
 
 from . import choice as _choice
+from . import extent as _extent
 from . import mapping as _mapping
 from . import distributions as _distributions
 from . import modifiers as _modifiers
@@ -37,24 +41,31 @@ from . import values as _values
 from . import verbs as _verbs
 from . import scope as _scope
 from .rate import Rate, RateCompositionError
+from .retired import RETIRED, RETIRED_KEYWORDS, keyword_message, name_message
 
-#: the names an expression may call — the scope wrappers, the modifiers, and the mappings.
-#: The abstract bases (``Scope``, ``Modifier``, ``Mapping``) are deliberately absent: they are not
-#: things a user writes. ``Curve`` needs a callable, which this grammar cannot express, so it is
-#: excluded here and reported with a pointer to the Python API.
-_NAMES: dict[str, type] = {
+#: the names an expression may **call** — the scopes, the drivers and laws, the distributions, the
+#: mappings, and the two entry points the other parameter kinds are written from. The abstract bases
+#: (``Scope``, ``Modifier``, ``Mapping``) are deliberately absent: they are not things a user writes.
+#: ``Curve`` needs a callable, which this grammar cannot express, so it is excluded here and
+#: reported with a pointer to the Python API.
+_NAMES: dict[str, Any] = {
     **{n: getattr(_scope, n) for n in _scope.__all__ if n != "Scope"},
     **{n: getattr(_modifiers, n) for n in _modifiers.WRITABLE},
     **{n: getattr(_values, n) for n in _values.WRITABLE},
     **{n: getattr(_distributions, n) for n in _distributions.WRITABLE},
-    **{n: getattr(_verbs, n) for n in _verbs.WRITABLE},
     **{n: getattr(_choice, n) for n in _choice.WRITABLE},
+    "Extent": _extent.Extent,
     "Table": _mapping.Table,
     "Scalar": _mapping.Scalar,
-    "Between": _mapping.Between,  # the choice's kernel: ScaledBy(driver, Between({(a, b): w}))
+    "Between": _mapping.Between,  # the choice's kernel: weighted_by(driver, Between({(a, b): w}))
 }
 
-#: the optional Python qualifiers — ``mod.OnTime(...)`` / ``scope.Global(...)`` read as themselves
+#: what a verb may be written on, and what to call each in a message
+_PARAMETERS: dict[type, str] = {
+    Rate: "a rate", _extent.Extent: "an extent", _choice.Choice: "a choice",
+}
+
+#: the optional Python qualifiers — ``scope.Global(...)`` reads as itself
 _QUALIFIERS = frozenset({"mod", "modifiers", "scope", "scopes"})
 
 _OP_NAMES = {ast.Add: "+", ast.Sub: "-", ast.Div: "/", ast.FloorDiv: "//", ast.Mod: "%",
@@ -88,32 +99,18 @@ def _fail(message: str, text: str) -> RateSyntaxError:
     return RateSyntaxError(f"{message}\n  in the rate {text!r}")
 
 
-#: Names that were the written form and are not any more, each with the sentence a reader needs.
-#: A difflib guess would offer one of the three verbs at random; which one is right depends on what
-#: the rate is attached to, so the message says all three and what each is for.
-_RETIRED = {
-    "DrivenBy": ("write the verb that says what the number does: ScaledBy(driver, mapping) on a "
-                 "rate or an extent, Weights(driver, mapping) on transfer_to, SetBy(driver, "
-                 "mapping) to replace the base rather than scale it"),
-    "ByFamily": ("write Drawn(per='family', dist=LogNormal(0.0, ...))"),
-    "ByLineage": ("write Drawn(per='lineage', dist=LogNormal(0.0, ...))"),
-    "FromParent": ("write Inherited(per='lineage', dist=LogNormal(0.0, ...))"),
-}
-
-
 def _unknown_name(name: str, text: str) -> RateSyntaxError:
-    if name in _RETIRED:
-        return _fail(f"{name} is no longer a rate name — {_RETIRED[name]}", text)
+    if name in RETIRED:
+        return _fail(name_message(name), text)
     close = difflib.get_close_matches(name, _NAMES, n=1, cutoff=0.6)
     hint = f" — did you mean {close[0]!r}?" if close else ""
     scopes = ", ".join(n for n in _NAMES if n in _scope.__all__)
-    mods = ", ".join(n for n in _NAMES
-                     if n in _modifiers.WRITABLE + _values.WRITABLE + _verbs.WRITABLE
-                     + _distributions.WRITABLE)
+    others = ", ".join(n for n in _NAMES if n not in _scope.__all__)
     return _fail(
         f"unknown name {name!r}{hint}\n"
-        f"  scopes:    {scopes}\n"
-        f"  modifiers: {mods}", text)
+        f"  scopes: {scopes}\n"
+        f"  names:  {others}\n"
+        f"  verbs:  {', '.join(_verbs.VERBS)}", text)
 
 
 def _node(node: ast.AST, text: str):
@@ -129,23 +126,18 @@ def _node(node: ast.AST, text: str):
         if not isinstance(node.op, ast.Mult):
             op = _OP_NAMES.get(type(node.op), type(node.op).__name__)
             raise _fail(
-                f"only '*' composes a rate, got {op!r} — a rate is scope(base) × modifiers, and a "
-                f"modifier is a dimensionless multiplier (SPEC §5)", text)
-        left, right = _node(node.left, text), _node(node.right, text)
-        try:
-            return left * right
-        except TypeError as e:
-            # `SetBy.__rmul__` and `Rate.__mul__` raise TypeError with a message written for exactly
-            # this mistake — "SetBy replaces the base, so there is no base to write in front of it".
-            # Replacing it with the generic one below threw away the sentence that says what to do.
-            # Only ours, told apart by its class rather than by the operand types: two grammar
-            # objects can also fail with CPython's own "unsupported operand type(s)" — `Rate * Rate`,
-            # `PerCopy * PerCopy` — and that message says nothing a reader of a rate can act on.
-            if isinstance(e, RateCompositionError):
-                raise _fail(str(e), text) from None
-            raise _fail(
-                f"cannot compose {type(left).__name__} with {type(right).__name__} — '*' puts a "
-                f"modifier on a base or a scope", text) from None
+                f"only a verb composes a rate, got {op!r} — a rate is a scope with verbs chained "
+                f"onto it, and each verb reads one thing (SPEC §4)", text)
+        # `*` composed a rate until the verbs replaced it, and it is still recognised this far so
+        # that an old expression reaches the name inside it: `0.25 * Drawn(per='family', ...)` is
+        # answered by the retired-name entry for `Drawn`, which says what to write, rather than by a
+        # sentence about `*`. Only when both sides are still readable does `*` itself get the blame.
+        _node(node.left, text)
+        _node(node.right, text)
+        raise _fail(
+            "'*' no longer composes a rate — the verbs do, and each returns a new rate so they "
+            "chain: PerCopy(0.25).scaled_by(driver, mapping), "
+            ".varying_among('families', LogNormal(0.0, 0.5)), .changing_at({0: 1.0, 3: 0.3})", text)
 
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
         # parsed so that a negative number is rejected by the rate itself ("must be non-negative"),
@@ -156,17 +148,20 @@ def _node(node: ast.AST, text: str):
         return -value if isinstance(node.op, ast.USub) else value
 
     if isinstance(node, ast.Call):
-        cls = _callable(node.func, text)
+        # the callable first, so that a retired *name* is answered by its own entry rather than by
+        # the retired keyword it was usually written with: `Inherited(per=…)` is one mistake, and
+        # the sentence that fixes it names the whole replacement, not just the argument
+        fn = (_verb(cast(ast.Attribute, node.func), text) if _is_verb(node.func)
+              else _callable(node.func, text))
         args = [_node(a, text) for a in node.args]
         kwargs = {}
         for kw in node.keywords:
             if kw.arg is None:
                 raise _fail("'**' unpacking is not allowed in a rate", text)
+            if kw.arg in RETIRED_KEYWORDS:
+                raise _fail(keyword_message(kw.arg), text)
             kwargs[kw.arg] = _node(kw.value, text)
-        try:
-            return cls(*args, **kwargs)
-        except TypeError as e:                    # wrong arity / unknown keyword
-            raise _fail(f"{cls.__name__}: {e}", text) from None
+        return _call(fn, args, kwargs, text)
 
     if isinstance(node, ast.Dict):
         keys = node.keys
@@ -181,25 +176,71 @@ def _node(node: ast.AST, text: str):
 
     if isinstance(node, ast.Name):
         if node.id in _NAMES:
-            raise _fail(f"{node.id!r} is used as a value, but a scope or modifier is built by "
-                        f"calling it — write {node.id}(...)", text)
+            raise _fail(f"{node.id!r} is used as a value, but it is built by calling it — write "
+                        f"{node.id}(...)", text)
         raise _unknown_name(node.id, text)
 
     raise _fail(f"{type(node).__name__} is not allowed in a rate expression", text)
 
 
-def _callable(func: ast.AST, text: str) -> type:
-    """Resolve the callable of a ``Call``: a whitelisted name, optionally qualified ``mod.X``."""
+def _call(fn, args: list, kwargs: dict, text: str):
+    """Apply one whitelisted callable, reporting a wrong arity or an unknown keyword as a rate
+    error rather than as a traceback from inside the class."""
+    try:
+        return fn(*args, **kwargs)
+    except TypeError as e:
+        if isinstance(e, RateCompositionError):
+            raise _fail(str(e), text) from None
+        name = getattr(fn, "__name__", type(fn).__name__)
+        raise _fail(f"{name}: {e}", text) from None
+
+
+def _is_verb(func: ast.AST) -> bool:
+    """Whether this call is a verb on a parameter (``PerCopy(0.25).scaled_by(...)``) rather than a
+    name being called, optionally qualified (``scope.PerCopy(...)``)."""
+    return (isinstance(func, ast.Attribute)
+            and not (isinstance(func.value, ast.Name) and func.value.id in _QUALIFIERS))
+
+
+def _verb(func: ast.Attribute, text: str):
+    """Resolve a verb call: the parameter to its left, then the verb name against `verbs.VERBS`.
+
+    This is the whitelist that replaced "only ``*`` composes". A name outside the verb list never
+    reaches ``getattr``, and a verb is looked up only on the three parameter classes, so no
+    expression can walk out of the grammar through an attribute.
+    """
+    target = _node(func.value, text)
+    name = func.attr
+    if name not in _verbs.VERBS:
+        close = difflib.get_close_matches(name, _verbs.VERBS, n=1, cutoff=0.6)
+        hint = f" — did you mean {close[0]!r}?" if close else ""
+        raise _fail(f"{name!r} is not a verb{hint}\n  verbs: {', '.join(_verbs.VERBS)}", text)
+    kind = _PARAMETERS.get(type(target))
+    if kind is None:
+        raise _fail(
+            f"a verb goes on a parameter — a scope, Extent(...) or Recipients() — and "
+            f"{type(target).__name__} is not one", text)
+    verb = getattr(target, name, None)
+    if verb is None:
+        # not enumerated from `target`, because the verbs a parameter refuses are still methods on
+        # it — they exist to carry the sentence that says which verb to write instead
+        raise _fail(
+            f"{kind} takes no {name!r}: a rate is scaled, replaced or varied, an extent is scaled "
+            f"or varied, and a choice is weighted (SPEC §3)", text)
+    return verb
+
+
+def _callable(func: ast.AST, text: str):
+    """Resolve the callable of a ``Call``: a whitelisted name, optionally qualified ``scope.X``."""
     if isinstance(func, ast.Attribute):
         if not isinstance(func.value, ast.Name) or func.value.id not in _QUALIFIERS:
             raise _fail(
-                "a rate may only call a scope or a modifier by name (optionally qualified "
-                "'mod.' / 'scope.')", text)
+                "a rate may only call a name from the grammar (optionally qualified 'scope.')", text)
         name = func.attr
     elif isinstance(func, ast.Name):
         name = func.id
     else:
-        raise _fail("a rate may only call a scope or a modifier by name", text)
+        raise _fail("a rate may only call a name from the grammar", text)
 
     if name == "Curve":
         raise _fail(
@@ -211,15 +252,16 @@ def _callable(func: ast.AST, text: str) -> type:
 
 
 def parse_rate(text: object):
-    """Read a rate in its written form and return the spec the ``simulate_*`` functions take.
+    """Read a parameter in its written form and return the spec the ``simulate_*`` functions take.
 
     ``text`` is the expression (``"1.0"``, ``"Global(1.0)"``,
-    ``"1.0 * OnTime({0: 1.0, 3: 0.3})"``); a number passes through, so a ``--params`` value that is
-    already a TOML float needs no special case. The result is a number, a scope wrapper, a modifier,
-    or a ``Rate`` — all four are what ``as_rate`` accepts, so every level takes it as it is.
+    ``"PerLineage(0.5).changing_at({0: 1.0, 3: 0.3})"``); a number passes through, so a ``--params``
+    value that is already a TOML float needs no special case. The result is a number, a ``Rate``, an
+    ``Extent``, a choice, or a distribution — whichever the expression built — and each level takes
+    the one it asked for.
 
     Raises `RateSyntaxError` (a ``ValueError``) for anything outside the grammar, and lets the
-    scope/modifier classes raise their own domain errors (a negative base, an empty schedule, …).
+    grammar's own classes raise their domain errors (a negative base, an empty schedule, …).
     """
     if isinstance(text, bool):
         raise RateSyntaxError(f"a rate must be a number or an expression, got {text!r}")
@@ -229,7 +271,7 @@ def parse_rate(text: object):
         raise RateSyntaxError(f"a rate must be a number or an expression, got {text!r}")
     if not text.strip():
         raise RateSyntaxError("a rate cannot be empty")
-    # A backslash in a path is not an escape. `ScaledBy('C:\\Users\\me\\t.tsv', …)` is well formed to
+    # A backslash in a path is not an escape. `scaled_by('C:\\Users\\me\\t.tsv', …)` is well formed to
     # the person who pasted it and a truncated \\UXXXXXXXX escape to Python's parser, and `C:\\temp`
     # is worse — it parses, silently, as a tab. But an expression may equally have its backslashes
     # already escaped, which is what repr() of a path gives, and that must be left alone. There is no
@@ -257,17 +299,29 @@ def parse_rate(text: object):
     value = _node(tree.body, text)
     if isinstance(value, str):
         raise _fail("a rate is a number, not text", text)
+    if isinstance(value, _modifiers.Modifier):
+        # a `Random(...)` written on its own. It is a value, not a parameter: it says how something
+        # varies without saying what varies or per what.
+        raise _fail(
+            f"{value!r} is a value, not a rate — write it on a scope, with the verb that reads it: "
+            f"PerCopy(0.25).{value.written_call()}", text)
     if isinstance(value, int):        # "1" is the rate 1.0, not the integer 1
         return float(value)
     return value
 
 
 def written_form(spec: object) -> str:
-    """Render a rate spec back as the expression that produced it — the inverse of `parse_rate()`.
+    """Render a parameter spec back as the expression that produced it — the inverse of
+    `parse_rate()`.
 
     Used where a run records what it was given (the ``*.log`` every command writes), so the record is
     something you can paste straight back into a flag or a ``--params`` file rather than a repr you
-    would have to translate. Anything that is not a rate spec is returned as its ``repr``.
+    would have to translate.
+
+    There is barely anything left to do here, and that is the point: each parameter's ``__repr__``
+    **is** its written form, so one renderer serves the log, the error messages and the debugger,
+    and there is no second one to drift out of step with it. What remains is the bare number, which
+    is recorded as a float so that a rate given as ``1`` reads back as the rate ``1.0``.
     """
     # bases are rendered with repr(float), not a fixed precision: this is a reproducibility record,
     # so 0.123456789 must come back as itself rather than rounded to six significant digits
@@ -275,52 +329,21 @@ def written_form(spec: object) -> str:
         return repr(spec)
     if isinstance(spec, (int, float)):
         return repr(float(spec))
-    if isinstance(spec, _scope.Scope):
-        return f"{type(spec).__name__}({float(spec.base)!r})"
-    if isinstance(spec, _modifiers.Modifier):
-        # A `SetBy` replaces the base, so writing one in front of it produces the very expression
-        # `SetBy` refuses — and that expression is what a run's log records, so the record of the
-        # model was one that could not be run again.
-        if isinstance(spec, _modifiers.SetBy):
-            return repr(spec)
-        return f"1.0 * {spec!r}"
-    if isinstance(spec, Rate):
-        # SPEC §5: a replaced base is written first, because anything to its left is a base it would
-        # discard. `sorted` is stable, so the factors keep the order they were written in.
-        mods = sorted(spec.modifiers, key=lambda m: not isinstance(m, _modifiers.SetBy))
-        if mods and isinstance(mods[0], _modifiers.SetBy):
-            # no head: the driver supplies the number. The scope goes with it and loses nothing —
-            # a scope cannot wrap a `SetBy` (there is no base for it to wrap), so the scope here is
-            # always the level's default, which reading the text back at that level restores.
-            return " * ".join(repr(m) for m in mods)
-        head = (f"{type(spec.scope).__name__}({float(spec.base)!r})" if spec.scope is not None
-                else repr(float(spec.base)))
-        return " * ".join([head, *(repr(m) for m in mods)])
-    return written_choice(spec)
+    return repr(spec)
 
 
 def written_choice(spec: object) -> str:
     """A ``transfer_to`` rule as the text that flag takes back.
 
-    A choice is not a rate (SPEC §5) and its written form differs in two ways that matter, both of
-    which were wrong before this existed. A named rule is written **bare** — ``uniform``, not
-    ``'uniform'`` — because that is what ``--transfer-to`` accepts, and a quoted string is not.
-    And a `Weights` is written **on its own**, without the ``1.0 *`` a rate would carry, because a
-    choice has no base and the flag refuses one in front: the log used to record an expression the
-    CLI would then reject, which is the one thing a reproducibility record must not do.
+    A choice is not a rate (SPEC §5), and a **named** rule is written bare — ``uniform``, not
+    ``'uniform'`` — because that is what ``--transfer-to`` accepts and a quoted string is not. Every
+    other rule renders itself: `Choice` writes ``Recipients().weighted_by(...)`` with no base in
+    front, because a choice has none and the flag refuses one there.
 
-    `Distance` and `Clades` render as the constructor calls the API takes. They are not in the
-    parser's whitelist — they live at the genome level, and `rates` does not import from it — so
-    those two are pasteable into Python but not yet into a flag. That gap is real and recorded
-    here rather than hidden by a repr that looks parseable.
+    `Distance` and `Clades` render as the constructor calls the API takes.
     """
     if isinstance(spec, str):
         return spec                                   # 'uniform' / 'distance', bare
-    if isinstance(spec, _modifiers.Driven):
-        return repr(spec)                             # no base: a choice has none
-    if type(spec).__name__ == "Clades":               # duck-typed: rates cannot import genomes
-        groups, between = spec.groups, spec.between   # type: ignore[attr-defined]
-        return f"Clades({groups!r}, {between!r})"
     return repr(spec)
 
 

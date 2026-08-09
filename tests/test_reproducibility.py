@@ -27,7 +27,7 @@ import hashlib
 import pytest
 
 from zombi2.genomes import simulate_genomes_family, simulate_genomes_ordered
-from zombi2.rates import ScaledBy
+from zombi2.rates import PerCopy
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85
 from zombi2.species import simulate_species_tree
@@ -131,7 +131,7 @@ def _driven():
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=15, seed=42)
     hab = simulate_discrete(sp.complete_tree, states=["wet", "dry"], start="wet", switch=0.3, seed=3)
     g = simulate_genomes_family(sp, initial_families=6, duplication=0.1,
-                                loss=0.2 * ScaledBy(hab, {"dry": 5.0, "wet": 1.0}), seed=7)
+                                loss=PerCopy(0.2).scaled_by(hab, {"dry": 5.0, "wet": 1.0}), seed=7)
     return _digest(_events_text(g.edges))
 
 

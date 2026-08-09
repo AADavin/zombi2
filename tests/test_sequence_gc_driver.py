@@ -16,7 +16,7 @@ import pytest
 from zombi2 import traits
 from zombi2.genomes import (simulate_genomes_family, simulate_genomes_nucleotide,
                             simulate_genomes_ordered)
-from zombi2.rates import ScaledBy, Weights
+from zombi2.rates import PerCopy, PerLineage, PerSite, Recipients
 from zombi2.rates.mapping import Curve
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85, jc69, lg
@@ -112,13 +112,13 @@ def test_gc_drives_a_trait():
     tree, seqs = _run()
     kw = dict(states=["mesophile", "thermophile"], start="mesophile", seed=2)
     plain = traits.simulate_discrete(tree, switch=0.3, **kw)
-    driven = traits.simulate_discrete(tree, switch=0.3 * ScaledBy(seqs.gc(), _RESPONSE), **kw)
+    driven = traits.simulate_discrete(tree, switch=PerLineage(0.3).scaled_by(seqs.gc(), _RESPONSE), **kw)
     switches = lambda r: sum(1 for e in r.events if e.kind == "on_branch")
     assert switches(driven) != switches(plain)
     # ...and the continuous engine reads it the same way
     a = traits.simulate_continuous(tree, start=0.0, rate=1.0, seed=3)
     b = traits.simulate_continuous(tree, start=0.0, seed=3,
-                                   rate=1.0 * ScaledBy(seqs.gc(), _RESPONSE))
+                                   rate=PerLineage(1.0).scaled_by(seqs.gc(), _RESPONSE))
     assert a.values != b.values
 
 
@@ -128,7 +128,7 @@ def test_one_sequence_run_drives_another():
     g = simulate_genomes_family(tree, initial_families=2, duplication=0.0, loss=0.0, seed=4)
     plain = simulate_sequences(g, model=jc69(), length=60, seed=4)
     driven = simulate_sequences(g, model=jc69(), length=60, seed=4,
-                                substitution=1.0 * ScaledBy(seqs.gc(), _RESPONSE))
+                                substitution=PerSite(1.0).scaled_by(seqs.gc(), _RESPONSE))
     assert plain.species_phylogram["complete"] != driven.species_phylogram["complete"]
 
 
@@ -139,17 +139,18 @@ def test_no_genome_can_be_driven_by_a_sequence():
     conditions a run on its own output. The refusal has to say that, not fail downstream."""
     tree, seqs = _run()
     gc = seqs.gc()
-    driven = 0.2 * ScaledBy(gc, _RESPONSE)
+    driven = PerCopy(0.2).scaled_by(gc, _RESPONSE)
     for run in (lambda: simulate_genomes_family(tree, initial_families=3, loss=driven, seed=7),
                 lambda: simulate_genomes_ordered(tree, initial_families=3, loss=driven, seed=7),
-                lambda: simulate_genomes_nucleotide(tree, root_length=2000, genes=2, loss=driven,
-                                                    seed=7)):
+                lambda: simulate_genomes_nucleotide(
+                    tree, root_length=2000, genes=2,
+                    loss=PerLineage(0.2).scaled_by(gc, _RESPONSE), seed=7)):
         with pytest.raises(ValueError, match="genome level cannot be driven by a sequence"):
             run()
     # who RECEIVES a transfer is a read of the driver too, so the same refusal covers it
     with pytest.raises(ValueError, match="genome level cannot be driven by a sequence"):
         simulate_genomes_family(tree, initial_families=3, transfer=0.2, seed=7,
-                                transfer_to=Weights(gc, _RESPONSE))
+                                transfer_to=Recipients().weighted_by(gc, _RESPONSE))
 
 
 def test_a_joint_run_and_the_species_level_refuse_it_too():
@@ -157,7 +158,7 @@ def test_a_joint_run_and_the_species_level_refuse_it_too():
     from zombi2.joint import simulate_joint
 
     tree, seqs = _run()
-    driven = 1.0 * ScaledBy(seqs.gc(), _RESPONSE)
+    driven = PerLineage(1.0).scaled_by(seqs.gc(), _RESPONSE)
     with pytest.raises(TypeError, match="live level"):
         simulate_joint(birth=driven, trait=traits.discrete(states=["a", "b"], switch=0.3),
                        n_extant=10, seed=4)
@@ -169,7 +170,7 @@ def test_gc_is_a_number_so_a_state_table_is_refused():
     tree, seqs = _run()
     with pytest.raises(ValueError, match="driver is CONTINUOUS"):
         traits.simulate_discrete(tree, states=["a", "b"], seed=2,
-                                 switch=0.3 * ScaledBy(seqs.gc(), {"0.5": 2.0}))
+                                 switch=PerLineage(0.3).scaled_by(seqs.gc(), {"0.5": 2.0}))
 
 
 def test_one_family_s_gc_is_refused_rather_than_offered():
@@ -197,7 +198,7 @@ def test_an_amino_acid_frequency_is_the_same_driver():
     kw = dict(states=["mesophile", "thermophile"], start="mesophile", seed=2)
     plain = traits.simulate_discrete(tree, switch=0.3, **kw)
     driven = traits.simulate_discrete(
-        tree, switch=0.3 * ScaledBy(basic, Curve(lambda x: 1.0 + 40.0 * x)), **kw)
+        tree, switch=PerLineage(0.3).scaled_by(basic, Curve(lambda x: 1.0 + 40.0 * x)), **kw)
     switches = lambda r: sum(1 for e in r.events if e.kind == "on_branch")
     assert switches(driven) != switches(plain)
 

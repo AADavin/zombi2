@@ -12,12 +12,11 @@ import inspect
 import numpy as np
 import pytest
 
-from zombi2.rates import LogNormal, Weights
+from zombi2.rates import Drift, LogNormal, PerCopy, Recipients, TotalDiversity
 
 from zombi2.genomes.events import gene_from_label, node_from_label
 from zombi2.rates import scope
 from zombi2.rates.distributions import Fixed, Geometric
-from zombi2.rates.modifiers import Drawn, Inherited, OnTime, OnTotalDiversity
 from zombi2.species import simulate_species_tree
 from zombi2.tree import Node, Tree
 from zombi2.genomes import (
@@ -292,43 +291,58 @@ def test_undriven_ordered_run_is_byte_identical():
         "an undriven ordered run changed: the rng draw order of the plain path must not move")
 
 
-def test_ontime_skyline_modifier_is_accepted():
+def test_a_skyline_is_accepted():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)
-    r = simulate_genomes_ordered(sp, duplication=0.3 * OnTime({0: 1.0, 1.0: 0.2}),
-                                 inversion=0.2 * OnTime({0: 0.5, 1.0: 2.0}),
+    r = simulate_genomes_ordered(sp, duplication=PerCopy(0.3).changing_at({0: 1.0, 1.0: 0.2}),
+                                 inversion=PerCopy(0.2).changing_at({0: 0.5, 1.0: 2.0}),
                                  chromosomes=2, initial_families=6, seed=1)
     assert r.genomes                                           # ran without complaint
 
 
-@pytest.mark.parametrize("modifier", [Drawn(per='lineage', dist=LogNormal(0.0, 0.5)), Inherited(per='lineage', dist=LogNormal(0.0, 0.5)),
-                                      OnTotalDiversity(cap=100)])
-def test_unsupported_modifier_is_rejected(modifier):
+@pytest.mark.parametrize("law", [LogNormal(0.0, 0.5), Drift(LogNormal(0.0, 0.5))],
+                         ids=["drawn", "inherited"])
+def test_unsupported_modifier_is_rejected(law):
     """The gate had no test at all. A modifier the engine cannot read must raise — one that returns
     1.0 because nothing looks at it is a run quietly not the model asked for (SPEC §5) — and the
     message must name what this engine *does* take, so the reader knows where to go next."""
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
     with pytest.raises(ValueError, match="ordered genome engine does not support"):
-        simulate_genomes_ordered(sp, inversion=0.3 * modifier, initial_families=6, seed=1)
-
-
-@pytest.mark.parametrize("modifier", [Drawn(per='lineage', dist=LogNormal(0.0, 0.5)), Inherited(per='lineage', dist=LogNormal(0.0, 0.5))])
-def test_unsupported_modifier_on_an_extent_is_rejected(modifier):
-    """An extent takes the same modifiers a rate does (SPEC §6), so the same refusal applies — and
-    names the two it takes rather than pointing at another resolution."""
-    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
-    with pytest.raises(ValueError, match="does not support on an extent"):
-        simulate_genomes_ordered(sp, inversion=0.3, inversion_extent=3 * modifier,
+        simulate_genomes_ordered(sp, inversion=PerCopy(0.3).varying_among('lineages', law),
                                  initial_families=6, seed=1)
 
 
-def test_the_extent_declaration_is_the_rate_declaration_minus_byfamily():
-    """The one difference between the two lists is a modelling fact, not an accident: `a per-family draw`
-    attaches to the contents, and an extent is drawn before the run's genes are known."""
+def test_a_diversity_dependent_rate_is_rejected_too():
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
+    with pytest.raises(ValueError, match="ordered genome engine does not support"):
+        simulate_genomes_ordered(sp, inversion=PerCopy(0.3).scaled_by(TotalDiversity(cap=100)),
+                                 initial_families=6, seed=1)
+
+
+def test_unsupported_modifier_on_an_extent_is_rejected():
+    """An extent takes the same modifiers a rate does (SPEC §6), so the same refusal applies — and
+    names the two it takes rather than pointing at another resolution."""
+    from zombi2.rates import Extent
+    from zombi2.rates.modifiers import Modifier
+
+    class Mine(Modifier):
+        def factor(self, **_):
+            return 2.0
+
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
+    with pytest.raises(ValueError, match="does not support on an extent"):
+        simulate_genomes_ordered(sp, inversion=0.3, inversion_extent=Extent(3)._and(Mine()),
+                                 initial_families=6, seed=1)
+
+
+def test_the_extent_declaration_is_the_rate_declaration_minus_the_per_family_draw():
+    """The one difference between the two lists is a modelling fact, not an accident: a per-family
+    draw attaches to the contents, and an extent is drawn before the run's genes are known."""
     from zombi2.genomes.ordered import IMPLEMENTED_EXTENT_MODIFIERS, IMPLEMENTED_MODIFIERS
     from zombi2.rates.modifiers import DRAWN, SetBy
-    # both differences are modelling facts. ByFamily attaches to the contents, and an extent is drawn
-    # before the run's genes are known; SetBy replaces a base, and an extent has none to replace.
-    assert set(IMPLEMENTED_MODIFIERS) - set(IMPLEMENTED_EXTENT_MODIFIERS) == {(DRAWN, "family"), SetBy}
+    # both differences are modelling facts. A per-family draw attaches to the contents, and an extent
+    # is drawn before the run's genes are known; set_by replaces a base, and an extent has none.
+    assert set(IMPLEMENTED_MODIFIERS) - set(IMPLEMENTED_EXTENT_MODIFIERS) \
+        == {(DRAWN, "families"), SetBy}
 
 
 def test_a_scope_the_ordered_engine_cannot_honour_is_rejected():
@@ -364,15 +378,14 @@ def test_a_per_family_draw_anywhere_in_the_run_refuses_a_per_lineage_scope():
     """A per-family draw on any gene rate routes *every* gene total through the per-family path,
     which sums over the live genes — so a per-lineage rate elsewhere had a per-copy total while its
     lineage was still drawn uniformly among occupied genomes. Total and pick disagreed outright."""
-    from zombi2.rates import Drawn
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)
     with pytest.raises(ValueError, match="cannot share a run"):
         simulate_genomes_ordered(sp, loss=scope.PerLineage(0.2),
-                                 duplication=0.05 * Drawn(per="family", dist=LogNormal(0.0, 0.5)),
+                                 duplication=PerCopy(0.05).varying_among('families', LogNormal(0.0, 0.5)),
                                  chromosomes=1, seed=1)
     with pytest.raises(ValueError, match="cannot share a run"):
         simulate_genomes_ordered(sp, inversion=scope.PerLineage(0.2),
-                                 loss=0.05 * Drawn(per="family", dist=LogNormal(0.0, 0.5)),
+                                 loss=PerCopy(0.05).varying_among('families', LogNormal(0.0, 0.5)),
                                  chromosomes=1, seed=1)
 
 
@@ -1228,12 +1241,13 @@ def test_the_ordered_choice_slot_refuses_what_the_family_one_refuses():
     sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
     with pytest.raises(ValueError, match="transfer_to must be"):
         simulate_genomes_ordered(sp, transfer=0.1, transfer_to="closest", initial_families=2, seed=1)
-    with pytest.raises(ValueError, match="on its own, not a rate"):
+    with pytest.raises(ValueError, match="written from Recipients"):
         simulate_genomes_ordered(sp, transfer=0.1, initial_families=2, seed=1,
-                                 transfer_to=1.0 * Weights("f.tsv", {"a": 2.0}))
+                                 transfer_to=PerCopy(1.0).scaled_by("f.tsv", {"a": 2.0}))
     with pytest.raises(ValueError, match="one recipient rule"):
         simulate_genomes_ordered(sp, transfer=0.1, initial_families=2, seed=1,
-                                 transfer_to=(Distance(), Weights("f.tsv", {"a": 2.0})))
+                                 transfer_to=(Distance(),
+                                              Recipients().weighted_by("f.tsv", {"a": 2.0})))
     with pytest.raises(ValueError, match="silently do nothing"):
         simulate_genomes_ordered(sp, transfer=0.1, initial_families=2, seed=1,
                                  transfer_to=Clades({"A": 0}, Between({("A", "rest"): 1.0})))

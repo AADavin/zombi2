@@ -1,25 +1,25 @@
-"""Rate modifiers — the context multipliers of a rate (SPEC §5).
+"""Rate modifiers — the connections a parameter makes to something else (SPEC §5).
 
-Every rate in ZOMBI2 is ``scope(base) × modifiers``. A *modifier* multiplies a rate
-by a dimensionless factor that depends on context — the current time, the standing
-diversity, the branch, the family, a driver's value. An **extent** takes the same
-modifiers (SPEC §6). Modifiers **multiply** (that is
-the whole difference from scope wrappers, which *wrap*), and the word *"per"* is
-reserved for scope, so a modifier never starts with "per".
+A rate is ``scope(base)`` with verbs chained onto it, and each verb records a **modifier**: a
+reading of some other quantity, turned into a dimensionless factor that multiplies the base. An
+**extent** takes the same modifiers (SPEC §6).
 
-You reach them through ``mod``::
+**Nobody writes these classes.** They are what the verbs on `Rate` build::
 
-    birth = 1.0 * mod.OnTime({0: 1.0, 3: 0.3})   # a skyline: 1.0, then 0.3 from time 3 on
-    birth = 1.0 * mod.OnTotalDiversity(cap=100)       # slows to 0 as diversity approaches 100
+    birth = PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})              # -> OnTime
+    birth = PerLineage(1.0).scaled_by(TotalDiversity(cap=100))         # -> OnTotalDiversity
+    loss  = PerCopy(0.25).varying_among('families', LogNormal(0.0, 0.5))   # -> Drawn
+    loss  = PerCopy(0.25).scaled_by('habitat.tsv', {'aquatic': 3.0})   # -> Driven
 
-The **deterministic** modifiers (``OnTime``, ``OnTotalDiversity``) compute their factor as a pure
-function of the context. The **carried** ones hold a value the engine draws per unit and hands back:
-``Inherited(per=…)`` drifts parent→child (via ``initial``/``descend``) and ``Drawn(per=…)`` takes an
-independent draw for each unit (via ``draw``). The unit is an argument, not a class — a draw per
-family and a draw per lineage are one model at two attachments.
+The **deterministic** modifiers (`OnTime`, `OnTotalDiversity`) compute their factor as a pure
+function of the context. The **carried** ones hold a value the engine draws per unit and hands
+back: `Inherited` drifts parent→child (via ``initial``/``descend``) and `Drawn` takes an
+independent draw for each unit (via ``draw``). The unit is an argument, not a class — a draw among
+families and a draw among lineages are one model at two attachments, which is why `Random` writes
+both.
 
-Composition (``*``) belongs to the Rate module; a modifier here knows only how to produce its own
-factor, or its own draw.
+A modifier knows how to produce its own factor, or its own draw, and how it is **written**; how
+parameters compose is `Rate`'s business, because a verb cannot be added without changing that.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from typing import Any, ClassVar, Mapping
 
 from .distributions import Distribution, LogNormal, as_distribution
+from .retired import check_no_retired_keywords
 
 #: The kinds of value a modifier can read, as the second half of `Modifier.reads`.
 #:
@@ -51,8 +52,26 @@ CARRIED_KINDS = (DRAWN, INHERITED)
 #: units include the value's (SPEC §5), so a trait on a lineage can drive gene loss, and a family's
 #: tempo cannot drive speciation. A unit here that no engine carries is a cell nobody has built, not
 #: a different kind of model.
-UNITS = ("run", "lineage", "chromosome", "family", "copy", "site")
+#:
+#: **Plural**, because a value varies *among* families rather than being counted *per* family: "per"
+#: is the scope word and nothing else (SPEC §5). The change is also a small safety win — ``'family'``
+#: and ``'families'`` are different strings, so a rate written in the old vocabulary fails loudly
+#: instead of quietly meaning something new.
+UNITS = ("run", "lineages", "chromosomes", "families", "copies", "sites")
 
+#: The name of each verb, as a constant. A verb is not only called: it is **recorded** on what it
+#: builds (``Driven.verb``, ``OnTime.verb``), because the same object serves more than one verb and
+#: only the writer knows which was typed. That makes the name a contract read outside this module —
+#: the transfer engine refuses a `Driven` written with `SCALED_BY` where a choice's weights belong —
+#: and a literal spelled out at each end is a contract that renames in silence: when these strings
+#: last changed, that refusal stopped firing and nothing said so. They live here rather than in
+#: `zombi2.rates.verbs` only because that module imports this one; it re-exports them, so
+#: ``verbs.SCALED_BY`` is the name to compare against.
+SCALED_BY = "scaled_by"
+SET_BY = "set_by"
+WEIGHTED_BY = "weighted_by"
+VARYING_AMONG = "varying_among"
+CHANGING_AT = "changing_at"
 
 
 def values_at_birth(mods: "tuple[Modifier, ...]", rng,
@@ -60,8 +79,8 @@ def values_at_birth(mods: "tuple[Modifier, ...]", rng,
     """The value a newly created unit carries, one per modifier, in written order.
 
     An `INHERITED` value starts from its own beginning (`Inherited.initial`); a `DRAWN` one is drawn.
-    The dispatch reads `Modifier.reads`, not the class, so a per-unit modifier an engine has never
-    heard of is handled like the ones it has. Drawing in written order is what keeps a run
+    The dispatch reads `Modifier.reads`, not the class, so a carried modifier an engine has never
+    heard of is drawn like the ones it has. Drawing in written order is what keeps a run
     reproducible, and drawing from **every** modifier is the point: taking only the first was how a
     second one silently left the model.
 
@@ -121,26 +140,39 @@ def check_one_memory(mods: "tuple[Modifier, ...]", *, label: str, unit: str) -> 
     if DRAWN in kinds and INHERITED in kinds:
         names = ", ".join(sorted(describe(m) for m in mods))
         raise ValueError(
-            f"{label} carries both a drawn and an inherited value per {unit} ({names}), which are "
-            f"the two answers to the same question — where that {unit}'s factor comes from. An "
+            f"{label} carries both a drawn and an inherited value among {unit} ({names}), which are "
+            f"the two answers to the same question — where that unit's factor comes from. An "
             f"inherited one starts from its parent's and is perturbed (autocorrelated); a drawn one "
-            f"starts afresh with no memory of the parent (uncorrelated). Pick one. Several of the "
-            f"same kind are fine and multiply.")
+            f"starts afresh with no memory of the parent (uncorrelated). Pick one — a law is either "
+            f"a bare distribution or a Drift, never both. Several of the same kind are fine and "
+            f"multiply.")
+
+
+#: How each modifier class is **written**, for the messages that list what a level accepts. A
+#: declaration is a promise about what you may write, and a class name is not something anyone
+#: writes any more: the verbs are methods on the parameter, so the promise is spelled as one.
+_WRITTEN_AS = {}      # filled in below, once the classes exist
 
 
 def cell_name(entry) -> str:
-    """What to call one entry of a level's ``IMPLEMENTED_MODIFIERS`` in a message — a class's name,
-    or the named cell for a ``(kind, unit)`` pair. Shared so an error and the CLI's help cannot
+    """What to call one entry of a level's ``IMPLEMENTED_MODIFIERS`` in a message — how that class is
+    written, or how a ``(kind, unit)`` cell is written. Shared so an error and the CLI's help cannot
     describe the same declaration two different ways.
 
-    A `Driven` is named ``ScaledBy``, the verb that writes one on a rate: a declaration is a
-    promise about what you may *write*, and the class name is not something anyone writes. The
-    other two verbs are elsewhere by construction — ``SetBy`` is declared separately, because
-    replacing a base is its own capability, and ``Weights`` goes on ``transfer_to``, which is not a
-    rate and so is not in this list at all."""
+    Every entry is named by the **expression that writes it**, with ``...`` where the argument the
+    user chooses goes: ``varying_among('families', ...)``, ``scaled_by(TotalDiversity(...))``. A
+    declaration is a promise about what you may write, and this list is what an engine's refusal and
+    ``zombi2 <command> -h`` both print, so a name nobody can type sends the reader to a syntax error.
+    The earlier wording for a cell, ``drawn among families``, did exactly that.
+
+    One verb writes both cells and the **law** is what differs: a bare distribution is drawn afresh
+    for each unit, a `Drift` starts from the parent's value (SPEC §5). Only those two kinds reach
+    here, because a cell is the grain for exactly the carried ones (`CARRIED_KINDS`) and everything
+    else is declared by class."""
     if not isinstance(entry, tuple):
-        return "ScaledBy" if entry is Driven else entry.__name__
-    return f"{entry[0]} per {entry[1]}"
+        return _WRITTEN_AS.get(entry, entry.__name__)
+    kind, unit = entry
+    return f"{VARYING_AMONG}({unit!r}, {'Drift(...)' if kind == INHERITED else '...'})"
 
 
 def _driver_form(driver: object) -> str:
@@ -164,16 +196,18 @@ def _driver_form(driver: object) -> str:
 def describe(m: "Modifier") -> str:
     """What to call one modifier **instance** in a message.
 
-    Its class name, except for two cases where the class name is not what anyone wrote. A `Drawn`
-    or an `Inherited` covers a whole row of the grid and is named by its cell — ``drawn per
-    family``, ``inherited per lineage`` — because "carries Drawn" would be true and useless when the
-    whole question is *per what*. And a `Driven` is named by the **verb** that built it, which is
-    the word the user actually typed and the one that says what the number does."""
+    A `Drawn` or an `Inherited` covers a whole row of the grid and is named by its cell —
+    ``varying_among('families', ...)``, ``varying_among('lineages', Drift(...))`` — because "carries
+    a Random" would be true and useless when the whole question is *among what*, and the law is what
+    separates the two. Anything else is named by the **verb** that built it. Either way the name is
+    the spelling that writes it, so a refusal and the list of what the level does take are in one
+    vocabulary."""
     if isinstance(m, (Drawn, Inherited)):
         return cell_name(m.reads)
-    if type(m) is Driven:
-        return m.verb
-    return type(m).__name__
+    verb = getattr(m, "verb", None)
+    if verb is not None:
+        return verb
+    return _WRITTEN_AS.get(type(m), type(m).__name__)
 
 
 def is_implemented(m: "Modifier", engines: tuple, engine: str) -> bool:
@@ -185,8 +219,8 @@ def is_implemented(m: "Modifier", engines: tuple, engine: str) -> bool:
     An entry is **a class** or **a cell**. A class is the right grain for `OnTime` against
     `OnTotalDiversity`: both read a measured value on the run, yet an engine can thread a schedule's
     breakpoints without threading the standing diversity, so the two are separately declarable. A
-    cell — ``(DRAWN, "family")`` — is the right grain for `Drawn` and `Inherited`, which are one class
-    covering every unit, where what an engine supports is the *unit* it can carry a number for."""
+    cell — ``(DRAWN, "families")`` — is the right grain for `Drawn` and `Inherited`, which cover
+    every unit, where what an engine supports is the *unit* it can carry a number for."""
     if matches_declared(m, engines):
         return True
     if engine not in getattr(m, "implemented_for", ()):
@@ -231,19 +265,34 @@ def matches_declared(m: "Modifier", entries: tuple) -> bool:
     return False
 
 
+def _no_longer_multiplied(left: object, right: object) -> Exception:
+    """The refusal for ``a * b`` anywhere in the grammar, written once.
+
+    ``*`` used to be how a rate was composed, so every retired expression in a paper, a notebook or
+    an old ``--params`` file starts by multiplying. Left to CPython that fails with "unsupported
+    operand type(s)", which names two classes nobody wrote and says nothing about what to do; this
+    names the verbs instead."""
+    from .rate import RateCompositionError
+
+    return RateCompositionError(
+        f"'*' no longer composes a rate — the verbs do, and each returns a new rate so they chain: "
+        f"PerCopy(0.25).scaled_by(driver, mapping), .set_by(driver, mapping), "
+        f".varying_among('families', LogNormal(0.0, 0.5)), .changing_at({{0: 1.0, 3: 0.3}}). "
+        f"Got {left!r} * {right!r}.")
+
+
 class Modifier:
     """Base for rate modifiers.
 
     A modifier reads the context keys it cares about (``time``, ``diversity``,
     ``branch``, ``family``, …) and returns a dimensionless, non-negative multiplier;
-    it ignores the rest. Abstract — use a subclass.
+    it ignores the rest. Abstract — use a subclass, and write a verb rather than a subclass.
     """
 
     #: What this modifier reads, as ``(kind, unit)`` — the value's kind (one of `MEASURED`,
-    #: `DRAWN`, `INHERITED`, `DRIVEN`) and the unit it lives on (``"run"``, ``"lineage"``,
-    #: ``"family"``, …). It is SPEC §5's preposition table, written where the code can read it:
-    #: ``On`` is a measured value, ``By`` a drawn one, ``From`` an inherited one, and ``ScaledBy``
-    #: another level's.
+    #: `DRAWN`, `INHERITED`, `DRIVEN`) and the unit it lives on (``"run"``, ``"lineages"``,
+    #: ``"families"``, …). It is the one thing an engine dispatches on, so a modifier a level has
+    #: never heard of is threaded like the ones it has.
     #:
     #: The split it records is the useful one. A **measured** value is one the engine already has,
     #: so the modifier computes its own factor from the context and the engine does nothing. A
@@ -290,16 +339,16 @@ class Modifier:
     #:
     #: **``sequences`` is not on that list, deliberately.** Every engine above evaluates its rate
     #: through `Rate.effective`, which multiplies in whatever `factor` returns. The sequence level
-    #: reads its two kinds of modifier itself — the clock is *drawn per lineage* before any site
+    #: reads its two kinds of modifier itself — the clock is *drawn among lineages* before any site
     #: evolves, not evaluated at an event — so a modifier declaring itself implemented there would be
     #: accepted and then never called, which is the silence this whole mechanism exists to prevent.
     #: It refuses instead, and says why.
     #:
     #: **The hatch cannot vouch for a carried value.** It works for a modifier that computes its own
     #: factor from the context — ``reads`` unset, or `MEASURED` / `DRIVEN`. A modifier declaring
-    #: `DRAWN` or `INHERITED` needs the *engine* to draw its number per unit and hand it back, which
-    #: an engine can only do for the units it declares, so such a modifier is admitted by a level
-    #: naming its cell and by nothing else.
+    #: `DRAWN` or `INHERITED` needs the *engine* to draw its number for each unit and hand it back,
+    #: which an engine can only do for the units it declares, so such a modifier is admitted by a
+    #: level naming its cell and by nothing else.
     #:
     #: Declaring an engine is a claim you are making: it calls `factor` with the context above and
     #: nothing more, so take ``**_`` and default every key you read. Built-in modifiers leave this
@@ -339,55 +388,78 @@ class Modifier:
         most modifiers change only at events, not autonomously)."""
         return math.inf
 
-    def __rmul__(self, other: object):
-        # `number * mod`, `scope * mod`, `mod * mod`, `Rate * mod` all build a Rate (see zombi2.rate)
-        from .rate import Rate
-        from .scope import Scope
+    def written_call(self) -> str:
+        """How this modifier is written as a **verb call** on a parameter — ``scaled_by(...)``,
+        ``varying_among(...)``, ``changing_at(...)``. `Rate.__repr__` joins these onto the scope to
+        render the whole expression, so this is the one place each connection says how it is typed.
 
-        if isinstance(other, bool):
-            return NotImplemented
-        if isinstance(other, (int, float)):
-            return Rate(float(other), None, (self,))
-        if isinstance(other, Scope):
-            return Rate(other.base, other, (self,))
-        if isinstance(other, Modifier):
-            return Rate(1.0, None, (other, self))
-        if isinstance(other, Rate):
-            return Rate(other.base, other.scope, other.modifiers + (self,))
-        return NotImplemented
+        A modifier of someone else's cannot be written at all — the text grammar whitelists names
+        and knows only the built-in ones — so the default is a placeholder that fails loudly if
+        pasted back, rather than an expression that looks reproducible and is not.
+
+        The placeholder is built from the **class name**, and never from ``repr(self)``: `__repr__`
+        below calls this, so a subclass overriding neither — which is exactly the third-party
+        modifier `implemented_for` invites — sent the two into each other, and every log line, every
+        ``--params`` record and every error message that named the rate died of a RecursionError
+        while the run itself carried on fine. It is the same shape `_driver_form` uses for a driver
+        that cannot be written, for the same reason."""
+        return f"<{type(self).__name__}>"
+
+    def __repr__(self) -> str:
+        """The verb call, because for most modifiers that is the only way to write one. `Drawn` and
+        `Inherited` override this with their standalone ``Random(...)`` form, which is a thing you
+        can name and share (SPEC §6); nothing else has a name of its own."""
+        return self.written_call()
 
     def __mul__(self, other: object):
-        from .rate import Rate
+        raise _no_longer_multiplied(self, other)
 
-        if isinstance(other, Modifier):
-            return Rate(1.0, None, (self, other))
-        return self.__rmul__(other)
+    def __rmul__(self, other: object):
+        # `0.25 * Drawn(...)` and friends. `*` composed a rate until the verbs replaced it, so it
+        # raises here with the sentence that says what to write instead: a bare TypeError from
+        # CPython would name two types and nothing a reader of a rate can act on.
+        raise _no_longer_multiplied(other, self)
 
 
 class OnTime(Modifier):
-    """The rate changes in time — a skyline / episodic schedule.
+    """The rate changes in time — a skyline / episodic schedule. Written ``changing_at``::
 
-    ``schedule`` maps each interval's start time to a relative factor::
+        birth = PerLineage(0.5).changing_at({0: 1.0, 3: 0.3})    # 1.0 on [0, 3), then 0.3 on
 
-        OnTime({0: 1.0, 3: 0.3})   # factor 1.0 on [0, 3), then 0.3 from time 3 on
+    ``schedule`` maps each interval's start time to a relative factor, dimensionless: on a base of
+    ``2.0`` the schedule scales it. Before the earliest breakpoint the earliest factor applies
+    (define the schedule from time 0 to avoid surprise).
 
-    Factors are relative (dimensionless): on a base of ``2.0`` the schedule scales it.
-    Before the earliest breakpoint the earliest factor applies (define the schedule
-    from time 0 to avoid surprise).
+    The **same object** carries the other half of `Time`, ``set_by(Time(), ...)``, where the
+    schedule holds the rates themselves rather than multiples of a base::
+
+        birth = PerLineage(0.5).changing_at({0: 1.0, 3: 0.3})    # 30% of what it was
+        birth = PerLineage().set_by(Time(), {0: 0.5, 3: 0.15})   # the rates themselves
+
+    Those two are the same model, because a schedule on a base of 1.0 *is* the rate — which is why
+    `Rate.set_by` builds this rather than a `SetBy` and there is nothing for an engine to learn.
+    What differs is the sentence the reader typed, so `verb` records which, exactly as a `Driven`
+    records its own: a run's log has to say back what was written, not an equivalent.
     """
 
     reads: ClassVar[tuple[str, str] | None] = (MEASURED, "run")
 
-    def __init__(self, schedule: Mapping[float, float]) -> None:
+    #: `CHANGING_AT`, or `SET_BY` when the schedule holds the rates rather than factors.
+    verb: str = CHANGING_AT
+
+    def __init__(self, schedule: Mapping[float, float], *, verb: str | None = None) -> None:
         steps = tuple(sorted((float(t), float(f)) for t, f in schedule.items()))
         if not steps:
-            raise ValueError("OnTime needs a non-empty schedule, e.g. OnTime({0: 1.0, 3: 0.3})")
+            raise ValueError(
+                "a time schedule cannot be empty, e.g. .changing_at({0: 1.0, 3: 0.3})")
         for t, f in steps:
             if not math.isfinite(t):
-                raise ValueError(f"OnTime schedule times must be finite, got {t!r}")
+                raise ValueError(f"schedule times must be finite, got {t!r}")
             if not math.isfinite(f) or f < 0:
-                raise ValueError(f"OnTime factors must be finite and non-negative, got {f!r}")
+                raise ValueError(f"schedule values must be finite and non-negative, got {f!r}")
         self._steps = steps
+        if verb is not None:
+            self.verb = verb
 
     # `factor` narrows the base signature: this modifier cannot answer without its key, and
     # giving it a default would make a level that forgot to thread it return a plausible
@@ -408,14 +480,18 @@ class OnTime(Modifier):
                 return t
         return math.inf
 
-    def __repr__(self) -> str:
+    def written_call(self) -> str:
         # `repr(float)` rather than `:g`, which rounds to six significant figures: this text is what
         # a run's log records and what a reader pastes back into a flag, so a rate that prints
         # rounded is a log naming a model that is not the one that ran.
         inner = ", ".join(f"{float(t)!r}: {float(f)!r}" for t, f in self._steps)
-        return f"OnTime({{{inner}}})"
+        if self.verb == SET_BY:
+            return f"{SET_BY}(Time(), {{{inner}}})"
+        return f"{CHANGING_AT}({{{inner}}})"
 
     def __eq__(self, other: object) -> bool:
+        """By the schedule alone. `verb` is outside this on purpose: the two spellings run the same
+        model, and two rates that behave identically should compare equal."""
         return isinstance(other, OnTime) and other._steps == self._steps
 
     def __hash__(self) -> int:
@@ -423,12 +499,44 @@ class OnTime(Modifier):
 
 
 @dataclass(frozen=True)
+class TotalDiversity:
+    """The lineages standing right now, as a **driver** a rate can be scaled by::
+
+        birth = PerLineage(1.0).scaled_by(TotalDiversity(cap=100))
+
+    The carrying capacity is written on the driver rather than in a mapping beside it, and that is
+    a limit rather than a design: the factor an engine reads is the linear fall to a cap, and a
+    general curve of diversity would have to be integrated rather than read at a point, exactly as
+    a smooth function of time would (SPEC §10). So there is one shape, and it takes its one number
+    here. `scaled_by` refuses a mapping alongside, rather than accepting one and ignoring it.
+    """
+
+    cap: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.cap is None:
+            raise ValueError(
+                "TotalDiversity needs its carrying capacity — TotalDiversity(cap=100), the "
+                "diversity at which the rate reaches zero. The linear fall to a cap is the one "
+                "shape an engine reads, so there is no mapping to write instead.")
+        if isinstance(self.cap, bool) or not isinstance(self.cap, (int, float)):
+            raise TypeError(f"TotalDiversity cap must be a real number, got {self.cap!r}")
+        if not math.isfinite(self.cap) or self.cap <= 0:
+            raise ValueError(f"TotalDiversity cap must be finite and positive, got {self.cap!r}")
+
+    def __repr__(self) -> str:
+        assert self.cap is not None            # __post_init__ refuses a driver without its cap
+        return f"TotalDiversity(cap={float(self.cap)!r})"
+
+
+@dataclass(frozen=True, repr=False)            # repr=False: the written form, from `Modifier`
 class OnTotalDiversity(Modifier):
-    """The rate slows as standing diversity grows — diversity-dependence.
+    """The rate slows as standing diversity grows — diversity-dependence. Built by
+    ``scaled_by(TotalDiversity(cap=100))``.
 
     The factor falls linearly from 1 toward 0 as diversity rises to ``cap`` (a carrying
-    capacity), and stays 0 beyond it: ``OnTotalDiversity(cap=100)`` halves the rate at 50
-    lineages and stops it at 100.
+    capacity), and stays 0 beyond it: a cap of 100 halves the rate at 50 lineages and stops it
+    at 100.
     """
 
     reads: ClassVar[tuple[str, str] | None] = (MEASURED, "run")
@@ -437,9 +545,9 @@ class OnTotalDiversity(Modifier):
 
     def __post_init__(self) -> None:
         if isinstance(self.cap, bool) or not isinstance(self.cap, (int, float)):
-            raise TypeError(f"OnTotalDiversity cap must be a real number, got {self.cap!r}")
+            raise TypeError(f"TotalDiversity cap must be a real number, got {self.cap!r}")
         if not math.isfinite(self.cap) or self.cap <= 0:
-            raise ValueError(f"OnTotalDiversity cap must be finite and positive, got {self.cap!r}")
+            raise ValueError(f"TotalDiversity cap must be finite and positive, got {self.cap!r}")
 
     # `factor` narrows the base signature: this modifier cannot answer without its key, and
     # giving it a default would make a level that forgot to thread it return a plausible
@@ -448,18 +556,41 @@ class OnTotalDiversity(Modifier):
     def factor(self, *, diversity: float, **_: Any) -> float:  # type: ignore[override]
         return max(0.0, 1.0 - diversity / self.cap)
 
+    def written_call(self) -> str:
+        return f"{SCALED_BY}(TotalDiversity(cap={float(self.cap)!r}))"
+
+
+@dataclass(frozen=True)
+class Drift:
+    """A **law** for `Random`: the parent's value times a mean-corrected draw at each split —
+    continuous memory down a genealogy::
+
+        birth = PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2)))  # ClaDS
+
+    ``dist`` is the **per-split step**, not the value. Each law owns and documents its own
+    argument — a bare distribution is the value itself, ``Drift``'s is the step — so nobody has to
+    infer the role from the slot, which is what the retired ``spread=`` made impossible.
+
+    ``bins`` discretises the drift onto a ladder: the rate takes one of ``bins`` values and a
+    daughter moves to a **neighbouring rung**, or stays — the rate-category clock. A knob rather
+    than a law of its own, because the model is unchanged: a daughter starts from its parent and is
+    perturbed.
+    """
+
+    #: `Any` rather than `Distribution`: a law may be written as anything `as_distribution` accepts,
+    #: and `Inherited` is what coerces it — checking here would only move the same check earlier and
+    #: leave two places to keep in step.
+    dist: Any = None
+    bins: int | None = None
+
+    def __repr__(self) -> str:
+        extra = f", bins={self.bins}" if self.bins is not None else ""
+        return f"Drift({self.dist!r}{extra})"
+
 
 @dataclass(frozen=True)
 class Inherited(Modifier):
-    """A value **inherited from a parent and perturbed** at each split — continuous memory down a
-    genealogy. ``per`` names the unit it is carried on, so the class is one model and the unit is
-    data::
-
-        birth = 1.0 * Inherited(per="lineage", dist=LogNormal(0.0, 0.2))   # drift down a clade (ClaDS)
-
-    ``dist`` is the **per-split step**, not the value: a daughter's factor is its parent's times one
-    draw from it. That is the distinction the retired ``spread=`` hid — it named the value's spread
-    in `Drawn` and the step's in `Inherited`, and nothing on the page said which.
+    """What ``varying_among(unit, Drift(dist))`` builds — a value inherited and perturbed.
 
     Geometric Brownian motion on the rate: the step is **mean-corrected** so ``E[factor] = 1``.
     Without the correction the rate inflates down the tree (``E[rate] ≈ e^{σ²/2}``) — a real
@@ -467,39 +598,29 @@ class Inherited(Modifier):
     exactly as `Drawn` does. The engine drives `initial` / `descend`, threading each unit's current
     factor back through `Rate.effective`'s ``carried_factor``.
 
-    ``bins`` discretises the drift: the rate takes one of ``bins`` values on a geometric ladder and a
-    daughter moves to a **neighbouring rung**, or stays — the rate-category clock. It is a knob rather
-    than a model of its own because the model is unchanged: a daughter starts from its parent and is
-    perturbed. ``None`` is the continuous form. It takes a `LogNormal` step and nothing else, because
-    the ladder's spacing *is* that step's σ — with any other shape there is no rung spacing to read,
-    and inventing one would be a model nobody wrote.
+    ``bins`` takes a `LogNormal` step and nothing else, because the ladder's spacing *is* that
+    step's σ — with any other shape there is no rung spacing to read, and inventing one would be a
+    model nobody wrote. ``None`` is the continuous form.
     """
 
-    per: str
-    # `Distribution` after `__post_init__` coerces it; `object` in the annotation so a caller may
-    # hand in anything `as_distribution` accepts, exactly as `Drawn` does
+    unit: str = ""
+    # `Distribution` after `__post_init__` coerces it; a caller may hand in anything
+    # `as_distribution` accepts, exactly as `Drawn` does
     dist: "Distribution" = None    # type: ignore[assignment]
     bins: int | None = None
-    spread: float | None = None       # retired; a trap that names the replacement (see __post_init__)
 
     @property
     def reads(self) -> tuple[str, str]:      # type: ignore[override]
-        return (INHERITED, self.per)
+        return (INHERITED, self.unit)
 
     def __post_init__(self) -> None:
-        if self.per not in UNITS:
+        if self.unit not in UNITS:
             raise ValueError(
-                f"unknown unit {self.per!r}; a value is attached to one of {list(UNITS)}")
-        if self.spread is not None:
-            raise ValueError(
-                f"Inherited no longer takes spread=. Write the distribution, so the page says which "
-                f"one it is and what it distributes: Inherited(per={self.per!r}, "
-                f"dist=LogNormal(0.0, {self.spread!r})) is the same model. `spread` named the "
-                f"per-split STEP here and the drawn VALUE in Drawn, which is why it is gone.")
+                f"unknown unit {self.unit!r}; a value varies among one of {list(UNITS)}")
         if self.dist is None:
             raise ValueError(
-                f"Inherited needs the distribution of its per-split step — "
-                f"Inherited(per={self.per!r}, dist=LogNormal(0.0, 0.2)).")
+                f"Drift needs the distribution of its per-split step — "
+                f"varying_among({self.unit!r}, Drift(LogNormal(0.0, 0.2))).")
         object.__setattr__(self, "dist", as_distribution(self.dist))
         mean = self.dist.mean()       # raises for a distribution that cannot state one
         if not math.isfinite(mean) or mean <= 0:
@@ -508,31 +629,31 @@ class Inherited(Modifier):
                 f"finite and positive; {self.dist!r} has a mean of {mean!r}")
         if self.bins is not None:
             if isinstance(self.bins, bool) or not isinstance(self.bins, int):
-                raise TypeError(f"Inherited bins must be a whole number, got {self.bins!r}")
+                raise TypeError(f"Drift bins must be a whole number, got {self.bins!r}")
             if self.bins < 2:
-                raise ValueError(f"Inherited bins must be at least 2, got {self.bins}")
+                raise ValueError(f"Drift bins must be at least 2, got {self.bins}")
             if not isinstance(self.dist, LogNormal):
                 raise ValueError(
-                    f"Inherited bins= takes a LogNormal step and got {self.dist!r}. The ladder's "
+                    f"Drift(..., bins=) takes a LogNormal step and got {self.dist!r}. The ladder's "
                     f"rungs are spaced by that step's sigma, so another shape leaves no spacing to "
-                    f"read — write dist=LogNormal(0.0, sigma) with bins, or drop bins for the "
+                    f"read — write Drift(LogNormal(0.0, sigma), bins=n), or drop bins for the "
                     f"continuous drift, which takes any distribution.")
 
+    def written_call(self) -> str:
+        return f"{VARYING_AMONG}({self.unit!r}, {Drift(self.dist, self.bins)!r})"
+
     def __repr__(self) -> str:
-        """The written form a run's log records and a reader pastes back into a flag, so it has to be
-        an expression that reproduces the rate. ``bins`` is omitted when it is unset, because the
-        parser refuses ``bins=None``: a written form that will not parse is not a written form."""
-        extra = f", bins={self.bins}" if self.bins is not None else ""
-        return f"Inherited(per={self.per!r}, dist={self.dist!r}{extra})"
+        """The standalone form — the `Random` a user can name and share between two rates. ``bins``
+        is omitted when it is unset, because the parser refuses ``bins=None``: a written form that
+        will not parse is not a written form."""
+        return f"Random({self.unit!r}, {Drift(self.dist, self.bins)!r})"
 
     def __eq__(self, other: object) -> bool:
-        """By unit, step and bins — never by the retired ``spread`` field, which is always None on a
-        constructed object and exists only to catch the old spelling."""
-        return (isinstance(other, Inherited) and other.per == self.per
+        return (isinstance(other, Inherited) and other.unit == self.unit
                 and other.dist == self.dist and other.bins == self.bins)
 
     def __hash__(self) -> int:
-        return hash((Inherited, self.per, self.dist, self.bins))
+        return hash((Inherited, self.unit, self.dist, self.bins))
 
     def factor(self, **_: Any) -> float:
         """A carried modifier has no factor to compute. Its number is drawn when the unit is born and
@@ -540,11 +661,12 @@ class Inherited(Modifier):
         for one here, without that stored value, could only ever return a plausible 1.0 for a rate
         that should have varied."""
         raise NotImplementedError(
-            f"{type(self).__name__} is carried, not computed: the engine draws its value per "
-            f"{self.per} and passes it to Rate.effective(carried_factor=...). It has no factor of its own.")
+            f"a Random is carried, not computed: the engine draws its value for each of the "
+            f"{self.unit} and passes it to Rate.effective(carried_factor=...). It has no factor of "
+            f"its own.")
 
     def _ladder(self) -> list[float]:
-        """The ``bins`` rungs, geometric in ``spread`` and scaled so their mean is 1.
+        """The ``bins`` rungs, geometric in the step's sigma and scaled so their mean is 1.
 
         The mean is taken over the rungs because a nearest-neighbour walk with reflecting ends is
         uniform at stationarity, so an even ladder gives ``E[factor] = 1`` — the same promise the
@@ -587,50 +709,41 @@ class Inherited(Modifier):
 
 
 class Drawn(Modifier):
-    """A value **drawn once per unit** and then fixed for that unit's life — i.i.d. heterogeneity
-    with no memory. ``per`` names the unit, so one class covers every cell::
+    """What ``varying_among(unit, dist)`` builds when the law is a **bare distribution** — a value
+    drawn once for each unit and then fixed for that unit's life, i.i.d. heterogeneity with no
+    memory. The unit is an argument, so one class covers every cell::
 
-        loss = 0.25 * Drawn(per="family", dist=LogNormal(0.0, 0.5))          # family heterogeneity
-        substitution = 1.0 * Drawn(per="lineage", dist=LogNormal(0.0, 0.3))  # uncorrelated clock
-        loss = 0.25 * Drawn(per="family", dist=Gamma(shape=4.0, scale=0.25)) # any other shape
+        loss         = PerCopy(0.25).varying_among('families', LogNormal(0.0, 0.5))
+        substitution = PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3))
+        loss         = PerCopy(0.25).varying_among('families', Gamma(shape=4.0, scale=0.25))
 
-    ``dist`` is the distribution the **value** is drawn from — any built-in `Distribution`:
+    The law is the distribution the **value** is drawn from — any built-in `Distribution`:
     ``Fixed``, ``Exponential``, ``Gamma``, ``LogNormal``, ``Uniform``, ``Geometric``. A callable or a
     scipy frozen distribution is refused here, because neither states a mean to normalise by; an
     extent takes both, being a size rather than a multiplier.
-
-    It is written out rather than abbreviated because the retired ``spread=σ`` said neither which
-    distribution it meant nor what it distributed — the drawn value here, the per-split step in
-    `Inherited`, two different quantities under one name.
 
     **Every draw is normalised to mean 1**, by dividing by the distribution's own mean. A drawn value
     is a *multiplier*, and one that does not average to 1 changes what the base means — a base of 0.25
     would stop being the average rate. So widening the spread separates units and leaves the average
     one where you put it, and a distribution's **location is normalised away**: what it contributes is
-    its shape. ``Exponential(1.0)`` and ``Exponential(7.0)`` are therefore the same modifier. A
+    its shape. ``Exponential(1.0)`` and ``Exponential(7.0)`` are therefore the same law. A
     distribution that cannot state its mean — a bare callable, a scipy frozen distribution — is
     refused rather than normalised by a guess. (A number that *is* the rate rather than a factor is
-    `SetBy`, where nothing is normalised.)
+    `set_by`, where nothing is normalised.)
 
-    **Writing one object or two decides what varies together.** One `Drawn` read by several rates is
+    **Writing one object or two decides what varies together.** One `Random` read by several rates is
     one draw for that unit, so a family that loses fast also duplicates fast; two separately built
     ones are independent even with identical arguments (SPEC §5).
     """
 
-    def __init__(self, *, per: str, dist: object = None, spread: float | None = None) -> None:
-        if per not in UNITS:
-            raise ValueError(f"unknown unit {per!r}; a value is attached to one of {list(UNITS)}")
-        if spread is not None:
-            raise ValueError(
-                f"Drawn no longer takes spread=. Write the distribution, so the page says which one "
-                f"it is: Drawn(per={per!r}, dist=LogNormal(0.0, {spread!r})) is the same model. "
-                f"`spread` named the drawn VALUE here and the per-split STEP in Inherited, which is "
-                f"why it is gone.")
+    def __init__(self, unit: str, dist: object = None) -> None:
+        if unit not in UNITS:
+            raise ValueError(f"unknown unit {unit!r}; a value varies among one of {list(UNITS)}")
         if dist is None:
             raise ValueError(
-                f"Drawn needs the distribution its value is drawn from — "
-                f"Drawn(per={per!r}, dist=LogNormal(0.0, 0.5)).")
-        self.per = per
+                f"a Random needs the law its value follows — "
+                f"varying_among({unit!r}, LogNormal(0.0, 0.5)).")
+        self.unit = unit
         self.dist = as_distribution(dist)
         mean = self.dist.mean()       # raises for a distribution that cannot state one
         if not math.isfinite(mean) or mean <= 0:
@@ -640,13 +753,14 @@ class Drawn(Modifier):
 
     @property
     def reads(self) -> tuple[str, str]:      # type: ignore[override]
-        return (DRAWN, self.per)
+        return (DRAWN, self.unit)
 
     def factor(self, **_: Any) -> float:
         """A carried modifier has no factor to compute — see `Inherited.factor`."""
         raise NotImplementedError(
-            f"Drawn is carried, not computed: the engine draws its value per {self.per} and passes "
-            f"it to Rate.effective(carried_factor=...). It has no factor of its own.")
+            f"a Random is carried, not computed: the engine draws its value for each of the "
+            f"{self.unit} and passes it to Rate.effective(carried_factor=...). It has no factor of "
+            f"its own.")
 
     def draw(self, rng) -> float:
         """One independent multiplier for a unit, with mean 1.
@@ -658,17 +772,62 @@ class Drawn(Modifier):
             return 1.0
         return self.dist.sample(rng) / self.dist.mean()
 
+    def written_call(self) -> str:
+        return f"{VARYING_AMONG}({self.unit!r}, {self.dist!r})"
+
     def __repr__(self) -> str:
-        """The written form a run's log records and a reader pastes back into a flag."""
-        return f"Drawn(per={self.per!r}, dist={self.dist!r})"
+        """The standalone form — the `Random` a user can name and share between two rates."""
+        return f"Random({self.unit!r}, {self.dist!r})"
 
     def __eq__(self, other: object) -> bool:
         """Two draws are the same modifier when they are on the same unit with the same
         distribution."""
-        return isinstance(other, Drawn) and other.per == self.per and other.dist == self.dist
+        return isinstance(other, Drawn) and other.unit == self.unit and other.dist == self.dist
 
     def __hash__(self) -> int:
-        return hash((Drawn, self.per, self.dist))
+        return hash((Drawn, self.unit, self.dist))
+
+
+def Random(unit: str | None = None, law: object = None, **retired: Any) -> Modifier:
+    """A value drawn for each unit of that kind — the one driver that is not measured anywhere.
+
+    ``unit`` is plural (``'lineages'``, ``'families'``, ``'copies'``, ``'sites'``,
+    ``'chromosomes'``). The **law** says what happens to the value afterwards, which is a separate
+    question from what it starts as::
+
+        Random('families', LogNormal(0.0, 0.5))          # drawn once, held for that family's life
+        Random('lineages', Drift(LogNormal(0.0, 0.3)))   # the parent's, perturbed at each split
+        Random('lineages', Drift(LogNormal(0.0, 0.3), bins=8))    # the rate-category clock
+
+    A bare distribution is deliberate, not an oversight: it follows the convention the grammar
+    already uses everywhere — a bare dict is a table, a bare function a curve — where the plain case
+    is written plainly and anything else is named.
+
+    Usually written through the verb, ``rate.varying_among('families', law)``, which builds one of
+    these and attaches it. Building it **by name** is how two rates share one draw::
+
+        family_speed = Random('families', LogNormal(0.0, 0.5))
+        duplication  = PerCopy(0.20).varying_among(family_speed)
+        loss         = PerCopy(0.10).varying_among(family_speed)   # exactly half, in every family
+
+    because the engine caches a unit's draw by object identity. Two separately built ``Random``
+    objects are two draws even with identical arguments: the question is whether you wrote one
+    thing or two.
+
+    ``**retired`` catches ``spread=`` and ``per=``, the two keywords this replaced, so Python
+    answers them with the same sentence a flag does rather than with "unexpected keyword argument".
+    The unit has a default for that reason alone: ``Random(per='family', …)`` writes it into a
+    keyword, and a required positional would make Python complain about the missing argument before
+    anything here could say what ``per=`` became.
+    """
+    check_no_retired_keywords(retired, where="Random")
+    if unit is None:
+        raise TypeError(
+            f"a Random needs the plural unit its value varies among — Random('families', "
+            f"LogNormal(0.0, 0.5)); one of {list(UNITS)}.")
+    if isinstance(law, Drift):
+        return Inherited(unit, law.dist, law.bins)
+    return Drawn(unit, law)
 
 
 class Driven(Modifier):
@@ -676,12 +835,13 @@ class Driven(Modifier):
     joining (SPEC §2).
 
     **You do not write this class; you write a verb.** Which verb says what the number does, and is
-    decided by what you are attaching it to: `ScaledBy` multiplies a rate or an extent, `Weights`
-    compares the candidates of a choice, `SetBy` replaces a base. All three build this::
+    decided by what you are attaching it to: `scaled_by` multiplies a rate or an extent,
+    `weighted_by` compares the candidates of a choice, `set_by` replaces a base. All three build
+    this::
 
-        loss        = 0.25 * ScaledBy("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})
-        birth       = 1.0  * ScaledBy("trait", {"small": 1.0, "large": 2.0})   # a joint model
-        transfer_to =        Weights("competence.tsv", {"competent": 3.0, "normal": 1.0})
+        loss        = PerCopy(0.25).scaled_by("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})
+        birth       = PerLineage(1.0).scaled_by("trait", {"small": 1.0, "large": 2.0})  # joint
+        transfer_to = Recipients().weighted_by("competence.tsv", {"competent": 3.0})
 
     It is Ch2's definition made literal: *a rate that reads a value which varies from lineage to
     lineage, rather than a fixed number*. It reads the driver's value on each lineage and the mapping
@@ -708,7 +868,7 @@ class Driven(Modifier):
     (``transfer_to``, a weight per candidate rather than a multiplier). It always maps a value to a
     number; it never drives a *value*, such as an OU optimum.
 
-    Like a carried modifier, ``ScaledBy`` reads
+    Like a carried modifier, a ``Driven`` reads
     a value the **engine** threads per lineage — here a ``drivers`` mapping ``{key: value}`` — and
     is otherwise dumb: it just maps the value to a factor. The engine owns *where* the value comes from
     (a file it loaded, or the live level growing beside the tree) and *when* it changes (a discrete
@@ -720,13 +880,13 @@ class Driven(Modifier):
     #: modifier maps it, whether it was recorded beforehand (conditioned) or is growing alongside
     #: (joint). Which of those it is depends on the ``driver`` argument, not on the class, so the
     #: kind here is the pair's shared name rather than one of them.
-    reads: ClassVar[tuple[str, str] | None] = (DRIVEN, "lineage")
+    reads: ClassVar[tuple[str, str] | None] = (DRIVEN, "lineages")
 
     #: The verb that wrote this one, and so how it prints. A driven value is written with the verb
     #: that says what its number does — and only the writer knows which, because it follows from
     #: what the value is attached to, not from anything the value itself holds. Recording it is what
     #: lets a run's log say back exactly what was typed.
-    verb: str = "ScaledBy"
+    verb: str = SCALED_BY
 
     def __init__(self, driver: object, mapping: object, step: float | None = None, *,
                  verb: str | None = None) -> None:
@@ -765,7 +925,11 @@ class Driven(Modifier):
             return 1.0
         return self.mapping.multiplier(value)
 
-    def __repr__(self) -> str:
+    def written_call(self) -> str:
+        """``step`` is written whenever it is set, because a written form that omits an argument
+        records a different model. Leaving it out meant a driven rate with a step rendered as one
+        without, reparsed as one without, and compared equal to one without — so a run's log said
+        something the run had not done, and every round-trip check agreed."""
         step = f", step={self.step!r}" if self.step is not None else ""
         return f"{self.verb}({_driver_form(self.driver)}, {self.mapping!r}{step})"
 
@@ -793,20 +957,11 @@ class Driven(Modifier):
             return hash(Driven)
 
 
-#: The names a rate may be **written** with — what `zombi2.rates.parse` whitelists, and the only
-#: things in this module a user ever calls. Kept explicit rather than derived from ``__all__``, which
-#: also carries the helpers an engine uses: a whitelist that grows whenever a helper is exported is
-#: a whitelist that stops meaning anything.
-#:
-#: `Driven` is deliberately absent. It is the object a driven parameter carries, and it is written
-#: with the **verb** that says what its number does — `ScaledBy`, `Weights` or the `SetBy` below —
-#: because that is the one thing the class name never said.
-WRITABLE = ("OnTime", "OnTotalDiversity", "Drawn", "Inherited", "SetBy")
-
 class SetBy(Driven):
-    """**Replace** the parameter's base with a value read from a driver, rather than multiplying it::
+    """**Replace** the parameter's base with a value read from a driver, rather than multiplying it.
+    What ``set_by`` builds::
 
-        loss = SetBy(habitat, {"cave": 1.0, "surface": 0.25})   # the rate itself, per state
+        loss = PerCopy().set_by(habitat, {"cave": 1.0, "surface": 0.25})   # the rate itself
 
     Written with **no base in front**, because there is none to write: the driver supplies the whole
     number, in the parameter's own units rather than as a dimensionless factor. That is what the
@@ -814,49 +969,49 @@ class SetBy(Driven):
     stated" — and spelling an absolute statement as a multiple of an invented background is the kind
     of quiet mismatch this grammar exists to avoid.
 
-    **The scope still applies.** ``SetBy`` replaces the base, not the *per what?*: a per-copy rate set
-    to 1.0 is still 1.0 per copy, so it is multiplied by the copies present exactly as a written base
-    would be. Only the number changes.
+    **The scope still applies.** ``set_by`` replaces the base, not the *per what?*: a per-copy rate
+    set to 1.0 is still 1.0 per copy, so it is multiplied by the copies present exactly as a written
+    base would be. Only the number changes, which is why the scope is still written in front:
+    ``PerCopy()``.
 
     It is a `Driven`, so every engine that resolves drivers resolves this one too — the trajectory,
     the mid-branch switches, the mapping checks are all the same machinery. What differs is one line
     in `Rate.effective`, which asks a ``SetBy`` for the base and every
     other modifier for a factor. The two compose: a replaced base may still be scaled.
 
-        loss = SetBy(habitat, {...}) * ScaledBy(size, Scalar(0.5))
+        loss = PerCopy().set_by(habitat, {...}).scaled_by(size, Scalar(0.5))
 
-    A rate may carry **one** ``SetBy``. Two would be two answers to the same question, and neither
-    order of application is more right than the other, so it raises rather than picking.
+    A rate may carry **one** ``SetBy``, written first. Two would be two answers to the same
+    question, and neither order of application is more right than the other, so it raises rather
+    than picking.
     """
 
-    def __rmul__(self, other: object):
-        if isinstance(other, (int, float)) and not isinstance(other, bool):
-            from .rate import RateCompositionError
-            raise RateCompositionError(
-                f"SetBy replaces the base, so there is no base to write in front of it: use "
-                f"`SetBy(driver, mapping)` on its own rather than `{other!r} * SetBy(...)`. If you "
-                f"meant to scale a base you state yourself, that is ScaledBy.")
-        return super().__rmul__(other)
-
-    def __mul__(self, other: object):
-        if isinstance(other, SetBy):
-            from .rate import RateCompositionError
-            raise RateCompositionError(
-                "a rate carries one SetBy: each of two would claim to be the whole number, and no "
-                "order of application is more right than the other. Keep one; if you meant to scale "
-                "the result, that is ScaledBy, which multiplies and composes freely.")
-        return super().__mul__(other)
-
-    def __repr__(self) -> str:
-        """``step`` is written here for the same reason `Driven` writes it: a written form that
-        omits an argument records a different model. Leaving it out meant a `SetBy` with a step
-        rendered as one without, reparsed as one without, and compared equal to one without —
-        so a run's log said something the run had not done, and every round-trip check agreed."""
-        step = f", step={self.step!r}" if self.step is not None else ""
-        return f"SetBy({_driver_form(self.driver)}, {self.mapping!r}{step})"
+    verb: str = SET_BY
 
 
-__all__ = ["Modifier", "OnTime", "OnTotalDiversity", "Drawn", "Inherited", "Driven", "SetBy",
+#: What this module contributes to the names an expression may **call** — the two drivers and the
+#: law. Kept explicit rather than derived from ``__all__``, which also carries the helpers an engine
+#: uses: a whitelist that grows whenever a helper is exported is a whitelist that stops meaning
+#: anything.
+#:
+#: The modifier classes are all absent, because none of them is written any more: a rate is written
+#: from its scope and the verbs say what it reads. `Random` is here rather than with the verbs
+#: because it is the one value a user can **name**, which is how two rates share a draw (SPEC §6).
+WRITABLE = ("Random", "Drift", "TotalDiversity")
+
+_WRITTEN_AS.update({
+    OnTime: CHANGING_AT,
+    OnTotalDiversity: f"{SCALED_BY}(TotalDiversity(...))",
+    Drawn: VARYING_AMONG,
+    Inherited: VARYING_AMONG,
+    Driven: SCALED_BY,
+    SetBy: SET_BY,
+})
+
+
+__all__ = ["Modifier", "OnTime", "OnTotalDiversity", "TotalDiversity", "Drawn", "Inherited",
+           "Drift", "Random", "Driven", "SetBy",
            "MEASURED", "DRAWN", "INHERITED", "DRIVEN", "CARRIED_KINDS", "UNITS",
+           "SCALED_BY", "SET_BY", "WEIGHTED_BY", "VARYING_AMONG", "CHANGING_AT",
            "values_at_birth", "values_at_split", "check_one_memory",
            "cell_name", "describe", "is_implemented", "matches_declared", "WRITABLE"]

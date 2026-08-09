@@ -50,7 +50,7 @@ tree is the truth. RED on the phylogram is what a real study would have seen.
 ```python
 import numpy as np
 from zombi2 import genomes, sequences, species
-from zombi2.rates import LogNormal, modifiers as mod
+from zombi2.rates import LogNormal, PerSite
 from zombi2.sequences import substitution_models as sm
 from zombi2.tree import read_newick
 from zombi2.tree import relative_evolutionary_divergence as red_of
@@ -65,7 +65,7 @@ g = genomes.simulate_genomes_family(sp.complete_tree, initial_families=5,
                                     duplication=0.01, loss=0.01, seed=100)
 seq = sequences.simulate_sequences(
     g, model=sm.jc69(), length=1,
-    substitution=1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.544)), seed=7)
+    substitution=PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.544)), seed=7)
 
 phylogram, _ = read_newick(seq.species_phylogram["extant"])
 estimate = red_of(phylogram)                   # RED, now on substitutions instead of time
@@ -81,9 +81,9 @@ comes with an error bar rather than a seed.
 It also runs three clocks rather than one. A CV says how much rate variation there is, but not how it
 is arranged, and arrangement matters for a method that walks from root to tip:
 
-- **uncorrelated** (`Drawn(per='lineage')`), where each lineage draws its own rate independently, with either a
+- **uncorrelated** (`varying_among('lineages', dist)`), where each lineage draws its own rate independently, with either a
   lognormal or a gamma tail;
-- **autocorrelated** (`Inherited(per='lineage')`), where each lineage inherits its parent's rate and drifts from
+- **autocorrelated** (`varying_among('lineages', Drift(dist))`), where each lineage inherits its parent's rate and drifts from
   it, so close relatives evolve at similar rates.
 
 Each clock has a spread parameter σ. Turning σ up makes the simulated trees vary more, so for each

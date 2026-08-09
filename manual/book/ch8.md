@@ -6,8 +6,7 @@ The trait level evolves **phenotypes**: a body size, a habitat, the presence or 
 
 ```python
 from zombi2 import species, traits
-from zombi2.rates import ScaledBy
-from zombi2.rates import modifiers as mod
+from zombi2.rates import PerLineage
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 result = traits.simulate_continuous(tree, start=0.0, rate=1.0, seed=1)   # a real value
@@ -24,7 +23,7 @@ A continuous trait **diffuses**. Give it a starting value and a rate, and it wan
 traits.simulate_continuous(tree, start=0.0, rate=1.0, seed=1)
 ```
 
-Here `rate` is the Brownian variance-rate σ², the trait level's reading of "how fast", and like every rate in ZOMBI2 it accepts modifiers. For example, two variations on this are:
+Here `rate` is the Brownian variance-rate σ², the trait level's reading of "how fast", and like every rate in ZOMBI2 it takes the verbs. For example, two variations on this are:
 
 ```python
 # OU: the same diffusion, pulled toward an optimum value
@@ -33,35 +32,36 @@ traits.simulate_continuous(tree, start=0.0, rate=1.0,
 
 # early burst: the diffusion rate itself decays through time
 traits.simulate_continuous(tree, start=0.0,
-                           rate=1.0 * mod.OnTime({0: 1.0, 5: 0.2}), seed=1)
+                           rate=PerLineage(1.0).changing_at({0: 1.0, 5: 0.2}), seed=1)
 ```
 
-The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root; it is written with the same `mod.OnTime` that gives the species tree its skyline.
+The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root; it is written with the same `changing_at` that gives the species tree its skyline.
 
-That is the pattern for everything past Brownian motion here, and it is not a longer menu of models. The diffusion rate is a rate like any other in ZOMBI2, so the modifiers this level reads apply to it unchanged, each with a name in the comparative-methods literature:
+That is the pattern for everything past Brownian motion here, and it is not a longer menu of models. The diffusion rate is a rate like any other in ZOMBI2, so the verbs this level reads apply to it unchanged, each with a name in the comparative-methods literature:
 
 ```python
-from zombi2.rates import LogNormal
-rate = 1.0 * mod.OnTime({0: 4.0, 1: 1.0})       # fast early, then settling: early burst
-rate = 1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.3))         # each clade inherits and drifts in tempo
-rate = 1.0 * mod.OnTotalDiversity(cap=100)      # the rate eases off as the clade fills
+from zombi2.rates import Drift, LogNormal, PerLineage, TotalDiversity
+rate = PerLineage(1.0).changing_at({0: 4.0, 1: 1.0})    # fast early, then settling: early burst
+# each clade inherits and drifts in tempo
+rate = PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.3)))
+rate = PerLineage(1.0).scaled_by(TotalDiversity(cap=100))  # the rate eases off as the clade fills
 
 # σ² reads a second trait, grown first on the same tree
 habitat = traits.simulate_discrete(tree, states=["marine", "terrestrial"], switch=0.3, seed=1)
 size = traits.simulate_continuous(tree, start=0.0, seed=2,
-    rate=1.0 * ScaledBy(habitat, {"marine": 4.0, "terrestrial": 1.0}))
+    rate=PerLineage(1.0).scaled_by(habitat, {"marine": 4.0, "terrestrial": 1.0}))
 ```
 
 The last is one trait driving another, which is the conditioning of Chapter 9: the driver is grown first, and the run that reads it comes second.
 
-`Drawn(per='lineage')`, Chapter 3's null for inherited tempo, is not among them: the level refuses it by name. Appendix A lists what each level accepts.
+A bare `varying_among('lineages', ...)`, Chapter 3's null for inherited tempo, is not among them: the level refuses it by name. Appendix A lists what each level accepts.
 
-Two more knobs sit alongside `rate`. `regimes=` paints a multi-optimum OU, where clades pull toward different optima (a discrete trait supplies the painting and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches, so change concentrates at branching. The value is the jump variance, so `at_speciation=0.5` gives a jump of width √0.5. None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one modifier and two arguments.
+Two more knobs sit alongside `rate`. `regimes=` paints a multi-optimum OU, where clades pull toward different optima (a discrete trait supplies the painting and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches, so change concentrates at branching. The value is the jump variance, so `at_speciation=0.5` gives a jump of width √0.5. None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one verb and two arguments.
 
 ```python
 # a burst that decays, under a pull toward an optimum of 2
 traits.simulate_continuous(tree, start=0.0, reverts_to=2.0, pull=0.5, seed=1,
-                           rate=1.0 * mod.OnTime({0: 4.0, 1: 1.0}))
+                           rate=PerLineage(1.0).changing_at({0: 4.0, 1: 1.0}))
 ```
 
 The combination is exact, not an approximation of one. A branch running from `t₀` to `t₁` ends normally distributed around `θ + (x−θ)·e^{−α(t₁−t₀)}` with variance `∫ e^{−2α(t₁−s)}·σ²(s) ds`, integrated across every point where the schedule, the standing diversity or a driver changes σ². The weight inside that integral is what mean reversion does to old variance: what the trait accrued early has been pulled back toward the optimum by the time the branch ends, so it counts for less than what it accrued late. Dropping the weight and using Brownian motion's `∫ σ²(s) ds` would overstate the variance — by about a quarter on an average branch of this tree at `pull=0.5`, and by more the longer the branch or the stronger the pull.
@@ -87,7 +87,7 @@ traits.simulate_discrete(tree, states=["absent", "present"],
                          seed=1)
 ```
 
-Either of those two shapes may carry a modifier, a bare rate or a `{'from->to': rate}` entry, though not the third spelling, a `k×k` matrix, whose entries are numbers by construction. So a switch rate can be **driven by another trait** grown first on the same tree: `switch = 0.2 * ScaledBy(habitat, {"marine": 5.0, "terrestrial": 1.0})`. That is the conditioning of Chapter 9.
+Either of those two shapes may carry a verb, a bare rate or a `{'from->to': rate}` entry, though not the third spelling, a `k×k` matrix, whose entries are numbers by construction. So a switch rate can be **driven by another trait** grown first on the same tree: `switch = PerLineage(0.2).scaled_by(habitat, {"marine": 5.0, "terrestrial": 1.0})`. That is the conditioning of Chapter 9.
 
 `at_speciation=` works here too, and means something different: it is the probability, in `[0, 1]`, that a daughter hops at the split, to a state drawn uniformly from the others.
 
@@ -143,9 +143,9 @@ Trait models arrive under a thicket of names, and a reader who wants "an OU mode
 |---|---|---|
 | a value diffusing | `simulate_continuous(rate=…)` | Brownian motion (BM) [@felsenstein1985comparative] |
 | diffusion pulled to an optimum | `simulate_continuous(rate=…, reverts_to=…, pull=…)` | Ornstein–Uhlenbeck (OU) [@hansen1997stabilizing; @butler2004phylogenetic] |
-| diffusion rate decays through time | `simulate_continuous(rate=1.0 * mod.OnTime({…}))` | Early burst (EB / ACDC) [@harmon2010earlyburst] |
-| diffusion rate drifts between lineages | `simulate_continuous(rate=1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, …)))` | Variable-rates BM [@maliet2019clads] |
-| diffusion rate slows as the clade fills | `simulate_continuous(rate=1.0 * mod.OnTotalDiversity(cap=…))` | Diversity-dependent / ecological limits [@etienne2012diversitydependence] |
+| diffusion rate decays through time | `simulate_continuous(rate=PerLineage(1.0).changing_at({…}))` | Early burst (EB / ACDC) [@harmon2010earlyburst] |
+| diffusion rate drifts between lineages | `simulate_continuous(rate=PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, …))))` | Variable-rates BM [@maliet2019clads] |
+| diffusion rate slows as the clade fills | `simulate_continuous(rate=PerLineage(1.0).scaled_by(TotalDiversity(cap=…)))` | Diversity-dependent / ecological limits [@etienne2012diversitydependence] |
 | the optimum differs between painted clades | `simulate_continuous(regimes=…, reverts_to={…}, pull=…)` | Multi-optimum OU (OUM) [@beaulieu2012ouwie] |
 | the value jumps at each split | `at_speciation=…` (continuous, and Mk `switch=` traits, not threshold ones) | Cladogenetic / punctuational change |
 | traits evolving together | one `simulate_continuous(rate={…}, correlation={…})` call | Multivariate BM |
@@ -196,7 +196,7 @@ zombi2 traits out/ --kind discrete \
 
 # a second trait, in its own directory, whose switch rate reads the first (Chapter 9)
 zombi2 traits out/ --kind discrete --name diet --states plant,fish --seed 2 \
-    --switch "0.2 * ScaledBy('out/traits/trait_events.tsv', {'cave': 5.0, 'surface': 1.0})"
+    --switch "PerLineage(0.2).scaled_by('out/traits/trait_events.tsv', {'cave': 5.0, 'surface': 1.0})"
 ```
 
 Every rate flag takes a rate in its written form, `--switch` as much as `--rate`, so the expression above is the same text the Python API takes. `--switch` reads the other two shapes its keyword does as well: a `{'a->b': rate}` dict and a `k x k` matrix.

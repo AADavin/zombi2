@@ -14,7 +14,7 @@ import collections
 import numpy as np
 import pytest
 
-from zombi2.rates import LogNormal, Weights
+from zombi2.rates import LogNormal, PerCopy, PerLineage
 from zombi2.genomes.chromosomes import chromosome_from_label
 from zombi2.genomes.events import gene_from_label, node_from_label, node_label
 from zombi2.species import simulate_species_tree
@@ -804,9 +804,9 @@ def test_transfer_validation():
         simulate_genomes_nucleotide(sp, transfer=5, transfer_extent=0)
     with pytest.raises(ValueError, match="transfer_to must be"):
         simulate_genomes_nucleotide(sp, transfer=5, transfer_to="nearest")
-    with pytest.raises(ValueError, match="on its own, not a rate"):
+    with pytest.raises(ValueError, match="written from Recipients"):
         simulate_genomes_nucleotide(sp, transfer=5,
-                                    transfer_to=1.0 * Weights("f.tsv", {"a": 2.0}))
+                                    transfer_to=PerCopy(1.0).scaled_by("f.tsv", {"a": 2.0}))
 
 
 # --- transfer_to: steering who receives -----------------------------------------------------------
@@ -2084,25 +2084,23 @@ def test_a_gff_we_wrote_reads_back_through_our_own_gff_reader(tmp_path):
 def test_an_unwired_modifier_is_still_refused_cleanly():
     """The engine declares what it wires and refuses the rest, rather than silently ignoring it — a
     modifier that returns a factor of 1.0 unnoticed is a run that is quietly not the model asked for.
-    `a per-family draw` is per-family heterogeneity, which needs the segment machinery the ordered resolution
-    has; it is not wired here."""
-    from zombi2.rates import modifiers as mod
+    A per-family draw is per-family heterogeneity, which needs the segment machinery the ordered
+    resolution has; it is not wired here."""
     sp = simulate_species_tree(birth=1.0, n_extant=4, seed=1)
     with pytest.raises(ValueError, match="does not support"):
         simulate_genomes_nucleotide(sp, root_length=200,
-                                    inversion=2.0 * mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)), seed=1)
+                                    inversion=PerLineage(2.0).varying_among('families', LogNormal(0.0, 0.5)), seed=1)
     # a plain number is of course fine
     assert simulate_genomes_nucleotide(sp, root_length=200, inversion=2.0, seed=1).genomes
 
 
 def test_a_skyline_is_now_honoured():
-    """``OnTime`` is wired: the rates are re-read at each step, and the race runs only as far as the
-    next step, so a rate that falls to zero really does stop producing events after it."""
-    from zombi2.rates import modifiers as mod
+    """``changing_at`` is wired: the rates are re-read at each step, and the race runs only as far as
+    the next step, so a rate that falls to zero really does stop producing events after it."""
     sp = simulate_species_tree(birth=1.0, death=0.1, n_extant=8, seed=3)
 
     early = simulate_genomes_nucleotide(sp, root_length=4000, genes=3, gene_length=200,
-                                        inversion=6.0 * mod.OnTime({0: 1.0, 1.0: 0.0}), seed=3)
+                                        inversion=PerLineage(6.0).changing_at({0: 1.0, 1.0: 0.0}), seed=3)
     flat = simulate_genomes_nucleotide(sp, root_length=4000, genes=3, gene_length=200,
                                        inversion=6.0, seed=3)
     # the skyline switches inversion off at t=1, so it must produce strictly fewer, and none after it

@@ -11,9 +11,9 @@ What makes these **conditioning** is that the driver can be finished first. A li
 
 ## The four words
 
-![The shape of a conditioned run, and the four words the rest of this chapter uses. The **driver** is a level already simulated, a habitat trait here, its two states shown below it. The **target** is what the factor is attached to, a rate here, in the run that comes next. The **modifier** is what joins them, `ScaledBy` here, and what it carries is the **mapping**: one multiplier per state of the driver, so a branch's habitat sets that branch's loss rate. The driver is finished and written to a file before the second run starts, which is what lets this be two ordinary commands.](figures/conditioning_print.png){width=95%}
+![The shape of a conditioned run, and the four words the rest of this chapter uses. The **driver** is a level already simulated, a habitat trait here, its two states shown below it. The **target** is what the factor is attached to, a rate here, in the run that comes next. The **verb** is what joins them, `scaled_by` here, and what it carries is the **mapping**: one multiplier per state of the driver, so a branch's habitat sets that branch's loss rate. The driver is finished and written to a file before the second run starts, which is what lets this be two ordinary commands.](figures/conditioning_print.png){width=95%}
 
-The **driver** is the value that is read: a habitat state, a gene's presence, a GC content. The **target** is what reads it — usually a rate, in the run that comes next. The **modifier** is what joins them, and the **mapping** is what the modifier carries: it turns the driver's value into a number.
+The **driver** is the value that is read: a habitat state, a gene's presence, a GC content. The **target** is what reads it — usually a rate, in the run that comes next. The **verb** is what joins them, and the **mapping** is what the verb carries: it turns the driver's value into a number.
 
 Driver and target are not interchangeable. A driver is a value that already varies from lineage to lineage; a target is a parameter of the next run. The arrow goes one way and nothing comes back.
 
@@ -22,17 +22,16 @@ Driver and target are not interchangeable. A driver is a value that already vari
 All four words appear in one line:
 
 ```
-loss = 0.25 * ScaledBy(habitat, {"aquatic": 4.0, "terrestrial": 1.0})
+loss = PerCopy(0.25).scaled_by(habitat, {"aquatic": 4.0, "terrestrial": 1.0})
 ```
 
-`loss` is the target, `0.25` its base rate, `ScaledBy` the modifier, `habitat` the driver, and the dict the mapping. Those last two are the argument names as well: `ScaledBy(driver, mapping)`.
+`loss` is the target, `PerCopy(0.25)` its base rate in its scope, `scaled_by` the verb, `habitat` the driver, and the dict the mapping. Those last two are the argument names as well: `scaled_by(driver, mapping)`.
 
 Written out, the canonical case is two ordinary runs:
 
 ```python
 from zombi2 import species, traits, genomes
-from zombi2.rates import ScaledBy, Weights
-from zombi2.rates import modifiers as mod
+from zombi2.rates import PerCopy, PerLineage, Recipients
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 # 1. grow the driver: a habitat trait down the species tree
@@ -40,7 +39,7 @@ habitat = traits.simulate_discrete(tree, states=["aquatic", "terrestrial"], swit
 
 # 2. grow the genomes, with loss reading the habitat on each lineage
 genomes.simulate_genomes_family(tree,
-    loss = 0.25 * ScaledBy(habitat, {"aquatic": 4.0, "terrestrial": 1.0}),
+    loss = PerCopy(0.25).scaled_by(habitat, {"aquatic": 4.0, "terrestrial": 1.0}),
     duplication=0.2, origination=0.5, seed=2)
 ```
 
@@ -48,20 +47,20 @@ The driver is either the finished result object, as here, or the path to the fil
 
 ### Setting a rate instead of scaling it
 
-A factor is a multiple of a base you had to invent. The literature often states the rate itself — *the loss rate is 1.0 in the water* — and `SetBy` says that directly:
+A factor is a multiple of a base you had to invent. The literature often states the rate itself — *the loss rate is 1.0 in the water* — and `set_by` says that directly:
 
 ```
-loss = mod.SetBy(habitat, {"aquatic": 1.0, "terrestrial": 0.25})
+loss = PerCopy().set_by(habitat, {"aquatic": 1.0, "terrestrial": 0.25})
 ```
 
-There is no base in front, because the driver supplies the whole number, in the rate's own units. Writing one anyway raises rather than silently discarding it. The scope still applies, so a per-copy rate set to 1.0 is 1.0 per copy. A rate carries one `SetBy` and any number of ordinary factors. Three targets take it: the family and ordered genome resolutions, and a continuous trait's rate.
+There is no base in front, because the driver supplies the whole number, in the rate's own units. Writing one anyway raises rather than silently discarding it. The scope still applies, so a per-copy rate set to 1.0 is 1.0 per copy. A rate carries one `set_by` and any number of ordinary factors. Three targets take it: the family and ordered genome resolutions, and a continuous trait's rate.
 
 ### A clade as the driver
 
 One driver needs nothing grown first. `Clade` reads which named group of the tree a lineage sits in, which is a fact about the tree the run is already walking:
 
 ```
-loss = 0.2 * ScaledBy(Clade({"fast": ["n12", "n27"]}), {"fast": 3.0})
+loss = PerCopy(0.2).scaled_by(Clade({"fast": ["n12", "n27"]}), {"fast": 3.0})
 ```
 
 Name a clade either by a list of tips, giving the subtree below their most recent common ancestor, or by a single node id. Clades must not overlap, and a lineage in none of them is in the group `"rest"`, which a mapping may name like any other state. Membership never changes along a branch, so this is the cheapest driver there is. Chapter 4's `Clades`, plural, is a different thing: it is the `transfer_to` rule that weighs the donor's clade against the recipient's.
@@ -70,7 +69,7 @@ Name a clade either by a list of tips, giving the subtree below their most recen
 
 A driven rate is not read once per branch. The event log gives each branch's constant stretches, and the engine steps its Gillespie at every switch, so a lineage that changes habitat halfway down a branch loses genes at one rate before the switch and another after it. A discrete driver is therefore followed exactly.
 
-A continuous driver has no switches to step at, so it is approximated. The branch is cut into stretches of at most `step` time units — `ScaledBy(..., step=)`, by default a hundredth of the tree's height — and read at each stretch's midpoint.
+A continuous driver has no switches to step at, so it is approximated. The branch is cut into stretches of at most `step` time units — `scaled_by(..., step=)`, by default a hundredth of the tree's height — and read at each stretch's midpoint.
 
 ## Choosing the mapping
 
@@ -100,18 +99,18 @@ The first two say "this lineage sheds more" by different means, and set together
 
 `transfer_to` sits outside everything above. Its number is not a multiplier: it does not say how often or how much anything happens, only which lineage a transfer that has already fired lands on.
 
-So the number means something else. It is a **weight**. The engine reads it on every lineage alive at that instant and draws the recipient in proportion, so five candidates at weight 1 and five at weight 2 send two thirds of the transfers to the weight-2 group. Weights are normalised, so doubling them all changes nothing — which is why `transfer_to` takes the modifier on its own, with no base in front of it. `transfer_to = 1.0 * Weights(...)` is an error. A weight of 0 means the lineage cannot receive, and when every candidate weighs 0 the transfer has nowhere to land, so it does not happen.
+So the number means something else. It is a **weight**. The engine reads it on every lineage alive at that instant and draws the recipient in proportion, so five candidates at weight 1 and five at weight 2 send two thirds of the transfers to the weight-2 group. Weights are normalised, so doubling them all changes nothing — which is why `transfer_to` is written from `Recipients()`, with no base in front of it. `transfer_to = PerCopy(1.0).weighted_by(...)` is an error. A weight of 0 means the lineage cannot receive, and when every candidate weighs 0 the transfer has nowhere to land, so it does not happen.
 
 A plain table reads the driver on the recipient only. That says "competent lineages take DNA up more often", but it cannot say "genes move between two habitats and not within them". `Between` closes that gap: it gives a weight per ordered (donor state, recipient state) pair, so it reads the driver on the donor as well as on the candidate.
 
 ```python
-from zombi2.rates.mapping import Between
+from zombi2.rates import Between, Recipients
 
 habitat = traits.simulate_discrete(tree, states=["marine", "soil"], switch=0.3, seed=1)
 within = Between({("marine", "marine"): 1.0, ("soil", "soil"): 1.0}, default=0.0)
 
 genomes.simulate_genomes_family(tree, transfer=0.5, initial_families=10, seed=2,
-                                transfer_to=Weights(habitat, within))
+                                transfer_to=Recipients().weighted_by(habitat, within))
 ```
 
 Every transfer now stays within one habitat, because every cross-habitat pair weighs 0. `default` (1.0) is the weight of any pair you leave out, so `Between({("marine", "soil"): 3.0})` enriches one direction against a baseline instead of forbidding the rest. This is the trait-driven twin of Chapter 4's `Clades`: there the groups come from the tree, here from an evolved trait, and the steering is the same. A `Between` on a rate or an extent is refused, because both are read on one lineage and have no donor to read the other end on. And `transfer_to` takes one rule, so a driven `transfer_to` cannot also be `"distance"`.
@@ -140,13 +139,13 @@ Three of those need a word more.
 
 **A gene family as a driver** is `g.presence("IS1")`, and only families you **named** with `family_names=` can be asked for, because a family that arose during the run has an id but nothing stable to call it by. Presence is exact and changes during a branch, so a lineage that loses its last copy halfway along one is `present` before that instant and `absent` after it. The driver may also be a **module**, a named group of families such as a pathway or an operon, declared with `modules=` and read as `g.completion("flagellum")` — at every resolution, since a module is a set of declared families. Completion is a fraction rather than a state, so it takes a curve, and that is where a threshold belongs: `lambda f: 8.0 if f > 0.8 else 1.0` reads "eight times faster once four fifths of it is there". It is a fraction for a measured reason. Under independent loss, the chance that *every* family survives falls off geometrically with the module's size — on a 200-tip tree a module of three was complete at 189 tips, where one of six was complete at none. A complete-or-not driver would therefore be a constant for all but the smallest modules.
 
-**A trait driving a trait** (**11**) is the plainest case of a level conditioning itself. A body size that diffuses four times faster in the deep is `rate = 1.0 * ScaledBy(depth, {"deep": 4.0, "shallow": 1.0})`; a `switch` written per transition drives only the transitions you name.
+**A trait driving a trait** (**11**) is the plainest case of a level conditioning itself. A body size that diffuses four times faster in the deep is `rate = PerLineage(1.0).scaled_by(depth, {"deep": 4.0, "shallow": 1.0})`; a `switch` written per transition drives only the transitions you name.
 
 **A sequence as a driver** (**6**, **7**) reads its composition, and has a section of its own below.
 
 Two things are refused, for different reasons.
 
-**`Drawn(per='family')` and a driven rate cannot be set in the same run**, at the family or ordered resolution. One weights the lineages by a driver; the other weights by family. Setting both on the rates means weighting by the product, which is not what either says. A driven *extent*, or a driven `transfer_to`, is a different axis and runs alongside a per-family draw unchanged. That is a limit of the code.
+**`varying_among('families', ...)` and a driven rate cannot be set in the same run**, at the family or ordered resolution. One weights the lineages by a driver; the other weights by family. Setting both on the rates means weighting by the product, which is not what either says. A driven *extent*, or a driven `transfer_to`, is a different axis and runs alongside a per-family draw unchanged. That is a limit of the code.
 
 **A genome cannot be driven by a sequence**, and that is a limit of the model. A sequence was grown along the gene trees the genome run produced, so a genome reading it back would condition a run on its own output. Those cells are shaded on the map, and the pair can only be joined (Chapter 10).
 
@@ -166,13 +165,13 @@ nt = genomes.simulate_genomes_nucleotide(tree, gff=annotation, loss=1.0, loss_ex
                                          modules={"operon": ["dnaA", "dnaN"]}, seed=9)
 
 traits.simulate_discrete(tree, states=["harmless", "pathogenic"], start="harmless", seed=2,
-                         switch = 0.1 * ScaledBy(nt.presence("dnaA"),
-                                                 {"present": 8.0, "absent": 1.0}))
+                         switch = PerLineage(0.1).scaled_by(nt.presence("dnaA"),
+                                                            {"present": 8.0, "absent": 1.0}))
 ```
 
 ## On the command line
 
-Conditioning folds into the target level's own command. There is no conditioning command and no object to build: you grow the driver, then make an ordinary genome run whose `loss` happens to be `ScaledBy` instead of a bare number, with the rate in its written form.
+Conditioning folds into the target level's own command. There is no conditioning command and no object to build: you grow the driver, then make an ordinary genome run whose `loss` happens to carry a `scaled_by` instead of being a bare number, with the rate in its written form.
 
 ```bash
 # 1. a species tree
@@ -184,11 +183,11 @@ zombi2 traits out/ --kind discrete \
 
 # 3. the target: genomes whose loss reads that trait
 zombi2 genomes out/ --duplication 0.2 --origination 0.5 --seed 2 \
-    --loss "0.25 * ScaledBy('out/traits/trait_events.tsv', {'aquatic': 4.0, 'terrestrial': 1.0})"
+    --loss "PerCopy(0.25).scaled_by('out/traits/trait_events.tsv', {'aquatic': 4.0, 'terrestrial': 1.0})"
 
 # 4. one level further down: sequences whose substitution rate reads the same trait
 zombi2 sequences out/ --model hky85 --length 1000 --seed 3 \
-    --substitution "0.05 * ScaledBy('out/traits/trait_events.tsv', {'aquatic': 0.5, 'terrestrial': 1.0})"
+    --substitution "PerSite(0.05).scaled_by('out/traits/trait_events.tsv', {'aquatic': 0.5, 'terrestrial': 1.0})"
 ```
 
 A conditioned run records what it read, so that re-running the driver afterwards cannot leave the runs beneath it quietly out of step. The record is a `conditioned_on` file naming the levels this run reads, and re-running the driver refuses unless you pass `--force`, which re-runs it and clears them.
@@ -204,18 +203,18 @@ zombi2 traits comp/ --kind discrete --from out/ \
 
 driver=comp/traits/trait_events.tsv
 zombi2 genomes comp_genomes/ --from out/ --initial-families 10 --seed 2 \
-    --transfer    "0.1 * ScaledBy('$driver', {'competent': 3.0, 'normal': 1.0})" \
-    --transfer-to "Weights('$driver', {'competent': 3.0, 'normal': 1.0})"
+    --transfer    "PerCopy(0.1).scaled_by('$driver', {'competent': 3.0, 'normal': 1.0})" \
+    --transfer-to "Recipients().weighted_by('$driver', {'competent': 3.0, 'normal': 1.0})"
 ```
 
 A trait target reads that same file the same way: `--rate` for a continuous trait's variance-rate and `--switch` for a discrete one's switching rate both take the expression. `--liability`, the threshold model's variance-rate, takes no modifier yet — a bare number. Use `--name` to keep two traits in one run directory, since a trait driving a trait needs somewhere for both to sit.
 
 ```bash
 zombi2 traits size/ --from out/ --kind continuous --start 0.0 --seed 4 \
-    --rate "1.0 * ScaledBy('out/traits/trait_events.tsv', {'aquatic': 4.0, 'terrestrial': 1.0})"
+    --rate "PerLineage(1.0).scaled_by('out/traits/trait_events.tsv', {'aquatic': 4.0, 'terrestrial': 1.0})"
 
 zombi2 traits size/ --from out/ --kind discrete --name diet --states plant,fish --seed 5 \
-    --switch "0.2 * ScaledBy('out/traits/trait_events.tsv', {'aquatic': 5.0, 'terrestrial': 1.0})"
+    --switch "PerLineage(0.2).scaled_by('out/traits/trait_events.tsv', {'aquatic': 5.0, 'terrestrial': 1.0})"
 ```
 
 Only a trait driver and a clade have a written form — a path to the file the trait wrote, and the clade's own literal — so every other cell of the map is Python only. That is the asterisk on the map.
@@ -225,7 +224,7 @@ Only a trait driver and a clade have a written form — a path to the file the t
 The level furthest down can drive too, through the one number a finished sequence says that another level can use: its **GC content**. `result.gc()` gives the fraction of a lineage's DNA that is G or C at every instant, and it is read like any other continuous driver.
 
 ```python
-from zombi2.rates.mapping import Curve
+from zombi2.rates import Curve, PerLineage
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85, lg
 
@@ -233,8 +232,8 @@ g = genomes.simulate_genomes_family(tree, initial_families=20, duplication=0.1, 
 seqs = simulate_sequences(g, model=hky85(2.0), length=300, seed=1)
 
 traits.simulate_discrete(tree, states=["mesophile", "thermophile"], start="mesophile", seed=2,
-                         switch = 0.2 * ScaledBy(seqs.gc(),
-                                                 Curve(lambda x: 20.0 ** (x - 0.5))))
+                         switch = PerLineage(0.2).scaled_by(seqs.gc(),
+                                                            Curve(lambda x: 20.0 ** (x - 0.5))))
 ```
 
 **GC is pooled over the whole lineage**, across every family the run evolved, because that is the quantity the field measures and the one a lineage's mutational bias acts on. One family's GC is not offered: it is undefined wherever that family is absent, and a driver has to answer for every branch the target walks. Grow that family in a run of its own if its GC alone is what should drive the rate.
@@ -249,8 +248,8 @@ A run gives one sequence per gene-tree node, so pooling gives one GC per species
 proteins = simulate_sequences(g, model=lg(), length=300, seed=1)
 
 traits.simulate_discrete(tree, states=["mesophile", "thermophile"], start="mesophile", seed=2,
-                         switch = 0.2 * ScaledBy(proteins.composition("KR"),
-                                                 Curve(lambda x: 40.0 ** (x - 0.1))))
+                         switch = PerLineage(0.2).scaled_by(proteins.composition("KR"),
+                                                            Curve(lambda x: 40.0 ** (x - 0.1))))
 ```
 
 `gc()` *is* `composition("GC")`, with one extra check: it refuses a protein run, where G and C are glycine and cysteine and the call is ambiguous rather than wrong. Letters outside the run's alphabet are refused too. They occur nowhere, so the driver would read 0.0 on every lineage, and the run would be the undriven model while its log recorded a driven rate.

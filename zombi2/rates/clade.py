@@ -4,7 +4,7 @@ Everything else a rate reads was grown by another level: a trait, a genome's gen
 sequence's composition. A clade is different — it is a fact about the tree the run is already walking,
 so there is nothing to grow first and nothing to condition on::
 
-    loss = 0.2 * ScaledBy(Clade({"fast": ["n12", "n27"]}), {"fast": 3.0})
+    loss = PerCopy(0.2).scaled_by(Clade({"fast": ["n12", "n27"]}), {"fast": 3.0})
 
 Membership is **constant along a branch**, which is what makes this cheap: a driver that switches
 mid-branch forces the Gillespie to stop at each switch, and this one never switches. It is painted
@@ -60,8 +60,8 @@ class Clade:
 
     def written_form(self) -> str:
         """A clade is built from literals — labels, node ids, tip names — so unlike every other
-        driver it can be written into a run's log and pasted back. `ScaledBy`
-        asks for this when recording the rate."""
+        driver it can be written into a run's log and pasted back. `Driven.written_call` asks for
+        this when recording the rate."""
         return repr(self)
 
     def __repr__(self) -> str:

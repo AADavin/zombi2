@@ -23,18 +23,62 @@ from .result import Change, TraitsResult
 IMPLEMENTED_MODIFIERS = (Driven,)
 
 
+def _switch_rate(spec, where: str) -> Rate:
+    """``spec`` as a resolved `Rate`, refusing the scopes a switch rate cannot have.
+
+    A switch rate is written from its scope like every other rate in the library —
+    ``PerLineage(0.4)``, or a bare ``0.4``, which means the same thing. `PerLineage` is the only
+    scope that means anything here: a lineage's state changes on its own clock, and there is no
+    larger pool of chances for a wider scope to count over. Both runners coerce through this one
+    function, so `simulate_discrete()` on a fixed tree and `DiscreteTrait` inside a joint run cannot
+    answer the same spec differently.
+
+    ``where`` names the rate in any refusal — "a switch rate", or the transition it belongs to."""
+    r = as_rate(spec, default_scope=PerLineage, label=where)
+    assert r.scope is not None          # `as_rate` filled the level's default just above
+    if r.scope is not PerLineage:
+        raise ValueError(
+            f"{where} has a {r.scope.__name__} scope, but a discrete trait switches per lineage: "
+            f"each lineage's state changes on its own clock, so there is no wider pool of chances "
+            f"to count over. Write PerLineage(...), or a bare number, which is per lineage here.")
+    return r
+
+
+def _switch_number(spec, where: str) -> float:
+    """The number ``spec`` settles to, for a generator that is one constant matrix.
+
+    A rate written from its scope is accepted and reduced to the number it stands for, because
+    ``PerLineage(0.4)`` and ``0.4`` are the same rate and the first is how the grammar teaches every
+    other rate to be written. A rate carrying a verb settles to no single number, so it is refused
+    here and handled by `_driven_entries()` instead."""
+    r = _switch_rate(spec, where)
+    if r.modifiers:
+        carried = ", ".join(dict.fromkeys(describe(m) for m in r.modifiers))
+        raise ValueError(
+            f"{where} carries {carried}, and the generator built here is one constant matrix, so "
+            f"there is nothing for it to read: a driven switch rate needs the driver's own "
+            f"trajectory along each branch. Grow the driver first and pass the finished tree to "
+            f"simulate_discrete(tree, ...), which rebuilds the generator wherever the driver moves.")
+    return r.effective(lineages=1)
+
+
 def _q_matrix(states, switch) -> np.ndarray:
     """Build the ``k×k`` transition-rate matrix ``Q`` from ``switch`` — the CTMC generator whose
     off-diagonal ``Q[i, j] ≥ 0`` is the rate ``state i → state j``. ``switch`` is one of:
 
-    - a **number** — the symmetric equal-rates shortcut: every ``i → j`` (``i ≠ j``) at that rate;
-    - a ``{"from->to": rate}`` **dict** — only the named transitions, others zero (asymmetric);
-    - a ``k×k`` **matrix** — the off-diagonal rates directly (the diagonal is ignored).
+    - a **rate** — the symmetric equal-rates shortcut: every ``i → j`` (``i ≠ j``) at that rate.
+      ``0.4`` or ``PerLineage(0.4)``, which are the same rate written two ways;
+    - a ``{"from->to": rate}`` **dict** — only the named transitions, others zero (asymmetric),
+      each value a rate in those same two spellings;
+    - a ``k×k`` **matrix** — the off-diagonal rates directly, as plain numbers (the diagonal is
+      ignored). Every entry is counted per lineage, so a cell has no scope of its own to write.
 
     Each diagonal is then set to minus its row sum, so rows sum to zero (a proper generator)."""
     k = len(states)
     idx = {s: i for i, s in enumerate(states)}
     Q = np.zeros((k, k))
+    if isinstance(switch, Rate):
+        switch = _switch_number(switch, "a switch rate")
     if isinstance(switch, bool):
         raise ValueError(f"switch must be a rate, not a bool, got {switch!r}")
     if isinstance(switch, (int, float)):
@@ -52,12 +96,21 @@ def _q_matrix(states, switch) -> np.ndarray:
                 raise ValueError(f"switch key {key!r} names a state not in states={list(states)}")
             if frm == to:
                 raise ValueError(f"switch key {key!r} is a self-transition; only i→j (i≠j) is a rate")
+            if isinstance(rate, Rate):
+                rate = _switch_number(rate, f"the switch rate for {key!r}")
             if isinstance(rate, bool) or not isinstance(rate, (int, float)) \
                     or not math.isfinite(rate) or rate < 0:
                 raise ValueError(f"switch rate for {key!r} must be finite and non-negative, got {rate!r}")
             Q[idx[frm], idx[to]] = float(rate)
     elif isinstance(switch, (list, tuple, np.ndarray)):
-        arr = np.asarray(switch, dtype=float)
+        try:
+            arr = np.asarray(switch, dtype=float)
+        except TypeError:  # a rate object in a cell: numpy's own message is about float(), not switch
+            raise ValueError(
+                "a switch matrix holds plain numbers — every entry is counted per lineage, so a "
+                "cell has no scope of its own to write. Give the {'from->to': rate} dict instead "
+                "when an entry is a rate."
+            ) from None
         if arr.shape != (k, k):
             raise ValueError(f"switch matrix must be {k}×{k} for {k} states, got shape {arr.shape}")
         Q = arr.copy()
@@ -66,7 +119,8 @@ def _q_matrix(states, switch) -> np.ndarray:
             raise ValueError("switch matrix off-diagonals must be finite and non-negative")
     else:
         raise ValueError(
-            "switch must be a number (symmetric rate), a {'from->to': rate} dict, or a k×k matrix"
+            "switch must be a rate — 0.4, or PerLineage(0.4) written out — for the symmetric case, "
+            "a {'from->to': rate} dict for named transitions, or a k×k matrix of numbers."
         )
     np.fill_diagonal(Q, -Q.sum(axis=1))  # rows sum to zero
     return Q
@@ -111,10 +165,10 @@ def _switch_specs(switch) -> list:
 
 def _switch_modifiers(switch) -> list:
     """Every modifier the switch rates carry — a switch rate written as a rate expression
-    (``0.4 * ScaledBy(habitat, {"aquatic": 3.0})``) rather than as a bare number, so the trait
-    switches faster on the lineages where the driver is in one state than another.
+    (``PerLineage(0.4).scaled_by(habitat, {"aquatic": 3.0})``) rather than as a bare number, so the
+    trait switches faster on the lineages where the driver is in one state than another.
 
-    ``ScaledBy`` is the only modifier this engine ships for a switch rate; anything else built in
+    ``scaled_by`` is the only verb this engine ships for a switch rate; anything else built in
     would be read by no part of it, so it is refused by name rather than silently ignored. A
     third-party modifier that named this engine in its `Modifier.implemented_for` is returned here
     too — carrying *any* modifier is what puts the run on the rebuild-per-stretch path below, where
@@ -123,16 +177,12 @@ def _switch_modifiers(switch) -> list:
     for spec in _switch_specs(switch):
         if not isinstance(spec, (Rate, Modifier)):
             continue                       # a bare number (or a matrix): nothing to drive
-        r = as_rate(spec, default_scope=PerLineage)
-        if not isinstance(r.scope, PerLineage):
-            raise ValueError(
-                f"a switch rate has a {type(r.scope).__name__} scope, but a discrete trait switches "
-                f"per lineage — drop the scope wrapper (per lineage is the default).")
+        r = _switch_rate(spec, "a switch rate")
         for m in r.modifiers:
             if not is_implemented(m, IMPLEMENTED_MODIFIERS, "traits.discrete"):
                 raise ValueError(
                     f"a switch rate carries {describe(m)}, which the discrete trait engine does "
-                    f"not support. It takes ScaledBy (the switch rate driven by another level).")
+                    f"not support. It takes scaled_by (the switch rate driven by another level).")
             if isinstance(m, Driven):     # only a driver has a mapping to check
                 check_not_a_kernel(m.mapping, label="a switch rate")
             mods.append(m)
@@ -144,7 +194,7 @@ def _driven_entries(states, switch) -> list:
     entries are rate *specs* rather than settled numbers, so the generator can be rebuilt wherever
     the driver switches. The same two shapes a driven rate can be written in: one symmetric rate
     (every ``i → j`` alike) or a ``{'from->to': rate}`` dict (only the named transitions, the rest
-    zero). Validation mirrors `_q_matrix()`'s, the rate itself being checked by its scope wrapper."""
+    zero). Validation mirrors `_q_matrix()`'s, the rate itself being checked by `_switch_rate()`."""
     k = len(states)
     idx = {s: i for i, s in enumerate(states)}
     if isinstance(switch, dict):
@@ -158,9 +208,9 @@ def _driven_entries(states, switch) -> list:
                 raise ValueError(f"switch key {key!r} names a state not in states={list(states)}")
             if frm == to:
                 raise ValueError(f"switch key {key!r} is a self-transition; only i→j (i≠j) is a rate")
-            entries.append((idx[frm], idx[to], as_rate(spec, default_scope=PerLineage)))
+            entries.append((idx[frm], idx[to], _switch_rate(spec, f"the switch rate for {key!r}")))
         return entries
-    r = as_rate(switch, default_scope=PerLineage)
+    r = _switch_rate(switch, "a switch rate")
     return [(i, j, r) for i in range(k) for j in range(k) if i != j]
 
 
@@ -235,7 +285,7 @@ def _liability_sigma2(spec, name) -> float:
     """The liability's variance-rate σ² — a bare per-lineage rate (no modifiers)."""
     r = as_rate(spec, default_scope=PerLineage)
     where = "liability" if name is None else f"liability[{name!r}]"
-    if not isinstance(r.scope, PerLineage) or r.modifiers:
+    if r.scope is not PerLineage or r.modifiers:
         raise ValueError(
             f"{where} must be a bare variance-rate, per lineage; a modified liability variance-rate "
             f"is not implemented yet."
@@ -332,11 +382,12 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
     - **Mk** (``switch=``) — a continuous-time Markov chain over the ``states``, simulated **exactly**
       by Gillespie along every branch, so each node's ``(state, duration)`` segments *are* the realized
       history (``.history``) and ``.events`` reads off the transitions. ``switch`` is a symmetric rate
-      (``0.1``), a ``{"marine->terrestrial": 0.1}`` dict, or a ``k×k`` matrix (see `_q_matrix()`).
+      (``0.1``, or ``PerLineage(0.1)`` written out), a ``{"marine->terrestrial": 0.1}`` dict, or a
+      ``k×k`` matrix of numbers (see `_q_matrix()`).
       ``start`` is the root state (a label in ``states``; ``None`` draws one uniformly). A switch rate
       may be **driven by another level** grown first on this same tree — write it as a rate
-      expression, ``switch=0.4 * ScaledBy(habitat, {"aquatic": 3.0})`` or per transition,
-      ``switch={"a->b": 0.2 * ScaledBy(habitat, {"aquatic": 3.0}), "b->a": 0.2}``. The driver
+      expression, ``switch=PerLineage(0.4).scaled_by(habitat, {"aquatic": 3.0})`` or per transition,
+      ``switch={"a->b": PerLineage(0.2).scaled_by(habitat, {"aquatic": 3.0}), "b->a": 0.2}``. The driver
       switches mid-branch, so the generator is rebuilt at each of its switches and the branch is
       simulated piece by piece — the exact CTMC with a time-varying generator, not one sample per
       branch.
@@ -371,7 +422,7 @@ def simulate_discrete(tree, *, states, switch=None, start=None, liability=None, 
         raise ValueError("correlation= on a discrete trait needs the threshold model — give liability= and threshold=")
     if switch is None:
         raise ValueError("give switch= — the transition rate(s) between the discrete states.")
-    # conditioning: a switch rate carrying ScaledBy reads another level, grown first on this same
+    # conditioning: a switch rate written with scaled_by reads another level, grown first on this same
     # tree. The generator is then a function of the driver, so it is built per stretch rather than
     # once. No modifier at all ⇒ one constant Q and the walk below is exactly the walk it was.
     #

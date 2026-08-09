@@ -26,20 +26,20 @@ result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1
 
 ## Rates that vary
 
-A birth or death rate need not be constant. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**, and you express each the same way: multiply the base rate by a **modifier** naming what it depends on.
+A birth or death rate need not be constant. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**, and you express each the same way: chain a **verb** onto the rate naming what it depends on.
 
-- **On time.** The rates change at set points in time. This is the skyline, or episodic, tree. `birth = 1.0 * mod.OnTime({0: 1.0, 3: 0.3})` runs at full rate until time 3, then at a third of it. Each entry holds from its own time up to the next, and the earliest entry also applies *backwards* to the origin, so `OnTime({3: 0.3})`, with no entry at 0, runs at a third of the rate for the whole tree rather than only after time 3. Start the schedule at 0 whenever you mean "full rate until".
-- **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound: `birth = 1.0 * mod.OnTotalDiversity(cap=100)`.
-- **On the parent's rate.** Each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = 1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.2))`.
-- **By lineage.** Each lineage draws its own rate independently, with no memory of its parent: `birth = 1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.2))`. The distribution means a different thing in the two: under `Drawn` it is the spread of rates across lineages, while under `Inherited` it is the step taken at each split, which accumulates, so lineages deeper in the tree spread further apart. That is why it is written out rather than abbreviated.
+- **On time.** The rates change at set points in time. This is the skyline, or episodic, tree. `birth = PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})` runs at full rate until time 3, then at a third of it. Each entry holds from its own time up to the next, and the earliest entry also applies *backwards* to the origin, so `changing_at({3: 0.3})`, with no entry at 0, runs at a third of the rate for the whole tree rather than only after time 3. Start the schedule at 0 whenever you mean "full rate until".
+- **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound: `birth = PerLineage(1.0).scaled_by(TotalDiversity(cap=100))`.
+- **On the parent's rate.** Each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2)))`.
+- **By lineage.** Each lineage draws its own rate independently, with no memory of its parent: `birth = PerLineage(1.0).varying_among('lineages', LogNormal(0.0, 0.2))`. The distribution means a different thing in the two: written bare it is the spread of rates across lineages, while inside `Drift` it is the step taken at each split, which accumulates, so lineages deeper in the tree spread further apart. That is why it is written out rather than abbreviated.
 
-The last two are the two answers to one question, where a lineage's rate comes from, and they are worth holding side by side, because what differs is whether relatives resemble each other, and with it the *shape* of the tree. Inherited variation lets a fast clade stay fast, so it hoards the tips and the tree comes out lopsided; independent variation reshuffles at every split, so imbalance stays near what a constant rate gives. `Inherited(per='lineage')` is the model to fit when you believe diversification is a heritable property of a clade; `Drawn(per='lineage')` is its null, and the honest thing to compare against. A rate carrying both is refused: there is no model in which a lineage's rate is inherited from its parent and independent of it at once.
+The last two are the two answers to one question, where a lineage's rate comes from, and they are worth holding side by side, because what differs is whether relatives resemble each other, and with it the *shape* of the tree. Inherited variation lets a fast clade stay fast, so it hoards the tips and the tree comes out lopsided; independent variation reshuffles at every split, so imbalance stays near what a constant rate gives. `varying_among('lineages', Drift(...))` is the model to fit when you believe diversification is a heritable property of a clade; the bare `varying_among('lineages', ...)` is its null, and the honest thing to compare against. A rate carrying both is refused: there is no model in which a lineage's rate is inherited from its parent and independent of it at once.
 
-![Three ways a rate can vary, one tree apiece, all three stopped at the same 25 surviving lineages, so what differs is how they got there. **A** `OnTime`: the rate drops at time 2, so an early burst gives way to a long slow tail. **B** `OnTotalDiversity`: the rate falls as the tree fills toward its cap, and splits thin out near the present. **C** `Inherited(per='lineage')`: each lineage inherits its parent's rate, so one clade radiates late while its sister stays sparse. Solid lineages survive to the present and dashed ones died, as in the previous figure.](figures/variable_rates.pdf){width=100%}
+![Three ways a rate can vary, one tree apiece, all three stopped at the same 25 surviving lineages, so what differs is how they got there. **A** `changing_at`: the rate drops at time 2, so an early burst gives way to a long slow tail. **B** `scaled_by(TotalDiversity(...))`: the rate falls as the tree fills toward its cap, and splits thin out near the present. **C** `varying_among('lineages', Drift(...))`: each lineage inherits its parent's rate, so one clade radiates late while its sister stays sparse. Solid lineages survive to the present and dashed ones died, as in the previous figure.](figures/variable_rates.pdf){width=100%}
 
-The modifiers live in `zombi2.rates.modifiers`. Each is a dimensionless factor on the base rate, and you can stack them with `*` to get a rate that changes in time *and* saturates.
+The scopes and the drivers live in `zombi2.rates`. Each verb records a dimensionless factor on the base rate, and you can chain them to get a rate that changes in time *and* saturates.
 
-Whether birth and death vary together is decided by what you wrote. Two modifier objects — `birth = 1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.2))` and `death = 0.3 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.2))` — are two values, so each lineage gets its own speciation factor and its own extinction factor and the two rates drift without correlation; the same holds for `Drawn(per='lineage')`. Build the modifier once and give that same object to both rates and the lineage gets a single number instead, so a lineage that speciates fast also goes extinct fast. Sharing is by identity, not by matching arguments, and only Python can express it: two flags on the command line are always two objects.
+Whether birth and death vary together is decided by what you wrote. Two separate expressions — `birth = PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2)))` and `death = PerLineage(0.3).varying_among('lineages', Drift(LogNormal(0.0, 0.2)))` — are two values, so each lineage gets its own speciation factor and its own extinction factor and the two rates drift without correlation; the same holds for a bare distribution. Build the `Random` once, by name, and give that same object to both rates and the lineage gets a single number instead, so a lineage that speciates fast also goes extinct fast. Sharing is by identity, not by matching arguments, and only Python can express it: two flags on the command line are always two objects.
 
 Both draws are **mean-corrected**, so widening the distribution spreads the lineages out without moving the average one off the base rate you typed. And under either, the lineage that speciates or dies is drawn in proportion to its own rate rather than uniformly, which is the point: a fast lineage is likelier to be the one that splits.
 
@@ -53,10 +53,10 @@ One model does not fit the modifier framework: a **mass extinction**, where at o
 
 | What it does | Here | From the literature |
 |---|---|---|
-| rates change at set times | `1.0 * mod.OnTime({…})` | skyline / episodic birth–death [@stadler2011mammalian] |
-| rate slows as the tree fills | `1.0 * mod.OnTotalDiversity(cap=…)` | diversity-dependent diversification [@rabosky2008densitydependent; @etienne2012diversitydependence] |
-| rates drift, inherited at each split | `1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, …))` | ClaDS [@maliet2019clads] |
-| rates vary, drawn afresh per lineage | `1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, …))` | uncorrelated ("relaxed") rates |
+| rates change at set times | `PerLineage(1.0).changing_at({…})` | skyline / episodic birth–death [@stadler2011mammalian] |
+| rate slows as the tree fills | `PerLineage(1.0).scaled_by(TotalDiversity(cap=…))` | diversity-dependent diversification [@rabosky2008densitydependent; @etienne2012diversitydependence] |
+| rates drift, inherited at each split | `PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, …)))` | ClaDS [@maliet2019clads] |
+| rates vary, drawn afresh per lineage | `PerLineage(1.0).varying_among('lineages', LogNormal(0.0, …))` | uncorrelated ("relaxed") rates |
 | a fraction culled at an instant | `mass_extinctions=[(t, f)]` | mass extinction |
 
 ## Sampling
@@ -92,17 +92,17 @@ result = species.simulate_species_tree(
 
 As at every level it also carries `.seed` and `.write(dir, outputs=[...])`. Each tree carries its topology and dated branch lengths, holds every node — internal ones included — in `.nodes`, and lets you ask for its tips with `.leaves()` and, among them, the extant, the extinct and the unsampled (`.extant_leaves()`, `.extinct_leaves()`, `.unsampled_leaves()`).
 
-Everything in this chapter is one function call, so the modifiers, the sampling and a mass extinction all compose in a single line:
+Everything in this chapter is one function call, so the verbs, the sampling and a mass extinction all compose in a single line:
 
 ```python
 from zombi2 import species
-from zombi2.rates import scope, modifiers as mod
+from zombi2.rates import Global, PerLineage, TotalDiversity
 
 # skyline birth that also slows with diversity, a global death rate, a mass extinction
 # at time 3 that kills three quarters, and only half the survivors sampled
 result = species.simulate_species_tree(
-    birth = 1.0 * mod.OnTime({0: 1.0, 3: 0.5}) * mod.OnTotalDiversity(cap=100),
-    death = scope.Global(0.3),
+    birth = PerLineage(1.0).changing_at({0: 1.0, 3: 0.5}).scaled_by(TotalDiversity(cap=100)),
+    death = Global(0.3),
     mass_extinctions=[(3.0, 0.75)], sampling=0.5, total_time=8.0, seed=2)
 ```
 
