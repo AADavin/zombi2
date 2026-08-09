@@ -5,11 +5,14 @@ The sequence level does two main things:
 * It rescales the gene trees and the species tree from time into substitutions per site (**phylograms**).
 * It evolves the residues that sit inside every gene, so each family ends with an alignment.
 
+![Where a sequence lives. A sequence is not evolved along the species tree: it is evolved along the **gene tree**, which the genome run produced and which runs inside the species tree. The two forks are different events. The first is a speciation, which hands the gene to both daughters; the second, marked with a square, is a duplication, and it happens inside one lineage — which is why one lineage can hold two tips of the same family. A run gives one sequence per node of that gene tree, so the tips come out as an alignment.](figures/sequence_nesting_print.png){width=88%}
+
 The sequence level always follows a genome run, and takes that run's result directly:
 
 ```python
 from zombi2 import species, genomes, sequences
 from zombi2.sequences.substitution_models import hky85
+from zombi2.rates import ScaledBy
 from zombi2.rates import modifiers as mod
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
@@ -208,7 +211,7 @@ So the rate that suits a run depends on the height of the tree it runs down, whi
 
 $$\text{substitution} = \frac{\text{substitutions per site you want, origin to tip}}{\text{height of the tree}}$$
 
-On the 20-unit tree above, sequences around 80% identical need roughly `0.2 / 20 = 0.01`, not `1.0`. The difference is not subtle: simulated down that tree, `0.01` gives tips about 77% identical, while the default `1.0` gives **25%**, precisely the score of two sequences with no shared history at all. The table below is measured the same way, on simulated JC69 alignments, and holds for any tree, since its first column is already the product of rate and height:
+On the 20-unit tree above, sequences around 80% identical need roughly `0.2 / 20 = 0.01`, not `1.0`. The difference is not subtle: simulated down that tree, `0.01` gives tips about 77% identical, while the default `1.0` gives **25%**, precisely the score of two sequences with no shared history at all. The table below is measured the same way, on simulated JC69 alignments. Its first column is rate times height, so it transfers between trees of different heights. The second column does not transfer as cleanly: the identity is a mean over pairs of tips, and how much of the tree's height separates the average pair depends on where its splits sit. A tree whose splits are close to the tips keeps more identity than one whose splits are close to the root, and at the deep end of the table two ordinary trees can differ by twenty points. Read the second column as a guide, not a lookup:
 
 | Substitutions per site, origin to tip | Mean identity between two tips |
 |---|---|
@@ -260,7 +263,7 @@ substitution = 1.0 * mod.Inherited(per="lineage", spread=0.3)
 and whichever you give, the draw is **normalised to mean 1**, so what a distribution contributes is
 its *shape* and the base keeps meaning the average rate.
 
-**`Drawn(per='lineage')`** has *no memory*: each lineage is an independent draw, so a lineage's rate tells you nothing about its neighbours'. The distribution it draws from (`dist="lognormal"` or `"gamma"`) is a parameter of the modifier.
+**`Drawn(per='lineage')`** has *no memory*: each lineage is an independent draw, so a lineage's rate tells you nothing about its neighbours'. The distribution it draws from — `spread=`, or `dist=` with a distribution object — is a parameter of the modifier.
 
 **`Inherited(per='lineage')`** has memory: a daughter starts at its parent's rate and multiplies it by one lognormal step, so close relatives evolve at similar rates. That is the **autocorrelated** clock. Both draws are mean-corrected, so widening `spread` spreads the lineages apart without moving the average rate off the number you typed. Rate variation across sites is not a modifier, and does not belong in the rate at all: it is part of the model, as above.
 
@@ -276,11 +279,11 @@ A reference table that can be handy to people who want to implement a specific m
 | each lineage i.i.d. lognormal | `1.0 * mod.Drawn(per='lineage', spread=…)` | Uncorrelated lognormal (UCLN) |
 | each lineage i.i.d. gamma | `1.0 * mod.Drawn(per='lineage', dist=Gamma(...))` | Uncorrelated gamma (UGAM) |
 | the rate drifts parent to daughter | `1.0 * mod.Inherited(per='lineage', spread=…)` | Autocorrelated lognormal |
-| the rate reads another level | `1.0 * mod.DrivenBy(trait, {…})` | Trait-dependent rate of molecular evolution |
+| the rate reads another level | `1.0 * ScaledBy(trait, {…})` | Trait-dependent rate of molecular evolution |
 
 ### A trait can drive the rate
 
-The two clocks above make a lineage fast or slow at random. A third modifier makes it fast or slow for a *reason*: `DrivenBy` reads a trait grown first and looks the factor up from that lineage's state.
+The two clocks above make a lineage fast or slow at random. A third modifier makes it fast or slow for a *reason*: `ScaledBy` reads a trait grown first and looks the factor up from that lineage's state.
 
 ```python
 from zombi2 import traits
@@ -288,7 +291,7 @@ from zombi2 import traits
 habitat = traits.simulate_discrete(tree, states=["cave", "surface"], switch=0.3, seed=1)
 
 result = sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, seed=2,
-    substitution = 0.05 * mod.DrivenBy(habitat, {"cave": 0.5, "surface": 1.0}))
+    substitution = 0.05 * ScaledBy(habitat, {"cave": 0.5, "surface": 1.0}))
 ```
 
 Cave lineages now evolve at half the rate of surface ones. The driver is the grown trait, or the path to the `trait_events.tsv` it wrote, the same two spellings every driven rate takes. This is conditioning, so it is two ordinary runs in order, and Chapter 9 covers the whole mechanism.
@@ -298,12 +301,12 @@ A clock and a driver **compose**, because modifiers multiply. Written together, 
 ```python
 sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, seed=2,
     substitution = 0.05 * mod.Drawn(per='lineage', spread=0.3)
-                        * mod.DrivenBy(habitat, {"cave": 0.5, "surface": 1.0}))
+                        * ScaledBy(habitat, {"cave": 0.5, "surface": 1.0}))
 ```
 
 A discrete trait switches partway along a branch, and ZOMBI2 does not read the driver once per branch. It integrates the rate across the branch, breaking at each switch. A lineage that leaves the cave halfway down a branch of length 2 accrues `0.05 × 0.5 × 1` substitutions per site before the move and `0.05 × 1.0 × 1` after it, so the branch is `0.075` long rather than `0.05` or `0.1`. The gene phylograms and the clock species tree carry that same number, so the tree a run writes is the tree its alignments were drawn along.
 
-The reverse direction runs too: `result.gc()` makes a finished run's GC content drive a trait grown after it, or a further sequence run, and `result.composition(letters)` does the same for any letters of the run's alphabet, an amino-acid frequency say (Chapter 9). What the pair cannot be is **joined**, because a sequence lives inside a gene and never feeds back into the trait, so there is nothing for the two to decide together. Naming a live level (`mod.DrivenBy("trait", …)`) says so rather than looking for a file. One other limit here: `divergence` is refused alongside a driven rate, because it solves for the base by assuming the modifiers average to 1, which the two clocks are corrected to do and a driver is not. Set the base yourself there.
+The reverse direction runs too: `result.gc()` makes a finished run's GC content drive a trait grown after it, or a further sequence run, and `result.composition(letters)` does the same for any letters of the run's alphabet, an amino-acid frequency say (Chapter 9). What the pair cannot be is **joined**, because a sequence lives inside a gene and never feeds back into the trait, so there is nothing for the two to decide together. Naming a live level (`ScaledBy("trait", …)`) says so rather than looking for a file. One other limit here: `divergence` is refused alongside a driven rate, because it solves for the base by assuming the modifiers average to 1, which the two clocks are corrected to do and a driver is not. Set the base yourself there.
 
 ## The objects
 
@@ -420,7 +423,7 @@ zombi2 sequences seqs/ --from out/ --model hky85 --kappa 2.0 \
 zombi2 sequences seqs/ --from out/ --model gtr \
     --frequencies 0.3 0.2 0.2 0.3 \
     --substitution "1.0 * Drawn(per='lineage', spread=0.3)" \
-    --seed 1 --write alignments phylograms ancestral species_phylogram
+    --seed 1 --write alignments phylograms species_phylogram summary ancestral
 ```
 
 A protein model is the same command with a different `--model`:
@@ -440,8 +443,16 @@ Because a protein model has no parameters, passing one is an error rather than a
 | `phylograms/phylogram_fam<f>_*.nwk` | the gene tree those sequences were drawn along, in substitutions per site |
 | `clock_species_tree_complete.nwk` · `…_extant.nwk` | the species tree under the same conversion, where the clock becomes visible |
 | `genomes/genome_<lineage>.fasta` | the assembled genome of every node; nucleotide runs only |
+| `genomes/genome_initial.fasta` | the genome the run started with, which is no node's; nucleotide runs only |
 | `ancestral/sequences_ancestral_fam<f>.fasta` | the sequence at every node that is not an extant tip |
+| `sequences_founding.fasta` | one record per family: the sequence it originated with, before its stem |
 
-Everything but the last is written by default. `--write ancestral` adds the ancestral sequences, which
-is what you need to score an ancestral-reconstruction method against the truth; Appendix B gives the
-columns and the formats.
+On a **nucleotide** run the number in those filenames is a root block index rather than a gene family
+id, and the files say so: `block<n>.fasta`, `phylogram_block<n>_*.nwk` and
+`sequences_ancestral_block<n>.fasta` in place of `fam<f>`.
+
+Everything but the last two is written by default. `--write` names the whole set rather than adding to
+it, so list the defaults alongside the extra: `--write alignments phylograms species_phylogram summary
+genomes initial_genome ancestral` writes the usual outputs and the ancestral sequences too, which is
+what you need to score an ancestral-reconstruction method against the truth. `founding` is asked for
+the same way. Appendix B gives the columns and the formats.

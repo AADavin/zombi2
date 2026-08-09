@@ -45,14 +45,25 @@ quietly not the model you asked for.
 
 ## Modifiers
 
-A modifier's name begins with the preposition that fixes its family: `On` is a covariate (a
-deterministic function of a measured quantity), `By` is an independent i.i.d. draw per unit,
-`From` is inherited along a genealogical edge. `DrivenBy` sits outside that scheme deliberately —
-it says the number comes from an evolved value read on the lineage — a level grown before this run, a
-level growing beside it, or another object at the same level (a trait can drive a second trait). On a
-rate or an extent that number multiplies; on `transfer_to` it is a weight normalised across the
-candidates, which is why that one takes the modifier on its own — `transfer_to = 1.0 * DrivenBy(...)`
-is an error.
+A modifier's **kind** says who produces its number, and there are four (SPEC §5):
+
+| Kind | The factor is… | Written |
+|---|---|---|
+| covariate | a deterministic function of a measured quantity | `OnTime`, `OnTotalDiversity` |
+| drawn | an i.i.d. draw, one per unit — no memory | `Drawn(per=…)` |
+| inherited | the parent's, perturbed — continuous memory | `Inherited(per=…)` |
+| driven | the state of another simulated thing, read as the run walks the tree | `ScaledBy`, `SetBy`, `Weights` |
+
+A **driven** value comes from a level grown before this run, a level growing beside it, another
+object at the same level (a trait can drive a second trait), or the tree itself (`Clade`). Which of
+the three you write follows from what you attach it to: on a rate the number multiplies the base
+(`ScaledBy`) or replaces it (`SetBy`); on an extent it multiplies only, an extent being an absolute
+size with no base to replace. On `transfer_to` it is a weight normalised across
+the candidates (`Weights`), which is why that one takes the modifier on its own —
+`transfer_to = 1.0 * Weights(...)` is an error.
+
+The **unit** a drawn or inherited value is attached to is an argument, not a class, so a draw per
+family and a draw per lineage are one class and two cells of a grid.
 
 ### Writing your own
 
@@ -81,7 +92,7 @@ called, and it refuses rather than ignoring you:
 | `genomes.family` | `time`, `lineages`, `copies`, `drivers` |
 | `genomes.ordered` | `time`, `lineages`, `copies`, `chromosomes`, `drivers` |
 | `genomes.nucleotide` | `time`, `lineages`, `copies`, `chromosomes`, `drivers` |
-| `traits.continuous` | `time`, `lineages`, `diversity`, `inherited`, `drivers` |
+| `traits.continuous` | `time`, `lineages`, `diversity`, `drivers` |
 | `traits.discrete` | `time`, `lineages`, `drivers` |
 | `joint` | `time`, `lineages`, `diversity`, `drivers` |
 
@@ -95,14 +106,26 @@ curve is frozen at whatever it was when the last event fired.
 The rate *text* grammar (a `--birth` flag, a `--params` file) knows only the built-in names, so a
 modifier of your own is Python-only, as an object you construct has to be.
 
-**Three worked examples** — a rate following a measured curve, density dependence in the gene pool,
-and rearrangement scaling with the karyotype — are in
-[Appendix A, "Writing your own"](../guide/rates.md#writing-your-own).
+**A worked example** — `OnCrowding`, a death rate that rises as the tree fills — is in
+[Appendix A, "Writing your own"](../rates.md#writing-your-own), with the two things a modifier of
+your own has to provide and the one it may.
 
 ::: zombi2.rates.modifiers
 
 ## Mappings
 
-What a `DrivenBy` carries — the shape that turns the driver's value into a number.
+What a driven parameter carries — the shape that turns the driver's value into a number.
 
 ::: zombi2.rates.mapping
+
+## Values
+
+::: zombi2.rates.values
+
+## Verbs
+
+::: zombi2.rates.verbs
+
+## Clades
+
+::: zombi2.rates.clade

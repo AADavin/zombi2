@@ -1,6 +1,6 @@
 """Gene presence as a conditioning driver — is this family in this lineage, right now?
 
-A `DrivenBy` driver answers one question: *what state was lineage L in at time t?* Traits answer it
+A driver answers one question: *what state was lineage L in at time t?* Traits answer it
 from their own event log. A **gene family** can answer it too — present or absent — and that is the
 other direction of the same relation: a trait can already make a genome rate faster, and this is what
 lets a genome make a trait's rate faster.
@@ -37,11 +37,11 @@ PRESENT, ABSENT = "present", "absent"
 class GenePresence:
     """Whether a named gene family is in each lineage's genome, over time.
 
-    Built by ``result.presence("name")`` and handed to `DrivenBy` like a grown trait::
+    Built by ``result.presence("name")`` and handed to `ScaledBy` like a grown trait::
 
         g = simulate_genomes_family(sp, family_names=["tox"], loss=0.3, seed=1)
         simulate_discrete(sp.complete_tree, states=["harmless", "pathogenic"], start="harmless",
-                          switch=0.1 * mod.DrivenBy(g.presence("tox"),
+                          switch=0.1 * ScaledBy(g.presence("tox"),
                                                     {"present": 5.0, "absent": 1.0}), seed=2)
 
     This is **conditioning**: the genome is grown first and held fixed while the trait reads it. For
@@ -87,7 +87,7 @@ class ModuleCompletion:
         g = simulate_genomes_family(sp, family_names=[...],
                                     modules={"flagellum": ["flgA", "flgB", "flgC"]}, seed=1)
         simulate_discrete(sp.complete_tree, states=["sessile", "motile"], start="sessile",
-                          switch=0.05 * mod.DrivenBy(g.completion("flagellum"),
+                          switch=0.05 * ScaledBy(g.completion("flagellum"),
                                                      Curve(lambda f: 0.2 + 20.0 * f ** 4)), seed=2)
 
     **A fraction rather than a yes/no, deliberately.** Under independent loss the chance that *every*

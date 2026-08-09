@@ -40,7 +40,7 @@ open an issue using this template:
 resolution if it is a genome model (family, ordered, nucleotide).
 
 **Parameters.** The rates and extents it adds, written the way ZOMBI2 writes rates
-(SPEC §5) — e.g. `conversion = 0.1 * ByFamily(spread=0.5)`.
+(SPEC §5) — e.g. `conversion = 0.1 * Drawn(per='family', spread=0.5)`.
 
 **Output.** Anything new it would have to write, or "nothing new".
 

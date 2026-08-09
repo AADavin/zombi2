@@ -12,7 +12,7 @@ import math
 import numpy as np
 import pytest
 
-from zombi2.rates import modifiers as mod
+from zombi2.rates import ScaledBy, modifiers as mod
 from zombi2.rates import scope
 from zombi2.species import simulate_species_tree
 from zombi2.traits import Change, TraitsResult, simulate_continuous, simulate_discrete
@@ -1222,10 +1222,10 @@ def test_history_is_derived_from_events():
     assert on_branch == from_hist
 
 
-# --- DrivenBy: one trait driving another, on the same tree ----------------------
+# --- Driven: one trait driving another, on the same tree ----------------------
 
 def _write_driver(tmp_path, rows, name="driver.tsv"):
-    """A trait event log written by hand — the file a conditioned ``DrivenBy`` names. Rows are
+    """A trait event log written by hand — the file a conditioned ``Driven`` names. Rows are
     ``(time, kind, lineage, from, to)``, exactly what ``TraitsResult.write(outputs=("events",))``
     puts on disk, so a test can place a driver switch at an exact time."""
     path = tmp_path / name
@@ -1249,7 +1249,7 @@ def test_a_driven_variance_integrates_across_the_drivers_mid_branch_switch(tmp_p
     tree = _one_branch(2.0).complete_tree
     src = _write_driver(tmp_path, [(0.0, "initial", "n0", "", "slow"),
                                    (1.0, "on_branch", "n0", "slow", "fast")])
-    rate = 1.0 * mod.DrivenBy(src, {"slow": 1.0, "fast": 9.0})
+    rate = 1.0 * ScaledBy(src, {"slow": 1.0, "fast": 9.0})
     r = as_rate(rate, default_scope=PerLineage)
     trajs = {rate.modifiers[0].key: resolve_driver(src, tree)}
 
@@ -1273,7 +1273,7 @@ def test_ou_with_a_driven_variance_steps_where_the_driver_steps(tmp_path):
     tree = _one_branch(T).complete_tree
     src = _write_driver(tmp_path, [(0.0, "initial", "n0", "", "slow"),
                                    (1.0, "on_branch", "n0", "slow", "fast")])
-    rate = 1.0 * mod.DrivenBy(src, {"slow": 1.0, "fast": 9.0})
+    rate = 1.0 * ScaledBy(src, {"slow": 1.0, "fast": 9.0})
 
     expected = _ou_segment(1.0, 0.0, 1.0, T, alpha) + _ou_segment(9.0, 1.0, T, T, alpha)
     assert expected == pytest.approx(3.9495, rel=1e-3)
@@ -1292,7 +1292,7 @@ def test_a_driven_switch_rate_breaks_where_the_driver_breaks(tmp_path):
     tree = _one_branch(2.0).complete_tree
     src = _write_driver(tmp_path, [(0.0, "initial", "n0", "", "off"),
                                    (1.0, "on_branch", "n0", "off", "on")])
-    switch = 1.0 * mod.DrivenBy(src, {"off": 0.0, "on": 5.0})
+    switch = 1.0 * ScaledBy(src, {"off": 0.0, "on": 5.0})
     times = [e.time for s in range(60)
              for e in simulate_discrete(tree, states=["x", "y"], switch=switch, start="x",
                                         seed=s).events if e.kind == "on_branch"]
@@ -1311,12 +1311,12 @@ def test_a_driver_that_never_switches_leaves_a_run_byte_identical(tmp_path):
     table = {"one": 1.0, "two": 1.0}
 
     plain = simulate_continuous(tree, rate=1.0, seed=17)
-    driven = simulate_continuous(tree, rate=1.0 * mod.DrivenBy(flat, table), seed=17)
+    driven = simulate_continuous(tree, rate=1.0 * ScaledBy(flat, table), seed=17)
     assert driven.node_values == plain.node_values
 
     plain_d = simulate_discrete(tree, states=["a", "b", "c"], switch=0.4, start="a", seed=19)
     driven_d = simulate_discrete(tree, states=["a", "b", "c"], start="a", seed=19,
-                                 switch=0.4 * mod.DrivenBy(flat, table))
+                                 switch=0.4 * ScaledBy(flat, table))
     assert driven_d.node_values == plain_d.node_values
     assert driven_d.history == plain_d.history
     assert [(e.time, e.lineage, e.to_state) for e in driven_d.events] == \
@@ -1329,7 +1329,7 @@ def test_a_trait_diffuses_faster_where_its_driver_says_so():
     # the per-branch step sd must be √6 times larger in 'fast' than in 'slow'.
     tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=300, seed=4).complete_tree
     A = simulate_discrete(tree, states=["slow", "fast"], switch=0.5, start="slow", seed=7)
-    B = simulate_continuous(tree, rate=1.0 * mod.DrivenBy(A, {"slow": 1.0, "fast": 6.0}), seed=11)
+    B = simulate_continuous(tree, rate=1.0 * ScaledBy(A, {"slow": 1.0, "fast": 6.0}), seed=11)
 
     steps = {"slow": [], "fast": []}
     for i, node in tree.nodes.items():
@@ -1352,7 +1352,7 @@ def test_a_trait_switches_faster_where_its_driver_says_so():
     tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=400, seed=4).complete_tree
     A = simulate_discrete(tree, states=["slow", "fast"], switch=0.5, start="slow", seed=7)
     B = simulate_discrete(tree, states=["x", "y"], start="x", seed=13,
-                          switch=0.2 * mod.DrivenBy(A, {"slow": 1.0, "fast": 8.0}))
+                          switch=0.2 * ScaledBy(A, {"slow": 1.0, "fast": 8.0}))
 
     exposure = {"slow": 0.0, "fast": 0.0}
     switches = {"slow": 0, "fast": 0}
@@ -1384,9 +1384,9 @@ def test_a_grown_result_and_its_written_log_drive_identically(tmp_path):
     A = simulate_discrete(tree, states=["dry", "wet"], switch=0.6, start="dry", seed=2)
     A.write(tmp_path, outputs=["events"])
     table = {"dry": 1.0, "wet": 4.0}
-    by_object = simulate_continuous(tree, rate=1.0 * mod.DrivenBy(A, table), seed=8)
+    by_object = simulate_continuous(tree, rate=1.0 * ScaledBy(A, table), seed=8)
     by_file = simulate_continuous(
-        tree, rate=1.0 * mod.DrivenBy(str(tmp_path / "trait_events.tsv"), table), seed=8)
+        tree, rate=1.0 * ScaledBy(str(tmp_path / "trait_events.tsv"), table), seed=8)
     assert by_file.node_values == by_object.node_values
 
 
@@ -1397,24 +1397,24 @@ def test_driven_trait_validation(tmp_path):
     # a mapping that names none of the driver's states would leave every lineage at the default
     # factor — the undriven model wearing a driven rate — so it is refused, not run
     with pytest.raises(ValueError, match="match none of"):
-        simulate_continuous(tree, rate=1.0 * mod.DrivenBy(A, {"marine": 3.0}), seed=1)
+        simulate_continuous(tree, rate=1.0 * ScaledBy(A, {"marine": 3.0}), seed=1)
     with pytest.raises(ValueError, match="match none of"):
         simulate_discrete(tree, states=["x", "y"], seed=1,
-                          switch=0.5 * mod.DrivenBy(A, {"marine": 3.0}))
+                          switch=0.5 * ScaledBy(A, {"marine": 3.0}))
 
     # a driver grown on a different tree: the join key is the species node id, so a lineage the
     # driver never saw has no value to read and the run stops instead of inventing one
     other = simulate_species_tree(birth=1.0, death=0.0, n_extant=3, seed=9).complete_tree
     B = simulate_discrete(other, states=["dry", "wet"], switch=0.6, start="dry", seed=2)
     with pytest.raises(KeyError, match="SAME|node ids"):
-        simulate_continuous(tree, rate=1.0 * mod.DrivenBy(B, {"dry": 1.0, "wet": 2.0}), seed=1)
+        simulate_continuous(tree, rate=1.0 * ScaledBy(B, {"dry": 1.0, "wet": 2.0}), seed=1)
 
-    # DrivenBy is the only modifier a switch rate takes; anything else on it would be read by nothing
+    # Driven is the only modifier a switch rate takes; anything else on it would be read by nothing
     with pytest.raises(ValueError, match="switch rate carries OnTime"):
         simulate_discrete(tree, states=["x", "y"], switch=0.5 * mod.OnTime({0: 1.0, 1: 0.5}), seed=1)
     with pytest.raises(ValueError, match="per lineage"):
         simulate_discrete(tree, states=["x", "y"], seed=1,
-                          switch=scope.Global(0.5) * mod.DrivenBy(A, {"dry": 1.0, "wet": 2.0}))
+                          switch=scope.Global(0.5) * ScaledBy(A, {"dry": 1.0, "wet": 2.0}))
 
 
 def test_a_driven_switch_rate_can_be_written_per_transition(tmp_path):
@@ -1423,7 +1423,7 @@ def test_a_driven_switch_rate_can_be_written_per_transition(tmp_path):
     tree = _one_branch(4.0).complete_tree
     src = _write_driver(tmp_path, [(0.0, "initial", "n0", "", "dry"),
                                    (2.0, "on_branch", "n0", "dry", "wet")])
-    switch = {"x->y": 1.0 * mod.DrivenBy(src, {"dry": 0.0, "wet": 3.0}), "y->x": 0.05}
+    switch = {"x->y": 1.0 * ScaledBy(src, {"dry": 0.0, "wet": 3.0}), "y->x": 0.05}
     times = [e.time for s in range(40)
              for e in simulate_discrete(tree, states=["x", "y"], switch=switch, start="x",
                                         seed=s).events
@@ -1535,3 +1535,38 @@ def test_summary_of_a_single_trait_run_is_unchanged():
     assert "traits" not in c and "mean" in c["values"]
     d = traits.simulate_discrete(tree, states=["a", "b"], switch=0.3, seed=6).summary()
     assert "traits" not in d and set(d["states"]) <= {"a", "b"}
+
+
+
+def test_a_discrete_trait_steps_at_a_rate_that_changes_on_its_own_clock():
+    """`traits.discrete` built its stretch horizon from the drivers alone and never asked
+    `Rate.next_change`, so a switch rate that changes with time was read once at the start of a
+    stretch and held for the rest of the branch — the run silently not the model asked for, which
+    is exactly what the modifier gate exists to prevent. Every other engine steps to it.
+
+    Only a modifier of your own can reach this: the engine's own declaration takes `Driven`
+    alone, and a driver's switches were already stepped to. Appendix A publishes `traits.discrete`
+    as an engine an `implemented_for` may name, so this is a path the manual invites."""
+    import math
+
+    from zombi2 import species, traits
+    from zombi2.rates.modifiers import Modifier
+
+    class StopsAtOne(Modifier):
+        """Full rate until time 1, nothing after — and it says so, as a modifier must."""
+
+        implemented_for = ("traits.discrete",)
+
+        def factor(self, *, time=0.0, **_):
+            return 1.0 if time < 1.0 else 0.0
+
+        def next_change(self, time):
+            return 1.0 if time < 1.0 else math.inf
+
+    tree = species.simulate_species_tree(birth=1.0, death=0.0, total_time=3.0, seed=5).complete_tree
+    result = traits.simulate_discrete(tree, states=["a", "b"], seed=3,
+                                      switch=3.0 * StopsAtOne())
+
+    late = [c.time for c in result.events if c.time > 1.0 + 1e-9]
+    assert not late, f"switched after the rate went to zero: {late[:5]}"
+    assert result.events, "the test proves nothing if nothing switched before time 1 either"

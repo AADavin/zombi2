@@ -272,7 +272,7 @@ _C_PHYLO = '''\
 zombi2 species   run --birth 1.4 --death 0.2 --n-extant 35 --seed 7
 zombi2 genomes   run --resolution ordered --initial-families 40 --duplication 0.15 --loss 0.12 --seed 9
 zombi2 sequences run --model hky85 --kappa 2 --length 500 \\
-                     --substitution "1.0 * Drawn(per='lineage')(spread=0.6)" --seed 7
+                     --substitution "1.0 * Drawn(per='lineage', spread=0.6)" --seed 7
 
 ### plot  —  the clock tree (branch lengths in substitutions/site)
 import phylustrator as ph
@@ -340,19 +340,19 @@ rate = {n.name: math.log10(n.length / (ct.nodes[int(n.name[1:])].end_time
 EXAMPLES = [
     Example("clock_ucln", "Uncorrelated lognormal clock",
             "Every lineage draws its own rate, with no memory of its parent, so the colour is "
-            "salt-and-pepper. <code>substitution&nbsp;=&nbsp;Drawn(per='lineage')(spread)</code>.",
+            "salt-and-pepper. <code>substitution&nbsp;=&nbsp;Drawn(per='lineage',&nbsp;spread=0.55)</code>.",
             "phylustrator · clocks", clock_ucln, code=_C_CLOCKS),
     Example("clock_ugam", "Uncorrelated gamma clock",
             "The same independent draw with a gamma instead of a lognormal. "
-            "<code>Drawn(per='lineage')(spread,&nbsp;dist=\"gamma\")</code>.",
+            "<code>Drawn(per='lineage',&nbsp;dist=Gamma(shape=3.31,&nbsp;scale=0.302))</code>.",
             "phylustrator · clocks", clock_ugam, code=_C_CLOCKS),
     Example("clock_autocorrelated", "Autocorrelated clock",
             "A daughter starts at its parent's rate and is nudged, so the colour moves in <b>clades</b> "
-            "rather than branch to branch. <code>substitution&nbsp;=&nbsp;Inherited(per='lineage')(spread)</code>.",
+            "rather than branch to branch. <code>substitution&nbsp;=&nbsp;Inherited(per='lineage',&nbsp;spread=0.4)</code>.",
             "phylustrator · clocks", clock_autocorrelated, code=_C_CLOCKS),
     Example("clock_discrete_bin", "Discrete-bin clock",
             "The same inherited drift in <b>steps</b>: the rate takes one of a few values and a daughter "
-            "moves to a neighbouring one. <code>Inherited(per='lineage')(spread,&nbsp;bins=6)</code>.",
+            "moves to a neighbouring one. <code>Inherited(per='lineage',&nbsp;spread=0.45,&nbsp;bins=6)</code>.",
             "phylustrator · clocks", clock_discrete_bin, code=_C_CLOCKS),
     Example("seq_ancestral", "Ancestral sequences at the nodes",
             "A small tree with its internal nodes numbered, and beside it the sequence at each. The rows "

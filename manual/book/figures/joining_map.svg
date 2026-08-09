@@ -1,6 +1,6 @@
-<svg viewBox="-6 6 418 366" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
+<svg viewBox="-6 6 418 380" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
 <title>Joining: which levels have to be grown together</title>
-<desc>The four levels of ZOMBI2 in the same arrangement as the levels figure. Solid double-headed arrows join Species to Genomes and Species to Traits, the two joint models that exist. Dashed double-headed arrows and loops mark the pairs nothing rules out and nobody has written.</desc>
+<desc>The four levels of ZOMBI2 in the same arrangement as the levels figure. Solid double-headed arrows join Species to Genomes and Species to Traits, the two joint models that exist. Dashed double-headed arrows and loops mark the pairs nothing rules out and nobody has written. Two pairs have no arrow at all: the species tree with a sequence, and a trait with a sequence.</desc>
 <!-- Built on the four-levels figure (manual/book/figures/fig-2-1-four-levels.svg): same node
      positions, same box style, same label baseline offset. What changes is the edges. There the
      arrows run one way, because a level is grown and the next reads it. Here every arrow is
@@ -40,12 +40,14 @@
   <path d="M 234,74 C 258,102 300,112 300,144" marker-end="url(#a)" marker-start="url(#a0)"/>
 </g>
 
-<!-- NOT BUILT: nothing rules these out. A sequence and the species tree are deliberately absent:
-     a sequence lives on a gene tree, so joining it to the tree would mean joining the genome too. -->
+<!-- NOT BUILT: nothing rules these out. Two pairs are deliberately absent rather than dashed. A
+     sequence and the species tree, because a sequence lives on a gene tree, so joining it to the
+     tree would mean joining the genome too. And a sequence and a trait, because a sequence never
+     feeds back into a trait, so there is nothing for the two to decide together (SPEC §3) — either
+     may still be grown first and read by the other, which is conditioning. -->
 <g class="open" fill="none" stroke="#9a9a9a" stroke-width="1.6" stroke-dasharray="5 4">
   <path d="M 120,198 L 120,264" marker-end="url(#o)" marker-start="url(#o0)"/>
   <path d="M 182,171 L 244,171" marker-end="url(#o)" marker-start="url(#o0)"/>
-  <path d="M 178,285 C 250,276 296,238 300,198" marker-end="url(#o)" marker-start="url(#o0)"/>
   <!-- a level joined to itself: many families, many genes, many characters, inside one run -->
   <path d="M 62,160 C 24,146 24,196 62,182" marker-end="url(#o)" marker-start="url(#o0)"/>
   <path d="M 62,280 C 24,266 24,316 62,302" marker-end="url(#o)" marker-start="url(#o0)"/>
@@ -66,35 +68,10 @@
   <text x="300" y="176.66">Traits</text>
 </g>
 
-<!-- Numbers keyed to the notes. A white disc so a number never sits on a dashed stroke. -->
-<g class="mark">
-  <g fill="#ffffff" stroke="#1a1a1a" stroke-width="1.2">
-    <circle cx="146" cy="104" r="10"/>
-    <circle cx="274" cy="104" r="10"/>
-  </g>
-  <g fill="#ffffff" stroke="#9a9a9a" stroke-width="1.2">
-    <circle cx="138" cy="231" r="10"/>
-    <circle cx="213" cy="150" r="10"/>
-    <circle cx="256" cy="243" r="10"/>
-    <circle cx="34"  cy="140" r="10"/>
-    <circle cx="34"  cy="260" r="10"/>
-    <circle cx="380" cy="140" r="10"/>
-  </g>
-  <g class="lbl" fill="#1a1a1a" font-size="12" font-weight="600" text-anchor="middle">
-    <text x="146" y="108.2">1</text>
-    <text x="274" y="108.2">2</text>
-    <text x="138" y="235.2">3</text>
-    <text x="213" y="154.2">4</text>
-    <text x="256" y="247.2">5</text>
-    <text x="34"  y="144.2">6</text>
-    <text x="34"  y="264.2">7</text>
-    <text x="380" y="144.2">8</text>
-  </g>
-</g>
-
 <g class="note"
  fill="#6a6a6a" font-size="10" text-anchor="start">
   <text x="-2" y="344">Solid: built. Dashed: not built, nothing rules it out. A loop is a level joined to itself.</text>
-  <text x="-2" y="359">The tree and a sequence are not a pair: a sequence lives on a gene tree, two levels down.</text>
+  <text x="-2" y="359">No arrow at all: the tree with a sequence (a sequence lives two levels down, on a gene tree),</text>
+  <text x="-2" y="374">and a trait with a sequence (a sequence never feeds back into a trait).</text>
 </g>
 </svg>

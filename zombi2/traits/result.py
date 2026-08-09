@@ -169,7 +169,7 @@ class TraitsResult:
         (a *trait tree*, carrying the exact ancestral values; opens in FigTree / iTOL).
 
         ``trait_events.tsv`` is also the **driver file**: a genome / sequence run drives a rate
-        with ``mod.DrivenBy("trait_events.tsv", …)``, replaying it against the shared tree. A
+        with ``ScaledBy("trait_events.tsv", …)``, replaying it against the shared tree. A
         **discrete** trait's log reconstructs its state on every lineage exactly (that is what the
         ``initial`` row and the switch times are for); a continuous trait's diffusion cannot be rebuilt
         from events, so it carries only the ``initial`` row and any on-speciation jumps."""

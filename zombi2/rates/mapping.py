@@ -1,6 +1,6 @@
-"""The mapping of a `DrivenBy` — what turns the driver's value into a number (SPEC §5).
+"""The mapping of a `Driven` — what turns the driver's value into a number (SPEC §5).
 
-The ``DrivenBy`` modifier reads the driver's value on a lineage; the **mapping** turns that value
+The ``ScaledBy`` modifier reads the driver's value on a lineage; the **mapping** turns that value
 into the number the modifier contributes — a dimensionless multiplier on a rate or an extent, a
 normalised weight on ``transfer_to``. There are four shapes:
 
@@ -17,7 +17,7 @@ You rarely name the first three — pass a raw ``dict`` / callable / number as `
 
 **Jump** (a burst fired *at an event*, e.g. a pulse of gene change at each split) is not a mapping:
 it changes a state at a moment rather than scaling a number, so it does not live here and is not
-reachable through ``DrivenBy`` (SPEC §4).
+reachable through ``ScaledBy`` (SPEC §4).
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ class Table(Mapping):
         Table({"aquatic": 3.0, "terrestrial": 1.0})   # 3× the rate in aquatic lineages
 
     ``default`` (1.0) is the factor for any state not named — so an unlisted state leaves the
-    rate unchanged. This is the primary ``DrivenBy`` mapping (MuSSE-style per-state rates).
+    rate unchanged. This is the primary ``ScaledBy`` mapping (MuSSE-style per-state rates).
 
     States are matched by their **string form** — ``Table({0: 3.0, 1: 1.0})`` and ``Table({"0":
     3.0, "1": 1.0})`` behave identically, and both match a driver whose value is ``0`` or ``"0"``.
@@ -70,8 +70,10 @@ class Table(Mapping):
         return self.per_state.get(str(value), self.default)
 
     def __repr__(self) -> str:
-        inner = ", ".join(f"{s!r}: {f:g}" for s, f in self.per_state.items())
-        tail = "" if self.default == 1.0 else f", default={self.default:g}"
+        # `repr(float)`, not `:g` — see `OnTime.__repr__`: six significant figures in a run's log
+        # is a record of a different model.
+        inner = ", ".join(f"{s!r}: {float(f)!r}" for s, f in self.per_state.items())
+        tail = "" if self.default == 1.0 else f", default={float(self.default)!r}"
         return f"Table({{{inner}}}{tail})"
 
     def __eq__(self, other: object) -> bool:
@@ -137,7 +139,7 @@ class Scalar(Mapping):
         return math.exp(x)
 
     def __repr__(self) -> str:
-        return f"Scalar(strength={self.strength:g})"
+        return f"Scalar(strength={float(self.strength)!r})"
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, Scalar) and other.strength == self.strength
@@ -156,7 +158,7 @@ class Between:
     `Mapping` (a ``Mapping.multiplier`` reads one value): its `weight()` reads two, and the
     engine passes both. It is used in ``transfer_to`` — on its own as the kernel of a
     `Clades` rule (groups from the tree), or inside a
-    `DrivenBy` (groups from a trait). It is **not** a rate multiplier:
+    `ScaledBy` (groups from a trait). It is **not** a rate multiplier:
     a rate has no donor to condition on, so a ``Between`` on a rate is refused.
 
     Keys are ``(from_group, to_group)`` pairs matched by **string form**, exactly like ``Table``'s
@@ -194,8 +196,8 @@ class Between:
         return {g for pair in self.per_pair for g in pair}
 
     def __repr__(self) -> str:
-        inner = ", ".join(f"({a!r}, {b!r}): {w:g}" for (a, b), w in self.per_pair.items())
-        tail = "" if self.default == 1.0 else f", default={self.default:g}"
+        inner = ", ".join(f"({a!r}, {b!r}): {float(w)!r}" for (a, b), w in self.per_pair.items())
+        tail = "" if self.default == 1.0 else f", default={float(self.default)!r}"
         return f"Between({{{inner}}}{tail})"
 
     def __eq__(self, other: object) -> bool:
@@ -240,7 +242,7 @@ def _numeric(value: object, cls: str) -> float:
 
 
 def as_mapping(spec: object) -> Mapping:
-    """Coerce a ``DrivenBy`` mapping spec into a `Mapping`.
+    """Coerce a ``Driven`` mapping spec into a `Mapping`.
 
     Accepts an already-built mapping (returned unchanged), a ``dict`` (→ `Table`), a
     callable (→ `Curve`), or a number (→ `Scalar`). Mirrors
@@ -248,19 +250,19 @@ def as_mapping(spec: object) -> Mapping:
     """
     if isinstance(spec, (Mapping, Between)):
         # a Between is a choice's kernel, not a rate multiplier; carried through here so
-        # DrivenBy(..., Between(...)) works, and refused on a rate or an extent by the engine — which is
+        # ScaledBy(..., Between(...)) works, and refused on a rate or an extent by the engine — which is
         # why the declared return type is the one every *rate* caller may rely on.
         return cast(Mapping, spec)
     if isinstance(spec, dict):
         return Table(spec)
     if isinstance(spec, bool):
-        raise TypeError(f"a DrivenBy mapping cannot be a bool, got {spec!r}")
+        raise TypeError(f"a Driven mapping cannot be a bool, got {spec!r}")
     if isinstance(spec, (int, float)):
         return Scalar(float(spec))
     if callable(spec):
         return Curve(spec)
     raise TypeError(
-        f"a DrivenBy mapping must be a dict (Table), a callable (Curve), a number (Scalar), a "
+        f"a Driven mapping must be a dict (Table), a callable (Curve), a number (Scalar), a "
         f"Table/Curve/Scalar, or a Between (a transfer_to kernel), got {spec!r}"
     )
 
@@ -275,15 +277,15 @@ def check_not_a_kernel(mapping, *, label: str) -> None:
     ``AttributeError: 'Between' object has no attribute 'multiplier'`` — a traceback from inside the
     engine, naming neither the rate nor the mistake.
 
-    Every engine that accepts ``DrivenBy`` on a rate or an extent calls this, so the message is the
+    Every engine that accepts ``ScaledBy`` on a rate or an extent calls this, so the message is the
     same one wherever the kernel was put."""
     if isinstance(mapping, Between):
         raise ValueError(
-            f"{label} carries DrivenBy(…, Between(…)); a Between kernel is donor-conditioned — it "
+            f"{label} carries ScaledBy(…, Between(…)); a Between kernel is donor-conditioned — it "
             f"weights a recipient by the (donor, recipient) group pair — so it belongs in transfer_to "
             f"(who RECEIVES) and never in a rate or an extent, which are read on one lineage and have "
             f"no donor to condition on. Drive this with a Table (a plain dict) or a Curve, and put the "
-            f"kernel in transfer_to=mod.DrivenBy(driver, Between({{...}})).")
+            f"kernel in transfer_to=Weights(driver, Between({{...}})).")
 
 
 __all__ = ["Mapping", "Table", "Curve", "Scalar", "Between", "check_kernel_fires",

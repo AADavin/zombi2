@@ -100,7 +100,7 @@ def test_base_modifier_is_abstract():
 
 
 def test_stochastic_status_built_vs_deferred():
-    for built in ("Drawn", "Inherited", "DrivenBy", "SetBy"):
+    for built in ("Drawn", "Inherited", "Driven", "SetBy"):
         assert hasattr(mod, built), f"{built} should be built"
     for later in ("Markov",):
         assert not hasattr(mod, later), f"{later} is not built yet"

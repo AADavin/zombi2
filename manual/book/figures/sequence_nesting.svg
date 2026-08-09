@@ -1,0 +1,63 @@
+<svg viewBox="0 0 660 248" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
+<title>Where a sequence lives: inside a gene, inside a lineage</title>
+<desc>A species tree drawn as a pale ribbon forking into two lineages. A thinner dark gene tree runs inside the ribbon and forks twice: once where the species tree forks, because a speciation hands the gene to both daughters, and once inside the upper lineage, which is a duplication marked with a small square. At each of the gene tree's three tips a short DNA sequence is written, and the three differ from one another. A legend below names the pale ribbon a lineage and the dark line a gene copy.</desc>
+<!-- The one picture chapter 7 needs: a sequence is not evolved along the species tree, it is evolved
+     along the GENE tree, and the gene tree is what the genome run produced. Drawing the gene tree
+     inside the species tree is what makes the duplication read as a second fork the species tree
+     does not have — the reason a family can have two tips in one lineage.
+     The fork is drawn as two DIAGONAL ribbons from one root rather than as a horizontal band with a
+     vertical connector: two thick right-angled paths overlap at the corner and merge into one block,
+     which reads as a single lineage, the opposite of the point.
+     Sequences at the tips only: a run gives one sequence per gene-tree node, and showing the
+     internal ones would say the figure is about ancestral reconstruction, which it is not.
+     Colours are presentation ATTRIBUTES and literals, not CSS custom properties: GitHub's SVG
+     sanitiser drops the style element and librsvg resolves no custom properties, so a figure whose
+     fills live in either renders as black-on-black. The dark-mode rules below still win wherever
+     CSS survives, because CSS outranks a presentation attribute. Keep it this way. -->
+<style>
+  @media (prefers-color-scheme: dark) {
+    .tube{stroke:#2a3034}
+    .lbl{fill:#e7ebe9}
+    .dim{fill:#9aa3a0}
+    .edge{stroke:#e7ebe9}
+    .glyph{fill:#e7ebe9}
+  }
+</style>
+
+<!-- the species tree: one ribbon per lineage, sharing a root and diverging at the speciation -->
+<g class="tube" stroke="#eaeae6" stroke-width="46" fill="none" stroke-linejoin="round" stroke-linecap="butt">
+  <path d="M 44,124 L 140,124 L 200,68 L 404,68"/>
+  <path d="M 44,124 L 140,124 L 200,182 L 404,182"/>
+</g>
+
+<!-- the gene tree, inside it: one fork at the speciation, one more inside the upper lineage -->
+<g class="edge" stroke="#1a1a1a" stroke-width="1.9" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M 58,124 L 142,124 L 198,76 L 216,76"/>
+  <path d="M 216,76 L 232,64 L 398,64"/>
+  <path d="M 216,76 L 232,88 L 398,88"/>
+  <path d="M 58,124 L 142,124 L 200,180 L 398,180"/>
+</g>
+<g class="glyph" fill="#1a1a1a">
+  <rect x="212.5" y="72.5" width="7" height="7"/>          <!-- the duplication -->
+</g>
+
+<!-- one sequence per tip of the gene tree -->
+<g class="lbl" fill="#1a1a1a" font-size="14" letter-spacing="1.4"
+   font-family="SFMono-Regular, Menlo, Consolas, monospace">
+  <text x="414" y="69">ACGTTAG</text>
+  <text x="414" y="93">ACGATAG</text>
+  <text x="414" y="185">ACCTTGG</text>
+</g>
+
+<!-- a legend, clear of the drawing: the two things the figure asks a reader to tell apart -->
+<g class="tube" stroke="#eaeae6" stroke-width="14" fill="none" stroke-linecap="butt">
+  <line x1="44" y1="230" x2="80" y2="230"/>
+</g>
+<g class="edge" stroke="#1a1a1a" stroke-width="1.9" fill="none" stroke-linecap="round">
+  <line x1="300" y1="230" x2="336" y2="230"/>
+</g>
+<g class="dim" fill="#6e6e6e" font-size="13.5">
+  <text x="90" y="235">a lineage of the species tree</text>
+  <text x="346" y="235">a gene copy, on its own tree</text>
+</g>
+</svg>

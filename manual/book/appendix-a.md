@@ -23,13 +23,20 @@ By default, this is the scope ZOMBI2 uses at each level:
 | Level | Counted per | The rates it applies to |
 |---|---|---|
 | Species | lineage | `birth`, `death` |
-| Genomes | copy | `duplication`, `transfer`, `loss` |
-| Genomes | lineage | `origination` |
-| Genomes, ordered | chromosome | `inversion`, `transposition`, `fission`, `fusion`, `chromosome_loss` |
+| Genomes, family and ordered | copy | `duplication`, `transfer`, `loss` |
+| Genomes, family and ordered | lineage | `origination` |
+| Genomes, ordered | copy | `inversion`, `transposition`, `translocation` |
+| Genomes, ordered | chromosome | `fission`, `fusion`, `chromosome_loss` |
+| Genomes, ordered | lineage | `chromosome_origination` |
+| Genomes, nucleotide | lineage | `duplication`, `transfer`, `loss`, `origination`, `inversion`, `transposition`, `translocation`, `chromosome_origination` |
+| Genomes, nucleotide | chromosome | `fission`, `fusion`, `chromosome_loss` |
 | Sequences | site | `substitution` (times a clock) |
 | Traits | lineage | `rate` (continuous), `switch` (discrete) |
 
-A bare number takes the default. To count a rate some other way, wrap it in the scope you want:
+A bare number takes the default. Writing the default wrapper explicitly is accepted at every level
+but one: a discrete trait's `switch` takes a number, a `{'from->to': rate}` dict or a matrix, and a
+bare `PerLineage(0.5)` is none of those. Overriding the default is something one level does: the
+species engine also accepts `Global` on `birth` and `death`.
 
 ```python
 from zombi2 import species
@@ -39,9 +46,13 @@ from zombi2.rates import scope
 species.simulate_species_tree(birth=1.0, death=scope.Global(0.3), total_time=8.0, seed=2)
 ```
 
-The wrappers are `Global`, `PerLineage`, `PerCopy`, `PerSite` and `PerChromosome`. `Global(x)` is the
-one that most changes behaviour: it detaches the rate from the amount of material present, so a `Global`
-death rate does not grow as the tree does.
+`Global(x)` detaches the rate from the amount of material present, so a `Global` death rate does not
+grow as the tree does. The wrappers are `Global`, `PerLineage`, `PerCopy`, `PerSite` and
+`PerChromosome`. Everywhere else — and for every scope but `Global` at the species level — a rate
+handed a scope other than the one in the table above is refused, and the error names the scope that
+level takes — except on a discrete trait's `switch`, where a bare wrapper is turned away by the shape
+check instead and the message is about the shapes `switch` accepts. No other scope is implemented
+anywhere.
 
 ## Bending a rate: modifiers
 
@@ -59,7 +70,8 @@ The modifiers are:
 | `Inherited(per='lineage')` | Is **inherited from the parent lineage and nudged at each split**, so the rate drifts gradually down the tree and close relatives keep similar rates. |
 | `Drawn(per='lineage')` | Is an **independent draw for each lineage**, with no memory of its parent, so nearby branches are no more alike than distant ones. |
 | `Drawn(per='family')` | Is an **independent draw for each gene family**, so one family is prone to transfer and another is not, whatever lineage either sits in. |
-| `DrivenBy` | **Reads an evolved value**: the factor is looked up from a driver's state, either another level or another run of the same one, which is how one thing conditions another (Chapter 9). |
+| `ScaledBy` | **Reads an evolved value**: the factor is looked up from a driver's state, either another level or another run of the same one, which is how one thing conditions another (Chapter 9). |
+| `SetBy` | **Replaces the base** instead of multiplying it: the mapping gives the rate itself, in the rate's own units, so nothing is written in front of it. It reads a driver just as `ScaledBy` does, the scope still applies, and a rate carries one. |
 
 The first two are **deterministic**: `OnTime` and `OnTotalDiversity` are fixed functions of the state of
 the world, so every lineage that meets the same time, or the same diversity, gets the same factor. The
@@ -77,11 +89,28 @@ branch, and their descendants inherit the fast tempo, so they come to dominate t
 ones contribute almost nothing. Standing diversity therefore **rises** as you turn `spread` up, even
 though every individual factor averages to 1, and at moderate spread a run can grow explosively enough
 to hit the `max_lineages` guard. Mean-correcting keeps the rate honest per lineage; it does not hold
-`E[N(t)]` fixed, and nothing could. `DrivenBy` is neither random nor corrected: its factor is whatever
-the driver's state says it is. Like the others it is not confined to a rate: the same factor
-multiplies an **extent** at the ordered and nucleotide resolutions. `DrivenBy` alone also goes on
-`transfer_to`, where it is a normalised **weight** over the candidate recipients, taken with no base in
-front of it (Chapter 9).
+`E[N(t)]` fixed, and nothing could. A driven factor is neither random nor corrected: it is whatever
+the driver's state says it is. A driver need not come from another level: `Clade({"fast": ["n12",
+"n27"]})` names a subtree by its tips, or by a node id, and reads membership off the tree the run is
+already walking, with every unnamed lineage in `"rest"`. A driver is not confined to a rate: the same
+factor multiplies an **extent** at the ordered and nucleotide resolutions. An extent takes only
+`OnTime` and `ScaledBy` — a per-family draw has no one family to read (a run covers several), and
+`SetBy` has no base to replace. Drivers also go on `transfer_to`, written `Weights` rather than
+`ScaledBy` because there the numbers are normalised **weights** over the candidate recipients,
+compared against each other, with no base in front of them (Chapter 9).
+
+**How wide the variation is, and what shape it takes.** A drawn or inherited value takes `spread=σ`,
+which means a lognormal of that log-scale, and the number it means is different in the two: under
+`Drawn` it is the spread of the values themselves, and under `Inherited` it is the step taken at each
+split, which accumulates down the tree. `Drawn` also takes `dist=` instead — any built-in
+distribution, so `Drawn(per='family', dist=Gamma(shape=4.0, scale=0.25))` gives the draws a gamma's
+shape. Whatever the distribution, the draw is divided by its own mean, so what a distribution
+contributes is its shape and not where it sits; give a spread or a dist, never both.
+
+`Inherited` takes one more, `bins=`. With it the value moves in **steps** rather than continuously:
+it takes one of `bins` values on a log-spaced ladder, and a daughter moves to a neighbouring rung or
+stays. `Inherited(per='lineage', spread=0.45, bins=6)` is the discrete-bin clock, where a clade's
+rate is one of a handful rather than anything at all.
 
 Modifiers **stack by multiplication**, so they combine: `1.0 * mod.OnTime({0: 1, 5: 0.3}) *
 mod.Inherited(per='lineage', spread=0.3)` is a rate that both follows a schedule and drifts between lineages.
@@ -89,19 +118,19 @@ mod.Inherited(per='lineage', spread=0.3)` is a rate that both follows a schedule
 ### Which level accepts which
 
 A modifier only makes sense where the level can act on it, and a level **rejects** one it does not
-accept rather than silently ignoring it. `SetBy` is listed separately from `DrivenBy` even though it
-is one, because replacing a base is a capability an engine has or has not: the three levels below can
-do it and the rest refuse. This is what each accepts today:
+accept rather than silently ignoring it. `SetBy` is listed separately from `ScaledBy` even though both
+read a driver, because replacing a base is a capability an engine has or has not: the three levels
+below can do it and the rest refuse. This is what each accepts today:
 
 | Level | The modifiers it accepts |
 |---|---|
 | Species | `OnTime` · `OnTotalDiversity` · `inherited per lineage` · `drawn per lineage` |
-| Genomes, family and ordered | `OnTime` · `DrivenBy` · `SetBy` · `drawn per family` |
-| Genomes, nucleotide | `OnTime` · `DrivenBy` |
-| Sequences | `drawn per lineage` · `inherited per lineage` · `DrivenBy` |
-| Traits, continuous `rate` | `OnTime` · `inherited per lineage` · `OnTotalDiversity` · `DrivenBy` · `SetBy` |
-| Traits, discrete `switch` | `DrivenBy` |
-| Joint, `birth` / `death` | `OnTime` · `OnTotalDiversity` · `DrivenBy` |
+| Genomes, family and ordered | `OnTime` · `ScaledBy` · `SetBy` · `drawn per family` |
+| Genomes, nucleotide | `OnTime` · `ScaledBy` |
+| Sequences | `drawn per lineage` · `inherited per lineage` · `ScaledBy` |
+| Traits, continuous `rate` | `OnTime` · `inherited per lineage` · `OnTotalDiversity` · `ScaledBy` · `SetBy` |
+| Traits, discrete `switch` | `ScaledBy` |
+| Joint, `birth` / `death` | `OnTime` · `OnTotalDiversity` · `ScaledBy` |
 
 `zombi2 <command> -h` prints the same list for that command, read from the engine itself, so the two
 cannot disagree, and a test asserts this table against them.
@@ -113,13 +142,27 @@ the error names the ones it does, so this table can always be read back off the 
 
 ### Writing your own
 
-The six modifiers above are the ones ZOMBI2 ships. If none of them says what your rate depends on,
+The modifiers above are the ones ZOMBI2 ships. If none of them says what your rate depends on,
 you can write your own. It is a small class, and it needs two things.
 
 **A `factor()` method, returning the multiplier.** The engine calls it as the run goes and hands it
-what it knows at that moment: the current `time`, the standing `diversity`, the number of `copies` in
-the gene pool, the number of `chromosomes`. Read the ones you want and ignore the rest with `**_`.
-What you return multiplies the rate, so 1.0 leaves it alone, 2.0 doubles it, 0.0 switches it off.
+the context that engine has. Every engine passes `time` and `lineages`; the rest differ:
+
+| Engine | Context passed to `factor` |
+|---|---|
+| `species` | `time`, `lineages`, `diversity` |
+| `genomes.family` | `time`, `lineages`, `copies`, `drivers` |
+| `genomes.ordered` | `time`, `lineages`, `copies`, `chromosomes`, `drivers` |
+| `genomes.nucleotide` | `time`, `lineages`, `copies`, `chromosomes`, `drivers` |
+| `traits.continuous` | `time`, `lineages`, `diversity`, `drivers` |
+| `traits.discrete` | `time`, `lineages`, `drivers` |
+| `joint` | `time`, `lineages`, `diversity`, `drivers` |
+
+Take `**_` and default every key you read. A key your engine does not supply never arrives, and the
+genome engines pass `drivers` only on a rate that is itself driven, so it can be missing even on an
+engine that lists it. One key is there and is always 0: `copies` at the nucleotide resolution, where
+gene events are counted per lineage rather than per copy, so there is no copy count to pass. What you
+return multiplies the rate, so 1.0 leaves it alone, 2.0 doubles it, 0.0 switches it off.
 
 **An `implemented_for` list, naming the engines that read it.** A modifier an engine does not read
 would silently return 1.0 and hand you a run that is not the model you asked for, so a level takes
@@ -293,7 +336,7 @@ The loop above assumes the rates hold still *between* events, so that a single $
 draw lands exactly on the next event. That holds whenever the rates depend only on the current state,
 which changes only when an event fires. But some rates move with the clock itself, even while nothing is
 happening: an `OnTime` schedule steps at fixed breakpoints, a scheduled mass extinction arrives at a set
-time, and under `DrivenBy` the driving level changes state on its own timetable. Now $R$ is a moving
+time, and a driven rate follows a driver that changes state on its own timetable. Now $R$ is a moving
 target, and a draw at today's $R$ would be wrong.
 
 ZOMBI2 keeps the draw exact by never letting it cross a change. Every rate can report the next time it
@@ -336,14 +379,17 @@ The first is **sequence substitution along a branch**. Once a gene tree and its 
 settled, evolving a sequence down a branch does not require the individual substitution events, only the
 state at each end. The probability of ending in each state after a branch of length $t$ is given exactly
 by the matrix exponential $P(t) = e^{Qt}$, so ZOMBI2 draws each site's descendant state straight from
-$P(t)$ in one step ([Sequences](#sequences)). Running Gillespie here would generate,
+$P(t)$ in one step (Chapter 7). Running Gillespie here would generate,
 and then discard, thousands of intermediate substitutions.
 
 The second is a **continuous trait**. Brownian motion has no events to fire, since it moves at every instant,
-so there is nothing for the loop to enumerate. A constant-rate run is drawn in closed form instead, as
-one multivariate normal over the whole tree, with variance $\sigma^2 \times$ root-to-tip depth and
-covariance $\sigma^2 \times$ shared path length ([Traits](#traits)). When the rate
-varies along the tree, each branch takes the exact integral of $\sigma^2$ over it.
+so there is nothing for the loop to enumerate. ZOMBI2 walks the tree branch by branch instead, in
+preorder, and draws one normal per branch: mean the parent's end value, variance the exact integral of
+$\sigma^2$ along the branch (Chapter 8). With a constant $\sigma^2$ that integral is just
+$\sigma^2 \times$ branch length, and the values that come out have the Brownian structure exactly —
+variance $\sigma^2 \times$ root-to-tip depth at a tip, covariance $\sigma^2 \times$ shared path length
+between two — with no event drawn anywhere. A $\sigma^2$ that varies along the branch changes only the
+integral, not the walk.
 
 The rule of thumb is the same each time. Reach for Gillespie when you need the whole history, every
 branching, gain and loss at its exact time; reach for a shortcut when the endpoints are all you need. For

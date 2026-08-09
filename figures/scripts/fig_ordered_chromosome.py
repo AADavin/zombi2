@@ -1,13 +1,14 @@
 """Figure: one circular chromosome as a signed gene order.
 
-Chapter 5 (ordered genomes) reads a leaf as ``[ 0+ 1+ 3+ 3+ 4− ]`` — a run of gene tokens, each a
+Chapter 5 (ordered genomes) reads a leaf as ``[ 0+ 0+ 1+ 3+ 4− ]`` — a run of gene tokens, each a
 family with a strand. This draws that same chromosome as the ring it is: five genes spaced evenly
 around a circle, each an arrow that points **the way its strand reads**. Colour is by family, so the
-two copies of family ``3`` — a tandem duplication — share a colour and sit adjacent, and family ``4``,
+two copies of family ``0`` — a tandem duplication — share a colour and sit adjacent, and family ``4``,
 left backwards by an inversion, is the one arrow pointing against the others.
 
-The genome is the leaf ``n2`` of the chapter's first example (``seed=2``); the figure is generated
-from that run, not drawn by hand, so it cannot drift from what the code produces.
+The genome is the leaf ``n4`` of the chapter's first example (``seed=231``); the figure is generated
+from that run, not drawn by hand, so it cannot drift from what the code produces. Change the
+chapter's seed and this has to be re-run — the two constants below are the chapter's.
 
 House style: near-black ink, ColorBrewer identities, no title inside the figure (the manual captions
 it).
@@ -34,11 +35,15 @@ from zombi_style import save, FONT, INK, MUTED, FS_LABEL
 GREYS = ["#2b2b2b", "#575757", "#838383", "#afafaf"]
 
 
-def _leaf_order(node_label: str = "n2"):
+SEED = 231                    # the chapter's first example
+LEAF = "n4"                   # the leaf it reads
+
+
+def _leaf_order(node_label: str = LEAF):
     """The (family, strand) order of one extant leaf of the chapter's first example."""
-    tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=2)
+    tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=SEED)
     g = simulate_genomes_ordered(tree, duplication=0.3, loss=0.2, origination=0.15, inversion=0.5,
-                                 chromosomes=1, initial_families=5, seed=2)
+                                 chromosomes=1, initial_families=5, seed=SEED)
     target = int(node_label[1:])
     chrom = g.genomes[target][0]
     return [(gene.family, gene.strand) for gene in chrom.genes]
@@ -79,7 +84,7 @@ def _gene_arc(d, a0: float, a1: float, strand: int, colour: str) -> None:
 
 
 def render() -> None:
-    order = _leaf_order("n2")
+    order = _leaf_order(LEAF)
     n = len(order)
     families = sorted({fam for fam, _ in order})
     colour_of = {fam: GREYS[i % len(GREYS)] for i, fam in enumerate(families)}

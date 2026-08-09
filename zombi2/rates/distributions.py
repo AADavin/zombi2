@@ -1,12 +1,18 @@
-"""Small distribution helpers for per-family sampled rates.
+"""The shapes a run draws its numbers from: a `Drawn` value's spread, and a segmental event's extent.
 
-Ships a handful of built-in distributions and also accepts, via
-`as_distribution()`, any scipy.stats frozen distribution (anything with an
-``.rvs`` method) or a plain callable ``rng -> float``. No hard scipy dependency.
+    from zombi2.rates import Drawn
+    from zombi2.rates.distributions import Gamma
 
-    z.FamilySampledRates(duplication=z.Gamma(2, 0.1),           # built-in
-                         transfer=scipy.stats.expon(scale=0.1),  # scipy frozen dist
-                         loss=lambda rng: rng.gamma(2, 0.05))    # callable
+    loss        = 0.25 * Drawn(per="family", dist=Gamma(shape=4.0, scale=0.25))
+    loss_extent = Gamma(shape=2.0, scale=250.0)
+
+A handful of distributions ship here, and `as_distribution()` also takes any scipy.stats frozen
+distribution (anything with an ``.rvs``) or a plain callable ``rng -> float``. There is no hard
+scipy dependency.
+
+Where the two uses differ is the mean. An **extent** is an absolute size, so its distribution is
+used as written. A **drawn multiplier** is normalised to mean 1, so only its shape counts — which
+is why one that cannot state its ``mean()`` is refused there rather than normalised by a guess.
 """
 
 from __future__ import annotations
@@ -28,9 +34,19 @@ __all__ = [
 class Distribution(ABC):
     """Something that yields a float given a numpy Generator."""
 
+    #: What to call this in a message. A user writes ``scipy.stats.expon(...)`` or a lambda and
+    #: never sees the wrapper's class name, so the wrappers below override it; everything else is
+    #: named by its own class, which is exactly what was written.
+    written: str = ""
+
     @abstractmethod
     def sample(self, rng) -> float:
         ...
+
+    def __init_subclass__(cls, **kw) -> None:
+        super().__init_subclass__(**kw)
+        if not cls.__dict__.get("written"):
+            cls.written = cls.__name__
 
     def mean(self) -> float:
         """This distribution's mean, where it is known in closed form.
@@ -40,7 +56,7 @@ class Distribution(ABC):
         distribution whose mean cannot be computed — a bare callable, a scipy frozen distribution —
         raises here rather than being normalised by a guess."""
         raise NotImplementedError(
-            f"{type(self).__name__} does not know its own mean, so it cannot be normalised to a "
+            f"a {self.written} does not state its own mean, so it cannot be normalised to a "
             f"multiplier. Use one of the built-in distributions, or scale it yourself and read it "
             f"with SetBy, where the number is the value rather than a factor.")
 
@@ -192,6 +208,8 @@ class Geometric(Distribution):
 
 
 class _ScipyDist(Distribution):
+    written = "scipy frozen distribution"
+
     def __init__(self, frozen):
         self._frozen = frozen
 
@@ -200,6 +218,8 @@ class _ScipyDist(Distribution):
 
 
 class _CallableDist(Distribution):
+    written = "callable"
+
     def __init__(self, fn):
         self._fn = fn
 

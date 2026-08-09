@@ -17,6 +17,16 @@ from .modifiers import CARRIED_KINDS, Modifier, SetBy
 from .scope import Scope
 
 
+class RateCompositionError(TypeError):
+    """A `*` the grammar itself refuses, with a message written for that mistake.
+
+    A `TypeError` so nothing that catches one stops catching it, and its own class so the written
+    form can tell it from CPython's ``unsupported operand type(s)``: the parser re-raises ours
+    verbatim, because the sentence says what to write instead, and answers CPython's generically,
+    because "Rate and float" is about types rather than about the rate.
+    """
+
+
 @dataclass(frozen=True)
 class Rate:
     """``base × scope × modifiers``, not yet evaluated. Internal — never built by users directly."""
@@ -56,20 +66,30 @@ class Rate:
                 continue  # already used, as the base
             reads = getattr(m, "reads", None)
             if reads is not None and reads[0] in CARRIED_KINDS:
-                continue  # its factor arrives through `carried`, drawn and kept by the engine
+                continue  # its factor arrives through `carried_factor`, drawn and kept by the engine
             value *= m.factor(**context)
         return value * carried_factor
 
     def check_one_base(self, label: str = "this rate") -> None:
         """A rate may carry **one** `SetBy`. Two would each claim to *be* the
         base, and no order of application is more right than another, so this raises rather than
-        letting the last one written win in silence."""
+        letting the last one written win in silence.
+
+        And none of its modifiers may be a `Weights`: that verb says the numbers are compared
+        against each other and normalised, which only a **choice** does — on a rate they would
+        silently behave as factors, which is the other model. The class is the same either way, so
+        before the verbs there was nothing here to check."""
         set_by = [m for m in self.modifiers if isinstance(m, SetBy)]
         if len(set_by) > 1:
             raise ValueError(
                 f"{label} carries {len(set_by)} SetBy modifiers, and a base can only be replaced "
                 f"once — each of them claims to be the whole number. Keep one; if you meant to scale "
                 f"the result, that is ScaledBy, which multiplies and composes freely.")
+        if any(getattr(m, "verb", None) == "Weights" for m in self.modifiers):
+            raise ValueError(
+                f"{label} carries Weights, which weights the candidates of a choice against each "
+                f"other — transfer_to is the only one. On a rate the number multiplies a base, so "
+                f"the verb is ScaledBy: the same driver and the same mapping, read as a factor.")
 
     def carried_modifiers(self, unit: str | None = None) -> tuple[tuple[Modifier, str], ...]:
         """Every modifier on this rate that reads a value the **engine** has to draw and carry,
@@ -104,7 +124,7 @@ class Rate:
 
     def __mul__(self, other: object):
         if isinstance(other, SetBy):
-            raise TypeError(
+            raise RateCompositionError(
                 "SetBy replaces the base, so it cannot follow one: everything to its left — the "
                 "number, the scope, any factors — is a base it would silently discard. Write it "
                 "first instead: SetBy(driver, mapping) * ScaledBy(...). `0.25 * SetBy(...)` is "

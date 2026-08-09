@@ -160,6 +160,7 @@ _VIA_CONSTRUCTOR = {
     "states": "zombi2.traits:discrete",
     "switch": "zombi2.traits:discrete",
     "start": "zombi2.traits:discrete",
+    "at-speciation": "zombi2.traits:discrete",
 }
 
 #: The one flag whose name deliberately differs, and why: it is `action="append"`, so each use names

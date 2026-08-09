@@ -131,8 +131,10 @@ effective rate  =  scope(base)  ×  modifiers
   what); answering **"per what?"** is the crux. It wraps the base and contributes a dimensionless
   factor.
 - **modifiers** — dimensionless context multipliers (by lineage, by family). They change *how fast*,
-  never *how many*. "per" is the scope word; a modifier is named for its family — `On` / `By` / `From`,
-  plus `DrivenBy` (below) — so `PerLineage` is a scope and `Drawn(per='lineage')` a modifier.
+  never *how many*. "per" is the scope word, never a modifier's: a measured value is `On` the thing
+  it measures (`OnTime`), a value the engine carries per unit is `Drawn`/`Inherited` with the unit as
+  an argument, and a driven one is written with a verb (below). So `PerLineage` is a scope and
+  `Drawn(per='lineage')` a modifier.
 
 **One modifier replaces the base rather than multiplying it: `SetBy`.** Two things are stated
 absolutely in the literature rather than as a multiple — a driven rate ("the loss rate is 1.0 in
@@ -143,9 +145,9 @@ a per-copy rate set to 1.0 is still 1.0 *per copy* — because `SetBy` answers *
 what*. A rate carries **one** `SetBy` and any number of multiplying modifiers, and the `SetBy` is
 written first, because everything to its left is a base it would discard.
 
-`SetBy` is a `DrivenBy`, and a level must therefore declare it **separately**: replacing a base is a
-capability an engine has or has not, and a gate that admitted it through `DrivenBy` would accept it
-at four levels that cannot honour it.
+`SetBy` reads a driver like the other driven verbs, and a level must therefore declare it
+**separately**: replacing a base is a capability an engine has or has not, and a gate that admitted it
+alongside `ScaledBy` would accept it at four levels that cannot honour it.
 
 "Per what" by level:
 
@@ -198,10 +200,14 @@ factor per — and no implementation would make them mean anything; say so, and 
 modifier does belong on. The rest are **not implemented yet**, which is a statement about the code
 and not about the model; say that plainly and do not dress it up as a rule.
 
-**`DrivenBy(driver, mapping)` is the one mechanism** for both conditioning and joining (§2), within a
-level as much as across two (§3). `driver` says which thing is read, never how the run is organised: a
-**finished result** (an object in Python, its written log across two commands) makes the run
-conditioned; the **name of a level growing beside it** makes the run joint. A driver read from a file
+**A driven parameter is the one mechanism** for both conditioning and joining (§2), within a level as
+much as across two (§3). Whichever verb writes it, it takes a `driver` and a `mapping`. `driver` says
+which thing is read, never how the run is organised: a **finished result** (an object in Python, its
+written log across two commands) makes the run
+conditioned; the **name of a level growing beside it** makes the run joint. A **`Clade`** is
+conditioned too, and the limiting case of it: its value is a fact about the tree the run is already
+walking, so there is nothing to grow first and no file — and a joint run refuses it, because a
+growing tree has no clades yet. A driver read from a file
 and the same driver held in memory are the same model, so they are the same modifier. `mapping` says
 what the value becomes, and there are four shapes: a **`Table`** over named states, a **`Curve`** over
 a number, a **`Scalar`** log-link `exp(strength · value)`, and a **`Between`**, a weight per (donor
@@ -215,8 +221,8 @@ verb is `SetBy`, whose number carries the rate's own units and replaces the base
 normalised across the candidates:
 
 ```
-transfer    = 0.1 * DrivenBy(habitat, {"competent": 3.0, "normal": 1.0})   # a rate:   how often transfer
-transfer_to =       DrivenBy(habitat, {"competent": 3.0, "normal": 1.0})   # a choice: which lineage receives
+transfer    = 0.1 * ScaledBy(habitat, {"competent": 3.0, "normal": 1.0})   # a rate:   how often transfer
+transfer_to =       Weights(habitat, {"competent": 3.0, "normal": 1.0})    # a choice: which lineage receives
 ```
 
 The genome level's `transfer_to`, the "who receives" of a horizontal transfer, is the only such
@@ -229,7 +235,7 @@ that receives, not the segment.
 
 A weight may read **both** ends: a **kernel** over `(donor group, recipient group)` pairs
 (`Between({...})`) steers transfer *between* groups rather than only *into* one. The groups come from
-the tree (named clades, reading no other level) or from a trait (`DrivenBy(trait, Between(...))`). A
+the tree (named clades, reading no other level) or from a trait (`Weights(trait, Between(...))`). A
 kernel only redistributes who receives, so one on a *rate* or an *extent* is refused: both are read on
 one lineage and have no donor to condition on.
 
@@ -237,10 +243,12 @@ one lineage and have no donor to condition on.
 what?"**); "clock" for the scope (reserve **clock** strictly for the by-lineage substitution-rate
 modifier at the sequences level). **modifier** names the third factor only.
 
-**A drawn value takes any distribution.** ``Drawn(per=…, spread=σ)`` is the common case and means a
-lognormal of that log-scale. ``dist=`` takes a distribution object instead — the same ones an extent
-takes — so ``Gamma``, ``Exponential``, ``Uniform``, a scipy frozen distribution or a callable all
-work. Give one or the other, never both.
+**A drawn value takes any distribution that can state its mean.** ``Drawn(per=…, spread=σ)`` is the
+common case and means a lognormal of that log-scale. ``dist=`` takes a distribution object instead —
+any of the built-ins: ``Fixed``, ``Exponential``, ``Gamma``, ``LogNormal``, ``Uniform``,
+``Geometric``. A bare callable or a scipy frozen distribution is refused here, though an **extent**
+takes either, because an extent is a size used as written rather than a multiplier normalised to
+mean 1 (below). Give a spread or a dist, never both.
 
 Whatever the distribution, **the draw is normalised to mean 1**, by dividing by that distribution's
 own mean. A drawn value is a *multiplier*, and one that does not average to 1 changes what the base
@@ -256,7 +264,7 @@ guess. A number that *is* the rate rather than a factor is `SetBy`, where nothin
 | covariate | a deterministic function of a measured quantity | `OnTime`, `OnTotalDiversity` |
 | drawn | an i.i.d. draw, one per unit — **no memory** (uncorrelated) | `Drawn(per=…)` |
 | inherited | the parent's, perturbed — **continuous memory** (autocorrelated) | `Inherited(per=…)` |
-| driven | the state of another simulated thing, read as the run walks the tree | `DrivenBy`, `SetBy` |
+| driven | the state of another simulated thing, read as the run walks the tree | `ScaledBy`, `Weights`, `SetBy` |
 
 **The unit is an argument, not a class.** A draw per family and a draw per lineage are one model at
 two attachments, so a unit nobody has carried yet needs no name invented for it — which is what
@@ -308,7 +316,7 @@ extent  =  base × modifiers
 ```
 
 - **base** — a number (the mean) or a distribution over sizes.
-- **modifiers** — the same dimensionless multipliers a rate takes (`On` / `By` / `From`, `DrivenBy`).
+- **modifiers** — the same dimensionless multipliers a rate takes (`OnTime`, `Drawn`, `Inherited`, `ScaledBy`).
 
 One word, **extent**, at every resolution and for every event. Its **unit is set by the resolution** —
 genes at ordered, base pairs at nucleotide — and needs no word of its own, because fixing that unit is
@@ -320,7 +328,7 @@ is taken whenever any event begins on a segment that covers it. The two axes **m
 one without the other describes nothing.
 
 **A modifier attaches either to the lineage or to the contents.** `OnTime`, `Drawn(per='lineage')`, `Inherited(per='lineage')`
-and a trait-`DrivenBy` attach to the **lineage**: at any instant they are uniform across that lineage's
+and a `ScaledBy` reading a trait attach to the **lineage**: at any instant they are uniform across that lineage's
 whole genome, so they compose with any extent unchanged. `Drawn(per='family')` attaches to the **contents**, and a
 segment has several — so a content-attached modifier must weight the **segment, by what it covers**,
 never the position the event started from. Weighting the start applies a family's own rate to its
@@ -345,7 +353,7 @@ Left column is correct; right column is a fossil to purge.
 | independent / conditioned / joint | pipeline / coevolution (as the framing) |
 | conditioning; joining; a joint model | coevolution (as a category) |
 | conditioning and joining (when the pair needs one name) | coupling (as the framing, a category or a level); the verb stays — "a transfer couples two lineages" |
-| driver — the evolved value a `DrivenBy` reads (its first argument) | source (for that argument); signal |
+| driver — the value a driven parameter reads, per lineage, as the run walks the tree (its first argument): grown by another level, or read off the tree itself (a clade) | source (for that argument); signal |
 | target — what a factor is attached to: a rate, an **extent**, or a **choice** | "a target is a rate"; target (for the driven level — say *the driven level*) |
 | choice — the target that decides who receives (`transfer_to`) | "which one"; slot |
 | mapping — `Table` / `Curve` / `Scalar` / `Between` | response (the coevolve word) |

@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="1200" height="500" viewBox="0 0 1200 500">
+     width="1200" height="444" viewBox="0 0 1200 444">
 <defs>
 </defs>
+<rect x="0" y="0" width="1200" height="444" fill="white" />
+<g transform="translate(0,-56)">
 <rect x="0" y="0" width="1200" height="500" fill="white" />
-<text x="600.0" y="42" font-size="32" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold" font-style="normal">How many events happen in one unit of time?</text>
 <path d="M80,370 L520,370" stroke="#1a1a1a" stroke-width="2.0" />
 <path d="M80,120 L80,370" stroke="#1a1a1a" stroke-width="2.0" />
 <rect x="87.2" y="120.0" width="25.6" height="250.0" fill="#1a1a1a" opacity="0.82" />
@@ -59,4 +60,5 @@
 <text x="840.0" y="98" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#E41A1C" font-weight="bold" font-style="normal">mean = 4</text>
 <text x="880.0" y="428" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal" font-style="normal">rate = 4 per unit of time</text>
 <text x="880.0" y="460" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#8a8a8a" font-weight="normal" font-style="normal">number of events</text>
+</g>
 </svg>

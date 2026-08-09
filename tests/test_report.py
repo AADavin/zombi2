@@ -179,7 +179,7 @@ def test_empty_genomes_is_reported_only_when_it_happened():
 
 
 def test_a_joint_run_reports_species_and_its_driver(tmp_path):
-    main(["joint", str(tmp_path), "--birth", "1.0 * DrivenBy('trait', {'a': 1.0, 'b': 2.0})",
+    main(["joint", str(tmp_path), "--birth", "1.0 * ScaledBy('trait', {'a': 1.0, 'b': 2.0})",
           "--death", "0.2", "--states", "a,b", "--switch", "0.3", "--n-extant", "20", "--seed", "1"])
     text = (tmp_path / RUN_REPORT_NAME).read_text(encoding="utf-8")
     assert "JOINT" in text and "driven by a trait" in text
@@ -204,7 +204,7 @@ def test_the_reproduce_block_runs_a_driver_before_what_it_drives(tmp_path):
     driver = run / "traits" / "trait_events.tsv"
     assert main(["sequences", str(run), "--model", "jc69", "--length", "100", "--seed", "1", "--quiet",
                  "--substitution",
-                 f"0.05 * DrivenBy('{driver}', {{'cave': 0.5, 'surface': 1.0}})"]) == 0
+                 f"0.05 * ScaledBy('{driver}', {{'cave': 0.5, 'surface': 1.0}})"]) == 0
 
     block = (run / "run.zombi2").read_text(encoding="utf-8").split("TO REPRODUCE")[1]
     commands = [ln.strip() for ln in block.splitlines() if ln.strip().startswith("zombi2 ")]

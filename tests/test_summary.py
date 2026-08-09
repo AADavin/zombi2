@@ -20,6 +20,7 @@ import json
 
 import pytest
 
+from zombi2.rates import ScaledBy
 from zombi2.genomes import simulate_genomes_family
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85
@@ -192,10 +193,9 @@ def test_a_continuous_trait_summary_describes_where_the_values_got_to():
 
 def test_a_joint_summary_holds_both_levels_it_grew():
     from zombi2.joint import simulate_joint
-    from zombi2.rates import modifiers as mod
     from zombi2.traits import DiscreteTrait
 
-    r = simulate_joint(birth=1.0 * mod.DrivenBy("trait", {"small": 1.0, "large": 3.0}), death=0.2,
+    r = simulate_joint(birth=1.0 * ScaledBy("trait", {"small": 1.0, "large": 3.0}), death=0.2,
                        trait=DiscreteTrait(states=("small", "large"), switch=0.3),
                        n_extant=20, seed=1)
     s = r.summary()
@@ -214,7 +214,7 @@ def test_the_cli_writes_a_joint_summary_at_the_run_root(tmp_path):
 
     run = tmp_path / "j"
     assert main(["joint", str(run), "--birth",
-                 "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})", "--death", "0.2",
+                 "1.0 * ScaledBy('trait', {'small': 1.0, 'large': 3.0})", "--death", "0.2",
                  "--states", "small,large", "--switch", "0.3", "--n-extant", "20", "--seed", "1",
                  "--quiet"]) == 0
     # at the root, because it describes both levels and belongs to neither

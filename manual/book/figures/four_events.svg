@@ -1,0 +1,85 @@
+<svg viewBox="0 0 660 208" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
+<title>The four gene-family events</title>
+<desc>Four panels side by side, each a pale band standing for a lineage of the species tree with a dark line inside it standing for a gene copy. Duplication: the line forks in two, marked with a square. Transfer: two lineages, with an arrow from a copy in the upper one to the lower one, where a new line begins. Loss: the line stops at a cross. Origination: a new line begins at a diamond, from nothing.</desc>
+<!-- One event to a panel rather than one busy tree. The chapter's point is that four things can
+     happen to a gene copy, not what a genealogy looks like once they all have; a tree carrying all
+     four at once has to be read before it can be understood, and this can be looked at.
+     The pale band is a LINEAGE and the dark line a COPY — the two things chapter 4 keeps apart, and
+     the reason a duplication and a speciation are different pictures. No speciation is drawn: it is
+     the species level's event, and the band is what carries it.
+     Colours are presentation ATTRIBUTES and literals, not CSS custom properties: GitHub's SVG
+     sanitiser drops the style element and librsvg resolves no custom properties, so a figure whose
+     fills live in either renders as black-on-black. The dark-mode rules below still win wherever
+     CSS survives, because CSS outranks a presentation attribute. Keep it this way. -->
+<style>
+  @media (prefers-color-scheme: dark) {
+    .tube{stroke:#2a3034}
+    .lbl{fill:#e7ebe9}
+    .dim{fill:#9aa3a0}
+    .edge{stroke:#e7ebe9}
+    .glyph{fill:#e7ebe9}
+    .head{fill:#e7ebe9}
+  }
+</style>
+<defs>
+  <marker id="fe" markerWidth="5" markerHeight="5" refX="4.2" refY="2.5" orient="auto">
+    <path class="head" d="M0,0 L5,2.5 L0,5 z" fill="#1a1a1a"/>
+  </marker>
+</defs>
+
+<!-- the lineages: a pale band apiece, drawn as a thick stroke so the gene line sits inside it -->
+<g class="tube" stroke="#eaeae6" stroke-width="32" fill="none" stroke-linecap="butt">
+  <line x1="22"  y1="96"  x2="143" y2="96"/>
+  <line x1="187" y1="66"  x2="308" y2="66"/>
+  <line x1="187" y1="126" x2="308" y2="126"/>
+  <line x1="352" y1="96"  x2="473" y2="96"/>
+  <line x1="517" y1="96"  x2="638" y2="96"/>
+</g>
+
+<!-- the gene copies -->
+<g class="edge" stroke="#1a1a1a" stroke-width="1.9" fill="none" stroke-linecap="round">
+  <!-- duplication: one copy becomes two, inside the one lineage -->
+  <path d="M 30,96 L 74,96"/>
+  <path d="M 74,96 L 86,86 L 135,86"/>
+  <path d="M 74,96 L 86,106 L 135,106"/>
+
+  <!-- transfer: a copy crosses into a lineage alive at the same moment -->
+  <path d="M 195,66 L 300,66"/>
+  <path d="M 243,126 L 300,126"/>
+
+  <!-- loss: the copy stops -->
+  <path d="M 360,96 L 424,96"/>
+
+  <!-- origination: a copy begins where there was none -->
+  <path d="M 566,96 L 630,96"/>
+</g>
+
+<!-- the arrow that only transfer has: donor to recipient, drawn the way the copy moves -->
+<g class="edge" stroke="#1a1a1a" stroke-width="1.7" fill="none">
+  <line x1="243" y1="76" x2="243" y2="122" marker-end="url(#fe)"/>
+</g>
+
+<!-- the glyph that marks each event, where it happens -->
+<g class="glyph" fill="#1a1a1a">
+  <rect x="70.5" y="92.5" width="7" height="7"/>                      <!-- duplication -->
+  <path d="M 562,96 L 568,90 L 574,96 L 568,102 Z"/>                  <!-- origination -->
+</g>
+<g class="edge" stroke="#1a1a1a" stroke-width="2.2" fill="none" stroke-linecap="round">
+  <path d="M 424,91 L 434,101"/>                                      <!-- loss -->
+  <path d="M 434,91 L 424,101"/>
+</g>
+
+<!-- what each panel shows -->
+<g class="lbl" fill="#1a1a1a" font-size="15" text-anchor="middle">
+  <text x="82"  y="180">duplication</text>
+  <text x="247" y="180">transfer</text>
+  <text x="412" y="180">loss</text>
+  <text x="577" y="180">origination</text>
+</g>
+<g class="dim" fill="#6e6e6e" font-size="12.5" font-style="italic" text-anchor="middle">
+  <text x="82"  y="199">one copy becomes two</text>
+  <text x="247" y="199">a copy crosses over</text>
+  <text x="412" y="199">a copy is deleted</text>
+  <text x="577" y="199">a family begins</text>
+</g>
+</svg>

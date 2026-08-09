@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-     width="1000" height="900" viewBox="0 0 1000 900">
+     width="1000" height="844" viewBox="0 0 1000 844">
 <defs>
 </defs>
+<rect x="0" y="0" width="1000" height="844" fill="white" />
+<g transform="translate(0,-56)">
 <rect x="0" y="0" width="1000" height="900" fill="white" />
-<text x="430" y="40" font-size="32" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="bold">The Gillespie loop</text>
 <rect x="240.0" y="85.0" width="380" height="66" rx="37" ry="37" fill="#f2f2f2" stroke="#1a1a1a" stroke-width="2.6" />
 <text x="430" y="118.0" font-size="22" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" fill="#1a1a1a" font-weight="normal">start:  t = 0,  initial state</text>
 <path d="M430,151 L430,210.0" stroke="#1a1a1a" stroke-width="2.6" />
@@ -44,4 +45,5 @@
 <path d="M170.0,250 L237.0,250" stroke="#1a1a1a" stroke-width="2.6" />
 <path d="M240.0,250 L228.12984377594,255.3008858897744 L228.12984377594,244.6991141102256 Z" fill="#1a1a1a" />
 <text x="154.0" y="518.0" font-size="22" font-family="Helvetica" text-anchor="end" dominant-baseline="central" fill="#8a8a8a" font-weight="bold">repeat</text>
+</g>
 </svg>

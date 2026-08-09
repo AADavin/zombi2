@@ -17,15 +17,15 @@ dispatches on, because that is what they are; they are re-exported here so the g
 imported as one surface. `Time` is here because it is a value that is **not** a modifier: it is read
 through a verb (``ScaledBy(Time(), …)``), where a draw is already a factor and needs none.
 
-**The named cells are the same six models the ``mod.`` names have always given you**, written as a
-grid rather than as a list: ``Drawn(per="family", …)`` says a draw attached to a family, and one class covers
-identical object, so a run is unchanged and a script written either way behaves the same. The old
-names stay; they are the names of cells, kept because each names a model people cite.
+**The unit is an argument, not a class.** A draw per family and a draw per lineage are one model at
+two attachments, so ``Drawn(per="family", …)`` and ``Drawn(per="lineage", …)`` are one class and two
+cells of a grid rather than two names to remember. The cells are models the field already has names
+for — rate heterogeneity across gene families, the relaxed clock, ClaDS — and the prose uses those.
 
-The reason to prefer this spelling is what happens next. A per-chromosome draw needs no new class and
-no invented name — it is ``Drawn(per="chromosome", …)``, a cell of a grid you can already see — and a
-cell no engine carries refuses at that level's gate, naming itself (*"drawn per chromosome, which the
-species engine does not support"*), rather than reading as a typo.
+What the grid buys is the next cell. A per-chromosome draw needs no new class and no invented name:
+it is ``Drawn(per="chromosome", …)``, which constructs, and a cell no engine carries refuses at that
+level's gate naming itself — *"drawn per chromosome, which the species engine does not support"* —
+rather than reading as a typo.
 """
 
 from __future__ import annotations
