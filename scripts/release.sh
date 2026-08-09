@@ -89,6 +89,16 @@ PY
 )"
 [[ -n "$UNRELEASED" ]] || die "the [Unreleased] section is empty — nothing to release. Draft it from the merged PRs with scripts/changelog-draft.sh, curate the prose, then re-run."
 
+# A `### Removed` entry is something that used to work and now does not, which under this project's
+# pre-1.0 rule is a minor bump, never a patch. The rule was written down and then trusted to whoever
+# typed the keyword; this is it enforced where it cannot be forgotten. `major` and an explicit
+# X.Y.Z both pass — those are deliberate acts, and this only catches the one that is not.
+if [[ "$BUMP" == "patch" ]] && grep -q '^### Removed' <<<"$UNRELEASED"; then
+    die "[Unreleased] has a '### Removed' section, so this is a breaking release and 'patch' is the
+     wrong bump — something that used to work no longer does. Run 'scripts/release.sh minor'
+     (pre-1.0: a minor carries features or breaking changes, a patch carries fixes)."
+fi
+
 echo "ZOMBI2 release  $CURRENT -> $VERSION   (tag $TAG, $DATE)"
 echo "  · set __version__ in zombi2/__init__.py"
 echo "  · roll CHANGELOG [Unreleased] -> [$VERSION] - $DATE"
