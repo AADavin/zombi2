@@ -31,7 +31,7 @@ The initial genome, at the beginning of the stem, starts with `initial_families`
 
 ### Four things to know
 
-- **Families need not evolve at the same pace.** `Drawn(per='family')` draws a factor per family (`--loss "0.25 * Drawn(per='family', spread=0.6)"`). Whether you write one draw or two decides what varies together: two separately built `Drawn(per='family')` draws vary their rates independently, while **one** object read by several rates gives that family a single tempo across all of them — `speed = mod.Drawn(per='family', spread=0.5)`, then `duplication=0.2 * speed, loss=0.25 * speed`.
+- **Families need not evolve at the same pace.** `Drawn(per='family')` draws a factor per family (`--loss "0.25 * Drawn(per='family', dist=LogNormal(0.0, 0.6))"`). Whether you write one draw or two decides what varies together: two separately built `Drawn(per='family')` draws vary their rates independently, while **one** object read by several rates gives that family a single tempo across all of them — `speed = mod.Drawn(per='family', dist=LogNormal(0.0, 0.5))`, then `duplication=0.2 * speed, loss=0.25 * speed`.
 - **A family's copies within one genome are capped**, at `max_family_size=10` by default, because a duplication rate above the loss rate grows without bound. Set `max_family_size=None` when you are measuring rates: a cap that binds discards events and pulls the realised rates below the ones you declared.
 - **There is no floor.** Loss is counted per copy and the last copy is a copy like any other, so a high loss rate can leave a lineage with nothing. `genome_summary.json` reports `empty_genomes` and the command warns, because an empty genome is otherwise invisible.
 - **The chromosome-based resolutions do have a floor**: a loss never takes a chromosome below its last gene. That is what a chromosome is, not a bound on genome size.
@@ -109,7 +109,7 @@ There is one group you do not have to name: **`"rest"`** is every lineage outsid
 
 Each entry is a weight, read the same way `"distance"`'s weights are: normalised over the lineages alive at the instant a transfer fires. Naming only `("A", "B")` and `("B", "A")` and setting `default=0.0` means every other pairing weighs 0: a clade-A donor can reach clade B but not another clade-A lineage, and the rest of the tree neither sends nor receives. Drop the `default=0.0` and unlisted pairs return to weight 1 (baseline), so `Between({("A", "B"): 5.0})` *enriches* A→B fivefold while leaving everything else to happen normally. A weight of 0 means "cannot receive", exactly as in Chapter 9: when a donor's every candidate weighs 0, the transfer has nowhere to land and does not fire.
 
-`Clades` is written in Python. On the command line `--transfer-to` takes `uniform`, `distance`, or a `Weights` recipient weight (Chapter 9).
+`--transfer-to` takes the same four rules on the command line, in the same written form: `uniform`, `distance`, `Distance(decay=3.0)`, a `Clades(...)` expression, or a `Weights` recipient weight (Chapter 9). The bare `distance` is `Distance(decay=1.0)`, so write the constructor when you want another decay.
 
 `transfer_to` chooses who receives, and takes one rule. All four rules (`"uniform"`, `"distance"` / `Distance(decay=)`, `Clades(...)` and `Weights(driver, {...})`) work unchanged at the ordered and nucleotide resolutions. What differs between the resolutions is *what moves*: one gene copy here, a block of consecutive genes in Chapter 5, an arc of DNA in Chapter 6. Who receives it is chosen the same way in all three, so the rules are described once, here.
 

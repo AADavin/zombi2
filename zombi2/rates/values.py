@@ -4,9 +4,9 @@ A parameter that is not a constant reads a **value**, and a value is two facts: 
 to (its **unit** — the run, a lineage, a gene family) and how its number is **made**. Those two are
 independent, and keeping them apart is what stops the grammar needing a new class per model::
 
-    Drawn(per="family", spread=0.5)       # made by a draw,      attached to a family
-    Drawn(per="lineage", spread=0.3)      # made by a draw,      attached to a lineage
-    Inherited(per="lineage", spread=0.2)  # made by inheritance, attached to a lineage
+    Drawn(per="family", dist=LogNormal(0.0, 0.5))       # made by a draw,      attached to a family
+    Drawn(per="lineage", dist=LogNormal(0.0, 0.3))      # made by a draw,      attached to a lineage
+    Inherited(per="lineage", dist=LogNormal(0.0, 0.2))  # made by inheritance, attached to a lineage
     Time()                                # measured from the run
     Clade({"fast": [...]})                # read off the tree itself
 

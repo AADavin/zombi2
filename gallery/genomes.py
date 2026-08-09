@@ -16,6 +16,7 @@ import helpers as h
 from helpers import Example
 
 import phylustrator as ph
+from zombi2.rates import LogNormal
 
 # a square style for the ring figures — the classic thin genes on a solid backbone (Adrián's preference
 # for the dense real-genome-style rings; the chunky "arrow" style is reserved for the sparse inversion figure)
@@ -449,14 +450,14 @@ def _pangenome_runs():
     tree = zs.simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=11)
     base = dict(duplication=0.06, transfer=0.10, loss=0.30, origination=0.30,
                 initial_families=200, max_family_size=6, seed=7)
-    spread = zmod.Drawn(per='family', spread=_PANGENOME_SPREAD)
+    spread = zmod.Drawn(per='family', dist=LogNormal(0.0, _PANGENOME_SPREAD))
     varied = dict(base, duplication=0.06 * spread, transfer=0.10 * spread, loss=0.30 * spread)
     return tree, [("Every family alike", "duplication=0.06\ntransfer=0.10\nloss=0.30",
                    zg.simulate_genomes_family(tree, **base)),
                   ("Each rate varies by family",
-                   f"duplication=0.06 * Drawn(per='family', spread={_PANGENOME_SPREAD})\n"
-                   f"transfer=0.10 * Drawn(per='family', spread={_PANGENOME_SPREAD})\n"
-                   f"loss=0.30 * Drawn(per='family', spread={_PANGENOME_SPREAD})",
+                   f"duplication=0.06 * Drawn(per='family', dist=LogNormal(0.0, {_PANGENOME_SPREAD}))\n"
+                   f"transfer=0.10 * Drawn(per='family', dist=LogNormal(0.0, {_PANGENOME_SPREAD}))\n"
+                   f"loss=0.30 * Drawn(per='family', dist=LogNormal(0.0, {_PANGENOME_SPREAD}))",
                    zg.simulate_genomes_family(tree, **varied))]
 
 
@@ -530,7 +531,7 @@ def pangenome_by_family(out):
 
 _C_PANGENOME = '''### simulate  —  two runs, one species tree, the same mean rates
 from zombi2 import genomes, species
-from zombi2.rates import modifiers as mod
+from zombi2.rates import LogNormal, modifiers as mod
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=11)
 base = dict(duplication=0.06, transfer=0.10, loss=0.30, origination=0.30,
@@ -538,7 +539,7 @@ base = dict(duplication=0.06, transfer=0.10, loss=0.30, origination=0.30,
 
 alike  = genomes.simulate_genomes_family(tree, **base)
 
-spread = mod.Drawn(per='family', spread=1.4)                  # one draw per family, mean unchanged
+spread = mod.Drawn(per='family', dist=LogNormal(0.0, 1.4))                  # one draw per family, mean unchanged
 varied = genomes.simulate_genomes_family(
     tree, **dict(base, duplication=0.06 * spread,
                  transfer=0.10 * spread, loss=0.30 * spread))

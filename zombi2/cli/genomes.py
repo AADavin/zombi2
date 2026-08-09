@@ -167,7 +167,9 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--transfer-to", type=_transfer_to, default="uniform",
                    metavar="RULE", dest="transfer_to",
                    help="recipient rule, at any resolution: uniform (any contemporaneous lineage, "
-                        "default), distance (closer relatives likelier), or a Weights(driver, {...}) rule")
+                        "default), distance (closer relatives likelier) or Distance(decay=X) for "
+                        "another decay, Clades({...}, Between({...})) to steer flow between named "
+                        "clades, or a Weights(driver, {...}) rule")
     g.add_argument("--replacement", action="store_true",
                    help="a transfer overwrites a homologous copy (replacing HGT)")
     g.add_argument("--self-transfer", action="store_true", dest="self_transfer",
@@ -307,11 +309,13 @@ def _transfer_to(text: str):
     """The argparse ``type`` for ``--transfer-to``: the recipient rule of a transfer.
 
     ``uniform`` and ``distance`` are the two named rules; anything else is read as the written form
-    of a ``Weights`` — ``--transfer-to "ScaledBy('trait_events.tsv', {'competent': 2.0})"`` — the
+    of one of the other three — ``Distance(decay=…)``, ``Clades({…}, Between({…}))``, or a
+    ``Weights`` (``--transfer-to "ScaledBy('trait_events.tsv', {'competent': 2.0})"``) — the
     **choice** of SPEC §5, where the mapping's numbers are per-candidate weights rather than
     rate multipliers. Parsed by the same ast-whitelist parser every rate flag uses, so the expression
     is the one you would write in Python and nothing is evaluated.
     """
+    from zombi2.rates.choice import Clades, Distance
     from zombi2.rates.modifiers import Driven
     from zombi2.rates.parse import parse_rate
 
@@ -324,9 +328,10 @@ def _transfer_to(text: str):
         # only quote the parser when the text was meant as an expression; for a plain misspelt rule
         # ("uniforn") its "unknown name" reading is noise, and the flag's own list is the answer
         detail = f"\n{e}" if "(" in text else ""
-    if not isinstance(value, Driven):
+    if not isinstance(value, (Driven, Distance, Clades)):
         raise argparse.ArgumentTypeError(
-            f"--transfer-to takes 'uniform', 'distance', or a Weights recipient weight written on "
+            f"--transfer-to takes 'uniform', 'distance', Distance(decay=…), Clades({{…}}, "
+            f"Between({{…}})), or a Weights recipient weight written on "
             f"its own — e.g. \"ScaledBy('trait_events.tsv', {{'competent': 2.0}})\" — got {text!r}. "
             f"The numbers there are weights over the candidate recipients, not a rate, so there is "
             f"no base number in front of it.{detail}")

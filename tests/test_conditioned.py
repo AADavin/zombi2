@@ -17,7 +17,7 @@ import pytest
 
 from zombi2 import genomes, sequences, traits
 from zombi2.rates.driver import DriverTrajectory, load_driver
-from zombi2.rates import ScaledBy, Weights, modifiers as mod
+from zombi2.rates import LogNormal, ScaledBy, Weights, modifiers as mod
 from zombi2.rates.mapping import Between, Curve, Scalar, Table, as_mapping, check_kernel_fires
 from zombi2.sequences.substitution_models import hky85, jc69
 from zombi2.species import simulate_species_tree
@@ -766,7 +766,7 @@ def test_a_family_draw_on_one_rate_beside_a_driven_rate_is_refused(tmp_path):
     _write_driver(driver, tree, {i: ("hi" if i % 2 else "lo") for i in tree.nodes})
     with pytest.raises(ValueError, match="per-family draw and a driver on the same run"):
         genomes.simulate_genomes_family(
-            tree, duplication=0.3 * mod.Drawn(per='family', spread=0.5),
+            tree, duplication=0.3 * mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)),
             loss=0.2 * ScaledBy(str(driver), {"lo": 0.0, "hi": 5.0}),
             initial_families=6, seed=3)
 
@@ -1073,7 +1073,7 @@ def test_ordered_refuses_byfamily_and_a_driver_together(tmp_path):
     _state_of, driver = _ord_driver(tmp_path, tree)
     with pytest.raises(ValueError, match="per-family draw and a driver on the same run"):
         genomes.simulate_genomes_ordered(
-            tree, duplication=0.2 * mod.Drawn(per='family', spread=0.5),
+            tree, duplication=0.2 * mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)),
             loss=0.2 * ScaledBy(driver, {"host": 3.0, "free": 1.0}),
             initial_families=6, seed=1)
 
@@ -1085,7 +1085,7 @@ def test_ordered_refuses_a_family_draw_and_a_driver_together(tmp_path):
     _state_of, driver = _ord_driver(tmp_path, tree)
     with pytest.raises(ValueError, match="per-family draw and a driver on the same run"):
         genomes.simulate_genomes_ordered(
-            tree, duplication=0.3 * mod.Drawn(per='family', spread=0.5),
+            tree, duplication=0.3 * mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)),
             loss=0.2 * ScaledBy(driver, {"host": 3.0, "free": 1.0}),
             initial_families=6, seed=1)
 
@@ -1107,7 +1107,7 @@ def test_ordered_refuses_byfamily_on_an_extent():
     tree = _ord_tree()
     with pytest.raises(ValueError, match="Put it on inversion"):
         genomes.simulate_genomes_ordered(
-            tree, inversion=0.5, inversion_extent=3 * mod.Drawn(per='family', spread=0.5),
+            tree, inversion=0.5, inversion_extent=3 * mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)),
             initial_families=6, seed=1)
 
 
@@ -1407,9 +1407,9 @@ def test_a_driver_composes_with_a_lineage_clock():
     base, kw = 0.4, dict(model=jc69(), length=20, seed=24)
 
     clocked = sequences.simulate_sequences(
-        run, substitution=base * mod.Drawn(per='lineage', spread=0.5), **kw)
+        run, substitution=base * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.5)), **kw)
     both = sequences.simulate_sequences(
-        run, substitution=base * mod.Drawn(per='lineage', spread=0.5) * ScaledBy(habitat, table), **kw)
+        run, substitution=base * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.5)) * ScaledBy(habitat, table), **kw)
 
     by_clock = _branch_lengths(clocked.species_phylogram["complete"])
     by_both = _branch_lengths(both.species_phylogram["complete"])
@@ -1470,7 +1470,7 @@ def test_driven_substitution_is_deterministic():
     tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=51).complete_tree
     habitat = traits.simulate_discrete(tree, states=["cave", "surface"], switch=1.5, seed=52)
     run = genomes.simulate_genomes_family(tree, duplication=0.2, initial_families=4, seed=53)
-    spec = 0.3 * mod.Drawn(per='lineage', spread=0.3) * ScaledBy(habitat, {"cave": 0.5, "surface": 2.0})
+    spec = 0.3 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3)) * ScaledBy(habitat, {"cave": 0.5, "surface": 2.0})
     kw = dict(model=jc69(), length=120, substitution=spec, seed=54)
     a = sequences.simulate_sequences(run, **kw)
     b = sequences.simulate_sequences(run, **kw)

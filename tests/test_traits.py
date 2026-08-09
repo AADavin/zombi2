@@ -12,7 +12,7 @@ import math
 import numpy as np
 import pytest
 
-from zombi2.rates import ScaledBy, modifiers as mod
+from zombi2.rates import LogNormal, ScaledBy, modifiers as mod
 from zombi2.rates import scope
 from zombi2.species import simulate_species_tree
 from zombi2.traits import Change, TraitsResult, simulate_continuous, simulate_discrete
@@ -363,7 +363,7 @@ def _vrbm_tips(spread, n_rep=2500):
     tips = sorted(n.id for n in tree.extant_leaves())
     depth = tree.nodes[tips[0]].end_time
     data = np.array([
-        [simulate_continuous(tree, start=0.0, rate=2.0 * mod.Inherited(per='lineage', spread=spread),
+        [simulate_continuous(tree, start=0.0, rate=2.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, spread)),
                              seed=s).node_values[i] for i in tips] for s in range(n_rep)
     ])
     return data, depth
@@ -373,16 +373,16 @@ def test_variable_rates_bm_is_mean_corrected():
     # the correctness-critical property: FromParent is mean-corrected (E[factor]=1), so a drifting σ²
     # does NOT inflate down the tree — E[tip variance] stays σ²·depth, exactly as plain BM. (A missing
     # mean-correction — a real historical bug elsewhere in the codebase — would blow the variance up.)
-    data, depth = _vrbm_tips(spread=0.6)
+    data, depth = _vrbm_tips(0.6)
     assert np.allclose(data.var(axis=0), 2.0 * depth, rtol=0.08)
 
 
 def test_variable_rates_bm_is_heterogeneous():
     # the drift makes σ² vary branch-to-branch, so a tip is a scale-mixture of Gaussians —
-    # leptokurtic (kurtosis > 3). Plain BM (spread=0) is Gaussian (≈ 3). This is what tells the two
+    # leptokurtic (kurtosis > 3). Plain BM (dist=LogNormal(0.0, 0)) is Gaussian (≈ 3). This is what tells the two
     # apart, since the mean-correction keeps their variances equal.
-    flat, _ = _vrbm_tips(spread=0.0)
-    drift, _ = _vrbm_tips(spread=1.2)
+    flat, _ = _vrbm_tips(0.0)
+    drift, _ = _vrbm_tips(1.2)
     assert np.mean([_kurtosis(flat[:, j]) for j in range(flat.shape[1])]) < 3.3    # BM: Gaussian
     assert np.mean([_kurtosis(drift[:, j]) for j in range(drift.shape[1])]) > 5.0  # drift: heavy-tailed
 
@@ -394,7 +394,7 @@ def test_variable_rates_composes_with_time():
     tips = sorted(n.id for n in tree.extant_leaves())
     T = tree.nodes[tips[0]].end_time
     base, c, tau = 2.0, 0.25, 0.4 * T
-    rate = base * mod.OnTime({0.0: 1.0, tau: c}) * mod.Inherited(per='lineage', spread=0.8)
+    rate = base * mod.OnTime({0.0: 1.0, tau: c}) * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.8))
     data = np.array([
         [simulate_continuous(tree, start=0.0, rate=rate, seed=s).node_values[i] for i in tips]
         for s in range(2500)
@@ -404,7 +404,7 @@ def test_variable_rates_composes_with_time():
 
 def test_variable_rates_deterministic():
     sp = _tree(seed=2)
-    rate = 1.0 * mod.Inherited(per='lineage', spread=0.5)
+    rate = 1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.5))
     assert simulate_continuous(sp, rate=rate, seed=4).node_values == \
         simulate_continuous(sp, rate=rate, seed=4).node_values
 
@@ -425,7 +425,7 @@ def test_ou_with_from_parent_keeps_the_ou_variance_and_gets_heavy_tails():
                                               seed=s).node_values[i] for i in tips]
                          for s in range(n_rep)])
 
-    drift = tips_under(sigma2 * mod.Inherited(per='lineage', spread=0.8))
+    drift = tips_under(sigma2 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.8)))
     flat = tips_under(sigma2)
     expected = sigma2 / (2 * alpha) * (1 - math.exp(-2 * alpha * T))
     assert np.allclose(drift.var(axis=0), expected, rtol=0.12)
@@ -442,10 +442,10 @@ def test_two_inherited_drifts_compose_rather_than_being_refused():
     with a drawn one is what raises, and that check now lives in one place for every level."""
     sp = _tree(seed=1)
     res = simulate_continuous(
-        sp, rate=1.0 * mod.Inherited(per='lineage', spread=0.2) * mod.Inherited(per='lineage', spread=0.3), seed=1)
+        sp, rate=1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.2)) * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.3)), seed=1)
     assert len(res.node_values) == len(sp.complete_tree.nodes)
 
-    one = simulate_continuous(sp, rate=1.0 * mod.Inherited(per='lineage', spread=0.2), seed=1)
+    one = simulate_continuous(sp, rate=1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.2)), seed=1)
     assert res.node_values != one.node_values          # the second drift really is in the run
 
 
@@ -533,7 +533,7 @@ def test_diversity_composes_with_inherited():
     tips = sorted(n.id for n in tree.extant_leaves())
     T = tree.nodes[tips[0]].end_time
     base, cap = 2.0, 6.0
-    rate = base * mod.OnTotalDiversity(cap=cap) * mod.Inherited(per='lineage', spread=0.6)
+    rate = base * mod.OnTotalDiversity(cap=cap) * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.6))
     data = np.array([
         [simulate_continuous(tree, start=0.0, rate=rate, seed=s).node_values[i] for i in tips]
         for s in range(2000)

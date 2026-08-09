@@ -8,7 +8,7 @@ parts company with :func:`as_distribution`, and each resolution's gate on what i
 import numpy as np
 import pytest
 
-from zombi2.rates import ScaledBy
+from zombi2.rates import LogNormal, ScaledBy
 from zombi2 import species
 from zombi2.genomes import simulate_genomes_nucleotide, simulate_genomes_ordered
 from zombi2.rates.distributions import Fixed, Geometric, as_distribution
@@ -207,7 +207,7 @@ def test_nucleotide_refuses_an_unwired_extent_modifier(tree):
     from zombi2.rates import modifiers as mod
     with pytest.raises(ValueError, match="an extent takes the same modifiers a rate does"):
         simulate_genomes_nucleotide(tree, root_length=2000, loss=0.5,
-                                    loss_extent=200 * mod.Drawn(per='family', spread=0.5), seed=1)
+                                    loss_extent=200 * mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)), seed=1)
 
 
 def test_an_extent_is_read_in_the_same_context_as_a_rate():

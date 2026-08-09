@@ -36,8 +36,8 @@ from zombi2.rates import modifiers as mod
 from zombi2.rates import scope
 from zombi2.rates import values as values_mod
 from zombi2.rates.distributions import Exponential, Fixed, Gamma, Geometric, LogNormal, Uniform
-from zombi2.rates.mapping import Scalar, Table
-from zombi2.rates.modifiers import Driven, values_at_birth
+from zombi2.rates.mapping import Between, Scalar, Table
+from zombi2.rates.modifiers import CARRIED_KINDS, Driven, values_at_birth
 from zombi2.rates.parse import parse_rate, written_form
 from zombi2.rates.rate import Rate, as_rate
 
@@ -49,16 +49,16 @@ MODIFIERS: list[tuple[str, object, tuple]] = [
     ("skyline", lambda: mod.OnTime({0: 1.0, 1.5: 0.3, 4: 2.25}), ()),
     ("skyline-flat", lambda: mod.OnTime({0: 0.5}), ()),
     ("diversity", lambda: mod.OnTotalDiversity(cap=100), ()),
-    ("drawn-lineage", lambda: mod.Drawn(per="lineage", spread=0.35), ()),
-    ("drawn-family", lambda: mod.Drawn(per="family", spread=0.6), ()),
+    ("drawn-lineage", lambda: mod.Drawn(per="lineage", dist=LogNormal(0.0, 0.35)), ()),
+    ("drawn-family", lambda: mod.Drawn(per="family", dist=LogNormal(0.0, 0.6)), ()),
     ("drawn-gamma", lambda: mod.Drawn(per="family", dist=Gamma(shape=4.0, scale=0.25)), ()),
     ("drawn-lognormal", lambda: mod.Drawn(per="lineage", dist=LogNormal(0.0, 0.4)), ()),
     ("drawn-exponential", lambda: mod.Drawn(per="family", dist=Exponential(1.0)), ()),
     ("drawn-uniform", lambda: mod.Drawn(per="lineage", dist=Uniform(0.5, 1.5)), ()),
     ("drawn-geometric", lambda: mod.Drawn(per="family", dist=Geometric(3.0)), ()),
     ("drawn-fixed", lambda: mod.Drawn(per="lineage", dist=Fixed(2.0)), ()),
-    ("inherited", lambda: mod.Inherited(per="lineage", spread=0.2), ()),
-    ("inherited-binned", lambda: mod.Inherited(per="lineage", spread=0.2, bins=8), ()),
+    ("inherited", lambda: mod.Inherited(per="lineage", dist=LogNormal(0.0, 0.2)), ()),
+    ("inherited-binned", lambda: mod.Inherited(per="lineage", dist=LogNormal(0.0, 0.2), bins=8), ()),
     ("driven-table", lambda: ScaledBy("h.tsv", {"a": 2.0, "b": 0.5}), ("a", "b")),
     ("driven-table-default", lambda: ScaledBy("h.tsv", Table({"a": 2.0}, default=0.75)), ("a", "z")),
     ("driven-scalar", lambda: ScaledBy("x.tsv", Scalar(0.7)), (0.0, 1.25, -2.0)),
@@ -208,3 +208,96 @@ def test_a_written_form_that_cannot_be_reparsed_is_a_known_hole_not_a_surprise()
     assert "<lambda>" in text
     with pytest.raises(Exception):
         parse_rate(text)
+
+
+# --- the other two parameter kinds ----------------------------------------
+#
+# The `SetBy`-drops-`step` hole above was found by checking rates. An extent and a choice are the
+# other two things you can attach a driver to, and neither was checked anywhere.
+
+EXTENTS = [
+    ("bare-number", 500),
+    ("fixed", Fixed(3.0)),
+    ("geometric", Geometric(250.0)),
+    ("gamma", Gamma(shape=2.0, scale=250.0)),
+    ("driven", 800 * ScaledBy("h.tsv", {"host": 3.0, "free": 1.0})),
+    ("skyline", 800 * mod.OnTime({0: 1.0, 3: 0.5})),
+    ("drawn", 800 * mod.Drawn(per="family", dist=LogNormal(0.0, 0.4))),
+]
+
+
+@pytest.mark.parametrize("name,spec", EXTENTS, ids=[n for n, _ in EXTENTS])
+def test_an_extent_survives_being_written_down_and_read_back(name, spec):
+    """An extent is ``base × modifiers`` with no scope (SPEC §6), so it renders through the same
+    writer a rate does and has to come back the same size."""
+    from zombi2.rates.extent import as_extent
+
+    text = written_form(spec)
+    back = parse_rate(text)
+    assert written_form(back) == text, "the written form is not a fixed point"
+
+    a, b = as_extent(spec), as_extent(back)
+    assert a == b, f"reparsed to a different extent: {text}"
+    if any(m.reads and m.reads[0] in CARRIED_KINDS for m in a.modifiers):
+        return   # a carried factor never reaches Extent.sample: the engine weights the segment by
+                 # what it covers (SPEC §6), so there is no number here to compare
+    ctx = {"copies": 12, "lineages": 3, "chromosomes": 1, "sites": 90, "time": 1.0,
+           "drivers": {m.key: "host" for m in a.modifiers if isinstance(m, Driven)}}
+    # same seed, same sizes: an extent's number is drawn, so equality of objects is not enough
+    for t in (0.0, 2.0, 4.0):
+        ra, rb = np.random.default_rng(11), np.random.default_rng(11)
+        assert [a.sample(ra, **{**ctx, "time": t}) for _ in range(5)] == \
+               [b.sample(rb, **{**ctx, "time": t}) for _ in range(5)], text
+
+
+def test_a_transfer_choice_is_written_as_the_form_that_takes_it_back():
+    """A choice is not a rate, and its written form differs in ways that bit twice.
+
+    A named rule is written bare, because `--transfer-to` takes `uniform` and not `'uniform'`. And a
+    `Weights` is written on its own, without the ``1.0 *`` a rate carries — a choice has no base and
+    the flag refuses one in front, so the rate writer's output was an expression the CLI rejects."""
+    from zombi2.genomes._transfer import Clades, Distance, resolve_transfer_to
+    from zombi2.rates import Weights
+    from zombi2.rates.mapping import Between
+    from zombi2.rates.parse import written_choice
+
+    assert written_choice("uniform") == "uniform"
+    assert written_choice("distance") == "distance"
+    assert written_choice(Distance(decay=2.0)) == "Distance(decay=2.0)"
+    assert written_choice(Clades({"A": ["n1"]}, Between({("A", "A"): 1.0}, default=0.0))) == \
+        "Clades({'A': ['n1']}, Between({('A', 'A'): 1.0}, default=0.0))"
+
+    w = Weights("gc.tsv", {"a": 2.0})
+    assert written_choice(w) == "Weights('gc.tsv', Table({'a': 2.0}))"
+    assert not written_choice(w).startswith("1.0 *"), "a choice has no base to write in front of it"
+    # and what it writes is what the engine takes back
+    assert resolve_transfer_to(parse_rate(written_choice(w))) == w
+    for rule in ("uniform", "distance"):
+        resolve_transfer_to(written_choice(rule))
+
+
+def test_every_choice_rule_reads_back_from_its_own_written_form():
+    """One notation across Python, the CLI and a --params file — for choices too.
+
+    `Distance` and `Clades` used to live at the genome level, where the parser could not see them, so
+    a non-default `Distance(decay=…)` was Python-only and `Clades(...)` could not be typed at all.
+    They are grammar objects — things a user writes — so they now live beside the rest of it."""
+    from zombi2.rates.choice import Clades, Distance
+    from zombi2.rates.parse import written_choice
+
+    for spec in (Distance(decay=3.0),
+                 Clades({"A": ["n1", "n2"], "B": 40},
+                        Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0))):
+        text = written_choice(spec)
+        assert parse_rate(text) == spec, text
+        assert written_choice(parse_rate(text)) == text, "not a fixed point"
+
+
+def test_a_clades_repr_is_the_call_that_reads_back_not_the_dataclass_one():
+    """A dataclass gives `Clades(groups=…, between=…)`. That is valid Python but not what the parser
+    or the docs use, and a run's log is a record you paste back."""
+    from zombi2.rates.choice import Clades
+
+    c = Clades({"A": ["n1"]}, Between({("A", "A"): 1.0}, default=0.0))
+    assert repr(c).startswith("Clades({'A': ['n1']}, Between(")
+    assert "groups=" not in repr(c)

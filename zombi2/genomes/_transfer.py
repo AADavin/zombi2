@@ -24,74 +24,13 @@ refuse.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
 
+from ..rates.choice import Clades, Distance
 from ..rates.mapping import Between, check_kernel_fires
 from ..rates.modifiers import Driven, SetBy
 from ..rates.rate import Rate
 from .._runtime.draw import weighted_index as _weighted_index
 from ..tree import node_label
-
-
-@dataclass(frozen=True)
-class Distance:
-    """A ``transfer_to`` weighting by relatedness: a recipient at patristic distance ``d`` from the
-    donor gets weight ``exp(-decay × d / depth)``, where ``depth`` is the tree's mean root-to-tip
-    time — so ``decay`` is **scale-free** (in units of tree depth), meaning the same across trees of
-    different absolute timescales. ``transfer_to="distance"`` is ``Distance(decay=1.0)``."""
-
-    decay: float = 1.0
-
-    def __post_init__(self) -> None:
-        if isinstance(self.decay, bool) or not isinstance(self.decay, (int, float)) \
-                or not math.isfinite(self.decay) or self.decay < 0:
-            raise ValueError(f"Distance decay must be a finite non-negative number, got {self.decay!r}")
-
-
-@dataclass
-class Clades:
-    """A ``transfer_to`` weighting by **named clades** — the topological, *donor-conditioned* sibling of
-    `Distance`. Each group is a clade of the species tree, and a
-    `Between` kernel weights a candidate recipient by the **pair** (donor's
-    clade, recipient's clade), so a transfer can be steered to run *between* two clades rather than
-    within them — which the per-recipient weight of a `Driven` cannot
-    express::
-
-        transfer_to = Clades({"A": ["n12", "n27"], "B": 40},
-                             Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0))
-
-    A clade is named either by a **set of tips** (a list — the clade is the subtree below their MRCA) or
-    by a single **node id** (an int, or an ``"n<id>"`` label — the clade is that node's whole subtree).
-    Groups must be disjoint; a lineage in none of them is in the implicit group ``"rest"``, usable as a
-    kernel key. Membership is read from the **tree** (a clade is a fact about the tree, not another
-    level), so this is a topological rule like ``"distance"``, resolved once per run — **not** a
-    ``ScaledBy`` driver and needing no driver file."""
-
-    groups: dict
-    between: object
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.groups, dict) or not self.groups:
-            raise ValueError(
-                "Clades needs a non-empty {label: clade} dict, where a clade is a list of tips (its "
-                "MRCA's subtree) or a single node id — e.g. Clades({'A': ['n1', 'n2'], 'B': 40}, ...)")
-        for label in self.groups:
-            if not isinstance(label, str) or not label.strip():
-                raise ValueError(f"clade labels must be non-empty strings, got {label!r}")
-            if label == "rest":
-                raise ValueError(
-                    "'rest' is reserved for lineages in no named clade — name your clade something else")
-        if isinstance(self.between, dict):
-            self.between = Between(self.between)
-        if not isinstance(self.between, Between):
-            raise ValueError(
-                "Clades takes a Between kernel (or a plain {(from, to): weight} dict) as its second "
-                f"argument — the per-pair recipient weights — got {self.between!r}")
-        unknown = self.between.groups() - (set(self.groups) | {"rest"})
-        if unknown:
-            raise ValueError(
-                f"the Between kernel names groups {sorted(unknown)} that are not defined clades; "
-                f"defined clades are {sorted(self.groups)} (plus the implicit 'rest')")
 
 
 def _resolve_node(tree, spec) -> int:

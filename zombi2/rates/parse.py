@@ -9,7 +9,7 @@ would type in Python and returns the same object, so a snippet pastes between th
     parse_rate("1.0 * OnTime({0: 1.0, 3: 0.3})")   -> a Rate carrying that modifier
 
 The ``mod.`` / ``scope.`` qualifiers Python needs are optional here, so
-``1.0 * mod.Inherited(per="lineage", spread=0.2)`` and ``1.0 * Inherited(per="lineage", spread=0.2)`` both read.
+``1.0 * mod.Inherited(per="lineage", dist=LogNormal(0.0, 0.2))`` and ``1.0 * Inherited(per="lineage", dist=LogNormal(0.0, 0.2))`` both read.
 
 **It parses, it does not evaluate.** The text is parsed to a syntax tree and walked against a
 whitelist — the scope wrappers, the modifiers, numbers, strings, dicts/lists, keyword arguments, and
@@ -29,6 +29,7 @@ import warnings
 import difflib
 from typing import cast
 
+from . import choice as _choice
 from . import mapping as _mapping
 from . import distributions as _distributions
 from . import modifiers as _modifiers
@@ -47,6 +48,7 @@ _NAMES: dict[str, type] = {
     **{n: getattr(_values, n) for n in _values.WRITABLE},
     **{n: getattr(_distributions, n) for n in _distributions.WRITABLE},
     **{n: getattr(_verbs, n) for n in _verbs.WRITABLE},
+    **{n: getattr(_choice, n) for n in _choice.WRITABLE},
     "Table": _mapping.Table,
     "Scalar": _mapping.Scalar,
     "Between": _mapping.Between,  # the choice's kernel: ScaledBy(driver, Between({(a, b): w}))
@@ -93,9 +95,9 @@ _RETIRED = {
     "DrivenBy": ("write the verb that says what the number does: ScaledBy(driver, mapping) on a "
                  "rate or an extent, Weights(driver, mapping) on transfer_to, SetBy(driver, "
                  "mapping) to replace the base rather than scale it"),
-    "ByFamily": ("write Drawn(per='family', spread=...)"),
-    "ByLineage": ("write Drawn(per='lineage', spread=...)"),
-    "FromParent": ("write Inherited(per='lineage', spread=...)"),
+    "ByFamily": ("write Drawn(per='family', dist=LogNormal(0.0, ...))"),
+    "ByLineage": ("write Drawn(per='lineage', dist=LogNormal(0.0, ...))"),
+    "FromParent": ("write Inherited(per='lineage', dist=LogNormal(0.0, ...))"),
 }
 
 
@@ -294,7 +296,32 @@ def written_form(spec: object) -> str:
         head = (f"{type(spec.scope).__name__}({float(spec.base)!r})" if spec.scope is not None
                 else repr(float(spec.base)))
         return " * ".join([head, *(repr(m) for m in mods)])
+    return written_choice(spec)
+
+
+def written_choice(spec: object) -> str:
+    """A ``transfer_to`` rule as the text that flag takes back.
+
+    A choice is not a rate (SPEC §5) and its written form differs in two ways that matter, both of
+    which were wrong before this existed. A named rule is written **bare** — ``uniform``, not
+    ``'uniform'`` — because that is what ``--transfer-to`` accepts, and a quoted string is not.
+    And a `Weights` is written **on its own**, without the ``1.0 *`` a rate would carry, because a
+    choice has no base and the flag refuses one in front: the log used to record an expression the
+    CLI would then reject, which is the one thing a reproducibility record must not do.
+
+    `Distance` and `Clades` render as the constructor calls the API takes. They are not in the
+    parser's whitelist — they live at the genome level, and `rates` does not import from it — so
+    those two are pasteable into Python but not yet into a flag. That gap is real and recorded
+    here rather than hidden by a repr that looks parseable.
+    """
+    if isinstance(spec, str):
+        return spec                                   # 'uniform' / 'distance', bare
+    if isinstance(spec, _modifiers.Driven):
+        return repr(spec)                             # no base: a choice has none
+    if type(spec).__name__ == "Clades":               # duck-typed: rates cannot import genomes
+        groups, between = spec.groups, spec.between   # type: ignore[attr-defined]
+        return f"Clades({groups!r}, {between!r})"
     return repr(spec)
 
 
-__all__ = ["parse_rate", "written_form", "RateSyntaxError"]
+__all__ = ["parse_rate", "written_form", "written_choice", "RateSyntaxError"]

@@ -14,7 +14,7 @@ import collections
 import numpy as np
 import pytest
 
-from zombi2.rates import Weights
+from zombi2.rates import LogNormal, Weights
 from zombi2.genomes.chromosomes import chromosome_from_label
 from zombi2.genomes.events import gene_from_label, node_from_label, node_label
 from zombi2.species import simulate_species_tree
@@ -2090,7 +2090,7 @@ def test_an_unwired_modifier_is_still_refused_cleanly():
     sp = simulate_species_tree(birth=1.0, n_extant=4, seed=1)
     with pytest.raises(ValueError, match="does not support"):
         simulate_genomes_nucleotide(sp, root_length=200,
-                                    inversion=2.0 * mod.Drawn(per='family', spread=0.5), seed=1)
+                                    inversion=2.0 * mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)), seed=1)
     # a plain number is of course fine
     assert simulate_genomes_nucleotide(sp, root_length=200, inversion=2.0, seed=1).genomes
 
