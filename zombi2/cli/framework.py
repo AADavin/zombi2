@@ -110,13 +110,13 @@ def _rate(text: str):
 _MODIFIER_HELP = {
     "OnTime": ("OnTime({0: 1.0, 3: 0.3})", "the rate changes in time — a skyline"),
     "OnTotalDiversity": ("OnTotalDiversity(cap=100)", "the rate slows as the clade fills up"),
-    "inherited per lineage": ("Inherited(per='lineage', spread=0.2)",
+    "inherited per lineage": ("Inherited(per='lineage', dist=LogNormal(0.0, 0.2))",
                               "the rate drifts down the tree — autocorrelated"),
     # "clock" is reserved for the sequences per-lineage substitution modifier (SPEC §7), and this
     # string now prints on `zombi2 species -h` and `zombi2 genomes -h` too
-    "drawn per lineage": ("Drawn(per='lineage', spread=0.3)",
+    "drawn per lineage": ("Drawn(per='lineage', dist=LogNormal(0.0, 0.3))",
                           "one independent draw per lineage — uncorrelated"),
-    "drawn per family": ("Drawn(per='family', spread=0.5)",
+    "drawn per family": ("Drawn(per='family', dist=LogNormal(0.0, 0.5))",
                          "one independent draw per gene family — uncorrelated"),
     "ScaledBy": (None, "an evolved value scales the base — a driver"),
     # No snippet either, and for a sharper reason than ScaledBy's: `SetBy` takes no base, so the
@@ -647,15 +647,15 @@ def _log_value(value: object) -> str:
     line can be pasted straight back into the flag (or a ``--params`` file) rather than being a repr
     the reader has to translate."""
     from zombi2.rates.modifiers import Driven, Modifier
-    from zombi2.rates.parse import written_form
+    from zombi2.rates.parse import written_choice, written_form
     from zombi2.rates.rate import Rate
     from zombi2.rates.scope import Scope
 
-    if isinstance(value, Driven):
-        # a bare Weights is how a recipient weight is written (--transfer-to), where there is no base
-        # number to print; its repr is the same expression the flag takes, and it also round-trips as
-        # a rate (a bare modifier is base 1.0), so both readings paste straight back in.
-        return repr(value)
+    if isinstance(value, Driven) or type(value).__name__ in ("Distance", "Clades"):
+        # the three shapes a `transfer_to` takes besides a named rule. `written_choice` knows what a
+        # choice's written form is — no base in front, since a choice has none — so the rule lives
+        # beside the rates grammar rather than being restated here.
+        return written_choice(value)
     if isinstance(value, (Rate, Scope, Modifier)):
         return written_form(value)
     if isinstance(value, dict) and any(isinstance(v, (Rate, Scope, Modifier)) for v in value.values()):

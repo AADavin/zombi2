@@ -18,9 +18,9 @@ gene trees would run, but silently without either, so they are rejected.
 
 ``substitution`` is a per-site rate (a bare number, default ``1.0``: a gene-tree branch of ``Δt`` time
 gets ``substitution · Δt`` substitutions/site — the **strict clock**), optionally times a **lineage
-clock**: ``substitution = 1.0 * mod.Drawn(per="lineage", spread=)`` is the uncorrelated ("relaxed") clock, one
+clock**: ``substitution = 1.0 * mod.Drawn(per="lineage", dist=LogNormal(0.0, σ))`` is the uncorrelated ("relaxed") clock, one
 i.i.d. rate multiplier drawn per **species lineage** and shared by every gene passing through it, and
-``substitution = 1.0 * mod.Inherited(per="lineage", spread=)`` is the **autocorrelated** clock, where the rate drifts
+``substitution = 1.0 * mod.Inherited(per="lineage", dist=LogNormal(0.0, σ))`` is the **autocorrelated** clock, where the rate drifts
 parent→child down the species tree so close relatives run at similar rates (``SPEC §5``). It may also
 carry a ``ScaledBy(trait, {...})``, which reads a **trait grown first** and lets a lineage's state
 set how fast its sequences evolve; a clock and a driver compose (modifiers multiply), and a driver that
@@ -472,7 +472,7 @@ def _calibrate(substitution, divergence: float, tree: Tree) -> Rate:
         raise ValueError(
             f"substitution names a base, and divergence={divergence} would override it — the base is "
             f"what divergence solves for. Give the clock's shape alone "
-            f"(substitution=Drawn(per='lineage', spread=…)) to calibrate a relaxed clock, or drop divergence "
+            f"(substitution=Drawn(per='lineage', dist=LogNormal(0.0, …))) to calibrate a relaxed clock, or drop divergence "
             f"and set the base yourself.")
     if isinstance(substitution, Driven):
         raise ValueError(
@@ -922,8 +922,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
 
     ``substitution`` may carry a **lineage clock** — one factor per species branch, shared across
     families, computed once before evolving, rescaling each gene-tree branch by the clock of the species
-    branch it sits on: ``1.0 * mod.Drawn(per="lineage", spread=)`` is the uncorrelated clock (each branch drawn
-    i.i.d.), and ``1.0 * mod.Inherited(per="lineage", spread=)`` is the autocorrelated clock (the factor drifts
+    branch it sits on: ``1.0 * mod.Drawn(per="lineage", dist=LogNormal(0.0, σ))`` is the uncorrelated clock (each branch drawn
+    i.i.d.), and ``1.0 * mod.Inherited(per="lineage", dist=LogNormal(0.0, σ))`` is the autocorrelated clock (the factor drifts
     parent→child down the species tree).
 
     It may also carry a **driver** — ``1.0 * ScaledBy(habitat, {"cave": 0.5, "surface": 1.0})``,

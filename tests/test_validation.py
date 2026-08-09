@@ -117,7 +117,7 @@ from collections import Counter
 
 import numpy as np
 
-from zombi2.rates import ScaledBy
+from zombi2.rates import LogNormal, ScaledBy
 from zombi2.genomes import (simulate_genomes_family, simulate_genomes_nucleotide,
                             simulate_genomes_ordered)
 from zombi2.genomes.ordered import Inversion
@@ -1189,11 +1189,11 @@ def test_the_lineage_clocks_are_mean_one_so_the_tree_is_not_inflated():
         return out
 
     spread = 0.5
-    drawn = np.array([f for _, factors in realised_factors(Drawn(per='lineage', spread=spread)).values()
+    drawn = np.array([f for _, factors in realised_factors(Drawn(per='lineage', dist=LogNormal(0.0, spread))).values()
                       for f in factors.values()])
     assert len(drawn) > 1000, "too few branches to judge the clock by"
     assert abs(_z(drawn, 1.0)) < Z_MAX, (
-        f"Drawn(per='lineage', spread={spread}) factors average {drawn.mean():.4f}, not 1 — every branch in the "
+        f"Drawn(per='lineage', dist=LogNormal(0.0, {spread})) factors average {drawn.mean():.4f}, not 1 — every branch in the "
         f"phylogram is scaled by that")
     assert abs(np.log(drawn).std(ddof=1) - spread) < 0.05, (
         f"the log-scale spread is {np.log(drawn).std(ddof=1):.4f}, not the {spread} it was given")
@@ -1202,14 +1202,14 @@ def test_the_lineage_clocks_are_mean_one_so_the_tree_is_not_inflated():
 
     spread = 0.4
     ratios = []
-    for tree, factors in realised_factors(Inherited(per='lineage', spread=spread)).values():
+    for tree, factors in realised_factors(Inherited(per='lineage', dist=LogNormal(0.0, spread))).values():
         for i, factor in factors.items():
             parent = tree.nodes[i].parent
             if parent is not None:
                 ratios.append(factor / factors[parent])
     ratios = np.array(ratios)
     assert abs(_z(ratios, 1.0)) < Z_MAX, (
-        f"Inherited(per='lineage', spread={spread}) drifts by {ratios.mean():.4f} per branch on average, not 1 — "
+        f"Inherited(per='lineage', dist=LogNormal(0.0, {spread})) drifts by {ratios.mean():.4f} per branch on average, not 1 — "
         f"the rate ratchets down the tree")
     assert abs(np.log(ratios).std(ddof=1) - spread) < 0.05, (
         f"the log-scale spread of the drift is {np.log(ratios).std(ddof=1):.4f}, not {spread}")

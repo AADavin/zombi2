@@ -10,6 +10,35 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **`Distance(decay=…)` and `Clades(…)` can be written on the command line and in a `--params`
+  file.** Both moved from the transfer engine into the rate grammar, where everything a user *writes*
+  lives, so the parser can see them: `--transfer-to "Distance(decay=3.0)"` and `--transfer-to
+  "Clades({'A': ['n1','n2']}, Between({('A','A'): 1.0}, default=0.2))"` now run. Until now a
+  non-default decay was reachable only from Python and a clade rule not at all, which was the
+  project's one departure from a single notation across Python, the CLI and TOML. Turning the tree
+  into clade membership stays with the engine, because that needs a tree and a written rule does
+  not. (#327)
+
+### Fixed
+- **A `transfer_to` rule is recorded in the form that takes it back.** A choice is not a rate: a
+  named rule is written bare (`uniform`, not `'uniform'`, which the flag refuses) and a `Weights` is
+  written on its own, without the `1.0 *` a rate carries, because a choice has no base and
+  `--transfer-to` rejects one in front. `Distance` and `Clades` now render as the constructor calls
+  the API and the parser both take, rather than as dataclass reprs. (#327)
+
+### Removed
+- **`spread=` on `Drawn` and `Inherited`. Write the distribution instead.** `Drawn(per='family',
+  dist=LogNormal(0.0, 0.5))` and `Inherited(per='lineage', dist=LogNormal(0.0, 0.2))` replace
+  `spread=0.5` and `spread=0.2`. One word named two different quantities — the drawn **value** under
+  `Drawn`, the per-split **step** under `Inherited` — and said nothing about which distribution it
+  meant. An inherited step now accepts any distribution and is mean-corrected by dividing by its own
+  mean, exactly as a drawn value is; a lognormal step keeps its closed form, so every existing
+  autocorrelated run is byte-identical. `bins=` takes a `LogNormal` step and nothing else, because
+  the ladder's rungs are spaced by that step's sigma. Both classes refuse `spread=` with an error
+  naming the replacement, and the distributions are re-exported from `zombi2.rates`, so an argument
+  you must write needs no import from a submodule. (#327)
+
+### Added
 - **A genome rate can be counted per lineage instead of per copy.** `loss = PerLineage(0.25)` gives a
   lineage a fixed deletion budget — it loses genes at that rate whatever its genome holds — against
   `PerCopy(0.25)`, which puts every copy independently at risk so a genome ten times the size turns

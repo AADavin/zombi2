@@ -328,7 +328,7 @@ def test_genomes_is_deterministic_across_resolutions(tmp_path, tree_file):
 @pytest.mark.parametrize("argv, why", [
     (["--initial-families", "5"], "nucleotide has no initial-families"),
     (["--replacement"], "nucleotide transfers are additive"),
-    (["--loss", "0.2 * Drawn(per='family', spread=0.5)"], "nucleotide wires OnTime and Driven, not ByFamily"),
+    (["--loss", "0.2 * Drawn(per='family', dist=LogNormal(0.0, 0.5))"], "nucleotide wires OnTime and Driven, not ByFamily"),
     (["--gff", "x.gff", "--genes", "3"], "gff and genes are mutually exclusive"),
     (["--write", "gene_order"], "gene_order is an ordered output"),
     (["--write", "profiles"], "the nucleotide resolution has no profiles"),
@@ -484,11 +484,11 @@ def test_the_summary_names_every_clock_a_rate_carries(tmp_path, genomes_dir):
     states a model that is not the model simulated."""
     out = tmp_path / "s"
     rc = main(["sequences", str(out), "--from", str(genomes_dir), "--model", "jc69",
-               "--substitution", "1.0 * Drawn(per='lineage', spread=0.3) * Drawn(per='lineage', spread=0.5)",
+               "--substitution", "1.0 * Drawn(per='lineage', dist=LogNormal(0.0, 0.3)) * Drawn(per='lineage', dist=LogNormal(0.0, 0.5))",
                "--seed", "1", "--flat"])
     assert rc == 0
     log = (out / "sequences.log").read_text(encoding="utf-8")
-    assert "spread 0.3" in log and "spread 0.5" in log
+    assert "LogNormal(0.0, 0.3)" in log and "LogNormal(0.0, 0.5)" in log
 
 
 def test_sequences_rejects_a_model_foreign_parameter(tmp_path, genomes_dir):
@@ -1033,7 +1033,25 @@ def test_genomes_transfer_to_names_its_rules_for_a_misspelt_one(tmp_path, tree_f
     with pytest.raises(SystemExit) as e:
         main(["genomes", str(tmp_path / "g"), "--from", str(tree_file), "--transfer-to", "uniforn", "--flat"])
     assert e.value.code == 2
-    assert "'uniform', 'distance', or a Weights" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    for rule in ("'uniform'", "'distance'", "Distance(decay=", "Clades(", "Weights"):
+        assert rule in err, f"the flag's own list omits {rule}"
+
+
+def test_genomes_transfer_to_takes_every_rule_the_python_api_takes(tmp_path, tree_file):
+    """One notation, including for the two topological rules.
+
+    `Distance` and `Clades` used to live at the genome level where the parser could not see them, so
+    a non-default decay was Python-only and `Clades(...)` could not be typed at all."""
+    for i, rule in enumerate(("Distance(decay=3.0)",
+                              "Clades({'A': ['n1', 'n2']}, Between({('A', 'A'): 1.0}, default=0.2))")):
+        out = tmp_path / f"g{i}"
+        assert main(["genomes", str(out), "--from", str(tree_file), "--transfer", "0.4",
+                     "--transfer-to", rule, "--initial-families", "5", "--seed", "1",
+                     "--flat"]) == 0
+        # the log records the text the flag takes back, not a repr the reader has to translate
+        log = (out / "genomes.log").read_text(encoding="utf-8")
+        assert f"transfer_to\t{rule}" in log, log
 
 
 def test_genomes_params_file_carries_a_driven_transfer_to(tmp_path, driver_file, tree_file):
@@ -1052,9 +1070,9 @@ def test_genomes_params_file_carries_a_driven_transfer_to(tmp_path, driver_file,
 
 def test_traits_takes_a_rate_expression(tmp_path, tree_file):
     out = tmp_path / "t"
-    rc = main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0 * Inherited(per='lineage', spread=0.2)", "--seed", "1", "--flat"])
+    rc = main(["traits", "--kind", "continuous", str(out), "--from", str(tree_file), "--rate", "1.0 * Inherited(per='lineage', dist=LogNormal(0.0, 0.2))", "--seed", "1", "--flat"])
     assert rc == 0
-    assert "rate\t1.0 * Inherited(per='lineage', spread=0.2)" in (out / "traits.log").read_text(encoding="utf-8")
+    assert "rate\t1.0 * Inherited(per='lineage', dist=LogNormal(0.0, 0.2))" in (out / "traits.log").read_text(encoding="utf-8")
 
 
 def test_params_file_takes_a_rate_expression(tmp_path):

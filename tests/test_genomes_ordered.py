@@ -12,7 +12,7 @@ import inspect
 import numpy as np
 import pytest
 
-from zombi2.rates import Weights
+from zombi2.rates import LogNormal, Weights
 
 from zombi2.genomes.events import gene_from_label, node_from_label
 from zombi2.rates import scope
@@ -300,7 +300,7 @@ def test_ontime_skyline_modifier_is_accepted():
     assert r.genomes                                           # ran without complaint
 
 
-@pytest.mark.parametrize("modifier", [Drawn(per='lineage', spread=0.5), Inherited(per='lineage', spread=0.5),
+@pytest.mark.parametrize("modifier", [Drawn(per='lineage', dist=LogNormal(0.0, 0.5)), Inherited(per='lineage', dist=LogNormal(0.0, 0.5)),
                                       OnTotalDiversity(cap=100)])
 def test_unsupported_modifier_is_rejected(modifier):
     """The gate had no test at all. A modifier the engine cannot read must raise — one that returns
@@ -311,7 +311,7 @@ def test_unsupported_modifier_is_rejected(modifier):
         simulate_genomes_ordered(sp, inversion=0.3 * modifier, initial_families=6, seed=1)
 
 
-@pytest.mark.parametrize("modifier", [Drawn(per='lineage', spread=0.5), Inherited(per='lineage', spread=0.5)])
+@pytest.mark.parametrize("modifier", [Drawn(per='lineage', dist=LogNormal(0.0, 0.5)), Inherited(per='lineage', dist=LogNormal(0.0, 0.5))])
 def test_unsupported_modifier_on_an_extent_is_rejected(modifier):
     """An extent takes the same modifiers a rate does (SPEC §6), so the same refusal applies — and
     names the two it takes rather than pointing at another resolution."""
@@ -368,11 +368,11 @@ def test_a_per_family_draw_anywhere_in_the_run_refuses_a_per_lineage_scope():
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)
     with pytest.raises(ValueError, match="cannot share a run"):
         simulate_genomes_ordered(sp, loss=scope.PerLineage(0.2),
-                                 duplication=0.05 * Drawn(per="family", spread=0.5),
+                                 duplication=0.05 * Drawn(per="family", dist=LogNormal(0.0, 0.5)),
                                  chromosomes=1, seed=1)
     with pytest.raises(ValueError, match="cannot share a run"):
         simulate_genomes_ordered(sp, inversion=scope.PerLineage(0.2),
-                                 loss=0.05 * Drawn(per="family", spread=0.5),
+                                 loss=0.05 * Drawn(per="family", dist=LogNormal(0.0, 0.5)),
                                  chromosomes=1, seed=1)
 
 

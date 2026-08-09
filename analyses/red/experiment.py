@@ -7,7 +7,7 @@ substitution CV = 0.2315 (``observable.py``) — reproduce that variation in ZOM
 where truth *is* known, and grade RED there.
 
 Forward model. Simulate a dated species tree (truth); evolve it under a relaxed clock —
-``substitution = 1.0 * <clock>(spread=sigma)`` — and read the resulting ``species_phylogram``
+``substitution = 1.0 * <clock>(dist=LogNormal(0.0, sigma))`` — and read the resulting ``species_phylogram``
 (branch lengths in substitutions/site). RED of the dated tree is the ground truth (RED is exact on
 an ultrametric tree); RED of the phylogram is the estimate. Sweep ``sigma`` to trace accuracy
 (Pearson r, nRMSE) against the realized root-to-tip CV, and read off the accuracy at the CV real
@@ -30,7 +30,7 @@ import numpy as np
 from scipy.stats import pearsonr
 
 from zombi2 import genomes, sequences, species
-from zombi2.rates import modifiers as mod
+from zombi2.rates import LogNormal, modifiers as mod
 from zombi2.rates.distributions import Gamma
 from zombi2.sequences import substitution_models as sm
 from zombi2.tree import read_newick
@@ -54,19 +54,19 @@ def _gamma(s: float):
     now takes a distribution object, so the parameterisation is written out. A gamma of shape ``k``
     has CV ``1/sqrt(k)``, and the draw is normalised to mean 1 whatever the scale, so ``scale`` only
     has to keep the numbers in a sensible range. σ = 0 is no variation at all, which no gamma can
-    express — ``spread=0`` is the degenerate case the engine already short-circuits.
+    express — ``dist=LogNormal(0.0, 0.0)`` is the degenerate case the engine already short-circuits.
     """
     if s == 0.0:
-        return mod.Drawn(per="lineage", spread=0.0)
+        return mod.Drawn(per="lineage", dist=LogNormal(0.0, 0.0))
     return mod.Drawn(per="lineage", dist=Gamma(shape=1.0 / (s * s), scale=s * s))
 
 
 CLOCKS = {
-    "lognormal":      (lambda s: mod.Drawn(per="lineage", spread=s),
+    "lognormal":      (lambda s: mod.Drawn(per="lineage", dist=LogNormal(0.0, s)),
                        np.round(np.arange(0.0, 2.001, 0.1), 3)),
     "gamma":          (_gamma,
                        np.round(np.arange(0.0, 2.001, 0.1), 3)),
-    "autocorrelated": (lambda s: mod.Inherited(per="lineage", spread=s),
+    "autocorrelated": (lambda s: mod.Inherited(per="lineage", dist=LogNormal(0.0, s)),
                        np.round(np.arange(0.0, 1.001, 0.05), 3)),
 }
 

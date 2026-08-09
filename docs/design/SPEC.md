@@ -278,10 +278,10 @@ are**: one modifier object read by several rates is one draw, shared between the
 built ones are two draws even when their arguments match.
 
 ```python
-speed = Drawn(per='family', spread=0.5)
+speed = Drawn(per='family', dist=LogNormal(0.0, 0.5))
 duplication = 0.2 * speed;  loss = 0.25 * speed     # one draw: a fast family is fast at both
-duplication = 0.2 * Drawn(per='family', spread=0.5)            # two draws: the two rates vary independently
-loss        = 0.25 * Drawn(per='family', spread=0.5)
+duplication = 0.2 * Drawn(per='family', dist=LogNormal(0.0, 0.5))            # two draws: the two rates vary independently
+loss        = 0.25 * Drawn(per='family', dist=LogNormal(0.0, 0.5))
 ```
 
 That rule is the whole of it, and it replaces the separate family-wide argument this used to need.

@@ -6,8 +6,8 @@ a scope wrapper, or a product — so ``birth = scope.Global(1.0)`` gives one sha
 tree-wide budget (linear growth), ``birth = 1.0 * mod.OnTotalDiversity(cap=100)`` slows the
 tree as it fills up, ``birth = 1.0 * mod.OnTime({...})`` runs a skyline (the interval-aware
 sampler steps to each breakpoint), and two modifiers make the rate vary from lineage to lineage:
-``birth = 1.0 * mod.Inherited(per="lineage", spread=0.2)`` lets it drift down the tree (clade drift, ClaDS) and
-``birth = 1.0 * mod.Drawn(per="lineage", spread=0.2)`` gives each lineage an independent draw (*relaxed*
+``birth = 1.0 * mod.Inherited(per="lineage", dist=LogNormal(0.0, 0.2))`` lets it drift down the tree (clade drift, ClaDS) and
+``birth = 1.0 * mod.Drawn(per="lineage", dist=LogNormal(0.0, 0.2))`` gives each lineage an independent draw (*relaxed*
 rates). Under either, each lineage threads its own factor and the lineage that speciates or dies is
 drawn **weighted** by its effective rate.
 """
@@ -439,9 +439,9 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
     with modifiers); the default scope is **per lineage** (each lineage speciates/dies at
     the base rate, so the tree grows exponentially). Yule = ``death=0``.
 
-    **Rates that vary from lineage to lineage.** ``1.0 * mod.Inherited(per="lineage", spread=σ)`` is *inherited*
+    **Rates that vary from lineage to lineage.** ``1.0 * mod.Inherited(per="lineage", dist=LogNormal(0.0, σ))`` is *inherited*
     variation — a daughter starts from its parent's rate and is nudged at the split, so fast clades
-    stay fast (clade drift; the literature's ClaDS). ``1.0 * mod.Drawn(per="lineage", spread=σ)`` is
+    stay fast (clade drift; the literature's ClaDS). ``1.0 * mod.Drawn(per="lineage", dist=LogNormal(0.0, σ))`` is
     *independent* variation — every lineage draws its own multiplier with no memory of its parent
     (*relaxed* rates), which is the null to compare drift against: the same amount of rate
     heterogeneity, none of it heritable, so the tree-shape signature that heritability leaves
