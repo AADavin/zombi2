@@ -321,5 +321,8 @@ _WRITTEN_AS.update({OnTime: CHANGING_AT,
 #: abstract, and `Drawn` / `Inherited` because a law names them, not a driver.
 WRITABLE = ("Clade", "Time", "Random", "TotalDiversity")
 
-__all__ = ["UNITS", "WRITABLE", "Clade", "Drawn", "Inherited", "Measured", "OnTime",
-           "OnTotalDiversity", "Random", "Time", "TotalDiversity"]
+__all__ = ["UNITS", "WRITABLE", "Clade", "Measured", "OnTime", "OnTotalDiversity", "Random",
+           "Time", "TotalDiversity"]
+#: `Drawn` and `Inherited` are imported above because `Random` builds them, and are deliberately
+#: absent here: they belong to `law`, which is where the law that chooses between them lives.
+#: One concept, one public home — re-exporting them was a habit carried over from `values.py`.

@@ -1,5 +1,38 @@
 # FAQ
 
+## I ran `zombi2 genomes` and there is no FASTA. Where is it?
+
+There isn't one, and that is the level working as intended. **Simulating a genome, in ZOMBI2, means
+simulating its gene content and the history behind it** — which families exist in which lineage, how
+many copies of each, and the duplication, transfer, loss and origination events that got them there.
+A gene is an identity, not a string of bases. So the level writes `profiles.tsv` (families × species
+copy counts), `genomes.tsv` (every node's genes, one row per copy), `genome_events.tsv` (every event)
+and a gene tree per family. No sequence anywhere.
+
+Sequences are the **next** level, and they are separate because they are a separate model: gene
+content evolves by gaining and losing copies, sequence evolves by substitution along the gene trees
+the genome level just produced. Run it on the genome output and you get `alignments/fam<f>.fasta`,
+one alignment per family:
+
+```bash
+zombi2 sequences out --model jc69
+```
+
+If what you wanted was **whole genomes as FASTA** — a lineage's chromosomes, bases and all — that
+needs `--resolution nucleotide` at the genome level, which lays genes out on a chromosome with
+coordinates so there is something to assemble:
+
+```bash
+zombi2 genomes out --resolution nucleotide --root-length 3000 --genes 6
+zombi2 sequences out --model jc69
+```
+
+The sequence level then writes `genomes/genome_<lineage>.fasta`, one file per node of the complete
+tree. The default resolution, `family`, has no coordinates and no order, so there is nothing to
+concatenate.
+
+Appendix B lists every file each level writes.
+
 ## What do `n5`, `e14`, `g203` mean?
 
 ZOMBI gives every node and gene copy a short id:
