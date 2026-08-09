@@ -35,14 +35,16 @@ records), ``mapping``, ``distributions``.
 """
 
 from .choice import Clades, Distance, Recipients
-from .clade import Clade
+from .driver import Clade
 from .distributions import Exponential, Fixed, Gamma, Geometric, LogNormal, Uniform
-from .extent import Extent
+from .parameter import Extent
 from .mapping import Between, Curve, Scalar, Table
-from .modifiers import UNITS, Drift, Random, TotalDiversity
+from .driver import Random, TotalDiversity
+from .evaluate import UNITS
+from .law import Drift
 from .retired import RETIRED, name_message
 from .scope import Global, PerChromosome, PerCopy, PerLineage, PerSite
-from .values import Time
+from .driver import Time
 
 #: The whole written vocabulary, from one place: **every name the text form may call is importable
 #: from here**, so what you type in a ``--birth`` flag and what you import in Python are one surface

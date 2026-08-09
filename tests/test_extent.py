@@ -9,10 +9,11 @@ import numpy as np
 import pytest
 
 from zombi2.params import Extent, LogNormal, PerCopy
+from zombi2.params import evaluate as ev
 from zombi2 import species
 from zombi2.genomes import simulate_genomes_nucleotide, simulate_genomes_ordered
 from zombi2.params.distributions import Fixed, Geometric, as_distribution
-from zombi2.params.extent import as_extent
+from zombi2.params.parameter import as_extent
 
 
 @pytest.fixture
@@ -182,7 +183,7 @@ def test_nucleotide_extent_can_be_driven_by_a_trait(tree):
     **bigger chunks**, which is a different model from deleting more often. The rate is left
     undriven here, so only the sizes may differ."""
     from zombi2 import traits
-    from zombi2.params.driver import driver_from_result
+    from zombi2.params.conditioned import driver_from_result
 
     # the trait and the genome take *different* seeds, as two levels of one study should: each level
     # draws its own stream, so a shared number no longer makes them the same draws (see zombi2.rng)
@@ -217,7 +218,7 @@ def test_ordered_extent_can_be_driven_by_a_trait(tree):
     host-restricted lineage duplicates in **longer runs**, not more often. The duplication rate is
     left undriven, so only the sizes may differ."""
     from zombi2 import traits
-    from zombi2.params.driver import driver_from_result
+    from zombi2.params.conditioned import driver_from_result
 
     habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=2)
     traj = driver_from_result(habitat)
@@ -236,7 +237,7 @@ def test_ordered_extent_can_be_driven_by_a_trait(tree):
 def test_nucleotide_refuses_an_extent_modifier_it_does_not_read(tree):
     """The engine's own gate, behind the write-time refusal above: a modifier of someone else's that
     vouches for no engine is refused rather than read as a factor of 1.0."""
-    from zombi2.params.modifiers import Modifier
+    from zombi2.params.evaluate import Modifier
 
     class Mine(Modifier):
         def factor(self, **_):
@@ -253,7 +254,7 @@ def test_an_extent_is_read_in_the_same_context_as_a_rate():
     modifier written the documented way (`**_`, with defaults) silently read zeros there while
     reading real counts on a rate, and one with a required keyword died mid-run."""
     from zombi2 import genomes, species
-    from zombi2.params.modifiers import Modifier
+    from zombi2.params.evaluate import Modifier
 
     seen: dict[str, list[tuple]] = {"rate": [], "extent": []}
 
@@ -284,13 +285,12 @@ def test_an_extent_is_read_at_the_instant_the_event_fires():
     the wrong side of it. Threading the rate loop's whole context to the extent is what made that
     possible: the context is snapshotted before `t` advances to the firing instant."""
     from zombi2 import genomes, species
-    from zombi2.params import modifiers as mod
 
     tree = species.simulate_species_tree(birth=0.4, death=0.05, total_time=12.0,
                                          seed=3).complete_tree
     times: list[float] = []
 
-    class RecordsTime(mod.Modifier):
+    class RecordsTime(ev.Modifier):
         implemented_for = ("genomes.ordered",)
 
         def factor(self, *, time=0.0, **_):
@@ -329,7 +329,7 @@ def test_the_nucleotide_engine_reads_an_extent_the_same_way():
     """The same fix landed at two sites, and only the ordered one was covered. A future edit could
     put the thin context back at the nucleotide site and nothing would say so."""
     from zombi2 import genomes, species
-    from zombi2.params.modifiers import Modifier
+    from zombi2.params.evaluate import Modifier
 
     seen: list[tuple] = []
 

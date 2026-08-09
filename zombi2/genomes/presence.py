@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..params.driver import DriverTrajectory
+from ..params.conditioned import DriverTrajectory
 
 #: what the driver's states are called. A mapping written against this driver names these, so they
 #: are the vocabulary and not an implementation detail: ``{"present": 4.0, "absent": 1.0}``.
@@ -59,7 +59,7 @@ class GenePresence:
                          lambda covering: PRESENT if covering else ABSENT)
 
     def as_driver_trajectory(self, tree, *, step: float | None = None) -> DriverTrajectory:
-        """The per-lineage present/absent trajectory, for `zombi2.params.driver.resolve_driver`.
+        """The per-lineage present/absent trajectory, for `zombi2.params.conditioned.resolve_driver`.
         ``step`` is ignored: the gene tree says exactly when a copy was gained or lost, so there is no
         resolution left to choose."""
         return DriverTrajectory(self._segments(tree))
@@ -111,7 +111,7 @@ class ModuleCompletion:
         return _segments(tree, per_family, lambda covering: len(covering) / n)
 
     def as_driver_trajectory(self, tree, *, step: float | None = None) -> DriverTrajectory:
-        """The per-lineage completion trajectory, for `zombi2.params.driver.resolve_driver`. ``step``
+        """The per-lineage completion trajectory, for `zombi2.params.conditioned.resolve_driver`. ``step``
         is ignored: the fraction is a number, but it moves one family at a time and the gene trees
         give every step exactly."""
         return DriverTrajectory(self._segments(tree))

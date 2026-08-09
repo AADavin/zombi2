@@ -207,7 +207,7 @@ shipped modifier can say:
 
 ```python
 from zombi2 import species
-from zombi2.params.modifiers import Modifier
+from zombi2.params.evaluate import Modifier
 
 class OnCrowding(Modifier):
     """Extinction rises as lineages accumulate: at `crowd` standing lineages it has doubled."""
@@ -226,7 +226,7 @@ in the order they should be drawn in:
 
 ```python
 from zombi2.params import PerLineage
-from zombi2.params.rate import Rate
+from zombi2.params.parameter import Rate
 
 plain   = species.simulate_species_tree(birth=1.0, death=0.2, total_time=6, seed=3)
 crowded = species.simulate_species_tree(birth=1.0,

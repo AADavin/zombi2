@@ -1,10 +1,14 @@
-"""Tests for zombi2.params.rate — how the verbs compose a rate, and how it evaluates (SPEC §5)."""
+"""Tests for zombi2.params.parameter — how the verbs compose a rate, and how it evaluates (SPEC §5)."""
 
 import pytest
 
-from zombi2.params import LogNormal, TotalDiversity, modifiers as mod
+from zombi2.params import LogNormal, TotalDiversity
+from zombi2.params import driver as drv
+from zombi2.params import evaluate as ev
+from zombi2.params import law as law
+from zombi2.params import connection as conn
 from zombi2.params import scope
-from zombi2.params.rate import Rate, RateCompositionError, as_rate
+from zombi2.params.parameter import Rate, RateCompositionError, as_rate
 
 
 # --- composition: a scope, with verbs chained onto it ---------------------
@@ -13,19 +17,19 @@ def test_a_scope_with_a_verb_carries_the_modifier_that_verb_builds():
     r = scope.PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})
     assert isinstance(r, Rate)
     assert r.base == 1.0 and r.scope is scope.PerLineage
-    assert r.modifiers == (mod.OnTime({0: 1.0, 3: 0.3}),)
+    assert r.modifiers == (drv.OnTime({0: 1.0, 3: 0.3}),)
 
 
 def test_scaled_by_a_driver_keeps_the_scope():
     r = scope.PerLineage(0.25).scaled_by(TotalDiversity(cap=100))
     assert r.scope is scope.PerLineage and r.base == 0.25
-    assert r.modifiers == (mod.OnTotalDiversity(cap=100),)
+    assert r.modifiers == (drv.OnTotalDiversity(cap=100),)
 
 
 def test_chaining_accumulates_modifiers_in_order():
     r = scope.PerLineage(1.0).changing_at({0: 1.0, 3: 0.3}).scaled_by(TotalDiversity(cap=100))
     assert r.base == 1.0 and r.scope is scope.PerLineage
-    assert r.modifiers == (mod.OnTime({0: 1.0, 3: 0.3}), mod.OnTotalDiversity(cap=100))
+    assert r.modifiers == (drv.OnTime({0: 1.0, 3: 0.3}), drv.OnTotalDiversity(cap=100))
 
 
 def test_every_verb_returns_a_new_rate_so_a_chain_cannot_alias():
@@ -39,11 +43,11 @@ def test_every_verb_returns_a_new_rate_so_a_chain_cannot_alias():
 
 def test_star_no_longer_composes_and_names_the_verbs():
     with pytest.raises(RateCompositionError, match=r"scaled_by"):
-        scope.PerLineage(0.25) * mod.OnTotalDiversity(cap=100)
+        scope.PerLineage(0.25) * drv.OnTotalDiversity(cap=100)
     with pytest.raises(RateCompositionError, match=r"varying_among"):
-        0.25 * mod.OnTotalDiversity(cap=100)
+        0.25 * drv.OnTotalDiversity(cap=100)
     with pytest.raises(RateCompositionError, match=r"changing_at"):
-        mod.OnTime({0: 2.0}) * mod.OnTotalDiversity(cap=50)
+        drv.OnTime({0: 2.0}) * drv.OnTotalDiversity(cap=50)
 
 
 def test_the_star_refusal_is_a_type_error_so_old_handlers_still_catch_it():
@@ -55,7 +59,7 @@ def test_the_star_refusal_is_a_type_error_so_old_handlers_still_catch_it():
 def test_set_by_is_written_from_the_bare_scope():
     r = scope.PerCopy().set_by("habitat.tsv", {"aquatic": 1.0, "terrestrial": 0.25})
     assert r.base is None and r.scope is scope.PerCopy
-    assert isinstance(r.modifiers[0], mod.SetBy)
+    assert isinstance(r.modifiers[0], conn.SetBy)
 
 
 def test_set_by_after_a_base_is_refused_because_it_would_discard_it():
@@ -76,7 +80,7 @@ def test_a_replaced_base_may_still_be_scaled():
 
 def test_two_set_by_verbs_are_refused_rather_than_letting_the_last_one_win():
     r = scope.PerCopy().set_by("a.tsv", {"x": 1.0})._and(
-        mod.SetBy("b.tsv", {"x": 2.0}, verb=mod.SET_BY))
+        conn.SetBy("b.tsv", {"x": 2.0}, verb=ev.SET_BY))
     with pytest.raises(ValueError, match="replaced only once|can only be replaced once"):
         r.check_one_base("loss")
 
@@ -94,7 +98,7 @@ def test_weighted_by_on_a_rate_names_scaled_by():
 
 
 def test_a_rate_carrying_a_weight_is_refused_when_it_is_coerced():
-    from zombi2.params import verbs
+    from zombi2.params import connection as verbs
     r = scope.PerCopy(0.25)._and(verbs.weighted_by("competence.tsv", {"competent": 3.0}))
     with pytest.raises(ValueError, match="weights the candidates of a choice"):
         r.check_one_base("loss")
@@ -158,7 +162,7 @@ def test_as_rate_takes_a_number_or_a_rate_and_nothing_else():
     """There is no third case: a scope constructor returns a `Rate` and so does every verb, so a
     bare modifier is a value rather than a parameter."""
     with pytest.raises(TypeError, match="a rate is a number, or a scope"):
-        as_rate(mod.OnTotalDiversity(cap=100), default_scope=scope.PerLineage)
+        as_rate(drv.OnTotalDiversity(cap=100), default_scope=scope.PerLineage)
 
 
 def test_as_rate_existing_rate_resolved():

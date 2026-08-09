@@ -10,6 +10,18 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Changed
+- **The modules inside `zombi2.params` are one noun each.** `modifiers.py` held the base class, the
+  engine plumbing, four drivers, three laws and the objects two verbs build — and was named for the
+  thing the new grammar replaced. It is now `driver` (what a parameter reads), `law` (what a value
+  drawn per unit does from there), `connection` (the verbs, and the `Driven` and `SetBy` they build)
+  and `evaluate` (what an engine calls). `rate` and `extent` merge into `parameter`; `values` and
+  `clade` fold into `driver`; and the module that reads a conditioned driver off a file, which had
+  been called `driver`, is `conditioned`.
+
+  Every public name is importable from `zombi2.params` exactly as before — `from zombi2.params import
+  PerCopy, Drift, Random` is unchanged. Only a direct submodule import moves, so
+  `from zombi2.params.modifiers import Modifier` becomes `from zombi2.params.evaluate import
+  Modifier`. Nothing else changes: the same 39 event streams and 16,257 records still match. (#330)
 - **`zombi2.rates` is now `zombi2.params`.** A rate is one of three parameters the grammar covers —
   a rate, an extent and a choice — so the package that holds all three is named for what they are
   rather than for the commonest of them. Every name is importable from the same place it was, one

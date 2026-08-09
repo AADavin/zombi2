@@ -15,7 +15,7 @@ import pytest
 from zombi2 import genomes, traits
 from zombi2.genomes._transfer import resolve_groups
 from zombi2.params import Clade, PerCopy, PerLineage
-from zombi2.params.driver import resolve_driver
+from zombi2.params.conditioned import resolve_driver
 from zombi2.species import simulate_species_tree
 
 

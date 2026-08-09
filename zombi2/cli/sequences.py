@@ -26,7 +26,8 @@ import numpy as np
 from zombi2.genomes import FamilyGenomesResult
 from zombi2.genomes.events import edges_from_tsv
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
-from zombi2.params.modifiers import DRAWN, INHERITED, Driven, Modifier
+from zombi2.params.evaluate import DRAWN, INHERITED, Modifier
+from zombi2.params.connection import Driven
 from zombi2._runtime.report import write_run_report
 from zombi2.sequences import (IMPLEMENTED_MODIFIERS, _calibrate, mean_pairwise_identity,
                               simulate_sequences)

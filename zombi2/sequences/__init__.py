@@ -61,12 +61,12 @@ import numpy as np
 from ..genomes import FamilyGenomesResult
 from ..genomes.events import gene_label
 from ..genomes.gene_trees import GeneNode, GeneTree
-from ..params.driver import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
+from ..params.conditioned import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
 from ..rng import resolve_seed, seed_sequence, stream
 from ..params.mapping import Between
-from ..params.modifiers import (DRAWN, INHERITED, Driven, Modifier,
-                              check_one_memory, describe, matches_declared)
-from ..params.rate import Rate, as_rate
+from ..params.evaluate import (DRAWN, INHERITED, Modifier, check_one_memory, describe, matches_declared)
+from ..params.connection import Driven
+from ..params.parameter import Rate, as_rate
 from ..params.scope import PerSite
 from ..tree import Node, Tree, prune
 from .._runtime.outputs import fresh_dirs, grouped_dir
@@ -1395,7 +1395,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
 
 
 # The substitution-model menu is reached through its own module — the one canonical path,
-# like `zombi2.params.scope` / `zombi2.params.modifiers` — never re-exported here:
+# like `zombi2.params.scope` / `zombi2.params.evaluate` — never re-exported here:
 #     from zombi2.sequences import substitution_models as sm;  sm.hky85(2.0)
 __all__ = ["simulate_sequences", "SequencesResult", "StreamedSequences",
            "mean_pairwise_identity",

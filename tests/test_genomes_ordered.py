@@ -322,7 +322,7 @@ def test_unsupported_modifier_on_an_extent_is_rejected():
     """An extent takes the same modifiers a rate does (SPEC §6), so the same refusal applies — and
     names the two it takes rather than pointing at another resolution."""
     from zombi2.params import Extent
-    from zombi2.params.modifiers import Modifier
+    from zombi2.params.evaluate import Modifier
 
     class Mine(Modifier):
         def factor(self, **_):
@@ -338,7 +338,8 @@ def test_the_extent_declaration_is_the_rate_declaration_minus_the_per_family_dra
     """The one difference between the two lists is a modelling fact, not an accident: a per-family
     draw attaches to the contents, and an extent is drawn before the run's genes are known."""
     from zombi2.genomes.ordered import IMPLEMENTED_EXTENT_MODIFIERS, IMPLEMENTED_MODIFIERS
-    from zombi2.params.modifiers import DRAWN, SetBy
+    from zombi2.params.connection import SetBy
+    from zombi2.params.evaluate import DRAWN
     # both differences are modelling facts. A per-family draw attaches to the contents, and an extent
     # is drawn before the run's genes are known; set_by replaces a base, and an extent has none.
     assert set(IMPLEMENTED_MODIFIERS) - set(IMPLEMENTED_EXTENT_MODIFIERS) \

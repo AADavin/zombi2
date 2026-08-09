@@ -31,9 +31,10 @@ from typing import TYPE_CHECKING
 
 from ..params.mapping import check_not_a_kernel
 from ..rng import resolve_seed, stream
-from ..params.modifiers import (describe, DRAWN, Driven, OnTime, SetBy, is_implemented, matches_declared,
-                               values_at_birth)
-from ..params.rate import Rate, as_rate
+from ..params.driver import OnTime
+from ..params.evaluate import DRAWN, describe, is_implemented, matches_declared, values_at_birth
+from ..params.connection import Driven, SetBy
+from ..params.parameter import Rate, as_rate
 from ..params.scope import PerCopy, PerLineage
 from ..tree import Tree, as_tree
 from ._live import enter, retire, weighted_index, without_cyclic_gc
@@ -857,7 +858,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         by_key.setdefault(m.key, m)
     resolved = {}
     if by_key:
-        from ..params.driver import check_mapping_fires, resolve_driver
+        from ..params.conditioned import check_mapping_fires, resolve_driver
         resolved = {key: resolve_driver(m.driver, tree, step=m.step, level="genomes.family")
                     for key, m in by_key.items()}
         # a mapping whose states never occur in the driver leaves every lineage at the default factor,

@@ -59,9 +59,9 @@ extent from `Extent(...)`, and a choice from `Recipients()` — the last two onl
 chained onto them, since a bare distribution is already an extent and `"uniform"` is already a
 choice.
 
-::: zombi2.params.rate
+::: zombi2.params.parameter
 
-::: zombi2.params.extent
+::: zombi2.params.parameter
 
 ::: zombi2.params.choice
 
@@ -97,8 +97,8 @@ modifier of your own opens that gate by naming the engines you implemented it fo
 ```python
 from zombi2 import species
 from zombi2.params import PerLineage
-from zombi2.params.modifiers import Modifier
-from zombi2.params.rate import Rate
+from zombi2.params.evaluate import Modifier
+from zombi2.params.parameter import Rate
 
 class OnLogTime(Modifier):
     implemented_for = ("species",)
@@ -141,7 +141,7 @@ modifier of your own is Python-only, as an object you construct has to be.
 [Appendix A, "Writing your own"](../rates.md#writing-your-own), with the two things a modifier of
 your own has to provide and the one it may.
 
-::: zombi2.params.modifiers
+::: zombi2.params.evaluate
 
 ## Mappings
 
@@ -149,14 +149,10 @@ What a driven parameter carries — the shape that turns the driver's value into
 
 ::: zombi2.params.mapping
 
-## Values
+## Drivers
 
-::: zombi2.params.values
+::: zombi2.params.driver
 
-## Verbs
+## Connections
 
-::: zombi2.params.verbs
-
-## Clades
-
-::: zombi2.params.clade
+::: zombi2.params.connection
