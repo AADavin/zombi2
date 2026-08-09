@@ -65,7 +65,7 @@ UNITS = ("run", "lineages", "chromosomes", "families", "copies", "sites")
 #: the transfer engine refuses a `Driven` written with `SCALED_BY` where a choice's weights belong —
 #: and a literal spelled out at each end is a contract that renames in silence: when these strings
 #: last changed, that refusal stopped firing and nothing said so. They live here rather than in
-#: `zombi2.params.verbs` only because that module imports this one; it re-exports them, so
+#: `zombi2.params.connection` only because that module imports this one; it re-exports them, so
 #: ``verbs.SCALED_BY`` is the name to compare against.
 SCALED_BY = "scaled_by"
 SET_BY = "set_by"
@@ -235,7 +235,8 @@ def is_implemented(m: "Modifier", engines: tuple, engine: str) -> bool:
     # capability an engine has or has not, and only three declare it. A subclass of `SetBy` vouching
     # for itself would be admitted at the four that cannot honour one.
     reads = getattr(m, "reads", None)
-    return not (isinstance(m, SetBy) or (reads is not None and reads[0] in CARRIED_KINDS))
+    return not (getattr(m, "replaces_base", False)
+                or (reads is not None and reads[0] in CARRIED_KINDS))
 
 
 def matches_declared(m: "Modifier", entries: tuple) -> bool:
@@ -251,7 +252,7 @@ def matches_declared(m: "Modifier", entries: tuple) -> bool:
         if isinstance(entry, tuple):
             if m.reads == entry:
                 return True
-        elif isinstance(m, SetBy) or isinstance(entry, type) and issubclass(entry, SetBy):
+        elif getattr(m, "replaces_base", False) or getattr(entry, "replaces_base", False):
             # A `SetBy` is a `Driven`, so a plain isinstance would let it in wherever a driver is
             # allowed — and replacing a base is a capability an engine has or has not, which
             # Driven's declaration says nothing about. Four levels admitted it that way and then
@@ -301,6 +302,12 @@ class Modifier:
     #: owns the generator and knows when a unit is born. Those are the kinds in `CARRIED_KINDS`,
     #: and `Rate.carried_modifiers` is how an engine asks for them without knowing which classes exist.
     reads: ClassVar[tuple[str, str] | None] = None
+
+    #: Whether this modifier **replaces** the base rather than multiplying it. Read by
+    #: `is_implemented` and `matches_declared` instead of an isinstance check, so a gate can ask what
+    #: a modifier does without importing the class that does it — which is what let `SetBy` move to
+    #: `connection` beside the verb that writes it.
+    replaces_base: ClassVar[bool] = False
 
     #: The engines a **third-party** modifier declares itself implemented for. Each engine ships an
     #: ``IMPLEMENTED_MODIFIERS`` tuple and refuses anything outside it, because a modifier it never
@@ -830,173 +837,6 @@ def Random(unit: str | None = None, law: object = None, **retired: Any) -> Modif
     return Drawn(unit, law)
 
 
-class Driven(Modifier):
-    """The factor is read from **another evolved value** — the one mechanism behind both conditioning and
-    joining (SPEC §2).
-
-    **You do not write this class; you write a verb.** Which verb says what the number does, and is
-    decided by what you are attaching it to: `scaled_by` multiplies a rate or an extent,
-    `weighted_by` compares the candidates of a choice, `set_by` replaces a base. All three build
-    this::
-
-        loss        = PerCopy(0.25).scaled_by("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})
-        birth       = PerLineage(1.0).scaled_by("trait", {"small": 1.0, "large": 2.0})  # joint
-        transfer_to = Recipients().weighted_by("competence.tsv", {"competent": 3.0})
-
-    It is Ch2's definition made literal: *a rate that reads a value which varies from lineage to
-    lineage, rather than a fixed number*. It reads the driver's value on each lineage and the mapping
-    turns it into a number.
-
-    ``driver`` says where the driven value comes from, and that single choice splits *conditioned*
-    from *joint* — the chapter's spine, *can the driver be grown first?*:
-
-    - a **filename** (``"habitat.tsv"``), a **grown driver result** (a ``TraitsResult``, discrete or
-      continuous), or a genome result's ``presence(...)`` / ``completion(...)`` —
-      the driver was grown first and handed over (**conditioned**): two ordinary runs. The result
-      object is the file's in-memory shortcut — same conditioning, no ``write``/read step;
-    - a **level name** (``"trait"``, ``"genomes:count"``) — the driver co-evolves in one run
-      (**joint**): neither level can be grown first.
-
-    ``mapping`` says how the driver's value becomes the factor — a `Table`
-    (a dict, for a discrete driver), a `Curve` (a callable, continuous),
-    a `Scalar` (a log-link coefficient), or a `Between` (a weight per donor/recipient pair, which
-    only ``transfer_to`` takes); a raw dict / callable / number is coerced (`as_mapping()`).
-
-    What a ``Driven`` can be attached to comes in **three kinds**, and only the first is a rate:
-    *how often* an event fires (a rate, e.g. ``loss``), *how much* it takes (an extent, e.g.
-    ``loss_extent``, at the ordered and nucleotide resolutions), and a **choice** of who receives it
-    (``transfer_to``, a weight per candidate rather than a multiplier). It always maps a value to a
-    number; it never drives a *value*, such as an OU optimum.
-
-    Like a carried modifier, a ``Driven`` reads
-    a value the **engine** threads per lineage — here a ``drivers`` mapping ``{key: value}`` — and
-    is otherwise dumb: it just maps the value to a factor. The engine owns *where* the value comes from
-    (a file it loaded, or the live level growing beside the tree) and *when* it changes (a discrete
-    driver switches mid-branch, so the engine steps its Gillespie at each switch); a rate reaching an
-    engine that has not threaded its ``driver`` gets a factor of 1.0 (inert).
-    """
-
-    #: A driven value is *not* carried: the engine resolves it per lineage into ``drivers`` and this
-    #: modifier maps it, whether it was recorded beforehand (conditioned) or is growing alongside
-    #: (joint). Which of those it is depends on the ``driver`` argument, not on the class, so the
-    #: kind here is the pair's shared name rather than one of them.
-    reads: ClassVar[tuple[str, str] | None] = (DRIVEN, "lineages")
-
-    #: The verb that wrote this one, and so how it prints. A driven value is written with the verb
-    #: that says what its number does — and only the writer knows which, because it follows from
-    #: what the value is attached to, not from anything the value itself holds. Recording it is what
-    #: lets a run's log say back exactly what was typed.
-    verb: str = SCALED_BY
-
-    def __init__(self, driver: object, mapping: object, step: float | None = None, *,
-                 verb: str | None = None) -> None:
-        from .mapping import as_mapping
-
-        if isinstance(driver, str):
-            if not driver.strip():
-                raise ValueError("a driver must be a non-empty string (a filename or level name)")
-            base: object = driver                    # a string driver is its own context key
-        else:
-            base = id(driver)                        # an in-memory driver result (conditioning): key by identity
-        if step is not None:
-            step = float(step)
-            if not (step > 0.0) or step == float("inf"):
-                raise ValueError(
-                    f"step is the resolution a CONTINUOUS driver is read at, in the tree's own "
-                    f"time units, so it must be finite and positive; got {step!r}.")
-        # the step is part of the key: the same driver read at two resolutions is two trajectories, and
-        # keying on the driver alone would silently resolve it once and share the first one
-        self.key: object = base if step is None else (base, step)
-        self.driver = driver
-        self.step = step
-        self.mapping = as_mapping(mapping)
-        if verb is not None:
-            self.verb = verb
-
-    def factor(self, *, drivers: Mapping | None = None, **_: Any) -> float:
-        """The mapped multiplier for this lineage's driver value — the engine threads the value under
-        ``drivers[key]`` (``key`` is the driver string, or the identity of an in-memory driver). No
-        ``drivers`` (or this driver absent) ⇒ 1.0, so an unthreaded rate is inert (the engine is
-        responsible for supplying the value where a driven rate is supported)."""
-        if drivers is None:
-            return 1.0
-        value = drivers.get(self.key)
-        if value is None:
-            return 1.0
-        return self.mapping.multiplier(value)
-
-    def written_call(self) -> str:
-        """``step`` is written whenever it is set, because a written form that omits an argument
-        records a different model. Leaving it out meant a driven rate with a step rendered as one
-        without, reparsed as one without, and compared equal to one without — so a run's log said
-        something the run had not done, and every round-trip check agreed."""
-        step = f", step={self.step!r}" if self.step is not None else ""
-        return f"{self.verb}({_driver_form(self.driver)}, {self.mapping!r}{step})"
-
-    def __eq__(self, other: object) -> bool:
-        # By the **driver**, not by `key`. `key` is a runtime lookup handle: it is `(path, step)`
-        # for a file and `id()` for a driver that is an object — so comparing keys made two rates
-        # reading the same `Clade` unequal, and a clade is the one driver written from literals
-        # precisely so that it round-trips. Two equal clades describe one partition of one tree, and
-        # nothing is drawn, so there is no sense in which they could be two different drivers. (That
-        # is what separates this from `Drawn`, where writing one object or two is the model.)
-        #
-        # ``step`` is compared explicitly because it used to ride along inside `key`: two drivers
-        # read at different resolutions are different models, and dropping it here would have made
-        # them equal.
-        return (isinstance(other, Driven) and other.driver == self.driver
-                and other.mapping == self.mapping and other.step == self.step)
-
-    def __hash__(self) -> int:
-        # by the driver alone: a mapping is a dict or a callable and need not be hashable, so this is
-        # coarser than __eq__ rather than inconsistent with it, which is all a hash owes. A driver
-        # that is itself unhashable falls back to the class, keeping a Rate carrying one hashable.
-        try:
-            return hash((Driven, self.driver, self.step))
-        except TypeError:
-            return hash(Driven)
-
-
-class SetBy(Driven):
-    """**Replace** the parameter's base with a value read from a driver, rather than multiplying it.
-    What ``set_by`` builds::
-
-        loss = PerCopy().set_by(habitat, {"cave": 1.0, "surface": 0.25})   # the rate itself
-
-    Written with **no base in front**, because there is none to write: the driver supplies the whole
-    number, in the parameter's own units rather than as a dimensionless factor. That is what the
-    literature usually means — "the loss rate is 1.0 in caves", not "four times a background nobody
-    stated" — and spelling an absolute statement as a multiple of an invented background is the kind
-    of quiet mismatch this grammar exists to avoid.
-
-    **The scope still applies.** ``set_by`` replaces the base, not the *per what?*: a per-copy rate
-    set to 1.0 is still 1.0 per copy, so it is multiplied by the copies present exactly as a written
-    base would be. Only the number changes, which is why the scope is still written in front:
-    ``PerCopy()``.
-
-    It is a `Driven`, so every engine that resolves drivers resolves this one too — the trajectory,
-    the mid-branch switches, the mapping checks are all the same machinery. What differs is one line
-    in `Rate.effective`, which asks a ``SetBy`` for the base and every
-    other modifier for a factor. The two compose: a replaced base may still be scaled.
-
-        loss = PerCopy().set_by(habitat, {...}).scaled_by(size, Scalar(0.5))
-
-    A rate may carry **one** ``SetBy``, written first. Two would be two answers to the same
-    question, and neither order of application is more right than the other, so it raises rather
-    than picking.
-    """
-
-    verb: str = SET_BY
-
-
-#: What this module contributes to the names an expression may **call** — the two drivers and the
-#: law. Kept explicit rather than derived from ``__all__``, which also carries the helpers an engine
-#: uses: a whitelist that grows whenever a helper is exported is a whitelist that stops meaning
-#: anything.
-#:
-#: The modifier classes are all absent, because none of them is written any more: a rate is written
-#: from its scope and the verbs say what it reads. `Random` is here rather than with the verbs
-#: because it is the one value a user can **name**, which is how two rates share a draw (SPEC §6).
 WRITABLE = ("Random", "Drift", "TotalDiversity")
 
 _WRITTEN_AS.update({
@@ -1004,13 +844,11 @@ _WRITTEN_AS.update({
     OnTotalDiversity: f"{SCALED_BY}(TotalDiversity(...))",
     Drawn: VARYING_AMONG,
     Inherited: VARYING_AMONG,
-    Driven: SCALED_BY,
-    SetBy: SET_BY,
-})
+})   # `connection` adds its own two — it imports this module, not the other way round
 
 
 __all__ = ["Modifier", "OnTime", "OnTotalDiversity", "TotalDiversity", "Drawn", "Inherited",
-           "Drift", "Random", "Driven", "SetBy",
+           "Drift", "Random",
            "MEASURED", "DRAWN", "INHERITED", "DRIVEN", "CARRIED_KINDS", "UNITS",
            "SCALED_BY", "SET_BY", "WEIGHTED_BY", "VARYING_AMONG", "CHANGING_AT",
            "values_at_birth", "values_at_split", "check_one_memory",

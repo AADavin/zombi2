@@ -27,9 +27,9 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from . import verbs
+from . import connection as verbs
 from .mapping import Between
-from .modifiers import Driven
+from .connection import Driven
 
 #: The choice rules a `transfer_to` may be **written** with, for the parser's whitelist. The two
 #: named strings (``"uniform"`` / ``"distance"``) are not here: they are values, not calls.

@@ -17,8 +17,8 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from . import verbs
-from .modifiers import CARRIED_KINDS, Modifier, SetBy
+from . import connection as verbs
+from .modifiers import CARRIED_KINDS, Modifier
 from .scope import Scope
 
 
@@ -79,7 +79,7 @@ class Rate:
         m = verbs.set_by(driver, mapping, step=step)
         # `set_by(Time(), ...)` builds an `OnTime`, whose schedule holds the rates themselves; that
         # is a base of 1.0 times those factors, which is the same run and needs no new machinery.
-        base = None if isinstance(m, SetBy) else 1.0
+        base = None if getattr(m, "replaces_base", False) else 1.0
         return Rate(base, self.scope, (m,))
 
     def varying_among(self, among: object = None, law: object = None, **retired: object) -> "Rate":
@@ -133,7 +133,7 @@ class Rate:
             raise ValueError("this rate has no scope yet; resolve it with with_default_scope(...)")
         base = self.base
         for m in self.modifiers:
-            if isinstance(m, SetBy):
+            if getattr(m, "replaces_base", False):
                 base = m.factor(**context)   # the driver supplies the number itself, not a factor
         if base is None:
             raise ValueError(
@@ -141,7 +141,7 @@ class Rate:
                 "set_by that would supply the rest is missing.")
         value = self.scope.total_of(base, **context)
         for m in self.modifiers:
-            if isinstance(m, SetBy):
+            if getattr(m, "replaces_base", False):
                 continue  # already used, as the base
             reads = getattr(m, "reads", None)
             if reads is not None and reads[0] in CARRIED_KINDS:
@@ -157,7 +157,7 @@ class Rate:
 
         Every level coerces through `as_rate`, which calls this, so the rule cannot be strict in one
         place and lax in another."""
-        set_by = [m for m in self.modifiers if isinstance(m, SetBy)]
+        set_by = [m for m in self.modifiers if getattr(m, "replaces_base", False)]
         if len(set_by) > 1:
             raise ValueError(
                 f"{label} carries {len(set_by)} set_by verbs, and a base can only be replaced "
@@ -232,7 +232,7 @@ class Rate:
     def _ordered(self) -> tuple[Modifier, ...]:
         """The modifiers as written, except that a `SetBy` moves to the front (SPEC §8). ``sorted``
         is stable, so everything else keeps the order it was written in."""
-        return tuple(sorted(self.modifiers, key=lambda m: not isinstance(m, SetBy)))
+        return tuple(sorted(self.modifiers, key=lambda m: not getattr(m, "replaces_base", False)))
 
     # --- the retired spelling -------------------------------------------------------------------
 
