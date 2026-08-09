@@ -57,7 +57,7 @@ When we condition there are three things to pay attention to:
 
 - the **driver**: the variable controlling the run.
 - the **target**: the variable that the driver modifies.
-- the **mapping**: how the driver controls the target.
+- the **connection**: how the driver controls the target.
 
 Not everything can be connected in ZOMBI2, but it is flexible enough to allow very specific rules — a trait can set how often a lineage loses genes, and a gene family's presence can set how fast a trait changes. There is a full chapter devoted to conditioning, and a user should read it to study the different cases.
 
