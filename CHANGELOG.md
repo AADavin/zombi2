@@ -10,309 +10,127 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Changed
-- **The modules inside `zombi2.params` are one noun each.** `modifiers.py` held the base class, the
-  engine plumbing, four drivers, three laws and the objects two verbs build — and was named for the
-  thing the new grammar replaced. It is now `driver` (what a parameter reads), `law` (what a value
-  drawn per unit does from there), `connection` (the verbs, and the `Driven` and `SetBy` they build)
-  and `evaluate` (what an engine calls). `rate` and `extent` merge into `parameter`; `values` and
-  `clade` fold into `driver`; and the module that reads a conditioned driver off a file, which had
-  been called `driver`, is `conditioned`.
 
-  Every public name is importable from `zombi2.params` exactly as before — `from zombi2.params import
-  PerCopy, Drift, Random` is unchanged. Only a direct submodule import moves, so
-  `from zombi2.params.modifiers import Modifier` becomes `from zombi2.params.evaluate import
-  Modifier`. Nothing else changes: the same 39 event streams and 16,257 records still match. (#330)
-- **`zombi2.rates` is now `zombi2.params`.** A rate is one of three parameters the grammar covers —
-  a rate, an extent and a choice — so the package that holds all three is named for what they are
-  rather than for the commonest of them. Every name is importable from the same place it was, one
-  level along: `from zombi2.params import PerCopy, LogNormal, Drift`. The models, the numbers and
-  the written form are untouched, and the same 39 event streams and 16,257 records still match
-  `main` exactly. (#329)
-- **A rate is written from its scope, with verbs chained onto it. `*` is gone.**
-  `PerCopy(0.25).scaled_by(habitat, {'aquatic': 4.0})` replaces `0.25 * ScaledBy(habitat, {...})`,
-  and the same three verbs — `scaled_by` multiplies, `set_by` replaces, `weighted_by` compares the
-  candidates of a choice — read every driver at every level. The classes they used to be written as
-  are removed as names: `ScaledBy`, `SetBy`, `Weights`, `OnTime`, `OnTotalDiversity`, `Drawn` and
-  `Inherited` are no longer importable from `zombi2.params` and no longer parse in a flag or a
-  `--params` file. Each is answered by a sentence naming the verb that replaced it, in Python and in
-  the written form alike, from one table. The models are unchanged and so are the numbers: the same
-  arguments and the same seed give the same run, in a new spelling. (#328)
-- **Two drivers have a verb of their own, and it is the only way to write them.** A value that
-  varies at random is `varying_among(unit, law)` and the run's clock is `changing_at({...})`;
-  `scaled_by` refuses both and names the shortcut, so there is exactly one spelling for each. The
-  **law** says what happens to the value after it is drawn — a bare distribution is drawn once and
-  held (the old `Drawn`), and `Drift(dist)` makes `dist` the per-split step (the old `Inherited`),
-  with `Drift(dist, bins=n)` the rate-category ladder. `Random(unit, law)` is that value as a named
-  object, which is still how two rates share one draw. (#328)
-- **The unit a value varies among is plural.** `'lineages'`, `'families'`, `'copies'`, `'sites'`,
-  `'chromosomes'` — because a value varies *among* families rather than being counted *per* one, and
-  "per" is the scope word and nothing else. `'family'` and `'families'` are different strings, so a
-  rate written the old way fails loudly rather than quietly meaning something new. (#328)
-- **`transfer_to` is written from `Recipients()`.** A driven recipient rule is
-  `Recipients().weighted_by(driver, mapping)` in place of `Weights(driver, mapping)`, which makes a
-  choice's entry point as visible as a rate's scope. `"uniform"`, `Distance(decay=…)` and
-  `Clades(…)` are unchanged. (#328)
-- **A replaced base is written on the bare scope.** `PerCopy().set_by(habitat, {'cave': 1.0})` in
-  place of `SetBy(habitat, {...})`: the scope still stands, because replacing *how fast* says nothing
-  about *per what*. A `set_by` must come first, since everything to its left is a base it would
-  discard, and that rule is now stated once by the verb rather than at each operand of a `*`. (#328)
-- **The modifiers a level lists are named by the expression that writes them.** `zombi2 <command>
-  -h` and an engine's refusal now print `varying_among('lineages', ...)` and
-  `varying_among('lineages', Drift(...))` where they printed `drawn among lineages` and `inherited
-  among lineages` — descriptions of a value that named no way to write one, so the help listed two
-  entries that were a syntax error if typed. `...` stands for the argument you choose. Appendix A's
-  table of which level accepts which is the same list, built from the same function. (#328)
+- **A parameter is written from its scope, with verbs chained onto it. `*` is gone.** One grammar now
+  covers a rate, an extent and a choice, at every level, and each verb says what the number it reads
+  *does*: `scaled_by` multiplies the base, `set_by` replaces it, `weighted_by` compares the
+  candidates of a choice. Two drivers have a verb of their own and it is the only spelling for each —
+  `varying_among(unit, law)` for a value that varies at random, `changing_at({...})` for the run's
+  clock. The **law** says what happens to a drawn value: a bare distribution is drawn once and held,
+  and `Drift(dist)` makes `dist` the per-split step. The models are unchanged and so are the numbers —
+  the same arguments and the same seed give the same run, in a new spelling.
+
+  | 0.31.0 | now |
+  |---|---|
+  | `1.0 * OnTime({0: 1.0, 3: 0.3})` | `PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})` |
+  | `1.0 * OnTotalDiversity(cap=100)` | `PerLineage(1.0).scaled_by(TotalDiversity(cap=100))` |
+  | `0.2 * DrivenBy(habitat, {...})` | `PerCopy(0.2).scaled_by(habitat, {...})` |
+  | `0.2 * ByFamily(spread=0.5)` | `PerCopy(0.2).varying_among('families', LogNormal(0.0, 0.5))` |
+  | `1.0 * ByLineage(spread=0.3)` | `PerLineage(1.0).varying_among('lineages', LogNormal(0.0, 0.3))` |
+  | `1.0 * FromParent(spread=0.2)` | `PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2)))` |
+  | `transfer_to=DrivenBy(d, m)` | `transfer_to=Recipients().weighted_by(d, m)` |
+
+  The unit is **plural** — `'lineages'`, `'families'`, `'copies'`, `'sites'`, `'chromosomes'` —
+  because a value varies *among* families, while "per" is the scope word and nothing else. Every
+  retired name is answered by a sentence naming the verb that replaced it, in Python, in a flag and in
+  a `--params` file alike. (#328)
+- **`zombi2.rates` is now `zombi2.params`**, because a rate is one of three parameters the grammar
+  covers. Every public name is importable from the same place it was, one level along: `from
+  zombi2.params import PerCopy, LogNormal, Drift`. Only a direct submodule import moves, and the
+  submodules were reorganised at the same time, one noun each — `parameter`, `driver`, `law`,
+  `connection`, `evaluate`, `conditioned`. (#329, #330)
+- **`zombi2 joint --initial-families` now defaults to 100**, as `genomes.family()` and `zombi2
+  genomes` do. It defaulted to 0, because 0 was doing double duty as the "was it given?" sentinel that
+  decides which driver a joint run is using — and 0 is a number a user may mean. A gene-content joint
+  command written before this and re-run now starts from 100 families rather than none, and because
+  the genome drives speciation there, **the tree it grows changes too**: the same seed no longer
+  reproduces the same run. Pass `--initial-families 0` for the old behaviour. (#325)
+- **One rule for mixing per-unit modifiers, instead of three.** Each level had grown its own. What
+  raises now, everywhere, is mixing a value drawn and held with one that drifts, on the same unit;
+  several of the same kind compose and multiply, as any two modifiers do. So two drawn clocks on a
+  substitution rate, or two drifting values on a trait's variance-rate, now run instead of raising.
 
 ### Added
-- **`Distance(decay=…)` and `Clades(…)` can be written on the command line and in a `--params`
-  file.** Both moved from the transfer engine into the rate grammar, where everything a user *writes*
-  lives, so the parser can see them: `--transfer-to "Distance(decay=3.0)"` and `--transfer-to
-  "Clades({'A': ['n1','n2']}, Between({('A','A'): 1.0}, default=0.2))"` now run. Until now a
-  non-default decay was reachable only from Python and a clade rule not at all, which was the
-  project's one departure from a single notation across Python, the CLI and TOML. Turning the tree
-  into clade membership stays with the engine, because that needs a tree and a written rule does
-  not. (#327)
 
-### Fixed
-- **A `transfer_to` rule is recorded in the form that takes it back.** A choice is not a rate: a
-  named rule is written bare (`uniform`, not `'uniform'`, which the flag refuses) and a `Weights` is
-  written on its own, without the `1.0 *` a rate carries, because a choice has no base and
-  `--transfer-to` rejects one in front. `Distance` and `Clades` now render as the constructor calls
-  the API and the parser both take, rather than as dataclass reprs. (#327)
-
-### Removed
-- **`spread=` on `Drawn` and `Inherited`. Write the distribution instead.** `Drawn(per='family',
-  dist=LogNormal(0.0, 0.5))` and `Inherited(per='lineage', dist=LogNormal(0.0, 0.2))` replace
-  `spread=0.5` and `spread=0.2`. One word named two different quantities — the drawn **value** under
-  `Drawn`, the per-split **step** under `Inherited` — and said nothing about which distribution it
-  meant. An inherited step now accepts any distribution and is mean-corrected by dividing by its own
-  mean, exactly as a drawn value is; a lognormal step keeps its closed form, so every existing
-  autocorrelated run is byte-identical. `bins=` takes a `LogNormal` step and nothing else, because
-  the ladder's rungs are spaced by that step's sigma. Both classes refuse `spread=` with an error
-  naming the replacement, and the distributions are re-exported from `zombi2.params`, so an argument
-  you must write needs no import from a submodule. (#327)
-
-### Added
 - **A genome rate can be counted per lineage instead of per copy.** `loss = PerLineage(0.25)` gives a
   lineage a fixed deletion budget — it loses genes at that rate whatever its genome holds — against
-  `PerCopy(0.25)`, which puts every copy independently at risk so a genome ten times the size turns
+  `PerCopy(0.25)`, which puts every copy independently at risk, so a genome ten times the size turns
   over ten times as fast. It applies to duplication, transfer and loss at both the family and ordered
-  resolutions, and to inversion, transposition and translocation at the ordered one; the nucleotide
-  engine already counted these per lineage. The total and the pick move together, so a per-lineage
-  rate draws one occupied genome uniformly and then a gene inside it. Origination stays per lineage
-  and the chromosome tier per chromosome. A per-family draw **anywhere in the run** refuses a
-  per-lineage scope, because what the multiplier should do there — move the total, or choose the
-  victim — is two different models; the check is over the run rather than the rate, since one draw
-  makes the engine take its per-family path for every gene rate at once. (#326)
+  resolutions, and to inversion, transposition and translocation at the ordered one. A per-family draw
+  **anywhere in the run** refuses a per-lineage scope, because what the multiplier should do there —
+  move the total, or choose the victim — is two different models. (#326)
+- **`set_by` states a driven rate absolutely instead of as a multiple.** `loss =
+  PerCopy().set_by(habitat, {"cave": 1.0, "surface": 0.25})` says the loss rate *is* 1.0 in caves,
+  which is how the literature usually states one; saying it before meant inventing a background and
+  dividing by it. Written with no base in front, because the driver supplies the whole number, and the
+  scope still applies. Three targets take it: the family and ordered genome resolutions, and a
+  continuous trait's rate.
+- **A rate can be driven by a clade.** `Clade({"fast": ["n12", "n27"]})` is a value read off the tree
+  itself, so a named group gets its own rate — at every level that reads a driver, for a rate, an
+  extent or a `transfer_to` weight. Unlike every other driver there is nothing to grow first, so it
+  adds no Gillespie breakpoints: membership never changes along a branch. A lineage in no named clade
+  is in the implicit group `"rest"`, which a mapping may name. A joint run refuses it, and that is
+  about the model rather than the code: a growing tree has no clades yet.
+- **A value that varies at random takes any distribution.** `Fixed`, `Exponential`, `Gamma`,
+  `LogNormal`, `Uniform` and `Geometric` are exported from `zombi2.params` and writable in a flag,
+  where before there were two distribution names and a bare `spread=`. Whatever the distribution, the
+  draw is **normalised to mean 1** by dividing by that distribution's own mean, so a drawn multiplier
+  leaves the base meaning the average rate. A drifting step is mean-corrected the same way; a
+  lognormal step keeps its closed form, so every existing autocorrelated run is byte-identical.
+  (#327)
+- **One modifier object read by two rates is one draw, shared between them.** Writing `speed =
+  Random('families', LogNormal(0.0, 0.5))` and then `.varying_among(speed)` on both `duplication` and
+  `loss` makes a family that duplicates fast also lose fast; building two separate objects keeps the
+  two rates independent. Sharing is by object identity, not equality — the question is what you wrote,
+  not what the numbers happen to be. This is the rule that made `family_speed=` redundant.
+- **`Distance(decay=…)` and `Clades(…)` can be written on the command line and in a `--params` file.**
+  `--transfer-to "Distance(decay=3.0)"` and `--transfer-to "Clades({'A': ['n1','n2']},
+  Between({('A','A'): 1.0}, default=0.2))"` now run. Until now a non-default decay was reachable only
+  from Python and a clade rule not at all, which was the project's one departure from a single
+  notation across Python, the CLI and TOML. (#327)
+- **`zombi2 joint --at-speciation`.** The trait spec has always taken `at_speciation=`, so ClaSSE — a
+  trait that drives speciation *and* jumps at the split — was reachable from Python and not from the
+  command line, with nothing saying so. (#325)
 - **Appendix B states the output-table contract: columns may be added, so read them by name.** New
   columns go at the end of a row; an existing column's name and meaning never change, and none is
-  removed within a major version. It documents what these tables have always required — the same
-  filename already has five columns at the family resolution and ten at the ordered one — and it is
-  what lets a later version record something new (a mechanism, a second subject) without breaking
-  every script that parses a run.
-- **`SetBy` states a driven parameter absolutely instead of as a multiple.** Only the three levels
-  that can honour a replaced base accept it — the family and ordered genome resolutions, and a
-  continuous trait's rate — and each declares it by name, because `SetBy` is a `Driven` and a gate
-  listing `Driven` would otherwise admit it at four levels that cannot. An extent takes none: it is
-  already an absolute size drawn from a distribution, so there is no base to replace. `loss = SetBy(habitat,
-  {"cave": 1.0, "surface": 0.25})` says the loss rate *is* 1.0 in caves, which is how the literature
-  usually states one — saying it before meant inventing a background and dividing by it. Written
-  with no base in front, because the driver supplies the whole number; `0.25 * SetBy(...)` raises
-  rather than discarding the 0.25 you wrote. The scope still applies, so a per-copy rate set to 1.0
-  is 1.0 per copy. A replaced base composes with any number of `ScaledBy` factors, but a rate may
-  carry only one `SetBy` — two would each claim to be the number, and no order of application is
-  more right than the other. It is a `Driven`, so it works wherever a driver does and needs no new
-  machinery for trajectories, mid-branch switches or mapping checks.
-- **The written form knows the verbs and the values.** `ScaledBy`, `Weights`, `SetBy`, `Time()` and
-  `Clade({...})` now parse, so `--loss "0.2 * ScaledBy(Clade({'fast': ['n1','n2']}), {'fast': 3.0})"`
-  works on the command line and in a `--params` file. SPEC §5 says there is one written form
-  everywhere; adding a verb to Python alone would have broken that.
-- **A rate can be driven by a clade.** `Clade({"fast": ["n12", "n27"], "slow": 40})` is a value read
-  off the tree itself, so `loss = 0.2 * ScaledBy(Clade({...}), {"fast": 3.0})` gives a clade its own
-  rate — at every level that reads a driver, for a rate, an extent or a `transfer_to` weight. Unlike
-  every other driver there is nothing to grow first: a clade is a fact about the tree the run is
-  already walking, so it is painted once and adds no Gillespie breakpoints, because membership never
-  changes along a branch. A lineage in no named clade is in the implicit group `"rest"`, which a
-  mapping may name. A joint run refuses it, and that is about the model rather than the code: a
-  growing tree has no clades yet. The plural `Clades(...)` stays what it was — the `transfer_to`
-  rule that weights the donor's clade against the recipient's — and the two share one definition of
-  what a clade is.
-- **A modifier is written as a grid rather than as a list.** A modifier says two independent things
-  at once — where its number comes from, and what it is attached to — and the spelling now separates
-  them. `Drawn(per=…)` and `Inherited(per=…)` are the classes themselves rather than a shim over
-  three narrower ones, so `Drawn(per="family", spread=0.5)` is a draw attached to a family and
-  `Inherited(per="lineage", spread=0.2)` an inherited value attached to a lineage. What the grid buys
-  is the next cell: a per-chromosome draw is `Drawn(per="chromosome", spread=0.5)` rather than a
-  `ByChromosome` that would have to be invented, documented and remembered. It constructs, and the
-  level that cannot carry a number per chromosome refuses it saying so — *"birth carries drawn per
-  chromosome, which the species engine does not support"* — instead of reading as a typo. A level's
-  `IMPLEMENTED_MODIFIERS` accordingly declares **cells** (`(DRAWN, "family")`) as well as classes,
-  and the classes remain where the grain needs them: `OnTime` and `OnTotalDiversity` both read a
-  measured value on the run, yet an engine can thread a schedule's breakpoints without threading
-  standing diversity, so the two stay separately declarable.
-- **A verb says what a driven number does to the parameter**, and is the only way to write one (the
-  name it replaces is under *Removed*). `ScaledBy(driver, mapping)` multiplies the base,
-  `Weights(driver, mapping)` compares the candidates of a `transfer_to` choice, and the `SetBy`
-  above replaces the base. The verb picks its object by looking at the value, so
-  `ScaledBy(Time(), {0: 1.0, 3: 0.3})` *is* `OnTime({0: 1.0, 3: 0.3})` — one object, and a run
-  unchanged seed for seed. `zombi2.params` now exports the whole written vocabulary, `OnTime` and
-  `OnTotalDiversity` included, so what you can import and what you can write in a flag are one
-  surface rather than two.
-
-### Changed
-- **`Drawn` takes a distribution object, not the name of one.** `spread=σ` remains the short spelling
-  and means a lognormal of that log-scale; `dist=` now takes a built-in `Distribution` — `Fixed`,
-  `Exponential`, `Gamma`, `LogNormal`, `Uniform`, `Geometric` — where before it was the string
-  `"lognormal"` or `"gamma"` and nothing else. A callable or a scipy frozen distribution is refused
-  here, because neither states a mean to normalise by; an **extent** takes either, being a size
-  rather than a multiplier. Give a spread or a dist, never both. **Whatever the
-  distribution, the draw is normalised to mean 1** by dividing by that distribution's own mean, so a
-  drawn multiplier leaves the base meaning the average rate; a distribution's location is therefore
-  normalised away and what it contributes is its shape, making `Exponential(1.0)` and
-  `Exponential(7.0)` one modifier. A distribution that cannot state its mean is refused rather than
-  normalised by a guess. The distributions are writable, so
-  `--loss "0.25 * Drawn(per='family', dist=Gamma(shape=4.0, scale=0.25))"` works on the command line
-  and round-trips through a run's log.
-
-- **`zombi2 joint --initial-families` now defaults to 100**, as `genomes.family()` and
-  `zombi2 genomes` do. It defaulted to 0, because 0 was doing double duty as the "was it given?"
-  sentinel that decides which driver a joint run is using — and 0 is a number a user may mean. A
-  gene-content joint command written before this and re-run now starts from 100 families rather than
-  none, and because the genome drives speciation there, **the tree it grows changes too**: the same
-  seed no longer reproduces the same run. Pass `--initial-families 0` for the old behaviour. (#325)
-- **One rule for mixing per-lineage modifiers, instead of three.** Each level had grown its own: the
-  species engine refused an inherited value beside a drawn one, the continuous-trait engine refused
-  more than one inherited value, and the sequence engine refused more than one clock of *any* kind.
-  SPEC §5 says something narrower — **one memory structure per axis** — so what raises now,
-  everywhere, is mixing a drawn value with an inherited one on the same unit; several of the same
-  kind compose and multiply, as any two modifiers do. In practice that means
-  `1.0 * Drawn(per='lineage', spread=0.3) * Drawn(per='lineage', spread=0.2)` on a substitution rate
-  now runs instead of raising, and two `Inherited(per='lineage')` on a trait's variance-rate compose
-  instead of raising. Every level calls the one check, so the rule cannot be strict in one place and
-  lax in another again.
-- **One modifier object read by two rates is now one draw, shared between them.** Writing
-  `speed = mod.Drawn(per='family', spread=0.5)` and putting `speed` on both `duplication` and `loss`
-  makes a family that duplicates fast also lose fast; building two separate
-  `Drawn(per='family', spread=0.5)` keeps the two rates independent, as before. So "fast at
-  everything" against "fast at one thing" is now the difference between writing one object and
-  writing two, with no extra argument to learn. Sharing is by object identity, not by equality — two
-  modifiers that merely agree on their spread are still two draws, because the question is what you
-  wrote rather than what the numbers happen to be. The same holds for `Drawn(per='lineage')` across a
-  species run's `birth` and `death`. A run that does not reuse an object draws exactly as it did,
-  seed for seed. This is the rule that made `family_speed=` redundant, and it is now stated in
-  SPEC §5.
-
-- **The Conditioning and Joining chapters are rewritten to be read rather than studied**, and the
-  manual gains 82 corrections an audit reproduced one at a time. Chapter 9's eleven conditioned
-  models are a table keyed to its map rather than eleven numbered paragraphs, and it documents
-  `SetBy` and `Clade`, which shipped with no chapter naming them. Chapter 5's first example did not
-  reproduce — `seed=2` prints a different chromosome now, and the figure had drifted from its own
-  caption — and Chapter 1 said the library asks when a Python call names no rates, which it does
-  not. (#325)
-- **Four figures that never reached the docs site now do**, and Appendix A is published for the
-  first time, though Chapter 2 sends a reader to it twice. Chapters 4, 6, 7 and 8 gain a figure
-  each: the four gene-family events, why a gene is never split, where a sequence lives, and the two
-  kinds of trait. Figure 3.2 is regenerated — it printed `FromParent` inside the panel while its
-  caption said `Inherited(per='lineage')`. (#325)
-
-- **`zombi2 joint --at-speciation`.** The trait spec has always taken `at_speciation=`, so ClaSSE —
-  a trait that drives speciation *and* jumps at the split — was reachable from Python and not from
-  the command line, with nothing saying so. (#325)
-
-### Removed
-- **`DrivenBy` is retired: a driven parameter is written with a verb.** The class said where a
-  number came from and never what it did to the parameter — and it does three different things
-  depending on what it is attached to. `ScaledBy(driver, mapping)` multiplies a rate or an extent,
-  `Weights(driver, mapping)` compares the candidates of a choice, and `SetBy(driver, mapping)`
-  replaces the base. `transfer_to` is the case that shows why: its numbers are weights, normalised
-  against each other with no base, which Chapter 9 needed a paragraph to explain and `Weights` says
-  in the name. The class is internal now (`Driven`), and `DrivenBy` is not writable in Python, on
-  the command line or in a `--params` file; `parse_rate` answers it with the sentence naming all
-  three verbs and what each is for, rather than a difflib guess that would pick one at random —
-  and `ByFamily`, `ByLineage` and `FromParent`, retired earlier, now get that treatment too. A
-  `Driven` records the verb that wrote it, so a run's log says back what was typed and it parses
-  back; the verb takes no part in equality. And because the verb now carries meaning the class
-  never did, a mismatch is catchable: `transfer_to = ScaledBy(...)` is refused, naming `Weights`.
-  (#325)
-
-- **`ByFamily`, `ByLineage` and `FromParent` are gone**, replaced by the general spelling they were
-  aliases for: `Drawn(per="family", …)`, `Drawn(per="lineage", …)` and `Inherited(per="lineage", …)`.
-  They were never the field's names — the literature says *the relaxed clock*, *ClaDS*, *rate
-  heterogeneity across families* — so they were our own coinages pointing at those, and keeping three
-  aliases for three cells of a grid is two ways to write one thing. A unit nobody has carried yet now
-  needs no name invented for it. Every refusal, the CLI help, Appendix A and the manual name cells
-  the same way (*"drawn per family"*), so one vocabulary reaches the reader.
-
-- **`family_speed=` and `--family-speed` are gone**, replaced by reading one drawn-per-family object
-  from several rates, which now says the same thing (see above). `simulate_genomes_family(tree,
-  duplication=0.2, loss=0.25, family_speed=…)` becomes `speed =
-  mod.Drawn(per='family', spread=0.5)` and then `duplication=0.2 * speed, loss=0.25 * speed`. The tempo now has
-  to be written on each rate it applies to rather than covering rates you had not thought about,
-  which is more to type and visible in the model instead of in a side argument. **The command line
-  cannot express it for now:** two `--` flags parse to two separate objects, so they are two
-  independent draws.
+  removed within a major version.
 
 ### Fixed
-- **A `SetBy` written with a `step` recorded itself without one.** Its written form omitted the
-  argument, so a run's log said something the run had not done — and because equality omitted it too,
-  the record reparsed to a rate that compared *equal* to the original while reading its driver at a
-  different resolution. Both now carry it. (#326)
-- **Two rates reading the same clade never compared equal.** `ScaledBy` compared drivers by their
-  runtime lookup key, which is the path itself for a file but `id()` for a driver that is an object —
-  so `ScaledBy(Clade({...}), m) == ScaledBy(Clade({...}), m)` was `False` for identical clades, and a
-  rate carrying one could not be compared with its own written form read back. It now compares the
-  driver. A clade is written from literals precisely so that it round-trips, and two equal clades
-  describe one partition of one tree with nothing drawn, so there is no sense in which they could be
-  two different drivers — unlike `Drawn`, where writing one object or two *is* the model. (#326)
-- **A run's log rounded every rate to six significant figures.** `OnTime`, `Table`, `Scalar` and
-  `Between` printed their numbers with `:g`, and the written form is built from those — so a rate
-  typed as `1.0 * OnTime({0: 1.0, 3: 0.0123456789})` was recorded as `0.0123457`, a different model,
-  with nothing to say so. Only the base was exact. They print with `repr(float)` now, the shortest
-  text that reads back as the same float, so a round number still reads `1.0`; the visible change is
-  that a breakpoint prints `0.0` rather than `0`. (#325)
-- **`transfer_to = SetBy(...)` ran as an ordinary weighting instead of being refused.** A choice
-  weights the candidate recipients against each other and only the ratios are read, so there is no
-  base for a driver to replace — but `SetBy` is a `Driven`, and the check that admits a driven
-  `transfer_to` tests for `Driven`. (#325)
-- **A `SetBy` rate was written in a form that will not parse.** The written form put a base in front
-  of every modifier, which is exactly the spelling `SetBy` refuses, so a log naming a replaced base
-  named a rate you could not run again. (#325)
-- **An extent was read in a thinner context than its gate promises.** One helper admits a modifier
-  onto a rate and onto an extent, and `implemented_for` publishes one context per engine, but the
-  extent sites passed the time alone. A modifier of your own read `copies=0, lineages=0,
-  chromosomes=0` there while reading the real counts on a rate. (#325)
-- **`traits.discrete` never asked when its rate next changes.** Its stretch horizon came from the
-  drivers alone, so a rate that varies with time was read once at the start of a stretch and held
-  for the rest of the branch. Only a modifier of your own reaches it, and Appendix A publishes that
-  engine name as one an `implemented_for` may claim. (#325)
+
+- **A rate carrying two per-unit modifiers now applies both.** Each engine looked for *the*
+  per-lineage modifier on a species rate, or *the* per-family one on a genome rate, and stopped at the
+  first match — so a second one was dropped without a word, while the run's own log still reported the
+  rate as written, and the recorded model was not the model simulated. Fixed in all four places it
+  occurred: species, and the family, ordered and parallel genome engines. A rate with one such
+  modifier draws exactly as before, seed for seed.
+- **A run's log rounded every rate to six significant figures.** A breakpoint typed as
+  `0.0123456789` was recorded as `0.0123457` — a different model, with nothing to say so. Only the
+  base was exact. Numbers now print as the shortest text that reads back as the same float. (#325)
 - **A streamed genomes run left the previous run's gene trees behind.** Every other writer of a
   per-family directory empties it first; `--stream` writes each family as it goes and never did, so
   re-running with fewer families left the extra trees in place. (#325)
-- **The sequence level's refusal named two deleted classes.** A substitution rate it cannot read was
-  answered with "it takes a lineage clock — ByLineage or FromParent", so a user doing what the error
-  said got an `AttributeError`. It names the cells now. (#325)
-- **A modifier of your own can no longer vouch for a `SetBy`** either, beside the carried value it
-  already could not: replacing a base is a capability three levels have and four do not. (#325)
-- **A modifier of your own can no longer vouch for a value the engine has to draw.**
-  `Modifier.implemented_for` lets a third-party modifier declare which engines it works with, which
-  it can promise for a factor it *computes* — that promise is the modifier's alone to keep. It
-  cannot promise it for a `Drawn` or `Inherited` value: that number is drawn by the engine when a
-  unit is born and handed back, which an engine can only do for the units it declares. One admitted
-  that way was dropped twice over — nothing drew it, and `Rate.effective` skips carried modifiers —
-  so the rate ran undriven in silence. Such a modifier is now admitted by a level naming its cell
-  and by nothing else.
-- **A sequence run's summary names every clock the rate carries, not the last one written.** Several
-  drawn clocks compose now, so a rate carrying two was described as carrying one — a summary stating
-  a model that was not the model simulated.
-- **A rate carrying two per-unit modifiers now applies both.** Each engine looked for *the*
-  per-lineage modifier on a species rate, or *the* per-family one on a genome rate, and
-  stopped at the first match — so a second one was dropped without a word, while the run's own log
-  still reported the rate as written, and the recorded model was not the model simulated. Every
-  modifier now declares which kind of value it reads and on what unit (`Modifier.reads`), and a
-  level asks for them with `Rate.carried_modifiers` rather than testing classes, which also means a per-unit
-  modifier an engine has never heard of is threaded like the ones it knows. Fixed in all four
-  places it occurred: species, and the family, ordered and parallel genome engines. A rate with one
-  such modifier draws exactly as before, seed for seed.
+- **A `transfer_to` rule is recorded in the form that takes it back.** A choice is not a rate: a named
+  rule is written bare, and a recipient weight without the `1.0 *` a rate carries. `Distance` and
+  `Clades` render as the constructor calls the API and the parser both take, rather than as dataclass
+  reprs. (#327)
+- **Four refusals that let the wrong model run in silence**: a replaced base on `transfer_to`, which
+  has no base to replace; an extent read in a thinner context than its gate promised, so a modifier of
+  your own saw zeroed counts; `traits.discrete` never asking when its rate next changes, so a rate
+  varying with time was held for the rest of the branch; and a third-party modifier vouching for a
+  value only an engine can draw, which ran undriven. (#325)
+- **The sequence level's refusal named two deleted classes**, so a user doing what the error said got
+  an `AttributeError`. It names the cells now. (#325)
+
+### Removed
+
+- **`DrivenBy`, `ByFamily`, `ByLineage`, `FromParent`, `OnTime` and `OnTotalDiversity`**, and
+  `spread=` with them, are no longer importable from the rate grammar and no longer parse in a flag or
+  a `--params` file. Each is answered by a sentence naming what replaced it — the table under
+  *Changed* is the whole migration. (#325, #328)
+- **`family_speed=` and `--family-speed`**, replaced by reading one `Random` object from several
+  rates, which says the same thing. The tempo now has to be written on each rate it applies to rather
+  than covering rates you had not thought about. **The command line cannot express it for now:** two
+  flags parse to two separate objects, so they are two independent draws.
 
 ## [0.31.0] - 2026-08-05
 
