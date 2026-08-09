@@ -49,7 +49,7 @@ $$\text{effective rate} = \text{scope}(\text{base}) \times \text{modifiers}$$
 
 The **base** is the speed of a single event (how fast), in units of inverse time. The **scope** wraps it to say how many independent chances the event has: per lineage, per copy, per site. The **modifiers** are dimensionless multipliers that make a rate faster or slower depending on context: the lineage, the gene family, the total diversity present.
 
-A bare number is a valid rate, and the default scope is the right one for each event, so most runs write neither. The modifiers are where the range of the tool lives, and they get a section of their own below.
+A bare number is a valid rate and takes the event's default scope, so most runs write neither. But where an event offers a choice of scope, the choice is a large one: `loss = PerCopy(0.25)` puts every gene copy independently at risk, so a genome ten times the size loses ten times as often, while `loss = PerLineage(0.25)` is a fixed budget the genome's size never enters. The same number, a hundredfold different model — so it is worth writing the scope wherever there is more than one answer. Appendix A lists which rates have one.
 
 Appendix A is the full rate reference, with the units, each level's default scope, the catalogue of modifiers and how to write one of your own, and the Gillespie algorithm that turns rates into events.
 

@@ -10,6 +10,17 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Added
+- **A genome rate can be counted per lineage instead of per copy.** `loss = PerLineage(0.25)` gives a
+  lineage a fixed deletion budget — it loses genes at that rate whatever its genome holds — against
+  `PerCopy(0.25)`, which puts every copy independently at risk so a genome ten times the size turns
+  over ten times as fast. It applies to duplication, transfer and loss at both the family and ordered
+  resolutions, and to inversion, transposition and translocation at the ordered one; the nucleotide
+  engine already counted these per lineage. The total and the pick move together, so a per-lineage
+  rate draws one occupied genome uniformly and then a gene inside it. Origination stays per lineage
+  and the chromosome tier per chromosome. A per-family draw **anywhere in the run** refuses a
+  per-lineage scope, because what the multiplier should do there — move the total, or choose the
+  victim — is two different models; the check is over the run rather than the rate, since one draw
+  makes the engine take its per-family path for every gene rate at once. (#326)
 - **Appendix B states the output-table contract: columns may be added, so read them by name.** New
   columns go at the end of a row; an existing column's name and meaning never change, and none is
   removed within a major version. It documents what these tables have always required — the same
@@ -159,6 +170,17 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   independent draws.
 
 ### Fixed
+- **A `SetBy` written with a `step` recorded itself without one.** Its written form omitted the
+  argument, so a run's log said something the run had not done — and because equality omitted it too,
+  the record reparsed to a rate that compared *equal* to the original while reading its driver at a
+  different resolution. Both now carry it. (#326)
+- **Two rates reading the same clade never compared equal.** `ScaledBy` compared drivers by their
+  runtime lookup key, which is the path itself for a file but `id()` for a driver that is an object —
+  so `ScaledBy(Clade({...}), m) == ScaledBy(Clade({...}), m)` was `False` for identical clades, and a
+  rate carrying one could not be compared with its own written form read back. It now compares the
+  driver. A clade is written from literals precisely so that it round-trips, and two equal clades
+  describe one partition of one tree with nothing drawn, so there is no sense in which they could be
+  two different drivers — unlike `Drawn`, where writing one object or two *is* the model. (#326)
 - **A run's log rounded every rate to six significant figures.** `OnTime`, `Table`, `Scalar` and
   `Between` printed their numbers with `:g`, and the written form is built from those — so a rate
   typed as `1.0 * OnTime({0: 1.0, 3: 0.0123456789})` was recorded as `0.0123457`, a different model,
