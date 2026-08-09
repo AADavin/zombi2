@@ -433,7 +433,7 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     lineage diffuses independently at σ², never pooled across the tree. A bare number is Brownian
     motion (``Normal(0, σ²·dt)`` over a branch); a ``OnTime`` modifier makes σ² change through time —
     early burst / ACDC — with the per-branch variance the exact integral ``∫ σ²(t) dt``; an
-    ``Inherited(per="lineage", spread=…)`` modifier makes σ² **drift branch-to-branch** — variable-rates BM ("ClaDS
+    ``Inherited(per="lineage", dist=LogNormal(0.0, …))`` modifier makes σ² **drift branch-to-branch** — variable-rates BM ("ClaDS
     for traits") — each lineage inheriting its parent's σ² times a lognormal kick drawn at the split;
     a ``OnTotalDiversity(cap=…)`` modifier makes σ² **slow as the clade fills up** — diversity-dependent /
     ecological-limits trait evolution — σ² scaled by ``(1 − standing_diversity/cap)`` as the tree's

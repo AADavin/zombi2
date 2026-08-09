@@ -8,7 +8,7 @@ that text from a file: it parses, it never evaluates, and only ``*`` composes.
 
 import pytest
 
-from zombi2.rates import ScaledBy
+from zombi2.rates import LogNormal, ScaledBy
 from zombi2.rates import modifiers as mod
 from zombi2.rates import scope
 from zombi2.rates.rate import Rate
@@ -44,13 +44,13 @@ def test_number_times_modifier_matches_the_python_expression():
 
 
 def test_keyword_arguments():
-    assert parse_rate("1.0 * Inherited(per='lineage', spread=0.2)") == 1.0 * mod.Inherited(per='lineage', spread=0.2)
+    assert parse_rate("1.0 * Inherited(per='lineage', dist=LogNormal(0.0, 0.2))") == 1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.2))
     assert parse_rate("1.0 * OnTotalDiversity(cap=100)") == 1.0 * mod.OnTotalDiversity(cap=100)
 
 
 def test_a_string_argument():
-    assert parse_rate("1.0 * Drawn(per='lineage', spread=0.3)") == \
-        1.0 * mod.Drawn(per="lineage", spread=0.3)
+    assert parse_rate("1.0 * Drawn(per='lineage', dist=LogNormal(0.0, 0.3))") == \
+        1.0 * mod.Drawn(per="lineage", dist=LogNormal(0.0, 0.3))
 
 
 def test_a_distribution_argument():
@@ -62,9 +62,9 @@ def test_a_distribution_argument():
 
 
 def test_modifiers_stack():
-    r = parse_rate("1.0 * Inherited(per='lineage', spread=0.2) * OnTotalDiversity(cap=100)")
+    r = parse_rate("1.0 * Inherited(per='lineage', dist=LogNormal(0.0, 0.2)) * OnTotalDiversity(cap=100)")
     assert isinstance(r, Rate)
-    assert r.modifiers == (mod.Inherited(per='lineage', spread=0.2), mod.OnTotalDiversity(cap=100))
+    assert r.modifiers == (mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.2)), mod.OnTotalDiversity(cap=100))
 
 
 def test_a_scope_and_a_modifier_compose():
@@ -179,7 +179,7 @@ def test_a_syntax_error_quotes_the_expression():
     "1.0",
     "Global(1.0)",
     "1.0 * OnTime({0: 1.0, 3: 0.3})",
-    "1.0 * Inherited(per='lineage', spread=0.2) * OnTotalDiversity(cap=100)",
+    "1.0 * Inherited(per='lineage', dist=LogNormal(0.0, 0.2)) * OnTotalDiversity(cap=100)",
     "1.0 * Drawn(per='lineage', dist=Gamma(shape=11.11, scale=0.09))",
     "0.25 * ScaledBy('habitat.tsv', {'aquatic': 3.0})",
 ])

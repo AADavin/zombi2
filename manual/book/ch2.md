@@ -61,18 +61,18 @@ The base of a rate says how fast. A modifier says **what it depends on**:
 |---|---|---|
 | `OnTime` | the clock: a schedule of intervals | `OnTime({0: 1.0, 3: 0.3})` |
 | `OnTotalDiversity` | how many lineages are standing right now | `OnTotalDiversity(cap=100)` |
-| `Inherited(per='lineage')` | the parent's value, drifting at each split | `Inherited(per='lineage', spread=0.3)` |
-| `Drawn(per='lineage')` | the lineage, drawn independently | `Drawn(per='lineage', spread=0.3)` |
-| `Drawn(per='family')` | the gene family, drawn independently | `Drawn(per='family', spread=0.5)` |
+| `Inherited(per='lineage')` | the parent's value, drifting at each split | `Inherited(per='lineage', dist=LogNormal(0.0, 0.3))` |
+| `Drawn(per='lineage')` | the lineage, drawn independently | `Drawn(per='lineage', dist=LogNormal(0.0, 0.3))` |
+| `Drawn(per='family')` | the gene family, drawn independently | `Drawn(per='family', dist=LogNormal(0.0, 0.5))` |
 | `ScaledBy` | **a driver**: a trait's state, a gene's presence | `ScaledBy(habitat, {'aquatic': 4.0, 'terrestrial': 1.0})` |
 
 Each is a dimensionless multiplier, so they multiply, and a rate can carry several:
 
 ```python
-from zombi2.rates import Drawn, OnTime
+from zombi2.rates import Drawn, LogNormal, OnTime
 
 # loss triples after time 2, and varies from family to family on top of that
-loss = 0.25 * OnTime({0: 1.0, 2: 3.0}) * Drawn(per='family', spread=0.5)
+loss = 0.25 * OnTime({0: 1.0, 2: 3.0}) * Drawn(per='family', dist=LogNormal(0.0, 0.5))
 ```
 
 Much of what the literature names as a model is one modifier on one rate:

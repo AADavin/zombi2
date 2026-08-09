@@ -28,7 +28,7 @@ import pytest
 from zombi2 import species
 from zombi2.genomes import FamilyGenomesResult, simulate_genomes_family, simulate_genomes_nucleotide
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
-from zombi2.rates import modifiers as mod
+from zombi2.rates import LogNormal, modifiers as mod
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85, jc69, lg
 from zombi2.species import simulate_species_tree
@@ -164,7 +164,7 @@ def test_partitions_compose_with_a_lineage_clock():
     parts = [(hky85(kappa=2.0), 50), (jc69(), 50)]
     strict = simulate_sequences(run, partitions=parts, seed=3)
     relaxed = simulate_sequences(run, partitions=parts, seed=3,
-                                 substitution=1.0 * mod.Drawn(per='lineage', spread=0.6))
+                                 substitution=1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.6)))
     assert set(strict.alignments) == set(relaxed.alignments)
     assert strict.alignments != relaxed.alignments
     assert strict.phylograms != relaxed.phylograms

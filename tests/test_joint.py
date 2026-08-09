@@ -12,7 +12,7 @@ import pytest
 from zombi2 import traits
 from zombi2 import joint
 from zombi2.joint import JointResult
-from zombi2.rates import ScaledBy, modifiers as mod
+from zombi2.rates import LogNormal, ScaledBy, modifiers as mod
 from zombi2.traits import DiscreteTrait, TraitsResult
 
 
@@ -157,7 +157,7 @@ def test_one_of_n_extant_or_total_time():
 
 def test_fromparent_rejected():
     with pytest.raises(ValueError, match="Inherited"):
-        joint.simulate_joint(birth=1.0 * mod.Inherited(per='lineage', spread=0.2) * ScaledBy("trait", {"a": 2.0}),
+        joint.simulate_joint(birth=1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.2)) * ScaledBy("trait", {"a": 2.0}),
                        trait=traits.discrete(states=["a", "b"], switch=0.1), n_extant=10, seed=1)
 
 
@@ -259,7 +259,7 @@ def test_joint_refuses_per_lineage_rate_variation():
 
     with pytest.raises(ValueError, match="Drawn"):
         joint.simulate_joint(
-            birth=1.0 * mod.Drawn(per='lineage', spread=0.5) * ScaledBy("trait", {"small": 1.0, "large": 2.0}),
+            birth=1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.5)) * ScaledBy("trait", {"small": 1.0, "large": 2.0}),
             death=0.1, n_extant=8, seed=1,
             trait=traits.DiscreteTrait(states=("small", "large"), switch=0.3))
 
@@ -278,7 +278,7 @@ def test_joint_refuses_a_modifier_it_does_not_thread():
     trait = traits.DiscreteTrait(states=("small", "large"), switch=0.3)
     driven = ScaledBy("trait", {"small": 1.0, "large": 2.0})
     with pytest.raises(ValueError, match="no gene families"):
-        joint.simulate_joint(birth=1.0 * mod.Drawn(per='family', spread=0.5) * driven, death=0.1,
+        joint.simulate_joint(birth=1.0 * mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)) * driven, death=0.1,
                              n_extant=8, seed=1, trait=trait)
     # the two covariates are genuinely wired, so they must still run
     for modifier in (mod.OnTime({0: 1.0, 0.2: 0.4}), mod.OnTotalDiversity(cap=40)):

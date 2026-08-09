@@ -110,13 +110,13 @@ def _rate(text: str):
 _MODIFIER_HELP = {
     "OnTime": ("OnTime({0: 1.0, 3: 0.3})", "the rate changes in time — a skyline"),
     "OnTotalDiversity": ("OnTotalDiversity(cap=100)", "the rate slows as the clade fills up"),
-    "inherited per lineage": ("Inherited(per='lineage', spread=0.2)",
+    "inherited per lineage": ("Inherited(per='lineage', dist=LogNormal(0.0, 0.2))",
                               "the rate drifts down the tree — autocorrelated"),
     # "clock" is reserved for the sequences per-lineage substitution modifier (SPEC §7), and this
     # string now prints on `zombi2 species -h` and `zombi2 genomes -h` too
-    "drawn per lineage": ("Drawn(per='lineage', spread=0.3)",
+    "drawn per lineage": ("Drawn(per='lineage', dist=LogNormal(0.0, 0.3))",
                           "one independent draw per lineage — uncorrelated"),
-    "drawn per family": ("Drawn(per='family', spread=0.5)",
+    "drawn per family": ("Drawn(per='family', dist=LogNormal(0.0, 0.5))",
                          "one independent draw per gene family — uncorrelated"),
     "ScaledBy": (None, "an evolved value scales the base — a driver"),
     # No snippet either, and for a sharper reason than ScaledBy's: `SetBy` takes no base, so the

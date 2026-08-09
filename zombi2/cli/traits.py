@@ -7,7 +7,7 @@ or Ornstein–Uhlenbeck with ``--reverts-to``/``--pull``) or ``discrete`` (a fin
 with ``--liability``/``--threshold``). Long options are the API keyword names, and every rate flag —
 ``--rate``, ``--switch``, ``--liability`` — takes the written form of a rate (SPEC §5): a bare number,
 or the same ``scope(base) × modifiers`` expression Python takes. ``--rate "1.0 * OnTime({0: 4.0, 1:
-1.0})"`` is an early burst, ``--rate "1.0 * Inherited(per="lineage", spread=0.2)"`` variable-rates BM, and
+1.0})"`` is an early burst, ``--rate "1.0 * Inherited(per="lineage", dist=LogNormal(0.0, 0.2))"`` variable-rates BM, and
 ``--switch "0.2 * ScaledBy('habitat/trait_events.tsv', {'aquatic': 3.0, 'terrestrial': 1.0})"`` a
 discrete trait conditioned on one grown first. ``--switch`` also reads its keyword's other two shapes
 — a ``{'a->b': rate}`` dict, a ``k x k`` matrix — whose entries are rates in that same form.

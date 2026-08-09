@@ -25,7 +25,7 @@ same diffusion wearing different knobs, not three classes (SPEC §4):
   and σ² changes through time — the *same* ``OnTime`` modifier that gives the species tree its skyline.
   The per-branch variance is then the exact integral ``∫ σ²(t) dt`` over the branch.
 - **Variable-rates BM** ("ClaDS for traits"): give ``rate`` an ``Inherited`` modifier
-  (``rate = σ² * mod.Inherited(per="lineage", spread=0.3)``) and σ² drifts branch-to-branch — each lineage inherits
+  (``rate = σ² * mod.Inherited(per="lineage", dist=LogNormal(0.0, 0.3))``) and σ² drifts branch-to-branch — each lineage inherits
   its parent's σ² times a lognormal kick at the split — the *same* ``Inherited`` modifier that drifts
   the species rate (ClaDS) and the autocorrelated clock, one level over. (``reverts_to`` / ``pull`` are
   OU function arguments that revert the trait *value*, **not** a modifier — a rate modifier reverts a
@@ -45,7 +45,7 @@ same diffusion wearing different knobs, not three classes (SPEC §4):
   takes it too: write ``switch`` as a rate expression and a trait's switch rate is driven the same way.
 
 ``rate`` thus takes the whole modifier vocabulary — ``OnTime``, an inherited value, ``OnTotalDiversity``,
-``ScaledBy`` — like any other rate, and they compose (``σ² * OnTime({…}) * Inherited(per="lineage", spread=…)``).
+``ScaledBy`` — like any other rate, and they compose (``σ² * OnTime({…}) * Inherited(per="lineage", dist=LogNormal(0.0, …))``).
 
 ``rate`` is *per lineage*: each lineage carries its own independent diffusion, never pooled across the
 tree — the engine evaluates the rate one lineage at a time (``lineages=1``), where the event levels
