@@ -19,7 +19,7 @@ from zombi2 import genomes, sequences, traits
 from zombi2.params.conditioned import DriverTrajectory, load_driver
 from zombi2.params import (Extent, LogNormal, PerChromosome, PerCopy, PerLineage, PerSite,
                           Recipients)
-from zombi2.params import verbs
+from zombi2.params import connection as verbs
 from zombi2.params.mapping import Between, Curve, Scalar, Table, as_mapping, check_kernel_fires
 from zombi2.sequences.substitution_models import hky85, jc69
 from zombi2.species import simulate_species_tree

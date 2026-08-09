@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from . import verbs
+from . import connection as verbs
 from .distributions import Distribution, Geometric, as_distribution
 from .modifiers import Modifier
 
@@ -155,15 +155,14 @@ def as_extent(spec) -> Extent:
     A **rate** is refused. ``PerLineage(500)`` asks "per what?", and an extent has no answer: it is
     already an absolute size.
     """
-    from .modifiers import SetBy
     from .rate import Rate
 
     if isinstance(spec, Extent):
         return spec
-    if isinstance(spec, SetBy):
+    if getattr(spec, "replaces_base", False):
         raise _cannot_be_set_by()
     if isinstance(spec, Rate):
-        if any(isinstance(m, SetBy) for m in spec.modifiers):
+        if any(getattr(m, "replaces_base", False) for m in spec.modifiers):
             raise _cannot_be_set_by()
         raise ValueError(
             "an extent takes no scope — it is already an absolute size, and there is no 'per what?' "

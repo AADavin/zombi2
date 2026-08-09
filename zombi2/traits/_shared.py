@@ -6,7 +6,7 @@ from __future__ import annotations
 import numpy as np
 
 from .._runtime.progress import track
-from ..params.modifiers import Driven
+from ..params.connection import Driven
 from ..tree import Tree
 
 

@@ -29,7 +29,7 @@ import bisect
 import math
 import pathlib
 
-from .modifiers import Driven
+from .connection import Driven
 from ..tree import node_from_label, node_label
 
 

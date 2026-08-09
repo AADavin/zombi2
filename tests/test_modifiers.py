@@ -132,10 +132,14 @@ def test_a_modifier_of_your_own_reprs_rather_than_recursing():
 
 
 def test_stochastic_status_built_vs_deferred():
-    for built in ("Drawn", "Inherited", "Driven", "SetBy"):
+    # each lives with the thing that writes it: a law in `modifiers`, a connection in `connection`
+    from zombi2.params import connection as conn
+    for built in ("Drawn", "Inherited"):
         assert hasattr(mod, built), f"{built} should be built"
+    for built in ("Driven", "SetBy"):
+        assert hasattr(conn, built), f"{built} should be built"
     for later in ("Markov",):
-        assert not hasattr(mod, later), f"{later} is not built yet"
+        assert not hasattr(mod, later) and not hasattr(conn, later), f"{later} is not built yet"
 
 
 # --- Random with a Drift law (autocorrelated): the mean-corrected drift -----

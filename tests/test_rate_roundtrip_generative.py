@@ -37,7 +37,8 @@ from zombi2.params import scope
 from zombi2.params import driver as driver_mod
 from zombi2.params.distributions import Exponential, Fixed, Gamma, Geometric, LogNormal, Uniform
 from zombi2.params.mapping import Between, Scalar, Table
-from zombi2.params.modifiers import Driven, Drift, values_at_birth
+from zombi2.params.modifiers import Drift, values_at_birth
+from zombi2.params.connection import Driven
 from zombi2.params.parse import parse_rate, written_form
 from zombi2.params.rate import Rate, as_rate
 
@@ -218,7 +219,7 @@ def test_the_enumeration_is_actually_covering_the_grammar():
     # every verb a rate can take is written by some case, so a verb added without a fixture entry
     # fails here rather than going quietly untested. `weighted_by` is the one a rate refuses — it
     # belongs to a choice — and it is covered by the choice round trips below.
-    from zombi2.params import verbs
+    from zombi2.params import connection as verbs
     rendered = " ".join(written_form(case.values[0]) for case in cases)
     on_a_rate = [v for v in verbs.VERBS if v != verbs.WEIGHTED_BY]
     assert not [v for v in on_a_rate if v not in rendered], rendered[:200]

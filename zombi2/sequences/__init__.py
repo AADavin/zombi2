@@ -64,8 +64,9 @@ from ..genomes.gene_trees import GeneNode, GeneTree
 from ..params.conditioned import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
 from ..rng import resolve_seed, seed_sequence, stream
 from ..params.mapping import Between
-from ..params.modifiers import (DRAWN, INHERITED, Driven, Modifier,
-                              check_one_memory, describe, matches_declared)
+from ..params.modifiers import (DRAWN, INHERITED, Modifier,
+                               check_one_memory, describe, matches_declared)
+from ..params.connection import Driven
 from ..params.rate import Rate, as_rate
 from ..params.scope import PerSite
 from ..tree import Node, Tree, prune

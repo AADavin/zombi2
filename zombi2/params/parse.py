@@ -38,7 +38,7 @@ from . import mapping as _mapping
 from . import distributions as _distributions
 from . import modifiers as _modifiers
 from . import driver as _driver
-from . import verbs as _verbs
+from . import connection as _verbs
 from . import scope as _scope
 from .rate import Rate, RateCompositionError
 from .retired import RETIRED, RETIRED_KEYWORDS, keyword_message, name_message

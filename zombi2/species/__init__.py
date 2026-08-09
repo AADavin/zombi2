@@ -22,8 +22,8 @@ from dataclasses import dataclass, field
 
 
 from ..params.modifiers import (describe, DRAWN, INHERITED, OnTime, OnTotalDiversity,
-                               check_one_memory, is_implemented, values_at_birth,
-                               values_at_split)
+                                check_one_memory, is_implemented, values_at_birth,
+                                values_at_split)
 from ..rng import stream
 from .._runtime.draw import weighted_index as _weighted_index
 from .._runtime.progress import progress_bar

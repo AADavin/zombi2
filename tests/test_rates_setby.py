@@ -16,7 +16,7 @@ import pytest
 from zombi2 import genomes, traits
 from zombi2.params import Extent, PerCopy, PerLineage, Recipients
 from zombi2.params import scope
-from zombi2.params.modifiers import SetBy
+from zombi2.params.connection import SetBy
 from zombi2.params.rate import as_rate
 from zombi2.species import simulate_species_tree
 
@@ -264,7 +264,7 @@ def test_the_verb_has_to_match_what_it_is_attached_to(tree, habitat):
     test — a weight written on a rate simply behaved as a factor, and a factor written on
     `transfer_to` as a weight, both in silence. The verb is recorded on the object, so each side now
     refuses the other and names the one that fits."""
-    from zombi2.params import verbs
+    from zombi2.params import connection as verbs
 
     with pytest.raises(ValueError, match="carries weighted_by"):
         genomes.simulate_genomes_family(
