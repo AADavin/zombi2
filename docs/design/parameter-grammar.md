@@ -463,6 +463,14 @@ users to break — and it gets dearer the moment the paper lands.
 Sections 1–15 settle **what you write**. These four settle **what the objects are**, which is what a
 migration actually needs and what a fleet of agents would otherwise each answer differently.
 
+> **Ratified by Adrián, 2026-08-09.** §16 and §17 as written: `*` is removed rather than deprecated,
+> and `Random` is a new spelling of the object the engines already carry. §18 and §19 are **built and
+> merged** — the scope table ships and the generative round-trip test guards rates, extents and
+> choices. What remains is §20 step 3, the migration itself, and step 4, the prose pass.
+>
+> The two answers matter together: verbs-only means every call site must change, and same-object-underneath
+> means none of the five engines does. That is what makes this wide and shallow rather than deep.
+
 ---
 
 ## 16. What `PerCopy(0.25)` returns, and how it composes
@@ -606,11 +614,16 @@ list finds.
 
 ## 20. Sequencing
 
-1. **Scope overrides at Genomes** (§18, task #7), alone, with the numeric-equivalence check. It is an
-   engine change at three resolutions; burying it inside a rename is how a regression hides.
-2. **The generative round-trip test** (§19) against *today's* grammar, so it is known-good before it is
-   the thing guarding the migration.
-3. **The migration**, mechanically: code, then manual and docs in the same change, same sentences with
-   new spellings, so the diff is reviewable.
+1. ~~**Scope overrides at Genomes** (§18), alone, with the numeric-equivalence check.~~ **Done** (#326).
+   14,236 events across 15 configurations are byte-identical on the per-copy path.
+2. ~~**The generative round-trip test** (§19) against *today's* grammar, so it is known-good before it
+   is the thing guarding the migration.~~ **Done** (#326, extended in #327). It has since caught two
+   real defects — a `SetBy` that dropped its `step`, and a choice written in a form the CLI refuses.
+3. **The migration.** The core is **not** a fan-out job: one pass does §16 and §17 serially — `Rate`'s
+   verbs, the scope constructors, `Random` — because every other worker needs the exact object shapes
+   to exist first. Only then do the call sites fan out by area: each engine, the CLI, the manual, the
+   docs, the gallery, `analyses/`, the tests. Code and prose in the same change, same sentences with
+   new spellings, so the diff is reviewable. Then an adversarial review, which is what found the one
+   genuine bug last time.
 4. **The prose pass** — simplifying the chapters — separately, afterwards. Rewriting the words and
    renaming everything in one diff produces something nobody can check, including me.
