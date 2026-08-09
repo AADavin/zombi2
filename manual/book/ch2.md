@@ -17,15 +17,7 @@ A run in which every level is simulated:
 
 $$P(\text{Species}) \cdot P(\text{Genomes} \mid \text{Species}) \cdot P(\text{Sequences} \mid \text{Genomes}) \cdot P(\text{Traits} \mid \text{Species})$$
 
-You need not run them all. Skip sequences if you only want gene trees, which the genome level already produces:
-
-$$P(\text{Species}) \cdot P(\text{Genomes} \mid \text{Species})$$
-
-Skip genomes if you want a species tree with traits on it:
-
-$$P(\text{Species}) \cdot P(\text{Traits} \mid \text{Species})$$
-
-Everything depends on a species tree, so a workflow almost always begins by simulating one alone. The exception is a **joint** model, below, where the tree is an output rather than an input.
+You need not run them all. Skip sequences if you only want gene trees, which the genome level already produces; skip genomes if you want a species tree with traits on it. Everything depends on a species tree, so a workflow almost always begins by simulating one alone. The exception is a **joint** model, below, where the tree is an output rather than an input.
 
 ## Time
 
@@ -43,39 +35,47 @@ Some tree viewers do not draw the stem by default. It is there, and evolution ta
 
 Everything is driven by events that fire over time: speciations and extinctions at the species level; duplications, transfers, losses, originations and rearrangements at the genome level; substitutions in a sequence; changes in a trait.
 
+A rate is written from its **scope**, which answers *per what?*:
+
+```python
+from zombi2.params import Drift, LogNormal, PerCopy, PerLineage, PerSite, TotalDiversity
+
+loss = PerCopy(0.25)      # each gene copy is lost at 0.25 — a big genome loses often
+loss = PerLineage(0.25)   # the lineage loses at 0.25, whatever its genome holds
+```
+
+Those are two different models, not two spellings of one. Multiply the first by a genome of a thousand genes and it fires a thousand times as often as with one; the second never notices the genome's size. A bare number takes the event's default scope, which is why most runs write no scope at all — but where an event offers a choice, write it. Appendix A lists which rates have one.
+
 How often an event fires is its **effective rate**:
 
 $$\text{effective rate} = \text{scope}(\text{base}) \times \text{modifiers}$$
 
-The **base** is the speed of a single event (how fast), in units of inverse time. The **scope** wraps it to say how many independent chances the event has: per lineage, per copy, per site. The **modifiers** are dimensionless multipliers that make a rate faster or slower depending on context: the lineage, the gene family, the total diversity present.
+The **base** is the speed of a single event, in units of inverse time. The **scope** wraps it to say how many independent chances the event has right now: per lineage, per copy, per site. The **modifiers** are the dimensionless multipliers a rate picks up from its context.
 
-A bare number is a valid rate and takes the event's default scope, so most runs write neither. But where an event offers a choice of scope, the choice is a large one: `loss = PerCopy(0.25)` puts every gene copy independently at risk, so a genome ten times the size loses ten times as often, while `loss = PerLineage(0.25)` is a fixed budget the genome's size never enters. The same number, a hundredfold different model — so it is worth writing the scope wherever there is more than one answer. Appendix A lists which rates have one.
+You do not write a modifier. You chain a **verb** onto the rate, and the verb says what the number does to it. There are three: `scaled_by` multiplies the base, `set_by` replaces it in the rate's own units so nothing is written in front, and `weighted_by` compares the candidates of a **choice** — `transfer_to` is the only one. Only `scaled_by` multiplies, so only it is in the equation above.
 
-Appendix A is the full rate reference, with the units, each level's default scope, the catalogue of modifiers and how to write one of your own, and the Gillespie algorithm that turns rates into events.
+The verb's first argument is the **driver**, the thing the rate reads. One row here per thing you can depend on, not per verb:
 
-## Modifiers
+| The rate depends on | Written |
+|---|---|
+| the clock | `PerLineage(0.5).changing_at({0: 1.0, 3: 0.3})` |
+| how many lineages are standing | `PerLineage(1.0).scaled_by(TotalDiversity(cap=100))` |
+| chance, once per lineage | `PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3))` |
+| chance, once per gene family | `PerCopy(0.25).varying_among('families', LogNormal(0.0, 0.5))` |
+| the parent's value, drifting | `PerSite(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.3)))` |
+| where in the tree a lineage sits | `PerCopy(0.25).scaled_by(Clade({'cave': ['n12']}), {'cave': 3.0})` |
+| a value another level evolved | `PerCopy(0.25).scaled_by(habitat, {'aquatic': 4.0})` |
 
-The base of a rate says how fast. A **verb** chained onto the rate says **what it depends on**:
+Two of those drivers are written so often that each has a verb of its own — `changing_at` for the clock and `varying_among` for chance — and `scaled_by` refuses both by name, so there is one spelling for each rather than two.
 
-| Verb | The rate depends on | Written |
-|---|---|---|
-| `changing_at` | the clock: a schedule of intervals | `PerLineage(0.5).changing_at({0: 1.0, 3: 0.3})` |
-| `scaled_by` | how many lineages are standing right now | `PerLineage(1.0).scaled_by(TotalDiversity(cap=100))` |
-| `varying_among` | the parent's value, drifting at each split | `PerSite(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.3)))` |
-| `varying_among` | the lineage, drawn independently | `PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3))` |
-| `varying_among` | the gene family, drawn independently | `PerCopy(0.25).varying_among('families', LogNormal(0.0, 0.5))` |
-| `scaled_by` | **a driver**: a trait's state, a gene's presence | `PerCopy(0.25).scaled_by(habitat, {'aquatic': 4.0, 'terrestrial': 1.0})` |
-
-Each is a dimensionless multiplier, so they multiply, and a rate can carry several:
+Verbs chain, and their factors multiply:
 
 ```python
-from zombi2.params import LogNormal, PerCopy
-
 # loss triples after time 2, and varies from family to family on top of that
 loss = PerCopy(0.25).changing_at({0: 1.0, 2: 3.0}).varying_among('families', LogNormal(0.0, 0.5))
 ```
 
-Much of what the literature names as a model is one modifier on one rate:
+Much of what the literature names as a model is one verb on one rate:
 
 | What it is usually called | What it is here |
 |---|---|
@@ -86,20 +86,23 @@ Much of what the literature names as a model is one modifier on one rate:
 | rate heterogeneity across gene families | `varying_among('families', ...)` on a genome rate |
 | state-dependent diversification (BiSSE and kin) | `scaled_by` on `birth`, in a joint run |
 
-None of those is a separate code path with its own function and its own parameters. They are the same grammar pointed at different rates, which is why they combine: a relaxed clock *and* an early burst is one rate with two modifiers, not two models.
+None of those is a separate code path with its own function and its own parameters. They are the same grammar pointed at different rates, which is why they combine: a relaxed clock *and* an early burst is one rate with two verbs, not two models.
 
-Not every modifier is available at every level. Some combinations mean nothing, since a species tree has no gene families for `varying_among('families', ...)` to vary over, and others are simply not implemented yet. Either way the level refuses the rate and says which modifiers it does take, rather than ignoring it. `zombi2 <command> -h` lists them for that level, Appendix A gives the full table, and if none of the six says what your rate depends on, Appendix A also shows how to write one.
+Not every driver is available at every level. Some combinations mean nothing — a species tree has no gene families for `varying_among('families', ...)` to vary over — and others are simply not implemented yet. Either way the level refuses the rate and says what it does take, rather than ignoring it. `zombi2 <command> -h` lists them, and Appendix A is the full reference: the units, each level's default scope, what each level accepts, how to write a driver of your own, and the Gillespie algorithm that turns rates into events.
 
 ## Conditioning
 
-Running the levels in sequence already makes each one depend on the tree. Sometimes you want more: a rate that reads a value which varies from lineage to lineage, rather than a fixed number. That is **one thing driving another**, and it has four parts:
+Running the levels in sequence already makes each one depend on the tree. Sometimes you want more: a rate that reads a value which varies from lineage to lineage, rather than a fixed number. That is **one thing driving another**, and writing it is three questions.
 
-- the **driver**, the value that is read: a trait's state, a gene family's presence, a sequence's GC content.
-- the **target**, what the value is attached to: a rate, or, at the genome level, an **extent** (how much an event takes) or the **transfer recipient** (which lineage a transfer goes to: Chapter 9).
-- the **verb** that joins them, named for what the value does: `scaled_by` multiplies a rate or an extent, `weighted_by` compares candidate recipients, `set_by` replaces the base.
-- the **mapping** the verb carries, which says what each value of the driver becomes: a table over named states, a curve over a number.
+**What depends?** A rate, or — at the genome level — an **extent** (how much an event takes) or the **transfer recipient** (which lineage a transfer goes to).
 
-Take olfactory genes. A habitat trait switches between aquatic and terrestrial along the tree, and aquatic lineages lose those genes four times faster. The habitat is the driver, gene loss is the target, and the mapping turns one into the other: on a branch that is aquatic the loss rate is `0.25 × 4`, and elsewhere it is `0.25 × 1`.
+**On what?** The driver: a trait's state, a gene family's presence, a sequence's GC content.
+
+**How?** The mapping, which turns each value of the driver into a number: a table over named states, a curve over a number.
+
+The verb is not a fourth thing to learn. It follows from the first answer: `scaled_by` on a rate or an extent, `weighted_by` on a recipient, and `set_by` when you mean to replace the base rather than multiply it.
+
+Take olfactory genes. A habitat trait switches between aquatic and terrestrial along the tree, and aquatic lineages lose those genes four times faster. Gene loss is what depends, the habitat is what it depends on, and the mapping turns one into the other: on an aquatic branch the loss rate is `0.25 × 4`, elsewhere `0.25 × 1`.
 
 What makes this **conditioning** is that the driver can be finished before the target starts. The habitat is unaffected by how many genes a lineage has, so the trait run completes and writes its event log, and the genome run reads that log and looks up a multiplier per branch. Nothing about it needs a special engine, and the run factorises:
 
@@ -159,12 +162,10 @@ zombi2 species skyline/ --birth "PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})" 
     --death 0.3 --n-extant 30 --seed 1
 ```
 
-Every command takes one positional argument, the **run directory**. It is both where that command writes and where it reads the level before it, so a pipeline is the same directory named once per command and nothing is passed by hand. `--from` overrides the reading half, for a tree from elsewhere or a run you would rather not write into; a `--params` TOML file can hold a whole pipeline's settings.
-
-Because the levels share one directory, a command refuses to re-run a level in place when a later level was built from it, because that would leave the later output out of step. `--force` re-runs anyway and removes the now-stale downstream. The CLI covers all four levels, and `zombi2 joint` grows a tree and its driver in one pass. Conditioning has no command of its own: a driven rate is written on the level command that reads it, like any other rate.
+Every command takes one positional argument, the **run directory** — both where it writes and where it reads the level before it, so a pipeline names one directory per command and nothing is passed by hand. The CLI covers all four levels, and `zombi2 joint` grows a tree and its driver in one pass. Conditioning has no command of its own: a driven rate is written on the level command that reads it, like any other rate. Appendix C is the command reference.
 
 ## Output in ZOMBI2
 
-Every run can be written with `result.write("out/", outputs=[...])`; with no `outputs` it writes that level's **default** set. The formats are uniform: trees are Newick, tables and event logs are TSV, sequences are FASTA. Branch lengths are in time everywhere except the sequence phylograms, which are in substitutions per site. The species, genome and trait levels write an **event log** (`*_events.tsv`), the ordered history of what fired and when; sequences write the alignments and the phylograms rather than the individual substitutions, which are not recorded. Appendix B lists every file, level by level.
+Every run can be written with `result.write("out/", outputs=[...])`; with no `outputs` it writes that level's **default** set. Trees are Newick, tables and event logs are TSV, sequences are FASTA. Branch lengths are in time everywhere except the sequence phylograms, which are in substitutions per site. Appendix B lists every file, level by level.
 
-Each level draws its own stream of random numbers, started by that level's `seed`, so the levels are independent of one another and the same seed, the same parameters and the same ZOMBI2 version give the same run, event for event. A run given no seed draws one and writes it into that level's summary (`*_summary.json`), so it can still be repeated. A run from the command line also writes a `run.zombi2` report holding the version and the commands that regenerate it, which is what you send with a dataset; from Python the script itself is that record.
+Each level draws its own stream of random numbers, started by that level's `seed`, so the same seed, parameters and version give the same run event for event. A run given no seed draws one and records it, so it can still be repeated.
