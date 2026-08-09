@@ -34,10 +34,11 @@ from ..genomes import GeneEdge, GeneCopy, FamilyGenomesResult, FamilyGenome
 from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
 from ..params.mapping import check_not_a_kernel
 from ..rng import stream
-from ..params.modifiers import (DRAWN, INHERITED, Driven, OnTime, OnTotalDiversity, describe,
-                               is_implemented)
+from ..params.driver import OnTime, OnTotalDiversity
+from ..params.evaluate import DRAWN, INHERITED, describe, is_implemented
+from ..params.connection import Driven
 
-from ..params.rate import as_rate
+from ..params.parameter import as_rate
 from ..params.scope import PerLineage
 from ..species import Event as SpeciesEvent, SpeciesResult
 from ..tree import Node, Tree
@@ -134,7 +135,7 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
     # is exhaustive — every mapping key must be one of them. A key outside the alphabet is a state that
     # can never occur (a typo whose factor would silently never apply), and a mapping matching none of
     # them would be a silently undriven run; both are refused here rather than run as if driven.
-    from ..params.driver import check_mapping_fires
+    from ..params.conditioned import check_mapping_fires
     for label, rate in (("birth", birth_rate), ("death", death_rate)):
         for m in rate.modifiers:
             if isinstance(m, Driven):
@@ -249,7 +250,7 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, driver_n
     # gene content drove it. Both gene-content drivers have an alphabet known before the race starts —
     # a named family is present or absent, and a count is a number — so the check is exhaustive here
     # too. Without it a typo'd `{"presnt": 3.0}` ran to completion in silence.
-    from ..params.driver import check_mapping_fires
+    from ..params.conditioned import check_mapping_fires
     for label, rate in (("birth", birth_rate), ("death", death_rate)):
         for m in rate.modifiers:
             if not isinstance(m, Driven):

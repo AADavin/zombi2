@@ -18,7 +18,7 @@ import pytest
 from zombi2 import genomes, sequences, species, traits
 from zombi2.cli.main import main
 from zombi2.params import PerCopy, PerLineage, PerSite
-from zombi2.params.modifiers import Modifier
+from zombi2.params.evaluate import Modifier
 from zombi2.rng import seed_sequence, stream
 from zombi2.sequences.substitution_models import hky85, jc69
 from zombi2.tree import read_newick

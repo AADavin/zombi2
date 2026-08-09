@@ -33,14 +33,15 @@ import difflib
 from typing import Any, cast
 
 from . import choice as _choice
-from . import extent as _extent
+from . import parameter as _parameter
 from . import mapping as _mapping
 from . import distributions as _distributions
-from . import modifiers as _modifiers
-from . import values as _values
-from . import verbs as _verbs
+from . import evaluate as _evaluate
+from . import law as _law
+from . import driver as _driver
+from . import connection as _verbs
 from . import scope as _scope
-from .rate import Rate, RateCompositionError
+from .parameter import Rate, RateCompositionError
 from .retired import RETIRED, RETIRED_KEYWORDS, keyword_message, name_message
 
 #: the names an expression may **call** — the scopes, the drivers and laws, the distributions, the
@@ -50,11 +51,11 @@ from .retired import RETIRED, RETIRED_KEYWORDS, keyword_message, name_message
 #: reported with a pointer to the Python API.
 _NAMES: dict[str, Any] = {
     **{n: getattr(_scope, n) for n in _scope.__all__ if n != "Scope"},
-    **{n: getattr(_modifiers, n) for n in _modifiers.WRITABLE},
-    **{n: getattr(_values, n) for n in _values.WRITABLE},
+    **{n: getattr(_law, n) for n in _law.WRITABLE},
+    **{n: getattr(_driver, n) for n in _driver.WRITABLE},
     **{n: getattr(_distributions, n) for n in _distributions.WRITABLE},
     **{n: getattr(_choice, n) for n in _choice.WRITABLE},
-    "Extent": _extent.Extent,
+    "Extent": _parameter.Extent,
     "Table": _mapping.Table,
     "Scalar": _mapping.Scalar,
     "Between": _mapping.Between,  # the choice's kernel: weighted_by(driver, Between({(a, b): w}))
@@ -62,7 +63,7 @@ _NAMES: dict[str, Any] = {
 
 #: what a verb may be written on, and what to call each in a message
 _PARAMETERS: dict[type, str] = {
-    Rate: "a rate", _extent.Extent: "an extent", _choice.Choice: "a choice",
+    Rate: "a rate", _parameter.Extent: "an extent", _choice.Choice: "a choice",
 }
 
 #: the optional Python qualifiers — ``scope.Global(...)`` reads as itself
@@ -299,7 +300,7 @@ def parse_rate(text: object):
     value = _node(tree.body, text)
     if isinstance(value, str):
         raise _fail("a rate is a number, not text", text)
-    if isinstance(value, _modifiers.Modifier):
+    if isinstance(value, _evaluate.Modifier):
         # a `Random(...)` written on its own. It is a value, not a parameter: it says how something
         # varies without saying what varies or per what.
         raise _fail(

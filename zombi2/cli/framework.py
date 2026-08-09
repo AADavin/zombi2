@@ -15,7 +15,7 @@ import textwrap
 import numpy as np
 
 from zombi2 import __version__
-from zombi2.params.modifiers import cell_name
+from zombi2.params.evaluate import cell_name
 from zombi2.rng import draw_seed
 
 
@@ -411,7 +411,7 @@ def _driven_drivers(spec):
     A rate keeps its connections in ``modifiers`` and a choice keeps its in ``weights``, and both are
     read here: a ``transfer_to`` weighted by a trait grown first is as conditioned as a driven rate,
     and reading only ``modifiers`` would leave that run recording no driver at all."""
-    from zombi2.params.modifiers import Driven
+    from zombi2.params.connection import Driven
     for one in _rate_specs(spec):
         if isinstance(one, Driven):
             yield one.driver
@@ -661,9 +661,9 @@ def _log_value(value: object) -> str:
     line can be pasted straight back into the flag (or a ``--params`` file) rather than being a repr
     the reader has to translate."""
     from zombi2.params.choice import Choice, Clades, Distance
-    from zombi2.params.modifiers import Modifier
+    from zombi2.params.evaluate import Modifier
     from zombi2.params.parse import written_choice, written_form
-    from zombi2.params.rate import Rate
+    from zombi2.params.parameter import Rate
 
     if isinstance(value, (Choice, Distance, Clades)):
         # the three shapes a `transfer_to` takes besides a named rule. `written_choice` knows what a
@@ -695,7 +695,7 @@ def input_digests(*values) -> list[tuple[str, str]]:
     seed, and nothing in the log tells them apart. The digest does. A ``value`` is either a path or
     a rate, whose file driver — the level a conditioned run was driven by — is as much
     an input as the tree. Anything that is not an existing file is skipped."""
-    from zombi2.params.modifiers import Driven
+    from zombi2.params.connection import Driven
 
     paths: list[str] = []
     for value in values:

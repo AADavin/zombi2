@@ -1,504 +1,325 @@
-"""A conditioned `Driven`'s file-backing (SPEC §2).
+"""The **drivers** — everything a parameter can read (SPEC §5).
 
-When ``Driven``'s ``driver`` is a **filename**, the relation is *conditioned*: the driver was grown
-first and written to a file, and two ordinary runs in order do the rest
-(``loss = PerCopy(0.25).scaled_by("habitat.tsv", {...})``). This module — living beside `Driven` in
-``rates`` because it is that modifier's file end — turns the written driver into the per-lineage lookup
-the target engine queries as it walks the (already-grown) tree. (Conditioning needs no engine of its
-own: it *folds into the target level's* run; only genuinely-joint models get a dedicated engine,
-``zombi2.joint``.)
+A parameter that is not a constant reads a driver, and a driver is two facts: what it is attached to
+(its **unit** — the run, a lineage, a gene family) and how its number is made. Those are independent,
+and keeping them apart is what stops the grammar needing a new class per model::
 
-Two files can be a driver. The usual one is the trait **event log** (``trait_events.tsv``, written by
-`zombi2.traits.TraitsResult.write()` with ``outputs=("events",)``); a continuous trait's value table
-(``trait_values.tsv``) is the other, and `load_driver()` dispatches on the header. The event log
-holds an ``initial`` row giving the state at t=0, then every switch — ``time · kind · lineage · from · to``. The driver ran on the same
-complete tree the target now runs on, so replaying the log **against that tree** rebuilds each
-lineage's branch as constant stretches (a discrete driver switches *mid-branch*, so this is the exact
-stochastic character map, not one value per branch). `DriverTrajectory` then answers both
-*what is the driver on this lineage now?* (`value()`) and *when does it next
-change?* (`next_change()`, so the target's Gillespie steps at each switch).
+    Random("families", LogNormal(0.0, 0.5))          # made by a draw,      among families
+    Random("lineages", Drift(LogNormal(0.0, 0.2)))   # made by inheritance, among lineages
+    Time()                                           # measured from the run
+    Clade({"fast": [...]})                           # read off the tree itself
 
-The join key is the **species node id**: ``node n7`` in the log is lineage 7 in the target run.
+`connection` is the other half — what a parameter *does* with the number.
+
+**The unit is an argument, not a class.** A draw among families and a draw among lineages are one
+model at two attachments, so ``Random("families", …)`` and ``Random("lineages", …)`` are one class
+and two cells of a grid rather than two names to remember. The cells are models the field already
+has names for — rate heterogeneity across gene families, the relaxed clock, ClaDS — and the prose
+uses those.
+
+What the grid buys is the next cell. A per-chromosome draw needs no new class and no invented name:
+it is ``Random("chromosomes", …)``, which constructs, and a cell no engine carries refuses at that
+level's gate naming itself rather than reading as a typo.
+
+`Drawn` and `Inherited`, the two objects `Random` builds, are in `law` beside the law that chooses
+between them. `Time` is here because it is a driver that is **not** a modifier: it is read through a
+verb, where a draw is already a factor and needs none.
 """
 
 from __future__ import annotations
 
-import warnings
+from dataclasses import dataclass
 
-import bisect
 import math
-import pathlib
+from typing import Any, ClassVar, Mapping
 
-from .modifiers import Driven
-from ..tree import node_from_label, node_label
-
-
-class DriverTrajectory:
-    """A driver's value along every lineage, as a piecewise-constant function of time — the
-    per-lineage lookup a conditioned `Driven` reads.
-
-    Built from segments ``{node_id: [(start_time, state), …]}`` (each lineage's branch cut into
-    constant stretches, sorted by start). The engine calls `value()` to get a lineage's driver
-    state at the current instant and `next_change()` to learn when it next switches (a horizon
-    breakpoint, so the Gillespie re-evaluates the driven rate exactly at each switch)."""
-
-    def __init__(self, segments: dict[int, list[tuple[float, object]]]) -> None:
-        self._starts: dict[int, list[float]] = {}
-        self._states: dict[int, list[object]] = {}
-        for node_id, segs in segments.items():
-            ordered = sorted(segs)  # by start time
-            self._starts[node_id] = [s for s, _ in ordered]
-            self._states[node_id] = [v for _, v in ordered]
-
-    def states(self) -> set:
-        """Every state the driver actually takes, anywhere on the tree — what a discrete mapping's
-        keys are checked against, so a mapping that names none of them can be caught."""
-        return {s for states in self._states.values() for s in states}
-
-    def value(self, node_id: int, time: float) -> object:
-        """The driver's state on lineage ``node_id`` at ``time`` — the segment whose start is the
-        latest at or before ``time`` (right-continuous: at a switch instant the new state applies)."""
-        starts = self._starts.get(node_id)
-        if starts is None:
-            raise KeyError(
-                f"the driver file has no lineage {node_label(node_id)}; the driver must be grown "
-                f"on the SAME "
-                f"complete tree the target runs on (node ids must match)."
-            )
-        i = bisect.bisect_right(starts, time) - 1
-        if i < 0:  # a query before the branch's first segment: clamp to the first (branch-start) state
-            i = 0
-        return self._states[node_id][i]
-
-    def next_change(self, node_id: int, time: float) -> float:
-        """The next time strictly after ``time`` at which lineage ``node_id``'s driver switches, else
-        ``inf`` (it stays constant for the rest of the branch). Feeds the target Gillespie's horizon."""
-        starts = self._starts.get(node_id)
-        if starts is None:
-            raise KeyError(f"the driver file has no lineage {node_label(node_id)} "
-                           "(node ids must match the target tree).")
-        i = bisect.bisect_right(starts, time)
-        return starts[i] if i < len(starts) else math.inf
+from .evaluate import (CHANGING_AT, MEASURED, SCALED_BY, SET_BY, UNITS,
+                      Modifier, _WRITTEN_AS)
+from .law import Drawn, Drift, Inherited
+from .retired import check_no_retired_keywords
 
 
-def load_driver(path, tree, *, step: float | None = None) -> DriverTrajectory:
-    """Read a written driver and rebuild it against ``tree``. Two files can be a driver, and which
-    one you need depends on which kind of trait was grown.
 
-    A **discrete** trait's driver is its event log, ``trait_events.tsv``
-    (``time · kind · lineage · from · to``: an ``initial`` row then every switch). The log alone is
-    not enough — a switch says *when* the state changed, not what each branch started in — so the tree
-    supplies branch birth/end times and the topology, and the reconstruction walks parent-before-child:
-    the root begins in the ``initial`` row's state, every other lineage in its own ``on_speciation``
-    state if it has one else its parent's ending state, and ``on_branch`` rows cut the branch into
-    constant stretches. That is the exact stochastic character map.
 
-    A **continuous** trait's driver is its value table, ``trait_values.tsv``
-    (``node · kind · trait``). A diffusion has no switches to log — its event file holds only the
-    ``initial`` row — so the values at the nodes are what carries it, and the path between them is
-    interpolated at a resolution of ``step`` (`interpolated_segments`). Pointing a conditioned rate at
-    a continuous trait's *event* log used to be accepted and to yield a driver frozen at the root
-    value for the whole tree; it now raises and names the file to use instead.
+class Clade:
+    """Which named clade a lineage belongs to, as a categorical value on that lineage.
 
-    The join key is the species node id either way: ``n7`` in the file is lineage 7 here."""
-    try:
-        text = pathlib.Path(path).read_text(encoding="utf-8")
-    except FileNotFoundError:
-        raise FileNotFoundError(
-            f"driver file not found: {str(path)!r}. A conditioned rate points at this file, but "
-            f"it is not there — check the path (it is relative to where you run zombi2), or grow the "
-            f"driver first (run the level that writes it) so there is something to condition on."
-        ) from None
-    rows = [line for line in text.splitlines() if line.strip()]
-    if not rows:
-        raise ValueError(f"driver file {str(path)!r} is empty")
-    header = rows[0].split("\t")
-    expected = ["time", "kind", "lineage", "from", "to"]
-    if header == ["node", "kind", "trait"]:
-        return _load_values_driver(path, rows, tree, step)
-    if header != expected:
-        raise ValueError(
-            f"driver file {str(path)!r} must be a trait event log with header {expected}, or a trait "
-            f"value table with header ['node', 'kind', 'trait']; got {header}. Write one with "
-            f"TraitsResult.write(dir, outputs=('events',)) or outputs=('values',)."
-        )
-    initial_state = None
-    clado: dict[int, object] = {}                       # lineage -> its on-speciation start state
-    switches: dict[int, list[tuple[float, object]]] = {}   # lineage -> [(time, to_state), …]
-    for line in rows[1:]:
-        parts = line.split("\t")
-        if len(parts) != 5:
-            raise ValueError(f"driver file {str(path)!r} row is not 5 columns: {line!r}")
-        time_s, kind, node_s, _from, to = parts
-        node_id = node_from_label(node_s)
-        if kind == "initial":
-            initial_state = to
-        elif kind == "on_speciation":
-            clado[node_id] = to
-        else:
-            switches.setdefault(node_id, []).append((float(time_s), to))
-    if initial_state is None:
-        raise ValueError(
-            f"driver file {str(path)!r} has no 'initial' row, so the state at t=0 is unknown and the "
-            "trajectory cannot be reconstructed. Re-write it with a current ZOMBI2 (the t=0 row used "
-            "to be spelled 'root')."
-        )
-    if not switches and not clado:
-        # A log with an initial row and nothing else is either a discrete trait that happened never to
-        # switch — fine, a constant driver is the truth — or a CONTINUOUS trait, whose diffusion is not
-        # in this file at all. Replaying the latter silently produced a driver frozen at the root value
-        # for the whole tree, so a run that looked conditioned was the undriven model with a constant
-        # factor. The sibling value table tells the two apart, and is the file a diffusion belongs in.
-        values_file = pathlib.Path(path).with_name("trait_values.tsv")
-        if values_file.exists() and _looks_continuous(values_file):
+    A **conditioned** driver in the ordinary sense — its value is known before the run — but with no
+    file and no earlier run behind it, because the tree is already an input. It therefore works at
+    every level that reads a driver at all, and on a growing tree it does not: a clade is only defined
+    once the tree exists, which is why a joint run refuses it.
+    """
+
+    def __init__(self, groups: dict) -> None:
+        if not isinstance(groups, dict) or not groups:
             raise ValueError(
-                f"driver file {str(path)!r} is a CONTINUOUS trait's event log, which records no "
-                f"switches — a diffusion has none — so it carries only the value at t=0 and would "
-                f"drive every lineage at that one constant value.\n"
-                f"Point the conditioned rate at {str(values_file)!r} instead: a continuous trait's "
-                f"driver is its value table, and the path between nodes is interpolated from it."
-            )
-    return DriverTrajectory(_replay(tree, initial_state, clado, switches))
+                "Clade needs a non-empty {label: clade} dict, where a clade is a list of tips (the "
+                "subtree below their MRCA) or a single node id — e.g. Clade({'A': ['n1', 'n2']})")
+        for label in groups:
+            if not isinstance(label, str) or not label.strip():
+                raise ValueError(f"clade labels must be non-empty strings, got {label!r}")
+        self.groups = groups
+
+    def as_driver_trajectory(self, tree, *, step: float | None = None):
+        """The per-lineage lookup a driven rate reads — one stretch per lineage, starting at its
+        birth, because membership never changes along a branch.
+
+        ``step`` is the resolution a *continuous* driver is read at and is meaningless here: a clade
+        label is categorical and its stretches are already exact, so nothing is approximated and
+        nothing is gained by cutting the branch finer.
+        """
+        from ..genomes._transfer import resolve_groups
+        from .conditioned import DriverTrajectory
+
+        painted = resolve_groups(tree, self.groups)
+        return DriverTrajectory({i: [(tree.nodes[i].birth_time, painted[i])] for i in tree.nodes})
+
+    def written_form(self) -> str:
+        """A clade is built from literals — labels, node ids, tip names — so unlike every other
+        driver it can be written into a run's log and pasted back. `Driven.written_call` asks for
+        this when recording the rate."""
+        return repr(self)
+
+    def __repr__(self) -> str:
+        return f"Clade({self.groups!r})"
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Clade) and other.groups == self.groups
+
+    def __hash__(self) -> int:
+        return hash((Clade, tuple(sorted(self.groups))))
 
 
-def _looks_continuous(values_file: pathlib.Path) -> bool:
-    """Whether a ``trait_values.tsv`` holds numbers (a diffusion) rather than state labels.
-
-    Read rather than guessed from the event log, because a discrete trait's states may themselves be
-    spelled ``0`` and ``1`` and a never-switching discrete log is indistinguishable from a continuous
-    one on its own."""
-    try:
-        rows = [r for r in values_file.read_text(encoding="utf-8").splitlines() if r.strip()]
-    except OSError:
-        return False
-    if len(rows) < 2 or rows[0].split("\t") != ["node", "kind", "trait"]:
-        return False
-    for row in rows[1:]:
-        parts = row.split("\t")
-        if len(parts) != 3:
-            return False
-        try:
-            float(parts[2])
-        except ValueError:
-            return False
-    return True
 
 
-def _load_values_driver(path, rows, tree, step) -> DriverTrajectory:
-    """A continuous trait's ``trait_values.tsv`` → a `DriverTrajectory`, interpolated at ``step``."""
-    values: dict[int, float] = {}
-    for line in rows[1:]:
-        parts = line.split("\t")
-        if len(parts) != 3:
-            raise ValueError(f"driver file {str(path)!r} row is not 3 columns: {line!r}")
-        node_s, _kind, value_s = parts
-        try:
-            values[node_from_label(node_s)] = float(value_s)
-        except ValueError:
+
+class Measured:
+    """Base for a value the run already knows and can be asked for at any moment — no draw, no
+    inheritance, nothing carried per unit. Abstract: use `Time`.
+
+    A measured value is **not** a `Modifier`, and that is the
+    distinction the two halves of the grammar rest on. A drawn value is already a dimensionless
+    factor, so it multiplies a base on its own. A measured one is a time, a count, an age — a number
+    in its own units — so it reaches a rate only through a verb and a mapping.
+    """
+
+    unit: str = "run"
+
+
+class Time(Measured):
+    """The run's clock, as a value::
+
+        birth = PerLineage(0.5).changing_at({0: 1.0, 3: 0.3})    # a skyline, in multiples of 0.5
+        birth = PerLineage().set_by(Time(), {0: 0.5, 3: 0.15})   # the rates themselves
+
+    Attached to the whole run, so every parameter may read it — the run is the coarsest unit, and a
+    parameter's units always include it.
+
+    The clock is written with ``changing_at`` when the schedule holds factors, and it is the one
+    driver `set_by` also takes, when the schedule holds the numbers themselves. Those two are the
+    only spellings: ``scaled_by(Time(), …)`` is refused and names the shortcut, so there is one way
+    to write each reading rather than two.
+    """
+
+    unit: str = "run"
+
+    def __repr__(self) -> str:
+        return "Time()"
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Time)
+
+    def __hash__(self) -> int:
+        return hash(Time)
+
+class OnTime(Modifier):
+    """The rate changes in time — a skyline / episodic schedule. Written ``changing_at``::
+
+        birth = PerLineage(0.5).changing_at({0: 1.0, 3: 0.3})    # 1.0 on [0, 3), then 0.3 on
+
+    ``schedule`` maps each interval's start time to a relative factor, dimensionless: on a base of
+    ``2.0`` the schedule scales it. Before the earliest breakpoint the earliest factor applies
+    (define the schedule from time 0 to avoid surprise).
+
+    The **same object** carries the other half of `Time`, ``set_by(Time(), ...)``, where the
+    schedule holds the rates themselves rather than multiples of a base::
+
+        birth = PerLineage(0.5).changing_at({0: 1.0, 3: 0.3})    # 30% of what it was
+        birth = PerLineage().set_by(Time(), {0: 0.5, 3: 0.15})   # the rates themselves
+
+    Those two are the same model, because a schedule on a base of 1.0 *is* the rate — which is why
+    `Rate.set_by` builds this rather than a `SetBy` and there is nothing for an engine to learn.
+    What differs is the sentence the reader typed, so `verb` records which, exactly as a `Driven`
+    records its own: a run's log has to say back what was written, not an equivalent.
+    """
+
+    reads: ClassVar[tuple[str, str] | None] = (MEASURED, "run")
+
+    #: `CHANGING_AT`, or `SET_BY` when the schedule holds the rates rather than factors.
+    verb: str = CHANGING_AT
+
+    def __init__(self, schedule: Mapping[float, float], *, verb: str | None = None) -> None:
+        steps = tuple(sorted((float(t), float(f)) for t, f in schedule.items()))
+        if not steps:
             raise ValueError(
-                f"driver file {str(path)!r} is a value table whose entries are not numbers "
-                f"({value_s!r} on {node_s}). A DISCRETE trait's driver is its event log "
-                f"(trait_events.tsv), which carries the switch times this table has lost; only a "
-                f"CONTINUOUS trait is conditioned on its values."
-            ) from None
-    missing = [node_label(i) for i in tree.nodes if i not in values]
-    if missing:
-        raise ValueError(
-            f"driver file {str(path)!r} has no value for {len(missing)} lineage(s) of the tree this "
-            f"run is on (e.g. {', '.join(missing[:5])}). The driver must have been grown on the SAME "
-            f"complete tree — including the lineages that went extinct."
-        )
-    return DriverTrajectory(interpolated_segments(tree, values, step))
+                "a time schedule cannot be empty, e.g. .changing_at({0: 1.0, 3: 0.3})")
+        for t, f in steps:
+            if not math.isfinite(t):
+                raise ValueError(f"schedule times must be finite, got {t!r}")
+            if not math.isfinite(f) or f < 0:
+                raise ValueError(f"schedule values must be finite and non-negative, got {f!r}")
+        self._steps = steps
+        if verb is not None:
+            self.verb = verb
+
+    # `factor` narrows the base signature: this modifier cannot answer without its key, and
+    # giving it a default would make a level that forgot to thread it return a plausible
+    # wrong number in silence. `IMPLEMENTED_MODIFIERS` is what guarantees the key arrives — a level
+    # that does not thread it rejects the modifier outright rather than reaching here.
+    def factor(self, *, time: float, **_: Any) -> float:  # type: ignore[override]
+        f = self._steps[0][1]  # before the first breakpoint, the earliest factor applies
+        for t, fac in self._steps:
+            if t <= time:
+                f = fac
+            else:
+                break
+        return f
+
+    def next_change(self, time: float) -> float:
+        for t, _ in self._steps:  # steps are sorted; the first breakpoint strictly after `time`
+            if t > time:
+                return t
+        return math.inf
+
+    def written_call(self) -> str:
+        # `repr(float)` rather than `:g`, which rounds to six significant figures: this text is what
+        # a run's log records and what a reader pastes back into a flag, so a rate that prints
+        # rounded is a log naming a model that is not the one that ran.
+        inner = ", ".join(f"{float(t)!r}: {float(f)!r}" for t, f in self._steps)
+        if self.verb == SET_BY:
+            return f"{SET_BY}(Time(), {{{inner}}})"
+        return f"{CHANGING_AT}({{{inner}}})"
+
+    def __eq__(self, other: object) -> bool:
+        """By the schedule alone. `verb` is outside this on purpose: the two spellings run the same
+        model, and two rates that behave identically should compare equal."""
+        return isinstance(other, OnTime) and other._steps == self._steps
+
+    def __hash__(self) -> int:
+        return hash((OnTime, self._steps))
 
 
-def _replay(tree, initial_state, clado, switches) -> dict[int, list[tuple[float, object]]]:
-    """Rebuild each lineage's constant stretches ``{node: [(start_time, state), …]}`` from the tree and
-    the parsed log. Parent before child, so a lineage can read its parent's ending state."""
-    segments: dict[int, list[tuple[float, object]]] = {}
-    end_state: dict[int, object] = {}
-    stack = [tree.root]
-    while stack:                                        # pre-order: a parent is popped before its kids
-        i = stack.pop()
-        node = tree.nodes[i]
-        if node.parent is None:
-            start = initial_state
-        elif i in clado:
-            start = clado[i]
-        else:
-            start = end_state[node.parent]
-        segs, t, state = [], node.birth_time, start
-        for when, to in sorted(switches.get(i, ())):
-            segs.append((t, state))
-            t, state = when, to
-        segs.append((t, state))
-        segments[i] = segs
-        end_state[i] = state
-        if node.children is not None:
-            stack.extend(node.children)
-    return segments
+@dataclass(frozen=True)
+class TotalDiversity:
+    """The lineages standing right now, as a **driver** a rate can be scaled by::
 
+        birth = PerLineage(1.0).scaled_by(TotalDiversity(cap=100))
 
-#: default per-branch resolution for a continuous driver — how many constant stretches each branch is
-#: cut into. Higher is a finer approximation of the continuous path (and more Gillespie breakpoints).
-#: Default continuous-driver resolution, as a fraction of the tree's height: a stretch lasts 1% of
-#: the run, wherever on the tree it sits. A fraction rather than an absolute duration because a tree
-#: may be measured in expected substitutions or in millions of years, and a default in "time units"
-#: would be meaninglessly fine on one and uselessly coarse on the other.
-CONTINUOUS_DRIVER_FRACTION = 0.01
+    The carrying capacity is written on the driver rather than in a mapping beside it, and that is
+    a limit rather than a design: the factor an engine reads is the linear fall to a cap, and a
+    general curve of diversity would have to be integrated rather than read at a point, exactly as
+    a smooth function of time would (SPEC §10). So there is one shape, and it takes its one number
+    here. `scaled_by` refuses a mapping alongside, rather than accepting one and ignoring it.
+    """
 
+    cap: float | None = None
 
-def driver_from_result(result, *, step: float | None = None) -> DriverTrajectory:
-    """Build a `DriverTrajectory` **directly from a grown trait result** — the same per-lineage lookup
-    `load_driver()` builds from a file, but skipping the file round-trip. This is how a conditioned
-    ``scaled_by(trait, …)`` reads a trait grown in the same Python session: still conditioning (the
-    driver was grown first and is held fixed), just handed over in memory.
-
-    A **discrete** trait (`traits.simulate_discrete`) has a stochastic character map, so each branch is
-    cut into its exact constant segments. A **continuous** trait (`traits.simulate_continuous`) has no
-    such map, so it is handled by `driver_from_continuous_result()` — a piecewise-constant
-    approximation whose stretches last at most ``step`` time units."""
-    tree = getattr(result, "complete_tree", None)
-    history = getattr(result, "history", None)
-    if tree is None:
-        raise ValueError(
-            "a conditioned driver object must be a grown trait result (from traits.simulate_discrete or "
-            f"simulate_continuous), carrying its complete tree; got {type(result).__name__}.")
-    if history is None:                                       # no character map -> continuous (or threshold)
-        if getattr(result, "node_values", None) is not None:
-            return driver_from_continuous_result(result, step=step)
-        raise ValueError(
-            "a conditioned driver object must be a DISCRETE trait result (with a stochastic character "
-            "map) or a CONTINUOUS one (with per-node values); got "
-            f"{type(result).__name__} with neither.")
-    segments: dict[int, list[tuple[float, object]]] = {}
-    for i, node in tree.nodes.items():
-        t = node.birth_time
-        segs: list[tuple[float, object]] = []
-        for state, dur in history[i]:
-            segs.append((t, state))
-            t += dur
-        segments[i] = segs
-    return DriverTrajectory(segments)
-
-
-def tree_height(tree) -> float:
-    """Origin to present — what a ``step=None`` continuous driver takes its default resolution from."""
-    root_birth = tree.nodes[tree.root].birth_time
-    return max(n.end_time for n in tree.nodes.values()) - root_birth
-
-
-def default_step(tree) -> float:
-    """The default driver resolution for ``tree``: `CONTINUOUS_DRIVER_FRACTION` of its height."""
-    height = tree_height(tree)
-    if not (height > 0.0) or not math.isfinite(height):
-        raise ValueError(f"cannot pick a default driver step for a tree of height {height!r}; "
-                         f"pass step= explicitly")
-    return height * CONTINUOUS_DRIVER_FRACTION
-
-
-def interpolated_segments(tree, values: dict, step: float | None = None) -> dict:
-    """Cut every branch into stretches of **at most ``step`` time units** and give each the trait
-    linearly interpolated between the branch's endpoints, read at the stretch's midpoint.
-
-    The cut is per unit of TIME, not per branch. Cutting each branch into a fixed number of pieces
-    makes the approximation as coarse as the branch is long: a branch ten times another gets stretches
-    ten times cruder, so the error is uneven across the tree and worst exactly where the driver has
-    had most time to move. A fixed time step gives every stretch the same duration wherever it sits,
-    so the resolution means the same thing everywhere and refining it is one number.
-
-    A branch shorter than ``step`` gets a single stretch at its midpoint value. The number of
-    stretches on a branch of length ``L`` is ``ceil(L / step)``, and they divide ``L`` evenly."""
-    if step is None:
-        step = default_step(tree)
-    step = float(step)
-    if not (step > 0.0) or not math.isfinite(step):
-        raise ValueError(f"a driver step is a duration and must be finite and positive, got {step!r}")
-
-    segments: dict[int, list[tuple[float, object]]] = {}
-    for i, node in tree.nodes.items():
-        end_v = float(values[i])
-        start_v = float(values[node.parent]) if node.parent is not None else end_v  # root: no earlier value
-        t0 = node.birth_time
-        dt = node.end_time - node.birth_time
-        if dt <= 0:
-            segments[i] = [(t0, end_v)]
-            continue
-        n = max(1, math.ceil(dt / step))
-        segments[i] = [(t0 + k * dt / n, start_v + (end_v - start_v) * (k + 0.5) / n)
-                       for k in range(n)]
-    return segments
-
-
-def driver_from_continuous_result(result, *, step: float | None = None) -> DriverTrajectory:
-    """Build a `DriverTrajectory` from a **continuous** trait result (`traits.simulate_continuous`).
-
-    A continuous trait has no discrete switches, so there is no exact stochastic map to replay.
-    Instead the path is approximated by a piecewise-constant one — the same shape a discrete trait's
-    map has, which is what lets one engine consume both — with each stretch lasting at most ``step``
-    time units (`interpolated_segments`). The engine then steps its Gillespie to every stretch
-    boundary, so within a stretch the rate really is constant and the exponential draw is exact
-    there; nothing is thinned or rejected.
-
-    ``step`` is the resolution, in the tree's own time units, and it is the knob that trades accuracy
-    for speed: halving it doubles the breakpoints and so the work. ``None`` takes
-    `CONTINUOUS_DRIVER_FRACTION` of the tree's height.
-
-    Two things this approximation is not, worth knowing before reading a driven run. It is the
-    **straight line** between a branch's endpoint values, so it is the mean of the Brownian bridge
-    between them with the excursions dropped — a real path wanders either side of that line and this
-    driver does not. And under a non-linear response curve those dropped excursions do not average
-    out, so a smaller ``step`` is not only more precise, it removes a bias.
-
-    The driver's values are **floats**, so its `Driven` needs a continuous mapping (a
-    `~zombi2.params.mapping.Curve` or `~zombi2.params.mapping.Scalar`), not a discrete
-    ``{state: factor}`` `~zombi2.params.mapping.Table` (which would match no float and never fire)."""
-    tree = result.complete_tree
-    values = result.node_values
-    if not values:
-        raise ValueError("continuous driver result has no node values to interpolate")
-    sample = next(iter(values.values()))
-    if isinstance(sample, dict):
-        raise ValueError(
-            "a continuous driver must be a SINGLE-trait result; got multi-trait node values "
-            f"({sorted(sample)}). Grow one trait as the driver, or select a component before conditioning.")
-    return DriverTrajectory(interpolated_segments(tree, values, step))
-
-
-def check_mapping_fires(mapping, available_states, *, driver_label: str, exhaustive: bool = False) -> None:
-    """Raise if a **discrete** (`Table`) mapping's states do not line up
-    with the states the driver can take. Such a mismatch leaves lineages at the table's default factor —
-    a number that is never touched — a rate's, an extent's or a ``transfer_to`` weight's — so the run
-    drifts from the model the log records. It is almost always
-    a typo or a stale / mismatched driver, so it is refused. Continuous mappings (Curve / Scalar) apply
-    to every value and have nothing to mismatch.
-
-    ``available_states`` is the set the mapping is checked against, and ``exhaustive`` says what that set
-    *is*:
-
-    - ``exhaustive=False`` (the default) — ``available_states`` are the states the driver was **observed**
-      to take (e.g. replayed from a written trait file). At least **one** named state must occur, but a
-      mapping may still list a state this particular realisation never reached (a legitimate partial
-      mapping), so only an *empty* overlap is an error. A key that matches nothing still **warns**:
-      it is far more often a typo than a deliberate partial mapping, and the failure it causes is the
-      worst kind — the run completes, reports that it was driven, and applies the driver to only some
-      of the lineages the user meant. Silence there is what lets a wrong result be published.
-    - ``exhaustive=True`` — ``available_states`` is the driver's **complete declared alphabet**, known up
-      front (e.g. a joint trait's declared states). Then **every** named state must be one of them: a key
-      outside the alphabet is a state that can never occur, so its factor could never apply — an
-      unambiguous typo, refused even when other keys do match."""
-    from .mapping import Table
-
-    if not isinstance(mapping, Table):
-        return
-    if available_states and all(isinstance(s, (int, float)) and not isinstance(s, bool)
-                                for s in available_states):
-        raise ValueError(
-            f"the driver on {driver_label}: the driver is CONTINUOUS (its values are numbers), so its "
-            "mapping must be a Curve (value -> factor) or a Scalar (a log-link), not a {state: factor} "
-            "table — a table names discrete states, which a continuous value never equals.")
-    named = set(mapping.per_state)
-    have = {str(s) for s in available_states}
-    if exhaustive:
-        stray = named - have
-        if stray:
+    def __post_init__(self) -> None:
+        if self.cap is None:
             raise ValueError(
-                f"the driver on {driver_label}: the mapping names state(s) {sorted(stray)} that are not "
-                f"among the driver's states {sorted(have)} — a factor for a state that can never occur, "
-                f"so it would silently never apply. Check for a typo in the state names.")
-        return
-    if not (named & have):
-        raise ValueError(
-            f"the driver on {driver_label}: the mapping's states {sorted(named)} match none of the "
-            f"driver's states {sorted(have)}, so the mapping would silently do nothing — every "
-            f"lineage falls to the default factor and the rate is never driven. Check for a typo in "
-            f"the state names, or a stale or mismatched driver file.")
-    stray = named - have
-    if stray:
-        # Some keys matched, so the rate IS driven and the run is a legitimate model — which is why
-        # this warns rather than raises. But a key matching nothing is far more often a typo than a
-        # deliberate partial mapping, and the shape of that failure is the dangerous one: the run
-        # completes, the summary says it was driven, and the factor the user cared about was applied
-        # to nobody. Saying so costs one line; not saying it is how a wrong result gets published.
-        warnings.warn(
-            f"the driver on {driver_label}: the mapping names state(s) {sorted(stray)} that the "
-            f"driver never takes (it takes {sorted(have)}), so those factors were never applied. "
-            f"The states it did match are still driving the rate. Check for a typo — this is a "
-            f"warning rather than an error only because a mapping may legitimately name a state "
-            f"that this particular run did not reach.",
-            stacklevel=2)
+                "TotalDiversity needs its carrying capacity — TotalDiversity(cap=100), the "
+                "diversity at which the rate reaches zero. The linear fall to a cap is the one "
+                "shape an engine reads, so there is no mapping to write instead.")
+        if isinstance(self.cap, bool) or not isinstance(self.cap, (int, float)):
+            raise TypeError(f"TotalDiversity cap must be a real number, got {self.cap!r}")
+        if not math.isfinite(self.cap) or self.cap <= 0:
+            raise ValueError(f"TotalDiversity cap must be finite and positive, got {self.cap!r}")
+
+    def __repr__(self) -> str:
+        assert self.cap is not None            # __post_init__ refuses a driver without its cap
+        return f"TotalDiversity(cap={float(self.cap)!r})"
 
 
-def driven_mods(rate) -> list:
-    """The `Driven` modifiers a rate carries, or ``[]`` when it carries none. A non-empty list means
-    the rate reads an evolved value on each lineage, so the engine must thread a ``drivers`` value and
-    step where the driver switches.
+@dataclass(frozen=True, repr=False)            # repr=False: the written form, from `Modifier`
+class OnTotalDiversity(Modifier):
+    """The rate slows as standing diversity grows — diversity-dependence. Built by
+    ``scaled_by(TotalDiversity(cap=100))``.
 
-    It lives here rather than in one level's package because every level that reads a driver asks the
-    same question first, and the answer is a fact about the rate grammar (SPEC §5), not about any one
-    engine. (The trait and genome engines still each carry a private copy from before this existed;
-    folding them onto this one is a tidy-up, not a behaviour change.)"""
-    return [m for m in rate.modifiers if isinstance(m, Driven)]
+    The factor falls linearly from 1 toward 0 as diversity rises to ``cap`` (a carrying
+    capacity), and stays 0 beyond it: a cap of 100 halves the rate at 50 lineages and stops it
+    at 100.
+    """
 
+    reads: ClassVar[tuple[str, str] | None] = (MEASURED, "run")
 
-def names_a_live_level(driver: object) -> bool:
-    """Whether a ``Driven`` ``driver`` names a **level growing beside the run** rather than a
-    finished driver.
+    cap: float
 
-    SPEC §5: "a finished result makes the run conditioned, and the name of a level growing beside it
-    makes the run joint". One modifier, one spelling, and the *driver* is what tells the two apart —
-    so this is the predicate that reads it, not a judgement about what the target level then
-    does with it. The live names are the ones `zombi2.joint` accepts: ``"trait"``, ``"genomes:count"``
-    and ``"genomes:<family>"``.
+    def __post_init__(self) -> None:
+        if isinstance(self.cap, bool) or not isinstance(self.cap, (int, float)):
+            raise TypeError(f"TotalDiversity cap must be a real number, got {self.cap!r}")
+        if not math.isfinite(self.cap) or self.cap <= 0:
+            raise ValueError(f"TotalDiversity cap must be finite and positive, got {self.cap!r}")
 
-    A level that cannot be joined with the driver at all (Traits–Sequences, SPEC §3) uses this to say
-    so in the modelling terms, instead of letting the string fall through to `load_driver()` and come
-    back as a missing file called ``'trait'``."""
-    return isinstance(driver, str) and (driver == "trait" or driver.startswith("genomes:"))
+    # `factor` narrows the base signature: this modifier cannot answer without its key, and
+    # giving it a default would make a level that forgot to thread it return a plausible
+    # wrong number in silence. `IMPLEMENTED_MODIFIERS` is what guarantees the key arrives — a level
+    # that does not thread it rejects the modifier outright rather than reaching here.
+    def factor(self, *, diversity: float, **_: Any) -> float:  # type: ignore[override]
+        return max(0.0, 1.0 - diversity / self.cap)
 
-
-def refuse_wrong_direction(driver, level: str | None) -> None:
-    """Raise when ``level``'s engine may not read ``driver`` at all — a direction SPEC §3 rules out,
-    not something merely unimplemented.
-
-    A driver declares this by answering ``refuses(level)`` with the reason, or ``None``. It lives on
-    the driver for the same reason `resolve_driver()`'s protocol does: this module serves every level
-    and must not import from any of them.
-
-    ``level`` is the engine name each level already answers to (``"genomes.family"``, ``"sequences"``,
-    … — `zombi2.params.modifiers.Modifier.implemented_for` lists them); ``None`` checks nothing."""
-    if level is None:
-        return
-    refuses = getattr(driver, "refuses", None)
-    if refuses is None:
-        return
-    why = refuses(level)
-    if why:
-        raise ValueError(why)
+    def written_call(self) -> str:
+        return f"{SCALED_BY}(TotalDiversity(cap={float(self.cap)!r}))"
 
 
-def resolve_driver(driver, tree, *, step: float | None = None,
-                   level: str | None = None) -> DriverTrajectory:
-    """Resolve a conditioned `Driven`'s ``driver`` into a `DriverTrajectory` — a **filename**
-    (str) via `load_driver()` (replayed against ``tree``, the target run's own species tree), an
-    object that answers for itself through ``as_driver_trajectory(tree, step=…)`` (a genome run's
-    ``presence("name")``, a sequence run's ``gc()``), or an **in-memory** trait result via
-    `driver_from_result()` (which carries its own tree).
-    All three are conditioning (the driver grown first); the object forms just spare you the
-    ``write``/read step in a single session.
+def Random(unit: str | None = None, law: object = None, **retired: Any) -> Modifier:
+    """A value drawn for each unit of that kind — the one driver that is not measured anywhere.
 
-    ``step`` is the continuous-driver resolution (see `interpolated_segments`); it is ignored by a
-    discrete driver, whose stretches are exact. ``level`` names the engine doing the reading, which is
-    what lets a driver refuse a level that sits above it (`refuse_wrong_direction`)."""
-    if isinstance(driver, str):
-        return load_driver(driver, tree, step=step)
-    if hasattr(driver, "as_driver_trajectory"):
-        # a level that knows how to answer "what state was lineage L in at time t?" for itself —
-        # `genomes.presence("tox")` is the first. The protocol is one method rather than an isinstance
-        # branch per level so this module stays free of imports from the levels it serves.
-        refuse_wrong_direction(driver, level)
-        return driver.as_driver_trajectory(tree, step=step)
-    return driver_from_result(driver, step=step)
+    ``unit`` is plural (``'lineages'``, ``'families'``, ``'copies'``, ``'sites'``,
+    ``'chromosomes'``). The **law** says what happens to the value afterwards, which is a separate
+    question from what it starts as::
+
+        Random('families', LogNormal(0.0, 0.5))          # drawn once, held for that family's life
+        Random('lineages', Drift(LogNormal(0.0, 0.3)))   # the parent's, perturbed at each split
+        Random('lineages', Drift(LogNormal(0.0, 0.3), bins=8))    # the rate-category clock
+
+    A bare distribution is deliberate, not an oversight: it follows the convention the grammar
+    already uses everywhere — a bare dict is a table, a bare function a curve — where the plain case
+    is written plainly and anything else is named.
+
+    Usually written through the verb, ``rate.varying_among('families', law)``, which builds one of
+    these and attaches it. Building it **by name** is how two rates share one draw::
+
+        family_speed = Random('families', LogNormal(0.0, 0.5))
+        duplication  = PerCopy(0.20).varying_among(family_speed)
+        loss         = PerCopy(0.10).varying_among(family_speed)   # exactly half, in every family
+
+    because the engine caches a unit's draw by object identity. Two separately built ``Random``
+    objects are two draws even with identical arguments: the question is whether you wrote one
+    thing or two.
+
+    ``**retired`` catches ``spread=`` and ``per=``, the two keywords this replaced, so Python
+    answers them with the same sentence a flag does rather than with "unexpected keyword argument".
+    The unit has a default for that reason alone: ``Random(per='family', …)`` writes it into a
+    keyword, and a required positional would make Python complain about the missing argument before
+    anything here could say what ``per=`` became.
+    """
+    check_no_retired_keywords(retired, where="Random")
+    if unit is None:
+        raise TypeError(
+            f"a Random needs the plural unit its value varies among — Random('families', "
+            f"LogNormal(0.0, 0.5)); one of {list(UNITS)}.")
+    if isinstance(law, Drift):
+        return Inherited(unit, law.dist, law.bins)
+    return Drawn(unit, law)
 
 
-__all__ = ["DriverTrajectory", "load_driver", "driver_from_result", "resolve_driver",
-           "refuse_wrong_direction", "check_mapping_fires", "driven_mods", "names_a_live_level"]
+_WRITTEN_AS.update({OnTime: CHANGING_AT,
+                    OnTotalDiversity: f"{SCALED_BY}(TotalDiversity(...))"})
+
+
+#: The drivers a parameter may be **written** with. `Measured` is absent because it is
+#: abstract, and `Drawn` / `Inherited` because a law names them, not a driver.
+WRITABLE = ("Clade", "Time", "Random", "TotalDiversity")
+
+__all__ = ["UNITS", "WRITABLE", "Clade", "Drawn", "Inherited", "Measured", "OnTime",
+           "OnTotalDiversity", "Random", "Time", "TotalDiversity"]

@@ -54,13 +54,14 @@ from dataclasses import dataclass, field
 from functools import cached_property
 
 
-from ..params.driver import check_mapping_fires, resolve_driver
+from ..params.conditioned import check_mapping_fires, resolve_driver
 from ..rng import stream
-from ..params.extent import Extent, as_extent
+from ..params.parameter import Extent, as_extent
 from ..params.mapping import check_not_a_kernel
-from ..params.modifiers import (describe, DRAWN, Driven, OnTime, SetBy, cell_name, is_implemented,
-                               values_at_birth)
-from ..params.rate import Rate, as_rate
+from ..params.driver import OnTime
+from ..params.evaluate import DRAWN, cell_name, describe, is_implemented, values_at_birth
+from ..params.connection import Driven, SetBy
+from ..params.parameter import Rate, as_rate
 from ..params.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv, rearrangement_events_tsv
