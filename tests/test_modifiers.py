@@ -1,8 +1,8 @@
-"""Tests for zombi2.rates.modifiers — what the verbs build, and what each one reads (SPEC §5)."""
+"""Tests for zombi2.params.modifiers — what the verbs build, and what each one reads (SPEC §5)."""
 
 import pytest
 
-from zombi2.rates import Drift, Gamma, LogNormal, PerCopy, PerLineage, Time, modifiers as mod
+from zombi2.params import Drift, Gamma, LogNormal, PerCopy, PerLineage, Time, modifiers as mod
 
 
 # --- OnTime -----------------------------------------------------------------

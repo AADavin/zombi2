@@ -45,7 +45,7 @@ import numpy as np
 
 from .._runtime.parallel import guard_pool_workers, pool_errors, resolve_workers
 from .._runtime.progress import progress_bar
-from ..rates.modifiers import values_at_birth
+from ..params.modifiers import values_at_birth
 from ..rng import seed_sequence
 from ._live import enter, retire, weighted_index
 from ._transfer import mean_root_to_tip, recipient_index

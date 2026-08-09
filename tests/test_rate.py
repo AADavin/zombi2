@@ -1,10 +1,10 @@
-"""Tests for zombi2.rates.rate — how the verbs compose a rate, and how it evaluates (SPEC §5)."""
+"""Tests for zombi2.params.rate — how the verbs compose a rate, and how it evaluates (SPEC §5)."""
 
 import pytest
 
-from zombi2.rates import LogNormal, TotalDiversity, modifiers as mod
-from zombi2.rates import scope
-from zombi2.rates.rate import Rate, RateCompositionError, as_rate
+from zombi2.params import LogNormal, TotalDiversity, modifiers as mod
+from zombi2.params import scope
+from zombi2.params.rate import Rate, RateCompositionError, as_rate
 
 
 # --- composition: a scope, with verbs chained onto it ---------------------
@@ -94,7 +94,7 @@ def test_weighted_by_on_a_rate_names_scaled_by():
 
 
 def test_a_rate_carrying_a_weight_is_refused_when_it_is_coerced():
-    from zombi2.rates import verbs
+    from zombi2.params import verbs
     r = scope.PerCopy(0.25)._and(verbs.weighted_by("competence.tsv", {"competent": 3.0}))
     with pytest.raises(ValueError, match="weights the candidates of a choice"):
         r.check_one_base("loss")

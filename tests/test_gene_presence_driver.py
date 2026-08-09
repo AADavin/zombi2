@@ -18,7 +18,7 @@ import pytest
 
 from zombi2.genomes import (simulate_genomes_family, simulate_genomes_nucleotide,
                             simulate_genomes_ordered)
-from zombi2.rates import PerLineage
+from zombi2.params import PerLineage
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_discrete
 
@@ -166,7 +166,7 @@ def test_every_lineage_gets_a_completion():
 
 
 def test_completion_drives_a_trait():
-    from zombi2.rates.mapping import Curve
+    from zombi2.params.mapping import Curve
     tree, g = _module_run()
     kw = dict(states=["sessile", "motile"], start="sessile", seed=2)
     plain = simulate_discrete(tree, switch=0.05, **kw)
@@ -261,7 +261,7 @@ def test_a_nucleotide_gene_can_drive_a_trait():
 
 
 def test_a_nucleotide_module_completes_the_way_a_family_one_does():
-    from zombi2.rates.mapping import Curve
+    from zombi2.params.mapping import Curve
 
     tree, g = _nucleotide_run()
     traj = g.completion("operon").as_driver_trajectory(tree)

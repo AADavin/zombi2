@@ -14,7 +14,7 @@ import collections
 import numpy as np
 import pytest
 
-from zombi2.rates import LogNormal, PerCopy, PerLineage
+from zombi2.params import LogNormal, PerCopy, PerLineage
 from zombi2.genomes.chromosomes import chromosome_from_label
 from zombi2.genomes.events import gene_from_label, node_from_label, node_label
 from zombi2.species import simulate_species_tree

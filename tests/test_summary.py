@@ -20,7 +20,7 @@ import json
 
 import pytest
 
-from zombi2.rates import PerLineage
+from zombi2.params import PerLineage
 from zombi2.genomes import simulate_genomes_family
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85

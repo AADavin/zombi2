@@ -37,7 +37,7 @@ The last two are the two answers to one question, where a lineage's rate comes f
 
 ![Three ways a rate can vary, one tree apiece, all three stopped at the same 25 surviving lineages, so what differs is how they got there. **A** `changing_at`: the rate drops at time 2, so an early burst gives way to a long slow tail. **B** `scaled_by(TotalDiversity(...))`: the rate falls as the tree fills toward its cap, and splits thin out near the present. **C** `varying_among('lineages', Drift(...))`: each lineage inherits its parent's rate, so one clade radiates late while its sister stays sparse. Solid lineages survive to the present and dashed ones died, as in the previous figure.](figures/variable_rates.pdf){width=100%}
 
-The scopes and the drivers live in `zombi2.rates`. Each verb records a dimensionless factor on the base rate, and you can chain them to get a rate that changes in time *and* saturates.
+The scopes and the drivers live in `zombi2.params`. Each verb records a dimensionless factor on the base rate, and you can chain them to get a rate that changes in time *and* saturates.
 
 Whether birth and death vary together is decided by what you wrote. Two separate expressions — `birth = PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2)))` and `death = PerLineage(0.3).varying_among('lineages', Drift(LogNormal(0.0, 0.2)))` — are two values, so each lineage gets its own speciation factor and its own extinction factor and the two rates drift without correlation; the same holds for a bare distribution. Build the `Random` once, by name, and give that same object to both rates and the lineage gets a single number instead, so a lineage that speciates fast also goes extinct fast. Sharing is by identity, not by matching arguments, and only Python can express it: two flags on the command line are always two objects.
 
@@ -96,7 +96,7 @@ Everything in this chapter is one function call, so the verbs, the sampling and 
 
 ```python
 from zombi2 import species
-from zombi2.rates import Global, PerLineage, TotalDiversity
+from zombi2.params import Global, PerLineage, TotalDiversity
 
 # skyline birth that also slows with diversity, a global death rate, a mass extinction
 # at time 3 that kills three quarters, and only half the survivors sampled

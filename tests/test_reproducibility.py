@@ -27,7 +27,7 @@ import hashlib
 import pytest
 
 from zombi2.genomes import simulate_genomes_family, simulate_genomes_ordered
-from zombi2.rates import PerCopy
+from zombi2.params import PerCopy
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85
 from zombi2.species import simulate_species_tree

@@ -10,12 +10,18 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ## [Unreleased]
 
 ### Changed
+- **`zombi2.rates` is now `zombi2.params`.** A rate is one of three parameters the grammar covers —
+  a rate, an extent and a choice — so the package that holds all three is named for what they are
+  rather than for the commonest of them. Every name is importable from the same place it was, one
+  level along: `from zombi2.params import PerCopy, LogNormal, Drift`. The models, the numbers and
+  the written form are untouched, and the same 39 event streams and 16,257 records still match
+  `main` exactly. (#329)
 - **A rate is written from its scope, with verbs chained onto it. `*` is gone.**
   `PerCopy(0.25).scaled_by(habitat, {'aquatic': 4.0})` replaces `0.25 * ScaledBy(habitat, {...})`,
   and the same three verbs — `scaled_by` multiplies, `set_by` replaces, `weighted_by` compares the
   candidates of a choice — read every driver at every level. The classes they used to be written as
   are removed as names: `ScaledBy`, `SetBy`, `Weights`, `OnTime`, `OnTotalDiversity`, `Drawn` and
-  `Inherited` are no longer importable from `zombi2.rates` and no longer parse in a flag or a
+  `Inherited` are no longer importable from `zombi2.params` and no longer parse in a flag or a
   `--params` file. Each is answered by a sentence naming the verb that replaced it, in Python and in
   the written form alike, from one table. The models are unchanged and so are the numbers: the same
   arguments and the same seed give the same run, in a new spelling. (#328)
@@ -71,7 +77,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   mean, exactly as a drawn value is; a lognormal step keeps its closed form, so every existing
   autocorrelated run is byte-identical. `bins=` takes a `LogNormal` step and nothing else, because
   the ladder's rungs are spaced by that step's sigma. Both classes refuse `spread=` with an error
-  naming the replacement, and the distributions are re-exported from `zombi2.rates`, so an argument
+  naming the replacement, and the distributions are re-exported from `zombi2.params`, so an argument
   you must write needs no import from a submodule. (#327)
 
 ### Added
@@ -137,7 +143,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   `Weights(driver, mapping)` compares the candidates of a `transfer_to` choice, and the `SetBy`
   above replaces the base. The verb picks its object by looking at the value, so
   `ScaledBy(Time(), {0: 1.0, 3: 0.3})` *is* `OnTime({0: 1.0, 3: 0.3})` — one object, and a run
-  unchanged seed for seed. `zombi2.rates` now exports the whole written vocabulary, `OnTime` and
+  unchanged seed for seed. `zombi2.params` now exports the whole written vocabulary, `OnTime` and
   `OnTotalDiversity` included, so what you can import and what you can write in a flag are one
   surface rather than two.
 
@@ -1693,7 +1699,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   delete more **often**. Set both and they multiply. An extent takes the modifiers its resolution
   wires on a rate: `OnTime` at ordered, `OnTime` and `DrivenBy` at nucleotide; anything else raises.
   Unlike a rate's, an extent's modifier is read when an event fires, so it changes no rate and adds no
-  step to the Gillespie clock. The concept has its own module, `zombi2.rates.extent` (`Extent`,
+  step to the Gillespie clock. The concept has its own module, `zombi2.params.extent` (`Extent`,
   `as_extent`), parallel to `rates.rate`; `as_extent` moved there from `rates.distributions` and now
   returns an `Extent` rather than a bare distribution. A scope on an extent is refused — it is already
   an absolute size, so there is no "per what?" to answer. (#250)
@@ -1752,7 +1758,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   is what the same number has always meant at the nucleotide resolution. This is a **change of
   results**, not just of spelling: an ordered run that passed a bare number will now produce a spread
   of segment sizes rather than one size. Write `Fixed(3)` for the old behaviour. `None` remains a
-  single unit. The new `zombi2.rates.as_extent` coerces this; `as_distribution` is untouched, since a
+  single unit. The new `zombi2.params.as_extent` coerces this; `as_distribution` is untouched, since a
   bare number is rightly a fixed value for the per-family rate specs that use it. (#246)
 - **The nucleotide resolution refuses an extent shape it cannot honour.** It draws each arc's far end
   directly from the genome's legal breakpoints, so anything other than a geometric extent would have
@@ -1898,7 +1904,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ### Added
 - The clean, pure-Python core grown from `docs/design/SPEC.md`: species trees, genomes at three
   resolutions (unordered ⊂ ordered ⊂ nucleotide), sequences, traits, and the joint engine — with the
-  cross-level rate grammar (`zombi2.rates`) and a CLI. First release of the rewrite; `pip install`
+  cross-level rate grammar (`zombi2.params`) and a CLI. First release of the rewrite; `pip install`
   needs no build step.
 
 ### Removed

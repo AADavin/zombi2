@@ -29,7 +29,7 @@ whichever state happened to be read — the same error `zombi2.traits.continuous
 integral at each of them once, and `Clock.branch_length()` is then two bisected lookups.
 
 Precomputing to plain floats is also what lets a driven run go **parallel**: the resolved clock is
-shipped to every worker through the process-pool initializer, and a `~zombi2.rates.mapping.Curve`
+shipped to every worker through the process-pool initializer, and a `~zombi2.params.mapping.Curve`
 mapping is usually a lambda, which does not pickle. The trajectories and the mappings are read at
 build time and dropped; only numbers cross the process boundary.
 """
@@ -40,7 +40,7 @@ import math
 
 import bisect
 
-from ..rates.modifiers import INHERITED
+from ..params.modifiers import INHERITED
 
 
 def _all_species(gene_trees) -> list[int]:

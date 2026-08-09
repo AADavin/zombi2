@@ -19,7 +19,7 @@ You give a rate for each, and the events play out along the tree from the initia
 
 ```python
 from zombi2 import species, genomes
-from zombi2.rates import PerCopy, PerLineage
+from zombi2.params import PerCopy, PerLineage
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 g = genomes.simulate_genomes_family(
@@ -42,7 +42,7 @@ The rates follow the **same grammar as the species level** — a `base` in its s
 Duplication, transfer and loss do take another, and it is worth knowing because it is a different model rather than a different spelling:
 
 ```python
-from zombi2.rates import PerCopy, PerLineage
+from zombi2.params import PerCopy, PerLineage
 
 loss = PerCopy(0.25)      # every copy independently at risk — a big genome loses often
 loss = PerLineage(0.25)   # a deletion budget — the lineage loses at 0.25 whatever it holds
@@ -61,7 +61,7 @@ g = genomes.simulate_genomes_family(
 Rates can also depend on **where in the tree** a lineage sits. `Clade` names a group by a few of its tips — the clade is the subtree below their most recent common ancestor — and the rate reads which group a lineage is in, exactly as it would read an evolved trait (Chapter 9). A lineage in no named clade falls in the group `"rest"`. It is the rate-side counterpart of the `Clades` transfer rule below, reading the same fact off the same tree.
 
 ```python
-from zombi2.rates import Clade
+from zombi2.params import Clade
 
 # the clade below the MRCA of n27 and n51 loses genes three times as fast
 g = genomes.simulate_genomes_family(

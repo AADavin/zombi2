@@ -19,7 +19,7 @@ import helpers as h
 from helpers import Example
 
 import phylustrator as ph
-from zombi2.rates import Curve, PerCopy, PerLineage, Recipients
+from zombi2.params import Curve, PerCopy, PerLineage, Recipients
 from zombi2 import joint, traits
 from zombi2.genomes import simulate_genomes_family
 from zombi2.species import simulate_species_tree
@@ -361,7 +361,7 @@ def gene_drives_trait(out):
 _C_BISSE = '''\
 ### simulate  —  a 2-state trait drives speciation (BiSSE)
 from zombi2 import joint, traits
-from zombi2.rates import PerLineage
+from zombi2.params import PerLineage
 
 r = joint.simulate_joint(
     birth=PerLineage(1.0).scaled_by("trait", {"fast": 2.6, "slow": 0.7}),
@@ -384,7 +384,7 @@ h.composite_markov("tree.png", "bisse.png", lambda ax: h.draw_markov(
 _C_STATE = '''\
 ### simulate  —  one state dies far faster (state-dependent extinction)
 from zombi2 import joint, traits
-from zombi2.rates import PerLineage
+from zombi2.params import PerLineage
 
 r = joint.simulate_joint(
     birth=1.0,
@@ -411,7 +411,7 @@ h.composite_markov("tree.png", "sse.png", lambda ax: h.draw_markov(
 _C_MUSSE = '''\
 ### simulate  —  three graded speciation rates + constant death (MuSSE)
 from zombi2 import joint, traits
-from zombi2.rates import PerLineage
+from zombi2.params import PerLineage
 
 r = joint.simulate_joint(
     birth=PerLineage(1.0).scaled_by("trait", {"slow": 0.6, "medium": 1.3, "fast": 2.6}),
@@ -441,7 +441,7 @@ _C_REDUCTION = '''\
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_discrete
 from zombi2.genomes import simulate_genomes_family
-from zombi2.rates import PerCopy, PerLineage
+from zombi2.params import PerCopy, PerLineage
 
 sp = simulate_species_tree(birth=1.0, n_extant=36, seed=4)
 ct = sp.complete_tree
@@ -476,7 +476,7 @@ _C_EXPANSION = '''\
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_discrete
 from zombi2.genomes import simulate_genomes_family
-from zombi2.rates import PerCopy
+from zombi2.params import PerCopy
 
 ct = simulate_species_tree(birth=1.0, n_extant=32, seed=4).complete_tree
 sel = simulate_discrete(ct, states=["purifying", "relaxed"], start="purifying", seed=6,
@@ -506,7 +506,7 @@ _C_UPTAKE = '''\
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_discrete
 from zombi2.genomes import simulate_genomes_family
-from zombi2.rates import Recipients
+from zombi2.params import Recipients
 
 ct = simulate_species_tree(birth=1.0, n_extant=30, seed=4).complete_tree
 comp = simulate_discrete(ct, states=["quiet", "competent"], start="quiet", seed=8,
@@ -536,7 +536,7 @@ _C_CONTINUOUS = '''\
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous
 from zombi2.genomes import simulate_genomes_family
-from zombi2.rates import Curve, PerLineage
+from zombi2.params import Curve, PerLineage
 
 ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
 act = simulate_continuous(ct, start=0.0, rate=1.8, seed=3)          # a diffusing "activity" trait
@@ -570,7 +570,7 @@ import math
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous
 from zombi2.genomes import simulate_genomes_family
-from zombi2.rates import Curve, PerLineage
+from zombi2.params import Curve, PerLineage
 
 ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
 res = simulate_continuous(ct, start=0.0, rate=1.2, seed=3)          # a diffusing "resources" trait
@@ -590,7 +590,7 @@ import math
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous
 from zombi2.genomes import simulate_genomes_family
-from zombi2.rates import Curve, PerLineage
+from zombi2.params import Curve, PerLineage
 
 ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
 temp = simulate_continuous(ct, start=0.0, rate=1.2, seed=3)         # a diffusing "temperature" trait
@@ -609,7 +609,7 @@ _C_TRAIT_TRAIT = '''\
 import math
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous
-from zombi2.rates import Curve, PerLineage
+from zombi2.params import Curve, PerLineage
 
 ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
 temp = simulate_continuous(ct, start=0.0, rate=1.2, seed=6)         # grown first, then held fixed
@@ -692,7 +692,7 @@ _C_GENE_TRAIT = '''\
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_family
 from zombi2.traits import simulate_discrete
-from zombi2.rates import PerLineage
+from zombi2.params import PerLineage
 
 ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
 
@@ -733,7 +733,7 @@ _C_MODULE = '''\
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_family
 from zombi2.traits import simulate_discrete
-from zombi2.rates import Curve, PerLineage
+from zombi2.params import Curve, PerLineage
 
 ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
 nuo = [f"nuo{c}" for c in "ABCD"]

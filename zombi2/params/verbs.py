@@ -36,11 +36,11 @@ from .modifiers import (CHANGING_AT, SCALED_BY, SET_BY, VARYING_AMONG, WEIGHTED_
 from .retired import check_no_retired_keywords
 from .values import Measured, Time
 
-#: The verb names, and so the attribute names `zombi2.rates.parse` will follow in an expression.
+#: The verb names, and so the attribute names `zombi2.params.parse` will follow in an expression.
 #: The written form is a call on an attribute, so this is the parser's whitelist for the attribute
 #: half — the other half being `_NAMES`, the things it may call by name.
 #:
-#: Built from the constants defined in `zombi2.rates.modifiers`, beside the ``verb`` field that
+#: Built from the constants defined in `zombi2.params.modifiers`, beside the ``verb`` field that
 #: records which verb was written, and re-exported here so a reader outside this package compares
 #: against ``verbs.SCALED_BY`` rather than against a string it spelled out itself.
 VERBS = (SCALED_BY, SET_BY, WEIGHTED_BY, VARYING_AMONG, CHANGING_AT)

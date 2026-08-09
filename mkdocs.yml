@@ -154,7 +154,7 @@ nav:
       - zombi2.sequences: api/sequences.md
       - zombi2.traits: api/traits.md
       - zombi2.joint: api/joint.md
-      - zombi2.rates: api/rates.md
+      - zombi2.params: api/rates.md
   - Performance: performance.md
   - Reproducibility: reproducibility.md
   - Coming from ZOMBI v1: from-zombi1.md

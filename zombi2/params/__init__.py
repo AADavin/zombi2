@@ -4,7 +4,7 @@ reads, a verb says what the reading does to it.
 Shared by every level, so it lives in one place. A rate is written from its **scope**, and the verbs
 chain onto it::
 
-    from zombi2.rates import PerCopy, PerLineage, LogNormal, Recipients
+    from zombi2.params import PerCopy, PerLineage, LogNormal, Recipients
 
     birth       = PerLineage(0.5).changing_at({0: 1.0, 3: 0.3})
     loss        = PerCopy(0.25).varying_among('families', LogNormal(0.0, 0.5))
@@ -64,14 +64,14 @@ def __getattr__(name: str):
     """Answer a **retired** name with the sentence naming its replacement, rather than with
     "module has no attribute".
 
-    The text form has carried that table since the grammar changed (`zombi2.rates.retired`), and
-    Python had nothing: ``from zombi2.rates import ScaledBy`` said only that the name was absent,
+    The text form has carried that table since the grammar changed (`zombi2.params.retired`), and
+    Python had nothing: ``from zombi2.params import ScaledBy`` said only that the name was absent,
     which is the one thing the reader already knew. This reads the same table, so a spelling
     retired once is answered the same way whether it was typed into a flag or into an import.
 
     It raises `ImportError` rather than `AttributeError` because ``from … import`` discards an
     ``AttributeError`` from here and substitutes its own generic "cannot import name", losing the
-    sentence exactly where a port hits it first. The cost is that ``hasattr(zombi2.rates,
+    sentence exactly where a port hits it first. The cost is that ``hasattr(zombi2.params,
     'ScaledBy')`` raises instead of answering ``False`` — worth it for a name nobody should be
     probing for.
     """

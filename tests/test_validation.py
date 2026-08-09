@@ -117,12 +117,12 @@ from collections import Counter
 
 import numpy as np
 
-from zombi2.rates import Drift, LogNormal, PerLineage, PerSite, Random
+from zombi2.params import Drift, LogNormal, PerLineage, PerSite, Random
 from zombi2.genomes import (simulate_genomes_family, simulate_genomes_nucleotide,
                             simulate_genomes_ordered)
 from zombi2.genomes.ordered import Inversion
 from zombi2.joint import simulate_joint
-from zombi2.rates.mapping import Curve
+from zombi2.params.mapping import Curve
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import BASES, gtr, hky85, jc69, k80, lg, poisson
 from zombi2.species import simulate_species_tree
@@ -1467,7 +1467,7 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
     import pathlib
     import re
 
-    from zombi2.rates.modifiers import cell_name
+    from zombi2.params.modifiers import cell_name
     from zombi2.genomes import IMPLEMENTED_MODIFIERS as GENOMES
     from zombi2.genomes.nucleotide import IMPLEMENTED_MODIFIERS as NUCLEOTIDE
     from zombi2.genomes.ordered import IMPLEMENTED_MODIFIERS as ORDERED

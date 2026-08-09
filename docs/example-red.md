@@ -50,7 +50,7 @@ tree is the truth. RED on the phylogram is what a real study would have seen.
 ```python
 import numpy as np
 from zombi2 import genomes, sequences, species
-from zombi2.rates import LogNormal, PerSite
+from zombi2.params import LogNormal, PerSite
 from zombi2.sequences import substitution_models as sm
 from zombi2.tree import read_newick
 from zombi2.tree import relative_evolutionary_divergence as red_of

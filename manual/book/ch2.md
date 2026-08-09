@@ -69,7 +69,7 @@ The base of a rate says how fast. A **verb** chained onto the rate says **what i
 Each is a dimensionless multiplier, so they multiply, and a rate can carry several:
 
 ```python
-from zombi2.rates import LogNormal, PerCopy
+from zombi2.params import LogNormal, PerCopy
 
 # loss triples after time 2, and varies from family to family on top of that
 loss = PerCopy(0.25).changing_at({0: 1.0, 2: 3.0}).varying_among('families', LogNormal(0.0, 0.5))

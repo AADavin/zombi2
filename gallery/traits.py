@@ -6,7 +6,7 @@ import helpers as h
 from helpers import Example
 
 import phylustrator as ph
-from zombi2.rates import PerLineage
+from zombi2.params import PerLineage
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous, simulate_discrete
 
@@ -242,7 +242,7 @@ _C_DRIVEN = '''\
 ### simulate  —  a discrete trait drives a continuous one: the driver first, then the target
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous, simulate_discrete
-from zombi2.rates import PerLineage
+from zombi2.params import PerLineage
 
 ct = simulate_species_tree(birth=1.0, n_extant=50, seed=7).complete_tree
 hab = simulate_discrete(ct, states=["stable", "fluctuating"], switch=0.4, start="stable", seed=5)

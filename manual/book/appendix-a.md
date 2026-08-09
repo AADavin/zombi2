@@ -60,7 +60,7 @@ rate says how often a lineage does the thing and the extent says how much DNA it
 
 ```python
 from zombi2 import species
-from zombi2.rates import Global
+from zombi2.params import Global
 
 # a death rate applied to the whole tree at once, not once per lineage
 species.simulate_species_tree(birth=1.0, death=Global(0.3), total_time=8.0, seed=2)
@@ -207,7 +207,7 @@ shipped modifier can say:
 
 ```python
 from zombi2 import species
-from zombi2.rates.modifiers import Modifier
+from zombi2.params.modifiers import Modifier
 
 class OnCrowding(Modifier):
     """Extinction rises as lineages accumulate: at `crowd` standing lineages it has doubled."""
@@ -225,8 +225,8 @@ of yours; build the rate from `Rate` instead, giving it the base, the scope clas
 in the order they should be drawn in:
 
 ```python
-from zombi2.rates import PerLineage
-from zombi2.rates.rate import Rate
+from zombi2.params import PerLineage
+from zombi2.params.rate import Rate
 
 plain   = species.simulate_species_tree(birth=1.0, death=0.2, total_time=6, seed=3)
 crowded = species.simulate_species_tree(birth=1.0,

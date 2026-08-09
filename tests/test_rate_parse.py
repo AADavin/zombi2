@@ -1,4 +1,4 @@
-"""Tests for zombi2.rates.parse — the written form of a rate (SPEC §5).
+"""Tests for zombi2.params.parse — the written form of a rate (SPEC §5).
 
 The point of this module is that there is exactly *one* way to write a rate: what you type in Python
 is what you type on the command line and in a ``--params`` file. So the tests are mostly "this text
@@ -9,12 +9,12 @@ verbs.
 
 import pytest
 
-from zombi2.rates import (Between, Drift, Extent, Gamma, LogNormal, PerCopy, PerLineage,
+from zombi2.params import (Between, Drift, Extent, Gamma, LogNormal, PerCopy, PerLineage,
                           Random, Recipients, Scalar, TotalDiversity)
-from zombi2.rates import modifiers as mod
-from zombi2.rates import scope
-from zombi2.rates.rate import Rate
-from zombi2.rates.parse import RateSyntaxError, parse_rate, written_form
+from zombi2.params import modifiers as mod
+from zombi2.params import scope
+from zombi2.params.rate import Rate
+from zombi2.params.parse import RateSyntaxError, parse_rate, written_form
 
 
 # --- the text produces the same object as the Python expression -----------
@@ -296,7 +296,7 @@ def test_a_windows_path_in_a_rate_is_taken_as_written():
     # the strings in a rate are paths and state labels, never escape sequences — but the expression
     # is read by Python's own parser, which sees C:\Users and reports a truncated \UXXXXXXXX escape.
     # A pasted path is the normal way to write one, so it has to mean itself.
-    from zombi2.rates.modifiers import Driven
+    from zombi2.params.modifiers import Driven
 
     rate = parse_rate(r"PerCopy(0.1).scaled_by('C:\Users\me\trait_events.tsv', {'a': 2.0})")
     driver = next(m for m in rate.modifiers if isinstance(m, Driven))
@@ -312,7 +312,7 @@ def test_a_windows_path_in_a_rate_is_taken_as_written():
 def test_an_already_escaped_path_is_left_as_written():
     # repr() of a path is the natural way to build an expression in Python, and it escapes the
     # backslashes properly — reading those literally as well would double them.
-    from zombi2.rates.modifiers import Driven
+    from zombi2.params.modifiers import Driven
 
     path = r"C:\Users\me\trait_events.tsv"
     rate = parse_rate(f"PerCopy(0.1).scaled_by({path!r}, {{'a': 2.0}})")
@@ -322,7 +322,7 @@ def test_an_already_escaped_path_is_left_as_written():
 def test_a_path_whose_every_backslash_is_a_valid_escape_still_means_itself():
     # the dangerous one: \t \n \f are all real escapes, so this PARSES and silently becomes control
     # characters. A path never contains one, which is how it is caught.
-    from zombi2.rates.modifiers import Driven
+    from zombi2.params.modifiers import Driven
 
     rate = parse_rate(r"PerCopy(0.1).scaled_by('C:\temp\new\file.tsv', {'a': 2.0})")
     assert next(m for m in rate.modifiers if isinstance(m, Driven)).driver == r"C:\temp\new\file.tsv"
