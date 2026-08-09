@@ -33,7 +33,7 @@ import difflib
 from typing import Any, cast
 
 from . import choice as _choice
-from . import extent as _extent
+from . import parameter as _parameter
 from . import mapping as _mapping
 from . import distributions as _distributions
 from . import evaluate as _evaluate
@@ -41,7 +41,7 @@ from . import law as _law
 from . import driver as _driver
 from . import connection as _verbs
 from . import scope as _scope
-from .rate import Rate, RateCompositionError
+from .parameter import Rate, RateCompositionError
 from .retired import RETIRED, RETIRED_KEYWORDS, keyword_message, name_message
 
 #: the names an expression may **call** — the scopes, the drivers and laws, the distributions, the
@@ -55,7 +55,7 @@ _NAMES: dict[str, Any] = {
     **{n: getattr(_driver, n) for n in _driver.WRITABLE},
     **{n: getattr(_distributions, n) for n in _distributions.WRITABLE},
     **{n: getattr(_choice, n) for n in _choice.WRITABLE},
-    "Extent": _extent.Extent,
+    "Extent": _parameter.Extent,
     "Table": _mapping.Table,
     "Scalar": _mapping.Scalar,
     "Between": _mapping.Between,  # the choice's kernel: weighted_by(driver, Between({(a, b): w}))
@@ -63,7 +63,7 @@ _NAMES: dict[str, Any] = {
 
 #: what a verb may be written on, and what to call each in a message
 _PARAMETERS: dict[type, str] = {
-    Rate: "a rate", _extent.Extent: "an extent", _choice.Choice: "a choice",
+    Rate: "a rate", _parameter.Extent: "an extent", _choice.Choice: "a choice",
 }
 
 #: the optional Python qualifiers — ``scope.Global(...)`` reads as itself

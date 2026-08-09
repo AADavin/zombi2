@@ -17,7 +17,7 @@ from zombi2 import genomes, traits
 from zombi2.params import Extent, PerCopy, PerLineage, Recipients
 from zombi2.params import scope
 from zombi2.params.connection import SetBy
-from zombi2.params.rate import as_rate
+from zombi2.params.parameter import as_rate
 from zombi2.species import simulate_species_tree
 
 
@@ -109,7 +109,7 @@ class TestWhatItRefuses:
         """The verb refuses them, and `as_rate` refuses them again for anything that reaches it
         another way — the guard lives at the choke point every level already calls, because a rule
         enforced by whoever remembers to call it is a rule three levels did not have."""
-        from zombi2.params.rate import Rate
+        from zombi2.params.parameter import Rate
         from zombi2.params.scope import PerCopy as _PerCopy
 
         smuggled = Rate(1.0, _PerCopy,
@@ -184,7 +184,7 @@ class TestTheHolesAnAdversarialReviewFound:
     def test_an_extent_has_no_base_to_replace(self):
         """An extent is already an absolute size drawn from a distribution. A replaced base there was
         admitted and applied as a multiplier, which is a different model wearing the same words."""
-        from zombi2.params.extent import as_extent
+        from zombi2.params.parameter import as_extent
         with pytest.raises(ValueError, match="an extent cannot be set_by"):
             Extent(500).set_by("h", {"c": 5.0})
         with pytest.raises(ValueError, match="an extent cannot be set_by"):

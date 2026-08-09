@@ -1300,7 +1300,7 @@ def test_a_driven_variance_integrates_across_the_drivers_mid_branch_switch(tmp_p
     # 9.0×2 = 18 a sample at the end would). A per-branch sample is not merely coarse here: it is a
     # different model, and on this branch it is off by a factor of five.
     from zombi2.params.conditioned import resolve_driver
-    from zombi2.params.rate import as_rate
+    from zombi2.params.parameter import as_rate
     from zombi2.params.scope import PerLineage
     from zombi2.traits.continuous import _accrued_variance
 

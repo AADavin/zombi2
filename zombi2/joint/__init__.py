@@ -38,7 +38,7 @@ from ..params.driver import OnTime, OnTotalDiversity
 from ..params.evaluate import DRAWN, INHERITED, describe, is_implemented
 from ..params.connection import Driven
 
-from ..params.rate import as_rate
+from ..params.parameter import as_rate
 from ..params.scope import PerLineage
 from ..species import Event as SpeciesEvent, SpeciesResult
 from ..tree import Node, Tree

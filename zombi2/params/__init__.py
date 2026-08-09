@@ -37,7 +37,7 @@ records), ``mapping``, ``distributions``.
 from .choice import Clades, Distance, Recipients
 from .driver import Clade
 from .distributions import Exponential, Fixed, Gamma, Geometric, LogNormal, Uniform
-from .extent import Extent
+from .parameter import Extent
 from .mapping import Between, Curve, Scalar, Table
 from .driver import Random, TotalDiversity
 from .evaluate import UNITS

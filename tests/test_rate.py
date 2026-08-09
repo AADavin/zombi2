@@ -1,4 +1,4 @@
-"""Tests for zombi2.params.rate — how the verbs compose a rate, and how it evaluates (SPEC §5)."""
+"""Tests for zombi2.params.parameter — how the verbs compose a rate, and how it evaluates (SPEC §5)."""
 
 import pytest
 
@@ -8,7 +8,7 @@ from zombi2.params import evaluate as ev
 from zombi2.params import law as law
 from zombi2.params import connection as conn
 from zombi2.params import scope
-from zombi2.params.rate import Rate, RateCompositionError, as_rate
+from zombi2.params.parameter import Rate, RateCompositionError, as_rate
 
 
 # --- composition: a scope, with verbs chained onto it ---------------------

@@ -11,7 +11,7 @@ from ..params.mapping import check_not_a_kernel
 from ..rng import stream
 from ..params.evaluate import Modifier, describe, is_implemented
 from ..params.connection import Driven
-from ..params.rate import Rate, as_rate
+from ..params.parameter import Rate, as_rate
 from ..params.scope import PerLineage
 from ..tree import as_tree
 

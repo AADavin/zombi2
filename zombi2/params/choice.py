@@ -62,7 +62,7 @@ class Choice:
     def scaled_by(self, driver: object, mapping: object = None, *,
                   step: float | None = None) -> "Choice":
         """Refused. A choice has no base to scale."""
-        from .rate import RateCompositionError
+        from .parameter import RateCompositionError
         raise RateCompositionError(
             "a choice has no base to scale: its numbers are weights, compared against each other "
             "and normalised across the candidates. The verb is weighted_by — the same driver and "
@@ -71,7 +71,7 @@ class Choice:
     def set_by(self, driver: object, mapping: object = None, *,
                step: float | None = None) -> "Choice":
         """Refused. A choice has no base to replace."""
-        from .rate import RateCompositionError
+        from .parameter import RateCompositionError
         raise RateCompositionError(
             "a choice has no base to replace: its numbers are weights, compared against each other "
             "and normalised across the candidates. The verb is weighted_by.")

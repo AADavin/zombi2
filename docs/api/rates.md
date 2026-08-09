@@ -59,9 +59,9 @@ extent from `Extent(...)`, and a choice from `Recipients()` — the last two onl
 chained onto them, since a bare distribution is already an extent and `"uniform"` is already a
 choice.
 
-::: zombi2.params.rate
+::: zombi2.params.parameter
 
-::: zombi2.params.extent
+::: zombi2.params.parameter
 
 ::: zombi2.params.choice
 
@@ -98,7 +98,7 @@ modifier of your own opens that gate by naming the engines you implemented it fo
 from zombi2 import species
 from zombi2.params import PerLineage
 from zombi2.params.evaluate import Modifier
-from zombi2.params.rate import Rate
+from zombi2.params.parameter import Rate
 
 class OnLogTime(Modifier):
     implemented_for = ("species",)

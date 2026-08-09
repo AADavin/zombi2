@@ -13,7 +13,7 @@ from zombi2.params import evaluate as ev
 from zombi2 import species
 from zombi2.genomes import simulate_genomes_nucleotide, simulate_genomes_ordered
 from zombi2.params.distributions import Fixed, Geometric, as_distribution
-from zombi2.params.extent import as_extent
+from zombi2.params.parameter import as_extent
 
 
 @pytest.fixture

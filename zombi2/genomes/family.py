@@ -34,7 +34,7 @@ from ..rng import resolve_seed, stream
 from ..params.driver import OnTime
 from ..params.evaluate import DRAWN, describe, is_implemented, matches_declared, values_at_birth
 from ..params.connection import Driven, SetBy
-from ..params.rate import Rate, as_rate
+from ..params.parameter import Rate, as_rate
 from ..params.scope import PerCopy, PerLineage
 from ..tree import Tree, as_tree
 from ._live import enter, retire, weighted_index, without_cyclic_gc

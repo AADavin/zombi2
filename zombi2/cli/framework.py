@@ -663,7 +663,7 @@ def _log_value(value: object) -> str:
     from zombi2.params.choice import Choice, Clades, Distance
     from zombi2.params.evaluate import Modifier
     from zombi2.params.parse import written_choice, written_form
-    from zombi2.params.rate import Rate
+    from zombi2.params.parameter import Rate
 
     if isinstance(value, (Choice, Distance, Clades)):
         # the three shapes a `transfer_to` takes besides a named rule. `written_choice` knows what a

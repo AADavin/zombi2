@@ -263,7 +263,7 @@ def _no_longer_multiplied(left: object, right: object) -> Exception:
     an old ``--params`` file starts by multiplying. Left to CPython that fails with "unsupported
     operand type(s)", which names two classes nobody wrote and says nothing about what to do; this
     names the verbs instead."""
-    from .rate import RateCompositionError
+    from .parameter import RateCompositionError
 
     return RateCompositionError(
         f"'*' no longer composes a rate — the verbs do, and each returns a new rate so they chain: "

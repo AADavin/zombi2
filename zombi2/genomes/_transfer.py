@@ -29,7 +29,7 @@ from ..params import connection as verbs
 from ..params.choice import Choice, Clades, Distance
 from ..params.mapping import Between, check_kernel_fires
 from ..params.connection import Driven, SetBy
-from ..params.rate import Rate
+from ..params.parameter import Rate
 from .._runtime.draw import weighted_index as _weighted_index
 from ..tree import node_label
 
