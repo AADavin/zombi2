@@ -97,13 +97,13 @@ from dataclasses import dataclass, field
 
 from ..params.distributions import Geometric
 from ..rng import stream
-from ..params.extent import Extent, as_extent
+from ..params.parameter import Extent, as_extent
 from ..params.conditioned import check_mapping_fires, resolve_driver
 from ..params.mapping import check_not_a_kernel
 from ..params.driver import OnTime
 from ..params.evaluate import cell_name, describe, is_implemented
 from ..params.connection import Driven
-from ..params.rate import Rate, as_rate
+from ..params.parameter import Rate, as_rate
 from ..params.scope import PerChromosome, PerLineage
 from ..tree import Tree, as_tree
 from ._live import enter, retire, weighted_index, without_cyclic_gc

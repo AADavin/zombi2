@@ -13,7 +13,7 @@ from ..rng import stream
 from ..params.driver import OnTime, OnTotalDiversity
 from ..params.evaluate import (DRAWN, INHERITED, check_one_memory, describe, is_implemented, values_at_birth, values_at_split)
 from ..params.connection import Driven, SetBy
-from ..params.rate import as_rate
+from ..params.parameter import as_rate
 from ..params.scope import PerLineage
 from ..tree import Tree, as_tree
 

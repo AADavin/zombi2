@@ -35,7 +35,7 @@ class Composition:
     """The share of a lineage's sequence that is one of ``letters``, over time.
 
     Built by ``result.gc()`` or ``result.composition(letters)`` and handed to
-    `~zombi2.params.rate.Rate.scaled_by` like any grown driver::
+    `~zombi2.params.parameter.Rate.scaled_by` like any grown driver::
 
         seqs = simulate_sequences(g, model=hky85(2.0), length=300, seed=1)
         simulate_discrete(tree, states=["mesophile", "thermophile"], start="mesophile",

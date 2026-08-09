@@ -27,7 +27,7 @@ from ..rng import stream
 from .._runtime.draw import weighted_index as _weighted_index
 from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
-from ..params.rate import as_rate
+from ..params.parameter import as_rate
 from ..params.scope import Global, PerLineage
 from ..tree import Node, Tree, prune
 

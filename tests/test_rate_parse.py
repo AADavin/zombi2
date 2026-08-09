@@ -14,7 +14,7 @@ from zombi2.params import (Between, Drift, Extent, Gamma, LogNormal, PerCopy, Pe
 from zombi2.params import driver as drv
 from zombi2.params import law as law
 from zombi2.params import scope
-from zombi2.params.rate import Rate
+from zombi2.params.parameter import Rate
 from zombi2.params.parse import RateSyntaxError, parse_rate, written_form
 
 

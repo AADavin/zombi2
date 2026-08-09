@@ -328,7 +328,7 @@ def _clock_shape(written: str) -> str | None:
     import dataclasses
 
     from zombi2.params.parse import parse_rate
-    from zombi2.params.rate import Rate
+    from zombi2.params.parameter import Rate
     try:
         rate = parse_rate(written)
     except ValueError:            # every parser refusal, including an old log's retired spelling

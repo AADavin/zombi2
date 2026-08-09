@@ -66,7 +66,7 @@ from ..rng import resolve_seed, seed_sequence, stream
 from ..params.mapping import Between
 from ..params.evaluate import (DRAWN, INHERITED, Modifier, check_one_memory, describe, matches_declared)
 from ..params.connection import Driven
-from ..params.rate import Rate, as_rate
+from ..params.parameter import Rate, as_rate
 from ..params.scope import PerSite
 from ..tree import Node, Tree, prune
 from .._runtime.outputs import fresh_dirs, grouped_dir

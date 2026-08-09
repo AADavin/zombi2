@@ -34,7 +34,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:                      # `Rate` imports this module, so the real import is deferred
-    from .rate import Rate
+    from .parameter import Rate
 
 
 class Scope:
@@ -52,7 +52,7 @@ class Scope:
     # second object for a level to coerce later. mypy flags a `__new__` returning something outside
     # the class, which is exactly the unusual thing being done here on purpose.
     def __new__(cls, base: float | None = None) -> "Rate":   # type: ignore[misc]
-        from .rate import Rate
+        from .parameter import Rate
 
         if cls is Scope:
             raise TypeError(

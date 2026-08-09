@@ -19,7 +19,7 @@ from zombi2.params import evaluate as ev
 from zombi2.params import law as law
 from zombi2.params import scope
 from zombi2.params.evaluate import CARRIED_KINDS, DRAWN, DRIVEN, INHERITED, MEASURED
-from zombi2.params.rate import as_rate
+from zombi2.params.parameter import as_rate
 
 
 def _rate(spec):

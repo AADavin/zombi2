@@ -43,7 +43,7 @@ from zombi2.params.evaluate import values_at_birth
 from zombi2.params.law import Drift
 from zombi2.params.connection import Driven
 from zombi2.params.parse import parse_rate, written_form
-from zombi2.params.rate import Rate, as_rate
+from zombi2.params.parameter import Rate, as_rate
 
 #: (name, chain one verb onto a rate, the values this verb's driver can take, does it replace the base)
 #:
@@ -269,7 +269,7 @@ EXTENTS = [
 def test_an_extent_survives_being_written_down_and_read_back(name, spec):
     """An extent is ``base × modifiers`` with no scope (SPEC §6), so it renders through the same
     writer a rate does and has to come back the same size."""
-    from zombi2.params.extent import as_extent
+    from zombi2.params.parameter import as_extent
 
     text = written_form(spec)
     back = parse_rate(text)

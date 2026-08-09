@@ -158,7 +158,7 @@ def test_drivenby_inert_without_driver():
 
 
 def test_drivenby_builds_a_rate():
-    from zombi2.params.rate import as_rate
+    from zombi2.params.parameter import as_rate
     los = PerCopy(0.25).scaled_by("f.tsv", {"hi": 4.0})
     r = as_rate(los, default_scope=PerCopy)
     # base × copies × mapped factor

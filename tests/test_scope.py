@@ -3,7 +3,7 @@
 import pytest
 
 from zombi2.params import scope
-from zombi2.params.rate import Rate
+from zombi2.params.parameter import Rate
 
 
 # --- calling a scope IS the rate ------------------------------------------
