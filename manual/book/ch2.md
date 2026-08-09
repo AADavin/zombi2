@@ -38,7 +38,7 @@ Everything is driven by events that fire over time: speciations and extinctions 
 A rate is written from its **scope**, which answers *per what?*:
 
 ```python
-from zombi2.params import Drift, LogNormal, PerCopy, PerLineage, PerSite, TotalDiversity
+from zombi2.params.scope import PerCopy, PerLineage
 
 loss = PerCopy(0.25)      # each gene copy is lost at 0.25 — a big genome loses often
 loss = PerLineage(0.25)   # the lineage loses at 0.25, whatever its genome holds
@@ -54,7 +54,7 @@ The **base** is the speed of a single event, in units of inverse time. The **sco
 
 You do not write a modifier. You chain a **verb** onto the rate, and the verb says what the number does to it. There are three: `scaled_by` multiplies the base, `set_by` replaces it in the rate's own units so nothing is written in front, and `weighted_by` compares the candidates of a **choice** — `transfer_to` is the only one. Only `scaled_by` multiplies, so only it is in the equation above.
 
-The verb's first argument is the **driver**, the thing the rate reads. One row here per thing you can depend on, not per verb:
+The verb's first argument is the **driver**, the thing the rate reads. Each kind of name has its own module — scopes in `params.scope`, drivers in `params.driver`, laws in `params.law`, distributions in `params.distributions` — and all of them are also importable straight from `zombi2.params` once you know which is which. One row here per thing you can depend on, not per verb:
 
 | The rate depends on | Written |
 |---|---|
@@ -71,6 +71,8 @@ Two of those drivers are written so often that each has a verb of its own — `c
 Verbs chain, and their factors multiply:
 
 ```python
+from zombi2.params.distributions import LogNormal
+
 # loss triples after time 2, and varies from family to family on top of that
 loss = PerCopy(0.25).changing_at({0: 1.0, 2: 3.0}).varying_among('families', LogNormal(0.0, 0.5))
 ```
@@ -104,6 +106,8 @@ The verb is not a fourth thing to learn. It follows from the first answer: `scal
 
 Take olfactory genes. A habitat trait switches between aquatic and terrestrial along the tree, and aquatic lineages lose those genes four times faster. Gene loss is what depends, the habitat is what it depends on, and the mapping turns one into the other: on an aquatic branch the loss rate is `0.25 × 4`, elsewhere `0.25 × 1`.
 
+![Conditioning. The **driver** is a value already simulated — a habitat trait here, with the two states each lineage switches between shown below it. What depends is a rate in the run that comes next, gene loss here, and the arrow between them carries the **mapping**: one multiplier per state of the driver, so a branch's habitat sets that branch's loss rate. The driver is finished and written to a file before the second run starts, which is what makes this two ordinary commands.](figures/conditioning_print.png){width=95%}
+
 What makes this **conditioning** is that the driver can be finished before the target starts. The habitat is unaffected by how many genes a lineage has, so the trait run completes and writes its event log, and the genome run reads that log and looks up a multiplier per branch. Nothing about it needs a special engine, and the run factorises:
 
 $$P(\text{Species}) \cdot P(\text{Traits} \mid \text{Species}) \cdot P(\text{Genomes} \mid \text{Species}, \text{Traits})$$
@@ -118,6 +122,8 @@ Driver and target need not be at different levels. One gene family can drive ano
 - Gene content decides survival: lineages that acquire a key gene diversify faster.
 
 If a trait speeds up speciation, faster-speciating lineages leave more descendants, so the tree's shape depends on the trait while the trait is evolving along that very tree. No order works, so both are grown together in one run, and the tree becomes an output rather than an input.
+
+![Joining, with the same parts and one thing that changes everything. Body size drives speciation through the same `scaled_by`, and the speciation rate makes the tree — but that tree is the one the trait is evolving along, so the loop closes. Note where: not from the rate back to the trait, since a speciation rate does not change a body size. It decides which lineages split, and every split hands the parent's state to both daughters. The tree is the third thing in the cycle, and it is the whole difference between the two figures — a fixed input there, an output here.](figures/joining_print.png){width=95%}
 
 Because neither is finished first, neither can be written out and handed over. There is no conditional probability to write, only a joint one:
 
