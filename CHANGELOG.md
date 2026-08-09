@@ -9,6 +9,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+- **A `transfer_to` rule is recorded in the form that takes it back.** A choice is not a rate: a
+  named rule is written bare (`uniform`, not `'uniform'`, which the flag refuses) and a `Weights` is
+  written on its own, without the `1.0 *` a rate carries, because a choice has no base and
+  `--transfer-to` rejects one in front. `Distance` and `Clades` now render as the constructor calls
+  the API takes rather than as dataclass reprs. Those two remain Python-only — they are not in the
+  parser's whitelist, so a non-default `Distance(decay=…)` still cannot be written on the command
+  line, which is the project's one departure from a single notation and is now covered by a test that
+  will fail the day it is closed. (#327)
+
 ### Removed
 - **`spread=` on `Drawn` and `Inherited`. Write the distribution instead.** `Drawn(per='family',
   dist=LogNormal(0.0, 0.5))` and `Inherited(per='lineage', dist=LogNormal(0.0, 0.2))` replace

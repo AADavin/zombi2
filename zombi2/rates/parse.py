@@ -294,7 +294,32 @@ def written_form(spec: object) -> str:
         head = (f"{type(spec.scope).__name__}({float(spec.base)!r})" if spec.scope is not None
                 else repr(float(spec.base)))
         return " * ".join([head, *(repr(m) for m in mods)])
+    return written_choice(spec)
+
+
+def written_choice(spec: object) -> str:
+    """A ``transfer_to`` rule as the text that flag takes back.
+
+    A choice is not a rate (SPEC §5) and its written form differs in two ways that matter, both of
+    which were wrong before this existed. A named rule is written **bare** — ``uniform``, not
+    ``'uniform'`` — because that is what ``--transfer-to`` accepts, and a quoted string is not.
+    And a `Weights` is written **on its own**, without the ``1.0 *`` a rate would carry, because a
+    choice has no base and the flag refuses one in front: the log used to record an expression the
+    CLI would then reject, which is the one thing a reproducibility record must not do.
+
+    `Distance` and `Clades` render as the constructor calls the API takes. They are not in the
+    parser's whitelist — they live at the genome level, and `rates` does not import from it — so
+    those two are pasteable into Python but not yet into a flag. That gap is real and recorded
+    here rather than hidden by a repr that looks parseable.
+    """
+    if isinstance(spec, str):
+        return spec                                   # 'uniform' / 'distance', bare
+    if isinstance(spec, _modifiers.Driven):
+        return repr(spec)                             # no base: a choice has none
+    if type(spec).__name__ == "Clades":               # duck-typed: rates cannot import genomes
+        groups, between = spec.groups, spec.between   # type: ignore[attr-defined]
+        return f"Clades({groups!r}, {between!r})"
     return repr(spec)
 
 
-__all__ = ["parse_rate", "written_form", "RateSyntaxError"]
+__all__ = ["parse_rate", "written_form", "written_choice", "RateSyntaxError"]

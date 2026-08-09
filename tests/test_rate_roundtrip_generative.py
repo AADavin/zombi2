@@ -37,7 +37,7 @@ from zombi2.rates import scope
 from zombi2.rates import values as values_mod
 from zombi2.rates.distributions import Exponential, Fixed, Gamma, Geometric, LogNormal, Uniform
 from zombi2.rates.mapping import Scalar, Table
-from zombi2.rates.modifiers import Driven, values_at_birth
+from zombi2.rates.modifiers import CARRIED_KINDS, Driven, values_at_birth
 from zombi2.rates.parse import parse_rate, written_form
 from zombi2.rates.rate import Rate, as_rate
 
@@ -208,3 +208,80 @@ def test_a_written_form_that_cannot_be_reparsed_is_a_known_hole_not_a_surprise()
     assert "<lambda>" in text
     with pytest.raises(Exception):
         parse_rate(text)
+
+
+# --- the other two parameter kinds ----------------------------------------
+#
+# The `SetBy`-drops-`step` hole above was found by checking rates. An extent and a choice are the
+# other two things you can attach a driver to, and neither was checked anywhere.
+
+EXTENTS = [
+    ("bare-number", 500),
+    ("fixed", Fixed(3.0)),
+    ("geometric", Geometric(250.0)),
+    ("gamma", Gamma(shape=2.0, scale=250.0)),
+    ("driven", 800 * ScaledBy("h.tsv", {"host": 3.0, "free": 1.0})),
+    ("skyline", 800 * mod.OnTime({0: 1.0, 3: 0.5})),
+    ("drawn", 800 * mod.Drawn(per="family", dist=LogNormal(0.0, 0.4))),
+]
+
+
+@pytest.mark.parametrize("name,spec", EXTENTS, ids=[n for n, _ in EXTENTS])
+def test_an_extent_survives_being_written_down_and_read_back(name, spec):
+    """An extent is ``base × modifiers`` with no scope (SPEC §6), so it renders through the same
+    writer a rate does and has to come back the same size."""
+    from zombi2.rates.extent import as_extent
+
+    text = written_form(spec)
+    back = parse_rate(text)
+    assert written_form(back) == text, "the written form is not a fixed point"
+
+    a, b = as_extent(spec), as_extent(back)
+    assert a == b, f"reparsed to a different extent: {text}"
+    if any(m.reads and m.reads[0] in CARRIED_KINDS for m in a.modifiers):
+        return   # a carried factor never reaches Extent.sample: the engine weights the segment by
+                 # what it covers (SPEC §6), so there is no number here to compare
+    ctx = {"copies": 12, "lineages": 3, "chromosomes": 1, "sites": 90, "time": 1.0,
+           "drivers": {m.key: "host" for m in a.modifiers if isinstance(m, Driven)}}
+    # same seed, same sizes: an extent's number is drawn, so equality of objects is not enough
+    for t in (0.0, 2.0, 4.0):
+        ra, rb = np.random.default_rng(11), np.random.default_rng(11)
+        assert [a.sample(ra, **{**ctx, "time": t}) for _ in range(5)] == \
+               [b.sample(rb, **{**ctx, "time": t}) for _ in range(5)], text
+
+
+def test_a_transfer_choice_is_written_as_the_form_that_takes_it_back():
+    """A choice is not a rate, and its written form differs in ways that bit twice.
+
+    A named rule is written bare, because `--transfer-to` takes `uniform` and not `'uniform'`. And a
+    `Weights` is written on its own, without the ``1.0 *`` a rate carries — a choice has no base and
+    the flag refuses one in front, so the rate writer's output was an expression the CLI rejects."""
+    from zombi2.genomes._transfer import Clades, Distance, resolve_transfer_to
+    from zombi2.rates import Weights
+    from zombi2.rates.mapping import Between
+    from zombi2.rates.parse import written_choice
+
+    assert written_choice("uniform") == "uniform"
+    assert written_choice("distance") == "distance"
+    assert written_choice(Distance(decay=2.0)) == "Distance(decay=2.0)"
+    assert written_choice(Clades({"A": ["n1"]}, Between({("A", "A"): 1.0}, default=0.0))) == \
+        "Clades({'A': ['n1']}, Between({('A', 'A'): 1.0}, default=0.0))"
+
+    w = Weights("gc.tsv", {"a": 2.0})
+    assert written_choice(w) == "Weights('gc.tsv', Table({'a': 2.0}))"
+    assert not written_choice(w).startswith("1.0 *"), "a choice has no base to write in front of it"
+    # and what it writes is what the engine takes back
+    assert resolve_transfer_to(parse_rate(written_choice(w))) == w
+    for rule in ("uniform", "distance"):
+        resolve_transfer_to(written_choice(rule))
+
+
+def test_the_cli_cannot_yet_write_two_choice_rules_that_python_can():
+    """`Distance(decay=)` and `Clades(...)` are not in the parser's whitelist, so they are Python-only.
+
+    Recorded as a test rather than left to be discovered: the project's rule is one notation across
+    Python, the CLI and a --params file, and these two are the exception. The day they are added,
+    this test fails and says so."""
+    for text in ("Distance(decay=3.0)", "Clades({'A': ['n1']}, Between({('A', 'A'): 1.0}))"):
+        with pytest.raises(ValueError, match="unknown name"):
+            parse_rate(text)
