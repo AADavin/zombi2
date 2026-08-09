@@ -1,6 +1,6 @@
 """Conditioning — a trait drives a genome or a sequence rate (SPEC §2, §3, §5).
 
-The one mechanism (``mod.Driven``) and its conditioned uses: a discrete trait grown first, written
+The one mechanism (``scaled_by``) and its conditioned uses: a discrete trait grown first, written
 to a driver file, then read by a later run. Covers the mapping shapes, the Driven modifier, the
 driver trajectory + file round-trip, the traits driver writer, the end-to-end trait→loss drive
 with a seed-independent correctness invariant, both halves of trait-driven transfer — the donor
@@ -17,7 +17,9 @@ import pytest
 
 from zombi2 import genomes, sequences, traits
 from zombi2.rates.driver import DriverTrajectory, load_driver
-from zombi2.rates import LogNormal, ScaledBy, Weights, modifiers as mod
+from zombi2.rates import (Extent, LogNormal, PerChromosome, PerCopy, PerLineage, PerSite,
+                          Recipients)
+from zombi2.rates import verbs
 from zombi2.rates.mapping import Between, Curve, Scalar, Table, as_mapping, check_kernel_fires
 from zombi2.sequences.substitution_models import hky85, jc69
 from zombi2.species import simulate_species_tree
@@ -89,7 +91,7 @@ def test_as_mapping_coercion():
     t = Table({"a": 2.0})
     assert as_mapping(t) is t                           # already a mapping → unchanged
     b = Between({("a", "b"): 2.0})
-    assert as_mapping(b) is b                           # a kernel passes through (for ScaledBy(., Between))
+    assert as_mapping(b) is b                           # a kernel passes through, for a Between weight
     with pytest.raises(TypeError):
         as_mapping(True)
     with pytest.raises(TypeError):
@@ -128,7 +130,8 @@ def test_between_rejects_bad_input():
 
 def test_between_repr_round_trips_through_the_parser():
     from zombi2.rates.parse import parse_rate
-    d = ScaledBy("f.tsv", Between({("A", "B"): 3.0, ("B", "A"): 3.0}, default=0.0))
+    d = Recipients().weighted_by("f.tsv", Between({("A", "B"): 3.0, ("B", "A"): 3.0},
+                                                  default=0.0))
     assert parse_rate(repr(d)) == d                     # the log line pastes back into a flag
 
 
@@ -142,22 +145,21 @@ def test_check_kernel_fires_needs_a_named_pair_to_occur():
 # --- the Driven modifier ------------------------------------------------------------------------
 
 def test_drivenby_factor_reads_threaded_value():
-    d = ScaledBy("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})
+    d = verbs.scaled_by("habitat.tsv", {"aquatic": 3.0, "terrestrial": 1.0})
     assert d.factor(drivers={"habitat.tsv": "aquatic"}) == 3.0
     assert d.factor(drivers={"habitat.tsv": "terrestrial"}) == 1.0
 
 
 def test_drivenby_inert_without_driver():
-    d = ScaledBy("trait", {"a": 5.0})
+    d = verbs.scaled_by("trait", {"a": 5.0})
     assert d.factor() == 1.0                            # no drivers threaded → inert
     assert d.factor(drivers={"other": "a"}) == 1.0      # this source absent → inert
     assert d.next_change(0.0) == math.inf               # the engine owns per-lineage switching
 
 
 def test_drivenby_builds_a_rate():
-    los = 0.25 * ScaledBy("f.tsv", {"hi": 4.0})
-    from zombi2.rates.scope import PerCopy
     from zombi2.rates.rate import as_rate
+    los = PerCopy(0.25).scaled_by("f.tsv", {"hi": 4.0})
     r = as_rate(los, default_scope=PerCopy)
     # base × copies × mapped factor
     assert r.effective(copies=10, drivers={"f.tsv": "hi"}) == pytest.approx(0.25 * 10 * 4.0)
@@ -166,9 +168,9 @@ def test_drivenby_builds_a_rate():
 
 def test_drivenby_validates_driver():
     with pytest.raises(ValueError):
-        ScaledBy("", {"a": 1.0})
+        verbs.scaled_by("", {"a": 1.0})
     with pytest.raises(ValueError):
-        ScaledBy("   ", {"a": 1.0})
+        verbs.scaled_by("   ", {"a": 1.0})
 
 
 # --- the driver trajectory + file round-trip ------------------------------------------------------
@@ -237,7 +239,7 @@ def test_zero_factor_lineages_never_lose(tmp_path):
 
     res = genomes.simulate_genomes_family(
         tree,
-        loss=0.25 * ScaledBy(str(driver), {"lo": 0.0, "hi": 40.0}),
+        loss=PerCopy(0.25).scaled_by(str(driver), {"lo": 0.0, "hi": 40.0}),
         initial_families=6, seed=3,
     )
     # every loss event lands on a hi lineage (a lo lineage's loss rate is exactly 0)
@@ -261,7 +263,7 @@ def test_mapping_matching_no_driver_state_is_refused(tmp_path):
     _write_driver(driver, tree, {i: ("hi" if i % 2 else "lo") for i in tree.nodes})
     with pytest.raises(ValueError, match="match none of the driver's states"):
         genomes.simulate_genomes_family(
-            tree, loss=0.25 * ScaledBy(str(driver), {"cave": 4.0}),  # 'cave' is never a driver state
+            tree, loss=PerCopy(0.25).scaled_by(str(driver), {"cave": 4.0}),  # 'cave' is never a driver state
             initial_families=6, seed=3)
 
 
@@ -272,7 +274,7 @@ def test_partial_mapping_with_one_matching_state_still_runs(tmp_path):
     driver = tmp_path / "habitat.tsv"
     _write_driver(driver, tree, {i: "lo" for i in tree.nodes})   # only 'lo' ever occurs
     res = genomes.simulate_genomes_family(
-        tree, loss=0.25 * ScaledBy(str(driver), {"lo": 2.0, "hi": 9.0}),  # 'hi' listed but absent
+        tree, loss=PerCopy(0.25).scaled_by(str(driver), {"lo": 2.0, "hi": 9.0}),  # 'hi' listed but absent
         initial_families=6, seed=3)
     assert res.events is not None                                # it ran; the absent 'hi' key is fine
 
@@ -282,7 +284,7 @@ def test_driven_loss_is_deterministic(tmp_path):
     state_of = {i: ("hi" if i % 2 else "lo") for i in tree.nodes}
     driver = tmp_path / "d.tsv"
     _write_driver(driver, tree, state_of)
-    kw = dict(loss=0.3 * ScaledBy(str(driver), {"lo": 1.0, "hi": 5.0}),
+    kw = dict(loss=PerCopy(0.3).scaled_by(str(driver), {"lo": 1.0, "hi": 5.0}),
               initial_families=4, seed=9)
     a = genomes.simulate_genomes_family(tree, **kw)
     b = genomes.simulate_genomes_family(tree, **kw)
@@ -299,7 +301,7 @@ def test_end_to_end_trait_drives_loss(tmp_path):
     hab.write(tmp_path, outputs=("events",))
     res = genomes.simulate_genomes_family(
         tree,
-        loss=0.15 * ScaledBy(str(tmp_path / "trait_events.tsv"),
+        loss=PerCopy(0.15).scaled_by(str(tmp_path / "trait_events.tsv"),
                                  {"cave": 6.0, "surface": 1.0}),
         origination=0.2, initial_families=5, seed=2,
     )
@@ -318,7 +320,7 @@ def test_int_state_trait_drives_loss_end_to_end(tmp_path):
     trait.write(tmp_path, outputs=("events",))
     res = genomes.simulate_genomes_family(
         tree,
-        loss=0.3 * ScaledBy(str(tmp_path / "trait_events.tsv"), {0: 0.0, 1: 30.0}),
+        loss=PerCopy(0.3).scaled_by(str(tmp_path / "trait_events.tsv"), {0: 0.0, 1: 30.0}),
         initial_families=5, seed=2,
     )
     losses = [e for e in res.edges if e.kind == "loss"]
@@ -335,14 +337,14 @@ def test_drivenby_accepts_traits_result_object(tmp_path):
     gives an IDENTICAL run (the file round-trip is lossless)."""
     tree = simulate_species_tree(birth=1.1, total_time=2.5, seed=3).complete_tree
     habitat = traits.simulate_discrete(tree, states=["aquatic", "terrestrial"], switch=0.5, seed=1)
-    kw = dict(loss=0.5 * ScaledBy(habitat, {"aquatic": 3.0, "terrestrial": 1.0}),
+    kw = dict(loss=PerCopy(0.5).scaled_by(habitat, {"aquatic": 3.0, "terrestrial": 1.0}),
               origination=0.2, initial_families=8, seed=2)
     by_object = genomes.simulate_genomes_family(tree, **kw)
 
     habitat.write(tmp_path, outputs=("events",))
     by_file = genomes.simulate_genomes_family(
         tree,
-        loss=0.5 * ScaledBy(str(tmp_path / "trait_events.tsv"), {"aquatic": 3.0, "terrestrial": 1.0}),
+        loss=PerCopy(0.5).scaled_by(str(tmp_path / "trait_events.tsv"), {"aquatic": 3.0, "terrestrial": 1.0}),
         origination=0.2, initial_families=8, seed=2)
     key = lambda r: [(e.time, e.kind, e.lineage, e.copy) for e in r.edges]
     assert key(by_object) == key(by_file)
@@ -354,7 +356,7 @@ def test_drivenby_object_must_be_a_trait_result(tmp_path):
     tree = simulate_species_tree(birth=1.0, total_time=1.5, seed=2).complete_tree
     with pytest.raises(ValueError, match="grown trait result"):
         genomes.simulate_genomes_family(
-            tree, loss=0.5 * ScaledBy(object(), {"a": 2.0}), initial_families=3, seed=1)
+            tree, loss=PerCopy(0.5).scaled_by(object(), {"a": 2.0}), initial_families=3, seed=1)
 
 
 # --- a trait drives transfer, side 1: the DONOR rate ----------------------------------------------
@@ -407,7 +409,7 @@ def test_driven_transfer_picks_the_donor(tmp_path):
     _write_driver(driver, tree, state_of)
 
     res = genomes.simulate_genomes_family(
-        tree, transfer=0.2 * ScaledBy(str(driver), {"lo": 0.0, "hi": 20.0}),
+        tree, transfer=PerCopy(0.2).scaled_by(str(driver), {"lo": 0.0, "hi": 20.0}),
         initial_families=6, seed=3)
     donations = [e for e in res.edges if e.kind == "transfer" and e.recipient is None]
     assert donations, "expected some donation from the hi lineages"
@@ -432,7 +434,7 @@ def test_driven_transfer_changes_how_much_transfer_happens(tmp_path):
         kw = dict(replacement=True, initial_families=8, seed=seed)
         plain = genomes.simulate_genomes_family(tree, transfer=0.2, **kw)
         driven = genomes.simulate_genomes_family(
-            tree, transfer=0.2 * ScaledBy(str(driver), {"any": 3.0}), **kw)
+            tree, transfer=PerCopy(0.2).scaled_by(str(driver), {"any": 3.0}), **kw)
         n_plain += sum(1 for e in plain.edges if e.kind == "transfer" and e.recipient is not None)
         n_driven += sum(1 for e in driven.edges if e.kind == "transfer" and e.recipient is not None)
     assert 2.7 < n_driven / n_plain < 3.3
@@ -442,7 +444,7 @@ def test_driven_transfer_is_deterministic(tmp_path):
     tree = simulate_species_tree(birth=1.0, total_time=1.5, seed=5).complete_tree
     driver = tmp_path / "d.tsv"
     _write_driver(driver, tree, {i: ("hi" if i % 2 else "lo") for i in tree.nodes})
-    kw = dict(transfer=0.3 * ScaledBy(str(driver), {"lo": 1.0, "hi": 5.0}),
+    kw = dict(transfer=PerCopy(0.3).scaled_by(str(driver), {"lo": 1.0, "hi": 5.0}),
               initial_families=4, seed=9)
     a = genomes.simulate_genomes_family(tree, **kw)
     b = genomes.simulate_genomes_family(tree, **kw)
@@ -450,7 +452,7 @@ def test_driven_transfer_is_deterministic(tmp_path):
 
 
 # --- a trait drives transfer, side 2: the RECIPIENT weight ----------------------------------------
-# `transfer_to = Weights(...)` is the choice slot (SPEC §5): the mapping's numbers are weights
+# `transfer_to = Recipients().weighted_by(...)` is the choice (SPEC §5): the numbers are weights
 # over the contemporaneous candidates, so the same transfers are redistributed, not multiplied.
 
 def _flat_tree_and_driver(tmp_path, competent):
@@ -480,7 +482,7 @@ def test_recipient_weight_splits_transfers_two_to_one(tmp_path):
     # move anyone estimating rates from a run has to make.
     res = genomes.simulate_genomes_family(
         tree, transfer=4.0, initial_families=6, self_transfer=True, max_family_size=None,
-        transfer_to=Weights(str(driver), {"competent": 2.0, "normal": 1.0}), seed=5)
+        transfer_to=Recipients().weighted_by(str(driver), {"competent": 2.0, "normal": 1.0}), seed=5)
     arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
     assert len(arrivals) > 1500                        # enough events for a 0.03 tolerance
     assert all(e.lineage in tips for e in arrivals)     # the internal branches are 1e-6 long
@@ -493,7 +495,7 @@ def test_recipient_weight_zero_cannot_receive(tmp_path):
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
     res = genomes.simulate_genomes_family(
         tree, transfer=1.0, initial_families=6,
-        transfer_to=Weights(str(driver), {"competent": 1.0, "normal": 0.0}), seed=5)
+        transfer_to=Recipients().weighted_by(str(driver), {"competent": 1.0, "normal": 0.0}), seed=5)
     arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
     assert arrivals
     assert all(e.lineage in hot for e in arrivals)
@@ -506,7 +508,7 @@ def test_no_eligible_recipient_means_no_transfer_at_all(tmp_path):
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=0)   # nobody is competent
     kw = dict(transfer=1.0, initial_families=6, seed=5)
     blocked = genomes.simulate_genomes_family(
-        tree, transfer_to=Weights(str(driver), {"competent": 1.0, "normal": 0.0}), **kw)
+        tree, transfer_to=Recipients().weighted_by(str(driver), {"competent": 1.0, "normal": 0.0}), **kw)
     free = genomes.simulate_genomes_family(tree, transfer_to="uniform", **kw)
     assert not [e for e in blocked.edges if e.kind == "transfer"]
     assert [e for e in free.edges if e.kind == "transfer"]
@@ -518,8 +520,8 @@ def test_both_drivers_compose(tmp_path):
     """The donor rate and the recipient weight are independent models and may be used together."""
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
     res = genomes.simulate_genomes_family(
-        tree, transfer=0.5 * ScaledBy(str(driver), {"competent": 5.0, "normal": 0.0}),
-        transfer_to=Weights(str(driver), {"competent": 0.0, "normal": 1.0}),
+        tree, transfer=PerCopy(0.5).scaled_by(str(driver), {"competent": 5.0, "normal": 0.0}),
+        transfer_to=Recipients().weighted_by(str(driver), {"competent": 0.0, "normal": 1.0}),
         initial_families=6, seed=5)
     donations = [e for e in res.edges if e.kind == "transfer" and e.recipient is None]
     arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
@@ -531,12 +533,12 @@ def test_both_drivers_compose(tmp_path):
 # --- a Between kernel makes transfer_to donor-conditioned (assortative by a trait) -----------------
 
 def test_recipient_kernel_keeps_transfer_within_the_donor_state(tmp_path):
-    """ScaledBy(trait, Between(...)) reads the driver on the DONOR too, so a same-state kernel keeps
+    """A Between kernel reads the driver on the DONOR too, so a same-state kernel keeps
     every transfer within one habitat — the thing a 1-D recipient weight cannot express."""
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
     res = genomes.simulate_genomes_family(
         tree, transfer=4.0, initial_families=6, self_transfer=True,
-        transfer_to=Weights(str(driver),
+        transfer_to=Recipients().weighted_by(str(driver),
                                  Between({("competent", "competent"): 1.0,
                                           ("normal", "normal"): 1.0}, default=0.0)), seed=5)
     arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
@@ -551,7 +553,7 @@ def test_recipient_kernel_fires_check_catches_absent_groups(tmp_path):
     with pytest.raises(ValueError, match="silently do nothing"):
         genomes.simulate_genomes_family(
             tree, transfer=1.0, initial_families=6,
-            transfer_to=Weights(str(driver), Between({("x", "y"): 1.0})), seed=5)
+            transfer_to=Recipients().weighted_by(str(driver), Between({("x", "y"): 1.0})), seed=5)
 
 
 def test_between_is_rejected_in_a_rate_slot():
@@ -559,7 +561,7 @@ def test_between_is_rejected_in_a_rate_slot():
     tree = simulate_species_tree(birth=1.0, total_time=1.0, seed=1).complete_tree
     with pytest.raises(ValueError, match="donor-conditioned"):
         genomes.simulate_genomes_family(
-            tree, loss=0.5 * ScaledBy("f.tsv", Between({("a", "b"): 1.0})),
+            tree, loss=PerCopy(0.5).scaled_by("f.tsv", Between({("a", "b"): 1.0})),
             initial_families=1, seed=1)
 
 
@@ -575,17 +577,19 @@ def test_every_rate_and_extent_slot_rejects_a_between_kernel():
     engine had one on its rates but not its extents."""
     tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=6, seed=1).complete_tree
     kernel = Between({("a", "a"): 3.0, ("b", "b"): 3.0})
-    driven = ScaledBy("f.tsv", kernel)
-
     slots = [
-        ("family rate", genomes.simulate_genomes_family, {"initial_families": 4, "loss": 0.2 * driven}),
-        ("ordered rate", genomes.simulate_genomes_ordered, {"initial_families": 6, "loss": 0.2 * driven}),
+        ("family rate", genomes.simulate_genomes_family,
+         {"initial_families": 4, "loss": PerCopy(0.2).scaled_by("f.tsv", kernel)}),
+        ("ordered rate", genomes.simulate_genomes_ordered,
+         {"initial_families": 6, "loss": PerCopy(0.2).scaled_by("f.tsv", kernel)}),
         ("ordered extent", genomes.simulate_genomes_ordered,
-         {"initial_families": 6, "inversion": 0.4, "inversion_extent": 3 * driven}),
+         {"initial_families": 6, "inversion": 0.4,
+          "inversion_extent": Extent(3).scaled_by("f.tsv", kernel)}),
         ("nucleotide rate", genomes.simulate_genomes_nucleotide,
-         {"root_length": 2000, "genes": 4, "loss": 0.2 * driven}),
+         {"root_length": 2000, "genes": 4, "loss": PerLineage(0.2).scaled_by("f.tsv", kernel)}),
         ("nucleotide extent", genomes.simulate_genomes_nucleotide,
-         {"root_length": 2000, "genes": 4, "inversion": 0.3, "inversion_extent": 200 * driven}),
+         {"root_length": 2000, "genes": 4, "inversion": 0.3,
+          "inversion_extent": Extent(200).scaled_by("f.tsv", kernel)}),
     ]
     for label, fn, kwargs in slots:
         with pytest.raises(ValueError, match="donor-conditioned"):
@@ -601,9 +605,9 @@ def test_every_rate_and_extent_slot_rejects_a_between_kernel():
 
 def test_transfer_to_rejects_a_rate():
     tree = simulate_species_tree(birth=1.0, total_time=1.0, seed=1).complete_tree
-    with pytest.raises(ValueError, match="on its own, not a rate"):
+    with pytest.raises(ValueError, match="written from Recipients"):
         genomes.simulate_genomes_family(
-            tree, transfer=0.1, transfer_to=1.0 * Weights("f.tsv", {"a": 2.0}),
+            tree, transfer=0.1, transfer_to=PerCopy(1.0).scaled_by("f.tsv", {"a": 2.0}),
             initial_families=1, seed=1)
 
 
@@ -612,7 +616,8 @@ def test_transfer_to_rejects_combining_distance_with_a_driven_weight():
     with pytest.raises(ValueError, match="one recipient rule"):
         genomes.simulate_genomes_family(
             tree, transfer=0.1,
-            transfer_to=(genomes.Distance(decay=1.0), Weights("f.tsv", {"a": 2.0})),
+            transfer_to=(genomes.Distance(decay=1.0),
+                         Recipients().weighted_by("f.tsv", {"a": 2.0})),
             initial_families=1, seed=1)
 
 
@@ -634,7 +639,7 @@ def test_ordered_engine_takes_a_driven_transfer_to(tmp_path):
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
     res = genomes.simulate_genomes_ordered(
         tree, transfer=1.0, initial_families=6,
-        transfer_to=Weights(str(driver), {"competent": 1.0, "normal": 0.0}), seed=5)
+        transfer_to=Recipients().weighted_by(str(driver), {"competent": 1.0, "normal": 0.0}), seed=5)
     arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
     assert arrivals
     assert all(e.lineage in hot for e in arrivals)
@@ -646,7 +651,7 @@ def test_nucleotide_engine_takes_a_driven_transfer_to(tmp_path):
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
     res = genomes.simulate_genomes_nucleotide(
         tree, transfer=4.0, root_length=2000, genes=3, gene_length=100,
-        transfer_to=Weights(str(driver), {"competent": 1.0, "normal": 0.0}), seed=5)
+        transfer_to=Recipients().weighted_by(str(driver), {"competent": 1.0, "normal": 0.0}), seed=5)
     arrivals = [e for e in res.events if type(e).__name__ == "Transfer"]
     assert arrivals
     assert all(e.recipient in hot for e in arrivals)
@@ -662,7 +667,7 @@ def test_recipient_weight_share_is_two_to_one_at_ordered(tmp_path):
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
     res = genomes.simulate_genomes_ordered(
         tree, transfer=4.0, initial_families=6, self_transfer=True, max_family_size=None,
-        transfer_to=Weights(str(driver), {"competent": 2.0, "normal": 1.0}), seed=5)
+        transfer_to=Recipients().weighted_by(str(driver), {"competent": 2.0, "normal": 1.0}), seed=5)
     arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
     assert len(arrivals) > 1500                        # enough events for a 0.03 tolerance
     assert all(e.lineage in tips for e in arrivals)    # the internal branches are 1e-6 long
@@ -684,7 +689,7 @@ def test_driven_transfer_to_leaves_how_much_transfer_alone_at_ordered(tmp_path):
         kw = dict(transfer=0.4, initial_families=8, max_family_size=None, seed=seed)
         plain = genomes.simulate_genomes_ordered(tree, **kw)
         driven = genomes.simulate_genomes_ordered(
-            tree, transfer_to=Weights(str(driver), {"any": 3.0}), **kw)
+            tree, transfer_to=Recipients().weighted_by(str(driver), {"any": 3.0}), **kw)
         n_plain += sum(1 for e in plain.edges if e.kind == "transfer" and e.recipient is not None)
         n_driven += sum(1 for e in driven.edges if e.kind == "transfer" and e.recipient is not None)
     assert n_plain > 200
@@ -698,7 +703,7 @@ def test_recipient_kernel_keeps_transfer_within_the_donor_state_at_nucleotide(tm
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
     res = genomes.simulate_genomes_nucleotide(
         tree, transfer=6.0, root_length=2000, genes=3, gene_length=100, self_transfer=True,
-        transfer_to=Weights(str(driver),
+        transfer_to=Recipients().weighted_by(str(driver),
                                  Between({("competent", "competent"): 1.0,
                                           ("normal", "normal"): 1.0}, default=0.0)), seed=5)
     arrivals = [e for e in res.events if type(e).__name__ == "Transfer"]
@@ -712,8 +717,8 @@ def test_a_driven_transfer_to_composes_with_a_driven_transfer_rate_at_ordered(tm
     not, and they share one loaded trajectory."""
     tree, tips, hot, driver = _flat_tree_and_driver(tmp_path, competent=4)
     res = genomes.simulate_genomes_ordered(
-        tree, transfer=0.5 * ScaledBy(str(driver), {"competent": 5.0, "normal": 0.0}),
-        transfer_to=Weights(str(driver), {"competent": 0.0, "normal": 1.0}),
+        tree, transfer=PerCopy(0.5).scaled_by(str(driver), {"competent": 5.0, "normal": 0.0}),
+        transfer_to=Recipients().weighted_by(str(driver), {"competent": 0.0, "normal": 1.0}),
         initial_families=6, seed=5)
     donations = [e for e in res.edges if e.kind == "transfer" and e.recipient is None]
     arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
@@ -728,7 +733,7 @@ def test_ordered_engine_still_refuses_a_between_kernel_on_a_rate():
     tree = simulate_species_tree(birth=1.0, total_time=1.0, seed=1).complete_tree
     with pytest.raises(ValueError, match="donor-conditioned"):
         genomes.simulate_genomes_ordered(
-            tree, loss=0.5 * ScaledBy("f.tsv", Between({("a", "b"): 1.0})),
+            tree, loss=PerCopy(0.5).scaled_by("f.tsv", Between({("a", "b"): 1.0})),
             initial_families=1, seed=1)
 
 
@@ -746,12 +751,12 @@ def test_the_trait_and_joint_engines_refuse_a_between_kernel_on_a_rate():
     kernel = Between({("a", "b"): 2.0})
 
     with pytest.raises(ValueError, match="donor-conditioned"):
-        traits.simulate_continuous(tree, start=0.0, rate=1.0 * ScaledBy(hab, kernel), seed=3)
+        traits.simulate_continuous(tree, start=0.0, rate=PerLineage(1.0).scaled_by(hab, kernel), seed=3)
     with pytest.raises(ValueError, match="donor-conditioned"):
         traits.simulate_discrete(tree, states=["x", "y"],
-                                 switch=0.2 * ScaledBy(hab, kernel), seed=3)
+                                 switch=PerLineage(0.2).scaled_by(hab, kernel), seed=3)
     with pytest.raises(ValueError, match="donor-conditioned"):
-        joint.simulate_joint(birth=1.0 * ScaledBy("trait", kernel), death=0.3,
+        joint.simulate_joint(birth=PerLineage(1.0).scaled_by("trait", kernel), death=0.3,
                              trait=traits.discrete(states=["a", "b"], switch=0.3),
                              n_extant=20, seed=3)
 
@@ -766,8 +771,8 @@ def test_a_family_draw_on_one_rate_beside_a_driven_rate_is_refused(tmp_path):
     _write_driver(driver, tree, {i: ("hi" if i % 2 else "lo") for i in tree.nodes})
     with pytest.raises(ValueError, match="per-family draw and a driver on the same run"):
         genomes.simulate_genomes_family(
-            tree, duplication=0.3 * mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)),
-            loss=0.2 * ScaledBy(str(driver), {"lo": 0.0, "hi": 5.0}),
+            tree, duplication=PerCopy(0.3).varying_among('families', LogNormal(0.0, 0.5)),
+            loss=PerCopy(0.2).scaled_by(str(driver), {"lo": 0.0, "hi": 5.0}),
             initial_families=6, seed=3)
 
 
@@ -795,7 +800,7 @@ def test_nucleotide_loss_is_driven_by_a_trait():
     habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=2)
     res = genomes.simulate_genomes_nucleotide(
         tree, root_length=6000, genes=4, gene_length=300,
-        loss=0.9 * ScaledBy(habitat, {"host": 25.0, "free": 0.0}),
+        loss=PerLineage(0.9).scaled_by(habitat, {"host": 25.0, "free": 0.0}),
         loss_extent=200, seed=2)
 
     from zombi2.rates.driver import driver_from_result
@@ -814,11 +819,11 @@ def test_nucleotide_driven_rate_matches_between_an_object_and_a_file(tmp_path):
     kw = dict(root_length=4000, genes=3, gene_length=250, loss_extent=180, seed=5)
 
     by_object = genomes.simulate_genomes_nucleotide(
-        tree, loss=0.6 * ScaledBy(habitat, {"host": 8.0, "free": 1.0}), **kw)
+        tree, loss=PerLineage(0.6).scaled_by(habitat, {"host": 8.0, "free": 1.0}), **kw)
     habitat.write(str(tmp_path), outputs=("events",))
     by_file = genomes.simulate_genomes_nucleotide(
-        tree, loss=0.6 * ScaledBy(str(tmp_path / "trait_events.tsv"),
-                                      {"host": 8.0, "free": 1.0}), **kw)
+        tree, loss=PerLineage(0.6).scaled_by(str(tmp_path / "trait_events.tsv"),
+                                             {"host": 8.0, "free": 1.0}), **kw)
     assert [(e.time, type(e).__name__, e.lineage) for e in by_object.events] == \
            [(e.time, type(e).__name__, e.lineage) for e in by_file.events]
 
@@ -830,7 +835,7 @@ def test_nucleotide_driving_changes_the_run():
     habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=6)
     kw = dict(root_length=5000, genes=3, gene_length=250, loss_extent=200, seed=6)
     driven = genomes.simulate_genomes_nucleotide(
-        tree, loss=0.6 * ScaledBy(habitat, {"host": 20.0, "free": 0.05}), **kw)
+        tree, loss=PerLineage(0.6).scaled_by(habitat, {"host": 20.0, "free": 0.05}), **kw)
     flat = genomes.simulate_genomes_nucleotide(tree, loss=0.6, **kw)
     assert len(driven.events) != len(flat.events)
 
@@ -853,7 +858,8 @@ def test_nucleotide_refuses_a_mapping_that_never_fires():
     habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=7)
     with pytest.raises(ValueError):
         genomes.simulate_genomes_nucleotide(
-            tree, root_length=3000, loss=0.5 * ScaledBy(habitat, {"aquatic": 3.0}), seed=7)
+            tree, root_length=3000,
+            loss=PerLineage(0.5).scaled_by(habitat, {"aquatic": 3.0}), seed=7)
 
 
 # --- the ordered resolution: a trait drives gene order -------------------------------------------
@@ -885,7 +891,7 @@ def test_ordered_loss_is_driven_by_a_trait(tmp_path):
     tree = _ord_tree()
     state_of, driver = _ord_driver(tmp_path, tree)
     res = genomes.simulate_genomes_ordered(
-        tree, loss=0.5 * ScaledBy(driver, {"host": 25.0, "free": 0.0}),
+        tree, loss=PerCopy(0.5).scaled_by(driver, {"host": 25.0, "free": 0.0}),
         loss_extent=2, initial_families=20, seed=2)
     losses = [e for e in res.edges if e.kind == "loss"]
     assert losses, "the run should produce losses at all"
@@ -902,7 +908,7 @@ def test_ordered_rearrangements_are_driven_by_a_trait(tmp_path, rate):
     state_of, driver = _ord_driver(tmp_path, tree)
     res = genomes.simulate_genomes_ordered(
         tree, chromosomes=3, initial_families=24,
-        **{rate: 0.6 * ScaledBy(driver, {"host": 25.0, "free": 0.0}),
+        **{rate: PerCopy(0.6).scaled_by(driver, {"host": 25.0, "free": 0.0}),
            f"{rate}_extent": 3}, seed=2)
     assert res.rearrangements, f"the run should produce {rate}s at all"
     assert all(state_of[x.lineage] == "host" for x in res.rearrangements)
@@ -916,7 +922,7 @@ def test_ordered_chromosome_tier_is_driven(tmp_path):
     state_of, driver = _ord_driver(tmp_path, tree)
     res = genomes.simulate_genomes_ordered(
         tree, chromosomes=4, initial_families=24,
-        fission=0.5 * ScaledBy(driver, {"host": 20.0, "free": 0.0}), seed=3)
+        fission=PerChromosome(0.5).scaled_by(driver, {"host": 20.0, "free": 0.0}), seed=3)
     fissions = [c for c in res.chromosome_events if c.kind == "fission"]
     assert fissions, "the run should produce fissions at all"
     assert all(state_of[c.lineage] == "host" for c in fissions)
@@ -931,7 +937,7 @@ def test_ordered_per_lineage_rates_are_driven(tmp_path, rate):
     state_of, driver = _ord_driver(tmp_path, tree)
     res = genomes.simulate_genomes_ordered(
         tree, initial_families=4,
-        **{rate: 0.8 * ScaledBy(driver, {"host": 20.0, "free": 0.0})}, seed=4)
+        **{rate: PerLineage(0.8).scaled_by(driver, {"host": 20.0, "free": 0.0})}, seed=4)
     if rate == "origination":
         t0 = tree.nodes[tree.root].birth_time     # the initial genome is logged at the origin
         acted = [e for e in res.edges if e.kind == "origination" and e.time > t0]
@@ -948,7 +954,7 @@ def test_ordered_driven_transfer_picks_the_donor(tmp_path):
     tree = _ord_tree()
     state_of, driver = _ord_driver(tmp_path, tree)
     res = genomes.simulate_genomes_ordered(
-        tree, transfer=0.4 * ScaledBy(driver, {"host": 20.0, "free": 0.0}),
+        tree, transfer=PerCopy(0.4).scaled_by(driver, {"host": 20.0, "free": 0.0}),
         transfer_extent=2, initial_families=20, seed=5)
     donations = [e for e in res.edges if e.kind == "transfer" and e.recipient is None]
     arrivals = [e for e in res.edges if e.kind == "transfer" and e.recipient is not None]
@@ -980,7 +986,7 @@ def test_ordered_driven_rate_matches_the_per_copy_theory(tmp_path):
         length = sum(n.end_time - n.birth_time for n in tree.nodes.values())
         for f in seen:
             res = genomes.simulate_genomes_ordered(
-                tree, inversion=base * ScaledBy(str(driver), {"any": f}),
+                tree, inversion=PerCopy(base).scaled_by(str(driver), {"any": f}),
                 inversion_extent=2, initial_families=families, seed=seed)
             seen[f] += len(res.rearrangements)
             expected[f] += f * base * families * length
@@ -997,7 +1003,7 @@ def test_ordered_extent_is_driven_by_a_trait(tmp_path):
     state_of, driver = _ord_driver(tmp_path, tree)
     res = genomes.simulate_genomes_ordered(
         tree, inversion=1.0, chromosomes=1, initial_families=60,
-        inversion_extent=2 * ScaledBy(driver, {"host": 6.0, "free": 1.0}), seed=6)
+        inversion_extent=Extent(2).scaled_by(driver, {"host": 6.0, "free": 1.0}), seed=6)
     host = [x.length for x in res.rearrangements if state_of[x.lineage] == "host"]
     free = [x.length for x in res.rearrangements if state_of[x.lineage] == "free"]
     assert len(host) > 50 and len(free) > 50
@@ -1019,13 +1025,13 @@ def test_ordered_driven_rate_matches_between_an_object_and_a_file(tmp_path):
     kw = dict(inversion_extent=3, loss_extent=2, chromosomes=2, initial_families=20, seed=5)
 
     by_object = genomes.simulate_genomes_ordered(
-        tree, loss=0.4 * ScaledBy(habitat, {"host": 8.0, "free": 1.0}),
-        inversion=0.5 * ScaledBy(habitat, {"host": 4.0, "free": 1.0}), **kw)
+        tree, loss=PerCopy(0.4).scaled_by(habitat, {"host": 8.0, "free": 1.0}),
+        inversion=PerCopy(0.5).scaled_by(habitat, {"host": 4.0, "free": 1.0}), **kw)
     habitat.write(str(tmp_path), outputs=("events",))
     path = str(tmp_path / "trait_events.tsv")
     by_file = genomes.simulate_genomes_ordered(
-        tree, loss=0.4 * ScaledBy(path, {"host": 8.0, "free": 1.0}),
-        inversion=0.5 * ScaledBy(path, {"host": 4.0, "free": 1.0}), **kw)
+        tree, loss=PerCopy(0.4).scaled_by(path, {"host": 8.0, "free": 1.0}),
+        inversion=PerCopy(0.5).scaled_by(path, {"host": 4.0, "free": 1.0}), **kw)
     assert [(e.time, e.kind, e.lineage, e.copy) for e in by_object.edges] == \
            [(e.time, e.kind, e.lineage, e.copy) for e in by_file.edges]
     assert by_object.rearrangements == by_file.rearrangements
@@ -1038,7 +1044,7 @@ def test_ordered_driving_changes_the_run():
     habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=6)
     kw = dict(inversion_extent=3, initial_families=20, seed=6)
     driven = genomes.simulate_genomes_ordered(
-        tree, inversion=0.6 * ScaledBy(habitat, {"host": 20.0, "free": 0.05}), **kw)
+        tree, inversion=PerCopy(0.6).scaled_by(habitat, {"host": 20.0, "free": 0.05}), **kw)
     flat = genomes.simulate_genomes_ordered(tree, inversion=0.6, **kw)
     assert len(driven.rearrangements) != len(flat.rearrangements)
 
@@ -1050,7 +1056,7 @@ def test_ordered_refuses_a_mapping_that_never_fires():
     habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=7)
     with pytest.raises(ValueError, match="match none of the driver's states"):
         genomes.simulate_genomes_ordered(
-            tree, inversion=0.5 * ScaledBy(habitat, {"aquatic": 3.0}),
+            tree, inversion=PerCopy(0.5).scaled_by(habitat, {"aquatic": 3.0}),
             initial_families=6, seed=7)
 
 
@@ -1062,7 +1068,7 @@ def test_ordered_refuses_a_mapping_that_never_fires_on_an_extent():
     with pytest.raises(ValueError, match="match none of the driver's states"):
         genomes.simulate_genomes_ordered(
             tree, inversion=0.5,
-            inversion_extent=3 * ScaledBy(habitat, {"aquatic": 3.0}),
+            inversion_extent=Extent(3).scaled_by(habitat, {"aquatic": 3.0}),
             initial_families=6, seed=7)
 
 
@@ -1073,8 +1079,8 @@ def test_ordered_refuses_byfamily_and_a_driver_together(tmp_path):
     _state_of, driver = _ord_driver(tmp_path, tree)
     with pytest.raises(ValueError, match="per-family draw and a driver on the same run"):
         genomes.simulate_genomes_ordered(
-            tree, duplication=0.2 * mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)),
-            loss=0.2 * ScaledBy(driver, {"host": 3.0, "free": 1.0}),
+            tree, duplication=PerCopy(0.2).varying_among('families', LogNormal(0.0, 0.5)),
+            loss=PerCopy(0.2).scaled_by(driver, {"host": 3.0, "free": 1.0}),
             initial_families=6, seed=1)
 
 
@@ -1085,8 +1091,8 @@ def test_ordered_refuses_a_family_draw_and_a_driver_together(tmp_path):
     _state_of, driver = _ord_driver(tmp_path, tree)
     with pytest.raises(ValueError, match="per-family draw and a driver on the same run"):
         genomes.simulate_genomes_ordered(
-            tree, duplication=0.3 * mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)),
-            loss=0.2 * ScaledBy(driver, {"host": 3.0, "free": 1.0}),
+            tree, duplication=PerCopy(0.3).varying_among('families', LogNormal(0.0, 0.5)),
+            loss=PerCopy(0.2).scaled_by(driver, {"host": 3.0, "free": 1.0}),
             initial_families=6, seed=1)
 
 
@@ -1096,19 +1102,17 @@ def test_ordered_refuses_between_in_a_rate_slot():
     tree = _ord_tree()
     with pytest.raises(ValueError, match="donor-conditioned"):
         genomes.simulate_genomes_ordered(
-            tree, inversion=0.5 * ScaledBy("f.tsv", Between({("a", "b"): 1.0})),
+            tree, inversion=PerCopy(0.5).scaled_by("f.tsv", Between({("a", "b"): 1.0})),
             initial_families=1, seed=1)
 
 
-def test_ordered_refuses_byfamily_on_an_extent():
+def test_an_extent_cannot_carry_a_per_family_draw():
     """The 'meaningless' half of SPEC §5's two rejections: an extent is drawn before the run's genes
-    are known, so there is no one family to draw a factor for — and the message must name the slot
-    ByFamily does belong in rather than merely refuse."""
-    tree = _ord_tree()
-    with pytest.raises(ValueError, match="Put it on inversion"):
-        genomes.simulate_genomes_ordered(
-            tree, inversion=0.5, inversion_extent=3 * mod.Drawn(per='family', dist=LogNormal(0.0, 0.5)),
-            initial_families=6, seed=1)
+    are known, so there is no one family to draw a factor for — and the message must name the two
+    things this usually meant rather than merely refuse. It is refused where it is written now,
+    since no level carries a drawn value for an extent."""
+    with pytest.raises(ValueError, match="an extent cannot vary at random among units"):
+        Extent(3).varying_among('families', LogNormal(0.0, 0.5))
 
 
 # --- a CONTINUOUS trait as the driver (approximate: each branch cut into constant sub-steps) --------
@@ -1185,18 +1189,18 @@ def test_a_continuous_trait_is_conditioned_on_from_its_values_file(tmp_path):
     with pytest.raises(ValueError, match="CONTINUOUS trait's event log"):
         genomes.simulate_genomes_family(
             ct, initial_families=30, seed=7,
-            loss=0.1 * ScaledBy(str(tmp_path / "trait_events.tsv"), curve))
+            loss=PerCopy(0.1).scaled_by(str(tmp_path / "trait_events.tsv"), curve))
 
     from_file = genomes.simulate_genomes_family(
         ct, initial_families=30, seed=7,
-        loss=0.1 * ScaledBy(str(tmp_path / "trait_values.tsv"), curve))
+        loss=PerCopy(0.1).scaled_by(str(tmp_path / "trait_values.tsv"), curve))
     in_memory = genomes.simulate_genomes_family(
-        ct, initial_families=30, seed=7, loss=0.1 * ScaledBy(bm, curve))
+        ct, initial_families=30, seed=7, loss=PerCopy(0.1).scaled_by(bm, curve))
     assert [e.kind for e in from_file.events] == [e.kind for e in in_memory.events]
 
     # and the same trait read at two resolutions stays two drivers rather than being shared
-    coarse = ScaledBy(bm, curve, step=0.5)
-    fine = ScaledBy(bm, curve, step=0.01)
+    coarse = verbs.scaled_by(bm, curve, step=0.5)
+    fine = verbs.scaled_by(bm, curve, step=0.01)
     assert coarse.key != fine.key
 
 
@@ -1210,7 +1214,7 @@ def test_continuous_driver_drives_a_rate_and_is_deterministic():
     def run(fn):
         return genomes.simulate_genomes_family(
             ct, initial_families=15, loss=0.04,
-            duplication=0.06 * ScaledBy(met, Curve(fn)), seed=9)
+            duplication=PerCopy(0.06).scaled_by(met, Curve(fn)), seed=9)
 
     driven = run(lambda v: 3.0 ** v)
     control = run(lambda v: 1.0)                          # a flat Curve == the undriven model
@@ -1224,7 +1228,7 @@ def test_continuous_driver_takes_a_scalar_link():
     ct = simulate_species_tree(birth=1.0, n_extant=12, seed=1).complete_tree
     met = traits.simulate_continuous(ct, start=0.0, rate=1.0, seed=2)
     genomes.simulate_genomes_family(                      # Scalar (log-link) is a valid continuous mapping
-        ct, initial_families=10, duplication=0.05 * ScaledBy(met, Scalar(0.5)), seed=1)
+        ct, initial_families=10, duplication=PerCopy(0.05).scaled_by(met, Scalar(0.5)), seed=1)
 
 
 def test_discrete_table_on_continuous_driver_is_refused():
@@ -1234,7 +1238,7 @@ def test_discrete_table_on_continuous_driver_is_refused():
     met = traits.simulate_continuous(ct, start=0.0, rate=1.0, seed=2)
     with pytest.raises(ValueError, match="CONTINUOUS"):
         genomes.simulate_genomes_family(
-            ct, initial_families=10, duplication=0.05 * ScaledBy(met, {"hi": 2.0}), seed=1)
+            ct, initial_families=10, duplication=PerCopy(0.05).scaled_by(met, {"hi": 2.0}), seed=1)
 
 
 def test_multitrait_continuous_driver_is_refused():
@@ -1300,7 +1304,7 @@ def test_a_trait_drives_the_substitution_rate(tmp_path):
 
     res = sequences.simulate_sequences(
         run, model=jc69(), length=400,
-        substitution=0.5 * ScaledBy(str(driver), {"lo": 0.0, "hi": 20.0}), seed=4)
+        substitution=PerSite(0.5).scaled_by(str(driver), {"lo": 0.0, "hi": 20.0}), seed=4)
 
     labels = tree.labels()
     changed_on_hi = False
@@ -1335,7 +1339,7 @@ def test_a_mid_branch_switch_is_integrated_not_sampled(tmp_path):
     _switch_driver(driver, at=1.0, before="lo", after="hi", total_time=2.0)
     res = sequences.simulate_sequences(
         run, model=jc69(), length=10,
-        substitution=0.3 * ScaledBy(str(driver), {"lo": 0.0, "hi": 2.0}), seed=2)
+        substitution=PerSite(0.3).scaled_by(str(driver), {"lo": 0.0, "hi": 2.0}), seed=2)
 
     length = float(res.phylograms[0]["complete"].split(":")[1].rstrip(";"))
     assert length == pytest.approx(0.6, rel=1e-6)
@@ -1362,7 +1366,7 @@ def test_the_driven_branch_length_is_the_exact_integral(tmp_path):
                       "0.0\tinitial\tn0\t\ta\n"
                       "1.0\ton_branch\tn0\ta\tb\n"
                       "1.25\ton_branch\tn0\tb\tc\n", encoding="utf-8")
-    m = ScaledBy(str(driver), {"a": 0.5, "b": 4.0, "c": 1.0})
+    m = verbs.scaled_by(str(driver), {"a": 0.5, "b": 4.0, "c": 1.0})
     clock = resolve_clock(None, [(m, resolve_driver(m.driver, tree))], tree, {}, None)
 
     assert clock.branch_length(1.0, 0, 0.0, 2.0) == pytest.approx(2.25, abs=1e-12)
@@ -1384,7 +1388,7 @@ def test_driven_divergence_matches_jukes_cantor(tmp_path):
     _switch_driver(driver, at=1.0, before="lo", after="hi", total_time=2.0)
     res = sequences.simulate_sequences(
         run, model=jc69(), length=20000,
-        substitution=0.3 * ScaledBy(str(driver), {"lo": 0.0, "hi": 2.0}), seed=17)
+        substitution=PerSite(0.3).scaled_by(str(driver), {"lo": 0.0, "hi": 2.0}), seed=17)
 
     start, end = res.founding[0], res.alignments[0]["n0_g0"]
     observed = sum(a != b for a, b in zip(start, end)) / len(start)
@@ -1407,9 +1411,10 @@ def test_a_driver_composes_with_a_lineage_clock():
     base, kw = 0.4, dict(model=jc69(), length=20, seed=24)
 
     clocked = sequences.simulate_sequences(
-        run, substitution=base * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.5)), **kw)
+        run, substitution=PerSite(base).varying_among('lineages', LogNormal(0.0, 0.5)), **kw)
     both = sequences.simulate_sequences(
-        run, substitution=base * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.5)) * ScaledBy(habitat, table), **kw)
+        run, substitution=PerSite(base).varying_among('lineages', LogNormal(0.0, 0.5))
+        .scaled_by(habitat, table), **kw)
 
     by_clock = _branch_lengths(clocked.species_phylogram["complete"])
     by_both = _branch_lengths(both.species_phylogram["complete"])
@@ -1439,7 +1444,7 @@ def test_the_species_phylogram_shows_the_driver():
 
     flat = sequences.simulate_sequences(run, substitution=0.2, **kw)
     driven = sequences.simulate_sequences(
-        run, substitution=0.2 * ScaledBy(habitat, {"fast": 8.0, "slow": 1.0}), **kw)
+        run, substitution=PerSite(0.2).scaled_by(habitat, {"fast": 8.0, "slow": 1.0}), **kw)
     plain = _branch_lengths(flat.species_phylogram["complete"])
     shown = _branch_lengths(driven.species_phylogram["complete"])
     assert any(shown[i] > plain[i] * 1.5 for i in plain), "no branch was stretched by the driver"
@@ -1455,10 +1460,10 @@ def test_driven_substitution_matches_between_an_object_and_a_file(tmp_path):
     table = {"cave": 0.3, "surface": 2.0}
     kw = dict(model=hky85(2.0), length=150, seed=44)
 
-    by_object = sequences.simulate_sequences(run, substitution=0.3 * ScaledBy(habitat, table), **kw)
+    by_object = sequences.simulate_sequences(run, substitution=PerSite(0.3).scaled_by(habitat, table), **kw)
     habitat.write(str(tmp_path), outputs=("events",))
     by_file = sequences.simulate_sequences(
-        run, substitution=0.3 * ScaledBy(str(tmp_path / "trait_events.tsv"), table), **kw)
+        run, substitution=PerSite(0.3).scaled_by(str(tmp_path / "trait_events.tsv"), table), **kw)
 
     assert by_object.alignments == by_file.alignments
     assert by_object.ancestral == by_file.ancestral
@@ -1470,7 +1475,8 @@ def test_driven_substitution_is_deterministic():
     tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=51).complete_tree
     habitat = traits.simulate_discrete(tree, states=["cave", "surface"], switch=1.5, seed=52)
     run = genomes.simulate_genomes_family(tree, duplication=0.2, initial_families=4, seed=53)
-    spec = 0.3 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3)) * ScaledBy(habitat, {"cave": 0.5, "surface": 2.0})
+    spec = (PerSite(0.3).varying_among('lineages', LogNormal(0.0, 0.3))
+            .scaled_by(habitat, {"cave": 0.5, "surface": 2.0}))
     kw = dict(model=jc69(), length=120, substitution=spec, seed=54)
     a = sequences.simulate_sequences(run, **kw)
     b = sequences.simulate_sequences(run, **kw)
@@ -1485,7 +1491,7 @@ def test_driven_sequences_refuse_a_mapping_that_never_fires():
     run = genomes.simulate_genomes_family(tree, duplication=0.2, initial_families=2, seed=63)
     with pytest.raises(ValueError, match="match none of the driver's states"):
         sequences.simulate_sequences(run, model=jc69(), length=20, seed=64,
-                                     substitution=0.3 * ScaledBy(habitat, {"aquatic": 4.0}))
+                                     substitution=PerSite(0.3).scaled_by(habitat, {"aquatic": 4.0}))
 
 
 def test_a_continuous_trait_drives_the_substitution_rate():
@@ -1500,14 +1506,14 @@ def test_a_continuous_trait_drives_the_substitution_rate():
 
     flat = sequences.simulate_sequences(run, substitution=0.3, **kw)
     curved = sequences.simulate_sequences(
-        run, substitution=0.3 * ScaledBy(metabolism, Curve(lambda x: math.exp(0.3 * x))), **kw)
+        run, substitution=PerSite(0.3).scaled_by(metabolism, Curve(lambda x: math.exp(0.3 * x))), **kw)
     linked = sequences.simulate_sequences(
-        run, substitution=0.3 * ScaledBy(metabolism, Scalar(0.7)), **kw)
+        run, substitution=PerSite(0.3).scaled_by(metabolism, Scalar(0.7)), **kw)
     assert curved.phylograms != flat.phylograms
     assert linked.phylograms != flat.phylograms
     with pytest.raises(ValueError, match="CONTINUOUS"):
         sequences.simulate_sequences(
-            run, substitution=0.3 * ScaledBy(metabolism, {"hi": 2.0}), **kw)
+            run, substitution=PerSite(0.3).scaled_by(metabolism, {"hi": 2.0}), **kw)
 
 
 def test_a_driven_run_is_the_same_in_parallel():
@@ -1517,7 +1523,7 @@ def test_a_driven_run_is_the_same_in_parallel():
     tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=81).complete_tree
     metabolism = traits.simulate_continuous(tree, start=0.0, rate=1.0, seed=82)
     run = genomes.simulate_genomes_family(tree, duplication=0.3, initial_families=5, seed=83)
-    spec = 0.3 * ScaledBy(metabolism, Curve(lambda x: math.exp(0.4 * x)))
+    spec = PerSite(0.3).scaled_by(metabolism, Curve(lambda x: math.exp(0.4 * x)))
     kw = dict(model=jc69(), length=80, substitution=spec, seed=84)
     one = sequences.simulate_sequences(run, parallel=1, **kw)
     two = sequences.simulate_sequences(run, parallel=2, **kw)
@@ -1544,7 +1550,7 @@ def test_a_mapping_key_the_driver_never_takes_warns(tmp_path):
         _w.simplefilter("always")
         genomes.simulate_genomes_family(
             tree.complete_tree, initial_families=5,
-            loss=0.3 * ScaledBy(habitat, {"caves": 5.0, "surface": 1.0}), seed=1)
+            loss=PerCopy(0.3).scaled_by(habitat, {"caves": 5.0, "surface": 1.0}), seed=1)
     messages = [str(w.message) for w in caught]
     assert any("caves" in m and "never takes" in m for m in messages), messages
     # the state that IS right must not be reported as stray
@@ -1561,5 +1567,5 @@ def test_a_mapping_whose_keys_all_match_is_silent(tmp_path):
         _w.simplefilter("always")
         genomes.simulate_genomes_family(
             tree.complete_tree, initial_families=5,
-            loss=0.3 * ScaledBy(habitat, {"cave": 5.0, "surface": 1.0}), seed=1)
+            loss=PerCopy(0.3).scaled_by(habitat, {"cave": 5.0, "surface": 1.0}), seed=1)
     assert [str(w.message) for w in caught if "never takes" in str(w.message)] == []

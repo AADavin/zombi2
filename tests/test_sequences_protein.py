@@ -18,7 +18,7 @@ import pytest
 from zombi2 import species
 from zombi2.genomes import FamilyGenomesResult, simulate_genomes_family
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
-from zombi2.rates import LogNormal, modifiers as mod
+from zombi2.rates import LogNormal, PerSite
 from zombi2.sequences import _aa_matrices, simulate_sequences
 from zombi2.sequences.substitution_models import (
     AMINO_ACIDS, _lower_triangle, dayhoff, jc69, jtt, lg, poisson, wag,
@@ -208,7 +208,7 @@ def test_determinism_and_the_lineage_clock_carry_over_to_proteins():
     b = simulate_sequences(run, model=wag(), length=500, seed=2)
     assert a.alignments == b.alignments and a.ancestral == b.ancestral
     clocked = simulate_sequences(run, model=wag(), length=500,
-                                 substitution=1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.5)), seed=2)
+                                 substitution=PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.5)), seed=2)
     assert clocked.alignments != a.alignments                # the clock rescales the branches
     assert set(clocked.alignments[0]["n1_g1"]) <= set(AMINO_ACIDS)
 

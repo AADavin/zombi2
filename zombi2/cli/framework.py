@@ -88,8 +88,8 @@ def _examples(*lines: str) -> str:
 def _rate(text: str):
     """The argparse ``type`` for every rate flag: the written form of a rate (SPEC §5).
 
-    ``--birth 1.0`` and ``--birth "1.0 * OnTime({0: 1.0, 3: 0.3})"`` both come through here, so the
-    command line takes exactly the expression the Python API takes. Re-raised as an
+    ``--birth 1.0`` and ``--birth "PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})"`` both come through
+    here, so the command line takes exactly the expression the Python API takes. Re-raised as an
     ``ArgumentTypeError`` so argparse prints the parser's own message ("unknown name 'OnDiversity'
     — did you mean …?") instead of burying it under a generic "invalid value".
     """
@@ -101,27 +101,32 @@ def _rate(text: str):
         raise argparse.ArgumentTypeError(str(e)) from None
 
 
-#: one gloss and one worked snippet per modifier, for the RATES help block. A modifier with no entry
-#: still lists (by name), so the help can never fall behind a level's ``IMPLEMENTED_MODIFIERS`` declaration
-#: of what it supports.
-#: ``ScaledBy`` carries no snippet: its driver is a *file* on a conditioned level and a *live level*
+#: one gloss and one worked snippet per modifier, for the RATES help block. The keys are what
+#: `cell_name()` calls a level's ``IMPLEMENTED_MODIFIERS`` entries — the expression that writes each,
+#: with ``...`` for the argument you choose — so the help and an engine's refusal name the same
+#: thing. A modifier with no entry still lists (by name), so the help can never fall behind a level's
+#: declaration of what it supports.
+#:
+#: A snippet is the **verb call alone**, chained onto the level's scope by `_rates_help()`.
+#: ``scaled_by`` carries none: its driver is a *file* on a conditioned level and a *live level*
 #: name on ``joint``, so one snippet would be wrong on one of the two screens (it was — the joint help
 #: showed a filename, which ``joint`` rejects). A command that wants one passes ``example=``.
 _MODIFIER_HELP = {
-    "OnTime": ("OnTime({0: 1.0, 3: 0.3})", "the rate changes in time — a skyline"),
-    "OnTotalDiversity": ("OnTotalDiversity(cap=100)", "the rate slows as the clade fills up"),
-    "inherited per lineage": ("Inherited(per='lineage', dist=LogNormal(0.0, 0.2))",
-                              "the rate drifts down the tree — autocorrelated"),
+    "changing_at": ("changing_at({0: 1.0, 3: 0.3})", "the rate changes in time — a skyline"),
+    "scaled_by(TotalDiversity(...))": ("scaled_by(TotalDiversity(cap=100))",
+                                       "the rate slows as the clade fills up"),
+    "varying_among('lineages', Drift(...))": ("varying_among('lineages', Drift(LogNormal(0.0, 0.2)))",
+                                              "the rate drifts down the tree — autocorrelated"),
     # "clock" is reserved for the sequences per-lineage substitution modifier (SPEC §7), and this
     # string now prints on `zombi2 species -h` and `zombi2 genomes -h` too
-    "drawn per lineage": ("Drawn(per='lineage', dist=LogNormal(0.0, 0.3))",
-                          "one independent draw per lineage — uncorrelated"),
-    "drawn per family": ("Drawn(per='family', dist=LogNormal(0.0, 0.5))",
-                         "one independent draw per gene family — uncorrelated"),
-    "ScaledBy": (None, "an evolved value scales the base — a driver"),
-    # No snippet either, and for a sharper reason than ScaledBy's: `SetBy` takes no base, so the
-    # `1.0 * {snippet}` line above would print the one spelling it refuses.
-    "SetBy": (None, "an evolved value replaces the base, rather than scaling it"),
+    "varying_among('lineages', ...)": ("varying_among('lineages', LogNormal(0.0, 0.3))",
+                                       "one independent draw per lineage — uncorrelated"),
+    "varying_among('families', ...)": ("varying_among('families', LogNormal(0.0, 0.5))",
+                                       "one independent draw per gene family — uncorrelated"),
+    "scaled_by": (None, "an evolved value scales the base — a driver"),
+    # No snippet either, and for a sharper reason than scaled_by's: `set_by` takes no base, so the
+    # `{scope}(1.0).{snippet}` line below would print the one spelling it refuses.
+    "set_by": (None, "an evolved value replaces the base, rather than scaling it"),
 }
 
 
@@ -129,14 +134,18 @@ def _wrap_note(note: str, width: int = 86) -> list[str]:
     return textwrap.wrap(note, width=width, initial_indent="  ", subsequent_indent="  ")
 
 
-def _rates_help(supported, flag: str, *, scopes: str | None = None, note: str | None = None,
-                example: str | None = None) -> str:
+def _rates_help(supported, flag: str, *, scope: str = "PerLineage", scopes: str | None = None,
+                note: str | None = None, example: str | None = None) -> str:
     """The ``RATES`` epilog block for a command, built from that level's ``IMPLEMENTED_MODIFIERS``.
 
     Listing what the engine *declares* (rather than a hand-kept list) is what keeps the help honest:
     a modifier the level does not support is rejected by the engine, so it must not be advertised
     here either — and the worked example is drawn from the same list, so it is always a modifier that
     runs. ``example`` overrides that snippet for a level whose form differs (see `_MODIFIER_HELP`).
+
+    ``scope`` is this flag's natural scope, the one a bare number is read as. A rate is written from
+    its scope with the verbs chained onto it (SPEC §5), so the worked line needs one in front — and
+    it has to be this level's, or the example would print a rate the engine refuses.
     """
     names = [cell_name(m) for m in supported]
     snippets = [_MODIFIER_HELP[n][0] for n in names if n in _MODIFIER_HELP]
@@ -146,7 +155,7 @@ def _rates_help(supported, flag: str, *, scopes: str | None = None, note: str | 
     intro = "  A rate is a number, or a quoted expression — the same text Python takes"
     lines = [header, intro + (":" if shown or scopes else ".")]
     if shown:
-        lines.append(f'    {flag} "1.0 * {shown}"')
+        lines.append(f'    {flag} "{scope}(1.0).{shown}"')
     if scopes:
         lines.append(f'    {flag} "{scopes}"')
     lines.append("  Modifiers this level takes (anything else is an error):")
@@ -342,7 +351,7 @@ def warn(message: str) -> None:
 #: The fixed pipeline edges — a level → the levels that read its output *directly*. ``species`` feeds
 #: ``genomes`` and ``traits`` (both read the species tree); ``genomes`` feeds ``sequences`` (the gene
 #: trees). Re-running a level orphans everything reachable from it here, plus any level that recorded a
-#: ScaledBy *conditioning* on it (a dynamic edge — see `_conditioned_on()`).
+#: ``scaled_by`` *conditioning* on it (a dynamic edge — see `_conditioned_on()`).
 _STRUCTURAL = {
     "species": ("genomes", "traits"),
     "genomes": ("sequences",),
@@ -355,8 +364,9 @@ _CONDITIONABLE = ("genomes", "sequences", "traits")
 #: Every level, in pipeline order — a stable order for listing them in a message.
 _LEVEL_ORDER = ("species", "genomes", "sequences", "traits")
 
-#: The marker a conditioned level writes, naming the levels it reads via ``ScaledBy`` (a rate or
-#: ``transfer_to``) — the dynamic half of the staleness graph (the fixed half is `_STRUCTURAL`).
+#: The marker a conditioned level writes, naming the levels it reads via ``scaled_by`` (a rate) or
+#: ``weighted_by`` (``transfer_to``) — the dynamic half of the staleness graph (the fixed half is
+#: `_STRUCTURAL`).
 _CONDITIONED_ON_FILE = "conditioned_on"
 
 
@@ -381,7 +391,7 @@ def _conditioned_on(run: str, level: str) -> set:
 def _rate_specs(value):
     """The rate specs inside one option's value, flattened. Most flags hold one; ``--switch`` may hold
     a ``{'a->b': rate}`` dict or a ``k x k`` matrix, each entry of which can carry its own
-    ``ScaledBy``. A reader that walked only the top level would record a driven run as an undriven
+    ``scaled_by``. A reader that walked only the top level would record a driven run as an undriven
     one, and let its driver be re-run out from under it."""
     if isinstance(value, dict):
         for inner in value.values():
@@ -393,27 +403,31 @@ def _rate_specs(value):
         yield value
 
 
-def _drivenby_drivers(spec):
-    """Every ``ScaledBy`` driver in a rate spec — whether ``spec`` is a bare ``ScaledBy`` (a recipient
-    weight like ``transfer_to``), a rate carrying ``Weights`` modifiers, or a dict / matrix of either
-    (`_rate_specs`). A plain number yields none."""
+def _driven_drivers(spec):
+    """Every driver a spec reads from another level — whether ``spec`` is a rate carrying
+    ``scaled_by`` modifiers, a choice whose weights are driven (``transfer_to``), or a dict / matrix
+    of either (`_rate_specs`). A plain number yields none.
+
+    A rate keeps its connections in ``modifiers`` and a choice keeps its in ``weights``, and both are
+    read here: a ``transfer_to`` weighted by a trait grown first is as conditioned as a driven rate,
+    and reading only ``modifiers`` would leave that run recording no driver at all."""
     from zombi2.rates.modifiers import Driven
     for one in _rate_specs(spec):
         if isinstance(one, Driven):
             yield one.driver
-        for m in getattr(one, "modifiers", ()):
+        for m in (*getattr(one, "modifiers", ()), *getattr(one, "weights", ())):
             if isinstance(m, Driven):
                 yield m.driver
 
 
 def conditioned_levels(run: str, specs) -> set:
-    """Which of THIS run's levels the given specs are conditioned on — a same-run ``ScaledBy`` file
+    """Which of THIS run's levels the given specs are conditioned on — a same-run driver file
     maps to the level whose directory holds it (``run/traits/trait_events.tsv`` → ``traits``). A driver
     file outside the run does not count: re-running a level of this run cannot make it stale."""
     run_abs = os.path.abspath(run)
     levels = set()
     for spec in specs:
-        for driver in _drivenby_drivers(spec):
+        for driver in _driven_drivers(spec):
             if isinstance(driver, str):
                 first = os.path.relpath(os.path.abspath(driver), run_abs).split(os.sep)[0]
                 if first not in (os.curdir, os.pardir):    # a file under one of this run's level dirs
@@ -423,8 +437,8 @@ def conditioned_levels(run: str, specs) -> set:
 
 def record_conditioning(level_out: str, driver_levels) -> None:
     """Write (or clear) the `_CONDITIONED_ON_FILE` marker in a level's output directory: the
-    same-run levels it reads via ``ScaledBy``, so the guard knows re-running one of them orphans
-    this level. Removes a stale marker when a re-run conditions on nothing."""
+    same-run levels it reads via ``scaled_by`` or ``weighted_by``, so the guard knows re-running one
+    of them orphans this level. Removes a stale marker when a re-run conditions on nothing."""
     driver_levels = sorted(set(driver_levels))
     p = os.path.join(level_out, _CONDITIONED_ON_FILE)
     if driver_levels:
@@ -437,7 +451,7 @@ def record_conditioning(level_out: str, driver_levels) -> None:
 def _stale_downstream(args, level: str) -> list:
     """The downstream levels already present that re-running ``level`` would orphan — everything
     reachable from it by a 'reads its output' edge (the fixed pipeline `_STRUCTURAL` plus recorded
-    ``ScaledBy`` conditioning), listed in pipeline order. Empty under ``--flat`` (not guarded)."""
+    conditioning), listed in pipeline order. Empty under ``--flat`` (not guarded)."""
     if getattr(args, "flat", False):
         return []
     run = args.run
@@ -646,19 +660,19 @@ def _log_value(value: object) -> str:
     """Render one parameter for the run log. A rate is recorded in its **written form**, so the log
     line can be pasted straight back into the flag (or a ``--params`` file) rather than being a repr
     the reader has to translate."""
-    from zombi2.rates.modifiers import Driven, Modifier
+    from zombi2.rates.choice import Choice, Clades, Distance
+    from zombi2.rates.modifiers import Modifier
     from zombi2.rates.parse import written_choice, written_form
     from zombi2.rates.rate import Rate
-    from zombi2.rates.scope import Scope
 
-    if isinstance(value, Driven) or type(value).__name__ in ("Distance", "Clades"):
+    if isinstance(value, (Choice, Distance, Clades)):
         # the three shapes a `transfer_to` takes besides a named rule. `written_choice` knows what a
         # choice's written form is — no base in front, since a choice has none — so the rule lives
         # beside the rates grammar rather than being restated here.
         return written_choice(value)
-    if isinstance(value, (Rate, Scope, Modifier)):
+    if isinstance(value, (Rate, Modifier)):
         return written_form(value)
-    if isinstance(value, dict) and any(isinstance(v, (Rate, Scope, Modifier)) for v in value.values()):
+    if isinstance(value, dict) and any(isinstance(v, (Rate, Modifier)) for v in value.values()):
         # a per-transition --switch: each entry is a rate, so each is rendered in its written form.
         # `str()` on the dict would print a Rate's repr, which no flag takes back.
         return "{" + ", ".join(f"{k!r}: {_log_value(v)}" for k, v in value.items()) + "}"
@@ -688,11 +702,12 @@ def input_digests(*values) -> list[tuple[str, str]]:
         if isinstance(value, str):
             paths.append(value)
         elif value is not None:
-            # a rate's modifiers, or a bare one — and a `--switch` dict or matrix holds several rates,
-            # so the walk goes through `_rate_specs` rather than reading the value itself
+            # a rate's modifiers, a choice's weights, or a bare modifier — and a `--switch` dict or
+            # matrix holds several rates, so the walk goes through `_rate_specs` rather than reading
+            # the value itself
             for one in _rate_specs(value):
-                mods = getattr(one, "modifiers", (one,))
-                paths.extend(m.driver for m in mods
+                carried = (*getattr(one, "modifiers", ()), *getattr(one, "weights", ()))
+                paths.extend(m.driver for m in (carried or (one,))
                              if isinstance(m, Driven) and isinstance(m.driver, str))
     out, seen = [], set()
     for path in paths:
@@ -706,8 +721,8 @@ def _command_line(args) -> str:
     """The command as typed — ``zombi2 <argv>`` — from the argv `main()` captured on ``args._argv``.
     That is the real invocation both from a shell and from a test that calls ``main([...])`` directly
     (where ``sys.argv`` would be pytest's). Lets the report list only the flags the user actually gave.
-    Each token is shell-quoted, so a rate expression (``--birth "1.0 * OnTime({0: 1.0})"``) pastes back
-    intact rather than globbing on the ``*`` or breaking on the braces."""
+    Each token is shell-quoted, so a rate expression (``--birth "PerLineage(1.0).changing_at({0:
+    1.0})"``) pastes back intact rather than breaking on the braces or the quotes inside it."""
     argv = getattr(args, "_argv", None)
     if argv is None:
         return " ".join(sys.argv)

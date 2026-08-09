@@ -209,29 +209,69 @@ def _dict_phrase(d: dict) -> str:
     return " · ".join(f"{_label(k)} {_num(v)}" for k, v in d.items())
 
 
-#: What each rate slot is counted *per*. The unit is a property of the slot, never of the value: a
-#: modifier is a dimensionless multiplier by construction (SPEC §5, and every engine gate enforces
-#: it), so no expression a user can write changes it. Time is time⁻¹ throughout — tree time, in
-#: whatever unit the tree is in, which is the run's own and is not calibrated to anything.
-_RATE_UNITS = {
-    "per lineage": ("birth", "death", "fossils", "origination", "switch"),
-    "per gene copy": ("duplication", "transfer", "loss", "inversion", "transposition",
-                      "translocation"),
-    "per chromosome": ("fission", "fusion", "chromosome_origination", "chromosome_loss"),
-    "per site": ("substitution",),
+#: How the report words each scope a rate can be written from. `Global` is not a "per" at all — its
+#: total is one shared budget that scales with nothing — so it gets a phrase instead. The order here
+#: is the order the rows print in, coarsest unit first.
+_SCOPE_UNITS = {
+    "Global": "for the whole tree",
+    "PerLineage": "per lineage",
+    "PerCopy": "per gene copy",
+    "PerChromosome": "per chromosome",
+    "PerSite": "per site",
 }
+
+#: What each rate slot is counted per when this run left the scope unwritten — the level's default,
+#: which a bare number takes (SPEC §18). A written scope wins over it, because since scope overrides
+#: landed the unit is a property of the **value** wherever one was written: ``--loss PerLineage(0.4)``
+#: is a per-lineage budget however this table reads. Time is time⁻¹ throughout — tree time, in
+#: whatever unit the tree is in, which is the run's own and is not calibrated to anything.
+_DEFAULT_SCOPES = {
+    "birth": "PerLineage", "death": "PerLineage", "fossils": "PerLineage",
+    "origination": "PerLineage", "chromosome_origination": "PerLineage", "switch": "PerLineage",
+    "duplication": "PerCopy", "transfer": "PerCopy", "loss": "PerCopy", "inversion": "PerCopy",
+    "transposition": "PerCopy", "translocation": "PerCopy",
+    "fission": "PerChromosome", "fusion": "PerChromosome", "chromosome_loss": "PerChromosome",
+    "substitution": "PerSite",
+}
+
+#: The nucleotide resolution counts a gene event per lineage rather than per copy: the rate says how
+#: often a lineage does the event and the extent says how much DNA it moves, so the number means the
+#: same whatever the genome holds (SPEC §18, and the scopes ``genomes/nucleotide.py`` fills in).
+_NUCLEOTIDE_SCOPES = dict.fromkeys(("duplication", "transfer", "loss", "inversion", "transposition",
+                                    "translocation"), "PerLineage")
+
+
+def _scope_of(slot: str, value: str, resolution: str | None) -> str | None:
+    """The scope one rate was counted per in this run, as a scope class name — or ``None`` for a
+    parameter that is not a rate, which has no unit to state.
+
+    Every written rate starts from its scope (``PerLineage(0.4).scaled_by(…)``), and the log records
+    rates in that written form, so the head of the value answers the question whenever the run
+    answered it. Anything else — a bare number, a ``{'a->b': rate}`` dict, a k×k matrix — took the
+    level's default, which is the slot's entry here."""
+    head = value.split("(", 1)[0].strip()
+    if head in _SCOPE_UNITS:
+        return head
+    if resolution == "nucleotide" and slot in _NUCLEOTIDE_SCOPES:
+        return _NUCLEOTIDE_SCOPES[slot]
+    return _DEFAULT_SCOPES.get(slot)
 
 
 def _units_line(params: dict) -> list[str]:
-    """One line naming what the rates in *this* run are counted per — only the slots it used.
+    """One line naming what the rates in *this* run are counted per — only the slots it used, each
+    under the scope this run actually gave it.
 
     A run directory is read long after the CLI help that answers this is to hand: "duplication 0.15"
     says nothing about per what, and a reviewer handed a folder could not tell whether a tree height
     of 5.391 was time or something else. The variance of a continuous trait is not a rate and is not
     listed here; nor is anything dimensionless (a probability, a fraction, a count)."""
-    present = {k for k, _ in _visible_params(params, drop_zeros=True)}
-    rows = [(per, ", ".join(_label(s) for s in slots if s in present))
-            for per, slots in _RATE_UNITS.items() if present & set(slots)]
+    resolution = params.get("resolution")
+    slots: dict[str, list[str]] = {}
+    for slot, value in _visible_params(params, drop_zeros=True):
+        scope = _scope_of(slot, value, resolution)
+        if scope is not None:
+            slots.setdefault(_SCOPE_UNITS[scope], []).append(_label(slot))
+    rows = [(per, ", ".join(slots[per])) for per in _SCOPE_UNITS.values() if per in slots]
     if not rows:
         return []
     # An aligned block rather than one wrapped phrase: run the groups together and the closing
@@ -245,22 +285,57 @@ def _units_line(params: dict) -> list[str]:
 def _visible_params(params: dict, *, for_reproduce: bool = False,
                     drop_zeros: bool = False) -> list[tuple[str, str]]:
     """The parameters worth showing, in reading order — the model parameters, dropping plumbing
-    (`_SKIP_PARAMS`), anything left unset (``None`` / ``False`` / blank), and ``substitution`` when
-    ``divergence`` is set (the two are mutually exclusive on the command line, and divergence is the one
-    the user chose — the log keeps the substitution rate it solved to).
+    (`_PLUMBING`) and anything left unset (``None`` / ``False`` / blank).
+
+    ``substitution`` under ``--divergence`` is a special case: the log records the rate the run
+    *solved to*, and that number will not go back into the flag, so it is shown as the clock's shape
+    instead (`_clock_shape`), which is what the two flags compose as. A strict clock has no shape and
+    is dropped — the solved number is what ``--divergence`` computes, so the flag alone rebuilds it.
 
     ``for_reproduce`` keeps the inputs and guards that display hides (`_DISPLAY_EXTRA`), so the printed
     command pins the run completely. ``drop_zeros`` hides rates left at zero — a process that is not
     happening — to declutter the display (the nucleotide model has a dozen such knobs); reproduce keeps
     them."""
     drop = set(_PLUMBING) if for_reproduce else set(_PLUMBING | _DISPLAY_EXTRA)
+    shape = None
     if params.get("divergence") not in (None, "None", ""):
-        drop.add("substitution")
+        shape = _clock_shape(params.get("substitution", ""))
+        if shape is None:
+            drop.add("substitution")
     items = [(k, v) for k, v in params.items() if k not in drop and v not in ("None", "False", "")
              and not (drop_zeros and v in ("0", "0.0"))]
+    if shape is not None:
+        items = [(k, shape if k == "substitution" else v) for k, v in items]
     items.sort(key=lambda kv: (_PARAM_ORDER.index(kv[0]) if kv[0] in _PARAM_ORDER else len(_PARAM_ORDER),
                                kv[0]))
     return items
+
+
+def _clock_shape(written: str) -> str | None:
+    """A substitution rate with its base taken off — ``PerSite().varying_among('lineages',
+    LogNormal(0.0, 0.3))`` — or ``None`` when it carries no shape to keep.
+
+    ``--divergence`` sets the *scale* of a clock and refuses a substitution rate that names a base of
+    its own, so the solved rate the log records is the one form of this run's clock that cannot go
+    back into the flag it came from. What was written was the shape, and the shape plus the
+    divergence is what rebuilds the run: without it the printed command silently rebuilds a strict
+    clock. A rate with no modifiers *is* only its base, so there is nothing to carry across.
+
+    Rendering goes through `Rate.__repr__`, the one renderer for the written form, rather than by
+    cutting the number out of the string. A value that does not parse as a rate is left alone: this
+    runs while the report is being written, after every output file is already on disk, so an
+    unreadable parameter must not be what turns a finished run into a traceback."""
+    import dataclasses
+
+    from zombi2.rates.parse import parse_rate
+    from zombi2.rates.rate import Rate
+    try:
+        rate = parse_rate(written)
+    except ValueError:            # every parser refusal, including an old log's retired spelling
+        return None
+    if not isinstance(rate, Rate) or rate.scope is None or not rate.modifiers:
+        return None
+    return repr(dataclasses.replace(rate, base=None))
 
 
 def _params_phrase(params: dict) -> str:
@@ -291,30 +366,69 @@ def _reproduce(command: str, run: str, params: dict, seed: str | None, source: s
     if source:
         parts.append(f"--from {shlex.quote(source)}")
     for k, v in _visible_params(params, for_reproduce=True):
-        flag = f"--{k.replace('_', '-')}"
-        if given is not None and flag not in given:
+        if given is not None and _flag_name(k) not in given:
             continue                                         # a default the user did not type
-        val = _flag_value(v)
-        parts.append(f"{flag} {val}" if val else flag)       # a store-true flag takes no value
+        parts.append(_flag(k, v))
     if seed not in (None, "None"):
         parts.append(f"--seed {seed}")
     return " ".join(parts)
 
 
-def _flag_value(value: str) -> str:
-    """One parameter as it goes back on the command line. A list the log rendered as ``[a, b, c]`` (a
-    multi-value flag like ``--frequencies``) becomes space-separated bare values; ``True`` (a store-true
-    flag) drops its value; anything else is shell-quoted so a rate expression, a path with spaces, or any
-    shell metacharacter survives a copy-paste intact."""
+#: The options that take several values at once, so a recorded list goes back as several bare
+#: arguments: ``--frequencies 0.25 0.25 0.25 0.25``. These are the options argparse declares with
+#: ``nargs`` and the reproduce block prints — ``--write`` is plumbing (`_PLUMBING`) and never
+#: reaches here. Every other parameter is one argument to one flag **even when its value looks like
+#: a list**, and is quoted whole. Naming them is the point: a k×k ``--switch`` matrix is a single
+#: expression, and flattening it produced four bare numbers argparse rejects as unrecognised.
+_MULTI_VALUE = frozenset({"frequencies", "exchangeabilities"})
+
+#: The options that are *repeated* rather than given several values — ``--mass-extinction TIME
+#: FRACTION`` takes two values and can be given again for the next pulse, so the log's list of pairs
+#: goes back as one flag per pair. Run together on one flag, argparse takes the first pair and calls
+#: the rest unrecognised.
+_REPEATED = frozenset({"mass_extinction"})
+
+
+def _flag_name(key: str) -> str:
+    """The long option a logged parameter came from: ``max_family_size`` → ``--max-family-size``."""
+    return f"--{key.replace('_', '-')}"
+
+
+def _flag(key: str, value: str) -> str:
+    """One parameter as it goes back on the command line, flag and value together.
+
+    ``True`` (a store-true flag) is the flag alone. A `_MULTI_VALUE` or `_REPEATED` option spreads its
+    recorded list back over the command line as argparse wants to read it. Everything else is one
+    shell-quoted argument, so a rate expression, a matrix, a path with spaces, or any shell
+    metacharacter survives a copy-paste intact."""
+    flag = _flag_name(key)
     if value == "True":
-        return ""
-    if value.startswith("[") and value.endswith("]"):
-        import ast
-        try:
-            return " ".join(shlex.quote(x) for x in _flatten(ast.literal_eval(value)))
-        except (ValueError, SyntaxError):
-            pass
-    return shlex.quote(value)
+        return flag                                          # a store-true flag takes no value
+    if key in _MULTI_VALUE or key in _REPEATED:
+        groups = _value_groups(value)
+        if groups is not None:
+            joined = [" ".join(shlex.quote(v) for v in group) for group in groups]
+            return " ".join(f"{flag} {g}" for g in joined) if key in _REPEATED else \
+                f"{flag} {' '.join(joined)}"
+    return f"{flag} {shlex.quote(value)}"
+
+
+def _value_groups(value: str) -> list[list[str]] | None:
+    """A recorded list as the groups of values it goes back as — one group per repetition of the flag
+    — or ``None`` when there are none to spread: it is not a list, or an empty one. ``[0.25, 0.25]``
+    is one group of two; ``[[2.0, 0.5], [4.0, 0.4]]`` is two groups of two."""
+    if not (value.startswith("[") and value.endswith("]")):
+        return None
+    import ast
+    try:
+        parsed = ast.literal_eval(value)
+    except (ValueError, SyntaxError):
+        return None
+    if not isinstance(parsed, list) or not parsed:
+        return None
+    if all(isinstance(x, (list, tuple)) for x in parsed):
+        return [_flatten(x) for x in parsed]
+    return [_flatten(parsed)]
 
 
 def _flatten(seq) -> list[str]:
@@ -529,37 +643,46 @@ def _runnable_order(run: str, sections: list[dict]) -> list[dict]:
     """The sections in an order that actually **runs**, which is not the order they are read in.
 
     The report lists levels in pipeline order — species, genomes, sequences, traits — because that is
-    how a reader wants them. TO REPRODUCE cannot use that order: a level whose rate is conditioned on
-    a trait must run *after* the trait that writes the file it reads, and traits come last in the
-    pipeline. Copy-pasted, the block failed on the line that read a driver nothing had written yet —
-    in the block the command line tells you to open first.
+    how a reader wants them. TO REPRODUCE cannot use that order, for two reasons at once. A level
+    whose rate is conditioned on a trait must run *after* the trait that writes the file it reads,
+    and traits come last; but promoting that trait also drags the level below it, and a sequences run
+    replays the genomes run it must still come after. Copy-pasted, the block failed on the line that
+    read a file nothing had written yet — in the block the command line tells you to open first.
 
-    So this promotes a driver above anything conditioned on it, by the ``conditioned_on`` marker each
-    conditioned level writes (the same marker the staleness guard reads). It is a stable sort, not a
-    reshuffle: a run with no conditioning comes out in exactly pipeline order, and the ordering moves
-    only what would otherwise not run.
+    Both dependencies are already recorded, in one place and at file granularity: every level's log
+    lists the files it read (the same ``input`` rows the staleness guard hashes). So a section
+    depends on whichever section wrote each of its inputs, and this is a topological sort over that.
+    Reading the inputs rather than the ``conditioned_on`` marker is what makes it complete — the
+    marker names levels, so it cannot tell one named trait from another, and it says nothing at all
+    about the ordinary pipeline edges.
+
+    It is a stable sort, not a reshuffle: whenever pipeline order already runs it is what comes out,
+    and the ordering moves only what would otherwise not run.
     """
-    driven_by: dict[int, set] = {}
+    # Every directory each section wrote into, relative to the run — a joint section owns its driver's
+    # directory as well as species/, having written both.
+    owners = [(k, os.path.relpath(d, run)) for k, sec in enumerate(sections)
+              for d in (sec["dir"], *sec.get("extra_dirs", [])) if d]
+    needs: dict[int, set[int]] = {}
     for k, sec in enumerate(sections):
-        marker = os.path.join(sec["dir"], "conditioned_on") if sec.get("dir") else None
-        if marker and os.path.isfile(marker):
-            with open(marker, encoding="utf-8") as f:
-                driven_by[k] = {line.strip() for line in f if line.strip()}
-    if not driven_by:
-        return sections                     # nothing conditioned: pipeline order already runs
+        recorded_run = sec["log"].get("params", {}).get("run")
+        for path, _digest in sec["log"].get("inputs", []):
+            rel = _intra_run_rel(path, recorded_run)
+            if rel is None:
+                continue                    # an input from outside the run: nothing here writes it
+            # the longest matching directory, so a named trait's own beats the traits/ it sits under
+            wrote = [o for o in owners if _inside(rel, o[1])]
+            if wrote:
+                j = max(wrote, key=lambda o: len(o[1]))[0]
+                if j != k:                  # a level never blocks on its own directory
+                    needs.setdefault(k, set()).add(j)
 
     ordered: list[dict] = []
     placed: set[int] = set()
-    # Repeatedly take the first section whose drivers are all already placed. A section is its own
-    # level's driver in a trait-drives-trait run (both live under traits/), which no ordering can
-    # satisfy, so a level never blocks on itself.
     while len(placed) < len(sections):
+        # the first section, in reading order, whose inputs are all written by sections already out
         for k, sec in enumerate(sections):
-            if k in placed:
-                continue
-            needed = driven_by.get(k, set()) - {sec["command"]}
-            if all(any(sections[j]["command"] == lvl for j in placed) or
-                   not any(s["command"] == lvl for s in sections) for lvl in needed):
+            if k not in placed and needs.get(k, set()) <= placed:
                 ordered.append(sec)
                 placed.add(k)
                 break
@@ -567,6 +690,11 @@ def _runnable_order(run: str, sections: list[dict]) -> list[dict]:
             ordered.extend(s for k, s in enumerate(sections) if k not in placed)
             break
     return ordered
+
+
+def _inside(rel: str, directory: str) -> bool:
+    """Whether the run-relative path ``rel`` is that directory or something under it."""
+    return rel == directory or rel.startswith(directory + os.sep)
 
 
 def _source_of(section: dict) -> str | None:

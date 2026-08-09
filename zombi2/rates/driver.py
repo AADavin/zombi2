@@ -2,7 +2,7 @@
 
 When ``Driven``'s ``driver`` is a **filename**, the relation is *conditioned*: the driver was grown
 first and written to a file, and two ordinary runs in order do the rest
-(``loss = 0.25 * ScaledBy("habitat.tsv", {...})``). This module — living beside ``ScaledBy`` in
+(``loss = PerCopy(0.25).scaled_by("habitat.tsv", {...})``). This module — living beside `Driven` in
 ``rates`` because it is that modifier's file end — turns the written driver into the per-lineage lookup
 the target engine queries as it walks the (already-grown) tree. (Conditioning needs no engine of its
 own: it *folds into the target level's* run; only genuinely-joint models get a dedicated engine,
@@ -35,7 +35,7 @@ from ..tree import node_from_label, node_label
 
 class DriverTrajectory:
     """A driver's value along every lineage, as a piecewise-constant function of time — the
-    per-lineage lookup a conditioned `ScaledBy` reads.
+    per-lineage lookup a conditioned `Driven` reads.
 
     Built from segments ``{node_id: [(start_time, state), …]}`` (each lineage's branch cut into
     constant stretches, sorted by start). The engine calls `value()` to get a lineage's driver
@@ -250,7 +250,7 @@ CONTINUOUS_DRIVER_FRACTION = 0.01
 def driver_from_result(result, *, step: float | None = None) -> DriverTrajectory:
     """Build a `DriverTrajectory` **directly from a grown trait result** — the same per-lineage lookup
     `load_driver()` builds from a file, but skipping the file round-trip. This is how a conditioned
-    ``ScaledBy(trait, …)`` reads a trait grown in the same Python session: still conditioning (the
+    ``scaled_by(trait, …)`` reads a trait grown in the same Python session: still conditioning (the
     driver was grown first and is held fixed), just handed over in memory.
 
     A **discrete** trait (`traits.simulate_discrete`) has a stochastic character map, so each branch is
@@ -429,7 +429,7 @@ def check_mapping_fires(mapping, available_states, *, driver_label: str, exhaust
 
 
 def driven_mods(rate) -> list:
-    """The `ScaledBy` modifiers a rate carries, or ``[]`` when it carries none. A non-empty list means
+    """The `Driven` modifiers a rate carries, or ``[]`` when it carries none. A non-empty list means
     the rate reads an evolved value on each lineage, so the engine must thread a ``drivers`` value and
     step where the driver switches.
 
@@ -478,7 +478,7 @@ def refuse_wrong_direction(driver, level: str | None) -> None:
 
 def resolve_driver(driver, tree, *, step: float | None = None,
                    level: str | None = None) -> DriverTrajectory:
-    """Resolve a conditioned ``ScaledBy`` ``driver`` into a `DriverTrajectory` — a **filename**
+    """Resolve a conditioned `Driven`'s ``driver`` into a `DriverTrajectory` — a **filename**
     (str) via `load_driver()` (replayed against ``tree``, the target run's own species tree), an
     object that answers for itself through ``as_driver_trajectory(tree, step=…)`` (a genome run's
     ``presence("name")``, a sequence run's ``gc()``), or an **in-memory** trait result via

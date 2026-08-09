@@ -12,7 +12,7 @@ import math
 import numpy as np
 import pytest
 
-from zombi2.rates import LogNormal, ScaledBy, modifiers as mod
+from zombi2.rates import Drift, Global, LogNormal, PerLineage, TotalDiversity
 from zombi2.rates import scope
 from zombi2.species import simulate_species_tree
 from zombi2.traits import Change, TraitsResult, simulate_continuous, simulate_discrete
@@ -137,15 +137,18 @@ def test_write_rejects_unknown_output(tmp_path):
 # --- input validation (what the engine deliberately does not wire) --------------
 
 def test_rejects_an_unknown_modifier():
-    # OnTime (early burst) (variable-rates BM) and OnTotalDiversity (diversity-dependent) are wired;
+    # changing_at (early burst), an inherited law (variable-rates BM) and TotalDiversity
+    # (diversity-dependent) are wired;
     # any other Modifier is rejected loudly
-    class _Bogus(mod.Modifier):
+    from zombi2.rates.modifiers import Modifier
+
+    class _Bogus(Modifier):
         def factor(self, **_):
             return 1.0
 
     sp = _tree(seed=1)
     with pytest.raises(ValueError, match="does not support"):
-        simulate_continuous(sp, rate=1.0 * _Bogus(), seed=1)
+        simulate_continuous(sp, rate=PerLineage(1.0)._and(_Bogus()), seed=1)
 
 
 def test_rejects_a_non_default_scope():
@@ -287,7 +290,7 @@ def test_ou_with_a_time_varying_variance_matches_the_weighted_integral():
     # mean-reverting trait, which is why this test states both numbers.
     T, tau, alpha, theta = 2.0, 0.8, 1.3, 2.0
     tree = _one_branch(T).complete_tree
-    rate = 4.0 * mod.OnTime({0.0: 1.0, tau: 0.0625})          # σ² = 4.0, then 0.25
+    rate = PerLineage(4.0).changing_at({0.0: 1.0, tau: 0.0625})          # σ² = 4.0, then 0.25
     vals = np.array([simulate_continuous(tree, start=0.0, rate=rate, reverts_to=theta, pull=alpha,
                                          seed=s).node_values[0] for s in range(6000)])
 
@@ -300,14 +303,14 @@ def test_ou_with_a_time_varying_variance_matches_the_weighted_integral():
     assert brownian == pytest.approx(3.5) and brownian > 20 * expected_var
 
 
-# --- early burst (a OnTime skyline on rate): the exact ∫σ²(t)dt over each branch --
+# --- early burst (a skyline on rate): the exact ∫σ²(t)dt over each branch --
 
 def test_eb_constant_schedule_equals_bm():
     # a single-step schedule with factor 1.0 everywhere is σ² constant → byte-identical to bare BM
     # (same one draw per branch), which pins the integral's constant-rate special case.
     sp = _tree(seed=2)
     a = simulate_continuous(sp, rate=3.0, seed=5)
-    b = simulate_continuous(sp, rate=3.0 * mod.OnTime({0.0: 1.0}), seed=5)
+    b = simulate_continuous(sp, rate=PerLineage(3.0).changing_at({0.0: 1.0}), seed=5)
     assert a.node_values == b.node_values
 
 
@@ -321,7 +324,7 @@ def test_eb_tip_variance_and_covariance_match_the_integral():
     T = tree.nodes[tips[0]].end_time
     base, c = 2.0, 0.25
     tau = 0.4 * T                                  # guaranteed inside (0, T) so the branch crosses it
-    sched = base * mod.OnTime({0.0: 1.0, tau: c})
+    sched = PerLineage(base).changing_at({0.0: 1.0, tau: c})
 
     n_rep = 6000
     data = np.array([
@@ -343,13 +346,13 @@ def test_eb_tip_variance_and_covariance_match_the_integral():
 
 def test_eb_deterministic():
     sp = _tree(seed=2)
-    sched = 1.5 * mod.OnTime({0.0: 1.0, 2.0: 0.3})
+    sched = PerLineage(1.5).changing_at({0.0: 1.0, 2.0: 0.3})
     a = simulate_continuous(sp, rate=sched, seed=4)
     b = simulate_continuous(sp, rate=sched, seed=4)
     assert a.node_values == b.node_values
 
 
-# --- variable-rates BM (FromParent on rate): σ² drifts branch-to-branch ----------
+# --- variable-rates BM (an inherited rate): σ² drifts branch-to-branch ----------
 
 def _kurtosis(col):
     """Pearson kurtosis of a sample (3.0 = Gaussian); computed with numpy, no scipy dependency."""
@@ -363,14 +366,14 @@ def _vrbm_tips(spread, n_rep=2500):
     tips = sorted(n.id for n in tree.extant_leaves())
     depth = tree.nodes[tips[0]].end_time
     data = np.array([
-        [simulate_continuous(tree, start=0.0, rate=2.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, spread)),
+        [simulate_continuous(tree, start=0.0, rate=PerLineage(2.0).varying_among('lineages', Drift(LogNormal(0.0, spread))),
                              seed=s).node_values[i] for i in tips] for s in range(n_rep)
     ])
     return data, depth
 
 
 def test_variable_rates_bm_is_mean_corrected():
-    # the correctness-critical property: FromParent is mean-corrected (E[factor]=1), so a drifting σ²
+    # the correctness-critical property: an inherited law is mean-corrected (E[factor]=1), so a drifting σ²
     # does NOT inflate down the tree — E[tip variance] stays σ²·depth, exactly as plain BM. (A missing
     # mean-correction — a real historical bug elsewhere in the codebase — would blow the variance up.)
     data, depth = _vrbm_tips(0.6)
@@ -388,13 +391,13 @@ def test_variable_rates_bm_is_heterogeneous():
 
 
 def test_variable_rates_composes_with_time():
-    # FromParent ∘ OnTime: the drift factor (E=1) rides on top of the early-burst integral, so
+    # an inherited law ∘ a skyline: the drift factor (E=1) rides on top of the early-burst integral, so
     # E[tip variance] equals the plain EB integral ∫σ²(t)dt.
     tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=8, seed=11).complete_tree
     tips = sorted(n.id for n in tree.extant_leaves())
     T = tree.nodes[tips[0]].end_time
     base, c, tau = 2.0, 0.25, 0.4 * T
-    rate = base * mod.OnTime({0.0: 1.0, tau: c}) * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.8))
+    rate = PerLineage(base).changing_at({0.0: 1.0, tau: c}).varying_among('lineages', Drift(LogNormal(0.0, 0.8)))
     data = np.array([
         [simulate_continuous(tree, start=0.0, rate=rate, seed=s).node_values[i] for i in tips]
         for s in range(2500)
@@ -404,13 +407,13 @@ def test_variable_rates_composes_with_time():
 
 def test_variable_rates_deterministic():
     sp = _tree(seed=2)
-    rate = 1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.5))
+    rate = PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.5)))
     assert simulate_continuous(sp, rate=rate, seed=4).node_values == \
         simulate_continuous(sp, rate=rate, seed=4).node_values
 
 
-def test_ou_with_from_parent_keeps_the_ou_variance_and_gets_heavy_tails():
-    # FromParent is constant along a branch and mean-corrected (E[factor] = 1), so it factors
+def test_ou_with_an_inherited_rate_keeps_the_ou_variance_and_gets_heavy_tails():
+    # an inherited factor is constant along a branch and mean-corrected (E[factor] = 1), so it factors
     # straight out of the pull-weighted integral: E[tip variance] is the plain-OU tip variance
     # σ²(1−e^{−2αT})/(2α), unchanged. The variance therefore cannot tell the two models apart — the
     # drifting σ² makes a tip a scale-mixture of Gaussians instead, so what does tell them apart is
@@ -425,7 +428,7 @@ def test_ou_with_from_parent_keeps_the_ou_variance_and_gets_heavy_tails():
                                               seed=s).node_values[i] for i in tips]
                          for s in range(n_rep)])
 
-    drift = tips_under(sigma2 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.8)))
+    drift = tips_under(PerLineage(sigma2).varying_among('lineages', Drift(LogNormal(0.0, 0.8))))
     flat = tips_under(sigma2)
     expected = sigma2 / (2 * alpha) * (1 - math.exp(-2 * alpha * T))
     assert np.allclose(drift.var(axis=0), expected, rtol=0.12)
@@ -442,10 +445,10 @@ def test_two_inherited_drifts_compose_rather_than_being_refused():
     with a drawn one is what raises, and that check now lives in one place for every level."""
     sp = _tree(seed=1)
     res = simulate_continuous(
-        sp, rate=1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.2)) * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.3)), seed=1)
+        sp, rate=PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2))).varying_among('lineages', Drift(LogNormal(0.0, 0.3))), seed=1)
     assert len(res.node_values) == len(sp.complete_tree.nodes)
 
-    one = simulate_continuous(sp, rate=1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.2)), seed=1)
+    one = simulate_continuous(sp, rate=PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2))), seed=1)
     assert res.node_values != one.node_values          # the second drift really is in the run
 
 
@@ -458,7 +461,7 @@ def test_bm_unchanged_by_the_inherited_wiring():
     assert a.node_values == b.node_values
 
 
-# --- diversity-dependent BM (OnTotalDiversity on rate): σ² slows as the clade fills ----
+# --- diversity-dependent BM (TotalDiversity on rate): σ² slows as the clade fills ----
 
 def _ltt_integral(tree, cap, upto, pull=0.0):
     """∫_0^{upto} max(0, 1 − LTT(t)/cap) dt, LTT = lineages alive at t — computed independently of the
@@ -498,7 +501,7 @@ def test_diversity_dependence_matches_the_ltt_integral():
     T = tree.nodes[tips[0]].end_time
     base, cap = 2.0, 6.0
     data = np.array([
-        [simulate_continuous(tree, start=0.0, rate=base * mod.OnTotalDiversity(cap=cap), seed=s).node_values[i]
+        [simulate_continuous(tree, start=0.0, rate=PerLineage(base).scaled_by(TotalDiversity(cap=cap)), seed=s).node_values[i]
          for i in tips] for s in range(2500)
     ])
     assert np.allclose(data.var(axis=0), base * _ltt_integral(tree, cap, T), rtol=0.1)
@@ -518,7 +521,7 @@ def test_diversity_dependence_freezes_at_a_small_cap():
     tips = sorted(n.id for n in tree.extant_leaves())
 
     def tip_var(cap):
-        d = np.array([[simulate_continuous(tree, rate=1.0 * mod.OnTotalDiversity(cap=cap), seed=s).node_values[i]
+        d = np.array([[simulate_continuous(tree, rate=PerLineage(1.0).scaled_by(TotalDiversity(cap=cap)), seed=s).node_values[i]
                        for i in tips] for s in range(1000)])
         return d.var(axis=0).mean()
 
@@ -526,14 +529,14 @@ def test_diversity_dependence_freezes_at_a_small_cap():
 
 
 def test_diversity_composes_with_inherited():
-    # OnTotalDiversity ∘ FromParent: the drift factor (E=1) rides on the diversity-scaled integral, so
+    # TotalDiversity ∘ an inherited law: the drift factor (E=1) rides on the diversity-scaled integral, so
     # E[tip variance] equals the plain diversity integral.
     sp = _tree(seed=11, n_extant=8, death=0.0)
     tree = sp.complete_tree
     tips = sorted(n.id for n in tree.extant_leaves())
     T = tree.nodes[tips[0]].end_time
     base, cap = 2.0, 6.0
-    rate = base * mod.OnTotalDiversity(cap=cap) * mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.6))
+    rate = PerLineage(base).scaled_by(TotalDiversity(cap=cap)).varying_among('lineages', Drift(LogNormal(0.0, 0.6)))
     data = np.array([
         [simulate_continuous(tree, start=0.0, rate=rate, seed=s).node_values[i] for i in tips]
         for s in range(2000)
@@ -543,13 +546,13 @@ def test_diversity_composes_with_inherited():
 
 def test_diversity_deterministic():
     sp = _tree(seed=2)
-    rate = 1.0 * mod.OnTotalDiversity(cap=10.0)
+    rate = PerLineage(1.0).scaled_by(TotalDiversity(cap=10.0))
     assert simulate_continuous(sp, rate=rate, seed=4).node_values == \
         simulate_continuous(sp, rate=rate, seed=4).node_values
 
 
 def test_ou_with_diversity_dependence_matches_the_weighted_ltt_integral():
-    # OU × OnTotalDiversity: σ² is scaled by (1 − LTT(t)/cap) *and* the pull discounts what was
+    # OU × TotalDiversity: σ² is scaled by (1 − LTT(t)/cap) *and* the pull discounts what was
     # accrued early, so a tip's variance is base·∫e^{−2α(T−t)}(1−LTT(t)/cap)dt. Both effects
     # suppress it, and they are not interchangeable — the unweighted diversity integral is asserted
     # here too, an order of magnitude out, so a run that forgot the weight cannot pass.
@@ -558,7 +561,7 @@ def test_ou_with_diversity_dependence_matches_the_weighted_ltt_integral():
     T = tree.nodes[tips[0]].end_time
     base, cap, alpha = 2.0, 6.0, 0.8
     data = np.array([
-        [simulate_continuous(tree, start=0.0, rate=base * mod.OnTotalDiversity(cap=cap),
+        [simulate_continuous(tree, start=0.0, rate=PerLineage(base).scaled_by(TotalDiversity(cap=cap)),
                              reverts_to=0.0, pull=alpha, seed=s).node_values[i] for i in tips]
         for s in range(2500)
     ])
@@ -662,6 +665,60 @@ def test_discrete_three_forms_agree():
                                switch={"A->B": q, "B->A": q}, start="A", seed=9)
     matrix = simulate_discrete(sp, states=["A", "B"], switch=[[0.0, q], [q, 0.0]], start="A", seed=9)
     assert scalar.node_values == asdict.node_values == matrix.node_values
+
+
+def test_a_switch_rate_may_be_written_from_its_scope():
+    # every rate in the library is written from its scope, and `switch` is no exception: the two
+    # spellings are the same rate, so one seed gives byte-identical histories. Both rate positions
+    # take it — the symmetric rate and a {'from->to': rate} entry — which is what the engine already
+    # allowed for a rate carrying a verb (`PerLineage(0.4).scaled_by(...)`), so accepting the bare
+    # one costs nothing and removes the case where chaining a verb made a spec legal.
+    sp = _tree(seed=7)
+    events = lambda r: [(c.time, c.kind, c.lineage, c.from_state, c.to_state) for c in r.events]
+    bare = simulate_discrete(sp, states=["A", "B"], switch=0.5, start="A", seed=9)
+    scoped = simulate_discrete(sp, states=["A", "B"], switch=PerLineage(0.5), start="A", seed=9)
+    assert bare.node_values == scoped.node_values and events(bare) == events(scoped)
+    d_bare = simulate_discrete(sp, states=["A", "B"], start="A", seed=9,
+                               switch={"A->B": 0.5, "B->A": 0.2})
+    d_scoped = simulate_discrete(sp, states=["A", "B"], start="A", seed=9,
+                                 switch={"A->B": PerLineage(0.5), "B->A": 0.2})
+    assert d_bare.node_values == d_scoped.node_values and events(d_bare) == events(d_scoped)
+
+
+def test_a_switch_rate_the_engine_cannot_mean_is_refused_by_what_it_says():
+    # each refusal names the thing that is wrong rather than the shape list, and every spelling a
+    # message offers is one that runs — the defect being guarded against is a message that tells you
+    # to write what it has just turned away.
+    sp = _tree(seed=1)
+    with pytest.raises(ValueError, match="switches per lineage"):
+        simulate_discrete(sp, states=["a", "b"], switch=Global(0.4), seed=1)
+    with pytest.raises(ValueError, match="switches per lineage"):
+        simulate_discrete(sp, states=["a", "b"], switch={"a->b": Global(0.4)}, seed=1)
+    # a matrix cell is a plain number: every entry is per lineage, so a cell has no scope to state,
+    # and the dict is the shape that does take a rate object
+    with pytest.raises(ValueError, match="plain numbers"):
+        simulate_discrete(sp, states=["a", "b"],
+                          switch=[[0.0, PerLineage(0.4)], [0.1, 0.0]], seed=1)
+    with pytest.raises(ValueError, match="PerLineage"):
+        simulate_discrete(sp, states=["a", "b"], switch="fast", seed=1)
+
+
+def test_a_joint_run_takes_the_same_switch_spellings():
+    # `DiscreteTrait` is the same trait model, bundled unexecuted, so it answers a spec the way
+    # `simulate_discrete` does — including the driven one it cannot grow, which it now refuses by
+    # saying why rather than by listing shapes.
+    from zombi2 import joint, traits
+
+    grow = lambda sw: joint.simulate_joint(
+        birth=PerLineage(1.0).scaled_by("trait", {"a": 2.0, "b": 1.0}), death=0.1,
+        trait=traits.discrete(states=["a", "b"], switch=sw), n_extant=20, seed=1)
+    bare, scoped = grow(0.4), grow(PerLineage(0.4))
+    assert bare.complete_tree.to_newick() == scoped.complete_tree.to_newick()
+    assert bare.trait.node_values == scoped.trait.node_values
+    with pytest.raises(ValueError, match="switches per lineage"):
+        grow(Global(0.4))
+    with pytest.raises(ValueError, match="one constant matrix"):
+        grow(PerLineage(0.4).scaled_by("habitat.tsv", {"a": 2.0}))
 
 
 def test_discrete_start_none_draws_uniformly():
@@ -789,7 +846,7 @@ def test_correlated_validation():
         simulate_continuous(tree, start=0.0, rate=1.0, correlation={("a", "b"): 0.5}, seed=1)
     with pytest.raises(ValueError, match="not implemented yet"):
         simulate_continuous(tree, start={"a": 0.0, "b": 0.0},
-                            rate={"a": 1.0, "b": 1.0 * mod.OnTime({0: 1.0, 3: 0.2})},
+                            rate={"a": 1.0, "b": PerLineage(1.0).changing_at({0: 1.0, 3: 0.2})},
                             correlation={("a", "b"): 0.5}, seed=1)
     with pytest.raises(ValueError, match="both"):                      # OU needs the pair, here too
         simulate_continuous(tree, **good, correlation={("a", "b"): 0.5}, reverts_to=1.0, seed=1)
@@ -1140,8 +1197,8 @@ def test_regimes_reject_a_modified_variance_rate():
     # place to read a schedule from. The message says that plainly and points at the path that does.
     tree = _corr_tree()
     regime = simulate_discrete(tree, states=["lo", "hi"], switch=0.5, seed=1)
-    with pytest.raises(ValueError, match="OnTime.*not implemented yet"):
-        simulate_continuous(tree, rate=1.0 * mod.OnTime({0: 1.0, 3: 0.2}), pull=2.0,
+    with pytest.raises(ValueError, match="changing_at.*not implemented yet"):
+        simulate_continuous(tree, rate=PerLineage(1.0).changing_at({0: 1.0, 3: 0.2}), pull=2.0,
                             reverts_to={"lo": 0.0, "hi": 1.0}, regimes=regime, seed=1)
 
 
@@ -1249,7 +1306,7 @@ def test_a_driven_variance_integrates_across_the_drivers_mid_branch_switch(tmp_p
     tree = _one_branch(2.0).complete_tree
     src = _write_driver(tmp_path, [(0.0, "initial", "n0", "", "slow"),
                                    (1.0, "on_branch", "n0", "slow", "fast")])
-    rate = 1.0 * ScaledBy(src, {"slow": 1.0, "fast": 9.0})
+    rate = PerLineage(1.0).scaled_by(src, {"slow": 1.0, "fast": 9.0})
     r = as_rate(rate, default_scope=PerLineage)
     trajs = {rate.modifiers[0].key: resolve_driver(src, tree)}
 
@@ -1273,7 +1330,7 @@ def test_ou_with_a_driven_variance_steps_where_the_driver_steps(tmp_path):
     tree = _one_branch(T).complete_tree
     src = _write_driver(tmp_path, [(0.0, "initial", "n0", "", "slow"),
                                    (1.0, "on_branch", "n0", "slow", "fast")])
-    rate = 1.0 * ScaledBy(src, {"slow": 1.0, "fast": 9.0})
+    rate = PerLineage(1.0).scaled_by(src, {"slow": 1.0, "fast": 9.0})
 
     expected = _ou_segment(1.0, 0.0, 1.0, T, alpha) + _ou_segment(9.0, 1.0, T, T, alpha)
     assert expected == pytest.approx(3.9495, rel=1e-3)
@@ -1292,7 +1349,7 @@ def test_a_driven_switch_rate_breaks_where_the_driver_breaks(tmp_path):
     tree = _one_branch(2.0).complete_tree
     src = _write_driver(tmp_path, [(0.0, "initial", "n0", "", "off"),
                                    (1.0, "on_branch", "n0", "off", "on")])
-    switch = 1.0 * ScaledBy(src, {"off": 0.0, "on": 5.0})
+    switch = PerLineage(1.0).scaled_by(src, {"off": 0.0, "on": 5.0})
     times = [e.time for s in range(60)
              for e in simulate_discrete(tree, states=["x", "y"], switch=switch, start="x",
                                         seed=s).events if e.kind == "on_branch"]
@@ -1311,12 +1368,12 @@ def test_a_driver_that_never_switches_leaves_a_run_byte_identical(tmp_path):
     table = {"one": 1.0, "two": 1.0}
 
     plain = simulate_continuous(tree, rate=1.0, seed=17)
-    driven = simulate_continuous(tree, rate=1.0 * ScaledBy(flat, table), seed=17)
+    driven = simulate_continuous(tree, rate=PerLineage(1.0).scaled_by(flat, table), seed=17)
     assert driven.node_values == plain.node_values
 
     plain_d = simulate_discrete(tree, states=["a", "b", "c"], switch=0.4, start="a", seed=19)
     driven_d = simulate_discrete(tree, states=["a", "b", "c"], start="a", seed=19,
-                                 switch=0.4 * ScaledBy(flat, table))
+                                 switch=PerLineage(0.4).scaled_by(flat, table))
     assert driven_d.node_values == plain_d.node_values
     assert driven_d.history == plain_d.history
     assert [(e.time, e.lineage, e.to_state) for e in driven_d.events] == \
@@ -1329,7 +1386,7 @@ def test_a_trait_diffuses_faster_where_its_driver_says_so():
     # the per-branch step sd must be √6 times larger in 'fast' than in 'slow'.
     tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=300, seed=4).complete_tree
     A = simulate_discrete(tree, states=["slow", "fast"], switch=0.5, start="slow", seed=7)
-    B = simulate_continuous(tree, rate=1.0 * ScaledBy(A, {"slow": 1.0, "fast": 6.0}), seed=11)
+    B = simulate_continuous(tree, rate=PerLineage(1.0).scaled_by(A, {"slow": 1.0, "fast": 6.0}), seed=11)
 
     steps = {"slow": [], "fast": []}
     for i, node in tree.nodes.items():
@@ -1352,7 +1409,7 @@ def test_a_trait_switches_faster_where_its_driver_says_so():
     tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=400, seed=4).complete_tree
     A = simulate_discrete(tree, states=["slow", "fast"], switch=0.5, start="slow", seed=7)
     B = simulate_discrete(tree, states=["x", "y"], start="x", seed=13,
-                          switch=0.2 * ScaledBy(A, {"slow": 1.0, "fast": 8.0}))
+                          switch=PerLineage(0.2).scaled_by(A, {"slow": 1.0, "fast": 8.0}))
 
     exposure = {"slow": 0.0, "fast": 0.0}
     switches = {"slow": 0, "fast": 0}
@@ -1384,9 +1441,9 @@ def test_a_grown_result_and_its_written_log_drive_identically(tmp_path):
     A = simulate_discrete(tree, states=["dry", "wet"], switch=0.6, start="dry", seed=2)
     A.write(tmp_path, outputs=["events"])
     table = {"dry": 1.0, "wet": 4.0}
-    by_object = simulate_continuous(tree, rate=1.0 * ScaledBy(A, table), seed=8)
+    by_object = simulate_continuous(tree, rate=PerLineage(1.0).scaled_by(A, table), seed=8)
     by_file = simulate_continuous(
-        tree, rate=1.0 * ScaledBy(str(tmp_path / "trait_events.tsv"), table), seed=8)
+        tree, rate=PerLineage(1.0).scaled_by(str(tmp_path / "trait_events.tsv"), table), seed=8)
     assert by_file.node_values == by_object.node_values
 
 
@@ -1397,24 +1454,24 @@ def test_driven_trait_validation(tmp_path):
     # a mapping that names none of the driver's states would leave every lineage at the default
     # factor — the undriven model wearing a driven rate — so it is refused, not run
     with pytest.raises(ValueError, match="match none of"):
-        simulate_continuous(tree, rate=1.0 * ScaledBy(A, {"marine": 3.0}), seed=1)
+        simulate_continuous(tree, rate=PerLineage(1.0).scaled_by(A, {"marine": 3.0}), seed=1)
     with pytest.raises(ValueError, match="match none of"):
         simulate_discrete(tree, states=["x", "y"], seed=1,
-                          switch=0.5 * ScaledBy(A, {"marine": 3.0}))
+                          switch=PerLineage(0.5).scaled_by(A, {"marine": 3.0}))
 
     # a driver grown on a different tree: the join key is the species node id, so a lineage the
     # driver never saw has no value to read and the run stops instead of inventing one
     other = simulate_species_tree(birth=1.0, death=0.0, n_extant=3, seed=9).complete_tree
     B = simulate_discrete(other, states=["dry", "wet"], switch=0.6, start="dry", seed=2)
     with pytest.raises(KeyError, match="SAME|node ids"):
-        simulate_continuous(tree, rate=1.0 * ScaledBy(B, {"dry": 1.0, "wet": 2.0}), seed=1)
+        simulate_continuous(tree, rate=PerLineage(1.0).scaled_by(B, {"dry": 1.0, "wet": 2.0}), seed=1)
 
-    # Driven is the only modifier a switch rate takes; anything else on it would be read by nothing
-    with pytest.raises(ValueError, match="switch rate carries OnTime"):
-        simulate_discrete(tree, states=["x", "y"], switch=0.5 * mod.OnTime({0: 1.0, 1: 0.5}), seed=1)
+    # scaled_by is the only verb a switch rate takes; anything else on it would be read by nothing
+    with pytest.raises(ValueError, match="switch rate carries changing_at"):
+        simulate_discrete(tree, states=["x", "y"], switch=PerLineage(0.5).changing_at({0: 1.0, 1: 0.5}), seed=1)
     with pytest.raises(ValueError, match="per lineage"):
         simulate_discrete(tree, states=["x", "y"], seed=1,
-                          switch=scope.Global(0.5) * ScaledBy(A, {"dry": 1.0, "wet": 2.0}))
+                          switch=Global(0.5).scaled_by(A, {"dry": 1.0, "wet": 2.0}))
 
 
 def test_a_driven_switch_rate_can_be_written_per_transition(tmp_path):
@@ -1423,7 +1480,7 @@ def test_a_driven_switch_rate_can_be_written_per_transition(tmp_path):
     tree = _one_branch(4.0).complete_tree
     src = _write_driver(tmp_path, [(0.0, "initial", "n0", "", "dry"),
                                    (2.0, "on_branch", "n0", "dry", "wet")])
-    switch = {"x->y": 1.0 * ScaledBy(src, {"dry": 0.0, "wet": 3.0}), "y->x": 0.05}
+    switch = {"x->y": PerLineage(1.0).scaled_by(src, {"dry": 0.0, "wet": 3.0}), "y->x": 0.05}
     times = [e.time for s in range(40)
              for e in simulate_discrete(tree, states=["x", "y"], switch=switch, start="x",
                                         seed=s).events
@@ -1565,7 +1622,7 @@ def test_a_discrete_trait_steps_at_a_rate_that_changes_on_its_own_clock():
 
     tree = species.simulate_species_tree(birth=1.0, death=0.0, total_time=3.0, seed=5).complete_tree
     result = traits.simulate_discrete(tree, states=["a", "b"], seed=3,
-                                      switch=3.0 * StopsAtOne())
+                                      switch=PerLineage(3.0)._and(StopsAtOne()))
 
     late = [c.time for c in result.events if c.time > 1.0 + 1e-9]
     assert not late, f"switched after the rate went to zero: {late[:5]}"

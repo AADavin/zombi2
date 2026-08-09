@@ -26,7 +26,7 @@ if TYPE_CHECKING:                      # `gc()` imports this module, so a run-ti
 #: the engines that may not read this driver, named as each level names itself
 #: (`zombi2.rates.modifiers.Modifier.implemented_for`). All three are the genome — a sequence is
 #: downstream of every one of them. ``species`` and ``joint`` cannot read it either but never reach
-#: here: species takes no ``ScaledBy`` at all, and joint refuses every object source up front.
+#: here: species takes no ``scaled_by`` at all, and joint refuses every object source up front.
 _UPSTREAM = frozenset({"genomes.family", "genomes.ordered", "genomes.nucleotide"})
 
 
@@ -35,11 +35,12 @@ class Composition:
     """The share of a lineage's sequence that is one of ``letters``, over time.
 
     Built by ``result.gc()`` or ``result.composition(letters)`` and handed to
-    `~zombi2.rates.modifiers.ScaledBy` like any grown driver::
+    `~zombi2.rates.rate.Rate.scaled_by` like any grown driver::
 
         seqs = simulate_sequences(g, model=hky85(2.0), length=300, seed=1)
         simulate_discrete(tree, states=["mesophile", "thermophile"], start="mesophile",
-                          switch=0.2 * ScaledBy(seqs.gc(), Curve(lambda x: 20.0 ** (x - 0.5))),
+                          switch=PerLineage(0.2).scaled_by(seqs.gc(),
+                                                           Curve(lambda x: 20.0 ** (x - 0.5))),
                           seed=2)
 
         proteins = simulate_sequences(g, model=lg(), length=300, seed=1)
