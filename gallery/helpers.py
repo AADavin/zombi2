@@ -494,15 +494,17 @@ def events_run() -> str:
 
 
 def phylo_run() -> str:
-    """A cached run whose sequences evolve under an **uncorrelated relaxed clock** (Drawn(per='lineage')), so the
-    clock tree (branch lengths in substitutions/site) is non-ultrametric. 35 species, for the phylogram."""
+    """A cached run whose sequences evolve under an **uncorrelated relaxed clock** (a rate drawn among
+    lineages), so the clock tree (branch lengths in substitutions/site) is non-ultrametric. 35
+    species, for the phylogram."""
     run = os.path.join(_DATA, "phylo")
     if _stale(run):
         _zombi("species", run, "--birth", 1.4, "--death", 0.2, "--n-extant", 35, "--seed", 7)
         _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 40,
                "--duplication", 0.15, "--loss", 0.12, "--seed", 9)
         _zombi("sequences", run, "--model", "hky85", "--kappa", 2.0, "--length", 500,
-               "--substitution", "1.0 * Drawn(per='lineage', dist=LogNormal(0.0, 0.6))", "--seed", 7)
+               "--substitution", "PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.6))",
+               "--seed", 7)
     return _stamp(run)
 
 
@@ -611,7 +613,7 @@ def rearranged_pair(genomes: dict) -> tuple:
 _INK, _DIM = "#1a1a1a", "#6e6e6e"
 
 
-def _conditioning_frame(ax, driver, target, target_base, target_sub):
+def _conditioning_frame(ax, driver, target, target_base, target_sub, target_scope="PerCopy"):
     """The two columns every conditioning diagram shares — the driver and the target it drives — with
     the relation drawn between them. What sits *below* the arrow is the mapping, and it differs
     between a discrete driver (a per-state multiplier) and a continuous one (a value→factor curve).
@@ -620,8 +622,10 @@ def _conditioning_frame(ax, driver, target, target_base, target_sub):
     read ``DrivenBy``, which was passive, so an arrow drawn cause-to-effect carried a label naming the
     relation effect-to-cause — read along the arrow it said "habitat is driven by loss", the opposite
     of the model. The verb now sits under the TARGET instead, which is both where it reads correctly
-    and where it is actually typed: ``ScaledBy`` on a rate, ``Weights`` on a choice. A **choice**
-    (`transfer_to`) has no base, so it shows the modifier alone."""
+    and where it is actually typed: ``scaled_by`` on a rate, ``weighted_by`` on a choice. It is
+    written as the chained call alone, with no scope in front, because the scope differs by level —
+    per copy for a genome rate, per lineage for a trait's — and the box already carries the base. A
+    **choice** (`transfer_to`) has no base, so its box shows the target alone."""
     from matplotlib.patches import FancyArrowPatch, Rectangle
 
     ax.set_xlim(0, 660)
@@ -644,11 +648,11 @@ def _conditioning_frame(ax, driver, target, target_base, target_sub):
                            lw=1.6, joinstyle="round"))
     if target_base is None:
         ax.text(555, 126, target, ha="center", va="center", color=_INK, fontsize=15)
-        written = f"ScaledBy({driver}, …)"
+        written = f"Recipients().weighted_by({driver}, ...)"
     else:
         ax.text(555, 120, target, ha="center", va="center", color=_INK, fontsize=15)
         ax.text(555, 142, f"base {target_base}", ha="center", va="center", color=_DIM, fontsize=13)
-        written = f"{target_base} * ScaledBy({driver}, …)"
+        written = f"{target_scope}({target_base}).scaled_by({driver}, ...)"
     # the expression this diagram is a picture of, under the thing you write it on
     ax.text(555, 176, written, ha="center", va="center", color=_DIM, fontsize=10.5,
             family="monospace")
@@ -691,6 +695,7 @@ def _state_chain(ax, states, switch, colors, *, cx, y, half=48.0, r_st=15, drive
 
 
 def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_base=None,
+                      target_scope="PerCopy",
                       target_sub=None, symbol="×", state_colors=None,
                       target_states=None, target_switch=None, target_colors=None,
                       target_driven=None):
@@ -702,7 +707,7 @@ def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_bas
     is the italic caption under TARGET. ``target_states`` / ``target_switch`` / ``target_colors``
     draw a second chain under the target box, for a target that is itself a discrete trait — the
     driven rate is then visibly *that chain's* rate, rather than an unexplained number."""
-    _conditioning_frame(ax, driver, target, target_base, target_sub)
+    _conditioning_frame(ax, driver, target, target_base, target_sub, target_scope)
 
     _state_chain(ax, states, switch, state_colors, cx=120, y=202)
     if target_states:
@@ -714,7 +719,8 @@ def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_bas
                 color=_DIM, fontsize=13.5)
 
 
-def draw_conditioning_curve(ax, *, driver, curve, vrange, target, target_base=None, target_sub=None,
+def draw_conditioning_curve(ax, *, driver, curve, vrange, target, target_base=None,
+                            target_scope="PerCopy", target_sub=None,
                             cmap="viridis", value_label="trait value",
                             target_states=None, target_switch=None, target_colors=None,
                             target_driven=None):
@@ -723,7 +729,7 @@ def draw_conditioning_curve(ax, *, driver, curve, vrange, target, target_base=No
     and the driver column carries the colour ramp the tree is painted with."""
     from matplotlib.patches import Rectangle
 
-    _conditioning_frame(ax, driver, target, target_base, target_sub)
+    _conditioning_frame(ax, driver, target, target_base, target_sub, target_scope)
     if target_states:
         _state_chain(ax, target_states, target_switch, target_colors, cx=555, y=214,
                      driven=target_driven)

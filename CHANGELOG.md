@@ -9,6 +9,42 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+- **A rate is written from its scope, with verbs chained onto it. `*` is gone.**
+  `PerCopy(0.25).scaled_by(habitat, {'aquatic': 4.0})` replaces `0.25 * ScaledBy(habitat, {...})`,
+  and the same three verbs — `scaled_by` multiplies, `set_by` replaces, `weighted_by` compares the
+  candidates of a choice — read every driver at every level. The classes they used to be written as
+  are removed as names: `ScaledBy`, `SetBy`, `Weights`, `OnTime`, `OnTotalDiversity`, `Drawn` and
+  `Inherited` are no longer importable from `zombi2.rates` and no longer parse in a flag or a
+  `--params` file. Each is answered by a sentence naming the verb that replaced it, in Python and in
+  the written form alike, from one table. The models are unchanged and so are the numbers: the same
+  arguments and the same seed give the same run, in a new spelling. (#328)
+- **Two drivers have a verb of their own, and it is the only way to write them.** A value that
+  varies at random is `varying_among(unit, law)` and the run's clock is `changing_at({...})`;
+  `scaled_by` refuses both and names the shortcut, so there is exactly one spelling for each. The
+  **law** says what happens to the value after it is drawn — a bare distribution is drawn once and
+  held (the old `Drawn`), and `Drift(dist)` makes `dist` the per-split step (the old `Inherited`),
+  with `Drift(dist, bins=n)` the rate-category ladder. `Random(unit, law)` is that value as a named
+  object, which is still how two rates share one draw. (#328)
+- **The unit a value varies among is plural.** `'lineages'`, `'families'`, `'copies'`, `'sites'`,
+  `'chromosomes'` — because a value varies *among* families rather than being counted *per* one, and
+  "per" is the scope word and nothing else. `'family'` and `'families'` are different strings, so a
+  rate written the old way fails loudly rather than quietly meaning something new. (#328)
+- **`transfer_to` is written from `Recipients()`.** A driven recipient rule is
+  `Recipients().weighted_by(driver, mapping)` in place of `Weights(driver, mapping)`, which makes a
+  choice's entry point as visible as a rate's scope. `"uniform"`, `Distance(decay=…)` and
+  `Clades(…)` are unchanged. (#328)
+- **A replaced base is written on the bare scope.** `PerCopy().set_by(habitat, {'cave': 1.0})` in
+  place of `SetBy(habitat, {...})`: the scope still stands, because replacing *how fast* says nothing
+  about *per what*. A `set_by` must come first, since everything to its left is a base it would
+  discard, and that rule is now stated once by the verb rather than at each operand of a `*`. (#328)
+- **The modifiers a level lists are named by the expression that writes them.** `zombi2 <command>
+  -h` and an engine's refusal now print `varying_among('lineages', ...)` and
+  `varying_among('lineages', Drift(...))` where they printed `drawn among lineages` and `inherited
+  among lineages` — descriptions of a value that named no way to write one, so the help listed two
+  entries that were a syntax error if typed. `...` stands for the argument you choose. Appendix A's
+  table of which level accepts which is the same list, built from the same function. (#328)
+
 ### Added
 - **`Distance(decay=…)` and `Clades(…)` can be written on the command line and in a `--params`
   file.** Both moved from the transfer engine into the rate grammar, where everything a user *writes*

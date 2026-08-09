@@ -1,8 +1,13 @@
 # Proposal — the parameter grammar
 
-**Status: proposed, not built.** If accepted this replaces the wording of [SPEC](SPEC.md) §5–§7 and
-reorganises `zombi2/rates/` into `zombi2/params/`. It expresses the same models ZOMBI2 expresses
-today, plus several that are currently unsayable; what changes is what you write.
+**Status: ratified and built.** This is the wording of [SPEC](SPEC.md) §5–§7. It expresses the same
+models ZOMBI2 expressed before it, plus several that were unsayable; what changed is what you write.
+
+Some of what it proposed is **not** built. Every such place is marked on the line, and §13's worked
+examples all construct and run as written, so a line carrying no mark is a line you can type. Two of
+the gaps are structural rather than local: the package is still `zombi2/rates/` rather than
+`zombi2/params/` (§11, §12), and the forgiveness rule's refusal of a bare number where two scopes are
+legal (§3) is not enforced — a bare number still takes the level's default scope.
 
 ---
 
@@ -50,7 +55,7 @@ to it. A **mapping** turns the driver's value into a number.
 | **rate** | how often an event fires | a **scope** | `scaled_by`, `set_by` |
 | **extent** | how much an event takes once started | `Extent(...)` | `scaled_by` |
 | **choice** | which candidate receives it (`transfer_to` is the only one) | `Recipients()` | `weighted_by` |
-| **value** | a number that is not a rate — a trait's optimum, its pull | `Value(...)` | `scaled_by`, `set_by` |
+| **value** | a number that is not a rate — a trait's optimum, its pull | `Value(...)` *(not built)* | `scaled_by`, `set_by` |
 
 A rate is always written from its scope, so *per what?* is answered on the page rather than by a
 default nobody types:
@@ -68,16 +73,22 @@ The scopes are `Global`, `PerLineage`, `PerCopy`, `PerChromosome`, `PerSite`.
 where only one scope is legal. Origination happens per lineage and nothing else, so `origination = 0.1`
 is fine. Loss can be per copy *or* per lineage, and the two differ by a factor of the genome's size, so
 `loss = 0.25` is refused and asks which you meant. The rule teaches the distinction by where it bites.
-It presumes scope overrides exist at Genomes, which today they do not.
+It presumes scope overrides exist at Genomes, and since §18 shipped they do — `loss = PerLineage(0.25)`
+and `loss = PerCopy(0.25)` both run. What is still missing is the refusal: `loss = 0.25` is accepted
+and takes the level's default.
 
 The other three entry points work the same way — written only when something is chained onto them:
 
 ```python
 loss_extent = Gamma(2.0, 250.0)
 loss_extent = Extent(Gamma(2.0, 250.0)).scaled_by("habitat.tsv", {'aquatic': 2.0})
-reverts_to  = Value().set_by("habitat.tsv", {'aquatic': 5.0, 'terrestrial': -5.0})
-transfer_to = Recipients().weighted_by(Distance(), lambda d: math.exp(-d))
+transfer_to = Recipients().weighted_by("competence.tsv", {'competent': 3.0, 'normal': 1.0})
+reverts_to  = Value().set_by("habitat.tsv", {'aquatic': 5.0, 'terrestrial': -5.0})   # not built
 ```
+
+**`Value` is not built**, so the fourth row of the table above has no entry point behind it: today
+`reverts_to` takes a plain number and refuses anything else, and a trait's optimum therefore cannot be
+driven at all. §7 says what stands in the way.
 
 **Why an extent cannot be `set_by`:** an extent's base is a *distribution* over sizes, so a `set_by`
 supplying one scalar would silently discard it. `extent.py` refuses this today and the proposal keeps
@@ -144,18 +155,27 @@ life, so the Gillespie must step at its breakpoints).
 |---|---|---|---|---|
 | `Time()` | run | changing | `changing_at` / `set_by` | the run's clock |
 | `Random(unit, law)` | lineages, families, … | per its law | `varying_among` | a value drawn for that unit (§6) |
-| `TotalDiversity()` | run | changing | `scaled_by` | lineages standing right now |
+| `TotalDiversity(cap=…)` | run | changing | `scaled_by` | lineages standing right now |
 | `Age()` | lineage | changing | `scaled_by` | time since this lineage was born *(not built)* |
 | `Clade({...})` | lineage | standing | `scaled_by` | which named group a lineage belongs to |
-| `Distance()` | pair | standing | `weighted_by` | patristic distance donor→recipient, in tree depths |
+| `Distance()` | pair | standing | *(a whole `transfer_to` rule, not a driver — see below)* | patristic distance donor→recipient, in tree depths |
 | a level's output | lineage | changing | `scaled_by` / `set_by` | a trait, gene content, a sequence (§9) |
 
-`Between(driver)` turns a per-lineage driver into a **pair** driver, reading it at both ends of a
-transfer; `Distance()` is a pair driver already. Only a choice can use one.
+`Clade` is refused at Species, and not because nobody has built it: at Species the tree is the run's
+output, so while birth and death are being read there is no tree to name a clade on. Every level that
+takes an already-grown tree — Genomes, Sequences, Traits — reads it.
 
-There is **one** `Clade`. Today the same idea exists twice — `Clade` in `rates/clade.py` for driving a
-rate and `Clades` in `genomes/_transfer.py` for weighting a transfer — differing by an `s`. What
-differs is the verb reading it, not the driver.
+**`Distance` is not a driver today, and neither is `Between`.** `Distance(decay=…)` is a whole
+`transfer_to` rule with its own `exp(-decay × d / depth)` built in rather than a mapping to write, so
+`weighted_by(Distance(), mapping)` is refused and names it (§7); and `Between({...})` is the pair
+*mapping* `Clades` takes, not a wrapper that turns a per-lineage driver into a pair one (§12).
+
+There are **two** clade classes, and they stayed two: `Clade` in `rates/clade.py` is a per-lineage
+value any rate can read, and `Clades` in `rates/choice.py` is the `transfer_to` rule that weights the
+**pair** (donor's clade, recipient's clade). The proposal wanted one, on the grounds that only the
+verb differs; a pair rule and a per-lineage value turned out to differ in what they *return*, not only
+in who reads them. They share `resolve_groups`, so a clade means the same thing whichever way it is
+read, which is what the unification was for.
 
 ---
 
@@ -178,6 +198,8 @@ afterwards, which is a separate question from what it starts as. Units are **plu
 substitution = PerSite(0.01).varying_among('lineages', LogNormal(0.0, 0.3))                    # drawn, held
 substitution = PerSite(0.01).varying_among('lineages', Drift(LogNormal(0.0, 0.3)))             # Brownian
 substitution = PerSite(0.01).varying_among('lineages', Drift(LogNormal(0.0, 0.3), bins=8))     # rate categories
+
+# the three laws the table marks "no" — these raise NameError today:
 substitution = PerSite(0.01).varying_among('lineages', Reverting(LogNormal(0.0, 0.3), pull=0.3))
 substitution = PerSite(0.01).varying_among('lineages', Markov(LogNormal(0.0, 0.5), rate=0.1))  # random local clock
 substitution = PerSite(0.01).varying_among('lineages', WhiteNoise(0.3))                        # variance ∝ 1/duration
@@ -221,7 +243,7 @@ How a driver's value becomes a number. The mapping follows from the **driver**, 
 | a `dict` → `Table` | a driver with named states; `default=` sets what an unlisted state gets (1.0 unless said) |
 | a function → `Curve` | a driver whose value is a number |
 | `Scalar(strength)` | the log-link `exp(strength · value)` — a `Curve` with the exponential chosen |
-| a `dict` keyed by pairs | a `Between` driver: the pair (donor's state, recipient's state) |
+| a `dict` keyed by pairs → `Between` | the pair (donor's group, recipient's group), for a `Clades` rule |
 
 A mapping is omitted when the driver's value is already the number wanted — a `Random` is normalised to
 a dimensionless multiplier by construction.
@@ -238,17 +260,32 @@ optimum cannot be driven (`Table factor for 'terrestrial' must be a finite non-n
 | `set_by` a rate or extent | ≥ 0, the parameter's units | a rate cannot be negative |
 | `set_by` a value | anything the parameter allows | an optimum can be negative |
 
-Nothing becomes later or vaguer: attaching happens on the same line the mapping is written, so the
-error still points at the right place — and it can now say *why*, which "a table cannot be negative"
-never could, because it was not true.
+Nothing would become later or vaguer: attaching happens on the same line the mapping is written, so
+the error would still point at the right place — and it could say *why*, which "a table cannot be
+negative" never could, because it was not true.
 
-Separating the driver from the mapping is also what makes a kernel writable. Today `Distance(decay=1.0)`
+**Not built.** The check has not moved, so the four rows above are the design and not the code, and an
+OU optimum still cannot be driven. Moving it is cheap on its own; what it is worth waiting for is
+`Value`, since a driven optimum is the only parameter that wants a negative number and there is
+nothing else for the loosened rule to admit.
+
+Separating the driver from the mapping is also what would make a kernel writable. `Distance(decay=1.0)`
 bundles both, so `exp(-decay · d / depth)` is the only available shape:
 
 ```python
-transfer_to = Recipients().weighted_by(Distance(), lambda d: math.exp(-d))       # today's default
+transfer_to = Distance(decay=1.0)          # the whole rule, its shape included — what ships
+
+# not built: Distance is refused as a driver, and the refusal names the line above
+transfer_to = Recipients().weighted_by(Distance(), lambda d: math.exp(-d))       # the same fall, written out
 transfer_to = Recipients().weighted_by(Distance(), lambda d: 1 / (1 + d ** 2))   # a power law
 transfer_to = Recipients().weighted_by(Distance(), {0.0: 1.0, 0.5: 0.2, 1.0: 0.0})
+```
+
+What `Recipients().weighted_by(...)` does take is a driver another level grew, which is the rest of
+the grammar and is built:
+
+```python
+transfer_to = Recipients().weighted_by("competence.tsv", {'competent': 3.0, 'normal': 1.0})
 ```
 
 ---
@@ -256,13 +293,16 @@ transfer_to = Recipients().weighted_by(Distance(), {0.0: 1.0, 0.5: 0.2, 1.0: 0.0
 ## 8. Composition
 
 - **Verbs chain, and their factors multiply.** `PerCopy(0.25).scaled_by(a, m).varying_among('families', d)`
-  is one rate reading two drivers.
+  is one rate reading two drivers. Which chains a given level *reads* is that level's declaration, and
+  this one the genome engines refuse: a driver weights lineages and a per-family draw weights copies by
+  their family, so combining them means weighting by the product, which no resolution implements yet.
 - **One base.** A parameter carries at most one `set_by`, written first, because everything to its left
   is a base it would discard.
 - **One memory structure per axis** (§6).
 - **Weights on a choice multiply and are then normalised across the candidates**, so chaining two is
-  meaningful: prefer close relatives *and* run a highway between two distant clades. Today that
-  combination is refused — *"combining Distance with a Weights rule is a later slice."*
+  meaningful: prefer close relatives *and* run a highway between two distant clades. `Choice` chains
+  them, but no genome resolution reads more than one, so a second is refused at the engine rather than
+  dropped — *"transfer_to carries 2 weightings, and the genome engines read one."*
 
 ```
 effective rate  =  scope(base)  ×  every scaled_by / varying_among / changing_at
@@ -283,26 +323,30 @@ other two verbs rather than as exceptions to it.
 The same driver, two supplies, and that is the *only* difference:
 
 ```python
-loss = PerCopy(0.25).scaled_by("habitat.tsv",    {'aquatic': 4.0, 'terrestrial': 1.0})   # conditioned
-loss = PerCopy(0.25).scaled_by(Trait('habitat'), {'aquatic': 4.0, 'terrestrial': 1.0})   # joint
+loss  = PerCopy(0.25).scaled_by("habitat.tsv", {'aquatic': 4.0, 'terrestrial': 1.0})   # conditioned
+birth = PerLineage(1.0).scaled_by("trait",     {'aquatic': 4.0, 'terrestrial': 1.0})   # joint
 ```
 
 **Conditioned** — the driver was grown first and written to a file, so two ordinary runs in order do
 the whole job and nothing comes back. **Joint** — driver and target advance in one engine and each
 feels the other, so the driver is named as a live quantity.
 
+The two lines are different parameters because the pairings are: at Genomes a driver is a file, and
+the live names — `"trait"`, `"genomes:count"`, `"genomes:<family>"` — are read by `birth` and `death`
+in a joint run and nowhere else. Which pairs are legal at all is SPEC §3.
+
 A model never references another model object. A driver names a **quantity**, and the joint call binds
 it to whatever is running:
 
 ```python
-run = simulate_joint(birth=birth, death=death, trait=habitat, n_extant=200)
+habitat = DiscreteTrait(states=("aquatic", "terrestrial"), switch=0.4, start="aquatic")
+run = simulate_joint(birth=birth, death=PerLineage(0.1), trait=habitat, n_extant=200, seed=1)
 ```
 
 so the object graph has no cycle even when the model does, each model validates alone, and construction
-order stops mattering. A named quantity a pairing cannot supply must fail at the call, listing what is
-available — the gate `IMPLEMENTED_MODIFIERS` already performs, pointed at driver names.
-
-Which pairs are legal is SPEC §3 and does not change.
+order stops mattering. A named quantity a pairing cannot supply fails at the call and says what that
+pairing does supply: naming `"genomes:count"` beside `trait=` answers *"with trait=, drive from the
+live trait — scaled_by("trait", ...); got driver(s) ['genomes:count']"*.
 
 ---
 
@@ -327,6 +371,11 @@ Stated so nobody has to discover it.
 ---
 
 ## 11. Modules
+
+**Not built.** The grammar shipped inside the existing `zombi2/rates/`, whose files kept their names:
+`Random`, `Drift` and `TotalDiversity` live in `modifiers.py` beside `Drawn` and `Inherited`, and the
+verbs in `verbs.py` with the methods on `rate.py` calling them. The tree below is the reorganisation
+this proposed, left as written.
 
 ```
 zombi2/params/
@@ -360,17 +409,21 @@ If `parameter.py` grows past about 700 lines it splits into `parameter.py` (what
 | Today | Write instead |
 |---|---|
 | `0.25 * OnTime({0: 1.0, 3: 0.3})` | `PerCopy(0.25).changing_at({0: 1.0, 3: 0.3})` |
-| `1.0 * OnTotalDiversity(cap=100)` | `PerLineage(1.0).scaled_by(TotalDiversity(), curve)` |
+| `1.0 * OnTotalDiversity(cap=100)` | `PerLineage(1.0).scaled_by(TotalDiversity(cap=100))` |
 | `0.25 * Drawn(per='family', spread=σ)` | `PerCopy(0.25).varying_among('families', LogNormal(0.0, σ))` |
 | `1.0 * Inherited(per='lineage', spread=σ)` | `PerSite(1.0).varying_among('lineages', Drift(LogNormal(0.0, σ)))` |
 | `0.25 * ScaledBy(driver, m)` | `PerCopy(0.25).scaled_by(driver, m)` |
 | `SetBy(driver, m)` | `PerCopy().set_by(driver, m)` |
 | `Weights(driver, m)` | `Recipients().weighted_by(driver, m)` |
-| `Distance(decay=k)` | `Recipients().weighted_by(Distance(), lambda d: exp(-k * d))` |
-| `Clades({...}, Between({...}))` | `Recipients().weighted_by(Between(Clade({...})), {...})` |
 | `spread=` | a written distribution |
 | `per='family'` | `'families'` — the units go plural |
-| `zombi2.rates` | `zombi2.params` |
+| `zombi2.rates` | `zombi2.rates` — the rename to `zombi2.params` (§11) is not built |
+
+**`Distance` and `Clades` are not on that list.** The proposal wanted both dissolved into
+`weighted_by` — `Distance(decay=k)` into a driver plus a kernel, `Clades({...}, Between({...}))` into
+`weighted_by(Between(Clade({...})), {...})` — and neither is built (§5, §7). `Distance(decay=k)` and
+`Clades(groups, Between(pairs))` are the shipped spellings, and for a clade-to-clade transfer weight
+`Clades` is the only spelling there is. Removing them would take a model away.
 
 `parse.py` keeps every retired spelling in its refusal table, as it does today for `DrivenBy`,
 `ByFamily`, `ByLineage` and `FromParent`: the error names the replacement rather than guessing one. The
@@ -381,22 +434,25 @@ old code fails loudly instead of quietly meaning something new.
 
 ## 13. Worked examples
 
+Every line here constructs, and every line is accepted by the engine that reads it — the parameter
+names are the keyword arguments of `simulate_species_tree`, `simulate_genomes_*`,
+`simulate_sequences`, `simulate_continuous` / `simulate_discrete` and `simulate_joint`.
+
 ```python
 # ── Species ────────────────────────────────────────────────────────────────
 birth = PerLineage(0.5)
 death = PerLineage(0.1)
 birth = PerLineage(0.5).changing_at({0: 1.0, 3: 0.3})                       # skyline
 birth = PerLineage().set_by(Time(), {0: 0.5, 3: 0.15})                      # the rates themselves
-birth = PerLineage(1.0).scaled_by(TotalDiversity(), lambda n: max(0.0, 1 - n / 100))
-birth = PerLineage(0.5).scaled_by(Clade({'birds': ['n12', 'n31']}), {'birds': 3.0})
+birth = PerLineage(1.0).scaled_by(TotalDiversity(cap=100))                  # diversity-dependent
+birth = PerLineage(0.5).varying_among('lineages', Drift(LogNormal(0.0, 0.2)))   # ClaDS
 birth = Global(0.5)
 
 # ── Genomes ────────────────────────────────────────────────────────────────
 duplication = PerCopy(0.10)
 loss        = PerCopy(0.20).varying_among('families', LogNormal(0.0, 0.5))
 loss        = PerLineage(0.25)                                              # the deletion budget
-loss        = PerCopy(0.25).scaled_by(Clade({'burrowers': ['n12']}), {'burrowers': 2.0}) \
-                           .varying_among('families', LogNormal(0.0, 0.5))
+loss        = PerCopy(0.25).scaled_by(Clade({'burrowers': ['n12']}), {'burrowers': 2.0})
 loss        = PerCopy().set_by("habitat.tsv", {'aquatic': 1.0, 'terrestrial': 0.25})
 loss_extent = Extent(Gamma(2.0, 250.0)).scaled_by("habitat.tsv", {'aquatic': 2.0})
 
@@ -405,10 +461,11 @@ family_speed = Random('families', LogNormal(0.0, 0.5))
 duplication  = PerCopy(0.20).varying_among(family_speed)
 loss         = PerCopy(0.10).varying_among(family_speed)
 
-# who receives a transfer: close relatives, plus a highway between two lineages
-transfer_to = Recipients().weighted_by(Distance(), lambda d: math.exp(-d)) \
-                          .weighted_by(Between(Clade({'A': 'n12', 'B': 'n40'})),
-                                       {('A', 'B'): 100.0, ('B', 'A'): 100.0})
+# who receives a transfer: close relatives; a highway between two clades; or a driver
+transfer_to = Distance(decay=1.0)
+transfer_to = Clades({'A': ['n12', 'n27'], 'B': 'n40'},
+                     Between({('A', 'B'): 100.0, ('B', 'A'): 100.0}, default=1.0))
+transfer_to = Recipients().weighted_by("competence.tsv", {'competent': 3.0, 'normal': 1.0})
 
 # ── Sequences ──────────────────────────────────────────────────────────────
 substitution = PerSite(0.01)
@@ -419,34 +476,57 @@ substitution = PerSite(0.01).scaled_by("habitat.tsv", {'aquatic': 2.5}) \
                             .varying_among('lineages', LogNormal(0.0, 0.3))
 
 # ── Traits ─────────────────────────────────────────────────────────────────
-size = BM(rate=PerLineage(1.0).scaled_by("habitat.tsv", {'aquatic': 3.0, 'terrestrial': 1.0}))
-size = OU(rate=PerLineage(1.0), pull=0.5,
-          reverts_to=Value().set_by("habitat.tsv", {'aquatic': 5.0, 'terrestrial': -5.0}))
+rate       = PerLineage(1.0).scaled_by("habitat.tsv", {'aquatic': 3.0, 'terrestrial': 1.0})  # a diffusion
+switch     = PerLineage(0.4).scaled_by("habitat.tsv", {'aquatic': 2.0, 'terrestrial': 1.0})  # a discrete trait
+reverts_to = 5.0     # an OU optimum is a plain number — there is no `Value` to drive it (§3, §7)
 
 # ── Joint ──────────────────────────────────────────────────────────────────
-birth  = PerLineage(0.4).scaled_by(Trait('habitat'), {'aquatic': 2.0, 'terrestrial': 1.0})
-death  = PerLineage(0.1).scaled_by(Trait('habitat'), {'aquatic': 0.5, 'terrestrial': 1.0})
-switch = PerLineage(0.3).scaled_by(GeneContent('count'), lambda n: 1 + n / 1000)
+birth = PerLineage(0.4).scaled_by("trait", {'aquatic': 2.0, 'terrestrial': 1.0})
+death = PerLineage(0.1).scaled_by("trait", {'aquatic': 0.5, 'terrestrial': 1.0})
+birth = PerLineage(0.3).scaled_by("genomes:count", lambda n: 1 + n / 1000)
 ```
+
+Four forms are deliberately absent. Each of the first three constructs and is then refused by the
+engine that would read it, which is why constructing is not the test this section is held to:
+
+- `birth = PerLineage(0.5).scaled_by(Clade({...}), {...})` — the species engine reads no driver at
+  all, and a clade in particular cannot be read while the tree that defines it is the thing being
+  grown (§5). The ClaDS line above is the species rate that does vary between lineages.
+- `loss = PerCopy(0.25).scaled_by(Clade(...), {...}).varying_among('families', ...)` — the genome
+  engines take a per-family draw or a driver, not both: *"combining them means weighting by the
+  product. Use one or the other for now."* The two halves are shown on separate lines instead.
+- `transfer_to = Recipients().weighted_by(...)` chained twice — no genome resolution reads more than
+  one weighting (§8). The three transfer lines above are three separate rules, not a chain.
+- `size = BM(...)` / `size = OU(...)` — there are no `BM` and `OU` classes to construct in the first
+  place. A continuous trait is one `simulate_continuous` call, Brownian by default and
+  Ornstein–Uhlenbeck once `reverts_to` and `pull` are given.
 
 ---
 
 ## 14. Settled, and still open
 
-**Settled.** Named laws with a bare distribution for the plain case (§6). Exactly two shortcuts,
-`varying_among` and `changing_at`, each the only spelling for its driver, with `scaled_by` refusing
-those two and no third shortcut ever (§4.1). The legality check moves from the mapping to the
-attachment, which is what lets a trait's optimum be driven (§7). `among`, with plural units (§6).
+**Settled, and built.** Named laws with a bare distribution for the plain case (§6). Exactly two
+shortcuts, `varying_among` and `changing_at`, each the only spelling for its driver, with `scaled_by`
+refusing those two and no third shortcut ever (§4.1). `among`, with plural units (§6). Scope overrides
+at Genomes (§18) — `loss` takes `PerCopy` or `PerLineage`, which is what the forgiveness rule in §3
+needed to have anything to teach.
+
+**Settled, and not built.** The legality check moving from the mapping to the attachment (§7). It is
+worth doing with `Value`, not before: a driven trait optimum is the only parameter that wants a
+negative number, so until `Value` exists the loosened rule would admit nothing.
 
 **Open.**
 
-- **`Value` as the name of the fourth parameter kind.** It is the entry point for anything that is not
-  a rate, an extent or a choice, and the word is thin.
+- **`Value`, the fourth parameter kind.** Not built at all — a trait's optimum takes a plain number
+  and cannot be driven (§3, §7). The name was the open question when this was written; the entry
+  point itself is the open question now.
 - **What actually ships.** `Age`, `Reverting`, `Markov` and `WhiteNoise` are written here because the
   shape of the law and driver menus should be settled with them in view. Nothing here commits to
-  building them.
-- **Scope overrides at Genomes.** The forgiveness rule in §3 only teaches something if `loss` genuinely
-  takes `PerCopy` or `PerLineage`. Today it does not, so that work is a precondition, not an extra.
+  building them, and none of the four is built.
+- **`Distance` and `Between` as drivers.** §5 lists them in the driver menu and §7 uses a `Distance`
+  kernel to argue that separating the driver from the mapping is what makes a kernel writable. Neither
+  is built: `Distance(decay=…)` is a whole `transfer_to` rule and `Between({...})` is the pair mapping
+  `Clades` takes. Dissolving them into `weighted_by` would have to keep both models writable.
 
 ## 15. Cost
 
@@ -466,7 +546,7 @@ migration actually needs and what a fleet of agents would otherwise each answer 
 > **Ratified by Adrián, 2026-08-09.** §16 and §17 as written: `*` is removed rather than deprecated,
 > and `Random` is a new spelling of the object the engines already carry. §18 and §19 are **built and
 > merged** — the scope table ships and the generative round-trip test guards rates, extents and
-> choices. What remains is §20 step 3, the migration itself, and step 4, the prose pass.
+> choices. §20 step 3, the migration, has since landed; what remains is step 4, the prose pass.
 >
 > The two answers matter together: verbs-only means every call site must change, and same-object-underneath
 > means none of the five engines does. That is what makes this wide and shallow rather than deep.
@@ -619,11 +699,12 @@ list finds.
 2. ~~**The generative round-trip test** (§19) against *today's* grammar, so it is known-good before it
    is the thing guarding the migration.~~ **Done** (#326, extended in #327). It has since caught two
    real defects — a `SetBy` that dropped its `step`, and a choice written in a form the CLI refuses.
-3. **The migration.** The core is **not** a fan-out job: one pass does §16 and §17 serially — `Rate`'s
+3. ~~**The migration.** The core is **not** a fan-out job: one pass does §16 and §17 serially — `Rate`'s
    verbs, the scope constructors, `Random` — because every other worker needs the exact object shapes
    to exist first. Only then do the call sites fan out by area: each engine, the CLI, the manual, the
    docs, the gallery, `analyses/`, the tests. Code and prose in the same change, same sentences with
-   new spellings, so the diff is reviewable. Then an adversarial review, which is what found the one
-   genuine bug last time.
+   new spellings, so the diff is reviewable.~~ **Done**, on `feat/parameter-grammar`; the engines are
+   byte-identical to `main` across 39 event streams. The adversarial review after it is what found the
+   gaps this document now marks.
 4. **The prose pass** — simplifying the chapters — separately, afterwards. Rewriting the words and
    renaming everything in one diff produces something nobody can check, including me.

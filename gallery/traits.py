@@ -6,7 +6,7 @@ import helpers as h
 from helpers import Example
 
 import phylustrator as ph
-from zombi2.rates import ScaledBy
+from zombi2.rates import PerLineage
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous, simulate_discrete
 
@@ -101,7 +101,7 @@ def dependent_characters(out):
 
 
 def driven_trait(out):
-    """A trait driving a trait, with the same ``ScaledBy`` a trait uses to drive a genome rate. The
+    """A trait driving a trait, with the same ``scaled_by`` a trait uses to drive a genome rate. The
     habitat is grown first and held fixed; body size then diffuses down the same tree, twenty times
     faster on the stretches of branch where the habitat fluctuates.
 
@@ -111,7 +111,7 @@ def driven_trait(out):
     ct = simulate_species_tree(birth=1.0, n_extant=50, seed=7).complete_tree
     hab = simulate_discrete(ct, states=["stable", "fluctuating"], switch=_SWITCH, start="stable", seed=5)
     simulate_continuous(ct, start=0.0, seed=9,           # the target the diagram names
-            rate=_BASE * ScaledBy(hab, {"fluctuating": _FACTOR, "stable": 1.0}))
+            rate=PerLineage(_BASE).scaled_by(hab, {"fluctuating": _FACTOR, "stable": 1.0}))
     lab = ct.labels()                      # {id: 'n<id>'} — the tree's own names, never built by hand
     tree_png = out.replace(".png", "_tree.png")
     (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False,
@@ -242,14 +242,14 @@ _C_DRIVEN = '''\
 ### simulate  —  a discrete trait drives a continuous one: the driver first, then the target
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous, simulate_discrete
-from zombi2.rates import modifiers as mod
+from zombi2.rates import PerLineage
 
 ct = simulate_species_tree(birth=1.0, n_extant=50, seed=7).complete_tree
 hab = simulate_discrete(ct, states=["stable", "fluctuating"], switch=0.4, start="stable", seed=5)
-# the same ScaledBy that lets a trait drive a genome rate lets it drive another trait: body size
+# the same scaled_by that lets a trait drive a genome rate lets it drive another trait: body size
 # diffuses 20x faster on the stretches of branch where the habitat fluctuates
 size = simulate_continuous(ct, start=0.0, seed=9,
-        rate=0.25 * ScaledBy(hab, {"fluctuating": 20.0, "stable": 1.0}))
+        rate=PerLineage(0.25).scaled_by(hab, {"fluctuating": 20.0, "stable": 1.0}))
 
 ### plot  —  the tree coloured by the habitat, the driver that sets body size's diffusion rate
 import phylustrator as ph
@@ -280,6 +280,6 @@ EXAMPLES = [
             "discrete · dependent", dependent_characters, code=_C_DEPENDENT),
     Example("driven", "A trait driving a trait",
             "A habitat trait sets how fast body size diffuses: twenty times faster where the habitat "
-            "fluctuates. <code>rate&nbsp;=&nbsp;0.25&nbsp;*&nbsp;ScaledBy(habitat,&nbsp;{…})</code>.",
+            "fluctuates. <code>rate&nbsp;=&nbsp;PerLineage(0.25).scaled_by(habitat,&nbsp;{…})</code>.",
             "trait → trait", driven_trait, code=_C_DRIVEN),
 ]

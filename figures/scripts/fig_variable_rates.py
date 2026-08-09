@@ -1,13 +1,15 @@
 """Figure: the three ways a rate can vary, one tree apiece.
 
 Chapter 3 says a birth or death rate can depend on **time**, on **how crowded the tree is**, or on a
-lineage's **ancestry**, and that each is written the same way — a base rate times a modifier. Three
-trees stacked show what each one does to the shape of a run:
+lineage's **ancestry**, and that each is written the same way — a scope holding the base rate, with a
+verb chained onto it. Three trees stacked show what each one does to the shape of a run:
 
-  A  ``OnTime``                     the rate changes at set times: an early burst, then a slow tail
-  B  ``OnTotalDiversity``           the rate slows as the tree fills, so diversity levels off
-  C  ``Inherited(per='lineage')``   each lineage inherits its parent's rate, so clades run at their
-                                    own tempo
+  A  ``changing_at``
+       the rate changes at set times: an early burst, then a slow tail
+  B  ``scaled_by(TotalDiversity(...))``
+       the rate slows as the tree fills, so diversity levels off
+  C  ``varying_among('lineages', Drift(...))``
+       each lineage inherits its parent's rate, so clades run at their own tempo
 
 The trees are **simulated here**, by the engine the chapter documents, rather than drawn by hand —
 so the figure cannot drift away from what the code does. Each panel stops at the same 25 surviving
@@ -38,31 +40,34 @@ import phylustrator as ph
 
 from fig_species_tree_extinct import dead_ends
 from zombi2 import species
-from zombi2.rates import modifiers as mod
+from zombi2.rates import Drift, LogNormal, PerLineage, TotalDiversity
 from zombi_style import save, tree_style, FS_LABEL
 
 N_EXTANT = 25          # every panel stops at the same standing diversity
 DEATH = 0.1            # low, so the dashed extinct lineages stay a garnish rather than the picture
 SEED = 3               # a seed where the three come out at comparable depths (~4.4-5.0)
 
-#: (panel letter, the rate as the chapter writes it, the rate itself, a time to mark or None)
+#: (panel letter, the rate itself, a time to mark or None)
+#:
+#: The label a panel carries is the rate's own `repr`, which is its written form, so the expression
+#: printed in the figure is by construction the expression that grew the tree beneath it. The two
+#: used to be typed separately, one as a string and one as code, and they drifted twice: first when
+#: a class was renamed, then when `*` stopped composing a rate and only the code half raised.
 PANELS = [
-    ("A", "birth = 1.2 * OnTime({0: 1.0, 2.0: 0.3})",
-     1.2 * mod.OnTime({0: 1.0, 2.0: 0.3}),
+    ("A", PerLineage(1.2).changing_at({0: 1.0, 2.0: 0.3}),
      2.0),                 # the skyline breakpoint, marked on the panel
-    ("B", "birth = 1.2 * OnTotalDiversity(cap=30)",
-     1.2 * mod.OnTotalDiversity(cap=30),
+    ("B", PerLineage(1.2).scaled_by(TotalDiversity(cap=30)),
      None),                # nothing to mark: the rate falls continuously, not at a moment
-    ("C", "birth = 0.45 * Inherited(per='lineage', spread=0.5)",
-     0.45 * mod.Inherited(per='lineage', spread=0.5),
+    ("C", PerLineage(0.45).varying_among('lineages', Drift(LogNormal(0.0, 0.5))),
      None),
 ]
 
 PANEL_W, PANEL_H = 1180, 420
 
 
-def panel(letter: str, written: str, birth, mark_time: float | None) -> tuple[str, int]:
+def panel(letter: str, birth, mark_time: float | None) -> tuple[str, int]:
     """One panel's SVG: a tree grown under ``birth``, drawn to this figure's style."""
+    written = f"birth = {birth!r}"
     result = species.simulate_species_tree(birth=birth, death=DEATH, n_extant=N_EXTANT, seed=SEED)
     tree = ph.trees.loads(result.complete_tree.to_newick() + ";")
 
@@ -104,8 +109,8 @@ def stack(panels: list[str], width: int, height: int) -> str:
 
 def render() -> None:
     svgs = []
-    for letter, written, birth, mark in PANELS:
-        svg, n_dead = panel(letter, written, birth, mark)
+    for letter, birth, mark in PANELS:
+        svg, n_dead = panel(letter, birth, mark)
         svgs.append(svg)
         print(f"  {letter}: {N_EXTANT} extant, {n_dead} nodes with no survivor")
     save(stack(svgs, PANEL_W, PANEL_H), "variable_rates")
