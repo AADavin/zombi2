@@ -109,7 +109,7 @@ There is one group you do not have to name: **`"rest"`** is every lineage outsid
 
 Each entry is a weight, read the same way `"distance"`'s weights are: normalised over the lineages alive at the instant a transfer fires. Naming only `("A", "B")` and `("B", "A")` and setting `default=0.0` means every other pairing weighs 0: a clade-A donor can reach clade B but not another clade-A lineage, and the rest of the tree neither sends nor receives. Drop the `default=0.0` and unlisted pairs return to weight 1 (baseline), so `Between({("A", "B"): 5.0})` *enriches* A→B fivefold while leaving everything else to happen normally. A weight of 0 means "cannot receive", exactly as in Chapter 9: when a donor's every candidate weighs 0, the transfer has nowhere to land and does not fire.
 
-`Clades` is written in Python. On the command line `--transfer-to` takes `uniform`, `distance`, or a `Weights` recipient weight (Chapter 9).
+`--transfer-to` takes the same four rules on the command line, in the same written form: `uniform`, `distance`, `Distance(decay=3.0)`, a `Clades(...)` expression, or a `Weights` recipient weight (Chapter 9). The bare `distance` is `Distance(decay=1.0)`, so write the constructor when you want another decay.
 
 `transfer_to` chooses who receives, and takes one rule. All four rules (`"uniform"`, `"distance"` / `Distance(decay=)`, `Clades(...)` and `Weights(driver, {...})`) work unchanged at the ordered and nucleotide resolutions. What differs between the resolutions is *what moves*: one gene copy here, a block of consecutive genes in Chapter 5, an arc of DNA in Chapter 6. Who receives it is chosen the same way in all three, so the rules are described once, here.
 

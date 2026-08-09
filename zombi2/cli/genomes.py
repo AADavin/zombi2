@@ -167,7 +167,9 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--transfer-to", type=_transfer_to, default="uniform",
                    metavar="RULE", dest="transfer_to",
                    help="recipient rule, at any resolution: uniform (any contemporaneous lineage, "
-                        "default), distance (closer relatives likelier), or a Weights(driver, {...}) rule")
+                        "default), distance (closer relatives likelier) or Distance(decay=X) for "
+                        "another decay, Clades({...}, Between({...})) to steer flow between named "
+                        "clades, or a Weights(driver, {...}) rule")
     g.add_argument("--replacement", action="store_true",
                    help="a transfer overwrites a homologous copy (replacing HGT)")
     g.add_argument("--self-transfer", action="store_true", dest="self_transfer",
