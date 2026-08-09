@@ -34,7 +34,10 @@ from zombi2.traits import discrete
 #: standing-diversity driver, which a joint run does thread.
 RATES_HELP = _rates_help(
     IMPLEMENTED_MODIFIERS, "--birth",
-    note="A joint run grows the tree itself, so --birth and --death take a bare number with the verbs chained onto it and no scope wrapper in front: --birth \"1.0.changing_at(...)\" is not a thing to write; give the rate and chain. Here scaled_by names a live level, not a file. Drivers: 'trait' (the trait grown "
+    note="A joint diversification rate is per lineage, so PerLineage is the scope and a bare number "
+         "is enough — but a bare number cannot carry a verb: --birth \"1.0.changing_at(...)\" is not "
+         "a thing to write; write PerLineage(1.0).changing_at(...). "
+         "Here scaled_by names a live level, not a file. Drivers: 'trait' (the trait grown "
          "alongside), 'genomes:count' (a lineage's gene count), 'genomes:<name>' (a named family, "
          "{'present': 3.0, 'absent': 1.0}). --death takes a driven rate too.")
 

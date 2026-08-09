@@ -107,7 +107,7 @@ def fig_observable(res):
     axr.set_xlabel("root-to-tip distance (substitutions/site)")
     axr.set_ylabel("archaeal genomes")
     axr.text(0.97, 0.95, f"GTDB archaea\n{len(d):,} tips\nmean {d.mean():.2f}\n"
-             f"CV = {cv_of(d):.3f}", transform=axr.transAxes, ha="right", va="top",
+             f"CV = {cv_of(d):.4f}", transform=axr.transAxes, ha="right", va="top",
              fontsize=11, bbox=dict(boxstyle="round", fc="white", ec=INK, alpha=0.9))
     for s in ("top", "right"):
         axr.spines[s].set_visible(False)
@@ -140,7 +140,7 @@ def fig_clock_recovery(res):
     # The sweeps run to σ = 2, far past every crossing; the axis stops where the read-off is legible.
     ax.set_xlim(0, 1.0)
     ax.set_ylim(0, top)
-    ax.text(0.02, tgt, f"real archaea, CV = {tgt:.3f}", va="bottom", ha="left", fontsize=10)
+    ax.text(0.02, tgt, f"real archaea, CV = {tgt:.4f}", va="bottom", ha="left", fontsize=10)
     ax.set_xlabel("clock heterogeneity  σ")
     ax.set_ylabel("root-to-tip variation  (CV)")
     ax.set_title("Which σ reproduces the real spread", fontsize=12)
@@ -180,13 +180,13 @@ def fig_red_bridge(res):
     for ax in axes:
         # The sweeps run to CV ~ 1.9, but past ~0.8 the autocorrelated clock's between-tree variance
         # swamps the signal at 8 replicates — the curve there is noise, not structure. The claim this
-        # figure makes lives at CV = 0.232, so the axis stops where the curves are still readable.
+        # figure makes lives at CV = 0.2315, so the axis stops where the curves are still readable.
         ax.set_xlim(0, 0.8)
         # Everything to the left of the dashed line is real archaea or milder, which is the half of
         # the figure the conclusion is read off; shading it says so without a sentence.
         ax.axvspan(0, tgt, color="#EE6677", alpha=0.07, lw=0, zorder=0)
         ax.axvline(tgt, color=INK, lw=1.2, ls="--")
-        ax.annotate(f"real archaea (CV = {tgt:.3f})", xy=(tgt, ax.get_ylim()[1]),
+        ax.annotate(f"real archaea (CV = {tgt:.4f})", xy=(tgt, ax.get_ylim()[1]),
                     xytext=(tgt + 0.03, ax.get_ylim()[1]), va="top", ha="left", fontsize=9,
                     color=INK)
         ax.set_xlabel("root-to-tip variation  (CV)")

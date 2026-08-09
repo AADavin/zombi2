@@ -18,7 +18,7 @@ You rarely name the first three — pass a raw ``dict`` / callable / number as `
 
 **Jump** (a burst fired *at an event*, e.g. a pulse of gene change at each split) is not a mapping:
 it changes a state at a moment rather than scaling a number, so it does not live here and is not
-reachable through any verb (SPEC §4).
+reachable through any verb (SPEC §5).
 """
 
 from __future__ import annotations

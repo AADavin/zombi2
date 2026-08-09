@@ -143,7 +143,7 @@ def scaled_by(driver: object, mapping: object = None, *, step: float | None = No
             raise ValueError(
                 "TotalDiversity carries its own shape — the linear fall to a cap — so there is no "
                 "mapping to write beside it: scaled_by(TotalDiversity(cap=100)). A general curve "
-                "of standing diversity is not implemented (SPEC §10).")
+                "of standing diversity is not implemented (SPEC §5).")
         assert driver.cap is not None            # TotalDiversity refuses a driver without its cap
         return OnTotalDiversity(driver.cap)
     if isinstance(driver, Measured):
@@ -214,7 +214,7 @@ def weighted_by(driver: object, mapping: object = None, *, step: float | None = 
 
 
 def varying_among(among: object = None, law: object = None, **retired: object) -> Modifier:
-    """Let the parameter vary at random among the units of one kind (SPEC §6)::
+    """Let the parameter vary at random among the units of one kind (SPEC §5)::
 
         loss = PerCopy(0.25).varying_among('families', LogNormal(0.0, 0.5))
         rate = PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2)))
@@ -431,16 +431,6 @@ class SetBy(Driven):
     #: Replacing a base is a capability an engine has or has not, and only three declare it — asking
     #: the object rather than its class is what lets this live beside the verb that writes it.
     replaces_base: ClassVar[bool] = True
-
-
-#: What this module contributes to the names an expression may **call** — the two drivers and the
-#: law. Kept explicit rather than derived from ``__all__``, which also carries the helpers an engine
-#: uses: a whitelist that grows whenever a helper is exported is a whitelist that stops meaning
-#: anything.
-#:
-#: The modifier classes are all absent, because none of them is written any more: a rate is written
-#: from its scope and the verbs say what it reads. `Random` is here rather than with the verbs
-#: because it is the one value a user can **name**, which is how two rates share a draw (SPEC §6).
 
 
 _WRITTEN_AS.update({Driven: SCALED_BY, SetBy: SET_BY})

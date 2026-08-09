@@ -188,7 +188,7 @@ def _emit(text: str, path: str | None) -> None:
 def _add_tools_format_args(p: argparse.ArgumentParser) -> None:
     _add_run_arg(p, "the genomes run whose gene trees the tables are derived from")
     g = p.add_argument_group("general")
-    _add_from_arg(g, "the genomes run to read")
+    _add_from_arg(g, "the genomes run")
     g = p.add_argument_group("outputs")
     # required, with no default: the three write different things for different questions, and
     # picking one silently would answer a question that was not asked.
@@ -271,7 +271,17 @@ def _run_tree(args, parser: argparse.ArgumentParser) -> int:
     text = sys.stdin.read() if args.input == "-" else open(args.input, encoding="utf-8").read()
     try:
         if args.prune:
-            t, _ = _tree.read_newick(text)                      # prune needs real fates
+            try:
+                t, _ = _tree.read_newick(text)                  # prune needs real fates
+            except ValueError as e:
+                if "--tip-fates" not in str(e):
+                    raise
+                # the shared refusal names a flag the levels that own it have and this command
+                # does not, so say instead what can be done from here
+                parser.error("--prune needs each tip's fate: this tree is neither ultrametric nor "
+                             "a ZOMBI complete tree (n<id>/e<id> labels), so ZOMBI cannot tell "
+                             "extinct lineages from early samples. Prune it in the run instead, or "
+                             "supply a ZOMBI complete tree.")
             pruned = _tree.prune(t, keep="extant")
             if pruned is None:
                 parser.error("no extant lineages to keep")
@@ -279,10 +289,9 @@ def _run_tree(args, parser: argparse.ArgumentParser) -> int:
         else:
             t, _ = _tree.read_newick(text, assume_extant=True)  # geometric: any tree, fates irrelevant
             if args.round_:
-                # Round-trip exact, rather than the default 12 that is merely well inside every
-                # tolerance: this is the one flag whose whole promise is the exactness of the file,
-                # so it writes the number back rather than a number close to it.
-                out = _tree.make_ultrametric(t, tol=args.tol).to_newick(precision=15)
+                # to_newick()'s default is already the shortest round-tripping form: this is the one
+                # flag whose whole promise is the exactness of the file, so it must not round.
+                out = _tree.make_ultrametric(t, tol=args.tol).to_newick()
             elif args.stem is not None:
                 out = _tree.with_stem(t, args.stem).to_newick()
             elif args.stem_add is not None:

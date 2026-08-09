@@ -192,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         tools._add_tools_args,
         epilog=_examples(
             "  # homology tables (S/D/T — the event at each pair's ancestor) for a genomes run",
-            "  zombi2 tools format out/ --format markers",
+            "  zombi2 tools format out/ --format homology",
         ))
 
     _apply_params_file(sub, argv)               # --params FILE seeds defaults; CLI flags override

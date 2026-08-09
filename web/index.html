@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ZOMBI2 — Simulating genome and phylogenetic evolution</title>
-  <meta name="description" content="ZOMBI2 is a fast phylogenetic simulator of species trees, genomes, traits and molecular sequences — a ground-up redesign of ZOMBI with a composable Python library and a command-line interface.">
+  <meta name="description" content="ZOMBI2 is a fast phylogenetic simulator of species trees, genomes, molecular sequences and traits — a ground-up redesign of ZOMBI with a composable Python library and a command-line interface.">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <meta property="og:type" content="website">
   <meta property="og:title" content="ZOMBI2 — a phylogenetic genome-evolution simulator">
-  <meta property="og:description" content="Simulate species trees, genomes, traits and sequences end to end. Fast Python library and CLI. pip install zombi2.">
+  <meta property="og:description" content="Simulate species trees, genomes, sequences and traits end to end. Fast Python library and CLI. pip install zombi2.">
   <meta property="og:url" content="https://aadavin.github.io/zombi2/">
   <meta property="og:image" content="https://aadavin.github.io/zombi2/og-image.png">
   <meta property="og:image:width" content="1280">
@@ -192,7 +192,6 @@
   .section > .wrap > h2 { font-size: clamp(1.7rem, 3.2vw, 2.1rem); letter-spacing: -0.02em; }
   .section-intro { color: var(--muted); max-width: 64ch; margin-top: 14px; }
   .card code, .section-intro code { font-family: var(--mono); font-size: 0.86em; background: var(--bg-soft); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; }
-  .soon { display: inline-block; margin-left: 6px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); border: 1px dashed var(--border-strong); border-radius: 999px; padding: 2px 10px; vertical-align: middle; }
 
   /* ---------- feature cards ---------- */
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr)); gap: 18px; margin-top: 36px; }
@@ -206,13 +205,6 @@
   .card a::after { content: ""; position: absolute; inset: 0; z-index: 1; }
   .card:hover a { text-decoration: underline; }
 
-  /* ---------- workflow / code ---------- */
-  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; align-items: center; }
-  .bullets { list-style: none; padding: 0; margin: 26px 0 0; display: grid; gap: 14px; }
-  .bullets li { position: relative; padding-left: 30px; color: var(--body); }
-  .bullets li::before { content: ""; position: absolute; left: 4px; top: 9px; width: 8px; height: 8px; border-radius: 2px; background: var(--accent); transform: rotate(45deg); }
-  .bullets b { color: var(--ink); }
-
   .term { background: var(--term-bg); border-radius: 12px; overflow: hidden; border: 1px solid #1d322f; box-shadow: 0 18px 40px -24px rgba(10,40,36,.55); }
   .codeblock { max-width: 780px; margin-top: 26px; }
   .term-bar { display: flex; align-items: center; gap: 7px; padding: 12px 16px; border-bottom: 1px solid #1d322f; }
@@ -223,13 +215,6 @@
   .term .p { color: var(--accent); }
   .term .k { color: #6fbfa9; }
   .term .s { color: #d8b26a; }
-
-  /* ---------- perf stats ---------- */
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 24px; margin-top: 38px; }
-  .stat { text-align: left; }
-  .stat .big { font-size: clamp(2.1rem, 4vw, 2.7rem); font-weight: 800; color: var(--ink); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
-  .stat .big em { color: var(--accent); font-style: normal; }
-  .stat p { margin-top: 6px; color: var(--muted); font-size: 0.92rem; }
 
   /* ---------- cite ---------- */
   .cite-box { margin-top: 28px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; background: var(--bg-soft); padding: 22px 24px; }
@@ -249,7 +234,6 @@
   .foot-bottom { margin-top: 42px; padding-top: 20px; border-top: 1px solid #21332f; display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: space-between; font-size: 0.84rem; color: #7f9893; }
 
   @media (max-width: 860px) {
-    .split { grid-template-columns: 1fr; gap: 30px; }
     .foot-cols { grid-template-columns: 1fr 1fr; }
   }
   @media (max-width: 680px) {
@@ -333,7 +317,7 @@
         <div class="release-card">
           <div class="release-meta">
             <!-- stamped from zombi2.__version__ by .github/workflows/pages.yml on every deploy -->
-            <span class="pill" data-version>v0.11.0</span>
+            <span class="pill" data-version>v0.32.0</span>
             <span>Python&nbsp;≥&nbsp;3.10 · Linux · macOS · Windows</span>
           </div>
           <div class="cmd">
@@ -370,7 +354,7 @@
           <div class="card">
             <svg class="ico" viewBox="0 0 24 24" fill="none" aria-hidden="true"><text x="12" y="15.5" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="9" font-weight="700" letter-spacing="0.5" fill="currentColor">ATC</text></svg>
             <h3><span class="step">03</span>Sequences</h3>
-            <p>A gene × lineage relaxed clock that rescales gene trees from time into substitutions per site, with JC / K80 / HKY / GTR nucleotide and LG / WAG / JTT / Dayhoff protein models.</p>
+            <p>A per-lineage relaxed clock that rescales gene trees from time into substitutions per site, with JC / K80 / HKY / GTR nucleotide and LG / WAG / JTT / Dayhoff protein models.</p>
             <a href="gallery.html#sequences">See sequence examples →</a>
           </div>
 
@@ -389,7 +373,7 @@
     <section class="section section-band" id="terminal">
       <div class="wrap">
         <p class="eyebrow">Command line</p>
-        <h2>Running ZOMBI from the terminal</h2>
+        <h2>Running ZOMBI2 from the terminal</h2>
         <div class="term codeblock" role="img" aria-label="Example ZOMBI2 command-line session">
           <div class="term-bar"><i></i><i></i><i></i><span>zombi2 — bash</span></div>
 <pre><span class="c"># 1 · species tree (forward birth–death)</span>
@@ -402,7 +386,7 @@
 
 <span class="c"># 3 · sequences down each gene tree</span>
 <span class="p">$</span> zombi2 <span class="k">sequences</span> <span class="s">out/</span> --model hky85 \
-    --length 1000 --seed 1
+    --length 1000 --divergence 0.2 --seed 1
 </pre>
         </div>
       </div>
@@ -412,7 +396,7 @@
     <section class="section section-band" id="python">
       <div class="wrap">
         <p class="eyebrow">Python API</p>
-        <h2>Running ZOMBI in Python</h2>
+        <h2>Running ZOMBI2 in Python</h2>
         <div class="term codeblock" role="img" aria-label="Example ZOMBI2 Python session">
           <div class="term-bar"><i></i><i></i><i></i><span>example.py</span></div>
 <pre><span class="k">from</span> zombi2 <span class="k">import</span> species, genomes
@@ -455,7 +439,7 @@ g.write(<span class="s">"out/"</span>)
       <div class="foot-cols">
         <div>
           <div class="brand-f">ZOMBI2</div>
-          <p class="blurb">A phylogenetic simulator of species trees, genomes, traits and sequences. Free and open source, MIT-licensed.</p>
+          <p class="blurb">A phylogenetic simulator of species trees, genomes, sequences and traits. Free and open source, MIT-licensed.</p>
         </div>
         <div>
           <h4>Software</h4>

@@ -118,7 +118,7 @@ _MODIFIER_HELP = {
     "varying_among('lineages', Drift(...))": ("varying_among('lineages', Drift(LogNormal(0.0, 0.2)))",
                                               "the rate drifts down the tree — autocorrelated"),
     # "clock" is reserved for the sequences per-lineage substitution modifier (SPEC §7), and this
-    # string now prints on `zombi2 species -h` and `zombi2 genomes -h` too
+    # string prints on `zombi2 species -h` and `zombi2 sequences -h`
     "varying_among('lineages', ...)": ("varying_among('lineages', LogNormal(0.0, 0.3))",
                                        "one independent draw per lineage — uncorrelated"),
     "varying_among('families', ...)": ("varying_among('families', LogNormal(0.0, 0.5))",

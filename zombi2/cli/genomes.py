@@ -48,7 +48,9 @@ RATES_HELP = _rates_help(
          "at risk, so a bigger genome turns over faster — and also take PerLineage(...), a fixed "
          "budget the genome's size never enters: --loss \"PerLineage(0.25)\". At --resolution "
          "ordered the rearrangements take both too. Origination is per lineage only, and the "
-         "chromosome tier per chromosome. On --transfer, scaled_by drives how often a lineage "
+         "chromosome tier per chromosome. At --resolution nucleotide every gene and segmental rate "
+         "is per lineage instead, and a PerCopy scope is refused there. "
+         "On --transfer, scaled_by drives how often a lineage "
          "DONATES; --transfer-to takes a Recipients() rule as a recipient weight, at every "
          "resolution — it "
          "chooses who receives rather than setting a rate, so the numbers are normalised weights "
@@ -99,10 +101,10 @@ _NUCLEOTIDE_ONLY = (
 #: once, as one gene, so at this resolution it has no extent to give.
 _SEGMENT_EXTENTS = ("inversion", "transposition", "translocation", "loss", "duplication", "transfer")
 
-# A genome the command starts with. The library function defaults to 0 — an explicit caller says what
-# it wants — but a bare `zombi2 genomes -t tree.nwk` should hand back a genome rather than 100 empty
-# ones, and origination stays 0 so nothing arrives that was not asked for. The run log records the
-# resolved value, so a run is never ambiguous about which it used.
+# A genome the command starts with — the same 100 the library functions default to, restated here
+# because the flag's own default is None: that sentinel is what lets the nucleotide gate below tell
+# "not given" from "given". Origination stays 0 in the library, so nothing arrives that was not asked
+# for. The run log records the resolved value, so a run is never ambiguous about which it used.
 _DEFAULT_INITIAL_FAMILIES = 100
 
 # knobs the nucleotide engine does not have — it starts from a sequence, not from a family count,
@@ -157,11 +159,14 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     # at all, so a run given one rate does not silently acquire the other three (see `run` below).
     _WHEN = "default {} when no rate at all is given; 0 if you give any other rate"
     g.add_argument("--duplication", type=_rate, default=None, metavar="RATE",
-                   help=f"gene duplication rate (per copy). {_WHEN.format('0.2')}")
+                   help=f"gene duplication rate (per copy; per lineage at --resolution nucleotide). "
+                        f"{_WHEN.format('0.2')}")
     g.add_argument("--transfer", type=_rate, default=None, metavar="RATE",
-                   help=f"horizontal transfer rate (per copy). {_WHEN.format('0.1')}")
+                   help=f"horizontal transfer rate (per copy; per lineage at --resolution "
+                        f"nucleotide). {_WHEN.format('0.1')}")
     g.add_argument("--loss", type=_rate, default=None, metavar="RATE",
-                   help=f"gene loss rate (per copy). {_WHEN.format('0.25')}")
+                   help=f"gene loss rate (per copy; per lineage at --resolution nucleotide). "
+                        f"{_WHEN.format('0.25')}")
     g.add_argument("--origination", type=_rate, default=None, metavar="RATE",
                    help=f"new-family origination rate (per lineage). {_WHEN.format('0.5')}")
 
@@ -186,11 +191,13 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         f"{_DEFAULT_MAX_FAMILY_SIZE}), or 'none' for no cap")
     g = p.add_argument_group("structured genome", "only with --resolution ordered or nucleotide")
     g.add_argument("--inversion", type=_rate, default=0.0, metavar="RATE",
-                   help="segmental inversion rate (per copy)")
+                   help="segmental inversion rate (per copy; per lineage at --resolution nucleotide)")
     g.add_argument("--transposition", type=_rate, default=0.0, metavar="RATE",
-                   help="segmental move within a chromosome (per copy)")
+                   help="segmental move within a chromosome (per copy; per lineage at --resolution "
+                        "nucleotide)")
     g.add_argument("--translocation", type=_rate, default=0.0, metavar="RATE",
-                   help="segmental move to another chromosome (per copy)")
+                   help="segmental move to another chromosome (per copy; per lineage at "
+                        "--resolution nucleotide)")
     g.add_argument("--chromosomes", type=int, default=1, metavar="N",
                    help="number of chromosomes at the origin (default 1)")
     g.add_argument("--topology", type=_topology, default="circular", metavar="TOPO",
@@ -247,7 +254,9 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("outputs")
     g.add_argument("--write", nargs="+", choices=sorted({o for v in _OUTPUTS.values() for o in v}),
                    default=None, metavar="PART",
-                   help="which outputs to write (default: everything the resolution writes). "
+                   help="which outputs to write (default: everything the resolution writes except "
+                        "species_tree — the run already keeps one copy under species/; --stream "
+                        "writes it). "
                         + "; ".join(f"{res}: {', '.join(outs)}" for res, outs in _OUTPUTS.items()))
     _add_flat_arg(g)
     _add_parallel_arg(g)
@@ -452,9 +461,10 @@ def run(args, parser):
     # is for: with every rate left at zero it would only inherit, which demonstrates nothing. But
     # defaulting a rate the caller left out *beside* ones they set would be a surprise —
     # `--duplication 0.3` alone plainly means no transfer — so this applies only when none was given.
-    # Filled after the resolution checks above, so the nucleotide engine can still tell "not given"
-    # from "given as the default" — passing --initial-families 100 to a nucleotide run used to slip
-    # past the stray check and be silently ignored while the log recorded it as if it applied.
+    # Guarded on the resolution rather than ordered after its check, so the nucleotide engine can
+    # still tell "not given" from "given as the default" — passing --initial-families 100 to a
+    # nucleotide run used to slip past the stray check and be silently ignored while the log
+    # recorded it as if it applied.
     if args.initial_families is None and args.resolution != "nucleotide":
         args.initial_families = _DEFAULT_INITIAL_FAMILIES
 
@@ -627,7 +637,7 @@ def run(args, parser):
                                          for n in sorted(complete_tree.leaves(), key=lambda x: x.id)]
         with open(os.path.join(species_dir, "species_fates.tsv"), "w", encoding="utf-8") as f:
             f.write("\n".join(fate_rows) + "\n")
-    if names:  # an external tree: map ZOMBI's n<id> back to the user's labels (join on profiles cols)
+    if names:  # an external tree: map ZOMBI2's n<id> back to the user's labels (join on profiles cols)
         rows = ["node\tname"] + [f"{node_label(i)}\t{lbl}" for i, lbl in sorted(names.items())]
         with open(os.path.join(out, "names.tsv"), "w", encoding="utf-8") as f:
             f.write("\n".join(rows) + "\n")

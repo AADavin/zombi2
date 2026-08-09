@@ -5,7 +5,7 @@ no longer a multiset of gene copies but a list of **chromosomes**, each an order
 `Gene`\\ s.
 
 **Every gene-level event acts on an extent** — a run of consecutive genes (the ZOMBI1 model), its
-length drawn per event from a distribution (default ``Geometric(mean=1)`` — a single gene). The run
+extent drawn per event from a distribution (default ``Geometric(mean=1)`` — a single gene). The run
 starts at a drawn gene and goes rightwards, and where it stops is set by the chromosome's
 **topology**: a **circular** chromosome has no ends, so a run that reaches the last gene continues
 from the first; a **linear** one has ends, so a run stops at the last gene. Over that
@@ -244,10 +244,11 @@ class EventPosition:
 class OrderedGenomesResult:
     """What `simulate_genomes_ordered()` returns: the ``complete_tree`` it ran on, the final
     ``genomes`` at **every** node as tuples of `Chromosome`\\ s, the shared gene-genealogy
-    ``events`` log, the ``rearrangements`` (inversions) and ``chromosome_events`` (the chromosome
-    genealogy) logs, and the ``seed``. The observed genomes are the extant tips; ``profiles`` and
-    ``gene_trees`` are derived from the (position-blind) genealogy exactly as for the family core;
-    ``gene_order`` reads a node's layout, and ``write`` materialises the chosen outputs."""
+    ``events`` log, the ``rearrangements`` (inversions, transpositions and translocations) and
+    ``chromosome_events`` (the chromosome genealogy) logs, and the ``seed``. The observed genomes are
+    the extant tips; ``profiles`` and ``gene_trees`` are derived from the (position-blind) genealogy
+    exactly as for the family core; ``gene_order`` reads a node's layout, and ``write`` materialises
+    the chosen outputs."""
 
     complete_tree: Tree
     genomes: dict[int, tuple[Chromosome, ...]]
@@ -1141,7 +1142,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     ``duplication`` copies the run in tandem, ``loss`` removes it, ``transfer`` sends it to a
     contemporaneous recipient as a block, ``inversion`` reverses it (flipping strands), ``transposition``
     relocates it elsewhere on the same chromosome, and ``translocation`` moves it to a different
-    chromosome. The run's length is drawn per event from ``<event>_extent`` (a distribution,
+    chromosome. The run's **extent** is drawn per event from ``<event>_extent`` (a distribution,
     default ``Geometric(mean=1)`` — usually a single gene; dial the mean up for larger blocks).
     ``origination`` is the exception: a family is born once, a single gene, no extent.
     ``transposition`` and ``translocation`` land the moved block inverted with probability
@@ -1212,11 +1213,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     tree = as_tree(tree, level="genomes")
     labels = _topologies(chromosomes, topology)
     n_initial_chrom = chromosomes
-    # this slice implements each event's default scope and the three verbs IMPLEMENTED_MODIFIERS
-    # declares: changing_at (skyline), scaled_by (a conditioned/joint driver, per lineage) and a
-    # per-family draw —
+    # this slice implements each event's default scope and the four verbs IMPLEMENTED_MODIFIERS
+    # declares: changing_at (skyline), scaled_by (a conditioned/joint driver, per lineage), set_by (a
+    # driver that replaces the base) and a per-family draw —
     # the last with the weight on the SEGMENT rather than on its starting gene (SPEC §6, and
-    # _pick_run_by_family). A scope override or a clade-drift modifier is a later slice, so reject it
+    # _pick_run_by_family). A clade-drift modifier is a later slice, so reject it
     # rather than silently mis-scale (see the family engine for the reasoning).
     _rates: dict[str, Rate] = {}
     for label, spec, want in (("duplication", duplication, PerCopy), ("transfer", transfer, PerCopy),
@@ -1261,8 +1262,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 raise ValueError(
                     f"{label} carries {describe(m)}, which the ordered genome engine does not "
                     f"support. It takes changing_at (skyline), scaled_by (a conditioned or joint "
-                    f"driver) and varying_among('families', …) (per-family heterogeneity, weighted on "
-                    f"the segment an event covers). Clade drift is not implemented yet."
+                    f"driver), set_by (a driver that replaces the base) and varying_among('families', "
+                    f"…) (per-family heterogeneity, weighted on the segment an event covers). Clade "
+                    f"drift is not implemented yet."
                 )
         _rates[label] = rate
     # the eleven rates keep short names in the Gillespie loop below; the dict is what the driver

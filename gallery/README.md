@@ -2,8 +2,8 @@
 
 A scikit-learn-style **examples gallery** for ZOMBI2. Each example **simulates** with ZOMBI2 and
 **plots** with [Phylustrator](https://github.com/AADavin/Phylustrator) (trees via `ph.trees`, genomes
-/ synteny / alignments via `ph.genomes`). Six sections: Species · Genomes · Sequences · Trait
-evolution · Conditioning · Joining.
+/ synteny / alignments via `ph.genomes`). Six sections: Species · Genomes · Sequences · Traits ·
+Conditioning · Joining.
 
 The built page is published at **`/gallery.html`** (the site deploy copies `web/` to the root), and
 the landing-page level cards link to its per-level sections (`gallery.html#species`, `#genomes`, …).
@@ -11,13 +11,14 @@ the landing-page level cards link to its per-level sections (`gallery.html#speci
 ## Build it
 
 ```bash
-pip install -e ".[gallery]"      # phylustrator + matplotlib + pillow
+pip install -e ".[gallery]"      # phylustrator + cairosvg + matplotlib + pillow
 cd gallery && python build.py     # renders figures/ and writes ../web/gallery.html
 ```
 
 `figures/` (and its cached `_data/` runs, including a one-off NCBI GFF download for the *Mycoplasma*
-example) is regenerated and git-ignored; the committed artefact is `web/gallery.html`. One dial sets
-the branch width for every figure: `BW` at the top of [`helpers.py`](helpers.py).
+example) is regenerated and git-ignored; the committed artefact is `web/gallery.html`. `BW` at the
+top of [`helpers.py`](helpers.py) is the branch width `helpers.style()` uses; most examples set their
+own `branch_width` in their `ph.Style(...)`.
 
 ## Layout
 

@@ -21,7 +21,7 @@ import math
 from typing import Any
 
 from .distributions import Distribution, LogNormal, as_distribution
-from .evaluate import (DRAWN, INHERITED, UNITS, VARYING_AMONG, Modifier, _WRITTEN_AS)
+from .evaluate import DRAWN, INHERITED, VARYING_AMONG, VARYING_UNITS, Modifier, _WRITTEN_AS
 
 
 @dataclass(frozen=True)
@@ -78,9 +78,9 @@ class Inherited(Modifier):
         return (INHERITED, self.unit)
 
     def __post_init__(self) -> None:
-        if self.unit not in UNITS:
+        if self.unit not in VARYING_UNITS:
             raise ValueError(
-                f"unknown unit {self.unit!r}; a value varies among one of {list(UNITS)}")
+                f"unknown unit {self.unit!r}; a value varies among one of {list(VARYING_UNITS)}")
         if self.dist is None:
             raise ValueError(
                 f"Drift needs the distribution of its per-split step — "
@@ -201,8 +201,9 @@ class Drawn(Modifier):
     """
 
     def __init__(self, unit: str, dist: object = None) -> None:
-        if unit not in UNITS:
-            raise ValueError(f"unknown unit {unit!r}; a value varies among one of {list(UNITS)}")
+        if unit not in VARYING_UNITS:
+            raise ValueError(
+                f"unknown unit {unit!r}; a value varies among one of {list(VARYING_UNITS)}")
         if dist is None:
             raise ValueError(
                 f"a Random needs the law its value follows — "

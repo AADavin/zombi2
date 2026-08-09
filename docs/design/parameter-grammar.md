@@ -3,11 +3,11 @@
 **Status: ratified and built.** This is the wording of [SPEC](SPEC.md) §5–§7. It expresses the same
 models ZOMBI2 expressed before it, plus several that were unsayable; what changed is what you write.
 
-Some of what it proposed is **not** built. Every such place is marked on the line, and §13's worked
-examples all construct and run as written, so a line carrying no mark is a line you can type. Two of
-the gaps are structural rather than local: the package is still `zombi2/params/` rather than
-`zombi2/params/` (§11, §12), and the forgiveness rule's refusal of a bare number where two scopes are
-legal (§3) is not enforced — a bare number still takes the level's default scope.
+Some of what it proposed is **not** built. Every such place is marked on the line — except in §11's
+module tree, where the paragraph above the tree names them — and §13's worked examples all construct
+and run as written, so a line carrying no mark is a line you can type. One gap is structural rather
+than local: the forgiveness rule's refusal of a bare number where two scopes are legal (§3) is not
+enforced — a bare number still takes the level's default scope.
 
 ---
 
@@ -91,8 +91,8 @@ reverts_to  = Value().set_by("habitat.tsv", {'aquatic': 5.0, 'terrestrial': -5.0
 driven at all. §7 says what stands in the way.
 
 **Why an extent cannot be `set_by`:** an extent's base is a *distribution* over sizes, so a `set_by`
-supplying one scalar would silently discard it. `extent.py` refuses this today and the proposal keeps
-the refusal.
+supplying one scalar would silently discard it. `params/parameter.py` refuses this today and the
+proposal keeps the refusal.
 
 ---
 
@@ -170,8 +170,8 @@ takes an already-grown tree — Genomes, Sequences, Traits — reads it.
 `weighted_by(Distance(), mapping)` is refused and names it (§7); and `Between({...})` is the pair
 *mapping* `Clades` takes, not a wrapper that turns a per-lineage driver into a pair one (§12).
 
-There are **two** clade classes, and they stayed two: `Clade` in `rates/clade.py` is a per-lineage
-value any rate can read, and `Clades` in `rates/choice.py` is the `transfer_to` rule that weights the
+There are **two** clade classes, and they stayed two: `Clade` in `params/driver.py` is a per-lineage
+value any rate can read, and `Clades` in `params/choice.py` is the `transfer_to` rule that weights the
 **pair** (donor's clade, recipient's clade). The proposal wanted one, on the grounds that only the
 verb differs; a pair rule and a per-lineage value turned out to differ in what they *return*, not only
 in who reads them. They share `resolve_groups`, so a clade means the same thing whichever way it is
@@ -372,10 +372,12 @@ Stated so nobody has to discover it.
 
 ## 11. Modules
 
-**Not built.** The grammar shipped inside the existing `zombi2/params/`, whose files kept their names:
-`Random`, `Drift` and `TotalDiversity` live in `modifiers.py` beside `Drawn` and `Inherited`, and the
-verbs in `verbs.py` with the methods on `rate.py` calling them. The tree below is the reorganisation
-this proposed, left as written.
+**Built.** The eight files below all exist in `zombi2/params/`, together with `choice.py`,
+`connection.py` — what the verb methods on `parameter.py` call — `evaluate.py` and `retired.py`.
+`modifiers.py`, `verbs.py`, `rate.py`, `values.py` and `clade.py` are gone. The tree is left as it
+was written, so it still names what was never built — `Value`, `Age`, `Reverting`, `Markov`,
+`WhiteNoise`, `Trait`, `GeneContent`, and `Distance` and `Between` as drivers (§5) — and `Choice`
+ended up in `choice.py` rather than `parameter.py`.
 
 ```
 zombi2/params/
@@ -389,18 +391,19 @@ zombi2/params/
     parse.py          the written form, both directions
 ```
 
-Eight files, one noun each, from twelve. `modifiers.py` splits three ways — the verbs become methods on
-`parameter.py`, `OnTime`/`OnTotalDiversity` become `Time`/`TotalDiversity` in `driver.py`, and
-`Drawn`/`Inherited` become `Random` plus two entries in `law.py`. `verbs.py`, `values.py` and
-`clade.py` vanish into their nouns. Today's `driver.py` is a file reader wearing the concept's name; it
-becomes `conditioned.py`.
+Eight files, one noun each, from twelve, was the proposal. `modifiers.py` split three ways — the
+verbs became methods on `parameter.py`, `Time`/`TotalDiversity` in `driver.py` became the written
+names with `OnTime`/`OnTotalDiversity` the modifiers they produce, and `Drawn`/`Inherited` became
+`Random` plus two entries in `law.py`. `verbs.py`, `values.py` and `clade.py` vanished into their
+nouns. The old `driver.py` was a file reader wearing the concept's name; it became `conditioned.py`.
 
 The verbs living as methods in the core module is deliberate: a driver, a law, a mapping or a
 distribution is added by dropping in a class, and a **verb** cannot be added without editing how
 parameters compose.
 
-If `parameter.py` grows past about 700 lines it splits into `parameter.py` (what you write) and
-`evaluate.py` (what the engine calls) — not into another modifier grab-bag.
+`parameter.py` is about 430 lines. If it grows past about 700 it splits into what you write and what
+the engine calls — not into another modifier grab-bag. `evaluate.py` came out of `modifiers.py`, not
+out of it.
 
 ---
 
@@ -417,7 +420,7 @@ If `parameter.py` grows past about 700 lines it splits into `parameter.py` (what
 | `Weights(driver, m)` | `Recipients().weighted_by(driver, m)` |
 | `spread=` | a written distribution |
 | `per='family'` | `'families'` — the units go plural |
-| `zombi2.params` | `zombi2.params` — the rename to `zombi2.params` (§11) is not built |
+| `zombi2.rates` | `zombi2.params` |
 
 **`Distance` and `Clades` are not on that list.** The proposal wanted both dissolved into
 `weighted_by` — `Distance(decay=k)` into a driver plus a kernel, `Clades({...}, Between({...}))` into
