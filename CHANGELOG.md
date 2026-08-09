@@ -9,8 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
-### Changed
-- **`Drawn` and `Inherited` take a written distribution; `spread=` is gone.** `Drawn(per='family',
+### Removed
+- **`spread=` on `Drawn` and `Inherited`. Write the distribution instead.** `Drawn(per='family',
   dist=LogNormal(0.0, 0.5))` and `Inherited(per='lineage', dist=LogNormal(0.0, 0.2))` replace
   `spread=0.5` and `spread=0.2`. One word named two different quantities — the drawn **value** under
   `Drawn`, the per-split **step** under `Inherited` — and said nothing about which distribution it
@@ -19,7 +19,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   autocorrelated run is byte-identical. `bins=` takes a `LogNormal` step and nothing else, because
   the ladder's rungs are spaced by that step's sigma. Both classes refuse `spread=` with an error
   naming the replacement, and the distributions are re-exported from `zombi2.rates`, so an argument
-  you must write needs no import from a submodule. (#326)
+  you must write needs no import from a submodule. (#327)
 
 ### Added
 - **A genome rate can be counted per lineage instead of per copy.** `loss = PerLineage(0.25)` gives a
