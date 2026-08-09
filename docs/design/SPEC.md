@@ -130,24 +130,25 @@ effective rate  =  scope(base)  ×  modifiers
 - **scope** — how many independent copies, lineages, or sites the event applies to right now (per
   what); answering **"per what?"** is the crux. It wraps the base and contributes a dimensionless
   factor.
-- **modifiers** — dimensionless context multipliers (by lineage, by family). They change *how fast*,
-  never *how many*. "per" is the scope word, never a modifier's: a measured value is `On` the thing
-  it measures (`OnTime`), a value the engine carries per unit is `Drawn`/`Inherited` with the unit as
-  an argument, and a driven one is written with a verb (below). So `PerLineage` is a scope and
-  `Drawn(per='lineage')` a modifier.
+- **modifiers** — dimensionless context multipliers (among lineages, among families). They change
+  *how fast*, never *how many*. **Nobody writes a modifier**: a modifier is what a **verb** records,
+  and the verbs are what a rate is written with (below). "per" is the scope word and nothing else:
+  `PerLineage` is a scope, while a value that varies at random is written
+  `varying_among('lineages', …)` — the unit **plural**, because a value varies *among* lineages
+  rather than being counted *per* one.
 
-**One modifier replaces the base rather than multiplying it: `SetBy`.** Two things are stated
+**One verb replaces the base rather than multiplying it: `set_by`.** Two things are stated
 absolutely in the literature rather than as a multiple — a driven rate ("the loss rate is 1.0 in
 caves") and a trait's optimum — and writing those as a factor means inventing a background nobody
-stated and dividing by it. So `loss = SetBy(habitat, {"cave": 1.0, "surface": 0.25})` takes **no base
-in front**: the driver supplies the whole number, in the rate's own units. The scope is untouched —
-a per-copy rate set to 1.0 is still 1.0 *per copy* — because `SetBy` answers *how fast*, never *per
-what*. A rate carries **one** `SetBy` and any number of multiplying modifiers, and the `SetBy` is
-written first, because everything to its left is a base it would discard.
+stated and dividing by it. So `loss = PerCopy().set_by(habitat, {"cave": 1.0, "surface": 0.25})`
+takes **no base in front**: the driver supplies the whole number, in the rate's own units. The scope
+is untouched — a per-copy rate set to 1.0 is still 1.0 *per copy* — because `set_by` answers *how
+fast*, never *per what*. A rate carries **one** `set_by` and any number of multiplying verbs, and the
+`set_by` is written first, because everything to its left is a base it would discard.
 
-`SetBy` reads a driver like the other driven verbs, and a level must therefore declare it
+A `set_by` reads a driver like the other driven verbs, and a level must therefore declare it
 **separately**: replacing a base is a capability an engine has or has not, and a gate that admitted it
-alongside `ScaledBy` would accept it at four levels that cannot honour it.
+alongside a `scaled_by` would accept it at four levels that cannot honour it.
 
 "Per what" by level:
 
@@ -166,27 +167,31 @@ for a de-novo plasmid.
 
 Time is imposed by the species tree, at the beginning of the **stem**.
 
-**How a rate is written (same at every level):** the scope wraps (`PerCopy(0.2)`, `PerLineage(0.5)`,
-`Global(1.0)` — `Global` capitalised, since `global` is a Python keyword) and modifiers multiply
-(`0.2 * Drawn(per='family', spread=...)`, `1.0 * OnTotalDiversity(cap=100)`); a bare number uses the rate's natural scope,
+**How a rate is written (same at every level):** the scope is the entry point (`PerCopy(0.2)`,
+`PerLineage(0.5)`, `Global(1.0)` — `Global` capitalised, since `global` is a Python keyword) and the
+**verbs chain onto it** (`PerCopy(0.2).varying_among('families', LogNormal(0.0, 0.5))`,
+`PerLineage(1.0).scaled_by(TotalDiversity(cap=100))`); a bare number uses the rate's natural scope,
 so the common case is just `birth=1.0`. There is **no `per=` argument** — the scope lives on each rate.
-Two rules: (a) `*` composes only dimensionless modifiers onto one base (multiplying two rates is
-`time⁻²`, impossible by construction); (b) **"per" is reserved for scopes** — a modifier never starts
-with "per".
+Two rules: (a) a verb composes only dimensionless factors onto one base, so two rates can never be
+multiplied together (that would be `time⁻²`, impossible by construction); (b) **"per" is reserved for
+scopes** — the unit a value varies among is written `among`, in the plural, never `per`.
 
 **One written form, everywhere.** That expression is not Python syntax that the CLI then translates —
 it is *the* way a rate is written, and the CLI and the parameters file take it **verbatim**:
 
 ```
-birth = 1.0 * OnTime({0: 1.0, 3: 0.3})          # Python
---birth "1.0 * OnTime({0: 1.0, 3: 0.3})"        # the command line
-birth = "1.0 * OnTime({0: 1.0, 3: 0.3})"        # a --params TOML value
+birth = PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})          # Python
+--birth "PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})"        # the command line
+birth = "PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})"        # a --params TOML value
 ```
 
-A bare number stays a bare number in all three (`--birth 1.0`, `birth = 1.0`). The `mod.` / `scope.`
-qualifiers Python needs are optional in the other two, so a manual snippet pastes in unchanged. There
-is **no second notation** — no per-modifier flags, no nested parameter tables; adding a modifier must
-never add a flag. (Read by `rates/parse.py`; it parses the expression, it does not evaluate code.)
+A bare number stays a bare number in all three (`--birth 1.0`, `birth = 1.0`). Every name the written
+form may call is importable from `zombi2.rates`, so Python needs no module qualifier; where one is
+written (`scope.PerLineage(1.0)`) it is ignored by the other two, so a manual snippet pastes in
+unchanged. There is **no second notation** — no per-modifier flags, no nested parameter tables;
+adding a driver, a law or a mapping must never add a flag. (Read by `rates/parse.py`; it parses the
+expression, it does not evaluate code. Because the written form is a chain of method calls, the
+parser whitelists the **verb names** as well as the class names.)
 
 **A level rejects the modifiers it does not support.** A modifier a level does not support must
 **raise**, never be silently ignored — a modifier that returns a factor of 1.0 because nothing reads
@@ -195,10 +200,10 @@ takes (`IMPLEMENTED_MODIFIERS`), the CLI's help is **built from that declaration
 and the engine's own gate may be stricter still where a rate takes less than the level does.
 
 Two different things get rejected, and the message must say which. A few combinations are
-**meaningless** — `Drawn(per='family')` on a species or trait rate, where there are no gene families to draw a
-factor per — and no implementation would make them mean anything; say so, and name the argument the
-modifier does belong on. The rest are **not implemented yet**, which is a statement about the code
-and not about the model; say that plainly and do not dress it up as a rule.
+**meaningless** — `varying_among('families', …)` on a species or trait rate, where there are no gene
+families to draw a factor among — and no implementation would make them mean anything; say so, and
+name the argument the modifier does belong on. The rest are **not implemented yet**, which is a
+statement about the code and not about the model; say that plainly and do not dress it up as a rule.
 
 **A driven parameter is the one mechanism** for both conditioning and joining (§2), within a level as
 much as across two (§3). Whichever verb writes it, it takes a `driver` and a `mapping`. `driver` says
@@ -215,19 +220,19 @@ group, recipient group) pair that only a choice takes (below).
 
 **What the mapping's number means depends on what it is attached to.** On a rate or an **extent** (§6)
 it is an ordinary modifier: dimensionless, multiplying, changing *how fast* or *how much* — unless the
-verb is `SetBy`, whose number carries the rate's own units and replaces the base. An extent takes no
-`SetBy`: it is already an absolute size drawn from a distribution, so there is no base to replace. On a
+verb is `set_by`, whose number carries the rate's own units and replaces the base. An extent takes no
+`set_by`: it is already an absolute size drawn from a distribution, so there is no base to replace. On a
 **choice** — an argument that decides *who*, not how fast or how many — it is a **weight**,
 normalised across the candidates:
 
 ```
-transfer    = 0.1 * ScaledBy(habitat, {"competent": 3.0, "normal": 1.0})   # a rate:   how often transfer
-transfer_to =       Weights(habitat, {"competent": 3.0, "normal": 1.0})    # a choice: which lineage receives
+transfer    = PerCopy(0.1).scaled_by(habitat, {"competent": 3.0, "normal": 1.0})    # a rate:   how often transfer
+transfer_to = Recipients().weighted_by(habitat, {"competent": 3.0, "normal": 1.0})  # a choice: which lineage receives
 ```
 
 The genome level's `transfer_to`, the "who receives" of a horizontal transfer, is the only such
-argument today. A choice takes the modifier **on its own**, never `base * modifier`, because there is
-no rate to have a base. A weight of 0 means "cannot receive"; when every candidate weighs 0 the event
+argument today. A choice is written from its own entry point, `Recipients()`, and never carries a
+base, because there is no rate to have one. A weight of 0 means "cannot receive"; when every candidate weighs 0 the event
 does not fire at all. A rate, an extent and a choice are the three kinds of **target** — the three
 things a factor can be attached to — and they are not the same triple as the three questions this section opens with:
 *where* an event starts is drawn by the engine and takes no modifier, and a choice picks the lineage
@@ -235,7 +240,8 @@ that receives, not the segment.
 
 A weight may read **both** ends: a **kernel** over `(donor group, recipient group)` pairs
 (`Between({...})`) steers transfer *between* groups rather than only *into* one. The groups come from
-the tree (named clades, reading no other level) or from a trait (`Weights(trait, Between(...))`). A
+the tree (named clades, reading no other level) or from a trait
+(`Recipients().weighted_by(trait, Between(...))`). A
 kernel only redistributes who receives, so one on a *rate* or an *extent* is refused: both are read on
 one lineage and have no donor to condition on.
 
@@ -243,45 +249,48 @@ one lineage and have no donor to condition on.
 what?"**); "clock" for the scope (reserve **clock** strictly for the by-lineage substitution-rate
 modifier at the sequences level). **modifier** names the third factor only.
 
-**A drawn value takes any distribution that can state its mean.** ``Drawn(per=…, spread=σ)`` is the
-common case and means a lognormal of that log-scale. ``dist=`` takes a distribution object instead —
-any of the built-ins: ``Fixed``, ``Exponential``, ``Gamma``, ``LogNormal``, ``Uniform``,
-``Geometric``. A bare callable or a scipy frozen distribution is refused here, though an **extent**
-takes either, because an extent is a size used as written rather than a multiplier normalised to
-mean 1 (below). Give a spread or a dist, never both.
+**A drawn value takes any distribution that can state its mean.** The **law** written beside the unit
+says what the value is, and a bare distribution is the common case — the value itself, drawn once and
+held: ``varying_among('families', LogNormal(0.0, 0.5))``, with any of the built-ins ``Fixed``,
+``Exponential``, ``Gamma``, ``LogNormal``, ``Uniform``, ``Geometric``. ``Drift(dist)`` is the same
+menu read as the per-split *step* instead. Each law owns and documents its own argument, so nobody
+has to infer the role from the slot. A bare callable or a scipy frozen distribution is refused here,
+though an **extent** takes either, because an extent is a size used as written rather than a
+multiplier normalised to mean 1 (below).
 
 Whatever the distribution, **the draw is normalised to mean 1**, by dividing by that distribution's
 own mean. A drawn value is a *multiplier*, and one that does not average to 1 changes what the base
 means — a base of 0.25 would stop being the average rate. So a distribution's **location is
 normalised away** and what it contributes is its *shape*; ``Exponential(1.0)`` and ``Exponential(7.0)``
 are one modifier. A distribution that cannot state its mean is refused rather than normalised by a
-guess. A number that *is* the rate rather than a factor is `SetBy`, where nothing is normalised.
+guess. A number that *is* the rate rather than a factor is a `set_by`, where nothing is normalised.
 
 **The modifier families.** Four kinds, and a modifier's kind says who produces its number:
 
 | Kind | The factor is… | Written |
 |---|---|---|
-| covariate | a deterministic function of a measured quantity | `OnTime`, `OnTotalDiversity` |
-| drawn | an i.i.d. draw, one per unit — **no memory** (uncorrelated) | `Drawn(per=…)` |
-| inherited | the parent's, perturbed — **continuous memory** (autocorrelated) | `Inherited(per=…)` |
-| driven | the state of another simulated thing, read as the run walks the tree | `ScaledBy`, `Weights`, `SetBy` |
+| covariate | a deterministic function of a measured quantity | `changing_at({…})`, `scaled_by(TotalDiversity(cap=…))` |
+| drawn | an i.i.d. draw, one per unit — **no memory** (uncorrelated) | `varying_among(unit, dist)` |
+| inherited | the parent's, perturbed — **continuous memory** (autocorrelated) | `varying_among(unit, Drift(dist))` |
+| driven | the state of another simulated thing, read as the run walks the tree | `scaled_by`, `weighted_by`, `set_by` |
 
-**The unit is an argument, not a class.** A draw per family and a draw per lineage are one model at
+**The unit is an argument, not a class.** A draw among families and a draw among lineages are one model at
 two attachments, so a unit nobody has carried yet needs no name invented for it — which is what
-`Drawn(per="chromosome", …)` is. `ByFamily`, `ByLineage` and `FromParent` were names for three of
+`varying_among('chromosomes', …)` is. `ByFamily`, `ByLineage` and `FromParent` were names for three of
 those cells and are **removed**: they were our coinages rather than the field's, and the field's own
 names — the relaxed clock, ClaDS, rate heterogeneity across families — are what the prose uses.
 
-**One object is one draw.** A drawn or inherited modifier carries a value the *engine* draws once per
-unit and keeps. Which rates share that value is decided by **what you wrote, not by what the numbers
-are**: one modifier object read by several rates is one draw, shared between them, and two separately
+**One object is one draw.** A drawn or inherited value is drawn once per unit by the *engine* and
+kept. Which rates share that value is decided by **what you wrote, not by what the numbers
+are**: one `Random` object read by several rates is one draw, shared between them, and two separately
 built ones are two draws even when their arguments match.
 
 ```python
-speed = Drawn(per='family', dist=LogNormal(0.0, 0.5))
-duplication = 0.2 * speed;  loss = 0.25 * speed     # one draw: a fast family is fast at both
-duplication = 0.2 * Drawn(per='family', dist=LogNormal(0.0, 0.5))            # two draws: the two rates vary independently
-loss        = 0.25 * Drawn(per='family', dist=LogNormal(0.0, 0.5))
+speed       = Random('families', LogNormal(0.0, 0.5))
+duplication = PerCopy(0.2).varying_among(speed)                            # one draw: a fast family is fast at both
+loss        = PerCopy(0.25).varying_among(speed)
+duplication = PerCopy(0.2).varying_among('families', LogNormal(0.0, 0.5))  # two draws: the two rates vary independently
+loss        = PerCopy(0.25).varying_among('families', LogNormal(0.0, 0.5))
 ```
 
 That rule is the whole of it, and it replaces the separate family-wide argument this used to need.
@@ -289,16 +298,16 @@ Sharing is by **identity**, never by equality, so the question a reader has to a
 *did you write one thing or two?*. It follows that the **text form cannot express sharing** — two
 flags parse to two objects — so a shared draw is Python-only until the written form can name a value.
 
-So the uncorrelated / autocorrelated split is `Drawn(per=…)` against `Inherited(per=…)`, and one
-modifier — `Inherited(per="lineage")` — is ClaDS at Species, the autocorrelated clock at Sequences,
-and variable-rates BM at Traits. Three rules for the next one:
+So the uncorrelated / autocorrelated split is a bare distribution against `Drift(dist)`, and one
+law — `varying_among('lineages', Drift(dist))` — is ClaDS at Species, the autocorrelated clock at
+Sequences, and variable-rates BM at Traits. Three rules for the next one:
 
-- **Fully qualify an `On` covariate** (`OnTotalDiversity`), since `On` alone does not fix what is measured.
+- **Fully qualify a measured driver** (`TotalDiversity`), since a bare word does not fix what is measured.
 - **One memory structure per axis**: drawn has none, inherited has continuous memory, and a rate
   carries one or the other on a unit, never both. Several of the *same* kind compose and multiply, as
   any modifiers do. A discrete-memory mechanism would be named for the mechanism (`Markov`); none is
   implemented.
-- **A modifier multiplies one rate**, except `SetBy`, which replaces its base. A process on the
+- **A verb multiplies one rate**, except `set_by`, which replaces its base. A process on the
   *value* rather than the rate — the OU trait's `reverts_to` / `pull` — is a function argument, not a
   modifier.
 
@@ -315,8 +324,10 @@ to answer:
 extent  =  base × modifiers
 ```
 
-- **base** — a number (the mean) or a distribution over sizes.
-- **modifiers** — the same dimensionless multipliers a rate takes (`OnTime`, `Drawn`, `Inherited`, `ScaledBy`).
+- **base** — a number (the mean) or a distribution over sizes, written from `Extent(...)` when a verb
+  is chained onto it.
+- **modifiers** — the same dimensionless multipliers a rate takes, written with the same verbs
+  (`changing_at`, `varying_among`, `scaled_by`).
 
 One word, **extent**, at every resolution and for every event. Its **unit is set by the resolution** —
 genes at ordered, base pairs at nucleotide — and needs no word of its own, because fixing that unit is
@@ -327,9 +338,10 @@ segment is therefore affected more often than the rate reads — about `rate × 
 is taken whenever any event begins on a segment that covers it. The two axes **multiply**, and quoting
 one without the other describes nothing.
 
-**A modifier attaches either to the lineage or to the contents.** `OnTime`, `Drawn(per='lineage')`, `Inherited(per='lineage')`
-and a `ScaledBy` reading a trait attach to the **lineage**: at any instant they are uniform across that lineage's
-whole genome, so they compose with any extent unchanged. `Drawn(per='family')` attaches to the **contents**, and a
+**A modifier attaches either to the lineage or to the contents.** `changing_at`,
+`varying_among('lineages', …)` and a `scaled_by` reading a trait attach to the **lineage**: at any
+instant they are uniform across that lineage's
+whole genome, so they compose with any extent unchanged. `varying_among('families', …)` attaches to the **contents**, and a
 segment has several — so a content-attached modifier must weight the **segment, by what it covers**,
 never the position the event started from. Weighting the start applies a family's own rate to its
 *neighbours*, and the neighbourhood is reshuffled by every rearrangement, so the parameter would not
@@ -357,9 +369,11 @@ Left column is correct; right column is a fossil to purge.
 | target — what a factor is attached to: a rate, an **extent**, or a **choice** | "a target is a rate"; target (for the driven level — say *the driven level*) |
 | choice — the target that decides who receives (`transfer_to`) | "which one"; slot |
 | mapping — `Table` / `Curve` / `Scalar` / `Between` | response (the coevolve word) |
-| weight — a `transfer_to` number, normalised across candidates | multiplier (there); `base * modifier` (there) |
+| weight — a `transfer_to` number, normalised across candidates | multiplier (there); a base in front of `Recipients()` (there) |
 | rate; effective rate = scope(base) × modifiers | propensity |
 | scope; "per what?" | opportunity |
+| verb — what reading a driver does to a parameter: `scaled_by` / `set_by` / `weighted_by`, plus the two shortcuts `varying_among` / `changing_at` | `ScaledBy` / `SetBy` / `Weights` / `OnTime` as names to call; `*` composing a rate |
+| the unit a value varies among, plural: `'lineages'` / `'families'` / `'copies'` / `'sites'` / `'chromosomes'` | `per='family'`; `spread=` for a distribution |
 | extent — how much a segmental event takes | extension; length (for this quantity); size |
 | clock (the sequences by-lineage rate modifier only) | clock (for the count) |
 | the four levels of ZOMBI2 (the layout) | the diamond |

@@ -1,9 +1,8 @@
-"""The shapes a run draws its numbers from: a `Drawn` value's spread, and a segmental event's extent.
+"""The shapes a run draws its numbers from: a `Random` value's law, and a segmental event's extent.
 
-    from zombi2.rates import Drawn
-    from zombi2.rates.distributions import Gamma
+    from zombi2.rates import Gamma, PerCopy
 
-    loss        = 0.25 * Drawn(per="family", dist=Gamma(shape=4.0, scale=0.25))
+    loss        = PerCopy(0.25).varying_among("families", Gamma(shape=4.0, scale=0.25))
     loss_extent = Gamma(shape=2.0, scale=250.0)
 
 A handful of distributions ship here, and `as_distribution()` also takes any scipy.stats frozen

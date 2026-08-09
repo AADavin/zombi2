@@ -34,7 +34,7 @@ import sys
 from unittest import mock
 from unittest.mock import MagicMock
 
-from zombi2.rates import ScaledBy
+from zombi2.rates import PerCopy, PerLineage
 import pytest
 
 GALLERY = pathlib.Path(__file__).resolve().parent.parent / "gallery"
@@ -220,8 +220,8 @@ def test_conditioning_figures_reach_the_tips_in_both_states():
                             switch=joining._LIFESTYLE)
     g = simulate_genomes_family(
         ct, initial_families=200, duplication=0.1,
-        origination=3.0 * ScaledBy(hab, {"endosymbiont": 0.3, "free-living": 1.0}),
-        loss=0.08 * ScaledBy(hab, {"endosymbiont": 6.0, "free-living": 1.0}), seed=9)
+        origination=PerLineage(3.0).scaled_by(hab, {"endosymbiont": 0.3, "free-living": 1.0}),
+        loss=PerCopy(0.08).scaled_by(hab, {"endosymbiont": 6.0, "free-living": 1.0}), seed=9)
     lab, by = ct.labels(), {"free-living": [], "endosymbiont": []}
     for n in ct.extant_leaves():
         by[hab.values[lab[n.id]]].append(len(g.genomes[n.id]))

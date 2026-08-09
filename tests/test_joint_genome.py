@@ -1,6 +1,6 @@
 """Joint slice 3 — gene content drives speciation, grown jointly (P(Species, Genomes)).
 
-The genome half of joint: `ScaledBy("genomes:count", …)` / `ScaledBy("genomes:<family>", …)`
+The genome half of joint: `.scaled_by("genomes:count", …)` / `.scaled_by("genomes:<family>", …)`
 with a live genome grown by `joint.simulate_joint(genome=genomes.family(...))`. Covers named
 families (the referenceable handle), the genome process spec, the result shape, determinism, and the
 two gene-content-dependent-diversification signals (count and named-presence).
@@ -13,7 +13,7 @@ import pytest
 from zombi2 import genomes, joint
 from zombi2.genomes import FamilyGenome
 from zombi2.joint import JointResult
-from zombi2.rates import ScaledBy
+from zombi2.rates import PerLineage
 from zombi2.species import simulate_species_tree
 
 
@@ -63,7 +63,7 @@ def test_family_spec_validates():
 
 def _count_joint(curve=lambda n: 1.0 + 0.2 * n, n_extant=150, seed=1):
     return joint.simulate_joint(
-        birth=1.0 * ScaledBy("genomes:count", curve), death=0.1,
+        birth=PerLineage(1.0).scaled_by("genomes:count", curve), death=0.1,
         genome=genomes.family(duplication=0.3, loss=0.3, origination=0.3, initial_families=3),
         n_extant=n_extant, seed=seed)
 
@@ -81,7 +81,7 @@ def test_joint_genome_result_shape():
 
 def test_joint_genome_writes_both_levels(tmp_path):
     res = joint.simulate_joint(
-        birth=1.0 * ScaledBy("genomes:toxin", {"present": 3.0, "absent": 1.0}), death=0.1,
+        birth=PerLineage(1.0).scaled_by("genomes:toxin", {"present": 3.0, "absent": 1.0}), death=0.1,
         genome=genomes.family(duplication=0.3, loss=0.3, family_names=["toxin"]),
         n_extant=80, seed=3)
     res.write(tmp_path)
@@ -121,15 +121,15 @@ def test_named_family_presence_drives_diversification():
         tips = [n.id for n in r.complete_tree.extant_leaves()]
         return sum(r.genome.has_family(i, "toxin") for i in tips) / len(tips)
     driven = statistics.mean(
-        frac_toxin(1.0 * ScaledBy("genomes:toxin", {"present": 5.0, "absent": 1.0}), s) for s in (1, 2, 3))
+        frac_toxin(PerLineage(1.0).scaled_by("genomes:toxin", {"present": 5.0, "absent": 1.0}), s) for s in (1, 2, 3))
     neutral = statistics.mean(
-        frac_toxin(1.0 * ScaledBy("genomes:toxin", {"present": 1.0, "absent": 1.0}), s) for s in (1, 2, 3))
+        frac_toxin(PerLineage(1.0).scaled_by("genomes:toxin", {"present": 1.0, "absent": 1.0}), s) for s in (1, 2, 3))
     assert driven > neutral + 0.15, f"toxin driving gave no signal: {driven:.2f} vs {neutral:.2f}"
 
 
 def test_total_time_mode():
     res = joint.simulate_joint(
-        birth=1.0 * ScaledBy("genomes:count", lambda n: 1.0 + 0.1 * n), death=0.1,
+        birth=PerLineage(1.0).scaled_by("genomes:count", lambda n: 1.0 + 0.1 * n), death=0.1,
         genome=genomes.family(origination=0.4, loss=0.2, initial_families=2),
         total_time=3.0, seed=4)
     assert all(n.end_time == pytest.approx(3.0) for n in res.complete_tree.extant_leaves())
@@ -139,10 +139,10 @@ def test_total_time_mode():
 
 def test_exactly_one_driver():
     with pytest.raises(TypeError, match="exactly one driver"):
-        joint.simulate_joint(birth=1.0 * ScaledBy("trait", {"a": 1.0}), n_extant=10, seed=1)  # neither
+        joint.simulate_joint(birth=PerLineage(1.0).scaled_by("trait", {"a": 1.0}), n_extant=10, seed=1)  # neither
     with pytest.raises(TypeError, match="exactly one driver"):
         joint.simulate_joint(
-            birth=1.0 * ScaledBy("genomes:count", lambda n: n),
+            birth=PerLineage(1.0).scaled_by("genomes:count", lambda n: n),
             trait=__import__("zombi2.traits", fromlist=["discrete"]).discrete(states=["a", "b"], switch=0.1),
             genome=genomes.family(origination=0.1), n_extant=10, seed=1)  # both
 
@@ -150,7 +150,7 @@ def test_exactly_one_driver():
 def test_undeclared_named_family_rejected():
     with pytest.raises(ValueError, match="not.*declared"):
         joint.simulate_joint(
-            birth=1.0 * ScaledBy("genomes:toxin", {"present": 2.0, "absent": 1.0}),
+            birth=PerLineage(1.0).scaled_by("genomes:toxin", {"present": 2.0, "absent": 1.0}),
             genome=genomes.family(origination=0.1),   # no family_names=["toxin"]
             n_extant=10, seed=1)
 
@@ -158,6 +158,6 @@ def test_undeclared_named_family_rejected():
 def test_trait_source_on_genome_joint_rejected():
     with pytest.raises(ValueError, match="genomes:"):
         joint.simulate_joint(
-            birth=1.0 * ScaledBy("trait", {"a": 2.0}),
+            birth=PerLineage(1.0).scaled_by("trait", {"a": 2.0}),
             genome=genomes.family(origination=0.1, family_names=["a"]),
             n_extant=10, seed=1)

@@ -11,9 +11,9 @@ change neither how fast nor how many transfers happen, only **who** receives. Fo
   root-to-tip time to stay scale-free;
 - `Clades` — weight by the **pair** (donor's named clade, recipient's named clade), a fact read from
   the tree;
-- `ScaledBy` — weight by **another level**: candidate ``k``'s weight is
-  the mapping of the driver's value on lineage ``k`` at this instant (a trait that makes a lineage
-  competent to take DNA up), and with a `Between` mapping the donor's value too.
+- ``Recipients().weighted_by(driver, mapping)`` — weight by **another level**: candidate ``k``'s
+  weight is the mapping of the driver's value on lineage ``k`` at this instant (a trait that makes a
+  lineage competent to take DNA up), and with a `Between` mapping the donor's value too.
 
 All four rules work at **every** resolution — family, ordered and nucleotide. That is what
 `resolve_transfer_to()` and `prepare_transfer_to()` are for: it is validated and prepared here,
@@ -25,7 +25,8 @@ from __future__ import annotations
 
 import math
 
-from ..rates.choice import Clades, Distance
+from ..rates import verbs
+from ..rates.choice import Choice, Clades, Distance
 from ..rates.mapping import Between, check_kernel_fires
 from ..rates.modifiers import Driven, SetBy
 from ..rates.rate import Rate
@@ -117,59 +118,92 @@ def resolve_groups(tree, groups) -> dict:
 
 def resolve_transfer_to(transfer_to):
     """Validate ``transfer_to`` — who receives — and return the rule the engine will run on:
-    ``"uniform"``, a `Distance`, a `Clades` or a `Driven` — with the ``"distance"`` shorthand
-    coerced to ``Distance()``.
+    ``"uniform"``, a `Distance`, a `Clades` or the one `Driven` weighting a `Choice` carries — with
+    the ``"distance"`` shorthand coerced to ``Distance()``.
+
+    A choice is written from `Recipients`, and the engine reads the weighting rather than the
+    wrapper, so ``Recipients()`` on its own arrives here as the uniform rule and
+    ``Recipients().weighted_by(driver, {...})`` as its weight.
 
     This is not a rate (SPEC §5). The numbers in it are per-candidate **weights**, normalised
     across the contemporaneous candidates, so they change neither how fast nor how many transfers
-    happen — only **who** receives. Two of the four messages below exist because that distinction is
+    happen — only **who** receives. Three of the messages below exist because that distinction is
     exactly what a user coming from the rate grammar gets wrong, and the generic "must be one of …"
     message would list the alternatives without saying why what they wrote is a different kind of
     thing:
 
-    - ``transfer_to = 0.1 * Weights(...)`` is the *rate* spelling. There is no base here, because
-      there is no rate, so the modifier is given on its own.
-    - ``transfer_to = (Distance(), Weights(...))`` asks for two rules at once. Composing a
-      topological weight with a driven one is a later slice, not a thing that is refused on principle.
+    - ``transfer_to = PerCopy(0.1).scaled_by(...)`` is the *rate* spelling. There is no base here,
+      because there is no rate, so the rule is written from ``Recipients()`` instead of a scope.
+    - ``transfer_to = (Distance(), Recipients().weighted_by(...))`` asks for two rules at once.
+      Composing a topological weight with a driven one is a later slice, not a thing that is refused
+      on principle.
+    - ``Recipients().weighted_by(a, m).weighted_by(b, m)`` chains two weights, which SPEC §8 says is
+      meaningful and this engine does not read — refused rather than run with the second dropped.
     """
     if transfer_to == "distance":
         return Distance()
+    if isinstance(transfer_to, Choice):
+        return _one_weight(transfer_to)
     if isinstance(transfer_to, Rate):
         raise ValueError(
-            "transfer_to takes the Weights modifier on its own, not a rate — write "
-            "transfer_to=Weights(driver, {...}) with no base number. Here the mapping's "
-            "numbers are relative WEIGHTS over the candidate recipients (normalised), not a rate "
-            "multiplier: they change which lineage receives, never how often transfer happens."
+            "transfer_to is written from Recipients(), not from a scope — write "
+            "transfer_to=Recipients().weighted_by(driver, {...}), with no base number in front. "
+            "Here the mapping's numbers are relative WEIGHTS over the candidate recipients "
+            "(normalised), not a rate multiplier: they change which lineage receives, never how "
+            "often transfer happens."
         )
     if isinstance(transfer_to, (list, tuple)):
         raise ValueError(
             "transfer_to takes one recipient rule, not several — combining Distance (relatedness) "
-            "with a Weights rule is a later slice. Give 'uniform', 'distance' / "
-            "Distance(decay=), or ScaledBy(driver, {...})."
+            "with a driven weighting is a later slice. Give 'uniform', 'distance' / "
+            "Distance(decay=), or Recipients().weighted_by(driver, {...})."
         )
-    if isinstance(transfer_to, Driven) and type(transfer_to) is Driven and transfer_to.verb == "ScaledBy":
-        # Now that the verb carries the meaning, a mismatched one is catchable: `ScaledBy` says the
+    if type(transfer_to) is Driven and verbs.written_with(transfer_to, verbs.SCALED_BY):
+        # The verb carries the meaning, so a mismatched one is catchable: `scaled_by` says the
         # number multiplies a base, and a choice has none. Same object, wrong word — and saying so
-        # is cheaper than a reader wondering why their "factor" behaved like a weight.
+        # is cheaper than a reader wondering why their "factor" behaved like a weight. The verb is
+        # compared through `verbs.written_with` against the constant the grammar defines, because a
+        # verb name spelled out at each end is a contract that renames in silence: when these
+        # strings last changed, this refusal stopped firing and nothing said so.
         raise ValueError(
-            "transfer_to takes Weights(driver, {...}), not ScaledBy: its numbers are weights over "
-            "the candidate recipients, compared against each other and normalised, rather than a "
-            "factor on a base. The same driver and the same mapping — only the verb changes.")
+            "transfer_to takes Recipients().weighted_by(driver, {...}), not scaled_by: its numbers "
+            "are weights over the candidate recipients, compared against each other and "
+            "normalised, rather than a factor on a base. The same driver and the same mapping — "
+            "only the verb changes.")
     if isinstance(transfer_to, SetBy):
         # `SetBy` is a `Driven`, so the test below admits it — and admitting it runs the model the
         # user did not write. A choice has no base: only the ratios between the candidates are read,
         # so there is nothing here for a replaced base to mean, and it ran as an ordinary weighting.
         raise ValueError(
-            "transfer_to cannot be SetBy: it weights the candidate recipients against each other, "
+            "transfer_to cannot be set_by: it weights the candidate recipients against each other, "
             "so there is no base for a driver to replace. The same numbers, spelled as what they "
-            "are, is Weights(driver, {...}).")
+            "are, is Recipients().weighted_by(driver, {...}).")
     if transfer_to != "uniform" and not isinstance(transfer_to, (Distance, Driven, Clades)):
         raise ValueError(
             f"transfer_to must be 'uniform', 'distance' / Distance(decay=), "
             f"Clades({{...}}, Between({{...}})) (weight by named clade), or "
-            f"ScaledBy(driver, {{...}}) (a recipient weight driven by an evolved value), "
-            f"got {transfer_to!r}")
+            f"Recipients().weighted_by(driver, {{...}}) (a recipient weight driven by an evolved "
+            f"value), got {transfer_to!r}")
     return transfer_to
+
+
+def _one_weight(choice: Choice):
+    """The single weighting a `Choice` carries, or ``"uniform"`` when it carries none.
+
+    Weights multiply and are then normalised across the candidates, so chaining two is meaningful
+    (SPEC §8) and `Choice` allows it; no genome engine reads more than one. Refusing here is what
+    keeps that honest — reading the first would run a model with the second weighting silently
+    dropped, which is the one failure mode a choice cannot announce, since every assertion about who
+    received still passes."""
+    if not choice.weights:
+        return "uniform"                       # Recipients() alone: every candidate equally likely
+    if len(choice.weights) > 1:
+        raise ValueError(
+            f"transfer_to carries {len(choice.weights)} weightings, and the genome engines read "
+            f"one. Chaining them is meaningful — the weights multiply before they are normalised "
+            f"across the candidates — but no genome resolution implements it yet, so this is "
+            f"refused rather than run with all but the first dropped. Write one weighted_by.")
+    return choice.weights[0]
 
 
 def prepare_transfer_to(tree, transfer_to, resolved=None, *, level=None):
@@ -181,7 +215,7 @@ def prepare_transfer_to(tree, transfer_to, resolved=None, *, level=None):
     - A `Clades` rule paints every lineage with its clade label. Membership is a fact about the
       **tree**, so it is constant along a branch and adds no Gillespie breakpoints — which is the
       whole reason it can be computed here and then never touched again.
-    - A `ScaledBy` weight resolves its driver into a driver trajectory. ``resolved`` is the caller's
+    - A ``weighted_by`` weight resolves its driver into a driver trajectory. ``resolved`` is the caller's
       ``{driver key: trajectory}`` cache, mutated in place, so a driver shared with a driven *rate*
       is loaded once and the two read the very same trajectory.
 
@@ -230,7 +264,7 @@ def recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_tra
     ``transfer_to`` rule: ``"uniform"`` gives every contemporaneous lineage equal weight; a
     `Distance` weights by relatedness (closer relatives likelier); a `Clades` weights by
     the kernel on (donor's clade, candidate's clade), read from the precomputed ``groups`` map; a
-    `ScaledBy` weights by the driver's value on each candidate, read
+    ``weighted_by`` weight weights by the driver's value on each candidate, read
     from ``to_traj`` (the trajectory the engine resolved for that driver) — and, with a
     `Between` mapping, by the donor's value too.
 

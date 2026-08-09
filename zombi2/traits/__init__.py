@@ -8,7 +8,7 @@ transitions are timestamped events, the source of truth, and the per-branch stoc
 (``history``) is derived from them; a **continuous** trait diffuses with no along-branch events, so
 its log holds only the jumps at speciation nodes (empty without ``at_speciation=``),
 and ``node_values`` carries the diffusion. What keeps traits inside the one framework is that the
-*ways* a value evolves reuse the same ``scope(base) × modifiers`` rate grammar (SPEC §5).
+*ways* a value evolves reuse the same ``scope(base).verb(...)`` rate grammar (SPEC §5).
 
 This is the **continuous** trait level — ``simulate_continuous`` — and its three variants are the
 same diffusion wearing different knobs, not three classes (SPEC §4):
@@ -21,31 +21,32 @@ same diffusion wearing different knobs, not three classes (SPEC §4):
   diffusion is pulled toward θ — stabilizing selection. The exact per-branch transition is normal
   with mean ``θ + (x−θ)·e^{−α·dt}`` and variance ``σ²/(2α)·(1−e^{−2α·dt})``. (These are the same two
   knobs the CIR clock grows one level over — a shared vocabulary, not shared code.)
-- **Early burst / ACDC**: give ``rate`` a ``OnTime`` skyline (``rate = σ² * mod.OnTime({0: 1, 5: 0.2})``)
-  and σ² changes through time — the *same* ``OnTime`` modifier that gives the species tree its skyline.
+- **Early burst / ACDC**: give ``rate`` a skyline (``rate = PerLineage(σ²).changing_at({0: 1, 5: 0.2})``)
+  and σ² changes through time — the *same* verb that gives the species tree its skyline.
   The per-branch variance is then the exact integral ``∫ σ²(t) dt`` over the branch.
-- **Variable-rates BM** ("ClaDS for traits"): give ``rate`` an ``Inherited`` modifier
-  (``rate = σ² * mod.Inherited(per="lineage", dist=LogNormal(0.0, 0.3))``) and σ² drifts branch-to-branch — each lineage inherits
-  its parent's σ² times a lognormal kick at the split — the *same* ``Inherited`` modifier that drifts
+- **Variable-rates BM** ("ClaDS for traits"): give ``rate`` a ``Drift`` law
+  (``rate = PerLineage(σ²).varying_among('lineages', Drift(LogNormal(0.0, 0.3)))``) and σ² drifts branch-to-branch — each lineage inherits
+  its parent's σ² times a lognormal kick at the split — the *same* law that drifts
   the species rate (ClaDS) and the autocorrelated clock, one level over. (``reverts_to`` / ``pull`` are
   OU function arguments that revert the trait *value*, **not** a modifier — a rate modifier reverts a
   *rate*, which is the sequences level's CIR clock, a different mechanism.)
-- **Diversity-dependent** (ecological limits): give ``rate`` a ``OnTotalDiversity`` modifier
-  (``rate = σ² * mod.OnTotalDiversity(cap=100)``) and σ² slows as the clade fills — scaled by
-  ``(1 − standing_diversity/cap)`` as the tree's lineages-through-time grows — the *same* ``OnTotalDiversity``
-  modifier that slows species diversification, read here off the fixed tree (one-way, tree → trait).
-- **Driven by another level**: give ``rate`` a ``ScaledBy`` modifier
-  (``rate = σ² * ScaledBy(habitat, {"aquatic": 3.0, "terrestrial": 1.0})``) and σ² reads a value
+- **Diversity-dependent** (ecological limits): give ``rate`` the ``TotalDiversity`` driver
+  (``rate = PerLineage(σ²).scaled_by(TotalDiversity(cap=100))``) and σ² slows as the clade fills — scaled by
+  ``(1 − standing_diversity/cap)`` as the tree's lineages-through-time grows — the *same* driver
+  that slows species diversification, read here off the fixed tree (one-way, tree → trait).
+- **Driven by another level**: scale ``rate`` by a driver
+  (``rate = PerLineage(σ²).scaled_by(habitat, {"aquatic": 3.0, "terrestrial": 1.0})``) and σ² reads a value
   grown first on this same tree: a second trait, or a genome's ``presence`` / ``completion`` — the
-  *same* ``ScaledBy`` modifier that drives a genome rate.
+  *same* verb that drives a genome rate.
   One trait driving another is conditioning like any other (SPEC §3): the driver can be finished
   before the target starts, so it is two ordinary runs in order, handed over as the grown result or
   as its written ``trait_events.tsv``. A discrete driver switches *mid-branch*, so the per-branch
   variance is the integral across those pieces, not one sample per branch. The **discrete** engine
   takes it too: write ``switch`` as a rate expression and a trait's switch rate is driven the same way.
 
-``rate`` thus takes the whole modifier vocabulary — ``OnTime``, an inherited value, ``OnTotalDiversity``,
-``ScaledBy`` — like any other rate, and they compose (``σ² * OnTime({…}) * Inherited(per="lineage", dist=LogNormal(0.0, …))``).
+``rate`` thus takes the whole vocabulary — ``changing_at``, an inherited value, ``TotalDiversity``,
+``scaled_by`` — like any other rate, and the verbs chain
+(``PerLineage(σ²).changing_at({…}).varying_among('lineages', Drift(LogNormal(0.0, …)))``).
 
 ``rate`` is *per lineage*: each lineage carries its own independent diffusion, never pooled across the
 tree — the engine evaluates the rate one lineage at a time (``lineages=1``), where the event levels
@@ -59,7 +60,8 @@ simulated *exactly* by the Gillespie algorithm along every branch. Its ``events`
 timestamped, on a lineage, ``from_state → to_state``) is the source of truth, exactly as at the genome
 level; ``history`` (each node's ``(state, duration)`` segments) is the derived stochastic character
 map. ``switch`` gives the rates (symmetric shortcut, ``{"a->b": rate}`` dict, or a ``k×k`` matrix), and
-a switch rate may carry ``ScaledBy`` — the trait switching faster where another level says so. The
+a switch rate may be written with ``scaled_by`` — the trait switching faster where another level says
+so. The
 **threshold** model (``liability=`` / ``threshold=``) reads a discrete state off a continuous Brownian
 liability; the crossings are un-timed, so it carries no event log or map.
 

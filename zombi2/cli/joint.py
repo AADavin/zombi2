@@ -7,7 +7,8 @@ and the trait each depend on the other at every instant, and neither exists befo
 are grown in one pass (``SPEC §2–4``), which is what this command does.
 
 The driver is named in the rate rather than passed as a file, and that is the whole difference:
-``--birth "1.0 * ScaledBy('trait', {'small': 1.0, 'large': 3.0})"`` reads a **live level**, not a
+``--birth "PerLineage(1.0).scaled_by('trait', {'small': 1.0, 'large': 3.0})"`` reads a **live
+level**, not a
 path. Give exactly one driver — a discrete trait (``--states``), which is the BiSSE/MuSSE family, or
 gene content (``--origination`` and friends), where a lineage's genome decides how fast it splits.
 """
@@ -29,11 +30,11 @@ from zombi2.joint import IMPLEMENTED_MODIFIERS
 from zombi2.traits import discrete
 
 #: the RATES block for ``zombi2 joint -h``, built from the engine's own declaration like every other
-#: command's — it used to hard-code ``(Driven,)`` and so under-reported OnTime and
-#: OnTotalDiversity, which a joint run does thread.
+#: command's — it used to hard-code ``(Driven,)`` and so under-reported the clock schedule and the
+#: standing-diversity driver, which a joint run does thread.
 RATES_HELP = _rates_help(
     IMPLEMENTED_MODIFIERS, "--birth",
-    note="Here ScaledBy names a live level, not a file. Drivers: 'trait' (the trait grown "
+    note="A joint run grows the tree itself, so --birth and --death take a bare number with the verbs chained onto it and no scope wrapper in front: --birth \"1.0.changing_at(...)\" is not a thing to write; give the rate and chain. Here scaled_by names a live level, not a file. Drivers: 'trait' (the trait grown "
          "alongside), 'genomes:count' (a lineage's gene count), 'genomes:<name>' (a named family, "
          "{'present': 3.0, 'absent': 1.0}). --death takes a driven rate too.")
 

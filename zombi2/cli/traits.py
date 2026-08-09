@@ -6,9 +6,11 @@ or Ornstein–Uhlenbeck with ``--reverts-to``/``--pull``) or ``discrete`` (a fin
 `simulate_discrete()` — the Mk model with ``--switch``, or the threshold model
 with ``--liability``/``--threshold``). Long options are the API keyword names, and every rate flag —
 ``--rate``, ``--switch``, ``--liability`` — takes the written form of a rate (SPEC §5): a bare number,
-or the same ``scope(base) × modifiers`` expression Python takes. ``--rate "1.0 * OnTime({0: 4.0, 1:
-1.0})"`` is an early burst, ``--rate "1.0 * Inherited(per="lineage", dist=LogNormal(0.0, 0.2))"`` variable-rates BM, and
-``--switch "0.2 * ScaledBy('habitat/trait_events.tsv', {'aquatic': 3.0, 'terrestrial': 1.0})"`` a
+or the same ``scope(base)`` with verbs chained onto it that Python takes. ``--rate
+"PerLineage(1.0).changing_at({0: 4.0, 1: 1.0})"`` is an early burst, ``--rate
+"PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2)))"`` variable-rates BM, and
+``--switch "PerLineage(0.2).scaled_by('habitat/trait_events.tsv', {'aquatic': 3.0, 'terrestrial':
+1.0})"`` a
 discrete trait conditioned on one grown first. ``--switch`` also reads its keyword's other two shapes
 — a ``{'a->b': rate}`` dict, a ``k x k`` matrix — whose entries are rates in that same form.
 
@@ -29,6 +31,7 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   _write_params_log, check_stale_downstream, clear_stale_downstream,
                                   signpost, input_digests, level_dir, resolve_tree, sibling_fates,
                                   conditioned_levels, record_conditioning)
+from zombi2.rates.modifiers import cell_name
 from zombi2.tree import node_label, read_newick
 from zombi2._runtime.report import write_run_report
 from zombi2.traits import IMPLEMENTED_MODIFIERS, simulate_continuous, simulate_discrete
@@ -38,11 +41,11 @@ from zombi2.traits.discrete import IMPLEMENTED_MODIFIERS as _SWITCH_MODIFIERS
 #: modifiers are the continuous ``--rate``'s, and the note names the discrete engine's shorter list
 #: from its own tuple rather than by hand, so neither can fall behind what the engine takes.
 RATES_HELP = _rates_help(
-    IMPLEMENTED_MODIFIERS, "--rate",
+    IMPLEMENTED_MODIFIERS, "--rate", scope="PerLineage",
     note="--rate, --switch and --liability all take a rate in this form. The list above is --rate's; "
-         "--switch takes " + ", ".join(m.__name__ for m in _SWITCH_MODIFIERS) + " and nothing else, "
-         "and --liability no modifier yet. --switch also reads a {'a->b': rate} dict — only the named "
-         "transitions happen — or a k x k matrix of them.")
+         "--switch takes " + ", ".join(cell_name(m) for m in _SWITCH_MODIFIERS) + " and nothing "
+         "else, and --liability no modifier yet. --switch also reads a {'a->b': rate} dict — only "
+         "the named transitions happen — or a k x k matrix of them.")
 
 # the write vocabularies, mirroring TraitsResult.write. The event log IS the driver file now
 # (a driven run replays it against the tree), so there is no separate driver output.

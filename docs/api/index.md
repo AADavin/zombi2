@@ -6,7 +6,7 @@ returns a `*Result` object that carries the true history behind the dataset.
 
 ```python
 from zombi2 import species, genomes
-from zombi2.rates import scope, modifiers
+from zombi2.rates import Global, PerCopy, PerLineage
 
 result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 ```
@@ -39,7 +39,7 @@ These are shared across levels rather than owned by one.
 
 | Page | What it holds |
 |---|---|
-| [`zombi2.rates`](rates.md) | the rate grammar — **scopes** (`PerCopy`, `PerLineage`, `Global`, …), **modifiers** (`OnTime`, `OnTotalDiversity`, `Inherited(per='lineage')`, `Drawn(per='lineage')`, `Drawn(per='family')`), the **verbs** that write a driven one (`ScaledBy`, `Weights`, `SetBy`) and the **mappings** a driver carries (`Table`, `Curve`, `Scalar`, `Between`), the notation shared by the Python API, the CLI and a `--params` file |
+| [`zombi2.rates`](rates.md) | the rate grammar — **scopes** (`PerCopy`, `PerLineage`, `Global`, …), the **verbs** chained onto them (`scaled_by`, `set_by`, `weighted_by`, and the two shortcuts `varying_among`, `changing_at`), the **drivers** they read (`Random`, `TotalDiversity`, `Time`, `Clade`, a filename) and the **mappings** a driver carries (`Table`, `Curve`, `Scalar`, `Between`), the notation shared by the Python API, the CLI and a `--params` file |
 | [`zombi2.sequences`](sequences.md#the-substitution-model-menu) | the substitution-model menu — `jc69` · `k80` · `hky85` · `gtr`, and the protein models `poisson` · `jtt` · `dayhoff` · `wag` · `lg` |
 | [`zombi2.genomes`](genomes.md#who-receives-a-transfer) | the transfer-recipient rules — `Distance`, `Clades`, `Between` |
 | [`zombi2.tree`](species.md#trees) | trees — `Tree`, `Node`, `prune`, `read_newick`, and the tree-shape helpers. Its own module, documented on the species page because that is the level that grows one |

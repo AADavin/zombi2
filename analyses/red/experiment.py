@@ -7,16 +7,16 @@ substitution CV = 0.2315 (``observable.py``) — reproduce that variation in ZOM
 where truth *is* known, and grade RED there.
 
 Forward model. Simulate a dated species tree (truth); evolve it under a relaxed clock —
-``substitution = 1.0 * <clock>(dist=LogNormal(0.0, sigma))`` — and read the resulting ``species_phylogram``
+``substitution = PerSite(1.0).varying_among('lineages', <law>)`` — and read the resulting ``species_phylogram``
 (branch lengths in substitutions/site). RED of the dated tree is the ground truth (RED is exact on
 an ultrametric tree); RED of the phylogram is the estimate. Sweep ``sigma`` to trace accuracy
 (Pearson r, nRMSE) against the realized root-to-tip CV, and read off the accuracy at the CV real
 archaea actually show.
 
 Three clocks, because the *structure* of rate variation is the one thing a single CV cannot pin.
-Two are **uncorrelated** — ``Drawn(per='lineage')``, every lineage drawing its own rate
+Two are **uncorrelated** — a bare distribution, every lineage drawing its own rate
 independently, with a lognormal or a gamma tail. The third is **autocorrelated** —
-``Inherited(per='lineage')``, each lineage inheriting
+``Drift(...)``, each lineage inheriting
 its parent's rate times a draw at the split, so relatives evolve at similar rates (Thorne et al.
 1998). The CV measured on GTDB says how much variation there is, not how it is arranged; running all
 three at the same CV is what turns that ambiguity into a bound.
@@ -30,8 +30,7 @@ import numpy as np
 from scipy.stats import pearsonr
 
 from zombi2 import genomes, sequences, species
-from zombi2.rates import LogNormal, modifiers as mod
-from zombi2.rates.distributions import Gamma
+from zombi2.rates import Drift, Gamma, LogNormal, PerSite
 from zombi2.sequences import substitution_models as sm
 from zombi2.tree import read_newick
 from zombi2.tree import relative_evolutionary_divergence as red_of
@@ -43,30 +42,30 @@ HERE = pathlib.Path(__file__).parent
 N_EXTANT = 400
 REPS = 8
 
-#: clock name -> (how to build the modifier at spread sigma, the sigma grid to sweep).
+#: clock name -> (how to build the substitution rate at spread sigma, the sigma grid to sweep).
 #: The grids differ because the clocks reach a given root-to-tip variation at very different sigma: drift
 #: compounds down the tree, so the autocorrelated clock hits the GTDB CV near 0.22 where the
 #: uncorrelated ones need ~0.55. Each grid is chosen to bracket the target with room either side.
 def _gamma(s: float):
     """A gamma clock at coefficient of variation ``s``.
 
-    ``dist=`` used to take the string ``"gamma"``, where σ meant the coefficient of variation; it
+    The clock used to take the string ``"gamma"``, where σ meant the coefficient of variation; it
     now takes a distribution object, so the parameterisation is written out. A gamma of shape ``k``
     has CV ``1/sqrt(k)``, and the draw is normalised to mean 1 whatever the scale, so ``scale`` only
     has to keep the numbers in a sensible range. σ = 0 is no variation at all, which no gamma can
-    express — ``dist=LogNormal(0.0, 0.0)`` is the degenerate case the engine already short-circuits.
+    express — ``LogNormal(0.0, 0.0)`` is the degenerate case the engine already short-circuits.
     """
     if s == 0.0:
-        return mod.Drawn(per="lineage", dist=LogNormal(0.0, 0.0))
-    return mod.Drawn(per="lineage", dist=Gamma(shape=1.0 / (s * s), scale=s * s))
+        return PerSite(1.0).varying_among("lineages", LogNormal(0.0, 0.0))
+    return PerSite(1.0).varying_among("lineages", Gamma(shape=1.0 / (s * s), scale=s * s))
 
 
 CLOCKS = {
-    "lognormal":      (lambda s: mod.Drawn(per="lineage", dist=LogNormal(0.0, s)),
+    "lognormal":      (lambda s: PerSite(1.0).varying_among("lineages", LogNormal(0.0, s)),
                        np.round(np.arange(0.0, 2.001, 0.1), 3)),
     "gamma":          (_gamma,
                        np.round(np.arange(0.0, 2.001, 0.1), 3)),
-    "autocorrelated": (lambda s: mod.Inherited(per="lineage", dist=LogNormal(0.0, s)),
+    "autocorrelated": (lambda s: PerSite(1.0).varying_among("lineages", Drift(LogNormal(0.0, s))),
                        np.round(np.arange(0.0, 1.001, 0.05), 3)),
 }
 
@@ -112,7 +111,7 @@ def grade(dated, red_true, g, clock: str, spread: float, seed: int):
         return 0.0, 1.0, 0.0, (t, t.copy())
     build, _ = CLOCKS[clock]
     seqres = sequences.simulate_sequences(
-        g, model=sm.jc69(), length=1, substitution=1.0 * build(spread), seed=seed)
+        g, model=sm.jc69(), length=1, substitution=build(spread), seed=seed)
     phylo, _ = read_newick(seqres.species_phylogram["extant"])
     red_est = red_of(phylo)
     ids = [i for i in internal_nodes(dated) if i in red_est]

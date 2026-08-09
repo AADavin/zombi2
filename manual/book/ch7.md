@@ -12,8 +12,7 @@ The sequence level always follows a genome run, and takes that run's result dire
 ```python
 from zombi2 import species, genomes, sequences
 from zombi2.sequences.substitution_models import hky85
-from zombi2.rates import ScaledBy
-from zombi2.rates import modifiers as mod
+from zombi2.rates import Drift, LogNormal, PerSite
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 my_genomes = genomes.simulate_genomes_family(tree, duplication=0.2, transfer=0.1,
@@ -237,36 +236,37 @@ zombi2 sequences out/ --model hky85 --length 1000 --divergence 0.2
 The two say different things and can be given together. `substitution` says what *kind* of clock, strict or relaxed by a modifier, and `divergence` says how far it drifts, so a relaxed clock calibrated to a divergence is written with the shape alone and the scale beside it:
 
 ```python
-from zombi2.rates import LogNormal
-substitution = mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3))      # the shape: an uncorrelated clock
-divergence   = 0.2                            # the scale: 0.2 substitutions per site
+from zombi2.rates import LogNormal, PerSite
+# the shape: an uncorrelated clock, and the scale: 0.2 substitutions per site
+substitution = PerSite().varying_among('lineages', LogNormal(0.0, 0.3))
+divergence   = 0.2
 ```
 
 Giving `substitution` a base *number* as well is an error rather than an override, because the base is precisely what `divergence` solves for, and a run whose rate came from somewhere other than its own command line is a run you cannot reproduce from it. The resolved rate is written into the run log either way.
 
-A substitution rate that changes from lineage to lineage is what the field calls a **relaxed clock** [@lepage2007general]. It is not a new kind of object here: you multiply the rate by a modifier, exactly as at every other level.
+A substitution rate that changes from lineage to lineage is what the field calls a **relaxed clock** [@lepage2007general]. It is not a new kind of object here: you chain a verb onto the rate, exactly as at every other level.
 
 ```python
-from zombi2.rates.distributions import Gamma
+from zombi2.rates import Drift, Gamma, LogNormal, PerSite
 
 # strict clock: one rate everywhere; the default, so write nothing
 substitution = 1.0
 
 # relaxed: each lineage draws its own rate, independently of its neighbours
-substitution = 1.0 * mod.Drawn(per="lineage", dist=LogNormal(0.0, 0.3))                     # lognormal
-substitution = 1.0 * mod.Drawn(per="lineage", dist=Gamma(shape=4.0, scale=0.25))   # or any other
+substitution = PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3))           # lognormal
+substitution = PerSite(1.0).varying_among('lineages', Gamma(shape=4.0, scale=0.25))  # or any other
 
 # relaxed: each lineage inherits its parent's rate and drifts from it
-substitution = 1.0 * mod.Inherited(per="lineage", dist=LogNormal(0.0, 0.3))
+substitution = PerSite(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.3)))
 ```
 
-`spread` is the log-scale σ of a lognormal, the common case. `dist=` takes any distribution instead —
-and whichever you give, the draw is **normalised to mean 1**, so what a distribution contributes is
-its *shape* and the base keeps meaning the average rate.
+The **law** is the second argument, written out: `LogNormal(0.0, sigma)` for the common case, or any
+other built-in distribution — and whichever you give, the draw is **normalised to mean 1**, so what a
+distribution contributes is its *shape* and the base keeps meaning the average rate.
 
-**`Drawn(per='lineage')`** has *no memory*: each lineage is an independent draw, so a lineage's rate tells you nothing about its neighbours'. The distribution it draws from is `dist=`, written out: `LogNormal(0.0, sigma)` for the usual case, or any other built-in shape.
+**A bare distribution** has *no memory*: each lineage is an independent draw, so a lineage's rate tells you nothing about its neighbours'. It is the value each lineage gets: `LogNormal(0.0, sigma)` for the usual case, or any other built-in shape.
 
-**`Inherited(per='lineage')`** has memory: a daughter starts at its parent's rate and multiplies it by one lognormal step, so close relatives evolve at similar rates. That is the **autocorrelated** clock. Both draws are mean-corrected, so widening `spread` spreads the lineages apart without moving the average rate off the number you typed. Rate variation across sites is not a modifier, and does not belong in the rate at all: it is part of the model, as above.
+**`Drift`** has memory: a daughter starts at its parent's rate and multiplies it by one lognormal step, so close relatives evolve at similar rates. That is the **autocorrelated** clock. Both draws are mean-corrected, so widening the distribution spreads the lineages apart without moving the average rate off the number you typed. Rate variation across sites is not a modifier, and does not belong in the rate at all: it is part of the model, as above.
 
 One important point: **the clock belongs to the species tree, not to the gene trees.**
 
@@ -277,14 +277,14 @@ A reference table that can be handy to people who want to implement a specific m
 | What it does | ZOMBI2 | From the literature |
 |---|---|---|
 | one rate everywhere | `substitution = 1.0` (default) | Strict / global clock |
-| each lineage i.i.d. lognormal | `1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, …))` | Uncorrelated lognormal (UCLN) |
-| each lineage i.i.d. gamma | `1.0 * mod.Drawn(per='lineage', dist=Gamma(...))` | Uncorrelated gamma (UGAM) |
-| the rate drifts parent to daughter | `1.0 * mod.Inherited(per='lineage', dist=LogNormal(0.0, …))` | Autocorrelated lognormal |
-| the rate reads another level | `1.0 * ScaledBy(trait, {…})` | Trait-dependent rate of molecular evolution |
+| each lineage i.i.d. lognormal | `PerSite(1.0).varying_among('lineages', LogNormal(0.0, …))` | Uncorrelated lognormal (UCLN) |
+| each lineage i.i.d. gamma | `PerSite(1.0).varying_among('lineages', Gamma(...))` | Uncorrelated gamma (UGAM) |
+| the rate drifts parent to daughter | `PerSite(1.0).varying_among('lineages', Drift(LogNormal(0.0, …)))` | Autocorrelated lognormal |
+| the rate reads another level | `PerSite(1.0).scaled_by(trait, {…})` | Trait-dependent rate of molecular evolution |
 
 ### A trait can drive the rate
 
-The two clocks above make a lineage fast or slow at random. A third modifier makes it fast or slow for a *reason*: `ScaledBy` reads a trait grown first and looks the factor up from that lineage's state.
+The two clocks above make a lineage fast or slow at random. A third verb makes it fast or slow for a *reason*: `scaled_by` reads a trait grown first and looks the factor up from that lineage's state.
 
 ```python
 from zombi2 import traits
@@ -292,22 +292,22 @@ from zombi2 import traits
 habitat = traits.simulate_discrete(tree, states=["cave", "surface"], switch=0.3, seed=1)
 
 result = sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, seed=2,
-    substitution = 0.05 * ScaledBy(habitat, {"cave": 0.5, "surface": 1.0}))
+    substitution = PerSite(0.05).scaled_by(habitat, {"cave": 0.5, "surface": 1.0}))
 ```
 
 Cave lineages now evolve at half the rate of surface ones. The driver is the grown trait, or the path to the `trait_events.tsv` it wrote, the same two spellings every driven rate takes. This is conditioning, so it is two ordinary runs in order, and Chapter 9 covers the whole mechanism.
 
-A clock and a driver **compose**, because modifiers multiply. Written together, a lineage's branch length is the base rate, times the tempo it was dealt, times the factor its state gives:
+A clock and a driver **compose**, because verbs chain and their factors multiply. Written together, a lineage's branch length is the base rate, times the tempo it was dealt, times the factor its state gives:
 
 ```python
 sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, seed=2,
-    substitution = 0.05 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3))
-                        * ScaledBy(habitat, {"cave": 0.5, "surface": 1.0}))
+    substitution = PerSite(0.05).varying_among('lineages', LogNormal(0.0, 0.3))
+                                .scaled_by(habitat, {"cave": 0.5, "surface": 1.0}))
 ```
 
 A discrete trait switches partway along a branch, and ZOMBI2 does not read the driver once per branch. It integrates the rate across the branch, breaking at each switch. A lineage that leaves the cave halfway down a branch of length 2 accrues `0.05 × 0.5 × 1` substitutions per site before the move and `0.05 × 1.0 × 1` after it, so the branch is `0.075` long rather than `0.05` or `0.1`. The gene phylograms and the clock species tree carry that same number, so the tree a run writes is the tree its alignments were drawn along.
 
-The reverse direction runs too: `result.gc()` makes a finished run's GC content drive a trait grown after it, or a further sequence run, and `result.composition(letters)` does the same for any letters of the run's alphabet, an amino-acid frequency say (Chapter 9). What the pair cannot be is **joined**, because a sequence lives inside a gene and never feeds back into the trait, so there is nothing for the two to decide together. Naming a live level (`ScaledBy("trait", …)`) says so rather than looking for a file. One other limit here: `divergence` is refused alongside a driven rate, because it solves for the base by assuming the modifiers average to 1, which the two clocks are corrected to do and a driver is not. Set the base yourself there.
+The reverse direction runs too: `result.gc()` makes a finished run's GC content drive a trait grown after it, or a further sequence run, and `result.composition(letters)` does the same for any letters of the run's alphabet, an amino-acid frequency say (Chapter 9). What the pair cannot be is **joined**, because a sequence lives inside a gene and never feeds back into the trait, so there is nothing for the two to decide together. Naming a live level (`scaled_by("trait", …)`) says so rather than looking for a file. One other limit here: `divergence` is refused alongside a driven rate, because it solves for the base by assuming the modifiers average to 1, which the two clocks are corrected to do and a driver is not. Set the base yourself there.
 
 ## The objects
 
@@ -334,7 +334,7 @@ from zombi2.sequences.substitution_models import gtr
 # GTR with unequal base frequencies, under a relaxed (uncorrelated) clock
 result = sequences.simulate_sequences(my_genomes,
     model=gtr(exchangeabilities=(1, 2, 1, 1, 2, 1), frequencies=(0.3, 0.2, 0.2, 0.3)),
-    substitution=1.0 * mod.Drawn(per='lineage', dist=LogNormal(0.0, 0.3)),
+    substitution=PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3)),
     length=500, seed=1)
 
 result.alignments          # {family: {gene copy: sequence}}, the observable data
@@ -423,7 +423,7 @@ zombi2 sequences seqs/ --from out/ --model hky85 --kappa 2.0 \
 # GTR with unequal frequencies under a relaxed clock, also writing the ancestral sequences
 zombi2 sequences seqs/ --from out/ --model gtr \
     --frequencies 0.3 0.2 0.2 0.3 \
-    --substitution "1.0 * Drawn(per='lineage', dist=LogNormal(0.0, 0.3))" \
+    --substitution "PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3))" \
     --seed 1 --write alignments phylograms species_phylogram summary ancestral
 ```
 

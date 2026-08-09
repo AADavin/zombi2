@@ -33,9 +33,11 @@ By default, this is the scope ZOMBI2 uses at each level:
 | Sequences | site | `substitution` (times a clock) |
 | Traits | lineage | `rate` (continuous), `switch` (discrete) |
 
-A bare number takes the default. Writing the default wrapper explicitly is accepted at every level
-but one: a discrete trait's `switch` takes a number, a `{'from->to': rate}` dict or a matrix, and a
-bare `PerLineage(0.5)` is none of those.
+A bare number takes the default, and writing the default scope explicitly is accepted at every
+level. A discrete trait's `switch` also takes two shapes that are not a single rate: a
+`{'from->to': rate}` dict, whose values are rates in either spelling, and a `k×k` matrix, whose
+entries are plain numbers — every entry there is counted per lineage, so a cell has no scope of its
+own to write.
 
 Three levels accept more than their default, and each extra scope is a different model rather than a
 different spelling:
@@ -58,19 +60,17 @@ rate says how often a lineage does the thing and the extent says how much DNA it
 
 ```python
 from zombi2 import species
-from zombi2.rates import scope
+from zombi2.rates import Global
 
 # a death rate applied to the whole tree at once, not once per lineage
-species.simulate_species_tree(birth=1.0, death=scope.Global(0.3), total_time=8.0, seed=2)
+species.simulate_species_tree(birth=1.0, death=Global(0.3), total_time=8.0, seed=2)
 ```
 
 `Global(x)` detaches the rate from the amount of material present, so a `Global` death rate does not
-grow as the tree does. The wrappers are `Global`, `PerLineage`, `PerCopy`, `PerSite` and
+grow as the tree does. The scopes are `Global`, `PerLineage`, `PerCopy`, `PerSite` and
 `PerChromosome`. Everywhere else — and for every scope but `Global` at the species level — a rate
 handed a scope other than the one in the table above is refused, and the error names the scope that
-level takes — except on a discrete trait's `switch`, where a bare wrapper is turned away by the shape
-check instead and the message is about the shapes `switch` accepts. No other scope is implemented
-anywhere.
+level takes. No other scope is implemented anywhere.
 
 ## Bending a rate: modifiers
 
@@ -81,30 +81,30 @@ ribosomal-protein family the opposite.
 
 The modifiers are:
 
-| Modifier | What it does to the rate |
+| Verb | What it does to the rate |
 |---|---|
-| `OnTime` | Follows a **time schedule**: one factor up to a breakpoint, another after it. |
-| `OnTotalDiversity` | **Slows as the tree fills up**: the factor falls from 1 toward 0 as the number of lineages approaches a carrying capacity, and stays there. |
-| `Inherited(per='lineage')` | Is **inherited from the parent lineage and nudged at each split**, so the rate drifts gradually down the tree and close relatives keep similar rates. |
-| `Drawn(per='lineage')` | Is an **independent draw for each lineage**, with no memory of its parent, so nearby branches are no more alike than distant ones. |
-| `Drawn(per='family')` | Is an **independent draw for each gene family**, so one family is prone to transfer and another is not, whatever lineage either sits in. |
-| `ScaledBy` | **Reads an evolved value**: the factor is looked up from a driver's state, either another level or another run of the same one, which is how one thing conditions another (Chapter 9). |
-| `SetBy` | **Replaces the base** instead of multiplying it: the mapping gives the rate itself, in the rate's own units, so nothing is written in front of it. It reads a driver just as `ScaledBy` does, the scope still applies, and a rate carries one. |
+| `changing_at` | Follows a **time schedule**: one factor up to a breakpoint, another after it. |
+| `scaled_by(TotalDiversity(cap=...))` | **Slows as the tree fills up**: the factor falls from 1 toward 0 as the number of lineages approaches a carrying capacity, and stays there. |
+| `varying_among('lineages', Drift(...))` | Is **inherited from the parent lineage and nudged at each split**, so the rate drifts gradually down the tree and close relatives keep similar rates. |
+| `varying_among('lineages', ...)` | Is an **independent draw for each lineage**, with no memory of its parent, so nearby branches are no more alike than distant ones. |
+| `varying_among('families', ...)` | Is an **independent draw for each gene family**, so one family is prone to transfer and another is not, whatever lineage either sits in. |
+| `scaled_by(driver, mapping)` | **Reads an evolved value**: the factor is looked up from a driver's state, either another level or another run of the same one, which is how one thing conditions another (Chapter 9). |
+| `set_by(driver, mapping)` | **Replaces the base** instead of multiplying it: the mapping gives the rate itself, in the rate's own units, so nothing is written in front of it. It reads a driver just as `scaled_by` does, the scope still applies, and a rate carries one. |
 
-The first two are **deterministic**: `OnTime` and `OnTotalDiversity` are fixed functions of the state of
+The first two are **deterministic**: the clock and standing diversity are fixed functions of the state of
 the world, so every lineage that meets the same time, or the same diversity, gets the same factor. The
-next two are **random and vary from lineage to lineage**, and they differ in *memory*: `Inherited(per='lineage')` is
+next two are **random and vary from lineage to lineage**, and they differ in *memory*: a `Drift` law is
 passed down and drifts, so the rate is autocorrelated along the tree, a slowly wandering clock or a
-clade that inherits a fast tempo, whereas `Drawn(per='lineage')` is drawn afresh on every branch, so the variation
-is scattered, an uncorrelated ("relaxed") clock. `Drawn(per='family')` is the same independent draw made over gene
+clade that inherits a fast tempo, whereas a bare distribution is drawn afresh on every branch, so the variation
+is scattered, an uncorrelated ("relaxed") clock. `varying_among('families', ...)` is the same independent draw made over gene
 families rather than lineages, so it varies what a family does wherever it sits. All three random
-modifiers are **mean-corrected**, meaning their factors average to 1, so a lineage is no likelier to be
+laws are **mean-corrected**, meaning their factors average to 1, so a lineage is no likelier to be
 sped up than slowed down.
 
 Be careful about what that does and does not buy you. It fixes the *factor*, not the *tree*. A birth
 rate that drifts is multiplicative, and a branching process is convex in its rate: the fast lineages
 branch, and their descendants inherit the fast tempo, so they come to dominate the tree while the slow
-ones contribute almost nothing. Standing diversity therefore **rises** as you turn `spread` up, even
+ones contribute almost nothing. Standing diversity therefore **rises** as you widen the distribution, even
 though every individual factor averages to 1, and at moderate spread a run can grow explosively enough
 to hit the `max_lineages` guard. Mean-correcting keeps the rate honest per lineage; it does not hold
 `E[N(t)]` fixed, and nothing could. A driven factor is neither random nor corrected: it is whatever
@@ -112,50 +112,59 @@ the driver's state says it is. A driver need not come from another level: `Clade
 "n27"]})` names a subtree by its tips, or by a node id, and reads membership off the tree the run is
 already walking, with every unnamed lineage in `"rest"`. A driver is not confined to a rate: the same
 factor multiplies an **extent** at the ordered and nucleotide resolutions. An extent takes only
-`OnTime` and `ScaledBy` — a per-family draw has no one family to read (a run covers several), and
-`SetBy` has no base to replace. Drivers also go on `transfer_to`, written `Weights` rather than
-`ScaledBy` because there the numbers are normalised **weights** over the candidate recipients,
-compared against each other, with no base in front of them (Chapter 9).
+`changing_at` and `scaled_by` — a per-family draw has no one family to read (a run covers several), and
+`set_by` has no base to replace. Drivers also go on `transfer_to`, written
+`Recipients().weighted_by(driver, mapping)` rather than `scaled_by` because there the numbers are
+normalised **weights** over the candidate recipients, compared against each other, with no base in
+front of them (Chapter 9).
 
-**How wide the variation is, and what shape it takes.** A drawn or inherited value takes `dist=`, the
-distribution written out — any built-in one, so `Drawn(per='family', dist=Gamma(shape=4.0,
-scale=0.25))` gives the draws a gamma's shape and `dist=LogNormal(0.0, 0.5)` the usual lognormal.
+**How wide the variation is, and what shape it takes.** The **law** is `varying_among`'s second
+argument, the distribution written out — any built-in one, so `varying_among('families',
+Gamma(shape=4.0, scale=0.25))` gives the draws a gamma's shape and `varying_among('families',
+LogNormal(0.0, 0.5))` the usual lognormal.
 
-Read the keyword together with the class, because the distribution describes a different quantity in
-each: under `Drawn` it is the **value** each unit gets, and under `Inherited` it is the **step** taken
+Read the law together with what wraps it, because the distribution describes a different quantity in
+each: written bare it is the **value** each unit gets, and inside `Drift` it is the **step** taken
 at every split, which accumulates down the tree. That is why there is no short spelling. The retired
 `spread=σ` named both of those with one word and said nothing about which distribution it meant.
 
 Whatever the distribution, the draw is divided by its own mean, so what it contributes is its shape
-and not where it sits — `Exponential(1.0)` and `Exponential(7.0)` are the same modifier.
+and not where it sits — `Exponential(1.0)` and `Exponential(7.0)` are the same law.
 
-`Inherited` takes one more, `bins=`. With it the value moves in **steps** rather than continuously:
+`Drift` takes one more, `bins=`. With it the value moves in **steps** rather than continuously:
 it takes one of `bins` values on a log-spaced ladder, and a daughter moves to a neighbouring rung or
-stays. `Inherited(per='lineage', dist=LogNormal(0.0, 0.45), bins=6)` is the discrete-bin clock, where a clade's
+stays. `varying_among('lineages', Drift(LogNormal(0.0, 0.45), bins=6))` is the discrete-bin clock, where a clade's
 rate is one of a handful rather than anything at all.
 
-Modifiers **stack by multiplication**, so they combine: `1.0 * mod.OnTime({0: 1, 5: 0.3}) *
-mod.Inherited(per='lineage', dist=LogNormal(0.0, 0.3))` is a rate that both follows a schedule and drifts between lineages.
+Verbs **chain, and their factors multiply**, so they combine: `PerLineage(1.0).changing_at({0: 1, 5: 0.3})
+.varying_among('lineages', Drift(LogNormal(0.0, 0.3)))` is a rate that both follows a schedule and drifts between lineages.
 
 ### Which level accepts which
 
 A modifier only makes sense where the level can act on it, and a level **rejects** one it does not
-accept rather than silently ignoring it. `SetBy` is listed separately from `ScaledBy` even though both
+accept rather than silently ignoring it. `set_by` is listed separately from `scaled_by` even though both
 read a driver, because replacing a base is a capability an engine has or has not: the three levels
 below can do it and the rest refuse. This is what each accepts today:
 
-| Level | The modifiers it accepts |
+| Level | The verbs it accepts |
 |---|---|
-| Species | `OnTime` · `OnTotalDiversity` · `inherited per lineage` · `drawn per lineage` |
-| Genomes, family and ordered | `OnTime` · `ScaledBy` · `SetBy` · `drawn per family` |
-| Genomes, nucleotide | `OnTime` · `ScaledBy` |
-| Sequences | `drawn per lineage` · `inherited per lineage` · `ScaledBy` |
-| Traits, continuous `rate` | `OnTime` · `inherited per lineage` · `OnTotalDiversity` · `ScaledBy` · `SetBy` |
-| Traits, discrete `switch` | `ScaledBy` |
-| Joint, `birth` / `death` | `OnTime` · `OnTotalDiversity` · `ScaledBy` |
+| Species | `changing_at` · `scaled_by(TotalDiversity(...))` · `varying_among('lineages', Drift(...))` · `varying_among('lineages', ...)` |
+| Genomes, family and ordered | `changing_at` · `scaled_by` · `set_by` · `varying_among('families', ...)` |
+| Genomes, nucleotide | `changing_at` · `scaled_by` |
+| Sequences | `varying_among('lineages', ...)` · `varying_among('lineages', Drift(...))` · `scaled_by` |
+| Traits, continuous `rate` | `changing_at` · `varying_among('lineages', Drift(...))` · `scaled_by(TotalDiversity(...))` · `scaled_by` · `set_by` |
+| Traits, discrete `switch` | `scaled_by` |
+| Joint, `birth` / `death` | `changing_at` · `scaled_by(TotalDiversity(...))` · `scaled_by` |
 
-`zombi2 <command> -h` prints the same list for that command, read from the engine itself, so the two
-cannot disagree, and a test asserts this table against them.
+Each entry is written the way you would type it, with `...` standing for the argument you choose — a
+distribution, a carrying capacity. The two `varying_among` entries are one verb and differ in their
+law: `Drift(...)` is the value inherited from the parent, a bare distribution the value drawn afresh.
+
+`zombi2 <command> -h` lists a level's modifiers under "Modifiers this level takes", in these same
+words: the help is built from the level's own declaration, and a test checks this table against that
+same declaration, so neither can drift from it. Two commands cover two rows each — `genomes` at
+`--resolution nucleotide`, and `traits` on `--switch` — and for those the help gives the second row
+in the note under the list rather than as a list of its own.
 
 A modifier missing from a row is one that level does not read **yet**. It is not a claim that the
 combination would be meaningless; each engine gains a modifier when its own code learns to read it, and
@@ -192,7 +201,7 @@ only the modifiers that name it and refuses the rest. The engine names are `spec
 `genomes.family`, `genomes.ordered`, `genomes.nucleotide`, `traits.continuous`, `traits.discrete`
 and `joint`.
 
-Here is a complete one. `OnTotalDiversity` makes speciation *slow down* as lineages pile up. This
+Here is a complete one. `TotalDiversity` makes speciation *slow down* as lineages pile up. This
 makes extinction *speed up* instead, which is the other half of the same idea and something no
 shipped modifier can say:
 
@@ -211,11 +220,17 @@ class OnCrowding(Modifier):
         return 1.0 + diversity / self.crowd
 ```
 
-That is the whole modifier. Use it the way you use a shipped one, by multiplying it onto a rate:
+That is the whole modifier. The verbs build the shipped ones, so there is no verb that attaches one
+of yours; build the rate from `Rate` instead, giving it the base, the scope class, and the modifiers
+in the order they should be drawn in:
 
 ```python
+from zombi2.rates import PerLineage
+from zombi2.rates.rate import Rate
+
 plain   = species.simulate_species_tree(birth=1.0, death=0.2, total_time=6, seed=3)
-crowded = species.simulate_species_tree(birth=1.0, death=0.2 * OnCrowding(crowd=50),
+crowded = species.simulate_species_tree(birth=1.0,
+                                        death=Rate(0.2, PerLineage, (OnCrowding(crowd=50),)),
                                         total_time=6, seed=3)
 
 print(len(plain.complete_tree.extant_leaves()))     # 290 lineages survive
@@ -357,7 +372,7 @@ plain Python.
 The loop above assumes the rates hold still *between* events, so that a single $\text{Exponential}(R)$
 draw lands exactly on the next event. That holds whenever the rates depend only on the current state,
 which changes only when an event fires. But some rates move with the clock itself, even while nothing is
-happening: an `OnTime` schedule steps at fixed breakpoints, a scheduled mass extinction arrives at a set
+happening: a `changing_at` schedule steps at fixed breakpoints, a scheduled mass extinction arrives at a set
 time, and a driven rate follows a driver that changes state on its own timetable. Now $R$ is a moving
 target, and a draw at today's $R$ would be wrong.
 

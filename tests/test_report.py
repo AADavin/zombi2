@@ -16,6 +16,24 @@ from zombi2.cli.main import main
 _LEVELS = ("species", "genomes", "sequences", "traits")
 
 
+def _reproduce_commands(run) -> list[str]:
+    """The commands TO REPRODUCE prints for a run, in the order it prints them."""
+    block = (run / RUN_REPORT_NAME).read_text(encoding="utf-8").split("TO REPRODUCE")[1]
+    return [line.strip() for line in block.splitlines() if line.strip().startswith("zombi2 ")]
+
+
+def _replay(commands: list[str], was, now) -> list[str]:
+    """Run each printed command against a fresh run directory, exactly as pasted except that every
+    mention of the old directory becomes the new one — inside a rate expression as well as on its
+    own, so a conditioned run reads the driver *this* replay wrote. Returns the levels, in order."""
+    levels = []
+    for line in commands:
+        argv = [token.replace(str(was), str(now)) for token in shlex.split(line)[1:]]
+        assert main(argv) == 0, f"a reproduce command failed: {line}"
+        levels.append(argv[0])
+    return levels
+
+
 def _pipeline(run, *, kind: str = "continuous") -> None:
     """A small four-level run into ``run`` (grouped layout), fast enough for a test."""
     main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1"])
@@ -83,15 +101,7 @@ def test_the_reproduce_block_actually_reproduces(tmp_path):
     succeeds and lands the same tree — the reproduce block is a promise, so it is executed here."""
     a, b = tmp_path / "a", tmp_path / "b"
     _pipeline(a)
-    ran = 0
-    for raw in (a / RUN_REPORT_NAME).read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line.startswith("zombi2 "):
-            continue
-        argv = [str(b) if tok == str(a) else tok for tok in shlex.split(line)[1:]]
-        assert main(argv) == 0, f"a reproduce command failed: {line}"
-        ran += 1
-    assert ran == 4, "expected one reproduce command per level"
+    assert len(_replay(_reproduce_commands(a), a, b)) == 4, "expected one reproduce command per level"
     for level in _LEVELS:                                       # deterministic: same seed, same output
         for name in os.listdir(a / level):
             if name.endswith(".nwk"):
@@ -179,7 +189,8 @@ def test_empty_genomes_is_reported_only_when_it_happened():
 
 
 def test_a_joint_run_reports_species_and_its_driver(tmp_path):
-    main(["joint", str(tmp_path), "--birth", "1.0 * ScaledBy('trait', {'a': 1.0, 'b': 2.0})",
+    main(["joint", str(tmp_path), "--birth",
+          "PerLineage(1.0).scaled_by('trait', {'a': 1.0, 'b': 2.0})",
           "--death", "0.2", "--states", "a,b", "--switch", "0.3", "--n-extant", "20", "--seed", "1"])
     text = (tmp_path / RUN_REPORT_NAME).read_text(encoding="utf-8")
     assert "JOINT" in text and "driven by a trait" in text
@@ -204,11 +215,166 @@ def test_the_reproduce_block_runs_a_driver_before_what_it_drives(tmp_path):
     driver = run / "traits" / "trait_events.tsv"
     assert main(["sequences", str(run), "--model", "jc69", "--length", "100", "--seed", "1", "--quiet",
                  "--substitution",
-                 f"0.05 * ScaledBy('{driver}', {{'cave': 0.5, 'surface': 1.0}})"]) == 0
+                 f"PerSite(0.05).scaled_by('{driver}', {{'cave': 0.5, 'surface': 1.0}})"]) == 0
 
-    block = (run / "run.zombi2").read_text(encoding="utf-8").split("TO REPRODUCE")[1]
-    commands = [ln.strip() for ln in block.splitlines() if ln.strip().startswith("zombi2 ")]
-    levels = [c.split()[1] for c in commands]
+    levels = [shlex.split(c)[1] for c in _reproduce_commands(run)]
     assert levels.index("traits") < levels.index("sequences"), levels
     # the pipeline order of the untangled part is untouched
     assert levels.index("species") < levels.index("genomes") < levels.index("traits")
+
+
+def test_promoting_a_driver_does_not_push_a_level_past_what_replays_it(tmp_path):
+    """Promoting a driver has to keep the ordinary pipeline dependencies too.
+
+    A `sequences` run replays the `genomes` run before it. When the trait driving `genomes` was
+    promoted above it, `genomes` went with it — past `sequences`, which then came second and died
+    with "holds no genomes run". Ordering on the ``conditioned_on`` marker could not see that edge:
+    the marker names the levels a run is conditioned on and nothing else."""
+    a, b = tmp_path / "a", tmp_path / "b"
+    driver = a / "traits" / "habitat" / "trait_events.tsv"
+    assert main(["species", str(a), "--birth", "1", "--death", "0.2", "--n-extant", "10",
+                 "--seed", "1", "--quiet"]) == 0
+    assert main(["traits", str(a), "--kind", "discrete", "--name", "habitat", "--states",
+                 "aquatic,terrestrial", "--switch", "0.4", "--seed", "1", "--quiet"]) == 0
+    assert main(["genomes", str(a), "--initial-families", "5", "--duplication", "0.15",
+                 "--transfer", f"PerCopy(0.2).scaled_by('{driver}', {{'aquatic': 3.0}})",
+                 "--seed", "5", "--quiet"]) == 0
+    assert main(["sequences", str(a), "--model", "jc69", "--length", "40", "--seed", "9",
+                 "--quiet"]) == 0
+
+    commands = _reproduce_commands(a)
+    assert [shlex.split(c)[1] for c in commands] == ["species", "traits", "genomes", "sequences"]
+    assert _replay(commands, a, b) == ["species", "traits", "genomes", "sequences"]
+
+
+def test_a_trait_driven_by_a_trait_reproduces_with_the_driver_first(tmp_path):
+    """Two named traits, one driving the other, both under ``traits/``. The levels are the same, so
+    only the directory each wrote says which is the driver — which is why the order is taken from the
+    files each run recorded reading rather than from the level names."""
+    a, b = tmp_path / "a", tmp_path / "b"
+    driver = a / "traits" / "habitat" / "trait_events.tsv"
+    assert main(["species", str(a), "--birth", "1", "--death", "0.3", "--n-extant", "12",
+                 "--seed", "1", "--quiet"]) == 0
+    assert main(["traits", str(a), "--kind", "discrete", "--name", "habitat", "--states",
+                 "aquatic,terrestrial", "--switch", "0.4", "--seed", "1", "--quiet"]) == 0
+    assert main(["traits", str(a), "--kind", "discrete", "--name", "diet", "--states", "plant,fish",
+                 "--switch", f"PerLineage(0.2).scaled_by('{driver}', {{'aquatic': 5.0}})",
+                 "--seed", "2", "--quiet"]) == 0
+
+    commands = _reproduce_commands(a)
+    named = [c.split("--name ")[1].split()[0] for c in commands if "--name " in c]
+    assert named == ["habitat", "diet"], commands
+    _replay(commands, a, b)
+
+
+def test_the_rate_units_line_states_the_scope_the_run_wrote(tmp_path):
+    """The units block answers "per what?" for a reader handed the folder long after the CLI help.
+
+    It used to be a fixed slot → unit table, which since scope overrides landed contradicted the
+    parameters line two lines above it: ``loss PerLineage(0.4)`` was reported per gene copy, and a
+    ``Global`` birth per lineage."""
+    genomes = tmp_path / "genomes-run"
+    main(["species", str(genomes), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "--quiet"])
+    main(["genomes", str(genomes), "--resolution", "ordered", "--initial-families", "5",
+          "--duplication", "0.2", "--loss", "PerLineage(0.4)", "--inversion", "PerLineage(0.3)",
+          "--origination", "0.5", "--chromosomes", "2", "--seed", "5", "--quiet"])
+    text = " ".join((genomes / RUN_REPORT_NAME).read_text(encoding="utf-8").split())
+    assert "per lineage origination, loss, inversion" in text
+    assert "per gene copy duplication" in text          # the one left on its default is unmoved
+
+    shared = tmp_path / "global-run"
+    main(["species", str(shared), "--birth", "Global(1.0)", "--total-time", "6", "--seed", "1",
+          "--quiet"])
+    text = " ".join((shared / RUN_REPORT_NAME).read_text(encoding="utf-8").split())
+    assert "for the whole tree birth" in text           # Global is not a "per" at all
+
+
+def test_the_rate_units_line_follows_the_resolution(tmp_path):
+    """The nucleotide resolution counts a gene event per lineage — the rate says how often a lineage
+    does it and the extent how much DNA it moves — where family and ordered count it per gene copy.
+    Nothing is written on the command line either way, so the report has to know the difference."""
+    main(["species", str(tmp_path), "--birth", "1", "--death", "0.3", "--n-extant", "6", "--seed", "1",
+          "--quiet"])
+    main(["genomes", str(tmp_path), "--resolution", "nucleotide", "--root-length", "400",
+          "--duplication", "0.1", "--loss", "0.1", "--origination", "0.3", "--fission", "0.05",
+          "--seed", "3", "--quiet"])
+    text = " ".join((tmp_path / RUN_REPORT_NAME).read_text(encoding="utf-8").split())
+    assert "per lineage origination, duplication, loss" in text
+    assert "per chromosome fission" in text
+    assert "per gene copy duplication" not in text      # what the fixed table used to say here
+
+
+def test_a_matrix_switch_reproduces_as_one_argument(tmp_path):
+    """A k×k ``--switch`` is one expression. It was flattened into four bare numbers — written for a
+    multi-value flag like ``--frequencies`` — which argparse rejects as unrecognised arguments."""
+    a, b = tmp_path / "a", tmp_path / "b"
+    main(["species", str(a), "--birth", "1", "--death", "0.3", "--n-extant", "10", "--seed", "1",
+          "--quiet"])
+    main(["traits", str(a), "--kind", "discrete", "--states", "x,y", "--switch",
+          "[[0, 0.4], [0.1, 0]]", "--seed", "4", "--quiet"])
+    _replay(_reproduce_commands(a), a, b)
+    assert (a / "traits" / "trait_values.tsv").read_bytes() == \
+           (b / "traits" / "trait_values.tsv").read_bytes()
+
+
+def test_a_repeated_flag_reproduces_once_per_group(tmp_path):
+    """``--mass-extinction TIME FRACTION`` takes two values and is given again for the next pulse, so
+    its logged list of pairs goes back as one flag per pair. Run together on one flag, argparse takes
+    the first pair and calls the rest unrecognised. A genuine multi-value flag still runs together."""
+    a, b = tmp_path / "a", tmp_path / "b"
+    main(["species", str(a), "--birth", "1.5", "--death", "0.2", "--total-time", "5",
+          "--mass-extinction", "2.0", "0.5", "--mass-extinction", "4.0", "0.4", "--seed", "3",
+          "--quiet"])
+    main(["genomes", str(a), "--initial-families", "3", "--duplication", "0.1", "--seed", "1",
+          "--quiet"])
+    main(["sequences", str(a), "--model", "hky85", "--length", "30", "--frequencies", "0.3", "0.2",
+          "0.2", "0.3", "--seed", "1", "--quiet"])
+    commands = _reproduce_commands(a)
+    printed = {shlex.split(c)[1]: c for c in commands}
+    assert "--mass-extinction 2.0 0.5 --mass-extinction 4.0 0.4" in printed["species"]
+    assert "--frequencies 0.3 0.2 0.2 0.3" in printed["sequences"]   # one flag, four values, unchanged
+    _replay(commands, a, b)
+    assert (a / "species" / "species_complete.nwk").read_bytes() == \
+           (b / "species" / "species_complete.nwk").read_bytes()
+
+
+def test_a_clock_calibrated_by_divergence_keeps_its_shape(tmp_path):
+    """``--divergence`` sets the *scale* of the clock ``--substitution`` gives the shape of.
+
+    The report dropped the substitution outright whenever divergence was set, so the block it printed
+    rebuilt a strict-clock run — a relaxed clock quietly becoming a strict one, through the record
+    rather than through the engine. The solved rate the log keeps is no use either: ``--divergence``
+    refuses a substitution that names a base, so only the shape goes back in."""
+    a, b = tmp_path / "a", tmp_path / "b"
+    shape = "PerSite().varying_among('lineages', LogNormal(0.0, 0.3))"
+    main(["species", str(a), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "--quiet"])
+    main(["genomes", str(a), "--initial-families", "5", "--duplication", "0.2", "--seed", "1",
+          "--quiet"])
+    main(["sequences", str(a), "--model", "jc69", "--length", "40", "--divergence", "0.2",
+          "--substitution", shape, "--seed", "9", "--quiet"])
+    text = (a / RUN_REPORT_NAME).read_text(encoding="utf-8")
+    assert shape in text, "the report never says which clock the run used"
+    commands = _reproduce_commands(a)
+    printed = {shlex.split(c)[1]: c for c in commands}
+    assert "--substitution" in printed["sequences"], printed["sequences"]
+    _replay(commands, a, b)
+    for name in ("clock_species_tree_complete.nwk", "clock_species_tree_extant.nwk"):
+        assert (a / "sequences" / name).read_bytes() == (b / "sequences" / name).read_bytes(), \
+            f"the reproduced run has a different {name}, so it ran a different clock"
+
+
+def test_a_strict_clock_calibrated_by_divergence_prints_only_the_divergence(tmp_path):
+    """The other half: with no shape to keep, the substitution rate *is* the number divergence solved
+    for, so the flag alone rebuilds the run and printing the solved rate beside it would be refused."""
+    main(["species", str(tmp_path), "--birth", "1", "--death", "0.3", "--n-extant", "8", "--seed", "1",
+          "--quiet"])
+    main(["genomes", str(tmp_path), "--initial-families", "4", "--duplication", "0.2", "--seed", "1",
+          "--quiet"])
+    main(["sequences", str(tmp_path), "--model", "jc69", "--length", "30", "--divergence", "0.2",
+          "--seed", "9", "--quiet"])
+    text = (tmp_path / RUN_REPORT_NAME).read_text(encoding="utf-8")
+    assert "--divergence 0.2" in text
+    assert "--substitution" not in text                 # nothing for the flag to take
+    assert "PerSite(" not in text                       # nor the solved rate on the parameters line

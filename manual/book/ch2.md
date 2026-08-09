@@ -55,40 +55,40 @@ Appendix A is the full rate reference, with the units, each level's default scop
 
 ## Modifiers
 
-The base of a rate says how fast. A modifier says **what it depends on**:
+The base of a rate says how fast. A **verb** chained onto the rate says **what it depends on**:
 
-| Modifier | The rate depends on | Written |
+| Verb | The rate depends on | Written |
 |---|---|---|
-| `OnTime` | the clock: a schedule of intervals | `OnTime({0: 1.0, 3: 0.3})` |
-| `OnTotalDiversity` | how many lineages are standing right now | `OnTotalDiversity(cap=100)` |
-| `Inherited(per='lineage')` | the parent's value, drifting at each split | `Inherited(per='lineage', dist=LogNormal(0.0, 0.3))` |
-| `Drawn(per='lineage')` | the lineage, drawn independently | `Drawn(per='lineage', dist=LogNormal(0.0, 0.3))` |
-| `Drawn(per='family')` | the gene family, drawn independently | `Drawn(per='family', dist=LogNormal(0.0, 0.5))` |
-| `ScaledBy` | **a driver**: a trait's state, a gene's presence | `ScaledBy(habitat, {'aquatic': 4.0, 'terrestrial': 1.0})` |
+| `changing_at` | the clock: a schedule of intervals | `PerLineage(0.5).changing_at({0: 1.0, 3: 0.3})` |
+| `scaled_by` | how many lineages are standing right now | `PerLineage(1.0).scaled_by(TotalDiversity(cap=100))` |
+| `varying_among` | the parent's value, drifting at each split | `PerSite(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.3)))` |
+| `varying_among` | the lineage, drawn independently | `PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3))` |
+| `varying_among` | the gene family, drawn independently | `PerCopy(0.25).varying_among('families', LogNormal(0.0, 0.5))` |
+| `scaled_by` | **a driver**: a trait's state, a gene's presence | `PerCopy(0.25).scaled_by(habitat, {'aquatic': 4.0, 'terrestrial': 1.0})` |
 
 Each is a dimensionless multiplier, so they multiply, and a rate can carry several:
 
 ```python
-from zombi2.rates import Drawn, LogNormal, OnTime
+from zombi2.rates import LogNormal, PerCopy
 
 # loss triples after time 2, and varies from family to family on top of that
-loss = 0.25 * OnTime({0: 1.0, 2: 3.0}) * Drawn(per='family', dist=LogNormal(0.0, 0.5))
+loss = PerCopy(0.25).changing_at({0: 1.0, 2: 3.0}).varying_among('families', LogNormal(0.0, 0.5))
 ```
 
 Much of what the literature names as a model is one modifier on one rate:
 
 | What it is usually called | What it is here |
 |---|---|
-| skyline / episodic birth–death | `OnTime` on `birth` |
-| diversity-dependent diversification | `OnTotalDiversity` on `birth` |
-| uncorrelated ("relaxed") molecular clock | `Drawn(per='lineage')` on `substitution` |
-| autocorrelated clock | `Inherited(per='lineage')` on `substitution` |
-| rate heterogeneity across gene families | `Drawn(per='family')` on a genome rate |
-| state-dependent diversification (BiSSE and kin) | `ScaledBy` on `birth`, in a joint run |
+| skyline / episodic birth–death | `changing_at` on `birth` |
+| diversity-dependent diversification | `scaled_by(TotalDiversity(...))` on `birth` |
+| uncorrelated ("relaxed") molecular clock | `varying_among('lineages', ...)` on `substitution` |
+| autocorrelated clock | `varying_among('lineages', Drift(...))` on `substitution` |
+| rate heterogeneity across gene families | `varying_among('families', ...)` on a genome rate |
+| state-dependent diversification (BiSSE and kin) | `scaled_by` on `birth`, in a joint run |
 
 None of those is a separate code path with its own function and its own parameters. They are the same grammar pointed at different rates, which is why they combine: a relaxed clock *and* an early burst is one rate with two modifiers, not two models.
 
-Not every modifier is available at every level. Some combinations mean nothing, since a species tree has no gene families for `Drawn(per='family')` to vary over, and others are simply not implemented yet. Either way the level refuses the rate and says which modifiers it does take, rather than ignoring it. `zombi2 <command> -h` lists them for that level, Appendix A gives the full table, and if none of the six says what your rate depends on, Appendix A also shows how to write one.
+Not every modifier is available at every level. Some combinations mean nothing, since a species tree has no gene families for `varying_among('families', ...)` to vary over, and others are simply not implemented yet. Either way the level refuses the rate and says which modifiers it does take, rather than ignoring it. `zombi2 <command> -h` lists them for that level, Appendix A gives the full table, and if none of the six says what your rate depends on, Appendix A also shows how to write one.
 
 ## Conditioning
 
@@ -96,8 +96,8 @@ Running the levels in sequence already makes each one depend on the tree. Someti
 
 - the **driver**, the value that is read: a trait's state, a gene family's presence, a sequence's GC content.
 - the **target**, what the value is attached to: a rate, or, at the genome level, an **extent** (how much an event takes) or the **transfer recipient** (which lineage a transfer goes to: Chapter 9).
-- the **modifier** that joins them, named for what the value does: `ScaledBy` multiplies a rate or an extent, `Weights` compares candidate recipients, `SetBy` replaces the base.
-- the **mapping** the modifier carries, which says what each value of the driver becomes: a table over named states, a curve over a number.
+- the **verb** that joins them, named for what the value does: `scaled_by` multiplies a rate or an extent, `weighted_by` compares candidate recipients, `set_by` replaces the base.
+- the **mapping** the verb carries, which says what each value of the driver becomes: a table over named states, a curve over a number.
 
 Take olfactory genes. A habitat trait switches between aquatic and terrestrial along the tree, and aquatic lineages lose those genes four times faster. The habitat is the driver, gene loss is the target, and the mapping turns one into the other: on a branch that is aquatic the loss rate is `0.25 × 4`, and elsewhere it is `0.25 × 1`.
 
@@ -150,12 +150,13 @@ zombi2 species out/ --birth 1 --death 0.3 --n-extant 20 --seed 1
 zombi2 genomes out/ --duplication 0.2 --loss 0.25 --origination 0.5 --seed 42
 ```
 
-A rate flag takes a rate **written exactly as you would write it in Python**: a bare number, or a scope wrapper and modifiers composed with `*`, quoted so the shell keeps it in one piece.
+A rate flag takes a rate **written exactly as you would write it in Python**: a bare number, or a scope with verbs chained onto it, quoted so the shell keeps it in one piece.
 
 ```bash
 # speciation drops to a third of its rate at time 3 (a skyline). --n-extant is conditioned on
 # survival, so it runs for any seed; a --total-time run can go extinct and stop with an error.
-zombi2 species skyline/ --birth "1.0 * OnTime({0: 1.0, 3: 0.3})" --death 0.3 --n-extant 30 --seed 1
+zombi2 species skyline/ --birth "PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})" \
+    --death 0.3 --n-extant 30 --seed 1
 ```
 
 Every command takes one positional argument, the **run directory**. It is both where that command writes and where it reads the level before it, so a pipeline is the same directory named once per command and nothing is passed by hand. `--from` overrides the reading half, for a tree from elsewhere or a run you would rather not write into; a `--params` TOML file can hold a whole pipeline's settings.

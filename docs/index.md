@@ -38,16 +38,16 @@ observed = {n.id: g.genomes[n.id] for n in sp.complete_tree.extant_leaves()}
 ```
 
 ZOMBI2 lets you describe very specific evolutionary scenarios, and rates are how you do it.
-Every rate is written the same way — a **scope** around a base, optionally times **modifiers**
+Every rate is written the same way — a **scope**, with **verbs** chained onto it
 (a rate that changes in time, saturates with diversity, or drifts along the tree):
 
 ```python
-from zombi2.rates import scope, modifiers
+from zombi2.rates import Global, PerLineage
 
 sp = species.simulate_species_tree(
-    birth = 1.0 * modifiers.OnTime({0: 1.0, 3: 0.5}),   # skyline: full rate, then half after time 3
-    death = scope.Global(0.3),                        # one tree-wide death rate, not per lineage
-    n_extant = 20, seed = 1)                           # grow until 20 species survive
+    birth = PerLineage(1.0).changing_at({0: 1.0, 3: 0.5}),  # skyline: full rate, then half after time 3
+    death = Global(0.3),                                    # one tree-wide death rate, not per lineage
+    n_extant = 20, seed = 1)                                # grow until 20 species survive
 ```
 
 ## Where next

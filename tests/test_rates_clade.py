@@ -14,7 +14,7 @@ import pytest
 
 from zombi2 import genomes, traits
 from zombi2.genomes._transfer import resolve_groups
-from zombi2.rates import Clade, ScaledBy
+from zombi2.rates import Clade, PerCopy, PerLineage
 from zombi2.rates.driver import resolve_driver
 from zombi2.species import simulate_species_tree
 
@@ -66,13 +66,13 @@ class TestItDrivesARate:
         flat = self._losses(tree, halves, 0.3)
         assert flat["fast"] > 0 and flat["slow"] > 0
 
-        no_slow = self._losses(tree, halves, 0.3 * ScaledBy(halves, {"fast": 1.0, "slow": 0.0,
-                                                                    "rest": 1.0}))
+        no_slow = self._losses(tree, halves, PerCopy(0.3).scaled_by(halves, {"fast": 1.0, "slow": 0.0,
+                                                       "rest": 1.0}))
         assert no_slow["slow"] == 0
         assert no_slow["fast"] > 0
 
-        no_fast = self._losses(tree, halves, 0.3 * ScaledBy(halves, {"fast": 0.0, "slow": 1.0,
-                                                                    "rest": 1.0}))
+        no_fast = self._losses(tree, halves, PerCopy(0.3).scaled_by(halves, {"fast": 0.0, "slow": 1.0,
+                                                       "rest": 1.0}))
         assert no_fast["fast"] == 0
         assert no_fast["slow"] > 0
 
@@ -86,7 +86,7 @@ class TestItDrivesARate:
         slow = {i for i, label in painted.items() if label == "slow"}
         run = traits.simulate_discrete(
             tree, states=["a", "b"],
-            switch=0.2 * ScaledBy(halves, {"fast": 4.0, "slow": 0.0, "rest": 1.0}), seed=1)
+            switch=PerLineage(0.2).scaled_by(halves, {"fast": 4.0, "slow": 0.0, "rest": 1.0}), seed=1)
 
         switches = [c for c in run.events if c.kind != "initial"]
         assert switches, "nothing switched anywhere, so the zero proves nothing"
@@ -100,7 +100,7 @@ class TestWhatItRefuses:
         happening — the refusal is about the model, not the implementation."""
         with pytest.raises(TypeError, match="live level"):
             from zombi2.joint import simulate_joint
-            simulate_joint(birth=1.0 * ScaledBy(halves, {"fast": 2.0}), death=0.2,
+            simulate_joint(birth=PerLineage(1.0).scaled_by(halves, {"fast": 2.0}), death=0.2,
                            trait=traits.discrete(states=["x", "y"], switch=0.1),
                            n_extant=10, seed=1)
 

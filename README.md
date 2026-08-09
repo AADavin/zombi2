@@ -88,17 +88,17 @@ evolves along a species tree, so you run whichever you need, composed into one s
 **[Conditioning](https://aadavin.github.io/zombi2/docs/guide/conditioning/)** is a run reading a value
 that has already been grown. There are four parts: the **driver**, the value that is read; the
 **target**, what the factor is attached to (a rate, an extent, or which lineage receives a transfer);
-the **modifier**, `DrivenBy`, which joins them; and the **mapping** it carries, which says what each
+the **verb**, `scaled_by`, which joins them; and the **mapping** it carries, which says what each
 value of the driver becomes.
 
 <p align="center">
-  <img alt="Conditioning: a habitat trait on the left, an arrow labelled drives running right to the gene loss rate and carrying a multiplier for each habitat state, and under the loss rate the expression you write on it, 0.25 times DrivenBy of habitat" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/conditioning.svg" width="560">
+  <img alt="Conditioning: a habitat trait on the left, an arrow labelled drives running right to the gene loss rate and carrying a multiplier for each habitat state, and under the loss rate the expression you write on it, a per-copy loss rate of 0.25 scaled by habitat" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/conditioning.svg" width="560">
 </p>
 
 ```bash
 zombi2 species out/ --birth 1 --death 0.3 --n-extant 20 --seed 1
 zombi2 traits  out/ --kind discrete --states aquatic,terrestrial --switch 0.4 --seed 1
-zombi2 genomes out/ --loss "0.25 * DrivenBy('out/traits/trait_events.tsv', {'aquatic': 4.0})" --seed 1
+zombi2 genomes out/ --loss "PerCopy(0.25).scaled_by('out/traits/trait_events.tsv', {'aquatic': 4.0})" --seed 1
 ```
 
 ## Joining
@@ -113,7 +113,7 @@ shapes the tree, so the tree is an *output* of the joint run rather than an inpu
 </p>
 
 ```bash
-zombi2 joint out/ --birth "1.0 * DrivenBy('trait', {'small': 1.0, 'large': 3.0})" \
+zombi2 joint out/ --birth "PerLineage(1.0).scaled_by('trait', {'small': 1.0, 'large': 3.0})" \
     --states small,large --switch 0.3 --n-extant 100 --seed 1
 ```
 

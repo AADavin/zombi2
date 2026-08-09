@@ -19,10 +19,9 @@ import helpers as h
 from helpers import Example
 
 import phylustrator as ph
-from zombi2.rates import ScaledBy, Weights
+from zombi2.rates import Curve, PerCopy, PerLineage, Recipients
 from zombi2 import joint, traits
 from zombi2.genomes import simulate_genomes_family
-from zombi2.rates.mapping import Curve
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous, simulate_discrete
 
@@ -54,7 +53,7 @@ def _history(r):
 
 def bisse(out):
     r = joint.simulate_joint(
-        birth=1.0 * ScaledBy("trait", {"fast": 2.6, "slow": 0.7}),
+        birth=PerLineage(1.0).scaled_by("trait", {"fast": 2.6, "slow": 0.7}),
         trait=traits.discrete(states=["fast", "slow"], switch=0.35),
         n_extant=70, seed=3)
     tree_png = out.replace(".png", "_tree.png")
@@ -69,7 +68,7 @@ def bisse(out):
 def state_extinction(out):
     r = joint.simulate_joint(
         birth=1.0,
-        death=1.0 * ScaledBy("trait", {"doomed": 0.75, "safe": 0.05}),
+        death=PerLineage(1.0).scaled_by("trait", {"doomed": 0.75, "safe": 0.05}),
         trait=traits.discrete(states=["doomed", "safe"], switch=0.3),
         n_extant=35, seed=1)
     ct = r.complete_tree
@@ -86,7 +85,7 @@ def state_extinction(out):
 
 def musse(out):
     r = joint.simulate_joint(
-        birth=1.0 * ScaledBy("trait", {"slow": 0.6, "medium": 1.3, "fast": 2.6}),
+        birth=PerLineage(1.0).scaled_by("trait", {"slow": 0.6, "medium": 1.3, "fast": 2.6}),
         death=0.4,                                                    # so some lineages die (dashed)
         trait=traits.discrete(states=["slow", "medium", "fast"], switch=0.3),
         n_extant=50, seed=2)
@@ -162,8 +161,8 @@ def genome_reduction(out):
                             switch=_LIFESTYLE)
     # the trait CONDITIONS the genome: endosymbionts shed genes fast and gain few
     g = simulate_genomes_family(ct, initial_families=200, duplication=0.1,
-            origination=3.0 * ScaledBy(hab, {"endosymbiont": 0.3, "free-living": 1.0}),
-            loss=0.08 * ScaledBy(hab, {"endosymbiont": 6.0, "free-living": 1.0}), seed=9)
+            origination=PerLineage(3.0).scaled_by(hab, {"endosymbiont": 0.3, "free-living": 1.0}),
+            loss=PerCopy(0.08).scaled_by(hab, {"endosymbiont": 6.0, "free-living": 1.0}), seed=9)
     sizes, tipcol = _sizes(ct, g, hab, _HAB)
     _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, hab), palette=_HAB)],
                         sizes, tipcol, dict(
@@ -178,7 +177,7 @@ def genome_expansion(out):
                             switch=_SELECTION)
     # under relaxed selection duplicates pile up
     g = simulate_genomes_family(ct, initial_families=120, loss=0.07,
-            duplication=0.05 * ScaledBy(sel, {"relaxed": 11.0, "purifying": 1.0}), seed=9)
+            duplication=PerCopy(0.05).scaled_by(sel, {"relaxed": 11.0, "purifying": 1.0}), seed=9)
     sizes, tipcol = _sizes(ct, g, sel, _SEL)
     _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, sel), palette=_SEL)],
                         sizes, tipcol, dict(
@@ -193,7 +192,7 @@ def hgt_uptake(out):
                              switch={"quiet->competent": 0.12, "competent->quiet": 0.05})
     # competence conditions WHO RECEIVES a transfer (the choice). Competent lineages take up more
     g = simulate_genomes_family(ct, initial_families=35, transfer=0.5, loss=0.05, duplication=0.03,
-            transfer_to=Weights(comp, {"competent": 8.0, "quiet": 1.0}), seed=3)
+            transfer_to=Recipients().weighted_by(comp, {"competent": 8.0, "quiet": 1.0}), seed=3)
     sizes, tipcol = _sizes(ct, g, comp, _COMP)
     _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, comp), palette=_COMP)],
                         sizes, tipcol, dict(
@@ -212,7 +211,7 @@ def continuous_conditioning(out):
     act = simulate_continuous(ct, start=0.0, rate=1.8, seed=3)
     factor = (lambda v: 2.0 ** v)                                # value → factor, the whole mapping
     g = simulate_genomes_family(ct, initial_families=12, loss=0.05,
-            origination=0.6 * ScaledBy(act, Curve(factor)), seed=9)
+            origination=PerLineage(0.6).scaled_by(act, Curve(factor)), seed=9)
     lab = ct.labels()
     vals = {lab[i]: act.node_values[i] for i in ct.nodes}         # the continuous trait, per node
     tips = list(ct.extant_leaves())
@@ -233,7 +232,7 @@ def _continuous_figure(out, factor, *, driver, value_label, target, base, layer_
     ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
     tr = simulate_continuous(ct, start=0.0, rate=trait_rate, seed=trait_seed)
     g = simulate_genomes_family(ct, initial_families=12, loss=0.05,
-            **{rate: base * ScaledBy(tr, Curve(factor))}, seed=genome_seed)
+            **{rate: PerLineage(base).scaled_by(tr, Curve(factor))}, seed=genome_seed)
     lab = ct.labels()
     vals = {lab[i]: tr.node_values[i] for i in ct.nodes}
     tips = list(ct.extant_leaves())
@@ -278,7 +277,8 @@ def trait_drives_trait(out):
     # the threshold sits between the two halves of this tree, so one is switched on
     # (~6x) and the other is all but switched off (~0.08x) — a 75-fold contrast
     factor = (lambda v: 0.05 + 6.0 / (1.0 + math.exp(-1.6 * (v - 2.0))))
-    size = simulate_continuous(ct, start=0.0, rate=0.35 * ScaledBy(temp, Curve(factor)), seed=11)
+    size = simulate_continuous(ct, start=0.0, seed=11,
+                               rate=PerLineage(0.35).scaled_by(temp, Curve(factor)))
     lab = ct.labels()
     driver = {lab[i]: temp.node_values[i] for i in ct.nodes}
     driven = {lab[i]: size.node_values[i] for i in ct.nodes}
@@ -326,7 +326,8 @@ def gene_drives_trait(out):
     # driver — so the signal is which tips end up pathogenic, not how much they flicker.
     disease = simulate_discrete(
         ct, states=["harmless", "pathogenic"], start="harmless", seed=2,
-        switch={"harmless->pathogenic": 0.02 * ScaledBy(tox, {"present": 40.0, "absent": 1.0}),
+        switch={"harmless->pathogenic":
+                    PerLineage(0.02).scaled_by(tox, {"present": 40.0, "absent": 1.0}),
                 "pathogenic->harmless": 0.6})
 
     lab = ct.labels()
@@ -360,10 +361,10 @@ def gene_drives_trait(out):
 _C_BISSE = '''\
 ### simulate  —  a 2-state trait drives speciation (BiSSE)
 from zombi2 import joint, traits
-from zombi2.rates import modifiers as mod
+from zombi2.rates import PerLineage
 
 r = joint.simulate_joint(
-    birth=1.0 * ScaledBy("trait", {"fast": 2.6, "slow": 0.7}),
+    birth=PerLineage(1.0).scaled_by("trait", {"fast": 2.6, "slow": 0.7}),
     trait=traits.discrete(states=["fast", "slow"], switch=0.35),
     n_extant=70, seed=3)
 
@@ -383,11 +384,11 @@ h.composite_markov("tree.png", "bisse.png", lambda ax: h.draw_markov(
 _C_STATE = '''\
 ### simulate  —  one state dies far faster (state-dependent extinction)
 from zombi2 import joint, traits
-from zombi2.rates import modifiers as mod
+from zombi2.rates import PerLineage
 
 r = joint.simulate_joint(
     birth=1.0,
-    death=1.0 * ScaledBy("trait", {"doomed": 0.75, "safe": 0.05}),
+    death=PerLineage(1.0).scaled_by("trait", {"doomed": 0.75, "safe": 0.05}),
     trait=traits.discrete(states=["doomed", "safe"], switch=0.3),
     n_extant=35, seed=1)
 ct = r.complete_tree
@@ -410,10 +411,10 @@ h.composite_markov("tree.png", "sse.png", lambda ax: h.draw_markov(
 _C_MUSSE = '''\
 ### simulate  —  three graded speciation rates + constant death (MuSSE)
 from zombi2 import joint, traits
-from zombi2.rates import modifiers as mod
+from zombi2.rates import PerLineage
 
 r = joint.simulate_joint(
-    birth=1.0 * ScaledBy("trait", {"slow": 0.6, "medium": 1.3, "fast": 2.6}),
+    birth=PerLineage(1.0).scaled_by("trait", {"slow": 0.6, "medium": 1.3, "fast": 2.6}),
     death=0.4,
     trait=traits.discrete(states=["slow", "medium", "fast"], switch=0.3),
     n_extant=50, seed=2)
@@ -440,7 +441,7 @@ _C_REDUCTION = '''\
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_discrete
 from zombi2.genomes import simulate_genomes_family
-from zombi2.rates import modifiers as mod
+from zombi2.rates import PerCopy, PerLineage
 
 sp = simulate_species_tree(birth=1.0, n_extant=36, seed=4)
 ct = sp.complete_tree
@@ -450,8 +451,8 @@ hab = simulate_discrete(ct, states=["free-living", "endosymbiont"], start="free-
 # the SAME driver that drives speciation with a trait drives a genome rate: endosymbionts
 # shed genes fast (loss x6) and gain few (origination x0.3)
 g = simulate_genomes_family(ct, initial_families=200, duplication=0.1,
-        origination=3.0 * ScaledBy(hab, {"endosymbiont": 0.3, "free-living": 1.0}),
-        loss=0.08 * ScaledBy(hab, {"endosymbiont": 6.0, "free-living": 1.0}), seed=9)
+        origination=PerLineage(3.0).scaled_by(hab, {"endosymbiont": 0.3, "free-living": 1.0}),
+        loss=PerCopy(0.08).scaled_by(hab, {"endosymbiont": 6.0, "free-living": 1.0}), seed=9)
 # 241 genes at the median free-living tip against 48 at the median endosymbiont one
 
 ### plot  —  tree coloured by lifestyle, beside per-tip genome-size bars (aligned axes)
@@ -475,14 +476,14 @@ _C_EXPANSION = '''\
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_discrete
 from zombi2.genomes import simulate_genomes_family
-from zombi2.rates import modifiers as mod
+from zombi2.rates import PerCopy
 
 ct = simulate_species_tree(birth=1.0, n_extant=32, seed=4).complete_tree
 sel = simulate_discrete(ct, states=["purifying", "relaxed"], start="purifying", seed=6,
                         switch={"purifying->relaxed": 0.20, "relaxed->purifying": 0.08})
-# under relaxed selection, duplicates pile up: ScaledBy on the duplication rate
+# under relaxed selection, duplicates pile up: scaled_by on the duplication rate
 g = simulate_genomes_family(ct, initial_families=120, loss=0.07,
-        duplication=0.05 * ScaledBy(sel, {"relaxed": 11.0, "purifying": 1.0}), seed=9)
+        duplication=PerCopy(0.05).scaled_by(sel, {"relaxed": 11.0, "purifying": 1.0}), seed=9)
 # 96 genes at the median purifying tip against 496 at the median relaxed one
 ### plot  —  tree coloured by selection, beside per-tip genome-size bars (relaxed clades grow)
 import phylustrator as ph
@@ -505,15 +506,15 @@ _C_UPTAKE = '''\
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_discrete
 from zombi2.genomes import simulate_genomes_family
-from zombi2.rates import modifiers as mod
+from zombi2.rates import Recipients
 
 ct = simulate_species_tree(birth=1.0, n_extant=30, seed=4).complete_tree
 comp = simulate_discrete(ct, states=["quiet", "competent"], start="quiet", seed=8,
                          switch={"quiet->competent": 0.12, "competent->quiet": 0.05})
-# Weights on transfer_to (the choice) makes competent lineages likelier recipients, so
+# weighted_by on transfer_to (the choice) makes competent lineages likelier recipients, so
 # competent genomes take up more DNA
 g = simulate_genomes_family(ct, initial_families=35, transfer=0.5, loss=0.05, duplication=0.03,
-        transfer_to=Weights(comp, {"competent": 8.0, "quiet": 1.0}), seed=3)
+        transfer_to=Recipients().weighted_by(comp, {"competent": 8.0, "quiet": 1.0}), seed=3)
 ### plot  —  tree coloured by competence, beside per-tip genome-size bars (competent take up more)
 import phylustrator as ph
 
@@ -535,8 +536,7 @@ _C_CONTINUOUS = '''\
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous
 from zombi2.genomes import simulate_genomes_family
-from zombi2.rates import modifiers as mod
-from zombi2.rates.mapping import Curve
+from zombi2.rates import Curve, PerLineage
 
 ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
 act = simulate_continuous(ct, start=0.0, rate=1.8, seed=3)          # a diffusing "activity" trait
@@ -544,7 +544,7 @@ act = simulate_continuous(ct, start=0.0, rate=1.8, seed=3)          # a diffusin
 # (Each branch is cut into constant sub-steps internally, so the same engine consumes it.)
 factor = lambda v: 2.0 ** v
 g = simulate_genomes_family(ct, initial_families=12, loss=0.05,
-        origination=0.6 * ScaledBy(act, Curve(factor)), seed=9)
+        origination=PerLineage(0.6).scaled_by(act, Curve(factor)), seed=9)
 
 ### plot  —  tree coloured by the continuous trait, beside per-tip genome-size bars
 import phylustrator as ph
@@ -570,8 +570,7 @@ import math
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous
 from zombi2.genomes import simulate_genomes_family
-from zombi2.rates import modifiers as mod
-from zombi2.rates.mapping import Curve
+from zombi2.rates import Curve, PerLineage
 
 ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
 res = simulate_continuous(ct, start=0.0, rate=1.2, seed=3)          # a diffusing "resources" trait
@@ -579,7 +578,7 @@ res = simulate_continuous(ct, start=0.0, rate=1.2, seed=3)          # a diffusin
 # The factor is bounded (0.2 to 6.0), which an exponential curve never is.
 factor = lambda v: 0.2 + 5.8 / (1.0 + math.exp(-1.6 * v))
 g = simulate_genomes_family(ct, initial_families=12, loss=0.05,
-        origination=0.6 * ScaledBy(res, Curve(factor)), seed=9)
+        origination=PerLineage(0.6).scaled_by(res, Curve(factor)), seed=9)
 
 ### plot  —  identical to the exponential example: tree by trait value, bars by genome size
 # (see "A continuous driver" above; only `factor` changed)'''
@@ -591,8 +590,7 @@ import math
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous
 from zombi2.genomes import simulate_genomes_family
-from zombi2.rates import modifiers as mod
-from zombi2.rates.mapping import Curve
+from zombi2.rates import Curve, PerLineage
 
 ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
 temp = simulate_continuous(ct, start=0.0, rate=1.2, seed=3)         # a diffusing "temperature" trait
@@ -600,7 +598,7 @@ temp = simulate_continuous(ct, start=0.0, rate=1.2, seed=3)         # a diffusin
 # per-state multipliers cannot express this: the response is not monotone in the driver.
 factor = lambda v: 0.2 + 5.8 * math.exp(-((v - 1.2) ** 2) / (2 * 0.8 ** 2))
 g = simulate_genomes_family(ct, initial_families=12, loss=0.05,
-        origination=0.6 * ScaledBy(temp, Curve(factor)), seed=9)
+        origination=PerLineage(0.6).scaled_by(temp, Curve(factor)), seed=9)
 
 ### plot  —  identical again; the tallest bars now sit in the MIDDLE of the colour ramp
 # (see "A continuous driver" above; only `factor` changed)'''
@@ -611,15 +609,14 @@ _C_TRAIT_TRAIT = '''\
 import math
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous
-from zombi2.rates import modifiers as mod
-from zombi2.rates.mapping import Curve
+from zombi2.rates import Curve, PerLineage
 
 ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
 temp = simulate_continuous(ct, start=0.0, rate=1.2, seed=6)         # grown first, then held fixed
 # the threshold sits between the two halves of this tree: one is switched on (~6x), the other
 # all but switched off (~0.08x). The rate a trait diffuses AT is itself driven.
 factor = lambda v: 0.05 + 6.0 / (1.0 + math.exp(-1.6 * (v - 2.0)))
-size = simulate_continuous(ct, start=0.0, rate=0.35 * ScaledBy(temp, Curve(factor)), seed=11)
+size = simulate_continuous(ct, start=0.0, rate=PerLineage(0.35).scaled_by(temp, Curve(factor)), seed=11)
 
 ### plot  —  the same tree twice: painted by the driver, then by what it drove
 import phylustrator as ph
@@ -660,8 +657,8 @@ def module_drives_metabolism(out):
     back = (lambda f: 1.0 if f > 0.5 else 20.0)
     metabolism = simulate_discrete(
         ct, states=["anaerobic", "aerobic"], start="anaerobic", seed=2,
-        switch={"anaerobic->aerobic": 0.3 * ScaledBy(comp, Curve(step)),
-                "aerobic->anaerobic": 0.3 * ScaledBy(comp, Curve(back))})
+        switch={"anaerobic->aerobic": PerLineage(0.3).scaled_by(comp, Curve(step)),
+                "aerobic->anaerobic": PerLineage(0.3).scaled_by(comp, Curve(back))})
 
     lab = ct.labels()
     levels = sorted({f for segs in comp.history(ct).values() for f, _ in segs})
@@ -695,7 +692,7 @@ _C_GENE_TRAIT = '''\
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_family
 from zombi2.traits import simulate_discrete
-from zombi2.rates import modifiers as mod
+from zombi2.rates import PerLineage
 
 ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
 
@@ -711,8 +708,8 @@ g = simulate_genomes_family(ct, initial_families=20, family_names=["tox"],
 # pathogenic — 74% of the 23 tips carrying the gene, against none of the 22 without.
 disease = simulate_discrete(
     ct, states=["harmless", "pathogenic"], start="harmless", seed=2,
-    switch={"harmless->pathogenic": 0.02 * ScaledBy(g.presence("tox"),
-                                                        {"present": 40.0, "absent": 1.0}),
+    switch={"harmless->pathogenic": PerLineage(0.02).scaled_by(g.presence("tox"),
+                                                   {"present": 40.0, "absent": 1.0}),
             "pathogenic->harmless": 0.6})
 
 ### plot  —  the same tree painted twice: by the gene, then by what the gene drove
@@ -736,8 +733,7 @@ _C_MODULE = '''\
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_family
 from zombi2.traits import simulate_discrete
-from zombi2.rates import modifiers as mod
-from zombi2.rates.mapping import Curve
+from zombi2.rates import Curve, PerLineage
 
 ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
 nuo = [f"nuo{c}" for c in "ABCD"]
@@ -753,8 +749,8 @@ g = simulate_genomes_family(ct, initial_families=20, family_names=nuo,
 comp = g.completion("aerobic")
 metabolism = simulate_discrete(
     ct, states=["anaerobic", "aerobic"], start="anaerobic", seed=2,
-    switch={"anaerobic->aerobic": 0.3 * ScaledBy(comp, Curve(lambda f: 20.0 if f > 0.5 else 1.0)),
-            "aerobic->anaerobic": 0.3 * ScaledBy(comp, Curve(lambda f: 1.0 if f > 0.5 else 20.0))})
+    switch={"anaerobic->aerobic": PerLineage(0.3).scaled_by(comp, Curve(lambda f: 20.0 if f > 0.5 else 1.0)),
+            "aerobic->anaerobic": PerLineage(0.3).scaled_by(comp, Curve(lambda f: 1.0 if f > 0.5 else 20.0))})
 
 ### plot  —  the tree by module completion, then by the metabolism it decides
 import phylustrator as ph

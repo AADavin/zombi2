@@ -7,9 +7,10 @@ orientation on chromosomes — segmental rearrangements and the chromosome tier,
 sequence of ancestry blocks, with declared indivisible genes and intergenic spacer,
 `simulate_genomes_nucleotide()`). Long options are the API keyword names, and
 every rate takes the written form (SPEC §5): a bare number on its natural scope, or the same
-``scope(base) × modifiers`` expression the Python API takes — ``--loss "0.25 * OnTime({0: 1.0, 3:
-2.0})"``. Each resolution declares which modifiers it reads (its ``IMPLEMENTED_MODIFIERS``) and rejects the
-rest rather than silently ignoring them; the two structured resolutions both take ``ScaledBy``, so a
+``scope(base)`` with verbs chained onto it that the Python API takes — ``--loss
+"PerCopy(0.25).changing_at({0: 1.0, 3: 2.0})"``. Each resolution declares which modifiers it reads
+(its ``IMPLEMENTED_MODIFIERS``) and rejects the
+rest rather than silently ignoring them; the two structured resolutions both take ``scaled_by``, so a
 trait can drive a rearrangement rate at either. ``--transfer-to`` is the one argument that **chooses who receives** (SPEC §5)
 and works at all three: the weight it takes says who receives, never how often transfer happens."""
 from __future__ import annotations
@@ -40,21 +41,22 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
 
 #: the RATES block for ``zombi2 genomes -h``, built from the level's own declaration — including the
 #: per-resolution sentence, which is read off each engine's ``IMPLEMENTED_MODIFIERS`` rather than typed out
-#: here. It had been typed out, and it went stale the moment the ordered engine learned ``ScaledBy``.
+#: here. It had been typed out, and it went stale the moment the ordered engine learned ``scaled_by``.
 RATES_HELP = _rates_help(
-    IMPLEMENTED_MODIFIERS, "--loss",
+    IMPLEMENTED_MODIFIERS, "--loss", scope="PerCopy",
     note="Duplication, transfer and loss are counted per copy by default — every copy independently "
          "at risk, so a bigger genome turns over faster — and also take PerLineage(...), a fixed "
          "budget the genome's size never enters: --loss \"PerLineage(0.25)\". At --resolution "
          "ordered the rearrangements take both too. Origination is per lineage only, and the "
-         "chromosome tier per chromosome. On --transfer, ScaledBy drives how often a lineage DONATES; "
-         "--transfer-to takes one on its own as a recipient weight, at every resolution — it "
+         "chromosome tier per chromosome. On --transfer, scaled_by drives how often a lineage "
+         "DONATES; --transfer-to takes a Recipients() rule as a recipient weight, at every "
+         "resolution — it "
          "chooses who receives rather than setting a rate, so the numbers are normalised weights "
          "over the candidates, and a weight of 0 means 'cannot receive'. It is also the only place "
          "Between(...) belongs — a weight per (donor, recipient) pair — which a rate or an extent "
          "refuses. "
          "--resolution ordered takes " + ", ".join(cell_name(m) for m in _ORDERED_IMPLEMENTED) +
-         ", though not Drawn(per='family') and ScaledBy in one run; nucleotide, " +
+         ", though not varying_among('families', ...) and scaled_by in one run; nucleotide, " +
          ", ".join(cell_name(m) for m in _NUC_IMPLEMENTED) + ".")
 
 # The write vocabularies, read off the results themselves. They used to be hand-copied here, with a
@@ -169,7 +171,7 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                    help="recipient rule, at any resolution: uniform (any contemporaneous lineage, "
                         "default), distance (closer relatives likelier) or Distance(decay=X) for "
                         "another decay, Clades({...}, Between({...})) to steer flow between named "
-                        "clades, or a Weights(driver, {...}) rule")
+                        "clades, or a Recipients().weighted_by(driver, {...}) rule")
     g.add_argument("--replacement", action="store_true",
                    help="a transfer overwrites a homologous copy (replacing HGT)")
     g.add_argument("--self-transfer", action="store_true", dest="self_transfer",
@@ -281,16 +283,22 @@ def _family_cap(text: str):
         cap = parse_rate(s)
     except ValueError:
         cap = None
-    if isinstance(cap, PerLineage):
+    # `Rate.scope` holds the scope **class**, not an instance — a scope carries no number of its own
+    # — so the two branches below ask which class it is rather than what the value is an instance of.
+    # The base is checked too: `PerLineage()` with nothing in it is a rate awaiting a `set_by`, and
+    # it has no number to name back.
+    scope = getattr(cap, "scope", None)
+    base = getattr(cap, "base", None)
+    if base is not None and scope is PerLineage:
         raise argparse.ArgumentTypeError(
             f"--max-family-size is a plain number of copies in one genome now, so write "
-            f"--max-family-size {cap.base:g} (or 'none'). {text!r} used to mean {cap.base:g} × the "
+            f"--max-family-size {base:g} (or 'none'). {text!r} used to mean {base:g} × the "
             f"number of nodes in the species tree, which is why the cap you got depended on how big "
             f"the tree was")
-    if isinstance(cap, Global):
+    if base is not None and scope is Global:
         raise argparse.ArgumentTypeError(
             f"--max-family-size is a plain number of copies in one genome now, so write "
-            f"--max-family-size {cap.base:g} (or 'none') — {text!r} meant exactly that")
+            f"--max-family-size {base:g} (or 'none') — {text!r} meant exactly that")
     raise argparse.ArgumentTypeError(
         f"--max-family-size takes a whole number of copies (e.g. 20) or 'none' for no cap; "
         f"got {text!r}")
@@ -310,13 +318,13 @@ def _transfer_to(text: str):
 
     ``uniform`` and ``distance`` are the two named rules; anything else is read as the written form
     of one of the other three — ``Distance(decay=…)``, ``Clades({…}, Between({…}))``, or a
-    ``Weights`` (``--transfer-to "ScaledBy('trait_events.tsv', {'competent': 2.0})"``) — the
+    ``Recipients()`` rule (``--transfer-to "Recipients().weighted_by('trait_events.tsv',
+    {'competent': 2.0})"``) — the
     **choice** of SPEC §5, where the mapping's numbers are per-candidate weights rather than
     rate multipliers. Parsed by the same ast-whitelist parser every rate flag uses, so the expression
     is the one you would write in Python and nothing is evaluated.
     """
-    from zombi2.rates.choice import Clades, Distance
-    from zombi2.rates.modifiers import Driven
+    from zombi2.rates.choice import Choice, Clades, Distance
     from zombi2.rates.parse import parse_rate
 
     if text in ("uniform", "distance"):
@@ -328,11 +336,11 @@ def _transfer_to(text: str):
         # only quote the parser when the text was meant as an expression; for a plain misspelt rule
         # ("uniforn") its "unknown name" reading is noise, and the flag's own list is the answer
         detail = f"\n{e}" if "(" in text else ""
-    if not isinstance(value, (Driven, Distance, Clades)):
+    if not isinstance(value, (Choice, Distance, Clades)):
         raise argparse.ArgumentTypeError(
             f"--transfer-to takes 'uniform', 'distance', Distance(decay=…), Clades({{…}}, "
-            f"Between({{…}})), or a Weights recipient weight written on "
-            f"its own — e.g. \"ScaledBy('trait_events.tsv', {{'competent': 2.0}})\" — got {text!r}. "
+            f"Between({{…}})), or a recipient weight written from its own entry point — e.g. "
+            f"\"Recipients().weighted_by('trait_events.tsv', {{'competent': 2.0}})\" — got {text!r}. "
             f"The numbers there are weights over the candidate recipients, not a rate, so there is "
             f"no base number in front of it.{detail}")
     return value

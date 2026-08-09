@@ -754,7 +754,7 @@ class NucleotideGenomesResult:
         """The named gene's presence as a **conditioning driver** — `GenePresence`, the same reader
         the other two resolutions hand out, read off the gene's own recovered tree::
 
-            switch=0.1 * ScaledBy(g.presence("dnaA"), {"present": 5.0, "absent": 1.0})
+            switch=PerLineage(0.1).scaled_by(g.presence("dnaA"), {"present": 5.0, "absent": 1.0})
 
         A gene is named here by the GFF that declared it (its ``ID`` / ``Name``); the evenly-spaced
         ``genes=`` layout lays its genes down unnamed."""
@@ -1933,7 +1933,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
       in tandem — an ancestry-**changing** *birth*, recorded in ``events``.
     - ``transfer`` (**per lineage**) copies a geometric-length (mean ``transfer_extent``) arc into a
       **contemporaneous recipient** (``transfer_to``: ``"uniform"``, ``"distance"`` / a `Distance`,
-      ``Clades({...}, Between({...}))`` or ``ScaledBy(driver, mapping)`` — see below;
+      ``Clades({...}, Between({...}))`` or ``Recipients().weighted_by(driver, mapping)`` — see below;
       ``self_transfer`` allows the donor itself) — a horizontal *birth*, additive (the donor keeps its
       copy). This is what needs the global timeline.
     - ``origination`` (**per lineage**) lays down a **new gene** on a fresh source (geometric length,
@@ -1964,7 +1964,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     ``result.completion("flagellum")`` gives the fraction of the group a lineage carries; a module
     changes nothing about how the genome evolves.
 
-    **Conditioning (a trait drives who receives).** ``transfer_to = Weights(source, mapping)``
+    **Conditioning (a trait drives who receives).** ``transfer_to =
+    Recipients().weighted_by(source, mapping)``
     weights the candidate recipients by another level, and the numbers are **weights**, not rate
     multipliers: they are normalised across the candidates, so they leave the total amount of transfer
     alone and only redistribute it (SPEC §5, a weight, not a rate). Weight 0 means "cannot receive"; when
@@ -1991,9 +1992,12 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         if isinstance(spec, (int, float)) and not isinstance(spec, bool) and spec < 0:
             raise ValueError(f"{label} must be >= 0, got {spec}")
         r = as_rate(spec, default_scope=want)
-        if not isinstance(r.scope, want):
+        # `r.scope` holds the scope CLASS, not an instance — a scope constructor returns the rate
+        # itself — so this is an identity test rather than an isinstance one.
+        assert r.scope is not None               # as_rate fills the level's default where none was written
+        if r.scope is not want:
             raise ValueError(
-                f"{label} has a {type(r.scope).__name__} scope, but the nucleotide engine takes only "
+                f"{label} has a {r.scope.__name__} scope, but the nucleotide engine takes only "
                 f"{want.__name__} for {label} this slice — scope overrides are a later slice.")
         for m in r.modifiers:
             if isinstance(m, Driven):
@@ -2085,7 +2089,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 raise ValueError(f"{genes} genes of {gene_length} bp do not fit in a {_length} bp "
                                  f"replicon")
         layouts = [_even_gene_intervals(length, genes, gene_length) for (length, _t) in specs]
-    # Conditioning: a rate carrying ScaledBy reads a driver **per lineage**, so the rates stop being
+    # Conditioning: a rate written with scaled_by reads a driver **per lineage**, so the rates stop being
     # one number for the whole live set and become one per lineage. Same machinery as the family
     # resolution — each driver resolves once into a DriverTrajectory keyed by the shared species node
     # id, from a file or an in-memory trait result. With no driven rate this is empty and the loop

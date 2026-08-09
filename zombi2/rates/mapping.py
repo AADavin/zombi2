@@ -1,8 +1,9 @@
 """The mapping of a `Driven` — what turns the driver's value into a number (SPEC §5).
 
-The ``ScaledBy`` modifier reads the driver's value on a lineage; the **mapping** turns that value
-into the number the modifier contributes — a dimensionless multiplier on a rate or an extent, a
-normalised weight on ``transfer_to``. There are four shapes:
+A verb reads the driver's value on a lineage; the **mapping** turns that value into the number the
+verb contributes — a dimensionless multiplier on a rate or an extent (``scaled_by``), the rate
+itself (``set_by``), a normalised weight on ``transfer_to`` (``weighted_by``). There are four
+shapes:
 
 - `Table`  — a **discrete** driver → a dict of factors: ``{"aquatic": 3.0, "terrestrial": 1.0}``.
 - `Curve`  — a **continuous** driver → a function: ``lambda x: math.exp(0.5 * x)``.
@@ -17,7 +18,7 @@ You rarely name the first three — pass a raw ``dict`` / callable / number as `
 
 **Jump** (a burst fired *at an event*, e.g. a pulse of gene change at each split) is not a mapping:
 it changes a state at a moment rather than scaling a number, so it does not live here and is not
-reachable through ``ScaledBy`` (SPEC §4).
+reachable through any verb (SPEC §4).
 """
 
 from __future__ import annotations
@@ -44,7 +45,7 @@ class Table(Mapping):
         Table({"aquatic": 3.0, "terrestrial": 1.0})   # 3× the rate in aquatic lineages
 
     ``default`` (1.0) is the factor for any state not named — so an unlisted state leaves the
-    rate unchanged. This is the primary ``ScaledBy`` mapping (MuSSE-style per-state rates).
+    rate unchanged. This is the primary ``scaled_by`` mapping (MuSSE-style per-state rates).
 
     States are matched by their **string form** — ``Table({0: 3.0, 1: 1.0})`` and ``Table({"0":
     3.0, "1": 1.0})`` behave identically, and both match a driver whose value is ``0`` or ``"0"``.
@@ -157,8 +158,8 @@ class Between:
     be steered to run *between* two groups rather than within them. It is therefore **not** a
     `Mapping` (a ``Mapping.multiplier`` reads one value): its `weight()` reads two, and the
     engine passes both. It is used in ``transfer_to`` — on its own as the kernel of a
-    `Clades` rule (groups from the tree), or inside a
-    `ScaledBy` (groups from a trait). It is **not** a rate multiplier:
+    `Clades` rule (groups from the tree), or as the mapping of a
+    ``Recipients().weighted_by(...)`` (groups from a trait). It is **not** a rate multiplier:
     a rate has no donor to condition on, so a ``Between`` on a rate is refused.
 
     Keys are ``(from_group, to_group)`` pairs matched by **string form**, exactly like ``Table``'s
@@ -250,8 +251,8 @@ def as_mapping(spec: object) -> Mapping:
     """
     if isinstance(spec, (Mapping, Between)):
         # a Between is a choice's kernel, not a rate multiplier; carried through here so
-        # ScaledBy(..., Between(...)) works, and refused on a rate or an extent by the engine — which is
-        # why the declared return type is the one every *rate* caller may rely on.
+        # weighted_by(driver, Between(...)) works, and refused on a rate or an extent by the engine —
+        # which is why the declared return type is the one every *rate* caller may rely on.
         return cast(Mapping, spec)
     if isinstance(spec, dict):
         return Table(spec)
@@ -277,15 +278,15 @@ def check_not_a_kernel(mapping, *, label: str) -> None:
     ``AttributeError: 'Between' object has no attribute 'multiplier'`` — a traceback from inside the
     engine, naming neither the rate nor the mistake.
 
-    Every engine that accepts ``ScaledBy`` on a rate or an extent calls this, so the message is the
-    same one wherever the kernel was put."""
+    Every engine that accepts a driven rate or extent calls this, so the message is the same one
+    wherever the kernel was put."""
     if isinstance(mapping, Between):
         raise ValueError(
-            f"{label} carries ScaledBy(…, Between(…)); a Between kernel is donor-conditioned — it "
+            f"{label} carries scaled_by(…, Between(…)); a Between kernel is donor-conditioned — it "
             f"weights a recipient by the (donor, recipient) group pair — so it belongs in transfer_to "
             f"(who RECEIVES) and never in a rate or an extent, which are read on one lineage and have "
             f"no donor to condition on. Drive this with a Table (a plain dict) or a Curve, and put the "
-            f"kernel in transfer_to=Weights(driver, Between({{...}})).")
+            f"kernel in transfer_to=Recipients().weighted_by(driver, Between({{...}})).")
 
 
 __all__ = ["Mapping", "Table", "Curve", "Scalar", "Between", "check_kernel_fires",
