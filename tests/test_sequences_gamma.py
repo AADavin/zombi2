@@ -14,7 +14,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from zombi2.rates import LogNormal, PerSite
+from zombi2.params import LogNormal, PerSite
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences._site_rates import _gamma_quantile, _incomplete_gamma, discrete_gamma
 from zombi2.sequences.substitution_models import hky85, jc69

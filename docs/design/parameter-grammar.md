@@ -5,7 +5,7 @@ models ZOMBI2 expressed before it, plus several that were unsayable; what change
 
 Some of what it proposed is **not** built. Every such place is marked on the line, and §13's worked
 examples all construct and run as written, so a line carrying no mark is a line you can type. Two of
-the gaps are structural rather than local: the package is still `zombi2/rates/` rather than
+the gaps are structural rather than local: the package is still `zombi2/params/` rather than
 `zombi2/params/` (§11, §12), and the forgiveness rule's refusal of a bare number where two scopes are
 legal (§3) is not enforced — a bare number still takes the level's default scope.
 
@@ -372,7 +372,7 @@ Stated so nobody has to discover it.
 
 ## 11. Modules
 
-**Not built.** The grammar shipped inside the existing `zombi2/rates/`, whose files kept their names:
+**Not built.** The grammar shipped inside the existing `zombi2/params/`, whose files kept their names:
 `Random`, `Drift` and `TotalDiversity` live in `modifiers.py` beside `Drawn` and `Inherited`, and the
 verbs in `verbs.py` with the methods on `rate.py` calling them. The tree below is the reorganisation
 this proposed, left as written.
@@ -417,7 +417,7 @@ If `parameter.py` grows past about 700 lines it splits into `parameter.py` (what
 | `Weights(driver, m)` | `Recipients().weighted_by(driver, m)` |
 | `spread=` | a written distribution |
 | `per='family'` | `'families'` — the units go plural |
-| `zombi2.rates` | `zombi2.rates` — the rename to `zombi2.params` (§11) is not built |
+| `zombi2.params` | `zombi2.params` — the rename to `zombi2.params` (§11) is not built |
 
 **`Distance` and `Clades` are not on that list.** The proposal wanted both dissolved into
 `weighted_by` — `Distance(decay=k)` into a driver plus a kernel, `Clades({...}, Between({...}))` into

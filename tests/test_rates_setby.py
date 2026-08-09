@@ -14,10 +14,10 @@ from __future__ import annotations
 import pytest
 
 from zombi2 import genomes, traits
-from zombi2.rates import Extent, PerCopy, PerLineage, Recipients
-from zombi2.rates import scope
-from zombi2.rates.modifiers import SetBy
-from zombi2.rates.rate import as_rate
+from zombi2.params import Extent, PerCopy, PerLineage, Recipients
+from zombi2.params import scope
+from zombi2.params.modifiers import SetBy
+from zombi2.params.rate import as_rate
 from zombi2.species import simulate_species_tree
 
 
@@ -109,8 +109,8 @@ class TestWhatItRefuses:
         """The verb refuses them, and `as_rate` refuses them again for anything that reaches it
         another way — the guard lives at the choke point every level already calls, because a rule
         enforced by whoever remembers to call it is a rule three levels did not have."""
-        from zombi2.rates.rate import Rate
-        from zombi2.rates.scope import PerCopy as _PerCopy
+        from zombi2.params.rate import Rate
+        from zombi2.params.scope import PerCopy as _PerCopy
 
         smuggled = Rate(1.0, _PerCopy,
                         (SetBy("h", {"c": 1.0}), SetBy("h", {"c": 2.0})))
@@ -126,7 +126,7 @@ class TestWhatItRefuses:
 def test_it_is_written_the_way_it_is_read():
     """The repr is what a run's log records and a reader pastes back into a flag, so it has to be an
     expression that reproduces the rate."""
-    from zombi2.rates.parse import parse_rate
+    from zombi2.params.parse import parse_rate
 
     written = repr(PerCopy().set_by("h.tsv", {"cave": 1.0}))
     assert written == "PerCopy().set_by('h.tsv', Table({'cave': 1.0}))"
@@ -173,7 +173,7 @@ class TestTheHolesAnAdversarialReviewFound:
             with pytest.raises(ValueError, match="does not support"):
                 genomes.simulate_genomes_nucleotide(tree, loss=one, root_length=1000, seed=1)
         else:
-            from zombi2.rates import PerSite
+            from zombi2.params import PerSite
             from zombi2.sequences import jc69, simulate_sequences
             one = PerSite().set_by("h.tsv", {"cave": 1.0, "surface": 0.5})
             g = genomes.simulate_genomes_family(tree, duplication=0.1, loss=0.1,
@@ -184,7 +184,7 @@ class TestTheHolesAnAdversarialReviewFound:
     def test_an_extent_has_no_base_to_replace(self):
         """An extent is already an absolute size drawn from a distribution. A replaced base there was
         admitted and applied as a multiplier, which is a different model wearing the same words."""
-        from zombi2.rates.extent import as_extent
+        from zombi2.params.extent import as_extent
         with pytest.raises(ValueError, match="an extent cannot be set_by"):
             Extent(500).set_by("h", {"c": 5.0})
         with pytest.raises(ValueError, match="an extent cannot be set_by"):
@@ -194,8 +194,8 @@ class TestTheHolesAnAdversarialReviewFound:
         """It recorded a quoted ``'<Clade>'`` — which parses, as a *filename*, so the log looked
         reproducible and was not. A driver that can write itself now does; one that cannot records an
         unquoted placeholder that fails loudly."""
-        from zombi2.rates import Clade
-        from zombi2.rates.parse import parse_rate
+        from zombi2.params import Clade
+        from zombi2.params.parse import parse_rate
 
         written = repr(PerCopy(0.2).scaled_by(Clade({"fast": ["n1", "n2"]}), {"fast": 3.0}))
         assert "<Clade>" not in written
@@ -211,7 +211,7 @@ class TestTheHolesAnAdversarialReviewFound:
         base named a rate that would not parse, and the record of the model was not one you could
         run again. It is written first now, on a scope with no number, which is what a replaced base
         means."""
-        from zombi2.rates.parse import parse_rate, written_form
+        from zombi2.params.parse import parse_rate, written_form
 
         alone = PerCopy().set_by("h.tsv", {"cave": 1.0})
         assert written_form(alone) == repr(alone)
@@ -246,7 +246,7 @@ def test_a_modifier_of_your_own_cannot_vouch_for_a_replaced_base():
     promise that for a factor it *computes*. Replacing a base is not that: it is a capability three
     levels have and four do not, so a `SetBy` subclass admitted through the hatch would be honoured
     nowhere. The same reason a carried value cannot go through it."""
-    from zombi2.rates.modifiers import is_implemented, matches_declared
+    from zombi2.params.modifiers import is_implemented, matches_declared
 
     class Mine(SetBy):
         implemented_for = ("species", "genomes.family", "traits.discrete")
@@ -264,7 +264,7 @@ def test_the_verb_has_to_match_what_it_is_attached_to(tree, habitat):
     test — a weight written on a rate simply behaved as a factor, and a factor written on
     `transfer_to` as a weight, both in silence. The verb is recorded on the object, so each side now
     refuses the other and names the one that fits."""
-    from zombi2.rates import verbs
+    from zombi2.params import verbs
 
     with pytest.raises(ValueError, match="carries weighted_by"):
         genomes.simulate_genomes_family(

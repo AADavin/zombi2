@@ -42,7 +42,7 @@ Every rate is written the same way — a **scope**, with **verbs** chained onto 
 (a rate that changes in time, saturates with diversity, or drifts along the tree):
 
 ```python
-from zombi2.rates import Global, PerLineage
+from zombi2.params import Global, PerLineage
 
 sp = species.simulate_species_tree(
     birth = PerLineage(1.0).changing_at({0: 1.0, 3: 0.5}),  # skyline: full rate, then half after time 3

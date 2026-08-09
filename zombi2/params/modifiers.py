@@ -65,7 +65,7 @@ UNITS = ("run", "lineages", "chromosomes", "families", "copies", "sites")
 #: the transfer engine refuses a `Driven` written with `SCALED_BY` where a choice's weights belong —
 #: and a literal spelled out at each end is a contract that renames in silence: when these strings
 #: last changed, that refusal stopped firing and nothing said so. They live here rather than in
-#: `zombi2.rates.verbs` only because that module imports this one; it re-exports them, so
+#: `zombi2.params.verbs` only because that module imports this one; it re-exports them, so
 #: ``verbs.SCALED_BY`` is the name to compare against.
 SCALED_BY = "scaled_by"
 SET_BY = "set_by"

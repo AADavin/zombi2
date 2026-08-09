@@ -80,7 +80,7 @@ Once genes have neighbours, **a gene-level event acts on a segment**, a run of c
 How much does an event take? That is its **extent**, set per event type as `<event>_extent`. A bare number is the **mean**, so `duplication_extent=3` copies about three adjacent genes: often two or three, sometimes one, occasionally many more. Write `Fixed(3)` for exactly three every time, or name any other distribution. The default is a single gene, so out of the box every event touches one gene and you recover the simplest behaviour.
 
 ```python
-from zombi2.rates.distributions import Geometric
+from zombi2.params.distributions import Geometric
 
 tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=332)
 g = genomes.simulate_genomes_ordered(
@@ -185,7 +185,7 @@ Every knob in this chapter is an argument of the one call, so a rate and its ext
 
 ```python
 from zombi2 import species, genomes, traits
-from zombi2.rates import Extent, PerCopy
+from zombi2.params import Extent, PerCopy
 
 tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=30, seed=1)
 

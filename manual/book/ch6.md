@@ -58,7 +58,7 @@ So does **conditioning**. Every rate here takes a `scaled_by`, so a trait can dr
 
 ```python
 from zombi2 import traits
-from zombi2.rates import Extent, PerLineage
+from zombi2.params import Extent, PerLineage
 
 habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=2)
 loss = PerLineage(0.8).scaled_by(habitat, {"host": 20.0, "free": 0.5})

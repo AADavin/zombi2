@@ -10,11 +10,11 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 
 import helpers as h
-from zombi2.rates import Drift, LogNormal, PerSite
+from zombi2.params import Drift, LogNormal, PerSite
 from helpers import Example
 
 import phylustrator as ph
-from zombi2.rates.distributions import Gamma
+from zombi2.params.distributions import Gamma
 
 
 # --- the relaxed clocks, one card each: one species tree, one shared colour scale ------------
@@ -222,7 +222,7 @@ _C_AUTOCORR = '''\
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_family
 from zombi2.sequences import simulate_sequences, hky85
-from zombi2.rates import Drift, LogNormal, PerSite
+from zombi2.params import Drift, LogNormal, PerSite
 
 sp = simulate_species_tree(birth=1.0, n_extant=120, seed=7)          # pure birth: no extinction
 ct = sp.complete_tree
@@ -305,7 +305,7 @@ _C_CLOCKS = '''\
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_family
 from zombi2.sequences import simulate_sequences, hky85
-from zombi2.rates import Drift, Gamma, LogNormal, PerSite
+from zombi2.params import Drift, Gamma, LogNormal, PerSite
 
 sp = simulate_species_tree(birth=1.0, n_extant=70, seed=11)     # pure birth: no extinction
 ct = sp.complete_tree

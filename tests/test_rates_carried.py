@@ -13,10 +13,10 @@ import math
 
 import pytest
 
-from zombi2.rates import Drift, LogNormal, PerCopy, PerLineage, Random, modifiers as mod
-from zombi2.rates import scope
-from zombi2.rates.modifiers import CARRIED_KINDS, DRAWN, DRIVEN, INHERITED, MEASURED
-from zombi2.rates.rate import as_rate
+from zombi2.params import Drift, LogNormal, PerCopy, PerLineage, Random, modifiers as mod
+from zombi2.params import scope
+from zombi2.params.modifiers import CARRIED_KINDS, DRAWN, DRIVEN, INHERITED, MEASURED
+from zombi2.params.rate import as_rate
 
 
 def _rate(spec):

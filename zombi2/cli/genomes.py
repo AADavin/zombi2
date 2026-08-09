@@ -26,9 +26,9 @@ from zombi2.genomes.ordered import OrderedGenomesResult
 from zombi2.genomes.nucleotide import NucleotideGenomesResult
 from zombi2.genomes.nucleotide import IMPLEMENTED_MODIFIERS as _NUC_IMPLEMENTED
 from zombi2.genomes.ordered import IMPLEMENTED_MODIFIERS as _ORDERED_IMPLEMENTED
-from zombi2.rates.modifiers import cell_name
-from zombi2.rates.parse import parse_rate
-from zombi2.rates.scope import Global, PerLineage
+from zombi2.params.modifiers import cell_name
+from zombi2.params.parse import parse_rate
+from zombi2.params.scope import Global, PerLineage
 from zombi2.tree import node_label, read_newick
 from zombi2._runtime.report import write_run_report
 from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
@@ -324,8 +324,8 @@ def _transfer_to(text: str):
     rate multipliers. Parsed by the same ast-whitelist parser every rate flag uses, so the expression
     is the one you would write in Python and nothing is evaluated.
     """
-    from zombi2.rates.choice import Choice, Clades, Distance
-    from zombi2.rates.parse import parse_rate
+    from zombi2.params.choice import Choice, Clades, Distance
+    from zombi2.params.parse import parse_rate
 
     if text in ("uniform", "distance"):
         return text

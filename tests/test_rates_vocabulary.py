@@ -12,7 +12,7 @@ import re
 import pytest
 
 from zombi2 import genomes
-from zombi2.rates import (Drift, LogNormal, PerCopy, PerLineage, Random, Recipients, Time,
+from zombi2.params import (Drift, LogNormal, PerCopy, PerLineage, Random, Recipients, Time,
                           modifiers as mod)
 from zombi2.species import simulate_species_tree
 
@@ -20,17 +20,17 @@ from zombi2.species import simulate_species_tree
 def test_what_you_can_import_and_what_you_can_write_are_one_surface():
     """The package's own claim, checked. Five names were writable in a ``--birth`` flag and absent
     from the package, so a user following the manual's `Between` example had to discover
-    ``zombi2.rates.mapping`` — the two-surface split the comment above ``__all__`` says does not
+    ``zombi2.params.mapping`` — the two-surface split the comment above ``__all__`` says does not
     exist.
 
     Two entries are deliberately exported and not writable, and both for a reason the comment
     states: `Curve` takes a function, which no flag can carry, and ``UNITS`` is data rather than a
     name you call."""
-    import zombi2.rates
-    from zombi2.rates.parse import _NAMES
+    import zombi2.params
+    from zombi2.params.parse import _NAMES
 
-    assert not set(_NAMES) - set(zombi2.rates.__all__), "writable in a flag, missing from the package"
-    assert set(zombi2.rates.__all__) - set(_NAMES) == {"Curve", "UNITS"}
+    assert not set(_NAMES) - set(zombi2.params.__all__), "writable in a flag, missing from the package"
+    assert set(zombi2.params.__all__) - set(_NAMES) == {"Curve", "UNITS"}
 
 
 class TestTheGridBuildsWhatTheEnginesRun:
@@ -173,16 +173,16 @@ class TestARetiredSpellingIsAnsweredInPythonToo:
         second and substitutes its own generic "cannot import name" — losing the sentence exactly
         where a port hits it first."""
         with pytest.raises(ImportError, match=replacement):
-            __import__("zombi2.rates", fromlist=[name]).__getattr__(name)
+            __import__("zombi2.params", fromlist=[name]).__getattr__(name)
 
     def test_a_name_that_was_never_in_the_grammar_is_still_an_attribute_error(self):
         with pytest.raises(AttributeError, match="has no attribute 'Wobble'"):
-            import zombi2.rates
-            zombi2.rates.Wobble
+            import zombi2.params
+            zombi2.params.Wobble
 
     def test_the_retired_names_are_the_same_list_the_text_form_reads(self):
-        from zombi2.rates import RETIRED
-        from zombi2.rates.parse import RETIRED as PARSED
+        from zombi2.params import RETIRED
+        from zombi2.params.parse import RETIRED as PARSED
         assert RETIRED is PARSED
 
 

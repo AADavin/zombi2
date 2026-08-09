@@ -81,7 +81,7 @@ part of the rate instead, in one notation shared by the flag, the `--params` fil
 
 ```python
 from zombi2 import species
-from zombi2.rates import Drift, LogNormal, PerLineage
+from zombi2.params import Drift, LogNormal, PerLineage
 
 species.simulate_species_tree(birth=1.0, death=0.2, n_extant=20, seed=1)                 # fixed
 species.simulate_species_tree(birth=PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2))), n_extant=20, seed=1)  # drifting

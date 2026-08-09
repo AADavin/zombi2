@@ -16,11 +16,11 @@ import re
 import pytest
 
 from zombi2 import genomes, sequences, traits
-from zombi2.rates.driver import DriverTrajectory, load_driver
-from zombi2.rates import (Extent, LogNormal, PerChromosome, PerCopy, PerLineage, PerSite,
+from zombi2.params.driver import DriverTrajectory, load_driver
+from zombi2.params import (Extent, LogNormal, PerChromosome, PerCopy, PerLineage, PerSite,
                           Recipients)
-from zombi2.rates import verbs
-from zombi2.rates.mapping import Between, Curve, Scalar, Table, as_mapping, check_kernel_fires
+from zombi2.params import verbs
+from zombi2.params.mapping import Between, Curve, Scalar, Table, as_mapping, check_kernel_fires
 from zombi2.sequences.substitution_models import hky85, jc69
 from zombi2.species import simulate_species_tree
 from zombi2.tree import Node, Tree, read_newick
@@ -129,7 +129,7 @@ def test_between_rejects_bad_input():
 
 
 def test_between_repr_round_trips_through_the_parser():
-    from zombi2.rates.parse import parse_rate
+    from zombi2.params.parse import parse_rate
     d = Recipients().weighted_by("f.tsv", Between({("A", "B"): 3.0, ("B", "A"): 3.0},
                                                   default=0.0))
     assert parse_rate(repr(d)) == d                     # the log line pastes back into a flag
@@ -158,7 +158,7 @@ def test_drivenby_inert_without_driver():
 
 
 def test_drivenby_builds_a_rate():
-    from zombi2.rates.rate import as_rate
+    from zombi2.params.rate import as_rate
     los = PerCopy(0.25).scaled_by("f.tsv", {"hi": 4.0})
     r = as_rate(los, default_scope=PerCopy)
     # base × copies × mapped factor
@@ -803,7 +803,7 @@ def test_nucleotide_loss_is_driven_by_a_trait():
         loss=PerLineage(0.9).scaled_by(habitat, {"host": 25.0, "free": 0.0}),
         loss_extent=200, seed=2)
 
-    from zombi2.rates.driver import driver_from_result
+    from zombi2.params.driver import driver_from_result
     traj = driver_from_result(habitat)
     losses = [e for e in res.events if type(e).__name__ == "Loss"]
     assert losses, "the run should produce losses at all"
@@ -1124,7 +1124,7 @@ def test_continuous_driver_trajectory_interpolates():
     branch."""
     import math
 
-    from zombi2.rates.driver import driver_from_continuous_result
+    from zombi2.params.driver import driver_from_continuous_result
     ct = simulate_species_tree(birth=1.0, n_extant=6, seed=1).complete_tree
     met = traits.simulate_continuous(ct, start=0.0, rate=1.0, seed=2)
 
@@ -1150,7 +1150,7 @@ def test_the_continuous_driver_step_is_a_duration_not_a_count_of_pieces():
     it on the branches that need it also refines every branch that does not. A duration gives every
     stretch the same length wherever it sits: a branch twice as long gets twice as many, and halving
     the step doubles them everywhere."""
-    from zombi2.rates.driver import default_step, driver_from_continuous_result, tree_height
+    from zombi2.params.driver import default_step, driver_from_continuous_result, tree_height
     ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=25, seed=3).complete_tree
     met = traits.simulate_continuous(ct, start=0.0, rate=1.0, seed=4)
 
@@ -1242,7 +1242,7 @@ def test_discrete_table_on_continuous_driver_is_refused():
 
 
 def test_multitrait_continuous_driver_is_refused():
-    from zombi2.rates.driver import driver_from_continuous_result
+    from zombi2.params.driver import driver_from_continuous_result
     ct = simulate_species_tree(birth=1.0, n_extant=8, seed=1).complete_tree
     two = traits.simulate_continuous(ct, start={"x": 0.0, "y": 0.0}, rate={"x": 1.0, "y": 1.0}, seed=2)
     with pytest.raises(ValueError, match="SINGLE-trait"):
@@ -1357,7 +1357,7 @@ def test_the_driven_branch_length_is_the_exact_integral(tmp_path):
     Three stretches on one branch (factors 0.5, 4.0, 1.0 over [0,1), [1,1.25), [1.25,2]) give
     ``0.5×1 + 4×0.25 + 1×0.75 = 2.25``; a sub-stretch is checked too, so the running total is not
     only right at the breakpoints."""
-    from zombi2.rates.driver import resolve_driver
+    from zombi2.params.driver import resolve_driver
     from zombi2.sequences.clock import resolve_clock
 
     tree = Tree({0: Node(0, None, 0.0, 2.0, None, "extant")}, 0)
@@ -1402,7 +1402,7 @@ def test_a_driver_composes_with_a_lineage_clock():
     branch ``base × clock × ∫driver``, and each factor is recovered here independently — the clock
     from an otherwise-identical undriven run at the same seed (the draw comes first and consumes the
     same randomness either way), the integral by walking the trait's own trajectory."""
-    from zombi2.rates.driver import driver_from_result
+    from zombi2.params.driver import driver_from_result
 
     tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=21).complete_tree
     habitat = traits.simulate_discrete(tree, states=["cave", "surface"], switch=2.0, seed=22)

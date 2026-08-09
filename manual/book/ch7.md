@@ -12,7 +12,7 @@ The sequence level always follows a genome run, and takes that run's result dire
 ```python
 from zombi2 import species, genomes, sequences
 from zombi2.sequences.substitution_models import hky85
-from zombi2.rates import Drift, LogNormal, PerSite
+from zombi2.params import Drift, LogNormal, PerSite
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 my_genomes = genomes.simulate_genomes_family(tree, duplication=0.2, transfer=0.1,
@@ -236,7 +236,7 @@ zombi2 sequences out/ --model hky85 --length 1000 --divergence 0.2
 The two say different things and can be given together. `substitution` says what *kind* of clock, strict or relaxed by a modifier, and `divergence` says how far it drifts, so a relaxed clock calibrated to a divergence is written with the shape alone and the scale beside it:
 
 ```python
-from zombi2.rates import LogNormal, PerSite
+from zombi2.params import LogNormal, PerSite
 # the shape: an uncorrelated clock, and the scale: 0.2 substitutions per site
 substitution = PerSite().varying_among('lineages', LogNormal(0.0, 0.3))
 divergence   = 0.2
@@ -247,7 +247,7 @@ Giving `substitution` a base *number* as well is an error rather than an overrid
 A substitution rate that changes from lineage to lineage is what the field calls a **relaxed clock** [@lepage2007general]. It is not a new kind of object here: you chain a verb onto the rate, exactly as at every other level.
 
 ```python
-from zombi2.rates import Drift, Gamma, LogNormal, PerSite
+from zombi2.params import Drift, Gamma, LogNormal, PerSite
 
 # strict clock: one rate everywhere; the default, so write nothing
 substitution = 1.0

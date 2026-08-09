@@ -186,7 +186,7 @@ birth = "PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})"        # a --params TOML
 ```
 
 A bare number stays a bare number in all three (`--birth 1.0`, `birth = 1.0`). Every name the written
-form may call is importable from `zombi2.rates`, so Python needs no module qualifier; where one is
+form may call is importable from `zombi2.params`, so Python needs no module qualifier; where one is
 written (`scope.PerLineage(1.0)`) it is ignored by the other two, so a manual snippet pastes in
 unchanged. There is **no second notation** — no per-modifier flags, no nested parameter tables;
 adding a driver, a law or a mapping must never add a flag. (Read by `rates/parse.py`; it parses the
