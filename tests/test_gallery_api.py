@@ -34,7 +34,7 @@ import sys
 from unittest import mock
 from unittest.mock import MagicMock
 
-from zombi2.rates import PerCopy, PerLineage
+from zombi2.params import PerCopy, PerLineage
 import pytest
 
 GALLERY = pathlib.Path(__file__).resolve().parent.parent / "gallery"

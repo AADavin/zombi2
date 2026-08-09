@@ -12,8 +12,8 @@ import math
 import numpy as np
 import pytest
 
-from zombi2.rates import Drift, Global, LogNormal, PerLineage, TotalDiversity
-from zombi2.rates import scope
+from zombi2.params import Drift, Global, LogNormal, PerLineage, TotalDiversity
+from zombi2.params import scope
 from zombi2.species import simulate_species_tree
 from zombi2.traits import Change, TraitsResult, simulate_continuous, simulate_discrete
 
@@ -140,7 +140,7 @@ def test_rejects_an_unknown_modifier():
     # changing_at (early burst), an inherited law (variable-rates BM) and TotalDiversity
     # (diversity-dependent) are wired;
     # any other Modifier is rejected loudly
-    from zombi2.rates.modifiers import Modifier
+    from zombi2.params.modifiers import Modifier
 
     class _Bogus(Modifier):
         def factor(self, **_):
@@ -1298,9 +1298,9 @@ def test_a_driven_variance_integrates_across_the_drivers_mid_branch_switch(tmp_p
     # 1.0×1 + 9.0×1 = 10 — not the 1.0×2 = 2 a single sample at the branch start would give (nor the
     # 9.0×2 = 18 a sample at the end would). A per-branch sample is not merely coarse here: it is a
     # different model, and on this branch it is off by a factor of five.
-    from zombi2.rates.driver import resolve_driver
-    from zombi2.rates.rate import as_rate
-    from zombi2.rates.scope import PerLineage
+    from zombi2.params.driver import resolve_driver
+    from zombi2.params.rate import as_rate
+    from zombi2.params.scope import PerLineage
     from zombi2.traits.continuous import _accrued_variance
 
     tree = _one_branch(2.0).complete_tree
@@ -1607,7 +1607,7 @@ def test_a_discrete_trait_steps_at_a_rate_that_changes_on_its_own_clock():
     import math
 
     from zombi2 import species, traits
-    from zombi2.rates.modifiers import Modifier
+    from zombi2.params.modifiers import Modifier
 
     class StopsAtOne(Modifier):
         """Full rate until time 1, nothing after — and it says so, as a modifier must."""

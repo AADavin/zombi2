@@ -6,7 +6,7 @@ The trait level evolves **phenotypes**: a body size, a habitat, the presence or 
 
 ```python
 from zombi2 import species, traits
-from zombi2.rates import PerLineage
+from zombi2.params import PerLineage
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 result = traits.simulate_continuous(tree, start=0.0, rate=1.0, seed=1)   # a real value
@@ -40,7 +40,7 @@ The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `rev
 That is the pattern for everything past Brownian motion here, and it is not a longer menu of models. The diffusion rate is a rate like any other in ZOMBI2, so the verbs this level reads apply to it unchanged, each with a name in the comparative-methods literature:
 
 ```python
-from zombi2.rates import Drift, LogNormal, PerLineage, TotalDiversity
+from zombi2.params import Drift, LogNormal, PerLineage, TotalDiversity
 rate = PerLineage(1.0).changing_at({0: 4.0, 1: 1.0})    # fast early, then settling: early burst
 # each clade inherits and drifts in tempo
 rate = PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.3)))

@@ -13,7 +13,7 @@ from zombi2 import species
 from zombi2.genomes import FamilyGenomesResult, simulate_genomes_family
 from zombi2.genomes.events import copy_label
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
-from zombi2.rates import Drift, LogNormal, PerSite, Random
+from zombi2.params import Drift, LogNormal, PerSite, Random
 from zombi2.sequences import SequencesResult, simulate_sequences
 from zombi2.sequences.substitution_models import (AMINO_ACIDS, SubstitutionModel, dayhoff, gtr,
                                                   hky85, jc69, jtt, k80, lg, poisson, reversible,
@@ -406,7 +406,7 @@ def test_a_between_kernel_is_refused_on_the_substitution_rate(tmp_path):
     """A ``Between`` weights an ordered (donor, recipient) pair, and a rate is read on one lineage —
     there is no donor for the pair's first half to name. Meaningless rather than unimplemented, so the
     message has to name the slot it does belong in (SPEC §5)."""
-    from zombi2.rates.mapping import Between
+    from zombi2.params.mapping import Between
 
     run = _pair_run(1.0, 2.0)
     driver = tmp_path / "d.tsv"
@@ -570,7 +570,7 @@ def test_write_emits_phylogram_newick(tmp_path):
 # --- validation ------------------------------------------------------------------------------------
 
 def test_rejects_bad_arguments_and_unwired_rate_specs():
-    from zombi2.rates.scope import PerLineage
+    from zombi2.params.scope import PerLineage
     run = _pair_run(1.0, 2.0)
     with pytest.raises(TypeError):
         simulate_sequences(run, model="jc69", length=10)                  # not a SubstitutionModel

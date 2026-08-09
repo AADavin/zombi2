@@ -4,8 +4,8 @@ import re
 
 import pytest
 
-from zombi2.rates import Drift, Global, LogNormal, PerLineage, TotalDiversity
-from zombi2.rates import scope
+from zombi2.params import Drift, Global, LogNormal, PerLineage, TotalDiversity
+from zombi2.params import scope
 from zombi2.species import Event, simulate_species_tree
 
 

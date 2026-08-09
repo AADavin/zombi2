@@ -40,7 +40,7 @@ import phylustrator as ph
 
 from fig_species_tree_extinct import dead_ends
 from zombi2 import species
-from zombi2.rates import Drift, LogNormal, PerLineage, TotalDiversity
+from zombi2.params import Drift, LogNormal, PerLineage, TotalDiversity
 from zombi_style import save, tree_style, FS_LABEL
 
 N_EXTANT = 25          # every panel stops at the same standing diversity

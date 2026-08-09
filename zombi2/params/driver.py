@@ -350,8 +350,8 @@ def driver_from_continuous_result(result, *, step: float | None = None) -> Drive
     out, so a smaller ``step`` is not only more precise, it removes a bias.
 
     The driver's values are **floats**, so its `Driven` needs a continuous mapping (a
-    `~zombi2.rates.mapping.Curve` or `~zombi2.rates.mapping.Scalar`), not a discrete
-    ``{state: factor}`` `~zombi2.rates.mapping.Table` (which would match no float and never fire)."""
+    `~zombi2.params.mapping.Curve` or `~zombi2.params.mapping.Scalar`), not a discrete
+    ``{state: factor}`` `~zombi2.params.mapping.Table` (which would match no float and never fire)."""
     tree = result.complete_tree
     values = result.node_values
     if not values:
@@ -465,7 +465,7 @@ def refuse_wrong_direction(driver, level: str | None) -> None:
     and must not import from any of them.
 
     ``level`` is the engine name each level already answers to (``"genomes.family"``, ``"sequences"``,
-    … — `zombi2.rates.modifiers.Modifier.implemented_for` lists them); ``None`` checks nothing."""
+    … — `zombi2.params.modifiers.Modifier.implemented_for` lists them); ``None`` checks nothing."""
     if level is None:
         return
     refuses = getattr(driver, "refuses", None)

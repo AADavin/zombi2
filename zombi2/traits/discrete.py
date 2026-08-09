@@ -7,11 +7,11 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..rates.mapping import check_not_a_kernel
+from ..params.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import describe, Driven, Modifier, is_implemented
-from ..rates.rate import Rate, as_rate
-from ..rates.scope import PerLineage
+from ..params.modifiers import describe, Driven, Modifier, is_implemented
+from ..params.rate import Rate, as_rate
+from ..params.scope import PerLineage
 from ..tree import as_tree
 
 from ._shared import _correlation_matrix, _preorder, _resolve_drivers, _symmetric_sqrt
@@ -243,7 +243,7 @@ def _gillespie_driven(state: int, node, node_id: int, entries, k: int, trajs: di
     """Exact CTMC along one branch whose switch rates are **driven** by another level.
 
     The driver is piecewise-constant along the branch, so the generator is too: the branch is cut at
-    the driver's own switches (`~zombi2.rates.driver.DriverTrajectory.next_change`) and the plain
+    the driver's own switches (`~zombi2.params.driver.DriverTrajectory.next_change`) and the plain
     `_gillespie()` runs over each stretch under that stretch's ``Q``, carrying the state across.
     Memorylessness makes the concatenation exactly the CTMC with the time-varying generator. Reading
     the driver once per branch would be wrong — a driver that flips half-way would have the whole

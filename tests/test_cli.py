@@ -680,7 +680,7 @@ def test_traits_switch_takes_every_shape_the_keyword_does(switch, tmp_path, tree
 
 
 def test_traits_switch_takes_a_rate_expression_and_the_driver_reaches_the_engine(tmp_path, tree_file):
-    from zombi2.rates.parse import parse_rate, written_form
+    from zombi2.params.parse import parse_rate, written_form
 
     driver = _driver_file(tmp_path, tree_file)
     expression = f"PerLineage(0.2).scaled_by({str(driver)!r}, {{'x': 12.0, 'y': 1.0}})"
@@ -701,7 +701,7 @@ def test_traits_a_driven_switch_inside_a_per_transition_dict_is_seen_by_the_log(
     """A rate hidden in a ``{'a->b': rate}`` dict is still a driver: the log has to render it in the
     written form and the input digest has to name the file, or a conditioned run reads as an
     unconditioned one and its driver can be re-run out from under it."""
-    from zombi2.rates.parse import parse_rate, written_form
+    from zombi2.params.parse import parse_rate, written_form
 
     driver = _driver_file(tmp_path, tree_file)
     inner = f"PerLineage(0.3).scaled_by({str(driver)!r}, {{'x': 5.0}})"
@@ -997,7 +997,7 @@ def test_genomes_transfer_can_be_driven_from_the_cli(tmp_path, driver_file, tree
     assert rc == 0
     # the log records the rate in its written form, which is what pastes back into the flag — so
     # compare against that rather than a hand-built string (a Windows path is escaped in it)
-    from zombi2.rates.parse import parse_rate, written_form
+    from zombi2.params.parse import parse_rate, written_form
     written = written_form(parse_rate(f"PerCopy(0.2).scaled_by('{driver_file}', "
                                       f"{{'competent': 4.0, 'normal': 1.0}})"))
     assert f"transfer\t{written}" in (out / "genomes.log").read_text(encoding="utf-8")

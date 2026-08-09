@@ -1,9 +1,9 @@
-"""Tests for zombi2.rates.scope — the "per what?" of a rate (SPEC §5)."""
+"""Tests for zombi2.params.scope — the "per what?" of a rate (SPEC §5)."""
 
 import pytest
 
-from zombi2.rates import scope
-from zombi2.rates.rate import Rate
+from zombi2.params import scope
+from zombi2.params.rate import Rate
 
 
 # --- calling a scope IS the rate ------------------------------------------

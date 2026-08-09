@@ -31,15 +31,15 @@ import itertools
 import numpy as np
 import pytest
 
-from zombi2.rates import Clade, Extent, Recipients, Time
-from zombi2.rates import modifiers as mod
-from zombi2.rates import scope
-from zombi2.rates import values as values_mod
-from zombi2.rates.distributions import Exponential, Fixed, Gamma, Geometric, LogNormal, Uniform
-from zombi2.rates.mapping import Between, Scalar, Table
-from zombi2.rates.modifiers import Driven, Drift, values_at_birth
-from zombi2.rates.parse import parse_rate, written_form
-from zombi2.rates.rate import Rate, as_rate
+from zombi2.params import Clade, Extent, Recipients, Time
+from zombi2.params import modifiers as mod
+from zombi2.params import scope
+from zombi2.params import values as values_mod
+from zombi2.params.distributions import Exponential, Fixed, Gamma, Geometric, LogNormal, Uniform
+from zombi2.params.mapping import Between, Scalar, Table
+from zombi2.params.modifiers import Driven, Drift, values_at_birth
+from zombi2.params.parse import parse_rate, written_form
+from zombi2.params.rate import Rate, as_rate
 
 #: (name, chain one verb onto a rate, the values this verb's driver can take, does it replace the base)
 #:
@@ -218,7 +218,7 @@ def test_the_enumeration_is_actually_covering_the_grammar():
     # every verb a rate can take is written by some case, so a verb added without a fixture entry
     # fails here rather than going quietly untested. `weighted_by` is the one a rate refuses — it
     # belongs to a choice — and it is covered by the choice round trips below.
-    from zombi2.rates import verbs
+    from zombi2.params import verbs
     rendered = " ".join(written_form(case.values[0]) for case in cases)
     on_a_rate = [v for v in verbs.VERBS if v != verbs.WEIGHTED_BY]
     assert not [v for v in on_a_rate if v not in rendered], rendered[:200]
@@ -265,7 +265,7 @@ EXTENTS = [
 def test_an_extent_survives_being_written_down_and_read_back(name, spec):
     """An extent is ``base × modifiers`` with no scope (SPEC §6), so it renders through the same
     writer a rate does and has to come back the same size."""
-    from zombi2.rates.extent import as_extent
+    from zombi2.params.extent import as_extent
 
     text = written_form(spec)
     back = parse_rate(text)
@@ -289,8 +289,8 @@ def test_a_transfer_choice_is_written_as_the_form_that_takes_it_back():
     weighting is written from `Recipients()`, without the base a rate carries — a choice has none and
     the flag refuses one in front, so the rate writer's output was an expression the CLI rejects."""
     from zombi2.genomes._transfer import resolve_transfer_to
-    from zombi2.rates.choice import Clades, Distance
-    from zombi2.rates.parse import written_choice
+    from zombi2.params.choice import Clades, Distance
+    from zombi2.params.parse import written_choice
 
     assert written_choice("uniform") == "uniform"
     assert written_choice("distance") == "distance"
@@ -313,8 +313,8 @@ def test_every_choice_rule_reads_back_from_its_own_written_form():
     `Distance` and `Clades` used to live at the genome level, where the parser could not see them, so
     a non-default `Distance(decay=…)` was Python-only and `Clades(...)` could not be typed at all.
     They are grammar objects — things a user writes — so they now live beside the rest of it."""
-    from zombi2.rates.choice import Clades, Distance
-    from zombi2.rates.parse import written_choice
+    from zombi2.params.choice import Clades, Distance
+    from zombi2.params.parse import written_choice
 
     for spec in (Distance(decay=3.0),
                  Clades({"A": ["n1", "n2"], "B": 40},
@@ -330,7 +330,7 @@ def test_every_choice_rule_reads_back_from_its_own_written_form():
 def test_a_clades_repr_is_the_call_that_reads_back_not_the_dataclass_one():
     """A dataclass gives `Clades(groups=…, between=…)`. That is valid Python but not what the parser
     or the docs use, and a run's log is a record you paste back."""
-    from zombi2.rates.choice import Clades
+    from zombi2.params.choice import Clades
 
     c = Clades({"A": ["n1"]}, Between({("A", "A"): 1.0}, default=0.0))
     assert repr(c).startswith("Clades({'A': ['n1']}, Between(")

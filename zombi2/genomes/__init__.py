@@ -16,7 +16,7 @@ derived views (gene trees, profiles) in their own modules.
 
 from __future__ import annotations
 
-from ..rates.mapping import Between
+from ..params.mapping import Between
 from ._transfer import Clades, Distance
 from .events import GeneEdge
 from .gene_trees import GeneNode, GeneTree

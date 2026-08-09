@@ -21,15 +21,15 @@ import pathlib
 from dataclasses import dataclass, field
 
 
-from ..rates.modifiers import (describe, DRAWN, INHERITED, OnTime, OnTotalDiversity,
+from ..params.modifiers import (describe, DRAWN, INHERITED, OnTime, OnTotalDiversity,
                                check_one_memory, is_implemented, values_at_birth,
                                values_at_split)
 from ..rng import stream
 from .._runtime.draw import weighted_index as _weighted_index
 from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
-from ..rates.rate import as_rate
-from ..rates.scope import Global, PerLineage
+from ..params.rate import as_rate
+from ..params.scope import Global, PerLineage
 from ..tree import Node, Tree, prune
 
 #: The rate grammar this level supports (SPEC §5). Both the engine's gate below and the CLI's help

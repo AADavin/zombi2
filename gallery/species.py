@@ -11,7 +11,7 @@ from helpers import Example
 
 import phylustrator as ph
 from zombi2.species import simulate_species_tree
-from zombi2.rates import PerLineage, TotalDiversity
+from zombi2.params import PerLineage, TotalDiversity
 from zombi2.tree import gamma_statistic
 
 
@@ -216,7 +216,7 @@ h.composite_below("tree.png", present, "massext.png", panel, "lineages")'''
 _C_RATESHIFT = '''\
 ### simulate  —  speciation slow (0.8), then fast (1.9), then slow again, by time
 from zombi2.species import simulate_species_tree
-from zombi2.rates import PerLineage
+from zombi2.params import PerLineage
 
 rate = PerLineage(1.0).changing_at({0: 0.8, 2.0: 1.9, 3.5: 0.8})
 sp = simulate_species_tree(birth=rate, total_time=4.5, seed=3)
@@ -233,7 +233,7 @@ tree = ph.trees.loads(sp.complete_tree.to_newick())
 _C_DIVERSITY = '''\
 ### simulate  —  speciation slows as diversity approaches a cap of 100
 from zombi2.species import simulate_species_tree
-from zombi2.rates import PerLineage, TotalDiversity
+from zombi2.params import PerLineage, TotalDiversity
 
 sp = simulate_species_tree(birth=PerLineage(1.0).scaled_by(TotalDiversity(cap=100)),
                            total_time=10.0, seed=6)
@@ -260,7 +260,7 @@ zombi2 tools tree out/species/species_extant.nwk --gamma        # gamma  -6.31
 
 ### simulate  —  2000 trees of 100 tips under each process (a few seconds)
 from zombi2.species import simulate_species_tree
-from zombi2.rates import PerLineage, TotalDiversity
+from zombi2.params import PerLineage, TotalDiversity
 from zombi2.tree import gamma_statistic     # 0 on average under constant rates
 
 gammas = {}

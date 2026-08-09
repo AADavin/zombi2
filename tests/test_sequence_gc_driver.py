@@ -16,8 +16,8 @@ import pytest
 from zombi2 import traits
 from zombi2.genomes import (simulate_genomes_family, simulate_genomes_nucleotide,
                             simulate_genomes_ordered)
-from zombi2.rates import PerCopy, PerLineage, PerSite, Recipients
-from zombi2.rates.mapping import Curve
+from zombi2.params import PerCopy, PerLineage, PerSite, Recipients
+from zombi2.params.mapping import Curve
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85, jc69, lg
 from zombi2.species import simulate_species_tree

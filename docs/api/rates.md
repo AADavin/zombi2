@@ -1,4 +1,4 @@
-# zombi2.rates
+# zombi2.params
 
 Every event fires at a **rate**, and every rate is written the same way at every level:
 
@@ -22,7 +22,7 @@ the command line and a `--params` file take it verbatim. The same text, three pl
 
 ```python
 from zombi2 import species
-from zombi2.rates import PerLineage
+from zombi2.params import PerLineage
 
 birth = PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})
 species.simulate_species_tree(birth=birth, n_extant=10, seed=1)
@@ -39,9 +39,9 @@ zombi2 species out/ --birth "PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})" --n-
 zombi2 species out/ --params params.toml --seed 1
 ```
 
-Every name the written form may call is importable from `zombi2.rates`, so a snippet pastes across
+Every name the written form may call is importable from `zombi2.params`, so a snippet pastes across
 unchanged. Four qualifiers are tolerated where Python needs one — `mod.`, `modifiers.`, `scope.` and
-`scopes.` — and nothing else, so `rates.PerCopy(...)` or a dotted `zombi2.rates.PerCopy(...)` is
+`scopes.` — and nothing else, so `rates.PerCopy(...)` or a dotted `zombi2.params.PerCopy(...)` is
 refused: the parser reads a whitelist of names, not attribute paths. A bare number stays a bare
 number everywhere (`birth = 1.0`, `--birth 1.0`).
 
@@ -50,7 +50,7 @@ quietly not the model you asked for.
 
 ## Scopes
 
-::: zombi2.rates.scope
+::: zombi2.params.scope
 
 ## Rates, extents and choices
 
@@ -59,11 +59,11 @@ extent from `Extent(...)`, and a choice from `Recipients()` — the last two onl
 chained onto them, since a bare distribution is already an extent and `"uniform"` is already a
 choice.
 
-::: zombi2.rates.rate
+::: zombi2.params.rate
 
-::: zombi2.rates.extent
+::: zombi2.params.extent
 
-::: zombi2.rates.choice
+::: zombi2.params.choice
 
 ## Modifiers
 
@@ -96,9 +96,9 @@ modifier of your own opens that gate by naming the engines you implemented it fo
 
 ```python
 from zombi2 import species
-from zombi2.rates import PerLineage
-from zombi2.rates.modifiers import Modifier
-from zombi2.rates.rate import Rate
+from zombi2.params import PerLineage
+from zombi2.params.modifiers import Modifier
+from zombi2.params.rate import Rate
 
 class OnLogTime(Modifier):
     implemented_for = ("species",)
@@ -141,22 +141,22 @@ modifier of your own is Python-only, as an object you construct has to be.
 [Appendix A, "Writing your own"](../rates.md#writing-your-own), with the two things a modifier of
 your own has to provide and the one it may.
 
-::: zombi2.rates.modifiers
+::: zombi2.params.modifiers
 
 ## Mappings
 
 What a driven parameter carries — the shape that turns the driver's value into a number.
 
-::: zombi2.rates.mapping
+::: zombi2.params.mapping
 
 ## Values
 
-::: zombi2.rates.values
+::: zombi2.params.values
 
 ## Verbs
 
-::: zombi2.rates.verbs
+::: zombi2.params.verbs
 
 ## Clades
 
-::: zombi2.rates.clade
+::: zombi2.params.clade

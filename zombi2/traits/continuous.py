@@ -8,12 +8,12 @@ from typing import cast
 
 import numpy as np
 
-from ..rates.mapping import check_not_a_kernel
+from ..params.mapping import check_not_a_kernel
 from ..rng import stream
-from ..rates.modifiers import (describe, DRAWN, INHERITED, Driven, OnTime, OnTotalDiversity, SetBy,
+from ..params.modifiers import (describe, DRAWN, INHERITED, Driven, OnTime, OnTotalDiversity, SetBy,
                                check_one_memory, is_implemented, values_at_birth, values_at_split)
-from ..rates.rate import as_rate
-from ..rates.scope import PerLineage
+from ..params.rate import as_rate
+from ..params.scope import PerLineage
 from ..tree import Tree, as_tree
 
 from ._shared import _correlation_matrix, _driven_mods, _preorder, _resolve_drivers, _symmetric_sqrt

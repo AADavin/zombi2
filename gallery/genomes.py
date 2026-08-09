@@ -16,7 +16,7 @@ import helpers as h
 from helpers import Example
 
 import phylustrator as ph
-from zombi2.rates import LogNormal, PerCopy, Random
+from zombi2.params import LogNormal, PerCopy, Random
 
 # a square style for the ring figures — the classic thin genes on a solid backbone (Adrián's preference
 # for the dense real-genome-style rings; the chunky "arrow" style is reserved for the sparse inversion figure)
@@ -212,7 +212,7 @@ def transfer_highway(out):
 
     from zombi2.genomes import Clades, simulate_genomes_family
     from zombi2.genomes._transfer import resolve_groups
-    from zombi2.rates.mapping import Between
+    from zombi2.params.mapping import Between
     from zombi2.species import simulate_species_tree
 
     sp = simulate_species_tree(birth=1.0, n_extant=30, seed=11)
@@ -407,7 +407,7 @@ _C_HIGHWAY = '''\
 ### simulate  —  transfers steered to run BETWEEN two clades (a HGT highway)
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_family, Clades
-from zombi2.rates.mapping import Between
+from zombi2.params.mapping import Between
 
 ct = simulate_species_tree(birth=1.0, n_extant=30, seed=11).complete_tree
 # clades are a FACT OF THE TREE; Between weights WHO RECEIVES by (donor clade, recipient clade)
@@ -532,7 +532,7 @@ def pangenome_by_family(out):
 
 _C_PANGENOME = '''### simulate  —  two runs, one species tree, the same mean rates
 from zombi2 import genomes, species
-from zombi2.rates import LogNormal, PerCopy, Random
+from zombi2.params import LogNormal, PerCopy, Random
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=30, seed=11)
 base = dict(duplication=0.06, transfer=0.10, loss=0.30, origination=0.30,

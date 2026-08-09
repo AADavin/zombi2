@@ -13,7 +13,7 @@ import pytest
 from zombi2 import genomes, joint
 from zombi2.genomes import FamilyGenome
 from zombi2.joint import JointResult
-from zombi2.rates import PerLineage
+from zombi2.params import PerLineage
 from zombi2.species import simulate_species_tree
 
 

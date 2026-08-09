@@ -29,12 +29,12 @@ from functools import cached_property
 from typing import TYPE_CHECKING
 
 
-from ..rates.mapping import check_not_a_kernel
+from ..params.mapping import check_not_a_kernel
 from ..rng import resolve_seed, stream
-from ..rates.modifiers import (describe, DRAWN, Driven, OnTime, SetBy, is_implemented, matches_declared,
+from ..params.modifiers import (describe, DRAWN, Driven, OnTime, SetBy, is_implemented, matches_declared,
                                values_at_birth)
-from ..rates.rate import Rate, as_rate
-from ..rates.scope import PerCopy, PerLineage
+from ..params.rate import Rate, as_rate
+from ..params.scope import PerCopy, PerLineage
 from ..tree import Tree, as_tree
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
@@ -857,7 +857,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         by_key.setdefault(m.key, m)
     resolved = {}
     if by_key:
-        from ..rates.driver import check_mapping_fires, resolve_driver
+        from ..params.driver import check_mapping_fires, resolve_driver
         resolved = {key: resolve_driver(m.driver, tree, step=m.step, level="genomes.family")
                     for key, m in by_key.items()}
         # a mapping whose states never occur in the driver leaves every lineage at the default factor,
