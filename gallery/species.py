@@ -11,7 +11,7 @@ from helpers import Example
 
 import phylustrator as ph
 from zombi2.species import simulate_species_tree
-from zombi2.rates import modifiers as mod
+from zombi2.rates import PerLineage, TotalDiversity
 from zombi2.tree import gamma_statistic
 
 
@@ -56,7 +56,7 @@ def mass_extinction(out):
 
 
 def rate_shift(out):
-    rate = 1.0 * mod.OnTime({0: 0.8, 2.0: 1.9, 3.5: 0.8})   # slow, then fast, then slow
+    rate = PerLineage(1.0).changing_at({0: 0.8, 2.0: 1.9, 3.5: 0.8})   # slow, then fast, then slow
     sp = simulate_species_tree(birth=rate, total_time=4.5, seed=3)     # 155 extant
     tree = ph.trees.loads(sp.complete_tree.to_newick())
     style = ph.Style(width=1400, height=900, margin=88, branch_width=1.5)
@@ -67,7 +67,8 @@ def rate_shift(out):
 
 
 def diversity_dependent(out):
-    sp = simulate_species_tree(birth=1.0 * mod.OnTotalDiversity(cap=100), total_time=10.0, seed=6)
+    sp = simulate_species_tree(birth=PerLineage(1.0).scaled_by(TotalDiversity(cap=100)),
+                               total_time=10.0, seed=6)
     ct = sp.complete_tree
     present = max(n.end_time for n in ct.nodes.values())
     tree_png = out.replace(".png", "_tree.png")
@@ -97,7 +98,8 @@ def shape_statistics(out):
     import matplotlib.pyplot as plt          # helpers.py already selected the Agg backend
 
     processes = (("constant rate", 1.0, _CONST),
-                 ("diversity-dependent", 1.0 * mod.OnTotalDiversity(cap=_CAP), _SLOW))
+                 ("diversity-dependent",
+                  PerLineage(1.0).scaled_by(TotalDiversity(cap=_CAP)), _SLOW))
     gammas, curves = {}, {}
     for name, birth, _ in processes:
         gs, cs = [], []
@@ -214,9 +216,9 @@ h.composite_below("tree.png", present, "massext.png", panel, "lineages")'''
 _C_RATESHIFT = '''\
 ### simulate  —  speciation slow (0.8), then fast (1.9), then slow again, by time
 from zombi2.species import simulate_species_tree
-from zombi2.rates import modifiers as mod
+from zombi2.rates import PerLineage
 
-rate = 1.0 * mod.OnTime({0: 0.8, 2.0: 1.9, 3.5: 0.8})
+rate = PerLineage(1.0).changing_at({0: 0.8, 2.0: 1.9, 3.5: 0.8})
 sp = simulate_species_tree(birth=rate, total_time=4.5, seed=3)
 
 ### plot  —  dashed lines mark the regime changes
@@ -231,9 +233,10 @@ tree = ph.trees.loads(sp.complete_tree.to_newick())
 _C_DIVERSITY = '''\
 ### simulate  —  speciation slows as diversity approaches a cap of 100
 from zombi2.species import simulate_species_tree
-from zombi2.rates import modifiers as mod
+from zombi2.rates import PerLineage, TotalDiversity
 
-sp = simulate_species_tree(birth=1.0 * mod.OnTotalDiversity(cap=100), total_time=10.0, seed=6)
+sp = simulate_species_tree(birth=PerLineage(1.0).scaled_by(TotalDiversity(cap=100)),
+                           total_time=10.0, seed=6)
 ct = sp.complete_tree
 
 ### plot  —  tree + a diversity skyline, on a shared time axis
@@ -257,12 +260,12 @@ zombi2 tools tree out/species/species_extant.nwk --gamma        # gamma  -6.31
 
 ### simulate  —  2000 trees of 100 tips under each process (a few seconds)
 from zombi2.species import simulate_species_tree
-from zombi2.rates import modifiers as mod
+from zombi2.rates import PerLineage, TotalDiversity
 from zombi2.tree import gamma_statistic     # 0 on average under constant rates
 
 gammas = {}
 for name, birth in (("constant rate", 1.0),
-                    ("diversity-dependent", 1.0 * mod.OnTotalDiversity(cap=110))):
+                    ("diversity-dependent", PerLineage(1.0).scaled_by(TotalDiversity(cap=110)))):
     gammas[name] = [gamma_statistic(simulate_species_tree(birth=birth, n_extant=100,
                                                           seed=s).extant_tree)
                     for s in range(1, 2001)]

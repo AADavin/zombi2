@@ -1,12 +1,20 @@
-<svg viewBox="0 0 660 250" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
+<svg viewBox="0 0 690 250" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
 <title>Conditioning: a driver, the rate it drives, and where the verb is written</title>
-<desc>On the left, a box labelled habitat, with a small two-state diagram below it showing aquatic and terrestrial switching between each other. An arrow runs right to the gene loss rate, the target, labelled drives, carrying a multiplier for each habitat state. Under the loss rate is the expression you write on it, 0.25 times ScaledBy of habitat.</desc>
+<desc>On the left, a box labelled habitat, with a small two-state diagram below it showing aquatic and terrestrial switching between each other. An arrow runs right to the gene loss rate, the target, labelled drives, carrying a multiplier for each habitat state. Under the loss rate is the expression you write on it, a per-copy loss rate of 0.25 scaled by habitat.</desc>
 <!-- The arrow's verb is ACTIVE and points the way the causation does: habitat drives loss. It used
      to read "DrivenBy", which was passive, so an arrow drawn cause-to-effect carried a label that
      names the relation effect-to-cause — read along the arrow it said "habitat is driven by loss",
      the exact opposite of the model. The verb now sits under the TARGET, which is both where it
-     reads correctly and where it is actually typed: loss = 0.25 * ScaledBy(habitat, ...).
-     ScaledBy rather than DrivenBy since 0.32: the verb says what the number does.
+     reads correctly and where it is actually typed: loss = PerCopy(0.25).scaled_by(habitat, ...).
+     That expression is copied from Chapter 9's own example, so the picture and the sentence beside
+     it say the same thing. It has been restated at every change to how a rate is written — first
+     DrivenBy, then ScaledBy, now the verb as a method on the scope that carries the base — and
+     each time the figure was found last, so check it whenever the grammar moves.
+     The canvas gained 30 units on the right for it, 660 to 690: with the scope written the
+     expression is the widest thing in the figure, and it is set in a monospace the two renderers
+     disagree about. librsvg, which builds the book's PNG, sets it about 25% narrower than Menlo,
+     which is what a mac browser reaches for on the docs site. Sized for the wider of the two, so
+     neither clips it.
      Colours are presentation ATTRIBUTES, not CSS, and are literals rather than a CSS custom property: GitHub's
      SVG sanitiser drops the style element, and librsvg resolves no custom properties, so a figure
      whose fills live in either renders as black-on-black. The dark-mode rules below still win
@@ -82,6 +90,6 @@
 </g>
 <g class="dim" fill="#6e6e6e" font-size="10.5" text-anchor="middle"
    font-family="SFMono-Regular, Menlo, Consolas, monospace">
-  <text x="551" y="180">0.25 * ScaledBy(habitat, &#8230;)</text>
+  <text x="555" y="180">PerCopy(0.25).scaled_by(habitat, &#8230;)</text>
 </g>
 </svg>
