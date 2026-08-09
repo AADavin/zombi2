@@ -857,7 +857,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         by_key.setdefault(m.key, m)
     resolved = {}
     if by_key:
-        from ..params.driver import check_mapping_fires, resolve_driver
+        from ..params.conditioned import check_mapping_fires, resolve_driver
         resolved = {key: resolve_driver(m.driver, tree, step=m.step, level="genomes.family")
                     for key, m in by_key.items()}
         # a mapping whose states never occur in the driver leaves every lineage at the default factor,

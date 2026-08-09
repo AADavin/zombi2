@@ -98,7 +98,7 @@ from dataclasses import dataclass, field
 from ..params.distributions import Geometric
 from ..rng import stream
 from ..params.extent import Extent, as_extent
-from ..params.driver import check_mapping_fires, resolve_driver
+from ..params.conditioned import check_mapping_fires, resolve_driver
 from ..params.mapping import check_not_a_kernel
 from ..params.modifiers import describe, Driven, OnTime, cell_name, is_implemented
 from ..params.rate import Rate, as_rate

@@ -149,14 +149,10 @@ What a driven parameter carries — the shape that turns the driver's value into
 
 ::: zombi2.params.mapping
 
-## Values
+## Drivers
 
-::: zombi2.params.values
+::: zombi2.params.driver
 
 ## Verbs
 
 ::: zombi2.params.verbs
-
-## Clades
-
-::: zombi2.params.clade

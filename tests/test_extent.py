@@ -182,7 +182,7 @@ def test_nucleotide_extent_can_be_driven_by_a_trait(tree):
     **bigger chunks**, which is a different model from deleting more often. The rate is left
     undriven here, so only the sizes may differ."""
     from zombi2 import traits
-    from zombi2.params.driver import driver_from_result
+    from zombi2.params.conditioned import driver_from_result
 
     # the trait and the genome take *different* seeds, as two levels of one study should: each level
     # draws its own stream, so a shared number no longer makes them the same draws (see zombi2.rng)
@@ -217,7 +217,7 @@ def test_ordered_extent_can_be_driven_by_a_trait(tree):
     host-restricted lineage duplicates in **longer runs**, not more often. The duplication rate is
     left undriven, so only the sizes may differ."""
     from zombi2 import traits
-    from zombi2.params.driver import driver_from_result
+    from zombi2.params.conditioned import driver_from_result
 
     habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=2)
     traj = driver_from_result(habitat)
