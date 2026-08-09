@@ -54,7 +54,16 @@ The **base** is the speed of a single event, in units of inverse time. The **sco
 
 You do not write a modifier. You chain a **verb** onto the rate, and the verb says what the number does to it. There are three: `scaled_by` multiplies the base, `set_by` replaces it in the rate's own units so nothing is written in front, and `weighted_by` compares the candidates of a **choice** — `transfer_to` is the only one. Only `scaled_by` multiplies, so only it is in the equation above.
 
-The verb's first argument is the **driver**, the thing the rate reads. Each kind of name has its own module — scopes in `params.scope`, drivers in `params.driver`, laws in `params.law`, distributions in `params.distributions` — and all of them are also importable straight from `zombi2.params` once you know which is which. One row here per thing you can depend on, not per verb:
+The verb's first argument is the **driver**, the thing the rate reads. Each kind of name lives in its own module, and the imports for the table below say which is which:
+
+```python
+from zombi2.params.scope import PerCopy, PerLineage, PerSite      # per what?
+from zombi2.params.driver import Clade, TotalDiversity            # what a rate reads
+from zombi2.params.law import Drift                               # what a drawn value does after
+from zombi2.params.distributions import LogNormal                 # shapes to draw from
+```
+
+All of them import from `zombi2.params` directly too, which is shorter once you know which is which. One row here per thing you can depend on, not per verb:
 
 | The rate depends on | Written |
 |---|---|
@@ -71,8 +80,6 @@ Two of those drivers are written so often that each has a verb of its own — `c
 Verbs chain, and their factors multiply:
 
 ```python
-from zombi2.params.distributions import LogNormal
-
 # loss triples after time 2, and varies from family to family on top of that
 loss = PerCopy(0.25).changing_at({0: 1.0, 2: 3.0}).varying_among('families', LogNormal(0.0, 0.5))
 ```
