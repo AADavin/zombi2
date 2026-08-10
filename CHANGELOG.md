@@ -100,6 +100,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   that whole lineage. `PerLineage` with a per-family draw is still refused, and still says why: that
   one is an open question about what the model should mean, not a missing wire. The ordered
   resolution still refuses the pair, and its message now points at the family resolution.
+- **`zombi2 tools tree TREE --clades` lists the clades a tree offers to name, and `Clade.resolve`
+  says what one covers.** Scoping a rate to a clade — the thing that makes ZOMBI2 different — meant
+  naming a node, and nothing said which nodes were there, how big they were, or which lineages the
+  clade you wrote actually held. The listing gives node, extant tips, crown time and two example
+  tips that straddle the crown split, so passing them back to `Clade({...})` names that same node;
+  `--min-extant` / `--max-extant` filter it. `Clade.resolve(tree)` answers the other direction, and
+  cannot disagree with the engine because it paints with the same function the engine does. It also
+  makes visible what was previously only inferable: a clade's root branch is inside it, and a clade
+  holds the extinct and internal lineages of its subtree, not only its tips.
 - **A nucleotide run says when its extents are too small to move a gene.** Setting `duplication`,
   `transfer` and `loss` at the nucleotide resolution and reading zeros back from
   `genome_summary.json` looked like a broken counter; it was the model doing nothing. A gene is

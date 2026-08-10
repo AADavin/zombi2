@@ -51,8 +51,8 @@ _TOOLS_DESCRIPTION = (
     "Tools\n"
     "  format               turn a genomes run into analysis-ready files "
     "(--format homology | markers | recphylo)\n"
-    "  tree                 transform or measure one Newick tree (prune, round, stem, rescale,\n"
-    "                       RED, gamma)\n"
+    "  tree                 transform, measure or list one Newick tree (prune, round, stem,\n"
+    "                       rescale, RED, gamma, clades)\n"
     "  treedist             distance between two Newick trees (RF, branch-score)\n"
 )
 
@@ -87,7 +87,7 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
     trp = tsub.add_parser(
         "tree",
         prog="zombi2 tools tree",
-        help="transform or measure one Newick tree (prune, round, stem, rescale, RED, gamma)",
+        help="transform, measure or list one Newick tree (prune, round, stem, rescale, RED, gamma, clades)",
         description=(
             "Apply one action to a Newick tree and write the result to stdout (or a file with -o): a "
             "Newick tree for the transforms, a table or a number for the measurements. Exactly one "
@@ -153,12 +153,19 @@ def _add_tools_tree_args(p: argparse.ArgumentParser) -> None:
     m.add_argument("--gamma", action="store_true",
                    help="Pybus & Harvey's gamma — where the branching times sit relative to a "
                         "constant rate (dated ultrametric trees only)")
+    m.add_argument("--clades", action="store_true",
+                   help="list the clades you could name — node id, extant tips, crown time, "
+                        "two example tips (see --min-extant / --max-extant)")
     # straight onto the parser, not a group of their own: a second group also called "options" would
     # print a second "options:" heading under the first
     p.add_argument("--tol", type=float, default=1e-3,
                    help="tolerance for --round, a fraction of tree height (default 1e-3)")
     p.add_argument("--values", action="store_true",
                    help="with --red: a node⇥RED table instead of a tree")
+    p.add_argument("--min-extant", type=int, default=None, dest="min_extant", metavar="N",
+                   help="with --clades: skip a clade holding fewer than N extant tips (default 2)")
+    p.add_argument("--max-extant", type=int, default=None, dest="max_extant", metavar="N",
+                   help="with --clades: skip a clade holding more than N extant tips")
     p.add_argument("-o", "--output", metavar="FILE", help="write here instead of stdout")
 
 
@@ -264,28 +271,77 @@ def _run_format(args, parser: argparse.ArgumentParser) -> int:
     return 0
 
 
+def _clade_table(tree: _tree.Tree, labels: dict, min_extant: int,
+                 max_extant: "int | None") -> str:
+    """The listing ``--clades`` writes: one row per internal node — the clades this tree offers to
+    name — biggest first, as ``node`` ⇥ ``extant`` ⇥ ``crown`` ⇥ ``example_tips``.
+
+    Internal nodes only: a tip is a lineage, not a clade. ``crown`` is when the clade first splits
+    (its root's ``end_time``); the clade itself starts higher up, at that root's birth, because its
+    root's **own branch** is inside it — which is what `resolve_groups` paints and what
+    ``Clade.resolve`` shows. The two example tips are taken one from each side of the crown split
+    wherever both sides left a survivor, so they straddle it and their MRCA is this very node."""
+    order, stack = [], [tree.root]
+    while stack:
+        i = stack.pop()
+        order.append(i)
+        kids = tree.nodes[i].children
+        if kids is not None:
+            stack.extend(kids)
+    n_extant: dict[int, int] = {}
+    example: dict[int, list[str]] = {}
+    for i in reversed(order):                       # child before parent
+        node = tree.nodes[i]
+        if node.children is None:
+            n_extant[i] = int(node.fate == "extant")
+            example[i] = [labels[i]] if node.fate == "extant" else []
+            continue
+        a, b = node.children
+        n_extant[i] = n_extant[a] + n_extant[b]
+        example[i] = ([example[a][0], example[b][0]] if example[a] and example[b]
+                      else (example[a] + example[b])[:2])
+    rows = []
+    for i, node in tree.nodes.items():
+        k = n_extant[i]
+        if node.children is None or k < min_extant or (max_extant is not None and k > max_extant):
+            continue
+        rows.append((-k, i, f"{labels.get(i) or _tree.node_label(i)}\t{k}\t{node.end_time:.6g}"
+                            f"\t{','.join(example[i])}"))
+    return "node\textant\tcrown\texample_tips\n" + "\n".join(r[2] for r in sorted(rows))
+
+
 def _run_tree(args, parser: argparse.ArgumentParser) -> int:
     """``zombi2 tools tree`` — one action: Newick in, and a tree, a table or a number out."""
     if args.values and not args.red:
         parser.error("--values only applies with --red")
+    if (args.min_extant is not None or args.max_extant is not None) and not args.clades:
+        parser.error("--min-extant / --max-extant only apply with --clades")
+    lo = 2 if args.min_extant is None else args.min_extant
+    if args.max_extant is not None and args.max_extant < lo:
+        parser.error(f"--max-extant {args.max_extant} is below --min-extant {lo}, so no clade can "
+                     f"pass both — nothing would be listed")
     text = sys.stdin.read() if args.input == "-" else open(args.input, encoding="utf-8").read()
     try:
-        if args.prune:
+        if args.prune or args.clades:
             try:
-                t, _ = _tree.read_newick(text)                  # prune needs real fates
+                t, names = _tree.read_newick(text)              # both need real fates
             except ValueError as e:
                 if "--tip-fates" not in str(e):
                     raise
                 # the shared refusal names a flag the levels that own it have and this command
                 # does not, so say instead what can be done from here
-                parser.error("--prune needs each tip's fate: this tree is neither ultrametric nor "
+                parser.error(f"{'--prune' if args.prune else '--clades'} needs each tip's fate: "
+                             "this tree is neither ultrametric nor "
                              "a ZOMBI complete tree (n<id>/e<id> labels), so ZOMBI cannot tell "
                              "extinct lineages from early samples. Prune it in the run instead, or "
                              "supply a ZOMBI complete tree.")
-            pruned = _tree.prune(t, keep="extant")
-            if pruned is None:
-                parser.error("no extant lineages to keep")
-            out = pruned.to_newick()
+            if args.clades:
+                out = _clade_table(t, _leaf_labels(t, names), lo, args.max_extant)
+            else:
+                pruned = _tree.prune(t, keep="extant")
+                if pruned is None:
+                    parser.error("no extant lineages to keep")
+                out = pruned.to_newick()
         else:
             t, _ = _tree.read_newick(text, assume_extant=True)  # geometric: any tree, fates irrelevant
             if args.round_:

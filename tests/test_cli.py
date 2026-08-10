@@ -2375,3 +2375,63 @@ def test_joint_takes_at_speciation_and_the_api_default_for_initial_families(tmp_
 
     # and the log records the number the run used, not the sentinel
     assert "initial_families\tNone" not in (gene / "species" / "joint.log").read_text(encoding="utf-8")
+
+
+# ── zombi2 tools tree --clades ───────────────────────────────────────────────
+#
+# Scoping a rate to a clade means naming a node, and nothing told you which nodes were there or how
+# big they were — three separate users each wrote their own tree-walking script before they could
+# use the feature at all. This lists them; Clade.resolve is the other direction.
+
+def _clade_rows(out: str):
+    head, *rows = out.strip().splitlines()
+    assert head.split("\t") == ["node", "extant", "crown", "example_tips"]
+    return [r.split("\t") for r in rows]
+
+
+def test_tools_tree_clades_lists_them_biggest_first(tmp_path, capsys):
+    run = tmp_path / "r"
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "25",
+          "--seed", "3", "--quiet"])
+    capsys.readouterr()                                    # discard the species run's own output
+    assert main(["tools", "tree", str(run / "species" / "species_complete.nwk"),
+                 "--clades", "--min-extant", "5"]) == 0
+    rows = _clade_rows(capsys.readouterr().out)
+    counts = [int(r[1]) for r in rows]
+    assert counts == sorted(counts, reverse=True)          # biggest clade first
+    assert min(counts) >= 5                                # the filter bit
+    assert rows[0][1] == "25"                              # the root holds every extant tip
+
+
+def test_a_listed_clade_names_itself_back_through_clade(tmp_path, capsys):
+    # the round trip is the point: the example tips straddle the crown split, so handing them to
+    # Clade names this very node — and resolve() then covers exactly the extant tips listed here.
+    from zombi2.params import Clade
+    from zombi2.tree import read_newick
+    run = tmp_path / "r"
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "25",
+          "--seed", "3", "--quiet"])
+    nwk = (run / "species" / "species_complete.nwk").read_text(encoding="utf-8")
+    capsys.readouterr()                                    # discard the species run's own output
+    main(["tools", "tree", str(run / "species" / "species_complete.nwk"),
+          "--clades", "--min-extant", "6"])
+    tree, _ = read_newick(nwk)
+    for node, extant, _crown, tips in _clade_rows(capsys.readouterr().out):
+        covered = Clade({"g": tips.split(",")}).resolve(tree)["g"]
+        alive = [i for i in covered
+                 if tree.nodes[i].children is None and tree.nodes[i].fate == "extant"]
+        assert len(alive) == int(extant), node
+
+
+@pytest.mark.parametrize("argv, msg", [
+    (["--clades", "--min-extant", "9", "--max-extant", "4"], "no clade can pass both"),
+    (["--clades", "--prune"], "not allowed with argument"),
+])
+def test_tools_tree_clades_refuses_what_cannot_answer(tmp_path, argv, msg, capsys):
+    run = tmp_path / "r"
+    main(["species", str(run), "--birth", "1", "--death", "0.3", "--n-extant", "10",
+          "--seed", "3", "--quiet"])
+    with pytest.raises(SystemExit) as e:
+        main(["tools", "tree", str(run / "species" / "species_complete.nwk"), *argv])
+    assert e.value.code == 2
+    assert msg in capsys.readouterr().err

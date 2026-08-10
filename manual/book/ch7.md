@@ -359,7 +359,7 @@ can be one ZOMBI2 drew, as below, or a real annotation you supply:
 ```python
 my_genomes = genomes.simulate_genomes_nucleotide(
     tree, gff="ecoli.gff", fasta="ecoli.fasta", inversion=1.0, inversion_extent=5000,
-    duplication=0.3, loss=0.3, seed=1)
+    duplication=0.3, loss=0.3, duplication_extent=3000, loss_extent=3000, seed=1)
 ```
 
 Genes and spacer get their own models. `model` evolves the genes; `intergene_model` evolves the spacer, at `intergene_speed` times the rate (3× by default), under `jc69` by default, which is flat and has no free parameters.
@@ -372,7 +372,8 @@ tree = species.simulate_species_tree(
     birth=1.0, death=0.2, n_extant=5, seed=1).complete_tree
 my_genomes = genomes.simulate_genomes_nucleotide(
     tree, root_length=6000, genes=6, gene_length=400,
-    inversion=1.0, inversion_extent=500, duplication=0.3, loss=0.3, seed=1)
+    inversion=1.0, inversion_extent=500, duplication=1.0, loss=1.0,
+    duplication_extent=1200, loss_extent=1200, seed=1)
 
 result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=3.0),
                                       intergene_speed=3.0, substitution=0.05, seed=1)
@@ -400,7 +401,7 @@ So far the founding sequence of each block is *drawn* from the model's frequenci
 ```python
 my_genomes = genomes.simulate_genomes_nucleotide(
     tree, gff="ecoli.gff", fasta="ecoli.fasta",     # layout AND letters
-    inversion=1.0, loss=0.3, seed=1)
+    inversion=1.0, loss=0.3, loss_extent=3000, seed=1)
 result = sequences.simulate_sequences(
     my_genomes, model=hky85(kappa=3.0), substitution=0.05, seed=1)
 ```
