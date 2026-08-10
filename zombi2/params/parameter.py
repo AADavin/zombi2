@@ -26,6 +26,24 @@ import math
 
 
 
+def check_rate_base(base: object) -> float:
+    """The one gate every rate's number passes, wherever it was written.
+
+    `Rate` calls it from its constructor, and `parse.parse_rate` calls it for a rate written as a
+    **bare number** — which is not a `Rate` and so reaches no constructor. That was the hole: a
+    negative written on a scope (``--death "Global(-0.3)"``) was refused by the parser, where
+    argparse still knows which flag it came from and prints its name, while the same mistake written
+    plainly (``--death -0.3``) travelled on as a float and was refused much later by the engine, with
+    the flag long gone — so the user was told a rate was negative but not which of the four they had
+    just typed. One function, so both spellings raise the same sentence in the same place.
+    """
+    if isinstance(base, bool) or not isinstance(base, (int, float)):
+        raise TypeError(f"a rate base must be a real number, got {base!r}")
+    if not math.isfinite(base) or base < 0:
+        raise ValueError(f"a rate base must be finite and non-negative, got {base!r}")
+    return float(base)
+
+
 class RateCompositionError(TypeError):
     """A composition the grammar itself refuses, with a message written for that mistake.
 
@@ -53,11 +71,7 @@ class Rate:
         this one constructor and a rule enforced per call site is a rule some level forgets."""
         if self.base is None:
             return
-        if isinstance(self.base, bool) or not isinstance(self.base, (int, float)):
-            raise TypeError(f"a rate base must be a real number, got {self.base!r}")
-        if not math.isfinite(self.base) or self.base < 0:
-            raise ValueError(f"a rate base must be finite and non-negative, got {self.base!r}")
-        object.__setattr__(self, "base", float(self.base))
+        object.__setattr__(self, "base", check_rate_base(self.base))
 
     # --- the verbs (SPEC §5): each returns a NEW rate, so they chain and nothing is mutated -------
 

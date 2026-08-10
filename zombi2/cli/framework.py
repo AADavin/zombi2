@@ -11,6 +11,7 @@ import shlex
 import shutil
 import sys
 import textwrap
+import time
 
 import numpy as np
 
@@ -234,6 +235,19 @@ def parallel_from_args(args, parser):
     if n < 1:
         parser.error(f"--parallel needs a positive worker count, got {n}")
     return n
+
+
+def print_wrote(run: str, summary: str, t0: float) -> None:
+    """The one line every level's command ends on: what it wrote, and how long the command took.
+
+    ``t0`` is taken before the simulation and the clock runs to **here** — after the files are on
+    disk — because the sentence says *wrote*. Timing only the simulation reported a fraction of the
+    command: on a family run of a few thousand tips, writing a gene tree per family takes longer than
+    growing them, so a 112 s command announced 45 s and the missing minute was the part the user was
+    actually waiting on. One helper for all five commands, so the reported time cannot mean the
+    simulation in one and the whole command in another.
+    """
+    print(f"wrote {run}/ ({summary}) in {time.perf_counter() - t0:.3g} s")
 
 
 def level_dir(output: str, level: str, flat: bool) -> str:

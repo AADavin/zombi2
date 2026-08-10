@@ -35,7 +35,7 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
                                   _read_tip_fates, _write_params_log, check_stale_downstream,
                                   clear_stale_downstream, conditioned_levels, default_outputs,
-                                  defaults_used, signpost, input_digests, level_dir,
+                                  defaults_used, signpost, input_digests, level_dir, print_wrote,
                                   parallel_from_args, record_conditioning, resolve_tree,
                                   sibling_fates, warn, warn_if_fates_were_inferred)
 
@@ -602,7 +602,6 @@ def run(args, parser):
             tree, replacement=args.replacement, initial_families=args.initial_families,
             parallel=parallel_from_args(args, parser), progress=not args.quiet,
             **family_knobs, **common)
-    dt = time.perf_counter() - t0
 
     # a genome run is on a fixed tree, so its complete tree is the input; a StreamedRun does not carry
     # one, so read it from `tree` there. The rest of the CLI's bookkeeping is identical either way.
@@ -653,7 +652,7 @@ def run(args, parser):
     else:
         n_families, n_species = result.profiles.shape
         summary = f"{n_families} gene families across {n_species} extant genomes ({args.resolution})"
-    print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
+    print_wrote(args.run, summary, t0)
     # A run that emptied a genome succeeded — it is a result, not an error — but it is the one
     # result the outputs do not show, so it goes to stderr after the `wrote …` line. A streamed run
     # holds no genomes to count; the nucleotide resolution is left out for the reason in the helper.
