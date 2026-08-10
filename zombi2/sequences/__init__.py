@@ -51,6 +51,7 @@ compact the way the speciation and D/T/L/O logs are.
 
 from __future__ import annotations
 
+import math
 import os
 import pathlib
 from collections.abc import Mapping
@@ -1271,6 +1272,20 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         for m in drivers:
             label = m.driver if isinstance(m.driver, str) else f"<{type(m.driver).__name__}>"
             check_mapping_fires(m.mapping, trajs[m.key].states(), driver_label=label)
+            # A scheduled mapping entry makes the factor a function of TIME, and this level does not
+            # read one: `IMPLEMENTED_MODIFIERS` leaves out OnTime on purpose, so `changing_at` is
+            # refused here and a schedule reaching in through a mapping would be the same model by
+            # another door. It has to be refused rather than run, because a rate this level cannot
+            # step would silently hold the schedule's opening factor for the whole run — the branch
+            # lengths would come out as if the schedule were a plain number, and nothing would say so.
+            if m.mapping.next_change(0.0) != math.inf:
+                raise ValueError(
+                    "a time schedule inside a mapping is not read at the sequences level: this level "
+                    "walks each gene tree branch by branch and does not step at a wall-clock time, "
+                    "so the schedule's first factor would stand for the whole run. Give this state "
+                    "one factor, or put the schedule on the level that grows along the tree — a "
+                    "genome or a trait rate — and drive the substitution rate from what that "
+                    "produced.")
         driven = [(m, trajs[m.key]) for m in drivers]
 
     names = species_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
