@@ -3,7 +3,6 @@ strict clock, endpoint P-matrix sampling → SequencesResult(.alignments, .ances
 
 from __future__ import annotations
 
-import json
 import re
 
 import numpy as np
@@ -695,18 +694,12 @@ def test_a_streamed_run_is_the_same_dataset_as_an_in_memory_one(tmp_path, parall
     simulate_sequences(g, **kw).write(tmp_path / "mem", outputs=wanted)
     handle = simulate_sequences(g, **kw, stream_to=tmp_path / "strm", outputs=wanted)
 
-    # every DATA file byte-for-byte. The summary is held out of that comparison for one field and one
-    # reason: a streamed run estimates mean identity from one sampled pair per family, because the
-    # in-memory way of measuring it needs every alignment at once, which is exactly what streaming
-    # does not keep. Same quantity, different sample — so it is compared on its own terms below.
+    # every file byte-for-byte, the summary included. It was not always: mean identity used to be a
+    # bounded random sample, and the streamed path sampled differently, so this one field moved with
+    # a flag that only chooses how much memory a run uses. Counting every within-family pair costs a
+    # pass over each alignment and needs only one family at a time, so both paths reach one number.
     mem, strm = _tree_of(tmp_path / "mem"), _tree_of(tmp_path / "strm")
-    summary = "sequences_summary.json"
-    assert {k: v for k, v in mem.items() if k != summary} == \
-           {k: v for k, v in strm.items() if k != summary}
-    a, b = (json.loads(t[summary]) for t in (mem, strm))
-    assert a.pop("mean_pairwise_identity") == pytest.approx(b.pop("mean_pairwise_identity"),
-                                                           abs=0.05)
-    assert a == b, "the summaries may differ only in how identity was sampled"
+    assert mem == strm, "streaming is a memory choice: every file, summary included, must match"
     assert handle.n_sequences > 0 and handle.n_families > 0
     assert handle.outputs == wanted
 
@@ -722,20 +715,18 @@ def test_the_streamed_handle_counts_what_an_in_memory_run_counts(tmp_path):
     assert handle.n_sequences == sum(len(a) for a in mem.alignments.values())
 
 
-def test_the_streamed_handle_estimates_the_identity_the_cli_reports(tmp_path):
+def test_the_streamed_handle_reports_the_identity_the_cli_reports(tmp_path):
     # the saturation warning is the most useful thing the CLI says about a sequence run, and the
-    # in-memory way of measuring it needs every alignment at once. The sink samples a pair per
-    # family instead: a different sample of the same quantity, so it must land in the same region.
+    # in-memory way of measuring it needs every alignment at once. The sink accumulates family by
+    # family as it writes them, counting every pair within each — which reaches the same total over
+    # the same alignments, so this is equality and not a tolerance.
     g = _stream_fixture()
     kw = dict(model=hky85(2.0), length=400, seed=11)
     from zombi2.sequences import mean_pairwise_identity
 
     mem = simulate_sequences(g, **kw)
     handle = simulate_sequences(g, **kw, stream_to=tmp_path / "s")
-    # against the CLI's own measure, which is what it stands in for. Not the first two sequences of
-    # each family: those are adjacent gene ids, so usually recent duplicates, and comparing them
-    # measures something noticeably more similar than a random pair.
-    assert handle.identity == pytest.approx(mean_pairwise_identity(mem.alignments), abs=0.05)
+    assert handle.identity == mean_pairwise_identity(mem.alignments)
 
 
 def test_write_narrows_a_streamed_run(tmp_path):

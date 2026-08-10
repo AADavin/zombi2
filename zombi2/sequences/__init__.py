@@ -371,28 +371,44 @@ class _AssembledGenomes(Mapping):
         return len(self._layouts)
 
 
-def mean_pairwise_identity(alignments, max_pairs: int = 2000) -> float | None:
-    """Mean identity over a bounded random sample of within-family sequence pairs, or ``None`` when
-    no family holds two sequences to compare.
+def _identity_counts(seqs) -> tuple[int, int]:
+    """``(matching positions, positions compared)`` over **every** within-family pair of ``seqs``.
 
-    Sampled rather than exhaustive because the pair count is quadratic in family size — a run with
-    thousands of copies would otherwise spend longer measuring itself than it spent simulating. The
-    draw is from a fixed stream, so the number printed for a given run is reproducible."""
-    families = [list(a.values()) for a in alignments.values() if len(a) >= 2]
-    if not families:
-        return None
-    rng = np.random.default_rng(0)
+    Counted a column at a time, not a pair at a time: at one column, a residue shared by ``c`` of the
+    sequences contributes ``c(c-1)/2`` matching pairs, so a family of ``k`` sequences over ``n`` sites
+    costs one pass per residue of the alphabet rather than one per pair. The work is linear in the
+    alignment — ``k·n`` — while the pairs it accounts for are quadratic, which is what makes counting
+    all of them affordable. Sequences of unequal length are compared over their shared prefix, as a
+    pair-at-a-time count did."""
+    if len(seqs) < 2:
+        return 0, 0
+    n = min(len(s) for s in seqs)
+    if not n:
+        return 0, 0
+    k = len(seqs)
+    arr = np.frombuffer("".join(s[:n] for s in seqs).encode(), dtype=np.uint8).reshape(k, n)
+    matched = 0
+    for residue in np.unique(arr):
+        c = np.count_nonzero(arr == residue, axis=0).astype(np.int64)
+        matched += int((c * (c - 1) // 2).sum())
+    return matched, n * k * (k - 1) // 2
+
+
+def mean_pairwise_identity(alignments) -> float | None:
+    """Mean identity over **every** within-family sequence pair, or ``None`` when no family holds two
+    sequences to compare.
+
+    Exhaustive, and the same quantity however the run was written: it used to be a bounded random
+    sample, and the streamed path sampled differently, so one flag that only chooses how much memory
+    a run uses moved a number in the report while leaving every alignment byte-identical. Nothing
+    said the number was an estimate, so it read as a fingerprint two matching runs could disagree on.
+    `_identity_counts` makes counting them all linear in the alignment, so there is no longer a reason
+    to estimate."""
     matched = compared = 0
-    for _ in range(max_pairs):
-        seqs = families[int(rng.integers(len(families)))]
-        i, j = (int(x) for x in rng.choice(len(seqs), size=2, replace=False))
-        n = min(len(seqs[i]), len(seqs[j]))
-        if not n:
-            continue
-        a = np.frombuffer(seqs[i][:n].encode(), dtype=np.uint8)
-        b = np.frombuffer(seqs[j][:n].encode(), dtype=np.uint8)
-        matched += int(np.count_nonzero(a == b))
-        compared += n
+    for a in alignments.values():
+        m, c = _identity_counts(list(a.values()))
+        matched += m
+        compared += c
     return matched / compared if compared else None
 
 
@@ -615,7 +631,7 @@ class StreamedSequences:
     n_families: int
     n_sequences: int
     outputs: tuple
-    #: mean pairwise identity over one sampled pair per family — what the CLI reports and warns on.
+    #: mean pairwise identity over every within-family pair — what the CLI reports and warns on.
     #: ``None`` when no family held two sequences to compare.
     identity: "float | None" = None
     #: the site count every alignment carries (one length on a family run)
@@ -667,12 +683,12 @@ class _Sink:
         self.n_families = self.n_sequences = 0
         self._founding = (open(self.dir / "sequences_founding.fasta", "w", encoding="utf-8")
                           if "founding" in outputs else None)
-        # Mean pairwise identity, accumulated one sampled pair per family. The CLI reports it and
-        # warns when a run has saturated, which is the single most useful thing it says about a
-        # sequence run — and computing it the in-memory way needs every alignment at once, which is
-        # exactly what is not being kept. One pair per family estimates the same quantity from a
-        # different sample, so the number can differ in the last digit; the alignments cannot.
-        self._rng = np.random.default_rng(0)
+        # Mean pairwise identity, accumulated family by family as each one is written. The CLI
+        # reports it and warns when a run has saturated, which is the single most useful thing it
+        # says about a sequence run — and computing it the in-memory way would need every alignment
+        # at once, which is exactly what is not being kept. Counting every pair *within* a family
+        # needs only that family, so the running total here is the same number the in-memory path
+        # reaches: a run reports one identity whichever way it was written.
         self._matched = self._compared = 0
         self.sites: "int | None" = None
         self.n_ancestral = 0
@@ -682,21 +698,13 @@ class _Sink:
 
     @property
     def identity(self) -> "float | None":
-        """Mean identity over the sampled pairs, or ``None`` if no family held two sequences."""
+        """Mean identity over every within-family pair, or ``None`` if no family held two sequences."""
         return self._matched / self._compared if self._compared else None
 
-    def _sample_pair(self, aln: dict) -> None:
-        seqs = list(aln.values())
-        if len(seqs) < 2:
-            return
-        i, j = (int(x) for x in self._rng.choice(len(seqs), size=2, replace=False))
-        n = min(len(seqs[i]), len(seqs[j]))
-        if not n:
-            return
-        a = np.frombuffer(seqs[i][:n].encode(), dtype=np.uint8)
-        b = np.frombuffer(seqs[j][:n].encode(), dtype=np.uint8)
-        self._matched += int(np.count_nonzero(a == b))
-        self._compared += n
+    def _count_pairs(self, aln: dict) -> None:
+        matched, compared = _identity_counts(list(aln.values()))
+        self._matched += matched
+        self._compared += compared
 
     def family(self, fam: int, aln: dict, anc: dict, fnd: str, phylo: dict) -> None:
         u = f"{self.stem}{fam}"
@@ -708,7 +716,7 @@ class _Sink:
         self.n_ancestral += len(anc)
         if self.sites is None and aln:
             self.sites = len(next(iter(aln.values())))
-        self._sample_pair(aln)
+        self._count_pairs(aln)
         if "alignments" in self.outputs and aln:
             _write_fasta(self._into("alignments") / f"{u}.fasta", aln)
         if "ancestral" in self.outputs and anc:

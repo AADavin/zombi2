@@ -2106,3 +2106,46 @@ def test_a_skyline_is_now_honoured():
     # the skyline switches inversion off at t=1, so it must produce strictly fewer, and none after it
     assert len(early.rearrangements) < len(flat.rearrangements)
     assert all(r.time <= 1.0 + 1e-9 for r in early.rearrangements)
+
+
+# --- what a run reports about itself ---------------------------------------
+
+def test_block_events_counts_what_the_gene_counters_cannot_see():
+    """`events` counts gene-tree branchings and `block_events` counts events on the DNA, and neither
+    bounds the other. Small extents against big genes is the case where they diverge completely: an
+    arc that covers no whole gene starts no gene lineage, so a run with the rates turned up reports
+    gene events at zero while the DNA underneath it is being cut about."""
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=3)
+    g = simulate_genomes_nucleotide(sp, root_length=10000, genes=10, gene_length=500,
+                                    duplication=2.0, transfer=2.0, loss=2.0, seed=5)
+    s = g.summary()
+    assert set(s["block_events"]) == set(s["events"])          # the same six kinds, side by side
+    assert s["events"]["duplication"] == 0                     # no arc took a whole gene ...
+    assert s["block_events"]["duplication"] > 0                # ... but the events did happen
+    # the two count different things and neither bounds the other, in either direction: `initial` is
+    # ten genes here and one starting genome there, and a speciation re-ids every gene against every
+    # ancestral interval. Only the per-kind comparison above is meaningful.
+    assert s["block_events"]["initial"] == 1 and s["events"]["initial"] == 10
+
+
+def test_an_extent_too_small_for_a_gene_says_so():
+    # 50 bp arcs against 500 bp genes cannot change gene content, however high the rates — which used
+    # to show up only as three zeros in the summary, read as a broken counter rather than as a model
+    # doing nothing.
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=3)
+    with pytest.warns(UserWarning, match="long enough to take a whole gene"):
+        simulate_genomes_nucleotide(sp, root_length=10000, genes=10, gene_length=500,
+                                    duplication=2.0, seed=5)
+
+
+@pytest.mark.parametrize("kw, why", [
+    (dict(root_length=10000, genes=10, gene_length=500, duplication=2.0, duplication_extent=1500), "extents clear the gene"),
+    (dict(genes=20, gene_length=500, root_length=10000, duplication=2.0), "no spacer: every cut is a gene join"),
+    (dict(root_length=10000, genes=10, gene_length=500, inversion=1.0), "no gene-content rate is on"),
+])
+def test_the_extent_warning_does_not_cry_wolf(kw, why, recwarn):
+    # a warning that fires on ordinary runs is worse than none. A dense genome is the sharp case: with
+    # no spacer, every legal cut is a gene join, so every event moves whole genes whatever the extent.
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=3)
+    simulate_genomes_nucleotide(sp, seed=5, **kw)
+    assert not [w for w in recwarn if "whole gene" in str(w.message)], why
