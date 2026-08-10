@@ -896,3 +896,20 @@ def test_a_profile_on_a_nucleotide_block_must_match_the_length_the_genome_fixed(
     with pytest.raises(ValueError, match="rows but that block is"):
         simulate_sequences(g, model=jc69(), divergence=0.2, seed=3,
                            profiles={block: _np.full((7, 4), 0.25)})
+
+
+def test_a_scheduled_mapping_entry_is_refused_at_the_sequences_level():
+    """This level walks a gene tree branch by branch and never steps at a wall-clock time — which is
+    why `changing_at` is not in its IMPLEMENTED_MODIFIERS. A schedule reaching in through a mapping
+    is the same model by another door, and left alone it would hold the schedule's FIRST factor for
+    the whole run: branch lengths as if the schedule were a plain number, with nothing saying so."""
+    from zombi2.params import Clade, PerSite
+    sp = species.simulate_species_tree(birth=1, death=0.3, n_extant=8, seed=3)
+    g = simulate_genomes_family(sp, initial_families=5, seed=5)
+    clade = Clade({"fast": ["n1", "n2"]})
+    with pytest.raises(ValueError, match="time schedule inside a mapping"):
+        simulate_sequences(g, model=hky85(), length=50, seed=1,
+                           substitution=PerSite(0.05).scaled_by(clade, {"fast": {0: 1.0, 1.0: 9.0}}))
+    # the same rate with one factor per state is untouched
+    assert simulate_sequences(g, model=hky85(), length=50, seed=1,
+                              substitution=PerSite(0.05).scaled_by(clade, {"fast": 4.0})).alignments

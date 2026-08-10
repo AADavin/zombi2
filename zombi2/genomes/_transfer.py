@@ -294,7 +294,8 @@ def recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_tra
             g_d = to_traj.value(donor, t)
             weights = [transfer_to.mapping.weight(g_d, to_traj.value(alive[k], t)) for k in cand]
         else:
-            weights = [transfer_to.mapping.multiplier(to_traj.value(alive[k], t)) for k in cand]
+            weights = [transfer_to.mapping.multiplier(to_traj.value(alive[k], t), time=t)
+                       for k in cand]
         total = sum(weights)
         if total <= 0.0:
             return None

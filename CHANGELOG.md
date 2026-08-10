@@ -100,6 +100,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   that whole lineage. `PerLineage` with a per-family draw is still refused, and still says why: that
   one is an open question about what the model should mean, not a missing wire. The ordered
   resolution still refuses the pair, and its message now points at the family resolution.
+- **A factor can be scoped to a driver state *and* to a time.** `{"endo": {0: 1.0, 6.0: 20.0},
+  "rest": 1.0}` reads: twenty times the base inside this clade, but only from t=6, and unchanged
+  outside it throughout. It could not be written before — `scaled_by(clade, …).changing_at(…)`
+  multiplies two factors that each apply to every lineage, so the window landed on the whole tree —
+  and it is the shape a transition needs: a lineage that becomes endosymbiotic partway through the
+  run, a habitat that only starts to matter after a date. Any discrete driver takes one, the
+  notation is `changing_at`'s, and the breakpoints reach the Gillespie horizon so the run steps to
+  them rather than past them. The sequences level refuses one: it walks a gene tree branch by branch
+  and never steps at a wall-clock time, so a schedule there would silently hold its first factor for
+  the whole run.
 - **`zombi2 tools tree TREE --clades` lists the clades a tree offers to name, and `Clade.resolve`
   says what one covers.** Scoping a rate to a clade — the thing that makes ZOMBI2 different — meant
   naming a node, and nothing said which nodes were there, how big they were, or which lineages the
