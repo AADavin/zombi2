@@ -11,6 +11,10 @@ The driver is named in the rate rather than passed as a file, and that is the wh
 level**, not a
 path. Give exactly one driver — a discrete trait (``--states``), which is the BiSSE/MuSSE family, or
 gene content (``--origination`` and friends), where a lineage's genome decides how fast it splits.
+The driver's flags are its own command's: ``--switch`` reads the three shapes ``zombi2 traits
+--switch`` reads — a symmetric rate, a ``{'a->b': rate}`` dict, a ``k x k`` matrix — so an
+irreversible trait, one direction named and the other left out, is written here exactly as it is
+there.
 """
 from __future__ import annotations
 
@@ -39,7 +43,10 @@ RATES_HELP = _rates_help(
          "a thing to write; write PerLineage(1.0).changing_at(...). "
          "Here scaled_by names a live level, not a file. Drivers: 'trait' (the trait grown "
          "alongside), 'genomes:count' (a lineage's gene count), 'genomes:<name>' (a named family, "
-         "{'present': 3.0, 'absent': 1.0}). --death takes a driven rate too.")
+         "{'present': 3.0, 'absent': 1.0}). --death takes a driven rate too. --switch is a rate in "
+         "this form as well — one symmetric rate, a {'a->b': rate} dict, or a k x k matrix — but it "
+         "takes no modifier here: a joint run builds the trait's generator once, as one constant "
+         "matrix.")
 
 #: the driver flags, by which driver they build — used to reject the other driver's flags rather
 #: than ignore them, the discipline every other command follows
@@ -72,8 +79,14 @@ def _add_joint_args(p: argparse.ArgumentParser) -> None:
                              "state-dependent diversification (BiSSE / MuSSE); --states selects it")
     g.add_argument("--states", metavar="A,B,...", default=None,
                    help="the trait's state space, comma-separated (e.g. small,large)")
-    g.add_argument("--switch", type=float, default=None, metavar="RATE",
-                   help="symmetric switching rate between states")
+    # the same parser `zombi2 traits --switch` uses, because it is the same keyword: a joint trait
+    # IS a `traits.discrete` spec, and `_q_matrix` has always built its generator from all three
+    # shapes. `type=float` killed two of them at argparse, which put the standard irreversible /
+    # asymmetric BiSSE out of reach of the one command built for trait-driven diversification.
+    g.add_argument("--switch", type=_rate, default=None, metavar="RATE",
+                   help="the switching rate between states: one symmetric rate, a "
+                        "{'a->b': rate} dict of the transitions to allow — name one direction "
+                        "only and that state is a dead end — or a k x k matrix (see RATES below)")
     g.add_argument("--start", metavar="STATE", default=None,
                    help="the root state (default: uniform over --states)")
     g.add_argument("--at-speciation", type=float, default=None, metavar="P", dest="at_speciation",

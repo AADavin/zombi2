@@ -1186,8 +1186,9 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     if rate.scope is not PerSite:
         assert rate.scope is not None      # `as_rate` and `_calibrate` both fill the scope in
         raise ValueError(
-            f"substitution has a {rate.scope.__name__} scope, but the sequence engine takes only "
-            f"PerSite (the default) this slice — drop the scope or write PerSite(...)."
+            f"substitution has a {rate.scope.__name__} scope, but the sequence engine reads the "
+            f"substitution rate per site and cannot read it any other way. Write PerSite(...), or "
+            f"drop the scope and let the level fill in its own."
         )
     # The rate's modifiers, sorted into the two things this level reads. SPEC §5: modifiers multiply,
     # so a clock and a driver compose — one says which lineages were dealt a fast tempo, the other

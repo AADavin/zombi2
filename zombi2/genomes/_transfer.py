@@ -154,9 +154,10 @@ def resolve_transfer_to(transfer_to):
         )
     if isinstance(transfer_to, (list, tuple)):
         raise ValueError(
-            "transfer_to takes one recipient rule, not several — combining Distance (relatedness) "
-            "with a driven weighting is a later slice. Give 'uniform', 'distance' / "
-            "Distance(decay=), or Recipients().weighted_by(driver, {...})."
+            "transfer_to takes one recipient rule, not several: a topological weight (Distance, "
+            "which reads relatedness) and a driven one (which reads a level) are not combined yet, "
+            "because what their product should mean has not been settled. Give one — 'uniform', "
+            "'distance' / Distance(decay=), or Recipients().weighted_by(driver, {...})."
         )
     if type(transfer_to) is Driven and verbs.written_with(transfer_to, verbs.SCALED_BY):
         # The verb carries the meaning, so a mismatched one is catchable: `scaled_by` says the

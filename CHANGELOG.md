@@ -11,6 +11,37 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Fixed
 
+- **A repeated `--params` is refused instead of silently discarding the first file.** `--params
+  a.toml --params b.toml` kept only `b.toml`, so `a.toml`'s resolution, chromosome count and seed
+  vanished without a word and the run was quietly a different model from the one asked for — the one
+  input mistake the CLI let through in silence, and the one most likely to survive review inside a
+  pipeline that assembles its arguments. A run takes one parameters file; a second is now an error,
+  raised before any file is opened and for every command at once.
+- **An abbreviated `--params` reads the file instead of ignoring it.** The flag is found by a scan
+  that runs before argparse, and the scan matched only the full spelling — so `--param run.toml`,
+  which argparse itself accepts as an unambiguous prefix, left the file unread: the command
+  succeeded, said nothing, and simulated the defaults. The scan now resolves a prefix the way
+  argparse does, and an ambiguous one (`--par`, against `--params` and `--parallel`) is still
+  refused by argparse rather than claimed for either.
+- **`zombi2 joint --switch` takes the same spellings `zombi2 traits --switch` does.** It was parsed
+  as a plain float, so `--switch "{'outcrossing->selfing': 0.2}"` — the standard irreversible,
+  asymmetric BiSSE, where one state is a dead end — died at argparse with `invalid float value`, on
+  the very command built for trait-driven diversification. The engine had taken the dict and the
+  `k×k` matrix all along and both were reachable from Python; only the flag was narrower than its
+  keyword. Runs given a bare number are byte-for-byte unchanged.
+- **A result written from Python leaves the same files as the command that would have made it.**
+  `TraitsResult.write(d)` wrote one file, `trait_values.tsv`, while `zombi2 traits` wrote four, so a
+  Python user following Appendix B went looking for the trait event log and got a `FileNotFoundError`
+  — the same level, writing a quarter of its output, depending only on how it had been called. Each
+  level's `.write()` now defaults to that level's own command's set. `JointResult.write` also gains
+  the `outputs=` selector every other level has, and no longer omits `species_fates.tsv` and
+  `species_summary.json`. The `zombi2` commands write exactly what they wrote before, and a
+  `.write()` given an explicit `outputs=` is unchanged; the layout still differs, one directory from
+  Python and `species/` + `traits/` from the command.
+- **Four refusals stop describing themselves as "a later slice".** The phrase is a roadmap word, not
+  something a user can act on: it named when the combination might be built rather than what to write
+  instead. Each now says what is refused, why, and the spelling that works — the transfer rule that
+  takes one recipient weighting, and the two scope refusals at the nucleotide and sequence levels.
 - **A bad rate names the flag it came from.** `--death -0.3` reported "a rate base must be finite and
   non-negative, got -0.3" without saying which rate, so a command carrying four of them had to be
   bisected by hand; written on a scope (`--death "Global(-0.3)"`) the same mistake already named it.
@@ -49,6 +80,18 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 - **`varying_among('run', …)` is refused where it is written.** `'run'` is a measured driver's
   attachment, not a unit a value varies among, but it was accepted and only failed later, in the
   engine, with an unrelated message. The five plural units are unaffected. (#332)
+
+### Added
+
+- **A per-family draw and a driven rate can share a run, at the family resolution.** "Some gene
+  families are mobile" and "this clade loses genes faster" could not be one model: the pair was
+  refused, and three places in the documentation said it was allowed. They compose, and the
+  composition is the product — the driver's factor belongs to the lineage, the family multipliers to
+  its contents, so a lineage's weight is the rate read on that lineage times the multipliers over its
+  live copies. The copy pick inside a lineage is unchanged, the driver's factor being one number for
+  that whole lineage. `PerLineage` with a per-family draw is still refused, and still says why: that
+  one is an open question about what the model should mean, not a missing wire. The ordered
+  resolution still refuses the pair, and its message now points at the family resolution.
 
 ### Changed
 

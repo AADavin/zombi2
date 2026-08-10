@@ -430,6 +430,28 @@ class _FamilyWeights:
             arr.pop()
 
 
+def _driven_weights(rate, gen, k_alive: int, t: float, drivers, fam_sums) -> list[float]:
+    """One rate's per-lineage weights under a driver — and, when the run also carries a per-family
+    draw, the family multipliers folded in.
+
+    ``lineages=1`` reads one lineage's own share, so a PerLineage rate contributes its base and a
+    PerCopy one its base times that lineage's copies. An empty genome is zeroed explicitly: under
+    PerCopy `effective` already returns 0 for it, so this changes nothing there, and under PerLineage
+    it is what stops a lineage with no victim taking a share.
+
+    With ``fam_sums`` — that rate's per-lineage sums of the family multipliers over the live copies —
+    the two weights **multiply**: the driver's factor belongs to the lineage and the multipliers to
+    its contents, so the lineage's total is the unit rate read on this lineage times those sums.
+    ``copies=1`` because the sums already count the copies (a family carrying no draw weighs 1). The
+    copy pick *inside* the lineage is unchanged: the driver's factor is one number for that whole
+    lineage, so it cancels in the within-lineage normalisation."""
+    if fam_sums is None:
+        return [rate.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
+                if gen[k] else 0.0 for k in range(k_alive)]
+    return [rate.effective(copies=1, lineages=1, time=t, drivers=drivers[k]) * fam_sums[k]
+            if gen[k] else 0.0 for k in range(k_alive)]
+
+
 def _driven_mods(rate) -> list:
     """The driven modifiers a rate carries — what ``scaled_by`` and ``set_by`` build — or ``[]`` when
     it is a plain number, a bare scope or a schedule. A non-empty list means the rate is
@@ -790,17 +812,6 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     for label, rate in (("duplication", dup), ("transfer", tra), ("loss", los),
                         ("origination", org)):
         rate.check_one_base(label)
-    # Getting this guard's reach wrong was a real bug once: a per-family draw the guard did not see,
-    # set beside a driven rate, was accepted, and then the loop below set that rate's per-lineage
-    # weights from the family sums and immediately OVERWROTE them with the driven ones — so the total
-    # was summed WITHOUT the family multipliers while the copy was still drawn WITH them. A total
-    # that says one thing and a pick that does another is the one failure this engine must not have.
-    if any(m.reads == (DRAWN, "families") for rate in (dup, tra, los) for m in rate.modifiers) and \
-            any(isinstance(m, Driven) for rate in (dup, tra, los, org) for m in rate.modifiers):
-        raise ValueError(
-            "a per-family draw and a driver on the same run is a later slice: one weights lineages by a "
-            "driver and the other weights copies by their family, and combining them means "
-            "weighting by the product. Use one or the other for now.")
     # A per-family draw under a per-lineage scope is refused because what it should MEAN is a
     # modelling decision nobody has taken, not because it is hard. Under PerCopy a family's
     # multiplier scales each copy's own rate, so a genome full of fast families turns over faster —
@@ -1003,8 +1014,13 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         # its own copy count and its branch's driver value), keeping the weights for the affected-lineage
         # pick — the species_tree._grow shape. An undriven rate stays pooled (one .effective, uniform
         # pick), so a run with no driver is byte-identical to before. For transfer the affected
-        # lineage is the donor, so a driven transfer weights who donates.
+        # lineage is the donor, so a driven transfer weights who donates. A run carrying BOTH a driver
+        # and a per-family draw multiplies the two — the driver's factor is the lineage's, the
+        # multipliers are its contents' — which is what `_driven_weights` does with `fam_sums`.
         w_dup = w_los = w_org = w_tra = None
+        fw = None
+        if any_driven:  # each lineage's driver values, read before the weights that multiply them in
+            drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(k_alive)]
         if any_family:
             # A per-copy rate pools over copies, so with per-family multipliers the total is the
             # unit rate times the sum of those multipliers over the live copies — and the copy has
@@ -1020,23 +1036,20 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             if can_xfer:
                 w_tra = [unit["transfer"] * s for s in fw["transfer"]]
         if any_driven:
-            drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(k_alive)]
-            # `lineages=1` reads one lineage's own share, so a PerLineage rate contributes its base
-            # and a PerCopy one its base times that lineage's copies. An empty genome is zeroed
-            # explicitly: under PerCopy `effective` already returns 0 for it, so this changes nothing
-            # there, and under PerLineage it is what stops a lineage with no victim taking a share.
             if dup_mods:
-                w_dup = [dup.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
-                         if gen[k] else 0.0 for k in range(k_alive)]
+                w_dup = _driven_weights(dup, gen, k_alive, t, drivers,
+                                        fw["duplication"] if fw is not None else None)
             if los_mods:
-                w_los = [los.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
-                         if gen[k] else 0.0 for k in range(k_alive)]
+                w_los = _driven_weights(los, gen, k_alive, t, drivers,
+                                        fw["loss"] if fw is not None else None)
             if org_mods:
+                # origination can never carry a per-family draw (refused above: when it is read there
+                # is no family yet), so it needs no fam_sums branch
                 w_org = [org.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
                          for k in range(k_alive)]
             if tra_mods and can_xfer:
-                w_tra = [tra.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
-                         if gen[k] else 0.0 for k in range(k_alive)]
+                w_tra = _driven_weights(tra, gen, k_alive, t, drivers,
+                                        fw["transfer"] if fw is not None else None)
         r_dup = sum(w_dup) if w_dup is not None else (
             dup.effective(**(host_ctx if dup_per_lineage else ctx)) if n else 0.0)
         r_los = sum(w_los) if w_los is not None else (

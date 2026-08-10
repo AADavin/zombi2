@@ -761,19 +761,22 @@ def test_the_trait_and_joint_engines_refuse_a_between_kernel_on_a_rate():
                              n_extant=20, seed=3)
 
 
-def test_a_family_draw_on_one_rate_beside_a_driven_rate_is_refused(tmp_path):
-    """Regression. The guard has to see every per-family draw in the run, not the one on the driven
-    rate: a draw it missed was accepted, and then the loss total was summed WITHOUT the family
-    multipliers while the copy was still drawn WITH them — a total saying one thing and a pick doing
-    another."""
+def test_a_family_draw_beside_a_driven_rate_still_obeys_the_driver(tmp_path):
+    """The two used to be refused together. Now they multiply — and the thing that has to stay true
+    is that the total and the pick agree: a driver factor of 0 means the event cannot happen there,
+    however the family multipliers fall. A weight built from the multipliers alone, or one that
+    overwrote the driver's, would put losses on a 'lo' lineage."""
     tree = simulate_species_tree(birth=1.2, death=0.2, total_time=1.5, seed=11).complete_tree
     driver = tmp_path / "d.tsv"
-    _write_driver(driver, tree, {i: ("hi" if i % 2 else "lo") for i in tree.nodes})
-    with pytest.raises(ValueError, match="per-family draw and a driver on the same run"):
-        genomes.simulate_genomes_family(
-            tree, duplication=PerCopy(0.3).varying_among('families', LogNormal(0.0, 0.5)),
-            loss=PerCopy(0.2).scaled_by(str(driver), {"lo": 0.0, "hi": 5.0}),
-            initial_families=6, seed=3)
+    state = {i: ("hi" if i % 2 else "lo") for i in tree.nodes}
+    _write_driver(driver, tree, state)
+    g = genomes.simulate_genomes_family(
+        tree, duplication=PerCopy(0.3).varying_among('families', LogNormal(0.0, 0.5)),
+        loss=PerCopy(0.2).scaled_by(str(driver), {"lo": 0.0, "hi": 5.0}),
+        initial_families=6, seed=3)
+    losses = [e for e in g.edges if e.kind == "loss"]
+    assert losses                                          # the driven rate still fires at all
+    assert all(state[e.lineage] == "hi" for e in losses)    # and never where the driver zeroes it
 
 
 def test_missing_driver_file_is_named_as_a_drivenby_driver(tmp_path):
