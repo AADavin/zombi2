@@ -922,14 +922,52 @@ def test_params_append_option_is_overridden_by_the_command_line(tmp_path):
     assert "mass_extinction\t[[3.0, 0.1]]" in log              # only the command line's pulse, not both
 
 
-def test_params_last_of_two_files_wins(tmp_path):
-    # two --params: the last file's values are used (and it is the one the log names)
+def test_params_given_twice_is_refused(tmp_path, capsys):
+    # two --params used to keep only the last and drop the first in silence, so the run was a
+    # different model from the one asked for. A run takes one file; one file covers a pipeline.
     (tmp_path / "a.toml").write_text("[species]\nbirth = 1.0\nn-extant = 5\n", encoding="utf-8")
     (tmp_path / "b.toml").write_text("[species]\nbirth = 1.0\nn-extant = 40\n", encoding="utf-8")
     out = tmp_path / "o"
-    main(["species", str(out), "--params", str(tmp_path / "a.toml"),
-          "--params", str(tmp_path / "b.toml"), "--seed", "1", "--flat"])
-    assert "n_extant\t40" in (out / "species.log").read_text(encoding="utf-8")
+    with pytest.raises(SystemExit) as e:
+        main(["species", str(out), "--params", str(tmp_path / "a.toml"),
+              "--params", str(tmp_path / "b.toml"), "--seed", "1", "--flat"])
+    assert e.value.code == 2
+    err = capsys.readouterr().err
+    assert "--params given more than once" in err              # and it names both files
+    assert "a.toml" in err and "b.toml" in err
+    assert not out.exists()                                    # refused before anything was written
+
+
+@pytest.mark.parametrize("flag", ["--params", "--param", "--par"])
+def test_params_file_is_read_through_an_abbreviated_flag(tmp_path, flag):
+    # argparse accepts an unambiguous prefix, but the file is found by a scan that runs before it.
+    # Matching only the full spelling meant `--param FILE` left the file unread and the run took its
+    # defaults, in silence, exit 0 — so the two must resolve a prefix the same way.
+    (tmp_path / "p.toml").write_text("[species]\nbirth = 9.0\nn-extant = 5\n", encoding="utf-8")
+    out = tmp_path / flag.strip("-")
+    main(["species", str(out), flag, str(tmp_path / "p.toml"), "--seed", "1", "--flat"])
+    log = (out / "species.log").read_text(encoding="utf-8")
+    assert "birth\t9.0" in log and "n_extant\t5" in log        # the file's values, not the defaults
+
+
+def test_an_ambiguous_prefix_is_not_taken_for_params(tmp_path, genomes_dir, capsys):
+    # `zombi2 genomes` has --params and --parallel, so --par matches neither: argparse must still
+    # refuse it rather than this scan quietly claiming it for --params.
+    with pytest.raises(SystemExit) as e:
+        main(["genomes", str(genomes_dir), "--par", "x.toml"])
+    assert e.value.code == 2
+    assert "ambiguous option: --par" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("command", ["species", "genomes", "traits", "sequences", "joint"])
+def test_params_given_twice_is_refused_by_every_command(tmp_path, command, capsys):
+    # the refusal sits in the one function every params-aware command loads its file through, so it
+    # is not a per-command check a new command could forget. Neither file exists: the repetition is
+    # caught before anything is opened, and the --params=FILE spelling counts too.
+    with pytest.raises(SystemExit) as e:
+        main([command, str(tmp_path / "o"), "--params=a.toml", "--params=b.toml"])
+    assert e.value.code == 2
+    assert "--params given more than once" in capsys.readouterr().err
 
 
 def test_params_invalid_choice_errors_cleanly(tmp_path, genomes_dir):
@@ -1364,6 +1402,48 @@ def test_joint_is_deterministic_given_the_seed(tmp_path):
         main(["joint", str(tmp_path / name), *argv])
     assert (tmp_path / "x" / "species" / "species_complete.nwk").read_text(encoding="utf-8") == \
            (tmp_path / "y" / "species" / "species_complete.nwk").read_text(encoding="utf-8")
+
+
+# ── joint --switch reads what traits --switch reads ─────────────────────────────────
+#
+# The two commands re-declare the same keyword and the pair drifted: joint's was `type=float`, so
+# argparse killed the dict and the matrix before the engine — which builds its generator with
+# `_q_matrix`, and has taken all three shapes all along — ever saw them. That put the standard
+# irreversible BiSSE ("one state is a dead end") out of reach of the command built for BiSSE.
+
+_JOINT_BISSE = ["--birth", "PerLineage(1.0).scaled_by('trait', {'small': 1.0, 'large': 3.0})",
+                "--states", "small,large", "--start", "small",
+                "--n-extant", "60", "--seed", "1", "--quiet"]
+
+
+@pytest.mark.parametrize("switch", [
+    "0.3",                                          # the symmetric rate, as before
+    "PerLineage(0.3)",                              # the same rate with its scope written out
+    "{'small->large': 0.4, 'large->small': 0.05}",  # asymmetric: a rate per direction
+    "[[0, 0.4], [0.05, 0]]",                        # the k x k matrix
+])
+def test_joint_switch_takes_every_shape_traits_switch_does(switch, tmp_path):
+    out = tmp_path / (re.sub(r"\W", "", switch)[:12] or "n")
+    assert main(["joint", str(out), "--switch", switch, *_JOINT_BISSE]) == 0, switch
+    assert (out / "traits" / "trait_events.tsv").exists()
+
+
+def test_joint_switch_irreversible_never_goes_back(tmp_path):
+    # naming one direction only is how a dead end is written — the state the trait cannot leave.
+    out = tmp_path / "dead-end"
+    main(["joint", str(out), "--switch", "{'small->large': 0.5}", *_JOINT_BISSE])
+    rows = [ln.split("\t") for ln in
+            (out / "traits" / "trait_events.tsv").read_text(encoding="utf-8").splitlines()[1:]]
+    back = [r for r in rows if r[1] == "on_branch" and r[3] == "large" and r[4] == "small"]
+    assert not back                                    # no lineage ever leaves the absorbing state
+
+
+def test_joint_switch_bare_number_is_unchanged(tmp_path):
+    # the widened parser must not move an existing run: _rate("0.3") is the float argparse produced.
+    for name in ("before", "after"):
+        main(["joint", str(tmp_path / name), "--switch", "0.3", *_JOINT_BISSE])
+    assert (tmp_path / "before" / "species" / "species_complete.nwk").read_text(encoding="utf-8") == \
+           (tmp_path / "after" / "species" / "species_complete.nwk").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("argv, msg", [

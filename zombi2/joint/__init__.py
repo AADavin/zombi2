@@ -51,6 +51,11 @@ from ..traits import Change, DiscreteTrait, TraitsResult
 #: at all. What is missing is missing on purpose — see the rejections in `simulate_joint()`.
 IMPLEMENTED_MODIFIERS = (OnTime, OnTotalDiversity, Driven)
 
+#: `JointResult.write`'s vocabulary. The tokens are the two **levels** and the run's own summary, not
+#: their files: a joint run's whole claim is that it writes each level exactly as that level's own
+#: command does, so each is written with its own default and there is nothing here to restate.
+_WRITE_OUTPUTS = ("summary", "species", "driver")
+
 _MAX_ATTEMPTS = 1000  # survival-conditioned retries before giving up on n_extant
 _GENOME_COUNT = "genomes:count"  # the live gene-content driver source for a count → Curve/Scalar
 
@@ -109,18 +114,40 @@ class JointResult:
             out["genome"] = self.genome.summary()
         return out
 
-    def write(self, directory, *, flat: bool = False) -> None:
-        """Write both levels to ``directory``: the species files (``species_complete.nwk`` /
-        ``species_extant.nwk`` / ``species_events.tsv``) and the driver level's — for a trait,
-        ``trait_values.tsv`` / ``trait_events.tsv`` / ``trait_tree.nwk``; for a genome,
-        ``genome_events.tsv`` / ``profiles.tsv``. ``flat`` is passed to the driver level, which is
-        the only one of the two with a many-files-per-run output."""
-        write_summary(pathlib.Path(directory) / "joint_summary.json", self.summary())
-        self.species.write(directory, outputs=("complete", "extant", "events"))
-        if self.trait is not None:
-            self.trait.write(directory, outputs=("values", "events", "tree"))
-        if self.genome is not None:
-            self.genome.write(directory, outputs=("events", "profiles"), flat=flat)
+    def write(self, directory, outputs=_WRITE_OUTPUTS, *, flat: bool = False) -> None:
+        """Write both levels to ``directory`` (created if needed), each exactly as its own command
+        writes it: ``"species"`` → the `SpeciesResult` files (``species_complete.nwk`` /
+        ``species_extant.nwk`` / ``species_events.tsv`` / ``species_fates.tsv`` /
+        ``species_summary.json``); ``"driver"`` → the level that grew with it, a trait's
+        ``trait_values.tsv`` / ``trait_events.tsv`` / ``trait_tree.nwk`` / ``trait_summary.json`` or
+        a genome's ``genome_events.tsv`` / ``profiles.tsv`` / ``genomes.tsv`` /
+        ``initial_genome.tsv`` / ``gene_trees/`` / ``genome_summary.json``; ``"summary"`` →
+        ``joint_summary.json``, the one file that is the joint run's own.
+
+        The tokens are the two **levels**, not their files, because each is written with that level's
+        own default — which is what makes a joint run's directory the two runs it stands in for. Pick
+        files *within* a level through the level itself: ``result.species.write(d, outputs=…)``,
+        ``result.trait.write(d, outputs=…)``. ``flat`` is passed to the driver level, the only one of
+        the two with a many-files-per-run output.
+
+        Both levels land in the one directory named here; ``zombi2 joint`` groups them under
+        ``species/`` and ``traits/`` / ``genomes/`` instead, and writes the same files."""
+        unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
+        if unknown:
+            raise ValueError(f"unknown write outputs {unknown}; choose from {list(_WRITE_OUTPUTS)}")
+        d = pathlib.Path(directory)
+        d.mkdir(parents=True, exist_ok=True)
+        if "summary" in outputs:
+            write_summary(d / "joint_summary.json", self.summary())
+        if "species" in outputs:
+            self.species.write(d)
+        if "driver" in outputs:
+            # two independent tests, not an if/else: a result carrying neither writes neither, rather
+            # than reaching for `.write` on None
+            if self.trait is not None:
+                self.trait.write(d)
+            if self.genome is not None:
+                self.genome.write(d, flat=flat)
 
 
 def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, total_time):

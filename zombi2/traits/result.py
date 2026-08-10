@@ -15,6 +15,14 @@ from ..tree import Node, Tree
 
 _WRITE_OUTPUTS = ("values", "events", "tree", "summary")  # write vocabulary; "events" = the trait event log
 
+#: What `TraitsResult.write` writes when it is not told which — the same set ``zombi2 traits`` writes,
+#: so a trait written from Python and one written by the command leave the same directory. It depends
+#: on the kind because the event log does: a CONTINUOUS trait's log is refused as a driver (a diffusion
+#: cannot be rebuilt from events, so replaying it would freeze every lineage at the root value), so it
+#: stays writable by name rather than written by default. Every other kind — discrete, threshold — gets
+#: the whole vocabulary, exactly as ``--kind discrete`` does on the command line.
+_DEFAULT_OUTPUTS = {"continuous": ("values", "tree", "summary")}
+
 @dataclass(frozen=True)
 class Change:
     """A realized trait change — one entry of the event log, the trait twin of the genome level's
@@ -158,8 +166,10 @@ class TraitsResult:
                 cast(float, self.node_values[self.complete_tree.root]))
         return out
 
-    def write(self, directory, outputs=("values",)) -> None:
-        """Write chosen ``outputs`` to ``directory`` (created if needed): ``"values"`` →
+    def write(self, directory, outputs=None) -> None:
+        """Write chosen ``outputs`` to ``directory`` (created if needed); the default is the set
+        ``zombi2 traits`` writes for this kind, so the command and the API leave the same directory
+        (`_DEFAULT_OUTPUTS`). ``"values"`` →
         ``trait_values.tsv`` (the ``node<TAB>kind<TAB>trait`` table over **every** node — tips, extinct
         lineages and internal nodes; ``kind`` is the tip's fate — ``extant`` / ``extinct`` (/ ``unsampled``
         under incomplete sampling) — or ``ancestor`` for an internal node, so the extant tips filter out
@@ -175,6 +185,8 @@ class TraitsResult:
         **discrete** trait's log reconstructs its state on every lineage exactly (that is what the
         ``initial`` row and the switch times are for); a continuous trait's diffusion cannot be rebuilt
         from events, so it carries only the ``initial`` row and any on-speciation jumps."""
+        if outputs is None:
+            outputs = _DEFAULT_OUTPUTS.get(self.kind, _WRITE_OUTPUTS)
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
         if unknown:
             raise ValueError(f"unknown write outputs {unknown}; choose from {list(_WRITE_OUTPUTS)}")

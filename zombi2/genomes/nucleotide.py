@@ -2001,8 +2001,9 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         assert r.scope is not None               # as_rate fills the level's default where none was written
         if r.scope is not want:
             raise ValueError(
-                f"{label} has a {r.scope.__name__} scope, but the nucleotide engine takes only "
-                f"{want.__name__} for {label} this slice — scope overrides are a later slice.")
+                f"{label} has a {r.scope.__name__} scope, but the nucleotide engine reads {label} "
+                f"as {want.__name__} and cannot read it any other way. Write {want.__name__}(...), "
+                f"or drop the scope and let the level fill in its own.")
         for m in r.modifiers:
             if isinstance(m, Driven):
                 check_not_a_kernel(m.mapping, label=label)

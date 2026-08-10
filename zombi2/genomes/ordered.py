@@ -1296,9 +1296,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     if any(m.reads == (DRAWN, "families") for r in _rates.values() for m in r.modifiers) and \
             any(isinstance(m, Driven) for r in _rates.values() for m in r.modifiers):
         raise ValueError(
-            "a per-family draw and a driver on the same run is a later slice: one weights lineages by a "
-            "driver and the other weights the segment by what it covers, so combining them means "
-            "weighting by the product. Use one or the other for now.")
+            "a per-family draw and a driver on the same run is not wired at the ordered resolution: "
+            "a driver weights the lineage, and here a per-family draw has to weight the SEGMENT an "
+            "event covers rather than the gene it started from, so the two are not one "
+            "multiplication. The family resolution runs the pair — there a family's multiplier is "
+            "the copy's, and the weight is simply the product. Use it, or use one of the two here.")
     # per-event extent distributions (segment size in genes); a bare number is the mean, None a single gene
     def _ext_spec(spec, label):
         """One event's extent (SPEC §6): ``base × modifiers``, no scope, in **genes** here. An extent
