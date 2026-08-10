@@ -173,8 +173,8 @@ def _rates_help(supported, flag: str, *, scope: str = "PerLineage", scopes: str 
 def _add_params_arg(g) -> None:
     """Add ``--params FILE`` (a TOML parameters file) to a subcommand's ``general`` group."""
     g.add_argument("--params", metavar="FILE",
-                   help="a TOML parameters file; keys are long option names, overridden by any "
-                        "flag you also pass")
+                   help="a TOML parameters file, one per run; keys are long option names, "
+                        "overridden by any flag you also pass")
 
 
 def _add_flat_arg(g) -> None:
@@ -788,21 +788,52 @@ def _add_subcommand(sub, name: str, help: str, description: str, usage: str, add
 def _apply_params_file(sub, argv) -> None:
     """If the invocation is ``<command> … --params FILE …`` for a params-aware subcommand, load the
     TOML file and set that subcommand's argument defaults from it — so explicit command-line flags,
-    parsed afterwards, still override the file."""
+    parsed afterwards, still override the file.
+
+    A run takes **one** parameters file. A repeated ``--params`` is refused here, before any file is
+    opened, rather than merged or resolved last-wins: the discarded file's rates, resolution and seed
+    used to vanish without a word. Every params-aware subcommand reaches its file through this one
+    function — it is found by ``dest == "params"``, not by a list of commands — so the refusal costs
+    a future command nothing and cannot be forgotten by it."""
     tokens = argv if argv is not None else sys.argv[1:]
     if not tokens or tokens[0].startswith("-"):
         return
     subp = sub.choices.get(tokens[0])
     if subp is None or not any(a.dest == "params" for a in subp._actions):
         return
-    path = None
-    for i, tok in enumerate(tokens[1:], 1):        # last --params wins, matching argparse and the log
-        if tok == "--params" and i + 1 < len(tokens):
-            path = tokens[i + 1]
-        elif tok.startswith("--params="):
-            path = tok.split("=", 1)[1]
-    if path is None:
+    # argparse resolves an unambiguous prefix, so `--param FILE` reaches it and sets `args.params` —
+    # but this scan runs *before* argparse, and matching only the full spelling meant an abbreviated
+    # flag left the file unread while the command still succeeded: the run silently took its
+    # defaults. Resolve a prefix the way argparse does, so the two agree on what a token means.
+    long_opts = [o for a in subp._actions for o in a.option_strings if o.startswith("--")]
+
+    def _is_params(name: str) -> bool:
+        if name == "--params":
+            return True
+        if not name.startswith("--") or len(name) < 3:
+            return False
+        return [o for o in long_opts if o.startswith(name)] == ["--params"]
+
+    paths = []
+    for i, tok in enumerate(tokens[1:], 1):
+        name, eq, inline = tok.partition("=")
+        if not _is_params(name):
+            continue
+        if eq:
+            paths.append(inline)
+        elif i + 1 < len(tokens):
+            paths.append(tokens[i + 1])
+    if len(paths) > 1:
+        # Refused, not merged and not last-wins: a second file used to discard the first in silence,
+        # so the run was quietly a different model from the one asked for. Refused here, before any
+        # file is opened, and for every command at once — this is the only place a subcommand's
+        # --params file is found, so a command added later cannot forget it.
+        subp.error(f"--params given more than once ({', '.join(paths)}) — a run takes one "
+                   f"parameters file; one file can hold a whole pipeline, a [table] per command "
+                   f"(here [{tokens[0]}])")
+    if not paths:
         return
+    path = paths[0]
     from zombi2.cli._params import load_params_file
     action_by_dest = {a.dest: a for a in subp._actions}
     try:

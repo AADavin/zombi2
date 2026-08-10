@@ -233,10 +233,17 @@ transfer_to = Recipients().weighted_by(habitat, {"competent": 3.0, "normal": 1.0
 The genome level's `transfer_to`, the "who receives" of a horizontal transfer, is the only such
 argument today. A choice is written from its own entry point, `Recipients()`, and never carries a
 base, because there is no rate to have one. A weight of 0 means "cannot receive"; when every candidate weighs 0 the event
-does not fire at all. A rate, an extent and a choice are the three kinds of **target** — the three
-things a factor can be attached to — and they are not the same triple as the three questions this section opens with:
+does not fire at all. A rate, an extent, a choice and a **model** are the four kinds of **target** —
+the four things a driver can be attached to — and they are not the same as the three questions this section opens with:
 *where* an event starts is drawn by the engine and takes no modifier, and a choice picks the lineage
 that receives, not the segment.
+
+The first three take a **factor**: the driver supplies a number and the target is multiplied by it. A
+model takes none. A substitution model is an object rather than a quantity, so a driver on one
+*selects* it instead of scaling it, and it is written with `set_by` — the verb that replaces a base
+rather than multiplying one — `set_by(clade, {"endo": hky85(frequencies=...), "rest": hky85()})`.
+Every branch shares one alphabet, so what varies along the tree is the process over the states, never
+the states themselves.
 
 A weight may read **both** ends: a **kernel** over `(donor group, recipient group)` pairs
 (`Between({...})`) steers transfer *between* groups rather than only *into* one. The groups come from

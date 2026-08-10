@@ -1,6 +1,7 @@
 """Tests for the D/L/O gene-family core (zombi2.genomes.family)."""
 
 import collections
+import statistics
 import math
 import pathlib
 import tempfile
@@ -9,7 +10,7 @@ import pytest
 
 from zombi2.params.scope import Global, PerCopy, PerLineage
 
-from zombi2.params import Drift, LogNormal, Random, TotalDiversity
+from zombi2.params import Clade, Drift, Fixed, LogNormal, Random, TotalDiversity
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_family
 from zombi2.tree import Node, Tree
@@ -690,11 +691,38 @@ def test_by_family_is_refused_on_origination():
         simulate_genomes_family(sp, origination=PerLineage(0.5).varying_among('families', LogNormal(0.0, 0.3)), seed=1)
 
 
-def test_by_family_with_driven_by_is_refused_for_now():
+def test_a_family_draw_and_a_driven_rate_share_a_run():
+    # the pair used to be refused, so "some families are mobile" and "this clade loses genes faster"
+    # could not be one model. They compose: the driver's factor is the lineage's, the multipliers are
+    # its contents', and a lineage's weight is the product.
     sp = _tree(seed=1, n_extant=8)
-    with pytest.raises(ValueError, match="later slice"):
-        simulate_genomes_family(sp, loss=PerCopy(0.2).varying_among('families', LogNormal(0.0, 0.3)),
-                                duplication=PerCopy(0.2).scaled_by("x.tsv", {"a": 2.0}), seed=1)
+    g = simulate_genomes_family(
+        sp, loss=PerCopy(0.2).varying_among('families', LogNormal(0.0, 0.3)),
+        duplication=PerCopy(0.2).scaled_by(Clade({"a": ["n1", "n2"]}), {"a": 3.0, "rest": 1.0}),
+        initial_families=40, seed=1)
+    assert g.events                                    # it runs at all, which is the headline
+    assert any(e.kind == "duplication" for e in g.events)
+
+
+def test_a_degenerate_family_draw_leaves_a_driven_rate_where_it_was():
+    # the product must be the *only* thing the draw contributes: multipliers fixed at 1 have to leave
+    # the driven rate exactly as it was. Bytes cannot be compared — drawing consumes the stream — so
+    # this compares the realised rate over enough seeds that a mis-multiplication would show.
+    sp = _tree(seed=3, n_extant=25)
+    clade = Clade({"x": ["n5", "n9"]})
+
+    def losses(seed, *, draw):
+        dup = PerCopy(0.01).varying_among('families', Fixed(1.0)) if draw else PerCopy(0.01)
+        g = simulate_genomes_family(
+            sp, initial_families=200, duplication=dup,
+            loss=PerCopy(0.02).scaled_by(clade, {"x": 5.0, "rest": 1.0}), seed=seed)
+        return sum(1 for e in g.events if e.kind == "loss")
+
+    n = 40
+    plain = [losses(s, draw=False) for s in range(1, n + 1)]
+    drawn = [losses(s, draw=True) for s in range(1, n + 1)]
+    se = (statistics.variance(plain) / n + statistics.variance(drawn) / n) ** 0.5
+    assert abs(statistics.mean(plain) - statistics.mean(drawn)) < 3 * se
 
 
 # --- max_family_size: a per-genome ceiling on a family's copies ------------
