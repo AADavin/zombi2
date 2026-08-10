@@ -156,7 +156,10 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
     st = [start_i]      # each lineage's trait state index, kept in lock-step with `alive`
     t = 0.0
     species_events: list[SpeciesEvent] = []
-    trait_events: list[Change] = []
+    # the initial state at t=0, exactly as the standalone traits engine seeds its log: tree + this row
+    # + the switches give the trait on every lineage, which is what lets the log be read back as a
+    # driver. Without it a joint run writes a trait_events.tsv no conditioned run can read.
+    trait_events: list[Change] = [Change(0.0, "initial", root, None, states[start_i])]
     end_state: dict[int, int] = {}  # node id → its trait state index when it ended (→ node_values)
 
     while alive:
