@@ -38,6 +38,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   `species_summary.json`. The `zombi2` commands write exactly what they wrote before, and a
   `.write()` given an explicit `outputs=` is unchanged; the layout still differs, one directory from
   Python and `species/` + `traits/` from the command.
+- **`mean_pairwise_identity` no longer depends on `--stream`.** It was a bounded random sample of
+  within-family pairs, and the streamed path sampled differently, so the same seed reported two
+  different identities — 0.72861 in memory against 0.7408771929824561 streamed — while every
+  alignment was byte-identical. Nothing said the number was an estimate, so it read as a fingerprint
+  two matching runs could disagree on. It is now counted over every within-family pair, a column at
+  a time so the work is linear in the alignment rather than quadratic in family size, and both paths
+  reach one number. The value a given run reports changes, in `sequences_summary.json`, in the
+  command's summary line and in `run.zombi2`; no simulated data moves.
 - **Four refusals stop describing themselves as "a later slice".** The phrase is a roadmap word, not
   something a user can act on: it named when the combination might be built rather than what to write
   instead. Each now says what is refused, why, and the spelling that works — the transfer rule that
@@ -92,6 +100,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   that whole lineage. `PerLineage` with a per-family draw is still refused, and still says why: that
   one is an open question about what the model should mean, not a missing wire. The ordered
   resolution still refuses the pair, and its message now points at the family resolution.
+- **A nucleotide run says when its extents are too small to move a gene.** Setting `duplication`,
+  `transfer` and `loss` at the nucleotide resolution and reading zeros back from
+  `genome_summary.json` looked like a broken counter; it was the model doing nothing. A gene is
+  never split, and the default extent is 50 bp against a default 500 bp gene, so a default-sized
+  event cannot cover a gene end to end however high the rates. The run now warns, naming the extents
+  and the shortest declared gene. It stays quiet where the geometry is fine — a dense genome with no
+  spacer offers nothing but gene joins, so every event moves whole genes whatever the extent.
+- **`genome_summary.json` counts the nucleotide log beside the gene log.** A new `block_events` key
+  counts DNA-level events per kind next to `events`, so a run whose arcs never covered a whole gene
+  shows what did happen rather than six zeros.
 
 ### Changed
 
