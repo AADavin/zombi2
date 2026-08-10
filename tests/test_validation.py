@@ -1290,7 +1290,7 @@ def test_brownian_motion_moves_by_the_variance_it_was_given():
         f"branch increments have variance {standardised.var(ddof=1):.4f} against the σ²·Δt they were "
         f"drawn with, {variance_z:+.2f} standard errors away")
 
-    tips = [n.id for n in tree.extant_leaves()]
+    tips = list(tree.extant_leaves())
     depth = {i: tree.nodes[i].end_time for i in tips}      # the root is born at t = 0
     pairs = [(a, b, depth[a] + depth[b] - 2 * tree.nodes[_mrca(tree, a, b)].end_time)
              for i, a in enumerate(tips) for b in tips[i + 1:]]

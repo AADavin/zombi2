@@ -692,7 +692,7 @@ def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_fam
     fresh_dirs(pathlib.Path(out_dir), ("gene_trees",), flat=False)
     shard_dir = os.path.join(out_dir, "_shards")
     os.makedirs(shard_dir, exist_ok=True)
-    extant_ids = sorted(n.id for n in tree.extant_leaves())
+    extant_ids = sorted(tree.extant_leaves())
     stream_cfg = {"out_dir": out_dir, "outputs": set(outputs), "extant_ids": extant_ids,
                   "shard_dir": shard_dir}
     # The tree the run evolved along, beside its outputs — every one of them is indexed by this

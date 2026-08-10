@@ -306,8 +306,8 @@ def test_end_to_end_trait_drives_loss(tmp_path):
         origination=0.2, initial_families=5, seed=2,
     )
     # compare mean copy count of extant tips by their (end-of-branch) habitat
-    cave = [len(res.genomes[n.id]) for n in tree.extant_leaves() if hab.node_values[n.id] == "cave"]
-    surface = [len(res.genomes[n.id]) for n in tree.extant_leaves() if hab.node_values[n.id] == "surface"]
+    cave = [len(res.genomes[n.id]) for n in (tree.nodes[_i] for _i in tree.extant_leaves()) if hab.node_values[n.id] == "cave"]
+    surface = [len(res.genomes[n.id]) for n in (tree.nodes[_i] for _i in tree.extant_leaves()) if hab.node_values[n.id] == "surface"]
     assert cave and surface, "need both habitats represented among the tips"
     assert sum(cave) / len(cave) < sum(surface) / len(surface)
 
@@ -1222,9 +1222,9 @@ def test_continuous_driver_drives_a_rate_and_is_deterministic():
     driven = run(lambda v: 3.0 ** v)
     control = run(lambda v: 1.0)                          # a flat Curve == the undriven model
     tips = list(ct.extant_leaves())
-    assert any(len(driven.genomes[n.id]) != len(control.genomes[n.id]) for n in tips)
+    assert any(len(driven.genomes[i]) != len(control.genomes[i]) for i in tips)
     again = run(lambda v: 3.0 ** v)
-    assert all(len(driven.genomes[n.id]) == len(again.genomes[n.id]) for n in tips)
+    assert all(len(driven.genomes[i]) == len(again.genomes[i]) for i in tips)
 
 
 def test_continuous_driver_takes_a_scalar_link():

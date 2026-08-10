@@ -102,23 +102,29 @@ class Tree:
         frozen before that would name every tip ``n``."""
         return {i: node_label(i, n.fate) for i, n in self.nodes.items()}
 
-    def leaves(self) -> list[Node]:
-        """Every lineage with no descendants — extant **and** extinct."""
-        return [n for n in self.nodes.values() if not n.children]
+    # The four leaf accessors return node **ids**, like everything else here: `root` is an id,
+    # `nodes` is keyed by one, and `children` holds them. They returned `Node` objects, which meant
+    # the output of one could not be fed to the other — `set(tree.extant_leaves())` raised
+    # "unhashable type: 'Node'", and `tree.nodes[leaf]` was a TypeError. Either currency would have
+    # done; having both is what cost a reader an afternoon. Reach the object through `tree.nodes[i]`.
 
-    def extant_leaves(self) -> list[Node]:
+    def leaves(self) -> list[int]:
+        """Every lineage with no descendants — extant **and** extinct."""
+        return [i for i, n in self.nodes.items() if not n.children]
+
+    def extant_leaves(self) -> list[int]:
         """The lineages alive at the present. (A *tip* list, not a tree — the pruned survivors' tree
         is `SpeciesResult.extant_tree`.)"""
-        return [n for n in self.nodes.values() if n.fate == "extant"]
+        return [i for i, n in self.nodes.items() if n.fate == "extant"]
 
-    def extinct_leaves(self) -> list[Node]:
+    def extinct_leaves(self) -> list[int]:
         """The lineages that died before the present."""
-        return [n for n in self.nodes.values() if n.fate == "extinct"]
+        return [i for i, n in self.nodes.items() if n.fate == "extinct"]
 
-    def unsampled_leaves(self) -> list[Node]:
+    def unsampled_leaves(self) -> list[int]:
         """Survivors not observed under incomplete ``sampling`` — kept in the complete tree (told
         apart by their fate) but pruned from the extant tree."""
-        return [n for n in self.nodes.values() if n.fate == "unsampled"]
+        return [i for i, n in self.nodes.items() if n.fate == "unsampled"]
 
     def to_newick(self, *, precision: int | None = None) -> str:
         """Serialise to Newick (matching ``tree.to_newick()`` elsewhere in the codebase). Each

@@ -76,8 +76,8 @@ def correlated(out):
         h.render_tree_for_composite(ph.trees.loads(ct.to_newick()), png, vals,
                                     width=1000, height=520, branch_width=1.2)
     tips = list(ct.extant_leaves())
-    xs = [res.node_values[n.id]["x"] for n in tips]
-    ys = [res.node_values[n.id]["y"] for n in tips]
+    xs = [res.node_values[n]["x"] for n in tips]
+    ys = [res.node_values[n]["y"] for n in tips]
     h.composite_two_trees_scatter(px, py, xs, ys, out)
 
 
@@ -202,8 +202,8 @@ vy = {f"n{i}": v["y"] for i, v in res.node_values.items()}
 h.render_tree_for_composite(ph.trees.loads(ct.to_newick()), "tree_x.png", vx)
 h.render_tree_for_composite(ph.trees.loads(ct.to_newick()), "tree_y.png", vy)
 tips = list(ct.extant_leaves())
-xs = [res.node_values[n.id]["x"] for n in tips]
-ys = [res.node_values[n.id]["y"] for n in tips]
+xs = [res.node_values[n]["x"] for n in tips]
+ys = [res.node_values[n]["y"] for n in tips]
 h.composite_two_trees_scatter("tree_x.png", "tree_y.png", xs, ys, "correlated.png")'''
 
 
