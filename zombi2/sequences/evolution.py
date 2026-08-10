@@ -43,7 +43,8 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
                      clock: "Clock | None", rng: np.random.Generator,
                      origination: float,
                      founding: "np.ndarray | None" = None,
-                     cdf_cache: "dict[float, np.ndarray] | None" = None
+                     cdf_cache: "dict[tuple[int, float], np.ndarray] | None" = None,
+                     models: "dict[int, SubstitutionModel] | None" = None
                      ) -> tuple[dict[int, np.ndarray], np.ndarray]:
     """Evolve a sequence of ``length`` sites down the gene tree rooted at ``root`` (a
     `GeneNode`), starting at ``origination``.
@@ -71,13 +72,24 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
     which is what makes the assembled root genome equal the input.
 
     ``cdf_cache`` memoises the per-branch-length transition CDF (see `_cdf_for()`). It is keyed by
-    branch length alone, so it must hold matrices for **one** model; the caller passes one cache per
-    model and shares it across every block that model evolves. Branch lengths recur massively across
+    the model's identity **and** the branch length, so one cache holds every model the run uses and
+    the caller passes the same one everywhere. Branch lengths recur massively across
     blocks — a block passing straight through a species branch reuses that branch's length — so a
     run-wide cache computes a few hundred matrices where a per-block cache recomputes tens of thousands.
     ``None`` makes a fresh local cache (a standalone call is then self-contained). Across-site rate
     variation needed **no** change here: a class-scaled branch length is just another length of the
     same model, so the classes multiply the number of cache keys and nothing else.
+
+    ``models`` gives each **species branch** its own model, so a clade can evolve under a different
+    matrix rather than only at a different speed. Branch lengths do not change meaning: every model
+    is normalised to one expected substitution per site per unit branch length, so ``rate · Δt`` says
+    the same thing on every branch and the phylogram stays exact — with one caveat worth stating,
+    because it is the transient such a study is usually about. That normalisation holds **at
+    stationarity**. A lineage that has just entered a clade whose model has different equilibrium
+    frequencies is not yet at them, so while its composition is still relaxing it accrues somewhat
+    fewer substitutions than its nominal branch length claims. That is the ordinary price of a
+    non-homogeneous model rather than a defect. ``None`` is the plain path: not one extra lookup and
+    not one extra draw, so a run written before this is bit-identical.
     """
     pi = model.stationary
     k = model.k
@@ -103,19 +115,25 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
         node, parent_time, parent_states = stack.pop()
         bl = (rate_base * (node.time - parent_time) if clock is None
               else clock.branch_length(rate_base, node.species, parent_time, node.time))
+        # The model is a property of the SPECIES branch this stretch of gene tree sits on, so it is
+        # read here beside the branch length and from the same `node.species`. One dict lookup per
+        # branch; the matrices themselves are still built once per (model, length) and cached, and a
+        # branch length belongs to one species branch and so to one model, so a per-clade run builds
+        # the same number of matrices a one-model run does.
+        m = model if models is None else models[node.species]
         if bl <= 0.0:
             states = parent_states
         elif groups is None:
-            states = _sample(parent_states, _cdf_for(cache, model, bl), rng)
+            states = _sample(parent_states, _cdf_for(cache, m, bl), rng)
         else:
             # One class at a time, ascending, each at its own scaled branch length — so a class is
             # one `_sample` over its own sites rather than one per site, and its scaled length is
             # just another key in the same per-model cache. A rate-0 class is never sampled, so
             # invariant sites keep the parent's state (and hence the founding state) untouched.
             states = parent_states.copy()
-            for rate, idx in zip(model.site_rates, groups):
+            for rate, idx in zip(m.site_rates, groups):
                 if rate > 0.0 and idx.size:
-                    states[idx] = _sample(parent_states[idx], _cdf_for(cache, model, bl * rate), rng)
+                    states[idx] = _sample(parent_states[idx], _cdf_for(cache, m, bl * rate), rng)
         out[id(node)] = states
         for child in reversed(node.children or ()):
             stack.append((child, node.time, states))
@@ -144,13 +162,14 @@ def _site_classes(model: SubstitutionModel, length: int,
 
 def _cdf_for(cache: dict, model: SubstitutionModel, bl: float) -> np.ndarray:
     """The transition **CDF** over branch length ``bl`` — ``P(bl)`` cumulated along each row, cached by
-    branch length rounded to 12 decimals (identical lengths reuse one matrix). Caching the *cumulated*
+    the model's identity **and** the branch length rounded to 12 decimals, so one cache holds every
+    model a run uses and the same model over an identical length reuses one matrix. Caching the *cumulated*
     matrix, not ``P`` itself, means `_sample()` never recomputes the cumsum: it is the same for
     every node on a branch of this length, so it is built once here and reused for all of them."""
-    key = round(float(bl), 12)
+    key = (id(model), round(float(bl), 12))
     cum = cache.get(key)
     if cum is None:
-        cum = model.p_matrix(key).cumsum(1)
+        cum = model.p_matrix(key[1]).cumsum(1)
         # P rows are clipped, not renormalised, so a row's final cumulative can land a hair below 1.0
         # (~1e-15). Pin it to 1.0 so a maximal draw can't slip past every threshold and make the
         # ``argmax`` in _sample silently return state 0.

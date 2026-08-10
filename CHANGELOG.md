@@ -100,6 +100,22 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   that whole lineage. `PerLineage` with a per-family draw is still refused, and still says why: that
   one is an open question about what the model should mean, not a missing wire. The ordered
   resolution still refuses the pair, and its message now points at the family resolution.
+- **A clade can evolve under its own substitution model.** A run had one model for every branch, so
+  a clade could evolve faster but not *differently*, and every compositional question was out of
+  reach — an endosymbiont clade drifting toward AT, a lineage with its own GC bias, the compositional
+  attraction that misleads a tree-builder in a way long-branch attraction does not.
+  `Models().set_by(Clade({…}), {label: model})` gives each named clade its own matrix; scoping the
+  substitution rate to the same clade gives both halves of the syndrome at once. A model is the
+  fourth thing a driver can target, and the odd one out — a rate, an extent and a choice take a
+  factor and are multiplied by it, a model takes none and is selected, which is why the verb is
+  `set_by` (SPEC §5). The alphabet and the across-site rate classes are shared and say why if they
+  differ; the driver must be a clade, since a trait switches mid-branch and this level samples one
+  transition matrix per branch. Python only, as `reversible()` is. No cost measured: the
+  eigendecomposition was already built once per model and hoisted out of the per-branch loop, and a
+  branch belongs to one clade, so a per-clade run builds the same number of matrices as a one-model
+  run. One caveat, stated in ch7 and Appendix B rather than hidden: a model's normalisation holds at
+  stationarity, so a branch whose composition is still relaxing accrues slightly fewer substitutions
+  than its nominal length.
 - **A factor can be scoped to a driver state *and* to a time.** `{"endo": {0: 1.0, 6.0: 20.0},
   "rest": 1.0}` reads: twenty times the base inside this clade, but only from t=6, and unchanged
   outside it throughout. It could not be written before — `scaled_by(clade, …).changing_at(…)`

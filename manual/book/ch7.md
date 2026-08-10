@@ -309,6 +309,34 @@ A discrete trait switches partway along a branch, and ZOMBI2 does not read the d
 
 The reverse direction runs too: `result.gc()` makes a finished run's GC content drive a trait grown after it, or a further sequence run, and `result.composition(letters)` does the same for any letters of the run's alphabet, an amino-acid frequency say (Chapter 9). What the pair cannot be is **joined**, because a sequence lives inside a gene and never feeds back into the trait, so there is nothing for the two to decide together. Naming a live level (`scaled_by("trait", …)`) says so rather than looking for a file. One other limit here: `divergence` is refused alongside a driven rate, because it solves for the base by assuming the modifiers average to 1, which the two clocks are corrected to do and a driver is not. Set the base yourself there.
 
+### A clade can evolve differently, not only faster
+
+Everything above changes how *fast* a lineage evolves. `Models` changes what the change *looks like*: which residues turn into which, and what composition the sequence settles at.
+
+```python
+from zombi2.params import Clade
+from zombi2.sequences import Models
+from zombi2.sequences.substitution_models import hky85
+
+at_rich = hky85(kappa=2.0, frequencies=(0.40, 0.10, 0.10, 0.40))   # equilibrium A+T = 0.80
+model = Models().set_by(Clade({"endo": ["n76", "n112"]}),
+                        {"endo": at_rich, "rest": hky85(kappa=2.0)})
+```
+
+Every group the clade paints needs a model, `"rest"` included — a lineage in no named clade is in `"rest"`, and a missing one is refused rather than filled in.
+
+This is what an endosymbiont study needs. Its clade evolves faster *and* drifts toward AT, and the two mislead a tree-builder differently: a fast branch causes long-branch attraction, an AT-rich one causes compositional attraction, where unrelated AT-rich lineages group together because they look alike. Scoping the rate to the same clade gives both at once.
+
+Two limits, and one caveat worth knowing before you read the output.
+
+The alphabet is shared, because one gene copy's sequence is one string. So are the across-site rate classes: a site's class is drawn once for the family and holds all the way down the tree, so two clades cannot sort the same site into different classes. Both are refused with the reason rather than accepted and half applied.
+
+The driver must be a clade. A trait switches partway along a branch, and this level samples one transition matrix per branch, so a model that changed mid-branch would need the branch cut at the switch — that is not built. A trait can still drive the *rate*.
+
+The caveat: every model is normalised to one expected substitution per site per unit branch length, and that holds **at stationarity**. A lineage that has just entered the AT-rich clade is not yet at its frequencies, so while its composition is still relaxing it accrues somewhat fewer substitutions than its branch length claims. That transient is usually the thing being studied, and it is the ordinary price of a model that varies along the tree, not a defect. It shows up plainly if you raise the divergence: the clade's A+T climbs from 0.54 toward 0.80 as it has more time to get there.
+
+`Models` is Python only, and there is no flag for it: a model is a K×K matrix, which has no written form a flag can carry — the same reason `reversible()` has none.
+
 ## The objects
 
 `simulate_sequences` returns a **`SequencesResult`**, which carries:
@@ -326,7 +354,7 @@ As with every level, the bundle also carries `.seed` and `.write(directory, outp
 
 A family does not begin at the first branching of its gene tree. It begins when it originates, and the founding gene then lives for a while, its **stem**, before anything splits it. So that is where the sequence starts: one draw from the model's stationary frequencies at the origination, which then evolves across the stem in the ordinary way and arrives at the root gene as a sequence that has already changed. `.founding` is that first draw; `.ancestral` holds what the root gene ended up with, and the two differ by however much the stem allowed.
 
-The model and the clock are separate arguments, so any model on the menu composes with any clock:
+The model and the clock are separate arguments, so any model on the menu composes with any clock. (One model covers the whole tree unless you say otherwise; a clade can be given its own, which is `Models`, below.)
 
 ```python
 from zombi2.sequences.substitution_models import gtr

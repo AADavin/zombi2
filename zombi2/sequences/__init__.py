@@ -75,6 +75,7 @@ from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
 from .clock import Clock, resolve_clock
 from .evolution import evolve_gene_tree
+from .lineage_models import Models
 from .substitution_models import (BASES, SubstitutionModel, _with_frequencies, dayhoff, decode,
                                   encode, gtr, hky85, jc69, jtt, k80, lg, poisson, wag)
 
@@ -752,7 +753,8 @@ class _Sink:
 _DEFAULT_STREAM_OUTPUTS = ("alignments", "phylograms", "species_phylogram", "summary")
 
 
-def _resolve_partitions(model, partitions, length) -> tuple[tuple[SubstitutionModel, int], ...]:
+def _resolve_partitions(model, partitions,
+                        length) -> "tuple[tuple[SubstitutionModel | Models, int], ...]":
     """The **site blocks** one family evolves, as ``((model, sites), …)``.
 
     One entry for the ordinary ``model=`` + ``length=`` run, several for a partitioned one — so the
@@ -775,7 +777,7 @@ def _resolve_partitions(model, partitions, length) -> tuple[tuple[SubstitutionMo
 
     if model is not None:
         raise ValueError(
-            f"model={model.name if isinstance(model, SubstitutionModel) else model!r} was given "
+            f"model={model.name if isinstance(model, (SubstitutionModel, Models)) else model!r} was given "
             "alongside partitions, and each partition already carries its own model — so this would "
             "be a second answer to the same question, and nothing here could say which one a site "
             "should follow. Drop one: partitions=[(model, sites), …] for a split sequence, or "
@@ -791,12 +793,12 @@ def _resolve_partitions(model, partitions, length) -> tuple[tuple[SubstitutionMo
         raise ValueError(
             "partitions is empty, so a family would evolve no sites at all. Give at least one "
             "(model, sites) pair, or drop partitions and use model=… with length=….")
-    parts: list[tuple[SubstitutionModel, int]] = []
+    parts: "list[tuple[SubstitutionModel | Models, int]]" = []
     for i, item in enumerate(listed):
         pair = tuple(item) if isinstance(item, (tuple, list)) else ()
         if len(pair) != 2:
             # a bare model is the likely slip, and a model's repr is a whole rate matrix — name it
-            if isinstance(item, SubstitutionModel):
+            if isinstance(item, (SubstitutionModel, Models)):
                 shown = f"the model {item.name} on its own"
             elif pair and isinstance(pair[0], SubstitutionModel):
                 shown = f"{len(pair)} values starting with the model {pair[0].name}"
@@ -807,7 +809,7 @@ def _resolve_partitions(model, partitions, length) -> tuple[tuple[SubstitutionMo
                 "substitution model that stretch of the sequence evolves under, and how many sites "
                 "it covers. For example partitions=[(hky85(kappa=2.0), 600), (jc69(), 400)].")
         m, n = pair
-        if not isinstance(m, SubstitutionModel):
+        if not isinstance(m, (SubstitutionModel, Models)):
             raise ValueError(
                 f"partition {i}'s model is {m!r}, which is not a SubstitutionModel — take one from "
                 "the menu (jc69(), hky85(kappa=2.0), lg(), …) or build your own with "
@@ -907,16 +909,23 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
     pieces = []
     at = 0
     for model, n in parts:
-        # one CDF cache per model, shared across every family and every partition that model
-        # evolves: branch lengths recur massively, and the cache is keyed by length alone, so it
-        # must never be shared between two matrices
-        cache = cdf_caches.setdefault(id(model), {})
+        # One CDF cache for the whole run: it is keyed by (model, branch length), so several models
+        # share it safely and branch lengths — which recur massively across families — are still
+        # computed once per model.
+        if isinstance(model, Models):
+            # a per-lineage model set: the family founds under the model of the species branch its
+            # ORIGINATION sits on (the stem lies on the root gene's species branch, which is the same
+            # branch `evolve_gene_tree` charges the stem to), and each branch below picks its own
+            per_species, base = model.per_species, model.at(gt.complete.species)
+        else:
+            per_species, base = None, model
         states, founding_states = evolve_gene_tree(
-            gt.complete, model, n, rate, clock, rng, gt.origination,
-            founding=None if founding is None else founding[at:at + n], cdf_cache=cache)
+            gt.complete, base, n, rate, clock, rng, gt.origination,
+            founding=None if founding is None else founding[at:at + n],
+            cdf_cache=cdf_caches, models=per_species)
         at += n
-        aln, anc = _split(gt, states, names, model)
-        pieces.append((aln, anc, decode(founding_states, model.alphabet)))
+        aln, anc = _split(gt, states, names, base)
+        pieces.append((aln, anc, decode(founding_states, base.alphabet)))
     if len(pieces) == 1:
         return pieces[0]
     # The node keys are the same in every partition — they come from the same tree, walked the same
@@ -1098,15 +1107,18 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     # With partitions the models arrive inside them, and `_resolve_partitions` checks each one; this
     # is the plain path, where `model` is the whole answer and the common mistake is worth naming
     # exactly as it always was.
-    if partitions is None and not isinstance(model, SubstitutionModel):
+    if partitions is None and not isinstance(model, (SubstitutionModel, Models)):
         if model is None:
             raise ValueError(
                 "no model: give model=… (one substitution model for every site of every family) "
                 "together with length=…, or partitions=[(model, sites), …] to split a family's "
-                "sites into blocks each under its own model.")
-        raise TypeError(f"model must be a SubstitutionModel (e.g. hky85(kappa=2.0)), got {model!r}")
-    if intergene_model is not None and not isinstance(intergene_model, SubstitutionModel):
-        raise TypeError(f"intergene_model must be a SubstitutionModel, got {intergene_model!r}")
+                "sites into blocks each under its own model, or "
+                "Models().set_by(Clade({…}), {…}) to give each clade its own.")
+        raise TypeError(f"model must be a SubstitutionModel (e.g. hky85(kappa=2.0)) or a "
+                        f"per-lineage set (Models().set_by(Clade({{…}}), {{…}})), got {model!r}")
+    if intergene_model is not None and not isinstance(intergene_model, (SubstitutionModel, Models)):
+        raise TypeError(f"intergene_model must be a SubstitutionModel or a per-lineage set "
+                        f"(Models().set_by(Clade({{…}}), {{…}})), got {intergene_model!r}")
 
     if profiles is not None and partitions is not None:
         raise ValueError(
@@ -1135,6 +1147,14 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 "it.")
         # `partitions is None` here, so the guard above already refused a missing or non-model
         # `model` — from this point it is the gene model, not an optional one.
+        for label, m in (("model", model), ("intergene_model", intergene_model)):
+            if isinstance(m, Models):
+                raise ValueError(
+                    f"{label} is a per-lineage model set, which a nucleotide genome run does not "
+                    f"read yet: this path evolves blocks of a whole genome rather than a family's "
+                    f"gene trees, and a block's stretch of a species branch is chosen by the "
+                    f"genome's coordinates rather than by the gene tree walk the set is applied on. "
+                    f"Use one model here, or run the family / ordered resolution.")
         assert isinstance(model, SubstitutionModel)
         if length is not None:
             raise ValueError(
@@ -1182,6 +1202,11 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     else:
         gene_trees = genomes.gene_trees
         parts = _resolve_partitions(model, partitions, length)
+        # A per-lineage model set is painted against THIS run's tree, once, before any family is
+        # evolved — the same shape as a driven rate resolving its trajectory above. It is checked
+        # here too: a label that names no lineage, or a lineage with no model, is a run that would
+        # otherwise quietly evolve part of the tree under the wrong matrix.
+        parts = tuple((m.resolve(species_tree) if isinstance(m, Models) else m, n) for m, n in parts)
         if intergene_model is not None:
             raise ValueError(
                 "intergene_model applies to a nucleotide genome run, where blocks are genes or "
@@ -1425,4 +1450,6 @@ __all__ = ["simulate_sequences", "SequencesResult", "StreamedSequences",
            # the substitution-model menu, re-exported: the TypeError raised for a bad
            # `model=` names these symbols, so they must be importable from the module it names
            "jc69", "k80", "hky85", "gtr", "poisson", "jtt", "dayhoff", "wag", "lg",
-           "SubstitutionModel"]
+           "SubstitutionModel",
+           # the per-lineage model set: the TypeError for a bad `model=` names it too
+           "Models"]
