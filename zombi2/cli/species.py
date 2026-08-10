@@ -17,7 +17,7 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _
                                   _add_run_arg, _rate, _rates_help, _write_params_log,
                                   check_stale_downstream, clear_stale_downstream, defaults_used, signpost,
                                   input_digests,
-                                  level_dir)
+                                  level_dir, print_wrote)
 
 #: the RATES block for ``zombi2 species -h``, built from the level's own declaration
 RATES_HELP = _rates_help(
@@ -90,7 +90,6 @@ def run(args, parser):
         birth=args.birth, death=args.death, n_extant=args.n_extant, total_time=args.total_time,
         mass_extinctions=mass_ext, sampling=args.sampling, fossils=args.fossils, seed=args.seed,
         progress=not args.quiet, max_lineages=args.max_lineages or None)
-    dt = time.perf_counter() - t0
 
     clear_stale_downstream(args, "species")   # --force: drop the now-stale downstream (run succeeded)
     os.makedirs(args.run, exist_ok=True)
@@ -112,7 +111,7 @@ def run(args, parser):
     if result.fossils:
         parts.append(f"{len(result.fossils)} fossils")
     summary = " + ".join(parts) + f" ({n_leaves} tips, {n_total} nodes)"
-    print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
+    print_wrote(args.run, summary, t0)
     _write_params_log(os.path.join(out, "species.log"), args, summary,
                       inputs=input_digests(args.birth, args.death))
     signpost(args, write_run_report(args.run), out)   # every file it wrote, then the run report

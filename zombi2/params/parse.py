@@ -41,7 +41,7 @@ from . import law as _law
 from . import driver as _driver
 from . import connection as _verbs
 from . import scope as _scope
-from .parameter import Rate, RateCompositionError
+from .parameter import Rate, RateCompositionError, check_rate_base
 from .retired import RETIRED, RETIRED_KEYWORDS, keyword_message, name_message
 
 #: the names an expression may **call** — the scopes, the drivers and laws, the distributions, the
@@ -263,12 +263,15 @@ def parse_rate(text: object):
     the one it asked for.
 
     Raises `RateSyntaxError` (a ``ValueError``) for anything outside the grammar, and lets the
-    grammar's own classes raise their domain errors (a negative base, an empty schedule, …).
+    grammar's own classes raise their domain errors (an empty schedule, a verb a parameter refuses,
+    …). A **bare number** is the one domain error raised here, by `check_rate_base`: there is no
+    class to raise it, since a bare rate stays a float, and refusing it at the boundary is what lets
+    the caller name the flag it came from.
     """
     if isinstance(text, bool):
         raise RateSyntaxError(f"a rate must be a number or an expression, got {text!r}")
     if isinstance(text, (int, float)):
-        return float(text)
+        return check_rate_base(text)
     if not isinstance(text, str):
         raise RateSyntaxError(f"a rate must be a number or an expression, got {text!r}")
     if not text.strip():
@@ -307,8 +310,8 @@ def parse_rate(text: object):
         raise _fail(
             f"{value!r} is a value, not a rate — write it on a scope, with the verb that reads it: "
             f"PerCopy(0.25).{value.written_call()}", text)
-    if isinstance(value, int):        # "1" is the rate 1.0, not the integer 1
-        return float(value)
+    if isinstance(value, (int, float)):    # "1" is the rate 1.0, not the integer 1
+        return check_rate_base(value)
     return value
 
 

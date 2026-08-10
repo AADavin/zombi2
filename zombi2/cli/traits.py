@@ -29,7 +29,8 @@ import time
 from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _read_tip_fates,
                                   _write_params_log, check_stale_downstream, clear_stale_downstream,
-                                  signpost, input_digests, level_dir, resolve_tree, sibling_fates,
+                                  signpost, input_digests, level_dir, print_wrote, resolve_tree,
+                                  sibling_fates,
                                   conditioned_levels, record_conditioning)
 from zombi2.params.evaluate import cell_name
 from zombi2.tree import node_label, read_newick
@@ -210,7 +211,6 @@ def run(args, parser):
                                      reverts_to=args.reverts_to, pull=args.pull,
                                      at_speciation=args.at_speciation, seed=args.seed,
                                      progress=not args.quiet)
-    dt = time.perf_counter() - t0
 
     clear_stale_downstream(args, "traits")   # --force: drop the now-stale downstream (run succeeded)
     os.makedirs(args.run, exist_ok=True)
@@ -228,7 +228,7 @@ def run(args, parser):
     n_tips = len(result.values)
     detail = f"{len(states)} states" if discrete else "diffusing"
     summary = f"a {result.kind} trait ({detail}) over {n_tips} extant tips"
-    print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
+    print_wrote(args.run, summary, t0)
     # the log is the run's parameters, not the parser's: a discrete run has no --rate and a continuous
     # one no --switch, so drop the other kind's knobs (the same set rejected as stray above) — recording
     # them at their defaults would read as though the run had them and chose those values.

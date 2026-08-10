@@ -11,6 +11,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Fixed
 
+- **A bad rate names the flag it came from.** `--death -0.3` reported "a rate base must be finite and
+  non-negative, got -0.3" without saying which rate, so a command carrying four of them had to be
+  bisected by hand; written on a scope (`--death "Global(-0.3)"`) the same mistake already named it.
+  A rate written as a bare number is now checked where every other written form is, and both
+  spellings print `argument --death: …`. (#333)
+- **The time a command reports covers writing the files, not only the simulation.** The clock stopped
+  at the result and the line still read `wrote … in 45.3 s`, so a 112 s genome run that spent about
+  70 s writing a gene tree per family announced under half of it. All five level commands time the
+  whole command now. (#333)
+
 - **A joint run's `trait_events.tsv` carries its `initial` row**, so the log a joint run writes can
   be read back as a driver, which is what Chapter 8, Chapter 10 and Appendix B all say it is. The
   row was missing, so conditioning a later run on a joint trait failed with "has no 'initial' row …
