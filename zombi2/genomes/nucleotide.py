@@ -2427,7 +2427,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
             total_chromosomes -= len(g.chromosomes)
             retire(alive, gen, pos, pos[i])
             node = tree.nodes[i]
-            if node.children is not None:              # a speciation: re-mint into the daughters
+            if node.children:              # a speciation: re-mint into the daughters
                 for c, cg in _speciate(node, g, new_chrom_id, new_copy, events,
                                        chromosome_events).items():
                     enter(alive, gen, pos, c, cg)

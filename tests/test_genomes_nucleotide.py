@@ -626,7 +626,7 @@ def test_speciation_re_mints_every_copy_lineage():
     tree = r.complete_tree
     for node_id, g in r.genomes.items():
         node = tree.nodes[node_id]
-        if node.children is None:
+        if not node.children:
             continue
         parent_copies = {b.copy for chrom in g.chromosomes for b in chrom.blocks}
         for c in node.children:
@@ -1506,7 +1506,7 @@ def test_extinct_lineages_evolve_donate_and_are_pruned():
 
     def doomed(nid):                                          # no extant descendant anywhere below
         node = tree.nodes[nid]
-        return (nid not in extant) if node.children is None else all(doomed(c) for c in node.children)
+        return (nid not in extant) if not node.children else all(doomed(c) for c in node.children)
 
     dead = {nid for nid in tree.nodes if doomed(nid)}
     assert collections.Counter(n.fate for n in tree.nodes.values())["extinct"] >= 1

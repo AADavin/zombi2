@@ -170,7 +170,7 @@ def test_ancestral_genomes_are_the_genomes_that_were_really_there():
     genomes = _run(seed=3)
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=3)
     internal = {node_label(i) for i, nd in genomes.complete_tree.nodes.items()
-                if nd.children is not None}
+                if nd.children}
     assert internal <= set(r.genomes)                              # one map, covering every node
     assert set(r.genomes) == {node_label(i) for i in genomes.complete_tree.nodes}
     for label, chroms in r.genomes.items():

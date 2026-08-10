@@ -237,14 +237,14 @@ def _trait_newick(tree: "Tree", node_values: dict) -> str:
         node = tree.nodes[i]
         bl = node.end_time - node.birth_time
         tag = f"{name[i]}{_trait_annotation(node_values[i])}"
-        if node.children is None:
+        if not node.children:
             return f"{tag}:{bl:.7g}"
         return f"({','.join(emit(c) for c in node.children)}){tag}:{bl:.7g}"
 
     root = tree.nodes[tree.root]
     tag = f"{name[tree.root]}{_trait_annotation(node_values[tree.root])}"
     stem = root.end_time - root.birth_time
-    if root.children is None:
+    if not root.children:
         return f"{tag}:{stem:.7g};"
     return f"({','.join(emit(c) for c in root.children)}){tag}:{stem:.7g};"
 

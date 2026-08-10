@@ -606,9 +606,7 @@ def _scaled_species_tree(tree: Tree, rate_base: float, clock: "Clock | None") ->
     while stack:  # pre-order: a parent is visited before its children
         i = stack.pop()
         order.append(i)
-        kids = tree.nodes[i].children
-        if kids is not None:
-            stack.extend(kids)
+        stack.extend(tree.nodes[i].children)
     for i in order:
         nd = tree.nodes[i]
         blen = (rate_base * (nd.end_time - nd.birth_time) if clock is None

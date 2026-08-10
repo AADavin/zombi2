@@ -1715,7 +1715,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 total_chromosomes -= len(g)
                 retire(alive, gen, pos, pos[i])
                 node = tree.nodes[i]
-                if node.children is not None:  # a speciation: re-mint every chromosome and gene id
+                if node.children:  # a speciation: re-mint every chromosome and gene id
                     child_genomes: dict[int, list[Chromosome]] = {c: [] for c in node.children}
                     for pchrom in g:
                         dcids = []

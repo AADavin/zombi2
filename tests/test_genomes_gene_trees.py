@@ -182,8 +182,8 @@ def test_deep_tree_serialises_without_recursion_error():
     for k in range(L):
         s, leaf, nxt = 2 * k, 2 * k + 1, 2 * (k + 1)
         nodes[s] = Node(s, (2 * (k - 1) if k > 0 else None), float(k), float(k + 1), (leaf, nxt), "speciation")
-        nodes[leaf] = Node(leaf, s, float(k + 1), float(L + 1), None, "extant")
-    nodes[2 * L] = Node(2 * L, 2 * (L - 1), float(L), float(L + 1), None, "extant")
+        nodes[leaf] = Node(leaf, s, float(k + 1), float(L + 1), (), "extant")
+    nodes[2 * L] = Node(2 * L, 2 * (L - 1), float(L), float(L + 1), (), "extant")
     g = simulate_genomes_family(Tree(nodes, 0), initial_families=1, seed=0)
     for which in ("complete", "extant"):
         nw = g.gene_trees[0].to_newick(which)         # must not raise RecursionError

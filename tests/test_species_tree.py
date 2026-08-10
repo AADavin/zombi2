@@ -46,7 +46,7 @@ def test_different_seeds_differ():
 def test_tree_structure_invariants():
     r = simulate_species_tree(birth=1.0, death=0.2, n_extant=30, seed=5)
     for node in r.complete_tree.nodes.values():
-        if node.children is None:
+        if not node.children:
             assert node.fate in ("extant", "extinct")
         else:
             c1, c2 = node.children
@@ -143,7 +143,7 @@ def test_extant_tree_prunes_to_survivors():
     assert all(n.fate == "extant" for n in ext.leaves())         # no extinct tips
     assert all(n.fate != "extinct" for n in ext.nodes.values())  # no extinct nodes remain
     for n in ext.nodes.values():                                 # bifurcating
-        assert n.children is None or len(n.children) == 2
+        assert not n.children or len(n.children) == 2
     # every branch is now strictly positive — the present sits after the last split (n_extant fix)
     for n in ext.nodes.values():
         assert n.end_time - n.birth_time > 0
@@ -329,9 +329,9 @@ def _colless(result):
     size = {}
     for i in sorted(tree.nodes, reverse=True):        # children (higher ids) before parents
         nd = tree.nodes[i]
-        size[i] = 1 if nd.children is None else sum(size[c] for c in nd.children)
+        size[i] = 1 if not nd.children else sum(size[c] for c in nd.children)
     return sum(abs(size[nd.children[0]] - size[nd.children[1]])
-               for nd in tree.nodes.values() if nd.children is not None)
+               for nd in tree.nodes.values() if nd.children)
 
 
 def test_clade_drift_is_more_imbalanced_than_yule():
@@ -579,9 +579,9 @@ def test_sampling_relabels_not_removes():
 def test_extant_tree_is_the_sampled_survivors():
     r = simulate_species_tree(birth=1.0, death=0.3, n_extant=40, sampling=0.5, seed=3)
     assert len(r.extant_tree.leaves()) == r.n_extant                 # the extant tree is the observed one
-    assert all(n.fate == "extant" for n in r.extant_tree.nodes.values() if n.children is None)
+    assert all(n.fate == "extant" for n in r.extant_tree.nodes.values() if not n.children)
     for n in r.extant_tree.nodes.values():                           # still bifurcating after pruning
-        assert n.children is None or len(n.children) == 2
+        assert not n.children or len(n.children) == 2
 
 
 def test_sampling_one_observes_everyone():

@@ -60,7 +60,7 @@ def test_read_newick_ultrametric_external_tree_is_all_extant_with_a_name_map():
     # ultrametric (every tip at depth 2) → every tip extant, and the user's labels come back mapped
     t, names = read_newick("((human:1,chimp:1):1,(mouse:0.8,rat:0.8):1.2);")
     assert len(t.extant_leaves()) == 4 and not t.extinct_leaves()
-    assert all(n.fate == "speciation" for n in t.nodes.values() if n.children is not None)
+    assert all(n.fate == "speciation" for n in t.nodes.values() if n.children)
     assert sorted(names.values()) == ["chimp", "human", "mouse", "rat"]
     assert t.nodes[t.root].birth_time == 0.0
 
@@ -73,7 +73,7 @@ def test_read_newick_nonultrametric_external_tree_refuses_to_guess():
 def test_read_newick_nonultrametric_tree_uses_supplied_fates():
     t, names = read_newick("((a:1,b:1):1,c:1.5);", tip_fates={"a": "extant", "b": "extant",
                                                               "c": "extinct"})
-    fate = {names[n.id]: n.fate for n in t.nodes.values() if n.children is None}
+    fate = {names[n.id]: n.fate for n in t.nodes.values() if not n.children}
     assert fate == {"a": "extant", "b": "extant", "c": "extinct"}
 
 
@@ -128,7 +128,7 @@ def test_unsampled_is_an_accepted_external_tip_fate():
     # 'unsampled' (a survivor not observed) is a legal fate for an external tree too, not just ZOMBI's own
     t, names = read_newick("((a:1,b:1):1,c:1.5);",
                            tip_fates={"a": "extant", "b": "unsampled", "c": "extinct"})
-    fate = {names[n.id]: n.fate for n in t.nodes.values() if n.children is None}
+    fate = {names[n.id]: n.fate for n in t.nodes.values() if not n.children}
     assert fate == {"a": "extant", "b": "unsampled", "c": "extinct"}
 
 
@@ -2419,7 +2419,7 @@ def test_a_listed_clade_names_itself_back_through_clade(tmp_path, capsys):
     for node, extant, _crown, tips in _clade_rows(capsys.readouterr().out):
         covered = Clade({"g": tips.split(",")}).resolve(tree)["g"]
         alive = [i for i in covered
-                 if tree.nodes[i].children is None and tree.nodes[i].fate == "extant"]
+                 if not tree.nodes[i].children and tree.nodes[i].fate == "extant"]
         assert len(alive) == int(extant), node
 
 

@@ -92,7 +92,7 @@ class SpeciesResult:
         because they are the cheapest check anyone can make on a tree — events divided by the exposure
         that generated them, which is what a declared per-lineage rate means."""
         nodes = self.complete_tree.nodes
-        tips = [n for n in nodes.values() if n.children is None]
+        tips = [n for n in nodes.values() if not n.children]
         extant = self.complete_tree.extant_leaves()
         speciations = sum(1 for e in self.events if e.kind == "speciation")
         extinctions = sum(1 for e in self.events if e.kind == "extinction")

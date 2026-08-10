@@ -233,7 +233,7 @@ def _replay(tree, initial_state, clado, switches) -> dict[int, list[tuple[float,
         segs.append((t, state))
         segments[i] = segs
         end_state[i] = state
-        if node.children is not None:
+        if node.children:
             stack.extend(node.children)
     return segments
 

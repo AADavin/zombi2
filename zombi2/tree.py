@@ -64,14 +64,19 @@ class Node:
     parent: int | None
     birth_time: float
     end_time: float = math.inf
-    children: tuple[int, int] | None = None
+    #: A split's two daughters, by id. **Empty at a tip, not ``None``** — so walking a tree is
+    #: ``for c in node.children`` without a guard, which is what a caller writes first and what two
+    #: separate readers crashed on when it was ``None``. Test it for emptiness (``if not
+    #: node.children`` / `is_leaf`), never against ``None``: a ``children is None`` left over from
+    #: before reads False at a tip and hands a leaf to the internal-node branch in silence.
+    children: tuple[int, int] | tuple[()] = ()
     fate: str = "alive"  # alive → "extant" | "extinct" | "unsampled"; internal splits are "speciation"
 
     @property
     def is_leaf(self) -> bool:
         """No descendants — a tip. (`GeneNode` spells this the same way; the two node types diverge
         in how they store children, but "is this a tip" reads identically on both.)"""
-        return self.children is None
+        return not self.children
 
 
 
@@ -99,7 +104,7 @@ class Tree:
 
     def leaves(self) -> list[Node]:
         """Every lineage with no descendants — extant **and** extinct."""
-        return [n for n in self.nodes.values() if n.children is None]
+        return [n for n in self.nodes.values() if not n.children]
 
     def extant_leaves(self) -> list[Node]:
         """The lineages alive at the present. (A *tip* list, not a tree — the pruned survivors' tree
@@ -154,14 +159,14 @@ class Tree:
         def emit(i: int) -> str:
             node = self.nodes[i]
             bl = node.end_time - node.birth_time
-            if node.children is None:
+            if not node.children:
                 return f"{name[i]}:{num(bl)}"
             inner = ",".join(emit(c) for c in node.children)
             return f"({inner}){name[i]}:{num(bl)}"
 
         root = self.nodes[self.root]
         stem = root.end_time - root.birth_time
-        if root.children is None:
+        if not root.children:
             return f"{name[self.root]}:{num(stem)};"
         return f"({','.join(emit(c) for c in root.children)}){name[self.root]}:{num(stem)};"
 
@@ -193,17 +198,17 @@ def prune(tree: Tree, keep: str = "extant", *, tips: "set[int] | None" = None) -
     surviving: dict[int, bool] = {}
     for i in sorted(nodes, reverse=True):  # children have higher ids → processed before parents
         nd = nodes[i]
-        surviving[i] = _keep_leaf(i) if nd.children is None else any(surviving[c] for c in nd.children)
+        surviving[i] = _keep_leaf(i) if not nd.children else any(surviving[c] for c in nd.children)
     if not any(surviving.values()):
         return None
 
     def surv_children(i: int) -> list[int]:
         nd = nodes[i]
-        return [] if nd.children is None else [c for c in nd.children if surviving[c]]
+        return [] if not nd.children else [c for c in nd.children if surviving[c]]
 
     # keep the extant leaves and the genuine bifurcations (≥2 surviving children)
     kept = {i for i in nodes
-            if (nodes[i].children is None and _keep_leaf(i)) or len(surv_children(i)) >= 2}
+            if (not nodes[i].children and _keep_leaf(i)) or len(surv_children(i)) >= 2}
 
     new: dict[int, Node] = {}
     ext_root: int | None = None
@@ -212,7 +217,7 @@ def prune(tree: Tree, keep: str = "extant", *, tips: "set[int] | None" = None) -
         while p is not None and p not in kept:
             p = nodes[p].parent
         branch_start = nodes[p].end_time if p is not None else 0.0  # merge the suppressed edges
-        new[i] = Node(i, p, branch_start, nodes[i].end_time, None, nodes[i].fate)
+        new[i] = Node(i, p, branch_start, nodes[i].end_time, (), nodes[i].fate)
         if p is None:
             ext_root = i
 
@@ -508,7 +513,7 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
             raise ValueError(f"duplicate node id n{nid} in the Newick (labels must be unique)")
         end = birth + p.length
         kids = [_build(c, nid, end) for c in p.children]     # arity was checked while parsing
-        child_ids = (kids[0], kids[1]) if kids else None
+        child_ids = (kids[0], kids[1]) if kids else ()
         nodes[nid] = Node(nid, parent, birth, end, child_ids)  # fate filled in below
         if all_labelled:
             written[nid] = p.name              # the label as the file spells it: n<id> or e<id>
@@ -520,9 +525,9 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
 
     # second pass: fates. Internal nodes are always speciations; the tips depend on the tree kind.
     for n in nodes.values():
-        if n.children is not None:
+        if n.children:
             n.fate = "speciation"
-    leaves = [n for n in nodes.values() if n.children is None]
+    leaves = [n for n in nodes.values() if not n.children]
 
     if assume_extant:
         # geometric callers (the tree transforms, treedist) don't use fate: take every tip as extant
@@ -609,9 +614,7 @@ def _preorder(tree: Tree) -> list[int]:
     while stack:
         i = stack.pop()
         order.append(i)
-        kids = tree.nodes[i].children
-        if kids is not None:
-            stack.extend(kids)
+        stack.extend(tree.nodes[i].children)
     return order
 
 
@@ -654,7 +657,7 @@ def make_ultrametric(tree: Tree, *, tol: float = 1e-3) -> Tree:
     called to produce. ``zombi2 tools tree --round`` writes at the default, so the file it produces
     is still ultrametric."""
     depth = _depths(tree)
-    tips = [i for i, n in tree.nodes.items() if n.children is None]
+    tips = [i for i, n in tree.nodes.items() if not n.children]
     lo, hi = min(depth[i] for i in tips), max(depth[i] for i in tips)
     if hi > 0 and (hi - lo) > tol * hi:
         raise ValueError(
@@ -677,7 +680,7 @@ def rescale(tree: Tree, *, height: float | None = None, factor: float | None = N
     if factor is None:
         assert height is not None                # exactly one of the two was given, checked above
         depth = _depths(tree)
-        current = max(depth[i] for i, n in tree.nodes.items() if n.children is None)
+        current = max(depth[i] for i, n in tree.nodes.items() if not n.children)
         if current <= 0:
             raise ValueError("tree has zero height; cannot scale it to a target height")
         factor = height / current
@@ -712,7 +715,7 @@ def relative_evolutionary_divergence(tree: Tree) -> dict[int, float]:
     n_leaves: dict[int, int] = {}
     for i in reversed(order):                       # child before parent
         kids = nodes[i].children
-        if kids is None:
+        if not kids:
             mean_tip_dist[i] = 0.0
             n_leaves[i] = 1
             continue
@@ -761,7 +764,7 @@ def gamma_statistic(tree: Tree) -> float:
     length, neither of which is usable below that.
     """
     splits = sorted(nd.end_time for nd in tree.nodes.values() if nd.children)
-    leaves = [nd.end_time for nd in tree.nodes.values() if nd.children is None]
+    leaves = [nd.end_time for nd in tree.nodes.values() if not nd.children]
     if not leaves:
         raise ValueError("empty tree — nothing to compute gamma on")
     n = len(splits) + 1
@@ -789,7 +792,7 @@ def _clades(tree: Tree) -> dict[frozenset, float]:
     leafset: dict[int, frozenset] = {}
     for i in reversed(_preorder(tree)):             # child before parent
         nd = tree.nodes[i]
-        leafset[i] = (frozenset((i,)) if nd.children is None
+        leafset[i] = (frozenset((i,)) if not nd.children
                       else frozenset().union(*(leafset[c] for c in nd.children)))
     return {leafset[i]: (n.end_time - n.birth_time) for i, n in tree.nodes.items()}
 
@@ -800,8 +803,8 @@ def distance(a: Tree, b: Tree, *, metric: str = "rf") -> float:
     not the other), ``"rf-normalized"`` (that count over the total number of non-trivial clades), or
     ``"branch-score"`` (Kuhner–Felsenstein — √Σ(branch-length difference)² over all clades, terminal
     branches included)."""
-    la = frozenset(i for i, n in a.nodes.items() if n.children is None)
-    lb = frozenset(i for i, n in b.nodes.items() if n.children is None)
+    la = frozenset(i for i, n in a.nodes.items() if not n.children)
+    lb = frozenset(i for i, n in b.nodes.items() if not n.children)
     if la != lb:
         raise ValueError(
             f"the two trees have different leaf sets ({len(la)} vs {len(lb)} tips, {len(la ^ lb)} not "

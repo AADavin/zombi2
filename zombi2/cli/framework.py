@@ -322,7 +322,7 @@ def warn_if_fates_were_inferred(tree, args) -> None:
     this — a species run's own ``species_fates.tsv`` is already in that format."""
     if getattr(args, "tip_fates", None) or not getattr(args, "source", None):
         return
-    tips = [n for n in tree.nodes.values() if n.children is None]
+    tips = [n for n in tree.nodes.values() if not n.children]
     dead = [n for n in tips if n.fate != "extant"]
     if dead and len(dead) > len(tips) // 2:
         warn(f"{len(dead)} of {len(tips)} tips in this tree sit below the present, so they were read "
