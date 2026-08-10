@@ -181,8 +181,10 @@ To scope a factor to a driver state **and** to a time, write that state's entry 
 `changing_at`'s own notation:
 
 ```python
-loss = PerCopy(0.02).scaled_by(Clade({"endo": ["n76", "n112"]}),
-                               {"endo": {0: 1.0, 6.0: 20.0}, "rest": 1.0})
+from zombi2.params import Clade, PerCopy
+
+endo_loss = PerCopy(0.02).scaled_by(Clade({"endo": ["n76", "n112"]}),
+                                    {"endo": {0: 1.0, 6.0: 20.0}, "rest": 1.0})
 ```
 
 The endosymbiont clade loses genes at the base rate until t=6 and twenty times faster from then on,
