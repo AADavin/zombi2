@@ -4,8 +4,7 @@ A substitution model is the *chemistry* of a sequence: a ``K×K`` rate matrix ``
 one expected substitution per site per unit branch length) and its stationary frequencies ``π``.
 Different models are genuinely different matrices — Jukes–Cantor, K80, HKY85, GTR differ in their
 transition/transversion structure and base composition — so, unlike the clock, they do **not**
-collapse to one grammar: they stay a menu of constructors, each taking its own physical parameters
-(``SPEC §4`` — "faking a grammar over the matrices would be worse than a menu").
+collapse to one grammar: they stay a menu of constructors, each taking its own physical parameters.
 
 Two alphabets are on the menu: the four **nucleotide** models (4 states, ``ACGT`` — `jc69()` ·
 `k80()` · `hky85()` · `gtr()`) and the five **protein** models (20 states,

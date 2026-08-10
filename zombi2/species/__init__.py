@@ -57,7 +57,7 @@ _WRITE_OUTPUTS = ("complete", "extant", "events", "fossils", "fates", "summary")
 class SpeciesResult:
     """What ``simulate_species_tree`` returns: the ``complete_tree`` (with the dead) and the derived
     ``extant_tree`` (the observed survivors), the ``events`` log (the recorded true history), the
-    ``seed``, and any ``fossils``. (The ``record=`` memory dial lands with the data-heavy levels.)"""
+    ``seed``, and any ``fossils``."""
 
     complete_tree: Tree
     events: list[Event]
@@ -123,7 +123,8 @@ class SpeciesResult:
         ``species_extant.nwk`` (if any survived), ``"events"`` → ``species_events.tsv`` (the
         always-recorded true history, ``time`` · ``kind`` · ``parents`` · ``children``),
         ``"fossils"`` → ``species_fossils.tsv`` (if any recovered),
-        ``"fates"`` → ``species_fates.tsv`` (each tip's resolved fate).
+        ``"fates"`` → ``species_fates.tsv`` (each tip's resolved fate),
+        ``"summary"`` → ``species_summary.json`` (the ``summary()`` payload).
 
         ``species_events.tsv`` names the lineages an event consumed and the lineages it produced, the
         same ``parents`` / ``children`` pair every event file uses: a ``speciation`` row is one parent

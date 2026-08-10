@@ -5,9 +5,9 @@ genomes, sequences and traits consume it. It lives here (not in ``zombi2.species
 and everything you do to a tree share one home — one import, ``from zombi2 import tree``.
 
 ``Tree`` stays a lean dataclass: its **methods** are only structural self-queries (``leaves``,
-``extant``, ``extinct``, ``unsampled``, ``to_newick``). Everything that transforms a tree into a new
-tree, or analyses one, is a **free function** in this module (``prune``, ``read_newick``, …), so the
-toolkit grows by adding functions, never by growing the class.
+``extant_leaves``, ``extinct_leaves``, ``unsampled_leaves``, ``labels``, ``to_newick``). Everything
+that transforms a tree into a new tree, or analyses one, is a **free function** in this module
+(``prune``, ``read_newick``, …), so the toolkit grows by adding functions, never by growing the class.
 """
 from __future__ import annotations
 
@@ -334,11 +334,13 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
     ``end_time``, so ``end_time - birth_time`` is the parsed length. Two kinds of tree are accepted,
     told apart by the labels:
 
-    - a **ZOMBI complete tree** (every node — internal ones too — is ``n<id>``, as ``to_newick``
-      writes it): the ids come from the labels, and the name-map is empty (the labels *are* the ids).
-      Fate comes from ``tip_fates`` when given — the run's ``species_fates.tsv``, keyed by the same
-      ``n<id>`` — which is authoritative; without it a leaf is ``"extinct"`` if it ends before the
-      tree's greatest depth, else ``"extant"`` (a fallback that cannot recover an ``"unsampled"`` tip).
+    - a **ZOMBI complete tree** (every node — internal ones too — is ``n<id>``, or ``e<id>`` for a
+      lineage that died, as ``to_newick`` writes it): the ids come from the labels, and the name-map
+      is empty (the labels *are* the ids). Fate comes from ``tip_fates`` when given — the run's
+      ``species_fates.tsv``, keyed by the same label — which is authoritative; without it an
+      ``e<id>`` label *is* the fate, and only a tree carrying no ``e`` labels at all falls back to
+      depth (a leaf is ``"extinct"`` if it ends before the tree's greatest depth, else ``"extant"``).
+      Neither fallback can recover an ``"unsampled"`` tip.
     - any **external tree** (leaves named freely, internal nodes usually unlabelled): fresh ids are
       minted in traversal order (root 0, parents before children), the original labels are returned as
       the **name-map** (``{minted id: user label}``), and fates depend on whether the tree is
@@ -562,12 +564,12 @@ def read_newick(newick: str, *, tip_fates: dict[str, str] | None = None,
                 n.fate = "extinct" if written[n.id][:1] == "e" else "extant"
             return Tree(nodes, root_id), names
         # no fate table: a tip is extinct if it ends before the present (the greatest end_time). The
-        # tolerance is depth-relative — ``to_newick`` prints 7 significant figures, whose rounding
-        # accumulates to ~5e-7·height along a root-to-tip path, so a tip at the present can fall a
-        # little short of the max, far below any real extinction gap. The margin here is deliberately
-        # wider than that: it costs nothing and absorbs a hand-edited or third-party tree. This cannot
-        # recover an unsampled tip (it sits at the present, so it reads back extant) — pass the fate
-        # table for that.
+        # tolerance is depth-relative — ``to_newick``'s default writes lengths exactly, but a tree
+        # written at a fixed ``precision=`` (or hand-edited, or from a third party) accumulates
+        # rounding along a root-to-tip path, so a tip at the present can fall a little short of the
+        # max, far below any real extinction gap. The margin here is deliberately wide: it costs
+        # nothing and absorbs all three. This cannot recover an unsampled tip (it sits at the
+        # present, so it reads back extant) — pass the fate table for that.
         present = max(n.end_time for n in nodes.values())
         tol = max(1e-9, 1e-4 * present)
         for n in leaves:
@@ -644,12 +646,13 @@ def make_ultrametric(tree: Tree, *, tol: float = 1e-3) -> Tree:
     the tree height — i.e. rounding; a larger spread raises, because differing tip depths then carry
     real signal (extinct lineages or serial samples) that this must not silently flatten.
 
-    **Write it out with enough digits or this is undone.** The snap is exact here — tip depths agree
-    to about 1e-16 — but a depth is a *sum* of branch lengths, so serialising at
-    `to_newick`'s default 7 significant digits reintroduces a spread of
-    roughly 1e-6 on an ordinary tree: more than enough for ``ape::is.ultrametric()`` to reject the
-    file this function was called to produce. Use ``to_newick(precision=15)`` for a tree that is
-    still ultrametric after the round trip; that is what ``zombi2 tools tree --round`` writes."""
+    **A fixed ``precision=`` undoes this.** The snap is exact here — tip depths agree
+    to about 1e-16 — and ``to_newick``'s default (``precision=None``) writes every length back
+    exactly, so the round trip keeps it. A *fixed* ``precision=`` does not: a depth is a *sum* of
+    branch lengths, so ``to_newick(precision=7)`` reintroduces a spread of roughly 1e-6 on an
+    ordinary tree, more than enough for ``ape::is.ultrametric()`` to reject the file this function was
+    called to produce. ``zombi2 tools tree --round`` writes at the default, so the file it produces
+    is still ultrametric."""
     depth = _depths(tree)
     tips = [i for i, n in tree.nodes.items() if n.children is None]
     lo, hi = min(depth[i] for i in tips), max(depth[i] for i in tips)

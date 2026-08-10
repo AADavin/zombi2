@@ -239,6 +239,8 @@ class SequencesResult:
         ``fam<family>`` on a family or ordered run and ``block<index>`` on a nucleotide one — the
         integer keys mean different things, so the files say which (see `unit`):
 
+        - ``"summary"`` → ``sequences_summary.json``: what came out (`summary`); the ancestral count
+          is dropped when ``"ancestral"`` was not asked for.
         - ``"alignments"`` → ``<u>.fasta`` under ``alignments/`` (skipped for empty families).
         - ``"ancestral"`` → ``sequences_ancestral_<u>.fasta`` under ``ancestral/``.
         - ``"founding"`` → ``sequences_founding.fasta``, one record ``<u>`` apiece: the sequence each
@@ -1394,9 +1396,6 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                            BASES if parts is None else parts[0][0].alphabet)
 
 
-# The substitution-model menu is reached through its own module — the one canonical path,
-# like `zombi2.params.scope` / `zombi2.params.evaluate` — never re-exported here:
-#     from zombi2.sequences import substitution_models as sm;  sm.hky85(2.0)
 __all__ = ["simulate_sequences", "SequencesResult", "StreamedSequences",
            "mean_pairwise_identity",
            # the substitution-model menu, re-exported: the TypeError raised for a bad

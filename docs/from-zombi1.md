@@ -139,7 +139,7 @@ species.simulate_species_tree(birth=PerLineage(1.0).varying_among('lineages', Dr
 | `S/<n>_substitution_scaled.nwk` | `sequences/phylograms/phylogram_fam<n>_complete.nwk` |
 | — | `sequences/alignments/fam<n>.fasta` |
 | — | `<level>.log` — version, timestamp, command line, every resolved parameter, and the SHA-256 of each input file |
-| — | `<level>_summary.json` — what came out: deduplicated event counts, families born and surviving, whether the family-size cap bit |
+| — | `species_summary.json` · `genome_summary.json` · `sequences_summary.json` · `trait_summary.json` — what came out at that level (the genomes one: deduplicated event counts, families born and surviving, whether the family-size cap bit) |
 
 `--flat` writes everything into one directory, but the v2 names stay: it is a layout switch, not a
 compatibility mode.

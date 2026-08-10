@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 authors = [{ name = "Adrián A. Davin" }]
 keywords = ["phylogenetics", "simulation", "gene families", "birth-death", "evolution"]
 # The clean core is pure Python. numpy does the arithmetic; tqdm draws the progress bar the
-# commands show while they work, and is optional at runtime — zombi2.progress falls back to a
+# commands show while they work, and is optional at runtime — zombi2._runtime.progress falls back to a
 # silent no-op without it, so a run behaves the same either way.
 dependencies = [
     # upper bounds so a future major release cannot break an install of a pinned zombi2:
@@ -128,11 +128,11 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# The figure scripts share one house-style vocabulary import (`from zombi_style import FONT, INK,
-# MUTED, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK` — 44 scripts, 19 of them the identical line). Every
-# script imports the whole vocabulary whether or not it uses every name, so the set stays uniform
-# and a figure can start using one without touching its imports. Pruning per-script would make the
-# family inconsistent for no gain.
+# The figure scripts share one house-style vocabulary import (`from zombi_style import save, FONT,
+# INK, MUTED, ACCENT, FS_TITLE, FS_LABEL, FS_ANNOT, FS_TICK` and shorter subsets of it — 12 figure
+# scripts, 11 of them importing the shared vocabulary). A script keeps the names it imported
+# whether or not its current revision uses every one, so F401 is off here rather than pruned
+# script by script.
 # `fig_overview.py` additionally has to put the repo and `gallery/` on the path before it can
 # import them, so its own imports cannot be hoisted above that (E402) — the same reason
 # `gallery/helpers.py` is exempt below.

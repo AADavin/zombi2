@@ -35,13 +35,13 @@ Appendix B lists every file each level writes.
 
 ## What do `n5`, `e14`, `g203` mean?
 
-ZOMBI gives every node and gene copy a short id:
+ZOMBI2 gives every node and gene copy a short id:
 
 - **`n<number>`** — a species-tree node: an extant tip, or an internal ancestor.
 - **`e<number>`** — a lineage that went **extinct** (a tip of the complete tree that died before the present).
 - **`g<number>`** — a **gene copy**. Gene-tree tips read `n<node>_g<copy>` — which genome, which copy.
 
-The ids are ZOMBI's own. If you supplied your own tree with real tip names, `names.tsv` maps each
+The ids are ZOMBI2's own. If you supplied your own tree with real tip names, `names.tsv` maps each
 `n<id>` back to your label.
 
 ## Why do the family (or file) numbers skip — `fam0, fam1, fam2, fam3, fam5, …`?

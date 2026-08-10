@@ -197,7 +197,7 @@ The handle goes straight into the next level, and so does the directory: `sequen
 
 ## On the command line
 
-`zombi2 genomes` evolves gene families along the species tree already in the run directory, or one given with `--from` (a Newick file, or another run). The family resolution is the default, and a rate is a plain number or a quoted expression in the written form of Chapter 2.
+`zombi2 genomes` evolves gene families along the species tree already in the run directory, or one given with `--from` (a Newick file, or another run). The family resolution is the default, and a rate is a plain number or a quoted expression in the written form of Appendix A.
 
 ```bash
 # duplication–loss–origination along a species tree

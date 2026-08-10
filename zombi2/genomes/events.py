@@ -1,13 +1,14 @@
 """The gene-genealogy event log — the shared source of truth every resolution writes.
 
 An `GeneEdge` records one moment in a gene family's history; the per-family gene trees are
-*derived* from a run's events (see `gene_trees`), identically whether the genome was an
-multiset of families or an ordered set of chromosomes. Position and orientation are **not** here —
-they live in the genome snapshots and the rearrangement log — because an event is about gene
-*identity and descent*, which is resolution-blind. So this module is imported by both the family
-core and the ordered engine, and neither owns it.
+*derived* from a run's events (see `gene_trees`), identically whether the genome was a multiset of
+families, an ordered set of chromosomes or a coordinate space of blocks. Position and orientation
+are **not** here — they live in the genome snapshots and the rearrangement log — because an event is
+about gene *identity and descent*, which is resolution-blind. So this module is imported by all
+three genome engines, and none of them owns it.
 
-**The file is one row per event**, five columns wide — ``time kind family parents children``. An
+**The file is one row per event**, five columns wide — ``time kind family parents children`` — at the
+family and nucleotide resolutions; the ordered one appends the event's coordinates to those five. An
 event that ends one gene and starts two writes one row with one parent and two children, not a row
 per descendant. The participants are written ``n<species>_g<copy>``, each carrying the branch it
 lived on inside the token, which is what lets the ``lineage`` / ``recipient`` / ``donor`` columns go:
@@ -114,9 +115,8 @@ class Event:
 _COLS = ("time", "kind", "family", "parents", "children")
 
 #: TRANSITIONAL — the columns of the old log, one row per gene-tree **edge**, with the branch of each
-#: participant in a column of its own. The ordered resolution still writes them (its table carries
-#: every event's position beside the genealogy, and moving it is the next change), so `edges_from_tsv`
-#: reads them as well as `_COLS`. Nothing writes them from here.
+#: participant in a column of its own. Nothing writes them any more — every resolution writes
+#: `_COLS` — so `edges_from_tsv` reads them only to replay a log written by an older version.
 _EDGE_COLS = ("time", "kind", "lineage", "family", "copy", "parent", "recipient", "donor", "event")
 
 #: what separates the copies inside the ``parents`` / ``children`` cells. A cell is a *list*, so it
@@ -417,7 +417,7 @@ def _parse(lines: list[str], header: list[str]) -> list[GeneEdge]:
 
 def _parse_edges(lines: list[str], header: list[str]) -> list[GeneEdge]:
     """The pre-aggregation table (`_EDGE_COLS`): every row is already one edge, so this is a
-    field-by-field read. Kept until the ordered resolution's writer moves to `_COLS`."""
+    field-by-field read. Kept so a log written before the aggregation still replays."""
     at = {c: i for i, c in enumerate(header)}
     events: list[GeneEdge] = []
     for lineno, raw in enumerate(lines[1:], 2):

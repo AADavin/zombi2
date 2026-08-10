@@ -216,7 +216,7 @@ from zombi2.traits import simulate_discrete
 # gaining Y is slow while X is absent (00->01) but fast once X is present (10->11): the dependence.
 rates = {"00->01": 0.05, "01->00": 2.0, "10->11": 2.0, "11->10": 0.05,   # flip Y (rate ~ X)
          "00->10": 0.5,  "10->00": 0.5, "01->11": 0.5, "11->01": 0.5}     # flip X
-sp = simulate_species_tree(birth=1.0, n_extant=35, seed=7)
+sp = simulate_species_tree(birth=1.0, n_extant=55, seed=7)
 ct = sp.complete_tree
 res = simulate_discrete(ct, states=("00", "01", "10", "11"), switch=rates, start="00", seed=3)
 

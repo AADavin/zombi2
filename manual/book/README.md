@@ -1,6 +1,6 @@
 # The manual
 
-Nine chapters and three appendices, one file each:
+Ten chapters and three appendices, one file each:
 
 | file | chapter |
 |---|---|
@@ -23,9 +23,9 @@ Nine chapters and three appendices, one file each:
 [`docs/design/SPEC.md`](../../docs/design/SPEC.md) is the constitution — the model, the words, the
 chapter list. This directory is its exposition. When a chapter and SPEC disagree, SPEC wins.
 
-Ch3 and Ch4 are also published to the docs site, and Appendix B is single-sourced into
-`docs/reference/output-files.md`, all by snippet include. Renaming a file here breaks those includes;
-CI's `mkdocs --strict` will fail if you do.
+Ch1–Ch10 are published to the docs site under `docs/guide/`, Appendix A as `docs/rates.md`,
+Appendix B as `docs/output-files.md`, and Appendix C as `docs/tools.md` plus one page per tool, all by
+snippet include. Renaming a file here breaks those includes; CI's `mkdocs --strict` will fail if you do.
 
 Run every example before trusting a chapter. Chapters drift behind the code in both directions.
 
