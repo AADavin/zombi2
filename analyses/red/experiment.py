@@ -44,7 +44,7 @@ REPS = 8
 
 #: clock name -> (how to build the substitution rate at spread sigma, the sigma grid to sweep).
 #: The grids differ because the clocks reach a given root-to-tip variation at very different sigma: drift
-#: compounds down the tree, so the autocorrelated clock hits the GTDB CV near 0.22 where the
+#: compounds down the tree, so the autocorrelated clock hits the GTDB CV near 0.14 where the
 #: uncorrelated ones need ~0.55. Each grid is chosen to bracket the target with room either side.
 def _gamma(s: float):
     """A gamma clock at coefficient of variation ``s``.

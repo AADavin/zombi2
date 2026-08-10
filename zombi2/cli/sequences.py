@@ -1,11 +1,12 @@
 """``zombi2 sequences`` — evolve a sequence inside each gene, along its gene tree.
 
 A sequence sees the species tree only through its gene tree, so this command takes a **prior genomes
-run** (the run directory, or ``--from PATH``) and replays its gene genealogy: it reads that directory's
-``genome_species_tree.nwk`` and ``genome_events.tsv``, rebuilds the ``{family: GeneTree}`` the run
-produced, and evolves one sequence down each family's *complete* gene tree under a substitution
-**model** (the menu — nucleotide ``jc69`` · ``k80`` · ``hky85`` · ``gtr``, or protein ``poisson`` ·
-``jtt`` · ``dayhoff`` · ``wag`` · ``lg``) at a per-site substitution **rate**.
+run** (the run directory, or ``--from PATH``) and replays its gene genealogy: it reads that run's
+``species/species_complete.nwk`` and ``genomes/genome_events.tsv``, rebuilds the
+``{family: GeneTree}`` the run produced, and evolves one sequence down each family's *complete*
+gene tree under a substitution **model** (the menu — nucleotide ``jc69`` · ``k80`` · ``hky85`` ·
+``gtr``, or protein ``poisson`` · ``jtt`` · ``dayhoff`` · ``wag`` · ``lg``) at a per-site
+substitution **rate**.
 
 Long options are the API keyword names, and ``--substitution`` takes the written form of a rate
 (SPEC §5): a bare number is the strict clock, and the uncorrelated ("relaxed") lineage clock is that
@@ -29,8 +30,8 @@ from zombi2.genomes.nucleotide import read_nucleotide_genomes
 from zombi2.params.evaluate import DRAWN, INHERITED, Modifier
 from zombi2.params.connection import Driven
 from zombi2._runtime.report import write_run_report
-from zombi2.sequences import (IMPLEMENTED_MODIFIERS, _calibrate, mean_pairwise_identity,
-                              simulate_sequences)
+from zombi2.sequences import (IMPLEMENTED_MODIFIERS, _WRITE_OUTPUTS, _calibrate,
+                              mean_pairwise_identity, simulate_sequences)
 from zombi2.sequences.substitution_models import (
     dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
 )
@@ -53,12 +54,6 @@ RATES_HELP = _rates_help(
          "or another: \"PerSite(1.0).scaled_by('out/traits/trait_events.tsv', {'cave': 0.5, "
          "'surface': 1.0})\". A clock and a driver compose; a driver that switches mid-branch is "
          "integrated across the switch, not sampled once for the branch.")
-
-# the write vocabulary, mirroring SequencesResult.write (there is no exported constant to import).
-# The last two exist only for a nucleotide handoff, which is the only run with coordinates to lay a
-# genome out in; asking for one otherwise writes nothing rather than failing.
-_SEQUENCE_OUTPUTS = ("alignments", "phylograms", "ancestral", "founding", "species_phylogram",
-                     "genomes", "initial_genome", "summary")
 
 # the menu, by alphabet: the no-argument protein models are empirical (their exchangeabilities and
 # frequencies come from the published matrices), so each is just its constructor.
@@ -138,7 +133,10 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                         "this sets its scale")
 
     g = p.add_argument_group("outputs")
-    g.add_argument("--write", nargs="+", choices=_SEQUENCE_OUTPUTS, default=None, metavar="PART",
+    # The last two of `_WRITE_OUTPUTS` exist only for a nucleotide handoff, which is the only run
+    # with coordinates to lay a genome out in; asking for one otherwise writes nothing rather than
+    # failing.
+    g.add_argument("--write", nargs="+", choices=_WRITE_OUTPUTS, default=None, metavar="PART",
                    help="which outputs to write. default: alignments, phylograms, "
                         "species_phylogram, summary, and — on a nucleotide run — genomes (one "
                         "assembled FASTA per node, the big one) and initial_genome. also: "

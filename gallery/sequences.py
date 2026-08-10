@@ -217,29 +217,6 @@ def numbered_ancestral(out):
     plt.close(fig)
 
 
-_C_AUTOCORR = '''\
-### simulate  —  a Yule tree, sequences under the AUTOCORRELATED clock (Drift among lineages)
-from zombi2.species import simulate_species_tree
-from zombi2.genomes import simulate_genomes_family
-from zombi2.sequences import simulate_sequences, hky85
-from zombi2.params import Drift, LogNormal, PerSite
-
-sp = simulate_species_tree(birth=1.0, n_extant=120, seed=7)          # pure birth: no extinction
-ct = sp.complete_tree
-g = simulate_genomes_family(ct, initial_families=1, seed=9)
-seqs = simulate_sequences(g, model=hky85(kappa=2), length=600,
-                          substitution=PerSite(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.6))), seed=7)  # rate drifts parent->child
-
-### plot  —  the clock tree, branches coloured by lineage rate (= clock length / time)
-import phylustrator as ph
-
-tree = ph.trees.loads(seqs.species_phylogram["extant"])
-rate = {f"n{i}": ct... }        # subs/site per unit time, per branch
-(ph.trees.plot(tree)
- + ph.trees.color_branches(rate, cmap="viridis")
- + ph.trees.colorbar("subs/site per unit time", loc="bottom-left")
- + ph.trees.time_axis("substitutions / site")).save("phylogram.png")'''
-
 _C_ANCESTRAL = '''\
 ### simulate  —  a small tree (20 tips), one gene family, JC69 sequences
 from zombi2.species import simulate_species_tree
@@ -267,22 +244,6 @@ for n in tree.walk():                                   # relabel internal nodes
 # beside it, a matplotlib colour grid: one free-floating row per numbered node — the founding sequence
 # (node 0) and each seqs.ancestral[fam][...] — NOT tip-aligned (they belong to internal nodes)'''
 
-_C_PHYLO = '''\
-### simulate  —  a relaxed clock, so branch lengths are substitutions (non-ultrametric)
-zombi2 species   run --birth 1.4 --death 0.2 --n-extant 35 --seed 7
-zombi2 genomes   run --resolution ordered --initial-families 40 --duplication 0.15 --loss 0.12 --seed 9
-zombi2 sequences run --model hky85 --kappa 2 --length 500 \\
-                     --substitution "PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.6))" --seed 7
-
-### plot  —  the clock tree (branch lengths in substitutions/site)
-import phylustrator as ph
-
-tree = ph.trees.read("run/sequences/clock_species_tree_extant.nwk")
-(ph.trees.plot(tree)
- + ph.trees.tip_labels()
- + ph.trees.note("uncorrelated relaxed clock (varying_among('lineages', LogNormal))", loc="top-left", size=22)
- + ph.trees.time_axis("substitutions / site", tick_size=20, label_size=26)).save("phylogram.png")'''
-
 _C_ALN = '''\
 ### simulate  —  20 species, JC69 sequences (no loss, so a full alignment)
 zombi2 species   run --birth 1.0 --death 0.25 --n-extant 20 --seed 4
@@ -294,7 +255,7 @@ zombi2 sequences run --model jc69 --length 60 --divergence 0.4 --seed 7   # --di
 import phylustrator as ph
 
 tree = ph.trees.read("run/species/species_extant.nwk")
-aln = ph.zombi.read_alignment("run", family=0)     # single-copy in every genome (one row per tip)
+aln = ph.zombi.read_alignment("run", family=2)     # single-copy in every genome (one row per tip)
 fig = ph.trees.plot(tree)                          # no leaf labels
 ph.beside(fig, ph.genomes.alignment(aln, letters=False),   # colour blocks + a nucleotide key
           footer=70).save("alignment.png")'''

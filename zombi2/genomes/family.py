@@ -52,10 +52,12 @@ if TYPE_CHECKING:  # a streamed run returns a StreamedRun (built by the per-fami
     from ._perfamily import StreamedRun
 
 #: The rate grammar this level supports (SPEC §5) — read by the engine gates below and by the CLI's
-#: help, so a modifier is never advertised without being implemented. Each rate keeps its natural
-#: scope this slice, and ``scaled_by`` is implemented for the single-lineage events; the ordered
-#: engine takes ``changing_at`` and a per-family draw, the nucleotide one ``changing_at`` and
-#: ``scaled_by``. The gates say so per rate.
+#: help, so a modifier is never advertised without being implemented. ``duplication`` / ``transfer``
+#: / ``loss`` also take a ``PerLineage`` scope override; ``changing_at``, ``scaled_by`` and
+#: ``set_by`` are implemented on all four rates (on ``transfer`` the driven lineage is the donor),
+#: and a per-family draw on all but ``origination``. The ordered engine declares the same four
+#: modifiers as this one, the nucleotide engine only ``changing_at`` and ``scaled_by``. The gates
+#: say so per rate.
 IMPLEMENTED_MODIFIERS = (OnTime, Driven, SetBy, (DRAWN, "families"))
 
 
@@ -361,7 +363,7 @@ def _pick_host(rng, gen, n_hosts: int) -> int:
 def _pick_copy_by_family(rng, genome, mult: dict[int, float]) -> int:
     """A copy index within one lineage, drawn in proportion to each copy's family multiplier.
 
-    The within-lineage twin of `_weighted_index()`. Needed whenever families carry different
+    The within-lineage twin of `weighted_index()`. Needed whenever families carry different
     rates: the totals are summed with those multipliers, so the copy has to be drawn with them too,
     or the rate would say one thing and the picking another."""
     total = sum(mult[c.family] for c in genome)
@@ -737,8 +739,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     ``stream_to=DIR`` takes the same engine to the many-families regime: each family is written straight
     to disk as it finishes — no whole-run merge, no run held in memory (a run that fills gigabytes in
     memory streams in tens of megabytes) — and a light `StreamedRun` handle comes
-    back instead of a ``FamilyGenomesResult``. ``outputs=`` picks which files, exactly as
-    `FamilyGenomesResult.write()` takes them (default: all of them). It is the per-family engine, and
+    back instead of a ``FamilyGenomesResult``. ``outputs=`` picks which files, as
+    `FamilyGenomesResult.write()` takes them minus ``summary`` (a streamed run writes no
+    ``genome_summary.json``); the default is all six. It is the per-family engine, and
     ``outputs`` without ``stream_to`` is an error.
     """
     tree = as_tree(tree, level="genomes")
@@ -780,9 +783,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 continue
             raise ValueError(
                 f"{label} carries {describe(m)}, which the family genome engine does not "
-                f"support. It takes changing_at (skyline), scaled_by (a conditioned or joint driver) "
-                f"and varying_among('families', …) (per-family heterogeneity). Clade drift is not "
-                f"implemented yet."
+                f"support. It takes changing_at (skyline), scaled_by (a conditioned or joint driver), "
+                f"set_by (a driver that replaces the base) and varying_among('families', …) "
+                f"(per-family heterogeneity). Clade drift is not implemented yet."
             )
     for label, rate in (("duplication", dup), ("transfer", tra), ("loss", los),
                         ("origination", org)):
@@ -1099,7 +1102,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 else:
                     if w_tra is not None:  # driven: weighted DONOR lineage, then a uniform copy in it
                         kd = weighted_index(rng, w_tra, r_tra)
-                        if not gen[kd]:    # only via _weighted_index's r == total float guard: a
+                        if not gen[kd]:    # only via weighted_index's r == total float guard: a
                             # zero-weight lineage has no copies to donate, so take the heaviest instead
                             kd = max(range(k_alive), key=lambda k: w_tra[k])
                         jd = (_pick_copy_by_family(rng, gen[kd], fam_mult["transfer"])

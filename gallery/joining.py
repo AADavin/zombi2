@@ -249,7 +249,7 @@ def _continuous_figure(out, factor, *, driver, value_label, target, base, layer_
 def curve_saturating(out):
     """A SATURATING curve. Gene gain rises with a "resource" trait and then levels off at a ceiling:
     once resources are plentiful, more of them buys nothing. Unlike the exponential, this response is
-    bounded — the factor can never exceed 5."""
+    bounded — the factor can never exceed 6."""
     factor = (lambda v: 0.2 + 5.8 / (1.0 + math.exp(-1.6 * v)))
     _continuous_figure(out, factor, driver="resources", value_label="resources",
                        target="origination", base=0.6)

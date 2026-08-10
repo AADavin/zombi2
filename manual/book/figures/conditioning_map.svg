@@ -1,6 +1,6 @@
 <svg viewBox="0 0 566 400" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
 <title>What can condition what</title>
-<desc>A four by four grid. Rows are the driver, columns the target: gene families, an ordered or nucleotide genome, sequences and traits. Eleven cells are numbered, keyed to the notes. Five are shaded: the pairs that would need two genomes for one lineage, and the pair a sequence cannot drive because it lives inside a gene. Three of the four cells on the diagonal carry an inset box: a level conditioning itself.</desc>
+<desc>A four by four grid. Rows are the driver, columns the driven level: gene families, an ordered or nucleotide genome, sequences and traits. Eleven cells are numbered, keyed to the notes. Five are shaded: the pairs that would need two genomes for one lineage, and the pair a sequence cannot drive because it lives inside a gene. Three of the four cells on the diagonal carry an inset box: a level conditioning itself.</desc>
 <!-- Colours are presentation ATTRIBUTES and literals, not CSS custom properties: GitHub's SVG
      sanitiser drops the style element and librsvg resolves no custom properties, so a figure whose
      fills live in either renders black-on-black. The dark-mode rules below still win wherever CSS
@@ -73,7 +73,7 @@
   <rect x="431" y="257" width="82" height="52"/>
 </g>
 
-<!-- the twelve pairs -->
+<!-- the eleven pairs -->
 <g class="num" fill="#1a1a1a" font-size="17" font-weight="600" text-anchor="middle">
   <text x="196" y="103">1</text>  <text x="380" y="103">2</text>  <text x="472" y="103">3</text>
   <text x="380" y="165">4</text>  <text x="472" y="165">5</text>

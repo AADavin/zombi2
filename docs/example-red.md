@@ -37,7 +37,7 @@ the root-to-tip distances.
 
 ![What root-to-tip variation is, and how much of it real archaea show](assets/red/observable.png)
 
-Across 10,122 archaeal genomes the CV is **0.231**. The fastest lineage has accumulated roughly four
+Across 10,122 archaeal genomes the CV is **0.2315**. The fastest lineage has accumulated roughly four
 times the substitutions of the slowest. That one number is all we take from the real world; no real
 branch length enters the simulation.
 
@@ -87,7 +87,7 @@ is arranged, and arrangement matters for a method that walks from root to tip:
   it, so close relatives evolve at similar rates.
 
 Each clock has a spread parameter σ. Turning σ up makes the simulated trees vary more, so for each
-clock we look for the σ that reproduces the real archaeal value of 0.231.
+clock we look for the σ that reproduces the real archaeal value of 0.2315.
 
 ![Which σ reproduces the real spread, clock by clock](assets/red/clock_recovery.png)
 
@@ -103,7 +103,7 @@ they are as a percentage of tree depth.
 
 ![RED accuracy and error against root-to-tip variation](assets/red/red_bridge.png)
 
-Then read straight up from 0.231, the value real archaea show.
+Then read straight up from 0.2315, the value real archaea show.
 
 ## The answer
 

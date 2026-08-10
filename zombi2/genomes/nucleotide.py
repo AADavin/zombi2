@@ -121,9 +121,9 @@ from .family import resolve_modules
 from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
 from .gff import read_fasta, read_gff
 
-#: The rate grammar this engine supports (SPEC §5). Only the skyline this slice: a modifier it does
-#: not support raises rather than being silently ignored, so a run is never quietly not the model
-#: asked for.
+#: The rate grammar this engine supports (SPEC §5) — the skyline and a driven ``scaled_by``, and
+#: nothing else this slice: a modifier it does not support raises rather than being silently
+#: ignored, so a run is never quietly not the model asked for.
 IMPLEMENTED_MODIFIERS = (OnTime, Driven)
 
 
@@ -683,9 +683,9 @@ class NucleotideGenomesResult:
     """What `simulate_genomes_nucleotide()` returns: the ``complete_tree`` it ran on, the final
     nucleotide ``genomes`` (karyotypes) at **every** node, the **copy-lineage genealogy** ``events``
     (``origination``, ``loss``, ``duplication``, ``transfer``, ``speciation`` — carrying the copy ids
-    the gene-tree recovery reads), the ancestry-neutral ``rearrangements`` (inversion, translocation), the
-    ``chromosome_events`` (the chromosome network), and the ``seed``. ``mosaic`` / ``trace_back`` /
-    ``ancestry`` read a node's genome."""
+    the gene-tree recovery reads), the ancestry-neutral ``rearrangements`` (inversion, translocation,
+    transposition), the ``chromosome_events`` (the chromosome network), and the ``seed``. ``mosaic``
+    / ``trace_back`` / ``ancestry`` read a node's genome."""
 
     complete_tree: Tree
     genomes: dict[int, NucleotideGenome]
@@ -1052,10 +1052,12 @@ class NucleotideGenomesResult:
     def summary(self) -> dict:
         """What this run produced, as a plain dict — the payload of ``genome_summary.json``.
 
-        Same reason as the other two resolutions: the raw ``loss`` rows undercount real losses when a
-        transfer replaces a copy, and this is the corrected count. `event_counts` is shared with them,
-        reading `genealogy` — the `GeneEdge` translation every resolution writes — so the three
-        agree by construction rather than by three separate implementations agreeing by luck.
+        The same correction as the other two resolutions: a `GeneEdge` is one gene-tree *edge*, so a
+        duplication, a transfer and a speciation each end one gene and start two, and counting edges
+        inflates them exactly 2×; this is the corrected count. (A transfer here is always additive,
+        with no ``replacement`` option, so no displaced copy to fold in.) `event_counts` is shared
+        with them, reading `genealogy` — the `GeneEdge` translation every resolution writes — so the
+        three agree by construction rather than by three separate implementations agreeing by luck.
 
         The unit here is the base pair, so there are no phyletic profiles and no per-family copy
         counts to report; what this resolution has instead is how much sequence there is and how it is
@@ -1967,7 +1969,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     changes nothing about how the genome evolves.
 
     **Conditioning (a trait drives who receives).** ``transfer_to =
-    Recipients().weighted_by(source, mapping)``
+    Recipients().weighted_by(driver, mapping)``
     weights the candidate recipients by another level, and the numbers are **weights**, not rate
     multipliers: they are normalised across the candidates, so they leave the total amount of transfer
     alone and only redistribute it (SPEC §5, a weight, not a rate). Weight 0 means "cannot receive"; when

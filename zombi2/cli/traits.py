@@ -217,7 +217,7 @@ def run(args, parser):
     out = level_dir(args.run, _traits_slot(args, parser), args.flat)
     outputs = args.write or (_DISCRETE_DEFAULT if discrete else _CONTINUOUS_DEFAULT)
     result.write(out, outputs=outputs)
-    if names:  # an external tree: map ZOMBI's n<id> back to the user's labels (join on the node col)
+    if names:  # an external tree: map ZOMBI2's n<id> back to the user's labels (join on the node col)
         rows = ["node\tname"] + [f"{node_label(i)}\t{lbl}" for i, lbl in sorted(names.items())]
         with open(os.path.join(out, "names.tsv"), "w", encoding="utf-8") as f:
             f.write("\n".join(rows) + "\n")

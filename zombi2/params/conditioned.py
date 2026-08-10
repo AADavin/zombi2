@@ -3,22 +3,22 @@
 When ``Driven``'s ``driver`` is a **filename**, the relation is *conditioned*: the driver was grown
 first and written to a file, and two ordinary runs in order do the rest
 (``loss = PerCopy(0.25).scaled_by("habitat.tsv", {...})``). This module — living beside `Driven` in
-``rates`` because it is that modifier's file end — turns the written driver into the per-lineage lookup
-the target engine queries as it walks the (already-grown) tree. (Conditioning needs no engine of its
-own: it *folds into the target level's* run; only genuinely-joint models get a dedicated engine,
+``params`` because it is that modifier's file end — turns the written driver into the per-lineage lookup
+the driven engine queries as it walks the (already-grown) tree. (Conditioning needs no engine of its
+own: it *folds into the driven level's* run; only genuinely-joint models get a dedicated engine,
 ``zombi2.joint``.)
 
 Two files can be a driver. The usual one is the trait **event log** (``trait_events.tsv``, written by
 `zombi2.traits.TraitsResult.write()` with ``outputs=("events",)``); a continuous trait's value table
 (``trait_values.tsv``) is the other, and `load_driver()` dispatches on the header. The event log
 holds an ``initial`` row giving the state at t=0, then every switch — ``time · kind · lineage · from · to``. The driver ran on the same
-complete tree the target now runs on, so replaying the log **against that tree** rebuilds each
+complete tree the driven run now walks, so replaying the log **against that tree** rebuilds each
 lineage's branch as constant stretches (a discrete driver switches *mid-branch*, so this is the exact
 stochastic character map, not one value per branch). `DriverTrajectory` then answers both
 *what is the driver on this lineage now?* (`value()`) and *when does it next
-change?* (`next_change()`, so the target's Gillespie steps at each switch).
+change?* (`next_change()`, so the driven Gillespie steps at each switch).
 
-The join key is the **species node id**: ``node n7`` in the log is lineage 7 in the target run.
+The join key is the **species node id**: ``node n7`` in the log is lineage 7 in the driven run.
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ class DriverTrajectory:
             raise KeyError(
                 f"the driver file has no lineage {node_label(node_id)}; the driver must be grown "
                 f"on the SAME "
-                f"complete tree the target runs on (node ids must match)."
+                f"complete tree the driven run walks (node ids must match)."
             )
         i = bisect.bisect_right(starts, time) - 1
         if i < 0:  # a query before the branch's first segment: clamp to the first (branch-start) state
@@ -72,11 +72,11 @@ class DriverTrajectory:
 
     def next_change(self, node_id: int, time: float) -> float:
         """The next time strictly after ``time`` at which lineage ``node_id``'s driver switches, else
-        ``inf`` (it stays constant for the rest of the branch). Feeds the target Gillespie's horizon."""
+        ``inf`` (it stays constant for the rest of the branch). Feeds the driven Gillespie's horizon."""
         starts = self._starts.get(node_id)
         if starts is None:
             raise KeyError(f"the driver file has no lineage {node_label(node_id)} "
-                           "(node ids must match the target tree).")
+                           "(node ids must match the driven run's tree).")
         i = bisect.bisect_right(starts, time)
         return starts[i] if i < len(starts) else math.inf
 
@@ -238,8 +238,6 @@ def _replay(tree, initial_state, clado, switches) -> dict[int, list[tuple[float,
     return segments
 
 
-#: default per-branch resolution for a continuous driver — how many constant stretches each branch is
-#: cut into. Higher is a finer approximation of the continuous path (and more Gillespie breakpoints).
 #: Default continuous-driver resolution, as a fraction of the tree's height: a stretch lasts 1% of
 #: the run, wherever on the tree it sits. A fraction rather than an absolute duration because a tree
 #: may be measured in expected substitutions or in millions of years, and a default in "time units"
@@ -446,7 +444,7 @@ def names_a_live_level(driver: object) -> bool:
 
     SPEC §5: "a finished result makes the run conditioned, and the name of a level growing beside it
     makes the run joint". One modifier, one spelling, and the *driver* is what tells the two apart —
-    so this is the predicate that reads it, not a judgement about what the target level then
+    so this is the predicate that reads it, not a judgement about what the driven level then
     does with it. The live names are the ones `zombi2.joint` accepts: ``"trait"``, ``"genomes:count"``
     and ``"genomes:<family>"``.
 
@@ -479,7 +477,7 @@ def refuse_wrong_direction(driver, level: str | None) -> None:
 def resolve_driver(driver, tree, *, step: float | None = None,
                    level: str | None = None) -> DriverTrajectory:
     """Resolve a conditioned `Driven`'s ``driver`` into a `DriverTrajectory` — a **filename**
-    (str) via `load_driver()` (replayed against ``tree``, the target run's own species tree), an
+    (str) via `load_driver()` (replayed against ``tree``, the driven run's own species tree), an
     object that answers for itself through ``as_driver_trajectory(tree, step=…)`` (a genome run's
     ``presence("name")``, a sequence run's ``gc()``), or an **in-memory** trait result via
     `driver_from_result()` (which carries its own tree).

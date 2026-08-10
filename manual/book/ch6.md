@@ -228,5 +228,7 @@ Every event kind has its own `--<event>-extent`, the mean of a geometric draw in
 | `chromosome_events.tsv` | the chromosome network, one row per edge |
 | `gene_trees/` | one Newick per family, complete and extant |
 | `gff/`, `bed/` | `genome_<lineage>.gff` (the genes) and `genome_<lineage>.bed` (the blocks), one file per node |
+| `genome_summary.json` | what the run produced: events counted as biology, declared genes, and base pairs and chromosomes per genome |
+| `species_complete.nwk` | the species tree the run evolved along, so the run stands alone; every other file is indexed by its node labels. Written by `result.write()`, not by an ordinary `zombi2 genomes`, which leaves the copy under `species/` to serve |
 
-Everything is written by default. Appendix B gives the columns and the formats.
+Everything but the species tree is written by default. Appendix B gives the columns and the formats.

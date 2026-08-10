@@ -231,6 +231,7 @@ zombi2 genomes out/ --resolution ordered \
 | `chromosome_events.tsv` | the chromosome network, one row per edge: `time · kind · parents · children` (no lineage column: each `n<species>_c<id>` token already names its branch) |
 | `genome_summary.json` | what the run produced: events counted as biology, families born, surviving and died out, genes and chromosomes per genome, and the rearrangements and chromosome events by kind |
 | `gene_trees/` | one Newick per family, complete and extant |
+| `species_complete.nwk` | the species tree the run evolved along, so the run stands alone; every other file is indexed by its node labels. Written by `result.write()`, not by an ordinary `zombi2 genomes`, which leaves the copy under `species/` to serve |
 
 `.write(dir, outputs=[...])` picks which of these go to disk, by the tokens `events`, `profiles`,
 `gene_order`, `initial_genome`, `chromosome_events`, `gene_trees`, `species_tree` and `summary`. Appendix B gives the columns and

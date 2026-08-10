@@ -125,7 +125,7 @@ A species tree of a million leaves takes a few seconds. On the same gene-family 
 about **183× faster than the legacy ZOMBI v1** — both pure Python.
 
 <p align="center">
-  <img alt="ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at the family, ordered and nucleotide resolutions; (c) ZOMBI2 about 183 times faster than the legacy ZOMBI 1 on one shared 1,000-tip tree" src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/performance-overview.svg" width="840">
+  <img alt="ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at the family, ordered and nucleotide resolutions; (c) ZOMBI2 about 183 times faster than the legacy ZOMBI v1 on one shared 1,000-tip tree" src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/performance-overview.svg" width="840">
 </p>
 
 ## Gallery

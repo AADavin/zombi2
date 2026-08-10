@@ -81,7 +81,7 @@ permits; whether an engine implements it is a separate question, and the manual 
 
 **A level can also drive itself.** Two traits on one tree, one gene family driving another: the
 participants are at the same level, and nothing above changes. Driving is **one thing driving another**,
-and the relation is fixed by the same question as always — *can the driver be finished before the target level
+and the relation is fixed by the same question as always — *can the driver be finished before the driven level
 starts?* If it can, that is conditioning, whichever levels the two sit at. So:
 
 - **acyclic within a level** — trait A drives trait B, an earlier genome run drives a later one. Ordinary
@@ -189,7 +189,7 @@ A bare number stays a bare number in all three (`--birth 1.0`, `birth = 1.0`). E
 form may call is importable from `zombi2.params`, so Python needs no module qualifier; where one is
 written (`scope.PerLineage(1.0)`) it is ignored by the other two, so a manual snippet pastes in
 unchanged. There is **no second notation** — no per-modifier flags, no nested parameter tables;
-adding a driver, a law or a mapping must never add a flag. (Read by `rates/parse.py`; it parses the
+adding a driver, a law or a mapping must never add a flag. (Read by `params/parse.py`; it parses the
 expression, it does not evaluate code. Because the written form is a chain of method calls, the
 parser whitelists the **verb names** as well as the class names.)
 
