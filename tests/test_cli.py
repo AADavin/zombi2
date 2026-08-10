@@ -6,6 +6,7 @@ exercise argument wiring, output files, ``--params``, and the clean error paths 
 import collections
 import os
 import re
+import time
 
 import pytest
 
@@ -207,6 +208,46 @@ def test_engine_error_is_respelt_in_flags(tmp_path, capsys, tree_file):
     assert rc == 1
     err = capsys.readouterr().err
     assert "--trim-overlaps" in err and "trim_overlaps=True" not in err
+
+
+@pytest.mark.parametrize("death", ["-0.3", "Global(-0.3)"])
+def test_a_bad_rate_names_the_flag_it_came_from(tmp_path, capsys, death):
+    # the same mistake in both spellings: written on a scope it was already refused by the parser,
+    # which argparse answers with the flag's name, while written plainly it travelled on as a float
+    # and was refused by the engine with the flag long gone
+    with pytest.raises(SystemExit) as e:
+        main(["species", str(tmp_path), "--birth", "1", "--death", death, "--n-extant", "5", "--flat"])
+    assert e.value.code == 2
+    assert "argument --death:" in capsys.readouterr().err
+
+
+def test_the_reported_time_covers_writing_the_files(tmp_path, capsys, monkeypatch):
+    # the line says "wrote", so the clock runs past the write. It stopped at the result before, and a
+    # genome run that spent most of its time writing a gene tree per family announced under half the
+    # command. Writing is made slow here rather than large, so the check is a fact and not a race.
+    from zombi2.species import SpeciesResult
+
+    real = SpeciesResult.write
+
+    def slow_write(self, *args, **kwargs):
+        time.sleep(0.3)
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(SpeciesResult, "write", slow_write)
+    rc = main(["species", str(tmp_path), "--birth", "1", "--n-extant", "5", "--seed", "1", "--flat"])
+    assert rc == 0
+    reported = float(re.search(r" in ([\d.eE+-]+) s", capsys.readouterr().out).group(1))
+    assert reported >= 0.3, f"reported {reported} s, which cannot include a 0.3 s write"
+
+
+def test_a_bad_rate_names_which_of_several_rates(tmp_path, capsys, tree_file):
+    # the point of naming it: four rates on one line, and the user should not have to bisect by hand
+    with pytest.raises(SystemExit) as e:
+        main(["genomes", str(tmp_path / "g"), "--from", str(tree_file), "--duplication", "0.2",
+              "--transfer", "0.1", "--loss", "-0.25", "--origination", "0.5", "--flat"])
+    assert e.value.code == 2
+    err = capsys.readouterr().err
+    assert "argument --loss:" in err and "--duplication" not in err
 
 
 def test_an_equals_sign_in_the_data_is_left_alone(tmp_path, capsys, tree_file):

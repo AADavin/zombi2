@@ -38,7 +38,8 @@ from zombi2.sequences.substitution_models import (
 from zombi2.tree import read_newick
 from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _write_params_log,
-                                  conditioned_levels, default_outputs, signpost, level_dir, parallel_from_args,
+                                  conditioned_levels, default_outputs, signpost, level_dir, print_wrote,
+                                  parallel_from_args,
                                   defaults_used, input_digests, record_conditioning, resolve_genomes,
                                   resolve_seed, warn)
 
@@ -327,7 +328,6 @@ def run(args, parser):
                                 if streaming else None,
                                 flat=args.flat,
                                 progress=not args.quiet, **extra)
-    dt = time.perf_counter() - t0
     # the many-files-per-run outputs get a directory apiece (unless --flat): alignments and
     # phylograms are one file per family — per *block* on a nucleotide run, where a real genome has
     # thousands — and the assembled genome FASTAs are one per node. `initial_genome` is a single
@@ -395,7 +395,7 @@ def run(args, parser):
     else:
         summary = (f"{n_seqs} sequences across {n_families} gene families, {model.name} "
                    f"{extra['length']} sites, {clock}{realised}")
-    print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
+    print_wrote(args.run, summary, t0)
     if identity is not None and _saturation_signal(identity, model) < _SATURATED_BELOW:
         # the floor makes the identity readable: it is where unrelated sequences already sit under
         # this model (25% for equal-frequency DNA, ~6% for a protein one; higher under +I)

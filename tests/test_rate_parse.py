@@ -252,6 +252,22 @@ def test_empty_and_non_text():
         parse_rate(True)
 
 
+@pytest.mark.parametrize("spec", [-1, -1.0, "-1", "-1.0", "-0.3", float("inf"), "1e999"])
+def test_a_bare_number_is_checked_here_because_no_class_will(spec):
+    """A rate written plainly stays a float, so it reaches no `Rate` constructor — this is the only
+    place that can refuse it while the caller still knows where the number came from. It travelled
+    on and was refused deep in the engine before, which is how `--death -0.3` was answered with "a
+    rate base must be finite and non-negative" and no word about which of four rates was meant."""
+    with pytest.raises(ValueError, match="non-negative"):
+        parse_rate(spec)
+
+
+@pytest.mark.parametrize("spec,expected", [(0, 0.0), ("0.0", 0.0), ("2", 2.0), (1.5, 1.5)])
+def test_a_bare_number_that_is_a_rate_still_passes_through(spec, expected):
+    value = parse_rate(spec)
+    assert value == expected and isinstance(value, float)
+
+
 def test_the_rate_classes_still_raise_their_own_domain_errors():
     # the parser does not duplicate validation — a negative base is the rate's error, not a syntax one
     with pytest.raises(ValueError, match="non-negative"):

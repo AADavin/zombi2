@@ -20,7 +20,7 @@ import time
 
 from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_params_arg, _add_quiet_arg, _add_run_arg,
                                   _rate, _rates_help, _write_params_log, default_outputs, signpost,
-                                  level_dir)
+                                  level_dir, print_wrote)
 from zombi2.cli.traits import _DISCRETE_DEFAULT as TRAITS_DEFAULT
 from zombi2.genomes import family
 from zombi2.joint import simulate_joint
@@ -147,7 +147,6 @@ def run(args, parser):
     t0 = time.perf_counter()
     result = simulate_joint(birth=args.birth, death=args.death, n_extant=args.n_extant,
                             total_time=args.total_time, seed=args.seed, **driver)
-    dt = time.perf_counter() - t0
 
     os.makedirs(args.run, exist_ok=True)
     # Both levels belong to one run, so each is written where — and how — its own command would
@@ -170,7 +169,7 @@ def run(args, parser):
 
     n_extant = len(result.species.complete_tree.extant_leaves())
     summary = f"{n_extant} extant tips, {detail}"
-    print(f"wrote {args.run}/ ({summary}) in {dt:.3g} s")
+    print_wrote(args.run, summary, t0)
     _write_params_log(os.path.join(species_dir, "joint.log"), args, summary)
     signpost(args, write_run_report(args.run), species_dir, driver_dir)   # both levels' files, then report
     return 0
