@@ -66,6 +66,38 @@ They are **Newick**, the standard tree format. Plot them with **Phylustrator**, 
 plotting library: `pip install phylustrator`, then `phyl species_extant.nwk` draws any tree a run
 produces. Its Python API draws the genomes too.
 
+## How do I read a ZOMBI2 tree in ete3 or Biopython?
+
+ZOMBI2 labels **internal** nodes, not only the tips: a species tree carries each ancestor's `n<id>`,
+and a gene tree carries the event that made the node — `speciation_n6`, `transfer_n2`. That is
+ordinary Newick, but it is not what ete3 reads by default, so pass `format=1`:
+
+<!-- doc-test: skip — ete3 is not a ZOMBI2 dependency -->
+```python
+from ete3 import Tree
+t = Tree("out/genomes/gene_trees/gene_tree_fam0_extant.nwk", format=1)   # format=1: labelled internal nodes
+```
+
+Without it, ete3's default (`format=0`) expects an internal label to be a support value, and quotes
+the one it could not read as a number: `NewickError: Unexpected newick format
+'transfer_n20:0.2438901'`. This holds for every tree a run writes — the species trees, the gene
+trees, the phylograms and the trait tree. With `format=1` the label is kept, so `node.name` on an
+internal node of a gene tree is the event.
+
+Biopython needs no flag and puts the same labels in `.name`:
+
+<!-- doc-test: skip — Biopython is not a ZOMBI2 dependency -->
+```python
+from Bio import Phylo
+t = Phylo.read("out/species/species_extant.nwk", "newick")
+[c.name for c in t.get_nonterminals()]        # each ancestor's id — 'n0', 'n15', …
+```
+
+One exception: `trait_tree.nwk` annotates each node with its value, as `n19[&trait=-0.38831]`.
+Biopython parses that into `.comment` and leaves `.name` as `n19`; ete3 with `format=1` reads the
+whole thing as the name. For the numbers themselves, read `trait_values.tsv` and join on its `node`
+column.
+
 ## My genomes came out empty. Is that a bug?
 
 No. Loss is counted per copy and the last copy is a copy like any other, so a loss rate well above
