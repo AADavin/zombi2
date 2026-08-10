@@ -1146,7 +1146,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 if weights is not None:
                     weights.retired(k_out)
                 node = tree.nodes[i]
-                if node.children is not None:  # a speciation: each gene re-ids into each daughter
+                if node.children:  # a speciation: each gene re-ids into each daughter
                     per_daughter = []
                     for c in node.children:
                         child_genome, rows = [], []

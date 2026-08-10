@@ -142,7 +142,7 @@ def _z(sample: np.ndarray, expected: float) -> float:
 
 def _n_extant(result) -> int:
     return len([n for n in result.complete_tree.nodes.values()
-                if n.children is None and n.fate == "extant"])
+                if not n.children and n.fate == "extant"])
 
 
 # --- the species level: a birth-death process ---------------------------------------------------
@@ -264,7 +264,7 @@ def test_incomplete_sampling_observes_the_fraction_it_was_given():
     for s in range(120):
         run = simulate_species_tree(birth=1.0, death=0.2, n_extant=30, sampling=rho, seed=s)
         for n in run.complete_tree.nodes.values():
-            if n.children is None:
+            if not n.children:
                 observed += n.fate == "extant"
                 unsampled += n.fate == "unsampled"
 

@@ -83,9 +83,7 @@ def _subtree(tree, root_id) -> set:
     while stack:
         i = stack.pop()
         out.add(i)
-        kids = tree.nodes[i].children
-        if kids is not None:
-            stack.extend(kids)
+        stack.extend(tree.nodes[i].children)
     return out
 
 

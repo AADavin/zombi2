@@ -283,7 +283,7 @@ def test_prune_to_a_named_tip_set_keeps_a_real_dated_tree():
     sub = prune(complete, tips=keep)
 
     assert {n.id for n in sub.leaves()} == keep
-    assert all(n.children is None or len(n.children) == 2 for n in sub.nodes.values())
+    assert all(not n.children or len(n.children) == 2 for n in sub.nodes.values())
     # depth is preserved: a kept tip sits where it always did
     for i in keep:
         assert sub.nodes[i].end_time == pytest.approx(complete.nodes[i].end_time)

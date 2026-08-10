@@ -285,14 +285,12 @@ def _clade_table(tree: _tree.Tree, labels: dict, min_extant: int,
     while stack:
         i = stack.pop()
         order.append(i)
-        kids = tree.nodes[i].children
-        if kids is not None:
-            stack.extend(kids)
+        stack.extend(tree.nodes[i].children)
     n_extant: dict[int, int] = {}
     example: dict[int, list[str]] = {}
     for i in reversed(order):                       # child before parent
         node = tree.nodes[i]
-        if node.children is None:
+        if not node.children:
             n_extant[i] = int(node.fate == "extant")
             example[i] = [labels[i]] if node.fate == "extant" else []
             continue
@@ -303,7 +301,7 @@ def _clade_table(tree: _tree.Tree, labels: dict, min_extant: int,
     rows = []
     for i, node in tree.nodes.items():
         k = n_extant[i]
-        if node.children is None or k < min_extant or (max_extant is not None and k > max_extant):
+        if not node.children or k < min_extant or (max_extant is not None and k > max_extant):
             continue
         rows.append((-k, i, f"{labels.get(i) or _tree.node_label(i)}\t{k}\t{node.end_time:.6g}"
                             f"\t{','.join(example[i])}"))
@@ -373,7 +371,7 @@ def _run_tree(args, parser: argparse.ArgumentParser) -> int:
 def _leaf_labels(tree, namemap: dict) -> dict:
     """``{leaf id: label}`` — the external name for an external tree, ``n<id>`` for a ZOMBI tree."""
     return {i: (namemap.get(i) or _tree.node_label(i))
-            for i, n in tree.nodes.items() if n.children is None}
+            for i, n in tree.nodes.items() if not n.children}
 
 
 #: a ZOMBI gene-copy leaf, ``n<species>_g<copy>`` — the label every gene tree, alignment record and
@@ -406,7 +404,7 @@ def _relabel_leaves(tree, leaf_labels: dict, label_id: dict):
     new = {i: (label_id[leaf_labels[i]] if i in leaf_labels else i + offset) for i in tree.nodes}
     nodes = {new[i]: _tree.Node(new[i], None if n.parent is None else new[n.parent],
                                 n.birth_time, n.end_time,
-                                None if n.children is None else tuple(new[c] for c in n.children),
+                                tuple(new[c] for c in n.children),
                                 n.fate)
              for i, n in tree.nodes.items()}
     return _tree.Tree(nodes, new[tree.root])

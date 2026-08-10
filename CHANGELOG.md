@@ -11,6 +11,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Fixed
 
+- **`Node.children` is an empty tuple at a tip, not `None`.** Walking a tree is now `for c in
+  node.children` with no guard, which is what a reader writes first — and what two of five test users
+  crashed on (`TypeError: 'NoneType' object is not iterable`), one of them on their first recursion.
+  Nothing that reads the attribute breaks, and `is_leaf` is unchanged. **If you kept a
+  `node.children is None` test of your own, change it**: it now reads `False` at a tip, so a leaf
+  would be handed to the internal-node branch in silence. Test emptiness instead — `if not
+  node.children`, or `node.is_leaf`.
 - **A repeated `--params` is refused instead of silently discarding the first file.** `--params
   a.toml --params b.toml` kept only `b.toml`, so `a.toml`'s resolution, chromosome count and seed
   vanished without a word and the run was quietly a different model from the one asked for — the one

@@ -89,7 +89,7 @@ def rtt_cv(tree) -> float:
     for i in _preorder(tree):
         nd = tree.nodes[i]
         depth[i] = 0.0 if nd.parent is None else depth[nd.parent] + (nd.end_time - nd.birth_time)
-        if nd.children is None:
+        if not nd.children:
             tips.append(depth[i])
     d = np.asarray(tips)
     return float(d.std() / d.mean())

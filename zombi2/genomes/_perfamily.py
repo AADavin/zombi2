@@ -128,7 +128,7 @@ def _enumerate_families(tree, org, initial_families, families_named, rng, trajs=
                 i = schedule[si][1]
                 retire(alive, dummy, pos, pos[i])
                 node = tree.nodes[i]
-                if node.children is not None:
+                if node.children:
                     for c in node.children:
                         enter(alive, dummy, pos, c, None)
                 si += 1
@@ -398,7 +398,7 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
                 node_genomes[i] = list(g)                   # finalise this family's copies at node i
                 retire(alive, gen, pos, pos[i])
                 node = tree.nodes[i]
-                if node.children is not None and g:         # speciation: re-id each copy into daughters
+                if node.children and g:         # speciation: re-id each copy into daughters
                     total -= len(g)
                     per_daughter = []
                     for ch in node.children:

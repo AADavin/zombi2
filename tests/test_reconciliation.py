@@ -59,7 +59,7 @@ def test_the_projection_is_a_valid_reconciliation(regime, scope):
     tree = sp.complete_tree
     et = prune(tree, keep="extant")
     vis = visible_branches(tree)
-    ancestors, tips = {}, {i for i, n in et.nodes.items() if n.children is None}
+    ancestors, tips = {}, {i for i, n in et.nodes.items() if not n.children}
     for i in sorted(et.nodes):
         p = et.nodes[i].parent
         ancestors[i] = (ancestors[p] | {p}) if p is not None else set()
