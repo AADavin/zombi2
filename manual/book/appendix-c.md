@@ -164,9 +164,29 @@ Unsampled survivors are treated exactly as extinct lineages: nothing in the data
 to a file with `-o`: a Newick tree for the transforms, a table or a number for the measurements.
 Exactly one action runs per call. `TREE` is a tree file, or `-` for stdin.
 
-`--prune` needs each tip's fate, so it reads the fates a ZOMBI complete tree carries; an ultrametric
-tree counts as all-extant, and a plain non-ultrametric tree with no fates is refused. Every other
-action ignores fates and loads any tree.
+`--prune` and `--clades` need each tip's fate, so they read the fates a ZOMBI complete tree carries; an
+ultrametric tree counts as all-extant, and a plain non-ultrametric tree with no fates is refused. Every
+other action ignores fates and loads any tree.
+
+`--clades` lists the clades a tree offers to name — one row per internal node, biggest first, as
+`node` · `extant` · `crown` · `example_tips`, filtered by `--min-extant` / `--max-extant`. It is the
+read-back for `Clade({...})`: scoping a rate to a clade means naming a node, and nothing else tells
+you which nodes are there or how big they are. `crown` is when the clade first splits; the clade
+itself begins at that node's birth, because **its root's own branch is inside it**. The two example
+tips straddle the crown split wherever both sides left a survivor, so passing them to
+`Clade({"label": ["tip_a", "tip_b"]})` names this very node. From Python, `Clade.resolve(tree)`
+answers the other direction — which lineages a clade you have already written actually covers.
+
+```bash
+zombi2 tools tree out/species/species_complete.nwk --clades --min-extant 5
+```
+
+```
+node	extant	crown	example_tips
+n0	25	0.0846268	n55,n31
+n1	22	0.622912	n55,n7
+n4	9	0.708753	n7,n30
+```
 
 | Action | What it writes |
 |-----------------------------------|-------------------------------------------------|
