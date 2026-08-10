@@ -1064,7 +1064,7 @@ class NucleotideGenomesResult:
         counts to report; what this resolution has instead is how much sequence there is and how it is
         divided."""
         t0 = self.complete_tree.nodes[self.complete_tree.root].birth_time
-        extant = [n.id for n in self.complete_tree.extant_leaves()]
+        extant = list(self.complete_tree.extant_leaves())
         lengths = [self.genomes[i].length for i in extant if i in self.genomes]
         chrom_per_genome = [len(self.genomes[i].chromosomes) for i in extant if i in self.genomes]
         rearrangements = collections.Counter(type(r).__name__.lower() for r in self.rearrangements)

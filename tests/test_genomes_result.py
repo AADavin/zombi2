@@ -15,14 +15,14 @@ def _run(seed=1, n_extant=12, death=0.3):
 
 def test_profiles_columns_are_the_extant_tips():
     sp, g = _run(seed=2)
-    assert set(g.profiles.species) == {n.id for n in sp.complete_tree.extant_leaves()}
+    assert set(g.profiles.species) == set(sp.complete_tree.extant_leaves())
     assert len(g.profiles.species) == sp.n_extant
 
 
 def test_profiles_matrix_sum_is_the_extant_copy_total():
     # every copy at an extant tip is counted exactly once
     sp, g = _run(seed=3, death=0.5)
-    total = sum(len(g.genomes[n.id]) for n in sp.complete_tree.extant_leaves())
+    total = sum(len(g.genomes[n.id]) for n in (sp.complete_tree.nodes[_i] for _i in sp.complete_tree.extant_leaves()))
     assert g.profiles.matrix.sum() == total
 
 
@@ -47,7 +47,7 @@ def test_profiles_presence_is_binary_and_tracks_the_matrix():
 def test_profiles_excludes_extinct_nodes():
     # extinct/internal nodes never appear as columns, only observed extant tips
     sp, g = _run(seed=3, death=0.7)
-    extinct = {n.id for n in sp.complete_tree.extinct_leaves()}
+    extinct = set(sp.complete_tree.extinct_leaves())
     assert extinct and not (extinct & set(g.profiles.species))
 
 
@@ -152,7 +152,7 @@ def test_the_initial_genome_survives_a_run_that_loses_everything():
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=4, seed=3)
     g = simulate_genomes_family(sp, loss=6.0, initial_families=5, seed=3)
     assert len(g.initial_genome) == 5
-    assert sum(len(g.genomes[n.id]) for n in sp.complete_tree.extant_leaves()) < 5 * 4
+    assert sum(len(g.genomes[n.id]) for n in (sp.complete_tree.nodes[_i] for _i in sp.complete_tree.extant_leaves())) < 5 * 4
 
 
 def test_a_transfer_names_both_ends_of_its_edge_on_every_row():

@@ -98,7 +98,7 @@ class SpeciesResult:
         extinctions = sum(1 for e in self.events if e.kind == "extinction")
         # total branch length: every node's own branch, which is the exposure a per-lineage rate ran on
         exposure = sum(n.end_time - n.birth_time for n in nodes.values())
-        height = max(n.end_time for n in extant) if extant else None
+        height = max(nodes[i].end_time for i in extant) if extant else None
         root = nodes[self.complete_tree.root]
         return {
             "level": "species",
@@ -167,8 +167,8 @@ class SpeciesResult:
         if "fates" in outputs:
             # one row per tip (extant / extinct / unsampled); internal nodes are always speciations
             rows = ["lineage\tfate"]
-            for n in sorted(self.complete_tree.leaves(), key=lambda nd: nd.id):
-                rows.append(f"{name[n.id]}\t{n.fate}")
+            for i in sorted(self.complete_tree.leaves()):
+                rows.append(f"{name[i]}\t{self.complete_tree.nodes[i].fate}")
             (d / "species_fates.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
 
 

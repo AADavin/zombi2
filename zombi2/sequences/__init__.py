@@ -123,7 +123,7 @@ class SequencesResult:
       blocks concatenated in physical order (reverse-complemented where the genome carries them
       inverted) — extant tips, ancestors and the lineages that went extinct alike. The same coverage
       as the genome level's own ``genomes``, which is keyed the same way: the observed ones are the
-      extant tips, ``{node_label(n.id) for n in complete_tree.extant_leaves()}``. Only a **nucleotide** genome
+      extant tips, ``{node_label(i) for i in complete_tree.extant_leaves()}``. Only a **nucleotide** genome
       run has any — a family or ordered run has gene families, not coordinates, so there is no
       genome to lay out and this is empty.
     - ``initial_genome`` — ``{chromosome id: sequence}``: the genome the run **started** with, at the
@@ -1408,7 +1408,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         # Capture the layouts in the same order the eager build used — extant nodes (read from
         # `alignments`) sorted first, then the rest (read from `ancestral`) — so the map iterates,
         # and `write` emits its files, in exactly the previous order.
-        extant_ids = sorted(n.id for n in species_tree.extant_leaves())
+        extant_ids = sorted(species_tree.extant_leaves())
         extant_id_set = set(extant_ids)
         extant_labels = {names[i] for i in extant_ids}
         ordered_ids = extant_ids + [i for i in sorted(species_tree.nodes) if i not in extant_id_set]

@@ -142,8 +142,8 @@ def _panel_style():
 def _sizes(ct, g, trait, palette):
     lab = ct.labels()
     tips = list(ct.extant_leaves())
-    sizes = {lab[n.id]: len(g.genomes[n.id]) for n in tips}
-    tipcol = {lab[n.id]: palette[trait.values[lab[n.id]]] for n in tips}
+    sizes = {lab[n]: len(g.genomes[n]) for n in tips}
+    tipcol = {lab[n]: palette[trait.values[lab[n]]] for n in tips}
     return sizes, tipcol
 
 
@@ -216,8 +216,8 @@ def continuous_conditioning(out):
     vals = {lab[i]: act.node_values[i] for i in ct.nodes}         # the continuous trait, per node
     tips = list(ct.extant_leaves())
     cmap, norm = cm.viridis, colors.Normalize(min(vals.values()), max(vals.values()))
-    sizes = {lab[n.id]: len(g.genomes[n.id]) for n in tips}
-    tipcol = {lab[n.id]: colors.to_hex(cmap(norm(act.node_values[n.id]))) for n in tips}
+    sizes = {lab[n]: len(g.genomes[n]) for n in tips}
+    tipcol = {lab[n]: colors.to_hex(cmap(norm(act.node_values[n]))) for n in tips}
     _conditioned_genome(out, ct, [ph.trees.color_branches(vals, cmap="viridis")],
                         sizes, tipcol, dict(
         draw=h.draw_conditioning_curve, driver="activity", curve=factor,
@@ -237,8 +237,8 @@ def _continuous_figure(out, factor, *, driver, value_label, target, base, layer_
     vals = {lab[i]: tr.node_values[i] for i in ct.nodes}
     tips = list(ct.extant_leaves())
     cmap, norm = plt.get_cmap(layer_cmap), colors.Normalize(min(vals.values()), max(vals.values()))
-    sizes = {lab[n.id]: len(g.genomes[n.id]) for n in tips}
-    tipcol = {lab[n.id]: colors.to_hex(cmap(norm(tr.node_values[n.id]))) for n in tips}
+    sizes = {lab[n]: len(g.genomes[n]) for n in tips}
+    tipcol = {lab[n]: colors.to_hex(cmap(norm(tr.node_values[n]))) for n in tips}
     _conditioned_genome(out, ct, [ph.trees.color_branches(vals, cmap=layer_cmap)],
                         sizes, tipcol, dict(
         draw=h.draw_conditioning_curve, driver=driver, curve=factor, cmap=layer_cmap,
@@ -400,7 +400,7 @@ import helpers as h
 palette = {"doomed": "#B0413E", "safe": "#2A9D8F"}
 tree = ph.trees.loads(ct.to_newick())
 lab = ct.labels()                           # {id: 'n<id>'} — or 'e<id>' where the lineage went extinct
-dashed = {lab[n.id] for n in ct.extinct_leaves()}                  # (+ their all-extinct ancestors)
+dashed = {lab[n.id] for n in (ct.nodes[_i] for _i in ct.extinct_leaves())}                  # (+ their all-extinct ancestors)
 history = {lab[i]: segs for i, segs in r.trait.history.items()}
 (ph.trees.plot(tree, skeleton=False)
  + ph.trees.color_history(history, palette=palette, dashed=dashed)
@@ -427,7 +427,7 @@ import helpers as h
 palette = {"slow": "#3A7CA5", "medium": "#F2A541", "fast": "#E4572E"}
 tree = ph.trees.loads(ct.to_newick())
 lab = ct.labels()                           # {id: 'n<id>'} — or 'e<id>' where the lineage went extinct
-dashed = {lab[n.id] for n in ct.extinct_leaves()}
+dashed = {lab[n.id] for n in (ct.nodes[_i] for _i in ct.extinct_leaves())}
 history = {lab[i]: segs for i, segs in r.trait.history.items()}
 (ph.trees.plot(tree, skeleton=False)
  + ph.trees.color_history(history, palette=palette, dashed=dashed)
@@ -463,8 +463,8 @@ lab = ct.labels()                                                  # {id: 'n<id>
 tree = ph.trees.loads(ct.to_newick())
 history = {lab[i]: segs for i, segs in hab.history.items()}
 tips = list(ct.extant_leaves())
-sizes  = {lab[n.id]: len(g.genomes[n.id]) for n in tips}           # gene count per tip
-colors = {lab[n.id]: pal[hab.values[lab[n.id]]] for n in tips}     # bar colour = lifestyle
+sizes  = {lab[n]: len(g.genomes[n]) for n in tips}           # gene count per tip
+colors = {lab[n]: pal[hab.values[lab[n]]] for n in tips}     # bar colour = lifestyle
 fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
        + ph.trees.time_axis("time", bold=False))
@@ -493,8 +493,8 @@ lab = ct.labels()                                                  # {id: 'n<id>
 tree = ph.trees.loads(ct.to_newick())
 history = {lab[i]: segs for i, segs in sel.history.items()}
 tips = list(ct.extant_leaves())
-sizes  = {lab[n.id]: len(g.genomes[n.id]) for n in tips}
-colors = {lab[n.id]: pal[sel.values[lab[n.id]]] for n in tips}
+sizes  = {lab[n]: len(g.genomes[n]) for n in tips}
+colors = {lab[n]: pal[sel.values[lab[n]]] for n in tips}
 fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
        + ph.trees.time_axis("time", bold=False))
@@ -523,8 +523,8 @@ lab = ct.labels()                                                  # {id: 'n<id>
 tree = ph.trees.loads(ct.to_newick())
 history = {lab[i]: segs for i, segs in comp.history.items()}
 tips = list(ct.extant_leaves())
-sizes  = {lab[n.id]: len(g.genomes[n.id]) for n in tips}
-colors = {lab[n.id]: pal[comp.values[lab[n.id]]] for n in tips}
+sizes  = {lab[n]: len(g.genomes[n]) for n in tips}
+colors = {lab[n]: pal[comp.values[lab[n]]] for n in tips}
 fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
        + ph.trees.time_axis("time", bold=False))
@@ -554,9 +554,9 @@ lab = ct.labels()                                                   # {id: 'n<id
 tree = ph.trees.loads(ct.to_newick())
 vals = {lab[i]: act.node_values[i] for i in ct.nodes}               # the continuous value, per node
 tips = list(ct.extant_leaves())
-sizes = {lab[n.id]: len(g.genomes[n.id]) for n in tips}
+sizes = {lab[n]: len(g.genomes[n]) for n in tips}
 norm = mcolors.Normalize(min(vals.values()), max(vals.values()))
-bar_c = {lab[n.id]: mcolors.to_hex(cm.viridis(norm(act.node_values[n.id]))) for n in tips}
+bar_c = {lab[n]: mcolors.to_hex(cm.viridis(norm(act.node_values[n]))) for n in tips}
 fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_branches(vals, cmap="viridis")
        + ph.trees.time_axis("time", bold=False))

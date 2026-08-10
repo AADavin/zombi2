@@ -11,6 +11,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Fixed
 
+- **BREAKING: `Tree.leaves()`, `.extant_leaves()`, `.extinct_leaves()` and `.unsampled_leaves()`
+  return node ids, not `Node` objects.** A tree spoke ids everywhere else — `root` is one, `nodes` is
+  keyed by one, `children` holds them — and these four were the exception, so the output of one could
+  not be fed to the other: `set(tree.extant_leaves())` raised `unhashable type: 'Node'`, and
+  `tree.nodes[leaf]` was a `TypeError`. Either currency would have done; having both is what cost a
+  reader an afternoon. **To update:** `{n.id for n in tree.extant_leaves()}` becomes
+  `set(tree.extant_leaves())` and `[n.id for n in …]` becomes `list(…)`, both shorter; a loop that
+  reads an attribute becomes `for i in tree.extant_leaves(): tree.nodes[i].fate`. `len(…)` is
+  unchanged. Every misuse raises immediately — an `int` has no attributes to read — so nothing fails
+  quietly.
 - **`Node.children` is an empty tuple at a tip, not `None`.** Walking a tree is now `for c in
   node.children` with no guard, which is what a reader writes first — and what two of five test users
   crashed on (`TypeError: 'NoneType' object is not iterable`), one of them on their first recursion.

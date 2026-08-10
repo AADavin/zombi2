@@ -84,14 +84,14 @@ class TraitsResult:
         keep their exact ancestral / lineage values in ``node_values``, which stays id-keyed: it is
         the run's own record, not a dataset to export."""
         name = self.complete_tree.labels()
-        return {name[n.id]: self.node_values[n.id] for n in self.complete_tree.extant_leaves()}
+        return {name[i]: self.node_values[i] for i in self.complete_tree.extant_leaves()}
 
     @property
     def values_by_id(self) -> dict[int, object]:
         """`values`, keyed by node id rather than tip name — the shape `values` had before it was
         keyed to match the tree. For joining against ``node_values``, ``complete_tree.nodes`` or
         anything else that works in ids."""
-        return {n.id: self.node_values[n.id] for n in self.complete_tree.extant_leaves()}
+        return {i: self.node_values[i] for i in self.complete_tree.extant_leaves()}
 
     @cached_property
     def history(self) -> dict[int, list] | None:

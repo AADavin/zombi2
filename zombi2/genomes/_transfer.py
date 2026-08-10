@@ -325,5 +325,5 @@ def mean_root_to_tip(tree) -> float:
     Over the extant tips (all leaves if none survive); 1.0 for a degenerate zero-height tree."""
     root_t = tree.nodes[tree.root].birth_time
     tips = tree.extant_leaves() or tree.leaves()
-    depth = sum(n.end_time - root_t for n in tips) / len(tips)
+    depth = sum(tree.nodes[i].end_time - root_t for i in tips) / len(tips)
     return depth if depth > 0 else 1.0

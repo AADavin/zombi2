@@ -59,7 +59,7 @@ def _traced(genomes, sequences, node_id):
 def test_assembled_genome_is_the_initial_sequence_permuted():
     genomes = _run(seed=3)
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=3)
-    for leaf in genomes.complete_tree.extant_leaves():
+    for leaf in (genomes.complete_tree.nodes[_i] for _i in genomes.complete_tree.extant_leaves()):
         assert r.genomes[node_label(leaf.id)] == _traced(genomes, r, leaf.id)
 
 
@@ -67,7 +67,7 @@ def test_inverted_stretches_come_back_reverse_complemented():
     # the same identity on a run built so the -1 branch is certainly exercised: with no reversed block
     # anywhere, the test above would pass with the strand ignored altogether
     genomes = _run(seed=7, inversion=6.0, n_extant=8)
-    leaves = [n.id for n in genomes.complete_tree.extant_leaves()]
+    leaves = list(genomes.complete_tree.extant_leaves())
     assert any(b.strand == -1 for lid in leaves
                for c in genomes.genomes[lid].chromosomes for b in c.blocks)
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=7)
@@ -92,7 +92,7 @@ def test_a_genes_own_sequence_is_in_the_genome_it_sits_in():
     r = simulate_sequences(genomes, model=jc69(), substitution=0.3, seed=11)
     genic = {i for i, span in enumerate(genomes.root_blocks) if span in set(genomes.gene_spans.values())}
     checked = 0
-    for leaf in genomes.complete_tree.extant_leaves():
+    for leaf in (genomes.complete_tree.nodes[_i] for _i in genomes.complete_tree.extant_leaves()):
         genome = r.genomes[node_label(leaf.id)]
         for cid, pieces in genomes.assembly(leaf.id).items():
             for (block, gene, _strand) in pieces:
@@ -108,7 +108,7 @@ def test_material_no_extant_leaf_kept_is_still_reconstructed():
     # the partition is cut at every node, not at the survivors, so a lineage holding material that
     # later died out everywhere still has blocks for it — and a genome, exact like any other
     genomes = _run(seed=4, loss=3.0, n_extant=8)
-    kept = {sp for n in genomes.complete_tree.extant_leaves() for sp in genomes.ancestry(n.id)}
+    kept = {sp for n in (genomes.complete_tree.nodes[_i] for _i in genomes.complete_tree.extant_leaves()) for sp in genomes.ancestry(n.id)}
     doomed = [nid for nid in sorted(genomes.genomes) if set(genomes.ancestry(nid)) - kept]
     assert doomed, "nothing died out for good in this run — pick another seed"
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=4)
@@ -145,7 +145,7 @@ def test_write_emits_one_fasta_per_extant_lineage(tmp_path):
     genomes = _run(seed=6, n_extant=4)
     r = simulate_sequences(genomes, model=jc69(), substitution=0.2, seed=6)
     r.write(tmp_path, outputs=("genomes",))
-    for leaf in genomes.complete_tree.extant_leaves():
+    for leaf in (genomes.complete_tree.nodes[_i] for _i in genomes.complete_tree.extant_leaves()):
         label = node_label(leaf.id)
         lines = (tmp_path / "genomes" / f"genome_{label}.fasta").read_text(encoding="utf-8").splitlines()
         headers = [ln for ln in lines if ln.startswith(">")]
@@ -471,14 +471,14 @@ def test_the_initial_genome_is_the_input_even_with_a_busy_stem(tmp_path):
     r = simulate_sequences(genomes, model=hky85(kappa=3.0), substitution=0.3, seed=2)
     assert r.initial_genome[genomes.initial_genome.chromosomes[0].id] == seq
     leaf = next(iter(genomes.complete_tree.extant_leaves()))
-    assert r.genomes[node_label(leaf.id)] != _ref_through_root(genomes, leaf.id)   # it diverged
+    assert r.genomes[node_label(leaf)] != _ref_through_root(genomes, leaf)   # it diverged
 
 
 def test_a_homopolymer_inverts_to_its_complement(tmp_path):
     # all-A, so any difference from A in a leaf is a reverse-complemented (inverted) stretch, not a
     # substitution: at rate 0 a leaf is all A and T, and only A and T
     genomes = _seeded(tmp_path, "A" * 100, seed=4, inversion=6.0)
-    leaves = [n.id for n in genomes.complete_tree.extant_leaves()]
+    leaves = list(genomes.complete_tree.extant_leaves())
     assert any(b.strand == -1 for lid in leaves
                for c in genomes.genomes[lid].chromosomes for b in c.blocks)
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=4)

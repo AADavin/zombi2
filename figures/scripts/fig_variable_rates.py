@@ -75,7 +75,7 @@ def panel(letter: str, birth, mark_time: float | None) -> tuple[str, int]:
     # significant figures, and that rounding accumulates along a root-to-tip path to more than a
     # depth test's tolerance, so a survivor at the end of a deep path would be called extinct and
     # drawn dashed all the way to the present. The labels are n<id>, so the answer is looked up.
-    extant = {f"n{node.id}" for node in result.complete_tree.extant_leaves()}
+    extant = {f"n{node.id}" for node in (result.complete_tree.nodes[_i] for _i in result.complete_tree.extant_leaves())}
     dashed = {node.name for node in dead_ends(tree, lambda leaf: leaf.name in extant)}
     # The names stay as the run wrote them: this figure adds no `tip_labels` layer, so a dense tree
     # comes out bare anyway, and blanking them would collapse every tip onto one name.
