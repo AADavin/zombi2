@@ -11,6 +11,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Fixed
 
+- **A joint run's `trait_events.tsv` carries its `initial` row**, so the log a joint run writes can
+  be read back as a driver, which is what Chapter 8, Chapter 10 and Appendix B all say it is. The
+  row was missing, so conditioning a later run on a joint trait failed with "has no 'initial' row …
+  re-write it with a current ZOMBI2" — about a file that version had just written. Nothing else
+  about the run changes: the trees, the states and the seed are as before. (#332)
 - **The docstrings, the manual, the docs, the SPEC, the website and the gallery say what the code
   does.** Reading every one of them against the running code fixed about 130 small defects: pointers
   to sections and chapters that had moved or gone, module and file names left over from renames,

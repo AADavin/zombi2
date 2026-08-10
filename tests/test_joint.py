@@ -13,6 +13,7 @@ from zombi2 import traits
 from zombi2 import joint
 from zombi2.joint import JointResult
 from zombi2.params import Drift, LogNormal, PerLineage
+from zombi2.params.conditioned import load_driver
 from zombi2.traits import DiscreteTrait, TraitsResult
 
 
@@ -69,6 +70,21 @@ def test_joint_writes_both_levels(tmp_path):
     for f in ("species_complete.nwk", "species_extant.nwk", "species_events.tsv",
               "trait_values.tsv", "trait_events.tsv", "trait_tree.nwk"):
         assert (tmp_path / f).exists(), f"missing {f}"
+
+
+def test_the_joint_trait_log_is_a_driver_file(tmp_path):
+    # a joint run's log has to carry the `initial` row like the standalone level's, or the file it
+    # writes cannot be replayed against the tree and the run drives nothing downstream
+    res = _bisse(n_extant=60, seed=3)
+    res.write(tmp_path)
+
+    first = res.trait.events[0]
+    assert (first.kind, first.lineage, first.from_state) == \
+           ("initial", res.complete_tree.root, None)
+    assert first.time == res.complete_tree.nodes[res.complete_tree.root].birth_time
+
+    traj = load_driver(tmp_path / "trait_events.tsv", res.complete_tree)
+    assert set(traj.states()) <= {"small", "large"}
 
 
 # --- determinism ----------------------------------------------------------------------------------
