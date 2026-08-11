@@ -53,7 +53,7 @@ def test_the_levels_are_uncorrelated_at_equal_seeds():
         heights.append(species.simulate_species_tree(
             birth=1.0, death=0.0, n_extant=8, seed=s).summary()["tree"]["height"])
         copies.append(len(genomes.simulate_genomes_family(
-            stem, duplication=0.5, initial_families=1, max_family_size=None, seed=s).genomes[0]))
+            stem, duplication=0.5, initial_families=1, max_family_size=None, seed=s).node_genomes[0]))
     r = float(np.corrcoef(np.argsort(np.argsort(heights)), np.argsort(np.argsort(copies)))[0, 1])
     assert abs(r) < 0.2, f"levels at equal seeds are correlated (Spearman {r:+.3f})"
 

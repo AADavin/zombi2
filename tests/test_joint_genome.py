@@ -75,7 +75,7 @@ def test_joint_genome_result_shape():
     assert res.trait is None and res.genome is not None
     assert res.genome.__class__.__name__ == "FamilyGenomesResult"
     # a genome is recorded at every node (the profiles derive from the extant tips)
-    assert set(res.genome.genomes) == set(res.complete_tree.nodes)
+    assert set(res.genome.node_genomes) == set(res.complete_tree.nodes)
     assert res.genome.profiles is not None
 
 
@@ -106,7 +106,7 @@ def test_gene_count_drives_diversification():
         sizes = []
         for s in (1, 2, 3):
             r = _count_joint(curve, seed=s)
-            sizes.append(statistics.mean(len(r.genome.genomes[n.id]) for n in (r.complete_tree.nodes[_i] for _i in r.complete_tree.extant_leaves())))
+            sizes.append(statistics.mean(len(r.genome.node_genomes[n.id]) for n in (r.complete_tree.nodes[_i] for _i in r.complete_tree.extant_leaves())))
         return statistics.mean(sizes)
     driven = mean_size(lambda n: 1.0 + 0.3 * n)
     neutral = mean_size(lambda n: 2.0)              # flat curve: driven but no effect = neutral null

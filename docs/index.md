@@ -33,8 +33,8 @@ sp = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 g = genomes.simulate_genomes_family(sp, duplication=0.2, transfer=0.1, loss=0.25,
                                     origination=0.5, initial_families=20, seed=42)
 
-# the genomes you observe are the extant tips
-observed = {i: g.genomes[i] for i in sp.complete_tree.extant_leaves()}
+# the genomes you observe are the extant tips, keyed by tip name
+observed = g.genomes
 ```
 
 ZOMBI2 lets you describe very specific evolutionary scenarios, and rates are how you do it.

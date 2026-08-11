@@ -111,7 +111,7 @@ def read_run(directory) -> FamilyGenomesResult:
             rows = [line.rstrip("\n").split("\t") for line in f if line.strip()]
         initial = tuple(GeneCopy(gene_from_label(copy), int(family))
                         for family, copy in rows if family != "family")
-    return FamilyGenomesResult(complete_tree=tree, genomes=_genomes(handoff, tree), edges=edges,
+    return FamilyGenomesResult(complete_tree=tree, node_genomes=_genomes(handoff, tree), edges=edges,
                                seed=seed, initial_genome=initial)
 
 

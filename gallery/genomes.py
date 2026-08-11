@@ -650,8 +650,7 @@ def clade_transition(out):
 
     # bars in the tree's own tip order, so row k of the panel is tip k of the figure
     order = [t.name for t in fig.geometry().tips]
-    by_label = {labels[i]: i for i in ct.nodes}
-    sizes = [len(g.genomes[by_label[name]]) for name in order]
+    sizes = [len(g.genomes[name]) for name in order]
     colours = [palette[history[name][-1][0]] for name in order]
 
     geo = fig.geometry()

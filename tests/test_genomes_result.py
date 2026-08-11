@@ -22,7 +22,7 @@ def test_profiles_columns_are_the_extant_tips():
 def test_profiles_matrix_sum_is_the_extant_copy_total():
     # every copy at an extant tip is counted exactly once
     sp, g = _run(seed=3, death=0.5)
-    total = sum(len(g.genomes[n.id]) for n in (sp.complete_tree.nodes[_i] for _i in sp.complete_tree.extant_leaves()))
+    total = sum(len(g.node_genomes[n.id]) for n in (sp.complete_tree.nodes[_i] for _i in sp.complete_tree.extant_leaves()))
     assert g.profiles.matrix.sum() == total
 
 
@@ -34,7 +34,7 @@ def test_profiles_column_matches_family_counts_at_that_tip():
         col = p.matrix[:, j]
         for family, count in g.family_counts(s).items():
             assert col[fi[family]] == count            # the cell is that family's copy count
-        assert col.sum() == len(g.genomes[s])          # nothing else in the column
+        assert col.sum() == len(g.node_genomes[s])          # nothing else in the column
 
 
 def test_profiles_presence_is_binary_and_tracks_the_matrix():
@@ -136,7 +136,7 @@ def test_the_initial_genome_is_the_one_the_run_started_with(tmp_path):
     assert len(g.initial_genome) == 6                     # one copy per seeded family
     assert sorted(c.family for c in g.initial_genome) == list(range(6))
     root = sp.complete_tree.root
-    assert g.initial_genome != g.genomes[root], "the stem was quiet — pick another seed"
+    assert g.initial_genome != g.node_genomes[root], "the stem was quiet — pick another seed"
 
     g.write(tmp_path)
     rows = (tmp_path / "initial_genome.tsv").read_text(encoding="utf-8").splitlines()
@@ -152,7 +152,7 @@ def test_the_initial_genome_survives_a_run_that_loses_everything():
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=4, seed=3)
     g = simulate_genomes_family(sp, loss=6.0, initial_families=5, seed=3)
     assert len(g.initial_genome) == 5
-    assert sum(len(g.genomes[n.id]) for n in (sp.complete_tree.nodes[_i] for _i in sp.complete_tree.extant_leaves())) < 5 * 4
+    assert sum(len(g.node_genomes[n.id]) for n in (sp.complete_tree.nodes[_i] for _i in sp.complete_tree.extant_leaves())) < 5 * 4
 
 
 def test_a_transfer_names_both_ends_of_its_edge_on_every_row():

@@ -45,7 +45,7 @@ def _leaf_order(node_label: str = LEAF):
     g = simulate_genomes_ordered(tree, duplication=0.3, loss=0.2, origination=0.15, inversion=0.5,
                                  chromosomes=1, initial_families=5, seed=SEED)
     target = int(node_label[1:])
-    chrom = g.genomes[target][0]
+    chrom = g.node_genomes[target][0]
     return [(gene.family, gene.strand) for gene in chrom.genes]
 
 
