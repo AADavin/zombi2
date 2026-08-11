@@ -385,12 +385,12 @@ def run(args, parser):
     if nucleotide:
         # the assembled genome of a node is exactly as long as its block layout (substitution keeps
         # length), so total bp comes from the genome run without assembling every node's sequence —
-        # which, since `result.genomes` is now assembled lazily, would otherwise build them all just
+        # which, since `result.node_genomes` is now assembled lazily, would otherwise build them all just
         # to sum their lengths.
         bp = sum(g.length for g in genome_run.node_genomes.values())
         spacer = args.intergene_model or "jc69"
         summary = (f"{n_seqs} sequences across {n_families} blocks, {bp:,} bp assembled into "
-                   f"{len(result.genomes)} genomes (every node), {model.name} genes / {spacer} spacer at "
+                   f"{len(result.node_genomes)} genomes (every node), {model.name} genes / {spacer} spacer at "
                    f"{args.intergene_speed:g}x, {clock}{realised}")
     else:
         summary = (f"{n_seqs} sequences across {n_families} gene families, {model.name} "

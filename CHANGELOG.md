@@ -15,6 +15,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   tip, keyed by tip name — matching the trait level's `.values` and the written `genomes.tsv`. Every
   node's genome, keyed by node id, moved to `.node_genomes`. Applies to the family, ordered and
   nucleotide resolutions. (#338)
+- **BREAKING:** a sequences result's `.genomes` is likewise the extant tips alone, and every node's
+  assembled genome moved to `.node_genomes`, so the two levels read the same. (#338)
 
 ## [0.33.1] - 2026-08-11
 
