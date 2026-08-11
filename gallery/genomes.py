@@ -616,12 +616,26 @@ def clade_transition(out):
     ct, clade, g = _endo_run()
     inside = set(clade.resolve(ct)["endo"])
     labels = ct.labels()
-    group = {labels[i]: ("endosymbiont" if i in inside else "free-living") for i in ct.nodes}
+
+    # The colour is the lineage's STATE THROUGH TIME, not which group it is in. A clade lineage is an
+    # ordinary free-living one until _ENDO_T0 — same loss rate, same transfers — so painting it red
+    # from the clade's origin would show membership where the figure is about a change. Every branch
+    # is a mosaic: the one the switch falls inside is blue up to it and red after.
+    history = {}
+    for i, nd in ct.nodes.items():
+        a, b = nd.birth_time, nd.end_time
+        if i not in inside or b <= _ENDO_T0:
+            history[labels[i]] = [("free-living", b - a)]
+        elif a >= _ENDO_T0:
+            history[labels[i]] = [("endosymbiont", b - a)]
+        else:                                        # the switch falls inside this branch
+            history[labels[i]] = [("free-living", _ENDO_T0 - a),
+                                  ("endosymbiont", b - _ENDO_T0)]
     palette = {"endosymbiont": _ENDO_COL, "free-living": _FREE_COL}
 
     fig = (ph.trees.plot(ph.trees.loads(ct.to_newick()),
                          style=ph.Style(width=1150, height=980, margin=70, branch_width=3.0))
-           + ph.trees.color_branches(group, palette=palette)
+           + ph.trees.color_history(history, palette=palette)
            + ph.trees.time_marker(_ENDO_T0, label=f"endosymbiosis at t = {_ENDO_T0:g}")
            + ph.trees.time_axis("time")
            + ph.trees.legend("lineage"))
@@ -632,7 +646,7 @@ def clade_transition(out):
     order = [t.name for t in fig.geometry().tips]
     by_label = {labels[i]: i for i in ct.nodes}
     sizes = [len(g.genomes[by_label[name]]) for name in order]
-    colours = [palette[group[name]] for name in order]
+    colours = [palette[history[name][-1][0]] for name in order]
 
     geo = fig.geometry()
     tips = geo.tips
@@ -699,11 +713,14 @@ EXAMPLES = [
             "differ gives 28 core families and a U-shaped spectrum.",
             "phylustrator · heterogeneity", pangenome_by_family, code=_C_PANGENOME),
     Example("genome_clade_transition", "A transition partway through the run",
-            "The clade in red turns endosymbiotic at the dashed line: from then on it sheds genes "
-            "twenty times faster and stops receiving transfers, and the bars are what each genome is "
-            "left with. The factor is scoped to the clade <b>and</b> to a time — chaining "
-            "<code>scaled_by</code> with <code>changing_at</code> cannot say this, because the two "
-            "factors each apply to every lineage. "
+            "A branch is blue while it is free-living and red once it is endosymbiotic, so the "
+            "colour changes <i>along</i> the branches the dashed line crosses — one clade, and only "
+            "from <i>t</i>&nbsp;=&nbsp;2. Before that line those lineages are ordinary ones; after it "
+            "they shed genes twenty times faster and stop receiving transfers. The bars are what each "
+            "genome is left with at the present: about 140 genes against 270 outside, all of it lost "
+            "in the last third of the run. The factor is scoped to the clade <b>and</b> to a time — "
+            "chaining <code>scaled_by</code> with <code>changing_at</code> cannot say this, because "
+            "the two factors would each apply to every lineage. "
             "<code>scaled_by(clade,&nbsp;{'endo':&nbsp;{0:&nbsp;1.0,&nbsp;2.0:&nbsp;20.0},&nbsp;'rest':&nbsp;1.0})</code>.",
             "clades · schedules", clade_transition, code=_C_TRANSITION),
 ]
