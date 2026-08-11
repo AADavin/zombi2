@@ -50,7 +50,7 @@ g = genomes.simulate_genomes_ordered(
 
 ## The chromosome network
 
-Chromosomes are tracked. A chromosome id is re-minted at every event that reshapes it, whether a speciation, a fission or a fusion, and each of those edges is recorded. So the run leaves behind not just the chromosomes at the tips but the *genealogy* that connects them: the **chromosome network**. It is the middle of three tiers that nest, the species tree containing the chromosome network, which contains the gene trees:
+Chromosomes are tracked. A chromosome id is re-minted at every event that reshapes it, whether a speciation, a fission or a fusion, and each of those edges is recorded. So the run leaves behind not just the chromosomes at the tips but the *genealogy* that connects them: the **chromosome network**. It is the middle of three genealogies that nest, the species tree containing the chromosome network, which contains the gene trees:
 
 ```
 species tree  ⊃  chromosome network  ⊃  gene trees
