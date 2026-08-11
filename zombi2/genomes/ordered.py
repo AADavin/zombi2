@@ -251,7 +251,7 @@ class OrderedGenomesResult:
     the chosen outputs."""
 
     complete_tree: Tree
-    genomes: dict[int, tuple[Chromosome, ...]]
+    node_genomes: dict[int, tuple[Chromosome, ...]]
     edges: list[GeneEdge]
     rearrangements: list[Inversion | Transposition | Translocation]
     chromosome_events: list[ChromosomeEvent]
@@ -273,12 +273,37 @@ class OrderedGenomesResult:
 
     def __repr__(self) -> str:
         return (f"OrderedGenomesResult({len(self.complete_tree.extant_leaves())} extant genomes, "
-                f"{len(self.genomes)} nodes, {len(self.edges)} events, "
+                f"{len(self.node_genomes)} nodes, {len(self.edges)} events, "
                 f"{len(self.rearrangements)} rearrangements, seed={self.seed})")
+
+    @property
+    def genomes(self) -> dict[str, tuple[Chromosome, ...]]:
+        """The observed dataset — the genome at each **extant** tip, keyed by the **tip name** the
+        tree writes: ``n5``.
+
+        Keyed by name because the only thing anyone does with this is join it to the tree, or to
+        another level grown on that tree, and both name their tips. The written output is keyed by
+        name too, so what you get in Python and what you get from a file are the same dataset.
+        This is the trait level's `TraitsResult.values` for gene content.
+
+        `node_genomes` is the run's own record: every node, extant and extinct and internal alike,
+        keyed by node id. Use that one to join against ``complete_tree.nodes`` or the event log."""
+        extant = list(self.complete_tree.extant_leaves())
+        if extant and not self.node_genomes:
+            # a run reopened by `read_run` from a directory whose 'genomes' output was not written:
+            # the genealogy is all there, the gene content is not. Say that, rather than hand back
+            # an empty dict that reads as a run in which nothing survived.
+            raise ValueError(
+                "this run has no per-node gene content, so there are no genomes to hand back — it "
+                "was read back from a directory whose genomes.tsv was not written. Re-run the "
+                "genomes level with 'genomes' among its outputs. The gene trees and the event log "
+                "are unaffected.")
+        name = self.complete_tree.labels()
+        return {name[i]: self.node_genomes[i] for i in extant}
 
     def family_counts(self, node_id: int) -> collections.Counter:
         """A multiset view of one node's genome: ``family id → copy count`` (across all chromosomes)."""
-        return collections.Counter(g.family for chrom in self.genomes[node_id] for g in chrom.genes)
+        return collections.Counter(g.family for chrom in self.node_genomes[node_id] for g in chrom.genes)
 
     def completion(self, name: str):
         """A module's completion as a **conditioning driver** — `ModuleCompletion`, a number in
@@ -311,20 +336,20 @@ class OrderedGenomesResult:
         if name not in self.family_names:
             raise KeyError(f"no named family {name!r}; declared families are {sorted(self.family_names)}")
         fid = self.family_names[name]
-        return any(g.family == fid for chrom in self.genomes[node_id] for g in chrom.genes)
+        return any(g.family == fid for chrom in self.node_genomes[node_id] for g in chrom.genes)
 
     def gene_order(self, node_id: int) -> list[tuple[int, int, int, int, int]]:
         """One node's layout as ``(chromosome, position, strand, family, gene id)`` rows, chromosome
         by chromosome and left to right within each — the ordered analogue of ``family_counts``."""
         return [(chrom.id, pos, g.strand, g.family, g.id)
-                for chrom in self.genomes[node_id] for pos, g in enumerate(chrom.genes)]
+                for chrom in self.node_genomes[node_id] for pos, g in enumerate(chrom.genes)]
 
     @cached_property
     def _extant_genes(self) -> dict[int, tuple[Gene, ...]]:
         """The observed genomes flattened to gene multisets (chromosomes dropped) — the view the
         genealogy-derived, position-blind outputs read."""
         extant = list(self.complete_tree.extant_leaves())
-        return {s: tuple(g for chrom in self.genomes[s] for g in chrom.genes) for s in extant}
+        return {s: tuple(g for chrom in self.node_genomes[s] for g in chrom.genes) for s in extant}
 
     @cached_property
     def profiles(self) -> Profiles:
@@ -440,9 +465,9 @@ class OrderedGenomesResult:
         t0 = self.complete_tree.nodes[self.complete_tree.root].birth_time
         extant = list(self.complete_tree.extant_leaves())
         born = {e.family for e in self.edges}
-        surviving = {g.family for i in extant for c in self.genomes.get(i, ()) for g in c.genes}
-        genes_per_genome = [sum(len(c.genes) for c in self.genomes.get(i, ())) for i in extant]
-        chrom_per_genome = [len(self.genomes.get(i, ())) for i in extant]
+        surviving = {g.family for i in extant for c in self.node_genomes.get(i, ()) for g in c.genes}
+        genes_per_genome = [sum(len(c.genes) for c in self.node_genomes.get(i, ())) for i in extant]
+        chrom_per_genome = [len(self.node_genomes.get(i, ())) for i in extant]
         rearrangements = collections.Counter(type(r).__name__.lower() for r in self.rearrangements)
         chromosome = collections.Counter(e.kind for e in self.chromosome_events)
         return {
@@ -455,7 +480,7 @@ class OrderedGenomesResult:
                          "named": len(self.family_names)},
             "extant_genomes": len(extant),
             "empty_genomes": sum(1 for i in extant
-                                 if not any(c.genes for c in self.genomes.get(i, ()))),
+                                 if not any(c.genes for c in self.node_genomes.get(i, ()))),
             "genes_per_genome": _stats(genes_per_genome),
             "chromosomes_per_genome": _stats(chrom_per_genome),
             # this resolution's own two records: what moved genes without changing their ancestry,
@@ -488,8 +513,8 @@ class OrderedGenomesResult:
         strand either: this is the gene arrangement, and an empty replicon has none."""
         cols = ("lineage", "chromosome", "topology", "position", "strand", "family", "copy")
         rows: list[str] = []
-        for s in sorted(self.genomes):
-            topology = {c.id: c.topology for c in self.genomes[s]}
+        for s in sorted(self.node_genomes):
+            topology = {c.id: c.topology for c in self.node_genomes[s]}
             rows.extend(f"{_name(names, s)}\t{ch}\t{topology.get(ch, '')}\t{p}\t{st}\t{fam}\t"
                         f"{gene_label(gid)}"
                         for (ch, p, st, fam, gid) in self.gene_order(s))

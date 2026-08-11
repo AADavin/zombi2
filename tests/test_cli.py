@@ -1526,7 +1526,7 @@ def test_sequences_matches_the_python_api_on_a_nucleotide_run(tmp_path):
     g = simulate_genomes_nucleotide(sp, root_length=2000, genes=5, gene_length=150, inversion=3.0,
                                     inversion_extent=250, duplication=1.0, loss=1.0, seed=3)
     r = simulate_sequences(g, model=hky85(kappa=3.0), substitution=0.05, seed=3)
-    for lineage, chroms in r.genomes.items():
+    for lineage, chroms in r.node_genomes.items():
         text = (out / "genomes" / f"genome_{lineage}.fasta").read_text(encoding="utf-8")
         assert "".join(text.splitlines()[1:]) == "".join(chroms.values())
 

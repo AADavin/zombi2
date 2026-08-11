@@ -346,7 +346,7 @@ The caveat: every model is normalised to one expected substitution per site per 
 - `.founding`, for each family, the sequence it began with, at its origination.
 - `.phylograms`, for each family, its gene tree with branch lengths converted from time into substitutions per site: the tree the sequences were drawn along.
 - `.species_phylogram`, the same conversion applied to the species tree, so the clock is visible as branch lengths.
-- `.genomes`, `.initial_genome`, the assembled genome of every node, and of the run's starting point, present only when the run came from a **nucleotide** genome. See below.
+- `.genomes`, the assembled genome of each **extant** tip, keyed by tip name — the genomes you would have sequenced. `.node_genomes` is the same for every node, ancestors and extinct lineages included, and `.initial_genome` is the run's starting point. All three are present only when the run came from a **nucleotide** genome. See below.
 
 As with every level, the bundle also carries `.seed` and `.write(directory, outputs=[...])` to put the chosen outputs on disk.
 
@@ -407,7 +407,7 @@ result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=3.0),
                                       intergene_speed=3.0, substitution=0.05, seed=1)
 
 result.genomes["n5"]             # {chromosome: sequence}, a whole assembled genome
-result.genomes["n0"]             # the same at an ancestor, reconstructed not estimated
+result.node_genomes["n0"]        # the same at an ancestor, reconstructed not estimated
 result.initial_genome            # the genome the run started with
 ```
 

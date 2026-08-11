@@ -120,8 +120,8 @@ def test_sequences_parallel_nucleotide_assembles_every_node():
                                       gene_length=90, seed=3)
     a = simulate_sequences(gen, model=hky85(kappa=2.0), intergene_model=jc69(), seed=9, parallel=1)
     b = simulate_sequences(gen, model=hky85(kappa=2.0), intergene_model=jc69(), seed=9, parallel=2)
-    assert a.genomes == b.genomes and a.initial_genome == b.initial_genome
-    assert set(a.genomes) == {node_label(i) for i in sp.complete_tree.nodes}
+    assert a.node_genomes == b.node_genomes and a.initial_genome == b.initial_genome
+    assert set(a.node_genomes) == {node_label(i) for i in sp.complete_tree.nodes}
 
 
 # --- genomes: the per-family engine ---------------------------------------------------------------
@@ -137,7 +137,7 @@ def _extant_leaves(node):
 def _gen_fingerprint(r):
     ev = sorted((round(e.time, 9), e.kind, e.lineage, e.family, e.copy, e.parent,
                  e.recipient, e.donor) for e in r.edges)
-    gen = {i: sorted((c.family, c.id) for c in r.genomes[i]) for i in sorted(r.genomes)}
+    gen = {i: sorted((c.family, c.id) for c in r.node_genomes[i]) for i in sorted(r.node_genomes)}
     return ev, tuple(sorted(gen.items()))
 
 
@@ -166,7 +166,7 @@ def test_genomes_parallel_is_a_valid_run(species_for_genomes):
     sp = species_for_genomes
     r = simulate_genomes_family(sp, duplication=0.5, transfer=0.3, loss=0.4, origination=0.2,
                                 initial_families=30, seed=5, parallel=2)
-    assert set(r.genomes) == set(sp.complete_tree.nodes)
+    assert set(r.node_genomes) == set(sp.complete_tree.nodes)
     born = [e.copy for e in r.edges
             if e.kind in ("origination", "duplication", "transfer", "speciation")]
     assert len(born) == len(set(born))                       # copy ids globally unique
@@ -181,7 +181,7 @@ def test_genomes_parallel_named_families_survive(species_for_genomes):
                                 family_names=["toxin", "operon"], initial_families=10,
                                 seed=5, parallel=2)
     assert set(r.family_names) == {"toxin", "operon"}
-    assert all(fid in {c.family for g in r.genomes.values() for c in g} for fid in r.family_names.values())
+    assert all(fid in {c.family for g in r.node_genomes.values() for c in g} for fid in r.family_names.values())
 
 
 def test_a_driven_rate_runs_in_parallel_rather_than_falling_back(species_for_genomes, capsys):

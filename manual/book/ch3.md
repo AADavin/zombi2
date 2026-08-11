@@ -102,7 +102,7 @@ tips = tree.extant_leaves()                                  # [3, 7, 8, …] �
 oldest = max(tree.leaves(), key=lambda i: tree.nodes[i].end_time)
 ```
 
-Those ids are the same ones every other level keys on, so a tip list joins straight across a run — `{i: len(genome_run.genomes[i]) for i in tree.extant_leaves()}`.
+Those ids are the same ones every other level keys on internally, so a walk over the whole tree joins straight across a run — `{i: len(genome_run.node_genomes[i]) for i in tree.nodes}`. The *observed* datasets each level hands back are keyed by tip **name** instead, so they join to the tree and to each other as they are: `genome_run.genomes["n5"]`, `trait_run.values["n5"]`.
 
 A tip's `.children` is an empty tuple, so a walk needs no guard: `for c in tree.nodes[i].children` simply does nothing at a leaf.
 

@@ -224,7 +224,7 @@ def _carries(g, node_id: int, name: str) -> bool:
     """Whether ``node_id``'s genome still holds the gene ``name``, read off its **blocks** — the
     coordinates the run keeps, not the gene tree the driver is built from. The independent fact."""
     fam = g.gene_names[name]
-    return any(b.gene == fam for chrom in g.genomes[node_id].chromosomes for b in chrom.blocks)
+    return any(b.gene == fam for chrom in g.node_genomes[node_id].chromosomes for b in chrom.blocks)
 
 
 def test_a_declared_gene_answers_for_every_lineage():

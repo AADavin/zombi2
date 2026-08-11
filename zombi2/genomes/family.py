@@ -75,13 +75,13 @@ class GeneCopy:
 @dataclass
 class FamilyGenomesResult:
     """What ``simulate_genomes_family`` returns: the ``complete_tree`` it ran on, the final
-    ``genomes`` at **every** node (extant and extinct), the ``events`` log (the compact source of
-    truth), and the ``seed``. The observed genomes are the extant tips —
-    ``{i: genomes[i] for i in complete_tree.extant_leaves()}``. The phyletic ``profiles`` are derived
-    from those tips on access, and ``write`` materialises the chosen outputs to disk."""
+    ``node_genomes`` at **every** node (extant and extinct), the ``events`` log (the compact source of
+    truth), and the ``seed``. The observed dataset is the extant tips, ``genomes``. The phyletic
+    ``profiles`` are derived from those tips on access, and ``write`` materialises the chosen outputs
+    to disk."""
 
     complete_tree: Tree
-    genomes: dict[int, tuple[GeneCopy, ...]]
+    node_genomes: dict[int, tuple[GeneCopy, ...]]
     edges: list[GeneEdge]
     seed: int | None
     #: ``{name: family id}`` for families declared by ``family_names=[…]`` — the handle to a *named* family
@@ -92,9 +92,9 @@ class FamilyGenomesResult:
     #: declared; a module changes nothing about how the genome evolves.
     modules: dict[str, tuple[str, ...]] = field(default_factory=dict)
     #: The genome the run **started** with, at the root lineage's origination — before any event.
-    #: It is not in `genomes`, which holds a genome per *node*, and a node sits at the **end**
-    #: of its branch: the root branch is real simulated time, so ``genomes[root]`` is this genome plus
-    #: whatever happened along the stem. The same reason ``GeneTree.origination`` is its own field.
+    #: It is not in `node_genomes`, which holds a genome per *node*, and a node sits at the **end**
+    #: of its branch: the root branch is real simulated time, so ``node_genomes[root]`` is this genome
+    #: plus whatever happened along the stem. The same reason ``GeneTree.origination`` is its own field.
     initial_genome: tuple[GeneCopy, ...] = ()
     #: The per-genome family cap this run actually ran under, resolved (``None`` for no cap). Kept
     #: because the cap is otherwise invisible in the output: when it binds it discards duplications
@@ -105,13 +105,39 @@ class FamilyGenomesResult:
     def __repr__(self) -> str:
         # "0 nodes" beside a real tip count reads as a broken run; a reopened run that did not write
         # genomes.tsv has the genealogy and not the gene content, so it says which.
-        content = f"{len(self.genomes)} nodes" if self.genomes else "gene content not loaded"
+        content = f"{len(self.node_genomes)} nodes" if self.node_genomes else "gene content not loaded"
         return (f"FamilyGenomesResult({len(self.complete_tree.extant_leaves())} extant genomes, "
                 f"{content}, {len(self.events)} events, seed={self.seed})")
 
+    @property
+    def genomes(self) -> dict[str, tuple[GeneCopy, ...]]:
+        """The observed dataset — the genome at each **extant** tip, keyed by the **tip name** the
+        tree writes: ``n5``.
+
+        Keyed by name because the only thing anyone does with this is join it to the tree, or to
+        another level grown on that tree, and both name their tips. ``genomes.tsv`` on disk is
+        keyed by name too, so what you get in Python and what you get from a file are the same
+        dataset — they used to share no keys at all, and nothing said so. This is the trait level's
+        `TraitsResult.values` for gene content.
+
+        `node_genomes` is the run's own record: every node, extant and extinct and internal alike,
+        keyed by node id. Use that one to join against ``complete_tree.nodes`` or the event log."""
+        extant = list(self.complete_tree.extant_leaves())
+        if extant and not self.node_genomes:
+            # a run reopened by `read_run` from a directory whose 'genomes' output was not written:
+            # the genealogy is all there, the gene content is not. Say that, rather than hand back
+            # an empty dict that reads as a run in which nothing survived.
+            raise ValueError(
+                "this run has no per-node gene content, so there are no genomes to hand back — it "
+                "was read back from a directory whose genomes.tsv was not written. Re-run the "
+                "genomes level with 'genomes' among its outputs. The gene trees and the event log "
+                "are unaffected.")
+        name = self.complete_tree.labels()
+        return {name[i]: self.node_genomes[i] for i in extant}
+
     def family_counts(self, node_id: int) -> collections.Counter:
         """A multiset view of one node's genome: ``family id → copy count``."""
-        return collections.Counter(c.family for c in self.genomes[node_id])
+        return collections.Counter(c.family for c in self.node_genomes[node_id])
 
     def completion(self, name: str):
         """A module's completion as a **conditioning driver** — `ModuleCompletion`, a number in
@@ -144,14 +170,14 @@ class FamilyGenomesResult:
         if name not in self.family_names:
             raise KeyError(f"no named family {name!r}; declared families are {sorted(self.family_names)}")
         fid = self.family_names[name]
-        return any(c.family == fid for c in self.genomes[node_id])
+        return any(c.family == fid for c in self.node_genomes[node_id])
 
     @cached_property
     def profiles(self) -> Profiles:
         """The phyletic profiles — each gene family's copy count in each extant species — derived
         from the observed genomes (the classic comparative-genomics matrix). See `profiles`."""
         extant = list(self.complete_tree.extant_leaves())
-        if extant and not self.genomes:
+        if extant and not self.node_genomes:
             # a run reopened by `read_run` from a directory whose 'genomes' output was not written:
             # the genealogy is all there, the gene content is not. Say that, rather than KeyError.
             raise ValueError(
@@ -159,7 +185,7 @@ class FamilyGenomesResult:
                 "read back from a directory whose genomes.tsv was not written. Re-run the genomes "
                 "level with 'genomes' among its outputs, or read profiles.tsv if that one is there. "
                 "The gene trees and the event log are unaffected.")
-        return profiles_from_genomes(self.genomes, extant)
+        return profiles_from_genomes(self.node_genomes, extant)
 
     @cached_property
     def events(self) -> list[Event]:
@@ -221,9 +247,9 @@ class FamilyGenomesResult:
 
         extant = list(self.complete_tree.extant_leaves())
         born = {e.family for e in self.edges}
-        surviving = {c.family for i in extant for c in self.genomes.get(i, ())}
-        genes_per_genome = [len(self.genomes.get(i, ())) for i in extant]
-        cells = [collections.Counter(c.family for c in self.genomes.get(i, ())) for i in extant]
+        surviving = {c.family for i in extant for c in self.node_genomes.get(i, ())}
+        genes_per_genome = [len(self.node_genomes.get(i, ())) for i in extant]
+        cells = [collections.Counter(c.family for c in self.node_genomes.get(i, ())) for i in extant]
         copies = [n for cell in cells for n in cell.values()]
 
         cap = self.max_family_size
@@ -239,7 +265,7 @@ class FamilyGenomesResult:
                          "died_out": len(born) - len(surviving),
                          "named": len(self.family_names)},
             "extant_genomes": len(extant),
-            "empty_genomes": sum(1 for i in extant if not self.genomes.get(i, ())),
+            "empty_genomes": sum(1 for i in extant if not self.node_genomes.get(i, ())),
             "genes_per_genome": _stats(genes_per_genome),
             "copies_per_family_per_genome": _stats(copies),
             # the cap made visible. `families_at_cap` is what to look at: a family sitting at the
@@ -317,8 +343,8 @@ class FamilyGenomesResult:
         cols = ("lineage", "family", "copy")
         names = self.complete_tree.labels()
         rows = [f"{names[s]}\t{c.family}\t{gene_label(c.id)}"
-                for s in sorted(self.genomes)
-                for c in sorted(self.genomes[s], key=lambda c: (c.family, c.id))]
+                for s in sorted(self.node_genomes)
+                for c in sorted(self.node_genomes[s], key=lambda c: (c.family, c.id))]
         return "\n".join(["\t".join(cols), *rows]) + "\n"
 
     def _initial_genome_tsv(self) -> str:

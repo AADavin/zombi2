@@ -43,7 +43,7 @@ The result is a `SequencesResult` bundle mirroring the other levels:
 ``.alignments`` (the observable sequence at every **extant** tip), ``.ancestral`` (the reconstructed
 sequence at every **internal** node), ``.phylograms`` (each gene tree with branch lengths in
 substitutions/site — the ground-truth tree behind each alignment), ``.species_phylogram`` (the species
-tree scaled the same way — the molecular clock made visible), ``.genomes`` and ``.initial_genome``
+tree scaled the same way — the molecular clock made visible), ``.genomes`` / ``.node_genomes`` and ``.initial_genome``
 (every node's whole genome, assembled, and the one the run started with — a **nucleotide** run only),
 and ``.seed``. There is no per-substitution event log: it would not be
 compact the way the speciation and D/T/L/O logs are.
@@ -119,13 +119,13 @@ class SequencesResult:
     - ``species_phylogram`` — ``{"complete": newick, "extant": newick | None}``: the **species tree**
       with branch lengths in substitutions/site — the molecular clock made visible (which lineages ran
       hot / cold). Always present: a run always comes from a genome run, which carries its tree.
-    - ``genomes`` — ``{lineage: {chromosome id: sequence}}``: **every** node's assembled genome, its
-      blocks concatenated in physical order (reverse-complemented where the genome carries them
-      inverted) — extant tips, ancestors and the lineages that went extinct alike. The same coverage
-      as the genome level's own ``genomes``, which is keyed the same way: the observed ones are the
-      extant tips, ``{node_label(i) for i in complete_tree.extant_leaves()}``. Only a **nucleotide** genome
-      run has any — a family or ordered run has gene families, not coordinates, so there is no
-      genome to lay out and this is empty.
+    - ``node_genomes`` — ``{lineage: {chromosome id: sequence}}``: **every** node's assembled genome,
+      its blocks concatenated in physical order (reverse-complemented where the genome carries them
+      inverted) — extant tips, ancestors and the lineages that went extinct alike. The same coverage,
+      and the same name, as the genome level's ``node_genomes``. ``genomes`` is the extant tips alone
+      — the observed genomes — exactly as it is one level down. Only a **nucleotide** genome run has
+      any: a family or ordered run has gene families, not coordinates, so there is no genome to lay
+      out and both are empty.
     - ``initial_genome`` — ``{chromosome id: sequence}``: the genome the run **started** with, at the
       root lineage's origination. Not in ``genomes``, because it belongs to no node: the root branch is
       real simulated time, so the root *node*'s genome is this one plus whatever happened along the
@@ -150,15 +150,31 @@ class SequencesResult:
     seed: int | None
     # A nucleotide run's genomes are assembled lazily (see `_AssembledGenomes`) so they do not
     # all sit in memory at once; the shape a caller sees is unchanged — ``{lineage: {chromosome: seq}}``.
-    genomes: "Mapping[str, dict[int, str]]" = field(default_factory=dict)
+    node_genomes: "Mapping[str, dict[int, str]]" = field(default_factory=dict)
     initial_genome: dict[int, str] = field(default_factory=dict)
     unit: str = "family"
     alphabet: str = ""
+    #: the tip labels of the **extant** species — what `genomes` filters ``node_genomes`` down to.
+    #: Kept because a sequences result carries its trees as Newick text, not as a `Tree`, so there is
+    #: otherwise nothing here that says which of the labels is a survivor.
+    extant_tips: tuple[str, ...] = ()
 
     def __repr__(self) -> str:
         n = sum(len(a) for a in self.alignments.values())
         return (f"SequencesResult({n} sequences across {len(self.alignments)} {self.unit} "
                 f"alignments, seed={self.seed})")
+
+    @property
+    def genomes(self) -> dict[str, dict[int, str]]:
+        """The observed genomes — the assembled genome of each **extant** tip, keyed by tip name
+        (``n5``): what you would have sequenced. Empty unless the run came from a **nucleotide**
+        genome run, which is the only kind that has coordinates to lay out.
+
+        `node_genomes` is the whole record — every node, ancestors and extinct lineages included.
+        The pair is the genome level's `~zombi2.genomes.FamilyGenomesResult.genomes` /
+        ``node_genomes``, and it reads here the way ``alignments`` reads against ``ancestral``:
+        what you observe, and the truth behind it."""
+        return {t: self.node_genomes[t] for t in self.extant_tips if t in self.node_genomes}
 
     def composition(self, letters: str):
         """The share of a lineage's sequence that is one of ``letters``, at every instant, as a
@@ -232,7 +248,7 @@ class SequencesResult:
             # one length on a family run; a nucleotide run gives every block its own, so report the span
             "sites": {"min": sites[0], "max": sites[-1]} if sites else {"min": None, "max": None},
             "mean_pairwise_identity": mean_pairwise_identity(aligned),
-            "assembled_genomes": len(self.genomes),
+            "assembled_genomes": len(self.node_genomes),
         }
 
     def write(self, directory, outputs=("alignments", "phylograms", "species_phylogram", "genomes",
@@ -312,7 +328,7 @@ class SequencesResult:
             if sp["extant"] is not None:
                 (d / "clock_species_tree_extant.nwk").write_text(sp["extant"] + "\n", encoding="utf-8")
         # every genome is written the same way and named by whose it is — a node label, or "initial"
-        for token, genomes in (("genomes", self.genomes),
+        for token, genomes in (("genomes", self.node_genomes),
                                ("initial_genome",
                                 {"initial": self.initial_genome} if self.initial_genome else {})):
             if token in outputs and genomes:   # both land in genomes/: an assembled genome either way
@@ -1036,7 +1052,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     ``across_sites`` does not reach the spacer, whose default ``jc69()`` stays flat — the spacer's
     job is to be the unconstrained null, and silently giving it the genes' Gamma would make it
     something else. Give ``intergene_model`` a decorated model to vary the spacer too. Because the whole genome is covered, the run also **puts the genomes back together**:
-    ``.genomes`` holds every node's chromosomes, blocks concatenated in physical order — the complete
+    ``.node_genomes`` holds every node's chromosomes, blocks concatenated in physical order — the complete
     tree, reconstructed — and ``.initial_genome`` the one the run started with.
 
     The result carries the **phylograms** the sequences were drawn along — each gene tree and the
@@ -1440,7 +1456,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                            # a nucleotide run's models are all forced to DNA above (and its `parts` is
                            # None — each block brings its own); elsewhere every partition shares one
                            # alphabet, so the first one speaks for the run
-                           BASES if parts is None else parts[0][0].alphabet)
+                           BASES if parts is None else parts[0][0].alphabet,
+                           tuple(names[i] for i in sorted(species_tree.extant_leaves())))
 
 
 __all__ = ["simulate_sequences", "SequencesResult", "StreamedSequences",

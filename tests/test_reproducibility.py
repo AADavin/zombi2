@@ -98,7 +98,7 @@ def _genomes_ordered():
                                  inversion=0.3, transposition=0.1, seed=7)
     order = "\n".join(f"{s}\t{c.id}\t{c.topology}\t"
                       + ",".join(f"{gene.family}:{gene.strand}" for gene in c.genes)
-                      for s in sorted(g.genomes) for c in g.genomes[s])
+                      for s in sorted(g.node_genomes) for c in g.node_genomes[s])
     return _digest(_events_text(g.edges), order)
 
 
