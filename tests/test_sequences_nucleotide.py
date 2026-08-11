@@ -69,7 +69,7 @@ def test_inverted_stretches_come_back_reverse_complemented():
     genomes = _run(seed=7, inversion=6.0, n_extant=8)
     leaves = list(genomes.complete_tree.extant_leaves())
     assert any(b.strand == -1 for lid in leaves
-               for c in genomes.genomes[lid].chromosomes for b in c.blocks)
+               for c in genomes.node_genomes[lid].chromosomes for b in c.blocks)
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=7)
     for lid in leaves:
         assert r.genomes[node_label(lid)] == _traced(genomes, r, lid)
@@ -80,7 +80,7 @@ def test_every_lineage_gets_a_genome_of_the_right_length():
     r = simulate_sequences(genomes, model=hky85(kappa=3.0), substitution=0.4, seed=5)
     assert set(r.genomes) == {node_label(i) for i in genomes.complete_tree.nodes}
     names = genomes.complete_tree.labels()
-    for node_id, genome in genomes.genomes.items():
+    for node_id, genome in genomes.node_genomes.items():
         for chrom in genome.chromosomes:
             assert len(r.genomes[names[node_id]][chrom.id]) == chrom.length
 
@@ -109,7 +109,7 @@ def test_material_no_extant_leaf_kept_is_still_reconstructed():
     # later died out everywhere still has blocks for it — and a genome, exact like any other
     genomes = _run(seed=4, loss=3.0, n_extant=8)
     kept = {sp for n in (genomes.complete_tree.nodes[_i] for _i in genomes.complete_tree.extant_leaves()) for sp in genomes.ancestry(n.id)}
-    doomed = [nid for nid in sorted(genomes.genomes) if set(genomes.ancestry(nid)) - kept]
+    doomed = [nid for nid in sorted(genomes.node_genomes) if set(genomes.ancestry(nid)) - kept]
     assert doomed, "nothing died out for good in this run — pick another seed"
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=4)
     rebuilt = r.genomes
@@ -149,8 +149,8 @@ def test_write_emits_one_fasta_per_extant_lineage(tmp_path):
         label = node_label(leaf.id)
         lines = (tmp_path / "genomes" / f"genome_{label}.fasta").read_text(encoding="utf-8").splitlines()
         headers = [ln for ln in lines if ln.startswith(">")]
-        assert headers == [f">{label}_chr{c.id}" for c in genomes.genomes[leaf.id].chromosomes]
-        assert sum(len(ln) for ln in lines if not ln.startswith(">")) == genomes.genomes[leaf.id].length
+        assert headers == [f">{label}_chr{c.id}" for c in genomes.node_genomes[leaf.id].chromosomes]
+        assert sum(len(ln) for ln in lines if not ln.startswith(">")) == genomes.node_genomes[leaf.id].length
 
 
 def test_an_unordered_run_assembles_nothing(tmp_path):
@@ -197,7 +197,7 @@ def test_the_rebuilt_root_is_the_genome_the_gff_seeded(tmp_path):
     # what we started with: the founding blocks in root coordinate order. Drawn before any event and
     # never seen by the recovery, so it is a reference and not a second assembly.
     started = "".join(r.founding[i] for i in range(len(g.root_blocks)))
-    chrom = g.genomes[root].chromosomes[0]
+    chrom = g.node_genomes[root].chromosomes[0]
     assert len(started) == chrom.length
     assert r.genomes[node_label(root)][chrom.id] == started
     # and the leaves have moved on, so the match above is not a run in which nothing happened
@@ -336,13 +336,13 @@ def test_a_partial_loss_leaves_no_fragment_to_go_wrong():
     # the invariant: no node still carrying a block is one of those. A copy's blocks are disjoint in
     # source coordinates, so if a node still holds all of a block under copy c, no loss of c can have
     # taken any of it — and it holds *all* of it, because the node voted on the cuts.
-    for node_id, genome in g.genomes.items():
+    for node_id, genome in g.node_genomes.items():
         for chrom in genome.chromosomes:
             for blk in chrom.blocks:
                 for i, (s, a, b) in enumerate(g.root_blocks):
                     if s == blk.source and blk.start <= a and b <= blk.end:
                         assert (i, blk.copy) not in dead
-    for node_id in sorted(g.genomes):                               # so every node assembles
+    for node_id in sorted(g.node_genomes):                               # so every node assembles
         g.assembly(node_id)
 
 
@@ -384,7 +384,7 @@ def test_the_genome_level_writes_the_initial_mosaic_in_its_own_file(tmp_path):
     assert len(rows) - 1 == sum(len(c.blocks) for c in genomes.initial_genome.chromosomes)
     # and it is not smuggled into blocks.tsv, whose every lineage is a real node
     labels = {ln.split("\t")[0] for ln in (tmp_path / "blocks.tsv").read_text(encoding="utf-8").splitlines()[1:]}
-    assert labels == {node_label(i) for i in genomes.genomes}
+    assert labels == {node_label(i) for i in genomes.node_genomes}
 
 
 # --- reading a written run back ---------------------------------------------------------------------
@@ -457,7 +457,7 @@ def test_a_seeded_run_descends_from_the_supplied_fasta(tmp_path):
     genomes = _seeded(tmp_path, "".join("ACGT"[i % 4] for i in range(100)))
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=4)
     names = genomes.complete_tree.labels()
-    for node_id in genomes.genomes:
+    for node_id in genomes.node_genomes:
         assert r.genomes[names[node_id]] == _ref_through_root(genomes, node_id)
     chrom = genomes.initial_genome.chromosomes[0]
     assert r.initial_genome[chrom.id] == genomes.initial_sequence[0]        # the input, exactly
@@ -480,7 +480,7 @@ def test_a_homopolymer_inverts_to_its_complement(tmp_path):
     genomes = _seeded(tmp_path, "A" * 100, seed=4, inversion=6.0)
     leaves = list(genomes.complete_tree.extant_leaves())
     assert any(b.strand == -1 for lid in leaves
-               for c in genomes.genomes[lid].chromosomes for b in c.blocks)
+               for c in genomes.node_genomes[lid].chromosomes for b in c.blocks)
     r = simulate_sequences(genomes, model=jc69(), substitution=0.0, seed=4)
     letters = {ch for lid in leaves for seq in r.genomes[node_label(lid)].values() for ch in seq}
     assert letters == {"A", "T"}

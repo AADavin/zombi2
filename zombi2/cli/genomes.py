@@ -434,12 +434,12 @@ def _warn_if_genomes_emptied(result, resolution: str) -> None:
     floor leaves a lineage a chromosome with material on it."""
     extant = list(result.complete_tree.extant_leaves())
     if resolution == "ordered":
-        empty = [i for i in extant if not any(c.genes for c in result.genomes[i])]
+        empty = [i for i in extant if not any(c.genes for c in result.node_genomes[i])]
         why = ("A loss never takes a chromosome below its last gene at --resolution ordered, but "
                "chromosome_loss can take the chromosome that held them. Lower --loss or "
                "--chromosome-loss, or raise --origination")
     else:
-        empty = [i for i in extant if not result.genomes[i]]
+        empty = [i for i in extant if not result.node_genomes[i]]
         why = ("There is no genome floor at --resolution family: loss is counted per copy, and the "
                "last copy is a copy like any other. Lower --loss, raise --origination, or start "
                "with more --initial-families")
@@ -646,7 +646,7 @@ def run(args, parser):
                    f"(family)")
     elif args.resolution == "nucleotide":       # no phyletic profiles here: the unit is a base pair
         extant = list(result.complete_tree.extant_leaves())
-        bp = sum(result.genomes[s].length for s in extant)
+        bp = sum(result.node_genomes[s].length for s in extant)
         summary = (f"{len(result.gene_spans)} genes and {bp} bp across {len(extant)} extant "
                    f"genomes (nucleotide)")
     else:

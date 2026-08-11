@@ -154,8 +154,9 @@ A GFF gives coordinates, not letters. `fasta="genome.fasta"` supplies the DNA th
 `simulate_genomes_nucleotide` returns a **`NucleotideGenomesResult`**:
 
 - `.complete_tree`, the species tree the genomes ran on, extinct lineages included.
-- `.genomes`, a dict from node id to that node's `NucleotideGenome`, a list of `Chromosome`s, each a list of `Block`s.
-- `.initial_genome`, the genome the run **started** with, at the root lineage's origination. It is not `.genomes[root]`: a node sits at the **end** of its branch, and the root branch is real simulated time, so events happen along it. Written to its own `initial_genome.tsv`, with no `lineage` column, because it belongs to no node. It votes on the root partition like every other genome, so `.initial_assembly()` rebuilds it too.
+- `.genomes`, the observed dataset: each **extant** tip's `NucleotideGenome`, keyed by tip name (`n5`) — a list of `Chromosome`s, each a list of `Block`s.
+- `.node_genomes`, the same for **every** node, extant and extinct and internal alike, keyed by node id.
+- `.initial_genome`, the genome the run **started** with, at the root lineage's origination. It is not `.node_genomes[root]`: a node sits at the **end** of its branch, and the root branch is real simulated time, so events happen along it. Written to its own `initial_genome.tsv`, with no `lineage` column, because it belongs to no node. It votes on the root partition like every other genome, so `.initial_assembly()` rebuilds it too.
 - `.events`, the copy-lineage genealogy: origination, loss, duplication, transfer, speciation.
 - `.rearrangements`, the ancestry-neutral log: inversion, transposition, translocation.
 - `.chromosome_events`, the chromosome network, as in Chapter 5.

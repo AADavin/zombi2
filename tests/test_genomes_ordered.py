@@ -73,7 +73,7 @@ def _extant_leaves(node):
 
 def test_genome_is_a_tuple_of_chromosomes_of_oriented_genes():
     _, r = _run(seed=2)
-    for chroms in r.genomes.values():
+    for chroms in r.node_genomes.values():
         assert isinstance(chroms, tuple)
         for ch in chroms:
             assert isinstance(ch, Chromosome) and ch.topology in ("circular", "linear")
@@ -84,15 +84,15 @@ def test_seeded_chromosome_count_and_topology():
     nodes = {0: Node(0, None, 0.0, 1.0, (), "extant")}  # a lone leaf: its genome is the seed
     r = simulate_genomes_ordered(Tree(nodes, 0), chromosomes=5, topology="linear",
                                  initial_families=0, seed=1)
-    assert len(r.genomes[0]) == 5
-    assert all(ch.topology == "linear" for ch in r.genomes[0])
+    assert len(r.node_genomes[0]) == 5
+    assert all(ch.topology == "linear" for ch in r.node_genomes[0])
 
 
 def test_initial_families_dealt_round_robin_across_chromosomes():
     nodes = {0: Node(0, None, 0.0, 1.0, (), "extant")}  # no events -> genome is exactly the seed
     r = simulate_genomes_ordered(Tree(nodes, 0), chromosomes=3, initial_families=7, seed=1)
     # 7 genes over 3 chromosomes, round-robin: 3, 2, 2
-    assert [len(ch.genes) for ch in r.genomes[0]] == [3, 2, 2]
+    assert [len(ch.genes) for ch in r.node_genomes[0]] == [3, 2, 2]
 
 
 def test_shared_params_are_a_subset_of_the_ordered_signature():
@@ -124,18 +124,18 @@ def test_extant_gene_tree_leaves_equal_the_extant_copy_total():
 
 def test_per_node_gene_ids_are_unique():
     _, r = _run(seed=6)
-    for chroms in r.genomes.values():
+    for chroms in r.node_genomes.values():
         ids = [g.id for ch in chroms for g in ch.genes]
         assert len(ids) == len(set(ids))
 
 
 def test_family_counts_and_gene_order_agree():
     _, r = _run(seed=7)
-    for node_id in r.genomes:
+    for node_id in r.node_genomes:
         order = r.gene_order(node_id)
         assert len(order) == sum(r.family_counts(node_id).values())
         # gene_order lists (chromosome, position, strand, family, gid); positions run 0..len-1 per chrom
-        for ch in r.genomes[node_id]:
+        for ch in r.node_genomes[node_id]:
             rows = [row for row in order if row[0] == ch.id]
             assert [row[1] for row in rows] == list(range(len(ch.genes)))
 
@@ -164,7 +164,7 @@ def test_inversions_never_remint_gene_ids():
     r = simulate_genomes_ordered(Tree(nodes, 0), inversion=6.0, chromosomes=1,
                                  initial_families=8, seed=2)
     assert r.rearrangements                                     # inversions really fired
-    assert {g.id for ch in r.genomes[0] for g in ch.genes} == set(range(8))
+    assert {g.id for ch in r.node_genomes[0] for g in ch.genes} == set(range(8))
 
 
 def test_recorded_inversions_are_well_formed():
@@ -211,7 +211,7 @@ def test_chromosome_genealogy_is_a_connected_forest():
 def test_chromosome_count_is_conserved_through_speciation():
     # slice 1 has no fission/fusion, so a daughter has exactly its parent's chromosome count
     _, r = _run(seed=11, chromosomes=4)
-    for node_id, chroms in r.genomes.items():
+    for node_id, chroms in r.node_genomes.items():
         node = r.complete_tree.nodes[node_id]
         if not node.children:
             assert len(chroms) == 4                            # inherited unchanged down every branch
@@ -247,7 +247,7 @@ def test_deterministic_given_seed():
     sp, r = _run(seed=3)
     r2 = simulate_genomes_ordered(sp, duplication=0.3, transfer=0.2, loss=0.25, origination=0.6,
                                   inversion=0.4, chromosomes=4, initial_families=16, seed=3)
-    assert all(r.gene_order(x) == r2.gene_order(x) for x in r.genomes)
+    assert all(r.gene_order(x) == r2.gene_order(x) for x in r.node_genomes)
     assert r.rearrangements == r2.rearrangements
     assert r.chromosome_events == r2.chromosome_events
 
@@ -271,7 +271,7 @@ def _ordered_digest(r) -> str:
         [(type(x).__name__, round(x.time, 12), x.lineage, tuple(sorted(vars(x).items())))
          for x in r.rearrangements],
         [(round(c.time, 12), c.kind, c.lineage, c.parents, c.children) for c in r.chromosome_events],
-        {k: r.gene_order(k) for k in sorted(r.genomes)},
+        {k: r.gene_order(k) for k in sorted(r.node_genomes)},
         [(c.id, c.topology, [(g.id, g.family, g.strand) for g in c.genes]) for c in r.initial_genome],
     ])
     return hashlib.sha256(key.encode()).hexdigest()
@@ -296,7 +296,7 @@ def test_a_skyline_is_accepted():
     r = simulate_genomes_ordered(sp, duplication=PerCopy(0.3).changing_at({0: 1.0, 1.0: 0.2}),
                                  inversion=PerCopy(0.2).changing_at({0: 0.5, 1.0: 2.0}),
                                  chromosomes=2, initial_families=6, seed=1)
-    assert r.genomes                                           # ran without complaint
+    assert r.node_genomes                                           # ran without complaint
 
 
 @pytest.mark.parametrize("law", [LogNormal(0.0, 0.5), Drift(LogNormal(0.0, 0.5))],
@@ -404,7 +404,7 @@ def test_mixed_topology_per_chromosome():
     nodes = {0: Node(0, None, 0.0, 1.0, (), "extant")}
     r = simulate_genomes_ordered(Tree(nodes, 0), chromosomes=2, topology=["circular", "linear"],
                                  initial_families=4, seed=1)
-    assert [ch.topology for ch in r.genomes[0]] == ["circular", "linear"]
+    assert [ch.topology for ch in r.node_genomes[0]] == ["circular", "linear"]
 
 
 def test_write_emits_the_selected_outputs(tmp_path):
@@ -445,7 +445,7 @@ def test_gene_order_is_written_for_every_node_not_only_the_tips(tmp_path):
     internal = {n.id for n in r.complete_tree.nodes.values() if n.children}
     assert internal, "the fixture tree should have internal nodes to write"
     # every node with genes is present — root and internal branches included, not just the tips
-    assert set(written) == {s for s in r.genomes if r.gene_order(s)}
+    assert set(written) == {s for s in r.node_genomes if r.gene_order(s)}
     assert internal & set(written)
     # and each node's written rows are that node's actual layout
     for s, rows in written.items():
@@ -457,7 +457,7 @@ def test_empty_run_has_chromosomes_but_no_genes():
     r = simulate_genomes_ordered(sp, chromosomes=3, initial_families=0, seed=1)   # no families, no events
     assert r.events == [] and r.rearrangements == []
     assert all(len(chroms) == 3 and sum(len(ch.genes) for ch in chroms) == 0
-               for chroms in r.genomes.values())
+               for chroms in r.node_genomes.values())
     assert r.gene_trees == {}
 
 
@@ -504,7 +504,7 @@ def test_strong_invariant_survives_the_tier():
 
 def test_a_genome_never_loses_its_last_chromosome():
     _, r = _tier(seed=4, chromosome_loss=1.0, chromosome_origination=0.0)  # push loss hard
-    assert all(len(chroms) >= 1 for chroms in r.genomes.values())
+    assert all(len(chroms) >= 1 for chroms in r.node_genomes.values())
 
 
 def test_a_genome_never_loses_its_last_genes_to_a_chromosome_loss():
@@ -520,13 +520,13 @@ def test_a_genome_never_loses_its_last_genes_to_a_chromosome_loss():
                                      chromosome_loss=1.0, chromosome_origination=0.5,
                                      initial_families=4, chromosomes=2, seed=seed)
         for node in (sp.complete_tree.nodes[_i] for _i in sp.complete_tree.extant_leaves()):
-            assert any(c.genes for c in r.genomes[node.id]), (
+            assert any(c.genes for c in r.node_genomes[node.id]), (
                 f"seed {seed}, lineage {node.id}: every chromosome came out empty")
 
 
 def test_the_tier_changes_chromosome_number():
     _, r = _tier(seed=5)
-    counts = {len(chroms) for chroms in r.genomes.values()}
+    counts = {len(chroms) for chroms in r.node_genomes.values()}
     assert len(counts) > 1                                    # not the conserved single value of slice 1
 
 
@@ -538,7 +538,7 @@ def test_tier_rates_zero_is_byte_identical_to_a_no_tier_call():
     a = simulate_genomes_ordered(sp, **base)
     b = simulate_genomes_ordered(sp, **base, fission=0.0, fusion=0.0, chromosome_origination=0.0,
                                  chromosome_loss=0.0)
-    assert all(a.gene_order(x) == b.gene_order(x) for x in a.genomes)
+    assert all(a.gene_order(x) == b.gene_order(x) for x in a.node_genomes)
     assert a.chromosome_events == b.chromosome_events and a.rearrangements == b.rearrangements
 
 
@@ -550,8 +550,8 @@ def test_de_novo_replicon_is_an_empty_origination_root():
     de_novo = [e for e in r.chromosome_events if e.kind == "origination"]
     assert de_novo                                    # some replicons appeared past the initial one
     # the initial replicon carried the 3 genes; the de-novo ones are empty
-    assert sum(len(ch.genes) for ch in r.genomes[0]) == 3
-    assert len(r.genomes[0]) == 1 + len(de_novo)
+    assert sum(len(ch.genes) for ch in r.node_genomes[0]) == 3
+    assert len(r.node_genomes[0]) == 1 + len(de_novo)
 
 
 def _minter(start):
@@ -649,7 +649,7 @@ def test_a_mixed_topology_karyotype_keeps_one_chromosome_of_each_shape():
                                  topology=["circular", "linear", "circular", "linear"],
                                  initial_families=12, seed=1)
     for n in (sp.complete_tree.nodes[_i] for _i in sp.complete_tree.extant_leaves()):
-        assert sorted(c.topology for c in r.genomes[n.id]) == ["circular", "linear"]
+        assert sorted(c.topology for c in r.node_genomes[n.id]) == ["circular", "linear"]
     # ... and no recorded fusion edge ever joined two shapes. Ancestral chromosomes are not in the
     # result, so track each id's topology down the network from the roots the run laid down.
     topology = {}
@@ -927,8 +927,8 @@ def test_a_loss_never_takes_a_chromosome_below_its_last_gene():
 def test_a_crushing_loss_rate_leaves_every_chromosome_standing():
     r = simulate_genomes_ordered(_lone_branch(5.0), loss=2.0, chromosomes=2, initial_families=6,
                                  loss_extent=Fixed(50), seed=1)
-    assert len(r.genomes[0]) == 2                                # both chromosomes still there
-    assert all(len(ch.genes) >= 1 for ch in r.genomes[0])        # and neither was emptied
+    assert len(r.node_genomes[0]) == 2                                # both chromosomes still there
+    assert all(len(ch.genes) >= 1 for ch in r.node_genomes[0])        # and neither was emptied
 
 
 def test_a_linear_chromosome_still_clamps_at_its_end():
@@ -1001,7 +1001,7 @@ def test_wrapped_runs_stay_deterministic_given_a_seed():
     a = simulate_genomes_ordered(sp, **kw)
     b = simulate_genomes_ordered(sp, **kw)
     assert a.rearrangements and a.rearrangements == b.rearrangements
-    assert all(a.gene_order(x) == b.gene_order(x) for x in a.genomes)
+    assert all(a.gene_order(x) == b.gene_order(x) for x in a.node_genomes)
     assert a.events == b.events
 
 
@@ -1110,7 +1110,7 @@ def _layout_digest(result):
     """Every node's layout. The genealogy alone is not enough here: rotating a circular chromosome
     moves no gene between lineages and would slip past an events-only digest, and rotation is exactly
     what the recipient-pick hoist below changes the timing of."""
-    return _sha({i: result.gene_order(i) for i in sorted(result.genomes)})
+    return _sha({i: result.gene_order(i) for i in sorted(result.node_genomes)})
 
 
 # Captured from the engine BEFORE the choice slot was wired at this resolution. Wiring it added a
@@ -1275,7 +1275,7 @@ def test_gene_order_records_each_chromosome_topology(tmp_path):
     for row in rows[1:]:
         cells = row.split("\t")
         lineage, chrom, topology = node_from_label(cells[0]), int(cells[1]), cells[2]
-        actual = {c.id: c.topology for c in r.genomes[lineage]}
+        actual = {c.id: c.topology for c in r.node_genomes[lineage]}
         assert topology == actual[chrom], f"{cells[0]} chr{chrom}: wrote {topology!r}"
         seen.add(topology)
     assert seen == {"circular", "linear"}, f"the mixed karyotype should show both, saw {seen}"

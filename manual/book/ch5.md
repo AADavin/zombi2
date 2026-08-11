@@ -165,8 +165,9 @@ g = genomes.simulate_genomes_ordered(
 `simulate_genomes_ordered` returns an **`OrderedGenomesResult`**: the `FamilyGenomesResult` spine, with the structured extras.
 
 - `.complete_tree`, the species tree the genomes ran on, extinct lineages included.
-- `.genomes`, a dict from node id to that node's genome, now a tuple of **`Chromosome`** objects. Each `Chromosome` has an `id`, a `topology`, and an ordered list of **`Gene`** objects (`id`, `family`, `strand`).
-- `.initial_genome`, the genome the run **started** with, at the root lineage's origination. It is not `.genomes[root]`: a node sits at the **end** of its branch, and the root branch is real simulated time, so events happen along it. Written to its own `initial_genome.tsv`, with no `lineage` column, because it belongs to no node.
+- `.genomes`, the observed dataset: the genome at each **extant** tip, keyed by tip name (`n5`), now a tuple of **`Chromosome`** objects. Each `Chromosome` has an `id`, a `topology`, and an ordered list of **`Gene`** objects (`id`, `family`, `strand`).
+- `.node_genomes`, the same for **every** node, extant and extinct and internal alike, keyed by node id.
+- `.initial_genome`, the genome the run **started** with, at the root lineage's origination. It is not `.node_genomes[root]`: a node sits at the **end** of its branch, and the root branch is real simulated time, so events happen along it. Written to its own `initial_genome.tsv`, with no `lineage` column, because it belongs to no node.
 - `.events`, the gene-genealogy log, exactly as in Chapter 4, from which `.gene_trees` and `.profiles` are derived unchanged. Position and orientation are *not* here; they live in the genomes and the two logs below.
 - `.rearrangements`, the inversion / transposition / translocation log.
 - `.chromosome_events`, the chromosome network, as an edge list.
@@ -175,7 +176,8 @@ g = genomes.simulate_genomes_ordered(
 with the methods `.family_counts(node_id)` (the multiset view), `.gene_order(node_id)` (the layout: `(chromosome, position, strand, family, gene id)` per gene), and `.write(dir, outputs=[...])`.
 
 ```python
-g.genomes[2]                     # the chromosomes of node n2
+g.genomes["n2"]                  # the chromosomes of the extant tip n2
+g.node_genomes[2]                # any node, extant or not, by id
 g.gene_order(2)                  # its layout, gene by gene
 g.chromosome_events              # the chromosome network, as an edge list
 g.gene_trees[0].to_newick()      # a family's gene tree, as at the family resolution

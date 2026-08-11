@@ -250,8 +250,8 @@ def test_zero_factor_lineages_never_lose(tmp_path):
     # here): its family set equals what it inherited from its parent, whatever that was.
     for i, node in tree.nodes.items():
         if node.parent is not None and state_of[i] == "lo":
-            fams = {c.family for c in res.genomes[i]}
-            parent_fams = {c.family for c in res.genomes[node.parent]}
+            fams = {c.family for c in res.node_genomes[i]}
+            parent_fams = {c.family for c in res.node_genomes[node.parent]}
             assert fams == parent_fams, f"lo lineage n{i} changed vs parent: {fams} != {parent_fams}"
 
 
@@ -306,8 +306,8 @@ def test_end_to_end_trait_drives_loss(tmp_path):
         origination=0.2, initial_families=5, seed=2,
     )
     # compare mean copy count of extant tips by their (end-of-branch) habitat
-    cave = [len(res.genomes[n.id]) for n in (tree.nodes[_i] for _i in tree.extant_leaves()) if hab.node_values[n.id] == "cave"]
-    surface = [len(res.genomes[n.id]) for n in (tree.nodes[_i] for _i in tree.extant_leaves()) if hab.node_values[n.id] == "surface"]
+    cave = [len(res.node_genomes[n.id]) for n in (tree.nodes[_i] for _i in tree.extant_leaves()) if hab.node_values[n.id] == "cave"]
+    surface = [len(res.node_genomes[n.id]) for n in (tree.nodes[_i] for _i in tree.extant_leaves()) if hab.node_values[n.id] == "surface"]
     assert cave and surface, "need both habitats represented among the tips"
     assert sum(cave) / len(cave) < sum(surface) / len(surface)
 
@@ -513,7 +513,7 @@ def test_no_eligible_recipient_means_no_transfer_at_all(tmp_path):
     assert not [e for e in blocked.edges if e.kind == "transfer"]
     assert [e for e in free.edges if e.kind == "transfer"]
     # a dropped event leaves the genomes untouched: the six crown families are simply inherited
-    assert all(len(g) == 6 for g in blocked.genomes.values())
+    assert all(len(g) == 6 for g in blocked.node_genomes.values())
 
 
 def test_both_drivers_compose(tmp_path):
@@ -1222,9 +1222,9 @@ def test_continuous_driver_drives_a_rate_and_is_deterministic():
     driven = run(lambda v: 3.0 ** v)
     control = run(lambda v: 1.0)                          # a flat Curve == the undriven model
     tips = list(ct.extant_leaves())
-    assert any(len(driven.genomes[i]) != len(control.genomes[i]) for i in tips)
+    assert any(len(driven.node_genomes[i]) != len(control.node_genomes[i]) for i in tips)
     again = run(lambda v: 3.0 ** v)
-    assert all(len(driven.genomes[i]) == len(again.genomes[i]) for i in tips)
+    assert all(len(driven.node_genomes[i]) == len(again.node_genomes[i]) for i in tips)
 
 
 def test_continuous_driver_takes_a_scalar_link():

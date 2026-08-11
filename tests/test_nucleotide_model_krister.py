@@ -87,7 +87,7 @@ def _seed(tmp_path, fixture=FORK_30_6):
     """The seed chromosome, with every rate zero so the root genome is exactly the declaration."""
     tree, _ = read_newick("(A:1.0,B:1.0);")
     r = simulate_genomes_nucleotide(tree, gff=_gff(tmp_path, fixture), seed=1)
-    return r.genomes[tree.root].chromosomes[0]
+    return r.node_genomes[tree.root].chromosomes[0]
 
 
 def _layout(chrom):
@@ -779,8 +779,8 @@ def _render_golden(name, params):
     tree, _ = read_newick(GOLDEN_TREE)
     r = simulate_genomes_nucleotide(tree, seed=11, **params)
     lines = [f"## {name}"]
-    for node in sorted(r.genomes):
-        for chrom in r.genomes[node].chromosomes:
+    for node in sorted(r.node_genomes):
+        for chrom in r.node_genomes[node].chromosomes:
             blocks = " ".join(f"{b.source}:{b.start}-{b.end}:{b.strand}:{b.copy}:{b.gene}"
                               for b in chrom.blocks)
             lines.append(f"node {node} chrom {chrom.id} {chrom.topology} {blocks}")

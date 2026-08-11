@@ -689,7 +689,7 @@ class NucleotideGenomesResult:
     / ``trace_back`` / ``ancestry`` read a node's genome."""
 
     complete_tree: Tree
-    genomes: dict[int, NucleotideGenome]
+    node_genomes: dict[int, NucleotideGenome]
     events: list[Origination | Loss | Duplication | Transfer | Speciation]
     rearrangements: list[Inversion | Translocation | Transposition]
     chromosome_events: list[ChromosomeEvent]
@@ -730,17 +730,42 @@ class NucleotideGenomesResult:
 
     def __repr__(self) -> str:
         return (f"NucleotideGenomesResult({len(self.complete_tree.extant_leaves())} extant genomes, "
-                f"{len(self.genomes)} nodes, {len(self.gene_spans)} genes, "
+                f"{len(self.node_genomes)} nodes, {len(self.gene_spans)} genes, "
                 f"{len(self.events)} events, seed={self.seed})")
 
     def mosaic(self, node_id: int) -> dict[int, list[tuple[int, int, int, int]]]:
-        return self.genomes[node_id].mosaic()
+        return self.node_genomes[node_id].mosaic()
 
     def trace_back(self, node_id: int) -> dict[int, list[tuple[int, int, int]]]:
-        return self.genomes[node_id].trace_back()
+        return self.node_genomes[node_id].trace_back()
 
     def ancestry(self, node_id: int) -> list[tuple[int, int]]:
-        return self.genomes[node_id].ancestry()
+        return self.node_genomes[node_id].ancestry()
+
+    @property
+    def genomes(self) -> dict[str, NucleotideGenome]:
+        """The observed dataset — the genome at each **extant** tip, keyed by the **tip name** the
+        tree writes: ``n5``.
+
+        Keyed by name because the only thing anyone does with this is join it to the tree, or to
+        another level grown on that tree, and both name their tips. The written output is keyed by
+        name too, so what you get in Python and what you get from a file are the same dataset.
+        This is the trait level's `TraitsResult.values` for gene content.
+
+        `node_genomes` is the run's own record: every node, extant and extinct and internal alike,
+        keyed by node id. Use that one to join against ``complete_tree.nodes`` or the event log."""
+        extant = list(self.complete_tree.extant_leaves())
+        if extant and not self.node_genomes:
+            # a run reopened by `read_run` from a directory whose 'genomes' output was not written:
+            # the genealogy is all there, the gene content is not. Say that, rather than hand back
+            # an empty dict that reads as a run in which nothing survived.
+            raise ValueError(
+                "this run has no per-node gene content, so there are no genomes to hand back — it "
+                "was read back from a directory whose genomes.tsv was not written. Re-run the "
+                "genomes level with 'genomes' among its outputs. The gene trees and the event log "
+                "are unaffected.")
+        name = self.complete_tree.labels()
+        return {name[i]: self.node_genomes[i] for i in extant}
 
     def completion(self, name: str):
         """A module's completion as a **conditioning driver** — `ModuleCompletion`, a number in
@@ -852,7 +877,7 @@ class NucleotideGenomesResult:
         blocks = self.root_blocks
         what = node_label(node_id)
         out = {}
-        for cid, pieces in self._pieces(self.genomes[node_id], what).items():
+        for cid, pieces in self._pieces(self.node_genomes[node_id], what).items():
             named = []
             for (i, copy, strand) in pieces:
                 gene = tips.get((i, copy), _MISSING)
@@ -1065,8 +1090,8 @@ class NucleotideGenomesResult:
         divided."""
         t0 = self.complete_tree.nodes[self.complete_tree.root].birth_time
         extant = list(self.complete_tree.extant_leaves())
-        lengths = [self.genomes[i].length for i in extant if i in self.genomes]
-        chrom_per_genome = [len(self.genomes[i].chromosomes) for i in extant if i in self.genomes]
+        lengths = [self.node_genomes[i].length for i in extant if i in self.node_genomes]
+        chrom_per_genome = [len(self.node_genomes[i].chromosomes) for i in extant if i in self.node_genomes]
         rearrangements = collections.Counter(type(r).__name__.lower() for r in self.rearrangements)
         chromosome = collections.Counter(e.kind for e in self.chromosome_events)
         # this resolution's own log, counted one number per EVENT — a row of `block_events.tsv` is
@@ -1101,8 +1126,8 @@ class NucleotideGenomesResult:
     def _every_genome(self, names=None):
         """``(label, genome)`` for every genome the run holds — each node, and the initial one. The
         labels are the ones the sequence level writes its FASTA under, so the files pair up."""
-        for node_id in sorted(self.genomes):
-            yield _name(names, node_id), self.genomes[node_id]
+        for node_id in sorted(self.node_genomes):
+            yield _name(names, node_id), self.node_genomes[node_id]
         yield "initial", self.initial_genome
 
     def _laid_out(self, genome: NucleotideGenome):
@@ -1158,8 +1183,8 @@ class NucleotideGenomesResult:
         chromosome, so the rows of one chromosome tile it end to end from 0."""
         cols = ("lineage", "chromosome", "position", "source", "start", "end", "strand", "copy", "gene")
         rows = []
-        for s in sorted(self.genomes):
-            for c in self.genomes[s].chromosomes:
+        for s in sorted(self.node_genomes):
+            for c in self.node_genomes[s].chromosomes:
                 at = 0
                 for b in c.blocks:
                     rows.append(f"{_name(names, s)}\t{c.id}\t{at}\t{b.source}\t{b.start}\t{b.end}\t{b.strand}\t"
@@ -2474,7 +2499,7 @@ def _root_block_partition(result) -> list[tuple[int, int, int]]:
     the end of its branch. A boundary that vanishes took its material with it."""
     bounds: dict[int, set[int]] = collections.defaultdict(set)
     spans: dict[int, set[tuple[int, int]]] = collections.defaultdict(set)
-    for genome in [*result.genomes.values(), result.initial_genome]:
+    for genome in [*result.node_genomes.values(), result.initial_genome]:
         for chrom in genome.chromosomes:
             for b in chrom.blocks:
                 bounds[b.source].update((b.start, b.end))

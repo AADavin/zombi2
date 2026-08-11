@@ -117,8 +117,9 @@ Each entry is a weight, read the same way `"distance"`'s weights are: normalised
 `simulate_genomes_family` returns a **FamilyGenomesResult** which carries:
 
 - `.complete_tree`, the species tree the genomes ran on, extinct lineages and all.
-- `.genomes`, a dict from node to that node's genome.
-- `.initial_genome`, the genome the run **started** with, at the root lineage's origination. It is not `.genomes[root]`: a node sits at the **end** of its branch, and the root branch is real simulated time, so events happen along it. Written to its own `initial_genome.tsv`, with no `lineage` column, because it belongs to no node.
+- `.genomes`, the observed dataset: the genome at each **extant** tip, keyed by the tip name the tree writes (`n5`). This is what `genomes.tsv` holds, and it joins to the tree — and to a trait grown on the same tree — on the key it is already keyed by.
+- `.node_genomes`, the run's own record: **every** node, extant and extinct and internal alike, keyed by node id. Use this one to join against `.complete_tree.nodes` or the event log.
+- `.initial_genome`, the genome the run **started** with, at the root lineage's origination. It is not `.node_genomes[root]`: a node sits at the **end** of its branch, and the root branch is real simulated time, so events happen along it. Written to its own `initial_genome.tsv`, with no `lineage` column, because it belongs to no node.
 - `.events`, the event log: every gene event with its time, its family, and the gene copies it ended and began, covering origination, duplication, transfer, loss, and the *speciations* at a split. A transfer is written under the kind that says what it did on arrival: `transfer_additive` when the arriving copy is an addition, `transfer_replacing` when it overwrote a homolog. So filter for both, or on the prefix: there is no bare `transfer` row.
 - `.profiles`, the family × extant-species copy-count table.
 - `.gene_trees`, one `GeneTree` per family.
@@ -133,8 +134,9 @@ and its methods:
 - `.write(dir, outputs=[...])`, materialise the outputs to disk, listed under *Outputs* below.
 
 ```python
-n5 = g.genomes[5]                    # the gene copies in node n5
-counts = g.family_counts(5)          # {family: copies} for the same node
+g.genomes["n27"]                     # the gene copies at the extant tip n27
+g.node_genomes[5]                    # any node, extant or not, by node id
+counts = g.family_counts(5)          # {family: copies} for that same node
 g.write("out/")                      # the run's files, on disk
 ```
 
