@@ -573,6 +573,82 @@ ph.genomes.grid(M, palette={0: "#F1EFE9", 1: "#26565B"}, borders=False).save("pa
 np.histogram(prev, bins=np.arange(1, len(p.species) + 2))   # the frequency spectrum'''
 
 
+# --- a transition partway through the run ---------------------------------------------------------
+#
+# The clade is named off the TREE, and its factor is written as a schedule, so the change is scoped
+# to a group of lineages AND to a time. Chaining two verbs cannot say this: scaled_by(clade, ...)
+# .changing_at(...) multiplies two factors that each apply to every lineage, so the window would fall
+# on the whole tree instead of on the clade.
+
+_ENDO_SEED, _ENDO_TIPS, _ENDO_T0 = 2, 34, 2.0     # _ENDO_T0: when the clade goes endosymbiotic
+
+
+def _endo_run():
+    """One tree, one genome run: a clade whose loss rate jumps twenty-fold at ``_ENDO_T0`` and which
+    stops receiving transfers at the same moment."""
+    from zombi2.genomes import simulate_genomes_family
+    from zombi2.params import Clade, PerCopy, PerLineage, Recipients
+    from zombi2.species import simulate_species_tree
+
+    sp = simulate_species_tree(birth=1.0, n_extant=_ENDO_TIPS, seed=_ENDO_SEED)
+    ct = sp.complete_tree
+    clade = Clade({"endo": ["n13", "n33"]})
+    on = {0: 1.0, _ENDO_T0: 20.0}                       # the schedule: one factor, from t on
+    off = {0: 1.0, _ENDO_T0: 0.0}
+    g = simulate_genomes_family(
+        ct, initial_families=220, duplication=PerCopy(0.02), origination=PerLineage(1.0),
+        transfer=PerCopy(0.05),
+        loss=PerCopy(0.02).scaled_by(clade, {"endo": on, "rest": 1.0}),
+        transfer_to=Recipients().weighted_by(clade, {"endo": off, "rest": 1.0}),
+        seed=_ENDO_SEED)
+    return ct, clade, g
+
+
+def clade_transition(out):
+    """The tree coloured by genome size, and below it genome size through time inside and outside."""
+    import numpy as np
+
+    ct, clade, g = _endo_run()
+    inside = set(clade.resolve(ct)["endo"])
+    labels = ct.labels()
+    sizes = {labels[i]: len(g.genomes[i]) for i in g.genomes}
+
+    tmp = out.replace(".png", "_tree.png")
+    h.render_tree_for_composite(ph.trees.loads(ct.to_newick()), tmp, values=sizes)
+    present = max(ct.nodes[i].end_time for i in ct.extant_leaves())
+
+    def panel(ax):
+        # a lineage's genome size is read at the END of its branch, so plot each node at that time
+        for group, keep, colour, label in (("endo", True, "#b2182b", "the clade"),
+                                           ("rest", False, "#2166ac", "everything else")):
+            pts = sorted((ct.nodes[i].end_time, len(g.genomes[i]))
+                         for i in g.genomes if (i in inside) == keep)
+            if not pts:
+                continue
+            xs = np.array([t for t, _ in pts])
+            ys = np.array([n for _, n in pts])
+            ax.scatter(xs, ys, s=9, color=colour, alpha=0.55, linewidths=0, label=label)
+        ax.axvline(_ENDO_T0, color="0.35", lw=1.1, ls="--")
+        ax.text(_ENDO_T0, ax.get_ylim()[1], "  the clade goes endosymbiotic",
+                va="top", ha="left", fontsize=8, color="0.3")
+        ax.legend(loc="lower left", frameon=False, fontsize=8)
+
+    h.composite_below(tmp, present, out, panel, "genes per genome")
+
+
+_C_TRANSITION = '''\
+from zombi2.params import Clade, PerCopy, Recipients
+
+clade = Clade({"endo": ["n13", "n33"]})
+
+# one factor, scoped to the clade AND to a time: x20 loss from t=2, and no transfer in from then
+my_genomes = simulate_genomes_family(
+    tree, initial_families=220, duplication=PerCopy(0.02), transfer=PerCopy(0.05),
+    loss=PerCopy(0.02).scaled_by(clade, {"endo": {0: 1.0, 2.0: 20.0}, "rest": 1.0}),
+    transfer_to=Recipients().weighted_by(clade, {"endo": {0: 1.0, 2.0: 0.0}, "rest": 1.0}),
+    seed=2)'''
+
+
 EXAMPLES = [
     Example("genome_circular_ordered", "Circular genome (ordered)",
             "A genome as a ring — genes evenly spaced by rank, coloured by family, arrows by strand. "
@@ -610,4 +686,11 @@ EXAMPLES = [
             "Two runs at the same mean rates. Every family alike gives no core at all; letting families "
             "differ gives 28 core families and a U-shaped spectrum.",
             "phylustrator · heterogeneity", pangenome_by_family, code=_C_PANGENOME),
+    Example("genome_clade_transition", "A transition partway through the run",
+            "A clade turns endosymbiotic at <i>t</i>&nbsp;=&nbsp;2: from then on it sheds genes twenty "
+            "times faster and stops receiving transfers. The factor is scoped to the clade <b>and</b> "
+            "to a time — chaining <code>scaled_by</code> with <code>changing_at</code> cannot say this, "
+            "because the two factors each apply to every lineage. "
+            "<code>scaled_by(clade,&nbsp;{'endo':&nbsp;{0:&nbsp;1.0,&nbsp;2.0:&nbsp;20.0},&nbsp;'rest':&nbsp;1.0})</code>.",
+            "clades · schedules", clade_transition, code=_C_TRANSITION),
 ]

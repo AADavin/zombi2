@@ -9,6 +9,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- **Two gallery examples for the two capabilities added in 0.33.0.** *A transition partway through
+  the run* — a clade turns endosymbiotic at t=2, sheds genes twenty times faster from then on and
+  stops receiving transfers, with genome size through time beside the tree. *A clade with its own
+  substitution model* — one clade under an AT-rich matrix, branches coloured by the A+T content of
+  the sequences on them, so the compositional relaxation toward the new equilibrium is visible along
+  the branches rather than only at the tips. Both are covered by the gallery canary.
+
 ## [0.33.0] - 2026-08-11
 
 ### Fixed
