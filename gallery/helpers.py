@@ -108,14 +108,23 @@ def composite_below(tree_png: str, present: float, out: str, panel, ylabel: str,
     plt.close(fig)
 
 
-def composite_beside(tree_png: str, out: str, panel, figsize=(12, 6), ratios=(3, 1.15)) -> None:
-    """Tree on the left, a standalone matplotlib panel (its own axes) on the right."""
+def composite_beside(tree_png: str, out: str, panel, figsize=(12, 6), ratios=(3, 1.15),
+                     *, geometry=None, wspace: float = 0.15) -> None:
+    """Tree on the left, a standalone matplotlib panel (its own axes) on the right.
+
+    ``geometry`` is the rendered figure's `Figure.geometry()` — pass it for a **row-aligned** panel
+    (one bar per tip): the panel's y axis is set to the tree's own canvas height, so a bar drawn at
+    ``y = tip.y`` sits at the height of that tip rather than merely in the same order. It must be the
+    canvas height and not the PNG's, which Phylustrator renders at 2x."""
     img = mpimg.imread(tree_png)
     fig, (axt, axp) = plt.subplots(1, 2, figsize=figsize,
-                                   gridspec_kw={"width_ratios": list(ratios), "wspace": 0.15})
+                                   gridspec_kw={"width_ratios": list(ratios), "wspace": wspace})
     axt.imshow(img)
     axt.set_axis_off()
     panel(axp)
+    if geometry is not None:
+        axp.set_ylim(geometry.size[1], 0)      # the tree's own coordinate space, top-down
+        axp.set_yticks([])
     for spine in ("top", "right"):
         axp.spines[spine].set_visible(False)
     fig.savefig(out, dpi=125, bbox_inches="tight")

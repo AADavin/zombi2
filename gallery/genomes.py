@@ -581,6 +581,7 @@ np.histogram(prev, bins=np.arange(1, len(p.species) + 2))   # the frequency spec
 # on the whole tree instead of on the clade.
 
 _ENDO_SEED, _ENDO_TIPS, _ENDO_T0 = 2, 34, 2.0     # _ENDO_T0: when the clade goes endosymbiotic
+_ENDO_COL, _FREE_COL = "#b2182b", "#4393c3"
 
 
 def _endo_run():
@@ -605,35 +606,46 @@ def _endo_run():
 
 
 def clade_transition(out):
-    """The tree coloured by genome size, and below it genome size through time inside and outside."""
+    """Which clade turned endosymbiotic, when it happened, and what it cost each genome.
+
+    The colour says the **cause** — which lineages are in the clade — and the bars say the
+    **effect**, one per tip. Encoding genome size as branch colour instead read as a gradient with
+    nothing to say which clade was named or when the switch fell."""
     import numpy as np
 
     ct, clade, g = _endo_run()
     inside = set(clade.resolve(ct)["endo"])
     labels = ct.labels()
-    sizes = {labels[i]: len(g.genomes[i]) for i in g.genomes}
+    group = {labels[i]: ("endosymbiont" if i in inside else "free-living") for i in ct.nodes}
+    palette = {"endosymbiont": _ENDO_COL, "free-living": _FREE_COL}
 
+    fig = (ph.trees.plot(ph.trees.loads(ct.to_newick()),
+                         style=ph.Style(width=1150, height=980, margin=70, branch_width=3.0))
+           + ph.trees.color_branches(group, palette=palette)
+           + ph.trees.time_marker(_ENDO_T0, label=f"endosymbiosis at t = {_ENDO_T0:g}")
+           + ph.trees.time_axis("time")
+           + ph.trees.legend("lineage"))
     tmp = out.replace(".png", "_tree.png")
-    h.render_tree_for_composite(ph.trees.loads(ct.to_newick()), tmp, values=sizes)
-    present = max(ct.nodes[i].end_time for i in ct.extant_leaves())
+    fig.save(tmp)
+
+    # bars in the tree's own tip order, so row k of the panel is tip k of the figure
+    order = [t.name for t in fig.geometry().tips]
+    by_label = {labels[i]: i for i in ct.nodes}
+    sizes = [len(g.genomes[by_label[name]]) for name in order]
+    colours = [palette[group[name]] for name in order]
+
+    geo = fig.geometry()
+    tips = geo.tips
+    span = (tips[-1].y - tips[0].y) / max(len(tips) - 1, 1)      # one tip's share of the height
 
     def panel(ax):
-        # a lineage's genome size is read at the END of its branch, so plot each node at that time
-        for group, keep, colour, label in (("endo", True, "#b2182b", "the clade"),
-                                           ("rest", False, "#2166ac", "everything else")):
-            pts = sorted((ct.nodes[i].end_time, len(g.genomes[i]))
-                         for i in g.genomes if (i in inside) == keep)
-            if not pts:
-                continue
-            xs = np.array([t for t, _ in pts])
-            ys = np.array([n for _, n in pts])
-            ax.scatter(xs, ys, s=9, color=colour, alpha=0.55, linewidths=0, label=label)
-        ax.axvline(_ENDO_T0, color="0.35", lw=1.1, ls="--")
-        ax.text(_ENDO_T0, ax.get_ylim()[1], "  the clade goes endosymbiotic",
-                va="top", ha="left", fontsize=8, color="0.3")
-        ax.legend(loc="lower left", frameon=False, fontsize=8)
+        ax.barh([t.y for t in tips], sizes, color=colours, height=span * 0.72, linewidth=0)
+        ax.set_xlabel("genes per genome")
+        ax.axvline(np.mean([n for n, c in zip(sizes, colours) if c == _FREE_COL]),
+                   color="0.45", lw=1.0, ls=":")
 
-    h.composite_below(tmp, present, out, panel, "genes per genome")
+    h.composite_beside(tmp, out, panel, figsize=(12.5, 7.4), ratios=(3, 1.0),
+                       geometry=geo, wspace=0.02)
 
 
 _C_TRANSITION = '''\
@@ -687,10 +699,11 @@ EXAMPLES = [
             "differ gives 28 core families and a U-shaped spectrum.",
             "phylustrator · heterogeneity", pangenome_by_family, code=_C_PANGENOME),
     Example("genome_clade_transition", "A transition partway through the run",
-            "A clade turns endosymbiotic at <i>t</i>&nbsp;=&nbsp;2: from then on it sheds genes twenty "
-            "times faster and stops receiving transfers. The factor is scoped to the clade <b>and</b> "
-            "to a time — chaining <code>scaled_by</code> with <code>changing_at</code> cannot say this, "
-            "because the two factors each apply to every lineage. "
+            "The clade in red turns endosymbiotic at the dashed line: from then on it sheds genes "
+            "twenty times faster and stops receiving transfers, and the bars are what each genome is "
+            "left with. The factor is scoped to the clade <b>and</b> to a time — chaining "
+            "<code>scaled_by</code> with <code>changing_at</code> cannot say this, because the two "
+            "factors each apply to every lineage. "
             "<code>scaled_by(clade,&nbsp;{'endo':&nbsp;{0:&nbsp;1.0,&nbsp;2.0:&nbsp;20.0},&nbsp;'rest':&nbsp;1.0})</code>.",
             "clades · schedules", clade_transition, code=_C_TRANSITION),
 ]
