@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-08-11
+
 ### Fixed
 
 - **BREAKING: `Tree.leaves()`, `.extant_leaves()`, `.extinct_leaves()` and `.unsampled_leaves()`
