@@ -298,6 +298,68 @@ rate = {n.name: math.log10(n.length / (ct.nodes[int(n.name[1:])].end_time
                      labels=("0.05", "0.47"))).save("clock.png")'''
 
 
+# --- a clade under its own substitution model ------------------------------------------------------
+
+_AT_TIPS, _AT_SEED = 34, 2
+#: the AT-rich clade's equilibrium. Every model in a set is normalised to one substitution per site
+#: per unit branch length, so this changes what the sequence *is*, not how fast it changes.
+_AT_RICH = (0.40, 0.10, 0.10, 0.40)      # A+T = 0.80 at equilibrium, against 0.50 outside
+
+
+def _at_content(seqs) -> float:
+    hits = total = 0
+    for s in seqs:
+        hits += sum(s.count(c) for c in "AT")
+        total += len(s)
+    return hits / total if total else float("nan")
+
+
+def clade_own_model(out):
+    """One clade evolves under an AT-rich model; the rest of the tree keeps the even one.
+
+    Branches are coloured by the A+T content of the sequences *on* them, so the clade shows up as a
+    composition rather than as a speed — the thing a rate cannot say however it is scoped."""
+    from zombi2.genomes import simulate_genomes_family
+    from zombi2.params import Clade
+    from zombi2.sequences import Models, hky85, simulate_sequences
+    from zombi2.species import simulate_species_tree
+
+    sp = simulate_species_tree(birth=1.0, n_extant=_AT_TIPS, seed=_AT_SEED)
+    ct = sp.complete_tree
+    clade = Clade({"at": ["n13", "n33"]})
+    g = simulate_genomes_family(ct, initial_families=30, duplication=0.0, loss=0.0, seed=_AT_SEED)
+    r = simulate_sequences(
+        g, length=400, substitution=0.55, seed=_AT_SEED,
+        model=Models().set_by(clade, {"at": hky85(kappa=2.0, frequencies=_AT_RICH),
+                                      "rest": hky85(kappa=2.0)}))
+
+    # A+T per species branch, over every gene copy sitting on it (the labels are n<species>_g<copy>)
+    per_branch: dict[str, list[str]] = {}
+    for fam in r.alignments:
+        for store in (r.alignments[fam], r.ancestral[fam]):
+            for label, seq in store.items():
+                per_branch.setdefault(label.split("_")[0], []).append(seq)
+    at = {name: _at_content(seqs) for name, seqs in per_branch.items()}
+
+    tree = ph.trees.loads(ct.to_newick())
+    (ph.trees.plot(tree, style=ph.Style(width=1250, height=1000, margin=70, branch_width=2.4))
+     + ph.trees.color_branches(at, cmap="magma", limits=(0.50, 0.80))
+     + ph.trees.colorbar("A+T content of the sequences on the branch", loc="bottom-left",
+                         width=230, height=14, size=20, labels=("0.50", "0.80"))).save(out)
+
+
+_C_CLADE_MODEL = '''\
+from zombi2.params import Clade
+from zombi2.sequences import Models, hky85, simulate_sequences
+
+at_rich = hky85(kappa=2.0, frequencies=(0.40, 0.10, 0.10, 0.40))   # A+T = 0.80 at equilibrium
+
+result = simulate_sequences(
+    my_genomes, length=400, substitution=0.55, seed=4,
+    model=Models().set_by(Clade({"at": ["n13", "n33"]}),
+                          {"at": at_rich, "rest": hky85(kappa=2.0)}))'''
+
+
 EXAMPLES = [
     Example("clock_ucln", "Uncorrelated lognormal clock",
             "Every lineage draws its own rate, with no memory of its parent, so the colour is "
@@ -323,4 +385,11 @@ EXAMPLES = [
             "A single-copy family across 20 species, residues coloured (with a nucleotide key), each "
             "row locked to its tip. <code>beside(tree,&nbsp;alignment(aln))</code>.",
             "phylustrator", alignment_beside_tree, code=_C_ALN),
+    Example("clade_own_model", "A clade with its own substitution model",
+            "Rates say how <i>fast</i> a lineage evolves; the model says what the change looks like. "
+            "Here one clade evolves under an AT-rich matrix and the rest of the tree does not, so the "
+            "clade shows up as a <b>composition</b> — a fast branch and an AT-rich one mislead a "
+            "tree-builder in different ways. "
+            "<code>Models().set_by(Clade({...}),&nbsp;{'at':&nbsp;at_rich,&nbsp;'rest':&nbsp;hky85()})</code>.",
+            "phylustrator · composition", clade_own_model, code=_C_CLADE_MODEL),
 ]
