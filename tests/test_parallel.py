@@ -120,8 +120,8 @@ def test_sequences_parallel_nucleotide_assembles_every_node():
                                       gene_length=90, seed=3)
     a = simulate_sequences(gen, model=hky85(kappa=2.0), intergene_model=jc69(), seed=9, parallel=1)
     b = simulate_sequences(gen, model=hky85(kappa=2.0), intergene_model=jc69(), seed=9, parallel=2)
-    assert a.genomes == b.genomes and a.initial_genome == b.initial_genome
-    assert set(a.genomes) == {node_label(i) for i in sp.complete_tree.nodes}
+    assert a.node_genomes == b.node_genomes and a.initial_genome == b.initial_genome
+    assert set(a.node_genomes) == {node_label(i) for i in sp.complete_tree.nodes}
 
 
 # --- genomes: the per-family engine ---------------------------------------------------------------
