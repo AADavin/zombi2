@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-08-11
+
 ### Added
 
 - **Two gallery examples for the two capabilities added in 0.33.0.** *A transition partway through
