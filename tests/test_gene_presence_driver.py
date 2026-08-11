@@ -98,7 +98,7 @@ def test_ordered_runs_carry_the_same_signal():
                                  duplication=0.1, loss=0.2, inversion=0.2, seed=7)
     traj = g.presence("tox").as_driver_trajectory(sp.complete_tree)
     assert traj.states() <= {"present", "absent"}
-    for node in sp.complete_tree.extant_leaves():
+    for node in (sp.complete_tree.nodes[_i] for _i in sp.complete_tree.extant_leaves()):
         expected = "present" if g.has_family(node.id, "tox") else "absent"
         assert traj.value(node.id, node.end_time - 1e-9) == expected
 

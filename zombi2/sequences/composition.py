@@ -118,7 +118,7 @@ class Composition:
                 raise ValueError(
                     "this sequence run put no sequence on the root lineage, so there is no composition "
                     "to start from — check that the genome run it replayed had families in it.")
-            if node.children is not None:
+            if node.children:
                 stack.extend(node.children)
         return values
 

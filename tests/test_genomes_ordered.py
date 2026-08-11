@@ -81,7 +81,7 @@ def test_genome_is_a_tuple_of_chromosomes_of_oriented_genes():
 
 
 def test_seeded_chromosome_count_and_topology():
-    nodes = {0: Node(0, None, 0.0, 1.0, None, "extant")}  # a lone leaf: its genome is the seed
+    nodes = {0: Node(0, None, 0.0, 1.0, (), "extant")}  # a lone leaf: its genome is the seed
     r = simulate_genomes_ordered(Tree(nodes, 0), chromosomes=5, topology="linear",
                                  initial_families=0, seed=1)
     assert len(r.genomes[0]) == 5
@@ -89,7 +89,7 @@ def test_seeded_chromosome_count_and_topology():
 
 
 def test_initial_families_dealt_round_robin_across_chromosomes():
-    nodes = {0: Node(0, None, 0.0, 1.0, None, "extant")}  # no events -> genome is exactly the seed
+    nodes = {0: Node(0, None, 0.0, 1.0, (), "extant")}  # no events -> genome is exactly the seed
     r = simulate_genomes_ordered(Tree(nodes, 0), chromosomes=3, initial_families=7, seed=1)
     # 7 genes over 3 chromosomes, round-robin: 3, 2, 2
     assert [len(ch.genes) for ch in r.genomes[0]] == [3, 2, 2]
@@ -116,7 +116,7 @@ def test_shared_params_are_a_subset_of_the_ordered_signature():
 def test_extant_gene_tree_leaves_equal_the_extant_copy_total():
     # the strongest invariant, inherited from the family core: surviving gene-tree leaves == copies
     sp, r = _run(seed=5, death=0.5)
-    extant_sp = {n.id for n in sp.complete_tree.extant_leaves()}
+    extant_sp = set(sp.complete_tree.extant_leaves())
     for fam, tree in r.gene_trees.items():
         copies = sum(r.profiles.counts.get((fam, s), 0) for s in extant_sp)
         assert _extant_leaves(tree.extant) == copies
@@ -144,7 +144,7 @@ def test_family_counts_and_gene_order_agree():
 
 def test_invert_reverses_the_span_and_flips_each_strand():
     ch = Chromosome(0, "linear", [Gene(0, 0, 1), Gene(1, 1, 1), Gene(2, 2, -1), Gene(3, 3, 1)])
-    node = Node(7, None, 0.0, 1.0, None, "extant")
+    node = Node(7, None, 0.0, 1.0, (), "extant")
     rearr = []
     _invert(ch, 1, 2, node, 3.0, rearr)
     assert [g.id for g in ch.genes] == [0, 2, 1, 3]        # the span reversed, ids preserved
@@ -160,7 +160,7 @@ def test_no_inversions_when_the_rate_is_zero():
 
 def test_inversions_never_remint_gene_ids():
     # a single branch with only inversions: the genes at the tip are exactly the seeded ids
-    nodes = {0: Node(0, None, 0.0, 1.0, None, "extant")}
+    nodes = {0: Node(0, None, 0.0, 1.0, (), "extant")}
     r = simulate_genomes_ordered(Tree(nodes, 0), inversion=6.0, chromosomes=1,
                                  initial_families=8, seed=2)
     assert r.rearrangements                                     # inversions really fired
@@ -213,7 +213,7 @@ def test_chromosome_count_is_conserved_through_speciation():
     _, r = _run(seed=11, chromosomes=4)
     for node_id, chroms in r.genomes.items():
         node = r.complete_tree.nodes[node_id]
-        if node.children is None:
+        if not node.children:
             assert len(chroms) == 4                            # inherited unchanged down every branch
 
 
@@ -236,7 +236,7 @@ def test_no_transfer_events_when_transfer_is_zero():
 def test_replacement_run_stays_consistent():
     # replacement overwrites a homologous copy; the strong invariant must still hold
     sp, r = _run(seed=2, replacement=True)
-    extant_sp = {n.id for n in sp.complete_tree.extant_leaves()}
+    extant_sp = set(sp.complete_tree.extant_leaves())
     for fam, tree in r.gene_trees.items():
         assert _extant_leaves(tree.extant) == sum(r.profiles.counts.get((fam, s), 0) for s in extant_sp)
 
@@ -401,7 +401,7 @@ def test_topology_validation():
 
 
 def test_mixed_topology_per_chromosome():
-    nodes = {0: Node(0, None, 0.0, 1.0, None, "extant")}
+    nodes = {0: Node(0, None, 0.0, 1.0, (), "extant")}
     r = simulate_genomes_ordered(Tree(nodes, 0), chromosomes=2, topology=["circular", "linear"],
                                  initial_families=4, seed=1)
     assert [ch.topology for ch in r.genomes[0]] == ["circular", "linear"]
@@ -442,7 +442,7 @@ def test_gene_order_is_written_for_every_node_not_only_the_tips(tmp_path):
     r.write(tmp_path, outputs=("gene_order",))
     written = _written_gene_order(tmp_path)
 
-    internal = {n.id for n in r.complete_tree.nodes.values() if n.children is not None}
+    internal = {n.id for n in r.complete_tree.nodes.values() if n.children}
     assert internal, "the fixture tree should have internal nodes to write"
     # every node with genes is present — root and internal branches included, not just the tips
     assert set(written) == {s for s in r.genomes if r.gene_order(s)}
@@ -497,7 +497,7 @@ def test_strong_invariant_survives_the_tier():
     # leaves — so the surviving-leaves == profile-copies invariant must still hold under heavy tier
     for seed in range(5):
         sp, r = _tier(seed=seed)
-        extant = {n.id for n in sp.complete_tree.extant_leaves()}
+        extant = set(sp.complete_tree.extant_leaves())
         for fam, tree in r.gene_trees.items():
             assert _extant_leaves(tree.extant) == sum(r.profiles.counts.get((fam, s), 0) for s in extant)
 
@@ -519,7 +519,7 @@ def test_a_genome_never_loses_its_last_genes_to_a_chromosome_loss():
         r = simulate_genomes_ordered(sp.complete_tree, loss=3.0, translocation=3.0,
                                      chromosome_loss=1.0, chromosome_origination=0.5,
                                      initial_families=4, chromosomes=2, seed=seed)
-        for node in sp.complete_tree.extant_leaves():
+        for node in (sp.complete_tree.nodes[_i] for _i in sp.complete_tree.extant_leaves()):
             assert any(c.genes for c in r.genomes[node.id]), (
                 f"seed {seed}, lineage {node.id}: every chromosome came out empty")
 
@@ -544,7 +544,7 @@ def test_tier_rates_zero_is_byte_identical_to_a_no_tier_call():
 
 def test_de_novo_replicon_is_an_empty_origination_root():
     # only chromosome origination on a lone branch: each de-novo replicon is a rootless-parent, empty
-    nodes = {0: Node(0, None, 0.0, 5.0, None, "extant")}
+    nodes = {0: Node(0, None, 0.0, 5.0, (), "extant")}
     r = simulate_genomes_ordered(Tree(nodes, 0), chromosome_origination=1.0, chromosomes=1,
                                  initial_families=3, seed=1)
     de_novo = [e for e in r.chromosome_events if e.kind == "origination"]
@@ -566,7 +566,7 @@ def _minter(start):
 def test_fission_partitions_genes_in_order_preserving_ids():
     import numpy as np
     genome = [Chromosome(0, "linear", [Gene(0, 0, 1), Gene(1, 1, 1), Gene(2, 2, -1), Gene(3, 3, 1)])]
-    node = Node(5, None, 0.0, 1.0, None, "extant")
+    node = Node(5, None, 0.0, 1.0, (), "extant")
     ce = []
     dc, dg = _fission(genome, 0, node, 2.0, ce, _minter(99), np.random.default_rng(0))
     assert dc == 1 and dg == 0
@@ -579,7 +579,7 @@ def test_fusion_concatenates_two_chromosomes_into_one():
     import numpy as np
     genome = [Chromosome(10, "circular", [Gene(0, 0, 1), Gene(1, 1, 1)]),
               Chromosome(11, "circular", [Gene(2, 2, 1)])]
-    node = Node(5, None, 0.0, 1.0, None, "extant")
+    node = Node(5, None, 0.0, 1.0, (), "extant")
     ce = []
     dc, dg = _fusion(genome, 0, node, 3.0, ce, _minter(20), np.random.default_rng(0))
     assert dc == -1 and dg == 0
@@ -595,7 +595,7 @@ def test_a_circular_chromosome_never_fuses_with_a_linear_one():
     import numpy as np
     genome = [Chromosome(10, "circular", [Gene(0, 0, 1), Gene(1, 1, 1)]),
               Chromosome(11, "linear", [Gene(2, 2, 1)])]
-    node = Node(5, None, 0.0, 1.0, None, "extant")
+    node = Node(5, None, 0.0, 1.0, (), "extant")
     ce = []
     for ci in (0, 1):                                  # neither one has a legal partner
         assert _fusion(genome, ci, node, 3.0, ce, _minter(20), np.random.default_rng(0)) == (0, 0)
@@ -612,7 +612,7 @@ def test_fusion_picks_a_partner_of_its_own_topology():
         genome = [Chromosome(0, "circular", [Gene(0, 0, 1)]),
                   Chromosome(1, "linear", [Gene(1, 1, 1)]),
                   Chromosome(2, "circular", [Gene(2, 2, 1)])]
-        node = Node(5, None, 0.0, 1.0, None, "extant")
+        node = Node(5, None, 0.0, 1.0, (), "extant")
         ce = []
         assert _fusion(genome, 0, node, 3.0, ce, _minter(90),
                        np.random.default_rng(seed)) == (-1, 0)
@@ -628,7 +628,7 @@ def test_a_single_topology_genome_draws_its_partner_exactly_as_before():
     # chromosome. Pinning it here is what makes "a seeded circular run is unchanged" a test rather
     # than a claim.
     import numpy as np
-    node = Node(5, None, 0.0, 1.0, None, "extant")
+    node = Node(5, None, 0.0, 1.0, (), "extant")
     for seed in range(10):
         for ci in range(6):
             genome = [Chromosome(k, "circular", [Gene(k, k, 1)]) for k in range(6)]
@@ -648,7 +648,7 @@ def test_a_mixed_topology_karyotype_keeps_one_chromosome_of_each_shape():
     r = simulate_genomes_ordered(sp, fusion=1.0, fission=0.5, chromosomes=4,
                                  topology=["circular", "linear", "circular", "linear"],
                                  initial_families=12, seed=1)
-    for n in sp.complete_tree.extant_leaves():
+    for n in (sp.complete_tree.nodes[_i] for _i in sp.complete_tree.extant_leaves()):
         assert sorted(c.topology for c in r.genomes[n.id]) == ["circular", "linear"]
     # ... and no recorded fusion edge ever joined two shapes. Ancestral chromosomes are not in the
     # result, so track each id's topology down the network from the roots the run laid down.
@@ -689,7 +689,7 @@ def test_duplicate_copies_a_block_in_tandem():
     def ng(fam, strand):
         counter[0] += 1
         return Gene(counter[0], fam, strand)
-    added = _duplicate(ch, 0, 2, Node(3, None, 0.0, 1.0, None, "extant"), 1.0, events, positions, ng)
+    added = _duplicate(ch, 0, 2, Node(3, None, 0.0, 1.0, (), "extant"), 1.0, events, positions, ng)
     assert added == 2 and len(ch.genes) == 5
     assert [g.family for g in ch.genes] == [0, 1, 0, 1, 2]   # conts in place, then the tandem copy block
     assert len(events) == 4 and all(e.kind == "duplication" for e in events)
@@ -703,7 +703,7 @@ def test_transpose_relocates_a_segment_within_the_chromosome_preserving_ids():
     import numpy as np
     ch = Chromosome(0, "linear", [Gene(i, i, 1) for i in range(5)])
     rearr = []
-    _transpose(ch, 0, 2, Node(3, None, 0.0, 1.0, None, "extant"), 1.0, rearr,
+    _transpose(ch, 0, 2, Node(3, None, 0.0, 1.0, (), "extant"), 1.0, rearr,
                np.random.default_rng(0), 0.0)
     assert sorted(g.id for g in ch.genes) == [0, 1, 2, 3, 4]  # same genes, reordered — nothing lost
     assert len(ch.genes) == 5
@@ -714,7 +714,7 @@ def test_transpose_flips_the_segment_when_inversion_probability_is_one():
     import numpy as np
     ch = Chromosome(0, "linear", [Gene(0, 0, 1), Gene(1, 1, 1), Gene(2, 2, 1)])
     rearr = []
-    _transpose(ch, 0, 2, Node(3, None, 0.0, 1.0, None, "extant"), 1.0, rearr,
+    _transpose(ch, 0, 2, Node(3, None, 0.0, 1.0, (), "extant"), 1.0, rearr,
                np.random.default_rng(0), 1.0)
     strands = {g.id: g.strand for g in ch.genes}
     assert rearr[0].flipped is True
@@ -726,7 +726,7 @@ def test_translocate_moves_a_segment_to_a_different_chromosome():
     genome = [Chromosome(0, "linear", [Gene(0, 0, 1), Gene(1, 1, 1), Gene(2, 2, 1)]),
               Chromosome(1, "linear", [Gene(3, 3, 1)])]
     rearr = []
-    _translocate(genome, 0, 0, 2, Node(5, None, 0.0, 1.0, None, "extant"), 1.0, rearr,
+    _translocate(genome, 0, 0, 2, Node(5, None, 0.0, 1.0, (), "extant"), 1.0, rearr,
                  np.random.default_rng(0), 0.0)
     assert sorted(g.id for ch in genome for g in ch.genes) == [0, 1, 2, 3]   # nothing gained/lost
     assert len(genome[0].genes) == 1 and {g.id for g in genome[1].genes} == {0, 1, 3}
@@ -737,7 +737,7 @@ def test_translocate_is_a_noop_with_a_single_chromosome():
     import numpy as np
     genome = [Chromosome(0, "linear", [Gene(0, 0, 1), Gene(1, 1, 1)])]
     rearr = []
-    _translocate(genome, 0, 0, 1, Node(5, None, 0.0, 1.0, None, "extant"), 1.0, rearr,
+    _translocate(genome, 0, 0, 1, Node(5, None, 0.0, 1.0, (), "extant"), 1.0, rearr,
                  np.random.default_rng(0), 0.0)
     assert rearr == [] and len(genome[0].genes) == 2         # nowhere to move to
 
@@ -781,7 +781,7 @@ def test_strong_invariant_holds_under_segmental_everything():
                      transposition=0.2, translocation=0.2, inversion_probability=0.5,
                      duplication_extent=Geometric(mean=3), loss_extent=Geometric(mean=3),
                      transfer_extent=Geometric(mean=2))
-        extant = {n.id for n in sp.complete_tree.extant_leaves()}
+        extant = set(sp.complete_tree.extant_leaves())
         for fam, tree in r.gene_trees.items():
             assert _extant_leaves(tree.extant) == sum(r.profiles.counts.get((fam, s), 0) for s in extant)
 
@@ -827,7 +827,7 @@ def test_the_genealogy_and_the_rearrangements_are_two_tables(tmp_path):
 # --- topology: a circular chromosome has no ends, so a run wraps past position 0 ------------------
 
 def _lone_branch(total_time):
-    return Tree({0: Node(0, None, 0.0, total_time, None, "extant")}, 0)
+    return Tree({0: Node(0, None, 0.0, total_time, (), "extant")}, 0)
 
 
 def _inversion_coverage(topology, n=8, mean=4.0, total_time=3000.0, seed=1):
@@ -869,7 +869,7 @@ def test_a_run_never_exceeds_the_whole_chromosome():
 
 def test_a_wrapped_inversion_reverses_the_run_across_the_origin():
     ch = Chromosome(0, "circular", [Gene(i, i, 1) for i in range(4)])
-    _invert(ch, 3, 3, Node(7, None, 0.0, 1.0, None, "extant"), 2.0, rearr := [])
+    _invert(ch, 3, 3, Node(7, None, 0.0, 1.0, (), "extant"), 2.0, rearr := [])
     # the run is positions 3, 0, 1 — genes 3, 0, 1 — reversed to 1, 0, 3 with strands flipped
     assert [g.id for g in ch.genes] == [1, 0, 3, 2]
     assert [g.strand for g in ch.genes] == [-1, -1, -1, 1]
@@ -879,7 +879,7 @@ def test_a_wrapped_inversion_reverses_the_run_across_the_origin():
 
 def test_a_whole_chromosome_inversion_reverses_the_ring():
     ch = Chromosome(0, "circular", [Gene(i, i, 1) for i in range(4)])
-    _invert(ch, 2, 4, Node(7, None, 0.0, 1.0, None, "extant"), 1.0, rearr := [])
+    _invert(ch, 2, 4, Node(7, None, 0.0, 1.0, (), "extant"), 1.0, rearr := [])
     # every gene is in the run: the whole ring reverses — the same molecule read the other way
     assert [g.id for g in ch.genes] == [1, 0, 3, 2]
     assert all(g.strand == -1 for g in ch.genes)
@@ -893,7 +893,7 @@ def test_a_wrapped_duplication_keeps_the_block_together():
     def ng(fam, strand):
         counter[0] += 1
         return Gene(counter[0], fam, strand)
-    added = _duplicate(ch, 3, 2, Node(3, None, 0.0, 1.0, None, "extant"), 1.0, events, positions, ng)
+    added = _duplicate(ch, 3, 2, Node(3, None, 0.0, 1.0, (), "extant"), 1.0, events, positions, ng)
     # the run is families 3 then 0, across the origin; its tandem copy lands right behind it
     assert added == 2 and [g.family for g in ch.genes] == [3, 0, 3, 0, 1, 2]
     assert len(events) == 4 and all(e.kind == "duplication" for e in events)
@@ -904,7 +904,7 @@ def test_a_wrapped_duplication_keeps_the_block_together():
 def test_a_wrapped_loss_removes_the_genes_on_both_sides_of_the_origin():
     ch = Chromosome(0, "circular", [Gene(i, i, 1) for i in range(5)])
     events, positions = [], []
-    removed = _lose_at(ch, 4, 3, Node(3, None, 0.0, 1.0, None, "extant"), 1.0, events, positions)
+    removed = _lose_at(ch, 4, 3, Node(3, None, 0.0, 1.0, (), "extant"), 1.0, events, positions)
     assert removed == 3 and [g.id for g in ch.genes] == [2, 3]   # genes 4, 0 and 1 went
     assert sorted(e.copy for e in events) == [0, 1, 4]
     assert [(p.start, p.length) for p in positions] == [(0, 3)]
@@ -916,7 +916,7 @@ def test_a_loss_never_takes_a_chromosome_below_its_last_gene():
     # chromosome_loss's job, at the chromosome tier.
     ch = Chromosome(0, "circular", [Gene(i, i, 1) for i in range(3)])
     events, positions = [], []
-    node = Node(3, None, 0.0, 1.0, None, "extant")
+    node = Node(3, None, 0.0, 1.0, (), "extant")
     assert _lose_at(ch, 0, 3, node, 1.0, events, positions) == 0   # the whole chromosome: refused
     assert [g.id for g in ch.genes] == [0, 1, 2]                   # and the order is untouched
     assert events == [] and positions == []                        # a declined event logs nothing
@@ -985,7 +985,7 @@ def test_the_strong_invariant_survives_wrapped_runs():
                                      transposition=0.2, translocation=0.2, chromosomes=3,
                                      initial_families=9, inversion_probability=0.5, seed=seed,
                                      **exts)
-        extant = {n.id for n in sp.complete_tree.extant_leaves()}
+        extant = set(sp.complete_tree.extant_leaves())
         for fam, tree in r.gene_trees.items():
             assert _extant_leaves(tree.extant) == sum(r.profiles.counts.get((fam, s), 0)
                                                       for s in extant)
@@ -1203,7 +1203,7 @@ def test_a_kernel_that_lets_nobody_receive_fires_no_transfer_at_all():
     no donor continuation, no arrival, no gene minted. The same run under 'uniform' transfers freely,
     so what is being shown is the weighting and not a dead setup."""
     sp = simulate_species_tree(birth=1.0, death=0.5, n_extant=20, seed=7)
-    tips = [i for i, n in sp.complete_tree.nodes.items() if n.children is None]
+    tips = [i for i, n in sp.complete_tree.nodes.items() if not n.children]
     blocked = simulate_genomes_ordered(
         sp, transfer_to=Clades({"A": tips[:1]}, Between({("A", "rest"): 0.0}, default=0.0)),
         **_STEERED)

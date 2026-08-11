@@ -92,6 +92,7 @@ import bisect
 import collections
 import math
 import pathlib
+import warnings
 from dataclasses import dataclass, field
 
 
@@ -1063,11 +1064,18 @@ class NucleotideGenomesResult:
         counts to report; what this resolution has instead is how much sequence there is and how it is
         divided."""
         t0 = self.complete_tree.nodes[self.complete_tree.root].birth_time
-        extant = [n.id for n in self.complete_tree.extant_leaves()]
+        extant = list(self.complete_tree.extant_leaves())
         lengths = [self.genomes[i].length for i in extant if i in self.genomes]
         chrom_per_genome = [len(self.genomes[i].chromosomes) for i in extant if i in self.genomes]
         rearrangements = collections.Counter(type(r).__name__.lower() for r in self.rearrangements)
         chromosome = collections.Counter(e.kind for e in self.chromosome_events)
+        # this resolution's own log, counted one number per EVENT — a row of `block_events.tsv` is
+        # one ancestral *interval*, so an event spanning several blocks writes several rows. An
+        # `Origination` splits the way `event_counts` splits it: the genome the run started with is
+        # `initial`, and only a de-novo arrival is an `origination`.
+        blocks = collections.Counter(
+            ("initial" if e.initial else "origination") if isinstance(e, Origination)
+            else type(e).__name__.lower() for e in self.events)
         return {
             "level": "genomes",
             "seed": self.seed,
@@ -1077,6 +1085,14 @@ class NucleotideGenomesResult:
             "declared_genes": len(self.gene_spans),
             "base_pairs_per_genome": _stats(lengths),
             "chromosomes_per_genome": _stats(chrom_per_genome),
+            # The same six kinds as `events`, so the two read side by side — and they must, because
+            # an event here takes an arc of DNA while `events` counts gene-tree branchings, and
+            # neither bounds the other: an arc covering three genes is three gene events, and an arc
+            # covering none is zero. That is the whole answer to "why is duplication 0 when
+            # block_events.tsv has thirteen rows" — see `_warn_if_extents_cannot_reach_a_gene`.
+            "block_events": {k: blocks.get(k, 0)
+                             for k in ("initial", "origination", "duplication", "transfer",
+                                       "loss", "speciation")},
             "rearrangements": {k: rearrangements.get(k, 0)
                                for k in ("inversion", "transposition", "translocation")},
             "chromosome_events": dict(sorted(chromosome.items())),
@@ -1908,6 +1924,52 @@ def _speciate(node, g, new_chrom_id, new_copy, events, chromosome_events):
 
 
 @without_cyclic_gc
+def _warn_if_extents_cannot_reach_a_gene(specs, layouts, rates, extents) -> None:
+    """Warn when a gene-changing extent is too small to take a whole gene, so the gene-level counts
+    of ``genome_summary.json`` read ~0 however high the rates.
+
+    A gene is never split (`Chromosome._legal_cuts`), so a duplication, transfer or loss changes gene
+    content only when its arc covers one **end to end**. An extent is the *mean of a geometric draw*,
+    which makes that chance about ``exp(-gene / mean)``, plus the chance the arc **starts flush at a
+    gene's leading edge**, where every legal end already lies beyond the gene and it is taken for
+    certain. That second term is the gene count over the legal-cut count, and it is what keeps this
+    from crying wolf on a dense genome: a replicon with no spacer offers nothing *but* gene joins, so
+    every event moves whole genes whatever the extent, and a warning there would be flatly wrong.
+
+    The test is on the sum of the two, against **one event in twenty**. Below that the run cannot do
+    what its rates say — at the defaults, 50 bp extents against 500 bp genes, it is about 1 in 500 —
+    and above it the counters come alive, so an ordinary run stays silent. Only the three extents
+    that can change gene content are checked, only where the rate is actually on, and a run that
+    declared no genes has nothing to miss. The **base** mean is read rather than the modified one: a
+    modifier is read per lineage at the instant an event fires, so there is no one number for it
+    here."""
+    genes = [end - start for lay in layouts for (start, end, *_rest) in lay]
+    if not genes:
+        return                              # no declared genes: nothing to be unable to reach
+    shortest = min(genes)
+    # `_legal_cuts()` counted off the layout: a gene offers its leading edge alone, spacer its whole
+    # interior, and a linear replicon its far end.
+    legal = sum(length - sum(e - s for (s, e, *_r) in lay) + len(lay)
+                + (1 if top == "linear" else 0)
+                for (length, top), lay in zip(specs, layouts))
+    flush = len(genes) / legal if legal else 0.0
+    small = []
+    for label in ("duplication", "transfer", "loss"):
+        rate, mean = rates[label], extents[f"{label}_extent"].base.mean()
+        if (rate.base is None or rate.base > 0) and flush + math.exp(-shortest / mean) < 0.05:
+            small.append(f"{label}_extent={mean:g} bp")
+    if not small:
+        return
+    warnings.warn(
+        f"{', '.join(small)}, against a shortest declared gene of {shortest} bp: an extent is the "
+        f"MEAN of a geometric draw and a gene is never split, so fewer than one event in twenty is "
+        f"long enough to take a whole gene. Those events still fire, and genome_summary.json counts "
+        f"them under block_events — but the gene-level counts beside them (events: duplication, "
+        f"transfer, loss) stay near zero however high the rates, and so do the gene trees. Raise "
+        f"those extents above {shortest} bp if gene content is meant to change; ignore this if you "
+        f"meant sub-genic events.", stacklevel=2)
+
+
 def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, translocation=0.0,
                                 translocation_extent=50.0, transposition=0.0, transposition_extent=50.0,
                                 inversion_probability=0.0, loss=0.0, loss_extent=50.0, duplication=0.0,
@@ -2094,6 +2156,11 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 raise ValueError(f"{genes} genes of {gene_length} bp do not fit in a {_length} bp "
                                  f"replicon")
         layouts = [_even_gene_intervals(length, genes, gene_length) for (length, _t) in specs]
+    # The one check that is about the run rather than about one argument: an extent too small to
+    # cover a gene leaves the gene-level counters at ~0 however high the rates. Here, where the
+    # layout is known and nothing has been drawn yet, and on the DECLARED genes only — a de-novo gene
+    # arrives later at `origination_extent` and would drag the shortest one down to nothing.
+    _warn_if_extents_cannot_reach_a_gene(specs, layouts, _rates, _extents)
     # Conditioning: a rate written with scaled_by reads a driver **per lineage**, so the rates stop being
     # one number for the whole live set and become one per lineage. Same machinery as the family
     # resolution — each driver resolves once into a DriverTrajectory keyed by the shared species node
@@ -2360,7 +2427,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
             total_chromosomes -= len(g.chromosomes)
             retire(alive, gen, pos, pos[i])
             node = tree.nodes[i]
-            if node.children is not None:              # a speciation: re-mint into the daughters
+            if node.children:              # a speciation: re-mint into the daughters
                 for c, cg in _speciate(node, g, new_chrom_id, new_copy, events,
                                        chromosome_events).items():
                     enter(alive, gen, pos, c, cg)

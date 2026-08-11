@@ -87,7 +87,7 @@ def visible_branches(tree: Tree) -> tuple[set[int], dict[int, int]]:
     surviving: dict[int, bool] = {}
     for i in sorted(tree.nodes, reverse=True):        # children have higher ids than their parent
         nd = tree.nodes[i]
-        surviving[i] = (nd.fate == "extant" if nd.children is None
+        surviving[i] = (nd.fate == "extant" if not nd.children
                         else any(surviving[c] for c in nd.children))
     image: dict[int, int] = {}
     for i in sorted(tree.nodes, reverse=True):        # children first, so a chain resolves in one pass

@@ -65,9 +65,7 @@ def _preorder(tree) -> list[int]:
     while stack:
         i = stack.pop()
         order.append(i)
-        kids = tree.nodes[i].children
-        if kids is not None:
-            stack.extend(kids)
+        stack.extend(tree.nodes[i].children)
     return order
 
 

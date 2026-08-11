@@ -161,18 +161,18 @@ def test_extinct_lineages_are_named_the_way_the_gallery_draws_them():
     assert extinct, "the fixture needs a tree that actually loses lineages"
 
     newick, labels = ct.to_newick(), ct.labels()
-    missing = sorted(labels[n.id] for n in extinct if f"{labels[n.id]}:" not in newick)
+    missing = sorted(labels[i] for i in extinct if f"{labels[i]}:" not in newick)
     assert not missing, f"extinct lineages the gallery would look for are not in the tree: {missing}"
 
-    stale = sorted(f"n{n.id}" for n in extinct if f"n{n.id}:" in newick)
+    stale = sorted(f"n{i}" for i in extinct if f"n{i}:" in newick)
     assert not stale, f"extinct lineages are still written with the pre-rename n prefix: {stale}"
 
     # ...and the helper the figures call must derive those same names from the tree. A stub stands in
     # for the parsed Phylustrator tree — only the naming is under test, not the subtree walk.
     with _phylustrator_mocked():
         dashed_extinct = importlib.import_module("helpers").dashed_extinct
-    leaves = [_StubNode(labels[n.id]) for n in extinct]
-    assert dashed_extinct(_StubTree(leaves), ct) == {labels[n.id] for n in extinct}, \
+    leaves = [_StubNode(labels[i]) for i in extinct]
+    assert dashed_extinct(_StubTree(leaves), ct) == {labels[i] for i in extinct}, \
         "dashed_extinct did not recover the extinct lineages — the figures would draw them solid"
 
 
@@ -208,7 +208,7 @@ def test_conditioning_figures_reach_the_tips_in_both_states():
     for name, n_extant, switch, states, seed in cases:
         ct = simulate_species_tree(birth=1.0, n_extant=n_extant, seed=4).complete_tree
         trait = simulate_discrete(ct, states=states, start=states[0], seed=seed, switch=switch)
-        at_tips = {trait.values[ct.labels()[n.id]] for n in ct.extant_leaves()}
+        at_tips = {trait.values[ct.labels()[n.id]] for n in (ct.nodes[_i] for _i in ct.extant_leaves())}
         assert set(states) == at_tips, (
             f"the gallery's {name} driver reaches the tips in only {sorted(at_tips)} — the published "
             f"figure would be one colour and show nothing")
@@ -223,7 +223,7 @@ def test_conditioning_figures_reach_the_tips_in_both_states():
         origination=PerLineage(3.0).scaled_by(hab, {"endosymbiont": 0.3, "free-living": 1.0}),
         loss=PerCopy(0.08).scaled_by(hab, {"endosymbiont": 6.0, "free-living": 1.0}), seed=9)
     lab, by = ct.labels(), {"free-living": [], "endosymbiont": []}
-    for n in ct.extant_leaves():
+    for n in (ct.nodes[_i] for _i in ct.extant_leaves()):
         by[hab.values[lab[n.id]]].append(len(g.genomes[n.id]))
     free = sorted(by["free-living"])[len(by["free-living"]) // 2]
     endo = sorted(by["endosymbiont"])[len(by["endosymbiont"]) // 2]

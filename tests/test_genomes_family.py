@@ -42,7 +42,7 @@ def test_genomes_on_every_node_including_extinct():
     sp = _tree(seed=3, death=0.5)
     g = simulate_genomes_family(sp, duplication=0.2, loss=0.2, origination=0.5, initial_families=4, seed=1)
     assert set(g.genomes) == set(sp.complete_tree.nodes)          # every node has a genome
-    extinct = {n.id for n in sp.complete_tree.extinct_leaves()}
+    extinct = set(sp.complete_tree.extinct_leaves())
     assert extinct and extinct <= set(g.genomes)                 # extinct lineages included
 
 
@@ -139,7 +139,7 @@ def test_no_floor_means_a_last_copy_is_an_ordinary_copy():
     # boundary at one copy. A floor would push the empty fraction to zero; a partial one would pull
     # it below this.
     T, lam, n = 1.0, 0.5, 400
-    tree = Tree({0: Node(0, None, 0.0, T, None, "extant")}, 0)
+    tree = Tree({0: Node(0, None, 0.0, T, (), "extant")}, 0)
     empty = sum(1 for s in range(n)
                 if not simulate_genomes_family(tree, loss=lam, initial_families=1, seed=s).genomes[0])
     p = 1 - math.exp(-lam * T)
@@ -389,7 +389,7 @@ def _two_clades(sp):
                 st.extend(tree.nodes[i].children)
         return out
 
-    internals = [i for i, n in tree.nodes.items() if n.children is not None and i != tree.root]
+    internals = [i for i, n in tree.nodes.items() if n.children and i != tree.root]
     sub = {i: desc(i) for i in internals}
     for a in internals:
         if not (4 <= len(sub[a]) <= len(tree.nodes) // 3):
@@ -397,8 +397,8 @@ def _two_clades(sp):
         for b in internals:
             if a != b and not (sub[a] & sub[b]) and 4 <= len(sub[b]) <= len(tree.nodes) // 3:
                 lab = lambda i, A=sub[a], B=sub[b]: "A" if i in A else ("B" if i in B else "rest")
-                tips_a = [i for i in sub[a] if tree.nodes[i].children is None]
-                tips_b = [i for i in sub[b] if tree.nodes[i].children is None]
+                tips_a = [i for i in sub[a] if not tree.nodes[i].children]
+                tips_b = [i for i in sub[b] if not tree.nodes[i].children]
                 return a, b, tips_a, tips_b, lab
     raise AssertionError("no two disjoint clades of a usable size")
 
@@ -571,10 +571,10 @@ def test_write_genomes_covers_every_node_where_profiles_covers_only_tips():
         written = {r["lineage"] for r in rows}
         names = sp.complete_tree.labels()
         assert written == {names[s] for s in g.genomes if g.genomes[s]}
-        internal = {names[n.id] for n in sp.complete_tree.nodes.values() if n.children is not None}
+        internal = {names[n.id] for n in sp.complete_tree.nodes.values() if n.children}
         assert written & internal, "ancestral genomes must be in there, not just the tips"
         # profiles is the extant-only view
-        tips = {names[n.id] for n in sp.complete_tree.extant_leaves()}
+        tips = {names[n.id] for n in (sp.complete_tree.nodes[_i] for _i in sp.complete_tree.extant_leaves())}
         assert set((out / "profiles.tsv").read_text(encoding="utf-8").splitlines()[0].split("\t")[1:]) == tips
 
 

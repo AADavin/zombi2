@@ -66,7 +66,7 @@ def _species_clades(tree, keep: set[int]) -> set[frozenset]:
     below: dict[int, frozenset] = {}
     for i in sorted(tree.nodes, reverse=True):      # children have higher ids than their parent
         node = tree.nodes[i]
-        below[i] = (frozenset({i} & keep) if node.children is None
+        below[i] = (frozenset({i} & keep) if not node.children
                     else frozenset().union(*(below[c] for c in node.children)))
     total = len(keep)
     return {c for c in below.values() if 2 <= len(c) <= total - 1}
@@ -91,7 +91,7 @@ def marker_row(family: int, gt: GeneTree, tree) -> dict:
 
     per_genome = collections.Counter(n.species for n in leaves)
     single = bool(per_genome) and max(per_genome.values()) == 1
-    n_extant = sum(1 for _ in tree.extant_leaves())
+    n_extant = len(tree.extant_leaves())
     row = {"family": family,
            "genomes": len(per_genome),
            "copies": len(leaves),

@@ -323,7 +323,7 @@ class OrderedGenomesResult:
     def _extant_genes(self) -> dict[int, tuple[Gene, ...]]:
         """The observed genomes flattened to gene multisets (chromosomes dropped) — the view the
         genealogy-derived, position-blind outputs read."""
-        extant = [n.id for n in self.complete_tree.extant_leaves()]
+        extant = list(self.complete_tree.extant_leaves())
         return {s: tuple(g for chrom in self.genomes[s] for g in chrom.genes) for s in extant}
 
     @cached_property
@@ -438,7 +438,7 @@ class OrderedGenomesResult:
         is what this resolution has and the family core does not: where the genes sit, and what moved
         them."""
         t0 = self.complete_tree.nodes[self.complete_tree.root].birth_time
-        extant = [n.id for n in self.complete_tree.extant_leaves()]
+        extant = list(self.complete_tree.extant_leaves())
         born = {e.family for e in self.edges}
         surviving = {g.family for i in extant for c in self.genomes.get(i, ()) for g in c.genes}
         genes_per_genome = [sum(len(c.genes) for c in self.genomes.get(i, ())) for i in extant]
@@ -1715,7 +1715,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 total_chromosomes -= len(g)
                 retire(alive, gen, pos, pos[i])
                 node = tree.nodes[i]
-                if node.children is not None:  # a speciation: re-mint every chromosome and gene id
+                if node.children:  # a speciation: re-mint every chromosome and gene id
                     child_genomes: dict[int, list[Chromosome]] = {c: [] for c in node.children}
                     for pchrom in g:
                         dcids = []

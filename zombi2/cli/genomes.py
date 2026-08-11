@@ -432,7 +432,7 @@ def _warn_if_genomes_emptied(result, resolution: str) -> None:
     ``chromosome_loss`` taking the chromosome that held them — a different knob to turn down. The
     ``nucleotide`` resolution is not checked here: its unit is base pairs and its per-chromosome
     floor leaves a lineage a chromosome with material on it."""
-    extant = [n.id for n in result.complete_tree.extant_leaves()]
+    extant = list(result.complete_tree.extant_leaves())
     if resolution == "ordered":
         empty = [i for i in extant if not any(c.genes for c in result.genomes[i])]
         why = ("A loss never takes a chromosome below its last gene at --resolution ordered, but "
@@ -632,8 +632,8 @@ def run(args, parser):
             f.write(complete_tree.to_newick() + "\n")
         # write the fate table beside the canonical tree too, so a later level on this run reads each
         # tip's fate from the record instead of guessing it from depth (matching a species run's output)
-        fate_rows = ["lineage\tfate"] + [f"{node_label(n.id)}\t{n.fate}"
-                                         for n in sorted(complete_tree.leaves(), key=lambda x: x.id)]
+        fate_rows = ["lineage\tfate"] + [f"{node_label(i)}\t{complete_tree.nodes[i].fate}"
+                                         for i in sorted(complete_tree.leaves())]
         with open(os.path.join(species_dir, "species_fates.tsv"), "w", encoding="utf-8") as f:
             f.write("\n".join(fate_rows) + "\n")
     if names:  # an external tree: map ZOMBI2's n<id> back to the user's labels (join on profiles cols)
@@ -645,7 +645,7 @@ def run(args, parser):
         summary = (f"{result.n_families} gene families, {result.n_events} events, streamed to disk "
                    f"(family)")
     elif args.resolution == "nucleotide":       # no phyletic profiles here: the unit is a base pair
-        extant = [n.id for n in result.complete_tree.extant_leaves()]
+        extant = list(result.complete_tree.extant_leaves())
         bp = sum(result.genomes[s].length for s in extant)
         summary = (f"{len(result.gene_spans)} genes and {bp} bp across {len(extant)} extant "
                    f"genomes (nucleotide)")

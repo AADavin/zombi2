@@ -20,6 +20,7 @@ the things being joined.
 
 from __future__ import annotations
 
+import math
 from typing import Any, ClassVar, Mapping
 
 from .driver import OnTime, OnTotalDiversity, Random, TotalDiversity
@@ -352,17 +353,28 @@ class Driven(Modifier):
         if verb is not None:
             self.verb = verb
 
-    def factor(self, *, drivers: Mapping | None = None, **_: Any) -> float:
+    def factor(self, *, drivers: Mapping | None = None, time: float | None = None,
+               **_: Any) -> float:
         """The mapped multiplier for this lineage's driver value — the engine threads the value under
         ``drivers[key]`` (``key`` is the driver string, or the identity of an in-memory driver). No
         ``drivers`` (or this driver absent) ⇒ 1.0, so an unthreaded rate is inert (the engine is
-        responsible for supplying the value where a driven rate is supported)."""
+        responsible for supplying the value where a driven rate is supported).
+
+        ``time`` rides in from the same context every engine already passes, and is used only where
+        the mapping has a `Schedule` entry — this driver state, but only after t."""
         if drivers is None:
             return 1.0
         value = drivers.get(self.key)
         if value is None:
             return 1.0
-        return self.mapping.multiplier(value)
+        return self.mapping.multiplier(value, time=time)
+
+    def next_change(self, time: float) -> float:
+        """A scheduled mapping entry changes on its own, so its breakpoints have to reach the
+        engine's horizon or the Gillespie steps straight past them. Everything else answers ``inf``,
+        which is `Modifier.next_change`'s default and what every mapping but `Table` returns."""
+        nc = getattr(self.mapping, "next_change", None)
+        return math.inf if nc is None else nc(time)
 
     def written_call(self) -> str:
         """``step`` is written whenever it is set, because a written form that omits an argument

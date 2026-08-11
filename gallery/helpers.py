@@ -62,7 +62,7 @@ def dashed_extinct(tree, ct) -> set:
     went extinct is ``e<id>``, not ``n<id>``. Spelling the prefix here rather than at each call site
     is deliberate: when the extinct marking was introduced every caller kept building ``n<id>``, the
     set matched nothing, and four figures silently lost their dashing."""
-    extinct_leaf_names = {ct.labels()[n.id] for n in ct.extinct_leaves()}
+    extinct_leaf_names = {ct.labels()[n.id] for n in (ct.nodes[_i] for _i in ct.extinct_leaves())}
     dashed = set()
     for node in tree.walk("postorder"):
         if node.is_leaf:

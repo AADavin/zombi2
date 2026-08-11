@@ -74,6 +74,32 @@ class Clade:
         painted = resolve_groups(tree, self.groups)
         return DriverTrajectory({i: [(tree.nodes[i].birth_time, painted[i])] for i in tree.nodes})
 
+    def resolve(self, tree) -> dict[str, list[int]]:
+        """Which lineages each named group covers on ``tree`` — ``{label: [node ids]}``, in the order
+        the groups were written, with ``"rest"`` last when some lineage is in no named clade::
+
+            Clade({"fast": ["n27", "n51"]}).resolve(tree)
+            # {'fast': [24, 27, 28, 51, 52], 'rest': [0, 1, 2, ...]}
+
+        A read-back, for checking a clade **before** trusting a run that reads it. Three things it
+        makes visible, none of them derivable from the tip names alone: the **MRCA's own branch is
+        inside the clade** (``n24`` above, which nobody named), a clade holds the extinct and
+        internal lineages of its subtree as well as its tips, and a lineage in no named clade is in
+        ``"rest"``.
+
+        It cannot disagree with the run, because it paints with `resolve_groups` — the one function
+        the engine paints membership with, for this driver and for the `Clades` transfer rule alike.
+        ``zombi2 tools tree TREE --clades`` is the other half: it lists the clades a tree offers to
+        name (Appendix C)."""
+        from ..genomes._transfer import resolve_groups
+        from ..tree import as_tree
+
+        painted = resolve_groups(as_tree(tree, level="clade"), self.groups)
+        covers: dict[str, list[int]] = {label: [] for label in self.groups}
+        for i in sorted(painted):
+            covers.setdefault(painted[i], []).append(i)
+        return covers
+
     def written_form(self) -> str:
         """A clade is built from literals — labels, node ids, tip names — so unlike every other
         driver it can be written into a run's log and pasted back. `Driven.written_call` asks for

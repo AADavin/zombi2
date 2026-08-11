@@ -77,7 +77,7 @@ class FamilyGenomesResult:
     """What ``simulate_genomes_family`` returns: the ``complete_tree`` it ran on, the final
     ``genomes`` at **every** node (extant and extinct), the ``events`` log (the compact source of
     truth), and the ``seed``. The observed genomes are the extant tips —
-    ``{n.id: genomes[n.id] for n in complete_tree.extant_leaves()}``. The phyletic ``profiles`` are derived
+    ``{i: genomes[i] for i in complete_tree.extant_leaves()}``. The phyletic ``profiles`` are derived
     from those tips on access, and ``write`` materialises the chosen outputs to disk."""
 
     complete_tree: Tree
@@ -150,7 +150,7 @@ class FamilyGenomesResult:
     def profiles(self) -> Profiles:
         """The phyletic profiles — each gene family's copy count in each extant species — derived
         from the observed genomes (the classic comparative-genomics matrix). See `profiles`."""
-        extant = [n.id for n in self.complete_tree.extant_leaves()]
+        extant = list(self.complete_tree.extant_leaves())
         if extant and not self.genomes:
             # a run reopened by `read_run` from a directory whose 'genomes' output was not written:
             # the genealogy is all there, the gene content is not. Say that, rather than KeyError.
@@ -219,7 +219,7 @@ class FamilyGenomesResult:
         t0 = self.complete_tree.nodes[self.complete_tree.root].birth_time
         counted = event_counts(self.edges, t0)    # shared with the ordered and nucleotide summaries
 
-        extant = [n.id for n in self.complete_tree.extant_leaves()]
+        extant = list(self.complete_tree.extant_leaves())
         born = {e.family for e in self.edges}
         surviving = {c.family for i in extant for c in self.genomes.get(i, ())}
         genes_per_genome = [len(self.genomes.get(i, ())) for i in extant]
@@ -1146,7 +1146,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 if weights is not None:
                     weights.retired(k_out)
                 node = tree.nodes[i]
-                if node.children is not None:  # a speciation: each gene re-ids into each daughter
+                if node.children:  # a speciation: each gene re-ids into each daughter
                     per_daughter = []
                     for c in node.children:
                         child_genome, rows = [], []

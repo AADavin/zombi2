@@ -70,7 +70,7 @@ seq = sequences.simulate_sequences(
 phylogram, _ = read_newick(seq.species_phylogram["extant"])
 estimate = red_of(phylogram)                   # RED, now on substitutions instead of time
 
-nodes = [i for i in truth if i in estimate and sp.extant_tree.nodes[i].children is not None]
+nodes = [i for i in truth if i in estimate and sp.extant_tree.nodes[i].children]
 r = np.corrcoef([truth[i] for i in nodes], [estimate[i] for i in nodes])[0, 1]
 print(f"RED recovers relative node age with r = {r:.3f} across {len(nodes)} nodes")
 ```

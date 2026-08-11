@@ -9,13 +9,16 @@ genome's `presence()` does.
 from __future__ import annotations
 
 import collections
+import math
 
 import pytest
 
 from zombi2 import genomes, traits
 from zombi2.genomes._transfer import resolve_groups
-from zombi2.params import Clade, PerCopy, PerLineage
+from zombi2.params import Clade, PerCopy, PerLineage, Table
+from zombi2.params.parse import parse_rate
 from zombi2.params.conditioned import resolve_driver
+from zombi2.genomes import simulate_genomes_family
 from zombi2.species import simulate_species_tree
 
 
@@ -114,3 +117,46 @@ class TestWhatItRefuses:
             Clade({})
         with pytest.raises(ValueError, match="labels must be non-empty strings"):
             Clade({"": 3})
+
+
+# --- a clade AND a time window: a scheduled Table entry ------------------------------------------
+#
+# Chaining two verbs cannot express this: scaled_by(clade, {...}).changing_at({...}) multiplies two
+# factors that each apply to every lineage, so the time window lands on the whole tree. A Table entry
+# written as a schedule scopes the factor to the state AND to the time.
+
+def test_a_scheduled_entry_reads_its_state_and_the_clock():
+    t = Table({"endo": {0: 1.0, 6.0: 20.0}, "rest": 1.0})
+    assert [t.multiplier("endo", time=x) for x in (0.0, 5.9, 6.0, 9.0)] == [1.0, 1.0, 20.0, 20.0]
+    assert [t.multiplier("rest", time=x) for x in (0.0, 9.0)] == [1.0, 1.0]
+    # the breakpoint has to reach the engine's horizon or the Gillespie steps straight past it
+    assert t.next_change(0.0) == 6.0 and t.next_change(6.0) == math.inf
+    assert Table({"a": 1.0}).next_change(0.0) == math.inf          # an ordinary table never moves
+
+
+def test_a_scheduled_entry_survives_the_written_form():
+    # the promise the whole grammar rests on: one notation across Python, the flag and the TOML file
+    written = "PerCopy(0.02).scaled_by(Clade({'e': ['n1']}), {'e': {0: 1.0, 6.0: 20.0}, 'rest': 1.0})"
+    rate = parse_rate(written)
+    assert repr(rate) == ("PerCopy(0.02).scaled_by(Clade({'e': ['n1']}), "
+                          "Table({'e': {0.0: 1.0, 6.0: 20.0}, 'rest': 1.0}))")
+    assert parse_rate(repr(rate)) == rate                          # and it parses back to itself
+
+
+def test_the_clade_and_the_window_both_bite():
+    # the model itself: x20 inside this clade, and only after t=6. Both halves have to hold — a
+    # schedule that leaked outside the clade, or a clade factor that ignored the clock, would show
+    # up as losses in the wrong box.
+    sp = simulate_species_tree(birth=0.55, death=0.15, total_time=8.0, seed=85)
+    clade = Clade({"endo": ["n76", "n112"]})
+    inside = set(clade.resolve(sp)["endo"])
+    g = simulate_genomes_family(
+        sp, initial_families=300,
+        loss=PerCopy(0.02).scaled_by(clade, {"endo": {0: 1.0, 6.0: 20.0}, "rest": 1.0}), seed=4)
+    box = collections.Counter((e.lineage in inside, e.time >= 6.0)
+                              for e in g.edges if e.kind == "loss")
+    # inside the clade the rate is x20 after t=6, so the late losses must dwarf the early ones ...
+    assert box[(True, True)] > 20 * box[(True, False)]
+    # ... while outside it nothing changed at t=6: 6 time units before against 2 after, on a growing
+    # tree, so the two boxes stay within a factor of a few of each other rather than 20-fold apart
+    assert box[(False, False)] > box[(False, True)] > 0.2 * box[(False, False)]
