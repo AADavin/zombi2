@@ -664,13 +664,15 @@ def clade_transition(out):
         ax.axvline(np.mean([n for n, c in zip(sizes, colours) if c == _SW_BEFORE]),
                    color="0.45", lw=1.0, ls=":")
 
-    h.composite_beside(tmp, out, panel, figsize=(12.5, 7.4), ratios=(3, 1.0),
-                       geometry=geo, wspace=0.02,
-                       inset=((0.015, 0.30, 0.30, 0.17),
-                              lambda ax: h.draw_switch(ax, "base rate", f"loss x{_SW_FACTOR}",
-                                                       f"at t = {_SW_T0:g}",
-                                                       (_SW_BEFORE, _SW_AFTER),
-                                                       note="in the shaded clade only")))
+    body = out.replace(".png", "_body.png")
+    h.composite_beside(tmp, body, panel, figsize=(12.5, 7.4), ratios=(3, 1.0),
+                       geometry=geo, wspace=0.02)
+    diag = h.conditioning_png(
+        out.replace(".png", "_diag.png"), draw=h.draw_schedule,
+        driver="clade", before="base rate", after=f"loss x{_SW_FACTOR}", at=f"at t = {_SW_T0:g}",
+        target="loss", target_base=0.02, target_sub="genes per genome",
+        colors=(_SW_BEFORE, _SW_AFTER))
+    h.composite_under_diagram(out, diag, [(body, "")], diagram_frac=0.46)
 
 
 _C_TRANSITION = '''\
