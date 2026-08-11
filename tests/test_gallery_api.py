@@ -46,8 +46,9 @@ _MODULES = ("species", "traits", "joining")
 # directly, not via the CLI). Named explicitly because their sibling examples in the same modules go
 # through the CLI (and one downloads a genome) and must NOT run mocked here — see the module docstring.
 _PYTHON_EXTRAS = {"sequences": {"clock_ucln", "clock_ugam", "clock_autocorrelated",
-                                "clock_discrete_bin", "seq_ancestral"},
-                  "genomes": {"genome_inversion", "genome_transfer_highway"}}
+                                "clock_discrete_bin", "seq_ancestral", "clade_own_model"},
+                  "genomes": {"genome_inversion", "genome_transfer_highway",
+                              "genome_clade_transition"}}
 # A zombi2 rename surfaces as one of these on a real result object; a mocked Phylustrator call cannot
 # raise them. Anything else out of a render (a FileNotFoundError from a composite reading back a PNG
 # the mock never wrote, say) is the drawing layer, not our concern.

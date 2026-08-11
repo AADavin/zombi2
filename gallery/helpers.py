@@ -108,14 +108,31 @@ def composite_below(tree_png: str, present: float, out: str, panel, ylabel: str,
     plt.close(fig)
 
 
-def composite_beside(tree_png: str, out: str, panel, figsize=(12, 6), ratios=(3, 1.15)) -> None:
-    """Tree on the left, a standalone matplotlib panel (its own axes) on the right."""
+def composite_beside(tree_png: str, out: str, panel, figsize=(12, 6), ratios=(3, 1.15),
+                     *, geometry=None, wspace: float = 0.15, inset=None) -> None:
+    """Tree on the left, a standalone matplotlib panel (its own axes) on the right.
+
+    ``geometry`` is the rendered figure's `Figure.geometry()` — pass it for a **row-aligned** panel
+    (one bar per tip): the panel's y axis is set to the tree's own canvas height, so a bar drawn at
+    ``y = tip.y`` sits at the height of that tip rather than merely in the same order. It must be the
+    canvas height and not the PNG's, which Phylustrator renders at 2x.
+
+    ``inset`` is ``(rect, draw_fn)`` — a small schematic drawn over the tree, as `composite_markov`
+    does for a Markov chain, for a figure whose model is worth stating as a picture."""
     img = mpimg.imread(tree_png)
     fig, (axt, axp) = plt.subplots(1, 2, figsize=figsize,
-                                   gridspec_kw={"width_ratios": list(ratios), "wspace": 0.15})
+                                   gridspec_kw={"width_ratios": list(ratios), "wspace": wspace})
     axt.imshow(img)
     axt.set_axis_off()
+    if inset is not None:
+        rect, draw_fn = inset
+        ax_in = axt.inset_axes(rect)
+        draw_fn(ax_in)
+        ax_in.set_axis_off()
     panel(axp)
+    if geometry is not None:
+        axp.set_ylim(geometry.size[1], 0)      # the tree's own coordinate space, top-down
+        axp.set_yticks([])
     for spine in ("top", "right"):
         axp.spines[spine].set_visible(False)
     fig.savefig(out, dpi=125, bbox_inches="tight")
@@ -239,6 +256,34 @@ def composite_model_realization(realization_png: str, out: str, draw_model, *,
     axr.set_axis_off()
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
+
+
+def draw_schedule(ax, *, driver, before, after, at, target, target_base, target_sub=None,
+                  colors=("#4393c3", "#b2182b")) -> None:
+    """The house driver→target diagram for a **schedule**: a factor scoped to a group *and* to a time.
+
+    The same frame as `draw_conditioning`, differing in one thing. That one draws a state diagram
+    under the driver with an arrow per positive **rate**, labelled with it — and it is not only for
+    traits: the gallery uses it for gene presence too, one-directional, because a family is lost and
+    not regained. What it cannot label is this arrow, because a schedule's arrow carries a **time**.
+    The switch is not something a lineage does at some rate; it happens to everything in the clade at
+    once, at a moment the run fixes in advance."""
+    from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+
+    _conditioning_frame(ax, driver, target, target_base, target_sub)
+
+    y, w, hh = 202, 96, 34
+    for x, label, colour in ((24, before, colors[0]), (144, after, colors[1])):
+        ax.add_patch(FancyBboxPatch((x, y - hh / 2), w, hh,
+                                    boxstyle="round,pad=1.5,rounding_size=6",
+                                    facecolor=colour, edgecolor="white", lw=1.4, zorder=3))
+        ax.text(x + w / 2, y, label, ha="center", va="center", color="white",
+                fontsize=12, fontweight="bold", zorder=4)
+    ax.add_patch(FancyArrowPatch((124, y), (142, y), arrowstyle="-|>", mutation_scale=13,
+                                 lw=1.6, color=_INK, zorder=2))
+    ax.text(133, y - 26, at, ha="center", va="center", color=_INK, fontsize=12, style="italic")
+    ax.text(120, y + 34, "and only inside the clade", ha="center", va="center",
+            color=_DIM, fontsize=11)
 
 
 def composite_markov(tree_png: str, out: str, draw_fn, *, loc=(0.02, 0.09, 0.34, 0.36)) -> None:

@@ -573,6 +573,121 @@ ph.genomes.grid(M, palette={0: "#F1EFE9", 1: "#26565B"}, borders=False).save("pa
 np.histogram(prev, bins=np.arange(1, len(p.species) + 2))   # the frequency spectrum'''
 
 
+# --- a transition partway through the run ---------------------------------------------------------
+#
+# The clade is named off the TREE, and its factor is written as a schedule, so the change is scoped
+# to a group of lineages AND to a time. Chaining two verbs cannot say this: scaled_by(clade, ...)
+# .changing_at(...) multiplies two factors that each apply to every lineage, so the window would fall
+# on the whole tree instead of on the clade.
+
+_SW_SEED, _SW_TIPS, _SW_T0 = 2, 34, 2.0      # _SW_T0: when the clade's loss rate changes
+_SW_FACTOR = 20                              # what it changes to
+_SW_AFTER, _SW_BEFORE = "#b2182b", "#4393c3"
+
+
+def _switch_run():
+    """One tree, one genome run: a clade whose loss rate jumps twenty-fold at ``_SW_T0`` and which
+    stops receiving transfers at the same moment. Nothing else in the run changes, and nothing about
+    those lineages differs before that time."""
+    from zombi2.genomes import simulate_genomes_family
+    from zombi2.params import Clade, PerCopy, PerLineage, Recipients
+    from zombi2.species import simulate_species_tree
+
+    sp = simulate_species_tree(birth=1.0, n_extant=_SW_TIPS, seed=_SW_SEED)
+    ct = sp.complete_tree
+    clade = Clade({"selected": ["n13", "n33"]})
+    on = {0: 1.0, _SW_T0: 20.0}                       # the schedule: one factor, from t on
+    off = {0: 1.0, _SW_T0: 0.0}
+    g = simulate_genomes_family(
+        ct, initial_families=220, duplication=PerCopy(0.02), origination=PerLineage(1.0),
+        transfer=PerCopy(0.05),
+        loss=PerCopy(0.02).scaled_by(clade, {"selected": on, "rest": 1.0}),
+        transfer_to=Recipients().weighted_by(clade, {"selected": off, "rest": 1.0}),
+        seed=_SW_SEED)
+    return ct, clade, g
+
+
+def clade_transition(out):
+    """One clade's loss rate changes, and only from a given time.
+
+    The shading names the clade the run selected; the colour is each lineage's loss rate through
+    time, so it changes *along* the branches the threshold crosses; the bars are what each genome is
+    left with."""
+    import numpy as np
+
+    ct, clade, g = _switch_run()
+    inside = set(clade.resolve(ct)["selected"])
+    labels = ct.labels()
+    # the clade's own root — the shading marks which lineages the run selected, before any of them
+    # behaves differently. Its OWN branch is inside the clade, which is what `Clade.resolve` shows.
+    clade_root = labels[min(inside, key=lambda i: ct.nodes[i].birth_time)]
+
+    # The colour is the lineage's STATE THROUGH TIME, not which group it is in. A selected lineage is
+    # an ordinary one until _SW_T0 — same loss rate, same transfers — so painting it red
+    # from the clade's origin would show membership where the figure is about a change. Every branch
+    # is a mosaic: the one the switch falls inside is blue up to it and red after.
+    history = {}
+    for i, nd in ct.nodes.items():
+        a, b = nd.birth_time, nd.end_time
+        if i not in inside or b <= _SW_T0:
+            history[labels[i]] = [("base rate", b - a)]
+        elif a >= _SW_T0:
+            history[labels[i]] = [("loss x20", b - a)]
+        else:                                        # the switch falls inside this branch
+            history[labels[i]] = [("base rate", _SW_T0 - a),
+                                  ("loss x20", b - _SW_T0)]
+    palette = {"loss x20": _SW_AFTER, "base rate": _SW_BEFORE}
+
+    fig = (ph.trees.plot(ph.trees.loads(ct.to_newick()),
+                         style=ph.Style(width=1150, height=980, margin=70, branch_width=3.0))
+           + ph.trees.color_history(history, palette=palette)
+           + ph.trees.highlight_clade(clade_root, color="#c8b9a0", opacity=0.22)
+           + ph.trees.time_marker(_SW_T0, label=f"loss x{_SW_FACTOR} from t = {_SW_T0:g}")
+           + ph.trees.time_axis("time")
+           + ph.trees.legend("loss rate"))
+    tmp = out.replace(".png", "_tree.png")
+    fig.save(tmp)
+
+    # bars in the tree's own tip order, so row k of the panel is tip k of the figure
+    order = [t.name for t in fig.geometry().tips]
+    by_label = {labels[i]: i for i in ct.nodes}
+    sizes = [len(g.genomes[by_label[name]]) for name in order]
+    colours = [palette[history[name][-1][0]] for name in order]
+
+    geo = fig.geometry()
+    tips = geo.tips
+    span = (tips[-1].y - tips[0].y) / max(len(tips) - 1, 1)      # one tip's share of the height
+
+    def panel(ax):
+        ax.barh([t.y for t in tips], sizes, color=colours, height=span * 0.72, linewidth=0)
+        ax.set_xlabel("genes per genome")
+        ax.axvline(np.mean([n for n, c in zip(sizes, colours) if c == _SW_BEFORE]),
+                   color="0.45", lw=1.0, ls=":")
+
+    body = out.replace(".png", "_body.png")
+    h.composite_beside(tmp, body, panel, figsize=(12.5, 7.4), ratios=(3, 1.0),
+                       geometry=geo, wspace=0.02)
+    diag = h.conditioning_png(
+        out.replace(".png", "_diag.png"), draw=h.draw_schedule,
+        driver="clade", before="base rate", after=f"loss x{_SW_FACTOR}", at=f"at t = {_SW_T0:g}",
+        target="loss", target_base=0.02, target_sub="genes per genome",
+        colors=(_SW_BEFORE, _SW_AFTER))
+    h.composite_under_diagram(out, diag, [(body, "")], diagram_frac=0.46)
+
+
+_C_TRANSITION = '''\
+from zombi2.params import Clade, PerCopy, Recipients
+
+clade = Clade({"selected": ["n13", "n33"]})
+
+# one factor, scoped to the clade AND to a time: x20 loss from t=2, and no transfer in from then
+my_genomes = simulate_genomes_family(
+    tree, initial_families=220, duplication=PerCopy(0.02), transfer=PerCopy(0.05),
+    loss=PerCopy(0.02).scaled_by(clade, {"endo": {0: 1.0, 2.0: 20.0}, "rest": 1.0}),
+    transfer_to=Recipients().weighted_by(clade, {"endo": {0: 1.0, 2.0: 0.0}, "rest": 1.0}),
+    seed=2)'''
+
+
 EXAMPLES = [
     Example("genome_circular_ordered", "Circular genome (ordered)",
             "A genome as a ring — genes evenly spaced by rank, coloured by family, arrows by strand. "
@@ -610,4 +725,14 @@ EXAMPLES = [
             "Two runs at the same mean rates. Every family alike gives no core at all; letting families "
             "differ gives 28 core families and a U-shaped spectrum.",
             "phylustrator · heterogeneity", pangenome_by_family, code=_C_PANGENOME),
+    Example("genome_clade_transition", "One clade's loss rate changes, from a given time",
+            "The shading marks the clade the run selected. Its lineages lose genes at the base rate "
+            "up to the dashed line and twenty times faster after it, so the colour changes <i>along</i> "
+            "the branches the line crosses — nothing about them differs beforehand. The bars are what "
+            "each genome is left with: about 140 genes against 270 outside, all of it lost in the last "
+            "third of the run. One factor, scoped to a group <b>and</b> to a time — chaining "
+            "<code>scaled_by</code> with <code>changing_at</code> cannot say this, because the two "
+            "factors would each apply to every lineage. "
+            "<code>scaled_by(clade,&nbsp;{'selected':&nbsp;{0:&nbsp;1.0,&nbsp;2.0:&nbsp;20.0},&nbsp;'rest':&nbsp;1.0})</code>.",
+            "clades · schedules", clade_transition, code=_C_TRANSITION),
 ]
