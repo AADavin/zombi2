@@ -13,73 +13,27 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
-- **Two gallery examples for the two capabilities added in 0.33.0.** *A transition partway through
-  the run* — a clade turns endosymbiotic at t=2, sheds genes twenty times faster from then on and
-  stops receiving transfers, with genome size through time beside the tree. *A clade with its own
-  substitution model* — one clade under an AT-rich matrix, branches coloured by the A+T content of
-  the sequences on them, so the compositional relaxation toward the new equilibrium is visible along
-  the branches rather than only at the tips. Both are covered by the gallery canary.
+- Two gallery examples: a clade whose loss rate changes at a given time, and a clade with its own
+  substitution model. (#336)
 
 ## [0.33.0] - 2026-08-11
 
 ### Fixed
 
-- **BREAKING: `Tree.leaves()`, `.extant_leaves()`, `.extinct_leaves()` and `.unsampled_leaves()`
-  return node ids, not `Node` objects.** A tree spoke ids everywhere else — `root` is one, `nodes` is
-  keyed by one, `children` holds them — and these four were the exception, so the output of one could
-  not be fed to the other: `set(tree.extant_leaves())` raised `unhashable type: 'Node'`, and
-  `tree.nodes[leaf]` was a `TypeError`. Either currency would have done; having both is what cost a
-  reader an afternoon. **To update:** `{n.id for n in tree.extant_leaves()}` becomes
-  `set(tree.extant_leaves())` and `[n.id for n in …]` becomes `list(…)`, both shorter; a loop that
-  reads an attribute becomes `for i in tree.extant_leaves(): tree.nodes[i].fate`. `len(…)` is
-  unchanged. Every misuse raises immediately — an `int` has no attributes to read — so nothing fails
-  quietly.
-- **`Node.children` is an empty tuple at a tip, not `None`.** Walking a tree is now `for c in
-  node.children` with no guard, which is what a reader writes first — and what two of five test users
-  crashed on (`TypeError: 'NoneType' object is not iterable`), one of them on their first recursion.
-  Nothing that reads the attribute breaks, and `is_leaf` is unchanged. **If you kept a
-  `node.children is None` test of your own, change it**: it now reads `False` at a tip, so a leaf
-  would be handed to the internal-node branch in silence. Test emptiness instead — `if not
-  node.children`, or `node.is_leaf`.
-- **A repeated `--params` is refused instead of silently discarding the first file.** `--params
-  a.toml --params b.toml` kept only `b.toml`, so `a.toml`'s resolution, chromosome count and seed
-  vanished without a word and the run was quietly a different model from the one asked for — the one
-  input mistake the CLI let through in silence, and the one most likely to survive review inside a
-  pipeline that assembles its arguments. A run takes one parameters file; a second is now an error,
-  raised before any file is opened and for every command at once.
-- **An abbreviated `--params` reads the file instead of ignoring it.** The flag is found by a scan
-  that runs before argparse, and the scan matched only the full spelling — so `--param run.toml`,
-  which argparse itself accepts as an unambiguous prefix, left the file unread: the command
-  succeeded, said nothing, and simulated the defaults. The scan now resolves a prefix the way
-  argparse does, and an ambiguous one (`--par`, against `--params` and `--parallel`) is still
-  refused by argparse rather than claimed for either.
-- **`zombi2 joint --switch` takes the same spellings `zombi2 traits --switch` does.** It was parsed
-  as a plain float, so `--switch "{'outcrossing->selfing': 0.2}"` — the standard irreversible,
-  asymmetric BiSSE, where one state is a dead end — died at argparse with `invalid float value`, on
-  the very command built for trait-driven diversification. The engine had taken the dict and the
-  `k×k` matrix all along and both were reachable from Python; only the flag was narrower than its
-  keyword. Runs given a bare number are byte-for-byte unchanged.
-- **A result written from Python leaves the same files as the command that would have made it.**
-  `TraitsResult.write(d)` wrote one file, `trait_values.tsv`, while `zombi2 traits` wrote four, so a
-  Python user following Appendix B went looking for the trait event log and got a `FileNotFoundError`
-  — the same level, writing a quarter of its output, depending only on how it had been called. Each
-  level's `.write()` now defaults to that level's own command's set. `JointResult.write` also gains
-  the `outputs=` selector every other level has, and no longer omits `species_fates.tsv` and
-  `species_summary.json`. The `zombi2` commands write exactly what they wrote before, and a
-  `.write()` given an explicit `outputs=` is unchanged; the layout still differs, one directory from
-  Python and `species/` + `traits/` from the command.
-- **`mean_pairwise_identity` no longer depends on `--stream`.** It was a bounded random sample of
-  within-family pairs, and the streamed path sampled differently, so the same seed reported two
-  different identities — 0.72861 in memory against 0.7408771929824561 streamed — while every
-  alignment was byte-identical. Nothing said the number was an estimate, so it read as a fingerprint
-  two matching runs could disagree on. It is now counted over every within-family pair, a column at
-  a time so the work is linear in the alignment rather than quadratic in family size, and both paths
-  reach one number. The value a given run reports changes, in `sequences_summary.json`, in the
-  command's summary line and in `run.zombi2`; no simulated data moves.
-- **Four refusals stop describing themselves as "a later slice".** The phrase is a roadmap word, not
-  something a user can act on: it named when the combination might be built rather than what to write
-  instead. Each now says what is refused, why, and the spelling that works — the transfer rule that
-  takes one recipient weighting, and the two scope refusals at the nucleotide and sequence levels.
+- **BREAKING:** the tree's four tip accessors (`leaves`, `extant_leaves`, `extinct_leaves`,
+  `unsampled_leaves`) return node ids rather than `Node` objects, like everything else on a tree.
+  `{n.id for n in tree.extant_leaves()}` becomes `set(tree.extant_leaves())`. (#335)
+- `Node.children` is an empty tuple at a tip, not `None`, so a walk needs no guard. Replace any
+  `children is None` test of your own with `not node.children`. (#335)
+- Passing `--params` twice is refused instead of silently discarding the first file. (#334)
+- An abbreviated `--params` reads the file instead of being ignored. (#334)
+- `zombi2 joint --switch` takes the dict and matrix spellings `zombi2 traits --switch` takes, so an
+  irreversible trait is writable from the command line. (#334)
+- A result's `.write()` writes the files its own command writes; `JointResult.write` gains
+  `outputs=`. (#334)
+- `mean_pairwise_identity` counts every within-family pair, so it no longer changes with `--stream`.
+  The value a run reports moves; no simulated data does. (#335)
+- Four refusals stop calling themselves "a later slice" and say what to write instead. (#334)
 - **A bad rate names the flag it came from.** `--death -0.3` reported "a rate base must be finite and
   non-negative, got -0.3" without saying which rate, so a command carrying four of them had to be
   bisected by hand; written on a scope (`--death "Global(-0.3)"`) the same mistake already named it.
@@ -121,60 +75,17 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
-- **A per-family draw and a driven rate can share a run, at the family resolution.** "Some gene
-  families are mobile" and "this clade loses genes faster" could not be one model: the pair was
-  refused, and three places in the documentation said it was allowed. They compose, and the
-  composition is the product — the driver's factor belongs to the lineage, the family multipliers to
-  its contents, so a lineage's weight is the rate read on that lineage times the multipliers over its
-  live copies. The copy pick inside a lineage is unchanged, the driver's factor being one number for
-  that whole lineage. `PerLineage` with a per-family draw is still refused, and still says why: that
-  one is an open question about what the model should mean, not a missing wire. The ordered
-  resolution still refuses the pair, and its message now points at the family resolution.
-- **A clade can evolve under its own substitution model.** A run had one model for every branch, so
-  a clade could evolve faster but not *differently*, and every compositional question was out of
-  reach — an endosymbiont clade drifting toward AT, a lineage with its own GC bias, the compositional
-  attraction that misleads a tree-builder in a way long-branch attraction does not.
-  `Models().set_by(Clade({…}), {label: model})` gives each named clade its own matrix; scoping the
-  substitution rate to the same clade gives both halves of the syndrome at once. A model is the
-  fourth thing a driver can target, and the odd one out — a rate, an extent and a choice take a
-  factor and are multiplied by it, a model takes none and is selected, which is why the verb is
-  `set_by` (SPEC §5). The alphabet and the across-site rate classes are shared and say why if they
-  differ; the driver must be a clade, since a trait switches mid-branch and this level samples one
-  transition matrix per branch. Python only, as `reversible()` is. No cost measured: the
-  eigendecomposition was already built once per model and hoisted out of the per-branch loop, and a
-  branch belongs to one clade, so a per-clade run builds the same number of matrices as a one-model
-  run. One caveat, stated in ch7 and Appendix B rather than hidden: a model's normalisation holds at
-  stationarity, so a branch whose composition is still relaxing accrues slightly fewer substitutions
-  than its nominal length.
-- **A factor can be scoped to a driver state *and* to a time.** `{"endo": {0: 1.0, 6.0: 20.0},
-  "rest": 1.0}` reads: twenty times the base inside this clade, but only from t=6, and unchanged
-  outside it throughout. It could not be written before — `scaled_by(clade, …).changing_at(…)`
-  multiplies two factors that each apply to every lineage, so the window landed on the whole tree —
-  and it is the shape a transition needs: a lineage that becomes endosymbiotic partway through the
-  run, a habitat that only starts to matter after a date. Any discrete driver takes one, the
-  notation is `changing_at`'s, and the breakpoints reach the Gillespie horizon so the run steps to
-  them rather than past them. The sequences level refuses one: it walks a gene tree branch by branch
-  and never steps at a wall-clock time, so a schedule there would silently hold its first factor for
-  the whole run.
-- **`zombi2 tools tree TREE --clades` lists the clades a tree offers to name, and `Clade.resolve`
-  says what one covers.** Scoping a rate to a clade — the thing that makes ZOMBI2 different — meant
-  naming a node, and nothing said which nodes were there, how big they were, or which lineages the
-  clade you wrote actually held. The listing gives node, extant tips, crown time and two example
-  tips that straddle the crown split, so passing them back to `Clade({...})` names that same node;
-  `--min-extant` / `--max-extant` filter it. `Clade.resolve(tree)` answers the other direction, and
-  cannot disagree with the engine because it paints with the same function the engine does. It also
-  makes visible what was previously only inferable: a clade's root branch is inside it, and a clade
-  holds the extinct and internal lineages of its subtree, not only its tips.
-- **A nucleotide run says when its extents are too small to move a gene.** Setting `duplication`,
-  `transfer` and `loss` at the nucleotide resolution and reading zeros back from
-  `genome_summary.json` looked like a broken counter; it was the model doing nothing. A gene is
-  never split, and the default extent is 50 bp against a default 500 bp gene, so a default-sized
-  event cannot cover a gene end to end however high the rates. The run now warns, naming the extents
-  and the shortest declared gene. It stays quiet where the geometry is fine — a dense genome with no
-  spacer offers nothing but gene joins, so every event moves whole genes whatever the extent.
-- **`genome_summary.json` counts the nucleotide log beside the gene log.** A new `block_events` key
-  counts DNA-level events per kind next to `events`, so a run whose arcs never covered a whole gene
-  shows what did happen rather than six zeros.
+- A per-family draw and a driven rate can share a run at the family resolution; a lineage's weight
+  is the product of the two. (#334)
+- A clade can evolve under its own substitution model:
+  `Models().set_by(Clade({...}), {label: model})`. (#335)
+- A factor can be scoped to a driver state **and** to a time:
+  `scaled_by(clade, {"endo": {0: 1.0, 6.0: 20.0}, "rest": 1.0})`. (#335)
+- `zombi2 tools tree --clades` lists the clades a tree offers to name, and `Clade.resolve(tree)`
+  says which lineages one covers. (#335)
+- A nucleotide run warns when its extents are too small to move a whole gene, which left the
+  gene-level counters at zero however high the rates. (#335)
+- `genome_summary.json` gains `block_events`, counting the nucleotide log beside the gene log. (#335)
 
 ### Changed
 
