@@ -137,7 +137,7 @@ def test_byfamily_refused_on_the_chromosome_tier(tree):
 def _worst_family_count(g):
     """The largest number of copies any one family reaches in any one genome of the run."""
     worst = 0
-    for genome in g.genomes.values():
+    for genome in g.node_genomes.values():
         c = collections.Counter(gene.family for chrom in genome for gene in chrom.genes)
         worst = max(worst, max(c.values(), default=0))
     return worst

@@ -41,9 +41,9 @@ def _transfers(events):
 def test_genomes_on_every_node_including_extinct():
     sp = _tree(seed=3, death=0.5)
     g = simulate_genomes_family(sp, duplication=0.2, loss=0.2, origination=0.5, initial_families=4, seed=1)
-    assert set(g.genomes) == set(sp.complete_tree.nodes)          # every node has a genome
+    assert set(g.node_genomes) == set(sp.complete_tree.nodes)          # every node has a genome
     extinct = set(sp.complete_tree.extinct_leaves())
-    assert extinct and extinct <= set(g.genomes)                 # extinct lineages included
+    assert extinct and extinct <= set(g.node_genomes)                 # extinct lineages included
 
 
 def test_accepts_a_result_or_a_bare_tree():
@@ -61,7 +61,7 @@ def test_deterministic_given_seed():
     a, b = simulate_genomes_family(sp, **kw), simulate_genomes_family(sp, **kw)
     assert [(e.time, e.kind, e.lineage, e.copy, e.parent) for e in a.edges] == \
            [(e.time, e.kind, e.lineage, e.copy, e.parent) for e in b.edges]
-    assert a.genomes == b.genomes
+    assert a.node_genomes == b.node_genomes
 
 
 def test_different_seeds_differ():
@@ -81,7 +81,7 @@ def test_initial_families_seed_originations_at_the_crown():
     g = simulate_genomes_family(sp, initial_families=6, seed=1)          # no D/L/O rates
     crown = [e for e in g.events if e.time == t0]
     assert len(crown) == 6 and all(e.kind == "origination" for e in crown)
-    assert len(g.genomes[root]) == 6                               # the root carries all 6
+    assert len(g.node_genomes[root]) == 6                               # the root carries all 6
 
 
 def test_no_rates_means_pure_inheritance():
@@ -90,7 +90,7 @@ def test_no_rates_means_pure_inheritance():
     sp = _tree(seed=4)
     g = simulate_genomes_family(sp, initial_families=3, seed=1)
     root_counts = g.family_counts(sp.complete_tree.root)
-    assert all(g.family_counts(i) == root_counts for i in g.genomes)   # families inherited unchanged
+    assert all(g.family_counts(i) == root_counts for i in g.node_genomes)   # families inherited unchanged
     assert {e.kind for e in g.events} <= {"origination", "speciation"}  # only crown births + splits
     assert all(e.time == 0.0 for e in g.events if e.kind == "origination")
 
@@ -98,14 +98,14 @@ def test_no_rates_means_pure_inheritance():
 def test_origination_only_families_never_exceed_one_copy():
     sp = _tree(seed=6)
     g = simulate_genomes_family(sp, origination=0.8, initial_families=2, seed=1)  # no duplication
-    for node_id in g.genomes:
+    for node_id in g.node_genomes:
         assert all(count == 1 for count in g.family_counts(node_id).values())
 
 
 def test_duplication_grows_a_family():
     sp = _tree(seed=6)
     g = simulate_genomes_family(sp, duplication=0.8, initial_families=3, seed=1)  # no loss, no origination
-    biggest = max((max(g.family_counts(i).values(), default=0)) for i in g.genomes)
+    biggest = max((max(g.family_counts(i).values(), default=0)) for i in g.node_genomes)
     assert biggest > 1                                            # some family reached >1 copy
     # duplication never introduces a new family (only origination does); speciation re-ids at splits
     assert {e.kind for e in g.events} <= {"origination", "duplication", "speciation"}
@@ -115,7 +115,7 @@ def test_loss_can_shrink_and_empty_a_genome():
     # high loss, no origination/duplication except the seeded families -> some lineage loses all
     sp = _tree(seed=6)
     g = simulate_genomes_family(sp, loss=2.0, initial_families=4, seed=1)
-    sizes = [len(g.genomes[i]) for i in g.genomes]
+    sizes = [len(g.node_genomes[i]) for i in g.node_genomes]
     assert min(sizes) < 4                                          # at least one node shrank
     assert any(e.kind == "loss" for e in g.events)
 
@@ -141,7 +141,7 @@ def test_no_floor_means_a_last_copy_is_an_ordinary_copy():
     T, lam, n = 1.0, 0.5, 400
     tree = Tree({0: Node(0, None, 0.0, T, (), "extant")}, 0)
     empty = sum(1 for s in range(n)
-                if not simulate_genomes_family(tree, loss=lam, initial_families=1, seed=s).genomes[0])
+                if not simulate_genomes_family(tree, loss=lam, initial_families=1, seed=s).node_genomes[0])
     p = 1 - math.exp(-lam * T)
     sd = math.sqrt(p * (1 - p) / n)                                # binomial, n independent runs
     assert abs(empty / n - p) < 4 * sd
@@ -170,8 +170,8 @@ def test_every_born_copy_id_is_unique():
 def test_family_counts_matches_the_genome():
     sp = _tree(seed=9)
     g = simulate_genomes_family(sp, duplication=0.3, loss=0.2, origination=0.5, initial_families=4, seed=1)
-    for node_id in g.genomes:
-        assert sum(g.family_counts(node_id).values()) == len(g.genomes[node_id])
+    for node_id in g.node_genomes:
+        assert sum(g.family_counts(node_id).values()) == len(g.node_genomes[node_id])
 
 
 # --- empty / validation ----------------------------------------------------
@@ -180,7 +180,7 @@ def test_empty_run_has_no_events_or_content():
     sp = _tree(seed=1)
     g = simulate_genomes_family(sp, initial_families=0, seed=1)                            # no families, no rates
     assert g.events == []
-    assert all(genome == () for genome in g.genomes.values())
+    assert all(genome == () for genome in g.node_genomes.values())
 
 
 def test_validation():
@@ -322,7 +322,7 @@ def test_transfer_is_deterministic():
     kw = dict(duplication=0.2, transfer=0.4, loss=0.2, origination=0.4, initial_families=5, seed=9)
     a, b = simulate_genomes_family(sp, **kw), simulate_genomes_family(sp, **kw)
     assert [str(e) for e in a.events] == [str(e) for e in b.events]
-    assert a.genomes == b.genomes
+    assert a.node_genomes == b.node_genomes
 
 
 def test_replacement_can_displace_a_resident():
@@ -570,7 +570,7 @@ def test_write_genomes_covers_every_node_where_profiles_covers_only_tips():
         _, rows = _rows(out / "genomes.tsv")
         written = {r["lineage"] for r in rows}
         names = sp.complete_tree.labels()
-        assert written == {names[s] for s in g.genomes if g.genomes[s]}
+        assert written == {names[s] for s in g.node_genomes if g.node_genomes[s]}
         internal = {names[n.id] for n in sp.complete_tree.nodes.values() if n.children}
         assert written & internal, "ancestral genomes must be in there, not just the tips"
         # profiles is the extant-only view
@@ -729,7 +729,7 @@ def test_a_degenerate_family_draw_leaves_a_driven_rate_where_it_was():
 
 def _biggest_family(g):
     return max((collections.Counter(c.family for c in gen).most_common(1) or [(None, 0)])[0][1]
-               for gen in g.genomes.values() if gen)
+               for gen in g.node_genomes.values() if gen)
 
 
 def test_max_family_size_binds_exactly():
@@ -836,5 +836,5 @@ def test_the_cap_binds_at_the_number_given_however_a_copy_arrives():
         g = simulate_genomes_family(sp, duplication=0.6, transfer=0.5, loss=0.1, origination=0.3,
                                     initial_families=20, max_family_size=cap, seed=3)
         biggest = max((max(collections.Counter(c.family for c in genome).values(), default=0)
-                       for genome in g.genomes.values()), default=0)
+                       for genome in g.node_genomes.values()), default=0)
         assert biggest == cap, f"cap {cap} gave a family of {biggest}"

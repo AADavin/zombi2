@@ -301,7 +301,7 @@ def run(args, parser):
         # The genome run's spine from disk: its gene trees derive from (events, tree), and the species
         # tree drives the species phylogram. The sequence engine reads only .complete_tree and
         # .gene_trees, so an empty `genomes` map is the honest minimal shell (it never escapes here).
-        genome_run = FamilyGenomesResult(complete_tree=tree, genomes={}, edges=events, seed=None)
+        genome_run = FamilyGenomesResult(complete_tree=tree, node_genomes={}, edges=events, seed=None)
         for flag, value in (("--intergene-model", args.intergene_model),):
             if value is not None:
                 parser.error(f"{flag} applies to a nucleotide genome run, where blocks are genes or "
@@ -385,12 +385,12 @@ def run(args, parser):
     if nucleotide:
         # the assembled genome of a node is exactly as long as its block layout (substitution keeps
         # length), so total bp comes from the genome run without assembling every node's sequence —
-        # which, since `result.genomes` is now assembled lazily, would otherwise build them all just
+        # which, since `result.node_genomes` is now assembled lazily, would otherwise build them all just
         # to sum their lengths.
-        bp = sum(g.length for g in genome_run.genomes.values())
+        bp = sum(g.length for g in genome_run.node_genomes.values())
         spacer = args.intergene_model or "jc69"
         summary = (f"{n_seqs} sequences across {n_families} blocks, {bp:,} bp assembled into "
-                   f"{len(result.genomes)} genomes (every node), {model.name} genes / {spacer} spacer at "
+                   f"{len(result.node_genomes)} genomes (every node), {model.name} genes / {spacer} spacer at "
                    f"{args.intergene_speed:g}x, {clock}{realised}")
     else:
         summary = (f"{n_seqs} sequences across {n_families} gene families, {model.name} "

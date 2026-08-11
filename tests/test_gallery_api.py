@@ -225,7 +225,7 @@ def test_conditioning_figures_reach_the_tips_in_both_states():
         loss=PerCopy(0.08).scaled_by(hab, {"endosymbiont": 6.0, "free-living": 1.0}), seed=9)
     lab, by = ct.labels(), {"free-living": [], "endosymbiont": []}
     for n in (ct.nodes[_i] for _i in ct.extant_leaves()):
-        by[hab.values[lab[n.id]]].append(len(g.genomes[n.id]))
+        by[hab.values[lab[n.id]]].append(len(g.node_genomes[n.id]))
     free = sorted(by["free-living"])[len(by["free-living"]) // 2]
     endo = sorted(by["endosymbiont"])[len(by["endosymbiont"]) // 2]
     assert endo > 0, "every endosymbiont genome is empty — the bars would be invisible"
