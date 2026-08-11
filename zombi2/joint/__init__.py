@@ -429,8 +429,11 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
     """Grow a tree **and** the driver that drives its speciation, in one run (SPEC §2–4).
 
     ``birth`` and ``death`` are rate specs (per lineage). Make either read the driver with
-    ``.scaled_by(driver, mapping)`` — a **live level name** (not a filename) is what makes this
-    *joint* rather than conditioned. Give **exactly one** driver:
+    ``.scaled_by(driver, mapping)``. Driving speciation has its own function because the driver
+    cannot be grown first: it would have to grow on the tree it drives, so the two grow together.
+    The driver is a **live level name** (``"trait"``, ``"genomes:count"``); it has to agree with the
+    spec given below, and a filename is refused, because a driver read from a file is conditioning.
+    Give **exactly one** driver:
 
     - ``trait = traits.discrete(...)`` — a discrete trait drives speciation (BiSSE / MuSSE), read as
       ``.scaled_by("trait", {"small": 1.0, "large": 2.0})``. Driving both birth and death gives

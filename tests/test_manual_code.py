@@ -84,9 +84,16 @@ def _standalone_docs() -> list[pathlib.Path]:
                   and "--8<--" not in p.read_text(encoding="utf-8"))
 
 
+#: the root README: the first code anyone runs, and the one page here that is neither a chapter nor a
+#: docs page. Nothing executed it, so its quickstart could break while every chapter stayed green.
+README = pathlib.Path(__file__).resolve().parent.parent / "README.md"
+
+
 def _chapters() -> list[pathlib.Path]:
-    """Everything with prose to check: the book, plus any docs page that is its own source."""
-    return sorted(p for p in MANUAL.glob("*.md") if p.name != "README.md") + _standalone_docs()
+    """Everything with prose to check: the front page, the book, plus any docs page that is its own
+    source."""
+    return ([README] + sorted(p for p in MANUAL.glob("*.md") if p.name != "README.md")
+            + _standalone_docs())
 
 
 def _zombi2_lines(source: str) -> list[list[str]]:
@@ -256,6 +263,7 @@ def test_the_harness_sees_the_manual():
     """A guard on the guard: if the glob or the fence regex breaks, every test above turns green by
     finding nothing. This is the tripwire for that."""
     assert len(_chapters()) >= 10
+    assert README in _chapters(), "the front page has dropped out of the sweep"
     assert _standalone_docs(), "docs/ pages are all includes — or the include check has broken"
     total = sum(len(_blocks(p)) for p in _chapters())
     assert total >= 60, f"expected the manual's ~80 code blocks, found {total}"

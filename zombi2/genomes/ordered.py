@@ -118,7 +118,7 @@ class Chromosome:
     0 is therefore a real boundary on a linear chromosome and pure bookkeeping on a circular one,
     where it may be re-anchored freely (see `_anchor()`).
 
-    Topology also decides which chromosome-tier events are legal. A **fusion** joins two chromosomes
+    Topology also decides which chromosome events are legal. A **fusion** joins two chromosomes
     of the same topology only, because a ring and a molecule with two ends cannot become one
     molecule (`_fusion()`). A **fission** is legal on either, and gives both halves the parent's
     topology."""
@@ -641,10 +641,10 @@ def _pick_chromosome(rng, gen, total_chromosomes, w=None) -> tuple[int, int] | N
 
     Uniform over the whole pool when ``w`` is ``None``, which realises per-chromosome scope: every
     chromosome, in any lineage, is equally likely. With ``w`` — the per-lineage totals of a **driven**
-    tier rate — the lineage is drawn by its own weight and the chromosome uniformly inside it. That is
-    the same two-stage shape, because a driven lineage's weight already carries its chromosome count:
-    ``base × chromosomes_k × factor_k``. Drawing the lineage uniformly instead would say one thing in
-    the total and another in the pick."""
+    per-chromosome rate — the lineage is drawn by its own weight and the chromosome uniformly inside
+    it. That is the same two-stage shape, because a driven lineage's weight already carries its
+    chromosome count: ``base × chromosomes_k × factor_k``. Drawing the lineage uniformly instead
+    would say one thing in the total and another in the pick."""
     if w is not None:
         total = sum(w)
         if total <= 0.0:
@@ -878,7 +878,7 @@ def _lose_at(chrom, j, m, node, t, events, positions) -> int:
     **A loss never takes a chromosome below its last gene.** A run covering everything still on the
     chromosome does not fire — the same floor the nucleotide resolution enforces in
     `Chromosome.delete()`, so the two resolutions agree on what a chromosome is. Emptying the
-    karyotype is `_chromosome_lose()`'s job, an event of its own at the chromosome tier.
+    karyotype is `_chromosome_lose()`'s job, an event of its own, counted per chromosome.
 
     The refusal happens before `_anchor()`, which rotates a wrapping run to the front: a declined
     event must leave the gene order exactly as it found it. It happens after the draw, so the random
@@ -1030,7 +1030,7 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, ne
     return delta
 
 
-# --- the chromosome tier: events that change chromosome number (the network dynamics) -------------
+# --- the chromosome events: they change chromosome number (the network dynamics) ------------------
 # Each re-mints every chromosome id it touches (so no id spans an event) and records one
 # ``ChromosomeEvent`` — the edge that makes the genealogy a network. Genes keep their ids: a
 # rearrangement moves genes between chromosome lineages, it does not end gene lineages. Each returns
@@ -1105,7 +1105,7 @@ def _chromosome_lose(genome, ci, node, t, events, positions, chromosome_events) 
     "not the last chromosome" is not enough on its own to keep a genome alive. Without the second
     check a lineage holding one gene-bearing chromosome beside an empty one loses everything.
 
-    This is the same floor `_lose_at()` enforces one tier down, for the same reason: a chromosome
+    This is the same floor `_lose_at()` enforces on genes, for the same reason: a chromosome
     without a gene is still a replicon, but a genome without a gene has nothing left for any level
     below to read. Refusing on a condition that reads only the current state is Poisson thinning, so
     what is kept is exactly the process whose ``chromosome_loss`` is zero while the genome is down to
@@ -1161,7 +1161,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              max_family_size=10, seed=None,
                              progress=False) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
-    species tree, by the D/T/L/O core plus segmental rearrangements and the chromosome tier.
+    species tree, by the D/T/L/O core plus segmental rearrangements and the chromosome events.
 
     **Every gene-level event acts on an *extent*** — a run of consecutive genes (the ZOMBI1 model):
     ``duplication`` copies the run in tandem, ``loss`` removes it, ``transfer`` sends it to a
@@ -1182,8 +1182,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     Scopes follow the cross-level grammar, which counts an event per the thing it acts on: the
     gene-level events — ``duplication``/``transfer``/``loss`` and the rearrangements
     ``inversion``/``transposition``/``translocation`` — are **per copy**, since each acts on a run of
-    genes that starts at one of them; the chromosome tier ``fission``/``fusion``/``chromosome_loss``
-    is **per chromosome**; and the two events that make something from nothing,
+    genes that starts at one of them; the chromosome rates ``fission``/``fusion``/``chromosome_loss``
+    are **per chromosome**; and the two events that make something from nothing,
     ``origination``/``chromosome_origination``, are **per lineage**. The
     run starts with ``chromosomes`` chromosomes of the given ``topology``, across which the
     ``initial_families`` founding genes are dealt **round-robin**; ``family_names=["toxin", …]`` additionally
@@ -1196,7 +1196,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     arrives whole, so the rule chooses the recipient lineage exactly as it does at the family
     resolution.
 
-    The **chromosome tier** changes chromosome *number*: ``fission`` (split), ``fusion`` (merge,
+    The **chromosome events** change chromosome *number*: ``fission`` (split), ``fusion`` (merge,
     between two chromosomes of the **same topology** — the reticulation; a ring and a molecule with
     two ends cannot become one molecule, so a genome of one of each never fuses),
     ``chromosome_origination`` (a de-novo replicon), ``chromosome_loss`` (a whole
@@ -1256,9 +1256,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         rate = as_rate(spec, default_scope=want)
         # An event that acts on **genes** takes either answer to *per what?*: per copy (the default —
         # each gene independently at risk, so a bigger genome turns over faster) or per lineage (a
-        # fixed budget, the same however much the genome holds). The chromosome tier and origination
+        # fixed budget, the same however much the genome holds). The chromosome rates and origination
         # keep one scope each: origination creates families, so per copy it would be base × 0 in an
-        # empty genome, and the chromosome events are not implemented per lineage yet.
+        # empty genome, and the chromosome rates are not implemented per lineage.
         legal = (want, PerLineage) if want is PerCopy else (want,)
         # `rate.scope` holds the scope CLASS, not an instance — a scope constructor returns the rate
         # itself — so this is an identity test against the legal set rather than an isinstance one.
@@ -1280,7 +1280,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 raise ValueError(
                     f"{label} carries a per-family draw on a {rate.scope.__name__} scope. A per-family "
                     f"weight has to reach the genes an event covers, so it applies to the per-copy "
-                    f"gene events only — not to the chromosome tier, which acts on whole replicons.")
+                    f"gene events only — not to the chromosome events, which act on whole replicons.")
             if isinstance(m, Driven):
                 check_not_a_kernel(m.mapping, label=label)
             if not is_implemented(m, IMPLEMENTED_MODIFIERS, "genomes.ordered"):

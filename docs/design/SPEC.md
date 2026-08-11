@@ -155,8 +155,8 @@ alongside a `scaled_by` would accept it at four levels that cannot honour it.
 | Level | Counted per | "How fast" set by |
 |---|---|---|
 | Species | lineage | the diversification process |
-| Genomes, gene tier | copy — lineage for origination | duplication / transfer / loss / inversion / transposition / translocation |
-| Genomes, chromosome tier | chromosome — lineage for origination | fission / fusion / chromosome loss / chromosome origination |
+| Genomes, gene rates | copy — lineage for origination | duplication / transfer / loss / inversion / transposition / translocation |
+| Genomes, chromosome rates | chromosome — lineage for origination | fission / fusion / chromosome loss / chromosome origination |
 | Sequences | site | the substitution rate (× a clock) |
 | Traits | lineage | the trait model |
 
@@ -378,7 +378,7 @@ Left column is correct; right column is a fossil to purge.
 | mapping — `Table` / `Curve` / `Scalar` / `Between` | response (the coevolve word) |
 | weight — a `transfer_to` number, normalised across candidates | multiplier (there); a base in front of `Recipients()` (there) |
 | rate; effective rate = scope(base) × modifiers | propensity |
-| scope; "per what?" | opportunity |
+| scope; "per what?" — name a group of rates by the scope they share: **the chromosome rates** (`PerChromosome`), which are not a resolution, since they exist at ordered and nucleotide alike | opportunity; "the chromosome tier" |
 | verb — what reading a driver does to a parameter: `scaled_by` / `set_by` / `weighted_by`, plus the two shortcuts `varying_among` / `changing_at` | `ScaledBy` / `SetBy` / `Weights` / `OnTime` as names to call; `*` composing a rate |
 | the unit a value varies among, plural: `'lineages'` / `'families'` / `'copies'` / `'sites'` / `'chromosomes'` | `per='family'`; `spread=` for a distribution |
 | extent — how much a segmental event takes | extension; length (for this quantity); size |
