@@ -303,22 +303,24 @@ rate = {n.name: math.log10(n.length / (ct.nodes[int(n.name[1:])].end_time
 _AT_TIPS, _AT_SEED = 34, 2
 #: the AT-rich clade's equilibrium. Every model in a set is normalised to one substitution per site
 #: per unit branch length, so this changes what the sequence *is*, not how fast it changes.
-_AT_RICH = (0.40, 0.10, 0.10, 0.40)      # A+T = 0.80 at equilibrium, against 0.50 outside
+_AT_RICH = (0.40, 0.10, 0.10, 0.40)      # A+T = 0.80 at equilibrium, so GC settles at 0.20
+_AT_COL, _EVEN_COL = "#8c510a", "#01665e"
 
 
-def _at_content(seqs) -> float:
+def _gc_content(seqs) -> float:
     hits = total = 0
     for s in seqs:
-        hits += sum(s.count(c) for c in "AT")
+        hits += sum(s.count(c) for c in "GC")
         total += len(s)
     return hits / total if total else float("nan")
 
 
 def clade_own_model(out):
-    """One clade evolves under an AT-rich model; the rest of the tree keeps the even one.
+    """Which model each lineage evolves under, and what that does to its base composition.
 
-    Branches are coloured by the A+T content of the sequences *on* them, so the clade shows up as a
-    composition rather than as a speed — the thing a rate cannot say however it is scoped."""
+    The colour says which **model** is running — the thing you set — and the bars say what came out
+    of it. One model per clade is what a rate cannot express however it is scoped: a rate changes how
+    fast a lineage evolves, never what its sequence settles at."""
     from zombi2.genomes import simulate_genomes_family
     from zombi2.params import Clade
     from zombi2.sequences import Models, hky85, simulate_sequences
@@ -333,19 +335,40 @@ def clade_own_model(out):
         model=Models().set_by(clade, {"at": hky85(kappa=2.0, frequencies=_AT_RICH),
                                       "rest": hky85(kappa=2.0)}))
 
-    # A+T per species branch, over every gene copy sitting on it (the labels are n<species>_g<copy>)
-    per_branch: dict[str, list[str]] = {}
-    for fam in r.alignments:
-        for store in (r.alignments[fam], r.ancestral[fam]):
-            for label, seq in store.items():
-                per_branch.setdefault(label.split("_")[0], []).append(seq)
-    at = {name: _at_content(seqs) for name, seqs in per_branch.items()}
+    labels = ct.labels()
+    inside = set(clade.resolve(ct)["at"])
+    which = {labels[i]: ("HKY85, AT-rich" if i in inside else "HKY85, even") for i in ct.nodes}
+    palette = {"HKY85, AT-rich": _AT_COL, "HKY85, even": _EVEN_COL}
 
-    tree = ph.trees.loads(ct.to_newick())
-    (ph.trees.plot(tree, style=ph.Style(width=1250, height=1000, margin=70, branch_width=2.4))
-     + ph.trees.color_branches(at, cmap="magma", limits=(0.50, 0.80))
-     + ph.trees.colorbar("A+T content of the sequences on the branch", loc="bottom-left",
-                         width=230, height=14, size=20, labels=("0.50", "0.80"))).save(out)
+    fig = (ph.trees.plot(ph.trees.loads(ct.to_newick()),
+                         style=ph.Style(width=1150, height=980, margin=70, branch_width=3.0))
+           + ph.trees.color_branches(which, palette=palette)
+           + ph.trees.legend("substitution model"))
+    tmp = out.replace(".png", "_tree.png")
+    fig.save(tmp)
+
+    # GC at each tip, over every gene copy it carries (labels are n<species>_g<copy>)
+    per_tip: dict[str, list[str]] = {}
+    for fam in r.alignments:
+        for label, seq in r.alignments[fam].items():
+            per_tip.setdefault(label.split("_")[0], []).append(seq)
+
+    geo = fig.geometry()
+    tips = geo.tips
+    span = (tips[-1].y - tips[0].y) / max(len(tips) - 1, 1)
+    gc = [_gc_content(per_tip.get(t.name, [])) for t in tips]
+    colours = [palette[which[t.name]] for t in tips]
+
+    def panel(ax):
+        ax.barh([t.y for t in tips], gc, color=colours, height=span * 0.72, linewidth=0)
+        ax.axvline(0.50, color="0.45", lw=1.0, ls=":")      # the even model's equilibrium
+        ax.axvline(0.20, color="0.45", lw=1.0, ls=":")      # the AT-rich model's
+        ax.set_xlim(0, 0.6)
+        ax.set_xticks([0.2, 0.5])
+        ax.set_xlabel("GC content at the tip")
+
+    h.composite_beside(tmp, out, panel, figsize=(12.5, 7.4), ratios=(3, 1.0),
+                       geometry=geo, wspace=0.02)
 
 
 _C_CLADE_MODEL = '''\
@@ -387,9 +410,10 @@ EXAMPLES = [
             "phylustrator", alignment_beside_tree, code=_C_ALN),
     Example("clade_own_model", "A clade with its own substitution model",
             "Rates say how <i>fast</i> a lineage evolves; the model says what the change looks like. "
-            "Here one clade evolves under an AT-rich matrix and the rest of the tree does not, so the "
-            "clade shows up as a <b>composition</b> — a fast branch and an AT-rich one mislead a "
-            "tree-builder in different ways. "
+            "Branches are coloured by the model they run under, and the bars are the GC content each "
+            "tip arrived at — the two clades sit on their own models' equilibria, 0.20 and 0.50. A "
+            "rate cannot say this however it is scoped, and an AT-rich branch misleads a tree-builder "
+            "differently from a fast one. "
             "<code>Models().set_by(Clade({...}),&nbsp;{'at':&nbsp;at_rich,&nbsp;'rest':&nbsp;hky85()})</code>.",
             "phylustrator · composition", clade_own_model, code=_C_CLADE_MODEL),
 ]
