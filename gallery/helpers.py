@@ -109,18 +109,26 @@ def composite_below(tree_png: str, present: float, out: str, panel, ylabel: str,
 
 
 def composite_beside(tree_png: str, out: str, panel, figsize=(12, 6), ratios=(3, 1.15),
-                     *, geometry=None, wspace: float = 0.15) -> None:
+                     *, geometry=None, wspace: float = 0.15, inset=None) -> None:
     """Tree on the left, a standalone matplotlib panel (its own axes) on the right.
 
     ``geometry`` is the rendered figure's `Figure.geometry()` — pass it for a **row-aligned** panel
     (one bar per tip): the panel's y axis is set to the tree's own canvas height, so a bar drawn at
     ``y = tip.y`` sits at the height of that tip rather than merely in the same order. It must be the
-    canvas height and not the PNG's, which Phylustrator renders at 2x."""
+    canvas height and not the PNG's, which Phylustrator renders at 2x.
+
+    ``inset`` is ``(rect, draw_fn)`` — a small schematic drawn over the tree, as `composite_markov`
+    does for a Markov chain, for a figure whose model is worth stating as a picture."""
     img = mpimg.imread(tree_png)
     fig, (axt, axp) = plt.subplots(1, 2, figsize=figsize,
                                    gridspec_kw={"width_ratios": list(ratios), "wspace": wspace})
     axt.imshow(img)
     axt.set_axis_off()
+    if inset is not None:
+        rect, draw_fn = inset
+        ax_in = axt.inset_axes(rect)
+        draw_fn(ax_in)
+        ax_in.set_axis_off()
     panel(axp)
     if geometry is not None:
         axp.set_ylim(geometry.size[1], 0)      # the tree's own coordinate space, top-down
@@ -248,6 +256,48 @@ def composite_model_realization(realization_png: str, out: str, draw_model, *,
     axr.set_axis_off()
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
+
+
+def draw_switch(ax, before: str, after: str, arrow: str, colors, *, note: str | None = None) -> None:
+    """Two boxes and one arrow — *this* becomes *that*, at the moment the arrow names.
+
+    Deliberately not `draw_markov`: that draws a chain, where a lineage moves back and forth at a
+    rate. This is a schedule. It fires once, at a time the run fixes in advance, in one direction,
+    and nothing draws it — so an arrow with a time on it is the whole model."""
+    import matplotlib.patches as mpatches
+
+    w, h, y = 0.42, 0.34, 0.36
+    for x, label, colour in ((0.0, before, colors[0]), (0.58, after, colors[1])):
+        ax.add_patch(mpatches.FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.012,rounding_size=0.05",
+                                             facecolor=colour, edgecolor="white", lw=1.6, zorder=3))
+        ax.text(x + w / 2, y + h / 2, label, ha="center", va="center", color="white",
+                fontsize=9.5, fontweight="bold", zorder=4)
+    ax.add_patch(mpatches.FancyArrowPatch((0.44, y + h / 2), (0.56, y + h / 2), arrowstyle="-|>",
+                                          mutation_scale=11, lw=1.4, color="#555", zorder=2))
+    ax.text(0.50, y + h + 0.05, arrow, ha="center", va="bottom", fontsize=9, color="#333")
+    if note:
+        ax.text(0.50, y - 0.06, note, ha="center", va="top", fontsize=8, color="#666")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+
+
+def draw_frequencies(ax, models, *, bases: str = "ACGT") -> None:
+    """One row of base frequencies per model — what two substitution models actually differ in.
+
+    Not `draw_switch`: nothing turns into anything here. Two clades run two models at the same time,
+    and the thing worth drawing is the equilibrium each pulls its sequences toward, which is what the
+    tips end up reporting."""
+    n = len(models)
+    for row, (name, freqs, colour) in enumerate(models):
+        y = 0.60 - row * 0.42
+        ax.text(0.0, y + 0.19, name, ha="left", va="bottom", fontsize=9,
+                color=colour, fontweight="bold")
+        for k, (b, f) in enumerate(zip(bases, freqs)):
+            x = 0.04 + k * 0.22
+            ax.add_patch(plt.Rectangle((x, y), 0.15, f * 0.34, facecolor=colour, linewidth=0))
+            ax.text(x + 0.075, y - 0.035, b, ha="center", va="top", fontsize=7.5, color="#555")
+    ax.set_xlim(-0.02, 1.0)
+    ax.set_ylim(-0.10, 0.60 + 0.42 * (n - 1) + 0.30)
 
 
 def composite_markov(tree_png: str, out: str, draw_fn, *, loc=(0.02, 0.09, 0.34, 0.36)) -> None:

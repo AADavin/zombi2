@@ -367,8 +367,13 @@ def clade_own_model(out):
         ax.set_xticks([0.2, 0.5])
         ax.set_xlabel("GC content at the tip")
 
+    even = (0.25, 0.25, 0.25, 0.25)
     h.composite_beside(tmp, out, panel, figsize=(12.5, 7.4), ratios=(3, 1.0),
-                       geometry=geo, wspace=0.02)
+                       geometry=geo, wspace=0.02,
+                       inset=((0.015, 0.06, 0.26, 0.26),
+                              lambda ax: h.draw_frequencies(
+                                  ax, [("HKY85, AT-rich", _AT_RICH, _AT_COL),
+                                       ("HKY85, even", even, _EVEN_COL)])))
 
 
 _C_CLADE_MODEL = '''\
@@ -410,10 +415,11 @@ EXAMPLES = [
             "phylustrator", alignment_beside_tree, code=_C_ALN),
     Example("clade_own_model", "A clade with its own substitution model",
             "Rates say how <i>fast</i> a lineage evolves; the model says what the change looks like. "
-            "Branches are coloured by the model they run under, and the bars are the GC content each "
-            "tip arrived at — the two clades sit on their own models' equilibria, 0.20 and 0.50. A "
-            "rate cannot say this however it is scoped, and an AT-rich branch misleads a tree-builder "
-            "differently from a fast one. "
+            "Branches are coloured by the model they run under, and the inset is what the two models "
+            "differ in — one pulls its sequences toward A and T, the other toward nothing in "
+            "particular. The bars are the GC content each tip arrived at, and they sit on their own "
+            "model's equilibrium: 0.20 in the clade, 0.50 outside. A rate cannot say this however it "
+            "is scoped, and an AT-rich branch misleads a tree-builder differently from a fast one. "
             "<code>Models().set_by(Clade({...}),&nbsp;{'at':&nbsp;at_rich,&nbsp;'rest':&nbsp;hky85()})</code>.",
             "phylustrator · composition", clade_own_model, code=_C_CLADE_MODEL),
 ]
