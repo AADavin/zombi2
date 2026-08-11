@@ -367,13 +367,8 @@ def clade_own_model(out):
         ax.set_xticks([0.2, 0.5])
         ax.set_xlabel("GC content at the tip")
 
-    even = (0.25, 0.25, 0.25, 0.25)
     h.composite_beside(tmp, out, panel, figsize=(12.5, 7.4), ratios=(3, 1.0),
-                       geometry=geo, wspace=0.02,
-                       inset=((0.015, 0.06, 0.26, 0.26),
-                              lambda ax: h.draw_frequencies(
-                                  ax, [("HKY85, AT-rich", _AT_RICH, _AT_COL),
-                                       ("HKY85, even", even, _EVEN_COL)])))
+                       geometry=geo, wspace=0.02)
 
 
 _C_CLADE_MODEL = '''\
