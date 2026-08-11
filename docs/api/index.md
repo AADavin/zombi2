@@ -40,9 +40,17 @@ These are shared across levels rather than owned by one.
 | Page | What it holds |
 |---|---|
 | [`zombi2.params`](rates.md) | the rate grammar — **scopes** (`PerCopy`, `PerLineage`, `Global`, …), the **verbs** chained onto them (`scaled_by`, `set_by`, `weighted_by`, and the two shortcuts `varying_among`, `changing_at`), the **drivers** they read (`Random`, `TotalDiversity`, `Time`, `Clade`, a filename) and the **mappings** a driver carries (`Table`, `Curve`, `Scalar`, `Between`), the notation shared by the Python API, the CLI and a `--params` file |
-| [`zombi2.sequences`](sequences.md#the-substitution-model-menu) | the substitution-model menu — `jc69` · `k80` · `hky85` · `gtr`, and the protein models `poisson` · `jtt` · `dayhoff` · `wag` · `lg` |
-| [`zombi2.genomes`](genomes.md#who-receives-a-transfer) | the transfer-recipient rules — `Distance`, `Clades`, `Between` |
 | [`zombi2.tree`](species.md#trees) | trees — `Tree`, `Node`, `prune`, `read_newick`, and the tree-shape helpers. Its own module, documented on the species page because that is the level that grows one |
+
+## The menus inside a level
+
+Two levels offer a fixed set of choices. Each is owned by that level and documented as a section of
+its page, not as a module of its own.
+
+| Section | What it holds |
+|---|---|
+| [Who receives a transfer](genomes.md#who-receives-a-transfer) | the transfer-recipient rules — `Distance`, `Clades`, `Between` |
+| [The substitution-model menu](sequences.md#the-substitution-model-menu) | the substitution models — `jc69` · `k80` · `hky85` · `gtr`, and the protein models `poisson` · `jtt` · `dayhoff` · `wag` · `lg` |
 
 ## Reading a run back
 

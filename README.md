@@ -51,6 +51,12 @@ g.write("out/")                 # gene trees, the event log, profiles
 s.write("out/")                 # alignments and phylograms (ancestral is opt-in)
 ```
 
+Each `write` fills the directory it is given, so these three share `out/`; the commands above group
+the same run into `out/species/`, `out/genomes/` and `out/sequences/`, and add a log per level and a
+`run.zombi2` report. The two routes count families differently, too: the Python result holds an
+alignment for every family born, empty where no copy survived, while the commands count the
+survivors. `run.zombi2` gives both, as `families 100 born · 92 surviving · 8 died out`.
+
 ---
 
 ## Levels

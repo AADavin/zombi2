@@ -36,7 +36,7 @@ slug) — and add a matching card + link on the landing page (`web/index.html`).
 
 - **Six sections:** Species · Genomes · Sequences · Traits · **Conditioning** · **Joining**. The last
   two are relations rather than levels — conditioning grows the driver first and holds it fixed, joining
-  grows both in one run. Validation **case studies** (RED, synteny) stay a separate tier under
+  grows both in one run. Validation **case studies** (RED, synteny) stay a separate group under
   [`analyses/`](../analyses) — those are validations, not demos.
 - **Title outside the figure** (the caption carries it — no in-figure title), sklearn-style.
 - **Mixed rendering:** Phylustrator for trees and genomes; matplotlib for companion panels (LTT

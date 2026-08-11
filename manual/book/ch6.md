@@ -50,7 +50,7 @@ The one case that yields no event is degenerate: a replicon with no legal end wi
 1 000 000 bp  ->  77 inversions
 ```
 
-The chromosome tier below is the exception: `fission`, `fusion` and `chromosome_loss` are counted **per chromosome**, and `chromosome_origination` per lineage. A fusion joins two chromosomes of the **same topology**, for the same reason it does at the ordered resolution: a ring and a molecule with two ends cannot become one molecule.
+The chromosome rates below are the exception: `fission`, `fusion` and `chromosome_loss` are counted **per chromosome**, and `chromosome_origination` per lineage. A fusion joins two chromosomes of the **same topology**, for the same reason it does at the ordered resolution: a ring and a molecule with two ends cannot become one molecule.
 
 Rates here are written the same way as everywhere else — a scope with verbs chained onto it — and the scopes above are the defaults, so a bare number stays a bare number. The **skyline** works: `inversion = PerLineage(5.0).changing_at({0: 1.0, 3: 0.2})` drops the inversion rate fivefold at time 3, and the run re-reads its rates at each step rather than racing past it.
 

@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 
 
 from ..params.driver import OnTime, OnTotalDiversity
-from ..params.evaluate import (DRAWN, INHERITED, check_one_memory, describe, is_implemented, values_at_birth, values_at_split)
+from ..params.evaluate import (DRAWN, DRIVEN, INHERITED, check_one_memory, describe, is_implemented, values_at_birth, values_at_split)
 from ..rng import stream
 from .._runtime.draw import weighted_index as _weighted_index
 from .._runtime.progress import progress_bar
@@ -514,14 +514,21 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                     f"(inherited)."
                 )
             if not is_implemented(m, IMPLEMENTED_MODIFIERS, "species"):
+                # A driven rate is missing from that list for a reason worth saying, and only a
+                # driven one: a driver of speciation cannot be grown before the tree, because the
+                # tree is what it would have to grow on, so the model is a joint run rather than a
+                # species run (SPEC §2–4). Said on any other rejection it would only mislead.
+                driven = m.reads is not None and m.reads[0] == DRIVEN
                 raise ValueError(
                     f"{label} carries {describe(m)}, which the species engine does not "
                     f"support. It takes changing_at (skyline), scaled_by(TotalDiversity(cap=...)) "
                     f"(diversity-dependent), varying_among('lineages', Drift(...)) (inherited rate "
                     f"drift, ClaDS) and varying_among('lineages', dist) (independent per-lineage "
-                    f"rates). A birth or death that reads an evolved value cannot be "
-                    f"conditioned — the tree and its driver grow together — so it is a joint run: "
-                    f"joint.simulate_joint(birth=PerLineage(1.0).scaled_by('trait', {{...}}), ...)."
+                    f"rates)."
+                    + (" A trait or gene content that drives speciation has to grow with the tree, "
+                       "since the tree is what it would grow on, so the model is a joint run: "
+                       "joint.simulate_joint(birth=PerLineage(1.0).scaled_by('trait', {...}), ...)."
+                       if driven else "")
                 )
         # SPEC §5: one memory structure per axis. A bare distribution has no memory and a Drift has a
         # continuous one, so a rate carrying both asks for a lineage's factor to be independent of its

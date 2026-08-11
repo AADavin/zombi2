@@ -9,6 +9,26 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- A nucleotide run's `repr` names what it counts: `12 genes, 12 block events, 6 rearrangements`,
+  rather than printing the same number twice under two meanings. (#339)
+- The species engine points at `joint.simulate_joint` only when the rejected rate actually reads a
+  driver, instead of on every unsupported modifier. (#339)
+- The word "tier" is gone: the rates counted per chromosome are the **chromosome rates**, and the
+  family and ordered engines are named by their resolutions. (#339)
+
+### Fixed
+
+- The root `README.md` is now covered by the doc-test sweep, so its examples are executed like every
+  other page's. (#339)
+- The README says where the Python and command-line routes differ — the layout each writes, and why
+  one counts 100 families where the other counts 92. (#339)
+- Appendix B records that `result.write()` from Python has no level directories, and is not `--flat`. (#339)
+- `gene_spans` is documented as holding the de-novo genes as well as the declared ones. (#339)
+- The API reference no longer files a level's own menus under "shared across levels". (#339)
+- The FAQ counts `genome_initial.fasta`, which is no node's genome. (#339)
+
 ## [0.34.0] - 2026-08-11
 
 ### Changed

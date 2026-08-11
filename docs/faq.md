@@ -28,7 +28,8 @@ zombi2 sequences out --model jc69
 ```
 
 The sequence level then writes `genomes/genome_<lineage>.fasta`, one file per node of the complete
-tree. The default resolution, `family`, has no coordinates and no order, so there is nothing to
+tree, plus `genomes/genome_initial.fasta` for the genome the run started with, which is no node's.
+The default resolution, `family`, has no coordinates and no order, so there is nothing to
 concatenate.
 
 Appendix B lists every file each level writes.
