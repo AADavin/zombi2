@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-08-11
+
 ### Changed
 
 - **BREAKING:** a genome result's `.genomes` is now the observed dataset — the genome at each extant
