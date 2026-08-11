@@ -154,7 +154,7 @@ def shape_statistics(out):
 _DASH = '''
 tree = ph.trees.loads(ct.to_newick())
 lab = ct.labels()                           # {id: 'n<id>'} — or 'e<id>' where the lineage went extinct
-extinct = {lab[n.id] for n in ct.extinct_leaves()}
+extinct = {lab[n.id] for n in (ct.nodes[_i] for _i in ct.extinct_leaves())}
 dashed = set()                              # dash a branch whose whole subtree is extinct
 for node in tree.walk("postorder"):
     if node.is_leaf and node.name in extinct:

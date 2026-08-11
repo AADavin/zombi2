@@ -84,7 +84,7 @@ def test_the_cap_reports_the_families_sitting_at_it():
     # and every family it names really is at the cap in some genome
     for fam in s["family_ids_at_cap"]:
         assert max(tight.family_counts(n.id)[fam]
-                   for n in tight.complete_tree.extant_leaves()) == 4
+                   for n in (tight.complete_tree.nodes[_i] for _i in tight.complete_tree.extant_leaves())) == 4
 
     _, free = _run(duplication=1.2, loss=0.05, max_family_size=None)
     lifted = free.summary()["family_size_cap"]

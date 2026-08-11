@@ -11,6 +11,23 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Fixed
 
+- **BREAKING: `Tree.leaves()`, `.extant_leaves()`, `.extinct_leaves()` and `.unsampled_leaves()`
+  return node ids, not `Node` objects.** A tree spoke ids everywhere else — `root` is one, `nodes` is
+  keyed by one, `children` holds them — and these four were the exception, so the output of one could
+  not be fed to the other: `set(tree.extant_leaves())` raised `unhashable type: 'Node'`, and
+  `tree.nodes[leaf]` was a `TypeError`. Either currency would have done; having both is what cost a
+  reader an afternoon. **To update:** `{n.id for n in tree.extant_leaves()}` becomes
+  `set(tree.extant_leaves())` and `[n.id for n in …]` becomes `list(…)`, both shorter; a loop that
+  reads an attribute becomes `for i in tree.extant_leaves(): tree.nodes[i].fate`. `len(…)` is
+  unchanged. Every misuse raises immediately — an `int` has no attributes to read — so nothing fails
+  quietly.
+- **`Node.children` is an empty tuple at a tip, not `None`.** Walking a tree is now `for c in
+  node.children` with no guard, which is what a reader writes first — and what two of five test users
+  crashed on (`TypeError: 'NoneType' object is not iterable`), one of them on their first recursion.
+  Nothing that reads the attribute breaks, and `is_leaf` is unchanged. **If you kept a
+  `node.children is None` test of your own, change it**: it now reads `False` at a tip, so a leaf
+  would be handed to the internal-node branch in silence. Test emptiness instead — `if not
+  node.children`, or `node.is_leaf`.
 - **A repeated `--params` is refused instead of silently discarding the first file.** `--params
   a.toml --params b.toml` kept only `b.toml`, so `a.toml`'s resolution, chromosome count and seed
   vanished without a word and the run was quietly a different model from the one asked for — the one
@@ -38,6 +55,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   `species_summary.json`. The `zombi2` commands write exactly what they wrote before, and a
   `.write()` given an explicit `outputs=` is unchanged; the layout still differs, one directory from
   Python and `species/` + `traits/` from the command.
+- **`mean_pairwise_identity` no longer depends on `--stream`.** It was a bounded random sample of
+  within-family pairs, and the streamed path sampled differently, so the same seed reported two
+  different identities — 0.72861 in memory against 0.7408771929824561 streamed — while every
+  alignment was byte-identical. Nothing said the number was an estimate, so it read as a fingerprint
+  two matching runs could disagree on. It is now counted over every within-family pair, a column at
+  a time so the work is linear in the alignment rather than quadratic in family size, and both paths
+  reach one number. The value a given run reports changes, in `sequences_summary.json`, in the
+  command's summary line and in `run.zombi2`; no simulated data moves.
 - **Four refusals stop describing themselves as "a later slice".** The phrase is a roadmap word, not
   something a user can act on: it named when the combination might be built rather than what to write
   instead. Each now says what is refused, why, and the spelling that works — the transfer rule that
@@ -92,6 +117,51 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   that whole lineage. `PerLineage` with a per-family draw is still refused, and still says why: that
   one is an open question about what the model should mean, not a missing wire. The ordered
   resolution still refuses the pair, and its message now points at the family resolution.
+- **A clade can evolve under its own substitution model.** A run had one model for every branch, so
+  a clade could evolve faster but not *differently*, and every compositional question was out of
+  reach — an endosymbiont clade drifting toward AT, a lineage with its own GC bias, the compositional
+  attraction that misleads a tree-builder in a way long-branch attraction does not.
+  `Models().set_by(Clade({…}), {label: model})` gives each named clade its own matrix; scoping the
+  substitution rate to the same clade gives both halves of the syndrome at once. A model is the
+  fourth thing a driver can target, and the odd one out — a rate, an extent and a choice take a
+  factor and are multiplied by it, a model takes none and is selected, which is why the verb is
+  `set_by` (SPEC §5). The alphabet and the across-site rate classes are shared and say why if they
+  differ; the driver must be a clade, since a trait switches mid-branch and this level samples one
+  transition matrix per branch. Python only, as `reversible()` is. No cost measured: the
+  eigendecomposition was already built once per model and hoisted out of the per-branch loop, and a
+  branch belongs to one clade, so a per-clade run builds the same number of matrices as a one-model
+  run. One caveat, stated in ch7 and Appendix B rather than hidden: a model's normalisation holds at
+  stationarity, so a branch whose composition is still relaxing accrues slightly fewer substitutions
+  than its nominal length.
+- **A factor can be scoped to a driver state *and* to a time.** `{"endo": {0: 1.0, 6.0: 20.0},
+  "rest": 1.0}` reads: twenty times the base inside this clade, but only from t=6, and unchanged
+  outside it throughout. It could not be written before — `scaled_by(clade, …).changing_at(…)`
+  multiplies two factors that each apply to every lineage, so the window landed on the whole tree —
+  and it is the shape a transition needs: a lineage that becomes endosymbiotic partway through the
+  run, a habitat that only starts to matter after a date. Any discrete driver takes one, the
+  notation is `changing_at`'s, and the breakpoints reach the Gillespie horizon so the run steps to
+  them rather than past them. The sequences level refuses one: it walks a gene tree branch by branch
+  and never steps at a wall-clock time, so a schedule there would silently hold its first factor for
+  the whole run.
+- **`zombi2 tools tree TREE --clades` lists the clades a tree offers to name, and `Clade.resolve`
+  says what one covers.** Scoping a rate to a clade — the thing that makes ZOMBI2 different — meant
+  naming a node, and nothing said which nodes were there, how big they were, or which lineages the
+  clade you wrote actually held. The listing gives node, extant tips, crown time and two example
+  tips that straddle the crown split, so passing them back to `Clade({...})` names that same node;
+  `--min-extant` / `--max-extant` filter it. `Clade.resolve(tree)` answers the other direction, and
+  cannot disagree with the engine because it paints with the same function the engine does. It also
+  makes visible what was previously only inferable: a clade's root branch is inside it, and a clade
+  holds the extinct and internal lineages of its subtree, not only its tips.
+- **A nucleotide run says when its extents are too small to move a gene.** Setting `duplication`,
+  `transfer` and `loss` at the nucleotide resolution and reading zeros back from
+  `genome_summary.json` looked like a broken counter; it was the model doing nothing. A gene is
+  never split, and the default extent is 50 bp against a default 500 bp gene, so a default-sized
+  event cannot cover a gene end to end however high the rates. The run now warns, naming the extents
+  and the shortest declared gene. It stays quiet where the geometry is fine — a dense genome with no
+  spacer offers nothing but gene joins, so every event moves whole genes whatever the extent.
+- **`genome_summary.json` counts the nucleotide log beside the gene log.** A new `block_events` key
+  counts DNA-level events per kind next to `events`, so a run whose arcs never covered a whole gene
+  shows what did happen rather than six zeros.
 
 ### Changed
 

@@ -58,6 +58,7 @@ _NAMES: dict[str, Any] = {
     "Extent": _parameter.Extent,
     "Table": _mapping.Table,
     "Scalar": _mapping.Scalar,
+    "Schedule": _mapping.Schedule,  # a Table entry that changes with time; a nested dict becomes one
     "Between": _mapping.Between,  # the choice's kernel: weighted_by(driver, Between({(a, b): w}))
 }
 

@@ -44,10 +44,10 @@ def test_with_stem_rejects_bad_mode():
 def test_make_ultrametric_snaps_rounding_noise():
     t = _tree()
     # perturb one tip by a rounding-scale amount
-    leaf = next(i for i, n in t.nodes.items() if n.children is None)
+    leaf = next(i for i, n in t.nodes.items() if not n.children)
     t.nodes[leaf].end_time += 1e-4 * max(_depths(t).values())
     u = T.make_ultrametric(t, tol=1e-2)
-    d = [_depths(u)[i] for i, n in u.nodes.items() if n.children is None]
+    d = [_depths(u)[i] for i, n in u.nodes.items() if not n.children]
     assert max(d) - min(d) == pytest.approx(0.0, abs=1e-9)
 
 
@@ -62,7 +62,7 @@ def test_make_ultrametric_refuses_a_real_gap():
 def test_rescale_to_height_and_by_factor():
     t = _tree()
     to1 = T.rescale(t, height=1.0)
-    d = [_depths(to1)[i] for i, n in to1.nodes.items() if n.children is None]
+    d = [_depths(to1)[i] for i, n in to1.nodes.items() if not n.children]
     assert max(d) == pytest.approx(1.0)
     half = T.rescale(t, factor=0.5)
     assert _stem(half) == pytest.approx(_stem(t) * 0.5)
@@ -80,18 +80,18 @@ def test_rescale_needs_exactly_one_of_height_factor():
 def test_red_is_exact_relative_age_on_an_ultrametric_tree():
     t = _tree(n=40, seed=7)
     red = T.relative_evolutionary_divergence(t)
-    root, H = t.nodes[t.root], max(n.end_time for n in t.nodes.values() if n.children is None)
+    root, H = t.nodes[t.root], max(n.end_time for n in t.nodes.values() if not n.children)
     for i, n in t.nodes.items():
-        if n.children is not None and n.parent is not None:
+        if n.children and n.parent is not None:
             assert red[i] == pytest.approx((n.end_time - root.end_time) / (H - root.end_time), abs=1e-9)
     assert red[t.root] == 0.0
-    assert all(red[i] == pytest.approx(1.0) for i, n in t.nodes.items() if n.children is None)
+    assert all(red[i] == pytest.approx(1.0) for i, n in t.nodes.items() if not n.children)
 
 
 def test_red_scaled_is_ultrametric_on_unit_interval():
     rs = T.red_scaled(_tree(n=25))
     d = _depths(rs)
-    tips = [d[i] for i, n in rs.nodes.items() if n.children is None]
+    tips = [d[i] for i, n in rs.nodes.items() if not n.children]
     assert all(x == pytest.approx(1.0) for x in tips)
 
 
@@ -159,13 +159,13 @@ def test_distance_detects_a_topology_difference():
     a = Tree({0: Node(0, None, 0.0, 1.0, (5, 6), "speciation"),
               5: Node(5, 0, 1.0, 2.0, (1, 2), "speciation"),
               6: Node(6, 0, 1.0, 2.0, (3, 4), "speciation"),
-              1: Node(1, 5, 2.0, 3.0, None, "extant"), 2: Node(2, 5, 2.0, 3.0, None, "extant"),
-              3: Node(3, 6, 2.0, 3.0, None, "extant"), 4: Node(4, 6, 2.0, 3.0, None, "extant")}, 0)
+              1: Node(1, 5, 2.0, 3.0, (), "extant"), 2: Node(2, 5, 2.0, 3.0, (), "extant"),
+              3: Node(3, 6, 2.0, 3.0, (), "extant"), 4: Node(4, 6, 2.0, 3.0, (), "extant")}, 0)
     b = Tree({0: Node(0, None, 0.0, 1.0, (5, 6), "speciation"),
               5: Node(5, 0, 1.0, 2.0, (1, 3), "speciation"),          # 1+3 vs 1+2
               6: Node(6, 0, 1.0, 2.0, (2, 4), "speciation"),
-              1: Node(1, 5, 2.0, 3.0, None, "extant"), 3: Node(3, 5, 2.0, 3.0, None, "extant"),
-              2: Node(2, 6, 2.0, 3.0, None, "extant"), 4: Node(4, 6, 2.0, 3.0, None, "extant")}, 0)
+              1: Node(1, 5, 2.0, 3.0, (), "extant"), 3: Node(3, 5, 2.0, 3.0, (), "extant"),
+              2: Node(2, 6, 2.0, 3.0, (), "extant"), 4: Node(4, 6, 2.0, 3.0, (), "extant")}, 0)
     assert T.distance(a, b, metric="rf") == 4.0        # both non-trivial clades differ, symmetric
     assert 0.0 < T.distance(a, b, metric="rf-normalized") <= 1.0
 
@@ -199,7 +199,7 @@ def test_cli_tree_round_makes_a_noisy_tree_ultrametric(tmp_path, capsys):
     assert main(["tools", "tree", f, "--round"]) == 0
     out = capsys.readouterr().out
     tree, _ = T.read_newick(out, assume_extant=True)
-    d = [T._depths(tree)[i] for i, n in tree.nodes.items() if n.children is None]
+    d = [T._depths(tree)[i] for i, n in tree.nodes.items() if not n.children]
     assert max(d) - min(d) == pytest.approx(0.0, abs=1e-9)
 
 
@@ -320,7 +320,7 @@ def test_a_written_tree_is_still_ultrametric_when_it_is_read_back():
             node = tree.nodes[i]
             depth[i] = (0.0 if node.parent is None else depth[node.parent]) + \
                        (node.end_time - node.birth_time)
-        tips = [depth[i] for i, n in tree.nodes.items() if n.children is None]
+        tips = [depth[i] for i, n in tree.nodes.items() if not n.children]
         return (max(tips) - min(tips)) / max(tips)
 
     ape_tolerance = 1e-8

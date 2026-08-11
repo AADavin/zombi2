@@ -13,4 +13,4 @@ from zombi2.tree import Tree
 def internal_nodes(tree: Tree) -> list[int]:
     """Ids of the nodes RED is graded on: internal, non-root (leaves are trivially 1, the root 0)."""
     return [i for i, nd in tree.nodes.items()
-            if nd.children is not None and nd.parent is not None]
+            if nd.children and nd.parent is not None]

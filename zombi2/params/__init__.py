@@ -38,7 +38,7 @@ from .choice import Clades, Distance, Recipients
 from .driver import Clade
 from .distributions import Exponential, Fixed, Gamma, Geometric, LogNormal, Uniform
 from .parameter import Extent
-from .mapping import Between, Curve, Scalar, Table
+from .mapping import Between, Curve, Scalar, Schedule, Table
 from .driver import Random, TotalDiversity
 from .evaluate import UNITS
 from .law import Drift
@@ -58,7 +58,7 @@ from .driver import Time
 #: grammar knows; an error quotes back the five a value may vary among (`evaluate.VARYING_UNITS`).
 __all__ = ["UNITS", "Between", "Clade", "Clades", "Curve", "Distance", "Drift", "Exponential",
            "Extent", "Fixed", "Gamma", "Geometric", "Global", "LogNormal", "PerChromosome",
-           "PerCopy", "PerLineage", "PerSite", "Random", "Recipients", "Scalar", "Table", "Time",
+           "PerCopy", "PerLineage", "PerSite", "Random", "Recipients", "Scalar", "Schedule", "Table", "Time",
            "TotalDiversity", "Uniform"]
 
 

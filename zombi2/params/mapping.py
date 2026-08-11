@@ -35,8 +35,94 @@ class Mapping:
     `as_mapping()` coerces). A mapping returns a **dimensionless, non-negative** factor — a
     multiplier on a rate or an extent, a weight on ``transfer_to``."""
 
-    def multiplier(self, value: object) -> float:
+    def multiplier(self, value: object, *, time: float | None = None) -> float:
         raise NotImplementedError
+
+    def next_change(self, time: float) -> float:
+        """The next time strictly after ``time`` at which this mapping's factor changes on its own.
+        ``inf`` unless some entry is a `Schedule` — a mapping reads a driver, and a driver's own
+        switches are the engine's business, not the mapping's."""
+        return math.inf
+
+
+def _steps_from(spec, where: str) -> tuple[tuple[float, float], ...]:
+    """``{time: factor}`` → sorted ``((time, factor), …)``, validated. The one place a time schedule
+    is read, so `Schedule` and `OnTime` cannot drift apart on what one means."""
+    if not isinstance(spec, dict) or not spec:
+        raise ValueError(f"{where} needs a non-empty {{time: factor}} schedule, got {spec!r}")
+    steps = []
+    for t, factor in spec.items():
+        if isinstance(t, bool) or not isinstance(t, (int, float)) or not math.isfinite(t) or t < 0:
+            raise ValueError(f"{where}: a time schedule's times must be finite and non-negative, "
+                             f"got {t!r}")
+        steps.append((float(t), _check_factor(factor, f"{where} factor at t={t!r}")))
+    return tuple(sorted(steps))
+
+
+def _step_at(steps, time: float | None) -> float:
+    """The factor in force at ``time``. Before the first breakpoint the earliest factor applies, and
+    ``time=None`` — an engine that threads no clock — reads that same earliest factor, so a schedule
+    somewhere a level cannot step is the schedule's own opening value rather than a silent 1.0."""
+    f = steps[0][1]
+    if time is None:
+        return f
+    for t, fac in steps:
+        if t <= time:
+            f = fac
+        else:
+            break
+    return f
+
+
+def _next_step(steps, time: float) -> float:
+    for t, _ in steps:                    # sorted; the first breakpoint strictly after `time`
+        if t > time:
+            return t
+    return math.inf
+
+
+class Schedule:
+    """One factor that **changes with time** — a `Table` entry written as a schedule::
+
+        Table({"endo": {0: 1.0, 6.0: 20.0}, "rest": 1.0})
+
+    reads: the ``endo`` group's factor is 1 until t=6 and 20 from then on, while ``rest`` is 1
+    throughout. It is the one way to say *this driver state, but only after t*. Chaining two verbs
+    cannot: ``scaled_by(clade, {...}).changing_at({...})`` multiplies two factors that each apply to
+    every lineage, so the time window would fall on the whole tree rather than on the clade.
+
+    The notation is ``changing_at``'s, and it means the same thing — a factor from each breakpoint
+    on, the earliest one applying before the first. The breakpoints reach the engine's horizon
+    through `Table.next_change`, so a Gillespie loop steps to them rather than past them."""
+
+    def __init__(self, spec) -> None:
+        self.steps = _steps_from(spec, "Schedule")
+
+    def at(self, time: float | None) -> float:
+        return _step_at(self.steps, time)
+
+    def next_change(self, time: float) -> float:
+        return _next_step(self.steps, time)
+
+    def __repr__(self) -> str:
+        # `repr(float)`, not `:g` — see `OnTime.__repr__`: a run's log is pasted back.
+        return "{" + ", ".join(f"{float(t)!r}: {float(f)!r}" for t, f in self.steps) + "}"
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Schedule) and other.steps == self.steps
+
+    def __hash__(self) -> int:
+        return hash((Schedule, self.steps))
+
+
+def _as_entry(factor, where: str):
+    """One `Table` entry: a plain factor, or a `Schedule` where a ``{time: factor}`` dict was
+    written."""
+    if isinstance(factor, Schedule):
+        return factor
+    if isinstance(factor, dict):
+        return Schedule(factor)
+    return _check_factor(factor, where)
 
 
 class Table(Mapping):
@@ -63,18 +149,34 @@ class Table(Mapping):
                 raise ValueError(
                     f"Table states collide as strings: {state!r} and an earlier key both map to {key!r}"
                 )
-            table[key] = _check_factor(factor, f"Table factor for {state!r}")
+            # a dict entry is a time schedule for that state — the one way to write "this driver
+            # state, but only after t" (`Schedule`). Anything else is a plain factor.
+            table[key] = _as_entry(factor, f"Table factor for {state!r}")
         self.per_state = table
-        self.default = _check_factor(default, "Table default")
+        self.default = _as_entry(default, "Table default")
 
-    def multiplier(self, value: object) -> float:
-        return self.per_state.get(str(value), self.default)
+    def multiplier(self, value: object, *, time: float | None = None) -> float:
+        f = self.per_state.get(str(value), self.default)
+        return f.at(time) if isinstance(f, Schedule) else f
+
+    def next_change(self, time: float) -> float:
+        """The earliest breakpoint across this table's scheduled entries — every state's, not only
+        the one in force, because the engine sets one horizon for the whole live set and a lineage
+        in another state must not be stepped past its own switch."""
+        nc = math.inf
+        for f in (*self.per_state.values(), self.default):
+            if isinstance(f, Schedule):
+                nc = min(nc, f.next_change(time))
+        return nc
 
     def __repr__(self) -> str:
         # `repr(float)`, not `:g` — see `OnTime.__repr__`: six significant figures in a run's log
         # is a record of a different model.
-        inner = ", ".join(f"{s!r}: {float(f)!r}" for s, f in self.per_state.items())
-        tail = "" if self.default == 1.0 else f", default={float(self.default)!r}"
+        inner = ", ".join(f"{s!r}: {f!r}" if isinstance(f, Schedule) else f"{s!r}: {float(f)!r}"
+                          for s, f in self.per_state.items())
+        tail = ("" if self.default == 1.0 else
+                f", default={self.default!r}" if isinstance(self.default, Schedule) else
+                f", default={float(self.default)!r}")
         return f"Table({{{inner}}}{tail})"
 
     def __eq__(self, other: object) -> bool:
@@ -103,7 +205,7 @@ class Curve(Mapping):
         self.fn = fn
         self.bound = bound
 
-    def multiplier(self, value: object) -> float:
+    def multiplier(self, value: object, *, time: float | None = None) -> float:
         f = self.fn(_numeric(value, "Curve"))
         if isinstance(f, bool) or not isinstance(f, (int, float)) or not math.isfinite(f) or f < 0:
             raise ValueError(
@@ -134,7 +236,7 @@ class Scalar(Mapping):
             raise ValueError(f"Scalar strength must be a finite number, got {strength!r}")
         self.strength = float(strength)
 
-    def multiplier(self, value: object) -> float:
+    def multiplier(self, value: object, *, time: float | None = None) -> float:
         x = self.strength * _numeric(value, "Scalar")
         x = max(-_MAX_EXPONENT, min(_MAX_EXPONENT, x))  # guard exp() against overflow
         return math.exp(x)
@@ -289,5 +391,5 @@ def check_not_a_kernel(mapping, *, label: str) -> None:
             f"kernel in transfer_to=Recipients().weighted_by(driver, Between({{...}})).")
 
 
-__all__ = ["Mapping", "Table", "Curve", "Scalar", "Between", "check_kernel_fires",
+__all__ = ["Mapping", "Table", "Schedule", "Curve", "Scalar", "Between", "check_kernel_fires",
            "check_not_a_kernel", "as_mapping"]

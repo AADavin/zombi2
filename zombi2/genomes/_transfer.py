@@ -83,9 +83,7 @@ def _subtree(tree, root_id) -> set:
     while stack:
         i = stack.pop()
         out.add(i)
-        kids = tree.nodes[i].children
-        if kids is not None:
-            stack.extend(kids)
+        stack.extend(tree.nodes[i].children)
     return out
 
 
@@ -294,7 +292,8 @@ def recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_tra
             g_d = to_traj.value(donor, t)
             weights = [transfer_to.mapping.weight(g_d, to_traj.value(alive[k], t)) for k in cand]
         else:
-            weights = [transfer_to.mapping.multiplier(to_traj.value(alive[k], t)) for k in cand]
+            weights = [transfer_to.mapping.multiplier(to_traj.value(alive[k], t), time=t)
+                       for k in cand]
         total = sum(weights)
         if total <= 0.0:
             return None
@@ -326,5 +325,5 @@ def mean_root_to_tip(tree) -> float:
     Over the extant tips (all leaves if none survive); 1.0 for a degenerate zero-height tree."""
     root_t = tree.nodes[tree.root].birth_time
     tips = tree.extant_leaves() or tree.leaves()
-    depth = sum(n.end_time - root_t for n in tips) / len(tips)
+    depth = sum(tree.nodes[i].end_time - root_t for i in tips) / len(tips)
     return depth if depth > 0 else 1.0

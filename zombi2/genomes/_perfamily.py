@@ -128,7 +128,7 @@ def _enumerate_families(tree, org, initial_families, families_named, rng, trajs=
                 i = schedule[si][1]
                 retire(alive, dummy, pos, pos[i])
                 node = tree.nodes[i]
-                if node.children is not None:
+                if node.children:
                     for c in node.children:
                         enter(alive, dummy, pos, c, None)
                 si += 1
@@ -398,7 +398,7 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
                 node_genomes[i] = list(g)                   # finalise this family's copies at node i
                 retire(alive, gen, pos, pos[i])
                 node = tree.nodes[i]
-                if node.children is not None and g:         # speciation: re-id each copy into daughters
+                if node.children and g:         # speciation: re-id each copy into daughters
                     total -= len(g)
                     per_daughter = []
                     for ch in node.children:
@@ -692,7 +692,7 @@ def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_fam
     fresh_dirs(pathlib.Path(out_dir), ("gene_trees",), flat=False)
     shard_dir = os.path.join(out_dir, "_shards")
     os.makedirs(shard_dir, exist_ok=True)
-    extant_ids = sorted(n.id for n in tree.extant_leaves())
+    extant_ids = sorted(tree.extant_leaves())
     stream_cfg = {"out_dir": out_dir, "outputs": set(outputs), "extant_ids": extant_ids,
                   "shard_dir": shard_dir}
     # The tree the run evolved along, beside its outputs — every one of them is indexed by this

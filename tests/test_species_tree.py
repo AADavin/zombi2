@@ -13,7 +13,7 @@ def test_yule_reaches_n_extant_with_no_extinction():
     r = simulate_species_tree(birth=1.0, death=0.0, n_extant=50, seed=1)
     assert r.n_extant == 50
     assert all(e.kind == "speciation" for e in r.events)  # Yule → no deaths
-    assert all(n.fate == "extant" for n in r.complete_tree.leaves())
+    assert all(n.fate == "extant" for n in (r.complete_tree.nodes[_i] for _i in r.complete_tree.leaves()))
 
 
 def test_birth_death_has_extinctions_and_survivors():
@@ -25,7 +25,7 @@ def test_birth_death_has_extinctions_and_survivors():
 
 def test_total_time_stop_ends_extant_lineages_at_the_present():
     r = simulate_species_tree(birth=1.0, death=0.2, total_time=4.0, seed=3)
-    for n in r.complete_tree.extant_leaves():
+    for n in (r.complete_tree.nodes[_i] for _i in r.complete_tree.extant_leaves()):
         assert n.end_time == pytest.approx(4.0)
 
 
@@ -46,7 +46,7 @@ def test_different_seeds_differ():
 def test_tree_structure_invariants():
     r = simulate_species_tree(birth=1.0, death=0.2, n_extant=30, seed=5)
     for node in r.complete_tree.nodes.values():
-        if node.children is None:
+        if not node.children:
             assert node.fate in ("extant", "extinct")
         else:
             c1, c2 = node.children
@@ -140,10 +140,10 @@ def test_extant_tree_prunes_to_survivors():
     r = simulate_species_tree(birth=1.0, death=0.4, n_extant=40, seed=3)
     ext = r.extant_tree
     assert len(ext.leaves()) == r.n_extant                       # exactly the survivors
-    assert all(n.fate == "extant" for n in ext.leaves())         # no extinct tips
+    assert all(n.fate == "extant" for n in (ext.nodes[_i] for _i in ext.leaves()))         # no extinct tips
     assert all(n.fate != "extinct" for n in ext.nodes.values())  # no extinct nodes remain
     for n in ext.nodes.values():                                 # bifurcating
-        assert n.children is None or len(n.children) == 2
+        assert not n.children or len(n.children) == 2
     # every branch is now strictly positive — the present sits after the last split (n_extant fix)
     for n in ext.nodes.values():
         assert n.end_time - n.birth_time > 0
@@ -215,7 +215,7 @@ def test_write_records_tip_fates(tmp_path):
     assert lines[0] == "lineage\tfate"
     fates = dict(ln.split("\t") for ln in lines[1:])
     names = r.complete_tree.labels()
-    tips = {names[n.id]: n.fate for n in r.complete_tree.leaves()}
+    tips = {names[n.id]: n.fate for n in (r.complete_tree.nodes[_i] for _i in r.complete_tree.leaves())}
     # ...and an extinct lineage is named e<id>, so the table states the fate twice over
     assert any(k[0] == "e" for k, v in tips.items() if v == "extinct")
     assert fates == tips                                          # every tip, its exact fate
@@ -329,9 +329,9 @@ def _colless(result):
     size = {}
     for i in sorted(tree.nodes, reverse=True):        # children (higher ids) before parents
         nd = tree.nodes[i]
-        size[i] = 1 if nd.children is None else sum(size[c] for c in nd.children)
+        size[i] = 1 if not nd.children else sum(size[c] for c in nd.children)
     return sum(abs(size[nd.children[0]] - size[nd.children[1]])
-               for nd in tree.nodes.values() if nd.children is not None)
+               for nd in tree.nodes.values() if nd.children)
 
 
 def test_clade_drift_is_more_imbalanced_than_yule():
@@ -566,7 +566,7 @@ def test_fossils_write_tsv(tmp_path):
 # --- incomplete sampling (rho): observe a fraction of the survivors ---
 
 def _survivor_ids(result):
-    return {n.id for n in result.complete_tree.extant_leaves()} | {n.id for n in result.complete_tree.unsampled_leaves()}
+    return set(result.complete_tree.extant_leaves()) | set(result.complete_tree.unsampled_leaves())
 
 
 def test_sampling_relabels_not_removes():
@@ -579,9 +579,9 @@ def test_sampling_relabels_not_removes():
 def test_extant_tree_is_the_sampled_survivors():
     r = simulate_species_tree(birth=1.0, death=0.3, n_extant=40, sampling=0.5, seed=3)
     assert len(r.extant_tree.leaves()) == r.n_extant                 # the extant tree is the observed one
-    assert all(n.fate == "extant" for n in r.extant_tree.nodes.values() if n.children is None)
+    assert all(n.fate == "extant" for n in r.extant_tree.nodes.values() if not n.children)
     for n in r.extant_tree.nodes.values():                           # still bifurcating after pruning
-        assert n.children is None or len(n.children) == 2
+        assert not n.children or len(n.children) == 2
 
 
 def test_sampling_one_observes_everyone():
@@ -609,8 +609,8 @@ def test_sampling_fraction_matches_rho():
 
 def test_sampling_is_deterministic():
     kw = dict(birth=1.0, death=0.3, n_extant=40, sampling=0.5, seed=9)
-    a = {n.id for n in simulate_species_tree(**kw).complete_tree.extant_leaves()}
-    b = {n.id for n in simulate_species_tree(**kw).complete_tree.extant_leaves()}
+    a = set(simulate_species_tree(**kw).complete_tree.extant_leaves())
+    b = set(simulate_species_tree(**kw).complete_tree.extant_leaves())
     assert a == b
 
 
@@ -657,7 +657,7 @@ def test_an_extinct_lineage_is_named_e_and_everything_else_n():
     r = simulate_species_tree(birth=1.0, death=0.6, n_extant=10, sampling=0.7, seed=11)
     t = r.complete_tree
     names = t.labels()
-    assert any(n.fate == "extinct" for n in t.leaves()) and any(n.fate == "unsampled" for n in t.leaves())
+    assert any(n.fate == "extinct" for n in (t.nodes[_i] for _i in t.leaves())) and any(n.fate == "unsampled" for n in (t.nodes[_i] for _i in t.leaves()))
     for n in t.nodes.values():
         assert names[n.id] == ("e" if n.fate == "extinct" else "n") + str(n.id)
     # the number is the identity and the letter an annotation: a join can always strip it
@@ -672,8 +672,8 @@ def test_a_tree_states_its_own_extinctions_when_read_back():
 
     r = simulate_species_tree(birth=1.0, death=0.6, n_extant=10, seed=11)
     back, _ = read_newick(r.complete_tree.to_newick())      # no fate table, no --tip-fates
-    before = {n.id: n.fate for n in r.complete_tree.leaves()}
-    after = {n.id: n.fate for n in back.leaves()}
+    before = {n.id: n.fate for n in (r.complete_tree.nodes[_i] for _i in r.complete_tree.leaves())}
+    after = {n.id: n.fate for n in (back.nodes[_i] for _i in back.leaves())}
     assert before == after and "extinct" in before.values()
     assert back.to_newick() == r.complete_tree.to_newick()  # and it round-trips unchanged
 

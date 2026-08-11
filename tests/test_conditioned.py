@@ -306,8 +306,8 @@ def test_end_to_end_trait_drives_loss(tmp_path):
         origination=0.2, initial_families=5, seed=2,
     )
     # compare mean copy count of extant tips by their (end-of-branch) habitat
-    cave = [len(res.genomes[n.id]) for n in tree.extant_leaves() if hab.node_values[n.id] == "cave"]
-    surface = [len(res.genomes[n.id]) for n in tree.extant_leaves() if hab.node_values[n.id] == "surface"]
+    cave = [len(res.genomes[n.id]) for n in (tree.nodes[_i] for _i in tree.extant_leaves()) if hab.node_values[n.id] == "cave"]
+    surface = [len(res.genomes[n.id]) for n in (tree.nodes[_i] for _i in tree.extant_leaves()) if hab.node_values[n.id] == "surface"]
     assert cave and surface, "need both habitats represented among the tips"
     assert sum(cave) / len(cave) < sum(surface) / len(surface)
 
@@ -465,7 +465,7 @@ def _flat_tree_and_driver(tmp_path, competent):
     nwk = (f"(((A:{length!r},B:{length!r}):{tiny!r},(C:{length!r},D:{length!r}):{tiny!r}):{tiny!r},"
            f"((E:{length!r},F:{length!r}):{tiny!r},(G:{length!r},H:{length!r}):{tiny!r}):{tiny!r});")
     tree, _ = read_newick(nwk)
-    tips = [i for i, n in sorted(tree.nodes.items()) if n.children is None]
+    tips = [i for i, n in sorted(tree.nodes.items()) if not n.children]
     hot = set(tips[:competent])
     driver = tmp_path / "competence.tsv"
     _write_driver(driver, tree, {i: ("competent" if i in hot else "normal") for i in tree.nodes})
@@ -1222,9 +1222,9 @@ def test_continuous_driver_drives_a_rate_and_is_deterministic():
     driven = run(lambda v: 3.0 ** v)
     control = run(lambda v: 1.0)                          # a flat Curve == the undriven model
     tips = list(ct.extant_leaves())
-    assert any(len(driven.genomes[n.id]) != len(control.genomes[n.id]) for n in tips)
+    assert any(len(driven.genomes[i]) != len(control.genomes[i]) for i in tips)
     again = run(lambda v: 3.0 ** v)
-    assert all(len(driven.genomes[n.id]) == len(again.genomes[n.id]) for n in tips)
+    assert all(len(driven.genomes[i]) == len(again.genomes[i]) for i in tips)
 
 
 def test_continuous_driver_takes_a_scalar_link():
@@ -1264,7 +1264,7 @@ def _one_branch_run(total_time: float = 2.0):
     """A species tree of one lineage running from 0 to ``total_time``, carrying one gene family whose
     gene tree is that single branch. The smallest run in which a branch length can be read off by
     hand: the phylogram is one number."""
-    tree = Tree({0: Node(0, None, 0.0, total_time, None, "extant")}, 0)
+    tree = Tree({0: Node(0, None, 0.0, total_time, (), "extant")}, 0)
     return tree, genomes.simulate_genomes_family(tree, initial_families=1, seed=1)
 
 
@@ -1363,7 +1363,7 @@ def test_the_driven_branch_length_is_the_exact_integral(tmp_path):
     from zombi2.params.conditioned import resolve_driver
     from zombi2.sequences.clock import resolve_clock
 
-    tree = Tree({0: Node(0, None, 0.0, 2.0, None, "extant")}, 0)
+    tree = Tree({0: Node(0, None, 0.0, 2.0, (), "extant")}, 0)
     driver = tmp_path / "d.tsv"
     driver.write_text("time\tkind\tlineage\tfrom\tto\n"
                       "0.0\tinitial\tn0\t\ta\n"

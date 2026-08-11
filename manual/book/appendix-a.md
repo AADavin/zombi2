@@ -171,6 +171,32 @@ combination would be meaningless; each engine gains a modifier when its own code
 some have not got there. You never have to guess which: give a level a modifier it does not accept and
 the error names the ones it does, so this table can always be read back off the tool itself.
 
+### A state, but only after a time
+
+`scaled_by` reads a driver and `changing_at` reads the clock, and chaining them does not combine
+them: the factors multiply, and each applies to every lineage, so `scaled_by(clade,
+{...}).changing_at({...})` puts the time window on the whole tree rather than on the clade.
+
+To scope a factor to a driver state **and** to a time, write that state's entry as a schedule, in
+`changing_at`'s own notation:
+
+```python
+from zombi2.params import Clade, PerCopy
+
+endo_loss = PerCopy(0.02).scaled_by(Clade({"endo": ["n76", "n112"]}),
+                                    {"endo": {0: 1.0, 6.0: 20.0}, "rest": 1.0})
+```
+
+The endosymbiont clade loses genes at the base rate until t=6 and twenty times faster from then on,
+while everything outside it is unchanged throughout. The breakpoints reach the engine's horizon, so
+the run steps to them rather than past them, and any discrete driver takes one — a trait state whose
+factor changes at a time reads the same way.
+
+The sequences level refuses a schedule inside a mapping. It walks each gene tree branch by branch
+and never steps at a wall-clock time, which is why `changing_at` is missing from its row above; a
+schedule there would hold its first factor for the whole run, so it is refused rather than half
+read.
+
 ### Writing your own
 
 The modifiers above are the ones ZOMBI2 ships. If none of them says what your rate depends on,

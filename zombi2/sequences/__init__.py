@@ -51,6 +51,7 @@ compact the way the speciation and D/T/L/O logs are.
 
 from __future__ import annotations
 
+import math
 import os
 import pathlib
 from collections.abc import Mapping
@@ -74,6 +75,7 @@ from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
 from .clock import Clock, resolve_clock
 from .evolution import evolve_gene_tree
+from .lineage_models import Models
 from .substitution_models import (BASES, SubstitutionModel, _with_frequencies, dayhoff, decode,
                                   encode, gtr, hky85, jc69, jtt, k80, lg, poisson, wag)
 
@@ -121,7 +123,7 @@ class SequencesResult:
       blocks concatenated in physical order (reverse-complemented where the genome carries them
       inverted) — extant tips, ancestors and the lineages that went extinct alike. The same coverage
       as the genome level's own ``genomes``, which is keyed the same way: the observed ones are the
-      extant tips, ``{node_label(n.id) for n in complete_tree.extant_leaves()}``. Only a **nucleotide** genome
+      extant tips, ``{node_label(i) for i in complete_tree.extant_leaves()}``. Only a **nucleotide** genome
       run has any — a family or ordered run has gene families, not coordinates, so there is no
       genome to lay out and this is empty.
     - ``initial_genome`` — ``{chromosome id: sequence}``: the genome the run **started** with, at the
@@ -371,28 +373,44 @@ class _AssembledGenomes(Mapping):
         return len(self._layouts)
 
 
-def mean_pairwise_identity(alignments, max_pairs: int = 2000) -> float | None:
-    """Mean identity over a bounded random sample of within-family sequence pairs, or ``None`` when
-    no family holds two sequences to compare.
+def _identity_counts(seqs) -> tuple[int, int]:
+    """``(matching positions, positions compared)`` over **every** within-family pair of ``seqs``.
 
-    Sampled rather than exhaustive because the pair count is quadratic in family size — a run with
-    thousands of copies would otherwise spend longer measuring itself than it spent simulating. The
-    draw is from a fixed stream, so the number printed for a given run is reproducible."""
-    families = [list(a.values()) for a in alignments.values() if len(a) >= 2]
-    if not families:
-        return None
-    rng = np.random.default_rng(0)
+    Counted a column at a time, not a pair at a time: at one column, a residue shared by ``c`` of the
+    sequences contributes ``c(c-1)/2`` matching pairs, so a family of ``k`` sequences over ``n`` sites
+    costs one pass per residue of the alphabet rather than one per pair. The work is linear in the
+    alignment — ``k·n`` — while the pairs it accounts for are quadratic, which is what makes counting
+    all of them affordable. Sequences of unequal length are compared over their shared prefix, as a
+    pair-at-a-time count did."""
+    if len(seqs) < 2:
+        return 0, 0
+    n = min(len(s) for s in seqs)
+    if not n:
+        return 0, 0
+    k = len(seqs)
+    arr = np.frombuffer("".join(s[:n] for s in seqs).encode(), dtype=np.uint8).reshape(k, n)
+    matched = 0
+    for residue in np.unique(arr):
+        c = np.count_nonzero(arr == residue, axis=0).astype(np.int64)
+        matched += int((c * (c - 1) // 2).sum())
+    return matched, n * k * (k - 1) // 2
+
+
+def mean_pairwise_identity(alignments) -> float | None:
+    """Mean identity over **every** within-family sequence pair, or ``None`` when no family holds two
+    sequences to compare.
+
+    Exhaustive, and the same quantity however the run was written: it used to be a bounded random
+    sample, and the streamed path sampled differently, so one flag that only chooses how much memory
+    a run uses moved a number in the report while leaving every alignment byte-identical. Nothing
+    said the number was an estimate, so it read as a fingerprint two matching runs could disagree on.
+    `_identity_counts` makes counting them all linear in the alignment, so there is no longer a reason
+    to estimate."""
     matched = compared = 0
-    for _ in range(max_pairs):
-        seqs = families[int(rng.integers(len(families)))]
-        i, j = (int(x) for x in rng.choice(len(seqs), size=2, replace=False))
-        n = min(len(seqs[i]), len(seqs[j]))
-        if not n:
-            continue
-        a = np.frombuffer(seqs[i][:n].encode(), dtype=np.uint8)
-        b = np.frombuffer(seqs[j][:n].encode(), dtype=np.uint8)
-        matched += int(np.count_nonzero(a == b))
-        compared += n
+    for a in alignments.values():
+        m, c = _identity_counts(list(a.values()))
+        matched += m
+        compared += c
     return matched / compared if compared else None
 
 
@@ -588,9 +606,7 @@ def _scaled_species_tree(tree: Tree, rate_base: float, clock: "Clock | None") ->
     while stack:  # pre-order: a parent is visited before its children
         i = stack.pop()
         order.append(i)
-        kids = tree.nodes[i].children
-        if kids is not None:
-            stack.extend(kids)
+        stack.extend(tree.nodes[i].children)
     for i in order:
         nd = tree.nodes[i]
         blen = (rate_base * (nd.end_time - nd.birth_time) if clock is None
@@ -615,7 +631,7 @@ class StreamedSequences:
     n_families: int
     n_sequences: int
     outputs: tuple
-    #: mean pairwise identity over one sampled pair per family — what the CLI reports and warns on.
+    #: mean pairwise identity over every within-family pair — what the CLI reports and warns on.
     #: ``None`` when no family held two sequences to compare.
     identity: "float | None" = None
     #: the site count every alignment carries (one length on a family run)
@@ -667,12 +683,12 @@ class _Sink:
         self.n_families = self.n_sequences = 0
         self._founding = (open(self.dir / "sequences_founding.fasta", "w", encoding="utf-8")
                           if "founding" in outputs else None)
-        # Mean pairwise identity, accumulated one sampled pair per family. The CLI reports it and
-        # warns when a run has saturated, which is the single most useful thing it says about a
-        # sequence run — and computing it the in-memory way needs every alignment at once, which is
-        # exactly what is not being kept. One pair per family estimates the same quantity from a
-        # different sample, so the number can differ in the last digit; the alignments cannot.
-        self._rng = np.random.default_rng(0)
+        # Mean pairwise identity, accumulated family by family as each one is written. The CLI
+        # reports it and warns when a run has saturated, which is the single most useful thing it
+        # says about a sequence run — and computing it the in-memory way would need every alignment
+        # at once, which is exactly what is not being kept. Counting every pair *within* a family
+        # needs only that family, so the running total here is the same number the in-memory path
+        # reaches: a run reports one identity whichever way it was written.
         self._matched = self._compared = 0
         self.sites: "int | None" = None
         self.n_ancestral = 0
@@ -682,21 +698,13 @@ class _Sink:
 
     @property
     def identity(self) -> "float | None":
-        """Mean identity over the sampled pairs, or ``None`` if no family held two sequences."""
+        """Mean identity over every within-family pair, or ``None`` if no family held two sequences."""
         return self._matched / self._compared if self._compared else None
 
-    def _sample_pair(self, aln: dict) -> None:
-        seqs = list(aln.values())
-        if len(seqs) < 2:
-            return
-        i, j = (int(x) for x in self._rng.choice(len(seqs), size=2, replace=False))
-        n = min(len(seqs[i]), len(seqs[j]))
-        if not n:
-            return
-        a = np.frombuffer(seqs[i][:n].encode(), dtype=np.uint8)
-        b = np.frombuffer(seqs[j][:n].encode(), dtype=np.uint8)
-        self._matched += int(np.count_nonzero(a == b))
-        self._compared += n
+    def _count_pairs(self, aln: dict) -> None:
+        matched, compared = _identity_counts(list(aln.values()))
+        self._matched += matched
+        self._compared += compared
 
     def family(self, fam: int, aln: dict, anc: dict, fnd: str, phylo: dict) -> None:
         u = f"{self.stem}{fam}"
@@ -708,7 +716,7 @@ class _Sink:
         self.n_ancestral += len(anc)
         if self.sites is None and aln:
             self.sites = len(next(iter(aln.values())))
-        self._sample_pair(aln)
+        self._count_pairs(aln)
         if "alignments" in self.outputs and aln:
             _write_fasta(self._into("alignments") / f"{u}.fasta", aln)
         if "ancestral" in self.outputs and anc:
@@ -743,7 +751,8 @@ class _Sink:
 _DEFAULT_STREAM_OUTPUTS = ("alignments", "phylograms", "species_phylogram", "summary")
 
 
-def _resolve_partitions(model, partitions, length) -> tuple[tuple[SubstitutionModel, int], ...]:
+def _resolve_partitions(model, partitions,
+                        length) -> "tuple[tuple[SubstitutionModel | Models, int], ...]":
     """The **site blocks** one family evolves, as ``((model, sites), …)``.
 
     One entry for the ordinary ``model=`` + ``length=`` run, several for a partitioned one — so the
@@ -766,7 +775,7 @@ def _resolve_partitions(model, partitions, length) -> tuple[tuple[SubstitutionMo
 
     if model is not None:
         raise ValueError(
-            f"model={model.name if isinstance(model, SubstitutionModel) else model!r} was given "
+            f"model={model.name if isinstance(model, (SubstitutionModel, Models)) else model!r} was given "
             "alongside partitions, and each partition already carries its own model — so this would "
             "be a second answer to the same question, and nothing here could say which one a site "
             "should follow. Drop one: partitions=[(model, sites), …] for a split sequence, or "
@@ -782,12 +791,12 @@ def _resolve_partitions(model, partitions, length) -> tuple[tuple[SubstitutionMo
         raise ValueError(
             "partitions is empty, so a family would evolve no sites at all. Give at least one "
             "(model, sites) pair, or drop partitions and use model=… with length=….")
-    parts: list[tuple[SubstitutionModel, int]] = []
+    parts: "list[tuple[SubstitutionModel | Models, int]]" = []
     for i, item in enumerate(listed):
         pair = tuple(item) if isinstance(item, (tuple, list)) else ()
         if len(pair) != 2:
             # a bare model is the likely slip, and a model's repr is a whole rate matrix — name it
-            if isinstance(item, SubstitutionModel):
+            if isinstance(item, (SubstitutionModel, Models)):
                 shown = f"the model {item.name} on its own"
             elif pair and isinstance(pair[0], SubstitutionModel):
                 shown = f"{len(pair)} values starting with the model {pair[0].name}"
@@ -798,7 +807,7 @@ def _resolve_partitions(model, partitions, length) -> tuple[tuple[SubstitutionMo
                 "substitution model that stretch of the sequence evolves under, and how many sites "
                 "it covers. For example partitions=[(hky85(kappa=2.0), 600), (jc69(), 400)].")
         m, n = pair
-        if not isinstance(m, SubstitutionModel):
+        if not isinstance(m, (SubstitutionModel, Models)):
             raise ValueError(
                 f"partition {i}'s model is {m!r}, which is not a SubstitutionModel — take one from "
                 "the menu (jc69(), hky85(kappa=2.0), lg(), …) or build your own with "
@@ -898,16 +907,23 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
     pieces = []
     at = 0
     for model, n in parts:
-        # one CDF cache per model, shared across every family and every partition that model
-        # evolves: branch lengths recur massively, and the cache is keyed by length alone, so it
-        # must never be shared between two matrices
-        cache = cdf_caches.setdefault(id(model), {})
+        # One CDF cache for the whole run: it is keyed by (model, branch length), so several models
+        # share it safely and branch lengths — which recur massively across families — are still
+        # computed once per model.
+        if isinstance(model, Models):
+            # a per-lineage model set: the family founds under the model of the species branch its
+            # ORIGINATION sits on (the stem lies on the root gene's species branch, which is the same
+            # branch `evolve_gene_tree` charges the stem to), and each branch below picks its own
+            per_species, base = model.per_species, model.at(gt.complete.species)
+        else:
+            per_species, base = None, model
         states, founding_states = evolve_gene_tree(
-            gt.complete, model, n, rate, clock, rng, gt.origination,
-            founding=None if founding is None else founding[at:at + n], cdf_cache=cache)
+            gt.complete, base, n, rate, clock, rng, gt.origination,
+            founding=None if founding is None else founding[at:at + n],
+            cdf_cache=cdf_caches, models=per_species)
         at += n
-        aln, anc = _split(gt, states, names, model)
-        pieces.append((aln, anc, decode(founding_states, model.alphabet)))
+        aln, anc = _split(gt, states, names, base)
+        pieces.append((aln, anc, decode(founding_states, base.alphabet)))
     if len(pieces) == 1:
         return pieces[0]
     # The node keys are the same in every partition — they come from the same tree, walked the same
@@ -1089,15 +1105,18 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     # With partitions the models arrive inside them, and `_resolve_partitions` checks each one; this
     # is the plain path, where `model` is the whole answer and the common mistake is worth naming
     # exactly as it always was.
-    if partitions is None and not isinstance(model, SubstitutionModel):
+    if partitions is None and not isinstance(model, (SubstitutionModel, Models)):
         if model is None:
             raise ValueError(
                 "no model: give model=… (one substitution model for every site of every family) "
                 "together with length=…, or partitions=[(model, sites), …] to split a family's "
-                "sites into blocks each under its own model.")
-        raise TypeError(f"model must be a SubstitutionModel (e.g. hky85(kappa=2.0)), got {model!r}")
-    if intergene_model is not None and not isinstance(intergene_model, SubstitutionModel):
-        raise TypeError(f"intergene_model must be a SubstitutionModel, got {intergene_model!r}")
+                "sites into blocks each under its own model, or "
+                "Models().set_by(Clade({…}), {…}) to give each clade its own.")
+        raise TypeError(f"model must be a SubstitutionModel (e.g. hky85(kappa=2.0)) or a "
+                        f"per-lineage set (Models().set_by(Clade({{…}}), {{…}})), got {model!r}")
+    if intergene_model is not None and not isinstance(intergene_model, (SubstitutionModel, Models)):
+        raise TypeError(f"intergene_model must be a SubstitutionModel or a per-lineage set "
+                        f"(Models().set_by(Clade({{…}}), {{…}})), got {intergene_model!r}")
 
     if profiles is not None and partitions is not None:
         raise ValueError(
@@ -1126,6 +1145,14 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 "it.")
         # `partitions is None` here, so the guard above already refused a missing or non-model
         # `model` — from this point it is the gene model, not an optional one.
+        for label, m in (("model", model), ("intergene_model", intergene_model)):
+            if isinstance(m, Models):
+                raise ValueError(
+                    f"{label} is a per-lineage model set, which a nucleotide genome run does not "
+                    f"read yet: this path evolves blocks of a whole genome rather than a family's "
+                    f"gene trees, and a block's stretch of a species branch is chosen by the "
+                    f"genome's coordinates rather than by the gene tree walk the set is applied on. "
+                    f"Use one model here, or run the family / ordered resolution.")
         assert isinstance(model, SubstitutionModel)
         if length is not None:
             raise ValueError(
@@ -1173,6 +1200,11 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     else:
         gene_trees = genomes.gene_trees
         parts = _resolve_partitions(model, partitions, length)
+        # A per-lineage model set is painted against THIS run's tree, once, before any family is
+        # evolved — the same shape as a driven rate resolving its trajectory above. It is checked
+        # here too: a label that names no lineage, or a lineage with no model, is a run that would
+        # otherwise quietly evolve part of the tree under the wrong matrix.
+        parts = tuple((m.resolve(species_tree) if isinstance(m, Models) else m, n) for m, n in parts)
         if intergene_model is not None:
             raise ValueError(
                 "intergene_model applies to a nucleotide genome run, where blocks are genes or "
@@ -1263,6 +1295,20 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         for m in drivers:
             label = m.driver if isinstance(m.driver, str) else f"<{type(m.driver).__name__}>"
             check_mapping_fires(m.mapping, trajs[m.key].states(), driver_label=label)
+            # A scheduled mapping entry makes the factor a function of TIME, and this level does not
+            # read one: `IMPLEMENTED_MODIFIERS` leaves out OnTime on purpose, so `changing_at` is
+            # refused here and a schedule reaching in through a mapping would be the same model by
+            # another door. It has to be refused rather than run, because a rate this level cannot
+            # step would silently hold the schedule's opening factor for the whole run — the branch
+            # lengths would come out as if the schedule were a plain number, and nothing would say so.
+            if m.mapping.next_change(0.0) != math.inf:
+                raise ValueError(
+                    "a time schedule inside a mapping is not read at the sequences level: this level "
+                    "walks each gene tree branch by branch and does not step at a wall-clock time, "
+                    "so the schedule's first factor would stand for the whole run. Give this state "
+                    "one factor, or put the schedule on the level that grows along the tree — a "
+                    "genome or a trait rate — and drive the substitution rate from what that "
+                    "produced.")
         driven = [(m, trajs[m.key]) for m in drivers]
 
     names = species_tree.labels()   # e<id> for a lineage that died; n<id> for the rest
@@ -1362,7 +1408,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         # Capture the layouts in the same order the eager build used — extant nodes (read from
         # `alignments`) sorted first, then the rest (read from `ancestral`) — so the map iterates,
         # and `write` emits its files, in exactly the previous order.
-        extant_ids = sorted(n.id for n in species_tree.extant_leaves())
+        extant_ids = sorted(species_tree.extant_leaves())
         extant_id_set = set(extant_ids)
         extant_labels = {names[i] for i in extant_ids}
         ordered_ids = extant_ids + [i for i in sorted(species_tree.nodes) if i not in extant_id_set]
@@ -1402,4 +1448,6 @@ __all__ = ["simulate_sequences", "SequencesResult", "StreamedSequences",
            # the substitution-model menu, re-exported: the TypeError raised for a bad
            # `model=` names these symbols, so they must be importable from the module it names
            "jc69", "k80", "hky85", "gtr", "poisson", "jtt", "dayhoff", "wag", "lg",
-           "SubstitutionModel"]
+           "SubstitutionModel",
+           # the per-lineage model set: the TypeError for a bad `model=` names it too
+           "Models"]

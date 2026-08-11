@@ -92,6 +92,20 @@ result = species.simulate_species_tree(
 
 As at every level it also carries `.seed` and `.write(dir, outputs=[...])`. Each tree carries its topology and dated branch lengths, holds every node — internal ones included — in `.nodes`, and lets you ask for its tips with `.leaves()` and, among them, the extant, the extinct and the unsampled (`.extant_leaves()`, `.extinct_leaves()`, `.unsampled_leaves()`).
 
+A tree speaks **node ids** throughout: `.root` is one, `.nodes` is keyed by one, `.children` holds them, and the four tip lists return them. Reach the node itself through `.nodes[i]`.
+
+```python
+from zombi2 import species
+
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=1).complete_tree
+tips = tree.extant_leaves()                                  # [3, 7, 8, …] — ids, not objects
+oldest = max(tree.leaves(), key=lambda i: tree.nodes[i].end_time)
+```
+
+Those ids are the same ones every other level keys on, so a tip list joins straight across a run — `{i: len(genome_run.genomes[i]) for i in tree.extant_leaves()}`.
+
+A tip's `.children` is an empty tuple, so a walk needs no guard: `for c in tree.nodes[i].children` simply does nothing at a leaf.
+
 Everything in this chapter is one function call, so the verbs, the sampling and a mass extinction all compose in a single line:
 
 ```python
