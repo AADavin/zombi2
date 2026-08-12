@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-08-12
+
 ### Changed
 
 - A nucleotide run's `repr` names what it counts: `12 genes, 12 block events, 6 rearrangements`,
