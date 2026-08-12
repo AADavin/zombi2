@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-08-12
+
 ### Added
 
 - Eight gallery examples covering the conditioning pairs the gallery did not reach: a gene family
