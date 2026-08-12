@@ -20,6 +20,7 @@ import textwrap
 from PIL import Image
 
 import genomes
+import crosslevel
 import joining
 import sequences
 import species
@@ -51,7 +52,7 @@ LEVELS = [
      "Two runs, in order. The first run grows the driver on the tree and holds it fixed. The "
      "second run reads it. A driver is a trait, a gene family or a whole module. It drives a "
      "rate, or which lineage receives a transfer.",
-     joining.CONDITIONING),
+     joining.CONDITIONING + crosslevel.EXAMPLES),
     ("joining", "Joining",
      "One run makes both. The trait sets the speciation or extinction rate of the lineage "
      "carrying it. The trait and the tree therefore come out together.",
