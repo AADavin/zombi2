@@ -304,3 +304,32 @@ def test_joint_refuses_a_modifier_it_does_not_thread():
         birth = wired(PerLineage(1.0)).scaled_by("trait", mapping)
         assert joint.simulate_joint(birth=birth, death=0.1, n_extant=8,
                                     seed=1, trait=trait).species.n_extant == 8
+
+
+def test_joint_raises_rather_than_growing_without_end():
+    """The guard `simulate_species_tree` has had since it grew a tree on time. A joint run needs it
+    more, not less: its birth rate reads a driver the run itself grows, so the growth can feed the
+    rate that causes it, and a run conditioned on time then has no end to reach.
+
+    It RAISES rather than stopping early, for the reason the species engine gives — a tree cut off at
+    a size is no longer a sample from the process asked for."""
+    from zombi2 import genomes
+    from zombi2.params import Curve
+
+    for driver, spec in ((dict(trait=traits.DiscreteTrait(states=("a", "b"), switch=0.3)),
+                          PerLineage(4.0).scaled_by("trait", {"a": 1.0, "b": 3.0})),
+                         (dict(genome=genomes.family(origination=0.2, loss=0.15)),
+                          PerLineage(0.6).scaled_by("genomes:count", Curve(lambda n: 1 + n / 20)))):
+        with pytest.raises(RuntimeError, match="still growing"):
+            joint.simulate_joint(birth=spec, total_time=5.0, seed=1, max_lineages=1200, **driver)
+
+
+def test_joint_max_lineages_leaves_an_ordinary_run_alone():
+    """The guard is a ceiling, not a stopping rule: a run that ends on its own never meets it, and
+    `n_extant` above the ceiling raises it rather than fighting it (the species engine's rule)."""
+    trait = traits.DiscreteTrait(states=("a", "b"), switch=0.3)
+    birth = PerLineage(1.0).scaled_by("trait", {"a": 1.0, "b": 2.0})
+    plain = joint.simulate_joint(birth=birth, death=0.1, n_extant=20, seed=3, trait=trait)
+    guarded = joint.simulate_joint(birth=birth, death=0.1, n_extant=20, seed=3, trait=trait,
+                                   max_lineages=5)      # below n_extant, so it must not bite
+    assert plain.species.complete_tree.to_newick() == guarded.species.complete_tree.to_newick()
