@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import contextlib
 import importlib
+import json
 import pathlib
 import sys
 from unittest import mock
@@ -38,6 +39,9 @@ from zombi2.params import PerCopy, PerLineage
 import pytest
 
 GALLERY = pathlib.Path(__file__).resolve().parent.parent / "gallery"
+# The published page. A build artefact committed by hand — figures/ is git-ignored, the images are
+# embedded as base64, and the Pages workflow only copies web/ — so nothing regenerates it in CI.
+PAGE = GALLERY.parent / "web" / "gallery.html"
 # The examples that call the zombi2 Python API directly (see the module docstring for why not genomes
 # / sequences). This is where the extant()->extant_leaves() rename bit, and where a mock cleanly
 # isolates the zombi2 calls.
@@ -53,6 +57,11 @@ _PYTHON_EXTRAS = {"sequences": {"clock_ucln", "clock_ugam", "clock_autocorrelate
 # raise them. Anything else out of a render (a FileNotFoundError from a composite reading back a PNG
 # the mock never wrote, say) is the drawing layer, not our concern.
 _ZOMBI2_BREAK = (AttributeError, TypeError)
+# The drawing modules stubbed out in sys.modules before the gallery imports them, so a gallery import
+# binds the stub. Neither Phylustrator nor matplotlib is installed in the test job.
+_DRAWING = ("phylustrator", "phylustrator.trees", "phylustrator.genomes", "phylustrator.zombi",
+            "matplotlib", "matplotlib.pyplot", "matplotlib.image", "matplotlib.patches",
+            "matplotlib.cm", "matplotlib.colors")
 
 
 class _Draw(MagicMock):
@@ -85,10 +94,7 @@ class _StubTree:
 @contextlib.contextmanager
 def _phylustrator_mocked():
     """Import ``helpers`` without Phylustrator or matplotlib installed — it draws, we only compute."""
-    names = ("phylustrator", "phylustrator.trees", "phylustrator.genomes", "phylustrator.zombi",
-             "matplotlib", "matplotlib.pyplot", "matplotlib.image", "matplotlib.patches",
-             "matplotlib.cm", "matplotlib.colors")
-    with mock.patch.dict(sys.modules, {n: _Draw() for n in names}):
+    with mock.patch.dict(sys.modules, {n: _Draw() for n in _DRAWING}):
         sys.path.insert(0, str(GALLERY))
         sys.modules.pop("helpers", None)
         try:
@@ -96,6 +102,42 @@ def _phylustrator_mocked():
         finally:
             sys.path.remove(str(GALLERY))
             sys.modules.pop("helpers", None)
+
+
+@contextlib.contextmanager
+def _gallery_build():
+    """Import ``gallery/build.py`` — the script that writes the published page — with its drawing
+    imports stubbed. It imports every level module and PIL (which embeds the figures) on top of what
+    ``helpers`` needs; none of that is installed in the test job, and recomputing a snippet needs none
+    of it. The stubs go in and out of ``sys.modules`` by hand rather than through ``mock.patch.dict``:
+    that restores the whole of ``sys.modules`` on exit, which would unload the zombi2 and numpy
+    modules these imports pull in and leave a later test running against a second copy of them."""
+    stubbed, gallery = (*_DRAWING, "PIL", "PIL.Image"), ("build", "helpers", *_MODULES, *_PYTHON_EXTRAS)
+    saved = {n: sys.modules[n] for n in stubbed if n in sys.modules}
+    sys.path.insert(0, str(GALLERY))
+    for name in gallery:
+        sys.modules.pop(name, None)                  # fresh import so the stub is the one bound
+    sys.modules.update({n: _Draw() for n in stubbed})
+    try:
+        yield importlib.import_module("build")
+    finally:
+        sys.path.remove(str(GALLERY))
+        for name in (*gallery, *stubbed):
+            sys.modules.pop(name, None)
+        sys.modules.update(saved)
+
+
+def _published_examples() -> dict[str, dict]:
+    """What the published page serves for each example — ``{id: {title, caption, tag, code}}``, read
+    out of its ``window.EX``. Every field of it comes from the gallery sources, so every field can go
+    stale: a corrected caption that is never rebuilt reaches a reader no more than a corrected
+    snippet does."""
+    text = PAGE.read_text()
+    marker = "<script>window.EX = "
+    start = text.find(marker)
+    assert start != -1, f"no window.EX block in {PAGE.name} — has build.py changed how it writes it?"
+    data, _ = json.JSONDecoder().raw_decode(text, start + len(marker))
+    return data
 
 
 @pytest.fixture
@@ -106,9 +148,7 @@ def gallery_examples(monkeypatch, tmp_path):
     # [dev] extra), so it rides in the existing test job with no Phylustrator, matplotlib, or rendering.
     # helpers itself stays real — it defines the Example/EXAMPLES the test iterates and the compute
     # helpers (LTT, node_values, ...) that run on the real zombi2 objects.
-    for name in ("phylustrator", "phylustrator.trees", "phylustrator.genomes", "phylustrator.zombi",
-                 "matplotlib", "matplotlib.pyplot", "matplotlib.image", "matplotlib.patches",
-                 "matplotlib.cm", "matplotlib.colors"):
+    for name in _DRAWING:
         monkeypatch.setitem(sys.modules, name, _Draw())
     monkeypatch.syspath_prepend(str(GALLERY))
     monkeypatch.chdir(tmp_path)                       # any file a render writes lands here, not the repo
@@ -244,3 +284,42 @@ def test_the_guard_catches_a_renamed_zombi2_method(gallery_examples, tmp_path, m
               for mod, ex in gallery_examples
               if (msg := _break(ex.render, str(tmp_path / f"{ex.id}.png"))) and "extant_leaves" in msg]
     assert caught, "removing Tree.extant_leaves should have tripped at least one gallery example"
+
+
+def test_the_published_page_serves_the_current_gallery_code():
+    """Everything above checks the gallery's **source** modules. The page is a separate file that
+    nothing rebuilds, so a source fix does not reach a reader until someone runs build.py and commits
+    the result — and that step gets forgotten. It was: a rename landed in ``joining.py`` and
+    ``genomes.py`` and the sources were updated, but ``web/gallery.html`` was not, so the live page
+    went on serving a snippet that raises ``KeyError`` against the shipped library.
+
+    This compares the two without rendering anything: rebuild each example's record with build.py's
+    own ``_detail_data`` (imported, not copied — a copy drifts and stops guarding) and check it
+    against the ``window.EX`` block the page carries. The whole record, not just the code: the title,
+    the caption and the tag are written from the same sources and go stale the same way.
+
+    What it cannot see is the figures. They are images built from the same sources, but
+    ``gallery/figures/`` is git-ignored and they reach the page as base64, so a source change that
+    moves a plot without touching its code or its caption still needs someone to rebuild."""
+    with _gallery_build() as build:
+        current: dict[str, dict] = {}
+        for _, _, _, examples in build.LEVELS:
+            build._detail_data(examples, current)
+    published = _published_examples()
+
+    assert len(current) >= 9, "the gallery shrank — is the import finding the examples?"
+    assert len(published) >= 9, (f"window.EX in {PAGE.name} parsed to {len(published)} examples — the "
+                                 "comparison below would pass by comparing nothing")
+
+    def _what_differs(a: dict, b: dict) -> str:
+        return ", ".join(sorted(k for k in a.keys() | b.keys() if a.get(k) != b.get(k)))
+
+    drift = ([f"{i}: the page and the sources disagree on its {_what_differs(current[i], published[i])}"
+              for i in sorted(current.keys() & published.keys()) if current[i] != published[i]]
+             + [f"{i}: in the gallery sources, missing from the page"
+                for i in sorted(current.keys() - published.keys())]
+             + [f"{i}: on the page, no longer in the gallery sources"
+                for i in sorted(published.keys() - current.keys())])
+    assert not drift, ("web/gallery.html is stale — the published page serves code the gallery sources "
+                       "no longer produce. Rebuild it with `cd gallery && python build.py` and commit "
+                       "the page:\n  " + "\n  ".join(drift))
