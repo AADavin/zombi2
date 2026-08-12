@@ -1628,3 +1628,29 @@ def test_a_discrete_trait_steps_at_a_rate_that_changes_on_its_own_clock():
     late = [c.time for c in result.events if c.time > 1.0 + 1e-9]
     assert not late, f"switched after the rate went to zero: {late[:5]}"
     assert result.events, "the test proves nothing if nothing switched before time 1 either"
+
+
+def test_there_is_no_continuous_process_spec_and_the_name_says_so():
+    """`traits.discrete` is a process spec for a joint run, so `traits.continuous` is what a reader
+    reaches for next. There is none — QuaSSE needs thinning and the joint race is exact — and before
+    this the name resolved to the *module*, so the reach failed with "'module' object is not
+    callable", which names neither traits nor speciation nor what to write instead."""
+    from zombi2 import traits
+
+    assert callable(traits.continuous), "the module is shadowing the refusal again"
+    with pytest.raises(TypeError, match="no continuous process spec"):
+        traits.continuous(rate=1.0)
+    message = str(pytest.raises(TypeError, traits.continuous, rate=1.0).value)
+    assert "traits.discrete" in message           # what to use to drive speciation
+    assert "simulate_continuous" in message       # and what to use for a continuous trait itself
+
+
+def test_shadowing_the_module_leaves_both_ways_in_working():
+    """The refusal takes the package attribute; the module keeps its import path, and the standalone
+    continuous engine is untouched."""
+    from zombi2 import species, traits
+    from zombi2.traits.continuous import simulate_continuous as by_module_path
+
+    tree = species.simulate_species_tree(birth=1.0, n_extant=6, seed=1)
+    assert by_module_path is traits.simulate_continuous
+    assert traits.simulate_continuous(tree, rate=1.0, seed=1).kind == "continuous"
