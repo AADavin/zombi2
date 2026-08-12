@@ -9,6 +9,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+
+- Reaching for `traits.continuous(...)`, the continuous twin of `traits.discrete(...)`, refuses with
+  a sentence saying continuous trait-driven speciation is unavailable and what to write instead. It
+  used to resolve to the module of that name and fail with `'module' object is not callable`. (#345)
+
 ### Added
 
 - A gene family can be placed at a chosen point of the tree: `origins=[("n5", 0.4)]` on the family

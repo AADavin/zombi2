@@ -79,6 +79,10 @@ diffusing driver (QuaSSE) needs thinning and is refused there.
 from __future__ import annotations
 
 from .continuous import simulate_continuous
+# `continuous` shadows the module of the same name so that reaching for the continuous twin of
+# `discrete` refuses with a sentence instead of "'module' object is not callable". A guardrail,
+# not a feature, so it stays out of __all__ and out of the API reference.
+from .continuous import continuous  # noqa: F401
 from .continuous import IMPLEMENTED_MODIFIERS  # noqa: F401  (re-exported for the CLI, not in __all__)
 from .discrete import DiscreteTrait, discrete, simulate_discrete
 from .result import Change, TraitsResult
