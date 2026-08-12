@@ -29,6 +29,23 @@ from matplotlib import cm, colors
 
 import phylustrator as ph
 
+# Phylustrator's line-safe ramp, mirrored into matplotlib. The gallery draws trees with Phylustrator
+# and the diagram beside them with matplotlib, so a colormap named in one has to exist in the other or
+# the two halves of a figure disagree. `viridis_dark` is viridis stopped before it goes pale, because
+# a branch a few pixels wide loses the light end against white (see the Phylustrator colour module).
+_LINE_SAFE = {
+    "viridis_dark": [(68, 1, 84), (72, 26, 108), (71, 47, 125), (65, 68, 135),
+                     (57, 86, 140), (49, 104, 142), (42, 120, 142), (35, 136, 142),
+                     (31, 152, 139), (34, 168, 132), (53, 183, 121), (84, 197, 104)],
+    "magma_dark": [(0, 0, 4), (11, 9, 36), (32, 17, 75), (59, 15, 112),
+                   (87, 21, 126), (114, 31, 129), (140, 41, 129), (168, 50, 125),
+                   (196, 60, 117), (222, 73, 104), (241, 96, 93), (250, 127, 94)],
+}
+for _name, _anchors in _LINE_SAFE.items():
+    if _name not in matplotlib.colormaps:
+        matplotlib.colormaps.register(colors.LinearSegmentedColormap.from_list(
+            _name, [tuple(v / 255 for v in rgb) for rgb in _anchors]))
+
 # --- one dial for the whole gallery ---------------------------------------
 BW = 4.0                # branch width
 MARGIN = 45
@@ -327,6 +344,53 @@ def _draw_key(ax, key) -> None:
     if len(names) == 3:                                 # a diverging scale needs its middle named
         ax.text((left + right) / 2, 0.14, names[1], ha="center", va="top", fontsize=12,
                 color="#555555")
+
+
+def conditioned_figure(out, ct, layers, values, tipcol, diagram, *, label="genome size (genes)"):
+    """The conditioning-figure layout: the tree painted by the driver, beside one bar per tip, with
+    the driver·mapping·target diagram small on top.
+
+    ``layers`` are the Phylustrator layers that colour the tree, ``values`` is ``{tip name: number}``
+    for the bars, ``diagram`` the kwargs for :func:`conditioning_png`, and ``label`` names what the
+    bars measure. The bar quantity is whatever the target *did* — genome size where a genome rate was
+    driven, root-to-tip substitutions where the substitution rate was, inversions where the inversion
+    rate was — so the driver is on the tree and its consequence beside it."""
+    fig = ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False,
+                        style=ph.Style(width=900, height=900, margin=92, branch_width=3.0))
+    for layer in layers:                      # no legend on the tree — the diagram is the key
+        fig = fig + layer
+    fig = fig + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)
+    real = out.replace(".png", "_real.png")
+    ph.beside(fig, ph.genomes.bars(values, colors=tipcol, label=label,
+                                   tick_size=20, label_size=26),
+              width=1150, tree_fraction=0.58, footer=36).save(real)
+    diag = conditioning_png(out.replace(".png", "_diag.png"), **diagram)
+    fig2 = plt.figure(figsize=(12, 9.6))
+    axr = fig2.add_axes([0.0, 0.0, 1.0, 0.80])
+    axr.imshow(mpimg.imread(real))
+    axr.set_axis_off()
+    axd = fig2.add_axes([0.30, 0.80, 0.40, 0.185])
+    axd.imshow(mpimg.imread(diag))
+    axd.set_axis_off()
+    fig2.savefig(out, dpi=140, bbox_inches="tight")
+    plt.close(fig2)
+
+
+def root_to_tip(seqs) -> dict:
+    """``{tip name: root-to-tip distance}`` in substitutions per site, off the species phylogram.
+
+    What a driven ``substitution`` rate actually produced: every tip sits the same amount of *time*
+    from the root, so any spread here is the driver's doing and nothing else."""
+    from zombi2.tree import read_newick
+    tree, _ = read_newick(seqs.species_phylogram["complete"], assume_extant=True)
+    names, out = tree.labels(), {}
+    for i in tree.leaves():
+        total, node = 0.0, tree.nodes[i]
+        while node is not None:
+            total += node.end_time - node.birth_time
+            node = tree.nodes[node.parent] if node.parent is not None else None
+        out[names[i]] = total
+    return out
 
 
 def composite_under_diagram(out: str, diagram_png: str, rows, *, width=12.0, diagram_frac=0.42,
