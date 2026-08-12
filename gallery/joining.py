@@ -20,6 +20,7 @@ from helpers import Example
 import phylustrator as ph
 from zombi2.params import Curve, PerCopy, PerLineage, Recipients
 from zombi2 import joint, traits
+from zombi2.genomes import family as genomes_spec
 from zombi2.genomes import simulate_genomes_family
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous, simulate_discrete
@@ -33,6 +34,7 @@ _COMP = {"quiet": "#8f99a3", "competent": "#2E8B6F"}        # competent → take
 _TOX = {"absent": "#b9bec4", "present": "#2E8B6F"}          # a gene family, present or not
 _DISEASE = {"harmless": "#8f99a3", "pathogenic": "#C2453C"}
 _METAB = {"anaerobic": "#6b5b95", "aerobic": "#2E8B6F"}
+_KEY = {"absent": "#b9bec4", "present": "#2E8B6F"}          # the gene that drives the splitting
 
 
 def _style():
@@ -61,6 +63,33 @@ def bisse(out):
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
     h.composite_markov(tree_png, out, lambda ax: h.draw_markov(
         ax, ["fast", "slow"], _BISSE, {"fast": 2.6, "slow": 0.7}, symbol="λ"),
+        loc=(0.02, 0.04, 0.34, 0.30))
+
+
+def key_innovation(out):
+    """GENE CONTENT drives speciation — the joint model that is not about a trait. A lineage carrying
+    the family splits five times as often, and the tree is an **output** of that.
+
+    The family is losing ground on its own: loss runs at twice origination, and on a tree that does
+    not feel it that leaves it on about 9% of the tips (eight seeds, 0-36%). Here it reaches 83%,
+    because the lineages that carry it split faster than the ones that shed it. Nothing selects for
+    the gene directly — what selects for it is the tree it is shaping, which is what makes this
+    joint rather than a genome run on a tree handed to it."""
+    r = joint.simulate_joint(
+        birth=PerLineage(0.7).scaled_by("genomes:toxin", {"present": 5.0, "absent": 1.0}),
+        death=0.15,
+        genome=genomes_spec(origination=0.15, loss=0.3, family_names=["toxin"],
+                            initial_families=5),
+        n_extant=70, seed=3)
+    ct = r.complete_tree
+    lab = ct.labels()
+    history = {lab[i]: segs for i, segs in r.genome.presence("toxin").history(ct).items()}
+    tree_png = out.replace(".png", "_tree.png")
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), style=_style(), skeleton=False)
+     + ph.trees.color_history(history, palette=_KEY)
+     + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
+    h.composite_markov(tree_png, out, lambda ax: h.draw_markov(
+        ax, ["absent", "present"], _KEY, {"absent": 0.7, "present": 3.5}, symbol="λ"),
         loc=(0.02, 0.04, 0.34, 0.30))
 
 
@@ -789,7 +818,30 @@ CONDITIONING = [
             "module → trait", module_drives_metabolism, code=_C_MODULE),
 ]
 
+_C_KEY = """### gene content drives speciation — the tree is an OUTPUT
+from zombi2 import genomes, joint
+from zombi2.params import PerLineage
+
+r = joint.simulate_joint(
+    birth=PerLineage(0.7).scaled_by("genomes:toxin", {"present": 5.0, "absent": 1.0}),
+    death=0.15,
+    genome=genomes.family(origination=0.15, loss=0.3,
+                          family_names=["toxin"], initial_families=5),
+    n_extant=70, seed=3)
+
+# loss is twice origination, so the family is losing ground on its own — on a tree
+# that does not feel it, it ends up on ~9% of tips. Here it reaches 83%, because the
+# lineages carrying it split five times as often.
+r.species        # the grown tree
+r.genome         # the gene content grown with it"""
+
+
 JOINING = [
+    Example("key_innovation", "A gene drives the splitting",
+            "Gene content drives speciation, so the tree is an <b>output</b>. Loss runs at twice "
+            "origination — on a tree that does not feel it the family reaches ~9% of tips; here it "
+            "reaches 83%, because its carriers split five times as often.",
+            "gene content → speciation", key_innovation, code=_C_KEY),
     Example("bisse", "BiSSE",
             "A two-state trait drives speciation — the fast state's clades take over; the inset is the "
             "state Markov chain.",

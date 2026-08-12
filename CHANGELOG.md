@@ -11,6 +11,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
+- A gallery example for gene content driving speciation, the joint model that is not about a trait:
+  a family whose loss runs at twice its origination still reaches 83% of the tips, because the
+  lineages carrying it split five times as often. (#347)
+
+### Added
+
 - A gene family can be placed at a chosen point of the tree: `origins=[("n5", 0.4)]` on the family
   and ordered resolutions originates a family on that branch at that time, instead of leaving where
   families arise to the `origination` rate. It adds to the run rather than replacing part of it, so
