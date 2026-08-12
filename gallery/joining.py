@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import math
 
-import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors
 
@@ -104,28 +103,9 @@ def musse(out):
 # --- conditioning: the driver is grown first, then the genome reads it -----------------------
 
 def _conditioned_genome(out, ct, layers, sizes, tipcol, diagram):
-    """The shared conditioning-figure layout: the tree painted by the driver, beside per-tip genome-size
-    bars, with the driver·mapping·target diagram small on top. ``layers`` are the Phylustrator layers
-    that colour the tree; ``diagram`` is the kwargs for :func:`helpers.conditioning_png`."""
-    fig = ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False,
-                        style=ph.Style(width=900, height=900, margin=92, branch_width=3.0))
-    for layer in layers:                      # no legend on the tree — the diagram is the key
-        fig = fig + layer
-    fig = fig + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)
-    real = out.replace(".png", "_real.png")
-    ph.beside(fig, ph.genomes.bars(sizes, colors=tipcol, label="genome size (genes)",
-                                   tick_size=20, label_size=26),
-              width=1150, tree_fraction=0.58, footer=36).save(real)
-    diag = h.conditioning_png(out.replace(".png", "_diag.png"), **diagram)
-    fig2 = plt.figure(figsize=(12, 9.6))
-    axr = fig2.add_axes([0.0, 0.0, 1.0, 0.80])
-    axr.imshow(mpimg.imread(real))
-    axr.set_axis_off()
-    axd = fig2.add_axes([0.30, 0.80, 0.40, 0.185])
-    axd.imshow(mpimg.imread(diag))
-    axd.set_axis_off()
-    fig2.savefig(out, dpi=140, bbox_inches="tight")
-    plt.close(fig2)
+    """The conditioning-figure layout with genome size on the bars — `helpers.conditioned_figure`,
+    which the cross-level examples share at other targets."""
+    h.conditioned_figure(out, ct, layers, sizes, tipcol, diagram)
 
 
 def _panel_style():

@@ -329,6 +329,53 @@ def _draw_key(ax, key) -> None:
                 color="#555555")
 
 
+def conditioned_figure(out, ct, layers, values, tipcol, diagram, *, label="genome size (genes)"):
+    """The conditioning-figure layout: the tree painted by the driver, beside one bar per tip, with
+    the driver·mapping·target diagram small on top.
+
+    ``layers`` are the Phylustrator layers that colour the tree, ``values`` is ``{tip name: number}``
+    for the bars, ``diagram`` the kwargs for :func:`conditioning_png`, and ``label`` names what the
+    bars measure. The bar quantity is whatever the target *did* — genome size where a genome rate was
+    driven, root-to-tip substitutions where the substitution rate was, inversions where the inversion
+    rate was — so the driver is on the tree and its consequence beside it."""
+    fig = ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False,
+                        style=ph.Style(width=900, height=900, margin=92, branch_width=3.0))
+    for layer in layers:                      # no legend on the tree — the diagram is the key
+        fig = fig + layer
+    fig = fig + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)
+    real = out.replace(".png", "_real.png")
+    ph.beside(fig, ph.genomes.bars(values, colors=tipcol, label=label,
+                                   tick_size=20, label_size=26),
+              width=1150, tree_fraction=0.58, footer=36).save(real)
+    diag = conditioning_png(out.replace(".png", "_diag.png"), **diagram)
+    fig2 = plt.figure(figsize=(12, 9.6))
+    axr = fig2.add_axes([0.0, 0.0, 1.0, 0.80])
+    axr.imshow(mpimg.imread(real))
+    axr.set_axis_off()
+    axd = fig2.add_axes([0.30, 0.80, 0.40, 0.185])
+    axd.imshow(mpimg.imread(diag))
+    axd.set_axis_off()
+    fig2.savefig(out, dpi=140, bbox_inches="tight")
+    plt.close(fig2)
+
+
+def root_to_tip(seqs) -> dict:
+    """``{tip name: root-to-tip distance}`` in substitutions per site, off the species phylogram.
+
+    What a driven ``substitution`` rate actually produced: every tip sits the same amount of *time*
+    from the root, so any spread here is the driver's doing and nothing else."""
+    from zombi2.tree import read_newick
+    tree, _ = read_newick(seqs.species_phylogram["complete"], assume_extant=True)
+    names, out = tree.labels(), {}
+    for i in tree.leaves():
+        total, node = 0.0, tree.nodes[i]
+        while node is not None:
+            total += node.end_time - node.birth_time
+            node = tree.nodes[node.parent] if node.parent is not None else None
+        out[names[i]] = total
+    return out
+
+
 def composite_under_diagram(out: str, diagram_png: str, rows, *, width=12.0, diagram_frac=0.42,
                             pad=0.03, gap=0.30, label=0.36, key=0.40, dpi=182) -> None:
     """The driver·modifier·target diagram on top, then one labelled panel per row.

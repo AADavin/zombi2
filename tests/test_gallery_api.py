@@ -45,7 +45,7 @@ PAGE = GALLERY.parent / "web" / "gallery.html"
 # The examples that call the zombi2 Python API directly (see the module docstring for why not genomes
 # / sequences). This is where the extant()->extant_leaves() rename bit, and where a mock cleanly
 # isolates the zombi2 calls.
-_MODULES = ("species", "traits", "joining")
+_MODULES = ("species", "traits", "joining", "crosslevel")
 # The genome / sequence examples that drive the zombi2 Python API in-process (simulate_* called
 # directly, not via the CLI). Named explicitly because their sibling examples in the same modules go
 # through the CLI (and one downloads a genome) and must NOT run mocked here — see the module docstring.
