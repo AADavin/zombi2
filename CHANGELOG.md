@@ -9,6 +9,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- A gene family can be placed at a chosen point of the tree: `origins=[("n5", 0.4)]` on the family
+  and ordered resolutions originates a family on that branch at that time, instead of leaving where
+  families arise to the `origination` rate. It adds to the run rather than replacing part of it, so
+  it sits beside `initial_families` and `origination`, and the same origins name the same families
+  at either resolution. (#344)
+
 ## [0.36.0] - 2026-08-12
 
 ### Added

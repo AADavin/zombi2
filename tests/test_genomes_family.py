@@ -4,6 +4,7 @@ import collections
 import statistics
 import math
 import pathlib
+import re
 import tempfile
 
 import pytest
@@ -838,3 +839,102 @@ def test_the_cap_binds_at_the_number_given_however_a_copy_arrives():
         biggest = max((max(collections.Counter(c.family for c in genome).values(), default=0)
                        for genome in g.node_genomes.values()), default=0)
         assert biggest == cap, f"cap {cap} gave a family of {biggest}"
+
+
+# --- origins: a family placed at a chosen branch and time ------------------
+
+def _origination(g, family):
+    """The ``(time, lineage)`` a family originated at, from the log."""
+    rows = [e for e in g.edges if e.kind == "origination" and e.family == family]
+    assert len(rows) == 1, f"family {family} has {len(rows)} originations"
+    return rows[0].time, rows[0].lineage
+
+
+def _mid(tree, node_id):
+    node = tree.nodes[node_id]
+    return (node.birth_time + node.end_time) / 2
+
+
+def test_origins_places_a_family_where_it_was_asked_for():
+    sp = _tree(seed=1, n_extant=12).complete_tree
+    when = _mid(sp, 3)
+    g = simulate_genomes_family(sp, initial_families=0, origination=0.0, duplication=0.4,
+                                transfer=0.2, loss=0.3, origins=[("n3", when)], seed=7)
+    assert _origination(g, 0) == (when, 3)
+    # and it is then an ordinary family: it evolves, and it has a gene tree like any other
+    assert {c.family for gen in g.node_genomes.values() for c in gen} == {0}
+    assert g.gene_trees[0].origination == when
+
+
+def test_a_family_placed_at_the_origin_is_an_initial_family():
+    # the equivalence that says `origins` plants the same event the run seeds and draws: at the
+    # root's own start it must reproduce initial_families=1 exactly, log for log
+    sp = _tree(seed=1, n_extant=20).complete_tree
+    seeded = simulate_genomes_family(sp, initial_families=1, duplication=0.4, transfer=0.2,
+                                     loss=0.3, seed=11)
+    placed = simulate_genomes_family(sp, initial_families=0, duplication=0.4, transfer=0.2,
+                                     loss=0.3, origins=[(sp.root, None)], seed=11)
+    assert len(seeded.edges) > 20 and seeded.edges == placed.edges
+
+
+def test_origins_add_to_the_families_the_run_seeds_and_draws():
+    # `origins` switches nothing off: the initial and named families are still there, origination
+    # still fires, and the placed family's id follows them
+    sp = _tree(seed=1, n_extant=12).complete_tree
+    when = _mid(sp, 3)
+    g = simulate_genomes_family(sp, initial_families=3, family_names=["tox"], origination=0.5,
+                                duplication=0.2, loss=0.2, origins=[("n3", when)], seed=5)
+    assert g.family_names == {"tox": 3}
+    assert _origination(g, 4) == (when, 3)          # initial_families + one named
+    assert g.summary()["families"]["born"] > 5      # origination went on drawing its own
+
+
+def test_placed_family_ids_follow_the_order_they_were_written():
+    sp = _tree(seed=1, n_extant=12).complete_tree
+    late, early = _mid(sp, 7), _mid(sp, 3)
+    g = simulate_genomes_family(sp, initial_families=0, origination=0.0, duplication=0.3,
+                                loss=0.3, origins=[("n7", late), (3, early)], seed=2)
+    assert _origination(g, 0)[1] == 7               # written first, though it happens second
+    assert _origination(g, 1)[1] == 3
+
+
+def test_a_placed_family_can_start_at_the_branch_start():
+    sp = _tree(seed=1, n_extant=12).complete_tree
+    kid = [i for i in sorted(sp.nodes) if sp.nodes[i].parent is not None][5]
+    g = simulate_genomes_family(sp, initial_families=0, origination=0.0, duplication=0.3,
+                                loss=0.3, origins=[(kid, None)], seed=3)
+    assert _origination(g, 0) == (sp.nodes[kid].birth_time, kid)
+
+
+def test_both_engines_place_the_same_family_at_the_same_point():
+    sp = _tree(seed=1, n_extant=12).complete_tree
+    when = _mid(sp, 3)
+    kw = dict(initial_families=2, origination=0.3, duplication=0.3, loss=0.3,
+              origins=[("n3", when)], seed=9)
+    serial = simulate_genomes_family(sp, **kw)
+    per_family = simulate_genomes_family(sp, **kw, parallel=True)
+    assert _origination(serial, 2) == _origination(per_family, 2) == (when, 3)
+
+
+@pytest.mark.parametrize("origins, message", [
+    (("n3", 0.1), "list of (lineage, time) pairs"),
+    ([("n99", 0.1)], "is not one of this tree's 23 lineages"),
+    ([("banana", 0.1)], "not a lineage label"),
+    ([("n3",)], "(lineage, time) pair"),
+    ([("n3", "soon")], "must be a number"),
+    ([(None, 0.1)], "must be a label"),
+])
+def test_origins_are_validated(origins, message):
+    sp = _tree(seed=1, n_extant=12).complete_tree
+    with pytest.raises(ValueError, match=re.escape(message)):
+        simulate_genomes_family(sp, origins=origins, seed=1)
+
+
+def test_an_origin_must_fall_inside_its_branch():
+    # the end is excluded on purpose: there the branch is over and its daughters have started
+    sp = _tree(seed=1, n_extant=12).complete_tree
+    node = sp.nodes[3]
+    for when in (node.birth_time - 0.01, node.end_time, node.end_time + 0.01):
+        with pytest.raises(ValueError, match="is outside lineage n3"):
+            simulate_genomes_family(sp, origins=[("n3", when)], seed=1)
+    simulate_genomes_family(sp, origins=[("n3", node.birth_time)], seed=1)   # the start is fine

@@ -65,7 +65,7 @@ from ..params.parameter import Rate, as_rate
 from ..params.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv, rearrangement_events_tsv
-from .family import resolve_modules, resolve_max_family_size
+from .family import resolve_modules, resolve_max_family_size, resolve_origins
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
                         resolve_transfer_to)
@@ -841,11 +841,15 @@ def _oriented(segment, flip):
 
 # --- the mutators (position-, chromosome-, and extent-aware; each records to its log) ----------------
 
-def _originate(genome, node, t, events, positions, new_gene, new_family, rng) -> None:
+def _originate(genome, node, t, events, positions, new_gene, new_family, rng, family=None) -> None:
     """A new gene family arises: mint a single founding gene (a family is born once — no extent) on
-    a uniformly-chosen chromosome at a uniformly-chosen position (strand ``+1``), and record it."""
+    a uniformly-chosen chromosome at a uniformly-chosen position (strand ``+1``), and record it.
+
+    ``family`` names a family whose id was minted earlier — the one case being a family ``origins=``
+    places at a chosen point, whose id is fixed before the run walks the tree. The event is the same
+    one either way; only where the id came from differs."""
     chrom = genome[int(rng.integers(len(genome)))]
-    fam = new_family()
+    fam = new_family() if family is None else family
     g = new_gene(fam, +1)
     at = int(rng.integers(len(chrom.genes) + 1))
     _live(chrom).insert(at, g)
@@ -1157,7 +1161,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              inversion_extent=None, transposition_extent=None,
                              translocation_extent=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
-                             initial_families=100, family_names=None, modules=None,
+                             initial_families=100, family_names=None, modules=None, origins=None,
                              max_family_size=10, seed=None,
                              progress=False) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
@@ -1203,6 +1207,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     chromosome and its genes die; never the genome's last). Chromosomes carry identity — re-minted at
     every event that reshapes them — so ``chromosome_events`` is the true reticulating chromosome
     genealogy, rooted at the initial and de-novo originations. Deterministic given ``seed``.
+
+    **A family placed by hand.** ``origins=[("n5", 0.4)]`` originates a family on lineage ``n5`` at
+    time ``0.4`` — the ordinary origination event, at a point you choose rather than one that is
+    drawn, and here too the founding gene lands on a uniformly-chosen chromosome and position. It
+    adds to whatever ``initial_families`` and ``origination`` already give you. See
+    `resolve_origins`.
 
     **Conditioning (a trait drives a rate).** Any rate here may be *driven by another level* —
     ``inversion = PerCopy(0.3).scaled_by(habitat, {"host": 4.0, "free": 1.0})`` scales each lineage's
@@ -1374,6 +1384,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     if len(set(family_names)) != len(family_names):
         raise ValueError(f"family names must be unique, got {family_names}")
     module_map = resolve_modules(modules, family_names)
+    # families placed at a chosen branch and time rather than drawn by the origination rate
+    placed = resolve_origins(origins, tree)
 
     # The growth guard, as at the family resolution: duplication compounds, so a run whose rate sits
     # above its loss rate — or a family that drew a high a per-family draw factor — multiplies without bound
@@ -1509,6 +1521,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         event_positions.append(EventPosition(t, "origination", root.id, chrom.id,
                                              len(chrom.genes) - 1, 1, family=fam))
     # the run's starting genome: a deep snapshot, so the live genome's events never reach it
+    # the ids of the families `origins=` places: minted here, straight after the initial and named
+    # ones and in the order they were written, so the same origins name the same families at either
+    # resolution. Each is planted at its own time, in the loop below.
+    plants = sorted((t_p, lineage, new_family()) for t_p, lineage in placed)
+    plant_i = 0
     initial_genome = tuple(Chromosome(c.id, c.topology, list(c.genes)) for c in initial_chroms)
     enter(alive, gen, pos, root.id, initial_chroms)
     total_copies = initial_families + len(family_names)
@@ -1595,7 +1612,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                  + r_fis + r_fus + r_cor + r_clo)
 
         next_species = schedule[si][0]
-        horizon = min(next_species, dup.next_change(t), los.next_change(t), org.next_change(t),
+        # a family placed by `origins=` originates at a fixed instant, so it joins the horizon like
+        # any other breakpoint: the waiting time can never step over it
+        next_plant = plants[plant_i][0] if plant_i < len(plants) else math.inf
+        horizon = min(next_species, next_plant,
+                      dup.next_change(t), los.next_change(t), org.next_change(t),
                       tra.next_change(t), inv.next_change(t), trp.next_change(t), trl.next_change(t),
                       fis.next_change(t), fus.next_change(t), cor.next_change(t), clo.next_change(t))
         if any_driven:  # a driven rate also changes when its driver switches mid-branch — step there
@@ -1769,6 +1790,18 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                         total_copies += sum(len(ch.genes) for ch in cg)
                         total_chromosomes += len(cg)
                 si += 1
+        elif plant_i < len(plants) and horizon == next_plant:
+            # a placed family arrives — the ordinary origination event, at a time and on a lineage
+            # that were chosen rather than drawn. The lineage is live by construction (its time was
+            # checked against that branch's own life), and a tie with the tree's schedule falls to
+            # the branch above, so the daughters have entered by the time this runs.
+            t = horizon
+            while plant_i < len(plants) and plants[plant_i][0] == t:
+                _, lineage, fam = plants[plant_i]
+                _originate(gen[pos[lineage]], tree.nodes[lineage], t, events, event_positions,
+                           new_gene, new_family, rng, family=fam)
+                total_copies += 1
+                plant_i += 1
         else:
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
