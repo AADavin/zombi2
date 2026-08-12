@@ -29,7 +29,7 @@ from zombi2.traits import simulate_continuous, simulate_discrete
 _REPAIR = {"absent": "#C2453C", "present": "#2E8B6F"}     # lose the repair gene → evolve faster
 _IS1 = {"absent": "#b9bec4", "present": "#6b5b95"}        # a mobile element, present or not
 _CLIMATE = {"cold": "#3A7CA5", "hot": "#E4572E"}
-_OPERON = "viridis"                                       # a module's completion, 0 to 1
+_OPERON = "viridis_dark"                                       # a module's completion, 0 to 1
 
 
 def _tree(n=45, seed=4):
@@ -62,58 +62,87 @@ def _state_history(ct, trait):
 
 # --- a gene family drives the sequence level ---------------------------------------------------
 
+def _in_substitutions(hist, mapping):
+    """A per-branch history retimed from **time** into **substitutions**.
+
+    A segment's share of a phylogram branch is its duration times the factor its state carries, since
+    that is what the rate was multiplied by while the lineage sat in it. Colouring the phylogram with
+    the time history instead would put every switch in the wrong place: the fast half of a branch
+    holds most of its substitutions, so it should take up most of the branch."""
+    return {name: [(state, duration * mapping[state]) for state, duration in segments]
+            for name, segments in hist.items()}
+
+
+def _clock_panels(out, ct, seqs, hist, mapping, palette, diagram, *, labels):
+    """The two-panel sequence figure: the same tree in time, then in substitutions.
+
+    A driven ``substitution`` rate shows in the tree's **shape**, so that is what the figure shows —
+    the dated tree above, the phylogram below, the driver's colour on both. Bars of root-to-tip
+    distance were the first attempt and read as two flat blocks: the factor is one of two numbers and
+    root-to-tip integrates over a long shared path, so every tip landed in one of two piles.
+
+    Both panels carry the exact history, switches mid-branch included; the lower one is retimed by
+    `_in_substitutions` so each segment takes the share of the branch it actually earned."""
+    style = ph.Style(width=1400, height=660, margin=96, branch_width=3.0)
+    pngs = []
+    for k, (newick, segments, axis) in enumerate((
+            (ct.to_newick(), hist, "time"),
+            (seqs.species_phylogram["complete"], _in_substitutions(hist, mapping),
+             "substitutions/site"))):
+        png = out.replace(".png", f"_p{k}.png")
+        (ph.trees.plot(ph.trees.loads(newick), skeleton=False, style=style)
+         + ph.trees.color_history(segments, palette=palette)
+         + ph.trees.time_axis(axis, tick_size=20, label_size=26, bold=False)).save(png)
+        pngs.append(png)
+    diag = h.conditioning_png(out.replace(".png", "_diag.png"), **diagram)
+    h.composite_under_diagram(out, diag, [(pngs[0], labels[0], palette), (pngs[1], labels[1])])
+
+
 def repair_gene(out):
     """A GENE FAMILY drives the SUBSTITUTION rate. A mismatch-repair family is grown first; the
-    sequences then evolve eight times faster on the branches that have lost it.
+    sequences then evolve four times faster on the branches that have lost it.
 
-    The bars are root-to-tip substitutions per site. Every tip sits the same amount of *time* from
-    the root, so the spread in the bars is the driver's doing and nothing else — which is what makes
-    this readable at all."""
+    The same tree twice — in time, then in substitutions per site. Every tip is the same age, so the
+    second panel's shape is the driver's doing and nothing else: the clades without the family run
+    out to several times the divergence of the ones that kept it."""
     ct = _tree()
     repair = _carrier_run(ct, "mutS")
     genes = _genes_to_evolve(ct)
     seqs = simulate_sequences(
         genes, model=jc69(), length=60, seed=1,
         substitution=PerSite(0.15).scaled_by(repair.presence("mutS"),
-                                             {"present": 1.0, "absent": 8.0}))
-    dist = h.root_to_tip(seqs)
-    carriers = {n for n in genes.genomes if repair.has_family(int(n[1:]), "mutS")}
-    tipcol = {n: _REPAIR["present" if n in carriers else "absent"] for n in dist}
-    h.conditioned_figure(
-        out, ct, [ph.trees.color_history(_presence_history(ct, repair.presence("mutS")),
-                                         palette=_REPAIR)],
-        dist, tipcol, dict(driver="mutS", states=["absent", "present"],
-                           switch={"present->absent": 0.13},
-                           mapping={"absent": 8, "present": 1},
-                           target="substitution", target_base=0.15,
-                           target_scope="PerSite", state_colors=_REPAIR),
-        label="root-to-tip substitutions/site")
+                                             {"present": 1.0, "absent": 4.0}))
+    _clock_panels(out, ct, seqs, _presence_history(ct, repair.presence("mutS")),
+                  {"present": 1.0, "absent": 4.0}, _REPAIR,
+                  dict(driver="mutS", states=["absent", "present"],
+                       switch={"present->absent": 0.13},
+                       mapping={"absent": 4, "present": 1},
+                       target="substitution", target_base=0.15,
+                       target_scope="PerSite", state_colors=_REPAIR),
+                  labels=("the tree in time", "the same tree in substitutions"))
 
 
 def climate_substitution(out):
     """A TRAIT drives the SUBSTITUTION rate — the same target as the example above, reached from the
-    other end of the map. A climate trait switches along the tree and the sequences evolve eight
-    times faster in the hot state.
+    other end of the map. The sequences evolve four times faster in the hot state.
 
-    A driver is read wherever it changes, not once per branch, so a lineage that switches halfway
-    down accumulates substitutions at one rate before the switch and another after it. The bars are
-    the sum of that."""
+    Where the gene family above is mostly held for a whole branch, a trait switches along one: a
+    fifth of the branches here change state partway down. That is what the second panel is for. A
+    driver is read wherever it changes, so a hot stretch takes four times the share of a branch in
+    substitutions that it takes in time, and the lower tree shows exactly that."""
     ct = _tree()
     climate = simulate_discrete(ct, states=["cold", "hot"], switch=0.35, seed=6)
     genes = _genes_to_evolve(ct)
     seqs = simulate_sequences(genes, model=jc69(), length=60, seed=1,
                               substitution=PerSite(0.15).scaled_by(climate,
-                                                                   {"hot": 8.0, "cold": 1.0}))
-    dist = h.root_to_tip(seqs)
-    tipcol = {n: _CLIMATE[climate.values[n]] for n in dist if n in climate.values}
-    h.conditioned_figure(
-        out, ct, [ph.trees.color_history(_state_history(ct, climate), palette=_CLIMATE)],
-        dist, tipcol, dict(driver="climate", states=["cold", "hot"],
-                           switch={"cold->hot": 0.35, "hot->cold": 0.35},
-                           mapping={"hot": 8, "cold": 1},
-                           target="substitution", target_base=0.15,
-                           target_scope="PerSite", state_colors=_CLIMATE),
-        label="root-to-tip substitutions/site")
+                                                                   {"hot": 4.0, "cold": 1.0}))
+    _clock_panels(out, ct, seqs, _state_history(ct, climate), {"hot": 4.0, "cold": 1.0}, _CLIMATE,
+                  dict(driver="climate", states=["cold", "hot"],
+                       switch={"cold->hot": 0.35, "hot->cold": 0.35},
+                       mapping={"hot": 4, "cold": 1},
+                       target="substitution", target_base=0.15,
+                       target_scope="PerSite", state_colors=_CLIMATE),
+                  labels=("the tree in time", "the same tree in substitutions"))
 
 
 # --- a gene family drives another gene family --------------------------------------------------
@@ -253,7 +282,9 @@ def operon_trait(out):
     only the target moved.
 
     Read against `operon_substitution` beside it, this is the point of the map: one driver reaches
-    every level that sits on the same tree."""
+    every level that sits on the same tree. The colour steps *along* a branch at the instant each
+    gene goes, because a completion is a number that changes mid-branch and the losses are what
+    change it."""
     ct = _tree()
     operon = _operon_run(ct, _REPAIR_OPERON)
     factor = (lambda kept: 8.0 - 7.0 * kept)
@@ -261,13 +292,12 @@ def operon_trait(out):
                                 rate=PerLineage(0.25).scaled_by(operon.completion("repair"),
                                                                 Curve(factor)))
     lab = ct.labels()
-    frac = {lab[i]: sum(operon.has_family(i, g) for g in _REPAIR_OPERON) / len(_REPAIR_OPERON)
-            for i in ct.nodes}
-    spread = {lab[i]: abs(drift.node_values[i]) for i in ct.extant_leaves()}
+    hist = {lab[i]: segs for i, segs in operon.completion("repair").history(ct).items()}
+    spread = {lab[i]: abs(drift.node_values[i]) for i in sorted(ct.extant_leaves())}
     cmap, norm = plt.get_cmap(_OPERON), colors.Normalize(0.0, 1.0)
-    tipcol = {n: colors.to_hex(cmap(norm(frac[n]))) for n in spread if n in frac}
+    tipcol = {n: colors.to_hex(cmap(norm(hist[n][-1][0]))) for n in spread if n in hist}
     h.conditioned_figure(
-        out, ct, [ph.trees.color_branches(frac, cmap=_OPERON)],
+        out, ct, [ph.trees.color_history(hist, cmap=_OPERON, limits=(0.0, 1.0))],
         spread, tipcol, dict(draw=h.draw_conditioning_curve, driver="repair operon", curve=factor,
                              vrange=(0.0, 1.0), value_label="fraction of the operon kept",
                              cmap=_OPERON, target="rate", target_base=0.25,
@@ -278,7 +308,7 @@ def operon_trait(out):
 # --- a sequence drives, at either end -----------------------------------------------------------
 
 _AT_RICH = (0.40, 0.10, 0.10, 0.40)     # A+T = 0.80 at equilibrium, so GC settles near 0.20
-_GC = "cividis"
+_GC = "magma_dark"
 
 
 def _composition_run(ct):
@@ -310,24 +340,34 @@ def gc_drives_sequence(out):
     AT-rich lineage running four times faster than a GC-rich one.
 
     A sequence cannot drive the gene it grows inside — that would condition a run on its own output —
-    but it can drive a different one, run after it. That is the whole of the restriction."""
+    but it can drive a different one, run after it. That is the whole of the restriction.
+
+    Coloured with `color_branches` rather than the stepped history the operon examples use: GC drifts
+    continuously with every substitution, so there is no event to step at, and a gradient down the
+    branch is what the quantity actually does."""
     ct = _composition_tree()
     _, first = _composition_run(ct)
     factor = (lambda gc: 4.0 ** ((0.5 - gc) / 0.3))       # AT-rich → fast, GC-rich → slow
     second = simulate_genomes_family(ct, initial_families=4, duplication=0.02, loss=0.02, seed=8)
     seqs = simulate_sequences(second, model=jc69(), length=60, seed=5,
                               substitution=PerSite(0.2).scaled_by(first.gc(), Curve(factor)))
-    dist = h.root_to_tip(seqs)
     gc = _gc_by_node(first)
-    norm = colors.Normalize(min(gc.values()), max(gc.values()))
-    tipcol = {n: colors.to_hex(plt.get_cmap(_GC)(norm(gc[n]))) for n in dist if n in gc}
-    h.conditioned_figure(
-        out, ct, [ph.trees.color_branches(gc, cmap=_GC)],
-        dist, tipcol, dict(draw=h.draw_conditioning_curve, driver="GC",
-                           curve=factor, vrange=(min(gc.values()), max(gc.values())),
-                           value_label="GC content", cmap=_GC,
-                           target="substitution", target_base=0.2, target_scope="PerSite"),
-        label="root-to-tip substitutions/site")
+    span = (min(gc.values()), max(gc.values()))
+    style = ph.Style(width=1400, height=660, margin=96, branch_width=3.0)
+    pngs = []
+    for k, (newick, axis) in enumerate(((ct.to_newick(), "time"),
+                                        (seqs.species_phylogram["complete"], "substitutions/site"))):
+        png = out.replace(".png", f"_p{k}.png")
+        (ph.trees.plot(ph.trees.loads(newick), skeleton=False, style=style)
+         + ph.trees.color_branches(gc, cmap=_GC, limits=span)
+         + ph.trees.time_axis(axis, tick_size=20, label_size=26, bold=False)).save(png)
+        pngs.append(png)
+    diag = h.conditioning_png(out.replace(".png", "_diag.png"),
+                              draw=h.draw_conditioning_curve, driver="GC", curve=factor,
+                              vrange=span, value_label="GC content", cmap=_GC,
+                              target="substitution", target_base=0.2, target_scope="PerSite")
+    h.composite_under_diagram(out, diag, [(pngs[0], "the tree in time"),
+                                          (pngs[1], "the same tree in substitutions")])
 
 
 def gc_drives_trait(out):
@@ -373,7 +413,7 @@ genes = simulate_genomes_family(ct, initial_families=4, duplication=0.02, loss=0
 seqs = simulate_sequences(
     genes, model=jc69(), length=60, seed=1,
     substitution=PerSite(0.15).scaled_by(repair.presence("mutS"),
-                                         {"present": 1.0, "absent": 8.0}))"""
+                                         {"present": 1.0, "absent": 4.0}))"""
 
 _C_CLIMATE_SUB = """### a trait reaches the sequence level, the same target from the other end
 from zombi2.traits import simulate_discrete
@@ -459,8 +499,8 @@ switching = simulate_discrete(ct, states=["A", "B"], start="A", seed=11,
 
 EXAMPLES = [
     Example("repair_gene", "Lose the repair gene, evolve faster",
-            "A gene family drives the <b>substitution rate</b>. Branches that have lost the "
-            "mismatch-repair family evolve eight times faster, and the bars are what came out.",
+            "A gene family drives the <b>substitution rate</b>. The same tree in time, then in "
+            "substitutions: branches that have lost the mismatch-repair family run four times longer.",
             "gene → substitution", repair_gene, code=_C_REPAIR),
     Example("climate_substitution", "A trait sets the substitution rate",
             "The same target reached from the other end of the map. A driver is read wherever it "
