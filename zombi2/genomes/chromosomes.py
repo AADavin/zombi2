@@ -1,11 +1,11 @@
-"""The chromosome tier — the two logs every genome resolution with chromosomes writes.
+"""Chromosomes — the two logs every genome resolution with chromosomes writes.
 
 Two different things happen to a chromosome, and they are two files because they are two kinds of
 statement.
 
 A `ChromosomeEvent` is an **edge of the chromosome genealogy**: a chromosome id is re-minted at every
 event that reshapes it, so a chromosome lineage begins, splits, merges or ends, and the edge list *is*
-the **chromosome network** — the middle tier between the species tree and the gene trees.
+the **chromosome network** — the genealogy between the species tree and the gene trees.
 
 A **rearrangement** — an inversion, a transposition, a translocation — moves a segment around inside a
 genome. It begins and ends no lineage (the chromosomes it touches keep their ids, the genes keep
@@ -49,8 +49,8 @@ class ChromosomeEvent:
     children: tuple[int, ...]
 
 
-#: ``chromosome_events.tsv``. Every participant carries its own branch in its token, so the tier's
-#: table is the same four columns the species and gene logs are: when, what, what ended, what began.
+#: ``chromosome_events.tsv``. Every participant carries its own branch in its token, so this table
+#: is the same four columns the species and gene logs are: when, what, what ended, what began.
 _COLS = ("time", "kind", "parents", "children")
 
 #: what separates the ids inside a ``parents`` / ``children`` cell — the same separator the gene log

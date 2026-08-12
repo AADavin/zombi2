@@ -54,7 +54,7 @@ independently at risk, so a genome of a thousand genes loses ten times as often 
 genome's size never enters. The same number, a hundredfold different model.
 
 `origination` stays per lineage — it is the rate at which *new* families arrive, so per copy it would
-be zero in an empty genome — and the chromosome tier stays per chromosome. The nucleotide resolution
+be zero in an empty genome — and the chromosome rates stay per chromosome. The nucleotide resolution
 already counts its gene events per lineage, which is why it has no second scope to offer: there the
 rate says how often a lineage does the thing and the extent says how much DNA it touches.
 

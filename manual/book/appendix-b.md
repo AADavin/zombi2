@@ -51,6 +51,13 @@ tables. It still reads the tree from `species/`, as any genomes run does; the co
 not write at all: `run.zombi2` and `conditioned_on`. Both are built from a grouped run's level
 directories, which a flat run does not have.
 
+The grouping above is the CLI's. **A Python run has no level directories**: `result.write("out/")`
+fills the directory you name with that result's files, the per-family and per-node directories
+included — so it is not `--flat`, which flattens those too. The same run written from Python and
+from the CLI therefore leaves two different layouts, and `run.zombi2` and `conditioned_on` are
+written by the CLI alone. To group a Python run, name the level directory yourself —
+`result.write("out/species/")`.
+
 Every directory a run fills with one file per family or per node — `gene_trees/`, `gff/` and `bed/` at
 the genome level, `alignments/`, `ancestral/`, `phylograms/` and `genomes/` at the sequence level — is
 **emptied before that run fills it**, so its contents describe one run and nothing else. Two do not:
