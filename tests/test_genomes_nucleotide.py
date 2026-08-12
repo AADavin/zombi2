@@ -2149,3 +2149,18 @@ def test_the_extent_warning_does_not_cry_wolf(kw, why, recwarn):
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=3)
     simulate_genomes_nucleotide(sp, seed=5, **kw)
     assert not [w for w in recwarn if "whole gene" in str(w.message)], why
+
+
+def test_the_summary_counts_every_gene_not_only_the_declared_ones():
+    """The key used to be ``declared_genes`` and was read off ``gene_spans``, which also collects the
+    genes ``origination`` mints as the run goes — so a run that declared five reported seven, in a
+    file people parse. Renamed to what it counts."""
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)
+    run = simulate_genomes_nucleotide(sp, root_length=20000, genes=5, gene_length=400,
+                                      origination=1.0, origination_extent=600, seed=1)
+    summary = run.summary()
+    assert "declared_genes" not in summary
+    assert summary["genes"] == len(run.gene_spans) > 5      # origination minted more than were declared
+
+    quiet = simulate_genomes_nucleotide(sp, root_length=20000, genes=5, gene_length=400, seed=1)
+    assert quiet.summary()["genes"] == 5                    # and with none minted it is what was declared

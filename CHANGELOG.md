@@ -9,6 +9,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING:** `genome_summary.json` calls its gene count `genes` rather than `declared_genes`, and
+  it always counted every gene the run holds — those declared at the start and the de-novo ones
+  `origination` added — so a run declaring five could report seven under the old name. (#348)
+
 ### Fixed
 
 - Reaching for `traits.continuous(...)`, the continuous twin of `traits.discrete(...)`, refuses with
