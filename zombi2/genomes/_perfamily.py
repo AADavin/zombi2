@@ -71,14 +71,21 @@ def _unsupported_reason(dup, tra, los, org, transfer_to) -> str | None:
 
 # --- Pass 1: enumerate every family and where it originates (serial, cheap) ------------------------
 
-def _enumerate_families(tree, org, initial_families, families_named, rng, trajs=None, driven=False):
+def _enumerate_families(tree, org, initial_families, families_named, placed, rng, trajs=None,
+                        driven=False):
     """``[(family_id, birth_lineage, birth_time), …]`` for every family, and ``{name: family_id}``.
 
-    Initial and named families originate at the origin; the rest are drawn by the per-lineage
-    origination Poisson walked over the tree schedule — a mini-Gillespie with only origination live,
-    which is exact because origination reads only the number of living lineages and the time (and,
-    when ``driven``, the driver on each of them — still no genome content, so the split is unaffected;
-    the rate is then summed per lineage and the birth lineage drawn with the same weights)."""
+    Initial and named families originate at the origin, then the ones ``origins=`` ``placed`` at a
+    chosen point; the rest are drawn by the per-lineage origination Poisson walked over the tree
+    schedule — a mini-Gillespie with only origination live, which is exact because origination reads
+    only the number of living lineages and the time (and, when ``driven``, the driver on each of them
+    — still no genome content, so the split is unaffected; the rate is then summed per lineage and
+    the birth lineage drawn with the same weights).
+
+    A placed family is one entry in this list like any other, which is the whole of what this engine
+    needs to know about `resolve_origins`: Pass 2 already evolves a family from *any* origination
+    point. The ids come before the drawn ones and in the same order the serial loop mints them, so
+    the two engines agree on which family is the one you placed."""
     root = tree.nodes[tree.root]
     t0 = root.birth_time
     families: list[tuple[int, int, float]] = []
@@ -89,6 +96,8 @@ def _enumerate_families(tree, org, initial_families, families_named, rng, trajs=
     for name in families_named:
         named[name] = fid
         families.append((fid, tree.root, t0)); fid += 1
+    for plant_time, lineage in placed:
+        families.append((fid, lineage, plant_time)); fid += 1
 
     # the origination-only Gillespie: the live-lineage set follows the tree schedule exactly as the
     # global loop's does; when origination fires, a fresh family is born on a uniform living lineage.
@@ -595,7 +604,7 @@ def _stream_chunk(task):
 
 def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, self_transfer,
                         initial_families, family_names, modules, cap, seed, parallel,
-                        progress, stream_to=None, outputs=None,
+                        progress, placed=(), stream_to=None, outputs=None,
                         trajs=None, to_traj=None, group_of=None, driven=None):
     """Run the per-family engine. Returns a `FamilyGenomesResult` (the in-memory
     merge), or a `StreamedRun` when ``stream_to`` is a directory — each family written straight
@@ -634,7 +643,8 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
     # Pass 1: who originates, and where. One reserved stream for it; one per family after.
     root_ss = seed_sequence("genomes", seed)[0]
     families_meta, named = _enumerate_families(
-        tree, org, initial_families, family_names, np.random.default_rng(root_ss.spawn(1)[0]),
+        tree, org, initial_families, family_names, placed,
+        np.random.default_rng(root_ss.spawn(1)[0]),
         trajs=trajs, driven=driven.get("origination", False))
     n_families = len(families_meta)
     family_seeds = root_ss.spawn(n_families) if n_families else []
