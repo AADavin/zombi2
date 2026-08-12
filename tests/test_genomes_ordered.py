@@ -1286,3 +1286,47 @@ def test_gene_order_records_each_chromosome_topology(tmp_path):
     for row in initial[1:]:
         chrom, topology = row.split("\t")[:2]
         assert topology == started[int(chrom)]
+
+
+# --- origins: a family placed at a chosen branch and time -----------------------------------------
+
+def _placed_tree():
+    return simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=1).complete_tree
+
+
+def test_origins_places_a_family_where_it_was_asked_for():
+    sp = _placed_tree()
+    node = sp.nodes[3]
+    when = (node.birth_time + node.end_time) / 2
+    r = simulate_genomes_ordered(sp, initial_families=0, origination=0.0, duplication=0.4,
+                                 transfer=0.2, loss=0.3, origins=[("n3", when)], seed=7)
+    born = [e for e in r.edges if e.kind == "origination"]
+    assert [(e.time, e.lineage, e.family) for e in born] == [(when, 3, 0)]
+    # the founding gene got a chromosome and a position like any other origination
+    put = [p for p in r.event_positions if p.kind == "origination"]
+    assert len(put) == 1 and put[0].family == 0
+
+
+def test_a_family_placed_at_the_origin_is_an_initial_family():
+    # the same equivalence the family resolution holds: at the root's own start, placing one family
+    # reproduces initial_families=1 exactly
+    sp = _placed_tree()
+    seeded = simulate_genomes_ordered(sp, initial_families=1, duplication=0.3, loss=0.3,
+                                      inversion=0.2, seed=4)
+    placed = simulate_genomes_ordered(sp, initial_families=0, duplication=0.3, loss=0.3,
+                                      inversion=0.2, origins=[(sp.root, None)], seed=4)
+    assert len(seeded.edges) > 20 and seeded.edges == placed.edges
+
+
+def test_the_same_origins_name_the_same_families_at_both_resolutions():
+    sp = _placed_tree()
+    node = sp.nodes[3]
+    when = (node.birth_time + node.end_time) / 2
+    kw = dict(initial_families=2, family_names=["tox"], origination=0.0, duplication=0.2, loss=0.2,
+              origins=[("n7", None), ("n3", when)], seed=6)
+    fam = simulate_genomes_family(sp, **kw)
+    ordered = simulate_genomes_ordered(sp, **kw)
+    for run in (fam, ordered):
+        born = {e.family: (e.time, e.lineage) for e in run.edges if e.kind == "origination"}
+        assert born[3] == (sp.nodes[7].birth_time, 7)   # after the 2 initial and the 1 named
+        assert born[4] == (when, 3)
