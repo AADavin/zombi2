@@ -2,7 +2,7 @@
 
 ``--resolution`` picks the model: ``family`` (the D/T/L/O gene-family core,
 `zombi2.genomes.simulate_genomes_family()`), ``ordered`` (genes with a position and
-orientation on chromosomes — segmental rearrangements and the chromosome tier,
+orientation on chromosomes — segmental rearrangements and the chromosome events,
 `simulate_genomes_ordered()`), or ``nucleotide`` (the genome as a nucleotide
 sequence of ancestry blocks, with declared indivisible genes and intergenic spacer,
 `simulate_genomes_nucleotide()`). Long options are the API keyword names, and
@@ -48,7 +48,7 @@ RATES_HELP = _rates_help(
          "at risk, so a bigger genome turns over faster — and also take PerLineage(...), a fixed "
          "budget the genome's size never enters: --loss \"PerLineage(0.25)\". At --resolution "
          "ordered the rearrangements take both too. Origination is per lineage only, and the "
-         "chromosome tier per chromosome. At --resolution nucleotide every gene and segmental rate "
+         "chromosome rates per chromosome. At --resolution nucleotide every gene and segmental rate "
          "is per lineage instead, and a PerCopy scope is refused there. "
          "On --transfer, scaled_by drives how often a lineage "
          "DONATES; --transfer-to takes a Recipients() rule as a recipient weight, at every "
@@ -557,8 +557,8 @@ def run(args, parser):
     common = dict(duplication=args.duplication, transfer=args.transfer, loss=args.loss,
                   origination=args.origination, transfer_to=args.transfer_to,
                   self_transfer=args.self_transfer, seed=args.seed)
-    # the knob only the family-tier engines have — kept out of `common`, which the nucleotide
-    # engine shares and which does not have it
+    # the knob only the family and ordered resolutions have — kept out of `common`, which the
+    # nucleotide engine shares and which does not have it
     family_knobs = dict(max_family_size=args.max_family_size)
     structured = dict(inversion=args.inversion, transposition=args.transposition,
                       translocation=args.translocation, chromosomes=args.chromosomes,

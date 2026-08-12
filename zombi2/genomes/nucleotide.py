@@ -23,7 +23,7 @@ without creating or destroying material:
 - **Translocation / transposition** — an arc moved to a *different* chromosome (translocation) or
   *within* its own (transposition), optionally inverted (probability ``inversion_probability``). Both
   keep source coordinates, so they are *rearrangements*, not network edges.
-- **Fission / fusion** — the number-changing tier: one chromosome into two (a bifurcation), or two
+- **Fission / fusion** — the number-changing events: one chromosome into two (a bifurcation), or two
   same-topology chromosomes into one (the reticulation), both re-minting their children into the
   network. They conserve total length but change the chromosome *count*, so a branch is a small
   Gillespie.
@@ -694,9 +694,11 @@ class NucleotideGenomesResult:
     rearrangements: list[Inversion | Translocation | Transposition]
     chromosome_events: list[ChromosomeEvent]
     seed: int | None
-    #: ``{gene family id: (source, start, end)}`` — where each **declared gene** sits in the root
-    #: coordinate space. Empty when no genes were declared. A gene is never split, so its span is
-    #: fixed for the whole run and is exactly the root-block that carries its gene tree.
+    #: ``{gene family id: (source, start, end)}`` — where each gene sits in the root coordinate
+    #: space: those declared at the start, and the de-novo ones ``origination`` and
+    #: ``chromosome_origination`` added along the way, each against the source it arrived on. Empty
+    #: when no genes were declared and none originated. A gene is never split, so its span is fixed
+    #: for the whole run and is exactly the root-block that carries its gene tree.
     gene_spans: dict[int, tuple[int, int, int]] = field(default_factory=dict)
     #: ``{name: gene family id}`` for genes declared with a name (a GFF ``ID`` / ``Name``) — the handle
     #: to look a named gene up in `gene_spans` / `gene_trees`, and to read one as a driver
@@ -729,9 +731,12 @@ class NucleotideGenomesResult:
     initial_sequence: dict[int, str] = field(default_factory=dict)
 
     def __repr__(self) -> str:
+        # `events` here is the block log — an event over an arc of DNA — not the gene-tree edges the
+        # other two resolutions print under that word, so it is named as `summary()` names it.
         return (f"NucleotideGenomesResult({len(self.complete_tree.extant_leaves())} extant genomes, "
                 f"{len(self.node_genomes)} nodes, {len(self.gene_spans)} genes, "
-                f"{len(self.events)} events, seed={self.seed})")
+                f"{len(self.events)} block events, {len(self.rearrangements)} rearrangements, "
+                f"seed={self.seed})")
 
     def mosaic(self, node_id: int) -> dict[int, list[tuple[int, int, int, int]]]:
         return self.node_genomes[node_id].mosaic()
@@ -1584,7 +1589,7 @@ def _copy_chromosome(c: Chromosome, cid: int, copy_map: dict[int, int]) -> Chrom
 @dataclass(frozen=True)
 class _Rates:
     # the eleven event rates, each a Rate (SPEC §5): scope(base) x modifiers, resolved at the entry
-    # point. The gene events are per lineage, the number-changing tier per chromosome.
+    # point. The gene events are per lineage, the chromosome rates per chromosome.
     inversion: Rate
     translocation: Rate
     transposition: Rate
@@ -1722,9 +1727,10 @@ def _do_origination(g, node_id, t, origination_extent, rng, events, new_source, 
 
 def _do_loss(g, node_id, t, loss_extent, rng, events) -> int:
     """Delete a geometric-length arc from a length-weighted chromosome — an ancestry-changing event (a
-    death). Never empties a chromosome (leaves at least one nucleotide; whole-chromosome loss is a
-    the chromosome tier's own event). Records the deleted material — which copy lineage lost which arc — as a
-    `Loss`. Returns the length removed as a **negative** delta (0 on a no-op)."""
+    death). Never empties a chromosome (leaves at least one nucleotide; whole-chromosome loss is
+    `_do_chromosome_loss()`'s job, an event of its own, counted per chromosome). Records the deleted
+    material — which copy lineage lost which arc — as a `Loss`. Returns the length removed as a
+    **negative** delta (0 on a no-op)."""
     spot = g._pick_legal_cut(rng)
     if spot is None:
         return 0
@@ -2006,7 +2012,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                                 gff=None, fasta=None, modules=None, trim_overlaps=False, seed=None,
                                 progress=False) -> NucleotideGenomesResult:
     """Evolve a nucleotide genome along a species tree by inversion, translocation, transposition,
-    **loss**, **duplication**, **transfer**, **origination**, and the number-changing chromosome tier.
+    **loss**, **duplication**, **transfer**, **origination**, and the chromosome events.
     The run starts from a **karyotype** — ``chromosomes`` replicons, each its own source: an int
     ``N`` gives ``N`` equal replicons of ``root_length``/``topology``, or pass a list of ``(length,
     topology)`` for heterogeneous **sizes and shapes**. Each lineage inherits a copy of its parent's
@@ -2042,12 +2048,11 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
 
     The engine runs a **global-timeline** Gillespie: all lineages alive at once evolve along one clock
     (every segmental event is **per lineage** — the rate says how often a lineage does it, the extent how
-    much it touches, so a bigger genome does not get proportionally more events; the chromosome tier is
-    per chromosome), so a transfer
-    couples two contemporaries. With loss, the strong invariant weakens: every node carries a **subset**
-    of the initial sequence (each ancestral position at most once, monotonically down every path);
-    origination further adds fresh sources beyond the root. Deterministic given ``seed``. (Transfer is
-    always additive.)
+    much it touches, so a bigger genome does not get proportionally more events; the chromosome rates
+    are per chromosome), so a transfer couples two contemporaries. With loss, the strong invariant
+    weakens: every node carries a **subset** of the initial sequence (each ancestral position at most
+    once, monotonically down every path); origination further adds fresh sources beyond the root.
+    Deterministic given ``seed``. (Transfer is always additive.)
 
     **Driving out of the genome.** A gene declared by a GFF is named, and a named gene answers *is it
     in this lineage, right now?* — ``result.presence("dnaA")``, the driver the other two resolutions
@@ -2069,7 +2074,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     # Every rate takes the written form (SPEC §5). The scopes here are **per lineage** for the gene
     # events — the rate says how often a lineage does the event and the extent says how much DNA it
     # touches, so the number reads the same whatever the genome's size — and **per chromosome** for the
-    # number-changing tier. A bare number therefore stays a bare number, and the scope is stated rather
+    # chromosome rates. A bare number therefore stays a bare number, and the scope is stated rather
     # than hardcoded, so it can be seen and (later) overridden.
     _scoped = (("inversion", inversion, PerLineage), ("translocation", translocation, PerLineage),
                ("transposition", transposition, PerLineage), ("loss", loss, PerLineage),
@@ -2371,7 +2376,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         def _pick(label, fallback=None):
             """The affected lineage: drawn by its own effective rate where that rate is driven — the
             same weights the total was summed with — and otherwise by the rate's own undriven rule,
-            which is uniform for a per-lineage rate and by chromosome count for the tier."""
+            which is uniform for a per-lineage rate and by chromosome count for a per-chromosome one."""
             ws = w.get(label)
             if ws:
                 return weighted_index(rng, ws, sum(ws))
