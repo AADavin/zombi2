@@ -29,6 +29,23 @@ from matplotlib import cm, colors
 
 import phylustrator as ph
 
+# Phylustrator's line-safe ramp, mirrored into matplotlib. The gallery draws trees with Phylustrator
+# and the diagram beside them with matplotlib, so a colormap named in one has to exist in the other or
+# the two halves of a figure disagree. `viridis_dark` is viridis stopped before it goes pale, because
+# a branch a few pixels wide loses the light end against white (see the Phylustrator colour module).
+_LINE_SAFE = {
+    "viridis_dark": [(68, 1, 84), (72, 26, 108), (71, 47, 125), (65, 68, 135),
+                     (57, 86, 140), (49, 104, 142), (42, 120, 142), (35, 136, 142),
+                     (31, 152, 139), (34, 168, 132), (53, 183, 121), (84, 197, 104)],
+    "magma_dark": [(0, 0, 4), (11, 9, 36), (32, 17, 75), (59, 15, 112),
+                   (87, 21, 126), (114, 31, 129), (140, 41, 129), (168, 50, 125),
+                   (196, 60, 117), (222, 73, 104), (241, 96, 93), (250, 127, 94)],
+}
+for _name, _anchors in _LINE_SAFE.items():
+    if _name not in matplotlib.colormaps:
+        matplotlib.colormaps.register(colors.LinearSegmentedColormap.from_list(
+            _name, [tuple(v / 255 for v in rgb) for rgb in _anchors]))
+
 # --- one dial for the whole gallery ---------------------------------------
 BW = 4.0                # branch width
 MARGIN = 45

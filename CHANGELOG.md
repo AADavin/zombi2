@@ -16,6 +16,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   driving an ordered genome's inversion rate and extent, a module's completion driving the sequence
   and trait levels, and base composition driving a sequence and a trait. (#342)
 
+### Changed
+
+- The gallery's `[gallery]` extra needs `phylustrator>=0.2.2`, for the colormap mode of
+  `trees.color_history` and the two line-safe ramps the conditioning figures paint with. (#342)
+
 ## [0.35.0] - 2026-08-12
 
 ### Changed
