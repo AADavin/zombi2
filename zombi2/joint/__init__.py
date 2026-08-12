@@ -150,7 +150,22 @@ class JointResult:
                 self.genome.write(d, flat=flat)
 
 
-def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, total_time):
+#: What ``max_lineages`` says when it fires. The species engine has had this guard since it grew a
+#: tree conditioned on time; a joint run needs it more, not less, because its birth rate can read a
+#: driver that its own growth feeds — gene content accumulates, birth rises, more lineages accumulate
+#: more gene content — so a rate that looks calm on paper can have no realistic end. It RAISES rather
+#: than stopping early, for the reason the species engine gives: a tree cut off at a size is no longer
+#: a sample from the process asked for.
+def _runaway(ceiling: int, t: float) -> RuntimeError:
+    return RuntimeError(
+        f"the tree passed {ceiling} standing lineages at time {t:.3g} and is still growing — the "
+        f"driven birth rate has no realistic end. Lower the rates, shorten total_time, flatten the "
+        f"mapping the driver is read through, or raise max_lineages if the size is what you want "
+        f"(max_lineages=None removes the guard).")
+
+
+def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, total_time,
+                max_lineages=None):
     """Grow a forward birth-death tree whose birth/death read a discrete trait that evolves on it.
     Returns ``(tree, species_events, node_values, trait_events)`` — the complete tree, the
     speciation/extinction log, the trait state at every node, and the trait's switch log."""
@@ -189,8 +204,11 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
     trait_events: list[Change] = [Change(0.0, "initial", root, None, states[start_i])]
     end_state: dict[int, int] = {}  # node id → its trait state index when it ended (→ node_values)
 
+    ceiling = None if max_lineages is None else max(max_lineages, n_extant or 0)
     while alive:
         n = len(alive)
+        if ceiling is not None and n > ceiling:
+            raise _runaway(ceiling, t)
         ctx = {"diversity": n, "time": t}
         # per-lineage rates: birth/death read the lineage's trait state (scaled_by("trait", …)); the
         # trait switch rate is the CTMC out-rate for that state (the trait's own dynamics, undriven).
@@ -268,7 +286,8 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
     return Tree(nodes, root), species_events, node_values, trait_events
 
 
-def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, driver_names, n_extant, total_time):
+def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, driver_names, n_extant,
+                       total_time, max_lineages=None):
     """Grow a forward birth-death tree whose birth/death read the genome's **live gene content**, while
     the genome (duplication/loss/origination) evolves on that same growing tree. The species race and
     the genome's own D/L/O race run in one Gillespie over a shared living set. Returns
@@ -342,8 +361,11 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, driver_n
         return "present" if any(c.family == fid for c in gen[k]) else "absent"
 
     t = 0.0
+    ceiling = None if max_lineages is None else max(max_lineages, n_extant or 0)
     while alive:
         nl = len(alive)
+        if ceiling is not None and nl > ceiling:
+            raise _runaway(ceiling, t)
         drivers = [{s: driver_value(s, k) for s in driver_names} for k in range(nl)]
         wb = [birth_rate.effective(lineages=1, diversity=nl, time=t, drivers=drivers[k]) for k in range(nl)]
         wd = [death_rate.effective(lineages=1, diversity=nl, time=t, drivers=drivers[k]) for k in range(nl)]
@@ -425,7 +447,7 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, driver_n
 
 
 def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, total_time=None,
-                   seed=None) -> JointResult:
+                   seed=None, max_lineages=100_000) -> JointResult:
     """Grow a tree **and** the driver that drives its speciation, in one run (SPEC §2–4).
 
     ``birth`` and ``death`` are rate specs (per lineage). Make either read the driver with
@@ -449,6 +471,13 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
             birth  = PerLineage(1.0).scaled_by("genomes:toxin", {"present": 3.0, "absent": 1.0}),
             genome = genomes.family(origination=0.2, loss=0.1, family_names=["toxin"]),
             n_extant = 100, seed = 1)
+
+    ``max_lineages`` (default 100000) stops a run that has no realistic end. A joint birth rate reads
+    a driver the run itself grows, so it can feed itself — gene content accumulates, birth rises, and
+    more lineages accumulate more gene content — and a rate that looks calm on paper then grows
+    without bound. It **raises** rather than truncating, for the reason the species engine gives: a
+    tree cut off at a size is no longer a sample from the process asked for. ``max_lineages=None``
+    removes the guard.
 
     The driver is an **unexecuted** process spec, grown with the tree. Stop at exactly ``n_extant``
     living lineages (conditioned on survival — a birth-death tree can die out, so it restarts,
@@ -571,13 +600,15 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
 
     def grow_once(target_n, tt) -> tuple[Tree, JointResult]:
         if trait is not None:
-            tree, se, nv, te = _grow_joint(rng, birth_rate, death_rate, trait, target_n, tt)
+            tree, se, nv, te = _grow_joint(rng, birth_rate, death_rate, trait, target_n, tt,
+                                           max_lineages)
             te.sort(key=lambda c: c.time)
             result = JointResult(SpeciesResult(tree, se, seed, []), seed,
                                  trait=TraitsResult(tree, nv, te, seed, kind="discrete"))
         else:
             tree, se, go, ge, fn = _grow_joint_genome(
-                rng, birth_rate, death_rate, genome, unique_driver_names, target_n, tt)
+                rng, birth_rate, death_rate, genome, unique_driver_names, target_n, tt,
+                max_lineages)
             result = JointResult(SpeciesResult(tree, se, seed, []), seed,
                                  genome=FamilyGenomesResult(tree, go, ge, seed, fn, {}))
         return tree, result
