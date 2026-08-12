@@ -226,11 +226,11 @@ _SCOPE_UNITS = {
 }
 
 #: What each rate slot is counted per when this run left the scope unwritten — the level's default,
-#: which a bare number takes (docs/design/parameter-grammar.md §18). A written scope wins over it,
-#: because since scope overrides landed the unit is a property of the **value** wherever one was
-#: written: ``--loss PerLineage(0.4)`` is a per-lineage budget however this table reads. Time is
-#: time⁻¹ throughout — tree time, in whatever unit the tree is in, which is the run's own and is
-#: not calibrated to anything.
+#: which a bare number takes: per the thing the event acts on, or per lineage where it makes
+#: something from nothing. A written scope wins over it, because the unit is a property of the
+#: **value** wherever one was written: ``--loss PerLineage(0.4)`` is a per-lineage budget however
+#: this table reads. Time is time⁻¹ throughout — tree time, in whatever unit the tree is in, which
+#: is the run's own and is not calibrated to anything.
 _DEFAULT_SCOPES = {
     "birth": "PerLineage", "death": "PerLineage", "fossils": "PerLineage",
     "origination": "PerLineage", "chromosome_origination": "PerLineage", "switch": "PerLineage",
@@ -242,8 +242,8 @@ _DEFAULT_SCOPES = {
 
 #: The nucleotide resolution counts a gene event per lineage rather than per copy: the rate says how
 #: often a lineage does the event and the extent says how much DNA it moves, so the number means the
-#: same whatever the genome holds (docs/design/parameter-grammar.md §18, and the scopes
-#: ``genomes/nucleotide.py`` fills in).
+#: same whatever the genome holds. Per lineage is the only scope it offers for these, and this table
+#: mirrors the scopes ``genomes/nucleotide.py`` fills in.
 _NUCLEOTIDE_SCOPES = dict.fromkeys(("duplication", "transfer", "loss", "inversion", "transposition",
                                     "translocation"), "PerLineage")
 
