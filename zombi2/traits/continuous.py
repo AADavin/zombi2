@@ -596,3 +596,23 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
 
 # --- discrete traits: a state switching along the tree (Mk) ------------------------------------
 
+
+
+def continuous(**_) -> None:
+    """Refused, and the name exists in order to refuse.
+
+    `discrete` is a process spec for a **joint** run — a trait grown with the tree it drives. The
+    continuous twin of it is what a reader reaches for next, and there is none: a continuously
+    diffusing driver (QuaSSE) makes the rate vary continuously, which needs thinning, and the joint
+    engine's race is exact.
+
+    Without this the name still resolved — to *this module* — so the reach failed with
+    ``TypeError: 'module' object is not callable``, which says nothing about traits, speciation or
+    what to write instead. A continuous trait itself is not the problem and runs fine: it is driving
+    speciation *with* one that is unavailable."""
+    raise TypeError(
+        "there is no continuous process spec: a continuously varying rate needs thinning, which the "
+        "joint engine's exact race does not do, so continuous trait→speciation (QuaSSE) is not "
+        "available. To drive speciation, use traits.discrete(states=[...], switch=...). To evolve a "
+        "continuous trait on a tree you already have — including one driven by another level — use "
+        "traits.simulate_continuous(tree, rate=...).")
