@@ -179,9 +179,6 @@ answers the other direction — which lineages a clade you have already written 
 
 ```bash
 zombi2 tools tree out/species/species_complete.nwk --clades --min-extant 5
-```
-
-```
 node	extant	crown	example_tips
 n0	25	0.0846268	n55,n31
 n1	22	0.622912	n55,n7

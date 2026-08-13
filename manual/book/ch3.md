@@ -6,7 +6,7 @@ The species tree is the backbone every other level runs on, so it is where almos
 
 A species tree grows by two kinds of event: a lineage **speciates**, splitting in two, or it **goes extinct** and stops. You give a **speciation rate** and an **extinction rate**, and every lineage alive at a given moment has the same constant chance per unit time of splitting or dying, independently of the rest.
 
-The two rates set the tempo. Their difference fixes how fast diversity builds up. Their ratio fixes how much of the history is hidden, because a lineage that goes extinct takes its part of the tree with it. With extinction set to zero nothing is ever lost, and the tree you get is the whole tree that grew: this is the classic **Yule** (pure-birth) process. The lineages that died are kept: they are in the complete tree, and *Outputs* below says where.
+The two rates set the tempo. Their difference fixes how fast diversity builds up. Their ratio fixes how much of the history is hidden, because a lineage that goes extinct takes its part of the tree with it. With extinction set to zero nothing is ever lost, and the tree you get is the whole tree that grew: this is the classic **Yule** (pure-birth) process. The lineages that died are kept: they are in the complete tree, and Appendix B says which file holds it.
 
 ![A species tree grown by the birth–death process. Every lineage alive at a given moment has the same chance per unit time of splitting or of dying. The lineages that died are drawn dashed and stop where they died; the survivors reach the present. Both are in the complete tree, and only the solid ones are in the extant tree.](figures/species_tree.pdf){width=100%}
 
@@ -18,34 +18,22 @@ You also say when to stop: grow to a fixed **total time** (`total_time`), or to 
 
 [^stopping]: The two rules also give different tree shapes, which matters if you are going to estimate rates from the trees. `n_extant` stops the first moment that many lineages are alive together, then draws one more waiting time and puts the present where the next event would have fired, so the two newest tips have a real branch length instead of a zero-length one. With `death=0` that is exactly the standard way to sample a tree of a given size [@hartmann2010sampling]. With extinction it is not: the run stops the *first* time it touches the target, so the trees come out shallower than a birth–death process conditioned on that many tips: nothing measurable at `death=0`, about a tenth of the tree height at 10 tips with `death` at 0.4 of `birth`, a third to a half at 10 tips with `death` at 0.8 of `birth`, and back to nothing by 50 tips at moderate turnover. Use `total_time` if you need the conditioned distribution exactly; otherwise say in your methods which rule made the trees.
 
-```python
-from zombi2 import species
-# a birth–death tree of 20 surviving lineages
-result = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-```
-
 ## Rates that vary
 
-A birth or death rate need not be constant. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**, and you express each the same way: chain a **verb** onto the rate naming what it depends on.
+A birth or death rate need not be constant. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**
 
 - **On time.** The rates change at set points in time. This is the skyline, or episodic, tree. `birth = PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})` runs at full rate until time 3, then at a third of it. Each entry holds from its own time up to the next, and the earliest entry also applies *backwards* to the origin, so `changing_at({3: 0.3})`, with no entry at 0, runs at a third of the rate for the whole tree rather than only after time 3. Start the schedule at 0 whenever you mean "full rate until".
 - **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound: `birth = PerLineage(1.0).scaled_by(TotalDiversity(cap=100))`.
 - **On the parent's rate.** Each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2)))`.
 - **By lineage.** Each lineage draws its own rate independently, with no memory of its parent: `birth = PerLineage(1.0).varying_among('lineages', LogNormal(0.0, 0.2))`. The distribution means a different thing in the two: written bare it is the spread of rates across lineages, while inside `Drift` it is the step taken at each split, which accumulates, so lineages deeper in the tree spread further apart. That is why it is written out rather than abbreviated.
 
-The last two are the two answers to one question, where a lineage's rate comes from, and they are worth holding side by side, because what differs is whether relatives resemble each other, and with it the *shape* of the tree. Inherited variation lets a fast clade stay fast, so it hoards the tips and the tree comes out lopsided; independent variation reshuffles at every split, so imbalance stays near what a constant rate gives. `varying_among('lineages', Drift(...))` is the model to fit when you believe diversification is a heritable property of a clade; the bare `varying_among('lineages', ...)` is its null, and the honest thing to compare against. A rate carrying both is refused: there is no model in which a lineage's rate is inherited from its parent and independent of it at once.
+.
 
 ![Three ways a rate can vary, one tree apiece, all three stopped at the same 25 surviving lineages, so what differs is how they got there. **A** `changing_at`: the rate drops at time 2, so an early burst gives way to a long slow tail. **B** `scaled_by(TotalDiversity(...))`: the rate falls as the tree fills toward its cap, and splits thin out near the present. **C** `varying_among('lineages', Drift(...))`: each lineage inherits its parent's rate, so one clade radiates late while its sister stays sparse. Solid lineages survive to the present and dashed ones died, as in the previous figure.](figures/variable_rates.pdf){width=100%}
 
-The scopes and the drivers live in `zombi2.params`. Each verb records a dimensionless factor on the base rate, and you can chain them to get a rate that changes in time *and* saturates.
-
-Whether birth and death vary together is decided by what you wrote. Two separate expressions — `birth = PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2)))` and `death = PerLineage(0.3).varying_among('lineages', Drift(LogNormal(0.0, 0.2)))` — are two values, so each lineage gets its own speciation factor and its own extinction factor and the two rates drift without correlation; the same holds for a bare distribution. Build the `Random` once, by name, and give that same object to both rates and the lineage gets a single number instead, so a lineage that speciates fast also goes extinct fast. Sharing is by identity, not by matching arguments, and only Python can express it: two flags on the command line are always two objects.
-
-Both draws are **mean-corrected**, so widening the distribution spreads the lineages out without moving the average one off the base rate you typed. And under either, the lineage that speciates or dies is drawn in proportion to its own rate rather than uniformly, which is the point: a fast lineage is likelier to be the one that splits.
-
 ## Other models
 
-One model does not fit the modifier framework: a **mass extinction**, where at one instant only a fraction of the living lineages survive. `mass_extinctions=[(3.0, 0.75)]` kills three-quarters of those alive at time 3. A pulse is placed at a point in time, so it needs a run with a fixed end: give `total_time`, not `n_extant`, and put each pulse time strictly between 0 and `total_time`.
+One model does not fit the modifier framework: a **mass extinction**, where at one instant only a fraction of the living lineages survive. `
 
 ![A mass extinction as a survival pulse. The tree grows under a constant birth–death process until, at one instant, a fraction of the standing lineages die together, the cohort of dots along the vertical wall. Survivors are solid and extinct lineages dashed. The lineages-through-time curve below shares the time axis and shows the diversity crash at the pulse and the recovery after it. This tree was grown with `mass_extinctions=[(2.5, 0.75)]`.](figures/mass_extinction.pdf){width=100%}
 
@@ -72,13 +60,7 @@ By default you see every surviving species. **`sampling`** keeps a random fracti
 ![Sampling and fossils, the two ways a dataset falls short of the whole tree. A single complete tree shows every lineage's fate. Sampled species reach the present as solid lines and are the data you keep. Lineages alive today but not sampled reach the present as dashed lines ending in an open ring. Lineages that went extinct are dashed and stop where they died. Fossils are dated samples recovered along any branch of the complete tree, a surviving lineage's branch as readily as an extinct one, shown as black diamonds. The data is the solid tips together with the diamonds; the dashed lineages are never observed. This tree was grown with `sampling=0.6, fossils=0.15`.](figures/sampling_fossils.pdf){width=100%}
 
 ```python
-# see only half the survivors
-result = species.simulate_species_tree(
-    birth=1.0, death=0.3, n_extant=20, sampling=0.5, seed=1)
-
-# recover fossils of extinct lineages along the branches
-result = species.simulate_species_tree(
-    birth=1.0, death=0.3, total_time=6.0, fossils=0.1, seed=2)
+# 
 ```
 
 ## The `SpeciesResult` object
@@ -92,37 +74,9 @@ result = species.simulate_species_tree(
 
 As at every level it also carries `.seed` and `.write(dir, outputs=[...])`. Each tree carries its topology and dated branch lengths, holds every node — internal ones included — in `.nodes`, and lets you ask for its tips with `.leaves()` and, among them, the extant, the extinct and the unsampled (`.extant_leaves()`, `.extinct_leaves()`, `.unsampled_leaves()`).
 
-A tree speaks **node ids** throughout: `.root` is one, `.nodes` is keyed by one, `.children` holds them, and the four tip lists return them. Reach the node itself through `.nodes[i]`.
-
-```python
-from zombi2 import species
-
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=1).complete_tree
-tips = tree.extant_leaves()                                  # [3, 7, 8, …] — ids, not objects
-oldest = max(tree.leaves(), key=lambda i: tree.nodes[i].end_time)
-```
-
-Those ids are the same ones every other level keys on internally, so a walk over the whole tree joins straight across a run — `{i: len(genome_run.node_genomes[i]) for i in tree.nodes}`. The *observed* datasets each level hands back are keyed by tip **name** instead, so they join to the tree and to each other as they are: `genome_run.genomes["n5"]`, `trait_run.values["n5"]`.
-
-A tip's `.children` is an empty tuple, so a walk needs no guard: `for c in tree.nodes[i].children` simply does nothing at a leaf.
-
-Everything in this chapter is one function call, so the verbs, the sampling and a mass extinction all compose in a single line:
-
-```python
-from zombi2 import species
-from zombi2.params import Global, PerLineage, TotalDiversity
-
-# skyline birth that also slows with diversity, a global death rate, a mass extinction
-# at time 3 that kills three quarters, and only half the survivors sampled
-result = species.simulate_species_tree(
-    birth = PerLineage(1.0).changing_at({0: 1.0, 3: 0.5}).scaled_by(TotalDiversity(cap=100)),
-    death = Global(0.3),
-    mass_extinctions=[(3.0, 0.75)], sampling=0.5, total_time=8.0, seed=2)
-```
-
 ## On the command line
 
-The command mirrors the Python call: the base rates, the stop condition, and the sampling and fossil knobs each have a flag.
+The command mirrors the Python call: the base rates, the stop condition, and and the sampling and fossil settings each have a flag.
 
 ```bash
 # a birth–death tree of 20 surviving lineages
@@ -132,16 +86,3 @@ zombi2 species out/ --birth 1.0 --death 0.3 --n-extant 20 --seed 1
 zombi2 species out/ --birth 1.0 --death 0.4 --total-time 5 \
     --mass-extinction 3 0.75 --sampling 0.5 --seed 2
 ```
-
-## Outputs
-
-| File | What it holds |
-|---|---|
-| `species_complete.nwk` | the whole tree that grew, with the extinct and unsampled lineages still on it: **what the next level reads** |
-| `species_extant.nwk` | the tree of sampled survivors: what an analysis would be handed |
-| `species_events.tsv` | every speciation and extinction, with its time |
-| `species_fates.tsv` | each tip's fate: `extant`, `extinct` or `unsampled` |
-| `species_fossils.tsv` | the sampled fossil lineages and the times they were sampled at, when you asked for `fossils` |
-| `species_summary.json` | what the run produced: counts, tree height, stem, total branch length, realised rates |
-
-Both trees give the root a branch length, the stem of Chapter 2: in the complete tree it runs from the origin to the first speciation, in the extant tree from the origin to the most recent common ancestor of the survivors, absorbing whatever branches were pruned away above it. They land in `out/species/`, or straight into `out/` with `--flat`; Appendix B lists every file with its format and its default.
