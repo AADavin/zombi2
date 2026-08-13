@@ -10,7 +10,7 @@ As long as the thing doing the controlling can be simulated first and independen
 
 ## The three parts
 
-![A conditioned run. The **driver** is a level already simulated, a habitat trait here, with the two states each lineage switches between shown below it. The **target** is what it controls, a rate here, in the run that comes next. The **connection** is the arrow: which multiplier each state of the driver hands over, so that a branch's habitat sets that branch's loss rate.](figures/conditioning_print.png){width=95%}
+![A conditioned run. The **driver** is a level already simulated, a habitat trait here, with the two states each lineage switches between, and how fast, shown below it. The **target** is what it controls: a parameter of the run that comes next, named with what kind it is — a rate here, counted per copy. The **connection** is the arrow, carrying the verb that joins them and the multiplier each state hands over, so that a branch's habitat sets that branch's loss rate.](figures/conditioning_print.png){width=95%}
 
 Chapter 2 named the three, and this chapter takes them one at a time. The **driver** is the value that is read. The **target** is what reads it. The **connection** is what joins them: it decides what number arrives, and what that number does when it gets there.
 
