@@ -77,7 +77,7 @@ zombi2 genomes out/
 out/run.zombi2                         every file the run wrote, and how to reproduce it
 out/species/    species_complete.nwk   the tree, extinct lineages kept
                 species_extant.nwk     the survivors only
-                species_events.tsv     every speciation and extinction, with its time
+                species_events.tsv     
                 species_fates.tsv      which tips survived, died out, or went unsampled
                 species_summary.json   what the run produced, in numbers
                 species.log            what was run, and with which parameters
