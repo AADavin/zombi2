@@ -1,10 +1,12 @@
 # Indels at the nucleotide resolution — a design note
 
-**Status: the genome half is built, on `feat/indels`.** Breakpoint provenance, the `deletion` and
-`insertion` rates, an indel's exemption from the legal cut set, and a root partition that stays
-coarse under all of it. The sequence half is not: `assembly()`, and so `simulate_sequences()`, refuses a run that used them, and neither
-does read-back. This note records where an indel model belongs, what stands in its way, and the
-design move that clears it. It is subordinate to [`SPEC.md`](SPEC.md): where the two disagree, SPEC
+**Status: built, on `feat/indels`.** Breakpoint provenance, the `deletion` and `insertion` rates,
+an indel's exemption from the legal cut set, a root partition that stays coarse under all of it, and
+a sequence level that reassembles every node's genome from it. What is not built: read-back from
+files, and gapped alignments.
+
+This note records where an indel model belongs, what stands in its way, and the design move that
+clears it. It is subordinate to [`SPEC.md`](SPEC.md): where the two disagree, SPEC
 wins.
 
 Claims here were checked against runs before any of it was built — see
@@ -220,6 +222,42 @@ keeps it.
 A deletion that removes a copy entirely is still recorded as a loss, because it is one. The
 genealogy consequence stays emergent from the extent, which is the rule the level already uses for a
 gene being engulfed whole rather than split.
+
+---
+
+## What the sequence level actually needed
+
+Far less than this note assumed, and one thing it did not foresee.
+
+The union column set is **already** the root block. The sequence level evolves each root block whole
+— `per_block[i] = (b - a, …)` is its full ancestral extent — so the columns a node does not carry
+are drawn and never read, which is exactly the waste described below, already paid. The presence
+mask is not a new structure either: it is the sub-range each piece of `assembly()` carries. So
+`evolve_gene_tree()`, `_site_classes()` and the transition-matrix cache are untouched, and the whole
+change is that a piece became `(block, gene, strand, lo, hi)` and the assembly slices `[lo:hi]`
+before flipping.
+
+**What it did not foresee: an indel breakpoint is invisible to the partition but is still a real
+boundary in the genome, and other events act on it.** A duplication can copy *part* of a root block;
+a loss's arc is contiguous physically but spans several disjoint stretches of one, and only its two
+ends become partition bounds. That broke the recovery three ways, each needing a different answer:
+
+- **Duplication and transfer** now beget a block-copy when they *overlap* the block rather than
+  cover it. The child carries the part it was given; which part is `assembly()`'s business, not the
+  tree's.
+- **A copy's death** cannot be decided from any one event's reach. `covers` says no death where
+  there was one; `overlaps` says a death where the copy still holds the rest. The exact question is
+  whether the copy carries any of the block at the end — `_carried_blocks()` — and the *time* is the
+  last removal that touched it, not the first.
+- **Attribution is of use, not creation.** An ordinary event that merely starts its arc where an
+  indel once cut still needs that position in the partition; recording only splits that actually
+  happen leaves it indel-attributed and skippable. Two corollaries: the initial layout's boundaries
+  are structural and recorded as event-made at setup (or an indel landing on a gene edge lets the
+  partition merge that gene away), and each source's origination bracket is unioned back past the
+  skip.
+
+Each of the three reads identically on a run without indels, which is why the suite kept passing
+until one was wrong.
 
 ---
 

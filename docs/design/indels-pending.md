@@ -54,6 +54,15 @@ Rules for keeping this honest:
   anywhere, so it draws its size outright and the shape survives. (#TBD)
 ```
 
+```markdown
+- **BREAKING:** a piece of `result.assembly(node)` is now `(block, gene, strand, lo, hi)` and one of
+  `result.initial_assembly()` is `(block, strand, lo, hi)`, where `[lo, hi)` is the sub-range of that
+  block the node carries. An indel leaves a lineage holding part of a block rather than all of it, so
+  a piece can no longer be a whole block; without indels `lo` is 0 and `hi` the block's length, so
+  the shape says what it always did at one extra pair of numbers. `simulate_sequences` reassembles
+  every node's genome from an indel run accordingly. (#TBD)
+```
+
 Still to write, as the remaining slices land: whatever the indel log is written to, the sequence
 level's gapped alignments, and the CLI flags.
 
@@ -73,6 +82,7 @@ Both under **Genomes, nucleotide: `simulate_genomes_nucleotide`**.
 
 | Output | File | Format | Default | Contents |
 |---|---|---|---|---|
+| Assembly | `.assembly(node)` · `.initial_assembly()` | dict | Python | **changed shape:** a piece is `(block, gene, strand, lo, hi)`, `[lo, hi)` being the sub-range of that block the node carries — a whole block unless an indel took a stretch out of it |
 | Indel log | `.deletions` | list | Python | one `Deletion` per indel — `time` · `lineage` · `chromosome` · `deleted`, the last being `(copy, source, start, end)` rows in **ancestral** coordinates, the same payload a loss carries. Kept out of `events` because a deletion ends no copy lineage, so the gene-tree recovery must not read it, and out of the root partition because cutting there would shatter it. Only deletions are here: an **insertion** brings material that descends from nothing, so it must begin a copy lineage and is recorded in `events` as a root of its own kind instead. Not written to a file yet, and `assembly()` — so a sequence run on top — refuses a genome that used either |
 
 **3. Extend the `block_events.tsv` row.** Its Contents cell lists the kinds; `insertion` joins them:

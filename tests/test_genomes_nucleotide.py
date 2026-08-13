@@ -1951,9 +1951,9 @@ def _expand(result, node_id):
     out = {}
     for cid, pieces in result.assembly(node_id).items():
         seq = []
-        for (i, _gene, strand) in pieces:
-            src, a, z = blocks[i]
-            span = range(a, z)
+        for (i, _gene, strand, lo, hi) in pieces:
+            src, a, _z = blocks[i]
+            span = range(a + lo, a + hi)
             seq.extend((src, p, strand) for p in (span if strand == 1 else reversed(span)))
         out[cid] = seq
     return out
@@ -2236,13 +2236,18 @@ def test_a_breakpoint_reached_both_ways_stays_in_the_partition():
     assert log.skippable() == {0: {45}}
 
 
-def test_landing_on_an_existing_boundary_attributes_nothing():
-    # no breakpoint was made, so there is nothing to attribute — and attributing it would let a
-    # deletion claim a boundary some earlier event had already put there
+def test_landing_on_an_existing_boundary_attributes_its_USE_not_its_creation():
+    # what is attributed is which kinds of event have relied on a boundary, not who first cut it.
+    # An ordinary event that merely STARTS where an indel once cut still needs that position in the
+    # partition, or its arc covers only part of a block it should have covered whole.
     log = _CutLog()
     c = Chromosome(0, "linear", [Block(0, 0, 40, 1, 1), Block(0, 40, 100, 1, 1)], log)
     c.delete(40, 5, indel=True)
-    assert 40 not in log.indel[0] and log.indel[0] == {45}
+    assert log.indel[0] == {40, 45} and log.skippable() == {0: {40, 45}}
+    d = Chromosome(1, "linear", [Block(0, 0, 40, 1, 2), Block(0, 40, 100, 1, 2)], log)
+    d.delete(40, 20)                                   # an ordinary loss, starting at that boundary
+    assert log.event[0] == {40, 60}
+    assert log.skippable() == {0: {45}}                # 40 is now load-bearing and cannot be skipped
 
 
 def test_a_reversed_block_records_the_ancestral_position_it_really_cut():
@@ -2272,14 +2277,24 @@ def test_the_summary_reports_the_indel_log():
     assert _deletion_run(deletion=0.0).summary()["deletions"] == 0
 
 
-def test_assembling_a_run_with_deletions_refuses_rather_than_lying():
-    # not built yet: a lineage carries only PART of a root block, so a piece can no longer be a whole
-    # block. Refusing beats the assertion the partition guard would otherwise raise from inside.
-    g = _deletion_run(deletion=80.0)
-    with pytest.raises(NotImplementedError, match="not built yet"):
-        g.assembly(g.complete_tree.root)
-    with pytest.raises(NotImplementedError):
-        g.initial_assembly()
+def test_assembly_tiles_an_indel_run_exactly_as_its_trace_back():
+    # the oracle, now over indels: a lineage carries only PART of a root block, so every piece carries
+    # the sub-range it holds, and expanding those back one entry per nucleotide has to reproduce the
+    # per-nucleotide ancestry the genome itself records. At EVERY node, with everything else running.
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=4)
+    g = simulate_genomes_nucleotide(sp, deletion=40.0, insertion=40.0, deletion_extent=5.0,
+                                    insertion_extent=5.0, inversion=3.0, inversion_extent=80,
+                                    loss=0.4, loss_extent=40, duplication=0.4,
+                                    duplication_extent=40, transfer=0.6, transfer_extent=60,
+                                    root_length=600, genes=3, gene_length=90, seed=4)
+    assert g.indels > 100, "no indels fired, so this proves nothing"
+    for node_id in sorted(g.node_genomes):
+        assert _expand(g, node_id) == g.trace_back(node_id)
+    # and a piece really is narrower than its block somewhere, or the sub-range went untested
+    partial = sum(1 for pieces in g.assembly(g.complete_tree.root).values()
+                  for (i, _gene, _s, lo, hi) in pieces
+                  if (lo, hi) != (0, g.root_blocks[i][2] - g.root_blocks[i][1]))
+    assert partial, "every piece was a whole block"
 
 
 def test_a_deletion_by_hand_matches_what_the_engine_does():
@@ -2357,9 +2372,15 @@ def test_both_indels_together_leave_the_declared_genes_recoverable():
     g = _deletion_run(insertion=40.0, deletion=40.0, insertion_extent=5.0,
                       inversion=2.0, duplication=0.5, loss=0.5, genes=4, gene_length=100)
     assert g.summary()["block_events"]["insertion"] > 100 and g.summary()["deletions"] > 100
+    surviving = 0
     for fam, span in g.gene_spans.items():
-        assert g.root_blocks[g.block_of(fam)] == span
-    assert len(g.gene_trees) == len(g.gene_spans)
+        try:
+            assert g.root_blocks[g.block_of(fam)] == span
+            surviving += 1
+        except LookupError:
+            pass            # eaten from every node by indels: documented, and gene_trees agrees
+    assert surviving, "no gene survived at all — pick another seed"
+    assert len(g.gene_trees) == surviving
 
 
 def test_an_insertion_is_written_with_its_own_kind_but_cannot_be_read_back(tmp_path):
@@ -2373,11 +2394,15 @@ def test_an_insertion_is_written_with_its_own_kind_but_cannot_be_read_back(tmp_p
         read_nucleotide_genomes(tmp_path, g.complete_tree)
 
 
-def test_assembling_a_run_with_insertions_refuses_too():
-    g = _deletion_run(insertion=80.0, insertion_extent=5.0)
-    assert g.indels == g.summary()["block_events"]["insertion"]
-    with pytest.raises(NotImplementedError, match="not built yet"):
-        g.assembly(g.complete_tree.root)
+def test_the_initial_genome_assembles_under_indels_too():
+    g = _deletion_run(deletion=80.0, insertion=80.0, insertion_extent=5.0)
+    assert g.indels > 100
+    # the initial genome is the one thing no indel ever touched: it sits at the START of the root
+    # branch, so every piece of it is still a whole block
+    for _cid, pieces in g.initial_assembly().items():
+        for (i, _strand, lo, hi) in pieces:
+            src, a, z = g.root_blocks[i]
+            assert (lo, hi) == (0, z - a)
 
 
 # --- indels: the legal-cut exemption ---------------------------------------------------------------
