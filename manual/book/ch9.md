@@ -49,7 +49,7 @@ A driver is the input to the function that controls the target. The easiest one 
 | a sequence's composition | a number, 0 to 1 | `seqs.gc()`, or `seqs.composition("KR")` for any letters of the alphabet |
 | a clade | one of the named groups | `Clade({"fast": ["n12", "n27"]})` — a fact about the tree, so nothing is grown first |
 
-A driver is read wherever it changes, not once per branch: a lineage that switches habitat halfway down one loses genes at one rate before the switch and another after it. 
+A driver is read wherever it changes, not once per branch: a lineage that switches habitat halfway down one loses genes at one rate before the switch and another after it. That works because a discrete driver changes at moments the run can step to exactly. A continuous one never stops changing, so there are no such moments: it is sampled every `step` instead, a hundredth of the tree's height unless you set it, and the rate holds between samples. 
 
 ## The target
 
