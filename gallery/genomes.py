@@ -667,10 +667,16 @@ def clade_transition(out):
     h.composite_beside(tmp, body, panel, figsize=(12.5, 7.4), ratios=(3, 1.0),
                        geometry=geo, wspace=0.02)
     diag = h.conditioning_png(
-        out.replace(".png", "_diag.png"), draw=h.draw_schedule,
-        driver="clade", before="base rate", after=f"loss x{_SW_FACTOR}", at=f"at t = {_SW_T0:g}",
-        target="loss", target_base=0.02, target_sub="genes per genome",
-        colors=(_SW_BEFORE, _SW_AFTER))
+        out.replace(".png", "_diag.png"),
+        # a clade is read off the tree rather than grown, and a schedule is its connection: the
+        # switch happens to the whole clade at a moment the run fixes, not at a rate per lineage
+        driver=("the tree", "one clade", "a named group"),
+        connection=("changing_at", "a schedule"),
+        target_level="genomes",
+        targets=[("loss", "rate · per copy", f"× {_SW_FACTOR} inside the clade")],
+        chain=(("base rate", f"× {_SW_FACTOR}"),
+               [(f"at t = {_SW_T0:g}", None)],
+               (_SW_BEFORE, _SW_AFTER)))
     h.composite_under_diagram(out, diag, [(body, "")], diagram_frac=0.46)
 
 
