@@ -2,8 +2,8 @@
 
 **Status: built, on `feat/indels`.** Breakpoint provenance, the `deletion` and `insertion` rates,
 an indel's exemption from the legal cut set, a root partition that stays coarse under all of it, and
-a sequence level that reassembles every node's genome from it. What is not built: read-back from
-files, and gapped alignments.
+a sequence level that reassembles every node's genome from it and emits a true gapped alignment.
+What is not built: read-back from files.
 
 This note records where an indel model belongs, what stands in its way, and the design move that
 clears it. It is subordinate to [`SPEC.md`](SPEC.md): where the two disagree, SPEC
@@ -258,6 +258,20 @@ ends become partition bounds. That broke the recovery three ways, each needing a
 
 Each of the three reads identically on a run without indels, which is why the suite kept passing
 until one was wrong.
+
+**The alignment is gapped**, and that answers the question this note left open. A block is evolved
+over its whole ancestral extent, so an ungapped row hands back bases the lineage deleted — a 120 bp
+row for a copy carrying one base of the block. Each row is now the block's full width with ``-``
+where the lineage carries nothing, which is the true alignment and costs nothing to say: the
+sub-ranges already record where the gaps go. It is written in place even though the assembly reads
+the same strings, because a gap only ever falls *outside* a carried sub-range, so slicing one out
+still yields unbroken sequence — and the assembled genome has no gap in it anywhere.
+
+One thing that had to move with it: `_identity_counts()` walks the bytes actually present rather
+than the model's alphabet, so two lineages that deleted the same stretch would have read as identical
+across it. A gap is not a residue and two of them are not a match; pairs are counted per column over
+the sequences that have a residue there, which on an ungapped alignment is every pair at every
+column, exactly as before.
 
 ---
 

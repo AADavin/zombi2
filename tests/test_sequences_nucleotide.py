@@ -597,3 +597,49 @@ def test_an_indel_genome_reads_base_for_base_as_its_ancestry_says():
             assert "".join(rebuilt) == r.node_genomes[label][cid]
             checked += 1
     assert checked > 5
+
+
+def test_an_indel_alignment_gaps_what_the_lineage_does_not_carry():
+    """A block is evolved over its whole ancestral extent, so without gapping the alignment hands
+    back bases a lineage deleted — and those rows are what the per-family FASTA is written from."""
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=4)
+    g = simulate_genomes_nucleotide(
+        sp, deletion=40.0, insertion=40.0, deletion_extent=5.0, insertion_extent=5.0,
+        inversion=3.0, inversion_extent=80, loss=0.4, loss_extent=40, duplication=0.4,
+        duplication_extent=40, genes=3, gene_length=90, root_length=600, seed=4)
+    assert g.indels > 500
+    r = simulate_sequences(g, model=hky85(2.0), substitution=0.4, seed=4)
+    labels = g.complete_tree.labels()
+
+    # a true alignment: every row of a block is that block's full ancestral width
+    for block, rows in r.alignments.items():
+        width = g.root_blocks[block][2] - g.root_blocks[block][1]
+        assert all(len(s) == width for s in rows.values())
+
+    # and the residues in a row are exactly what that lineage carries
+    gapped = 0
+    for nid in g.node_genomes:
+        label = labels[nid]
+        src = r.alignments if label in r.extant_tips else r.ancestral
+        want: dict[tuple[int, str], int] = {}
+        for pieces in g.assembly(nid).values():
+            for (block, gene, _s, lo, hi) in pieces:
+                key = (block, f"{label}_g{gene}")     # `label`, not n<id>: a died lineage is e<id>
+                want[key] = want.get(key, 0) + (hi - lo)
+        for (block, record), n in want.items():
+            seq = src[block][record]
+            assert len(seq) - seq.count("-") == n
+            gapped += "-" in seq
+    assert gapped > 10, "nothing was gapped, so this proves nothing"
+
+    # the assembled genome is the observable and carries no gap at all
+    for nid, genome in g.node_genomes.items():
+        for chrom in genome.chromosomes:
+            assert "-" not in r.node_genomes[labels[nid]][chrom.id]
+
+
+def test_identity_does_not_count_a_shared_gap_as_a_match():
+    from zombi2.sequences import _identity_counts
+    assert _identity_counts(["ACGT", "ACGT"]) == (4, 4)
+    assert _identity_counts(["AC--", "AC--"]) == (2, 2)        # the gaps count for nothing
+    assert _identity_counts(["ACGT", "AC--"]) == (2, 2)

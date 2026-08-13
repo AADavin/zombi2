@@ -63,8 +63,16 @@ Rules for keeping this honest:
   every node's genome from an indel run accordingly. (#TBD)
 ```
 
-Still to write, as the remaining slices land: whatever the indel log is written to, the sequence
-level's gapped alignments, and the CLI flags.
+```markdown
+- A nucleotide run with indels writes a **true gapped alignment**: each row of a block is that
+  block's full ancestral width, with `-` where that lineage carries nothing. The assembled genome
+  FASTA is unchanged and gap-free — the alignment is what was evolved, the genome is what exists.
+  Mean pairwise identity no longer counts a shared gap as a match. A run without indels is
+  byte-for-byte what it was. (#TBD)
+```
+
+Still to write, as the remaining slices land: whatever the indel log is written to, and the CLI
+flags.
 
 ---
 

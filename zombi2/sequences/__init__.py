@@ -338,6 +338,45 @@ class SequencesResult:
                                  {f"{lineage}_chr{cid}": seq for cid, seq in chroms.items()})
 
 
+def _gap_what_is_not_carried(layouts, alignments, ancestral, root_blocks) -> None:
+    """Write ``-`` into every position of a block's sequence that its own lineage does not carry.
+
+    A block is evolved over its whole ancestral extent, because that is the coordinate space its
+    tree lives in; an indel then leaves a lineage holding only part of it. Without this the alignment
+    hands back bases that lineage does not have — a 120 bp row for a copy carrying 1 bp of the block —
+    and those rows are what the per-family FASTA files are written from. The gapped row is the true
+    alignment, and it costs nothing to say: the sub-ranges in ``layouts`` already record where the
+    gaps go.
+
+    Safe to do **in place**, though the assembly reads these same strings: a gap only ever falls
+    outside a carried sub-range, so slicing one out still yields unbroken sequence.
+
+    A record no layout mentions is left alone — a copy that died mid-branch is in no node's genome,
+    and blanking it would be a change to every run, indels or not. Without indels every piece is a
+    whole block, so nothing here is gapped and the output is what it always was."""
+    carried: dict[tuple[int, str], list[tuple[int, int]]] = {}
+    for label, by_cid in layouts.items():
+        for pieces in by_cid.values():
+            for (block, gene, _strand, lo, hi) in pieces:
+                carried.setdefault((block, f"{label}_{gene_label(gene)}"), []).append((lo, hi))
+    for (block, record), spans in carried.items():
+        width = root_blocks[block][2] - root_blocks[block][1]
+        spans.sort()
+        if len(spans) == 1 and spans[0] == (0, width):
+            continue                                    # the whole block: nothing to gap
+        table = alignments if record in alignments.get(block, ()) else ancestral
+        seq = table[block][record]
+        out, at = [], 0
+        for lo, hi in spans:
+            if lo > at:
+                out.append("-" * (lo - at))
+            out.append(seq[lo:hi])
+            at = hi
+        if at < width:
+            out.append("-" * (width - at))
+        table[block][record] = "".join(out)
+
+
 class _AssembledGenomes(Mapping):
     """Every node's genome, assembled **on demand** rather than all held at once.
 
@@ -407,11 +446,21 @@ def _identity_counts(seqs) -> tuple[int, int]:
         return 0, 0
     k = len(seqs)
     arr = np.frombuffer("".join(s[:n] for s in seqs).encode(), dtype=np.uint8).reshape(k, n)
+    # A gap is not a residue and two of them are not a match — `np.unique` walks the bytes that are
+    # actually there, so without this exclusion a pair of lineages that both deleted the same stretch
+    # would read as identical across it. Pairs are counted per column over the sequences that have a
+    # residue there, which on an alignment with no gaps is every pair at every column, exactly as
+    # this counted before indels could put one in.
+    gap = ord("-")
+    real = np.count_nonzero(arr != gap, axis=0).astype(np.int64)
+    compared = int((real * (real - 1) // 2).sum())
     matched = 0
     for residue in np.unique(arr):
+        if residue == gap:
+            continue
         c = np.count_nonzero(arr == residue, axis=0).astype(np.int64)
         matched += int((c * (c - 1) // 2).sum())
-    return matched, n * k * (k - 1) // 2
+    return matched, compared
 
 
 def mean_pairwise_identity(alignments) -> float | None:
@@ -1431,6 +1480,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         extant_labels = {names[i] for i in extant_ids}
         ordered_ids = extant_ids + [i for i in sorted(species_tree.nodes) if i not in extant_id_set]
         layouts = {names[i]: genomes.assembly(i) for i in ordered_ids}
+        _gap_what_is_not_carried(layouts, alignments, ancestral, genomes.root_blocks)
         assembled = _AssembledGenomes(layouts, alignments, ancestral, extant_labels)
         # The genome the run started with. Its blocks were all laid down at the start, so each one's
         # sequence there is its `founding` draw — the state the stem leads *from*. It is not a node,
