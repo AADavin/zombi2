@@ -32,7 +32,7 @@ from zombi2.genomes.nucleotide import (
     Transfer,
     Translocation,
     Transposition,
-    _CutLog,
+    _skippable_bounds,
     _CutsGene,
     read_nucleotide_genomes,
     _do_duplication,
@@ -1883,7 +1883,7 @@ def test_rearrangements_are_their_own_table(tmp_path):
     assert not (tmp_path / "rearrangements.tsv").exists()
     cols, rows = _read(tmp_path / "rearrangement_events.tsv")
     assert cols == ["time", "kind", "lineage", "chromosome", "start", "length",
-                    "dest_chromosome", "dest_position", "flipped"]
+                    "dest_chromosome", "dest_position", "flipped", "cuts"]
     kinds = {"inversion", "transposition", "translocation"}
     assert len(rows) == len(r.rearrangements) and {row["kind"] for row in rows} == kinds
     for row, rec in zip(rows, r.rearrangements, strict=True):
@@ -2228,35 +2228,30 @@ def test_a_breakpoint_reached_both_ways_stays_in_the_partition():
     # the case that makes `skippable` a subtraction rather than the indel set outright: an indel cuts
     # at 40 in one lineage and an ordinary event cuts at 40 in another. Skipping it there would merge
     # two blocks a real event separated.
-    log = _CutLog()
-    Chromosome(0, "linear", [Block(0, 0, 100, 1, 1)], log).delete(40, 5, indel=True)
-    Chromosome(1, "linear", [Block(0, 0, 100, 1, 2)], log)._split_at(40)
-    assert log.indel[0] == {40, 45}
-    assert log.event[0] == {40}
-    assert log.skippable() == {0: {45}}
+    g = _deletion_run(deletion=60.0, loss=8.0, loss_extent=5.0, inversion=8.0, inversion_extent=5.0)
+    assert g.deletions and any(e.cuts for e in g.rearrangements)
+    indel = {at for e in g.deletions for (_s, at) in e.cuts}
+    event = {at for e in (*g.events, *g.rearrangements) for (_s, at) in e.cuts}
+    both = indel & event
+    assert both, "no position was reached both ways in this run, so it proves nothing"
+    assert not (both & _skippable_bounds(g).get(0, set()))
 
 
-def test_landing_on_an_existing_boundary_attributes_its_USE_not_its_creation():
+def test_an_event_records_the_breakpoints_it_USED_not_the_ones_it_created():
     # what is attributed is which kinds of event have relied on a boundary, not who first cut it.
     # An ordinary event that merely STARTS where an indel once cut still needs that position in the
     # partition, or its arc covers only part of a block it should have covered whole.
-    log = _CutLog()
-    c = Chromosome(0, "linear", [Block(0, 0, 40, 1, 1), Block(0, 40, 100, 1, 1)], log)
-    c.delete(40, 5, indel=True)
-    assert log.indel[0] == {40, 45} and log.skippable() == {0: {40, 45}}
-    d = Chromosome(1, "linear", [Block(0, 0, 40, 1, 2), Block(0, 40, 100, 1, 2)], log)
-    d.delete(40, 20)                                   # an ordinary loss, starting at that boundary
-    assert log.event[0] == {40, 60}
-    assert log.skippable() == {0: {45}}                # 40 is now load-bearing and cannot be skipped
+    used: list = []
+    c = Chromosome(0, "linear", [Block(0, 0, 40, 1, 1), Block(0, 40, 100, 1, 1)])
+    c.delete(40, 20, used=used)                        # 40 exists already; 60 has to be made
+    assert used == [(0, 40), (0, 60)]
 
 
-def test_a_reversed_block_records_the_ancestral_position_it_really_cut():
+def test_a_reversed_block_reports_the_ancestral_position_it_really_cut():
     # a reversed block's first physical positions are its source's HIGH end, so a cut `o` in from the
     # left falls at `end - o` ancestrally, not `start + o`
-    log = _CutLog()
-    c = Chromosome(0, "linear", [Block(0, 0, 100, -1, 1)], log)
-    c._split_at(30, indel=True)
-    assert log.indel[0] == {70}
+    c = Chromosome(0, "linear", [Block(0, 0, 100, -1, 1)])
+    assert c._split_at(30, indel=True) == (0, 70)
 
 
 def test_genes_still_recover_as_exactly_one_root_block_under_heavy_deletion():
@@ -2299,10 +2294,10 @@ def test_assembly_tiles_an_indel_run_exactly_as_its_trace_back():
 
 def test_a_deletion_by_hand_matches_what_the_engine_does():
     # the mutator takes explicit coordinates, so a scripted call is the code the engine runs
-    log = _CutLog()
-    c = Chromosome(0, "linear", [Block(0, 0, 100, 1, 7)], log)
-    gone = c.delete(40, 5, indel=True)
-    assert gone == ((7, 0, 40, 45),)
+    used: list = []
+    c = Chromosome(0, "linear", [Block(0, 0, 100, 1, 7)])
+    gone = c.delete(40, 5, indel=True, used=used)
+    assert gone == ((7, 0, 40, 45),) and used == [(0, 40), (0, 45)]
     assert [(b.start, b.end) for b in c.blocks] == [(0, 40), (45, 100)]
     assert c.length == 95
 
@@ -2359,13 +2354,13 @@ def test_insertion_origination_and_the_initial_genome_are_counted_apart():
 
 
 def test_an_insertion_by_hand_lays_spacer_and_makes_one_indel_breakpoint():
-    log = _CutLog()
-    c = Chromosome(0, "linear", [Block(0, 0, 100, 1, 7)], log)
-    c.originate(40, 5, source=9, copy=12, family=0, indel=True)
+    used: list = []
+    c = Chromosome(0, "linear", [Block(0, 0, 100, 1, 7)])
+    c.originate(40, 5, source=9, copy=12, family=0, indel=True, used=used)
     assert [(b.source, b.start, b.end, b.gene) for b in c.blocks] == [
         (0, 0, 40, 0), (9, 0, 5, 0), (0, 40, 100, 0)]
     assert c.length == 105
-    assert log.indel == {0: {40}} and not log.event
+    assert used == [(0, 40)]
 
 
 def test_both_indels_together_leave_the_declared_genes_recoverable():
@@ -2383,15 +2378,23 @@ def test_both_indels_together_leave_the_declared_genes_recoverable():
     assert len(g.gene_trees) == surviving
 
 
-def test_an_insertion_is_written_with_its_own_kind_but_cannot_be_read_back(tmp_path):
-    g = _deletion_run(insertion=40.0, insertion_extent=5.0, genes=2, gene_length=100)
+def test_an_indel_run_round_trips_through_the_files_it_wrote(tmp_path):
+    # the whole point of every event carrying the breakpoints it used: the distinction between an
+    # indel breakpoint and an ordinary one is IN the record, so it survives a write. Get that wrong
+    # and the partition is cut at every indel and every tree comes back different.
+    g = _deletion_run(deletion=40.0, insertion=40.0, insertion_extent=5.0, loss=1.0,
+                      duplication=1.0, inversion=2.0, genes=2, gene_length=100)
     g.write(tmp_path)
     text = (tmp_path / "block_events.tsv").read_text()
-    assert "\tinsertion\t" in text
-    # ...but reading it back is refused rather than wrong: no file records which breakpoints the
-    # indels made, so the partition would be cut at every one of them and every tree would differ
-    with pytest.raises(NotImplementedError, match="not built yet"):
-        read_nucleotide_genomes(tmp_path, g.complete_tree)
+    assert "\tinsertion\t" in text and "\tdeletion\t" in text
+
+    back = read_nucleotide_genomes(tmp_path, g.complete_tree)
+    assert len(back.deletions) == len(g.deletions)
+    assert back.root_blocks == g.root_blocks
+    assert {f: t.to_newick("complete") for f, t in back.gene_trees.items()} == \
+           {f: t.to_newick("complete") for f, t in g.gene_trees.items()}
+    for nid in g.node_genomes:
+        assert back.assembly(nid) == g.assembly(nid)
 
 
 def test_the_initial_genome_assembles_under_indels_too():
@@ -2420,14 +2423,12 @@ def test_the_cut_set_opens_a_gene_to_an_indel_and_to_nothing_else():
 
 
 def test_an_indel_may_cut_inside_a_gene_and_an_event_may_not():
-    log = _CutLog()
-    c = Chromosome(0, "linear", [Block(0, 0, 100, 1, 7, 3)], log)
+    c = Chromosome(0, "linear", [Block(0, 0, 100, 1, 7, 3)])
     with pytest.raises(_CutsGene):
         c._split_at(40)                                            # an ordinary event: refused
     assert c.blocks == [Block(0, 0, 100, 1, 7, 3)]                 # and nothing was mutated
-    c._split_at(40, indel=True)
+    assert c._split_at(40, indel=True) == (0, 40)
     assert [(b.start, b.end, b.gene) for b in c.blocks] == [(0, 40, 3), (40, 100, 3)]
-    assert log.indel == {0: {40}}
 
 
 def test_a_gene_cut_by_an_indel_still_counts_as_one_gene():

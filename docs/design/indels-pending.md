@@ -71,8 +71,20 @@ Rules for keeping this honest:
   byte-for-byte what it was. (#TBD)
 ```
 
-Still to write, as the remaining slices land: whatever the indel log is written to, and the CLI
-flags.
+```markdown
+- A nucleotide run with indels can be written and read back: every event record now carries the
+  ancestral breakpoints it used, in a new `cuts` column of `block_events.tsv` and
+  `rearrangement_events.tsv`, and the indel log rides in the first of those under kind `deletion`.
+  What tells an indel breakpoint from an ordinary one is now in the record rather than in the run,
+  so the root partition, the gene trees and the assembly come back exactly as they were. A
+  rearrangement also finally states where it cut in **ancestral** coordinates, where before that log
+  was physical-only and could not be joined to the block log at all. (#TBD)
+- **BREAKING:** `rearrangement_events.tsv` gains a `cuts` column at both resolutions. The **ordered**
+  resolution always leaves it empty — it has no ancestral coordinates to give — but the file is
+  shared by both, so the column is there. (#TBD)
+```
+
+Still to write, as the remaining slices land: the CLI flags.
 
 ---
 
@@ -93,11 +105,18 @@ Both under **Genomes, nucleotide: `simulate_genomes_nucleotide`**.
 | Assembly | `.assembly(node)` · `.initial_assembly()` | dict | Python | **changed shape:** a piece is `(block, gene, strand, lo, hi)`, `[lo, hi)` being the sub-range of that block the node carries — a whole block unless an indel took a stretch out of it |
 | Indel log | `.deletions` | list | Python | one `Deletion` per indel — `time` · `lineage` · `chromosome` · `deleted`, the last being `(copy, source, start, end)` rows in **ancestral** coordinates, the same payload a loss carries. Kept out of `events` because a deletion ends no copy lineage, so the gene-tree recovery must not read it, and out of the root partition because cutting there would shatter it. Only deletions are here: an **insertion** brings material that descends from nothing, so it must begin a copy lineage and is recorded in `events` as a root of its own kind instead. Not written to a file yet, and `assembly()` — so a sequence run on top — refuses a genome that used either |
 
-**3. Extend the `block_events.tsv` row.** Its Contents cell lists the kinds; `insertion` joins them:
+**3. Extend the `block_events.tsv` row.** Its Contents cell lists the kinds and now needs the new
+column too:
 
-> Kinds are `initial` · `origination` · `insertion` · `duplication` · `loss` · `transfer` ·
-> `speciation`, where `insertion` is an indel — novel spacer on a fresh source, a root like an
-> origination but carrying no gene family
+> Kinds are `initial` · `origination` · `insertion` · `duplication` · `deletion` · `loss` ·
+> `transfer` · `speciation`, where `insertion` and `deletion` are the indels — `insertion` is novel
+> spacer on a fresh source, a root like an origination but carrying no gene family, and `deletion`
+> removes material without ending a copy lineage. A last column, `cuts`, gives the **ancestral**
+> breakpoints that event used as `source:position` pairs, semicolon separated: it is what tells an
+> indel breakpoint from an ordinary one, and without it a run could not be read back
+
+**4. Extend the `rearrangement_events.tsv` row** with the same column, and say that the ordered
+resolution leaves it blank.
 
 The `Default` column of the indel-log row becomes a file rather than `Python` if the indel log is
 given one — an open question in [`indels.md`](indels.md), and now a blocking one, since without it a

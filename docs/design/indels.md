@@ -2,8 +2,8 @@
 
 **Status: built, on `feat/indels`.** Breakpoint provenance, the `deletion` and `insertion` rates,
 an indel's exemption from the legal cut set, a root partition that stays coarse under all of it, and
-a sequence level that reassembles every node's genome from it and emits a true gapped alignment.
-What is not built: read-back from files.
+a sequence level that reassembles every node's genome from it and emits a true gapped alignment, and
+a run that round-trips through the files it wrote. What is not built: the CLI flags.
 
 This note records where an indel model belongs, what stands in its way, and the design move that
 clears it. It is subordinate to [`SPEC.md`](SPEC.md): where the two disagree, SPEC
@@ -275,16 +275,29 @@ column, exactly as before.
 
 ---
 
-## The provenance does not survive a write
+## The provenance had to move into the records
 
-Found by building it. `_CutLog` is the run's own bookkeeping and **no file carries it**: the ancestral
-position an insertion opened its gap at is written nowhere, and deletions have no file at all. So a
-run read back by `read_nucleotide_genomes()` cannot skip indel breakpoints, its partition shatters,
-and every tree comes back wrong. It refuses instead.
+Found by building it. Kept as a log beside the run, the provenance **could not survive a write**: the
+ancestral position an insertion opened its gap at was written nowhere, and deletions had no file at
+all. Worse, it was not derivable after the fact either — `rearrangements` are in physical coordinates,
+so there was no way to ask which ancestral positions an inversion cut at.
 
-This makes the open question below sharper. Whatever the indel log is written to must carry the
-breakpoints as well as the events, or read-back stays impossible and a nucleotide run with indels can
-never be handed to a separate `zombi2 sequences` process — only kept in Python.
+The fix is not a file for the side channel but to stop having one. **Every event record now carries
+the breakpoints it used**, as ancestral `(source, position)` pairs: `Loss.cuts`, `Inversion.cuts` and
+the rest, collected by `_arc_range()` as the splits happen and written as one column in
+`block_events.tsv` and `rearrangement_events.tsv`. The indel log rides in the same table under kind
+`deletion`. `_skippable_bounds()` then *reads* the logs rather than consulting bookkeeping kept
+alongside them, and the distinction survives a write because it is in the record.
+
+Three things fall out. The two coordinate frames the walkthrough complained about are now one, since
+a rearrangement finally says where it cut in ancestral terms. The initial layout's structural
+boundaries come from `initial_genome` rather than being recorded at setup. And a nucleotide run with
+indels round-trips: partition, gene trees and assembly all identical after a write and a read, over
+1762 indels.
+
+The one thing this costs is a column on the **ordered** resolution's rearrangement file, which will
+never fill it — that file is shared by both resolutions, and the ordered one has no ancestral
+coordinates to give.
 
 ---
 
