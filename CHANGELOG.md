@@ -11,6 +11,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Fixed
 
+- A joint run stops with an error rather than growing without end: `max_lineages` (default 100000,
+  `None` to remove) guards `simulate_joint` as it already guarded `simulate_species_tree`. (#343)
 - Reaching for `traits.continuous(...)`, the continuous twin of `traits.discrete(...)`, refuses with
   a sentence saying continuous trait-driven speciation is unavailable and what to write instead. It
   used to resolve to the module of that name and fail with `'module' object is not callable`. (#345)
