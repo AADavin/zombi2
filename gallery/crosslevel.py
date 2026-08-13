@@ -114,11 +114,12 @@ def repair_gene(out):
                                              {"present": 1.0, "absent": 4.0}))
     _clock_panels(out, ct, seqs, _presence_history(ct, repair.presence("mutS")),
                   {"present": 1.0, "absent": 4.0}, _REPAIR,
-                  dict(driver="mutS", states=["absent", "present"],
-                       switch={"present->absent": 0.13},
-                       mapping={"absent": 4, "present": 1},
-                       target="substitution", target_base=0.15,
-                       target_scope="PerSite", state_colors=_REPAIR),
+                  dict(driver=("genomes", "mutS", "present or absent"),
+                       connection=("scaled_by", "table"),
+                       target_level="sequences",
+                       targets=[("substitution", "rate · per site", "absent × 4    present × 1")],
+                       chain=(("present", "absent"), [("0.13", None)],
+                              (_REPAIR["present"], _REPAIR["absent"]))),
                   labels=("the tree in time", "the same tree in substitutions"))
 
 
@@ -137,11 +138,12 @@ def climate_substitution(out):
                               substitution=PerSite(0.15).scaled_by(climate,
                                                                    {"hot": 4.0, "cold": 1.0}))
     _clock_panels(out, ct, seqs, _state_history(ct, climate), {"hot": 4.0, "cold": 1.0}, _CLIMATE,
-                  dict(driver="climate", states=["cold", "hot"],
-                       switch={"cold->hot": 0.35, "hot->cold": 0.35},
-                       mapping={"hot": 4, "cold": 1},
-                       target="substitution", target_base=0.15,
-                       target_scope="PerSite", state_colors=_CLIMATE),
+                  dict(driver=("traits", "climate", "two states"),
+                       connection=("scaled_by", "table"),
+                       target_level="sequences",
+                       targets=[("substitution", "rate · per site", "hot × 4    cold × 1")],
+                       chain=(("cold", "hot"), [("0.35", "0.35")],
+                              (_CLIMATE["cold"], _CLIMATE["hot"]))),
                   labels=("the tree in time", "the same tree in substitutions"))
 
 
@@ -172,11 +174,12 @@ def mobile_element(out):
     tipcol = {n: _IS1["present" if n in carriers else "absent"] for n in given}
     h.conditioned_figure(
         out, ct, [ph.trees.color_history(_presence_history(ct, is1), palette=_IS1)],
-        given, tipcol, dict(driver="IS1", states=["absent", "present"],
-                            switch={"present->absent": 0.13},
-                            mapping={"present": 25, "absent": 1},
-                            target="transfer", target_base=0.02,
-                            target_sub="how often a lineage donates", state_colors=_IS1),
+        given, tipcol, dict(driver=("genomes", "IS1", "present or absent"),
+                            connection=("scaled_by", "table"),
+                            target_level="genomes",
+                            targets=[("transfer", "rate · per copy", "present × 25    absent × 1")],
+                            chain=(("present", "absent"), [("0.13", None)],
+                                   (_IS1["present"], _IS1["absent"]))),
         label="transfers donated")
 
 
@@ -207,11 +210,13 @@ def climate_inversions(out):
     tipcol = {n: _CLIMATE[climate.values[n]] for n in inversions if n in climate.values}
     h.conditioned_figure(
         out, ct, [ph.trees.color_history(_state_history(ct, climate), palette=_CLIMATE)],
-        inversions, tipcol, dict(driver="climate", states=["cold", "hot"],
-                                 switch={"cold->hot": 0.35, "hot->cold": 0.35},
-                                 mapping={"hot": 15, "cold": 1},
-                                 target="inversion", target_base=0.05,
-                                 target_sub="rate and extent", state_colors=_CLIMATE),
+        inversions, tipcol, dict(driver=("traits", "climate", "two states"),
+                                 connection=("scaled_by", "table"),
+                                 target_level="genomes",
+                                 targets=[("inversion", "rate · per copy", "hot × 15"),
+                                          ("inversion_extent", "extent · in genes", "hot × 3")],
+                                 chain=(("cold", "hot"), [("0.35", "0.35")],
+                                        (_CLIMATE["cold"], _CLIMATE["hot"]))),
         label="inversions on the tip branch")
 
 
@@ -269,10 +274,11 @@ def operon_substitution(out):
     tipcol = {n: colors.to_hex(cmap(norm(frac[n]))) for n in dist if n in frac}
     h.conditioned_figure(
         out, ct, [ph.trees.color_branches(frac, cmap=_OPERON)],
-        dist, tipcol, dict(draw=h.draw_conditioning_curve, driver="repair operon", curve=factor,
-                           vrange=(0.0, 1.0), value_label="fraction of the operon kept",
-                           cmap=_OPERON, target="substitution", target_base=0.15,
-                           target_scope="PerSite"),
+        dist, tipcol, dict(driver=("genomes", "repair operon", "a fraction, 0–1"),
+                           connection=("scaled_by", "curve"),
+                           target_level="sequences",
+                           targets=[("substitution", "rate · per site", "")],
+                           curve=(factor, "fraction of the operon kept", (0.0, 1.0))),
         label="root-to-tip substitutions/site")
 
 
@@ -298,10 +304,11 @@ def operon_trait(out):
     tipcol = {n: colors.to_hex(cmap(norm(hist[n][-1][0]))) for n in spread if n in hist}
     h.conditioned_figure(
         out, ct, [ph.trees.color_history(hist, cmap=_OPERON, limits=(0.0, 1.0))],
-        spread, tipcol, dict(draw=h.draw_conditioning_curve, driver="repair operon", curve=factor,
-                             vrange=(0.0, 1.0), value_label="fraction of the operon kept",
-                             cmap=_OPERON, target="rate", target_base=0.25,
-                             target_scope="PerLineage"),
+        spread, tipcol, dict(driver=("genomes", "repair operon", "a fraction, 0–1"),
+                             connection=("scaled_by", "curve"),
+                             target_level="traits",
+                             targets=[("rate", "rate · per lineage", "")],
+                             curve=(factor, "fraction of the operon kept", (0.0, 1.0))),
         label="distance travelled from the start")
 
 
@@ -363,9 +370,11 @@ def gc_drives_sequence(out):
          + ph.trees.time_axis(axis, tick_size=20, label_size=26, bold=False)).save(png)
         pngs.append(png)
     diag = h.conditioning_png(out.replace(".png", "_diag.png"),
-                              draw=h.draw_conditioning_curve, driver="GC", curve=factor,
-                              vrange=span, value_label="GC content", cmap=_GC,
-                              target="substitution", target_base=0.2, target_scope="PerSite")
+                              driver=("sequences", "GC", "a number"),
+                              connection=("scaled_by", "curve"),
+                              target_level="sequences",
+                              targets=[("substitution", "rate · per site", "")],
+                              curve=(factor, "GC content", span))
     h.composite_under_diagram(out, diag, [(pngs[0], "the tree in time"),
                                           (pngs[1], "the same tree in substitutions")])
 
@@ -390,10 +399,12 @@ def gc_drives_trait(out):
     tipcol = {n: colors.to_hex(plt.get_cmap(_GC)(norm(gc[n]))) for n in switches if n in gc}
     h.conditioned_figure(
         out, ct, [ph.trees.color_branches(gc, cmap=_GC)],
-        switches, tipcol, dict(draw=h.draw_conditioning_curve, driver="GC",
-                               curve=factor, vrange=(min(gc.values()), max(gc.values())),
-                               value_label="GC content", cmap=_GC,
-                               target="switch", target_base=0.35, target_scope="PerLineage"),
+        switches, tipcol, dict(driver=("sequences", "GC", "a number"),
+                               connection=("scaled_by", "curve"),
+                               target_level="traits",
+                               targets=[("switch", "rate · per lineage", "")],
+                               curve=(factor, "GC content",
+                                      (min(gc.values()), max(gc.values())))),
         label="switches on the tip branch")
 
 # --- the snippets shown on the detail views ----------------------------------------------------
