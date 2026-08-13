@@ -491,11 +491,17 @@ class Chromosome:
         self.blocks = self.blocks[:i] + self.blocks[j:]
         return lost
 
-    def originate(self, at: int, length: int, source: int, copy: int, family: int) -> None:
-        """Lay down a new ``length``-nucleotide **gene** of its own fresh ``source`` at position
-        ``at``. Indivisible from birth, like a declared gene. Raises `_CutsGene` if ``at``
-        falls inside an existing gene."""
-        self._split_at(at)
+    def originate(self, at: int, length: int, source: int, copy: int, family: int,
+                  indel: bool = False) -> None:
+        """Lay down a new ``length``-nucleotide stretch of its own fresh ``source`` at position
+        ``at``. Raises `_CutsGene` if ``at`` falls inside an existing gene.
+
+        With ``family`` non-zero this is an **origination**: a gene, indivisible from birth like a
+        declared one. With ``family=0`` and ``indel=True`` it is an **insertion**: plain spacer, and
+        the one breakpoint it makes to open a gap for itself is indel-attributed, so the block it
+        landed inside stays whole in the root partition. The new material itself is a fresh source
+        either way — novel DNA descends from nothing, so it can only be its own ancestor."""
+        self._split_at(at, indel)
         k = self._index_at(at)
         self.blocks[k:k] = [Block(source, 0, length, 1, copy, family)]
 
@@ -659,12 +665,17 @@ class Origination:
     ``lineage`` new material was laid down on chromosome ``chromosome`` as copy lineage ``copy``,
     covering the ancestral interval ``[start, end)`` on ``source``.
 
-    ``initial`` tells the two roots apart. An **initial** origination (``initial=True``) lays down the
-    initial genome at time 0 — one per initial replicon — and is what the run *starts* with, not
-    something it *did*; it is written with kind ``"initial"`` so counting ``"origination"`` in the log
-    gives the de-novo births alone (what the ``origination`` rate controls). A **de-novo** origination
-    (``initial=False``) is a fresh source arising mid-tree. The gene-tree recovery reads either as the
-    root of its family."""
+    ``initial`` and ``insertion`` tell the three roots apart, and each is written with its own kind so
+    that counting one never counts another. An **initial** origination lays down the initial genome at
+    time 0 — one per initial replicon — and is what the run *starts* with, not something it *did*. A
+    **de-novo** origination (both flags false) is a fresh source arising mid-tree, carrying a new gene:
+    what the ``origination`` rate controls. An **insertion** is the indel — a fresh source of plain
+    spacer, no family, what the ``insertion`` rate controls.
+
+    An insertion is a root here rather than in the indel log beside `Deletion`, and the asymmetry is
+    the honest one: a deletion ends no copy lineage, but novel DNA has no ancestor, so it must begin
+    one or the recovery has no root to build its block tree from. What it does *not* begin is a gene
+    family. The gene-tree recovery reads all three as the root of a block."""
 
     time: float
     lineage: int
@@ -674,6 +685,7 @@ class Origination:
     start: int
     end: int
     initial: bool = False
+    insertion: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -880,6 +892,14 @@ class NucleotideGenomesResult:
                 f"genes= layout has no names to give.")
         return GenePresence(self, name)
 
+    @property
+    def indels(self) -> int:
+        """How many indels this run fired — deletions plus insertions. Both leave a lineage carrying
+        part of a root block rather than all of it, which is the thing `assembly()` cannot yet put
+        back together, so they are counted together and asked about in one place."""
+        return len(self.deletions) + sum(1 for e in self.events
+                                         if isinstance(e, Origination) and e.insertion)
+
     def _recover(self):
         if not hasattr(self, "_recovered"):
             self._recovered = _recover_gene_trees(self)
@@ -994,15 +1014,15 @@ class NucleotideGenomesResult:
                 ) -> dict[int, list[tuple[int, int, int]]]:
         """The walk both assemblies share: ``{chromosome id: [(block, copy, strand), …]}`` in physical
         order. Cutting each of the genome's blocks at the partition, which is at least as fine."""
-        if self.deletions:
+        if self.indels:
             raise NotImplementedError(
-                f"this run has {len(self.deletions)} indel deletions, and assembling a genome from "
-                "them is not built yet. A deletion leaves a lineage carrying only part of a root "
-                "block, so a piece here can no longer be a whole block — it needs the sub-range the "
-                "lineage still holds, which changes this method's shape and the sequence level's "
-                "assembly with it. root_blocks, block_trees and gene_trees all work; assembly(), "
-                "initial_assembly() and simulate_sequences() on this run do not. See "
-                "docs/design/indels.md.")
+                f"this run has {self.indels} indels, and assembling a genome from them is not built "
+                "yet. An indel leaves a lineage carrying only part of a root block — a deletion by "
+                "removing the middle of one, an insertion by opening a gap inside one — so a piece "
+                "here can no longer be a whole block: it needs the sub-range the lineage actually "
+                "holds, which changes this method's shape and the sequence level's assembly with it. "
+                "root_blocks, block_trees and gene_trees all work; assembly(), initial_assembly() "
+                "and simulate_sequences() on this run do not. See docs/design/indels.md.")
         blocks = self.root_blocks
         index = self._block_index()
         out: dict[int, list[tuple[int, int, int]]] = {}
@@ -1194,8 +1214,8 @@ class NucleotideGenomesResult:
         # `Origination` splits the way `event_counts` splits it: the genome the run started with is
         # `initial`, and only a de-novo arrival is an `origination`.
         blocks = collections.Counter(
-            ("initial" if e.initial else "origination") if isinstance(e, Origination)
-            else type(e).__name__.lower() for e in self.events)
+            (("initial" if e.initial else "insertion" if e.insertion else "origination")
+             if isinstance(e, Origination) else type(e).__name__.lower()) for e in self.events)
         return {
             "level": "genomes",
             "seed": self.seed,
@@ -1214,8 +1234,8 @@ class NucleotideGenomesResult:
             # covering none is zero. That is the whole answer to "why is duplication 0 when
             # block_events.tsv has thirteen rows" — see `_warn_if_extents_cannot_reach_a_gene`.
             "block_events": {k: blocks.get(k, 0)
-                             for k in ("initial", "origination", "duplication", "transfer",
-                                       "loss", "speciation")},
+                             for k in ("initial", "origination", "insertion", "duplication",
+                                       "transfer", "loss", "speciation")},
             "rearrangements": {k: rearrangements.get(k, 0)
                                for k in ("inversion", "transposition", "translocation")},
             # the indel log, counted one number per EVENT like block_events above. It is neither a
@@ -1380,8 +1400,8 @@ def _nucleotide_events_tsv(events, tree, names=None) -> str:
         if isinstance(e, (Origination, Loss, Duplication)):
             chrom = chromosome_label(e.lineage, e.chromosome, names)
         if isinstance(e, Origination):
-            row(e.time, "initial" if e.initial else "origination", (), (e.copy,), chrom,
-                (e.source, e.start, e.end))
+            row(e.time, "initial" if e.initial else "insertion" if e.insertion else "origination",
+                (), (e.copy,), chrom, (e.source, e.start, e.end))
         elif isinstance(e, Loss):
             for (copy, source, start, end) in e.lost:
                 row(e.time, "loss", (copy,), (), chrom, (source, start, end))
@@ -1504,10 +1524,10 @@ def _edges_from_tsv(text: str) -> list:
         if not pending:
             return
         kind, time, chrom, lineage, recipient = pending[0][:5]
-        if kind in ("origination", "initial"):
+        if kind in ("origination", "initial", "insertion"):
             (*_h, _p, copy, src, start, end) = pending[0]
             events.append(Origination(time, lineage, chrom, copy, src, start, end,
-                                      initial=kind == "initial"))
+                                      initial=kind == "initial", insertion=kind == "insertion"))
         elif kind == "loss":
             events.append(Loss(time, lineage, chrom,
                                tuple((p, s, a, b) for (*_h, p, _c, s, a, b) in pending)))
@@ -1524,7 +1544,8 @@ def _edges_from_tsv(text: str) -> list:
 
     for cells in _rows(text, _NUCLEOTIDE_EVENT_COLS, "block_events.tsv"):
         (time, kind, parents, children, chrom, source, start, end) = cells
-        if kind not in ("origination", "initial", "loss", "duplication", "transfer", "speciation"):
+        if kind not in ("origination", "initial", "insertion", "loss", "duplication", "transfer",
+                        "speciation"):
             raise ValueError(f"block_events.tsv: unknown event kind {kind!r}")
         ps, cs = _copies_cell(parents), _copies_cell(children)
         if kind == "speciation":
@@ -1539,12 +1560,12 @@ def _edges_from_tsv(text: str) -> list:
                cs[0][0] if kind == "transfer" else None,
                ps[0][1] if ps else None, cs[0][1] if cs else None,
                num(source), num(start), num(end))
-        row_key = None if kind in ("origination", "initial") else row[:5]
+        row_key = None if kind in ("origination", "initial", "insertion") else row[:5]
         if pending and row_key != key:
             flush()
         pending.append(row)
         key = row_key
-        if kind in ("origination", "initial"):
+        if kind in ("origination", "initial", "insertion"):
             flush()
     flush()
     return events
@@ -1597,6 +1618,18 @@ def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
 
     spans, names, strands = _genes_from_tsv(read("genes.tsv"))
     events = _edges_from_tsv(read("block_events.tsv"))
+    # Indels are not replayable yet, and failing here beats handing back a run that looks fine and
+    # is not. Which breakpoints an indel made is the run's own bookkeeping (`_CutLog`) and no file
+    # carries it: the ancestral position an insertion opened its gap at is written nowhere, and
+    # deletions have no file at all. Without it the partition is cut at every indel breakpoint —
+    # the shattering the provenance exists to prevent — so the trees read back would not be the
+    # trees the run had.
+    if any(isinstance(e, Origination) and e.insertion for e in events):
+        raise NotImplementedError(
+            "this run used indels, and reading one back from files is not built yet: no file records "
+            "which breakpoints an indel made, so the root partition cannot be rebuilt as the run had "
+            "it and every gene tree would come back wrong. Keep the result in Python, or re-run. See "
+            "docs/design/indels.md.")
     rearrangements = _rearrangements_from_tsv(read("rearrangement_events.tsv"))
     initial_sequence: dict[int, str] = {}
     fpath = d / "initial_sequence.fasta"
@@ -1694,6 +1727,7 @@ class _Rates:
     transposition: Rate
     loss: Rate
     deletion: Rate
+    insertion: Rate
     duplication: Rate
     transfer: Rate
     origination: Rate
@@ -1708,6 +1742,7 @@ class _Rates:
     transposition_extent: Extent
     loss_extent: Extent
     deletion_extent: Extent
+    insertion_extent: Extent
     duplication_extent: Extent
     transfer_extent: Extent
     origination_extent: Extent
@@ -1867,6 +1902,25 @@ def _do_deletion(g, node_id, t, deletion_extent, rng, deletions) -> int:
         return 0
     deletions.append(Deletion(t, node_id, chrom.id, gone))
     return -sum(end - beg for (_cp, _src, beg, end) in gone)
+
+
+def _do_insertion(g, node_id, t, insertion_extent, rng, events, new_source, new_copy) -> int:
+    """Insert a geometric-length run of **novel spacer** at a legal position of a length-weighted
+    chromosome — the indel twin of `_do_deletion()`, and `_do_origination()` without the gene.
+
+    The material is a fresh source under a fresh copy lineage, because novel DNA descends from
+    nothing; that copy lineage is a root, so this is recorded in ``events`` where the recovery will
+    find it. The single breakpoint it makes to open a gap is indel-attributed, so the block it landed
+    inside is not cut in two in the root partition. Returns the length added (0 on a no-op)."""
+    spot = g._pick_legal_cut(rng)
+    if spot is None:
+        return 0
+    chrom, at = spot
+    length = max(1, int(rng.geometric(1.0 / insertion_extent)))
+    src, cp = new_source(), new_copy()
+    chrom.originate(at, length, src, cp, 0, indel=True)      # family 0: spacer, not a gene
+    events.append(Origination(t, node_id, chrom.id, cp, src, 0, length, insertion=True))
+    return length
 
 
 def _do_inversion(g, node_id, t, inversion_extent, rng, rearrangements) -> None:
@@ -2127,7 +2181,8 @@ def _warn_if_extents_cannot_reach_a_gene(specs, layouts, rates, extents) -> None
 def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, translocation=0.0,
                                 translocation_extent=50.0, transposition=0.0, transposition_extent=50.0,
                                 inversion_probability=0.0, loss=0.0, loss_extent=50.0,
-                                deletion=0.0, deletion_extent=5.0, duplication=0.0,
+                                deletion=0.0, deletion_extent=5.0,
+                                insertion=0.0, insertion_extent=5.0, duplication=0.0,
                                 duplication_extent=50.0, transfer=0.0, transfer_extent=50.0,
                                 transfer_to="uniform", self_transfer=False, origination=0.0,
                                 origination_extent=50.0, fission=0.0, fusion=0.0,
@@ -2156,6 +2211,12 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
       ``loss`` changes what a lineage *has* (a copy dies, a gene can go whole), ``deletion`` changes
       how much of a surviving copy it *carries*. In practice that is a difference of scale: hundreds
       to thousands of base pairs against ones to tens.
+    - ``insertion`` (**per lineage**, mean ``insertion_extent``) lays down a run of **novel spacer**
+      at a legal position — the twin of ``deletion``, and ``origination`` without the gene. Novel DNA
+      descends from nothing, so it arrives on a fresh source under a fresh copy lineage and is
+      recorded in ``events`` as a root; the one breakpoint it makes to open a gap for itself is
+      indel-made, so the block it landed inside is not cut in two. The pair divides the same way:
+      ``origination`` brings a new **gene family** into the run, ``insertion`` brings **sequence**.
     - ``duplication`` (**per lineage**) copies a geometric-length (mean ``duplication_extent``) arc
       in tandem — an ancestry-**changing** *birth*, recorded in ``events``.
     - ``transfer`` (**per lineage**) copies a geometric-length (mean ``transfer_extent``) arc into a
@@ -2208,7 +2269,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     # than hardcoded, so it can be seen and (later) overridden.
     _scoped = (("inversion", inversion, PerLineage), ("translocation", translocation, PerLineage),
                ("transposition", transposition, PerLineage), ("loss", loss, PerLineage),
-               ("deletion", deletion, PerLineage),
+               ("deletion", deletion, PerLineage), ("insertion", insertion, PerLineage),
                ("duplication", duplication, PerLineage), ("transfer", transfer, PerLineage),
                ("origination", origination, PerLineage), ("fission", fission, PerChromosome),
                ("fusion", fusion, PerChromosome),
@@ -2269,12 +2330,13 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     transposition_extent = _as_bp_extent(transposition_extent, "transposition_extent")
     loss_extent = _as_bp_extent(loss_extent, "loss_extent")
     deletion_extent = _as_bp_extent(deletion_extent, "deletion_extent")
+    insertion_extent = _as_bp_extent(insertion_extent, "insertion_extent")
     duplication_extent = _as_bp_extent(duplication_extent, "duplication_extent")
     transfer_extent = _as_bp_extent(transfer_extent, "transfer_extent")
     origination_extent = _as_bp_extent(origination_extent, "origination_extent")
     _extents = {"inversion_extent": inversion_extent, "translocation_extent": translocation_extent,
                 "transposition_extent": transposition_extent, "loss_extent": loss_extent,
-                "deletion_extent": deletion_extent,
+                "deletion_extent": deletion_extent, "insertion_extent": insertion_extent,
                 "duplication_extent": duplication_extent, "transfer_extent": transfer_extent,
                 "origination_extent": origination_extent}
     if not 0.0 <= inversion_probability <= 1.0:
@@ -2364,7 +2426,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     rates = _Rates(**{k: _rates[k] for k in _rates},
                    inversion_extent=inversion_extent, translocation_extent=translocation_extent,
                    transposition_extent=transposition_extent, loss_extent=loss_extent,
-                   deletion_extent=deletion_extent, duplication_extent=duplication_extent,
+                   deletion_extent=deletion_extent, insertion_extent=insertion_extent,
+                   duplication_extent=duplication_extent,
                    transfer_extent=transfer_extent, origination_extent=origination_extent,
                    inversion_probability=inversion_probability)
     depth = mean_root_to_tip(tree)                       # timescale for Distance weighting
@@ -2474,6 +2537,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         r_trp = _r("transposition", rates.transposition.effective(**ctx))
         r_los = _r("loss", rates.loss.effective(**ctx))
         r_del = _r("deletion", rates.deletion.effective(**ctx))
+        r_ins = _r("insertion", rates.insertion.effective(**ctx))
         r_dup = _r("duplication", rates.duplication.effective(**ctx))
         r_tra = _r("transfer", rates.transfer.effective(**ctx), live=can_xfer)
         r_org = _r("origination", rates.origination.effective(**ctx))
@@ -2481,14 +2545,14 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         r_fus = _r("fusion", rates.fusion.effective(**ctx))
         r_cor = _r("chromosome_origination", rates.chromosome_origination.effective(**ctx))
         r_clo = _r("chromosome_loss", rates.chromosome_loss.effective(**ctx))
-        total = (r_inv + r_trl + r_trp + r_los + r_del + r_dup + r_tra + r_org + r_fis + r_fus
-                 + r_cor + r_clo)
+        total = (r_inv + r_trl + r_trp + r_los + r_del + r_ins + r_dup + r_tra + r_org + r_fis
+                 + r_fus + r_cor + r_clo)
         next_species = schedule[si][0]
         # a skyline steps at a known time, so the race runs only to the next of those or the next
         # species event — whichever comes first — and the rates are re-read on the other side.
         horizon = min(next_species, rates.inversion.next_change(t), rates.translocation.next_change(t),
                       rates.transposition.next_change(t), rates.loss.next_change(t),
-                      rates.deletion.next_change(t),
+                      rates.deletion.next_change(t), rates.insertion.next_change(t),
                       rates.duplication.next_change(t), rates.transfer.next_change(t),
                       rates.origination.next_change(t), rates.fission.next_change(t),
                       rates.fusion.next_change(t), rates.chromosome_origination.next_change(t),
@@ -2532,7 +2596,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                 # at deletion=0 this collapses onto b_los, so the ladder is numerically what it was
                 # and no run written before indels existed moves
                 b_del = b_los + r_del
-                b_dup = b_del + r_dup
+                b_ins = b_del + r_ins
+                b_dup = b_ins + r_dup
                 b_tra = b_dup + r_tra
                 b_org = b_tra + r_org
                 b_fis = b_org + r_fis
@@ -2556,6 +2621,10 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                     k = _pick("deletion")
                     total_length += _do_deletion(gen[k], alive[k], t, _ext("deletion_extent", k),
                                                  rng, deletions)
+                elif r < b_ins:
+                    k = _pick("insertion")
+                    total_length += _do_insertion(gen[k], alive[k], t, _ext("insertion_extent", k),
+                                                  rng, events, new_source, new_copy)
                 elif r < b_dup:
                     k = _pick("duplication")
                     total_length += _do_duplication(gen[k], alive[k], t, _ext("duplication_extent", k),
