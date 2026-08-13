@@ -35,7 +35,7 @@ Some tree viewers do not draw the stem by default, so be careful. We recommend p
 
 In ZOMBI2 different events happen over time with different probability: speciations and extinctions at the species level; duplications, transfers, losses, originations and rearrangements at the genome level; substitutions in a sequence; changes in a trait.
 
-How often an event fires is controlled by its **effective rate**:
+How often an event occurs is controlled by its **effective rate**:
 
 $$\text{effective rate} = \text{scope}(\text{base}) \times \text{modifiers}$$
 
