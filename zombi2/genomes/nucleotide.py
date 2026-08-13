@@ -1112,7 +1112,10 @@ class NucleotideGenomesResult:
             "resolution": "nucleotide",
             "events": event_counts(self.genealogy, t0),
             "extant_genomes": len(extant),
-            "declared_genes": len(self.gene_spans),
+            # every gene the run holds, not only the ones declared at the start: `origination`
+            # and `chromosome_origination` both mint genes into `gene_spans` as the run goes,
+            # so a run that declared five can end with seven. It was called declared_genes.
+            "genes": len(self.gene_spans),
             "base_pairs_per_genome": _stats(lengths),
             "chromosomes_per_genome": _stats(chrom_per_genome),
             # The same six kinds as `events`, so the two read side by side — and they must, because
