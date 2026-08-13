@@ -199,6 +199,24 @@ free to take any distribution — unlike the existing segmental extents, which t
 restricts to geometric because it draws each far end directly from the legal breakpoints. That
 matters: indel sizes in real data are closer to a power law than to a geometric.
 
+**Built, and the restriction was load-bearing rather than inherited.** An extent reaches the mutator
+as a *number*: `_ext()` calls `Extent.mean()`, and the drivers sampled a geometric around it. So
+accepting a shape the engine could not express would have taken `Fixed(1)` and silently sampled it
+geometrically — one nucleotide asked for, a tail out to five delivered. The fix is not to relax the
+check alone but to stop collapsing the extent: on the indel path `_ext_draw()` calls
+`Extent.sample()`, which already existed and already works with any base, scaling the draw rather
+than the distribution's parameter. A deletion then stops going through `_pick_arc_extent()`
+altogether, since that function exists to pick a far end out of a cut set an indel no longer has.
+
+`Fixed(1)` now means exactly one nucleotide, measured; `Fixed(n)` removes exactly `n` per event; a
+`scipy.stats.zipf` extent gives the power law. Deletion and insertion also stopped disagreeing at
+small means, which they did while one drew through the cut set and the other did not.
+
+One thing to keep in view: a heavy-tailed extent has no upper bound, so a single "deletion" can take
+a large stretch — at which point it is doing `loss`'s job, and the vocabulary line between them (what
+a lineage *has* against how much of a surviving copy it *carries*) is only as sharp as the extent
+keeps it.
+
 A deletion that removes a copy entirely is still recorded as a loss, because it is one. The
 genealogy consequence stays emergent from the extent, which is the rule the level already uses for a
 gene being engulfed whole rather than split.
