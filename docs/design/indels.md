@@ -1,8 +1,8 @@
 # Indels at the nucleotide resolution — a design note
 
-**Status: partly built, on `feat/indels`.** The genome half is in — breakpoint provenance, the
-`deletion` and `insertion` rates, and a root partition that stays coarse under both. The sequence
-half is not: `assembly()`, and so `simulate_sequences()`, refuses a run that used them, and neither
+**Status: the genome half is built, on `feat/indels`.** Breakpoint provenance, the `deletion` and
+`insertion` rates, an indel's exemption from the legal cut set, and a root partition that stays
+coarse under all of it. The sequence half is not: `assembly()`, and so `simulate_sequences()`, refuses a run that used them, and neither
 does read-back. This note records where an indel model belongs, what stands in its way, and the
 design move that clears it. It is subordinate to [`SPEC.md`](SPEC.md): where the two disagree, SPEC
 wins.
@@ -122,9 +122,16 @@ gene still recovers as one root block with one tree. This has to be written as a
 set in `Chromosome._legal_cuts()`, not as a check at each mutator: a rule enforced per call site is a
 rule some call site forgets.
 
-**Not built.** Both indels still draw from the ordinary legal cut set, so neither can fall inside a
-declared gene, and what is on the branch today is a spacer-only indel. It is the next thing to do:
-until then the model cannot express an indel in coding sequence, which is most of the biology.
+**Built.** `_legal_cuts(indel=True)` opens every position, gene or not, and `_check_cut()` and
+`_split_at()` take the same exemption; the two guards that refuse an ordinary event a gene's interior
+are untouched. Measured on a genome that is 100% gene — ten 200 bp genes in 2000 bp, no spacer
+anywhere, where before this an indel had nowhere at all to go: 499 deletions and 467 insertions land,
+190 gene copies end up sitting in more than one block, and all ten genes still recover as exactly one
+root block with one tree.
+
+One thing it forced. `Chromosome.n_genes` counted *blocks*, and a gene cut by an indel is two of
+them — so the guard that stops a chromosome losing its last gene would have counted two genes where
+there is one and let the last one go. It counts distinct `(family, copy)` now.
 
 ---
 
