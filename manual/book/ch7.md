@@ -7,20 +7,6 @@ The sequence level does two main things:
 
 ![Where a sequence lives. A sequence is not evolved along the species tree: it is evolved along the **gene tree**, which the genome run produced and which runs inside the species tree. The two forks are different events. The first is a speciation, which hands the gene to both daughters; the second, marked with a square, is a duplication, and it happens inside one lineage — which is why one lineage can hold two tips of the same family. A run gives one sequence per node of that gene tree, so the tips come out as an alignment.](figures/sequence_nesting_print.png){width=88%}
 
-The sequence level always follows a genome run, and takes that run's result directly:
-
-```python
-from zombi2 import species, genomes, sequences
-from zombi2.sequences.substitution_models import hky85
-from zombi2.params import Drift, LogNormal, PerSite
-
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-my_genomes = genomes.simulate_genomes_family(tree, duplication=0.2, transfer=0.1,
-                                             loss=0.25, origination=0.5, seed=1)
-result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=2.0),
-                                      length=1000, seed=1)
-```
-
 ## Creating phylograms
 
 A gene tree in ZOMBI2 is by default a **chronogram**, its branch lengths measure time. What a sequence actually accumulates along a branch is not time but a number of *substitutions per site*, and that is time multiplied by an evolutionary rate. Turning one into the other is the whole job of the sequence level. Applying a rate to every branch rescales the tree from time into expected substitutions and yields a phylogram.
@@ -31,30 +17,20 @@ Two things therefore have to be chosen: *what* changes (the substitution model, 
 
 ZOMBI2 implements different standard models of sequence evolution:
 
-```python
-from zombi2.sequences.substitution_models import (jc69, k80, hky85, gtr,
-                                                  poisson, dayhoff, jtt, wag, lg)
-
-# --- nucleotide models (4 states, ACGT) ---
-model = jc69()                    # equal rates, equal base frequencies, no parameters
-model = k80(kappa=2.0)            # a transition/transversion bias
-model = hky85(kappa=2.0, frequencies=(0.3, 0.2, 0.2, 0.3))            # bias + unequal frequencies
-model = gtr(exchangeabilities=(1,2,1,1,2,1),           # six exchangeabilities
-            frequencies=(0.25,0.25,0.25,0.25))
-
-# --- protein models (20 states, amino acids) ---
-model = poisson()                 # equal rates, equal frequencies, the JC69 of proteins
-model = jtt()                     # Jones, Taylor & Thornton 1992
-model = dayhoff()                 # Dayhoff, Schwartz & Orcutt 1978
-model = wag()                     # Whelan & Goldman 2001
-model = lg()                      # Le & Gascuel 2008
-```
-
 The four nucleotide matrices are the standard published ones [@jukes1969evolution; @kimura1980simple; @hasegawa1985dating; @tavare1986some], as are the four protein ones [@dayhoff1978model; @jones1992rapid; @whelan2001general; @le2008improved]. The model decides the alphabet, and `length` counts whatever that alphabet holds: bases for a nucleotide model, residues for a protein one. The nucleotide models are four different rate matrices, not one model with four settings, but they nest in the order written (`jc69` is `k80` with `kappa=1`, and `k80` is `hky85` with equal base frequencies) so each step adds free parameters. The protein matrices are **empirical**, each estimated once from a large set of real alignments and then used as a fixed table, which is why they take no parameters.
 
 ### Your own matrix
 
 If none of the nine is the model you want, write the matrix yourself. `reversible` takes a symmetric **exchangeability** matrix $S$ and stationary frequencies $\pi$, and returns a model like any other:
+
+```python
+from zombi2 import species, genomes, sequences
+from zombi2.sequences.substitution_models import hky85, lg
+
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
+my_genomes = genomes.simulate_genomes_family(
+    tree, duplication=0.2, loss=0.25, origination=0.5, initial_families=20, seed=1)
+```
 
 ```python
 import numpy as np
@@ -88,7 +64,7 @@ varied = sequences.simulate_sequences(my_genomes, model=gamma_model, length=1000
 
 The Gamma is cut into a small number of equal-probability classes, each represented by its mean [@yang1994variable], four by default and changed with `rate_categories`. Cutting it is not an approximation made for tidiness: a site's rate is what its branch length is computed from, and a continuous draw would give every site its own branch length and so its own transition matrix. With classes, the sites sharing a class share the work.
 
-A second knob adds a class of sites that **never** change:
+A second setting adds a class of sites that **never** change:
 
 ```python
 both = hky85(kappa=2.0).across_sites(gamma_shape=0.5, invariant=0.1)
@@ -96,9 +72,9 @@ print(both.name)                  # HKY85+I+G4
 sequences.simulate_sequences(my_genomes, model=both, length=1000, seed=1)
 ```
 
-`invariant=0.1` sets aside a tenth of the sites as unchangeable. Real alignments have columns that are constant because the site cannot change rather than because it happened not to, and a Gamma alone fits those badly. Either knob works alone, and the model's name records what you chose, `HKY85+I+G4`, which is what the run prints and logs.
+`invariant=0.1` sets aside a tenth of the sites as unchangeable. Real alignments have columns that are constant because the site cannot change rather than because it happened not to, and a Gamma alone fits those badly. Either works alone, and the model's name records what you chose, `HKY85+I+G4`, which is what the run prints and logs.
 
-From the command line the same three knobs are flags, and they apply to any model on the menu:
+From the command line the same three settings are flags, and they apply to any model on the menu:
 
 ```bash
 zombi2 sequences seqs/ --from out/ --model hky85 --gamma-shape 0.5 --invariant 0.1 --seed 1
@@ -342,7 +318,7 @@ The caveat: every model is normalised to one expected substitution per site per 
 `simulate_sequences` returns a **`SequencesResult`**, which carries:
 
 - `.alignments`, the observable data: for each family, the sequence at every **extant** gene copy. This is the alignment a phylogenetic method would be handed.
-- `.ancestral`, the sequence at every node that is **not** an extant tip: internal nodes, and the tips where a copy was lost or its species died. The run wrote a sequence at each node as it went, so these are the exact ancestors, not estimates. With `.alignments` it accounts for every node of the tree exactly once, so every label in a complete phylogram names a sequence.
+- `.ancestral`, : internal nodes, and the tips where a copy was lost or its species died. The run wrote a sequence at each node as it went, so these are the exact ancestors, not estimates. With `.alignments` it accounts for every node of the tree exactly once, so every label in a complete phylogram names a sequence.
 - `.founding`, for each family, the sequence it began with, at its origination.
 - `.phylograms`, for each family, its gene tree with branch lengths converted from time into substitutions per site: the tree the sequences were drawn along.
 - `.species_phylogram`, the same conversion applied to the species tree, so the clock is visible as branch lengths.
@@ -351,24 +327,6 @@ The caveat: every model is normalised to one expected substitution per site per 
 As with every level, the bundle also carries `.seed` and `.write(directory, outputs=[...])` to put the chosen outputs on disk.
 
 ### Where a sequence starts
-
-A family does not begin at the first branching of its gene tree. It begins when it originates, and the founding gene then lives for a while, its **stem**, before anything splits it. So that is where the sequence starts: one draw from the model's stationary frequencies at the origination, which then evolves across the stem in the ordinary way and arrives at the root gene as a sequence that has already changed. `.founding` is that first draw; `.ancestral` holds what the root gene ended up with, and the two differ by however much the stem allowed.
-
-The model and the clock are separate arguments, so any model on the menu composes with any clock. (One model covers the whole tree unless you say otherwise; a clade can be given its own, which is `Models`, below.)
-
-```python
-from zombi2.sequences.substitution_models import gtr
-
-# GTR with unequal base frequencies, under a relaxed (uncorrelated) clock
-result = sequences.simulate_sequences(my_genomes,
-    model=gtr(exchangeabilities=(1, 2, 1, 1, 2, 1), frequencies=(0.3, 0.2, 0.2, 0.3)),
-    substitution=PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3)),
-    length=500, seed=1)
-
-result.alignments          # {family: {gene copy: sequence}}, the observable data
-result.ancestral           # the same, at every node
-result.species_phylogram   # the species tree in substitutions per site
-```
 
 ## Large runs
 
@@ -464,25 +422,3 @@ zombi2 sequences seqs/ --from out/ --model lg --length 300 --seed 1
 ```
 
 Because a protein model has no parameters, passing one is an error rather than a flag that gets quietly ignored: `--model lg --kappa 2.0` stops with *"these options don't apply to --model lg: --kappa"*.
-
-## Outputs
-
-| File | What it holds |
-|---|---|
-| `alignments/fam<f>.fasta` | one row per extant gene copy: the observable data |
-| `phylograms/phylogram_fam<f>_*.nwk` | the gene tree those sequences were drawn along, in substitutions per site |
-| `clock_species_tree_complete.nwk` · `…_extant.nwk` | the species tree under the same conversion, where the clock becomes visible |
-| `genomes/genome_<lineage>.fasta` | the assembled genome of every node; nucleotide runs only |
-| `genomes/genome_initial.fasta` | the genome the run started with, which is no node's; nucleotide runs only |
-| `ancestral/sequences_ancestral_fam<f>.fasta` | the sequence at every node that is not an extant tip |
-| `sequences_founding.fasta` | one record per family: the sequence it originated with, before its stem |
-
-On a **nucleotide** run the number in those filenames is a root block index rather than a gene family
-id, and the files say so: `block<n>.fasta`, `phylogram_block<n>_*.nwk` and
-`sequences_ancestral_block<n>.fasta` in place of `fam<f>`.
-
-Everything but the last two is written by default. `--write` names the whole set rather than adding to
-it, so list the defaults alongside the extra: `--write alignments phylograms species_phylogram summary
-genomes initial_genome ancestral` writes the usual outputs and the ancestral sequences too, which is
-what you need to score an ancestral-reconstruction method against the truth. `founding` is asked for
-the same way. Appendix B gives the columns and the formats.

@@ -16,9 +16,9 @@ Chapter 2 named the three, and this chapter takes them one at a time. The **driv
 
 ### Across levels, and within one
 
-![What can condition what. Rows drive, columns are driven, and the eleven numbered pairs are the models. The five shaded cells are the pairs that are not: three would need two genomes for one lineage, and two are a sequence driving a genome, which would condition a run on its own output. The three boxed cells are on the diagonal — a level conditioning itself.](figures/conditioning_map_print.png){width=95%}
+![What can condition what. Rows drive, columns are driven. The five shaded cells are the pairs that are not: three would need two genomes for one lineage, and two are a sequence driving a genome, which would condition a run on its own output. The three boxed cells are on the diagonal — a level conditioning itself.](figures/conditioning_map_print.png){width=95%}
 
-Not everything can act as a driver and not everything can be a target. A sequence cannot control the gene it grows inside, by construction — although it can control a different one, if the two are simulated in order. The map has every pair that is a model, and the eleven are these:
+Not everything can act as a driver and not everything can be a target. A sequence cannot control the gene it grows inside, by construction — although it can control a different one, if the two are simulated in order. 
 
 | | Driver | Target | What it says |
 |---|---|---|---|
@@ -49,7 +49,7 @@ A driver is the input to the function that controls the target. The easiest one 
 | a sequence's composition | a number, 0 to 1 | `seqs.gc()`, or `seqs.composition("KR")` for any letters of the alphabet |
 | a clade | one of the named groups | `Clade({"fast": ["n12", "n27"]})` — a fact about the tree, so nothing is grown first |
 
-A driver is read wherever it changes, not once per branch: a lineage that switches habitat halfway down one loses genes at one rate before the switch and another after it. Only a trait and a clade have a written form, a path and a literal, so every other driver here is Python only.
+A driver is read wherever it changes, not once per branch: a lineage that switches habitat halfway down one loses genes at one rate before the switch and another after it. 
 
 ## The target
 
@@ -65,8 +65,6 @@ A target is the parameter the connection is written on — what would otherwise 
 | `rate` (continuous), `switch` (discrete) | how often | traits |
 | every event's extent | how much | genomes, ordered and nucleotide — Python only |
 | `transfer_to` | which one | genomes, every resolution |
-
-Only the first kind is a rate. An **extent** says how much an event takes, in genes at the ordered resolution and base pairs at the nucleotide one; driven together with its rate, the two multiply. **`transfer_to`** is the odd one: its number is not a multiplier but a weight, read on every candidate lineage and drawn from in proportion, so a weight of 0 means the lineage cannot receive at all.
 
 ## The connection
 

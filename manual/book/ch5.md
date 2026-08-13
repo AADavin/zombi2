@@ -131,7 +131,7 @@ g = genomes.simulate_genomes_ordered(
     transfer_to=genomes.Clades({"A": ["n27", "n28"], "B": ["n21", "n26"]}, flows))
 ```
 
-Every transferred block now crosses between the two named clades and never lands inside either. The numbers are weights, normalised over the lineages alive when a transfer fires, so they redistribute transfers without changing how many happen. A weight of 0 means "cannot receive", so a transfer whose every candidate weighs 0 does not fire at all, leaving the donor exactly as it was.
+Every transferred block now crosses between the two named clades and never lands inside either. The numbers are weights, normalised over the lineages alive when a transfer occurs, so they redistribute transfers without changing how many happen. A weight of 0 means "cannot receive", so a transfer whose every candidate weighs 0 does not happen at all, leaving the donor exactly as it was.
 
 One thing to watch when you combine a restrictive rule with a tight `max_family_size`: the two thin transfers independently. A block is refused when it would take any family it carries past the cap, and refused again when the kernel forbids the pair, so the realised amount of transfer can sit well below the rate you declared. Raise the cap while you are measuring the weights.
 
@@ -139,7 +139,7 @@ One thing to watch when you combine a restrictive rule with a tight `max_family_
 
 Every rate here also takes `scaled_by`, so a habitat can decide how often a lineage rearranges its gene order, and every extent takes it too, so the same habitat can decide how long the rearranged runs are. The mechanism is Chapter 9's and is not repeated here.
 
-What belongs here is why the per-family knob above and a trait driver sit apart. A trait driver attaches to the **lineage**: at any instant it is one factor for that lineage's whole genome, so it composes with any extent unchanged and the run is drawn exactly as it would be without it. `varying_among('families', ...)` attaches to the **contents**, so it has to weight the run by what the run covers. The two therefore cannot be set on the **rates** of one run yet: combining them there means weighting by the product of a lineage factor and a segment factor, which is neither model on its own. A driven extent, or a driven `transfer_to`, is a different axis and runs alongside a per-family draw unchanged.
+What belongs here is why the per-family draw above and a trait driver sit apart. A trait driver attaches to the **lineage**: at any instant it is one factor for that lineage's whole genome, so it composes with any extent unchanged and the run is drawn exactly as it would be without it. `varying_among('families', ...)` attaches to the **contents**, so it has to weight the run by what the run covers. The two therefore cannot be set on the **rates** of one run yet: combining them there means weighting by the product of a lineage factor and a segment factor, which is neither model on its own. A driven extent, or a driven `transfer_to`, is a different axis and runs alongside a per-family draw unchanged.
 
 ## Rearrangements: inversion, transposition, translocation
 
@@ -150,15 +150,6 @@ Three more events reshape the order without creating or destroying genes:
 - **Translocation.** Move a segment to a **different chromosome** of the same genome. A no-op if the genome has only one chromosome.
 
 A moved segment, transposed or translocated, lands **inverted** with probability `inversion_probability` (default `0`, so it keeps its orientation).
-
-```python
-tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=0)
-g = genomes.simulate_genomes_ordered(
-    tree, duplication=0.15, loss=0.15, origination=0.1,
-    inversion=0.3, transposition=0.25, translocation=0.2,
-    transposition_extent=Geometric(mean=2), inversion_probability=0.5,
-    chromosomes=2, initial_families=6, seed=0)
-```
 
 ## The `OrderedGenomesResult` object
 
@@ -176,14 +167,14 @@ g = genomes.simulate_genomes_ordered(
 with the methods `.family_counts(node_id)` (the multiset view), `.gene_order(node_id)` (the layout: `(chromosome, position, strand, family, gene id)` per gene), and `.write(dir, outputs=[...])`.
 
 ```python
-g.genomes["n2"]                  # the chromosomes of the extant tip n2
+g.genomes["n27"]                 # the chromosomes of the extant tip n27
 g.node_genomes[2]                # any node, extant or not, by id
 g.gene_order(2)                  # its layout, gene by gene
 g.chromosome_events              # the chromosome network, as an edge list
 g.gene_trees[0].to_newick()      # a family's gene tree, as at the family resolution
 ```
 
-Every knob in this chapter is an argument of the one call, so a rate and its extent can each read the same trait, on separate axes:
+Every parameter in this chapter is an argument of the one call, so a rate and its extent can each read the same trait, on separate axes:
 
 ```python
 from zombi2 import species, genomes, traits
@@ -220,21 +211,3 @@ zombi2 genomes out/ --resolution ordered \
     --origination 0.5 --transposition 0.2 --translocation 0.1 \
     --inversion-probability 0.5 --chromosomes 2 --seed 1
 ```
-
-## Outputs
-
-| File | What it holds |
-|---|---|
-| `genome_events.tsv` | the gene genealogy: every event with its time, and where it happened |
-| `rearrangement_events.tsv` | the inversions, transpositions and translocations, in time order |
-| `profiles.tsv` | family × extant-species copy counts |
-| `gene_order.tsv` | every node's layout, one row per gene |
-| `initial_genome.tsv` | the genome the run started with |
-| `chromosome_events.tsv` | the chromosome network, one row per edge: `time · kind · parents · children` (no lineage column: each `n<species>_c<id>` token already names its branch) |
-| `genome_summary.json` | what the run produced: events counted as biology, families born, surviving and died out, genes and chromosomes per genome, and the rearrangements and chromosome events by kind |
-| `gene_trees/` | one Newick per family, complete and extant |
-| `species_complete.nwk` | the species tree the run evolved along, so the run stands alone; every other file is indexed by its node labels. Written by `result.write()`, not by an ordinary `zombi2 genomes`, which leaves the copy under `species/` to serve |
-
-`.write(dir, outputs=[...])` picks which of these go to disk, by the tokens `events`, `profiles`,
-`gene_order`, `initial_genome`, `chromosome_events`, `gene_trees`, `species_tree` and `summary`. Appendix B gives the columns and
-the formats.

@@ -2,26 +2,12 @@
 
 At the **nucleotide** resolution a chromosome is a **coordinate axis of DNA** rather than a list of gene tokens, and events have an extension measured in base pairs: an inversion reverses 600 bp, a loss deletes 900 bp, a duplication copies 2 kb in tandem. Genes still exist and still get gene trees, but they are stretches of that axis with a start and an end, and the DNA between them is simulated too.
 
-```python
-from zombi2 import species, genomes
-
-tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=56)
-g = genomes.simulate_genomes_nucleotide(
-    tree, root_length=3000, genes=3, gene_length=400,
-    inversion=1.0, inversion_extent=600,
-    duplication=0.3, duplication_extent=300, loss=0.3, loss_extent=300, seed=56)
-```
-
-This starts the run from a 3000 bp circular chromosome carrying three 400 bp genes, evenly spaced, and evolves it down the tree.
-
 ## Genes and intergenes
 
 A genome here is DNA, and its DNA is of two kinds:
 
 - a **gene** is *declared* and *indivisible*: one family, one id, never cut in two. It carries a gene tree.
 - an **intergene** is the spacer between genes. Nothing protects it, so events cut it wherever they land.
-
-A genome is an alternating chain of intergenes and genes, and either extreme is legal. Declare no genes and the chromosome is one big intergene, the uniform-sequence model. Fill the replicon with genes and there is no spacer at all; that evolves too, because events break at the joins *between* genes (see *Genes are never split*, below).
 
 ## Extents
 
@@ -36,7 +22,7 @@ There is one important consequence: **the realised extent is not always the exte
 
 A 500 bp event has nowhere to go but inside a spacer, so it comes out at 59 bp. Long events land near what you asked for, because they can span whole genes.
 
-**The correction can also run the other way.** When no legal end lies within reach of the extent you asked for, the arc snaps out to the nearest legal breakpoint, which is **longer** than the extent you set. Ask for a 5 bp inversion on a genome that is all gene — ten 100 bp genes in 1000 bp — and every event comes out at 100 bp, because the gene joins are the only places a breakpoint may fall. When the genome cannot give what you asked at all, the arc is capped by the replicon and comes out shorter. Either way the event still fires: an extent is a request, and the genome answers it.
+**The correction can also run the other way.** When no legal end lies within reach of the extent you asked for, the arc snaps out to the nearest legal breakpoint, which is **longer** than the extent you set. Ask for a 5 bp inversion on a genome that is all gene — ten 100 bp genes in 1000 bp — and every event comes out at 100 bp, because the gene joins are the only places a breakpoint may fall. When the genome cannot give what you asked at all, the arc is capped by the replicon and comes out shorter. Either way the event still happens: an extent is a request, and the genome answers it.
 
 The one case that yields no event is degenerate: a replicon with no legal end within reach at all, such as one under 2 bp, where the event is skipped rather than forced.
 
@@ -57,6 +43,15 @@ Rates here are written the same way as everywhere else — a scope with verbs ch
 So does **conditioning**. Every rate here takes a `scaled_by`, so a trait can drive how much DNA a lineage sheds, which is genome reduction as it is usually meant, and can drive the rearrangements too:
 
 ```python
+from zombi2 import species, genomes
+
+tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=56)
+g = genomes.simulate_genomes_nucleotide(
+    tree, root_length=3000, genes=3, gene_length=400,
+    inversion=1.0, inversion_extent=600, seed=56)
+```
+
+```python
 from zombi2 import traits
 from zombi2.params import Extent, PerLineage
 
@@ -73,11 +68,11 @@ loss_extent = Extent(150).scaled_by(habitat, {"host": 6.0,  "free": 1.0})      #
 
 The first raises how often a host-restricted lineage deletes, the second how much each deletion takes. Set both and they multiply: the DNA shed per unit time goes up by the product, not the sum.
 
-A modifier on an *extent* is read when an event fires, so unlike the same modifier on a rate it adds no step to the run's clock. Chapter 9 covers what a driver is and how to grow one; anything the level does not accept raises rather than being quietly ignored.
+A modifier on an *extent* is read when an event occurs, so unlike the same modifier on a rate it adds no step to the run's clock. Chapter 9 covers what a driver is and how to grow one; anything the level does not accept raises rather than being quietly ignored.
 
 ## Who receives a transfer
 
-`transfer_to` is Chapter 4's recipient rule, and it works here unchanged: `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or `Recipients().weighted_by(...)` read off a trait. It is not a rate: the numbers are weights normalised over the lineages alive when a transfer fires, so it says who receives and never how much transfer happens.
+`transfer_to` is Chapter 4's recipient rule, and it works here unchanged: `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or `Recipients().weighted_by(...)` read off a trait. It is not a rate: the numbers are weights normalised over the lineages alive when a transfer occurs, so it says who receives and never how much transfer happens.
 
 ```python
 tree6 = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=6)
@@ -214,22 +209,3 @@ zombi2 genomes out/ --resolution nucleotide \
 ```
 
 Every event kind has its own `--<event>-extent`, the mean of a geometric draw in base pairs: `--inversion-extent`, `--loss-extent`, `--duplication-extent`, `--transfer-extent`, `--transposition-extent`, `--translocation-extent`, `--origination-extent`.
-
-## Outputs
-
-| File | What it holds |
-|---|---|
-| `genome_events.tsv` | the gene genealogy, in the format every resolution writes |
-| `block_events.tsv` | this resolution's own log: the copy lineages over ancestral intervals |
-| `rearrangement_events.tsv` | the inversions, transpositions and translocations, in time order |
-| `blocks.tsv` | every node's genome as its block mosaic |
-| `genes.tsv` | where each declared gene sits in initial coordinates, and on which strand |
-| `initial_genome.tsv` | the genome the run started with |
-| `initial_sequence.fasta` | the initial DNA, when a `--fasta` supplied it |
-| `chromosome_events.tsv` | the chromosome network, one row per edge |
-| `gene_trees/` | one Newick per family, complete and extant |
-| `gff/`, `bed/` | `genome_<lineage>.gff` (the genes) and `genome_<lineage>.bed` (the blocks), one file per node |
-| `genome_summary.json` | what the run produced: events counted as biology, declared genes, and base pairs and chromosomes per genome |
-| `species_complete.nwk` | the species tree the run evolved along, so the run stands alone; every other file is indexed by its node labels. Written by `result.write()`, not by an ordinary `zombi2 genomes`, which leaves the copy under `species/` to serve |
-
-Everything but the species tree is written by default. Appendix B gives the columns and the formats.
