@@ -11,6 +11,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Changed
 
+- The gallery's conditioning diagrams follow one standard: driver, connection and target, each
+  naming the level it belongs to, and each target naming what kind of parameter it is — a rate and
+  its scope, an extent, or a choice. Chapter 9's opening figure is now generated from the same code
+  rather than hand-drawn, so the book and the gallery cannot drift apart. (#351)
+
+### Changed
+
 - **BREAKING:** `genome_summary.json` calls its gene count `genes` rather than `declared_genes`, and
   it always counted every gene the run holds — those declared at the start and the de-novo ones
   `origination` added — so a run declaring five could report seven under the old name. (#348)

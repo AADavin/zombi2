@@ -120,11 +120,15 @@ def driven_trait(out):
      + ph.trees.color_history({lab[i]: segs for i, segs in hab.history.items()},
                               palette=_HABITAT)
      + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(tree_png)
-    diag = h.conditioning_png(out.replace(".png", "_diag.png"), driver="habitat",
-        states=["stable", "fluctuating"],
-        switch={"stable->fluctuating": _SWITCH, "fluctuating->stable": _SWITCH},
-        mapping={"fluctuating": _FACTOR, "stable": 1}, target="body size", target_base=_BASE,
-        target_sub="variance-rate", state_colors=_HABITAT)
+    diag = h.conditioning_png(
+        out.replace(".png", "_diag.png"),
+        driver=("traits", "habitat", "two states"),
+        connection=("scaled_by", "table"),
+        target_level="traits",
+        targets=[("body size", "rate · per lineage", f"fluctuating × {_FACTOR:g}    stable × 1")],
+        chain=(("stable", "fluctuating"),
+               [(f"{_SWITCH:g}", f"{_SWITCH:g}")],
+               (_HABITAT["stable"], _HABITAT["fluctuating"])))
     h.composite_under_diagram(out, diag, [(tree_png, "habitat", _HABITAT)])
 
 
