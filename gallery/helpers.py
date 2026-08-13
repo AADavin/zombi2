@@ -540,6 +540,23 @@ def ordered_run() -> str:
     return _stamp(run)
 
 
+def karyotype_run() -> str:
+    """A cached run for the karyotype figure: seven survivors, circular chromosomes, and enough
+    fission and fusion that no two tips end with the same karyotype.
+
+    ``--initial-families`` is high on purpose. A karyotype ring is only legible when a chromosome
+    holds tens of genes: at a dozen families spread over several chromosomes each gene takes a third
+    of its ring, and the picture is a handful of enormous wedges rather than a genome."""
+    run = os.path.join(_DATA, "karyotype")
+    if _stale(run):
+        _zombi("species", run, "--birth", 1.0, "--death", 0.0, "--n-extant", 7, "--seed", 3)
+        _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 150,
+               "--chromosomes", 2, "--topology", "circular",
+               "--duplication", 0.05, "--loss", 0.05,
+               "--fission", 0.35, "--fusion", 0.35, "--seed", 3)
+    return _stamp(run)
+
+
 def synteny_tree_run() -> str:
     """A cached 30-tip run for the whole-clade synteny figure.
 
