@@ -46,6 +46,14 @@ Rules for keeping this honest:
   A genome with no spacer at all evolves under indels rather than standing still. (#TBD)
 ```
 
+```markdown
+- An indel extent may take **any distribution**, where a segmental one must still be geometric:
+  `deletion_extent=Fixed(1)` gives single-nucleotide indels, and a `scipy.stats.zipf` extent gives
+  the power-law length distribution indels actually have. The segmental events sample an arc's far
+  end out of the genome's legal breakpoints and so are parameterised by a mean; an indel may cut
+  anywhere, so it draws its size outright and the shape survives. (#TBD)
+```
+
 Still to write, as the remaining slices land: whatever the indel log is written to, the sequence
 level's gapped alignments, and the CLI flags.
 

@@ -1896,20 +1896,25 @@ def _do_loss(g, node_id, t, loss_extent, rng, events) -> int:
     return -sum(end - beg for (_cp, _src, beg, end) in lost)
 
 
-def _do_deletion(g, node_id, t, deletion_extent, rng, deletions) -> int:
-    """Delete a geometric-length arc of a length-weighted chromosome as an **indel**: the same removal
-    `_do_loss()` makes, attributed differently. Its breakpoints are indel-made, so the root partition
-    ignores them; no copy lineage ends, so it is recorded in ``deletions`` rather than in the
-    genealogy ``events``. Returns the length removed as a **negative** delta (0 on a no-op)."""
+def _do_deletion(g, node_id, t, length, rng, deletions) -> int:
+    """Delete an arc of ``length`` bp from a length-weighted chromosome as an **indel**: the same
+    removal `_do_loss()` makes, attributed differently. Its breakpoints are indel-made, so the root
+    partition ignores them; no copy lineage ends, so it is recorded in ``deletions`` rather than in
+    the genealogy ``events``. Returns the length removed as a **negative** delta (0 on a no-op).
+
+    The size arrives already drawn, and this does **not** go through
+    `Chromosome._pick_arc_extent()` the way a loss does. That function exists to pick a far end out
+    of the legal cut set; an indel may cut anywhere, so there is no restriction left for it to
+    honour, and drawing the size outright is both simpler and faithful to whatever shape was asked
+    for — a `Fixed` extent then really does remove that many bases. Clamped so a deletion never
+    empties a chromosome, which is `_pick_arc_extent()`'s own limit kept."""
     spot = g._pick_legal_cut(rng, indel=True)
     if spot is None:
         return 0
     chrom, start = spot
     if chrom.length < 2:
         return 0
-    ell = chrom._pick_arc_extent(start, deletion_extent, rng, indel=True)
-    if ell is None:
-        return 0
+    ell = max(1, min(length, chrom.length - 1))
     gone = chrom.delete(start, ell, indel=True)
     if gone is None:
         return 0
@@ -1917,8 +1922,8 @@ def _do_deletion(g, node_id, t, deletion_extent, rng, deletions) -> int:
     return -sum(end - beg for (_cp, _src, beg, end) in gone)
 
 
-def _do_insertion(g, node_id, t, insertion_extent, rng, events, new_source, new_copy) -> int:
-    """Insert a geometric-length run of **novel spacer** at a legal position of a length-weighted
+def _do_insertion(g, node_id, t, length, rng, events, new_source, new_copy) -> int:
+    """Insert a run of ``length`` bp of **novel spacer** at a legal position of a length-weighted
     chromosome — the indel twin of `_do_deletion()`, and `_do_origination()` without the gene.
 
     The material is a fresh source under a fresh copy lineage, because novel DNA descends from
@@ -1929,7 +1934,6 @@ def _do_insertion(g, node_id, t, insertion_extent, rng, events, new_source, new_
     if spot is None:
         return 0
     chrom, at = spot
-    length = max(1, int(rng.geometric(1.0 / insertion_extent)))
     src, cp = new_source(), new_copy()
     chrom.originate(at, length, src, cp, 0, indel=True)      # family 0: spacer, not a gene
     events.append(Origination(t, node_id, chrom.id, cp, src, 0, length, kind="insertion"))
@@ -2309,20 +2313,26 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                     f"{label} carries {describe(m)}, which the nucleotide genome engine does not "
                     f"support. It takes {', '.join(cell_name(w) for w in IMPLEMENTED_MODIFIERS)}.")
         _rates[label] = r
-    def _as_bp_extent(spec, label):
+    def _as_bp_extent(spec, label, any_base=False):
         """An extent in base pairs (SPEC §6): ``base × modifiers``, no scope. A bare number *is* the
         mean, so ``500`` reads the same here as anywhere else.
 
-        The base must be `Geometric` — this engine draws each arc's
-        far end **directly from the genome's legal breakpoints** rather than drawing a size and
-        clamping it, so an arbitrary shape would have to be re-weighted over that set instead of
-        sampled. Refusing beats quietly approximating. The modifiers are the ones this resolution
+        The base must be `Geometric` for a **segmental** event — that engine draws each arc's far
+        end **directly from the genome's legal breakpoints** rather than drawing a size and clamping
+        it, so an arbitrary shape would have to be re-weighted over that set instead of sampled.
+        Refusing beats quietly approximating: the extent reaches the mutator as a *mean*, so a shape
+        it cannot express would be accepted and then silently sampled as a geometric anyway.
+
+        An **indel** takes any shape (``any_base``), because its cut set is unrestricted — every
+        position is legal for one — so there is nothing left to re-weight against and its size can be
+        drawn outright. That is what makes ``Fixed(1)`` mean one nucleotide rather than a geometric of
+        mean one, and what puts a power law, the shape indel lengths actually take, within reach. The modifiers are the ones this resolution
         supports on a rate, and they scale the mean: an extent's modifier is read when an event fires,
         so it changes how much that event takes without touching any rate."""
         if isinstance(spec, (int, float)) and not isinstance(spec, bool) and spec < 1:
             raise ValueError(f"{label} must be >= 1 bp, got {spec}")
         e = as_extent(spec)
-        if not isinstance(e.base, Geometric):
+        if not any_base and not isinstance(e.base, Geometric):
             raise ValueError(
                 f"{label} has a {type(e.base).__name__} base, but the nucleotide engine takes a "
                 f"geometric extent only — it draws each arc's far end directly from the legal "
@@ -2342,8 +2352,8 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     translocation_extent = _as_bp_extent(translocation_extent, "translocation_extent")
     transposition_extent = _as_bp_extent(transposition_extent, "transposition_extent")
     loss_extent = _as_bp_extent(loss_extent, "loss_extent")
-    deletion_extent = _as_bp_extent(deletion_extent, "deletion_extent")
-    insertion_extent = _as_bp_extent(insertion_extent, "insertion_extent")
+    deletion_extent = _as_bp_extent(deletion_extent, "deletion_extent", any_base=True)
+    insertion_extent = _as_bp_extent(insertion_extent, "insertion_extent", any_base=True)
     duplication_extent = _as_bp_extent(duplication_extent, "duplication_extent")
     transfer_extent = _as_bp_extent(transfer_extent, "transfer_extent")
     origination_extent = _as_bp_extent(origination_extent, "origination_extent")
@@ -2590,6 +2600,19 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
             return e.mean(**{**ctx, "time": t},
                           drivers={key: resolved[key].value(alive[k], t) for key in resolved})
 
+        def _ext_draw(label, k):
+            """One **drawn** size in bp, for an indel. The segmental events are parameterised by the
+            mean (`_ext`) because they sample a far end out of the legal cut set; an indel has no
+            such restriction, so it draws its size outright and any shape works —
+            `Extent.sample()` scales the draw rather than the distribution's parameter, so the base
+            still means what it says. At least 1 bp: a zero-length indel is not an event."""
+            e = _extents[label]
+            if not e.has_modifiers:
+                return max(1, int(e.base.sample(rng)))
+            return max(1, int(e.sample(rng, **{**ctx, "time": t},
+                                       drivers={key: resolved[key].value(alive[k], t)
+                                                for key in resolved})))
+
         def _pick(label, fallback=None):
             """The affected lineage: drawn by its own effective rate where that rate is driven — the
             same weights the total was summed with — and otherwise by the rate's own undriven rule,
@@ -2632,11 +2655,11 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
                     total_length += _do_loss(gen[k], alive[k], t, _ext("loss_extent", k), rng, events)
                 elif r < b_del:
                     k = _pick("deletion")
-                    total_length += _do_deletion(gen[k], alive[k], t, _ext("deletion_extent", k),
+                    total_length += _do_deletion(gen[k], alive[k], t, _ext_draw("deletion_extent", k),
                                                  rng, deletions)
                 elif r < b_ins:
                     k = _pick("insertion")
-                    total_length += _do_insertion(gen[k], alive[k], t, _ext("insertion_extent", k),
+                    total_length += _do_insertion(gen[k], alive[k], t, _ext_draw("insertion_extent", k),
                                                   rng, events, new_source, new_copy)
                 elif r < b_dup:
                     k = _pick("duplication")

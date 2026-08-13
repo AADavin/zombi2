@@ -2453,3 +2453,55 @@ def test_a_deletion_that_takes_a_whole_block_ends_that_copy():
                         assert tips.get((i, b.copy), "missing") not in (None, "missing"), (
                             f"block {i} is carried under copy {b.copy} but its genealogy "
                             f"does not have it alive")
+
+
+# --- indels: the extent may take any shape ----------------------------------------------------------
+#
+# A segmental extent must be Geometric, because that engine samples an arc's far end out of the legal
+# cut set and reaches the mutator as a MEAN — a shape it cannot express would be accepted and then
+# silently sampled as a geometric anyway. An indel has no restriction on where it may cut, so it draws
+# its size outright and any shape works. That is what makes `Fixed(1)` mean one nucleotide.
+
+def _sizes(g):
+    """bp per deletion EVENT, not per row: one deletion spanning two blocks writes a row each."""
+    return [sum(e - b for (_c, _s, b, e) in ev.deleted) for ev in g.deletions]
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+def test_a_fixed_indel_extent_removes_and_adds_exactly_that_many_bases(n):
+    from zombi2.params.distributions import Fixed
+    g = _deletion_run(deletion=60.0, insertion=60.0, deletion_extent=Fixed(n),
+                      insertion_extent=Fixed(n), root_length=20000)
+    assert set(_sizes(g)) == {n}
+    assert {e.end - e.start for e in g.events
+            if isinstance(e, Origination) and e.kind == "insertion"} == {n}
+
+
+def test_a_geometric_indel_extent_still_spreads_around_its_mean():
+    from zombi2.params.distributions import Geometric
+    g = _deletion_run(deletion=60.0, deletion_extent=Geometric(5.0), root_length=20000)
+    sizes = _sizes(g)
+    assert 4.0 < sum(sizes) / len(sizes) < 6.5
+    assert min(sizes) == 1 and max(sizes) > 10           # a decaying spread, not a point mass
+
+
+def test_a_segmental_extent_still_refuses_a_shape_it_cannot_express():
+    from zombi2.params.distributions import Fixed
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    for label in ("loss_extent", "duplication_extent", "inversion_extent"):
+        with pytest.raises(ValueError, match="geometric extent only"):
+            simulate_genomes_nucleotide(sp, root_length=500, seed=1, **{label: Fixed(3)})
+    # ...and the indels accept it, which is the whole difference
+    simulate_genomes_nucleotide(sp, root_length=500, seed=1, deletion_extent=Fixed(3),
+                                insertion_extent=Fixed(3))
+
+
+def test_an_indel_extent_takes_a_power_law():
+    # indel lengths in real data are closer to a power law than to a geometric, and the exemption
+    # from the cut set is what makes one samplable here
+    scipy_stats = pytest.importorskip("scipy.stats")
+    g = _deletion_run(deletion=60.0, deletion_extent=scipy_stats.zipf(1.7), root_length=20000)
+    sizes = _sizes(g)
+    assert sorted(sizes)[len(sizes) // 2] <= 3           # nearly all of them tiny ...
+    assert max(sizes) > 50                               # ... with a long tail
+    assert sum(1 for x in sizes if x == 1) > len(sizes) // 4
