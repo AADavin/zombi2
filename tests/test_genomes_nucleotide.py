@@ -33,6 +33,7 @@ from zombi2.genomes.nucleotide import (
     Translocation,
     Transposition,
     _CutLog,
+    _CutsGene,
     read_nucleotide_genomes,
     _do_duplication,
     _do_loss,
@@ -1844,7 +1845,7 @@ def test_written_events_account_for_every_recorded_event(tmp_path):
     for e in r.events:
         kind = type(e).__name__.lower()
         if kind == "origination":                    # the initial genome is 'initial', not 'origination'
-            kind = "initial" if e.initial else "origination"
+            kind = e.kind
         n = {"loss": len(getattr(e, "lost", ())), "duplication": len(getattr(e, "copied", ())),
              "transfer": len(getattr(e, "transferred", ())),
              "speciation": len(getattr(e, "children", ()))}.get(kind, 1)
@@ -2311,11 +2312,11 @@ def test_an_insertion_adds_material_without_cutting_the_source_it_lands_in():
 
 def test_an_insertion_is_a_root_carrying_spacer_rather_than_a_gene():
     g = _deletion_run(insertion=80.0, insertion_extent=5.0, genes=3, gene_length=100)
-    inserts = [e for e in g.events if isinstance(e, Origination) and e.insertion]
+    inserts = [e for e in g.events if isinstance(e, Origination) and e.kind == "insertion"]
     assert inserts
     for e in inserts:
         assert e.start == 0 and e.end > 0        # a fresh source, its own coordinate space
-        assert not e.initial
+        assert e.kind == "insertion"
     # spacer: no gene family, so no gene tree — but a block tree, like any other stretch of DNA
     assert len(g.gene_trees) == 3
     assert len(g.block_trees) == len(g.root_blocks) > 3
@@ -2334,10 +2335,12 @@ def test_insertion_origination_and_the_initial_genome_are_counted_apart():
                       gene_length=100)
     s = g.summary()["block_events"]
     assert s["insertion"] > 100 and s["origination"] > 0 and s["initial"] == 1
-    assert s["insertion"] == sum(1 for e in g.events
-                                 if isinstance(e, Origination) and e.insertion)
-    assert s["origination"] == sum(1 for e in g.events if isinstance(e, Origination)
-                                   and not e.initial and not e.insertion)
+    for kind in ("insertion", "origination", "initial"):
+        assert s[kind] == sum(1 for e in g.events
+                              if isinstance(e, Origination) and e.kind == kind)
+    # the three are exclusive by construction now: one field, not a flag apiece
+    assert {e.kind for e in g.events if isinstance(e, Origination)} <= {
+        "initial", "origination", "insertion"}
 
 
 def test_an_insertion_by_hand_lays_spacer_and_makes_one_indel_breakpoint():
@@ -2375,3 +2378,78 @@ def test_assembling_a_run_with_insertions_refuses_too():
     assert g.indels == g.summary()["block_events"]["insertion"]
     with pytest.raises(NotImplementedError, match="not built yet"):
         g.assembly(g.complete_tree.root)
+
+
+# --- indels: the legal-cut exemption ---------------------------------------------------------------
+#
+# `_legal_cuts()` writes down the one rule — a breakpoint may never fall strictly inside a gene — and
+# every event draws its breakpoints from it, which is what makes a gene recover as exactly one root
+# block. An INDEL is exempt, and safely so: its breakpoints are skipped by the partition, so the gene
+# is still one never-cut interval there. Without the exemption an indel could land in spacer alone,
+# which is not where most of them happen.
+
+def test_the_cut_set_opens_a_gene_to_an_indel_and_to_nothing_else():
+    c = Chromosome(0, "linear", [Block(0, 0, 100, 1, 1, 3)])       # one gene, no spacer at all
+    assert c._legal_cuts() == [(0, 0), (100, 100)]                 # its edges, and no interior
+    assert c._legal_cuts(indel=True) == [(0, 99), (100, 100)]      # every position, for an indel
+
+
+def test_an_indel_may_cut_inside_a_gene_and_an_event_may_not():
+    log = _CutLog()
+    c = Chromosome(0, "linear", [Block(0, 0, 100, 1, 7, 3)], log)
+    with pytest.raises(_CutsGene):
+        c._split_at(40)                                            # an ordinary event: refused
+    assert c.blocks == [Block(0, 0, 100, 1, 7, 3)]                 # and nothing was mutated
+    c._split_at(40, indel=True)
+    assert [(b.start, b.end, b.gene) for b in c.blocks] == [(0, 40, 3), (40, 100, 3)]
+    assert log.indel == {0: {40}}
+
+
+def test_a_gene_cut_by_an_indel_still_counts_as_one_gene():
+    # the guard that keeps a chromosome from losing its last gene counts genes, and an indel can now
+    # leave one gene as two blocks — counted by block it would read as two and let the last one go
+    c = Chromosome(0, "linear", [Block(0, 0, 100, 1, 7, 3)])
+    assert c.n_genes == 1
+    c._split_at(40, indel=True)
+    assert len(c.blocks) == 2 and c.n_genes == 1
+
+
+def test_a_fully_genic_genome_still_takes_indels_and_recovers_every_gene():
+    # ten 200 bp genes in 2000 bp: no spacer anywhere, so before the exemption an indel had nowhere
+    # to go. Every gene must still come back as exactly one root block with one tree.
+    g = _deletion_run(deletion=60.0, insertion=60.0, insertion_extent=5.0,
+                      genes=10, gene_length=200)
+    s = g.summary()
+    assert s["deletions"] > 100 and s["block_events"]["insertion"] > 100
+    assert len(g.gene_spans) == 10 and len(g.gene_trees) == 10
+    for fam, span in g.gene_spans.items():
+        assert g.root_blocks[g.block_of(fam)] == span
+    # and the cuts really did fall inside genes, or this proves nothing
+    split = sum(1 for genome in g.node_genomes.values() for chrom in genome.chromosomes
+                for (gene, copy), n in collections.Counter(
+                    (b.gene, b.copy) for b in chrom.blocks if b.is_gene).items() if n > 1)
+    assert split > 10, "no gene was ever cut inside, so the exemption went untested"
+
+
+def test_a_deletion_that_takes_a_whole_block_ends_that_copy():
+    # a deletion ends no copy lineage — unless it takes a whole block, and then the copy carries
+    # nothing of it and the tree has to say so. `covers`, not `overlaps`, is the difference.
+    # many small blocks against a wide extent, so whole ones really do go — and insertion on, or the
+    # genome shrinks until `delete` starts refusing and the case never arises
+    g = _deletion_run(deletion=80.0, deletion_extent=100.0, insertion=60.0, insertion_extent=30.0,
+                      genes=20, gene_length=40, root_length=3000)
+    assert g.summary()["deletions"] > 100
+    whole = sum(1 for e in g.deletions for (_cp, src, x, y) in e.deleted
+                for (s2, a, b) in g.root_blocks if s2 == src and x <= a and b <= y)
+    assert whole > 5, "no deletion took a whole block, so the `covers` path went untested"
+    # every copy a genome still carries must have a live tip in the recovery, or assembly's own
+    # guard would be the thing that caught it
+    tips = g._recover_blocks()[2]
+    for genome in g.node_genomes.values():
+        for chrom in genome.chromosomes:
+            for b in chrom.blocks:
+                for i, (src, x, y) in enumerate(g.root_blocks):
+                    if src == b.source and b.start <= x and y <= b.end:
+                        assert tips.get((i, b.copy), "missing") not in (None, "missing"), (
+                            f"block {i} is carried under copy {b.copy} but its genealogy "
+                            f"does not have it alive")

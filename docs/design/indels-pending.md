@@ -39,9 +39,15 @@ Rules for keeping this honest:
   and a run that used it can be neither assembled nor read back from files. (#TBD)
 ```
 
-Still to write, as the remaining slices land: the legal-cut exemption (an indel may fall inside a
-gene), whatever the indel log is written to, the sequence level's gapped alignments, and the CLI
-flags.
+```markdown
+- An indel may now fall **inside a gene**, where before it could only land in spacer: a breakpoint may
+  never cut a gene, but an indel's breakpoint never reaches the root partition, so the gene still
+  recovers as exactly one block with one tree and only how much of it a lineage carries has changed.
+  A genome with no spacer at all evolves under indels rather than standing still. (#TBD)
+```
+
+Still to write, as the remaining slices land: whatever the indel log is written to, the sequence
+level's gapped alignments, and the CLI flags.
 
 ---
 
