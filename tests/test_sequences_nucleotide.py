@@ -95,7 +95,7 @@ def test_a_genes_own_sequence_is_in_the_genome_it_sits_in():
     for leaf in (genomes.complete_tree.nodes[_i] for _i in genomes.complete_tree.extant_leaves()):
         genome = r.node_genomes[node_label(leaf.id)]
         for cid, pieces in genomes.assembly(leaf.id).items():
-            for (block, gene, _strand) in pieces:
+            for (block, gene, _strand, _lo, _hi) in pieces:
                 if block not in genic:
                     continue
                 seq = r.alignments[block][copy_label(leaf.id, gene)]
@@ -552,3 +552,48 @@ def test_the_spacer_keeps_its_own_model_when_the_genes_get_rate_variation():
     for i, (_src, a, b) in enumerate(genomes.root_blocks):
         assert len(result.founding[i]) == b - a             # every block still its own length in bp
     assert result.node_genomes and all(chroms for chroms in result.node_genomes.values())
+
+
+def test_an_indel_genome_assembles_to_exactly_the_length_the_genome_level_says():
+    """The join the whole indel design exists for: a lineage carries only PART of a root block, so
+    every piece carries the sub-range it holds and the sequence level slices rather than concatenates
+    whole blocks. If that is off by a base anywhere, a chromosome comes out the wrong length."""
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=4)
+    g = simulate_genomes_nucleotide(
+        sp, deletion=40.0, insertion=40.0, deletion_extent=5.0, insertion_extent=5.0,
+        inversion=3.0, inversion_extent=80, loss=0.4, loss_extent=40, duplication=0.4,
+        duplication_extent=40, transfer=0.6, transfer_extent=60, origination=0.3,
+        genes=3, gene_length=90, root_length=600, seed=4)
+    assert g.indels > 500, "no indels fired, so this proves nothing"
+    r = simulate_sequences(g, model=hky85(2.0), substitution=0.4, seed=4)
+    labels = g.complete_tree.labels()
+    for nid, genome in g.node_genomes.items():           # every node, ancestors and extinct included
+        assembled = r.node_genomes[labels[nid]]
+        for chrom in genome.chromosomes:
+            assert len(assembled[chrom.id]) == chrom.length
+    assert sum(len(s) for s in r.initial_genome.values()) == g.initial_genome.length
+
+
+def test_an_indel_genome_reads_base_for_base_as_its_ancestry_says():
+    """Stronger than the lengths: every base of every assembled genome must be the base its own
+    block's alignment holds at the position the ancestry points to. Get the sub-range or the strand
+    wrong and the genome is still a genome — this is what catches that."""
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=2)
+    g = simulate_genomes_nucleotide(sp, deletion=30.0, insertion=30.0, deletion_extent=5.0,
+                                    insertion_extent=5.0, inversion=2.0, inversion_extent=60,
+                                    root_length=400, genes=2, gene_length=60, seed=2)
+    assert g.indels > 100
+    r = simulate_sequences(g, model=jc69(), substitution=0.3, seed=2)
+    labels = g.complete_tree.labels()
+    checked = 0
+    for nid in g.node_genomes:
+        label = labels[nid]
+        src = r.alignments if label in r.extant_tips else r.ancestral
+        for cid, pieces in g.assembly(nid).items():
+            rebuilt = []
+            for (block, gene, strand, lo, hi) in pieces:
+                seq = src[block][copy_label(nid, gene)][lo:hi]
+                rebuilt.append(seq if strand == 1 else seq.translate(COMPLEMENT)[::-1])
+            assert "".join(rebuilt) == r.node_genomes[label][cid]
+            checked += 1
+    assert checked > 5

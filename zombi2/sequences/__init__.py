@@ -374,10 +374,12 @@ class _AssembledGenomes(Mapping):
         chroms: dict[int, str] = {}
         for cid, pieces in pieces_by_cid.items():
             parts = []
-            for (block, gene, strand) in pieces:
+            for (block, gene, strand, lo, hi) in pieces:
                 # the copy a node carries is a copy *of that node*, so its record is named for this
-                # label — which is already `n<id>`, the first half of the record name
-                seq = src[block][f"{label}_{gene_label(gene)}"]
+                # label — which is already `n<id>`, the first half of the record name.
+                # `[lo, hi)` is the part of the block this node actually carries: the whole of it
+                # unless an indel took a stretch out of the middle or opened a gap inside it.
+                seq = src[block][f"{label}_{gene_label(gene)}"][lo:hi]
                 parts.append(seq if strand == 1 else seq.translate(_COMPLEMENT)[::-1])
             chroms[cid] = "".join(parts)
         return chroms
@@ -1435,8 +1437,9 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         # so it is in neither map above; the same reason `founding` is not in `ancestral`.
         for cid, pieces in genomes.initial_assembly().items():
             initial_genome[cid] = "".join(
-                founding[block] if strand == 1 else founding[block].translate(_COMPLEMENT)[::-1]
-                for (block, strand) in pieces)
+                piece if strand == 1 else piece.translate(_COMPLEMENT)[::-1]
+                for (block, strand, lo, hi) in pieces
+                for piece in (founding[block][lo:hi],))
 
     if sink is not None:
         sink.finish(species_phylogram)

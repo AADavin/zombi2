@@ -275,16 +275,23 @@ class Chromosome:
         is a **gene**, which is indivisible, in which case `_CutsGene` is raised (and nothing is
         mutated) so the event redraws.
 
-        A split that really happens is recorded in the run's `_CutLog` under ``indel`` or not, at the
-        **ancestral** position it fell on — which is ``start + o`` on a forward block and ``end - o``
-        on a reversed one, since a reversed block's first physical positions are its source's high
-        end. Landing on a boundary that already exists records nothing: no breakpoint was made, so
-        there is nothing to attribute."""
-        if c <= 0:
+        The boundary is recorded in the run's `_CutLog` under ``indel`` or not, at the **ancestral**
+        position it falls on — which is ``start + o`` on a forward block and ``end - o`` on a reversed
+        one, since a reversed block's first physical positions are its source's high end.
+
+        Landing on a boundary that **already exists** records it too, which matters more than it
+        looks. A boundary is skippable only while every event that ever used it was an indel: let an
+        ordinary event start its arc exactly where an indel once cut, record nothing because no new
+        split was made, and that position stays indel-attributed — the partition skips it, the root
+        block spans across it, and the event turns out to cover only part of a block it should have
+        covered whole. What is attributed here is *use*, not creation."""
+        if c < 0:
             return
         pos = 0
         for i, b in enumerate(self.blocks):
             if pos == c:
+                if self.cuts is not None:                   # an existing boundary, used by this event
+                    self.cuts.record(b.source, b.start if b.strand == 1 else b.end, indel)
                 return
             if pos < c < pos + b.length:
                 if b.is_gene and not indel:
@@ -295,6 +302,9 @@ class Chromosome:
                 self.blocks[i:i + 1] = _split_block(b, o)
                 return
             pos += b.length
+        if pos == c and self.blocks and self.cuts is not None:   # the far end of a linear chromosome
+            b = self.blocks[-1]
+            self.cuts.record(b.source, b.end if b.strand == 1 else b.start, indel)
 
     def _index_at(self, phys: int) -> int:
         pos = 0
@@ -976,31 +986,39 @@ class NucleotideGenomesResult:
                 "tree still carries it, so nothing was reconstructed for it. gene_trees leaves such a "
                 "family out for the same reason.") from None
 
-    def assembly(self, node_id: int) -> dict[int, list[tuple[int, int, int]]]:
+    def assembly(self, node_id: int) -> dict[int, list[tuple[int, int, int, int, int]]]:
         """How this node's genome is built out of the recovered root blocks:
-        ``{chromosome id: [(block, gene, strand), …]}`` in **physical order**, where ``block`` indexes
-        `root_blocks`, ``gene`` is the gene id that block's tree gives this node's copy (the
-        ``g<id>`` label in `block_trees`), and ``strand`` is ``+1`` read forward or ``-1``
-        reverse-complemented.
+        ``{chromosome id: [(block, gene, strand, lo, hi), …]}`` in **physical order**, where ``block``
+        indexes `root_blocks`, ``gene`` is the gene id that block's tree gives this node's copy (the
+        ``g<id>`` label in `block_trees`), ``strand`` is ``+1`` read forward or ``-1``
+        reverse-complemented, and ``[lo, hi)`` is the **half-open sub-range of that block** this node
+        carries, offset from the block's own start.
 
-        To reconstruct a genome: pair each piece with its block's evolved sequence, flip the
+        The sub-range is what an indel makes necessary and is the whole of the presence bookkeeping:
+        a deletion leaves a lineage holding a block minus a stretch of its middle, and an insertion
+        opens a gap inside one, so a piece is a *part* of a block rather than all of it. Without
+        indels every piece is the whole block — ``lo`` is 0 and ``hi`` its length — so the shape says
+        the same thing it always did, at one extra pair of numbers.
+
+        To reconstruct a genome: take ``[lo, hi)`` of each piece's block sequence, flip the
         ``-1``\\ s, and concatenate. The sequence level does exactly that; nothing here knows about
         letters. **Every** node works — an extinct leaf and the root as readily as a surviving tip —
         which is what makes the whole history recoverable rather than only its leaves.
         `initial_assembly()` does the same for the genome the run started with.
 
-        A piece is always a **whole** block, never part of one, because every node votes on where the
-        partition is cut (see `_root_block_partition()`): this node's own breakpoints are all in
-        it, so each of its blocks is a whole number of root blocks. What a block *is* cut into is one
-        piece per root block it spans — and on a reversed block those come out in descending
-        coordinate order, since physical order runs *down* the source."""
+        Every node votes on where the partition is cut (see `_root_block_partition()`), so a node's
+        every *event* breakpoint is in it and no piece ever straddles two blocks. What a block is cut
+        into is one piece per root block it spans — and on a reversed block those come out in
+        descending coordinate order, since physical order runs *down* the source. Only an indel
+        breakpoint, deliberately absent from the partition, makes a piece narrower than the block it
+        indexes."""
         tips = self._recover_blocks()[2]
         blocks = self.root_blocks
         what = node_label(node_id)
-        out = {}
+        out: dict[int, list[tuple[int, int, int, int, int]]] = {}
         for cid, pieces in self._pieces(self.node_genomes[node_id], what).items():
-            named = []
-            for (i, copy, strand) in pieces:
+            named: list[tuple[int, int, int, int, int]] = []
+            for (i, copy, strand, lo, hi) in pieces:
                 gene = tips.get((i, copy), _MISSING)
                 if gene is _MISSING or gene is None:
                     raise AssertionError(                            # a guard — see the class docstring
@@ -1008,12 +1026,12 @@ class NucleotideGenomesResult:
                         + ("genealogy has no such copy" if gene is _MISSING
                            else "genealogy ends that copy in a loss")
                         + " — the event log and the genomes disagree")
-                named.append((i, gene, strand))
+                named.append((i, gene, strand, lo, hi))
             out[cid] = named
         return out
 
-    def initial_assembly(self) -> dict[int, list[tuple[int, int]]]:
-        """`assembly()` for `initial_genome`: ``{chromosome id: [(block, strand), …]}``.
+    def initial_assembly(self) -> dict[int, list[tuple[int, int, int, int]]]:
+        """`assembly()` for `initial_genome`: ``{chromosome id: [(block, strand, lo, hi), …]}``.
 
         No gene id here, unlike `assembly()`, and that is the honest shape rather than a saving.
         The initial genome sits at the **start** of the root branch, before any event, so each of its
@@ -1022,35 +1040,34 @@ class NucleotideGenomesResult:
         here: the one `assembly()` gives is the **last** gene a copy held, and for an initial copy
         that is at the far end of the stem. A loss on the stem can even end it, which is the same
         thing said louder."""
-        return {cid: [(i, strand) for (i, _copy, strand) in pieces]
+        return {cid: [(i, strand, lo, hi) for (i, _copy, strand, lo, hi) in pieces]
                 for cid, pieces in self._pieces(self.initial_genome, "the initial genome").items()}
 
     def _pieces(self, genome: NucleotideGenome, what: str
-                ) -> dict[int, list[tuple[int, int, int]]]:
+                ) -> dict[int, list[tuple[int, int, int, int, int]]]:
         """The walk both assemblies share: ``{chromosome id: [(block, copy, strand), …]}`` in physical
         order. Cutting each of the genome's blocks at the partition, which is at least as fine."""
-        if self.indels:
-            raise NotImplementedError(
-                f"this run has {self.indels} indels, and assembling a genome from them is not built "
-                "yet. An indel leaves a lineage carrying only part of a root block — a deletion by "
-                "removing the middle of one, an insertion by opening a gap inside one — so a piece "
-                "here can no longer be a whole block: it needs the sub-range the lineage actually "
-                "holds, which changes this method's shape and the sequence level's assembly with it. "
-                "root_blocks, block_trees and gene_trees all work; assembly(), initial_assembly() "
-                "and simulate_sequences() on this run do not. See docs/design/indels.md.")
         blocks = self.root_blocks
         index = self._block_index()
-        out: dict[int, list[tuple[int, int, int]]] = {}
+        out: dict[int, list[tuple[int, int, int, int, int]]] = {}
         for chrom in genome.chromosomes:
-            pieces: list[tuple[int, int, int]] = []
+            pieces: list[tuple[int, int, int, int, int]] = []
             for b in chrom.blocks:
                 cut = []
                 starts, idx = index.get(b.source, ([], []))
-                k = bisect.bisect_left(starts, b.start)   # the partition starts a block exactly here
+                # the first root block that reaches past this block's start: `bisect_right - 1` is
+                # the one containing it, if any, and otherwise the next one along
+                k = max(0, bisect.bisect_right(starts, b.start) - 1)
                 at = b.start
-                while k < len(idx) and blocks[idx[k]][1] == at < b.end:
-                    cut.append((idx[k], b.copy, b.strand))
-                    at = blocks[idx[k]][2]
+                while k < len(idx):
+                    _src, x, y = blocks[idx[k]]
+                    if x >= b.end:
+                        break
+                    if y > at:
+                        if x > at:                                   # a hole the partition does not cover
+                            break
+                        cut.append((idx[k], b.copy, b.strand, at - x, min(y, b.end) - x))
+                        at = min(y, b.end)
                     k += 1
                 if at != b.end:
                     raise AssertionError(                            # a guard — see the class docstring
@@ -2503,6 +2520,14 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         initial_chroms.append(Chromosome(cid, top, _initial_blocks(source, length, cp, intervals, new_family,
                                                              gene_spans, gene_names,
                                                              gene_strands), cut_log))
+        # The layout's own boundaries are STRUCTURAL — a gene's two edges, and the joins between gene
+        # and spacer — so they are event-made from the start and can never be skipped. Nothing split
+        # them, so nothing would otherwise record them, and an indel landing on a gene edge would
+        # attribute it to itself: the partition would then skip it and merge that gene with its
+        # neighbour, losing it a tree. On a genome that is all gene, that is every boundary there is.
+        for b in initial_chroms[-1].blocks:
+            cut_log.record(b.source, b.start, indel=False)
+            cut_log.record(b.source, b.end, indel=False)
         # `initial`, as the copy lineage below is: a replicon the run *starts* with is not something
         # it did, so counting `origination` in either log gives the de-novo ones alone
         chromosome_events.append(ChromosomeEvent(root.birth_time, "initial", root.id, (), (cid,)))
@@ -2773,10 +2798,12 @@ def _root_block_partition(result) -> list[tuple[int, int, int]]:
     # Each source bracketed by the origination that laid it down, so its two outer bounds are in the
     # set whoever still carries them. Without this a deletion at a source's very edge takes the edge
     # bound with it, and — that bound being skippable — the source can be left with too few cuts to
-    # span an interval at all, losing the material that is still there. A split never lands on either
-    # extreme, so neither is ever skippable. For a run with no indels these bounds are already present.
+    # span an interval at all, losing the material that is still there — so they are also unioned
+    # back in below, past the skip. For a run with no indels these bounds are already present.
+    bracket: dict[int, set[int]] = collections.defaultdict(set)
     for e in result.events:
         if isinstance(e, Origination):
+            bracket[e.source].update((e.start, e.end))
             bounds[e.source].update((e.start, e.end))
     for genome in [*result.node_genomes.values(), result.initial_genome]:
         for chrom in genome.chromosomes:
@@ -2785,7 +2812,10 @@ def _root_block_partition(result) -> list[tuple[int, int, int]]:
                 spans[b.source].add((b.start, b.end))
     blocks: list[tuple[int, int, int]] = []
     for source in bounds:
-        cuts = sorted(bounds[source] - skip.get(source, set()))
+        # the bracket is unioned back rather than merely added above: an indel landing on a source's
+        # own leading edge attributes that position, and skipping it would leave the source with too
+        # few cuts to span anything at all
+        cuts = sorted((bounds[source] - skip.get(source, set())) | bracket.get(source, set()))
         covers = spans[source]
         for a, c in zip(cuts, cuts[1:]):
             if any(x < c and a < y for (x, y) in covers):     # some node still carries part of [a, c)
@@ -2793,8 +2823,42 @@ def _root_block_partition(result) -> list[tuple[int, int, int]]:
     return sorted(blocks)
 
 
+def _carried_blocks(result, blocks) -> set[tuple[int, int, int, int]]:
+    """``{(source, start, end, copy)}`` — which copy lineage still carries **any part of** which root
+    block, over every node's final genome.
+
+    This is what says whether a copy is alive on a block, and once indels exist nothing simpler will.
+    An event's arc is contiguous *physically* but an indel leaves a block in fragments, so one loss
+    can remove several disjoint stretches of a root block at once while the copy keeps the rest —
+    and only the arc's two ends become partition bounds, so the block is not split at the pieces it
+    took. Asking whether the loss `covers` the block then says no death where there was one; asking
+    whether it `overlaps` says a death where the copy is still there. Asking what is left is exact.
+
+    A copy id belongs to one branch — speciation re-mints it — so "carried by any node" is the same
+    question as "carried by the lineage this copy lives on"."""
+    index: dict[int, tuple[list[int], list[int]]] = {}
+    for i, (src, x, _y) in enumerate(blocks):
+        starts, idx = index.setdefault(src, ([], []))
+        starts.append(x)
+        idx.append(i)
+    out: set[tuple[int, int, int, int]] = set()
+    for genome in result.node_genomes.values():
+        for chrom in genome.chromosomes:
+            for blk in chrom.blocks:
+                starts, idx = index.get(blk.source, ([], []))
+                k = max(0, bisect.bisect_right(starts, blk.start) - 1)
+                while k < len(idx):
+                    src, x, y = blocks[idx[k]]
+                    if x >= blk.end:
+                        break
+                    if y > blk.start:
+                        out.add((src, x, y, blk.copy))
+                    k += 1
+    return out
+
+
 def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs, new_seg, out,
-                       tip_of, deletions=()) -> None:
+                       tip_of, deletions=(), carried=frozenset()) -> None:
     """Replay the copy-lineage log for one root-block ``(s, [a, b))`` into per-segment events on
     ``out``. A copy lineage is a *block-copy* when it covers ``[a, b)`` in full; a duplication or a
     transfer that covers it in full begets a block-copy child (a ladder rung on its parent — the
@@ -2817,31 +2881,38 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
 
     spawns: dict[int, list[tuple[float, int, str]]] = collections.defaultdict(list)  # parent -> [(t, child, kind)]
     species: dict[int, int] = {}                                                     # copy -> species branch
+    # `overlaps`, not `covers`, and the difference only shows once indels exist. An indel breakpoint
+    # is deliberately absent from the partition, but it is still a real boundary in the genome, and a
+    # later event may act on the fragment it left — so a duplication can copy PART of a root block.
+    # Its child is a copy of this block all the same, carrying the part it was given; which part is
+    # `assembly()`'s business, not the tree's. Without indels every event breakpoint is in the
+    # partition, so an event covers a block or misses it and the two tests agree.
     for e in dups:
         for (pc, cc, src, x, y) in e.copied:
-            if src == s and covers(x, y):
+            if src == s and overlaps(x, y):
                 spawns[pc].append((e.time, cc, "duplication"))
                 species[cc] = e.lineage                    # the tandem copy stays on the donor branch
     for e in transfers:
         for (pc, cc, src, x, y) in e.transferred:
-            if src == s and covers(x, y):
+            if src == s and overlaps(x, y):
                 spawns[pc].append((e.time, cc, "transfer"))
                 species[cc] = e.recipient                  # the transferred copy lands on the recipient
-    loss_of: dict[int, float] = {}                                                   # copy -> earliest loss time
-    for e in losses:
-        for (cp, src, x, y) in e.lost:
-            if src == s and overlaps(x, y) and (cp not in loss_of or e.time < loss_of[cp]):
-                loss_of[cp] = e.time
-    # An indel deletion ends no copy lineage — unless it happens to take a whole block, and then the
-    # copy really does carry nothing of it and the tree must say so. `covers`, not `overlaps`, is
-    # the whole difference from a loss above: a loss is atomic on a block (its breakpoints are in
-    # the partition, so it covers a block or misses it), while a deletion is free to take part of
-    # one and usually does. Known gap: two partial deletions that between them cover a block are not
-    # caught, since neither covers it alone.
-    for e in deletions:
-        for (cp, src, x, y) in e.deleted:
-            if src == s and covers(x, y) and (cp not in loss_of or e.time < loss_of[cp]):
-                loss_of[cp] = e.time
+    # When a copy lineage ends on this block. Two questions, kept apart: *did* it end, and *when*.
+    #
+    # It ended if the copy carries no part of the block at the end (`carried`) — the exact test, and
+    # the only one that survives indels; see `_carried_blocks()` for why neither `covers` nor
+    # `overlaps` can answer it. A deletion is included here for the same reason a loss is: it ends no
+    # copy by itself, but if between them the removals leave nothing, the copy is gone all the same.
+    #
+    # When is the LAST removal that touched the block, not the first: material goes piece by piece
+    # once indels are on, and the copy is alive until the final piece leaves. On a run without them
+    # a removal is atomic on a block, so first and last are the same event and this reads as it did.
+    end_of: dict[int, float] = {}
+    for e in (*losses, *deletions):
+        for (cp, src, x, y) in (e.lost if isinstance(e, Loss) else e.deleted):
+            if src == s and overlaps(x, y) and e.time > end_of.get(cp, -math.inf):
+                end_of[cp] = e.time
+    loss_of = {cp: t for cp, t in end_of.items() if (s, a, b, cp) not in carried}
     for e in root_origs:
         species[e.copy] = e.lineage                    # a de-novo origination roots at its own branch
 
@@ -2917,6 +2988,7 @@ def _recover_gene_trees(result, *, every_block: bool = False
     transfers = [e for e in result.events if isinstance(e, Transfer)]
     losses = [e for e in result.events if isinstance(e, Loss)]
     deletions = getattr(result, "deletions", ())
+    carried = _carried_blocks(result, blocks)
     specs = {e.parent: e for e in result.events if isinstance(e, Speciation)}
     counter = [0]
 
@@ -2936,7 +3008,7 @@ def _recover_gene_trees(result, *, every_block: bool = False
     tip_of: dict[tuple[int, int], int | None] = {}
     for fam, (s, a, b) in targets:
         _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs, new_seg,
-                           seg_events, tip_of, deletions)
+                           seg_events, tip_of, deletions, carried)
     seg_events.sort(key=lambda e: e.time)                # one stream, in the order it happened
     return blocks, gene_trees_from_edges(seg_events, tree), tip_of, seg_events
 
