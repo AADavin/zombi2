@@ -22,6 +22,7 @@ from zombi2.genomes import simulate_genomes_nucleotide
 from zombi2.genomes.nucleotide import (
     Block,
     Chromosome,
+    Deletion,
     Duplication,
     Inversion,
     Loss,
@@ -31,6 +32,7 @@ from zombi2.genomes.nucleotide import (
     Transfer,
     Translocation,
     Transposition,
+    _CutLog,
     _do_duplication,
     _do_loss,
     _do_translocation,
@@ -2164,3 +2166,120 @@ def test_the_summary_counts_every_gene_not_only_the_declared_ones():
 
     quiet = simulate_genomes_nucleotide(sp, root_length=20000, genes=5, gene_length=400, seed=1)
     assert quiet.summary()["genes"] == 5                    # and with none minted it is what was declared
+
+
+# --- indels: deletion, and the breakpoint provenance that keeps the partition coarse ---------------
+#
+# A `deletion` removes exactly what a `loss` removes. What differs is attribution: its breakpoints are
+# indel-made, so the root partition does not cut at them, and no copy lineage ends, so the genealogy
+# never sees it. Without that the partition is cut twice per event and collapses to fragments a few
+# bases wide — which is the whole reason the provenance exists.
+
+def _deletion_run(**kw):
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=10, seed=1)
+    params = dict(root_length=2000, deletion_extent=5.0, seed=3)
+    params.update(kw)
+    return simulate_genomes_nucleotide(sp, **params)
+
+
+def test_a_deletion_removes_material_without_cutting_the_partition():
+    # the claim the design rests on: the partition stays as coarse as the layout however many
+    # deletions fire, while the same events as `loss` shatter it
+    quiet = _deletion_run(deletion=0.0)
+    busy = _deletion_run(deletion=80.0)
+    assert busy.summary()["deletions"] > 300, "the deletion rate did not bite"
+    assert busy.root_blocks == quiet.root_blocks == [(0, 0, 2000)]
+
+    control = _deletion_run(loss=80.0, loss_extent=5.0)
+    assert len(control.root_blocks) > 300, "the control did not shatter, so it proves nothing"
+
+
+def test_a_deletion_shrinks_every_genome_by_exactly_what_it_reports():
+    g = _deletion_run(deletion=80.0)
+    per_lineage = collections.Counter()
+    for e in g.deletions:
+        per_lineage[e.lineage] += sum(end - beg for (_cp, _src, beg, end) in e.deleted)
+    assert per_lineage, "no deletion fired"
+    # a node's genome is its parent's, less what this branch deleted (nothing else is on in this run)
+    for node_id, genome in g.node_genomes.items():
+        node = g.complete_tree.nodes[node_id]
+        before = (2000 if node.parent is None
+                  else g.node_genomes[node.parent].length)
+        assert genome.length == before - per_lineage[node_id]
+
+
+def test_a_deletion_writes_no_genealogy_event_and_no_rearrangement():
+    g = _deletion_run(deletion=80.0, duplication=1.0, loss=1.0)
+    assert g.deletions
+    assert not any(isinstance(e, Deletion) for e in g.events)
+    assert not any(isinstance(e, Deletion) for e in g.rearrangements)
+    assert {type(e).__name__ for e in g.events} <= {
+        "Origination", "Loss", "Duplication", "Transfer", "Speciation"}
+
+
+def test_a_breakpoint_reached_both_ways_stays_in_the_partition():
+    # the case that makes `skippable` a subtraction rather than the indel set outright: an indel cuts
+    # at 40 in one lineage and an ordinary event cuts at 40 in another. Skipping it there would merge
+    # two blocks a real event separated.
+    log = _CutLog()
+    Chromosome(0, "linear", [Block(0, 0, 100, 1, 1)], log).delete(40, 5, indel=True)
+    Chromosome(1, "linear", [Block(0, 0, 100, 1, 2)], log)._split_at(40)
+    assert log.indel[0] == {40, 45}
+    assert log.event[0] == {40}
+    assert log.skippable() == {0: {45}}
+
+
+def test_landing_on_an_existing_boundary_attributes_nothing():
+    # no breakpoint was made, so there is nothing to attribute — and attributing it would let a
+    # deletion claim a boundary some earlier event had already put there
+    log = _CutLog()
+    c = Chromosome(0, "linear", [Block(0, 0, 40, 1, 1), Block(0, 40, 100, 1, 1)], log)
+    c.delete(40, 5, indel=True)
+    assert 40 not in log.indel[0] and log.indel[0] == {45}
+
+
+def test_a_reversed_block_records_the_ancestral_position_it_really_cut():
+    # a reversed block's first physical positions are its source's HIGH end, so a cut `o` in from the
+    # left falls at `end - o` ancestrally, not `start + o`
+    log = _CutLog()
+    c = Chromosome(0, "linear", [Block(0, 0, 100, -1, 1)], log)
+    c._split_at(30, indel=True)
+    assert log.indel[0] == {70}
+
+
+def test_genes_still_recover_as_exactly_one_root_block_under_heavy_deletion():
+    g = _deletion_run(deletion=80.0, genes=4, gene_length=100)
+    assert g.summary()["deletions"] > 200
+    for fam, span in g.gene_spans.items():
+        assert g.root_blocks[g.block_of(fam)] == span
+    assert len(g.root_blocks) == 8                     # the layout: four genes, four spacers
+    assert len(g.gene_trees) == 4
+
+
+def test_the_summary_reports_the_indel_log():
+    g = _deletion_run(deletion=80.0)
+    s = g.summary()
+    assert s["deletions"] == len(g.deletions)
+    assert s["base_pairs_deleted"] == sum(end - beg for e in g.deletions
+                                          for (_cp, _src, beg, end) in e.deleted)
+    assert _deletion_run(deletion=0.0).summary()["deletions"] == 0
+
+
+def test_assembling_a_run_with_deletions_refuses_rather_than_lying():
+    # not built yet: a lineage carries only PART of a root block, so a piece can no longer be a whole
+    # block. Refusing beats the assertion the partition guard would otherwise raise from inside.
+    g = _deletion_run(deletion=80.0)
+    with pytest.raises(NotImplementedError, match="not built yet"):
+        g.assembly(g.complete_tree.root)
+    with pytest.raises(NotImplementedError):
+        g.initial_assembly()
+
+
+def test_a_deletion_by_hand_matches_what_the_engine_does():
+    # the mutator takes explicit coordinates, so a scripted call is the code the engine runs
+    log = _CutLog()
+    c = Chromosome(0, "linear", [Block(0, 0, 100, 1, 7)], log)
+    gone = c.delete(40, 5, indel=True)
+    assert gone == ((7, 0, 40, 45),)
+    assert [(b.start, b.end) for b in c.blocks] == [(0, 40), (45, 100)]
+    assert c.length == 95
