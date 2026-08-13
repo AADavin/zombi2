@@ -29,9 +29,19 @@ Rules for keeping this honest:
   it. (#TBD)
 ```
 
-Still to write, as the remaining slices land: the legal-cut exemption (a deletion may fall inside a
-gene), insertion, whatever the indel log is written to, the sequence level's gapped alignments, and
-the CLI flags.
+```markdown
+- Indel insertions at the nucleotide resolution: `insertion` (per lineage) with `insertion_extent`
+  lays down a run of novel spacer at a legal position — `origination` without the gene. Novel DNA
+  descends from nothing, so it arrives on a fresh source under a fresh copy lineage and is recorded
+  in the event log as a root of its own kind, counted apart from `origination` and `initial` in
+  `genome_summary.json` and written as `insertion` in `block_events.tsv`. The breakpoint it makes to
+  open a gap does not cut the root partition, so the block it lands inside stays whole. Python only,
+  and a run that used it can be neither assembled nor read back from files. (#TBD)
+```
+
+Still to write, as the remaining slices land: the legal-cut exemption (an indel may fall inside a
+gene), whatever the indel log is written to, the sequence level's gapped alignments, and the CLI
+flags.
 
 ---
 
@@ -49,10 +59,23 @@ Both under **Genomes, nucleotide: `simulate_genomes_nucleotide`**.
 
 | Output | File | Format | Default | Contents |
 |---|---|---|---|---|
-| Indel log | `.deletions` | list | Python | one `Deletion` per indel — `time` · `lineage` · `chromosome` · `deleted`, the last being `(copy, source, start, end)` rows in **ancestral** coordinates, the same payload a loss carries. Kept out of `events` because an indel ends no copy lineage and begins none, so the gene-tree recovery must not read it, and out of the root partition because cutting there would shatter it. Not written to a file yet, and `assembly()` — so a sequence run on top — refuses a genome that used it |
+| Indel log | `.deletions` | list | Python | one `Deletion` per indel — `time` · `lineage` · `chromosome` · `deleted`, the last being `(copy, source, start, end)` rows in **ancestral** coordinates, the same payload a loss carries. Kept out of `events` because a deletion ends no copy lineage, so the gene-tree recovery must not read it, and out of the root partition because cutting there would shatter it. Only deletions are here: an **insertion** brings material that descends from nothing, so it must begin a copy lineage and is recorded in `events` as a root of its own kind instead. Not written to a file yet, and `assembly()` — so a sequence run on top — refuses a genome that used either |
 
-The `Default` column becomes a file rather than `Python` if the indel log is given one — an open
-question in [`indels.md`](indels.md).
+**3. Extend the `block_events.tsv` row.** Its Contents cell lists the kinds; `insertion` joins them:
+
+> Kinds are `initial` · `origination` · `insertion` · `duplication` · `loss` · `transfer` ·
+> `speciation`, where `insertion` is an indel — novel spacer on a fresh source, a root like an
+> origination but carrying no gene family
+
+The `Default` column of the indel-log row becomes a file rather than `Python` if the indel log is
+given one — an open question in [`indels.md`](indels.md), and now a blocking one, since without it a
+run with indels cannot be read back at all.
+
+**Also needs saying somewhere user-facing:** `genome_summary.json`'s `block_events` gains a kind that
+its `events` counterpart does not have. `insertion` is DNA and nothing else — it brings sequence
+rather than a gene family — so the gene-level counters have no such kind. Every other kind still
+appears in both. Appendix B already tells the reader those two counters do not bound each other;
+this is one more way in which they do not.
 
 ---
 

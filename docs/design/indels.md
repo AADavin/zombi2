@@ -1,18 +1,21 @@
 # Indels at the nucleotide resolution — a design note
 
-**Status: a proposal. Nothing in the code does this yet.** This note records where an indel model
-belongs, what stands in its way, and the one design move that clears it. It is subordinate to
-[`SPEC.md`](SPEC.md): where the two disagree, SPEC wins.
+**Status: partly built, on `feat/indels`.** The genome half is in — breakpoint provenance, the
+`deletion` and `insertion` rates, and a root partition that stays coarse under both. The sequence
+half is not: `assembly()`, and so `simulate_sequences()`, refuses a run that used them, and neither
+does read-back. This note records where an indel model belongs, what stands in its way, and the
+design move that clears it. It is subordinate to [`SPEC.md`](SPEC.md): where the two disagree, SPEC
+wins.
 
-The claims here have since been checked against runs — see
-[`nucleotide-engine.md`](nucleotide-engine.md), which also lists the two places this note was wrong
-and the constraint it missed.
+Claims here were checked against runs before any of it was built — see
+[`nucleotide-engine.md`](nucleotide-engine.md), which lists the two places this note was wrong and
+the constraint it missed. Building it corrected two more, both marked below.
 
 ---
 
 ## The question
 
-ZOMBI2 has no indel model. A sequence run evolves a fixed number of sites down each gene tree, so
+ZOMBI2 had no indel model. A sequence run evolves a fixed number of sites down each gene tree, so
 every node holds the same count and the alignments are gap-free by construction. Adding insertions
 and deletions of DNA means deciding two things: which level owns them, and what happens to the
 alignment.
@@ -71,8 +74,15 @@ already costs 5.5 s. The genealogy grows as blocks × tree nodes. And the same 4
 
 This is structural, and giving indels their own event class and their own log — the way the
 ancestry-neutral events already use `rearrangements` rather than `events` — does not touch it. That
-separation is still wanted, for a different reason: an indel changes a copy's size, it does not end
-one or start one, so it should not write a `GeneEdge`. But it is not the fix.
+separation is still wanted for deletion, for a different reason: a deletion changes a copy's size, it
+does not end one, so it should not write a `GeneEdge`. But it is not the fix.
+
+**The two indels are not symmetric, and this note first assumed they were.** A deletion ends no copy
+lineage. An insertion necessarily *begins* one: novel DNA descends from nothing, so it can only be its
+own ancestor, which means a fresh source and a fresh copy lineage — or the recovery finds no root and
+builds no block tree for it. So an insertion belongs in `events` as a third kind of root beside
+`initial` and `origination`, and is `origination` minus the gene: it brings **sequence**, where
+origination brings a **gene family**. Built that way.
 
 ---
 
@@ -83,14 +93,27 @@ Give the bounds provenance and have the partition ignore indel-made cuts.
 An indel then becomes a presence fact **inside** a root block rather than a boundary between two of
 them, and the partition stays exactly as coarse as it is today at any indel rate.
 
+Measured, once built: 631 deletions leave the partition at **one** root block of 2000 bp, against 860
+blocks averaging 2.3 bp for the same events as `loss`. With genes declared it stays exactly the
+initial layout, and every gene still recovers as one root block.
+
+**Insertion cannot be free in the same way, and the note should have said so.** Its breakpoint is
+skipped like a deletion's, so the block it lands inside stays whole — measured, the original 2 kb
+holds at one root block through 1252 insertions. But the material it brings is a new source, so it is
+a root block of its own. Growth is therefore **one block per insertion**: linear, and it never
+fragments what is already there, which is the difference that matters. The cost is real and is the
+argument for the union-column design at the sequence level, where those runs become columns of the
+block they landed in rather than blocks in their own right.
+
 This is the crux, and it is not the small change this note first implied. It cannot be done as a
 filter over the event log after the run, because the two logs are in **different coordinate frames**:
 `events` records ancestral intervals, `rearrangements` records physical chromosome positions, so the
 ancestral positions that genuine events cut at are not recoverable after the fact. The provenance has
 to be recorded where the cut is made — threaded through `_arc_range()` → `_split_at()` →
 `_split_block()`, surviving inversion (where a block's two bounds swap meaning) and travelling with
-blocks through duplication, transfer and translocation. Nothing has been built or measured here yet;
-it is the part of the design that could still fail.
+blocks through duplication, transfer and translocation. That is what `_CutLog` does, and it holds:
+only bounds no genuine event ever cut at are skippable, so a position an inversion also reached in
+another lineage stays in the partition.
 
 One consequence falls out of the same change. Today no breakpoint may fall strictly inside a declared
 gene, which would confine indels to spacer — wrong, since indels in coding DNA are most of the
@@ -98,6 +121,10 @@ biology. An indel may cut inside a gene precisely because its cut never reaches 
 gene still recovers as one root block with one tree. This has to be written as a property of the cut
 set in `Chromosome._legal_cuts()`, not as a check at each mutator: a rule enforced per call site is a
 rule some call site forgets.
+
+**Not built.** Both indels still draw from the ordinary legal cut set, so neither can fall inside a
+declared gene, and what is on the branch today is a spacer-only indel. It is the next thing to do:
+until then the model cannot express an indel in coding sequence, which is most of the biology.
 
 ---
 
@@ -168,6 +195,19 @@ matters: indel sizes in real data are closer to a power law than to a geometric.
 A deletion that removes a copy entirely is still recorded as a loss, because it is one. The
 genealogy consequence stays emergent from the extent, which is the rule the level already uses for a
 gene being engulfed whole rather than split.
+
+---
+
+## The provenance does not survive a write
+
+Found by building it. `_CutLog` is the run's own bookkeeping and **no file carries it**: the ancestral
+position an insertion opened its gap at is written nowhere, and deletions have no file at all. So a
+run read back by `read_nucleotide_genomes()` cannot skip indel breakpoints, its partition shatters,
+and every tree comes back wrong. It refuses instead.
+
+This makes the open question below sharper. Whatever the indel log is written to must carry the
+breakpoints as well as the events, or read-back stays impossible and a nucleotide run with indels can
+never be handed to a separate `zombi2 sequences` process — only kept in Python.
 
 ---
 
