@@ -14,7 +14,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 - A gallery example draws the whole karyotype of every survivor beside the tree that produced them,
   with each fission and fusion marked on the branch it happened on. It needs Phylustrator 0.2.3,
   whose circular `scale="shared"` draws every chromosome of a genome to one scale, so a short
-  chromosome draws a short arc instead of a full ring. (#352)
+  chromosome draws a short arc instead of a full ring. (#353)
 
 ### Changed
 
