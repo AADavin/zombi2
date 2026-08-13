@@ -116,7 +116,25 @@ def chromosome_events_tsv(chromosome_events: list[ChromosomeEvent], tree, names=
 #: translocation (a transposition lands on the chromosome it left), ``dest_position`` only where the
 #: record has one, and ``flipped`` only by the two that move a block, which may land inverted.
 REARRANGEMENT_COLS = ("time", "kind", "lineage", "chromosome", "start", "length",
-                      "dest_chromosome", "dest_position", "flipped")
+                      "dest_chromosome", "dest_position", "flipped", "cuts")
+#: How a list of ancestral breakpoints is written into one cell: ``source:position``, semicolon
+#: separated, empty where a record has none. The nucleotide resolution fills it — the partition has
+#: to tell an indel breakpoint from an ordinary one, and these coordinates are the only ones in the
+#: same frame as the block log. The ordered resolution has no ancestral coordinates to give and
+#: leaves it blank.
+CUTS_SEP, CUTS_PAIR = ";", ":"
+
+
+def cuts_cell(cuts) -> str:
+    """``((0, 40), (0, 60))`` → ``"0:40;0:60"``; empty for none."""
+    return CUTS_SEP.join(f"{src}{CUTS_PAIR}{at}" for (src, at) in cuts)
+
+
+def cuts_from_cell(cell: str) -> tuple:
+    """The inverse of `cuts_cell()`."""
+    if not cell:
+        return ()
+    return tuple(tuple(int(x) for x in pair.split(CUTS_PAIR)) for pair in cell.split(CUTS_SEP))
 
 
 def _rearrangement_cells(r) -> tuple:
@@ -150,9 +168,11 @@ def rearrangement_events_tsv(rearrangements, names=None) -> str:
     for r in rearrangements:
         kind, *rest = _rearrangement_cells(r)
         rows.append("\t".join([str(r.time), kind, _name(names, r.lineage),
-                               *("" if c is None else str(c) for c in rest)]))
+                               *("" if c is None else str(c) for c in rest),
+                               cuts_cell(getattr(r, "cuts", ()))]))
     return "\n".join(["\t".join(REARRANGEMENT_COLS), *rows]) + "\n"
 
 
 __all__ = ["ChromosomeEvent", "chromosome_events_tsv", "chromosome_label",
-           "chromosome_from_label", "rearrangement_events_tsv", "REARRANGEMENT_COLS"]
+           "chromosome_from_label", "rearrangement_events_tsv", "REARRANGEMENT_COLS",
+           "cuts_cell", "cuts_from_cell"]

@@ -819,7 +819,7 @@ def test_the_genealogy_and_the_rearrangements_are_two_tables(tmp_path):
 
     rear = (tmp_path / "rearrangement_events.tsv").read_text(encoding="utf-8").splitlines()
     assert rear[0].split("\t") == ["time", "kind", "lineage", "chromosome", "start", "length",
-                                   "dest_chromosome", "dest_position", "flipped"]
+                                   "dest_chromosome", "dest_position", "flipped", "cuts"]
     assert len(rear) - 1 == len(r.rearrangements)
     assert {ln.split("\t")[1] for ln in rear[1:]} == {"inversion", "transposition", "translocation"}
 

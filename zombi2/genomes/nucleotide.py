@@ -111,7 +111,8 @@ from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import (Distance, mean_root_to_tip, prepare_transfer_to, recipient_index,
                         resolve_transfer_to)
 from .chromosomes import (REARRANGEMENT_COLS, ChromosomeEvent, chromosome_events_tsv,
-                          chromosome_from_label, chromosome_label, rearrangement_events_tsv)
+                          chromosome_from_label, chromosome_label, cuts_cell, cuts_from_cell,
+                          rearrangement_events_tsv)
 from .._runtime.outputs import fresh_dirs, grouped_dir
 from .._runtime.summary import _stats, write_summary
 from .._runtime.progress import progress_bar
@@ -187,33 +188,42 @@ def _split_block(b: Block, o: int) -> list[Block]:
             Block(b.source, b.start, b.end - o, -1, b.copy, b.gene)]
 
 
-@dataclass
-class _CutLog:
-    """Where every breakpoint the run makes is recorded, **by what made it**.
+def _skippable_bounds(result) -> dict[int, set[int]]:
+    """``{source: ancestral positions the root partition may ignore}`` — those every event that ever
+    used them was an **indel**.
 
-    A breakpoint is an ancestral position on a source, and the root partition is cut at the union of
-    them (`_root_block_partition()`). An **indel** breakpoint must not be: a deletion of a few bases
-    changes which of a block's positions a lineage still carries, not where one block ends and the
-    next begins, so cutting the partition there would shatter it (see ``docs/design/indels.md``).
+    An indel breakpoint must not cut the partition: a deletion of a few bases changes which of a
+    block's positions a lineage still carries, not where one block ends and the next begins, and
+    cutting there shatters the partition into fragments a few bases wide (see
+    ``docs/design/indels.md``). An ordinary breakpoint must cut it, as it always has.
 
-    The distinction cannot be recovered after the run — ``events`` records ancestral intervals while
-    ``rearrangements`` records physical chromosome positions, so there is no way to ask the logs which
-    ancestral positions a rearrangement cut at. So it is recorded here, at the moment of the split,
-    which is the only place both facts are in hand.
+    Every event records the breakpoints it used (`Loss.cuts` and the rest), so this is a read of the
+    logs rather than bookkeeping kept alongside them. That is what makes it survive a write: the
+    distinction is *in* the record, not in the run. It could not be derived from the logs as they
+    were — `rearrangements` are in physical coordinates and an insertion's landing position appeared
+    nowhere — which is why the records carry it now.
 
     Two sets rather than one, because a position may be reached both ways: an indel cuts at 40 in one
-    lineage and an inversion cuts at 40 in another. Only ``indel - event`` may be skipped — a position
-    any genuine event cut at stays in the partition, whoever else also cut there."""
-
-    event: dict[int, set[int]] = field(default_factory=lambda: collections.defaultdict(set))
-    indel: dict[int, set[int]] = field(default_factory=lambda: collections.defaultdict(set))
-
-    def record(self, source: int, position: int, indel: bool) -> None:
-        (self.indel if indel else self.event)[source].add(position)
-
-    def skippable(self) -> dict[int, set[int]]:
-        """``{source: positions the partition may ignore}`` — indel-made and never event-made."""
-        return {src: ps - self.event.get(src, set()) for src, ps in self.indel.items()}
+    lineage and an inversion at 40 in another. Only ``indel - event`` may be skipped. The initial
+    layout's own boundaries are **structural** — a gene's two edges, the joins between gene and
+    spacer — and count as event-made though nothing split them: otherwise an indel landing on a gene
+    edge attributes it, the partition skips it, and that gene is merged away and loses its tree."""
+    indel: dict[int, set[int]] = collections.defaultdict(set)
+    event: dict[int, set[int]] = collections.defaultdict(set)
+    for chrom in result.initial_genome.chromosomes:              # structural, and never skippable
+        for b in chrom.blocks:
+            event[b.source].update((b.start, b.end))
+    for e in result.events:
+        into = indel if isinstance(e, Origination) and e.kind == "insertion" else event
+        for (src, at) in e.cuts:
+            into[src].add(at)
+    for e in getattr(result, "deletions", ()):
+        for (src, at) in e.cuts:
+            indel[src].add(at)
+    for e in result.rearrangements:
+        for (src, at) in e.cuts:
+            event[src].add(at)
+    return {src: ps - event.get(src, set()) for src, ps in indel.items()}
 
 
 @dataclass
@@ -222,17 +232,11 @@ class Chromosome:
     ``id`` and a ``topology`` — ``"circular"`` (a ring, where coordinate ``length`` wraps to ``0`` and
     an arc may cross the origin) or ``"linear"`` (two ends, no wrap). Owns the per-chromosome
     operations. Blocks are **not** merged after an event (see `Block`): an event only ever
-    *splits*, so its endpoints stay as breakpoints and the copy lineages are never fused.
-
-    ``cuts`` is the run's shared `_CutLog`, so every split this chromosome makes says who made it. It
-    is one object for the whole run and travels with the karyotype through speciation, fission and
-    fusion. ``None`` — a chromosome built by hand or read back from a file — records nothing, and then
-    every breakpoint counts as event-made, which is what the engine did before indels existed."""
+    *splits*, so its endpoints stay as breakpoints and the copy lineages are never fused."""
 
     id: int
     topology: str
     blocks: list[Block]
-    cuts: "_CutLog | None" = field(default=None, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.topology not in ("circular", "linear"):
@@ -269,42 +273,41 @@ class Chromosome:
                 return
             pos += b.length
 
-    def _split_at(self, c: int, indel: bool = False) -> None:
+    def _split_at(self, c: int, indel: bool = False) -> "tuple[int, int] | None":
         """Ensure a block boundary at physical coordinate ``c`` (``0 <= c <= length``). A no-op at the
         ends or an existing boundary; otherwise the block straddling ``c`` is split — unless that block
         is a **gene**, which is indivisible, in which case `_CutsGene` is raised (and nothing is
         mutated) so the event redraws.
 
-        The boundary is recorded in the run's `_CutLog` under ``indel`` or not, at the **ancestral**
-        position it falls on — which is ``start + o`` on a forward block and ``end - o`` on a reversed
-        one, since a reversed block's first physical positions are its source's high end.
+        Returns the **ancestral** breakpoint as ``(source, position)`` — ``start + o`` on a forward
+        block and ``end - o`` on a reversed one, since a reversed block's first physical positions are
+        its source's high end. The caller records it on the event it belongs to, which is what lets
+        the partition tell an indel breakpoint from an ordinary one (`_skippable_bounds()`).
 
-        Landing on a boundary that **already exists** records it too, which matters more than it
-        looks. A boundary is skippable only while every event that ever used it was an indel: let an
-        ordinary event start its arc exactly where an indel once cut, record nothing because no new
-        split was made, and that position stays indel-attributed — the partition skips it, the root
-        block spans across it, and the event turns out to cover only part of a block it should have
-        covered whole. What is attributed here is *use*, not creation."""
+        A boundary that **already exists** is returned too, and that matters more than it looks. A
+        position is skippable only while every event that ever used it was an indel: let an ordinary
+        event start its arc exactly where an indel once cut, return nothing because no new split was
+        made, and that position stays indel-attributed — the partition skips it and the event turns
+        out to cover only part of a block it should have covered whole. What an event records is the
+        breakpoints it *used*, not the ones it created."""
         if c < 0:
-            return
+            return None
         pos = 0
         for i, b in enumerate(self.blocks):
             if pos == c:
-                if self.cuts is not None:                   # an existing boundary, used by this event
-                    self.cuts.record(b.source, b.start if b.strand == 1 else b.end, indel)
-                return
+                return (b.source, b.start if b.strand == 1 else b.end)
             if pos < c < pos + b.length:
                 if b.is_gene and not indel:
                     raise _CutsGene
                 o = c - pos
-                if self.cuts is not None:
-                    self.cuts.record(b.source, b.start + o if b.strand == 1 else b.end - o, indel)
+                at = (b.source, b.start + o if b.strand == 1 else b.end - o)
                 self.blocks[i:i + 1] = _split_block(b, o)
-                return
+                return at
             pos += b.length
-        if pos == c and self.blocks and self.cuts is not None:   # the far end of a linear chromosome
+        if pos == c and self.blocks:                        # the far end of a linear chromosome
             b = self.blocks[-1]
-            self.cuts.record(b.source, b.end if b.strand == 1 else b.start, indel)
+            return (b.source, b.end if b.strand == 1 else b.start)
+        return None
 
     def _index_at(self, phys: int) -> int:
         pos = 0
@@ -327,7 +330,7 @@ class Chromosome:
         which silently froze a genome with no spacer, while the ones landing one said "not inside a
         gene" and were right.
 
-        There is one exemption, and it belongs to `_CutLog` rather than being a hole in the rule: an
+        There is one exemption, and it is the provenance's doing rather than a hole in the rule: an
         **indel** may cut anywhere, gene or not, because an indel breakpoint never reaches the root
         partition. The gene is still one never-cut interval there, still one root block with one gene
         tree; what changed is only how much of it a lineage carries. Without this an indel could land
@@ -407,7 +410,8 @@ class Chromosome:
             r -= w
         return windows[-1][1]                                # floating-point guard
 
-    def _arc_range(self, start: int, length: int, indel: bool = False) -> tuple[int, int] | None:
+    def _arc_range(self, start: int, length: int, indel: bool = False,
+                   used: "list | None" = None) -> tuple[int, int] | None:
         """Prepare the arc ``[start, start+length)`` and return the block index range ``[i, j)`` it
         occupies, or ``None`` for an empty arc. Splits at both ends first. A **linear** chromosome
         clamps the arc to its ends; a **circular** one may wrap the origin, rotating the ring to bring
@@ -417,9 +421,13 @@ class Chromosome:
         untouched rather than half-cut. With the ends drawn from the legal set this never triggers; it
         is a guard.
 
-        ``indel`` attributes the two breakpoints this makes (see `_split_at()`). It defaults to
-        ``False``, so every mutator that does not ask for it makes ordinary event breakpoints and the
-        partition cuts at them exactly as it always has."""
+        ``indel`` exempts the two breakpoints this makes from the gene rule (see `_split_at()`), and
+        ``used`` collects them as ancestral ``(source, position)`` pairs for the event to record."""
+
+        def cut(at, flag):
+            got = self._split_at(at, flag)
+            if got is not None and used is not None:
+                used.append(got)
         total = self.length
         if total == 0:
             return None
@@ -430,15 +438,15 @@ class Chromosome:
                 return None
             self._check_cut(start, indel)
             self._check_cut(end, indel)
-            self._split_at(start, indel)
-            self._split_at(end, indel)
+            cut(start, indel)
+            cut(end, indel)
             return self._index_at(start), self._index_at(end)
         ell = max(1, min(length, total))
         s = start % total
         self._check_cut(s, indel)
         self._check_cut((s + ell) % total, indel)
-        self._split_at(s, indel)
-        self._split_at((s + ell) % total, indel)
+        cut(s, indel)
+        cut((s + ell) % total, indel)
         if s + ell <= total:
             j = self._index_at(s + ell) if s + ell < total else len(self.blocks)
             return self._index_at(s), j
@@ -456,10 +464,10 @@ class Chromosome:
     # call the same one with coordinates in hand. There is one implementation, not two: the engine
     # runs exactly the code a scripted event runs.
 
-    def invert(self, start: int, length: int) -> None:
+    def invert(self, start: int, length: int, used: "list | None" = None) -> None:
         """Invert the arc ``[start, start+length)``: reverse the block order and flip each strand.
         Ancestry (and every copy lineage) is unchanged; the arc endpoints stay as breakpoints."""
-        span = self._arc_range(start, length)
+        span = self._arc_range(start, length, used=used)
         if span is None:
             return
         i, j = span
@@ -469,14 +477,14 @@ class Chromosome:
             b.strand = -b.strand
         self.blocks[i:j] = arc
 
-    def duplicate(self, start: int, length: int, new_copy) -> tuple | None:
+    def duplicate(self, start: int, length: int, new_copy, used: "list | None" = None) -> tuple | None:
         """Copy the arc ``[start, start+length)`` **in tandem**, the copy landing immediately after it.
 
         Each distinct copy lineage in the arc begets one fresh child (minted by ``new_copy``), so the
         tandem copy is new material of the same ancestry. Returns the ``(parent copy, child copy,
         source, start, end)`` record per block — what a `Duplication` carries — or ``None`` if
         the arc is empty."""
-        span = self._arc_range(start, length)
+        span = self._arc_range(start, length, used=used)
         if span is None:
             return None
         i, j = span
@@ -490,19 +498,20 @@ class Chromosome:
                             for b in arc]
         return copied
 
-    def delete(self, start: int, length: int, indel: bool = False) -> tuple | None:
+    def delete(self, start: int, length: int, indel: bool = False,
+               used: "list | None" = None) -> tuple | None:
         """Remove the arc ``[start, start+length)``. Returns the ``(copy, source, start, end)`` record
         per block removed — what a `Loss` carries — or ``None`` when the deletion does not
         happen: an empty arc, a chromosome of under two nucleotides, or a cut that would strip the
         chromosome of its last gene (a chromosome never exists without one).
 
         ``indel=True`` is the same removal attributed differently: its two breakpoints are indel-made,
-        so the root partition ignores them and the surrounding block stays whole (`_CutLog`). The
+        so the root partition ignores them and the surrounding block stays whole. The
         material removed is identical either way — what differs is whether the run treats the edges as
         a boundary between two blocks or as a hole inside one."""
         if self.length < 2:
             return None
-        span = self._arc_range(start, length, indel)
+        span = self._arc_range(start, length, indel, used)
         if span is None:
             return None
         i, j = span
@@ -517,7 +526,7 @@ class Chromosome:
         return lost
 
     def originate(self, at: int, length: int, source: int, copy: int, family: int,
-                  indel: bool = False) -> None:
+                  indel: bool = False, used: "list | None" = None) -> None:
         """Lay down a new ``length``-nucleotide stretch of its own fresh ``source`` at position
         ``at``. Raises `_CutsGene` if ``at`` falls inside an existing gene.
 
@@ -526,14 +535,16 @@ class Chromosome:
         the one breakpoint it makes to open a gap for itself is indel-attributed, so the block it
         landed inside stays whole in the root partition. The new material itself is a fresh source
         either way — novel DNA descends from nothing, so it can only be its own ancestor."""
-        self._split_at(at, indel)
+        got = self._split_at(at, indel)
+        if got is not None and used is not None:
+            used.append(got)
         k = self._index_at(at)
         self.blocks[k:k] = [Block(source, 0, length, 1, copy, family)]
 
-    def excise(self, start: int, length: int) -> list | None:
+    def excise(self, start: int, length: int, used: "list | None" = None) -> list | None:
         """Lift the arc ``[start, start+length)`` out of the chromosome and return its blocks (or
         ``None`` for an empty arc). The other half of a transposition — see `place()`."""
-        span = self._arc_range(start, length)
+        span = self._arc_range(start, length, used=used)
         if span is None:
             return None
         i, j = span
@@ -541,7 +552,7 @@ class Chromosome:
         self.blocks = self.blocks[:i] + self.blocks[j:]
         return arc
 
-    def place(self, arc: list, at: int, flipped: bool = False) -> None:
+    def place(self, arc: list, at: int, flipped: bool = False, used: "list | None" = None) -> None:
         """Insert ``arc`` at position ``at``, reversed and strand-flipped if ``flipped``.
 
         ``at`` is a position in the chromosome **as it stands now** — for a transposition, that is
@@ -549,11 +560,14 @@ class Chromosome:
         falls inside a gene."""
         if flipped:
             arc = [Block(b.source, b.start, b.end, -b.strand, b.copy, b.gene) for b in reversed(arc)]
-        self._split_at(at)
+        got = self._split_at(at)
+        if got is not None and used is not None:
+            used.append(got)
         k = self._index_at(at)
         self.blocks[k:k] = arc
 
-    def transpose(self, start: int, length: int, dest: int, flipped: bool = False) -> bool:
+    def transpose(self, start: int, length: int, dest: int, flipped: bool = False,
+                  used: "list | None" = None) -> bool:
         """Move the arc ``[start, start+length)`` to ``dest``, flipped or not — `excise()` then
         `place()`, with the chromosome restored if the landing is not a legal cut.
 
@@ -561,11 +575,11 @@ class Chromosome:
         that way round, so a scripted call means the same thing an engine-drawn one does). Returns
         whether the move happened."""
         intact = self.blocks
-        arc = self.excise(start, length)
+        arc = self.excise(start, length, used)
         if arc is None:
             return False
         try:
-            self.place(arc, dest, flipped)
+            self.place(arc, dest, flipped, used)
         except _CutsGene:
             self.blocks = intact                        # nowhere legal to land: undo the excision
             raise
@@ -648,6 +662,12 @@ class Inversion:
     chromosome: int
     start: int
     length: int
+    #: The **ancestral** breakpoints this event used, as ``(source, position)`` pairs — the arc's two
+    #: ends, plus wherever it landed. Recorded because the partition has to tell an indel breakpoint
+    #: from an ordinary one and cannot work it out afterwards: `rearrangements` are in physical
+    #: coordinates, and an insertion's landing position appears nowhere else at all. *Used*, not
+    #: created — an event that starts where an indel once cut still needs that position kept.
+    cuts: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -665,6 +685,12 @@ class Translocation:
     start: int
     length: int
     flipped: bool
+    #: The **ancestral** breakpoints this event used, as ``(source, position)`` pairs — the arc's two
+    #: ends, plus wherever it landed. Recorded because the partition has to tell an indel breakpoint
+    #: from an ordinary one and cannot work it out afterwards: `rearrangements` are in physical
+    #: coordinates, and an insertion's landing position appears nowhere else at all. *Used*, not
+    #: created — an event that starts where an indel once cut still needs that position kept.
+    cuts: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -682,6 +708,12 @@ class Transposition:
     length: int
     dest: int
     flipped: bool
+    #: The **ancestral** breakpoints this event used, as ``(source, position)`` pairs — the arc's two
+    #: ends, plus wherever it landed. Recorded because the partition has to tell an indel breakpoint
+    #: from an ordinary one and cannot work it out afterwards: `rearrangements` are in physical
+    #: coordinates, and an insertion's landing position appears nowhere else at all. *Used*, not
+    #: created — an event that starts where an indel once cut still needs that position kept.
+    cuts: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -711,6 +743,12 @@ class Origination:
     start: int
     end: int
     kind: str = "origination"
+    #: The **ancestral** breakpoints this event used, as ``(source, position)`` pairs — the arc's two
+    #: ends, plus wherever it landed. Recorded because the partition has to tell an indel breakpoint
+    #: from an ordinary one and cannot work it out afterwards: `rearrangements` are in physical
+    #: coordinates, and an insertion's landing position appears nowhere else at all. *Used*, not
+    #: created — an event that starts where an indel once cut still needs that position kept.
+    cuts: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -725,6 +763,12 @@ class Loss:
     lineage: int
     chromosome: int
     lost: tuple[tuple[int, int, int, int], ...]
+    #: The **ancestral** breakpoints this event used, as ``(source, position)`` pairs — the arc's two
+    #: ends, plus wherever it landed. Recorded because the partition has to tell an indel breakpoint
+    #: from an ordinary one and cannot work it out afterwards: `rearrangements` are in physical
+    #: coordinates, and an insertion's landing position appears nowhere else at all. *Used*, not
+    #: created — an event that starts where an indel once cut still needs that position kept.
+    cuts: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -738,13 +782,19 @@ class Deletion:
     carries fewer of its positions — so this log is not read by the gene-tree recovery and writes no
     ``GeneEdge``. That is the whole difference from `Loss`, which removes a copy from the genealogy.
 
-    Its breakpoints are indel-made (`_CutLog`), so the root partition does not cut at them and the
+    Its breakpoints are indel-made (`_skippable_bounds()`), so the root partition does not cut at them and the
     block the deletion fell inside stays one block."""
 
     time: float
     lineage: int
     chromosome: int
     deleted: tuple[tuple[int, int, int, int], ...]
+    #: The **ancestral** breakpoints this event used, as ``(source, position)`` pairs — the arc's two
+    #: ends, plus wherever it landed. Recorded because the partition has to tell an indel breakpoint
+    #: from an ordinary one and cannot work it out afterwards: `rearrangements` are in physical
+    #: coordinates, and an insertion's landing position appears nowhere else at all. *Used*, not
+    #: created — an event that starts where an indel once cut still needs that position kept.
+    cuts: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -759,6 +809,12 @@ class Duplication:
     lineage: int
     chromosome: int
     copied: tuple[tuple[int, int, int, int, int], ...]
+    #: The **ancestral** breakpoints this event used, as ``(source, position)`` pairs — the arc's two
+    #: ends, plus wherever it landed. Recorded because the partition has to tell an indel breakpoint
+    #: from an ordinary one and cannot work it out afterwards: `rearrangements` are in physical
+    #: coordinates, and an insertion's landing position appears nowhere else at all. *Used*, not
+    #: created — an event that starts where an indel once cut still needs that position kept.
+    cuts: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -774,6 +830,12 @@ class Transfer:
     lineage: int
     recipient: int
     transferred: tuple[tuple[int, int, int, int, int], ...]
+    #: The **ancestral** breakpoints this event used, as ``(source, position)`` pairs — the arc's two
+    #: ends, plus wherever it landed. Recorded because the partition has to tell an indel breakpoint
+    #: from an ordinary one and cannot work it out afterwards: `rearrangements` are in physical
+    #: coordinates, and an insertion's landing position appears nowhere else at all. *Used*, not
+    #: created — an event that starts where an indel once cut still needs that position kept.
+    cuts: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -787,6 +849,9 @@ class Speciation:
     lineage: int
     parent: int
     children: tuple[int, ...]
+    #: Always empty, and carried so every record in this log has the same shape. A speciation
+    #: re-mints copy lineages without touching sequence, so it uses no breakpoint at all.
+    cuts: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass
@@ -843,10 +908,6 @@ class NucleotideGenomesResult:
     #: copy lineage and begins none, so the gene-tree recovery must not read it. Empty unless
     #: ``deletion`` was on.
     deletions: list[Deletion] = field(default_factory=list)
-    #: Which ancestral breakpoints were made by an indel and which by an event (`_CutLog`) — what lets
-    #: `_root_block_partition()` skip the first kind. ``None`` for a run read back from files, which
-    #: has no indels to skip.
-    cut_log: "_CutLog | None" = None
 
     def __repr__(self) -> str:
         # `events` here is the block log — an event over an arc of DNA — not the gene-tree edges the
@@ -1192,7 +1253,8 @@ class NucleotideGenomesResult:
             # second, with its copy and interval columns empty on every one of them.
             (d / "genome_events.tsv").write_text(events_tsv(self.genealogy, names), encoding="utf-8")
             (d / "block_events.tsv").write_text(
-                _nucleotide_events_tsv(self.events, self.complete_tree, names), encoding="utf-8")
+                _nucleotide_events_tsv([*self.events, *self.deletions], self.complete_tree, names),
+                encoding="utf-8")
             (d / "rearrangement_events.tsv").write_text(
                 rearrangement_events_tsv(self.rearrangements, names), encoding="utf-8")
         if "blocks" in outputs:
@@ -1381,7 +1443,7 @@ class NucleotideGenomesResult:
 #: *physical* coordinates that used to sit beside them belong to the rearrangements, which are now
 #: ``rearrangement_events.tsv``; they are a different frame and were empty on every row here.
 _NUCLEOTIDE_EVENT_COLS = ("time", "kind", "parents", "children", "chromosome",
-                          "source", "start", "end")
+                          "source", "start", "end", "cuts")
 
 
 def _copy_branches(events, tree) -> dict[int, int]:
@@ -1422,26 +1484,31 @@ def _nucleotide_events_tsv(events, tree, names=None) -> str:
     def copies(ids) -> str:
         return ";".join(_copy_cell(_name(names, where[c]), c) for c in ids)
 
-    def row(time, kind, parents, children, chromosome=None, arc=(None, None, None)):
+    def row(time, kind, parents, children, chromosome=None, arc=(None, None, None), cuts=()):
         rows.append("\t".join([str(time), kind, copies(parents), copies(children),
                                "" if chromosome is None else chromosome,
-                               *("" if a is None else str(a) for a in arc)]))
+                               *("" if a is None else str(a) for a in arc), cuts_cell(cuts)]))
 
     for e in events:
         chrom = None
         if isinstance(e, (Origination, Loss, Duplication)):
             chrom = chromosome_label(e.lineage, e.chromosome, names)
         if isinstance(e, Origination):
-            row(e.time, e.kind, (), (e.copy,), chrom, (e.source, e.start, e.end))
+            row(e.time, e.kind, (), (e.copy,), chrom, (e.source, e.start, e.end), e.cuts)
         elif isinstance(e, Loss):
             for (copy, source, start, end) in e.lost:
-                row(e.time, "loss", (copy,), (), chrom, (source, start, end))
+                row(e.time, "loss", (copy,), (), chrom, (source, start, end), e.cuts)
+        elif isinstance(e, Deletion):
+            # the indel log rides here rather than in a file of its own: it is the same shape as a
+            # loss and needs the same reader, and its `cuts` are what read-back cannot do without
+            for (copy, source, start, end) in e.deleted:
+                row(e.time, "deletion", (copy,), (), chrom, (source, start, end), e.cuts)
         elif isinstance(e, Duplication):
             for (parent, child, source, start, end) in e.copied:
-                row(e.time, "duplication", (parent,), (child,), chrom, (source, start, end))
+                row(e.time, "duplication", (parent,), (child,), chrom, (source, start, end), e.cuts)
         elif isinstance(e, Transfer):
             for (parent, child, source, start, end) in e.transferred:
-                row(e.time, "transfer", (parent,), (child,), None, (source, start, end))
+                row(e.time, "transfer", (parent,), (child,), None, (source, start, end), e.cuts)
         elif isinstance(e, Speciation):
             row(e.time, "speciation", (e.parent,), e.children)
         else:
@@ -1534,7 +1601,7 @@ def _copies_cell(cell: str) -> list[tuple[int, int]]:
     return out
 
 
-def _edges_from_tsv(text: str) -> list:
+def _edges_from_tsv(text: str) -> "tuple[list, list]":
     """The nucleotide ``block_events.tsv`` → the copy-lineage genealogy, the inverse of
     `_nucleotide_events_tsv()`.
 
@@ -1542,11 +1609,16 @@ def _edges_from_tsv(text: str) -> list:
     be regrouped, and getting the key wrong merges two events or splits one. Those rows share the
     event's ``time`` and ``chromosome`` and the branches of the copies they name — a transfer has no
     chromosome and is told apart by its donor and recipient — while an **origination** and a
-    **speciation** are always a single row apiece."""
+    **speciation** are always a single row apiece.
+
+    Returns ``(events, deletions)``: the indel log is written into this same table under kind
+    ``deletion`` — the same shape as a loss, and the reader needs it back for the partition to know
+    which breakpoints were an indel's."""
     def num(cell):
         return int(cell) if cell else None
 
     events: list = []
+    deletions: list = []
     pending: list = []
     key = None
 
@@ -1555,27 +1627,35 @@ def _edges_from_tsv(text: str) -> list:
         if not pending:
             return
         kind, time, chrom, lineage, recipient = pending[0][:5]
+        cuts = pending[0][-1]
         if kind in ("origination", "initial", "insertion"):
-            (*_h, _p, copy, src, start, end) = pending[0]
-            events.append(Origination(time, lineage, chrom, copy, src, start, end, kind=kind))
+            (*_h, _p, copy, src, start, end, _cuts) = pending[0]
+            events.append(Origination(time, lineage, chrom, copy, src, start, end, kind=kind,
+                                      cuts=cuts))
         elif kind == "loss":
             events.append(Loss(time, lineage, chrom,
-                               tuple((p, s, a, b) for (*_h, p, _c, s, a, b) in pending)))
+                               tuple((p, s, a, b) for (*_h, p, _c, s, a, b, _k) in pending), cuts))
+        elif kind == "deletion":
+            deletions.append(Deletion(time, lineage, chrom,
+                                      tuple((p, s, a, b) for (*_h, p, _c, s, a, b, _k) in pending),
+                                      cuts))
         elif kind == "duplication":
             events.append(Duplication(time, lineage, chrom,
-                                      tuple((p, c, s, a, b) for (*_h, p, c, s, a, b) in pending)))
+                                      tuple((p, c, s, a, b) for (*_h, p, c, s, a, b, _k) in pending),
+                                      cuts))
         elif kind == "transfer":
             events.append(Transfer(time, lineage, recipient,
-                                   tuple((p, c, s, a, b) for (*_h, p, c, s, a, b) in pending)))
+                                   tuple((p, c, s, a, b) for (*_h, p, c, s, a, b, _k) in pending),
+                                   cuts))
         else:
             raise ValueError(f"block_events.tsv: unknown event kind {kind!r}")
         pending.clear()
         key = None
 
     for cells in _rows(text, _NUCLEOTIDE_EVENT_COLS, "block_events.tsv"):
-        (time, kind, parents, children, chrom, source, start, end) = cells
-        if kind not in ("origination", "initial", "insertion", "loss", "duplication", "transfer",
-                        "speciation"):
+        (time, kind, parents, children, chrom, source, start, end, cuts) = cells
+        if kind not in ("origination", "initial", "insertion", "loss", "deletion", "duplication",
+                        "transfer", "speciation"):
             raise ValueError(f"block_events.tsv: unknown event kind {kind!r}")
         ps, cs = _copies_cell(parents), _copies_cell(children)
         if kind == "speciation":
@@ -1589,7 +1669,7 @@ def _edges_from_tsv(text: str) -> list:
         row = (kind, float(time), chromosome_from_label(chrom)[1] if chrom else None, lineage,
                cs[0][0] if kind == "transfer" else None,
                ps[0][1] if ps else None, cs[0][1] if cs else None,
-               num(source), num(start), num(end))
+               num(source), num(start), num(end), cuts_from_cell(cuts))
         row_key = None if kind in ("origination", "initial", "insertion") else row[:5]
         if pending and row_key != key:
             flush()
@@ -1598,7 +1678,7 @@ def _edges_from_tsv(text: str) -> list:
         if kind in ("origination", "initial", "insertion"):
             flush()
     flush()
-    return events
+    return events, deletions
 
 
 def _rearrangements_from_tsv(text: str) -> list:
@@ -1609,17 +1689,18 @@ def _rearrangements_from_tsv(text: str) -> list:
         return int(cell) if cell else None
 
     out: list = []
-    for (time, kind, lineage, chrom, start, length, dest_chrom, dest, flipped) in _rows(
+    for (time, kind, lineage, chrom, start, length, dest_chrom, dest, flipped, cuts) in _rows(
             text, REARRANGEMENT_COLS, "rearrangement_events.tsv"):
         t, ln = float(time), node_from_label(lineage)
         at, ell = int(start), int(length)
+        cut = cuts_from_cell(cuts)
         if kind == "inversion":
-            out.append(Inversion(t, ln, int(chrom), at, ell))
+            out.append(Inversion(t, ln, int(chrom), at, ell, cut))
         elif kind == "transposition":
-            out.append(Transposition(t, ln, int(chrom), at, ell, num(dest), bool(num(flipped))))
+            out.append(Transposition(t, ln, int(chrom), at, ell, num(dest), bool(num(flipped)), cut))
         elif kind == "translocation":
             out.append(Translocation(t, ln, int(chrom), num(dest_chrom), at, ell,
-                                     bool(num(flipped))))
+                                     bool(num(flipped)), cut))
         else:
             raise ValueError(f"rearrangement_events.tsv: unknown kind {kind!r}")
     return out
@@ -1647,19 +1728,7 @@ def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
             ) from None
 
     spans, names, strands = _genes_from_tsv(read("genes.tsv"))
-    events = _edges_from_tsv(read("block_events.tsv"))
-    # Indels are not replayable yet, and failing here beats handing back a run that looks fine and
-    # is not. Which breakpoints an indel made is the run's own bookkeeping (`_CutLog`) and no file
-    # carries it: the ancestral position an insertion opened its gap at is written nowhere, and
-    # deletions have no file at all. Without it the partition is cut at every indel breakpoint —
-    # the shattering the provenance exists to prevent — so the trees read back would not be the
-    # trees the run had.
-    if any(isinstance(e, Origination) and e.kind == "insertion" for e in events):
-        raise NotImplementedError(
-            "this run used indels, and reading one back from files is not built yet: no file records "
-            "which breakpoints an indel made, so the root partition cannot be rebuilt as the run had "
-            "it and every gene tree would come back wrong. Keep the result in Python, or re-run. See "
-            "docs/design/indels.md.")
+    events, deletions = _edges_from_tsv(read("block_events.tsv"))
     rearrangements = _rearrangements_from_tsv(read("rearrangement_events.tsv"))
     initial_sequence: dict[int, str] = {}
     fpath = d / "initial_sequence.fasta"
@@ -1671,7 +1740,7 @@ def read_nucleotide_genomes(directory, tree) -> NucleotideGenomesResult:
         [], None, spans, names,
         gene_strands=strands,
         initial_genome=_initial_genome_from_tsv(read("initial_genome.tsv")),
-        initial_sequence=initial_sequence)
+        initial_sequence=initial_sequence, deletions=deletions)
 
 
 def _valid_length(length) -> int:
@@ -1744,8 +1813,7 @@ def _copy_chromosome(c: Chromosome, cid: int, copy_map: dict[int, int]) -> Chrom
     a daughter's inversions never mutate the parent's genome), with every block's copy lineage
     re-minted through ``copy_map`` (parent copy id → this daughter's fresh copy id)."""
     return Chromosome(cid, c.topology,
-                      [Block(b.source, b.start, b.end, b.strand, copy_map[b.copy], b.gene) for b in c.blocks],
-                      c.cuts)                    # the run's cut log travels with the karyotype
+                      [Block(b.source, b.start, b.end, b.strand, copy_map[b.copy], b.gene) for b in c.blocks])
 
 
 @dataclass(frozen=True)
@@ -1792,10 +1860,11 @@ def _do_duplication(g, node_id, t, duplication_extent, rng, events, new_copy) ->
     ell = chrom._pick_arc_extent(start, duplication_extent, rng)
     if ell is None:
         return 0
-    copied = chrom.duplicate(start, ell, new_copy)
+    used: list = []
+    copied = chrom.duplicate(start, ell, new_copy, used)
     if copied is None:
         return 0
-    events.append(Duplication(t, node_id, chrom.id, copied))
+    events.append(Duplication(t, node_id, chrom.id, copied, tuple(used)))
     return sum(end - beg for (_par, _child, _src, beg, end) in copied)
 
 
@@ -1830,7 +1899,8 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_extent, transfer_to, sel
     ell = chrom._pick_arc_extent(start, transfer_extent, rng)
     if ell is None:
         return 0
-    span = chrom._arc_range(start, ell)
+    used: list = []
+    span = chrom._arc_range(start, ell, used=used)
     if span is None:
         return 0
     i, j = span
@@ -1864,10 +1934,12 @@ def _do_transfer(rng, tree, alive, gen, kd, t, transfer_extent, transfer_to, sel
     p = rchrom._pick_legal_cut(rng)                     # arrive at a legal spot on the recipient
     if p is None:
         return 0
-    rchrom._split_at(p)
+    landed = rchrom._split_at(p)
+    if landed is not None:
+        used.append(landed)
     q = rchrom._index_at(p)
     rchrom.blocks[q:q] = xfers
-    events.append(Transfer(t, donor, recipient, transferred))
+    events.append(Transfer(t, donor, recipient, transferred, tuple(used)))
     return sum(b.length for b in arc)                   # the recipient's length gain
 
 
@@ -1884,10 +1956,11 @@ def _do_origination(g, node_id, t, origination_extent, rng, events, new_source, 
     p = chrom._pick_legal_cut(rng)
     if p is None:
         return 0
-    chrom.originate(p, length, src, cp, fam)
+    used: list = []
+    chrom.originate(p, length, src, cp, fam, used=used)
     gene_spans[fam] = (src, 0, length)                   # a de-novo gene, tracked like a declared one
     gene_strands[fam] = 1
-    events.append(Origination(t, node_id, chrom.id, cp, src, 0, length))
+    events.append(Origination(t, node_id, chrom.id, cp, src, 0, length, cuts=tuple(used)))
     return length
 
 
@@ -1906,10 +1979,11 @@ def _do_loss(g, node_id, t, loss_extent, rng, events) -> int:
     ell = chrom._pick_arc_extent(start, loss_extent, rng)
     if ell is None:
         return 0
-    lost = chrom.delete(start, ell)
+    used: list = []
+    lost = chrom.delete(start, ell, used=used)
     if lost is None:
         return 0
-    events.append(Loss(t, node_id, chrom.id, lost))
+    events.append(Loss(t, node_id, chrom.id, lost, tuple(used)))
     return -sum(end - beg for (_cp, _src, beg, end) in lost)
 
 
@@ -1932,10 +2006,11 @@ def _do_deletion(g, node_id, t, length, rng, deletions) -> int:
     if chrom.length < 2:
         return 0
     ell = max(1, min(length, chrom.length - 1))
-    gone = chrom.delete(start, ell, indel=True)
+    used: list = []
+    gone = chrom.delete(start, ell, indel=True, used=used)
     if gone is None:
         return 0
-    deletions.append(Deletion(t, node_id, chrom.id, gone))
+    deletions.append(Deletion(t, node_id, chrom.id, gone, tuple(used)))
     return -sum(end - beg for (_cp, _src, beg, end) in gone)
 
 
@@ -1952,8 +2027,10 @@ def _do_insertion(g, node_id, t, length, rng, events, new_source, new_copy) -> i
         return 0
     chrom, at = spot
     src, cp = new_source(), new_copy()
-    chrom.originate(at, length, src, cp, 0, indel=True)      # family 0: spacer, not a gene
-    events.append(Origination(t, node_id, chrom.id, cp, src, 0, length, kind="insertion"))
+    used: list = []
+    chrom.originate(at, length, src, cp, 0, indel=True, used=used)   # family 0: spacer, not a gene
+    events.append(Origination(t, node_id, chrom.id, cp, src, 0, length, kind="insertion",
+                              cuts=tuple(used)))
     return length
 
 
@@ -1966,8 +2043,9 @@ def _do_inversion(g, node_id, t, inversion_extent, rng, rearrangements) -> None:
     length = chrom._pick_arc_extent(pos, inversion_extent, rng)
     if length is None:
         return
-    chrom.invert(pos, length)
-    rearrangements.append(Inversion(t, node_id, chrom.id, pos, length))
+    used: list = []
+    chrom.invert(pos, length, used)
+    rearrangements.append(Inversion(t, node_id, chrom.id, pos, length, tuple(used)))
 
 
 def _do_translocation(g, node_id, t, translocation_extent, inversion_probability, rng,
@@ -1988,7 +2066,8 @@ def _do_translocation(g, node_id, t, translocation_extent, inversion_probability
     ell = source._pick_arc_extent(start, translocation_extent, rng)
     if ell is None:
         return
-    span = source._arc_range(start, ell)
+    used: list = []
+    span = source._arc_range(start, ell, used=used)
     if span is None:
         return
     i, j = span
@@ -2006,10 +2085,13 @@ def _do_translocation(g, node_id, t, translocation_extent, inversion_probability
     if pos is None:
         source.blocks = intact                           # nowhere legal to land: undo the excision
         return
-    dest._split_at(pos)
+    landed = dest._split_at(pos)
+    if landed is not None:
+        used.append(landed)
     k = dest._index_at(pos)
     dest.blocks[k:k] = arc
-    rearrangements.append(Translocation(t, node_id, source.id, dest.id, start, ell, flipped))
+    rearrangements.append(Translocation(t, node_id, source.id, dest.id, start, ell, flipped,
+                                        tuple(used)))
 
 
 def _do_transposition(g, node_id, t, transposition_extent, inversion_probability, rng,
@@ -2028,7 +2110,8 @@ def _do_transposition(g, node_id, t, transposition_extent, inversion_probability
     if ell is None:
         return
     intact = chrom.blocks                                # keep for rollback if there is nowhere to land
-    arc = chrom.excise(start, ell)
+    used: list = []
+    arc = chrom.excise(start, ell, used)
     if arc is None:
         return
     flipped = bool(rng.random() < inversion_probability)
@@ -2036,8 +2119,9 @@ def _do_transposition(g, node_id, t, transposition_extent, inversion_probability
     if dest is None:
         chrom.blocks = intact                            # nowhere legal to land: undo the excision
         return
-    chrom.place(arc, dest, flipped)
-    rearrangements.append(Transposition(t, node_id, chrom.id, start, ell, dest, flipped))
+    chrom.place(arc, dest, flipped, used)
+    rearrangements.append(Transposition(t, node_id, chrom.id, start, ell, dest, flipped,
+                                        tuple(used)))
 
 
 def _do_fission(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
@@ -2058,8 +2142,8 @@ def _do_fission(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
         if chrom.n_genes and not (any(x.is_gene for x in chrom.blocks[:i])
                                   and any(x.is_gene for x in chrom.blocks[i:])):
             return 0                                     # a half without a gene: the fission fails
-        a = Chromosome(new_chrom_id(), "linear", chrom.blocks[:i], chrom.cuts)
-        b = Chromosome(new_chrom_id(), "linear", chrom.blocks[i:], chrom.cuts)
+        a = Chromosome(new_chrom_id(), "linear", chrom.blocks[:i])
+        b = Chromosome(new_chrom_id(), "linear", chrom.blocks[i:])
     else:
         cuts = {chrom._pick_legal_cut(rng), chrom._pick_legal_cut(rng)} - {None}
         if len(cuts) < 2:
@@ -2071,8 +2155,8 @@ def _do_fission(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
         if chrom.n_genes and not (any(x.is_gene for x in chrom.blocks[i:j])
                                   and any(x.is_gene for x in chrom.blocks[:i] + chrom.blocks[j:])):
             return 0                                     # a half without a gene: the fission fails
-        a = Chromosome(new_chrom_id(), "circular", chrom.blocks[i:j], chrom.cuts)
-        b = Chromosome(new_chrom_id(), "circular", chrom.blocks[:i] + chrom.blocks[j:], chrom.cuts)
+        a = Chromosome(new_chrom_id(), "circular", chrom.blocks[i:j])
+        b = Chromosome(new_chrom_id(), "circular", chrom.blocks[:i] + chrom.blocks[j:])
     g.chromosomes[ci:ci + 1] = [a, b]
     chromosome_events.append(ChromosomeEvent(t, "fission", node_id, (chrom.id,), (a.id, b.id)))
     return 1
@@ -2091,7 +2175,7 @@ def _do_fusion(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
         return 0
     cj = partners[int(rng.integers(len(partners)))]
     b = g.chromosomes[cj]
-    fused = Chromosome(new_chrom_id(), a.topology, a.blocks + b.blocks, a.cuts)
+    fused = Chromosome(new_chrom_id(), a.topology, a.blocks + b.blocks)
     g.chromosomes[:] = [c for k, c in enumerate(g.chromosomes) if k not in (ci, cj)] + [fused]
     chromosome_events.append(ChromosomeEvent(t, "fusion", node_id, (a.id, b.id), (fused.id,)))
     return -1
@@ -2106,8 +2190,7 @@ def _do_chromosome_origination(g, node_id, t, origination_extent, rng, events, c
     exactly like a de-novo `_do_origination()`. Returns ``(chromosome delta, length delta)``."""
     cid, src, cp, fam = new_chrom_id(), new_source(), new_copy(), new_family()
     length = max(1, int(rng.geometric(1.0 / origination_extent)))
-    g.chromosomes.append(Chromosome(cid, "circular", [Block(src, 0, length, 1, cp, fam)],
-                                    g.chromosomes[0].cuts if g.chromosomes else None))
+    g.chromosomes.append(Chromosome(cid, "circular", [Block(src, 0, length, 1, cp, fam)]))
     gene_spans[fam] = (src, 0, length)
     gene_strands[fam] = 1
     chromosome_events.append(ChromosomeEvent(t, "origination", node_id, (), (cid,)))
@@ -2504,7 +2587,6 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     genomes: dict[int, NucleotideGenome] = {}
     events: list[Origination | Loss | Duplication | Transfer | Speciation] = []
     deletions: list[Deletion] = []                      # the indel log: extent-changing, no genealogy
-    cut_log = _CutLog()                                 # one per run; travels with every chromosome
     rearrangements: list[Inversion | Translocation | Transposition] = []
     chromosome_events: list[ChromosomeEvent] = []
     root = tree.nodes[tree.root]
@@ -2519,15 +2601,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         cp = new_copy()                                 # ...and one initial copy lineage per replicon
         initial_chroms.append(Chromosome(cid, top, _initial_blocks(source, length, cp, intervals, new_family,
                                                              gene_spans, gene_names,
-                                                             gene_strands), cut_log))
-        # The layout's own boundaries are STRUCTURAL — a gene's two edges, and the joins between gene
-        # and spacer — so they are event-made from the start and can never be skipped. Nothing split
-        # them, so nothing would otherwise record them, and an indel landing on a gene edge would
-        # attribute it to itself: the partition would then skip it and merge that gene with its
-        # neighbour, losing it a tree. On a genome that is all gene, that is every boundary there is.
-        for b in initial_chroms[-1].blocks:
-            cut_log.record(b.source, b.start, indel=False)
-            cut_log.record(b.source, b.end, indel=False)
+                                                             gene_strands)))
         # `initial`, as the copy lineage below is: a replicon the run *starts* with is not something
         # it did, so counting `origination` in either log gives the de-novo ones alone
         chromosome_events.append(ChromosomeEvent(root.birth_time, "initial", root.id, (), (cid,)))
@@ -2745,8 +2819,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     return NucleotideGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
                                    gene_spans, gene_names, module_map,
                                    gene_strands=gene_strands, initial_genome=initial_genome,
-                                   initial_sequence=initial_sequence, deletions=deletions,
-                                   cut_log=cut_log)
+                                   initial_sequence=initial_sequence, deletions=deletions)
 
 
 # --- the gene-tree recovery: root partition -> per-block genealogy -> one tree per block ----------
@@ -2781,7 +2854,7 @@ def _root_block_partition(result) -> list[tuple[int, int, int]]:
     survives on one side of it and not the other, and the surviving side carries that breakpoint to
     the end of its branch. A boundary that vanishes took its material with it.
 
-    **Indel breakpoints are skipped** (`_CutLog`). A deletion of a few bases leaves two blocks where
+    **Indel breakpoints are skipped** (`_skippable_bounds()`). A deletion of a few bases leaves two blocks where
     there was one, and those two extra bounds would cut the partition — at indel rates, into
     fragments a few bases wide, one gene tree apiece. They are skipped instead, so a block stays whole
     and the deletion is a *hole inside it* rather than a boundary between two of them. Only bounds no
@@ -2792,7 +2865,7 @@ def _root_block_partition(result) -> list[tuple[int, int, int]]:
     covers it whole. With deletions, no single node need carry all of a root block — each carries the
     parts it did not delete. Without them the two tests pick exactly the same intervals, since every
     node's block is then a whole number of root blocks, so this is a generalisation and not a change."""
-    skip = result.cut_log.skippable() if getattr(result, "cut_log", None) is not None else {}
+    skip = _skippable_bounds(result)
     bounds: dict[int, set[int]] = collections.defaultdict(set)
     spans: dict[int, set[tuple[int, int]]] = collections.defaultdict(set)
     # Each source bracketed by the origination that laid it down, so its two outer bounds are in the
