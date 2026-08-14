@@ -34,13 +34,7 @@ traits.simulate_continuous(tree, start=0.0,
 
 The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root; it is written with the same `changing_at` that gives the species tree its skyline.
 
- 
-
 Two more arguments sit alongside `rate`. `regimes=` paints a multi-optimum OU, where clades pull toward different optima (a discrete trait supplies the painting and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches, so change concentrates at branching. The value is the jump variance, so `at_speciation=0.5` gives a jump of width √0.5. None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one verb and two arguments.
-
-```python
-# 
-```
 
 `regimes=` is the one argument that asks you to give things up, and it says so rather than ignoring them: it takes a plain σ² (not a modified one), one jump variance shared across regimes (not one per regime), and one trait (so not `correlation=`).
 
@@ -61,14 +55,6 @@ When the flips are not symmetric, replace the single rate with a small matrix of
 traits.simulate_discrete(tree, states=["absent", "present"],
                          switch={"absent->present": 0.2, "present->absent": 0.05},
                          seed=1)
-```
-
- 
-
-`
-
-```python
-# 
 ```
 
 ## Correlated traits
@@ -116,16 +102,13 @@ Trait models arrive under a thicket of names, and a reader who wants "an OU mode
 | discrete driven by continuous liability | `simulate_discrete(liability=…, threshold=…)` | Threshold / liability (Wright–Felsenstein) [@felsenstein2012threshold] |
 | discrete traits evolving together | `simulate_discrete(liability={…}, correlation={…})` | Correlated binary / Pagel [@pagel1994correlated] |
 
-## The `TraitsResult` object
+## What a run gives back
 
-A run returns a **`TraitsResult`** bundle:
-
-- `.values`, the observable vector: the trait's value at each **extant tip**, keyed by the tip's name (`n5`), the same names the Newick and `trait_values.tsv` use, so the dataset joins the tree it came from. `.values_by_id` is the same thing keyed by bare node id, for joining against `.node_values`. This is the comparative-data matrix a method would be handed.
-- `.node_values`, the value at **every** node (extant, extinct, and internal alike), the true ancestors at each split, from the same process that produced the tips.
-- `.events`, the timestamped event log — one row per change, like the genome level's, but with its own columns: each entry is a change on a lineage at a time, from one state to another, and its `kind` is `initial` (the value at t=0), `on_branch` (a switch along a branch) or `on_speciation` (a jump at a split). For an Mk (`switch=`) trait this log is the source of truth. A continuous trait diffuses with no along-branch events, so its log holds the `initial` row and any `at_speciation` jumps. The `initial` row is written for a continuous and an Mk trait, so a plain Brownian run's log has exactly one entry. A threshold trait keeps no log at all: its state is read off a continuous liability, so there are no timed crossings to record and `.events` is empty — its `.node_values` is the record.
-- `.history`, for a **discrete** trait, the per-branch stochastic character map derived from that log: the ordered list of `(state, duration)` segments each branch passed through. It is `None` for a continuous trait, which has no map, and for a threshold trait, whose liability crossings are un-timed.
-
-For discrete traits the stored values are the state labels you gave (not integer indices), so `.values` and `.node_values` already read back in your own vocabulary.
+A run returns a `TraitsResult`. **`.values` is the observable vector** — the trait at each *extant
+tip*, keyed by the tip's name (`n5`), the same names the Newick and `trait_values.tsv` use, so the
+dataset joins the tree it came from. **`.node_values` is every node**, extant, extinct and internal
+alike: the true ancestors at each split, from the same process that produced the tips. For a discrete
+trait both read back in the state labels you gave, not integer indices. Appendix B lists the rest.
 
 A trait evolves on the **complete** tree, extinct lineages included, so that is the tree to hand it:
 

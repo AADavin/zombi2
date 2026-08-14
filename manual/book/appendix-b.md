@@ -74,6 +74,8 @@ writes, which are left as they are.
 | Tip fates | `species_fates.tsv` | TSV | yes | each tip's resolved fate — `lineage` · `fate` (`extant` / `extinct` / `unsampled`) |
 | Fossils | `species_fossils.tsv` | TSV | yes¹ | sampled fossil lineages — `lineage` · `time` |
 | Summary | `species_summary.json` | JSON | yes | what the run produced — counts by fate, tree height, stem, total branch length, the realised birth and death rates, and the seed |
+| The trees | `.complete_tree` · `.extant_tree` | Tree | Python | the whole tree that grew, extinct lineages and all — **this is what the next level runs along**, which is what lets a gene be transferred out of a lineage that later dies — and the survivors' tree, dated and bifurcating, which is the tree an analysis would be handed. Each holds every node, internal ones included, in `.nodes`, and answers `.leaves()`, `.extant_leaves()`, `.extinct_leaves()` and `.unsampled_leaves()` |
+| Fossils | `.fossils` | list | Python | the sampled fossil lineages and the times they were sampled at, present when the run asked for `fossils` |
 
 ¹ written only if fossil sampling recovered any.
 
@@ -113,6 +115,9 @@ arrived.
 | `loss` | the copy that ends | — |
 | `transfer_additive` | the donor's copy | the continuation on the donor branch, then the copy that arrived |
 | `transfer_replacing` | the donor's copy, then the copy it overwrote | the same two |
+| The genomes | `.genomes` · `.node_genomes` | dict | Python | **`.genomes` is the observed dataset** — the genome at each *extant* tip, keyed by the tip name the tree writes (`n5`), so it joins to the tree and to a trait grown on the same tree. **`.node_genomes` is the run's own record** — every node, extant and extinct and internal alike, keyed by node id, for joining against `.complete_tree.nodes` or the event log. The pair is the same at every resolution, and the distinction is the model's: one is what a dataset contains, the other is what happened |
+| Multiset views | `.family_counts(node)` · `.has_family(node, name)` | Counter, bool | Python | a node's genome collapsed to `family → copies`, and whether a family named with `family_names=` has a copy there |
+| In memory | `.gene_trees` · `.profiles` · `.initial_genome` · `.events` · `.seed` | — | Python | the same objects the files above hold, before `.write()` puts them on disk |
 
 One row of each kind, from a real run:
 
@@ -159,6 +164,9 @@ trees are built from.
 | Summary | `genome_summary.json` | JSON | yes | `events` counted as biology rather than rows (see the family resolution), `families` born/surviving/died_out, genes and chromosomes per genome, and the `rearrangements` and `chromosome_events` by kind |
 | Species tree | `species_complete.nwk` | Newick | yes (Python) | as at the family resolution |
 | Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | as at the family resolution — position is orthogonal to genealogy |
+| The genomes | `.genomes` · `.node_genomes` | dict | Python | as at the family resolution, but each genome is a tuple of **`Chromosome`** objects — an `id`, a `topology`, and an ordered list of **`Gene`** objects (`id`, `family`, `strand`) |
+| Gene order | `.gene_order(node)` | list | Python | one node's layout gene by gene — `(chromosome, position, strand, family, gene id)` |
+| In memory | `.rearrangements` · `.chromosome_events` · `.gene_trees` · `.profiles` | — | Python | the rearrangement log, the chromosome network as an edge list, and the gene genealogy, which is derived exactly as at the family resolution |
 
 ¹ a segment is named by `start` (its first position, in the chromosome's frame just before the event)
 and `length` (how many genes it covered), counted rightwards from `start` and **wrapping past position
@@ -191,6 +199,10 @@ From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...
 | Driver views | `.presence(name)` · `.completion(name)` | driver | Python | as at the family resolution, over **declared genes**: the name is the GFF's `ID` / `Name`, and what takes a gene away is an arc of DNA rather than a whole copy |
 | Assembly | `.assembly(node)` · `.initial_assembly()` | dict | Python | how a node's genome is built from the recovered root blocks: `(block, gene, strand, lo, hi)` in physical order, `[lo, hi)` being the sub-range of that block the node carries — the whole block unless an indel took a stretch out of it or opened a gap inside it |
 | Indel log | `.deletions` | list | Python | one `Deletion` per indel deletion — `time` · `lineage` · `chromosome` · `deleted`, the last being `(copy, source, start, end)` rows in **ancestral** coordinates, the same payload a loss carries. Kept out of `events` because a deletion ends no copy lineage, so the gene-tree recovery must not read it. Only deletions are here: an **insertion** brings material that descends from nothing, so it must begin a copy lineage and is recorded in `events` as a root of its own kind. Written into `block_events.tsv` under kind `deletion`, which is also how it is read back |
+| The genomes | `.genomes` · `.node_genomes` | dict | Python | as at the other resolutions, each a `NucleotideGenome`: a list of `Chromosome`s, each a list of `Block`s |
+| The root partition | `.root_blocks` · `.block_trees` | list, dict | Python | the maximal never-cut intervals that some node still carries, and a recovered tree for **every** one of them, spacer as well as gene. Cut at every node's breakpoints rather than only the survivors', which is what lets any node's genome be rebuilt |
+| Reading one genome | `.mosaic(node)` · `.trace_back(node)` | dict | Python | the same genome at two coarser grains than `.assembly` above: per block, and per nucleotide |
+| Where a gene sits | `.gene_spans` · `.gene_names` · `.gene_strands` · `.block_of(family)` | dict, int | Python | `{family: (source, start, end)}` in initial coordinates, a named gene's family id and coding strand from a GFF, and the block index a family occupies. That last one is the join between the two numbering schemes here — `.gene_spans` and `.gene_trees` are keyed by family, `.root_blocks` and `.block_trees` by block index, both plain integers, so mixing them up is otherwise silent |
 
 Three event files, because a nucleotide run records three different things: the genealogy in the one
 format every resolution writes, the interval record only this resolution has, and what moved without
@@ -226,6 +238,9 @@ ancestral sequences.
 | Initial genome | `genome_initial.fasta` | FASTA | yes | the genome the run **started** with, as sequence — the state the stem leads *from*, which is not any node's. In `genomes/` with the rest, being a whole-genome FASTA like they are. Nucleotide runs only |
 | Driver views | `.gc()` · `.composition(letters)` | driver | Python | the share of a lineage's sequence that is those letters, pooled over all its families, for use as a driver (Ch9) — GC content, or any amino-acid frequency. A number, so it takes a `Curve` or a `Scalar`; it drives a trait or a further sequence run, never the genome its gene trees came from |
 | Summary | `sequences_summary.json` | JSON | yes | what came out — `unit` (`family` or `block`), families with sequences, how many sequences, sites min/max, `mean_pairwise_identity` (the saturation check the command warns on — every within-family pair, so it is the same number whether the run was held in memory or streamed), assembled genomes, and the seed |
+| The sequences | `.alignments` · `.ancestral` | dict | Python | **`.alignments` is the observable data** — for each family, the sequence at every *extant* gene copy, the alignment a phylogenetic method would be handed. **`.ancestral` is every node the alignment leaves out** — internal nodes, and the tips where a copy was lost or its species died. The run wrote a sequence at each node as it went, so these are the exact ancestors, not estimates. Together they account for every node of the tree exactly once |
+| Assembled genomes | `.genomes` · `.node_genomes` · `.initial_genome` | dict | Python | each extant tip's whole genome, the same for every node, and the run's starting point. Present only when the run came from a **nucleotide** genome |
+| In memory | `.founding` · `.phylograms` · `.species_phylogram` | dict | Python | each family's founding sequence, its gene tree rescaled into substitutions per site, and the same conversion applied to the species tree |
 
 On a **nucleotide** genome run every block evolves, spacer as well as gene, so a genome of *b* blocks
 writes *b* alignments and *b* phylograms — that is what makes the genomes assemblable. The number in
@@ -265,6 +280,8 @@ together.
 | Summary | `trait_summary.json` | JSON | yes (CLI) | what came out, not what was asked for — `tips` · `nodes` · `events` (the `on_branch` and `on_speciation` counts), then `states` · `most_common_share` for a discrete trait, or `values` (min/mean/max) · `value_at_root_node` for a continuous one. The root node sits at the end of the stem, so that value is not the one the run started from |
 | Conditioning | `conditioned_on` | text | conditioned | the levels this run reads as a driver, one per line, in the trait's own directory — a trait driven by a trait grown first records `traits` (Ch9). Written only when `--rate` or `--switch` was conditioned. Both sides sit under `traits/`, so the record is kept but re-running the driver trait does not invalidate this run |
 | Tip names | `names.tsv` | TSV | external tree | `node` · `name`, mapping ZOMBI2's `n<id>` back to the labels you supplied. Written only when the tree came from `--from` with its own tip labels; it is the join from every other output back to your taxa |
+| The values | `.values` · `.node_values` | dict | Python | **`.values` is the observable vector** — the trait at each *extant tip*, keyed by tip name (`n5`), the same names the Newick and `trait_values.tsv` use, so the dataset joins the tree it came from. **`.node_values` is every node**, extant, extinct and internal alike: the true ancestors at each split, from the same process that produced the tips. `.values_by_id` is `.values` keyed by bare node id, for joining against `.node_values`. Discrete traits store the state labels you gave, not integer indices |
+| Character map | `.history` | dict | Python | for a **discrete** trait, the per-branch stochastic character map derived from the event log: the ordered `(state, duration)` segments each branch passed through. `None` for a continuous trait, which has no map, and for a threshold trait, whose liability crossings are un-timed |
 
 ## Conditioning and joining: no new files
 

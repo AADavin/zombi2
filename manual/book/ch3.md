@@ -57,20 +57,13 @@ By default you see every surviving species. **`sampling`** keeps a random fracti
 
 ![Sampling and fossils, the two ways a dataset falls short of the whole tree. A single complete tree shows every lineage's fate. Sampled species reach the present as solid lines and are the data you keep. Lineages alive today but not sampled reach the present as dashed lines ending in an open ring. Lineages that went extinct are dashed and stop where they died. Fossils are dated samples recovered along any branch of the complete tree, a surviving lineage's branch as readily as an extinct one, shown as black diamonds. The data is the solid tips together with the diamonds; the dashed lineages are never observed. This tree was grown with `sampling=0.6, fossils=0.15`.](figures/sampling_fossils.pdf){width=100%}
 
-```python
-# 
-```
+## What a run gives back
 
-## The `SpeciesResult` object
-
-`simulate_species_tree` returns a **`SpeciesResult`**, which carries:
-
-- `.complete_tree`, the whole tree that grew, with the extinct lineages still on it. **This is what the next level runs along**, which is what lets a gene be transferred out of a lineage that later dies.
-- `.extant_tree`, the survivors' tree, dated and bifurcating: the tree an analysis would be handed, and a projection of the run rather than its substrate.
-- `.fossils`, the sampled fossil lineages and the times they were sampled at, present when you asked for `fossils`.
-- `.events`, the event log: every speciation and extinction with its time, the source of truth the run exists to record.
-
-As at every level it also carries `.seed` and `.write(dir, outputs=[...])`. Each tree carries its topology and dated branch lengths, holds every node — internal ones included — in `.nodes`, and lets you ask for its tips with `.leaves()` and, among them, the extant, the extinct and the unsampled (`.extant_leaves()`, `.extinct_leaves()`, `.unsampled_leaves()`).
+`simulate_species_tree` returns a `SpeciesResult`. Two of the things on it are different trees, and
+the difference matters: **`.complete_tree` is the whole tree that grew**, extinct lineages and all,
+and it is what the next level runs along — which is what lets a gene be transferred out of a lineage
+that later dies. **`.extant_tree` is the survivors' tree**, the one an analysis would be handed.
+Appendix B lists everything a run carries and every file it writes.
 
 ## On the command line
 
