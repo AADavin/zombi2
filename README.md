@@ -1,6 +1,4 @@
-<h1>
-  <img src="https://raw.githubusercontent.com/AADavin/zombi2/main/web/favicon.svg" alt="" height="42" align="absmiddle">&nbsp;ZOMBI2
-</h1>
+# $\textsf{\textcolor{#0f766e}{Z}OMBI2}$
 
 **[🌐 Website](https://aadavin.github.io/zombi2/)** · [Gallery](https://aadavin.github.io/zombi2/gallery.html) · [Documentation](https://aadavin.github.io/zombi2/docs/) · [Manual (pdf)](https://aadavin.github.io/zombi2/zombi2-manual.pdf)
 

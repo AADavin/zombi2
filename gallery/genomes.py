@@ -661,21 +661,11 @@ def clade_transition(out):
         ax.axvline(np.mean([n for n, c in zip(sizes, colours) if c == _SW_BEFORE]),
                    color="0.45", lw=1.0, ls=":")
 
-    body = out.replace(".png", "_body.png")
-    h.composite_beside(tmp, body, panel, figsize=(12.5, 7.4), ratios=(3, 1.0),
+    # no driver/target diagram on top: this is a rate scoped to a clade and a time, not a level
+    # reading another one, and the conditioning section is where that diagram belongs. The tree says
+    # it — shading for the group, colour for the state through time, the marker for the moment.
+    h.composite_beside(tmp, out, panel, figsize=(12.5, 7.4), ratios=(3, 1.0),
                        geometry=geo, wspace=0.02)
-    diag = h.conditioning_png(
-        out.replace(".png", "_diag.png"),
-        # a clade is read off the tree rather than grown, and a schedule is its connection: the
-        # switch happens to the whole clade at a moment the run fixes, not at a rate per lineage
-        driver=("the tree", "one clade", "a named group"),
-        connection=("changing_at", "a schedule"),
-        target_level="genomes",
-        targets=[("loss", "rate · per copy", f"× {_SW_FACTOR} inside the clade")],
-        chain=(("base rate", f"× {_SW_FACTOR}"),
-               [(f"at t = {_SW_T0:g}", None)],
-               (_SW_BEFORE, _SW_AFTER)))
-    h.composite_under_diagram(out, diag, [(body, "")], diagram_frac=0.46)
 
 
 _C_TRANSITION = '''\

@@ -458,6 +458,9 @@ def test_chapter_nine_s_table_and_the_gallery_agree_on_the_conditioning_examples
 _LITERATURE_TABLES = [
     ("ch8", "| What it does | From the literature | Gallery |", "Tr", True),
     ("ch3", "| What it does | From the literature | Gallery |", "Sp", False),
+    # chapter 7's clocks cite the sequences section and, for the trait-driven rate, the
+    # conditioning one — so no single prefix covers it and only the ascent is checked
+    ("ch7", "| What it does | From the literature | Gallery |", None, False),
 ]
 
 
@@ -485,7 +488,7 @@ def test_a_literature_table_is_the_index_into_its_gallery_section(chapter, heade
 
     with _gallery_build() as build:
         nums = gallery_refs.numbers(build)
-    section = {i for i, n in nums.items() if n.startswith(prefix)}
+    section = {i for i, n in nums.items() if prefix is None or n.startswith(prefix)}
 
     cited, order = [], []
     for n, row in enumerate(rows, start=1):

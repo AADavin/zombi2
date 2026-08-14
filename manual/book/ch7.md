@@ -167,15 +167,16 @@ fixed it.
 
 Rate variation across sites says which *positions* change fast. A clock says which *lineages* do. The two are orthogonal and compose.
 
-The rate is `substitution`, counted **per site**: a gene-tree branch of Δ*t* time accrues `substitution · Δt` substitutions at every site. Left alone it is `1.0` everywhere — the **strict clock**, one tempo for the whole tree. Let it change from lineage to lineage and it is what the field calls a **relaxed clock** [@lepage2007general], written by chaining a verb onto the rate exactly as at every other level ([Sq5–Sq8](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_ucln--><!--gallery:clock_ugam--><!--gallery:clock_autocorrelated--><!--gallery:clock_discrete_bin-->). Whichever distribution you give is **normalised to mean 1**, so it contributes its *shape* and the base keeps meaning the average rate.
+The rate is `substitution`, counted **per site**: a gene-tree branch of Δ*t* time accrues `substitution · Δt` substitutions at every site. Left alone it is `1.0` everywhere — the **strict clock**, one tempo for the whole tree. Let it change from lineage to lineage and it is what the field calls a **relaxed clock** [@lepage2007general], written by chaining a verb onto the rate exactly as at every other level. Whichever distribution you give is **normalised to mean 1**, so it contributes its *shape* and the base keeps meaning the average rate.
 
-| What it does | ZOMBI2 | From the literature |
-|---|---|---|
-| one rate everywhere | `substitution = 1.0` (default) | Strict / global clock |
-| each lineage i.i.d. lognormal | `PerSite(1.0).varying_among('lineages', LogNormal(0.0, …))` | Uncorrelated lognormal (UCLN) |
-| each lineage i.i.d. gamma | `PerSite(1.0).varying_among('lineages', Gamma(...))` | Uncorrelated gamma (UGAM) |
-| the rate drifts parent to daughter | `PerSite(1.0).varying_among('lineages', Drift(LogNormal(0.0, …)))` | Autocorrelated lognormal |
-| the rate reads another level | `PerSite(1.0).scaled_by(trait, {…})` | Trait-dependent rate of molecular evolution |
+| What it does | From the literature | Gallery |
+|-------------------|--------------------------------|---|
+| one rate everywhere | Strict / global clock | [Sq1](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_alignment--> |
+| each lineage i.i.d. lognormal | Uncorrelated lognormal (UCLN) | [Sq5](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_ucln--> |
+| each lineage i.i.d. gamma | Uncorrelated gamma (UGAM) | [Sq6](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_ugam--> |
+| the rate drifts parent to daughter | Autocorrelated lognormal | [Sq7](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_autocorrelated--> |
+| the rate takes one of a few values, inherited in steps | Discrete rate categories | [Sq8](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_discrete_bin--> |
+| the rate reads another level | Trait-dependent rate of molecular evolution | [Co8](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_substitution--> |
 
 A bare distribution has **no memory**: each lineage is an independent draw. `Drift` has memory: a daughter starts at its parent's rate and takes one step from it, so close relatives evolve at similar rates — the autocorrelated clock. And whichever you use, **the clock belongs to the species tree, not to the gene trees**: ZOMBI2 draws one rate per species branch, and every gene passing through that branch evolves at it, so a fast species is fast in all of its genes at once.
 
