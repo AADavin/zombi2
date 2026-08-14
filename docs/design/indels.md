@@ -1,6 +1,6 @@
 # Indels at the nucleotide resolution — a design note
 
-**Status: built, on `feat/indels`.** Breakpoint provenance, the `deletion` and `insertion` rates,
+**Status: built at every resolution, on `feat/indels`.** Breakpoint provenance, the `deletion` and `insertion` rates,
 an indel's exemption from the legal cut set, and a root partition that stays coarse under all of it.
 A sequence level that reassembles every node's genome and emits a true gapped alignment. A run that
 round-trips through the files it wrote, and the command-line flags to drive one. The model is
@@ -13,6 +13,29 @@ wins.
 Claims here were checked against runs before any of it was built — see
 [`nucleotide-engine.md`](nucleotide-engine.md), which lists the two places this note was wrong and
 the constraint it missed. Building it corrected two more, both marked below.
+
+---
+
+## One concept, two homes
+
+An indel changes how much sequence a lineage carries. It therefore lives at whichever level owns the
+sites — and that is not a compromise but the resolution rule (SPEC §6) applied to a second quantity.
+
+At the **nucleotide** resolution the genome owns them: a genome there is a coordinate space of base
+pairs, so an indel has a *position* as well as a size. It can fall inside a gene, move a GFF
+coordinate, change how long an assembled chromosome comes out. Everything below in this note is
+about that case, which is the harder one.
+
+At the **family** and **ordered** resolutions the genome has no such space — it is gene families and
+their copies — so nothing there can say how long a gene's sequence is. The sequence level can, and
+that is where the parameter sits (`zombi2/sequences/indels.py`). Same words, same meaning, same
+gapped alignment out; a smaller model, because there are no coordinates for an indel to disturb.
+A run that passes them to the sequence level *and* uses a nucleotide genome is refused: two levels
+drawing indels in one run would be two models wearing one word.
+
+What this is **not** is the fourth cell of a table with `origination` and `loss`. Those change gene
+content — a family is born, a copy dies — and are recorded in the genealogy. An indel changes
+neither: no family, no copy, only sites. The two questions stay two.
 
 ---
 

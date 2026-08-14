@@ -110,6 +110,17 @@ Rules for keeping this honest:
   which. (#TBD)
 ```
 
+```markdown
+- Indels at the **family** and **ordered** resolutions, so a protein alignment can finally have a gap
+  in it: `insertion` and `deletion` on `simulate_sequences`, with `insertion_extent` and
+  `deletion_extent`. The rates are relative to substitution — `deletion=0.05` is five deletions for
+  every hundred substitutions a site expects — so a lineage's clock reaches its indels too and the
+  number means the same on a tree of any height. Any distribution works as an extent, so `Fixed(1)`
+  is a single-site indel. Refused beside a nucleotide genome, which owns its own indels, and beside
+  `partitions` or `profiles`, which are written against a site count an indel changes. A run with
+  both rates at zero takes no extra draw and is what it always was. (#TBD)
+```
+
 Nothing else is left to stage for the model itself. Still outstanding, and not a changelog entry: a
 manual chapter for Chapter 6 and a gallery example.
 
