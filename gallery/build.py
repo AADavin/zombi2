@@ -49,18 +49,29 @@ PREFIX = {"species": "Sp", "genomes": "Ge", "sequences": "Sq",
 #: be concatenated in. `_ordered` fails loudly if an example is named twice or not at all, which is
 #: what keeps "every pair is illustrated" a fact rather than a hope.
 CONDITIONING_ORDER = [
-    "mobile_element",                                                   # 1  gene family -> gene family
-    "repair_gene",                                                      # 2  gene family -> sequence
-    "gene_drives_trait",                                                # 3  gene family -> trait
-    "operon_substitution",                                              # 4  genome      -> sequence
-    "module_drives_metabolism", "operon_trait",                         # 5  genome      -> trait
-    "gc_drives_sequence",                                               # 6  sequence    -> sequence
-    "gc_drives_trait",                                                  # 7  sequence    -> trait
-    "genome_reduction", "genome_expansion", "hgt_uptake",               # 8  trait       -> gene family
-    "continuous_conditioning", "curve_saturating", "curve_optimum",     # 8  (continued)
-    "climate_inversions",                                               # 9  trait       -> genome
-    "climate_substitution",                                             # 10 trait       -> sequence
-    "trait_drives_trait",                                               # 11 trait       -> trait
+    "genome_reduction", "genome_expansion", "hgt_uptake", "continuous_conditioning", "curve_saturating", "curve_optimum", #  1 a trait -> a gene family
+    "climate_inversions",                                          #  2 a trait -> an ordered or nucleotide genome
+    "climate_substitution",                                        #  3 a trait -> a sequence
+    "trait_drives_trait",                                          #  4 a trait -> a trait
+    "mobile_element",                                              #  5 a gene family -> a gene family
+    "repair_gene",                                                 #  6 a gene family -> a sequence
+    "gene_drives_trait",                                           #  7 a gene family -> a trait
+    "operon_substitution",                                         #  8 an ordered or nucleotide genome -> a sequence
+    "module_drives_metabolism", "operon_trait",                    #  9 an ordered or nucleotide genome -> a trait
+    "gc_drives_sequence",                                          # 10 a sequence -> a sequence
+    "gc_drives_trait",                                             # 11 a sequence -> a trait
+]
+
+
+#: The genome section runs in the order the book does: chapter 4's family resolution, then chapter
+#: 5's ordered one, then chapter 6's nucleotide one. It used to open with chapter 5's rings, which is
+#: the prettiest picture and the wrong place to start reading.
+GENOME_ORDER = [
+    "genome_tree_events", "genome_tree_profiles", "genome_transfer_highway",     # ch4, family
+    "genome_pangenome_by_family", "genome_clade_transition",
+    "genome_circular_ordered", "genome_synteny", "genome_synteny_tree",          # ch5, ordered
+    "genome_inversion", "genome_karyotype",
+    "genome_circular_nucleotide",                                                # ch6, nucleotide
 ]
 
 
@@ -70,7 +81,7 @@ def _ordered(examples, order):
     named, have = set(order), set(by_id)
     if named != have:
         missing, extra = sorted(have - named), sorted(named - have)
-        raise SystemExit("the conditioning order is out of step with the examples — "
+        raise SystemExit("a section's declared order is out of step with its examples — "
                          f"unordered: {missing or 'none'}; named but absent: {extra or 'none'}")
     return [by_id[i] for i in order]
 
@@ -85,7 +96,7 @@ LEVELS = [
     ("genomes", "Genomes",
      "Genes on chromosomes. A genome draws as a ring, and two genomes show their synteny. "
      "Gene-family events and copy number read against the species tree.",
-     genomes.EXAMPLES),
+     _ordered(genomes.EXAMPLES, GENOME_ORDER)),
     ("sequences", "Sequences",
      "The dated tree the sequences evolve down, and an alignment lined up row-for-row with its tips.",
      sequences.EXAMPLES),
@@ -231,7 +242,7 @@ figcaption h3{margin:0;font-size:1.03rem;font-weight:640;letter-spacing:-.01em}
 figcaption p{margin:0;color:var(--muted);font-size:.88rem;line-height:1.5}
 .num{display:inline-block;min-width:2.6em;color:var(--accent);font:600 .78rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em;vertical-align:.08em}
 .version{font:500 .5em/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--faint);vertical-align:.5em;letter-spacing:.02em}
-.tag{margin-top:4px;font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em;color:var(--accent-ink);text-transform:lowercase}
+.tag{margin-top:4px;font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em;color:var(--accent-ink)}
 footer{margin-top:64px;padding-top:22px;border-top:1px solid var(--line);color:var(--faint);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
 footer code{font:600 .82rem ui-monospace,monospace;color:var(--muted)}
 .detail{position:fixed;inset:0;background:rgba(8,16,14,.86);backdrop-filter:blur(3px);display:none;align-items:flex-start;justify-content:center;padding:4vmin;z-index:50;overflow:auto}
