@@ -11,7 +11,7 @@ from helpers import Example
 
 import phylustrator as ph
 from zombi2.species import simulate_species_tree
-from zombi2.params import PerLineage, TotalDiversity
+from zombi2.params import Drift, LogNormal, PerLineage, TotalDiversity
 from zombi2.tree import gamma_statistic
 
 
@@ -84,6 +84,75 @@ def diversity_dependent(out):
 
     h.composite_below(tree_png, present, out, panel, "lineages",
                       tree_w=TW, margin=TM, figsize=(12, 9), axis_fontsize=16)
+
+
+#: The two rate-varying models chapter 3 draws and the gallery had not: a rate a lineage inherits and
+#: drifts from, and a rate each lineage draws for itself. Same parameters and seed as the book's
+#: figure, so the picture here is the panel there rather than a second run of the same idea.
+_VARY = dict(death=0.1, n_extant=25, seed=3)
+
+#: The two ways a birth rate can vary among lineages, as chapter 3 draws them: inherited at each
+#: split and nudged from the parent's, or drawn afresh with no memory of it. Same base as the book's
+#: figure — the drifting one starts lower because drift accumulates down a path and the independent
+#: one does not.
+_VARYING = {
+    "inherited": PerLineage(0.45).varying_among("lineages", Drift(LogNormal(0.0, 0.5))),
+    "independent": PerLineage(0.85).varying_among("lineages", LogNormal(0.0, 0.5)),
+}
+
+_RATE_CACHE: dict = {}
+
+
+def _rate_panels() -> dict:
+    """Both runs, and the colour scale they share: ``{name: (tree, dashed, log rates)}`` + ``limits``.
+
+    Grown together and cached because the pair is a comparison. Coloured independently, each would
+    normalise to its own range and the same green would mean a different rate on the two cards. The
+    scale is logarithmic (these rates are lognormal) and clipped to the pooled 2nd-98th percentile,
+    so one runaway lineage cannot flatten the rest."""
+    import math
+
+    if _RATE_CACHE:
+        return _RATE_CACHE
+    panels, every = {}, []
+    for name, birth in _VARYING.items():
+        sp = simulate_species_tree(birth=birth, **_VARY)
+        ct = sp.complete_tree
+        tree = ph.trees.loads(ct.to_newick())
+        logr = {k: math.log10(v) for k, v in sp.lineage_rates().items()}
+        panels[name] = (tree, h.dashed_extinct(tree, ct), logr)
+        every += list(logr.values())
+    every.sort()
+    lo, hi = every[int(0.02 * len(every))], every[int(0.98 * len(every)) - 1]
+    _RATE_CACHE.update(panels=panels, limits=(lo, hi))
+    return _RATE_CACHE
+
+
+def _rate_tree(name, out):
+    """One card: the complete tree, each branch coloured by the rate that lineage itself ran under.
+
+    Extinct branches dashed, as everywhere else in this section. No note on the figure: the card's
+    title and caption say which kind of variation this is, and a label inside the picture would be
+    the third place saying it."""
+    got = _rate_panels()
+    tree, dashed, logr = got["panels"][name]
+    style = ph.Style(width=1250, height=760, margin=80, branch_width=2.6)
+    (ph.trees.plot(tree, dashed=dashed, style=style)
+     + ph.trees.color_branches(logr, cmap="viridis", limits=got["limits"])
+     + ph.trees.colorbar("birth rate  (speciations per lineage per unit time)", loc="top-left",
+                         width=210, height=14, size=19,
+                         labels=tuple(f"{10 ** v:.2f}" for v in got["limits"]))
+     + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(out)
+
+
+def inherited_rates(out):
+    """Each lineage inherits its parent's rate and drifts from it, so clades run at their own tempo."""
+    _rate_tree("inherited", out)
+
+
+def lineage_rates(out):
+    """Each lineage draws its own rate, with no memory of its parent."""
+    _rate_tree("independent", out)
 
 
 # --- many trees, measured (local to this module: helpers.py is shared) ------
@@ -233,7 +302,7 @@ tree = ph.trees.loads(sp.complete_tree.to_newick())
 _C_DIVERSITY = '''\
 ### simulate  —  speciation slows as diversity approaches a cap of 100
 from zombi2.species import simulate_species_tree
-from zombi2.params import PerLineage, TotalDiversity
+from zombi2.params import Drift, LogNormal, PerLineage, TotalDiversity
 
 sp = simulate_species_tree(birth=PerLineage(1.0).scaled_by(TotalDiversity(cap=100)),
                            total_time=10.0, seed=6)
@@ -260,7 +329,7 @@ zombi2 tools tree out/species/species_extant.nwk --gamma        # gamma  -6.31
 
 ### simulate  —  2000 trees of 100 tips under each process (a few seconds)
 from zombi2.species import simulate_species_tree
-from zombi2.params import PerLineage, TotalDiversity
+from zombi2.params import Drift, LogNormal, PerLineage, TotalDiversity
 from zombi2.tree import gamma_statistic     # 0 on average under constant rates
 
 gammas = {}
@@ -287,6 +356,40 @@ plt.legend()
 plt.savefig("shape.png", dpi=125, bbox_inches="tight")'''
 
 
+_C_INHERITED = """\
+### simulate  —  a rate handed down, and nudged at every split
+from zombi2.species import simulate_species_tree
+from zombi2.params import Drift, LogNormal, PerLineage
+
+sp = simulate_species_tree(
+    birth=PerLineage(0.45).varying_among("lineages", Drift(LogNormal(0.0, 0.5))),
+    death=0.1, n_extant=25, seed=3)
+# Drift: the daughter starts at the parent's rate and takes one step from it, so close
+# relatives run at similar speeds and a whole clade can be fast. This is ClaDS.
+
+### plot  —  the tree alone; the shape is the result
+import phylustrator as ph
+
+ph.trees.plot(ph.trees.loads(sp.complete_tree.to_newick())).save("inherited.png")
+"""
+
+_C_PERLINEAGE = """\
+### simulate  —  a rate drawn afresh for every lineage
+from zombi2.species import simulate_species_tree
+from zombi2.params import LogNormal, PerLineage
+
+sp = simulate_species_tree(
+    birth=PerLineage(0.85).varying_among("lineages", LogNormal(0.0, 0.5)),
+    death=0.1, n_extant=25, seed=3)
+# The same distribution as the drifting rate beside it, without the inheritance: a
+# lineage's rate says nothing about its neighbours'. This is an uncorrelated model.
+
+### plot  —  the tree alone; the shape is the result
+import phylustrator as ph
+
+ph.trees.plot(ph.trees.loads(sp.complete_tree.to_newick())).save("per_lineage.png")
+"""
+
 EXAMPLES = [
     Example("basic", "Yule tree", "Pure birth, no extinction — a forward tree of 100 lineages.",
             "birth", yule, code=_C_BASIC),
@@ -304,6 +407,14 @@ EXAMPLES = [
     Example("diversity", "Diversity-dependent",
             "Speciation slows as diversity fills up; the skyline rises and plateaus at the cap of 100.",
             "birth · TotalDiversity", diversity_dependent, code=_C_DIVERSITY),
+    Example("inherited", "Inherited rates",
+            "Each lineage starts at its parent's rate and is nudged from it, so close relatives run "
+            "at similar speeds and one clade radiates while its sister stays sparse.",
+            "birth · Drift", inherited_rates, code=_C_INHERITED),
+    Example("perlineage", "Independent rates",
+            "The same distribution without the inheritance: every lineage draws for itself, so a "
+            "fast lineage tells you nothing about its neighbours.",
+            "birth · LogNormal", lineage_rates, code=_C_PERLINEAGE),
     Example("shape", "Shape statistics over many trees",
             "Two thousand trees under each of two processes. "
             "<code>zombi2 tools tree --gamma</code> separates them almost perfectly.",

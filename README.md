@@ -115,7 +115,7 @@ that speeds up speciation is the standard case: the tree shapes the trait's hist
 shapes the tree, so the tree is an *output* of the joint run rather than an input to it.
 
 <p align="center">
-  <img alt="Joining: body size drives the speciation rate, with the expression written on that rate shown beneath it, the rate creates the tree, and an arrow runs back from the tree to body size because the two grow at the same time" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/joining.svg" width="700">
+  <img alt="Joining, drawn as conditioning is: body size on the left, the speciation rate on the right, and two arrows between them — one carrying the multiplier each state hands over, one running back, because the tree that rate builds is the tree body size evolves along" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/joining.svg" width="760">
 </p>
 
 ```bash

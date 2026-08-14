@@ -59,6 +59,14 @@ things differ on Windows and are worth knowing before they bite:
   transfer-to = '''Recipients().weighted_by('C:\Users\me\trait_events.tsv', {'competent': 2.0})'''
   ```
 
+## The examples gallery
+
+Every figure in this book is drawn from a run, and the code behind a great many of them lives in the
+[examples gallery](https://aadavin.github.io/zombi2/gallery.html) — a page of worked examples, each
+with the exact commands that made it. The gallery numbers them by level: `Sp` species, `Ge` genomes,
+`Sq` sequences, `Tr` traits, `Co` conditioning, `Jo` joining. This book cites them the way it cites a
+figure, so a paragraph that describes what an inversion does to a chromosome ends **(Ge7)**.
+
 ## For the impatient
 
 Two commands: build a species tree, then evolve gene families along it.

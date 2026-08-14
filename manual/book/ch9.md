@@ -20,19 +20,19 @@ Chapter 2 named the three, and this chapter takes them one at a time. The **driv
 
 Not everything can act as a driver and not everything can be a target. A sequence cannot control the gene it grows inside, by construction — although it can control a different one, if the two are simulated in order. 
 
-| | Driver | Target | What it says |
-|---|---|---|---|
-| **1** | a gene family | a gene family | a mobile element makes transfer likelier for the rest of the genome |
-| **2** | a gene family | a sequence | lose the repair gene and evolve faster |
-| **3** | a gene family | a trait | carry the toxin family and turn pathogenic |
-| **4** | an ordered or nucleotide genome | a sequence | as **2**, with coordinates in the genome run |
-| **5** | an ordered or nucleotide genome | a trait | as **3**, with coordinates in the genome run |
-| **6** | a sequence | a sequence | compensatory evolution: one gene's sequence sets another's rate |
-| **7** | a sequence | a trait | GC content sets how fast a trait changes |
-| **8** | a trait | a gene family | habitat sets the loss rate; all four rates take a driver |
-| **9** | a trait | an ordered or nucleotide genome | eleven rates, and the extents besides |
-| **10** | a trait | a sequence | habitat sets the substitution rate |
-| **11** | a trait | a trait | one character sets another's `rate` or `switch` |
+| | Driver | Target | What it says | Gallery |
+|---|---|---|---|---|
+| **1** | a trait | a gene family | habitat sets the loss rate; all four rates take a driver | [Co1–Co6](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:genome_reduction--><!--gallery:genome_expansion--><!--gallery:hgt_uptake--><!--gallery:continuous_conditioning--><!--gallery:curve_saturating--><!--gallery:curve_optimum--> |
+| **2** | a trait | an ordered or nucleotide genome | eleven rates, and the extents besides | [Co7](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_inversions--> |
+| **3** | a trait | a sequence | habitat sets the substitution rate | [Co8](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_substitution--> |
+| **4** | a trait | a trait | one character sets another's `rate` or `switch` | [Co9–Co10](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:driven--><!--gallery:trait_drives_trait--> |
+| **5** | a gene family | a gene family | a mobile element makes transfer likelier for the rest of the genome | [Co11](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:mobile_element--> |
+| **6** | a gene family | a sequence | lose the repair gene and evolve faster | [Co12](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:repair_gene--> |
+| **7** | a gene family | a trait | carry the toxin family and turn pathogenic | [Co13](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gene_drives_trait--> |
+| **8** | an ordered or nucleotide genome | a sequence | as **6**, with coordinates in the genome run | [Co14](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:operon_substitution--> |
+| **9** | an ordered or nucleotide genome | a trait | as **7**, with coordinates in the genome run | [Co15–Co16](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:module_drives_metabolism--><!--gallery:operon_trait--> |
+| **10** | a sequence | a sequence | compensatory evolution: one gene's sequence sets another's rate | [Co17](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_sequence--> |
+| **11** | a sequence | a trait | GC content sets how fast a trait changes | [Co18](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_trait--> |
 
 ## The driver
 
@@ -50,7 +50,7 @@ A driver is the input to the function that controls the target. The easiest one 
 
 Every row is a level **grown first** and then read. Where a lineage sits in the tree and when it is alive are not: `Clade` and `changing_at` (Appendix A) read facts the run already has, so they need no driver and work at every level whether or not anything is being conditioned.
 
-A driver is read wherever it changes, not once per branch: a lineage that switches habitat halfway down one loses genes at one rate before the switch and another after it. That works because a discrete driver changes at moments the run can step to exactly. A continuous one never stops changing, so there are no such moments: it is sampled every `step` instead, a hundredth of the tree's height unless you set it, and the rate holds between samples. 
+A driver is read wherever it changes, not once per branch: a lineage that switches habitat halfway down one loses genes at one rate before the switch and another after it ([Co4](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:continuous_conditioning-->). That works because a discrete driver changes at moments the run can step to exactly. A continuous one never stops changing, so there are no such moments: it is sampled every `step` instead, a hundredth of the tree's height unless you set it, and the rate holds between samples. 
 
 ## The target
 

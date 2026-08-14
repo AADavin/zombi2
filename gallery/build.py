@@ -42,20 +42,81 @@ WEBFIG = os.path.abspath(os.path.join(HERE, "..", "web", "figures"))
 PREFIX = {"species": "Sp", "genomes": "Ge", "sequences": "Sq",
           "traits": "Tr", "conditioning": "Co", "joining": "Jo"}
 
+#: The conditioning section runs in the order **chapter 9's table** runs, so its Gallery column reads
+#: straight down: row 1 is Co1, row 11 is Co17. The examples come from two modules — `joining` writes
+#: the ones a trait drives, `crosslevel` the ones a gene or a sequence does — and the table
+#: interleaves them, so the order is written here rather than left to the order two files happen to
+#: be concatenated in. `_ordered` fails loudly if an example is named twice or not at all, which is
+#: what keeps "every pair is illustrated" a fact rather than a hope.
+CONDITIONING_ORDER = [
+    "genome_reduction", "genome_expansion", "hgt_uptake", "continuous_conditioning", "curve_saturating", "curve_optimum", #  1 a trait -> a gene family
+    "climate_inversions",                                          #  2 a trait -> an ordered or nucleotide genome
+    "climate_substitution",                                        #  3 a trait -> a sequence
+    "driven", "trait_drives_trait",                                          #  4 a trait -> a trait
+    "mobile_element",                                              #  5 a gene family -> a gene family
+    "repair_gene",                                                 #  6 a gene family -> a sequence
+    "gene_drives_trait",                                           #  7 a gene family -> a trait
+    "operon_substitution",                                         #  8 an ordered or nucleotide genome -> a sequence
+    "module_drives_metabolism", "operon_trait",                    #  9 an ordered or nucleotide genome -> a trait
+    "gc_drives_sequence",                                          # 10 a sequence -> a sequence
+    "gc_drives_trait",                                             # 11 a sequence -> a trait
+]
+
+
+#: The genome section runs in the order the book does: chapter 4's family resolution, then chapter
+#: 5's ordered one, then chapter 6's nucleotide one. It used to open with chapter 5's rings, which is
+#: the prettiest picture and the wrong place to start reading.
+SPECIES_ORDER = [
+    "basic", "extinct",                     # ch3, the birth-death process
+    "rateshift", "diversity", "inherited", "perlineage",   # ch3, rates that vary
+    "massext",                              # ch3, other models
+    "shape",                                # ch3, a study over many trees
+]
+
+#: Chapter 7 chooses the model first, then how fast it runs. The section led with the four clocks,
+#: which is the chapter's fifth section.
+SEQUENCE_ORDER = [
+    "seq_alignment",                        # ch7, what a run produces
+    "clade_own_model", "seq_protein",       # ch7, the substitution models — nucleotide, then protein
+    "clock_ucln", "clock_ugam", "clock_autocorrelated", "clock_discrete_bin",   # ch7, the clocks
+    "seq_ancestral",                        # ch7, what a run gives back
+    "seq_indels",                           # ch7, running on a nucleotide genome
+]
+
+GENOME_ORDER = [
+    "genome_tree_events", "genome_tree_profiles", "genome_transfer_highway",     # ch4, family
+    "genome_pangenome_by_family", "genome_clade_transition",
+    "genome_circular_ordered", "genome_synteny", "genome_synteny_tree",          # ch5, ordered
+    "genome_inversion", "genome_karyotype",
+    "genome_circular_nucleotide",                                                # ch6, nucleotide
+]
+
+
+def _ordered(examples, order):
+    """``examples`` sorted into ``order``, which must name each of them exactly once."""
+    by_id = {ex.id: ex for ex in examples}
+    named, have = set(order), set(by_id)
+    if named != have:
+        missing, extra = sorted(have - named), sorted(named - have)
+        raise SystemExit("a section's declared order is out of step with its examples — "
+                         f"unordered: {missing or 'none'}; named but absent: {extra or 'none'}")
+    return [by_id[i] for i in order]
+
+
 # (slug, title, blurb, examples) — the slug is the section id the landing-page cards link to.
 # The first section is the one that starts open; every other section starts folded.
 LEVELS = [
     ("species", "Species trees",
      "Forward birth-death trees. The run keeps the whole history, survivors and extinctions, "
      "and the diversification model shows on the tree.",
-     species.EXAMPLES),
+     _ordered(species.EXAMPLES, SPECIES_ORDER)),
     ("genomes", "Genomes",
      "Genes on chromosomes. A genome draws as a ring, and two genomes show their synteny. "
      "Gene-family events and copy number read against the species tree.",
-     genomes.EXAMPLES),
+     _ordered(genomes.EXAMPLES, GENOME_ORDER)),
     ("sequences", "Sequences",
      "The dated tree the sequences evolve down, and an alignment lined up row-for-row with its tips.",
-     sequences.EXAMPLES),
+     _ordered(sequences.EXAMPLES, SEQUENCE_ORDER)),
     ("traits", "Traits",
      "A trait evolving down the tree. Branches take the colour of its value. Some examples add "
      "a companion panel.",
@@ -64,7 +125,8 @@ LEVELS = [
      "Two runs, in order. The first run grows the driver on the tree and holds it fixed. The "
      "second run reads it. A driver is a trait, a gene family or a whole module. It drives a "
      "rate, or which lineage receives a transfer.",
-     joining.CONDITIONING + crosslevel.EXAMPLES),
+     _ordered(joining.CONDITIONING + crosslevel.EXAMPLES + traits.CONDITIONING,
+              CONDITIONING_ORDER)),
     ("joining", "Joining",
      "One run makes both. The trait sets the speciation or extinction rate of the lineage "
      "carrying it. The trait and the tree therefore come out together.",
@@ -196,9 +258,10 @@ summary.level-head::after{content:"";flex:none;align-self:center;width:9px;heigh
 figcaption{padding:16px 17px 17px;display:flex;flex-direction:column;gap:6px}
 figcaption h3{margin:0;font-size:1.03rem;font-weight:640;letter-spacing:-.01em}
 figcaption p{margin:0;color:var(--muted);font-size:.88rem;line-height:1.5}
-.num{display:inline-block;min-width:2.6em;color:var(--accent);font:600 .78rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em;vertical-align:.08em}
+.num{color:var(--accent);font:600 .78rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em;vertical-align:.08em}
+.num::after{content:'·';margin:0 .5em;color:var(--faint);font-weight:400}
 .version{font:500 .5em/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--faint);vertical-align:.5em;letter-spacing:.02em}
-.tag{margin-top:4px;font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em;color:var(--accent-ink);text-transform:lowercase}
+.tag{margin-top:4px;font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em;color:var(--accent-ink)}
 footer{margin-top:64px;padding-top:22px;border-top:1px solid var(--line);color:var(--faint);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
 footer code{font:600 .82rem ui-monospace,monospace;color:var(--muted)}
 .detail{position:fixed;inset:0;background:rgba(8,16,14,.86);backdrop-filter:blur(3px);display:none;align-items:flex-start;justify-content:center;padding:4vmin;z-index:50;overflow:auto}
@@ -305,7 +368,7 @@ _JS = """<script>
   function open(c){
     var id=c.getAttribute("data-id"), meta=EX[id]||{}, img=c.querySelector("img");
     dImg.src=img.src; dImg.alt=img.alt;
-    dTag.innerHTML=meta.tag||""; dTitle.textContent=(meta.num?meta.num+"  ":"")+(meta.title||img.alt);
+    dTag.innerHTML=meta.tag||""; dTitle.textContent=(meta.num?meta.num+" · ":"")+(meta.title||img.alt);
     dCap.innerHTML=meta.caption||""; dCode.innerHTML=hl(meta.code||"");
     dCopy.textContent="copy";
     det.classList.add("open"); det.setAttribute("aria-hidden","false"); det.scrollTop=0;

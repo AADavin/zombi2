@@ -1,5 +1,6 @@
 """Tests for the forward birth-death engine (species)."""
 
+import math
 import re
 
 import pytest
@@ -265,6 +266,42 @@ def test_clade_drift_is_deterministic_given_seed():
     a = simulate_species_tree(**kw)
     b = simulate_species_tree(**kw)
     assert [(e.time, e.kind, e.node) for e in a.events] == [(e.time, e.kind, e.node) for e in b.events]
+
+
+def test_a_lineage_says_which_rate_it_ran_under():
+    """The tree records what happened; `lineage_rates` records the rate it happened under.
+
+    Inherited drift, so the numbers differ between lineages and a daughter starts near its parent —
+    and every lineage of the tree has one, extinct ones included, since the rate is what it ran under
+    whether or not it left descendants."""
+    r = simulate_species_tree(
+        birth=PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.5))),
+        death=0.2, n_extant=30, seed=3)
+    rates = r.lineage_rates()
+    label = r.complete_tree.labels()
+    assert set(rates) == {label[i] for i in r.complete_tree.nodes}
+    assert len(set(rates.values())) > 1                       # a rate per lineage, not one for all
+    assert all(v > 0 for v in rates.values())
+    # death carries no per-lineage variation here, so every lineage ran under the one number
+    assert set(r.lineage_rates("death").values()) == {0.2}
+    with pytest.raises(ValueError, match="birth"):
+        r.lineage_rates("speciation")
+
+    # a daughter's rate is its parent's, nudged: the pairs at a split are closer to each other than
+    # two lineages picked at random from the tree are
+    import statistics
+    nodes = r.complete_tree.nodes
+    kin = [abs(math.log(rates[label[c]] / rates[label[i]]))
+           for i, n in nodes.items() if n.children for c in n.children]
+    every = sorted(math.log(v) for v in rates.values())
+    spread = statistics.pstdev(every)
+    assert statistics.mean(kin) < spread
+
+
+def test_a_rate_that_varies_in_no_way_is_the_same_for_every_lineage():
+    r = simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
+    assert set(r.lineage_rates().values()) == {1.0}
+    assert set(r.lineage_rates("death").values()) == {0.3}
 
 
 def test_inherited_zero_spread_reaches_target():

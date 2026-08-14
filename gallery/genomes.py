@@ -494,7 +494,7 @@ def pangenome_by_family(out):
     fig, axes = plt.subplots(2, 2, figsize=(9.2, 7.2),
                              gridspec_kw=dict(height_ratios=[2.6, 1.15], hspace=0.40, wspace=0.20))
 
-    for col, (title, params, result) in enumerate(panels):
+    for col, (title, _, result) in enumerate(panels):
         m = result.profiles.matrix
         prev = (m > 0).sum(axis=1)
         order = np.argsort(-prev)                       # commonest family at the top
@@ -507,9 +507,7 @@ def pangenome_by_family(out):
 
         ax = axes[0, col]
         ax.imshow(mpimg.imread(png), aspect="auto", interpolation="antialiased")
-        ax.set_title(title, fontsize=12.5, color="#16191C", pad=44, fontweight="semibold")
-        ax.text(0.5, 1.012, params, transform=ax.transAxes, ha="center", va="bottom",
-                fontsize=7.4, color="#6C6F6A", family="monospace", linespacing=1.5)
+        ax.set_title(title, fontsize=12.5, color="#16191C", pad=10, fontweight="semibold")
         ax.set_xlabel("genomes", fontsize=9.5, color="#6C6F6A", labelpad=4)
         if col == 0:
             ax.set_ylabel("gene families\n(sorted by how many genomes carry them)",
@@ -862,7 +860,7 @@ EXAMPLES = [
             "Transfers steered to run <i>between</i> two clades, by topology rather than by a trait. The "
             "barplot counts them by clade pair, so A↔B towers over within-clade.",
             "transfer_to · Clades", transfer_highway, code=_C_HIGHWAY),
-    Example("genome_pangenome_by_family", "Core and accessory, from one parameter",
+    Example("genome_pangenome_by_family", "Gene family heterogeneity",
             "Two runs at the same mean rates. Every family alike gives no core at all; letting families "
             "differ gives 28 core families and a U-shaped spectrum.",
             "varying_among('families')", pangenome_by_family, code=_C_PANGENOME),
