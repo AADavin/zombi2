@@ -157,46 +157,39 @@ def lineage_rates(out):
 
 # --- sampling and fossils: the two ways a dataset is less than the tree that grew ---------------
 
-#: what the dataset holds, what is alive and missed, and what died. Extinct and unsampled are both
-#: grey because both are the same thing to a reader — a lineage the data has no line for — and they
-#: are told apart by where they end: the present, or short of it.
-_FATE = {"sampled": "#1F6F5C", "unsampled": "#9AA6A2", "extinct": "#C6CDCA"}
-
-
 def sampling_and_fossils(out):
     """One complete tree with every fate on it, and the fossils recovered along its branches.
 
-    Solid green is the dataset: the survivors sampling kept. Dashed is everything it never sees —
-    the lineages that died, and the ones alive at the present that sampling missed. The diamonds are
-    fossils, which fall on any branch of the complete tree, a survivor's as readily as an extinct
-    one's, which is why some sit on lineages the present has no record of."""
+    Black and dashes rather than colour, which is how the book has drawn this from the start and
+    what the shapes are for: solid reaches the present and is in the data; dashed is never observed,
+    either because it died short of the present or because sampling passed it over; an open ring is
+    a lineage alive today that the data has no line for; a diamond is a fossil. Fossils fall on any
+    branch of the complete tree, a survivor's as readily as an extinct one's, which is why some sit
+    on lineages the present has no record of."""
     sp = simulate_species_tree(birth=1.0, death=0.35, total_time=4.0,
                                sampling=0.6, fossils=0.15, seed=31)
     ct = sp.complete_tree
     tree = ph.trees.loads(ct.to_newick())
     label = ct.labels()
 
-    # a branch takes the best fate below it: the data has a line for it, or it is alive and missed,
-    # or it died. Internal branches inherit from their descendants, which is what makes the sampled
-    # subtree one connected green tree rather than a set of tip stubs.
-    rank = ("sampled", "unsampled", "extinct")
-    fate = {}
+    # a branch is solid when the data has a line for something at the end of it: the node is a
+    # sampled survivor, or one of its descendants is. Everything else is the tree behind the data.
+    seen = {i for i, n in ct.nodes.items() if n.fate == "extant"}
     for i in sorted(ct.nodes, reverse=True):
-        node = ct.nodes[i]
-        if node.children:
-            fate[i] = min((fate[c] for c in node.children), key=rank.index)
-        else:
-            fate[i] = {"extant": "sampled", "unsampled": "unsampled"}.get(node.fate, "extinct")
+        if any(c in seen for c in ct.nodes[i].children):
+            seen.add(i)
+    dashed = {label[i] for i in ct.nodes if i not in seen}
 
-    dashed = {label[i] for i, f in fate.items() if f != "sampled"}
-    fossils = [{"kind": "fossil", "node": label[i], "x": t} for i, t in sp.fossils]
+    marks = [{"kind": "fossil", "node": label[i], "x": t} for i, t in sp.fossils]
+    marks += [{"kind": "alive, not sampled", "node": label[i], "x": n.end_time}
+              for i, n in ct.nodes.items() if n.fate == "unsampled"]
 
-    style = ph.Style(width=1400, height=820, margin=88, branch_width=2.2)
+    style = ph.Style(width=1400, height=820, margin=88, branch_width=1.8)
     (ph.trees.plot(tree, dashed=dashed, style=style)
-     + ph.trees.color_branches({label[i]: f for i, f in fate.items()}, palette=_FATE)
-     + ph.trees.legend("lineage")
-     + ph.trees.branch_events(fossils, styles={"fossil": ("diamond", "#111111")}, size=7.5,
-                              legend_title="", legend_loc="top-right", legend_size=18)
+     + ph.trees.branch_events(marks, size=7.0, legend_title="", legend_loc="top-left",
+                              legend_size=19,
+                              styles={"fossil": ("diamond", "#111111"),
+                                      "alive, not sampled": ("ring", "#111111")})
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(out)
 
 
@@ -440,16 +433,14 @@ _C_SAMPLING = '''\
 zombi2 species run --birth 1.0 --death 0.35 --total-time 4.0 \\
                    --sampling 0.6 --fossils 0.15 --seed 31
 
-### plot  —  the sampled subtree solid, everything the data never sees dashed
+### plot  —  solid is the data, dashed is everything it never sees
 import phylustrator as ph
 
-# fate comes from the run: "extant" is a sampled survivor, "unsampled" is alive and missed,
-# and anything else died. An internal branch takes the best fate below it.
+# fate comes from the run: "extant" is a sampled survivor, "unsampled" is alive and missed, and
+# anything else died. A branch is solid when a sampled survivor sits at the end of it or below it.
 (ph.trees.plot(tree, dashed=dashed)
- + ph.trees.color_branches(fate, palette={"sampled": "#1F6F5C", "unsampled": "#9AA6A2",
-                                          "extinct": "#C6CDCA"})
- + ph.trees.legend("lineage")
- + ph.trees.branch_events(fossils, styles={"fossil": ("diamond", "#111111")})
+ + ph.trees.branch_events(marks, styles={"fossil": ("diamond", "#111111"),
+                                         "alive, not sampled": ("ring", "#111111")})
  + ph.trees.time_axis("time")).save("sampling.png")'''
 
 
@@ -479,9 +470,9 @@ EXAMPLES = [
             "fast lineage tells you nothing about its neighbours.",
             "birth · LogNormal", lineage_rates, code=_C_PERLINEAGE),
     Example("sampling", "Sampling and fossils",
-            "The two ways a dataset is less than the tree that grew: sampling keeps 60% of the "
-            "survivors, and fossils are recovered along every branch — including lineages the "
-            "present has no record of.",
+            "The two ways a dataset is less than the tree that grew. Solid reaches the present and "
+            "is in the data; dashed is never seen; a ring is alive today but not sampled; a "
+            "diamond is a fossil, which can fall on any branch.",
             "sampling · fossils", sampling_and_fossils, code=_C_SAMPLING),
     Example("shape", "Shape statistics over many trees",
             "Two thousand trees under each of two processes. "
