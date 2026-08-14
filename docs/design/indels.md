@@ -3,7 +3,8 @@
 **Status: built, on `feat/indels`.** Breakpoint provenance, the `deletion` and `insertion` rates,
 an indel's exemption from the legal cut set, a root partition that stays coarse under all of it, and
 a sequence level that reassembles every node's genome from it and emits a true gapped alignment, and
-a run that round-trips through the files it wrote. What is not built: the CLI flags.
+a run that round-trips through the files it wrote, and the command-line flags. The model is
+complete; what remains is a manual chapter and a gallery example.
 
 This note records where an indel model belongs, what stands in its way, and the design move that
 clears it. It is subordinate to [`SPEC.md`](SPEC.md): where the two disagree, SPEC

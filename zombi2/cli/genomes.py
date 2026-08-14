@@ -90,6 +90,10 @@ _NUCLEOTIDE_ONLY = (
     ("fasta", None),
     ("trim_overlaps", False),
     ("origination_extent", None),
+    # the indels. Nucleotide-only because they are measured in base pairs and act inside a gene:
+    # neither means anything where the unit is a whole gene copy.
+    ("deletion", None), ("insertion", None),
+    ("deletion_extent", None), ("insertion_extent", None),
 )
 
 #: The extents both structured resolutions have — how much one event takes (SPEC §6). They are NOT
@@ -237,6 +241,20 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--origination-extent", type=float, default=None, metavar="BP",
                    dest="origination_extent",
                    help="mean bp of new material per event (default 50)")
+    g.add_argument("--deletion", type=_rate, default=None, metavar="RATE",
+                   help="indel deletion rate (per lineage): removes bases from a surviving copy "
+                        "without ending it, where --loss removes a copy. Default 0")
+    g.add_argument("--insertion", type=_rate, default=None, metavar="RATE",
+                   help="indel insertion rate (per lineage): lays down novel spacer, where "
+                        "--origination lays down a new gene. Default 0")
+    for knob, what in (("deletion", "removed"), ("insertion", "added")):
+        g.add_argument(f"--{knob}-extent", type=_rate, default=None, metavar="N",
+                       dest=f"{knob}_extent",
+                       help=f"bp {what} per indel (default 5). Unlike the segmental extents this "
+                            f"takes any distribution, because an indel may cut anywhere and so "
+                            f"draws its size outright: 'Fixed(1)' is a single-nucleotide indel, "
+                            f"'Geometric(5)' the default shape, and a scipy distribution the "
+                            f"power law indel lengths really have")
 
     g = p.add_argument_group(
         "how much each event takes (extents)",
@@ -372,7 +390,7 @@ _RATE_FLAGS = (("duplication", None), ("transfer", None), ("loss", None), ("orig
 #: level did not know it orphaned this one) and logged no digest of the driver file.
 _DRIVABLE_RATE_FLAGS = ("duplication", "transfer", "loss", "origination", "inversion",
                         "transposition", "translocation", "fission", "fusion",
-                        "chromosome_origination", "chromosome_loss")
+                        "chromosome_origination", "chromosome_loss", "deletion", "insertion")
 
 
 def _driven_specs(args) -> tuple:
@@ -585,10 +603,15 @@ def run(args, parser):
         # one flag; here None is filled with the 50 this command has always used
         extents = {f"{k}_extent": (getattr(args, f"{k}_extent") or 50.0)
                    for k in (*_SEGMENT_EXTENTS, "origination")}
+        # the indels keep their own default — 5 bp, not the 50 a segmental event takes, because they
+        # are a different scale of the same act and sharing one number would hide that
+        extents.update({f"{k}_extent": (getattr(args, f"{k}_extent") or 5.0)
+                        for k in ("deletion", "insertion")})
+        indels = {k: (getattr(args, k) or 0.0) for k in ("deletion", "insertion")}
         result = simulate_genomes_nucleotide(
             tree, root_length=args.root_length, genes=args.genes, gene_length=args.gene_length,
             gff=args.gff, fasta=args.fasta, trim_overlaps=args.trim_overlaps,
-            progress=not args.quiet, **extents, **structured, **common)
+            progress=not args.quiet, **extents, **indels, **structured, **common)
     elif streaming:
         # each family written straight to disk (no whole run in memory) — the engine writes `out`
         # itself, so there is no result.write below; a StreamedRun handle comes back.
