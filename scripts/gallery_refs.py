@@ -34,10 +34,15 @@ CITATION = re.compile(r"\[(?P<shown>[A-Za-z]{2}\d+(?:–[A-Za-z]{2}\d+)?)\]\((?P
 _TAG = re.compile(r"<!--gallery:([a-z0-9_]+)-->")
 
 
-def numbers() -> dict[str, str]:
-    """`{example id: number}`, from the gallery's own sources — the same walk `build.py` makes."""
-    sys.path.insert(0, str(ROOT / "gallery"))
-    import build                                    # noqa: PLC0415 — needs the path set first
+def numbers(build=None) -> dict[str, str]:
+    """`{example id: number}`, from the gallery's own sources — the same walk `build.py` makes.
+
+    ``build`` is the already-imported module when a caller has one. The test suite does: it imports
+    `build` with the drawing packages stubbed, because neither PIL nor Phylustrator is installed in
+    the test job and the numbering needs neither."""
+    if build is None:
+        sys.path.insert(0, str(ROOT / "gallery"))
+        import build                                # noqa: PLC0415 — needs the path set first
     out = {}
     for slug, _, _, examples in build.LEVELS:
         for i, ex in enumerate(examples, start=1):
@@ -65,20 +70,26 @@ def fix(text: str, nums: dict[str, str]) -> tuple[str, list[str]]:
     return CITATION.sub(one, text), notes
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--check", action="store_true", help="report staleness instead of fixing it")
-    args = ap.parse_args()
-
-    nums, stale, seen = numbers(), [], 0
+def review(nums: dict[str, str], write: bool) -> tuple[int, list[str]]:
+    """Renumber (or just report) every citation in the book. Returns ``(seen, stale)``."""
+    stale, seen = [], 0
     for path in sorted(BOOK.glob("*.md")):
         text = path.read_text(encoding="utf-8")
         seen += len(CITATION.findall(text))
         fixed, notes = fix(text, nums)
         if notes:
             stale += [f"{path.name}: {n}" for n in notes]
-        if fixed != text and not args.check:
+        if fixed != text and write:
             path.write_text(fixed, encoding="utf-8")
+    return seen, stale
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--check", action="store_true", help="report staleness instead of fixing it")
+    args = ap.parse_args()
+
+    seen, stale = review(numbers(), write=not args.check)
     if not seen:
         print("no gallery citations found — has the comment been stripped?", file=sys.stderr)
         return 1

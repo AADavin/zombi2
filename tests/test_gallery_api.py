@@ -380,17 +380,23 @@ def test_a_cached_run_expires_when_its_helper_changes(tmp_path, monkeypatch):
     assert not run.exists(), "an expired cache has to be thrown away, not just reported"
 
 
-def test_the_manual_cites_the_gallery_by_the_right_number(monkeypatch):
+def test_the_manual_cites_the_gallery_by_the_right_number():
     """A `(Ge7)` in a chapter has to be the example it names.
 
     The number is derived from the example's position, so inserting or reordering one renumbers every
     citation after it. The citation carries the example **id** in an HTML comment, and
-    `scripts/gallery_refs.py` rewrites the numbers from the gallery's own sources — this is that
-    script's check, run here so a reorder cannot land with the manual pointing at the wrong figure."""
-    import subprocess
-    root = GALLERY.parent
-    r = subprocess.run([sys.executable, str(root / "scripts" / "gallery_refs.py"), "--check"],
-                       capture_output=True, text=True, cwd=root)
-    assert r.returncode == 0, (
-        "the manual's gallery citations are stale — run `python scripts/gallery_refs.py`:\n"
-        + (r.stderr or r.stdout))
+    `scripts/gallery_refs.py` rewrites the numbers from the gallery's own sources — this runs that
+    script's check, so a reorder cannot land with a chapter pointing at the wrong figure.
+
+    In process, under the same stubs as the rest of this file: the script imports `build` for the
+    numbering, and neither PIL nor Phylustrator is installed in the test job."""
+    sys.path.insert(0, str(GALLERY.parent / "scripts"))
+    try:
+        import gallery_refs
+    finally:
+        sys.path.remove(str(GALLERY.parent / "scripts"))
+    with _gallery_build() as build:
+        seen, stale = gallery_refs.review(gallery_refs.numbers(build), write=False)
+    assert seen, "no gallery citations found — has the comment been stripped?"
+    assert not stale, ("the manual's gallery citations are stale — run "
+                       "`python scripts/gallery_refs.py`:\n  " + "\n  ".join(stale))
