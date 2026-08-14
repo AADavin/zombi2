@@ -75,6 +75,7 @@ from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
 from .clock import Clock, resolve_clock
 from .evolution import evolve_gene_tree
+from .indels import draw_indel_history
 from .lineage_models import Models
 from .substitution_models import (BASES, SubstitutionModel, _with_frequencies, dayhoff, decode,
                                   encode, gtr, hky85, jc69, jtt, k80, lg, poisson, wag)
@@ -631,7 +632,8 @@ def _write_fasta(path, records: dict[str, str], width: int = 70) -> None:
 
 
 def _split(gene_tree, states_by_id: dict[int, np.ndarray], names,
-           model: SubstitutionModel) -> tuple[dict[str, str], dict[str, str]]:
+           model: SubstitutionModel, present: "dict | None" = None
+           ) -> tuple[dict[str, str], dict[str, str]]:
     """Label one family's evolved nodes by their **gene id** and split them into the **observable**
     half — the extant tips — and everything else. Gene ids are per-segment (each node has a unique
     ``copy``), so ``g<copy>`` uniquely names every node and matches the gene tree's and phylogram's
@@ -658,6 +660,10 @@ def _split(gene_tree, states_by_id: dict[int, np.ndarray], names,
     ancestral: dict[str, str] = {}
     for i, node in enumerate(nodes):
         seq = flat[i * length:(i + 1) * length]
+        if present is not None:                     # gaps where this lineage carries no site
+            mask = present.get(id(node))
+            if mask is not None and not mask.all():
+                seq = "".join(c if keep else "-" for c, keep in zip(seq, mask))
         observable = node.is_leaf and node.kind == "extant"
         (alignment if observable else ancestral)[f"{names[node.species]}_{gene_label(node.copy)}"] = seq
     return alignment, ancestral
@@ -1083,7 +1089,24 @@ def _resolve_profiles(profiles, model, length) -> dict:
     return out
 
 
-def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=None):
+def _bp_extent(spec, label):
+    """An indel's size, as an `~zombi2.params.parameter.Extent` (SPEC §6): ``base × modifiers``, no
+    scope. A bare number is the mean of a geometric draw, as everywhere else; any distribution is
+    allowed, because an indel here has no cut set to be re-weighted over — so ``Fixed(1)`` really is
+    a one-site indel and a power law is the shape indel lengths actually take."""
+    from ..params.parameter import as_extent
+
+    if isinstance(spec, (int, float)) and not isinstance(spec, bool) and spec < 1:
+        raise ValueError(f"{label} must be >= 1 site, got {spec}")
+    e = as_extent(spec)
+    if e.has_modifiers:
+        raise ValueError(f"{label} takes a plain size or a distribution here; a modifier on it is "
+                         f"not read at this level.")
+    return e
+
+
+def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=None,
+                       present: "dict | None" = None):
     """Evolve one gene tree partition by partition and hand back the family's whole sequences:
     ``(alignment, ancestral, founding_string)``, each sequence the partitions concatenated in order.
 
@@ -1122,7 +1145,7 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
             founding=None if founding is None else founding[at:at + n],
             cdf_cache=cdf_caches, models=per_species)
         at += n
-        aln, anc = _split(gt, states, names, base)
+        aln, anc = _split(gt, states, names, base, present=present)
         pieces.append((aln, anc, decode(founding_states, base.alphabet)))
     if len(pieces) == 1:
         return pieces[0]
@@ -1136,6 +1159,7 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
 def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                        length: int | None = None, partitions=None, profiles=None,
                        intergene_model: SubstitutionModel | None = None, intergene_speed=3.0,
+                       insertion=0.0, deletion=0.0, insertion_extent=3.0, deletion_extent=3.0,
                        substitution=None, divergence=None, seed=None, parallel=False,
                        stream_to=None, outputs=None, flat: bool = False,
                        progress=False) -> "SequencesResult | StreamedSequences":
@@ -1156,6 +1180,21 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     rate (default ``1.0``): a branch of ``Δt`` time accrues ``substitution · Δt`` substitutions/site.
     The founding sequence of each family is drawn from the model's stationary frequencies. Deterministic
     given ``seed``.
+
+    ``insertion`` and ``deletion`` give the sequences **indels**, so an alignment gains gaps: a
+    lineage loses sites it had, or gains sites the others never did. They are the family and ordered
+    resolutions' indels — a **nucleotide** genome owns its own, because there a base pair has a
+    position, and passing these alongside one is refused rather than merged. The rates are
+    **relative to substitution**: ``deletion=0.05`` is five deletions for every hundred substitutions
+    a site expects, so a lineage's clock reaches its indels too and the number means the same on a
+    tree of any height. ``insertion_extent`` / ``deletion_extent`` are how many sites an event takes,
+    a bare number being the mean of a geometric draw; any distribution works, so ``Fixed(1)`` is a
+    single-site indel and a power law is the shape indel lengths really have.
+
+    The columns are the union of every site any lineage ever had, and a lineage that carries none of
+    one shows a gap there — the same alignment a nucleotide run writes, arrived at by the level that
+    knows the sites. Refused beside ``partitions`` or ``profiles``, which are written against a site
+    count an indel changes.
 
     ``substitution`` may carry a **lineage clock** — one factor per species branch, shared across
     families, computed once before evolving, rescaling each gene-tree branch by the clock of the species
@@ -1274,6 +1313,22 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         genomes = read_run(genomes)
 
     nucleotide = isinstance(genomes, NucleotideGenomesResult)
+    # Indels here are the family and ordered resolutions' — the nucleotide one has its own, on the
+    # genome, where a base pair has a position (docs/design/indels.md). One word, one meaning, at
+    # whichever level owns the sites; two levels drawing them in one run would be two models.
+    if (insertion or deletion) and nucleotide:
+        raise ValueError(
+            "insertion= / deletion= here are the family and ordered resolutions' indels. A "
+            "nucleotide genome owns its own, because there a base pair has a position — it can fall "
+            "inside a gene and move a coordinate. Pass them to simulate_genomes_nucleotide(...) "
+            "instead, and leave them off the sequence run.")
+    if (insertion or deletion) and (partitions is not None or profiles is not None):
+        raise ValueError(
+            "indels change how many sites a lineage has, and partitions/profiles are written "
+            "against a fixed site count — so a site's partition or profile would stop meaning "
+            "anything the moment one fired. Use one or the other.")
+    ins_extent = _bp_extent(insertion_extent, "insertion_extent")
+    del_extent = _bp_extent(deletion_extent, "deletion_extent")
     # An ordered run is admitted here as a family one: this level reads a genome run's `gene_trees`
     # and its `complete_tree`, and the ordered result carries both — the coordinates it adds are
     # simply not something a sequence needs. It used to be refused, because `OrderedGenomesResult`
@@ -1544,6 +1599,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 f"{len(gene_trees)} of them, keyed {min(gene_trees, key=str)}…{max(gene_trees, key=str)}. "
                 f"A profile for a family that is not here applies to nothing.")
         cdf_caches: dict[int, dict[float, np.ndarray]] = {}
+        n_insertions = n_deletions = 0
         bar = progress_bar(len(gene_trees), "sequences", unit="family", enabled=progress)
         for family in sorted(gene_trees):  # sorted for reproducibility given the seed
             bar.update()
@@ -1565,8 +1621,25 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                         f"{per_block[family][0]} bp. A profile carries one row per site, and on a "
                         f"nucleotide run the genome already fixed the length.")
             seed_states = None if per_block is None else founding_seed[family]
+            # Geometry first, letters second: which columns exist and who carries them is drawn over
+            # the tree, and then the existing engine evolves that fixed width down it. Exact rather
+            # than convenient — see `indels.draw_indel_history`.
+            history = None
+            if insertion or deletion:
+                assert f_parts is not None    # None means a nucleotide run, which refuses these
+                sites = sum(int(n) for _model, n in f_parts)
+                history = draw_indel_history(
+                    gt.complete, sites, insertion=insertion, deletion=deletion,
+                    insertion_extent=ins_extent, deletion_extent=del_extent,
+                    rate_base=f_rate, clock=clock, rng=rng)
+            if history is not None:
+                assert f_parts is not None
+                f_parts = ((f_parts[0][0], history.width),)
+                n_insertions += history.insertions
+                n_deletions += history.deletions
             aln, anc, fnd = _evolve_partitions(gt, f_parts, f_rate, clock, rng, cdf_caches, names,
-                                               founding=seed_states)
+                                               founding=seed_states,
+                                               present=None if history is None else history.present)
             scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site
             ext = scaled.extant
             phylo = {"complete": _gene_newick(scaled.complete, names),
