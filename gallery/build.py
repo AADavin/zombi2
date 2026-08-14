@@ -42,6 +42,39 @@ WEBFIG = os.path.abspath(os.path.join(HERE, "..", "web", "figures"))
 PREFIX = {"species": "Sp", "genomes": "Ge", "sequences": "Sq",
           "traits": "Tr", "conditioning": "Co", "joining": "Jo"}
 
+#: The conditioning section runs in the order **chapter 9's table** runs, so its Gallery column reads
+#: straight down: row 1 is Co1, row 11 is Co17. The examples come from two modules — `joining` writes
+#: the ones a trait drives, `crosslevel` the ones a gene or a sequence does — and the table
+#: interleaves them, so the order is written here rather than left to the order two files happen to
+#: be concatenated in. `_ordered` fails loudly if an example is named twice or not at all, which is
+#: what keeps "every pair is illustrated" a fact rather than a hope.
+CONDITIONING_ORDER = [
+    "mobile_element",                                                   # 1  gene family -> gene family
+    "repair_gene",                                                      # 2  gene family -> sequence
+    "gene_drives_trait",                                                # 3  gene family -> trait
+    "operon_substitution",                                              # 4  genome      -> sequence
+    "module_drives_metabolism", "operon_trait",                         # 5  genome      -> trait
+    "gc_drives_sequence",                                               # 6  sequence    -> sequence
+    "gc_drives_trait",                                                  # 7  sequence    -> trait
+    "genome_reduction", "genome_expansion", "hgt_uptake",               # 8  trait       -> gene family
+    "continuous_conditioning", "curve_saturating", "curve_optimum",     # 8  (continued)
+    "climate_inversions",                                               # 9  trait       -> genome
+    "climate_substitution",                                             # 10 trait       -> sequence
+    "trait_drives_trait",                                               # 11 trait       -> trait
+]
+
+
+def _ordered(examples, order):
+    """``examples`` sorted into ``order``, which must name each of them exactly once."""
+    by_id = {ex.id: ex for ex in examples}
+    named, have = set(order), set(by_id)
+    if named != have:
+        missing, extra = sorted(have - named), sorted(named - have)
+        raise SystemExit("the conditioning order is out of step with the examples — "
+                         f"unordered: {missing or 'none'}; named but absent: {extra or 'none'}")
+    return [by_id[i] for i in order]
+
+
 # (slug, title, blurb, examples) — the slug is the section id the landing-page cards link to.
 # The first section is the one that starts open; every other section starts folded.
 LEVELS = [
@@ -64,7 +97,7 @@ LEVELS = [
      "Two runs, in order. The first run grows the driver on the tree and holds it fixed. The "
      "second run reads it. A driver is a trait, a gene family or a whole module. It drives a "
      "rate, or which lineage receives a transfer.",
-     joining.CONDITIONING + crosslevel.EXAMPLES),
+     _ordered(joining.CONDITIONING + crosslevel.EXAMPLES, CONDITIONING_ORDER)),
     ("joining", "Joining",
      "One run makes both. The trait sets the speciation or extinction rate of the lineage "
      "carrying it. The trait and the tree therefore come out together.",
