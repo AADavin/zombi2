@@ -9,6 +9,19 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- Chapter 7's clock table joins chapters 3 and 8: the column that spelled each call out is the
+  example that shows it — the strict clock, the two uncorrelated ones, the autocorrelated one, the
+  binned one, and the trait-dependent rate, whose example is in the conditioning section. (#367)
+- The Gallery column in those tables is as narrow as the numbers in it, so the literature names get
+  the room they were losing to it. (#367)
+- Every trait card gives its colour key a row of its own, as the species ones do. (#367)
+- The clade-transition card is the tree alone: the driver/target diagram belongs to conditioning,
+  and a rate scoped to a clade and a time is not one level reading another. (#367)
+- The README's title is the wordmark with a teal Z, and no icon beside it. (#367)
+
+
 ## [0.39.2] - 2026-08-14
 
 ### Changed

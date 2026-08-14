@@ -36,7 +36,9 @@ def _tree():
 
 
 def _style():
-    return ph.Style(width=1200, height=1000, margin=80, branch_width=1.4)
+    # headroom: these are 100-tip trees whose first branch reaches the top-left corner, where the
+    # colorbar and the legend are drawn. Without a row of its own the key shares one with a branch.
+    return ph.Style(width=1200, height=1070, margin=80, headroom=70, branch_width=1.4)
 
 
 def brownian_motion(out):
@@ -193,7 +195,7 @@ def diversity_dependent_trait(out):
     png = out.replace(".png", "_tree.png")
     present = max(ct.nodes[i].end_time for i in ct.extant_leaves())
     (ph.trees.plot(tree, dashed=h.dashed_extinct(tree, ct),
-                   style=ph.Style(width=1250, height=760, margin=80, branch_width=1.4))
+                   style=ph.Style(width=1250, height=830, margin=80, headroom=70, branch_width=1.4))
      + ph.trees.color_branches(h.node_values(res))
      + ph.trees.colorbar("trait value", width=240, height=16, size=20)).save(png)
     times, counts = h.lineages_through_time(ct)
