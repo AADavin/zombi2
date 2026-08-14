@@ -268,20 +268,20 @@ lab = ct.labels()                                # {id: 'n<id>'}
 
 EXAMPLES = [
     Example("bm", "Brownian motion", "Free diffusion — sister lineages drift apart with time.",
-            "continuous", brownian_motion, code=_C_BM),
+            "rate", brownian_motion, code=_C_BM),
     Example("ou", "Ornstein–Uhlenbeck", "Pulled to an optimum: a high start (yellow) converges to blue.",
-            "continuous", ornstein_uhlenbeck, code=_C_OU),
+            "rate · pull · reverts_to", ornstein_uhlenbeck, code=_C_OU),
     Example("discrete", "Discrete states",
             "A two-state trait hops between habitats; each branch is painted by its state history.",
-            "discrete · Mk", discrete_states, code=_C_DISCRETE),
+            "switch", discrete_states, code=_C_DISCRETE),
     Example("correlated", "Dependent continuous traits",
             "Two traits evolve together (r&nbsp;=&nbsp;0.9) — two trees, coloured by each trait, and the "
             "tip scatter.",
-            "continuous · +&nbsp;scatter", correlated, code=_C_CORRELATED),
+            "rate · correlated", correlated, code=_C_CORRELATED),
     Example("dependent", "Dependent discrete traits",
             "Two binary characters where one's flip rate depends on the other's state. X in green, Y in "
             "purple, so you can see Y is present where X is; the 2×2 chain is the model.",
-            "discrete · dependent", dependent_characters, code=_C_DEPENDENT),
+            "switch · dependent", dependent_characters, code=_C_DEPENDENT),
     Example("driven", "A trait driving a trait",
             "A habitat trait sets how fast body size diffuses: twenty times faster where the habitat "
             "fluctuates. <code>rate&nbsp;=&nbsp;PerLineage(0.25).scaled_by(habitat,&nbsp;{…})</code>.",

@@ -9,6 +9,17 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- The examples gallery numbers every example — `Ge3` is the third genome example — and cites it that
+  way. The number is derived from the example's position at build time rather than stored, so an
+  example can be inserted anywhere and the numbering follows. The page carries the ZOMBI2 version it
+  was built from, and each example's tag now names the parameters it is about rather than the
+  plotting library. (#358)
+- The gallery's figures are written to `web/figures/` and linked, instead of being embedded in
+  `web/gallery.html` as base64. The page goes from 6.3 MB to 119 KB, and a rebuild costs only the
+  figures that changed rather than a fresh multi-megabyte blob in the repository's history. (#358)
+
 ## [0.38.0] - 2026-08-14
 
 ### Added
