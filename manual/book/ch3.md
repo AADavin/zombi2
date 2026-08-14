@@ -34,7 +34,7 @@ One model does not fit the modifier framework: a **mass extinction**, where at o
 ## Literature
 
 | What it does | From the literature | Gallery |
-| --- | --- | --- |
+|-------------------|--------------------------------|---|
 | rates change at set times | skyline / episodic birth–death [@stadler2011mammalian] | [Sp3](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:rateshift--> |
 | rate slows as the tree fills | diversity-dependent diversification [@rabosky2008densitydependent; @etienne2012diversitydependence] | [Sp4](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:diversity--> |
 | rates drift, inherited at each split | ClaDS [@maliet2019clads] | [Sp5](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:inherited--> |

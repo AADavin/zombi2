@@ -88,7 +88,7 @@ traits.simulate_continuous(tree,
 Trait models arrive under a thicket of names, and a reader who wants "an OU model" or "a threshold model" should be able to find it. The names live here, in one table, each beside the example that shows it; the example carries the run that made it, so the table does not spell the call out a second time. It organises nothing else in the chapter.
 
 | What it does | From the literature | Gallery |
-| --- | --- | --- |
+|-------------------|--------------------------------|---|
 | a value diffusing | Brownian motion (BM) [@felsenstein1985comparative] | [Tr1](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:bm--> |
 | diffusion pulled to an optimum | Ornstein–Uhlenbeck (OU) [@hansen1997stabilizing; @butler2004phylogenetic] | [Tr2](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:ou--> |
 | diffusion rate decays through time | Early burst (EB / ACDC) [@harmon2010earlyburst] | [Tr3](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:early_burst--> |
