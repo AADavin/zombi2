@@ -30,6 +30,9 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 - The version the landing page shows is written from the same single source as everything else at
   release time; it had been maintained by hand, and said 0.32.0 while PyPI served 0.38.0. (#362)
+- Chapter 3's Literature table does what chapter 8's now does: the column that spelled the
+  call out is the example that shows it, and the bullets above it no longer repeat the same
+  numbers three lines earlier. (#363)
 - Chapter 8's Literature table points at the gallery instead of spelling each call out: the
   column that held the expression is the example that shows it, thirteen rows for thirteen
   cards, and a test holds the two in step the way chapter 9's table is held. (#363)

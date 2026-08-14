@@ -27,6 +27,7 @@ and manufacture failures. One of those helpers also downloads a genome, which mu
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import importlib
 import json
@@ -449,42 +450,122 @@ def test_chapter_nine_s_table_and_the_gallery_agree_on_the_conditioning_examples
         "match the table, then run `python scripts/gallery_refs.py`")
 
 
-def test_chapter_eight_s_literature_table_is_the_index_into_the_traits_section():
-    """Chapter 8's Literature table names each trait model and points at the example that shows it.
+#: (chapter, the table's header line, the section prefix, whether the table must cite EVERY card)
+#:
+#: Chapter 8's table is the traits section's index — every card is a model it names. Chapter 3's is
+#: about the rate models only, so the species section also holds cards it does not name (a plain
+#: Yule tree, sampling, a study over many trees) and the coverage check would be false there.
+_LITERATURE_TABLES = [
+    ("ch8", "| What it does | Gallery |", "Tr", True),
+    ("ch3", "| What it does | Gallery |", "Sp", False),
+]
 
-    The same coupling chapter 9's table has, and the same three things have to stay true: every row
-    cites an example, every trait example is cited by exactly one row, and the numbers ascend down
-    the table. What makes it worth a test here is that the table used to carry the call itself —
-    `simulate_continuous(rate=…)` — and now carries only the number, so a card that goes missing
-    takes the chapter's only pointer to that model with it.
+
+@pytest.mark.parametrize("chapter,header,prefix,exhaustive", _LITERATURE_TABLES)
+def test_a_literature_table_is_the_index_into_its_gallery_section(chapter, header, prefix,
+                                                                  exhaustive):
+    """A Literature table names each model as the field does and points at the example that shows it.
+
+    The same coupling chapter 9's driver/target table has, and the same things have to stay true:
+    every row cites an example, the numbers ascend down the table, and — where the table is the
+    section's whole index — every card is cited exactly once. What makes it worth a test is that
+    these tables used to carry the call itself, `simulate_continuous(rate=…)`, and now carry only the
+    number: a card that goes missing takes the chapter's only pointer to that model with it.
     """
     sys.path.insert(0, str(GALLERY.parent / "scripts"))
     try:
         import gallery_refs
     finally:
         sys.path.remove(str(GALLERY.parent / "scripts"))
-    text = (GALLERY.parent / "manual" / "book" / "ch8.md").read_text(encoding="utf-8")
-    table = re.search(r"^\| What it does \| Gallery \|.*?(?=\n\n)", text, re.S | re.M)
-    assert table, "chapter 8's Literature table is not where this test looks for it"
+    text = (GALLERY.parent / "manual" / "book" / f"{chapter}.md").read_text(encoding="utf-8")
+    table = re.search(re.escape(header) + r".*?(?=\n\n)", text, re.S)
+    assert table, f"{chapter}'s Literature table is not where this test looks for it"
     rows = [ln for ln in table.group(0).splitlines()[2:] if ln.startswith("|")]
     assert rows, "the table has no rows"
 
     with _gallery_build() as build:
         nums = gallery_refs.numbers(build)
-    traits = {i for i, n in nums.items() if n.startswith("Tr")}
+    section = {i for i, n in nums.items() if n.startswith(prefix)}
 
     cited, order = [], []
     for n, row in enumerate(rows, start=1):
         ids = re.findall(r"<!--gallery:([a-z0-9_]+)-->", row)
-        assert ids, f"row {n} of chapter 8's Literature table cites no gallery example"
+        assert ids, f"row {n} of {chapter}'s Literature table cites no gallery example"
         cited += ids
         order += [int(nums[i][2:]) for i in ids]
 
-    assert sorted(cited) == sorted(traits), (
-        "the table and the gallery disagree on the trait examples — "
-        f"cited but absent: {sorted(set(cited) - traits)}; "
-        f"in the gallery but uncited: {sorted(traits - set(cited))}")
+    assert not set(cited) - section, (
+        f"{chapter}'s table cites examples the {prefix} section does not have: "
+        f"{sorted(set(cited) - section)}")
+    if exhaustive:
+        assert sorted(cited) == sorted(section), (
+            "the table and the gallery disagree — "
+            f"cited but absent: {sorted(set(cited) - section)}; "
+            f"in the gallery but uncited: {sorted(section - set(cited))}")
     assert order == sorted(order), (
-        "the Gallery column does not ascend down the table: "
-        f"{order}. Reorder TRAITS_ORDER in gallery/build.py to match the table, then run "
-        "`python scripts/gallery_refs.py`")
+        f"the Gallery column does not ascend down {chapter}'s table: {order}. Reorder the section in "
+        "gallery/build.py to match the table, then run `python scripts/gallery_refs.py`")
+
+
+def test_the_gallery_snippets_name_a_grammar_that_still_exists(gallery_examples):
+    """Every rate-grammar name a card's code shows resolves in ``zombi2.params``.
+
+    The cards' code is what a reader copies, and it is where the grammar is written down now that
+    chapters 3 and 8 point at the gallery instead of spelling each call out — the check the manual's
+    tables used to get, applied where the spellings went. A renamed constructor (``ByFamily`` →
+    ``Drawn``) or a dropped verb is a name that no longer resolves.
+
+    Only names the snippet does not bring itself: a snippet is a whole program, so it imports what it
+    uses, and anything it imported or assigned is its own business (``Counter``, a ``Style``). What is
+    left is the vocabulary this repo owns. The snippets are not executed here — several shell out or
+    download a genome — and the render guard above covers what running would catch.
+    """
+    from test_manual_code import _KNOWN_CTORS, _KNOWN_VERBS
+
+    def _python_chunks(code: str):
+        """The runnable Python of a snippet, as chunks a parser can take whole.
+
+        A snippet is a program, and its calls run over several lines — parsing line by line would
+        skip every one of them, which is exactly how this guard first passed while a renamed
+        constructor sat in a snippet. So: drop the shell lines (a card may open with the `zombi2 ...`
+        run that made it) and parse what is left; if something in it still will not parse, fall back
+        to the lines that do."""
+        keep = [ln for ln in code.splitlines()
+                if not ln.strip().startswith(("zombi2 ", "$ ", "pip ", "--"))
+                and not ln.rstrip().endswith("\\\\")]
+        block = "\n".join(keep)
+        try:
+            ast.parse(block)
+        except SyntaxError:
+            for ln in keep:                # something in it will not parse: take what does
+                yield ln.strip()
+        else:
+            yield block
+
+    failures = []
+    for _module, ex in gallery_examples:          # the fixture yields (module name, Example)
+        if not ex.code:
+            continue
+        for chunk in _python_chunks(ex.code):
+            try:
+                tree = ast.parse(chunk.replace("…", "None"))
+            except SyntaxError:
+                continue
+            brought = {(n.asname or n.name).split(".")[0]
+                       for n in ast.walk(tree) if isinstance(n, ast.alias)}
+            brought |= {n.id for n in ast.walk(tree)
+                        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)}
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                func = node.func
+                if (isinstance(func, ast.Name) and func.id[:1].isupper()
+                        and func.id not in brought and func.id not in _KNOWN_CTORS):
+                    failures.append(f"{ex.id} — `{func.id}(...)` is not in zombi2.params")
+                if (isinstance(func, ast.Attribute) and isinstance(func.value, ast.Call)
+                        and isinstance(getattr(func.value, "func", None), ast.Name)
+                        and func.value.func.id in _KNOWN_CTORS
+                        and func.attr not in _KNOWN_VERBS):
+                    failures.append(f"{ex.id} — a rate no longer chains .{func.attr}()")
+    assert not failures, ("gallery snippets name a grammar that has moved:\n  "
+                          + "\n  ".join(failures))
