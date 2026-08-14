@@ -77,7 +77,7 @@ SPECIES_ORDER = [
 #: which is the chapter's fifth section.
 SEQUENCE_ORDER = [
     "seq_alignment",                        # ch7, what a run produces
-    "clade_own_model",                      # ch7, the substitution models
+    "clade_own_model", "seq_protein",       # ch7, the substitution models — nucleotide, then protein
     "clock_ucln", "clock_ugam", "clock_autocorrelated", "clock_discrete_bin",   # ch7, the clocks
     "seq_ancestral",                        # ch7, what a run gives back
     "seq_indels",                           # ch7, running on a nucleotide genome

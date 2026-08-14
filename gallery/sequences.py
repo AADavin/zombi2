@@ -126,6 +126,22 @@ def alignment_beside_tree(out):
               width=1150, tree_fraction=0.30, footer=70).save(out)  # no title
 
 
+def protein_beside_tree(out):
+    """The same picture in the other alphabet: LG down the same twenty species.
+
+    Residues are coloured by chemical **class**, not one hue each, so what the column shows is where
+    the chemistry is conserved — a column that stays blue while its letters change is a run of
+    different hydrophobic residues, which is not the same thing as a column that stays put."""
+    run = h.protein_run()                                # 20 species, LG, 60 residues
+    tree = ph.trees.read(run + "/species/species_extant.nwk")
+    fam = _best_single_copy(ph.zombi.read_profiles(run))
+    aln = ph.zombi.read_alignment(run, fam)
+    fig = ph.trees.plot(tree, style=h.style())                            # no leaf labels
+    ph.beside(fig, ph.genomes.alignment(aln, palette=ph.genomes.AA_COLORS, letters=False,
+                                        legend=True),                     # the six-class key
+              width=1150, tree_fraction=0.30, footer=70).save(out)
+
+
 # --- a small tree with numbered nodes, beside the ancestral sequence at each -----------------
 
 _NT = {"A": "#4E9F50", "C": "#3B7DD8", "G": "#F2A93B", "T": "#D75455", "-": "#dddddd", "N": "#bbbbbb"}
@@ -261,6 +277,26 @@ aln = ph.zombi.read_alignment("run", family=2)     # single-copy in every genome
 fig = ph.trees.plot(tree)                          # no leaf labels
 ph.beside(fig, ph.genomes.alignment(aln, letters=False),   # colour blocks + a nucleotide key
           footer=70).save("alignment.png")'''
+
+
+_C_PROTEIN = '''\
+### simulate  —  the same 20 species, this time evolving proteins (LG)
+zombi2 species   run --birth 1.0 --death 0.25 --n-extant 20 --seed 4
+zombi2 genomes   run --resolution ordered --initial-families 45 \\
+                     --duplication 0.04 --loss 0.0 --transfer 0.0 --seed 6
+zombi2 sequences run --model lg --length 60 --divergence 0.7 --seed 7
+# nucleotide: jc69 k80 hky85 gtr  ·  protein: poisson jtt dayhoff wag lg
+# a protein model needs a family or ordered run — a nucleotide genome is measured in
+# base pairs and read on either strand, and amino acids have no complement
+
+### plot  —  Phylustrator, residues coloured by chemical class
+import phylustrator as ph
+
+tree = ph.trees.read("run/species/species_extant.nwk")
+aln = ph.zombi.read_alignment("run", family=2)
+ph.beside(ph.trees.plot(tree),
+          ph.genomes.alignment(aln, palette=ph.genomes.AA_COLORS, letters=False),
+          footer=70).save("protein.png")'''
 
 
 _C_CLOCKS = '''\
@@ -491,6 +527,12 @@ EXAMPLES = [
             "carried by exactly one of the two clades at the root — an indel is a shared derived "
             "character.",
             "insertion · deletion", indel_alignment, code=_C_INDEL),
+    Example("seq_protein", "A protein alignment",
+            "The same twenty species evolving amino acids under <code>lg</code>, coloured by "
+            "chemical class rather than one hue per residue, so a conserved column reads as "
+            "conserved chemistry. Also <code>poisson</code>, <code>jtt</code>, "
+            "<code>dayhoff</code>, <code>wag</code>.",
+            "model · lg", protein_beside_tree, code=_C_PROTEIN),
     Example("seq_alignment", "Alignment beside the tree",
             "A single-copy family across 20 species, residues coloured (with a nucleotide key), each "
             "row locked to its tip. <code>beside(tree,&nbsp;alignment(aln))</code>.",

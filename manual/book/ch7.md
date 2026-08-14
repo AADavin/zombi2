@@ -29,7 +29,7 @@ ZOMBI2 implements nine standard models of sequence evolution.
 | `wag` | residues | none | [@whelan2001general] |
 | `lg` | residues | none | [@le2008improved] |
 
-The model decides the alphabet, and `length` counts whatever that alphabet holds. The nucleotide models are four different rate matrices rather than one model with four settings, but they nest in the order written — `jc69` is `k80` with `kappa=1`, and `k80` is `hky85` with equal base frequencies — so each step down the table adds free parameters. The protein matrices are **empirical**, each estimated once from a large set of real alignments and then used as a fixed table, which is why they take no parameters of their own.
+The model decides the alphabet, and `length` counts whatever that alphabet holds. The nucleotide models are four different rate matrices rather than one model with four settings, but they nest in the order written — `jc69` is `k80` with `kappa=1`, and `k80` is `hky85` with equal base frequencies — so each step down the table adds free parameters. The protein matrices are **empirical**, each estimated once from a large set of real alignments and then used as a fixed table, which is why they take no parameters of their own ([Sq3](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_protein-->).
 
 ### Your own matrix
 
@@ -165,7 +165,7 @@ fixed it.
 
 Rate variation across sites says which *positions* change fast. A clock says which *lineages* do. The two are orthogonal and compose.
 
-The rate is `substitution`, counted **per site**: a gene-tree branch of Δ*t* time accrues `substitution · Δt` substitutions at every site. Left alone it is `1.0` everywhere — the **strict clock**, one tempo for the whole tree. Let it change from lineage to lineage and it is what the field calls a **relaxed clock** [@lepage2007general], written by chaining a verb onto the rate exactly as at every other level ([Sq3–Sq6](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_ucln--><!--gallery:clock_ugam--><!--gallery:clock_autocorrelated--><!--gallery:clock_discrete_bin-->). Whichever distribution you give is **normalised to mean 1**, so it contributes its *shape* and the base keeps meaning the average rate.
+The rate is `substitution`, counted **per site**: a gene-tree branch of Δ*t* time accrues `substitution · Δt` substitutions at every site. Left alone it is `1.0` everywhere — the **strict clock**, one tempo for the whole tree. Let it change from lineage to lineage and it is what the field calls a **relaxed clock** [@lepage2007general], written by chaining a verb onto the rate exactly as at every other level ([Sq4–Sq7](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_ucln--><!--gallery:clock_ugam--><!--gallery:clock_autocorrelated--><!--gallery:clock_discrete_bin-->). Whichever distribution you give is **normalised to mean 1**, so it contributes its *shape* and the base keeps meaning the average rate.
 
 | What it does | ZOMBI2 | From the literature |
 |---|---|---|
@@ -267,7 +267,7 @@ The caveat: every model is normalised to one expected substitution per site per 
 alignment a phylogenetic method would be handed; **`.ancestral` is every node the alignment leaves
 out**, the internal ones and the tips where a copy was lost or its species died. The run wrote a
 sequence at each node as it went, so those are the exact ancestors rather than estimates, and
-together the two account for every node of the tree exactly once ([Sq7](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_ancestral-->). Appendix B lists the rest.
+together the two account for every node of the tree exactly once ([Sq8](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_ancestral-->). Appendix B lists the rest.
 
 
 ### Where a sequence starts
