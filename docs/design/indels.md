@@ -300,11 +300,23 @@ does not move those. Measured on *M. genitalium* with inversions on, 228 runs sa
 host. A run carried away from its host, or one that landed on a block boundary and so is inside no
 block at all, is left alone: it is no longer in that gene.
 
-Two things stay open. The ordering of runs is `(offset, source)` and the source id is a counter, so
-two insertions at the same offset in different lineages stay two runs rather than one — which is the
-homology point the note made, satisfied by construction rather than by a check. And there are now
-two things a reader could call the alignment of a block: what evolved, and what evolved plus what
-arrived. That is a naming problem left unresolved.
+The ordering of runs is `(offset, source)` and the source id is a counter, so two insertions at the
+same offset in different lineages stay two runs rather than one — the homology point the note made,
+satisfied by construction rather than by a check.
+
+**And it is `alignments` itself, not a second accessor.** There were briefly two things a reader
+could call the alignment of a block, which is exactly what would make the two indel homes read as two
+patches rather than one concept. So `alignments[block]` *is* the locus — the block's own columns with
+the runs inserted into it opened — and a run folded into a host has no entry of its own there, since
+its letters are the host's columns. It keeps its `phylograms` and `founding` entries, which is not an
+inconsistency: an inserted run does have its own history, starting at the insertion, so the columns
+of a spliced alignment do **not** all share one tree. That is true of any alignment with indels.
+
+Spliced on access rather than stored, so there is no second copy of the sequence data — the
+per-block rows underneath are what a genome is assembled from, and the assembly slices a block's own
+coordinates, which the spliced view no longer counts in. The splice **recurses**: an insertion can
+land inside one that arrived earlier (5 of 15 hosts in one small run), and a one-level splice would
+have dropped those columns silently.
 
 **The alignment is gapped**, and that answers the question this note left open. A block is evolved
 over its whole ancestral extent, so an ungapped row hands back bases the lineage deleted — a 120 bp
