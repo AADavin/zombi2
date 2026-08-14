@@ -11,6 +11,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
+- A protein alignment with indels in the gallery: sites gained and lost as well as changed, so
+  the columns of gaps line up with clades — an indel is a shared derived character. (#363)
 - Four more trait examples, so every model chapter 8's Literature table names has one: a
   diffusion rate that drifts between lineages, one that answers to how full the tree is (with
   the lineages-through-time curve below it), two traits each reverting to its own optimum, and
@@ -30,6 +32,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 - The version the landing page shows is written from the same single source as everything else at
   release time; it had been maintained by hand, and said 0.32.0 while PyPI served 0.38.0. (#362)
+- Both Literature tables read left to right as what it does, what the field calls it, and
+  where to see it: the Gallery column is last. (#363)
+- Every coloured tree in the gallery draws its extinct lineages dashed again. A colouring
+  layer overdraws the skeleton, so it painted them solid, and the rate-coloured species
+  cards had lost their dashes entirely (Phylustrator 0.2.14, which also gives a colorbar or
+  legend an opaque backing so it stops overlapping the branches). (#363)
 - Chapter 3's Literature table does what chapter 8's now does: the column that spelled the
   call out is the example that shows it, and the bullets above it no longer repeat the same
   numbers three lines earlier. (#363)
