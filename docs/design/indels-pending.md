@@ -101,6 +101,13 @@ Rules for keeping this honest:
   own, and a run carried away from its host by a rearrangement is left where it now is. (#TBD)
 ```
 
+```markdown
+- A gallery example for indels: the real *M. genitalium* `MG_RS01985`, 161 bp, across five species —
+  172 alignment columns, a 6 bp insertion carried by exactly one clade, a second insertion in one
+  species and a 3 bp deletion in another. A gap means two opposite things and only the column says
+  which. (#TBD)
+```
+
 Nothing else is left to stage for the model itself. Still outstanding, and not a changelog entry: a
 manual chapter for Chapter 6 and a gallery example.
 
