@@ -9,6 +9,21 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- Three trait examples in the gallery — an early burst, a two-optimum OU painted by a discrete
+  trait, and a discrete trait whose gains and losses run at different rates — so the traits
+  section covers the chapter's menu rather than its first half. (#362)
+
+### Changed
+
+- The version the landing page shows is written from the same single source as everything else at
+  release time; it had been maintained by hand, and said 0.32.0 while PyPI served 0.38.0. (#362)
+- Chapter 8 no longer has a section listing what a trait run hands back; Appendix B has it, and the
+  one thing it said that the appendix does not — hand a trait the complete tree — moved to the
+  chapter's opening line. (#362)
+
+
 ## [0.39.0] - 2026-08-14
 
 ### Added
