@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.39.2] - 2026-08-14
+
 ### Changed
 
 - The species rate cards give their colour key a row of its own, so the tree's first branch no
