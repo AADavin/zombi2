@@ -144,52 +144,14 @@ The **initial genome**, the genome the run starts from at time 0 before any even
 
 A GFF gives coordinates, not letters. `fasta="genome.fasta"` supplies the DNA those coordinates hold — one record per replicon, matched by id, each exactly its declared length — and a later `zombi2 sequences` run founds its blocks from that DNA (Chapter 7).
 
-## The `NucleotideGenomesResult` object
+## What a run gives back
 
-`simulate_genomes_nucleotide` returns a **`NucleotideGenomesResult`**:
+`simulate_genomes_nucleotide` returns a `NucleotideGenomesResult`. `.genomes` and `.node_genomes`
+carry what they carry at every resolution — the observed tips, and every node — each genome now a
+list of `Chromosome`s of `Block`s. What is particular to this resolution is that a genome is
+*rebuilt* rather than stored: `.root_blocks` is the recovered root partition and `.assembly(node)`
+says how one node's genome is made from it. Appendix B lists all of it.
 
-- `.complete_tree`, the species tree the genomes ran on, extinct lineages included.
-- `.genomes`, the observed dataset: each **extant** tip's `NucleotideGenome`, keyed by tip name (`n5`) — a list of `Chromosome`s, each a list of `Block`s.
-- `.node_genomes`, the same for **every** node, extant and extinct and internal alike, keyed by node id.
-- `.initial_genome`, the genome the run **started** with, at the root lineage's origination. It is not `.node_genomes[root]`: a node sits at the **end** of its branch, and the root branch is real simulated time, so events happen along it. Written to its own `initial_genome.tsv`, with no `lineage` column, because it belongs to no node. It votes on the root partition like every other genome, so `.initial_assembly()` rebuilds it too.
-- `.events`, the copy-lineage genealogy: origination, loss, duplication, transfer, speciation.
-- `.rearrangements`, the ancestry-neutral log: inversion, transposition, translocation.
-- `.chromosome_events`, the chromosome network, as in Chapter 5.
-- `.gene_spans`, `{family: (source, start, end)}`, where each declared gene sits in initial coordinates.
-- `.gene_names`, `.gene_strands`, a named gene's family id and its coding strand, from a GFF.
-- `.gene_trees`, one recovered gene tree per gene family: every family some node still carries, so a gene surviving only in lineages that died still gets a tree.
-- `.root_blocks`, the recovered root partition: the maximal never-cut intervals that some node still carries. Cut at **every** node's breakpoints, not just the survivors', which is what lets any node's genome be rebuilt.
-- `.block_trees`, a recovered tree for **every** root block, spacer as well as gene, keyed by its index in `.root_blocks`.
-- `.initial_assembly()`, the same for `.initial_genome`, as `(block, strand)` pairs. No gene id: the initial genome predates every event, so each block has exactly one sequence there.
-- `.block_of(family)`, the block index a declared gene family occupies: the join between the two numbering schemes here, since `.gene_spans` and `.gene_trees` are keyed by family id while `.root_blocks` and `.block_trees` are keyed by block index. Both are plain integers, so mixing them up is silent; this is how you avoid it.
-- `.seed`.
-
-and four ways to read one node's genome, at four grains:
-
-```python
-g.mosaic(2)      # per block:      {chromosome: [(source, start, end, strand), ...]}
-g.trace_back(2)  # per nucleotide: {chromosome: [(source, position, strand), ...]}
-g.ancestry(2)    # the multiset of ancestral (source, position) it still carries
-g.assembly(2)    # per piece:      {chromosome: [(block, gene, strand), ...]}
-```
-
-`ancestry` is the invariant worth knowing: rearrangements conserve it exactly, so an inversion-only run leaves every leaf holding a permutation of the initial sequence. Loss makes it a subset, and duplication, transfer and origination add to it.
-
-Everything in this chapter is one call. Here is the fullest version, a karyotype that splits and merges while the genes on it turn over:
-
-```python
-from zombi2 import species, genomes
-
-tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=6, seed=4)
-g = genomes.simulate_genomes_nucleotide(
-    tree, chromosomes=3, root_length=4000, genes=6, gene_length=200,
-    duplication=2.0, duplication_extent=900, loss=2.0, loss_extent=900,
-    transfer=1.0, transfer_extent=900, transfer_to="distance",
-    fission=0.2, fusion=0.2, chromosome_origination=0.05, chromosome_loss=0.05,
-    inversion=1.0, seed=5)
-```
-
-A family lost in **every** extant lineage still gets a complete tree, since it is still history, but `.gene_trees[fam].extant` is `None` and no `_extant.nwk` is written. Only a family deleted from every node has no tree at all, and it still appears in `.gene_spans` because it was declared. Ask `.gene_trees` what it holds rather than assuming a declared family is in it.
 
 ## On the command line
 
