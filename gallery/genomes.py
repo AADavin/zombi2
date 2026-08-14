@@ -693,7 +693,150 @@ my_genomes = simulate_genomes_family(
     seed=2)'''
 
 
+# --- a karyotype per tip, with the events that made it ------------------------------------------
+
+_KARYO = ph.Style(margin=6, gene_stroke_width=0.3, gene_style="wedge")
+_KARYO_PX = 190.0                       # pixels per layout unit — one scale for every tip
+_FISSION, _FUSION = "#2E8B6F", "#C25A3C"
+
+
+def _karyotype_png(genome, path: str) -> str:
+    """One tip's whole karyotype: its chromosomes in a row, largest first.
+
+    ``arrange="row"`` is what makes it a karyotype rather than a genome map — the chromosomes are
+    separate objects side by side, not nested tracks of one picture. Every circle is drawn the same
+    size, so what the row shows is how many chromosomes a lineage ended with and where the genes sit
+    on each; the gene count is in the colours, not in the radius.
+
+    The canvas is sized from the figure's own extent rather than fixed, so a tip with three
+    chromosomes is a file three circles wide instead of three circles squeezed into one square. Every
+    file then carries the same pixels-per-circle and the panel can place them all at one size."""
+    import dataclasses
+    ordered = dataclasses.replace(genome,
+                                  chromosomes=tuple(sorted(genome.chromosomes,
+                                                           key=lambda c: -len(c.genes))))
+    kw = dict(layout="circular", arrange="row")
+    (x0, x1), (y0, y1) = ph.genomes.plot(ordered, style=_KARYO, **kw).extent()
+    style = dataclasses.replace(_KARYO, width=round(_KARYO_PX * (x1 - x0)) + 2 * _KARYO.margin,
+                                height=round(_KARYO_PX * (y1 - y0)) + 2 * _KARYO.margin)
+    (ph.genomes.plot(ordered, style=style, **kw) + ph.genomes.genes(by="family")).save(path)
+    return path
+
+
+def karyotype(out):
+    """The whole karyotype of every survivor, beside the tree that produced them.
+
+    Seven lineages start from the same two circular chromosomes. Fission splits one in two and fusion
+    joins two into one, and both are marked on the branch they happened on — so the karyotypes on the
+    right are not a given, they are what those marks did. Some tips end with a single chromosome and
+    some with three, and nothing about them differs except which events fell on which branch."""
+    import csv
+
+    run = h.karyotype_run()
+    tree = ph.trees.loads(open(f"{run}/species/species_complete.nwk").read())
+    genomes = ph.zombi.read_genomes(f"{run}/genomes")
+
+    events = []
+    with open(f"{run}/genomes/chromosome_events.tsv") as fh:
+        for row in csv.DictReader(fh, delimiter="\t"):
+            if row["kind"] in ("fission", "fusion"):      # a token carries its own branch: n3_c7
+                events.append({"kind": row["kind"], "x": float(row["time"]),
+                               "node": row["parents"].split(";")[0].split("_")[0]})
+
+    style = ph.Style(width=820, height=700, margin=66, branch_width=2.6)
+    fig = (ph.trees.plot(tree, style=style)
+           + ph.trees.branch_events(events, size=9.0, legend_title="chromosome events",
+                                    legend_loc="bottom-left",
+                                    styles={"fission": ("o", _FISSION), "fusion": ("o", _FUSION)})
+           + ph.trees.time_axis("time", tick_size=18, label_size=22, bold=False))
+    tree_png = out.replace(".png", "_tree.png")
+    fig.save(tree_png)
+    geo = fig.geometry()
+
+    rings = {t.name: _karyotype_png(genomes[t.name], out.replace(".png", f"_{t.name}.png"))
+             for t in geo.tips}
+    # the karyotype the run started from, drawn above the stem. Without it a tip with three
+    # chromosomes could as easily be two fissions as none, and the marks would have nothing to
+    # count from — the figure is about what changed, so it has to say what it changed from.
+    root_png = _karyotype_png(h.initial_karyotype(run), out.replace(".png", "_root.png"))
+
+    def initial(ax):
+        import matplotlib.image as mpimg
+        ax.imshow(mpimg.imread(root_png))
+        ax.set_title("initial genome", fontsize=9.5, color="#6e6e6e", pad=3)
+
+    _N_AT = 0.93                    # the chromosome-count column, in panel width
+
+    def panel(ax):
+        import matplotlib.image as mpimg
+        # One karyotype per tip row, left-aligned and centred on the leaf. Each circle is the same
+        # size everywhere, so a row is as wide as the lineage has chromosomes. The images are placed
+        # in *data* coordinates rather than with an offset-box zoom, which is in points and so
+        # depends on the dpi the figure is finally written at.
+        img = {t.name: mpimg.imread(rings[t.name]) for t in geo.tips}
+        rows = sorted(t.y for t in geo.tips)
+        pitch = min(b - a for a, b in zip(rows, rows[1:])) if len(rows) > 1 else geo.size[1]
+        ax.set_xlim(0, 1)
+        ax.set_ylim(geo.size[1], 0)                    # the tree's own space, as the compositor sets
+        # data units per inch, so an image can be given its true aspect ratio in a non-square axes
+        box = ax.get_position()
+        per_x = 1.0 / (box.width * ax.figure.get_figwidth())
+        per_y = geo.size[1] / (box.height * ax.figure.get_figheight())
+        for tip in geo.tips:
+            im = img[tip.name]
+            hy = 0.60 * pitch                          # a circle sits inside its leaf's own row
+            wx = (hy / per_y) * (im.shape[1] / im.shape[0]) * per_x
+            ax.imshow(im, extent=(0.02, 0.02 + wx, tip.y + hy / 2, tip.y - hy / 2), aspect="auto",
+                      interpolation="antialiased", zorder=3)
+            ax.text(_N_AT, tip.y, f"{len(genomes[tip.name].chromosomes)}", ha="center", va="center",
+                    fontsize=14, color="#1a1a1a")
+        ax.set_xticks([])
+        # two headers, each over its own column — one title string could only centre them together
+        for x, label in ((0.30, "karyotype"), (_N_AT, "n")):
+            ax.text(x, 1.01, label, transform=ax.get_xaxis_transform(), ha="center", va="bottom",
+                    fontsize=11, color="#6e6e6e")
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+    h.composite_beside(tree_png, out, panel, figsize=(13.5, 8.0), ratios=(3, 1.05),
+                       geometry=geo, wspace=0.02, inset=((0.015, 0.83, 0.19, 0.13), initial))
+
+
+_C_KARYOTYPE = '''\
+### simulate  —  seven survivors from the same three circular chromosomes
+from zombi2.species import simulate_species_tree
+from zombi2.genomes import simulate_genomes_ordered
+
+ct = simulate_species_tree(birth=1.0, death=0.0, n_extant=7, seed=71).complete_tree
+r = simulate_genomes_ordered(ct, initial_families=150, chromosomes=3, topology="circular",
+                             duplication=0.05, loss=0.05,
+                             fission=0.35, fusion=0.35, seed=71)
+r.initial_genome                         # the three chromosomes it started from
+r.genomes["n7"]                          # that tip's whole karyotype, chromosome by chromosome
+r.chromosome_events                      # every fission and fusion, with the branch and the time
+
+### plot  —  the chromosomes side by side, one circle each
+import dataclasses
+import phylustrator as ph
+
+genome = ph.zombi.read_genomes(f"{run}/genomes")["n7"]      # what the run wrote, as a genome
+karyo = sorted(genome.chromosomes, key=lambda c: -len(c.genes))   # largest first
+(ph.genomes.plot(dataclasses.replace(genome, chromosomes=tuple(karyo)),
+                 layout="circular", arrange="row")
+ + ph.genomes.genes(by="family")).save("karyotype.png")
+# arrange="row" is what makes it a karyotype: the chromosomes are separate objects side by
+# side rather than nested rings of one map. The default, arrange="concentric", is the
+# single-genome map — right for one chromosome, wrong for counting them.
+'''
+
 EXAMPLES = [
+    Example("genome_karyotype", "A karyotype per tip, and the events that made it",
+            "Seven lineages from the three circular chromosomes drawn above the stem. Fission splits "
+            "one in two, fusion joins two into one, and each is marked on the branch it happened on "
+            "— so the karyotypes on the right are what those marks did, counted from the same start. "
+            "Tips end with one, two or three chromosomes, and nothing about them differs except "
+            "which events fell where.",
+            "phylustrator · karyotype", karyotype, code=_C_KARYOTYPE),
     Example("genome_circular_ordered", "Circular genome (ordered)",
             "A genome as a ring — genes evenly spaced by rank, coloured by family, arrows by strand. "
             "<code>plot(g,&nbsp;layout=&quot;circular&quot;)&nbsp;+&nbsp;genes()</code>.",
