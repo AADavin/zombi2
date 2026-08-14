@@ -1,9 +1,9 @@
 # Indels at the nucleotide resolution — a design note
 
 **Status: built, on `feat/indels`.** Breakpoint provenance, the `deletion` and `insertion` rates,
-an indel's exemption from the legal cut set, a root partition that stays coarse under all of it, and
-a sequence level that reassembles every node's genome from it and emits a true gapped alignment, and
-a run that round-trips through the files it wrote, and the command-line flags. The model is
+an indel's exemption from the legal cut set, and a root partition that stays coarse under all of it.
+A sequence level that reassembles every node's genome and emits a true gapped alignment. A run that
+round-trips through the files it wrote, and the command-line flags to drive one. The model is
 complete; what remains is a manual chapter and a gallery example.
 
 This note records where an indel model belongs, what stands in its way, and the design move that
@@ -114,9 +114,10 @@ filter over the event log after the run, because the two logs are in **different
 ancestral positions that genuine events cut at are not recoverable after the fact. The provenance has
 to be recorded where the cut is made — threaded through `_arc_range()` → `_split_at()` →
 `_split_block()`, surviving inversion (where a block's two bounds swap meaning) and travelling with
-blocks through duplication, transfer and translocation. That is what `_CutLog` does, and it holds:
-only bounds no genuine event ever cut at are skippable, so a position an inversion also reached in
-another lineage stays in the partition.
+blocks through duplication, transfer and translocation. It holds: only bounds no genuine event ever
+cut at are skippable, so a position an inversion also reached in another lineage stays in the
+partition. Where that recording *lives* changed later — see below, it belongs on the events
+themselves — but what is recorded did not.
 
 One consequence falls out of the same change. Today no breakpoint may fall strictly inside a declared
 gene, which would confine indels to spacer — wrong, since indels in coding DNA are most of the
