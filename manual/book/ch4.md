@@ -19,7 +19,7 @@ The initial genome, at the beginning of the stem, starts with `initial_families`
 
 ### Four things to know
 
-- **Families need not evolve at the same pace.** `
+- **Families need not evolve at the same pace.** A rate can vary among families as well as among lineages, and that one choice is what separates a genome with a core and an accessory part from one where every family behaves alike. Appendix A gives the spelling.
 - **A family's copies within one genome are capped**, at `max_family_size=10` by default, because a duplication rate above the loss rate grows without bound. Set `max_family_size=None` when you are measuring rates: a cap that binds discards events and pulls the realised rates below the ones you declared.
 - **There is no floor.** Loss is counted per copy and the last copy is a copy like any other, so a high loss rate can leave a lineage with nothing. `genome_summary.json` reports `empty_genomes` and the command warns, because an empty genome is otherwise invisible.
 - **The chromosome-based resolutions do have a floor**: a loss never takes a chromosome below its last gene. That is what a chromosome is, not a bound on genome size.
@@ -56,7 +56,7 @@ g = genomes.simulate_genomes_family(
     tree, origination=PerLineage(1.0).changing_at({0: 1.0, 2: 0.0}), seed=1)
 ```
 
-Rates can also depend on **where in the tree** a lineage sits
+Rates can also depend on **where in the tree** a lineage sits.
 
 ```python
 from zombi2.params import Clade
@@ -66,6 +66,20 @@ g = genomes.simulate_genomes_family(
     tree, loss=PerCopy(0.25).scaled_by(Clade({"fast": ["n27", "n51"]}), {"fast": 3.0}),
     duplication=0.2, origination=0.5, seed=1)
 ```
+
+### A family placed where you want it
+
+Origination leaves it to the rate where a family arises. `origins` says *here* instead — a family originates on the lineage you name, at the time you give:
+
+```python
+placed = genomes.simulate_genomes_family(
+    tree, duplication=0.2, loss=0.25, origination=0.0, initial_families=0,
+    origins=[("n1", 0.4)], seed=1)          # one family, born on n1 at time 0.4
+```
+
+That is the question a run asks when a family is the subject rather than a sample: one gene family born on the branch leading to a clade, and what duplication, transfer and loss then do to it. It **adds to** the run rather than replacing part of it, so it sits beside `initial_families` and `origination` — with both of those at zero, as above, the tree carries exactly the families you placed, and with them set you get an ordinary genome with one family planted where you want it.
+
+A lineage is written as the tree writes it (`n1`, or `e5` for one that went extinct, or the bare node id) and the time is the run's own clock, with the origin at 0. The families are numbered in the order you wrote them. The ordered resolution takes the same argument, and the same origins name the same families there. There is no command-line flag: a list of branch-and-time pairs is a script, not an argument.
 
 ## Lateral gene transfers
 
@@ -162,15 +176,6 @@ g = genomes.simulate_genomes_family(
 ```
 
 `parallel=True` uses every core and an integer sets the worker count; on the command line it is `--parallel` for all cores or `--parallel 8` for eight. It is a **separate engine**, not a faster path through the default one: each family draws from its own random stream, so the result is identical for any worker count, but it differs from a serial run of the same seed. Both are valid draws of the same process.
-
-From a script, put the call under a `__main__` guard, the standard requirement for anything that starts worker processes, since they re-import your script and would otherwise run it again from the top:
-
-```python
-if __name__ == "__main__":
-    g = genomes.simulate_genomes_family(tree, duplication=0.2, seed=1, parallel=8)
-```
-
-Leave it out and the run stops with a message saying so. A notebook or `python -c` has no script to re-import, so neither needs the guard; the library notices and runs single-process there instead.
 
 A **conditioned** rate (Chapter 9) runs here too. Conditioning does not tie families to one another: the driver was grown before this run and is an input to it, so a lineage's factor at a given moment is the same number whichever family is asking, and no family can reach another through it. Each worker reads the driver as a lookup, and the decomposition is untouched.
 
