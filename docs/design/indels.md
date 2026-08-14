@@ -3,8 +3,7 @@
 **Status: built at every resolution, on `feat/indels`.** Breakpoint provenance, the `deletion` and `insertion` rates,
 an indel's exemption from the legal cut set, and a root partition that stays coarse under all of it.
 A sequence level that reassembles every node's genome and emits a true gapped alignment. A run that
-round-trips through the files it wrote, and the command-line flags to drive one. The model is
-complete; what remains is a manual chapter and a gallery example.
+round-trips through the files it wrote, and the command-line flags to drive one. The model is complete and there is a gallery example; what remains is the Chapter 6 prose. `CHANGELOG.md` and Appendix B were brought up to date when this merged (#357).
 
 This note records where an indel model belongs, what stands in its way, and the design move that
 clears it. It is subordinate to [`SPEC.md`](SPEC.md): where the two disagree, SPEC
