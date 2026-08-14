@@ -1,5 +1,5 @@
 <h1>
-  ZOMBI2&nbsp;<img src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/logo.svg" alt="ZOMBI2 logo" height="45" align="absmiddle">
+  <img src="https://raw.githubusercontent.com/AADavin/zombi2/main/web/favicon.svg" alt="" height="42" align="absmiddle">&nbsp;ZOMBI2
 </h1>
 
 **[🌐 Website](https://aadavin.github.io/zombi2/)** · [Gallery](https://aadavin.github.io/zombi2/gallery.html) · [Documentation](https://aadavin.github.io/zombi2/docs/) · [Manual (pdf)](https://aadavin.github.io/zombi2/zombi2-manual.pdf)
