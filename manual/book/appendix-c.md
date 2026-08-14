@@ -20,12 +20,26 @@ not a gene, so it gets none). A nucleotide run that declared no genes at all is 
 intergene, and `format` refuses it: there is nothing to relate. `--from PATH` reads a run elsewhere;
 `--flat` writes straight into the output directory.
 
-| Output | File | Format | Ask for | Contents |
-|-----------|-----------------|-------|-----|------------------------|
-| Homology matrix | `homology_fam<f>.tsv` | TSV | `--format homology` | one **n×n** table per family (n the extant leaves), in `genomes/homology/`. Row and column headers are the leaves `n<species>_g<copy>`; each off-diagonal cell says how that pair diverged and whether transfer is in its history since — `S`, `D` or `T`, each optionally with an `x` (see below) — and the diagonal is `-`. Symmetric. A family with no surviving copy writes no table |
-| Marker table | `markers.tsv` | TSV | `--format markers` | **one row per family that left a surviving copy**, a single file at `genomes/markers.tsv`: is it single-copy, is it universal, and does its true tree match the species tree |
-| recPhyloXML | `recphylo_fam<f>.xml` | XML | `--format recphylo` | one file per family, in `genomes/recphylo/`: that family's **complete** gene tree written inside the **complete** species tree, in the recPhyloXML format. Written for every family, extinct ones included |
-| extant-only reconciliation | `recphylo_fam<f>_{true,recoverable}.xml`, `family_origins.tsv` | XML + TSV | `--format recphylo --recphylo extant` | the same history projected onto what a dataset holds — the extant gene tree inside the extant species tree — written twice, and a table saying how each family entered |
+| File | What it holds |
+|---|---|
+| `homology_fam<f>.tsv` | one **n×n** table per family (n the extant leaves), in `genomes/homology/`. Only with `--format homology` |
+| `markers.tsv` | one row per family that left a surviving copy, a single file at `genomes/markers.tsv`. Only with `--format markers` |
+| `recphylo_fam<f>.xml` | one file per family, in `genomes/recphylo/`: that family's **complete** gene tree written inside the **complete** species tree. Only with `--format recphylo` |
+| `recphylo_fam<f>_{true,recoverable}.xml` · `family_origins.tsv` | the same history projected onto what a dataset holds. Only with `--format recphylo --recphylo extant` |
+
+**`homology_fam<f>.tsv`** — row and column headers are the leaves `n<species>_g<copy>`; each
+off-diagonal cell says how that pair diverged and whether transfer is in its history since — `S`, `D`
+or `T`, each optionally with an `x` (see below) — and the diagonal is `-`. Symmetric. A family with no
+surviving copy writes no table.
+
+**`markers.tsv`** — is the family single-copy, is it universal, and does its true tree match the
+species tree.
+
+**`recphylo_fam<f>.xml`** — written for every family, extinct ones included, in the recPhyloXML
+format.
+
+**The extant-only pair** — the extant gene tree inside the extant species tree, written twice, and a
+table saying how each family entered.
 
 These files are exact, not inferred: ZOMBI2 **recorded** each gene tree's embedding in the species tree
 rather than reconstructing it, which is what makes them an answer key to score a method against.
