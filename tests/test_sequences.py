@@ -989,3 +989,70 @@ def test_indels_and_a_fixed_site_layout_are_refused_together():
     with pytest.raises(ValueError, match="fixed site count"):
         simulate_sequences(g, partitions=[(jc69(), 30), (k80(2.0), 30)], divergence=0.3,
                            insertion=0.05, seed=1)
+
+
+def _reference_history(root, length, *, insertion, deletion, extent, rate_base, rng):
+    """A deliberately obvious reference for `draw_indel_history`: splice each run straight into the
+    shared column order, finding its anchor by scanning. Quadratic, and correct by construction.
+
+    The real one records "after which id" and builds the order once at the end, which is linear and
+    was subtly wrong: a run inserted *before* one already anchored at the same id ended up after it
+    in the shared order, while the lineage that made it holds it before — so that lineage's bases
+    would have been written into the wrong columns. Nothing downstream could have noticed, because
+    the masks keep which columns a lineage has and not what order it has them in."""
+    order, carried, next_id = list(range(length)), {}, length
+    stack = [(root, None, list(range(length)))]
+    while stack:
+        node, parent_time, parent_seq = stack.pop()
+        seq = list(parent_seq)
+        if parent_time is not None:
+            bl = rate_base * (node.time - parent_time)
+            if bl > 0.0 and seq:
+                for _ in range(int(rng.poisson((insertion + deletion) * bl * len(seq)))):
+                    if not seq:
+                        break
+                    if rng.random() * (insertion + deletion) < insertion:
+                        size = max(1, int(extent.sample(rng)))
+                        at = int(rng.integers(len(seq) + 1))
+                        fresh = list(range(next_id, next_id + size))
+                        next_id += size
+                        cut = order.index(seq[at - 1]) + 1 if at else 0
+                        order[cut:cut] = fresh
+                        seq[at:at] = fresh
+                    else:
+                        size = max(1, int(extent.sample(rng)))
+                        if size >= len(seq):
+                            continue
+                        at = int(rng.integers(len(seq) - size + 1))
+                        del seq[at:at + size]
+        carried[id(node)] = seq
+        for child in reversed(node.children or ()):
+            stack.append((child, node.time, seq))
+    where = {c: i for i, c in enumerate(order)}
+    for s in carried.values():                       # the reference's own invariant, checked
+        assert [where[c] for c in s] == sorted(where[c] for c in s)
+    return len(order), {k: sorted(where[c] for c in s) for k, s in carried.items()}
+
+
+def test_the_column_order_matches_an_obvious_reference_implementation():
+    from zombi2.params.parameter import as_extent
+    from zombi2.sequences.indels import draw_indel_history
+
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=12, seed=5)
+    g = simulate_genomes_family(sp, duplication=0.4, loss=0.3, origination=0.9, seed=5)
+    extent = as_extent(4.0)
+    checked = 0
+    for fam in sorted(g.gene_trees)[:12]:
+        for seed in (1, 2):
+            kw = dict(insertion=0.15, deletion=0.15, extent=extent, rate_base=1.0)
+            mine = draw_indel_history(
+                g.gene_trees[fam].complete, 60, insertion=0.15, deletion=0.15,
+                insertion_extent=extent, deletion_extent=extent, rate_base=1.0, clock=None,
+                rng=np.random.default_rng(seed))
+            width, carried = _reference_history(
+                g.gene_trees[fam].complete, 60, rng=np.random.default_rng(seed), **kw)
+            assert mine.width == width
+            for key, columns in carried.items():
+                assert list(np.flatnonzero(mine.present[key])) == columns
+            checked += 1
+    assert checked == 24
