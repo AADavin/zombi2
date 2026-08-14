@@ -136,7 +136,9 @@ def _rate_tree(name, out):
     the third place saying it."""
     got = _rate_panels()
     tree, dashed, logr = got["panels"][name]
-    style = ph.Style(width=1250, height=760, margin=80, branch_width=2.6)
+    # headroom so the key at the top-left has a row of its own: this tree's first branch reaches
+    # that corner, and a key sharing the row with it reads as a line running through the label
+    style = ph.Style(width=1250, height=800, margin=80, headroom=70, branch_width=2.6)
     (ph.trees.plot(tree, dashed=dashed, style=style)
      + ph.trees.color_branches(logr, cmap="viridis", limits=got["limits"])
      + ph.trees.colorbar("birth rate", loc="top-left",
