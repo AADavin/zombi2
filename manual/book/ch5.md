@@ -151,20 +151,6 @@ Three more events reshape the order without creating or destroying genes:
 
 A moved segment, transposed or translocated, lands **inverted** with probability `inversion_probability` (default `0`, so it keeps its orientation).
 
-## What a run gives back
-
-`simulate_genomes_ordered` returns an `OrderedGenomesResult`: the `FamilyGenomesResult` spine, with
-each genome now a tuple of **`Chromosome`** objects, each an ordered list of **`Gene`** objects. The
-`.genomes` / `.node_genomes` pair means what it means at every resolution — the observed tips, and
-every node — and the structure the chapter is about is read with `.gene_order(node)`. Appendix B
-lists the rest.
-
-```python
-g.genomes["n27"]                 # the chromosomes of the extant tip n27
-g.gene_order(2)                  # any node's layout, gene by gene
-g.chromosome_events              # the chromosome network, as an edge list
-```
-
 Every parameter in this chapter is an argument of the one call, so a rate and its extent can each read the same trait, on separate axes:
 
 ```python

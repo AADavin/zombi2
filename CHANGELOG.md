@@ -11,6 +11,9 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
+- Sampling and fossils in the gallery: one complete tree with every fate on it — the sampled
+  survivors solid, the lineages the data never sees dashed, and the fossils recovered along any
+  branch, including lineages the present has no record of. (#363)
 - Three trait examples in the gallery — an early burst, a two-optimum OU painted by a discrete
   trait, and a discrete trait whose gains and losses run at different rates — so the traits
   section covers the chapter's menu rather than its first half. (#362)
@@ -19,6 +22,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 - The version the landing page shows is written from the same single source as everything else at
   release time; it had been maintained by hand, and said 0.32.0 while PyPI served 0.38.0. (#362)
+- Chapter 3 cites the gallery for the four varying rates, the mass extinction, and sampling and
+  fossils instead of drawing all four again: those are cards now, and the chapter keeps the one
+  figure that establishes what a dashed branch means. (#363)
+- No chapter has a "What a run gives back" section any more. Appendix B lists what a run
+  carries, and the distinctions those sections made that the appendix does not — the complete
+  tree is the one the next level runs along, a nucleotide genome is rebuilt rather than stored,
+  an alignment is the observable half and the ancestral sequences the rest — are now in the
+  prose where they belong. (#363)
 - Chapter 8 no longer has a section listing what a trait run hands back; Appendix B has it, and the
   one thing it said that the appendix does not — hand a trait the complete tree — moved to the
   chapter's opening line. (#362)
