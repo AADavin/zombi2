@@ -96,7 +96,7 @@ def panel(letter: str, says: str, birth, mark_time: float | None) -> tuple[str, 
     # comes out bare anyway, and blanking them would collapse every tip onto one name.
 
     figure = (ph.trees.plot(tree, dashed=dashed, style=tree_style(PANEL_W, PANEL_H, margin=96))
-              + ph.trees.note(f"{letter}    {says}", loc="top-left", size=FS_LABEL)
+              + ph.trees.note(f"{letter}    {says}", loc="top-left", size=FS_LABEL, dy=-16)
               + ph.trees.time_axis("time (origin to present)"))
     if mark_time is not None:
         # The moment the rate changes, drawn as a faint rule so it reads as a reference rather than
