@@ -33,9 +33,9 @@ gapped alignment out; a smaller model, because there are no coordinates for an i
 A run that passes them to the sequence level *and* uses a nucleotide genome is refused: two levels
 drawing indels in one run would be two models wearing one word.
 
-What this is **not** is the fourth cell of a table with `origination` and `loss`. Those change gene
-content — a family is born, a copy dies — and are recorded in the genealogy. An indel changes
-neither: no family, no copy, only sites. The two questions stay two.
+`origination` and `loss` are a different question, answered at the genome level at every resolution:
+they change **gene content**, and are recorded in the genealogy. An indel changes no gene content —
+no family born, no copy dead — only how many sites a copy holds.
 
 ---
 
