@@ -2367,15 +2367,9 @@ def test_both_indels_together_leave_the_declared_genes_recoverable():
     g = _deletion_run(insertion=40.0, deletion=40.0, insertion_extent=5.0,
                       inversion=2.0, duplication=0.5, loss=0.5, genes=4, gene_length=100)
     assert g.summary()["block_events"]["insertion"] > 100 and g.summary()["deletions"] > 100
-    surviving = 0
     for fam, span in g.gene_spans.items():
-        try:
-            assert g.root_blocks[g.block_of(fam)] == span
-            surviving += 1
-        except LookupError:
-            pass            # eaten from every node by indels: documented, and gene_trees agrees
-    assert surviving, "no gene survived at all — pick another seed"
-    assert len(g.gene_trees) == surviving
+        assert g.root_blocks[g.block_of(fam)] == span
+    assert len(g.gene_trees) == len(g.gene_spans)
 
 
 def test_an_indel_run_round_trips_through_the_files_it_wrote(tmp_path):
@@ -2531,3 +2525,66 @@ def test_an_indel_extent_takes_a_power_law():
     assert sorted(sizes)[len(sizes) // 2] <= 3           # nearly all of them tiny ...
     assert max(sizes) > 50                               # ... with a long tail
     assert sum(1 for x in sizes if x == 1) > len(sizes) // 4
+
+
+# --- the cut set is about GENES, not about blocks --------------------------------------------------
+#
+# `_legal_cuts` protects a gene by offering its own outer edge and never its interior. An indel
+# fragments a gene, and every fragment is still tagged with the family — so testing `is_gene` per
+# BLOCK let each fragment offer its own edge, and an ordinary event could then cut at an indel-made
+# boundary strictly inside the gene. Event breakpoints do reach the partition, so the gene's root
+# block split and it lost its identity as a locus: `block_of` raised, and its single alignment
+# became several. In every lineage, including the ones that never touched it.
+
+def _fragmented_gene(**kw):
+    """One 100 bp gene, cut in two by an indel — the state the old test never reached."""
+    c = Chromosome(0, "linear", [Block(0, 0, 50, 1, 1),
+                                 Block(0, 50, 150, 1, 1, 3),      # the gene, [50,150)
+                                 Block(0, 150, 200, 1, 1)], {3: (0, 50, 150)}, **kw)
+    c._split_at(100, indel=True)                                  # an indel cuts inside it
+    assert [(b.start, b.end, b.gene) for b in c.blocks] == [
+        (0, 50, 0), (50, 100, 3), (100, 150, 3), (150, 200, 0)]
+    return c
+
+
+def test_an_event_may_not_cut_at_an_indel_made_boundary_inside_a_gene():
+    c = _fragmented_gene()
+    # physical 100 is the gene's two fragments meeting: inside the gene, so not a legal cut
+    assert 100 not in {p for lo, hi in c._legal_cuts() for p in range(lo, hi + 1)}
+    with pytest.raises(_CutsGene):
+        c._check_cut(100)
+    # its own two edges still are, and so is the spacer around it
+    legal = {p for lo, hi in c._legal_cuts() for p in range(lo, hi + 1)}
+    assert 50 in legal and 150 in legal
+    # ...and an indel may still cut anywhere, which is the whole point of the exemption
+    assert 100 in {p for lo, hi in c._legal_cuts(indel=True) for p in range(lo, hi + 1)}
+
+
+def test_a_gene_with_no_declared_span_is_its_own_whole_gene():
+    # a chromosome built by hand or read back from a file has no span table, and then a genic block
+    # IS the gene — which is what this was before an indel could split one
+    c = Chromosome(0, "linear", [Block(0, 0, 50, 1, 1), Block(0, 50, 150, 1, 1, 3)])
+    assert c._legal_cuts() == [(0, 49), (50, 50), (150, 150)]
+
+
+def test_a_reversed_gene_fragment_knows_which_edge_is_its_own():
+    # physically the leading edge of a reversed block is its source's HIGH end, so the span test
+    # flips with it
+    genes = {3: (0, 50, 150)}
+    c = Chromosome(0, "linear", [Block(0, 100, 150, -1, 1, 3), Block(0, 50, 100, -1, 1, 3)], genes)
+    assert c._opens(c.blocks[0]) and not c._closes(c.blocks[0])   # holds the gene's high end
+    assert not c._opens(c.blocks[1]) and c._closes(c.blocks[1])   # holds its low end
+    assert 50 not in {p for lo, hi in c._legal_cuts() for p in range(lo, hi + 1)}
+
+
+def test_no_gene_is_ever_split_across_root_blocks():
+    # the invariant the bug broke, end to end: a gene is one root block or it is gone, never several
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=5)
+    g = simulate_genomes_nucleotide(sp, root_length=1200, genes=3, gene_length=200,
+                                    deletion=8.0, insertion=8.0, deletion_extent=6.0,
+                                    insertion_extent=6.0, inversion=2.0, inversion_extent=400,
+                                    loss=0.5, duplication=0.5, seed=5)
+    assert g.indels > 50 and g.summary()["rearrangements"]["inversion"] > 3
+    for fam, (src, a, b) in g.gene_spans.items():
+        covering = [rb for rb in g.root_blocks if rb[0] == src and rb[1] < b and a < rb[2]]
+        assert covering in ([], [(src, a, b)]), (fam, covering)

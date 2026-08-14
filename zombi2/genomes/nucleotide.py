@@ -237,6 +237,40 @@ class Chromosome:
     id: int
     topology: str
     blocks: list[Block]
+    #: ``{family: (source, start, end)}`` — the run's **declared** gene spans, shared read-only.
+    #: The rule this class enforces is about *genes*, and a gene is not the same thing as a block
+    #: once an indel has cut one into fragments: each fragment is still tagged with the family, and
+    #: without the span there is no way to tell the gene's own outer edge from a boundary inside it.
+    #: This is the annotation the engine was *given*, not bookkeeping it produces — which is why it
+    #: is held here, where the rule is, rather than recorded onto the events (`_skippable_bounds`).
+    #: ``None`` — a chromosome built by hand or read back from a file — means no declared genes, and
+    #: then a genic block is its own whole gene, which is what this was before indels could split one.
+    genes: "dict[int, tuple[int, int, int]] | None" = field(default=None, compare=False, repr=False)
+
+    def _opens(self, b: Block) -> bool:
+        """Whether ``b``'s **leading** edge — the boundary physically before it — is its gene's own
+        outer edge rather than a position strictly inside the gene. Vacuously true for spacer.
+
+        Read against the **declared** span, not against what the lineage still carries: a cut at a
+        position some other lineage holds inside its copy of the gene would split that gene's root
+        block for everyone (`_root_block_partition`), so the surviving extent is not the test.
+        On a reversed block the physically-leading edge is the source's high end."""
+        span = None if self.genes is None else self.genes.get(b.gene)
+        if not b.is_gene or span is None:
+            return True
+        return b.start == span[1] if b.strand == 1 else b.end == span[2]
+
+    def _closes(self, b: Block) -> bool:
+        """`_opens()` for the **trailing** edge — the boundary physically after ``b``."""
+        span = None if self.genes is None else self.genes.get(b.gene)
+        if not b.is_gene or span is None:
+            return True
+        return b.end == span[2] if b.strand == 1 else b.start == span[1]
+
+    def _boundary_ok(self, i: int) -> bool:
+        """Whether the boundary physically before block ``i`` may carry an event breakpoint: it must
+        end one gene (or spacer) and begin another (or spacer), never land inside either."""
+        return self._opens(self.blocks[i]) and (i == 0 or self._closes(self.blocks[i - 1]))
 
     def __post_init__(self) -> None:
         if self.topology not in ("circular", "linear"):
@@ -264,8 +298,10 @@ class Chromosome:
         if c <= 0 or indel:
             return
         pos = 0
-        for b in self.blocks:
-            if pos == c:
+        for i, b in enumerate(self.blocks):
+            if pos == c:                    # an existing boundary — legal only if it joins two genes
+                if not self._boundary_ok(i):
+                    raise _CutsGene
                 return
             if pos < c < pos + b.length:
                 if b.is_gene:
@@ -343,10 +379,18 @@ class Chromosome:
         genic** one still offers every boundary between its genes, so whole genes are moved about
         rather than nothing happening at all."""
         out, pos = [], 0
-        for b in self.blocks:
-            out.append((pos, pos + b.length - 1) if (indel or not b.is_gene) else (pos, pos))
+        for i, b in enumerate(self.blocks):
+            if indel:                                           # every position, gene or not
+                out.append((pos, pos + b.length - 1))
+            elif b.is_gene:                                     # its own edge, and never its interior
+                if self._boundary_ok(i):
+                    out.append((pos, pos))
+            else:                                               # spacer: its interior always, its
+                lo = pos if self._boundary_ok(i) else pos + 1   # leading edge only if that is a join
+                if lo <= pos + b.length - 1:
+                    out.append((lo, pos + b.length - 1))
             pos += b.length
-        if self.topology == "linear":
+        if self.topology == "linear" and (not self.blocks or self._closes(self.blocks[-1])):
             out.append((pos, pos))                              # the far end is a legal cut too
         return out
 
@@ -1813,7 +1857,8 @@ def _copy_chromosome(c: Chromosome, cid: int, copy_map: dict[int, int]) -> Chrom
     a daughter's inversions never mutate the parent's genome), with every block's copy lineage
     re-minted through ``copy_map`` (parent copy id → this daughter's fresh copy id)."""
     return Chromosome(cid, c.topology,
-                      [Block(b.source, b.start, b.end, b.strand, copy_map[b.copy], b.gene) for b in c.blocks])
+                      [Block(b.source, b.start, b.end, b.strand, copy_map[b.copy], b.gene) for b in c.blocks],
+                      c.genes)
 
 
 @dataclass(frozen=True)
@@ -2142,8 +2187,8 @@ def _do_fission(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
         if chrom.n_genes and not (any(x.is_gene for x in chrom.blocks[:i])
                                   and any(x.is_gene for x in chrom.blocks[i:])):
             return 0                                     # a half without a gene: the fission fails
-        a = Chromosome(new_chrom_id(), "linear", chrom.blocks[:i])
-        b = Chromosome(new_chrom_id(), "linear", chrom.blocks[i:])
+        a = Chromosome(new_chrom_id(), "linear", chrom.blocks[:i], chrom.genes)
+        b = Chromosome(new_chrom_id(), "linear", chrom.blocks[i:], chrom.genes)
     else:
         cuts = {chrom._pick_legal_cut(rng), chrom._pick_legal_cut(rng)} - {None}
         if len(cuts) < 2:
@@ -2155,8 +2200,8 @@ def _do_fission(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
         if chrom.n_genes and not (any(x.is_gene for x in chrom.blocks[i:j])
                                   and any(x.is_gene for x in chrom.blocks[:i] + chrom.blocks[j:])):
             return 0                                     # a half without a gene: the fission fails
-        a = Chromosome(new_chrom_id(), "circular", chrom.blocks[i:j])
-        b = Chromosome(new_chrom_id(), "circular", chrom.blocks[:i] + chrom.blocks[j:])
+        a = Chromosome(new_chrom_id(), "circular", chrom.blocks[i:j], chrom.genes)
+        b = Chromosome(new_chrom_id(), "circular", chrom.blocks[:i] + chrom.blocks[j:], chrom.genes)
     g.chromosomes[ci:ci + 1] = [a, b]
     chromosome_events.append(ChromosomeEvent(t, "fission", node_id, (chrom.id,), (a.id, b.id)))
     return 1
@@ -2175,7 +2220,7 @@ def _do_fusion(g, node_id, t, rng, chromosome_events, new_chrom_id) -> int:
         return 0
     cj = partners[int(rng.integers(len(partners)))]
     b = g.chromosomes[cj]
-    fused = Chromosome(new_chrom_id(), a.topology, a.blocks + b.blocks)
+    fused = Chromosome(new_chrom_id(), a.topology, a.blocks + b.blocks, a.genes)
     g.chromosomes[:] = [c for k, c in enumerate(g.chromosomes) if k not in (ci, cj)] + [fused]
     chromosome_events.append(ChromosomeEvent(t, "fusion", node_id, (a.id, b.id), (fused.id,)))
     return -1
@@ -2190,7 +2235,8 @@ def _do_chromosome_origination(g, node_id, t, origination_extent, rng, events, c
     exactly like a de-novo `_do_origination()`. Returns ``(chromosome delta, length delta)``."""
     cid, src, cp, fam = new_chrom_id(), new_source(), new_copy(), new_family()
     length = max(1, int(rng.geometric(1.0 / origination_extent)))
-    g.chromosomes.append(Chromosome(cid, "circular", [Block(src, 0, length, 1, cp, fam)]))
+    g.chromosomes.append(Chromosome(cid, "circular", [Block(src, 0, length, 1, cp, fam)],
+                                    g.chromosomes[0].genes if g.chromosomes else None))
     gene_spans[fam] = (src, 0, length)
     gene_strands[fam] = 1
     chromosome_events.append(ChromosomeEvent(t, "origination", node_id, (), (cid,)))
@@ -2601,7 +2647,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
         cp = new_copy()                                 # ...and one initial copy lineage per replicon
         initial_chroms.append(Chromosome(cid, top, _initial_blocks(source, length, cp, intervals, new_family,
                                                              gene_spans, gene_names,
-                                                             gene_strands)))
+                                                             gene_strands), gene_spans))
         # `initial`, as the copy lineage below is: a replicon the run *starts* with is not something
         # it did, so counting `origination` in either log gives the de-novo ones alone
         chromosome_events.append(ChromosomeEvent(root.birth_time, "initial", root.id, (), (cid,)))
