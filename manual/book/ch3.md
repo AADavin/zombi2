@@ -20,20 +20,18 @@ You also say when to stop: grow to a fixed **total time** (`total_time`), or to 
 
 ## Rates that vary
 
-A birth or death rate need not be constant. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**
+A birth or death rate need not be constant. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**. There are four of them, one panel of the figure apiece, and the Literature table below gives the expression that writes each.
 
-- **On time.** The rates change at set points in time. This is the skyline, or episodic, tree. `birth = PerLineage(1.0).changing_at({0: 1.0, 3: 0.3})` runs at full rate until time 3, then at a third of it. Each entry holds from its own time up to the next, and the earliest entry also applies *backwards* to the origin, so `changing_at({3: 0.3})`, with no entry at 0, runs at a third of the rate for the whole tree rather than only after time 3. Start the schedule at 0 whenever you mean "full rate until".
-- **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound: `birth = PerLineage(1.0).scaled_by(TotalDiversity(cap=100))`.
-- **On the parent's rate.** Each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other: `birth = PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2)))`.
-- **By lineage.** Each lineage draws its own rate independently, with no memory of its parent: `birth = PerLineage(1.0).varying_among('lineages', LogNormal(0.0, 0.2))`. The distribution means a different thing in the two: written bare it is the spread of rates across lineages, while inside `Drift` it is the step taken at each split, which accumulates, so lineages deeper in the tree spread further apart. That is why it is written out rather than abbreviated.
+- **On time.** The rates change at set points in time, which is the skyline, or episodic, tree: full rate until a breakpoint, a third of it after. Each entry in the schedule holds from its own time up to the next, and the earliest entry also applies *backwards* to the origin — so a schedule that starts at time 3 runs at that rate for the whole tree, not only after time 3. Start it at 0 whenever you mean "full rate until".
+- **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound.
+- **On the parent's rate.** Each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other.
+- **By lineage.** Each lineage draws its own rate instead, with no memory of its parent. The distribution means a different thing in the two: inherited, it is the step taken at each split, which accumulates, so lineages deeper in the tree spread further apart; drawn afresh, it is the spread of rates across lineages and nothing accumulates.
 
-.
-
-![Three ways a rate can vary, one tree apiece, all three stopped at the same 25 surviving lineages, so what differs is how they got there. **A** `changing_at`: the rate drops at time 2, so an early burst gives way to a long slow tail. **B** `scaled_by(TotalDiversity(...))`: the rate falls as the tree fills toward its cap, and splits thin out near the present. **C** `varying_among('lineages', Drift(...))`: each lineage inherits its parent's rate, so one clade radiates late while its sister stays sparse. Solid lineages survive to the present and dashed ones died, as in the previous figure.](figures/variable_rates.pdf){width=100%}
+![Four ways a rate can vary, one tree apiece, all stopped at the same 25 surviving lineages, so what differs is how they got there; solid lineages survive to the present and dashed ones died, as in the previous figure.](figures/variable_rates.pdf){width=100%}
 
 ## Other models
 
-One model does not fit the modifier framework: a **mass extinction**, where at one instant only a fraction of the living lineages survive. `
+One model does not fit the modifier framework: a **mass extinction**, where at one instant only a fraction of the living lineages survive.
 
 ![A mass extinction as a survival pulse. The tree grows under a constant birth–death process until, at one instant, a fraction of the standing lineages die together, the cohort of dots along the vertical wall. Survivors are solid and extinct lineages dashed. The lineages-through-time curve below shares the time axis and shows the diversity crash at the pulse and the recovery after it. This tree was grown with `mass_extinctions=[(2.5, 0.75)]`.](figures/mass_extinction.pdf){width=100%}
 

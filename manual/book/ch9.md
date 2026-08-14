@@ -47,7 +47,8 @@ A driver is the input to the function that controls the target. The easiest one 
 | a gene family | `present` or `absent` | `g.presence("IS1")`, for families named with `family_names=` |
 | a module | a fraction, 0 to 1 | `g.completion("flagellum")`, for a group of families declared with `modules=` |
 | a sequence's composition | a number, 0 to 1 | `seqs.gc()`, or `seqs.composition("KR")` for any letters of the alphabet |
-| a clade | one of the named groups | `Clade({"fast": ["n12", "n27"]})` — a fact about the tree, so nothing is grown first |
+
+Every row is a level **grown first** and then read. Where a lineage sits in the tree and when it is alive are not: `Clade` and `changing_at` (Appendix A) read facts the run already has, so they need no driver and work at every level whether or not anything is being conditioned.
 
 A driver is read wherever it changes, not once per branch: a lineage that switches habitat halfway down one loses genes at one rate before the switch and another after it. That works because a discrete driver changes at moments the run can step to exactly. A continuous one never stops changing, so there are no such moments: it is sampled every `step` instead, a hundredth of the tree's height unless you set it, and the rate holds between samples. 
 
@@ -68,13 +69,13 @@ A target is the parameter the connection is written on — what would otherwise 
 
 ## The connection
 
-The connection is written as two things: a **verb**, which says what the number does when it arrives, and a **mapping**, which says what the number is.
+A driver does not speak in the units of a target. A habitat is `aquatic` or `terrestrial`; a loss rate is a number of losses per copy per unit time. The connection is what gets from one to the other, so it has to say two things — what number this driver value is worth, which is the **mapping**, and what that number then does to the parameter, which is the **verb**.
 
 ```
 loss = PerCopy(0.25).scaled_by(habitat, {"aquatic": 4.0, "terrestrial": 1.0})
 ```
 
-`scaled_by` is the verb and the dict is the mapping. Those are the argument names too: `scaled_by(driver, mapping)`.
+That line reads as a sentence: loss is scaled by habitat, four-fold in water and unchanged on land. `scaled_by` is the verb and the dict is the mapping, and those are the argument names too: `scaled_by(driver, mapping)`.
 
 ### Ways of connecting
 

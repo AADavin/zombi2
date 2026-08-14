@@ -116,7 +116,7 @@ Trait models arrive under a thicket of names, and a reader who wants "an OU mode
 | discrete driven by continuous liability | `simulate_discrete(liability=…, threshold=…)` | Threshold / liability (Wright–Felsenstein) [@felsenstein2012threshold] |
 | discrete traits evolving together | `simulate_discrete(liability={…}, correlation={…})` | Correlated binary / Pagel [@pagel1994correlated] |
 
-## The objects
+## The `TraitsResult` object
 
 A run returns a **`TraitsResult`** bundle:
 

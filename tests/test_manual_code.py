@@ -254,7 +254,12 @@ def test_a_value_the_manual_assigns_to_a_parameter_is_still_accepted(tmp_path, m
                     checked += 1
                     if (why := _probe(target.id, ns[target.id])) is not None:
                         failures.append(f"{chapter.name}:{line} — {why}")
-    assert checked >= 8, f"only probed {checked} values; the walk is not finding the manual's blocks"
+    # A canary on the walk, not a coverage target: it fires when the walk stops finding blocks at
+    # all. The floor came down from 8 when chapter 7's clock section traded its snippets for a
+    # reference table — the values are still in the manual, but a table is not a python block, so
+    # this test can no longer reach them. Raise it again if a chapter adds assignments; do not lower
+    # it to accommodate a walk that has quietly broken.
+    assert checked >= 6, f"only probed {checked} values; the walk is not finding the manual's blocks"
     assert not failures, ("the manual assigns values the API no longer accepts:\n  "
                           + "\n  ".join(failures))
 

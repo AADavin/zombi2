@@ -1,8 +1,8 @@
-"""Figure: the three ways a rate can vary, one tree apiece.
+"""Figure: the four ways a rate can vary, one tree apiece.
 
 Chapter 3 says a birth or death rate can depend on **time**, on **how crowded the tree is**, or on a
 lineage's **ancestry**, and that each is written the same way — a scope holding the base rate, with a
-verb chained onto it. Three trees stacked show what each one does to the shape of a run:
+verb chained onto it. Four trees stacked show what each one does to the shape of a run:
 
   A  ``changing_at``
        the rate changes at set times: an early burst, then a slow tail
@@ -10,17 +10,23 @@ verb chained onto it. Three trees stacked show what each one does to the shape o
        the rate slows as the tree fills, so diversity levels off
   C  ``varying_among('lineages', Drift(...))``
        each lineage inherits its parent's rate, so clades run at their own tempo
+  D  ``varying_among('lineages', LogNormal(...))``
+       each lineage draws its own rate, with no memory of its parent
+
+One panel per bullet of the chapter's section, which is what makes the figure readable beside it —
+C and D are the pair that reads as one bullet and is not: the same distribution, inherited or not.
 
 The trees are **simulated here**, by the engine the chapter documents, rather than drawn by hand —
 so the figure cannot drift away from what the code does. Each panel stops at the same 25 surviving
-lineages, which is what makes the three comparable: the same amount of tree, reached differently.
+lineages, which is what makes them comparable: the same amount of tree, reached differently.
 Bounding by tip count rather than by time also keeps the drifting rate in panel C from running away.
 
-Each panel carries only its letter and the rate as the chapter writes it; what the panel *shows* is
-said once, in the caption. Solid-surviving / dashed-extinct is the convention of the figure just
-above this one in the chapter, and is likewise stated there.
+Each panel carries only its letter and the rate as the chapter writes it. The section's prose says
+what each one *does* and carries no code, so this is where the written form of a rate is read off
+against the tree it grew — the caption stays to one line. Solid-surviving / dashed-extinct is the
+convention of the figure just above this one in the chapter, and is likewise stated there.
 
-The three panels are stacked as nested `<svg>` elements, which is how one SVG holds several
+The panels are stacked as nested `<svg>` elements, which is how one SVG holds several
 independent coordinate systems; `phylustrator` draws one figure at a time.
 
 House style: B&W, ASCII text. No title inside the figure — the manual captions it.
@@ -45,7 +51,7 @@ from zombi_style import save, tree_style, FS_LABEL
 
 N_EXTANT = 25          # every panel stops at the same standing diversity
 DEATH = 0.1            # low, so the dashed extinct lineages stay a garnish rather than the picture
-SEED = 3               # a seed where the three come out at comparable depths (~4.4-5.0)
+SEED = 3               # a seed where the four come out at comparable depths (~3.9-5.0)
 
 #: (panel letter, the rate itself, a time to mark or None)
 #:
@@ -59,6 +65,11 @@ PANELS = [
     ("B", PerLineage(1.2).scaled_by(TotalDiversity(cap=30)),
      None),                # nothing to mark: the rate falls continuously, not at a moment
     ("C", PerLineage(0.45).varying_among('lineages', Drift(LogNormal(0.0, 0.5))),
+     None),
+    # D is C's counterpart without the inheritance: the same distribution, drawn afresh per lineage.
+    # Its base rate is lower than A and B's because the multipliers have mean 1 either way, and
+    # higher than C's because drift accumulates down a path and C's does not need the help.
+    ("D", PerLineage(0.85).varying_among('lineages', LogNormal(0.0, 0.5)),
      None),
 ]
 
