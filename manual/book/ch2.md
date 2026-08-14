@@ -35,7 +35,7 @@ Some tree viewers do not draw the stem by default, so be careful. We recommend p
 
 In ZOMBI2 different events happen over time with different probability: speciations and extinctions at the species level; duplications, transfers, losses, originations and rearrangements at the genome level; substitutions in a sequence; changes in a trait.
 
-How often an event fires is controlled by its **effective rate**:
+How often an event occurs is controlled by its **effective rate**:
 
 $$\text{effective rate} = \text{scope}(\text{base}) \times \text{modifiers}$$
 
@@ -47,7 +47,7 @@ ZOMBI2 includes options for dependencies between different parts of the simulati
 
 This is best explained with an example. Imagine we are simulating the evolution of mammals and their olfactory genes. A habitat trait switches between aquatic and terrestrial along the tree, and aquatic lineages lose those genes four times faster.
 
-![Conditioning. First we simulate a trait indicating the habitat, which is the driver, with the two states each lineage switches between shown below it. It controls the value of the loss rate, which is the target.](figures/conditioning_print.png){width=95%}
+![Conditioning: a habitat trait is grown first and held fixed, and a gene loss rate reads it. The driver, the connection and the target are the three parts every conditioned run has, and Chapter 9 takes them one at a time.](figures/conditioning_print.png){width=95%}
 
 We can write this run like this:
 
@@ -69,8 +69,6 @@ Not everything can be connected in ZOMBI2, but it is flexible enough to allow ve
 - Gene content decides survival: lineages that acquire a key gene diversify faster.
 
 If a trait speeds up speciation, faster-speciating lineages leave more descendants, so the tree's shape depends on the trait while the trait is evolving along that very tree. No order works, so both are grown together in one run, and the tree becomes an output rather than an input.
-
-![Joining, with the same parts and one thing that changes everything. Body size drives speciation, and the speciation rate makes the tree — but that tree is the one the trait is evolving along, so the loop closes. Note where: not from the rate back to the trait, since a speciation rate does not change a body size. It decides which lineages split, and every split hands the parent's state to both daughters. The tree is the third thing in the cycle, and it is the whole difference between the two figures — a fixed input there, an output here.](figures/joining_print.png){width=95%}
 
 Because neither is finished first, neither can be written out and handed over. There is no conditional probability to write, only a joint one:
 

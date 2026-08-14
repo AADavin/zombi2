@@ -8,6 +8,8 @@ renders them all and regenerates ``gallery.html``.
 
 from __future__ import annotations
 
+import hashlib
+import inspect
 import math
 import os
 import shutil
@@ -275,34 +277,6 @@ def composite_model_realization(realization_png: str, out: str, draw_model, *,
     plt.close(fig)
 
 
-def draw_schedule(ax, *, driver, before, after, at, target, target_base, target_sub=None,
-                  colors=("#4393c3", "#b2182b")) -> None:
-    """The house driver→target diagram for a **schedule**: a factor scoped to a group *and* to a time.
-
-    The same frame as `draw_conditioning`, differing in one thing. That one draws a state diagram
-    under the driver with an arrow per positive **rate**, labelled with it — and it is not only for
-    traits: the gallery uses it for gene presence too, one-directional, because a family is lost and
-    not regained. What it cannot label is this arrow, because a schedule's arrow carries a **time**.
-    The switch is not something a lineage does at some rate; it happens to everything in the clade at
-    once, at a moment the run fixes in advance."""
-    from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
-
-    _conditioning_frame(ax, driver, target, target_base, target_sub)
-
-    y, w, hh = 202, 96, 34
-    for x, label, colour in ((24, before, colors[0]), (144, after, colors[1])):
-        ax.add_patch(FancyBboxPatch((x, y - hh / 2), w, hh,
-                                    boxstyle="round,pad=1.5,rounding_size=6",
-                                    facecolor=colour, edgecolor="white", lw=1.4, zorder=3))
-        ax.text(x + w / 2, y, label, ha="center", va="center", color="white",
-                fontsize=12, fontweight="bold", zorder=4)
-    ax.add_patch(FancyArrowPatch((124, y), (142, y), arrowstyle="-|>", mutation_scale=13,
-                                 lw=1.6, color=_INK, zorder=2))
-    ax.text(133, y - 26, at, ha="center", va="center", color=_INK, fontsize=12, style="italic")
-    ax.text(120, y + 34, "and only inside the clade", ha="center", va="center",
-            color=_DIM, fontsize=11)
-
-
 def composite_markov(tree_png: str, out: str, draw_fn, *, loc=(0.02, 0.09, 0.34, 0.36)) -> None:
     """Place a tree PNG as the full background and draw a Markov-chain inset in the bottom-left."""
     img = mpimg.imread(tree_png)
@@ -519,14 +493,44 @@ def _zombi(*args) -> None:
                    stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
 
+#: The file a cached run is stamped with. Named for what it holds rather than for the version it
+#: used to hold; a directory carrying the old ``.zombi2-version`` simply reads as unstamped and is
+#: rebuilt once, which is right — it was built under a rule that ignored the run's own parameters.
+_STAMP = ".cache-key"
+
+
+def _cache_key(depth: int = 2) -> str:
+    """What a cached run depends on: the zombi2 that would build it, and **the helper asking for it**.
+
+    The second half is the fix for a trap. The key used to be the version alone, so editing a run —
+    a seed, a rate, ``--n-extant`` — left the cache valid and the figure regenerated from the old
+    data, silently, with the new parameters sitting in the source unused. Changing the karyotype
+    figure's seed from 3 to 71 did exactly that, and the only way out was deleting the directory by
+    hand. The helper's source *is* the run's definition, so hashing it invalidates on any edit that
+    could change what the run produces. It over-invalidates on an edit that could not — a reworded
+    docstring costs one rebuild — which is the side to err on.
+
+    ``depth`` is how far up the stack the helper sits: 2 when called from `_stale` or `_stamp`, which
+    is where it is called from, so no ``*_run()`` has to remember to pass anything.
+    """
+    from zombi2 import __version__
+
+    try:
+        source = inspect.getsource(inspect.stack()[depth].frame)
+    except (OSError, IndexError):                  # no source (a REPL): fall back to the version
+        source = ""
+    return f"{__version__} {hashlib.sha256(source.encode()).hexdigest()[:16]}"
+
+
 def _stale(run: str) -> bool:
-    """Is this cached run older than the ZOMBI2 that would build it now — and if so, **clear it**?
+    """Is this cached run out of date with what would build it now — and if so, **clear it**?
 
     The caches under ``figures/_data/`` used to be guarded on "does the file exist", which never
     expires. Four of them survived the one-row-per-event redesign holding the *old* columns
     (``lineage`` · ``copy`` · ``parent`` · ``recipient`` · ``donor``), so the events figure read a
-    format zombi2 had not written in months and the rebuild tracebacked. Stamping the cache with the
-    version that produced it is what makes it a cache rather than a fossil.
+    format zombi2 had not written in months and the rebuild tracebacked. Stamping the cache with
+    what produced it is what makes it a cache rather than a fossil — see `_cache_key` for what
+    "what produced it" has to mean.
 
     Clearing it is the other half, and it was missing: the rebuild writes with the CLI, and a run
     directory that already holds a downstream level refuses a re-run of the level above it — "would
@@ -535,12 +539,9 @@ def _stale(run: str) -> bool:
     it is thrown away here rather than at each of the five call sites, none of which would have
     remembered.
     """
-    from zombi2 import __version__
-
-    stamp = os.path.join(run, ".zombi2-version")
     try:
-        with open(stamp) as fh:
-            if fh.read().strip() == __version__:
+        with open(os.path.join(run, _STAMP)) as fh:
+            if fh.read().strip() == _cache_key():
                 return False
     except OSError:
         pass
@@ -549,10 +550,8 @@ def _stale(run: str) -> bool:
 
 
 def _stamp(run: str) -> str:
-    from zombi2 import __version__
-
-    with open(os.path.join(run, ".zombi2-version"), "w") as fh:
-        fh.write(__version__)
+    with open(os.path.join(run, _STAMP), "w") as fh:
+        fh.write(_cache_key())
     return run
 
 
@@ -565,6 +564,29 @@ def ordered_run() -> str:
                "--duplication", 0.22, "--loss", 0.18, "--transfer", 0.1, "--inversion", 0.6,
                "--seed", 19)
         _zombi("sequences", run, "--model", "jc69", "--length", 60, "--seed", 7)
+    return _stamp(run)
+
+
+def karyotype_run() -> str:
+    """A cached run for the karyotype figure: seven survivors from three circular chromosomes, with
+    enough fission and fusion that the tips end with different karyotypes.
+
+    ``--initial-families`` is high on purpose. A karyotype ring is only legible when a chromosome
+    holds tens of genes: at a dozen families spread over several chromosomes each gene takes a third
+    of its ring, and the picture is a handful of enormous wedges rather than a genome.
+
+    The seed is chosen too, from a scan of 160. It has to give a spread of chromosome numbers — a run
+    where every tip keeps three says nothing about fission and fusion — with no chromosome so short
+    it draws as a few dashes, and no two marks close enough on one branch to overlap. This one ends
+    with one, two and three chromosomes across the tips, its smallest holds thirty-one genes, and
+    each of its four marks accounts for the tips below it."""
+    run = os.path.join(_DATA, "karyotype")
+    if _stale(run):
+        _zombi("species", run, "--birth", 1.0, "--death", 0.0, "--n-extant", 7, "--seed", 71)
+        _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 150,
+               "--chromosomes", 3, "--topology", "circular",
+               "--duplication", 0.05, "--loss", 0.05,
+               "--fission", 0.35, "--fusion", 0.35, "--seed", 71)
     return _stamp(run)
 
 
@@ -591,6 +613,29 @@ def initial_gene_order(run: str) -> list:
     with open(os.path.join(run, "genomes", "initial_genome.tsv"), encoding="utf-8") as f:
         ix = {name: k for k, name in enumerate(f.readline().rstrip("\n").split("\t"))}
         return [line.rstrip("\n").split("\t")[ix["family"]] for line in f if line.strip()]
+
+
+def initial_karyotype(run: str):
+    """The genome the run started from, as a Phylustrator genome — the karyotype at the root.
+
+    ``read_genomes`` reads the survivors; this reads ``initial_genome.tsv``, which is the same table
+    for time zero. A karyotype figure needs it: without the starting number of chromosomes on the
+    page, a tip with three of them could as easily be three fissions as none at all."""
+    path = os.path.join(run, "genomes", "initial_genome.tsv")
+    by_chrom: dict = {}
+    with open(path, encoding="utf-8") as f:
+        ix = {name: k for k, name in enumerate(f.readline().rstrip("\n").split("\t"))}
+        for line in f:
+            if not line.strip():
+                continue
+            row = line.rstrip("\n").split("\t")
+            by_chrom.setdefault((row[ix["chromosome"]], row[ix["topology"]]), []).append(row)
+    chroms = []
+    for (cid, topology), rows in by_chrom.items():
+        genes = [ph.genomes.Gene(family=r[ix["family"]], strand=int(r[ix["strand"]]), position=i)
+                 for i, r in enumerate(rows)]
+        chroms.append(ph.genomes.Chromosome(cid, genes, topology=topology))
+    return ph.genomes.Genome("initial", chroms)
 
 
 def events_run() -> str:
@@ -709,171 +754,170 @@ def rearranged_pair(genomes: dict) -> tuple:
 _INK, _DIM = "#1a1a1a", "#6e6e6e"
 
 
-def _conditioning_frame(ax, driver, target, target_base, target_sub, target_scope="PerCopy"):
-    """The two columns every conditioning diagram shares — the driver and the target it drives — with
-    the relation drawn between them. What sits *below* the arrow is the mapping, and it differs
-    between a discrete driver (a per-state multiplier) and a continuous one (a value→factor curve).
+#: The conditioning diagram, to one standard. Every one of these figures answers the same three
+#: questions in the same three places — what is read, how it is read, what it changes — so two of them
+#: side by side can be compared rather than deciphered.
+#:
+#: DRIVER      the level it comes from, the thing, and what kind of value it offers; its own dynamics
+#:             below it, as a state chain, when it has states
+#: CONNECTION  the verb, the kind of mapping, and the mapping itself — drawn as a curve when it is one,
+#:             because "curve" as a word cannot tell a saturating response from a humped one
+#: TARGET      the level, and each parameter it drives with that parameter's kind: a RATE (and its
+#:             scope), an EXTENT, or a CHOICE. That line is the one thing the old diagram never said.
+#:
+#: No colour except a driver's own states, which take the palette the tree beside them uses. Every
+#: measurement is in one coordinate system: mixing figure fractions with data units is what made an
+#: earlier version drift whenever a height changed.
+_BOX_H, _PAD, _MIN_W, _ARROW = 94, 26, 150, 250
+_TOP, _HEAD = 56, 30
 
-    The arrow's verb is **active** and runs the way the arrow does: *habitat drives loss*. It used to
-    read ``DrivenBy``, which was passive, so an arrow drawn cause-to-effect carried a label naming the
-    relation effect-to-cause — read along the arrow it said "habitat is driven by loss", the opposite
-    of the model. The verb now sits under the TARGET instead, which is both where it reads correctly
-    and where it is actually typed: ``scaled_by`` on a rate, ``weighted_by`` on a choice. It is
-    written as the chained call alone, with no scope in front, because the scope differs by level —
-    per copy for a genome rate, per lineage for a trait's — and the box already carries the base. A
-    **choice** (`transfer_to`) has no base, so its box shows the target alone."""
+
+def _text_w(fig, ax, s, size, **kw):
+    """The drawn width of a string in data units — measured, never estimated from character counts.
+
+    Falls back to an estimate when there is no real renderer to ask. ``tests/test_gallery_api.py``
+    runs every example with matplotlib mocked out, and a mock cannot be measured or compared; without
+    the fallback the canary reports a zombi2 API break that is really a drawing call."""
+    try:
+        t = ax.text(0, -9999, s, fontsize=size, **kw)
+        bb = t.get_window_extent(renderer=fig.canvas.get_renderer())
+        width = float(abs(bb.transformed(ax.transData.inverted()).x1
+                          - bb.transformed(ax.transData.inverted()).x0))
+        t.remove()
+        return width
+    except (TypeError, AttributeError, ValueError):
+        return len(s) * size * 0.6
+
+
+def _chain(ax, states, arcs, colours, *, cx, y, span):
+    """A driver's own dynamics: one circle per state, one arc per transition that exists.
+
+    ``arcs`` is ``[(forward, back), …]`` and either may be ``None`` — a gene family is lost and never
+    regained, and that chain has to draw one arrow, not two with a blank label."""
+    from matplotlib.patches import Circle, FancyArrowPatch
+    step = min(132, max(96, span - 20))
+    xs = [cx - step*(len(states)-1)/2 + i*step for i in range(len(states))]
+    for st, x, col in zip(states, xs, colours):
+        ax.add_patch(Circle((x, y), 15, facecolor=col, edgecolor=_INK, lw=1.2))
+        ax.text(x, y+58, st, ha="center", va="center", color=_DIM, fontsize=9)
+    for i in range(len(states)-1):
+        a, b = xs[i], xs[i+1]
+        forward, back = arcs[i]
+        if forward is not None:
+            ax.add_patch(FancyArrowPatch((a+17, y-4), (b-17, y-4), arrowstyle="-|>", mutation_scale=8,
+                                         lw=1.0, color=_DIM, connectionstyle="arc3,rad=-0.42"))
+            ax.text((a+b)/2, y-30, forward, ha="center", va="center", color=_DIM, fontsize=8.5)
+        if back is not None:
+            ax.add_patch(FancyArrowPatch((b-17, y+4), (a+17, y+4), arrowstyle="-|>", mutation_scale=8,
+                                         lw=1.0, color=_DIM, connectionstyle="arc3,rad=-0.42"))
+            ax.text((a+b)/2, y+36, back, ha="center", va="center", color=_DIM, fontsize=8.5)
+
+
+def conditioning_png(path, *, driver, connection, target_level, targets,
+                     chain=None, curve=None, target_chain=None):
+    """Draw one conditioning diagram to the standard above, and return the path.
+
+    ``driver``      ``(level, name, kind)`` — "traits", "habitat", "two states"
+    ``connection``  ``(verb, mapping kind)`` — "scaled_by", "table"
+    ``targets``     ``[(name, kind, mapping)]`` — one entry per parameter this driver reaches.
+                    ``kind`` is what it IS: "rate · per copy", "extent · in genes", "choice · a weight".
+                    ``mapping`` is drawn under the arrow, because the mapping is part of the
+                    *connection*, not of the target.
+    ``chain``       ``(states, [(forward, back)], colours)`` for a driver with states
+    ``curve``       ``(fn, x label, (lo, hi))`` for a mapping that is a curve
+    ``target_chain``the same, when the thing being driven is itself a trait with states
+    """
     from matplotlib.patches import FancyArrowPatch, Rectangle
 
-    ax.set_xlim(0, 660)
-    ax.set_ylim(250, 0)                       # y grows downward, like the SVG
-    ax.set_aspect("auto")
-    ax.set_axis_off()
+    n = len(targets)
+    verb, mapping_kind = connection
 
-    for x, t in ((120, "DRIVER"), (555, "TARGET")):
-        ax.text(x, 30, t, ha="center", va="center", color=_DIM, fontsize=12.5, fontweight="bold")
-
-    ax.add_patch(Rectangle((45, 96), 150, 60, fill=True, facecolor="#f2f2f0", edgecolor=_INK,
-                           lw=1.6, joinstyle="round"))
-    ax.text(120, 126, driver, ha="center", va="center", color=_INK, fontsize=16)
-
-    ax.add_patch(FancyArrowPatch((203, 126), (462, 126), arrowstyle="-|>", mutation_scale=15,
-                                 lw=1.7, color=_INK))
-    ax.text(332, 112, "drives", ha="center", va="center", color=_INK, fontsize=14.5, style="italic")
-
-    ax.add_patch(Rectangle((472, 96), 166, 60, fill=True, facecolor="#f2f2f0", edgecolor=_INK,
-                           lw=1.6, joinstyle="round"))
-    if target_base is None:
-        ax.text(555, 126, target, ha="center", va="center", color=_INK, fontsize=15)
-        written = f"Recipients().weighted_by({driver}, ...)"
+    probe = plt.figure(figsize=(10, 3), dpi=180)          # measure before committing to a canvas
+    pax = probe.add_axes([0, 0, 1, 1]); pax.set_xlim(0, 1200); pax.set_ylim(400, 0)
+    dw = max(_MIN_W, _PAD*2 + max(_text_w(probe, pax, driver[1], 17),
+                                  _text_w(probe, pax, driver[2], 10.5, style="italic"),
+                                  _text_w(probe, pax, driver[0], 9, style="italic")))
+    if n == 1:
+        tw = max(_MIN_W, _PAD*2 + max(_text_w(probe, pax, targets[0][0], 17),
+                                      _text_w(probe, pax, targets[0][1], 10.5, style="italic"),
+                                      _text_w(probe, pax, target_level, 9, style="italic")))
     else:
-        ax.text(555, 120, target, ha="center", va="center", color=_INK, fontsize=15)
-        ax.text(555, 142, f"base {target_base}", ha="center", va="center", color=_DIM, fontsize=13)
-        written = f"{target_scope}({target_base}).scaled_by({driver}, ...)"
-    # the expression this diagram is a picture of, under the thing you write it on
-    ax.text(555, 176, written, ha="center", va="center", color=_DIM, fontsize=10.5,
-            family="monospace")
-    if target_sub:
-        ax.text(555, 196, target_sub, ha="center", va="top", color=_DIM, fontsize=11.5,
+        tw = max(_MIN_W, _PAD*2 + max(max(_text_w(probe, pax, a, 15.5),
+                                          _text_w(probe, pax, b, 9.5, style="italic"))
+                                      for a, b, _ in targets))
+    plt.close(probe)
+
+    th = _BOX_H if n == 1 else 30 + 50*n + 14
+    mid = _TOP + max(_BOX_H, th)/2
+    bottom = mid + max(_BOX_H, th)/2
+    W = 30 + dw + _ARROW + tw + 30
+    H = max(bottom, (mid + 24 + 74 + 26) if curve else 0) + (118 if (chain or target_chain) else 18)
+
+    fig = plt.figure(figsize=(W/100, H/100), dpi=180)
+    ax = fig.add_axes([0, 0, 1, 1]); ax.set_xlim(0, W); ax.set_ylim(H, 0); ax.set_axis_off()
+    dx, tx = 30, 30 + dw + _ARROW
+    dcx, tcx = dx + dw/2, tx + tw/2
+    a0, a1 = dx + dw + 14, tx - 14
+    ccx = (a0 + a1)/2
+    for cx, label in ((dcx, "DRIVER"), (ccx, "CONNECTION"), (tcx, "TARGET")):
+        ax.text(cx, _HEAD, label, ha="center", va="center", color=_DIM, fontsize=11.5,
+                fontweight="bold")
+
+    ax.add_patch(Rectangle((dx, mid-_BOX_H/2), dw, _BOX_H, facecolor="#f2f2f0", edgecolor=_INK, lw=1.5))
+    ax.text(dcx, mid-27, driver[0], ha="center", va="center", color=_DIM, fontsize=9, style="italic")
+    ax.text(dcx, mid+1, driver[1], ha="center", va="center", color=_INK, fontsize=17)
+    ax.text(dcx, mid+29, driver[2], ha="center", va="center", color=_DIM, fontsize=10.5, style="italic")
+
+    ax.add_patch(FancyArrowPatch((a0, mid), (a1, mid), arrowstyle="-|>", mutation_scale=14,
+                                 lw=1.6, color=_INK))
+    ax.text(ccx, mid-30, verb, ha="center", va="center", color=_INK, fontsize=13.5, family="monospace")
+    ax.text(ccx, mid-12, mapping_kind, ha="center", va="center", color=_DIM, fontsize=10.5,
+            style="italic")
+
+    if n == 1:
+        name, kind, mapping = targets[0]
+        ax.add_patch(Rectangle((tx, mid-_BOX_H/2), tw, _BOX_H, facecolor="#f2f2f0",
+                               edgecolor=_INK, lw=1.5))
+        ax.text(tcx, mid-27, target_level, ha="center", va="center", color=_DIM, fontsize=9,
                 style="italic")
+        ax.text(tcx, mid+1, name, ha="center", va="center", color=_INK, fontsize=17)
+        ax.text(tcx, mid+29, kind, ha="center", va="center", color=_DIM, fontsize=10.5, style="italic")
+        if mapping:
+            ax.text(ccx, mid+16, mapping, ha="center", va="top", color=_DIM, fontsize=10)
+    else:
+        ax.add_patch(Rectangle((tx, mid-th/2), tw, th, facecolor="#f2f2f0", edgecolor=_INK, lw=1.5))
+        ax.text(tcx, mid-th/2+17, target_level, ha="center", va="center", color=_DIM, fontsize=9,
+                style="italic")
+        for i, (name, kind, _) in enumerate(targets):
+            y = mid - th/2 + 30 + 50*i
+            ax.text(tcx, y+16, name, ha="center", va="center", color=_INK, fontsize=15.5)
+            ax.text(tcx, y+35, kind, ha="center", va="center", color=_DIM, fontsize=9.5, style="italic")
+        for i, (name, _, mapping) in enumerate(targets):
+            if mapping:
+                ax.text(ccx, mid+14+20*i, f"{name}:  {mapping}", ha="center", va="top",
+                        color=_DIM, fontsize=9.5)
 
+    if curve is not None:
+        fn, xlabel, (lo_x, hi_x) = curve
+        bx, by, bw, bh = ccx-70, mid+24, 140, 74
+        ax.add_patch(Rectangle((bx, by), bw, bh, facecolor="white", edgecolor="#bcbcbc", lw=1.0))
+        xs = [lo_x + (hi_x-lo_x)*i/199 for i in range(200)]
+        vals = [fn(v) for v in xs]
+        lo, hi = min(vals), max(vals)
+        span = (hi - lo) or 1.0
+        ax.plot([bx + (v-lo_x)/(hi_x-lo_x)*bw for v in xs],
+                [by + bh - (v-lo)/span*(bh-10) - 5 for v in vals], color=_INK, lw=1.7)
+        if lo <= 1.0 <= hi:                     # the line where the driver changes nothing
+            y1 = by + bh - (1.0-lo)/span*(bh-10) - 5
+            ax.plot([bx, bx+bw], [y1, y1], color=_DIM, lw=0.8, ls=":")
+        ax.text(bx+bw/2, by+bh+14, xlabel, ha="center", va="center", color=_DIM, fontsize=9)
+        ax.text(bx-10, by+bh/2, "factor", ha="center", va="center", color=_DIM, fontsize=9, rotation=90)
 
-def _state_chain(ax, states, switch, colors, *, cx, y, half=48.0, r_st=15, driven=None):
-    """The little Markov chain a discrete variable is: one circle per state, named below it, and an
-    arrow for each positive rate. Used under the DRIVER box and, where the target is itself a discrete
-    trait, under the TARGET box — so the reader can see both ends of the relation are the same kind of
-    thing and only the rate differs.
+    if chain is not None:
+        _chain(ax, *chain, cx=dcx, y=bottom+40, span=dw)
+    if target_chain is not None:
+        _chain(ax, *target_chain, cx=tcx, y=bottom+40, span=tw)
 
-    ``driven`` names the one transition a driver acts on (``"a->b"``), drawn heavier: a rate that
-    reads a driver is usually **one arrow**, not the whole chain, and a diagram that does not say so
-    claims the model is symmetric when it is not."""
-    from matplotlib.patches import Circle, FancyArrowPatch
-
-    n = len(states)
-    xs = [cx - half + 2 * half * (k / (n - 1) if n > 1 else 0.5) for k in range(n)]
-    pos = dict(zip(states, xs))
-    for x, s in zip(xs, states):
-        ax.add_patch(Circle((x, y), r_st, facecolor=(colors or {}).get(s, "#c9c9c9"),
-                            edgecolor=_INK, lw=1.2))
-        ax.text(x, y + r_st + 11, s, ha="center", va="top", color=_INK, fontsize=10.5)
-    for key, rate in (switch or {}).items():
-        if rate <= 0:
-            continue
-        a, b = key.split("->")
-        xa, xb = pos[a], pos[b]
-        inner_l, inner_r = min(xa, xb) + r_st, max(xa, xb) - r_st
-        lo, hi = (inner_l, inner_r) if xa < xb else (inner_r, inner_l)
-        hot = key == driven
-        ax.add_patch(FancyArrowPatch((lo, y - 6 if xa < xb else y + 6),
-                                     (hi, y - 6 if xa < xb else y + 6),
-                                     connectionstyle="arc3,rad=-0.6", arrowstyle="-|>",
-                                     mutation_scale=13 if hot else 9,
-                                     lw=2.4 if hot else 1.1, color=_INK))
-
-
-def draw_conditioning(ax, *, driver, states, switch, mapping, target, target_base=None,
-                      target_scope="PerCopy",
-                      target_sub=None, symbol="×", state_colors=None,
-                      target_states=None, target_switch=None, target_colors=None,
-                      target_driven=None):
-    """The manual's driver→mapping→target diagram for a **discrete** driver. ``switch`` is a
-    {"a->b": rate} dict (an arrow is drawn for each positive rate, so an irreversible trait shows one
-    arrow); ``mapping`` is the per-state multiplier; ``state_colors`` tints the state nodes to match the
-    tree's palette. The state names sit *outside* (below) their circles. ``target_base`` is the rate's
-    base value (``None`` for a target that is not a rate, e.g. a transfer recipient); ``target_sub``
-    is the italic caption under TARGET. ``target_states`` / ``target_switch`` / ``target_colors``
-    draw a second chain under the target box, for a target that is itself a discrete trait — the
-    driven rate is then visibly *that chain's* rate, rather than an unexplained number."""
-    _conditioning_frame(ax, driver, target, target_base, target_sub, target_scope)
-
-    _state_chain(ax, states, switch, state_colors, cx=120, y=202)
-    if target_states:
-        _state_chain(ax, target_states, target_switch, target_colors, cx=555, y=214,
-                     driven=target_driven)
-
-    for i, s in enumerate(states):
-        ax.text(332, 152 + i * 19, f"{s} {symbol} {mapping.get(s, 1)}", ha="center", va="center",
-                color=_DIM, fontsize=13.5)
-
-
-def draw_conditioning_curve(ax, *, driver, curve, vrange, target, target_base=None,
-                            target_scope="PerCopy", target_sub=None,
-                            cmap="viridis", value_label="trait value",
-                            target_states=None, target_switch=None, target_colors=None,
-                            target_driven=None):
-    """The same diagram for a **continuous** driver. A discrete driver has one multiplier per state; a
-    continuous one has a curve, so the space under the arrow plots ``curve`` (value → factor) over ``vrange``
-    and the driver column carries the colour ramp the tree is painted with."""
-    from matplotlib.patches import Rectangle
-
-    _conditioning_frame(ax, driver, target, target_base, target_sub, target_scope)
-    if target_states:
-        _state_chain(ax, target_states, target_switch, target_colors, cx=555, y=214,
-                     driven=target_driven)
-
-    # driver column: the colour ramp, standing in for the discrete diagram's state circles
-    x0, x1, y0, y1 = 57.0, 183.0, 190.0, 214.0
-    ramp = plt.get_cmap(cmap)
-    steps = 48
-    for k in range(steps):
-        ax.add_patch(Rectangle((x0 + (x1 - x0) * k / steps, y0), (x1 - x0) / steps + 0.6, y1 - y0,
-                               facecolor=ramp(k / (steps - 1)), edgecolor="none", lw=0))
-    ax.add_patch(Rectangle((x0, y0), x1 - x0, y1 - y0, fill=False, edgecolor=_INK, lw=1.2))
-    ax.text(x0, y1 + 11, "low", ha="left", va="top", color=_INK, fontsize=10.5)
-    ax.text(x1, y1 + 11, "high", ha="right", va="top", color=_INK, fontsize=10.5)
-
-    # under the arrow: the value → factor curve, where the discrete diagram lists its multipliers
-    cx0, cx1, cy0, cy1 = 292.0, 400.0, 148.0, 212.0
-    lo, hi = vrange
-    vs = [lo + (hi - lo) * k / 60 for k in range(61)]
-    fs = [curve(v) for v in vs]
-    # a step function drawn through a line plot would be a ramp, which is the one thing it is not
-    step = any(abs(b - a) > 0.25 * (max(fs) or 1.0) for a, b in zip(fs, fs[1:]))
-    fmax = max(fs + [1.0]) or 1.0
-
-    def _px(v):
-        return cx0 + (cx1 - cx0) * (v - lo) / ((hi - lo) or 1.0)
-
-    def _py(f):
-        return cy1 - (cy1 - cy0) * (f / fmax)
-
-    ax.plot([cx0, cx1], [_py(1.0)] * 2, ls=":", lw=1.1, color=_DIM, zorder=1)   # the neutral factor
-    ax.text(cx0 + 4, _py(1.0) - 3, "×1", ha="left", va="bottom", color=_DIM, fontsize=10)
-    ax.plot([_px(v) for v in vs], [_py(f) for f in fs], lw=2.0, color=_INK, zorder=2,
-            drawstyle="steps-post" if step else "default")
-    ax.plot([cx0, cx0], [cy0, cy1], lw=1.1, color=_DIM)
-    ax.plot([cx0, cx1], [cy1, cy1], lw=1.1, color=_DIM)
-    ax.text(cx0 - 7, (cy0 + cy1) / 2, "factor", ha="center", va="center", color=_DIM, fontsize=11,
-            rotation=90)
-    ax.text((cx0 + cx1) / 2, cy1 + 13, value_label, ha="center", va="top", color=_DIM, fontsize=11)
-
-
-def conditioning_png(path, draw=None, **kw):
-    """Render a conditioning diagram (``draw_conditioning`` by default, ``draw_conditioning_curve`` for
-    a continuous driver) to its own transparent PNG, so it can be placed small and undistorted above a
-    realization. The axes fills the figure, so every diagram comes out at the same proportions."""
-    fig = plt.figure(figsize=(9.5, 3.5))
-    ax = fig.add_axes([0, 0, 1, 1])
-    (draw or draw_conditioning)(ax, **kw)
-    fig.savefig(path, dpi=180, transparent=True)
+    fig.savefig(path, dpi=180, transparent=True, bbox_inches="tight")
     plt.close(fig)
     return path
