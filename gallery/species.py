@@ -155,6 +155,51 @@ def lineage_rates(out):
     _rate_tree("independent", out)
 
 
+# --- sampling and fossils: the two ways a dataset is less than the tree that grew ---------------
+
+#: what the dataset holds, what is alive and missed, and what died. Extinct and unsampled are both
+#: grey because both are the same thing to a reader — a lineage the data has no line for — and they
+#: are told apart by where they end: the present, or short of it.
+_FATE = {"sampled": "#1F6F5C", "unsampled": "#9AA6A2", "extinct": "#C6CDCA"}
+
+
+def sampling_and_fossils(out):
+    """One complete tree with every fate on it, and the fossils recovered along its branches.
+
+    Solid green is the dataset: the survivors sampling kept. Dashed is everything it never sees —
+    the lineages that died, and the ones alive at the present that sampling missed. The diamonds are
+    fossils, which fall on any branch of the complete tree, a survivor's as readily as an extinct
+    one's, which is why some sit on lineages the present has no record of."""
+    sp = simulate_species_tree(birth=1.0, death=0.35, total_time=4.0,
+                               sampling=0.6, fossils=0.15, seed=31)
+    ct = sp.complete_tree
+    tree = ph.trees.loads(ct.to_newick())
+    label = ct.labels()
+
+    # a branch takes the best fate below it: the data has a line for it, or it is alive and missed,
+    # or it died. Internal branches inherit from their descendants, which is what makes the sampled
+    # subtree one connected green tree rather than a set of tip stubs.
+    rank = ("sampled", "unsampled", "extinct")
+    fate = {}
+    for i in sorted(ct.nodes, reverse=True):
+        node = ct.nodes[i]
+        if node.children:
+            fate[i] = min((fate[c] for c in node.children), key=rank.index)
+        else:
+            fate[i] = {"extant": "sampled", "unsampled": "unsampled"}.get(node.fate, "extinct")
+
+    dashed = {label[i] for i, f in fate.items() if f != "sampled"}
+    fossils = [{"kind": "fossil", "node": label[i], "x": t} for i, t in sp.fossils]
+
+    style = ph.Style(width=1400, height=820, margin=88, branch_width=2.2)
+    (ph.trees.plot(tree, dashed=dashed, style=style)
+     + ph.trees.color_branches({label[i]: f for i, f in fate.items()}, palette=_FATE)
+     + ph.trees.legend("lineage")
+     + ph.trees.branch_events(fossils, styles={"fossil": ("diamond", "#111111")}, size=7.5,
+                              legend_title="", legend_loc="top-right", legend_size=18)
+     + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(out)
+
+
 # --- many trees, measured (local to this module: helpers.py is shared) ------
 
 _CONST, _SLOW = "#3A7CA5", "#C25A3C"      # constant rate · diversity-dependent
@@ -390,6 +435,24 @@ import phylustrator as ph
 ph.trees.plot(ph.trees.loads(sp.complete_tree.to_newick())).save("per_lineage.png")
 """
 
+_C_SAMPLING = '''\
+### simulate  —  a tree grown to time 4, 60% of the survivors sampled, fossils along every branch
+zombi2 species run --birth 1.0 --death 0.35 --total-time 4.0 \\
+                   --sampling 0.6 --fossils 0.15 --seed 31
+
+### plot  —  the sampled subtree solid, everything the data never sees dashed
+import phylustrator as ph
+
+# fate comes from the run: "extant" is a sampled survivor, "unsampled" is alive and missed,
+# and anything else died. An internal branch takes the best fate below it.
+(ph.trees.plot(tree, dashed=dashed)
+ + ph.trees.color_branches(fate, palette={"sampled": "#1F6F5C", "unsampled": "#9AA6A2",
+                                          "extinct": "#C6CDCA"})
+ + ph.trees.legend("lineage")
+ + ph.trees.branch_events(fossils, styles={"fossil": ("diamond", "#111111")})
+ + ph.trees.time_axis("time")).save("sampling.png")'''
+
+
 EXAMPLES = [
     Example("basic", "Yule tree", "Pure birth, no extinction — a forward tree of 100 lineages.",
             "birth", yule, code=_C_BASIC),
@@ -415,6 +478,11 @@ EXAMPLES = [
             "The same distribution without the inheritance: every lineage draws for itself, so a "
             "fast lineage tells you nothing about its neighbours.",
             "birth · LogNormal", lineage_rates, code=_C_PERLINEAGE),
+    Example("sampling", "Sampling and fossils",
+            "The two ways a dataset is less than the tree that grew: sampling keeps 60% of the "
+            "survivors, and fossils are recovered along every branch — including lineages the "
+            "present has no record of.",
+            "sampling · fossils", sampling_and_fossils, code=_C_SAMPLING),
     Example("shape", "Shape statistics over many trees",
             "Two thousand trees under each of two processes. "
             "<code>zombi2 tools tree --gamma</code> separates them almost perfectly.",

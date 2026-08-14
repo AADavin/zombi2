@@ -5,6 +5,8 @@ The sequence level does two main things:
 * It rescales the gene trees and the species tree from time into substitutions per site (**phylograms**).
 * It evolves the residues that sit inside every gene, so each family ends with an alignment.
 
+The alignment is the **observable** half: the sequence at every extant gene copy, which is what a phylogenetic method would be handed. The other half is every node the alignment leaves out — the internal ones, and the tips where a copy was lost or its species died. The run wrote a sequence at each node as it went, so those are the exact ancestors rather than estimates, and together the two account for every node of the gene tree exactly once ([Sq8](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_ancestral-->).
+
 ![Where a sequence lives. A sequence is not evolved along the species tree: it is evolved along the **gene tree**, which the genome run produced and which runs inside the species tree. The two forks are different events. The first is a speciation, which hands the gene to both daughters; the second, marked with a square, is a duplication, and it happens inside one lineage — which is why one lineage can hold two tips of the same family. A run gives one sequence per node of that gene tree, so the tips come out as an alignment.](figures/sequence_nesting_print.png){width=88%}
 
 ## Creating phylograms
@@ -259,16 +261,6 @@ The driver must be a clade. A trait switches partway along a branch, and this le
 The caveat: every model is normalised to one expected substitution per site per unit branch length, and that holds **at stationarity**. A lineage that has just entered the AT-rich clade is not yet at its frequencies, so while its composition is still relaxing it accrues somewhat fewer substitutions than its branch length claims. That transient is usually the thing being studied, and it is the ordinary price of a model that varies along the tree, not a defect. It shows up plainly if you raise the divergence: the clade's A+T climbs from 0.54 toward 0.80 as it has more time to get there.
 
 `Models` is Python only, and there is no flag for it: a model is a K×K matrix, which has no written form a flag can carry — the same reason `reversible()` has none.
-
-## What a run gives back
-
-`simulate_sequences` returns a `SequencesResult`, and its two halves are the point:
-**`.alignments` is the observable data**, the sequence at every *extant* gene copy, which is the
-alignment a phylogenetic method would be handed; **`.ancestral` is every node the alignment leaves
-out**, the internal ones and the tips where a copy was lost or its species died. The run wrote a
-sequence at each node as it went, so those are the exact ancestors rather than estimates, and
-together the two account for every node of the tree exactly once ([Sq8](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_ancestral-->). Appendix B lists the rest.
-
 
 ### Where a sequence starts
 

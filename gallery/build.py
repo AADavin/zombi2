@@ -77,6 +77,7 @@ SPECIES_ORDER = [
     "basic", "extinct",                     # ch3, the birth-death process
     "rateshift", "diversity", "inherited", "perlineage",   # ch3, rates that vary
     "massext",                              # ch3, other models
+    "sampling",                             # ch3, sampling and fossils
     "shape",                                # ch3, a study over many trees
 ]
 
