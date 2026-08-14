@@ -52,7 +52,7 @@ CONDITIONING_ORDER = [
     "genome_reduction", "genome_expansion", "hgt_uptake", "continuous_conditioning", "curve_saturating", "curve_optimum", #  1 a trait -> a gene family
     "climate_inversions",                                          #  2 a trait -> an ordered or nucleotide genome
     "climate_substitution",                                        #  3 a trait -> a sequence
-    "trait_drives_trait",                                          #  4 a trait -> a trait
+    "driven", "trait_drives_trait",                                          #  4 a trait -> a trait
     "mobile_element",                                              #  5 a gene family -> a gene family
     "repair_gene",                                                 #  6 a gene family -> a sequence
     "gene_drives_trait",                                           #  7 a gene family -> a trait
@@ -68,7 +68,7 @@ CONDITIONING_ORDER = [
 #: the prettiest picture and the wrong place to start reading.
 SPECIES_ORDER = [
     "basic", "extinct",                     # ch3, the birth-death process
-    "rateshift", "diversity",               # ch3, rates that vary
+    "rateshift", "diversity", "inherited", "perlineage",   # ch3, rates that vary
     "massext",                              # ch3, other models
     "shape",                                # ch3, a study over many trees
 ]
@@ -125,7 +125,8 @@ LEVELS = [
      "Two runs, in order. The first run grows the driver on the tree and holds it fixed. The "
      "second run reads it. A driver is a trait, a gene family or a whole module. It drives a "
      "rate, or which lineage receives a transfer.",
-     _ordered(joining.CONDITIONING + crosslevel.EXAMPLES, CONDITIONING_ORDER)),
+     _ordered(joining.CONDITIONING + crosslevel.EXAMPLES + traits.CONDITIONING,
+              CONDITIONING_ORDER)),
     ("joining", "Joining",
      "One run makes both. The trait sets the speciation or extinction rate of the lineage "
      "carrying it. The trait and the tree therefore come out together.",

@@ -808,7 +808,7 @@ def _chain(ax, states, arcs, colours, *, cx, y, span):
         if forward is not None:
             ax.add_patch(FancyArrowPatch((a+17, y-4), (b-17, y-4), arrowstyle="-|>", mutation_scale=8,
                                          lw=1.0, color=_DIM, connectionstyle="arc3,rad=-0.42"))
-            ax.text((a+b)/2, y-30, forward, ha="center", va="center", color=_DIM, fontsize=8.5)
+            ax.text((a+b)/2, y-37, forward, ha="center", va="center", color=_DIM, fontsize=8.5)
         if back is not None:
             ax.add_patch(FancyArrowPatch((b-17, y+4), (a+17, y+4), arrowstyle="-|>", mutation_scale=8,
                                          lw=1.0, color=_DIM, connectionstyle="arc3,rad=-0.42"))
@@ -932,9 +932,9 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
         ax.text(bx-10, by+bh/2, "factor", ha="center", va="center", color=_DIM, fontsize=9, rotation=90)
 
     if chain is not None:
-        _chain(ax, *chain, cx=dcx, y=bottom+40, span=dw)
+        _chain(ax, *chain, cx=dcx, y=bottom+52, span=dw)
     if target_chain is not None:
-        _chain(ax, *target_chain, cx=tcx, y=bottom+40, span=tw)
+        _chain(ax, *target_chain, cx=tcx, y=bottom+52, span=tw)
 
     fig.savefig(path, dpi=180, transparent=True, bbox_inches="tight")
     plt.close(fig)
