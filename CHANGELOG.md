@@ -14,6 +14,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 - Sampling and fossils in the gallery: one complete tree with every fate on it — the sampled
   survivors solid, the lineages the data never sees dashed, and the fossils recovered along any
   branch, including lineages the present has no record of. (#363)
+- A gallery example for change at the splits (`at_speciation=`), which a painted tree cannot
+  show on its own: beside the tree it runs the field's own test, how far apart sister tips
+  have grown against how long ago they split — flat under jumps, rising under diffusion.
+  (#363)
 - Three trait examples in the gallery — an early burst, a two-optimum OU painted by a discrete
   trait, and a discrete trait whose gains and losses run at different rates — so the traits
   section covers the chapter's menu rather than its first half. (#362)

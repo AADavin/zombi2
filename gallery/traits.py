@@ -98,6 +98,62 @@ def regime_optima(out):
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(out)
 
 
+# --- change at the splits: the one trait model a painted tree cannot show on its own -------------
+#
+# A branch is painted with the value at its far end, so a tree alone cannot say *when* along the
+# branch the change happened: jumps at the splits and diffusion along them paint the same picture.
+# What separates them is the field's own test. Take the pairs of tips that are each other's closest
+# relative and ask how far apart the two have grown. Under diffusion that difference keeps growing
+# with the time since they split; under jumps the split itself did the work and the difference does
+# not care how long ago it was.
+#
+# Its own tree, larger than the other cards': the test is one point per pair of sister tips, and a
+# hundred-tip tree has only thirty-five such pairs.
+
+_JUMP_TIPS = 300
+
+
+def speciation_jumps(out):
+    """The jump model beside the test that tells it from diffusion."""
+    import statistics
+
+    sp = simulate_species_tree(birth=1.0, n_extant=_JUMP_TIPS, seed=SEED)
+    ct = sp.complete_tree
+    tree = ph.trees.loads(ct.to_newick())
+    extant = set(ct.extant_leaves())
+    present = max(ct.nodes[i].end_time for i in extant)
+    pairs = [(n.end_time, n.children) for n in ct.nodes.values()
+             if len(n.children) == 2 and all(c in extant for c in n.children)]
+
+    jumps = simulate_continuous(ct, start=0.0, rate=0.0, at_speciation=1.0, seed=SEED)
+    diffusion = simulate_continuous(ct, start=0.0, rate=1.0, seed=SEED)
+
+    png = out.replace(".png", "_tree.png")
+    h.render_tree_for_composite(tree, png, h.node_values(jumps), width=1150, height=1150,
+                                branch_width=1.0)
+
+    def panel(ax):
+        for res, color, name in ((jumps, "#3C8D6E", "jumps at the splits"),
+                                 (diffusion, "#B0B8B5", "diffusion along them")):
+            xs = [present - t for t, _ in pairs]
+            ys = [abs(res.node_values[a] - res.node_values[b]) for _, (a, b) in pairs]
+            ax.scatter(xs, ys, s=15, color=color, alpha=0.7, linewidths=0, label=name, zorder=2)
+            bins: dict[int, list] = {}
+            for x, y in zip(xs, ys):
+                bins.setdefault(int(x / 0.2), []).append(y)
+            # a bin with a handful of pairs in it says nothing; the tail of the axis is sparse
+            pts = sorted((0.2 * k + 0.1, statistics.mean(v)) for k, v in bins.items() if len(v) > 5)
+            ax.plot([x for x, _ in pts], [m for _, m in pts], color=color, lw=2.6, zorder=3)
+        ax.set_xlabel("time since the two split", fontsize=13)
+        ax.set_ylabel("difference between the two", fontsize=13)
+        ax.set_ylim(bottom=0.0)
+        ax.set_xlim(-0.03, 1.15)                 # beyond this there are only a few pairs left
+        ax.legend(fontsize=11, frameon=False, loc="upper left")
+        ax.tick_params(labelsize=11)
+
+    h.composite_beside(png, out, panel, figsize=(13, 6.6), ratios=(2.5, 1.6))
+
+
 def asymmetric_switch(out):
     """One direction commoner than the other: a state that is easy to gain and hard to lose."""
     ct, tree = _tree()
@@ -371,6 +427,28 @@ tree = ph.trees.loads(sp.complete_tree.to_newick())
  + ph.trees.time_axis("time")).save("asymmetric.png")'''
 
 
+_C_JUMPS = '''\
+### simulate  —  the same tree twice: all the change at the splits, or all of it along the branches
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_continuous
+
+sp = simulate_species_tree(birth=1.0, n_extant=300, seed=42)
+jumps     = simulate_continuous(sp.complete_tree, start=0.0, rate=0.0, at_speciation=1.0, seed=42)
+diffusion = simulate_continuous(sp.complete_tree, start=0.0, rate=1.0, seed=42)
+
+### the test  —  for each pair of tips that are each other's closest relative, how far apart they
+### have grown against how long ago they split. Diffusion keeps separating them; a jump does not.
+ct = sp.complete_tree
+extant = set(ct.extant_leaves())
+present = max(ct.nodes[i].end_time for i in extant)
+pairs = [(n.end_time, n.children) for n in ct.nodes.values()
+         if len(n.children) == 2 and all(c in extant for c in n.children)]
+
+for res in (jumps, diffusion):
+    x = [present - t for t, _ in pairs]
+    y = [abs(res.node_values[a] - res.node_values[b]) for _, (a, b) in pairs]'''
+
+
 EXAMPLES = [
     Example("bm", "Brownian motion", "Free diffusion — sister lineages drift apart with time.",
             "rate", brownian_motion, code=_C_BM),
@@ -386,6 +464,11 @@ EXAMPLES = [
             "upland to &minus;4, lowland to 4. <code>regimes=</code> with a "
             "<code>reverts_to</code> per state.",
             "regimes · reverts_to", regime_optima, code=_C_REGIMES),
+    Example("jumps", "Change at the splits",
+            "All the change happens <b>at</b> the splits, none along the branches. A painted tree "
+            "cannot show that, so the panel runs the test: sister tips that split long ago are no "
+            "more different than sister tips that split recently, which is what diffusion cannot do.",
+            "at_speciation", speciation_jumps, code=_C_JUMPS),
     Example("discrete", "Discrete states",
             "A two-state trait hops between habitats; each branch is painted by its state history.",
             "switch", discrete_states, code=_C_DISCRETE),
