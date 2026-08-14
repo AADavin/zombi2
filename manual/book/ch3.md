@@ -20,26 +20,26 @@ You also say when to stop: grow to a fixed **total time** (`total_time`), or to 
 
 ## Rates that vary
 
-A birth or death rate need not be constant. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**. There are four of them, and the Literature table below gives the expression that writes each.
+A birth or death rate need not be constant. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**. There are four of them, and the Literature table below names each one as the field does, beside the example that shows it.
 
-- **On time.** The rates change at set points in time ([Sp3](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:rateshift-->), which is the skyline, or episodic, tree: full rate until a breakpoint, a third of it after. Each entry in the schedule holds from its own time up to the next, and the earliest entry also applies *backwards* to the origin — so a schedule that starts at time 3 runs at that rate for the whole tree, not only after time 3. Start it at 0 whenever you mean "full rate until".
-- **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound ([Sp4](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:diversity-->).
-- **On the parent's rate.** Each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other ([Sp5](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:inherited-->).
-- **By lineage.** Each lineage draws its own rate instead, with no memory of its parent. The distribution means a different thing in the two: inherited, it is the step taken at each split, which accumulates, so lineages deeper in the tree spread further apart; drawn afresh, it is the spread of rates across lineages and nothing accumulates ([Sp6](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:perlineage-->).
+- **On time.** The rates change at set points in time, which is the skyline, or episodic, tree: full rate until a breakpoint, a third of it after. Each entry in the schedule holds from its own time up to the next, and the earliest entry also applies *backwards* to the origin — so a schedule that starts at time 3 runs at that rate for the whole tree, not only after time 3. Start it at 0 whenever you mean "full rate until".
+- **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound.
+- **On the parent's rate.** Each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other.
+- **By lineage.** Each lineage draws its own rate instead, with no memory of its parent. The distribution means a different thing in the two: inherited, it is the step taken at each split, which accumulates, so lineages deeper in the tree spread further apart; drawn afresh, it is the spread of rates across lineages and nothing accumulates.
 
 ## Other models
 
-One model does not fit the modifier framework: a **mass extinction**, where at one instant only a fraction of the living lineages survive ([Sp7](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:massext-->). Diversity crashes at the pulse and recovers after it.
+One model does not fit the modifier framework: a **mass extinction**, where at one instant only a fraction of the living lineages survive. Diversity crashes at the pulse and recovers after it.
 
 ## Literature
 
-| What it does | Here | From the literature |
+| What it does | Gallery | From the literature |
 |---|---|---|
-| rates change at set times | `PerLineage(1.0).changing_at({…})` | skyline / episodic birth–death [@stadler2011mammalian] |
-| rate slows as the tree fills | `PerLineage(1.0).scaled_by(TotalDiversity(cap=…))` | diversity-dependent diversification [@rabosky2008densitydependent; @etienne2012diversitydependence] |
-| rates drift, inherited at each split | `PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, …)))` | ClaDS [@maliet2019clads] |
-| rates vary, drawn afresh per lineage | `PerLineage(1.0).varying_among('lineages', LogNormal(0.0, …))` | uncorrelated ("relaxed") rates |
-| a fraction culled at an instant | `mass_extinctions=[(t, f)]` | mass extinction |
+| rates change at set times | [Sp3](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:rateshift--> | skyline / episodic birth–death [@stadler2011mammalian] |
+| rate slows as the tree fills | [Sp4](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:diversity--> | diversity-dependent diversification [@rabosky2008densitydependent; @etienne2012diversitydependence] |
+| rates drift, inherited at each split | [Sp5](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:inherited--> | ClaDS [@maliet2019clads] |
+| rates vary, drawn afresh per lineage | [Sp6](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:perlineage--> | uncorrelated ("relaxed") rates |
+| a fraction culled at an instant | [Sp7](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:massext--> | mass extinction |
 
 ## Sampling
 
