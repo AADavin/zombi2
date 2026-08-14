@@ -9,15 +9,19 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- A gallery example draws the whole karyotype of every survivor beside the tree that produced them,
+  with each fission and fusion marked on the branch it happened on and the three chromosomes the run
+  started from drawn above the stem. It needs Phylustrator 0.2.4, whose circular `arrange="row"`
+  draws a genome's chromosomes side by side rather than as nested rings. (#353)
+
 ### Changed
 
 - The gallery's conditioning diagrams follow one standard: driver, connection and target, each
   naming the level it belongs to, and each target naming what kind of parameter it is — a rate and
   its scope, an extent, or a choice. Chapter 9's opening figure is now generated from the same code
   rather than hand-drawn, so the book and the gallery cannot drift apart. (#351)
-
-### Changed
-
 - **BREAKING:** `genome_summary.json` calls its gene count `genes` rather than `declared_genes`, and
   it always counted every gene the run holds — those declared at the start and the de-novo ones
   `origination` added — so a run declaring five could report seven under the old name. (#348)
