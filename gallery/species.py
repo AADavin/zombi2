@@ -139,7 +139,7 @@ def _rate_tree(name, out):
     style = ph.Style(width=1250, height=760, margin=80, branch_width=2.6)
     (ph.trees.plot(tree, dashed=dashed, style=style)
      + ph.trees.color_branches(logr, cmap="viridis", limits=got["limits"])
-     + ph.trees.colorbar("birth rate  (speciations per lineage per unit time)", loc="top-left",
+     + ph.trees.colorbar("birth rate", loc="top-left",
                          width=210, height=14, size=19,
                          labels=tuple(f"{10 ** v:.2f}" for v in got["limits"]))
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(out)

@@ -87,21 +87,21 @@ traits.simulate_continuous(tree,
 
 Trait models arrive under a thicket of names, and a reader who wants "an OU model" or "a threshold model" should be able to find it. The names live here, in one table, each beside the example that shows it; the example carries the run that made it, so the table does not spell the call out a second time. It organises nothing else in the chapter.
 
-| What it does | Gallery | From the literature |
-|---|---|---|
-| a value diffusing | [Tr1](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:bm--> | Brownian motion (BM) [@felsenstein1985comparative] |
-| diffusion pulled to an optimum | [Tr2](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:ou--> | Ornstein–Uhlenbeck (OU) [@hansen1997stabilizing; @butler2004phylogenetic] |
-| diffusion rate decays through time | [Tr3](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:early_burst--> | Early burst (EB / ACDC) [@harmon2010earlyburst] |
-| diffusion rate drifts between lineages | [Tr4](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:varying_rate--> | Variable-rates BM [@maliet2019clads] |
-| diffusion rate slows as the clade fills | [Tr5](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:diversity_dependent--> | Diversity-dependent / ecological limits [@etienne2012diversitydependence] |
-| the optimum differs between painted clades | [Tr6](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:regimes--> | Multi-optimum OU (OUM) [@beaulieu2012ouwie] |
-| the value jumps at each split | [Tr7](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:jumps--> | Cladogenetic / punctuational change |
-| a discrete state switching | [Tr8](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:discrete--> | Mk (k-state Markov) |
-| gains and losses at different rates | [Tr9](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:asymmetric--> | All-rates-different Mk (ARD) |
-| discrete driven by continuous liability | [Tr10](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:threshold--> | Threshold / liability (Wright–Felsenstein) [@felsenstein2012threshold] |
-| traits evolving together | [Tr11](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:correlated--> | Multivariate BM |
-| traits reverting together, each to its own optimum | [Tr12](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:mv_ou--> | Multivariate OU, diagonal drift [@clavel2015mvmorph] |
-| discrete traits evolving together | [Tr13](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:dependent--> | Correlated binary / Pagel [@pagel1994correlated] |
+| What it does | From the literature | Gallery |
+| --- | --- | --- |
+| a value diffusing | Brownian motion (BM) [@felsenstein1985comparative] | [Tr1](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:bm--> |
+| diffusion pulled to an optimum | Ornstein–Uhlenbeck (OU) [@hansen1997stabilizing; @butler2004phylogenetic] | [Tr2](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:ou--> |
+| diffusion rate decays through time | Early burst (EB / ACDC) [@harmon2010earlyburst] | [Tr3](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:early_burst--> |
+| diffusion rate drifts between lineages | Variable-rates BM [@maliet2019clads] | [Tr4](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:varying_rate--> |
+| diffusion rate slows as the clade fills | Diversity-dependent / ecological limits [@etienne2012diversitydependence] | [Tr5](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:diversity_dependent--> |
+| the optimum differs between painted clades | Multi-optimum OU (OUM) [@beaulieu2012ouwie] | [Tr6](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:regimes--> |
+| the value jumps at each split | Cladogenetic / punctuational change | [Tr7](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:jumps--> |
+| a discrete state switching | Mk (k-state Markov) | [Tr8](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:discrete--> |
+| gains and losses at different rates | All-rates-different Mk (ARD) | [Tr9](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:asymmetric--> |
+| discrete driven by continuous liability | Threshold / liability (Wright–Felsenstein) [@felsenstein2012threshold] | [Tr10](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:threshold--> |
+| traits evolving together | Multivariate BM | [Tr11](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:correlated--> |
+| traits reverting together, each to its own optimum | Multivariate OU, diagonal drift [@clavel2015mvmorph] | [Tr12](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:mv_ou--> |
+| discrete traits evolving together | Correlated binary / Pagel [@pagel1994correlated] | [Tr13](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:dependent--> |
 
 ## On the command line
 
