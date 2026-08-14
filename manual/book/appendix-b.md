@@ -1,9 +1,13 @@
 # Output files
 
-One table per level, listing the files it writes. **Default** says whether a file is written with no
-arguments (**yes**), only when you name its token (**no**), or is reachable from Python alone
-(**Python**). Trees are Newick, tables and logs TSV, sequences FASTA; branch lengths are time, except
-in the sequence phylograms, which are in substitutions per site.
+One table per level, listing the files it writes: the file, and what it holds. Every file listed is
+written with no arguments unless its line says otherwise; a few are written only when you name their
+token, and those say so. What a run gives back in **Python** — the objects and accessors, which are
+not files — follows each table. Trees are Newick, tables and logs TSV, sequences FASTA; branch
+lengths are time, except in the sequence phylograms, which are in substitutions per site.
+
+Where a file needs more than a phrase, it gets a paragraph under its table, in the table's own
+order.
 
 **Columns may be added; read them by name.** A later version may add a column to any of these tables —
 a new kind of event needs somewhere to say what it did. What will not change is an existing column's
@@ -66,36 +70,88 @@ writes, which are left as they are.
 
 ## Species trees: `simulate_species_tree`
 
-| Output | File | Format | Default | Contents |
-|-----------|-----------------|-------|-----|------------------------|
-| Complete tree | `species_complete.nwk` | Newick | yes | every lineage, including extinct and unsampled |
-| Extant tree | `species_extant.nwk` | Newick | yes | only the sampled survivors |
-| Event log | `species_events.tsv` | TSV | yes | every speciation/extinction — `time` · `kind` · `parents` · `children`, one row per event. A `speciation` row is the lineage that ended and its two children, `;`-packed (`n0` → `n1;n2`); an `extinction` row is the dying lineage as the parent with no children. A lineage that died is written `e<id>` |
-| Tip fates | `species_fates.tsv` | TSV | yes | each tip's resolved fate — `lineage` · `fate` (`extant` / `extinct` / `unsampled`) |
-| Fossils | `species_fossils.tsv` | TSV | yes¹ | sampled fossil lineages — `lineage` · `time` |
-| Summary | `species_summary.json` | JSON | yes | what the run produced — counts by fate, tree height, stem, total branch length, the realised birth and death rates, and the seed |
-| The trees | `.complete_tree` · `.extant_tree` | Tree | Python | the whole tree that grew, extinct lineages and all — **this is what the next level runs along**, which is what lets a gene be transferred out of a lineage that later dies — and the survivors' tree, dated and bifurcating, which is the tree an analysis would be handed. Each holds every node, internal ones included, in `.nodes`, and answers `.leaves()`, `.extant_leaves()`, `.extinct_leaves()` and `.unsampled_leaves()` |
-| Fossils | `.fossils` | list | Python | the sampled fossil lineages and the times they were sampled at, present when the run asked for `fossils` |
-| Lineage rates | `.lineage_rates(kind)` | dict | Python | `{lineage: rate}` — the birth (or `"death"`) rate each lineage itself ran under, taken at the lineage's birth, which is when its factors are drawn. Every lineage of the complete tree has one, extinct ones included. A rate that varies among lineages gives each a different number; one that does not gives the same number for all of them. Under a rate that also depends on time or diversity, this is its value at the start of the branch |
+| File | What it holds |
+|---|---|
+| `species_complete.nwk` | every lineage, extinct and unsampled included |
+| `species_extant.nwk` | only the sampled survivors |
+| `species_events.tsv` | every speciation and extinction, one row each |
+| `species_fates.tsv` | each tip's resolved fate — `lineage` · `fate` (`extant` / `extinct` / `unsampled`) |
+| `species_fossils.tsv` | sampled fossil lineages — `lineage` · `time`. Only if fossil sampling recovered any |
+| `species_summary.json` | counts by fate, tree height, stem, total branch length, the realised birth and death rates, the seed |
 
-¹ written only if fossil sampling recovered any.
+From Python: `.complete_tree` · `.extant_tree` (trees), `.fossils` (the sampled fossils and their
+times, present when the run asked for them), `.lineage_rates(kind)` (a dict).
+
+**`species_events.tsv`** — `time` · `kind` · `parents` · `children`. A `speciation` row is the
+lineage that ended and its two children, `;`-packed (`n0` → `n1;n2`); an `extinction` row is the
+dying lineage as the parent with no children. A lineage that died is written `e<id>`.
+
+**`.complete_tree` and `.extant_tree`** — the whole tree that grew, extinct lineages and all, is
+what the next level runs along, which is what lets a gene be transferred out of a lineage that later
+dies; the extant tree is the survivors', dated and bifurcating, the one an analysis would be handed.
+Each holds every node, internal ones included, in `.nodes`, and answers `.leaves()`,
+`.extant_leaves()`, `.extinct_leaves()` and `.unsampled_leaves()`.
+
+**`.lineage_rates(kind)`** — `{lineage: rate}`, the birth (or `"death"`) rate each lineage itself ran
+under, taken at the lineage's birth, which is when its factors are drawn. Every lineage of the
+complete tree has one, extinct ones included. A rate that varies among lineages gives each a
+different number; one that does not gives the same number for all of them. Under a rate that also
+depends on time or diversity, this is its value at the start of the branch.
 
 ## Genomes, family: `simulate_genomes_family`
 
-| Output | File | Format | Default | Contents |
-|-----------|-----------------|-------|-----|------------------------|
-| Event log | `genome_events.tsv` | TSV | yes | the run's true history — `time` · `kind` · `family` · `parents` · `children`, **one row per event**. See [One row per event](#one-row-per-event) below |
-| Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
-| Genomes | `genomes.tsv` | TSV | yes | every node's gene content, ancestors included — `lineage` · `family` · `copy`, **one row per gene copy**. `copy` is the identifier the event log uses, so a gene can be traced back to the event that made it. `profiles.tsv` is the same information counted, for the extant tips only |
-| Initial genome | `initial_genome.tsv` | TSV | yes | the genome the run **started** with, at the start of the root branch — `family` · `copy`. It has no `lineage` column because it is no node's genome: every node sits at the *end* of its branch |
-| Conditioning | `conditioned_on` | text | conditioned | the levels this run reads as a driver, one per line, whether for a rate or for `transfer_to`. Written only when something was conditioned. Re-running a driver level then refuses rather than leaving this run stale, unless you pass `--force` |
-| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | each family's true genealogy, in `genomes/gene_trees/`. Leaves are `n<species>_g<copy>`; internal nodes are labelled `<event>_n<species>` (`duplication_n45`, `transfer_n45`), naming the event that ended that gene and the branch it was on. A family with no surviving copy writes no `_extant` file |
-| Tip names | `names.tsv` | TSV | external tree | `node` · `name`, mapping ZOMBI2's `n<id>` back to the labels you supplied. Written only when the tree came from `--from` with its own tip labels; it is the join from every other output back to your taxa |
-| Summary | `genome_summary.json` | JSON | yes | what the run produced — events by kind, families born, surviving and died out, genes per genome, `empty_genomes`, whether the family-size cap bound, and the seed |
-| Species tree | `species_complete.nwk` | Newick | yes (Python) | the tree the run evolved along. Every other file here is indexed by its node labels, so the directory is not readable — by anyone or by `genomes.read_run()` — without it. `result.write()` writes it by default, so a directory written from Python stands alone; `zombi2 genomes` leaves it out — except under `--stream`, which is family-only — because a run already keeps one copy at `species/species_complete.nwk`, shared by every level |
-| Tip fates | `species/species_fates.tsv` | TSV | external tree | each tip's resolved fate — `lineage` · `fate`, in the format the species level writes. Written beside the copied tree, only when the tree came from `--from` |
-| Family origination | `.gene_trees[f].origination` | float | Python | when the family was founded — where its gene tree's root branch begins |
-| Driver views | `.presence(name)` · `.completion(name)` | driver | Python | a named family's presence (`present` / `absent`) and a declared module's completion (a fraction) along every lineage, for use as a driver (Ch9). Read off the families' gene trees, so they change *inside* a branch; the **ordered** resolution gives the same two |
+| File | What it holds |
+|---|---|
+| `genome_events.tsv` | the run's true history — `time` · `kind` · `family` · `parents` · `children`, [one row per event](#one-row-per-event) |
+| `profiles.tsv` | family × extant-species copy counts |
+| `genomes.tsv` | every node's gene content, ancestors included — `lineage` · `family` · `copy`, one row per gene copy |
+| `initial_genome.tsv` | the genome the run **started** with, at the start of the root branch — `family` · `copy` |
+| `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | each family's true genealogy, in `genomes/gene_trees/` |
+| `genome_summary.json` | events by kind, families born, surviving and died out, genes per genome, `empty_genomes`, whether the family-size cap bound, the seed |
+| `species_complete.nwk` | the tree the run evolved along, without which the directory cannot be read |
+| `species/species_fates.tsv` | each tip's fate, in the format the species level writes. Only when the tree came from `--from` |
+| `names.tsv` | `node` · `name`, mapping ZOMBI2's `n<id>` back to the labels you supplied. Only when the tree came from `--from` with its own tip labels |
+| `conditioned_on` | the levels this run reads as a driver, one per line. Only when something was conditioned |
+
+From Python: `.genomes` · `.node_genomes` (the genomes), `.family_counts(node)` ·
+`.has_family(node, name)` (a node's genome as `family → copies`, and whether a named family has a
+copy there), `.gene_trees[f].origination` (when a family was founded — where its gene tree's root
+branch begins), the driver views `.presence(name)` · `.completion(name)`, and `.gene_trees` ·
+`.profiles` · `.initial_genome` · `.events` · `.seed`, the same objects the files hold before
+`.write()` puts them on disk.
+
+**`genomes.tsv`** — `copy` is the identifier the event log uses, so a gene can be traced back to the
+event that made it. `profiles.tsv` is the same information counted, for the extant tips only.
+
+**`initial_genome.tsv`** — it has no `lineage` column because it is no node's genome: every node
+sits at the *end* of its branch.
+
+**`gene_tree_fam<f>_*.nwk`** — leaves are `n<species>_g<copy>`; internal nodes are labelled
+`<event>_n<species>` (`duplication_n45`, `transfer_n45`), naming the event that ended that gene and
+the branch it was on. A family with no surviving copy writes no `_extant` file.
+
+**`species_complete.nwk`** — every other file here is indexed by its node labels, so the directory is
+not readable, by anyone or by `genomes.read_run()`, without it. `result.write()` writes it by
+default, so a directory written from Python stands alone; `zombi2 genomes` leaves it out — except
+under `--stream`, which is family-only — because a run already keeps one copy at
+`species/species_complete.nwk`, shared by every level.
+
+**`names.tsv`** — the join from every other output back to your taxa.
+
+**`conditioned_on`** — written whether the driver was read for a rate or for `transfer_to`.
+Re-running a driver level then refuses rather than leaving this run stale, unless you pass `--force`.
+
+**`.genomes` and `.node_genomes`** — `.genomes` is the observed dataset, the genome at each *extant*
+tip, keyed by the tip name the tree writes (`n5`), so it joins to the tree and to a trait grown on the
+same tree. `.node_genomes` is the run's own record, every node, extant and extinct and internal
+alike, keyed by node id, for joining against `.complete_tree.nodes` or the event log. The pair is the
+same at every resolution, and the distinction is the model's: one is what a dataset contains, the
+other is what happened.
+
+**`.presence(name)` and `.completion(name)`** — a named family's presence (`present` / `absent`) and
+a declared module's completion (a fraction) along every lineage, for use as a driver (Ch9). Read off
+the families' gene trees, so they change *inside* a branch; the **ordered** resolution gives the same
+two.
 
 ### One row per event
 
@@ -116,9 +172,6 @@ arrived.
 | `loss` | the copy that ends | — |
 | `transfer_additive` | the donor's copy | the continuation on the donor branch, then the copy that arrived |
 | `transfer_replacing` | the donor's copy, then the copy it overwrote | the same two |
-| The genomes | `.genomes` · `.node_genomes` | dict | Python | **`.genomes` is the observed dataset** — the genome at each *extant* tip, keyed by the tip name the tree writes (`n5`), so it joins to the tree and to a trait grown on the same tree. **`.node_genomes` is the run's own record** — every node, extant and extinct and internal alike, keyed by node id, for joining against `.complete_tree.nodes` or the event log. The pair is the same at every resolution, and the distinction is the model's: one is what a dataset contains, the other is what happened |
-| Multiset views | `.family_counts(node)` · `.has_family(node, name)` | Counter, bool | Python | a node's genome collapsed to `family → copies`, and whether a family named with `family_names=` has a copy there |
-| In memory | `.gene_trees` · `.profiles` · `.initial_genome` · `.events` · `.seed` | — | Python | the same objects the files above hold, before `.write()` puts them on disk |
 
 One row of each kind, from a real run:
 
@@ -152,58 +205,166 @@ trees are built from.
 
 ## Genomes, ordered: `simulate_genomes_ordered`
 
-| Output | File | Format | Default | Contents |
-|-----------|-----------------|-------|-----|------------------------|
-| Event log | `genome_events.tsv` | TSV | yes | the gene genealogy, with the place each event happened. The family resolution's five columns plus five more — `time` · `kind` · `family` · `parents` · `children` · `chromosome` · `start` · `length` · `dest_chromosome` · `dest_position`¹. Kinds and copy names are [the shared ones](#one-row-per-event). Coordinates are in that branch's own genome just before the event, as `gene_order.tsv` numbers it. `dest_position` and `dest_chromosome` are where the material landed, so one row carries both ends of a transfer. A speciation copies a genome whole and leaves all five coordinate cells empty |
-| Rearrangements | `rearrangement_events.tsv` | TSV | yes | every inversion, transposition and translocation — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `dest_chromosome` · `dest_position` · `flipped`¹. They begin and end no gene lineage, so they have no `parents` and `children` and get a file of their own; a segment has no name either, which is why this is the one event log that still puts its branch in a column. `dest_chromosome` is set only by a translocation, and `flipped` by the two events that move a segment, which may land inverted. The `events` token writes this file and the log above together |
-| Profiles | `profiles.tsv` | TSV | yes | family × extant-species copy counts |
-| Gene order | `gene_order.tsv` | TSV | yes | signed gene order of every node, ancestors included — `lineage` · `chromosome` · `topology` · `position` · `strand` · `family` · `copy`. `topology` is `circular` or `linear`, written beside every gene: it decides where a segmental event stops and which chromosomes may fuse. A chromosome with no genes has no rows here, and so no topology |
-| Initial genome | `initial_genome.tsv` | TSV | yes | the genome the run **started** with, at the start of the root branch — `chromosome` · `topology` · `position` · `strand` · `family` · `copy`. No `lineage` column, for the reason given at the family resolution |
-| Conditioning | `conditioned_on` | text | conditioned | as at the family resolution, and written when a rate or `transfer_to` was conditioned |
-| Tip names | `names.tsv` | TSV | external tree | as at the family resolution |
-| Chromosome events | `chromosome_events.tsv` | TSV | yes | chromosome-network edges — `time` · `kind` · `parents` · `children`, chromosomes named `n<species>_c<id>` on the same pattern as gene copies. Kinds are `initial` (a replicon the run starts with, at time 0), `speciation`, `fission`, `fusion`, `origination` and `loss`; a fusion is the one row with two parents |
-| Summary | `genome_summary.json` | JSON | yes | `events` counted as biology rather than rows (see the family resolution), `families` born/surviving/died_out, genes and chromosomes per genome, and the `rearrangements` and `chromosome_events` by kind |
-| Species tree | `species_complete.nwk` | Newick | yes (Python) | as at the family resolution |
-| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | as at the family resolution — position is orthogonal to genealogy |
-| The genomes | `.genomes` · `.node_genomes` | dict | Python | as at the family resolution, but each genome is a tuple of **`Chromosome`** objects — an `id`, a `topology`, and an ordered list of **`Gene`** objects (`id`, `family`, `strand`) |
-| Gene order | `.gene_order(node)` | list | Python | one node's layout gene by gene — `(chromosome, position, strand, family, gene id)` |
-| In memory | `.rearrangements` · `.chromosome_events` · `.gene_trees` · `.profiles` | — | Python | the rearrangement log, the chromosome network as an edge list, and the gene genealogy, which is derived exactly as at the family resolution |
+| File | What it holds |
+|---|---|
+| `genome_events.tsv` | the gene genealogy, with the place each event happened |
+| `rearrangement_events.tsv` | every inversion, transposition and translocation |
+| `profiles.tsv` | family × extant-species copy counts |
+| `gene_order.tsv` | signed gene order of every node, ancestors included — `lineage` · `chromosome` · `topology` · `position` · `strand` · `family` · `copy` |
+| `chromosome_events.tsv` | chromosome-network edges — `time` · `kind` · `parents` · `children` |
+| `initial_genome.tsv` | the genome the run **started** with — `chromosome` · `topology` · `position` · `strand` · `family` · `copy` |
+| `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | as at the family resolution — position is orthogonal to genealogy |
+| `genome_summary.json` | events as biology rather than rows, families born/surviving/died out, genes and chromosomes per genome, rearrangements and chromosome events by kind |
+| `species_complete.nwk` | as at the family resolution |
+| `names.tsv` | as at the family resolution |
+| `conditioned_on` | as at the family resolution, and written when a rate or `transfer_to` was conditioned |
 
-¹ a segment is named by `start` (its first position, in the chromosome's frame just before the event)
-and `length` (how many genes it covered), counted rightwards from `start` and **wrapping past position
-0 on a circular chromosome** — so `start + length` greater than the chromosome's gene count means the
-segment crossed the origin. `dest_position` is an index into what was left after it was excised. A
-segmental event acts on a run of genes of several families at once and this table has one `family`
-column, so `genome_events.tsv` writes one row per gene lineage, each repeating the same arc.
+From Python: `.genomes` · `.node_genomes` (as at the family resolution, but each genome is a tuple of
+**`Chromosome`** objects — an `id`, a `topology`, and an ordered list of **`Gene`** objects with
+`id`, `family` and `strand`), `.gene_order(node)` (one node's layout gene by gene, as
+`(chromosome, position, strand, family, gene id)`), and `.rearrangements` · `.chromosome_events` ·
+`.gene_trees` · `.profiles` in memory.
+
+**`genome_events.tsv`** — the family resolution's five columns plus five more: `time` · `kind` ·
+`family` · `parents` · `children` · `chromosome` · `start` · `length` · `dest_chromosome` ·
+`dest_position`. Kinds and copy names are [the shared ones](#one-row-per-event). Coordinates are in
+that branch's own genome just before the event, as `gene_order.tsv` numbers it. `dest_position` and
+`dest_chromosome` are where the material landed, so one row carries both ends of a transfer. A
+speciation copies a genome whole and leaves all five coordinate cells empty.
+
+**`rearrangement_events.tsv`** — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` ·
+`dest_chromosome` · `dest_position` · `flipped`. These begin and end no gene lineage, so they have no
+`parents` and `children` and get a file of their own; a segment has no name either, which is why this
+is the one event log that still puts its branch in a column. `dest_chromosome` is set only by a
+translocation, and `flipped` by the two events that move a segment, which may land inverted. The
+`events` token writes this file and the log above together.
+
+**A segment**, in both of those files, is named by `start` (its first position, in the chromosome's
+frame just before the event) and `length` (how many genes it covered), counted rightwards from
+`start` and **wrapping past position 0 on a circular chromosome** — so `start + length` greater than
+the chromosome's gene count means the segment crossed the origin. `dest_position` is an index into
+what was left after it was excised. A segmental event acts on a run of genes of several families at
+once and `genome_events.tsv` has one `family` column, so it writes one row per gene lineage, each
+repeating the same arc.
+
+**`gene_order.tsv`** — `topology` is `circular` or `linear`, written beside every gene: it decides
+where a segmental event stops and which chromosomes may fuse. A chromosome with no genes has no rows
+here, and so no topology.
+
+**`chromosome_events.tsv`** — chromosomes are named `n<species>_c<id>`, on the same pattern as gene
+copies. Kinds are `initial` (a replicon the run starts with, at time 0), `speciation`, `fission`,
+`fusion`, `origination` and `loss`; a fusion is the one row with two parents.
+
+**`initial_genome.tsv`** — no `lineage` column, for the reason given at the family resolution.
+
 
 ## Genomes, nucleotide: `simulate_genomes_nucleotide`
 
 From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...])`.
 
-| Output | File | Format | Default | Contents |
-|-----------|-----------------|-------|-----|------------------------|
-| Event log | `genome_events.tsv` | TSV | yes | **the genealogy, in the format every resolution writes** — the same `time` · `kind` · `family` · `parents` · `children` as at the family resolution, [one row per event](#one-row-per-event). So one reader serves all three resolutions and `zombi2 tools` works here unchanged. `family` is the declared gene (else the recovered root-block), and the copy in each token is a **gene** id — the one the gene trees, alignments and homology tables use. It is derived onto the root-block partition, where a copy either covers a block in full or does not touch it, which is what makes a duplication a bifurcation here. A nucleotide transfer is always additive, so `transfer_replacing` cannot appear |
-| Block events | `block_events.tsv` | TSV | yes | this resolution's own record, with no counterpart elsewhere — `time` · `kind` · `parents` · `children` · `chromosome` · `source` · `start` · `end`. Copy lineages and chromosomes are named as everywhere else. There is **one row per ancestral interval an event touched**, not one row per event, so an event covering several blocks writes several rows sharing a `time` and `kind`, and a duplication starts a child without ending its parent (the parent still covers the rest of its extent). That is why the genealogy above is a separate table: this shape suits sequence and not a gene tree. Kinds are `initial` · `origination` · `insertion` · `duplication` · `deletion` · `loss` · `transfer` · `speciation`, where `initial` is the starting genome laid down at time 0, one row per replicon, and `insertion` / `deletion` are the **indels** — `insertion` is novel spacer on a fresh source, a root like an origination but carrying no gene family, and `deletion` removes material without ending a copy lineage. A last column, `cuts`, gives the **ancestral** breakpoints that event used as `source:position` pairs, semicolon separated: it is what tells an indel breakpoint from an ordinary one, and without it a run with indels could not be read back. A speciation splits one copy lineage into one per daughter without touching sequence, so it writes a single row with both daughters and every coordinate cell empty; a transfer's blocks keep their source coordinates and leave `chromosome` empty. `source`/`start`/`end` are **ancestral** coordinates; the physical ones live in the rearrangement log. This is what `read_nucleotide_genomes` replays |
-| Rearrangements | `rearrangement_events.tsv` | TSV | yes | every inversion, transposition and translocation, in **physical** coordinates along the chromosome as `blocks.tsv` numbers it — `time` · `kind` · `lineage` · `chromosome` · `start` · `length` · `dest_chromosome` · `dest_position` · `flipped`, the same columns the ordered resolution writes with base pairs in place of genes, plus `cuts` — the **ancestral** breakpoints the rearrangement used, which only this resolution can give (the ordered one leaves it blank). No token of its own either: `events` writes all three tables here. They begin and end no lineage, so `parents` and `children` would be empty on every row and they get a file of their own. A nucleotide translocation records no `dest_position`: its blocks keep their source coordinates and the engine places the arc |
-| Blocks | `blocks.tsv` | TSV | yes | , ancestors included — `lineage` · `chromosome` · `position` · `source` · `start` · `end` · `strand` · `copy` · `gene`. The rows of one chromosome tile it end to end from 0. The largest file this level writes: blocks are not kept maximal during a run, so it grows with their number × every node |
-| Summary | `genome_summary.json` | JSON | yes | what came out: `events` counted as *biology* rather than rows (see the ordered table), `block_events` counting this resolution's own log the same way, `genes` (every gene the run holds — those declared at the start and the de-novo ones `origination` added), and base pairs and chromosomes per genome. No phyletic profiles here — the unit is the base pair. **The two counters do not bound each other.** `events` counts gene-tree branchings and `block_events` counts events on the DNA: an arc covering three genes is three gene events, one covering none is zero. A gene is never split, so an event changes gene content only when its arc covers a gene end to end — which is why a run with small extents against big genes reports block events by the dozen and gene events at zero, and warns that it will. `deletions` and `base_pairs_deleted` count the indel log, which is neither of the other two: an indel removes material without ending a copy lineage, so it appears in no event counter. `block_events` also gains a kind `events` has no counterpart for — `insertion` brings sequence rather than a gene family, so the gene-level counters cannot see it |
-| Species tree | `species_complete.nwk` | Newick | yes (Python) | as at the family resolution |
-| Genes | `genes.tsv` | TSV | yes | the declared genes in initial coordinates — `family` · `name` · `source` · `start` · `end` · `strand` (the **coding** strand). Header-only when none were declared |
-| Initial sequence | `initial_sequence.fasta` | FASTA | yes¹ | the initial DNA the run was given (`--fasta`), one `>source<n>` record per replicon. Written only when a FASTA was supplied; it is what lets a separate `zombi2 sequences` run found its blocks from the real sequence |
-| Initial genome | `initial_genome.tsv` | TSV | yes | the genome the run **started** with, at the start of the root branch — `chromosome` · `position` · `source` · `start` · `end` · `strand` · `copy` · `gene`. Its own file, with no `lineage` column, because it belongs to no node: every `lineage` elsewhere is a node, and a node sits at the *end* of its branch |
-| Conditioning | `conditioned_on` | text | conditioned | as at the family resolution: written **only when a rate or `transfer_to` was conditioned** — the levels this run read as a driver, one per line |
-| Tip names | `names.tsv` | TSV | external tree | as at the family resolution |
-| Chromosome events | `chromosome_events.tsv` | TSV | yes | chromosome-network edges — same format and same kinds as ordered |
-| Gene trees | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | Newick | yes | one tree per declared gene (else per recovered root-block), in `gene_trees/` |
-| GFF | `genome_<lineage>.gff` | GFF3 | yes | one file per node, plus `genome_initial.gff` for the genome the run **started** with, in `gff/`: that genome's **genes** in its own coordinates — the annotation to read beside the sequence level's `genome_<lineage>.fasta`, which it names its sequences to match |
-| BED | `genome_<lineage>.bed` | BED | yes | one file per node, plus `genome_initial.bed` for the genome the run **started** with, in `bed/`: that genome's **blocks**, spacer included, each named by the ancestral interval it descends from — the ancestry as a browser track |
-| Driver views | `.presence(name)` · `.completion(name)` | driver | Python | as at the family resolution, over **declared genes**: the name is the GFF's `ID` / `Name`, and what takes a gene away is an arc of DNA rather than a whole copy |
-| Assembly | `.assembly(node)` · `.initial_assembly()` | dict | Python | how a node's genome is built from the recovered root blocks: `(block, gene, strand, lo, hi)` in physical order, `[lo, hi)` being the sub-range of that block the node carries — the whole block unless an indel took a stretch out of it or opened a gap inside it |
-| Indel log | `.deletions` | list | Python | one `Deletion` per indel deletion — `time` · `lineage` · `chromosome` · `deleted`, the last being `(copy, source, start, end)` rows in **ancestral** coordinates, the same payload a loss carries. Kept out of `events` because a deletion ends no copy lineage, so the gene-tree recovery must not read it. Only deletions are here: an **insertion** brings material that descends from nothing, so it must begin a copy lineage and is recorded in `events` as a root of its own kind. Written into `block_events.tsv` under kind `deletion`, which is also how it is read back |
-| The genomes | `.genomes` · `.node_genomes` | dict | Python | as at the other resolutions, each a `NucleotideGenome`: a list of `Chromosome`s, each a list of `Block`s |
-| The root partition | `.root_blocks` · `.block_trees` | list, dict | Python | the maximal never-cut intervals that some node still carries, and a recovered tree for **every** one of them, spacer as well as gene. Cut at every node's breakpoints rather than only the survivors', which is what lets any node's genome be rebuilt |
-| Reading one genome | `.mosaic(node)` · `.trace_back(node)` | dict | Python | the same genome at two coarser grains than `.assembly` above: per block, and per nucleotide |
-| Where a gene sits | `.gene_spans` · `.gene_names` · `.gene_strands` · `.block_of(family)` | dict, int | Python | `{family: (source, start, end)}` in initial coordinates, a named gene's family id and coding strand from a GFF, and the block index a family occupies. That last one is the join between the two numbering schemes here — `.gene_spans` and `.gene_trees` are keyed by family, `.root_blocks` and `.block_trees` by block index, both plain integers, so mixing them up is otherwise silent |
+| File | What it holds |
+|---|---|
+| `genome_events.tsv` | the genealogy, in the format every resolution writes |
+| `block_events.tsv` | this resolution's own record: one row per ancestral interval an event touched |
+| `rearrangement_events.tsv` | inversions, transpositions and translocations, in **physical** coordinates |
+| `chromosome_events.tsv` | chromosome-network edges — same format and same kinds as ordered |
+| `blocks.tsv` | every node's blocks, ancestors included — `lineage` · `chromosome` · `position` · `source` · `start` · `end` · `strand` · `copy` · `gene` |
+| `genes.tsv` | the declared genes in initial coordinates — `family` · `name` · `source` · `start` · `end` · `strand` (the **coding** strand). Header-only when none were declared |
+| `initial_genome.tsv` | the genome the run **started** with — `chromosome` · `position` · `source` · `start` · `end` · `strand` · `copy` · `gene` |
+| `initial_sequence.fasta` | the initial DNA the run was given (`--fasta`), one `>source<n>` record per replicon. Only when a FASTA was supplied |
+| `genome_summary.json` | what came out, counted three separate ways |
+| `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | one tree per declared gene (else per recovered root-block), in `gene_trees/` |
+| `gff/genome_<lineage>.gff` | each node's **genes** in its own coordinates, plus `genome_initial.gff` |
+| `bed/genome_<lineage>.bed` | each node's **blocks**, spacer included, each named by the ancestral interval it descends from |
+| `species_complete.nwk` | as at the family resolution |
+| `names.tsv` | as at the family resolution |
+| `conditioned_on` | as at the family resolution, written only when a rate or `transfer_to` was conditioned |
+
+From Python: `.genomes` · `.node_genomes` (each a `NucleotideGenome`: a list of `Chromosome`s, each a
+list of `Block`s), `.root_blocks` · `.block_trees` (the recovered root partition and a tree for every
+interval), `.assembly(node)` · `.initial_assembly()`, `.mosaic(node)` · `.trace_back(node)`,
+`.deletions` (the indel log), `.gene_spans` · `.gene_names` · `.gene_strands` · `.block_of(family)`,
+and the driver views `.presence(name)` · `.completion(name)`, which here read **declared genes**: the
+name is the GFF's `ID` / `Name`, and what takes a gene away is an arc of DNA rather than a whole copy.
+
+**`genome_events.tsv`** — the same `time` · `kind` · `family` · `parents` · `children` as at the
+family resolution, [one row per event](#one-row-per-event), so one reader serves all three
+resolutions and `zombi2 tools` works here unchanged. `family` is the declared gene (else the
+recovered root-block), and the copy in each token is a **gene** id — the one the gene trees,
+alignments and homology tables use. It is derived onto the root-block partition, where a copy either
+covers a block in full or does not touch it, which is what makes a duplication a bifurcation here. A
+nucleotide transfer is always additive, so `transfer_replacing` cannot appear.
+
+**`block_events.tsv`** — `time` · `kind` · `parents` · `children` · `chromosome` · `source` ·
+`start` · `end` · `cuts`; copy lineages and chromosomes are named as everywhere else. There is one
+row per ancestral interval an event touched, not one row per event, so an event covering several
+blocks writes several rows sharing a `time` and `kind`, and a duplication starts a child without
+ending its parent (the parent still covers the rest of its extent). That is why the genealogy above
+is a separate table: this shape suits sequence and not a gene tree. Kinds are `initial` ·
+`origination` · `insertion` · `duplication` · `deletion` · `loss` · `transfer` · `speciation`, where
+`initial` is the starting genome laid down at time 0, one row per replicon, and `insertion` /
+`deletion` are the **indels** — `insertion` is novel spacer on a fresh source, a root like an
+origination but carrying no gene family, and `deletion` removes material without ending a copy
+lineage. `cuts` gives the **ancestral** breakpoints that event used as `source:position` pairs,
+semicolon separated: it is what tells an indel breakpoint from an ordinary one, and without it a run
+with indels could not be read back. A speciation splits one copy lineage into one per daughter
+without touching sequence, so it writes a single row with both daughters and every coordinate cell
+empty; a transfer's blocks keep their source coordinates and leave `chromosome` empty.
+`source`/`start`/`end` are **ancestral** coordinates; the physical ones live in the rearrangement
+log. This is what `read_nucleotide_genomes` replays.
+
+**`rearrangement_events.tsv`** — the same columns the ordered resolution writes with base pairs in
+place of genes, along the chromosome as `blocks.tsv` numbers it, plus `cuts`, the **ancestral**
+breakpoints the rearrangement used, which only this resolution can give (the ordered one leaves it
+blank). No token of its own either: `events` writes all three tables here. A nucleotide translocation
+records no `dest_position`: its blocks keep their source coordinates and the engine places the arc.
+
+**`blocks.tsv`** — the rows of one chromosome tile it end to end from 0. The largest file this level
+writes: blocks are not kept maximal during a run, so it grows with their number × every node.
+
+**`genome_summary.json`** — `events` counted as *biology* rather than rows (see the ordered section),
+`block_events` counting this resolution's own log the same way, `genes` (every gene the run holds —
+those declared at the start and the de-novo ones `origination` added), and base pairs and chromosomes
+per genome. No phyletic profiles here: the unit is the base pair. **The two counters do not bound each
+other.** `events` counts gene-tree branchings and `block_events` counts events on the DNA: an arc
+covering three genes is three gene events, one covering none is zero. A gene is never split, so an
+event changes gene content only when its arc covers a gene end to end — which is why a run with small
+extents against big genes reports block events by the dozen and gene events at zero, and warns that it
+will. `deletions` and `base_pairs_deleted` count the indel log, which is neither of the other two: an
+indel removes material without ending a copy lineage, so it appears in no event counter.
+`block_events` also gains a kind `events` has no counterpart for — `insertion` brings sequence rather
+than a gene family, so the gene-level counters cannot see it.
+
+**`initial_sequence.fasta`** — what lets a separate `zombi2 sequences` run found its blocks from the
+real sequence.
+
+**`gff/` and `bed/`** — one file per node, plus `genome_initial.gff` / `.bed` for the genome the run
+**started** with. The GFF is the annotation to read beside the sequence level's
+`genome_<lineage>.fasta`, which names its sequences to match; the BED is the ancestry as a browser
+track.
+
+**`.assembly(node)` and `.initial_assembly()`** — how a node's genome is built from the recovered
+root blocks: `(block, gene, strand, lo, hi)` in physical order, `[lo, hi)` being the sub-range of that
+block the node carries — the whole block unless an indel took a stretch out of it or opened a gap
+inside it. `.mosaic(node)` and `.trace_back(node)` are the same genome at two coarser grains, per
+block and per nucleotide.
+
+**`.root_blocks` and `.block_trees`** — the maximal never-cut intervals that some node still carries,
+and a recovered tree for **every** one of them, spacer as well as gene. Cut at every node's
+breakpoints rather than only the survivors', which is what lets any node's genome be rebuilt.
+
+**`.deletions`** — one `Deletion` per indel deletion: `time` · `lineage` · `chromosome` · `deleted`,
+the last being `(copy, source, start, end)` rows in **ancestral** coordinates, the same payload a loss
+carries. Kept out of `events` because a deletion ends no copy lineage, so the gene-tree recovery must
+not read it. Only deletions are here: an **insertion** brings material that descends from nothing, so
+it must begin a copy lineage and is recorded in `events` as a root of its own kind. Written into
+`block_events.tsv` under kind `deletion`, which is also how it is read back.
+
+**`.gene_spans` and `.block_of(family)`** — `{family: (source, start, end)}` in initial coordinates, a
+named gene's family id and coding strand from a GFF, and the block index a family occupies. That last
+one is the join between the two numbering schemes here: `.gene_spans` and `.gene_trees` are keyed by
+family, `.root_blocks` and `.block_trees` by block index, both plain integers, so mixing them up is
+otherwise silent.
 
 Three event files, because a nucleotide run records three different things: the genealogy in the one
 format every resolution writes, the interval record only this resolution has, and what moved without
@@ -227,21 +388,59 @@ family** (`<f>` = family number); a family with no surviving copy writes none. E
 `n<species>_g<copy>`, so a phylogram's tips pair with its alignment and its internal nodes with the
 ancestral sequences.
 
-| Output | File | Format | Default | Contents |
-|-----------|-----------------|-------|-----|------------------------|
-| Alignments | `fam<f>.fasta` | FASTA | yes | one row per extant gene copy — nucleotides or amino acids, following the model. They go in `alignments/`, which is what lets the name be this short |
-| Phylograms | `phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the gene tree each family's sequences were drawn along, in `phylograms/`. Under `+Γ`/`+I` the branch length is the **mean** over sites, which is what the rate classes are normalised to. Under a per-clade model set (`Models`) the lengths still mean substitutions per site — every model is normalised to one per unit length — but that normalisation holds at stationarity, so on a branch whose composition is still relaxing toward its clade's frequencies the realised count falls a little short of the length written here |
-| Ancestral | `sequences_ancestral_fam<f>.fasta` | FASTA | no | : internal nodes, and the tips where a copy was lost or its species died. One per family, so they go in `ancestral/` |
-| Founding | `sequences_founding.fasta` | FASTA | no | one record `fam<f>` per family — the sequence it originated with, where its phylogram's root branch begins |
-| Clock species tree | `clock_species_tree_complete.nwk` · `…_extant.nwk` | Newick (subs/site) | yes | the species tree with its branches in substitutions/site — the molecular clock made visible. The mean over sites under `+Γ`/`+I`, as for the phylograms. A driven substitution rate shows here too: a branch is the rate times the driver integrated along it, so this is where you read what the trait did |
-| Conditioning | `conditioned_on` | text | conditioned | written **only when the substitution rate was conditioned**: the levels this run read as a driver (one per line, e.g. `traits`). It records the dependency so re-running the trait refuses to leave this run silently stale, or clears it under `--force`. A run with no driven rate writes no such file |
-| Genomes | `genome_<lineage>.fasta` | FASTA | yes | one file per **node** of the complete tree — extant, extinct and ancestral alike — one record `<lineage>_chr<c>` per chromosome: the assembled genome, its blocks concatenated in physical order, in `genomes/`. **Nucleotide genome runs only**: a family or ordered run has gene families, not coordinates, so there is nothing to lay out, and no `genomes/` is created. The biggest thing this level writes — a whole genome times every node |
-| Initial genome | `genome_initial.fasta` | FASTA | yes | the genome the run **started** with, as sequence — the state the stem leads *from*, which is not any node's. In `genomes/` with the rest, being a whole-genome FASTA like they are. Nucleotide runs only |
-| Driver views | `.gc()` · `.composition(letters)` | driver | Python | the share of a lineage's sequence that is those letters, pooled over all its families, for use as a driver (Ch9) — GC content, or any amino-acid frequency. A number, so it takes a `Curve` or a `Scalar`; it drives a trait or a further sequence run, never the genome its gene trees came from |
-| Summary | `sequences_summary.json` | JSON | yes | what came out — `unit` (`family` or `block`), families with sequences, how many sequences, sites min/max, `mean_pairwise_identity` (the saturation check the command warns on — every within-family pair, so it is the same number whether the run was held in memory or streamed), assembled genomes, and the seed |
-| The sequences | `.alignments` · `.ancestral` | dict | Python | **`.alignments` is the observable data** — for each family, the sequence at every *extant* gene copy, the alignment a phylogenetic method would be handed. **`.ancestral` is every node the alignment leaves out** — internal nodes, and the tips where a copy was lost or its species died. The run wrote a sequence at each node as it went, so these are the exact ancestors, not estimates. Together they account for every node of the tree exactly once |
-| Assembled genomes | `.genomes` · `.node_genomes` · `.initial_genome` | dict | Python | each extant tip's whole genome, the same for every node, and the run's starting point. Present only when the run came from a **nucleotide** genome |
-| In memory | `.founding` · `.phylograms` · `.species_phylogram` | dict | Python | each family's founding sequence, its gene tree rescaled into substitutions per site, and the same conversion applied to the species tree |
+| File | What it holds |
+|---|---|
+| `fam<f>.fasta` | one row per extant gene copy — nucleotides or amino acids, following the model, in `alignments/` |
+| `phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | the gene tree each family's sequences were drawn along, in substitutions per site, in `phylograms/` |
+| `clock_species_tree_complete.nwk` · `…_extant.nwk` | the species tree with its branches in substitutions per site — the molecular clock made visible |
+| `sequences_ancestral_fam<f>.fasta` | the nodes the alignment leaves out, one file per family in `ancestral/`. Only when you name its token |
+| `sequences_founding.fasta` | one record `fam<f>` per family — the sequence it originated with. Only when you name its token |
+| `genome_<lineage>.fasta` | one file per node of the complete tree, one record `<lineage>_chr<c>` per chromosome, in `genomes/`. Nucleotide genome runs only |
+| `genome_initial.fasta` | the genome the run **started** with, as sequence. Nucleotide runs only |
+| `sequences_summary.json` | `unit` (`family` or `block`), families with sequences, how many, sites min/max, `mean_pairwise_identity`, assembled genomes, the seed |
+| `conditioned_on` | the levels this run read as a driver. Only when the substitution rate was conditioned |
+
+From Python: `.alignments` · `.ancestral` (the sequences), `.genomes` · `.node_genomes` ·
+`.initial_genome` (the assembled genomes, present only when the run came from a **nucleotide**
+genome), `.founding` · `.phylograms` · `.species_phylogram`, and the driver views `.gc()` ·
+`.composition(letters)`.
+
+**`phylogram_fam<f>_*.nwk`** — under `+Γ`/`+I` the branch length is the **mean** over sites, which is
+what the rate classes are normalised to. Under a per-clade model set (`Models`) the lengths still mean
+substitutions per site — every model is normalised to one per unit length — but that normalisation
+holds at stationarity, so on a branch whose composition is still relaxing toward its clade's
+frequencies the realised count falls a little short of the length written here.
+
+**`clock_species_tree_*.nwk`** — the mean over sites under `+Γ`/`+I`, as for the phylograms. A driven
+substitution rate shows here too: a branch is the rate times the driver integrated along it, so this
+is where you read what the trait did.
+
+**`sequences_ancestral_fam<f>.fasta`** — internal nodes, and the tips where a copy was lost or its
+species died.
+
+**`genome_<lineage>.fasta`** — the assembled genome, its blocks concatenated in physical order, for
+every node, extant, extinct and ancestral alike. A family or ordered run has gene families, not
+coordinates, so there is nothing to lay out and no `genomes/` is created. The biggest thing this level
+writes — a whole genome times every node. `genome_initial.fasta` is the state the stem leads *from*,
+which is no node's.
+
+**`conditioned_on`** — one level per line (`traits`, say). It records the dependency so re-running the
+trait refuses to leave this run silently stale, or clears it under `--force`. A run with no driven
+rate writes no such file.
+
+**`sequences_summary.json`** — `mean_pairwise_identity` is the saturation check the command warns on:
+every within-family pair, so it is the same number whether the run was held in memory or streamed.
+
+**`.alignments` and `.ancestral`** — `.alignments` is the observable data, for each family the
+sequence at every *extant* gene copy, the alignment a phylogenetic method would be handed;
+`.ancestral` is every node the alignment leaves out. The run wrote a sequence at each node as it went,
+so these are the exact ancestors, not estimates, and together they account for every node of the tree
+exactly once.
+
+**`.gc()` and `.composition(letters)`** — the share of a lineage's sequence that is those letters,
+pooled over all its families, for use as a driver (Ch9): GC content, or any amino-acid frequency. A
+number, so it takes a `Curve` or a `Scalar`; it drives a trait or a further sequence run, never the
+genome its gene trees came from.
 
 On a **nucleotide** genome run every block evolves, spacer as well as gene, so a genome of *b* blocks
 writes *b* alignments and *b* phylograms — that is what makes the genomes assemblable. The number in
@@ -257,15 +456,24 @@ A joint run grows two levels at once, so it writes both, each in the format its 
 give it: the species files, and then the driver's — the trait's or the genomes'. Its own output is one
 file: `joint_summary.json`, at the run root beside the run report.
 
-| Output | File | Format | Default | Contents |
-|-----------|-----------------|-------|-----|------------------------|
-| Species tree | `species/species_complete.nwk` · `…_extant.nwk` · `species_events.tsv` · `species_fates.tsv` · `species_summary.json` | Newick, TSV, JSON | yes | the grown tree — complete, so the extinct lineages whose fate the driver decided are kept |
-| The trait it grew | `traits/trait_values.tsv` · `trait_events.tsv` · `trait_tree.nwk` · `trait_summary.json` | TSV, Newick, JSON | yes¹ | as the traits level writes them |
-| The genomes it grew | `genomes/genome_events.tsv` · `profiles.tsv` · `genomes.tsv` · `initial_genome.tsv` · `gene_trees/` · `genome_summary.json` · `species_complete.nwk` | TSV, Newick, JSON | yes¹ | as the genomes level writes them — including the species tree, which a joint run grew and so keeps here as well as under `species/` |
-| Summary | `joint_summary.json` | JSON | yes | both levels' summaries in one file — `seed` · `driver` (`trait` / `genome`) · `species`, whose realised rates are what the driver did · one of `trait` / `genome`, the driver's own. It sits at the **run root** as well as under each level, because neither level was grown first. The same payloads the two levels write alone, so there is nothing new to read |
-| Run log | `species/joint.log` | TSV | yes | the resolved parameters, as every command writes |
+| File | What it holds |
+|---|---|
+| `species/species_complete.nwk` · `…_extant.nwk` · `species_events.tsv` · `species_fates.tsv` · `species_summary.json` | the grown tree — complete, so the extinct lineages whose fate the driver decided are kept |
+| `traits/trait_values.tsv` · `trait_events.tsv` · `trait_tree.nwk` · `trait_summary.json` | as the traits level writes them, when the trait was the driver |
+| `genomes/genome_events.tsv` · `profiles.tsv` · `genomes.tsv` · `initial_genome.tsv` · `gene_trees/` · `genome_summary.json` · `species_complete.nwk` | as the genomes level writes them, when the genome was the driver |
+| `joint_summary.json` | both levels' summaries in one file, at the **run root** as well as under each level |
+| `species/joint.log` | the resolved parameters, as every command writes |
 
-¹ whichever driver the run used — one per run, never both.
+One driver per run, never both, so a run writes the trait files or the genome files, not each.
+
+**`joint_summary.json`** — `seed` · `driver` (`trait` / `genome`) · `species`, whose realised rates
+are what the driver did · one of `trait` / `genome`, the driver's own. It sits at the run root because
+neither level was grown first. The same payloads the two levels write alone, so there is nothing new
+to read.
+
+**The genome files** include the species tree, which a joint run grew and so keeps here as well as
+under `species/`.
+
 
 ## Traits: `simulate_continuous` / `simulate_discrete`
 
@@ -273,16 +481,47 @@ file: `joint_summary.json`, at the run root beside the run report.
 run can hold several traits and one can drive another (Ch9). `--name` and `--flat` are refused
 together.
 
-| Output | File | Format | Default | Contents |
-|-----------|-----------------|-------|-----|------------------------|
-| Values | `trait_values.tsv` | TSV | yes | value at every node (tips, extinct, internal) — `node` · `kind` · `trait`, where `kind` is the tip's fate (`extant` / `extinct` / `unsampled`) or `ancestor`, so `kind == "extant"` isolates the observed tips |
-| Events | `trait_events.tsv` | TSV | yes (CLI, discrete) | the trait's whole history — an `initial` row giving the state at t=0, then every switch: `time` · `kind` · `lineage` · `from` · `to`, where `kind` is `initial` · `on_branch` · `on_speciation`. The one event log whose payload is a **state change** rather than a birth and a death, so it keeps its `lineage` and has no `parents` / `children`. Times are full precision (they drive a conditioned run's Gillespie). **This is also the driver file**: a genome, sequence or trait run drives a rate with `scaled_by("trait_events.tsv", …)`, replaying it against the shared tree. A continuous trait carries only the `initial` row and any `at_speciation` jumps (a diffusion can't be rebuilt from events), and that holds for a multi-optimum (`regimes=`) run and a **correlated** multi-trait one alike. A correlated run **widens** the table instead of repeating a row per trait — `from:<trait>` · `to:<trait>`, one pair apiece, exactly as `trait_values.tsv` widens — because a correlated jump moves every trait at once and is one event |
-| Trait tree | `trait_tree.nwk` | Newick | yes (CLI) | tree with every node annotated `[&trait=…]` (opens in FigTree / iTOL). `zombi2 traits` writes it by default; the Python `TraitsResult.write` default is `("values",)` alone |
-| Summary | `trait_summary.json` | JSON | yes (CLI) | what came out, not what was asked for — `tips` · `nodes` · `events` (the `on_branch` and `on_speciation` counts), then `states` · `most_common_share` for a discrete trait, or `values` (min/mean/max) · `value_at_root_node` for a continuous one. The root node sits at the end of the stem, so that value is not the one the run started from |
-| Conditioning | `conditioned_on` | text | conditioned | the levels this run reads as a driver, one per line, in the trait's own directory — a trait driven by a trait grown first records `traits` (Ch9). Written only when `--rate` or `--switch` was conditioned. Both sides sit under `traits/`, so the record is kept but re-running the driver trait does not invalidate this run |
-| Tip names | `names.tsv` | TSV | external tree | `node` · `name`, mapping ZOMBI2's `n<id>` back to the labels you supplied. Written only when the tree came from `--from` with its own tip labels; it is the join from every other output back to your taxa |
-| The values | `.values` · `.node_values` | dict | Python | **`.values` is the observable vector** — the trait at each *extant tip*, keyed by tip name (`n5`), the same names the Newick and `trait_values.tsv` use, so the dataset joins the tree it came from. **`.node_values` is every node**, extant, extinct and internal alike: the true ancestors at each split, from the same process that produced the tips. `.values_by_id` is `.values` keyed by bare node id, for joining against `.node_values`. Discrete traits store the state labels you gave, not integer indices |
-| Character map | `.history` | dict | Python | for a **discrete** trait, the per-branch stochastic character map derived from the event log: the ordered `(state, duration)` segments each branch passed through. `None` for a continuous trait, which has no map, and for a threshold trait, whose liability crossings are un-timed |
+| File | What it holds |
+|---|---|
+| `trait_values.tsv` | the value at every node — `node` · `kind` · `trait`, where `kind` is the tip's fate (`extant` / `extinct` / `unsampled`) or `ancestor` |
+| `trait_events.tsv` | the trait's whole history: an `initial` row giving the state at t=0, then every switch |
+| `trait_tree.nwk` | the tree with every node annotated `[&trait=…]`, for FigTree or iTOL |
+| `trait_summary.json` | `tips` · `nodes` · `events`, then `states` · `most_common_share` for a discrete trait, or `values` (min/mean/max) · `value_at_root_node` for a continuous one |
+| `names.tsv` | as at the genome level. Only when the tree came from `--from` with its own tip labels |
+| `conditioned_on` | the levels this run reads as a driver, in the trait's own directory. Only when `--rate` or `--switch` was conditioned |
+
+`zombi2 traits` writes the values, the events, the tree and the summary; the Python
+`TraitsResult.write` default is `("values",)` alone, and a continuous trait has no switches to write.
+
+From Python: `.values` · `.node_values` (the values), `.values_by_id` (`.values` keyed by bare node
+id, for joining against `.node_values`), and `.history`.
+
+**`trait_events.tsv`** — `time` · `kind` · `lineage` · `from` · `to`, where `kind` is `initial` ·
+`on_branch` · `on_speciation`. The one event log whose payload is a **state change** rather than a
+birth and a death, so it keeps its `lineage` and has no `parents` / `children`. Times are full
+precision, since they drive a conditioned run's Gillespie. **This is also the driver file**: a genome,
+sequence or trait run drives a rate with `scaled_by("trait_events.tsv", …)`, replaying it against the
+shared tree. A continuous trait carries only the `initial` row and any `at_speciation` jumps (a
+diffusion cannot be rebuilt from events), and that holds for a multi-optimum (`regimes=`) run and a
+**correlated** multi-trait one alike. A correlated run **widens** the table instead of repeating a row
+per trait — `from:<trait>` · `to:<trait>`, one pair apiece, exactly as `trait_values.tsv` widens —
+because a correlated jump moves every trait at once and is one event.
+
+**`trait_summary.json`** — what came out, not what was asked for. The root node sits at the end of the
+stem, so `value_at_root_node` is not the value the run started from.
+
+**`conditioned_on`** — a trait driven by a trait grown first records `traits` (Ch9). Both sides sit
+under `traits/`, so the record is kept but re-running the driver trait does not invalidate this run.
+
+**`.values` and `.node_values`** — `.values` is the observable vector, the trait at each *extant* tip,
+keyed by tip name (`n5`), the same names the Newick and `trait_values.tsv` use, so the dataset joins
+the tree it came from. `.node_values` is every node, extant, extinct and internal alike: the true
+ancestors at each split, from the same process that produced the tips. Discrete traits store the state
+labels you gave, not integer indices.
+
+**`.history`** — for a **discrete** trait, the per-branch stochastic character map derived from the
+event log: the ordered `(state, duration)` segments each branch passed through. `None` for a
+continuous trait, which has no map, and for a threshold trait, whose liability crossings are un-timed.
 
 ## Conditioning and joining: no new files
 
