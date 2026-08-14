@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.39.3] - 2026-08-14
+
 ### Changed
 
 - Chapter 7's clock table joins chapters 3 and 8: the column that spelled each call out is the
