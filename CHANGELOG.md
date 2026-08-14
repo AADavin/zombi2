@@ -13,8 +13,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 - A gallery example draws the whole karyotype of every survivor beside the tree that produced them,
   with each fission and fusion marked on the branch it happened on and the three chromosomes the run
-  started from drawn above the stem. It needs Phylustrator 0.2.4, whose circular `arrange="row"`
+  started from drawn above the stem. It needs Phylustrator 0.2.6, whose circular `arrange="row"`
   draws a genome's chromosomes side by side rather than as nested rings. (#353)
+- A gallery example for gene content driving speciation, the joint model that is not about a trait:
+  a family whose loss runs at twice its origination still reaches 83% of the tips, because the
+  lineages carrying it split five times as often. (#347)
+- A gene family can be placed at a chosen point of the tree: `origins=[("n5", 0.4)]` on the family
+  and ordered resolutions originates a family on that branch at that time, instead of leaving where
+  families arise to the `origination` rate. It adds to the run rather than replacing part of it, so
+  it sits beside `initial_families` and `origination`, and the same origins name the same families
+  at either resolution. (#344)
 
 ### Changed
 
@@ -33,20 +41,6 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 - Reaching for `traits.continuous(...)`, the continuous twin of `traits.discrete(...)`, refuses with
   a sentence saying continuous trait-driven speciation is unavailable and what to write instead. It
   used to resolve to the module of that name and fail with `'module' object is not callable`. (#345)
-
-### Added
-
-- A gallery example for gene content driving speciation, the joint model that is not about a trait:
-  a family whose loss runs at twice its origination still reaches 83% of the tips, because the
-  lineages carrying it split five times as often. (#347)
-
-### Added
-
-- A gene family can be placed at a chosen point of the tree: `origins=[("n5", 0.4)]` on the family
-  and ordered resolutions originates a family on that branch at that time, instead of leaving where
-  families arise to the `origination` rate. It adds to the run rather than replacing part of it, so
-  it sits beside `initial_families` and `origination`, and the same origins name the same families
-  at either resolution. (#344)
 
 ## [0.36.0] - 2026-08-12
 
