@@ -66,6 +66,23 @@ CONDITIONING_ORDER = [
 #: The genome section runs in the order the book does: chapter 4's family resolution, then chapter
 #: 5's ordered one, then chapter 6's nucleotide one. It used to open with chapter 5's rings, which is
 #: the prettiest picture and the wrong place to start reading.
+SPECIES_ORDER = [
+    "basic", "extinct",                     # ch3, the birth-death process
+    "rateshift", "diversity",               # ch3, rates that vary
+    "massext",                              # ch3, other models
+    "shape",                                # ch3, a study over many trees
+]
+
+#: Chapter 7 chooses the model first, then how fast it runs. The section led with the four clocks,
+#: which is the chapter's fifth section.
+SEQUENCE_ORDER = [
+    "seq_alignment",                        # ch7, what a run produces
+    "clade_own_model",                      # ch7, the substitution models
+    "clock_ucln", "clock_ugam", "clock_autocorrelated", "clock_discrete_bin",   # ch7, the clocks
+    "seq_ancestral",                        # ch7, what a run gives back
+    "seq_indels",                           # ch7, running on a nucleotide genome
+]
+
 GENOME_ORDER = [
     "genome_tree_events", "genome_tree_profiles", "genome_transfer_highway",     # ch4, family
     "genome_pangenome_by_family", "genome_clade_transition",
@@ -92,14 +109,14 @@ LEVELS = [
     ("species", "Species trees",
      "Forward birth-death trees. The run keeps the whole history, survivors and extinctions, "
      "and the diversification model shows on the tree.",
-     species.EXAMPLES),
+     _ordered(species.EXAMPLES, SPECIES_ORDER)),
     ("genomes", "Genomes",
      "Genes on chromosomes. A genome draws as a ring, and two genomes show their synteny. "
      "Gene-family events and copy number read against the species tree.",
      _ordered(genomes.EXAMPLES, GENOME_ORDER)),
     ("sequences", "Sequences",
      "The dated tree the sequences evolve down, and an alignment lined up row-for-row with its tips.",
-     sequences.EXAMPLES),
+     _ordered(sequences.EXAMPLES, SEQUENCE_ORDER)),
     ("traits", "Traits",
      "A trait evolving down the tree. Branches take the colour of its value. Some examples add "
      "a companion panel.",
@@ -240,7 +257,8 @@ summary.level-head::after{content:"";flex:none;align-self:center;width:9px;heigh
 figcaption{padding:16px 17px 17px;display:flex;flex-direction:column;gap:6px}
 figcaption h3{margin:0;font-size:1.03rem;font-weight:640;letter-spacing:-.01em}
 figcaption p{margin:0;color:var(--muted);font-size:.88rem;line-height:1.5}
-.num{display:inline-block;min-width:2.6em;color:var(--accent);font:600 .78rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em;vertical-align:.08em}
+.num{color:var(--accent);font:600 .78rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em;vertical-align:.08em}
+.num::after{content:'·';margin:0 .5em;color:var(--faint);font-weight:400}
 .version{font:500 .5em/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--faint);vertical-align:.5em;letter-spacing:.02em}
 .tag{margin-top:4px;font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em;color:var(--accent-ink)}
 footer{margin-top:64px;padding-top:22px;border-top:1px solid var(--line);color:var(--faint);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
@@ -349,7 +367,7 @@ _JS = """<script>
   function open(c){
     var id=c.getAttribute("data-id"), meta=EX[id]||{}, img=c.querySelector("img");
     dImg.src=img.src; dImg.alt=img.alt;
-    dTag.innerHTML=meta.tag||""; dTitle.textContent=(meta.num?meta.num+"  ":"")+(meta.title||img.alt);
+    dTag.innerHTML=meta.tag||""; dTitle.textContent=(meta.num?meta.num+" · ":"")+(meta.title||img.alt);
     dCap.innerHTML=meta.caption||""; dCode.innerHTML=hl(meta.code||"");
     dCopy.textContent="copy";
     det.classList.add("open"); det.setAttribute("aria-hidden","false"); det.scrollTop=0;
