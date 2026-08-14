@@ -109,10 +109,11 @@ zombi2 genomes out/ --loss "PerCopy(0.25).scaled_by('out/traits/trait_events.tsv
 
 ## Joining
 
-**[Joining](https://aadavin.github.io/zombi2/docs/guide/joining/)** is what to reach for when neither
-level can be grown first, because each drives the other: one run grows both. A trait
-that speeds up speciation is the standard case: the tree shapes the trait's history and the trait
-shapes the tree, so the tree is an *output* of the joint run rather than an input to it.
+**[Joining](https://aadavin.github.io/zombi2/docs/guide/joining/)** is how ZOMBI2 simulates two
+levels **at the same time**, for the scenarios where neither can be grown first because each shapes
+the other. A trait that speeds up speciation is the standard case: lineages carrying it split more
+often, so the trait decides the shape of the tree while the tree decides where the trait can go. One
+run grows both, and the tree comes out as a result rather than going in as an input.
 
 <p align="center">
   <img alt="Joining, drawn as conditioning is: body size on the left, the speciation rate on the right, and two arrows between them — one carrying the multiplier each state hands over, one running back, because the tree that rate builds is the tree body size evolves along" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/joining.svg" width="760">
@@ -153,3 +154,13 @@ A dedicated ZOMBI2 paper is in preparation. Until then, cite the original
 ## License
 
 ZOMBI2 is released under the [MIT License](LICENSE).
+
+## Maintainer, and contributing
+
+ZOMBI2 is maintained and supervised by **Adrián Arellano Davín**.
+
+Contributions are welcome, from humans and from agents alike — a bug report, a model you wish it
+could express, a fix, a worked example for the gallery. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md), and open an
+[issue](https://github.com/AADavin/zombi2/issues) or a
+[pull request](https://github.com/AADavin/zombi2/pulls).

@@ -21,7 +21,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   and a rate scoped to a clade and a time is not one level reading another. (#367)
 - The README's title is the wordmark with a teal Z, and no icon beside it; its conditioning
   section leads with what conditioning is for — a trait that controls a loss rate — and counts the
-  three parts, not four. (#367)
+  three parts, not four; its joining section leads with simulating two levels at the same time; and
+  it names its maintainer and says contributions are welcome, from humans and agents alike. (#367)
 - A ClaSSE example in the gallery: the trait drives how fast a lineage splits, and the split is
   where the trait changes. Chapter 10's Literature table cites the gallery like the others now that
   every model it names has a card. (#367)
