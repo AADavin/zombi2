@@ -95,7 +95,7 @@ def test_a_genes_own_sequence_is_in_the_genome_it_sits_in():
     for leaf in (genomes.complete_tree.nodes[_i] for _i in genomes.complete_tree.extant_leaves()):
         genome = r.node_genomes[node_label(leaf.id)]
         for cid, pieces in genomes.assembly(leaf.id).items():
-            for (block, gene, _strand) in pieces:
+            for (block, gene, _strand, _lo, _hi) in pieces:
                 if block not in genic:
                     continue
                 seq = r.alignments[block][copy_label(leaf.id, gene)]
@@ -552,3 +552,189 @@ def test_the_spacer_keeps_its_own_model_when_the_genes_get_rate_variation():
     for i, (_src, a, b) in enumerate(genomes.root_blocks):
         assert len(result.founding[i]) == b - a             # every block still its own length in bp
     assert result.node_genomes and all(chroms for chroms in result.node_genomes.values())
+
+
+def test_an_indel_genome_assembles_to_exactly_the_length_the_genome_level_says():
+    """The join the whole indel design exists for: a lineage carries only PART of a root block, so
+    every piece carries the sub-range it holds and the sequence level slices rather than concatenates
+    whole blocks. If that is off by a base anywhere, a chromosome comes out the wrong length."""
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=4)
+    g = simulate_genomes_nucleotide(
+        sp, deletion=40.0, insertion=40.0, deletion_extent=5.0, insertion_extent=5.0,
+        inversion=3.0, inversion_extent=80, loss=0.4, loss_extent=40, duplication=0.4,
+        duplication_extent=40, transfer=0.6, transfer_extent=60, origination=0.3,
+        genes=3, gene_length=90, root_length=600, seed=4)
+    assert g.indels > 500, "no indels fired, so this proves nothing"
+    r = simulate_sequences(g, model=hky85(2.0), substitution=0.4, seed=4)
+    labels = g.complete_tree.labels()
+    for nid, genome in g.node_genomes.items():           # every node, ancestors and extinct included
+        assembled = r.node_genomes[labels[nid]]
+        for chrom in genome.chromosomes:
+            assert len(assembled[chrom.id]) == chrom.length
+    assert sum(len(s) for s in r.initial_genome.values()) == g.initial_genome.length
+
+
+def test_an_indel_genome_reads_base_for_base_as_its_ancestry_says():
+    """Stronger than the lengths: every base of every assembled genome must be the base its own
+    block's alignment holds at the position the ancestry points to. Get the sub-range or the strand
+    wrong and the genome is still a genome — this is what catches that."""
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=2)
+    g = simulate_genomes_nucleotide(sp, deletion=30.0, insertion=30.0, deletion_extent=5.0,
+                                    insertion_extent=5.0, inversion=2.0, inversion_extent=60,
+                                    root_length=400, genes=2, gene_length=60, seed=2)
+    assert g.indels > 100
+    r = simulate_sequences(g, model=jc69(), substitution=0.3, seed=2)
+    labels = g.complete_tree.labels()
+    checked = 0
+    for nid in g.node_genomes:
+        label = labels[nid]
+        src = r._raw_rows if label in r.extant_tips else r._raw_ancestral
+        for cid, pieces in g.assembly(nid).items():
+            rebuilt = []
+            for (block, gene, strand, lo, hi) in pieces:
+                seq = src[block][copy_label(nid, gene)][lo:hi]
+                rebuilt.append(seq if strand == 1 else seq.translate(COMPLEMENT)[::-1])
+            assert "".join(rebuilt) == r.node_genomes[label][cid]
+            checked += 1
+    assert checked > 5
+
+
+def test_an_indel_alignment_gaps_what_the_lineage_does_not_carry():
+    """A block is evolved over its whole ancestral extent, so without gapping the alignment hands
+    back bases a lineage deleted — and those rows are what the per-family FASTA is written from."""
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=4)
+    g = simulate_genomes_nucleotide(
+        sp, deletion=40.0, insertion=40.0, deletion_extent=5.0, insertion_extent=5.0,
+        inversion=3.0, inversion_extent=80, loss=0.4, loss_extent=40, duplication=0.4,
+        duplication_extent=40, genes=3, gene_length=90, root_length=600, seed=4)
+    assert g.indels > 500
+    r = simulate_sequences(g, model=hky85(2.0), substitution=0.4, seed=4)
+    labels = g.complete_tree.labels()
+
+    # a true alignment: every row of a block is the same width. That width is the block's own
+    # ancestral span plus the runs inserted into it, which is what makes it a LOCUS rather than a
+    # block — the per-block rows underneath are still exactly the span.
+    for block, rows in r.alignments.items():
+        span = g.root_blocks[block][2] - g.root_blocks[block][1]
+        assert len({len(s) for s in rows.values()}) <= 1
+        assert all(len(s) == r.alignments._columns(block) for s in rows.values())
+        assert all(len(s) == span for s in r._raw_rows[block].values())
+
+    # and the residues in a row are exactly what that lineage carries
+    gapped = 0
+    for nid in g.node_genomes:
+        label = labels[nid]
+        src = r._raw_rows if label in r.extant_tips else r._raw_ancestral
+        want: dict[tuple[int, str], int] = {}   # per-block: the splice is a separate test
+        for pieces in g.assembly(nid).values():
+            for (block, gene, _s, lo, hi) in pieces:
+                key = (block, f"{label}_g{gene}")     # `label`, not n<id>: a died lineage is e<id>
+                want[key] = want.get(key, 0) + (hi - lo)
+        for (block, record), n in want.items():
+            seq = src[block][record]
+            assert len(seq) - seq.count("-") == n
+            gapped += "-" in seq
+    assert gapped > 10, "nothing was gapped, so this proves nothing"
+
+    # the assembled genome is the observable and carries no gap at all
+    for nid, genome in g.node_genomes.items():
+        for chrom in genome.chromosomes:
+            assert "-" not in r.node_genomes[labels[nid]][chrom.id]
+
+
+def test_identity_does_not_count_a_shared_gap_as_a_match():
+    from zombi2.sequences import _identity_counts
+    assert _identity_counts(["ACGT", "ACGT"]) == (4, 4)
+    assert _identity_counts(["AC--", "AC--"]) == (2, 2)        # the gaps count for nothing
+    assert _identity_counts(["ACGT", "AC--"]) == (2, 2)
+
+
+def _spliced_run(**kw):
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=2)
+    params = dict(deletion=30.0, insertion=30.0, deletion_extent=5.0, insertion_extent=6.0,
+                  root_length=1500, genes=4, gene_length=200, seed=2)
+    params.update(kw)
+    g = simulate_genomes_nucleotide(sp, **params)
+    return g, simulate_sequences(g, model=jc69(), divergence=0.3, seed=2)
+
+
+def test_a_blocks_alignment_can_be_read_with_the_insertions_spliced_back_in():
+    # `alignments` holds what evolved: an insertion is its own block, so a gene's alignment shows
+    # every deletion as a gap and no insertion at all. This puts them back as real columns.
+    g, r = _spliced_run()
+    assert r._insertions, "nothing was inserted into a block, so this proves nothing"
+    host = next(iter(r._insertions))
+    runs, _ = r._insertions[host]
+    full = r.alignments[host]
+    width = g.root_blocks[host][2] - g.root_blocks[host][1]
+    assert len({len(v) for v in full.values()}) == 1              # still an alignment
+    assert len(next(iter(full.values()))) == width + sum(r.alignments._columns(b)
+                                                        for _o, b, _w in runs)
+    # a run folded into its host is no longer a locus of its own: its letters are the host's columns
+    assert all(b not in r.alignments for (_o, b, _w) in runs)
+    assert all(b in r.phylograms for (_o, b, _w) in runs)         # but it keeps its own history
+
+
+def test_splicing_leaves_the_blocks_own_columns_untouched():
+    # the host's own positions must come through exactly as they were, or the two views disagree
+    # about what evolved
+    g, r = _spliced_run()
+    for host, (runs, _carried) in r._insertions.items():
+        plain = {**r._raw_rows.get(host, {}), **r._raw_ancestral.get(host, {})}
+        spliced = {**r.alignments._rows(host), **r.ancestral._rows(host)}
+        for record, row in spliced.items():
+            span = r.alignments._columns
+            rest, pos = [], 0
+            for i, (off, b, _w) in enumerate(runs):
+                shift = sum(span(x[1]) for x in runs[:i])
+                rest.append(row[pos:off + shift])
+                pos = off + shift + span(b)
+            rest.append(row[pos:])
+            assert "".join(rest) == plain[record]
+
+
+def test_an_inserted_run_is_a_lineages_own_bases_or_it_is_gaps():
+    # never anything else: a record either carried that run or it did not
+    g, r = _spliced_run()
+    seen_both = [0, 0]
+    for host, (runs, carried) in r._insertions.items():
+        spliced = {**r.alignments._rows(host), **r.ancestral._rows(host)}
+        for record, row in spliced.items():
+            span = r.alignments._columns
+            for i, (off, blk, _w) in enumerate(runs):
+                shift = sum(span(x[1]) for x in runs[:i])
+                w = span(blk)
+                seg = row[off + shift:off + shift + w]
+                mine = carried.get(record, {}).get(blk)
+                inner = {**r.alignments._rows(blk), **r.ancestral._rows(blk)}
+                theirs = None if mine is None else inner.get(mine)
+                assert seg == (theirs if theirs is not None else "-" * w)
+                seen_both[seg == "-" * w] += 1
+    assert all(seen_both), "every run was carried by everyone or no one — the gapping went untested"
+
+
+def test_a_run_inside_a_reversed_host_is_spliced_too():
+    # on a reversed host the pieces come out in descending order, so the two that meet are the left
+    # piece's `lo` and the right piece's `hi`. The offset is the same number: it is ancestral, and an
+    # inversion does not move those.
+    g, r = _spliced_run(inversion=8.0, inversion_extent=200)
+    reversed_hosts = 0
+    labels = g.complete_tree.labels()
+    for nid in g.node_genomes:
+        for pieces in g.assembly(nid).values():
+            for k in range(1, len(pieces) - 1):
+                left, mid, right = pieces[k - 1], pieces[k], pieces[k + 1]
+                if (left[2] == -1 and left[0] == right[0] != mid[0]
+                        and left[3] == right[4] and left[0] in r._insertions):
+                    runs, carried = r._insertions[left[0]]
+                    rec = f"{labels[nid]}_g{left[1]}"
+                    assert mid[0] in carried.get(rec, {}), "a reversed host's run was not spliced"
+                    reversed_hosts += 1
+    assert reversed_hosts, "no run landed inside a reversed host, so this proves nothing"
+
+
+def test_a_block_nothing_was_inserted_into_is_its_own_columns_and_no_more():
+    g, r = _spliced_run(insertion=0.0)
+    assert not r._insertions
+    for block, (src, a, b) in enumerate(g.root_blocks):
+        assert all(len(v) == b - a for v in r.alignments[block].values())
