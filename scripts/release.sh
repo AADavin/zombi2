@@ -100,7 +100,7 @@ if [[ "$BUMP" == "patch" ]] && grep -q '^### Removed' <<<"$UNRELEASED"; then
 fi
 
 echo "ZOMBI2 release  $CURRENT -> $VERSION   (tag $TAG, $DATE)"
-echo "  · set __version__ in zombi2/__init__.py"
+echo "  · set __version__ in zombi2/__init__.py, and the version the landing page shows"
 echo "  · roll CHANGELOG [Unreleased] -> [$VERSION] - $DATE"
 echo "  · commit + tag $TAG + push origin main $TAG"
 echo "  · gh release create $TAG   <-- PUBLISHES to PyPI"
@@ -118,6 +118,21 @@ s = p.read_text()
 new = re.sub(r'^__version__ = ".*"$', f'__version__ = "{v}"', s, count=1, flags=re.M)
 if new == s:
     raise SystemExit("release: could not find the __version__ line in zombi2/__init__.py")
+p.write_text(new)
+PY
+
+# --- 1b. the version the landing page shows ------------------------------------------------------
+# The pill on web/index.html is the first version a visitor sees, and it was maintained by hand: it
+# said v0.32.0 while PyPI served 0.38.0, because nothing here touched it. It is written from the same
+# single source as everything else now.
+"$PY" - "$VERSION" <<'PY'
+import re, sys, pathlib
+v = sys.argv[1]
+p = pathlib.Path("web/index.html")
+s = p.read_text()
+new = re.sub(r'(<span class="pill" data-version>)v[\d.]+(</span>)', rf'\g<1>v{v}\g<2>', s, count=1)
+if new == s:
+    raise SystemExit("release: could not find the data-version pill in web/index.html")
 p.write_text(new)
 PY
 
@@ -148,7 +163,7 @@ PY
 [[ -n "$NOTES" ]] || die "the [Unreleased] section is empty — nothing to release"
 
 # --- 3. commit, tag, push ------------------------------------------------------------------------
-git add zombi2/__init__.py CHANGELOG.md
+git add zombi2/__init__.py CHANGELOG.md web/index.html
 git commit -m "release: bump version to $VERSION"
 git tag -a "$TAG" -m "$TAG"
 git push origin main "$TAG"

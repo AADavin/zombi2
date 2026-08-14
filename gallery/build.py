@@ -48,6 +48,13 @@ PREFIX = {"species": "Sp", "genomes": "Ge", "sequences": "Sq",
 #: interleaves them, so the order is written here rather than left to the order two files happen to
 #: be concatenated in. `_ordered` fails loudly if an example is named twice or not at all, which is
 #: what keeps "every pair is illustrated" a fact rather than a hope.
+#: Chapter 8's order: the continuous menu, then the discrete one, then the two that evolve together.
+TRAITS_ORDER = [
+    "bm", "ou", "early_burst", "regimes",   # ch8, continuous: the diffusion and what is added to it
+    "discrete", "asymmetric",               # ch8, discrete: one rate, then a matrix of them
+    "correlated", "dependent",              # ch8, traits that evolve together
+]
+
 CONDITIONING_ORDER = [
     "genome_reduction", "genome_expansion", "hgt_uptake", "continuous_conditioning", "curve_saturating", "curve_optimum", #  1 a trait -> a gene family
     "climate_inversions",                                          #  2 a trait -> an ordered or nucleotide genome
@@ -120,7 +127,7 @@ LEVELS = [
     ("traits", "Traits",
      "A trait evolving down the tree. Branches take the colour of its value. Some examples add "
      "a companion panel.",
-     traits.EXAMPLES),
+     _ordered(traits.EXAMPLES, TRAITS_ORDER)),
     ("conditioning", "Conditioning",
      "Two runs, in order. The first run grows the driver on the tree and holds it fixed. The "
      "second run reads it. A driver is a trait, a gene family or a whole module. It drives a "

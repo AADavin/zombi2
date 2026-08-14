@@ -65,6 +65,51 @@ def discrete_states(out):
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(out)
 
 
+# --- the rest of chapter 8's continuous menu: the same diffusion with one argument added ---------
+#
+# Each is drawn on the SAME tree and seed as `bm`, so a reader can put any of them beside it and the
+# only difference is the argument named on the card. The chapter introduces them in this order.
+
+
+def early_burst(out):
+    """The diffusion rate itself decays with time, so the spread is made near the root."""
+    ct, tree = _tree()
+    res = simulate_continuous(ct, start=0.0, seed=SEED,
+                              rate=PerLineage(2.0).changing_at({0: 1.0, 4.5: 0.01}))
+    (ph.trees.plot(tree, style=_style())
+     + ph.trees.color_branches(h.node_values(res))
+     + ph.trees.colorbar("trait value  —  early burst: the diffusion rate falls 100-fold at t = 4.5",
+                         width=240, height=16, size=20)
+     + ph.trees.time_marker(4.5, color="#111111")   # unlabelled: the key above names the moment
+     + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(out)
+
+
+def regime_optima(out):
+    """Two clades pulled to two different optima — the OU with a painting, `regimes=`."""
+    ct, tree = _tree()
+    painting = simulate_discrete(ct, states=("upland", "lowland"), switch=0.12,
+                                 start="upland", seed=3)   # 8 switches: few regimes, each large
+    res = simulate_continuous(ct, start=0.0, rate=0.6, regimes=painting,
+                              reverts_to={"upland": -4.0, "lowland": 4.0}, pull=3.0, seed=SEED)
+    (ph.trees.plot(tree, style=_style())
+     + ph.trees.color_branches(h.node_values(res))
+     + ph.trees.colorbar("trait value  —  optima: upland -4, lowland 4, pull 3",
+                         width=240, height=16, size=20)
+     + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(out)
+
+
+def asymmetric_switch(out):
+    """One direction commoner than the other: a state that is easy to gain and hard to lose."""
+    ct, tree = _tree()
+    res = simulate_discrete(ct, states=("absent", "present"), start="absent", seed=7,
+                            switch={"absent->present": 0.35, "present->absent": 0.03})
+    history = {f"n{i}": segs for i, segs in res.history.items()}
+    (ph.trees.plot(tree, style=_style())
+     + ph.trees.color_history(history, palette={"absent": _ABSENT, "present": "#3C8D6E"})
+     + ph.trees.legend("structure")
+     + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(out)
+
+
 def correlated(out):
     ct, _ = _tree()
     res = simulate_continuous(ct, start={"x": 0.0, "y": 0.0}, rate={"x": 1.0, "y": 1.0},
@@ -266,14 +311,89 @@ lab = ct.labels()                                # {id: 'n<id>'}
 # the figure then composites the driver->mapping->target diagram (habitat -> body size) on top'''
 
 
+_C_EARLY_BURST = '''\
+### simulate  —  the diffusion rate falls 100-fold partway down the tree
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_continuous
+from zombi2.params import PerLineage
+
+sp = simulate_species_tree(birth=1.0, n_extant=100, seed=42)
+res = simulate_continuous(sp.complete_tree, start=0.0, seed=42,
+                          rate=PerLineage(2.0).changing_at({0: 1.0, 4.5: 0.01}))
+
+### plot  —  the moment the rate drops, marked
+import phylustrator as ph
+
+tree = ph.trees.loads(sp.complete_tree.to_newick())
+(ph.trees.plot(tree)
+ + ph.trees.color_branches({f"n{i}": v for i, v in res.node_values.items()})
+ + ph.trees.colorbar("trait value", width=240, height=16, size=20)
+ + ph.trees.time_marker(4.5)
+ + ph.trees.time_axis("time")).save("early_burst.png")'''
+
+_C_REGIMES = '''\
+### simulate  —  a discrete trait paints the tree, and each painted clade has its own optimum
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_continuous, simulate_discrete
+
+sp = simulate_species_tree(birth=1.0, n_extant=100, seed=42)
+painting = simulate_discrete(sp.complete_tree, states=("upland", "lowland"),
+                             switch=0.12, start="upland", seed=3)
+res = simulate_continuous(sp.complete_tree, start=0.0, rate=0.6, regimes=painting,
+                          reverts_to={"upland": -4.0, "lowland": 4.0}, pull=3.0, seed=42)
+
+### plot  —  branches coloured by the trait, so the two optima show as blocks
+import phylustrator as ph
+
+tree = ph.trees.loads(sp.complete_tree.to_newick())
+(ph.trees.plot(tree)
+ + ph.trees.color_branches({f"n{i}": v for i, v in res.node_values.items()})
+ + ph.trees.colorbar("trait value", width=240, height=16, size=20)
+ + ph.trees.time_axis("time")).save("regimes.png")'''
+
+_C_ASYMMETRIC = '''\
+### simulate  —  a structure that is easy to gain and hard to lose
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_discrete
+
+sp = simulate_species_tree(birth=1.0, n_extant=100, seed=42)
+res = simulate_discrete(sp.complete_tree, states=("absent", "present"), start="absent", seed=7,
+                        switch={"absent->present": 0.35, "present->absent": 0.03})
+
+### plot  —  each branch painted by the state it was in
+import phylustrator as ph
+
+tree = ph.trees.loads(sp.complete_tree.to_newick())
+(ph.trees.plot(tree)
+ + ph.trees.color_history({f"n{i}": segs for i, segs in res.history.items()},
+                          palette={"absent": "#c2cac8", "present": "#3C8D6E"})
+ + ph.trees.legend("structure")
+ + ph.trees.time_axis("time")).save("asymmetric.png")'''
+
+
 EXAMPLES = [
     Example("bm", "Brownian motion", "Free diffusion — sister lineages drift apart with time.",
             "rate", brownian_motion, code=_C_BM),
     Example("ou", "Ornstein–Uhlenbeck", "Pulled to an optimum: a high start (yellow) converges to blue.",
             "rate · pull · reverts_to", ornstein_uhlenbeck, code=_C_OU),
+    Example("early_burst", "Early burst",
+            "The diffusion rate falls a hundred-fold at <code>t&nbsp;=&nbsp;4.5</code>, so the deep "
+            "clades separate and then every one of them freezes. "
+            "<code>rate&nbsp;=&nbsp;PerLineage(2.0).changing_at({0:&nbsp;1.0,&nbsp;4.5:&nbsp;0.01})</code>.",
+            "rate · changing_at", early_burst, code=_C_EARLY_BURST),
+    Example("regimes", "Two optima, one tree",
+            "A discrete trait paints the tree and each painted clade reverts to its own optimum: "
+            "upland to &minus;4, lowland to 4. <code>regimes=</code> with a "
+            "<code>reverts_to</code> per state.",
+            "regimes · reverts_to", regime_optima, code=_C_REGIMES),
     Example("discrete", "Discrete states",
             "A two-state trait hops between habitats; each branch is painted by its state history.",
             "switch", discrete_states, code=_C_DISCRETE),
+    Example("asymmetric", "Gains and losses at different rates",
+            "One direction commoner than the other, written as a matrix of directed rates: the "
+            "structure is gained ten times more readily than it is lost, so it spreads and only "
+            "rarely goes back.",
+            "switch · directed", asymmetric_switch, code=_C_ASYMMETRIC),
     Example("correlated", "Dependent continuous traits",
             "Two traits evolve together (r&nbsp;=&nbsp;0.9) — two trees, coloured by each trait, and the "
             "tip scatter.",
