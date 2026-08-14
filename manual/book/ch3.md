@@ -23,7 +23,7 @@ You also say when to stop: grow to a fixed **total time** (`total_time`), or to 
 A birth or death rate need not be constant. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**. There are four of them, one panel of the figure apiece, and the Literature table below gives the expression that writes each.
 
 - **On time.** The rates change at set points in time, which is the skyline, or episodic, tree: full rate until a breakpoint, a third of it after. Each entry in the schedule holds from its own time up to the next, and the earliest entry also applies *backwards* to the origin — so a schedule that starts at time 3 runs at that rate for the whole tree, not only after time 3. Start it at 0 whenever you mean "full rate until".
-- **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound.
+- **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound ([Sp5](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:diversity-->).
 - **On the parent's rate.** Each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other.
 - **By lineage.** Each lineage draws its own rate instead, with no memory of its parent. The distribution means a different thing in the two: inherited, it is the step taken at each split, which accumulates, so lineages deeper in the tree spread further apart; drawn afresh, it is the spread of rates across lineages and nothing accumulates.
 

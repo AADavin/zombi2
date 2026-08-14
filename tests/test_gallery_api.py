@@ -378,3 +378,19 @@ def test_a_cached_run_expires_when_its_helper_changes(tmp_path, monkeypatch):
     assert a_helper("stale") is False and (run / "kept.txt").exists()
     assert the_same_helper_edited("stale") is True
     assert not run.exists(), "an expired cache has to be thrown away, not just reported"
+
+
+def test_the_manual_cites_the_gallery_by_the_right_number(monkeypatch):
+    """A `(Ge7)` in a chapter has to be the example it names.
+
+    The number is derived from the example's position, so inserting or reordering one renumbers every
+    citation after it. The citation carries the example **id** in an HTML comment, and
+    `scripts/gallery_refs.py` rewrites the numbers from the gallery's own sources — this is that
+    script's check, run here so a reorder cannot land with the manual pointing at the wrong figure."""
+    import subprocess
+    root = GALLERY.parent
+    r = subprocess.run([sys.executable, str(root / "scripts" / "gallery_refs.py"), "--check"],
+                       capture_output=True, text=True, cwd=root)
+    assert r.returncode == 0, (
+        "the manual's gallery citations are stale — run `python scripts/gallery_refs.py`:\n"
+        + (r.stderr or r.stdout))

@@ -50,7 +50,7 @@ A driver is the input to the function that controls the target. The easiest one 
 
 Every row is a level **grown first** and then read. Where a lineage sits in the tree and when it is alive are not: `Clade` and `changing_at` (Appendix A) read facts the run already has, so they need no driver and work at every level whether or not anything is being conditioned.
 
-A driver is read wherever it changes, not once per branch: a lineage that switches habitat halfway down one loses genes at one rate before the switch and another after it. That works because a discrete driver changes at moments the run can step to exactly. A continuous one never stops changing, so there are no such moments: it is sampled every `step` instead, a hundredth of the tree's height unless you set it, and the rate holds between samples. 
+A driver is read wherever it changes, not once per branch: a lineage that switches habitat halfway down one loses genes at one rate before the switch and another after it ([Co4](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:continuous_conditioning-->). That works because a discrete driver changes at moments the run can step to exactly. A continuous one never stops changing, so there are no such moments: it is sampled every `step` instead, a hundredth of the tree's height unless you set it, and the rate holds between samples. 
 
 ## The target
 

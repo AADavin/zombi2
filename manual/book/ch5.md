@@ -32,7 +32,7 @@ A genome has a **karyotype**: `chromosomes=N` chromosomes, each with a `topology
 
 ## Chromosomes split, merge, appear and die
 
-On top of the karyotype, four events change the **number** of chromosomes:
+On top of the karyotype, four events change the **number** of chromosomes ([Ge11](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_karyotype-->):
 
 - **`fission`** *(per chromosome)*. A chromosome splits in two.
 - **`fusion`** *(per chromosome)*. Two chromosomes of a genome merge into one. Only two of the **same topology**: a ring and a molecule with two ends cannot become one molecule, so a circular chromosome never fuses with a linear one, and a genome holding one of each never fuses at all.
@@ -145,7 +145,7 @@ What belongs here is why the per-family draw above and a trait driver sit apart.
 
 Three more events reshape the order without creating or destroying genes:
 
-- **Inversion.** Reverse a segment in place, flipping every gene's strand: `+2 +3 +4` becomes `−4 −3 −2`. On a circular chromosome the segment may span the origin.
+- **Inversion.** Reverse a segment in place, flipping every gene's strand: `+2 +3 +4` becomes `−4 −3 −2`. On a circular chromosome the segment may span the origin ([Ge7](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_inversion-->).
 - **Transposition.** Cut a segment out and reinsert it **elsewhere on the same chromosome**.
 - **Translocation.** Move a segment to a **different chromosome** of the same genome. A no-op if the genome has only one chromosome.
 
