@@ -421,3 +421,36 @@ def test_every_figure_the_book_names_can_be_built_and_served():
 
     assert named, "no figures found; this test would pass vacuously"
     assert not missing, "\n  ".join(["", *missing])
+
+
+def test_every_image_the_docs_point_at_exists():
+    """A figure that is deleted must not leave a page pointing at nothing.
+
+    `manual/book/figures/joining.svg` was retired, and the README kept linking to it — so the front
+    page of the repository served a broken image, live on GitHub, and nothing noticed. The chapters
+    were checked when the figure went; the README was not, because nothing checked it.
+
+    A chapter names a **build artefact**, which the Makefile makes and git ignores, so what is checked
+    is the source it is made from: `figures/x.pdf` comes from `figures/svg/x.svg` at the repo root,
+    and `figures/x_print.png` from `manual/book/figures/x.svg` beside the chapter. The README names
+    committed files through raw.githubusercontent URLs, and those are checked as they are."""
+    root = pathlib.Path(__file__).resolve().parent.parent
+    missing = []
+    for chapter in sorted(MANUAL.glob("*.md")):
+        for rel in re.findall(r"!\[[^\]]*\]\(([^)\s]+)\)", chapter.read_text(encoding="utf-8")):
+            if rel.startswith(("http://", "https://")):
+                continue
+            name = pathlib.PurePath(rel).name
+            if name.endswith("_print.png"):
+                source = MANUAL / "figures" / (name[:-len("_print.png")] + ".svg")
+            elif name.endswith(".pdf"):
+                source = root / "figures" / "svg" / (name[:-len(".pdf")] + ".svg")
+            else:
+                source = chapter.parent / rel
+            if not source.exists():
+                missing.append(f"{chapter.name} -> {rel}  (needs {source.relative_to(root)})")
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    for url in re.findall(r"raw\.githubusercontent\.com/[^/]+/[^/]+/main/([a-zA-Z0-9/._-]+)", readme):
+        if not (root / url).exists():
+            missing.append(f"README.md -> {url}")
+    assert not missing, "these pages point at files that do not exist:\n  " + "\n  ".join(missing)
