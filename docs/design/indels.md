@@ -137,6 +137,29 @@ One thing it forced. `Chromosome.n_genes` counted *blocks*, and a gene cut by an
 them — so the guard that stops a chromosome losing its last gene would have counted two genes where
 there is one and let the last one go. It counts distinct `(family, copy)` now.
 
+**And one thing it broke, found later while trying to build a gallery example.** The same confusion
+went deeper than `n_genes`: the cut set protected *blocks*, not *genes*. A genic block offered its
+own leading edge, so once an indel fragmented a gene **every fragment offered one** — and those
+indel-made boundaries became legal cuts for ordinary events. Event breakpoints do reach the
+partition, so the gene's root block split, and it lost `block_of`, its single tree and its single
+alignment in every lineage, including the ones that never touched it. Measured before the fix on a
+600 bp gene: 19 event breakpoints strictly inside it, its span no longer a root block. This is
+exactly the pseudogene-fragmentation failure argued against below, arriving by accident with no
+decay model involved.
+
+The predicate is now about a **boundary between two blocks** rather than about a block: legal only
+if it closes one gene (or spacer) and opens another (or spacer). Tested against the gene's
+**declared** span, not the extent a lineage still carries — a cut where another lineage holds
+material inside its own copy would split that gene's root block for everyone. That needs the spans
+where the rule is, so `Chromosome` carries them: the annotation the engine was *given* and must
+obey, as against the breakpoints it *produces*, which is why one lives on the chromosome and the
+other on the events. Measured after: 546 of 546 *M. genitalium* genes recover as exactly one root
+block through 953 deletions, 980 insertions and 71 inversions.
+
+Worth recording how it hid. The test that should have caught it tolerated `LookupError` and put it
+down to "the gene was eaten from every node by indels" — a guess, never checked, and wrong: those
+genes were split, not gone. A test that tolerates a failure you have not diagnosed is not a test.
+
 ---
 
 ## What the sequence level then evolves: the alignment
