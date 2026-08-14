@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.39.1] - 2026-08-14
+
 ### Changed
 
 - Appendix C's table of what `zombi2 tools format` writes takes the same two-column shape as
