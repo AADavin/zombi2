@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-08-14
+
 ### Added
 
 - A gallery example draws the whole karyotype of every survivor beside the tree that produced them,
