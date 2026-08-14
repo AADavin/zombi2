@@ -71,9 +71,11 @@ docs = ["mkdocs-material", "mkdocstrings[python]"]
 # regenerate needs a checkout of Phylustrator, not a pip install. The pin below is the floor that
 # renders the parts that do work; raise it to a release that carries the gallery's API when there is one.
 # `>=` not `==`: an exact pin on a companion library downgrades whoever already has a newer
-# phylustrator and makes any environment wanting one unresolvable. 0.2.6 brings the colormap mode
-# of trees.color_history, the two line-safe ramps the conditioning figures paint with,
-# trees.note(dy=…), genomes.gene_labels, and the circular arrowhead fix.
+# phylustrator and makes any environment wanting one unresolvable. 0.2.6 brings the colormap
+# mode of trees.color_history and the two line-safe ramps the conditioning figures paint with;
+# the circular `arrange="row"` plus `Figure.extent()` the karyotype figure is drawn with;
+# `trees.note(dy=…)`, which lifts a panel title clear of the tree under it; `genomes.gene_labels`;
+# and the fix that makes a circular gene arrow flare its head instead of tapering to a wedge.
 gallery = ["phylustrator>=0.2.6", "cairosvg>=2.5", "matplotlib", "pillow"]
 
 # The `zombi2` CLI exposes one command per level — `species`, `genomes`, `sequences`, `traits` —

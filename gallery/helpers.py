@@ -540,6 +540,29 @@ def ordered_run() -> str:
     return _stamp(run)
 
 
+def karyotype_run() -> str:
+    """A cached run for the karyotype figure: seven survivors from three circular chromosomes, with
+    enough fission and fusion that the tips end with different karyotypes.
+
+    ``--initial-families`` is high on purpose. A karyotype ring is only legible when a chromosome
+    holds tens of genes: at a dozen families spread over several chromosomes each gene takes a third
+    of its ring, and the picture is a handful of enormous wedges rather than a genome.
+
+    The seed is chosen too, from a scan of 160. It has to give a spread of chromosome numbers — a run
+    where every tip keeps three says nothing about fission and fusion — with no chromosome so short
+    it draws as a few dashes, and no two marks close enough on one branch to overlap. This one ends
+    with one, two and three chromosomes across the tips, its smallest holds thirty-one genes, and
+    each of its four marks accounts for the tips below it."""
+    run = os.path.join(_DATA, "karyotype")
+    if _stale(run):
+        _zombi("species", run, "--birth", 1.0, "--death", 0.0, "--n-extant", 7, "--seed", 71)
+        _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 150,
+               "--chromosomes", 3, "--topology", "circular",
+               "--duplication", 0.05, "--loss", 0.05,
+               "--fission", 0.35, "--fusion", 0.35, "--seed", 71)
+    return _stamp(run)
+
+
 def synteny_tree_run() -> str:
     """A cached 30-tip run for the whole-clade synteny figure.
 
@@ -563,6 +586,29 @@ def initial_gene_order(run: str) -> list:
     with open(os.path.join(run, "genomes", "initial_genome.tsv"), encoding="utf-8") as f:
         ix = {name: k for k, name in enumerate(f.readline().rstrip("\n").split("\t"))}
         return [line.rstrip("\n").split("\t")[ix["family"]] for line in f if line.strip()]
+
+
+def initial_karyotype(run: str):
+    """The genome the run started from, as a Phylustrator genome — the karyotype at the root.
+
+    ``read_genomes`` reads the survivors; this reads ``initial_genome.tsv``, which is the same table
+    for time zero. A karyotype figure needs it: without the starting number of chromosomes on the
+    page, a tip with three of them could as easily be three fissions as none at all."""
+    path = os.path.join(run, "genomes", "initial_genome.tsv")
+    by_chrom: dict = {}
+    with open(path, encoding="utf-8") as f:
+        ix = {name: k for k, name in enumerate(f.readline().rstrip("\n").split("\t"))}
+        for line in f:
+            if not line.strip():
+                continue
+            row = line.rstrip("\n").split("\t")
+            by_chrom.setdefault((row[ix["chromosome"]], row[ix["topology"]]), []).append(row)
+    chroms = []
+    for (cid, topology), rows in by_chrom.items():
+        genes = [ph.genomes.Gene(family=r[ix["family"]], strand=int(r[ix["strand"]]), position=i)
+                 for i, r in enumerate(rows)]
+        chroms.append(ph.genomes.Chromosome(cid, genes, topology=topology))
+    return ph.genomes.Genome("initial", chroms)
 
 
 def events_run() -> str:
