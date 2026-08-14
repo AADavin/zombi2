@@ -447,3 +447,44 @@ def test_chapter_nine_s_table_and_the_gallery_agree_on_the_conditioning_examples
         "the Gallery column does not ascend down the table, so the gallery's conditioning section is "
         f"no longer in the table's order: {order}. Reorder CONDITIONING_ORDER in gallery/build.py to "
         "match the table, then run `python scripts/gallery_refs.py`")
+
+
+def test_chapter_eight_s_literature_table_is_the_index_into_the_traits_section():
+    """Chapter 8's Literature table names each trait model and points at the example that shows it.
+
+    The same coupling chapter 9's table has, and the same three things have to stay true: every row
+    cites an example, every trait example is cited by exactly one row, and the numbers ascend down
+    the table. What makes it worth a test here is that the table used to carry the call itself —
+    `simulate_continuous(rate=…)` — and now carries only the number, so a card that goes missing
+    takes the chapter's only pointer to that model with it.
+    """
+    sys.path.insert(0, str(GALLERY.parent / "scripts"))
+    try:
+        import gallery_refs
+    finally:
+        sys.path.remove(str(GALLERY.parent / "scripts"))
+    text = (GALLERY.parent / "manual" / "book" / "ch8.md").read_text(encoding="utf-8")
+    table = re.search(r"^\| What it does \| Gallery \|.*?(?=\n\n)", text, re.S | re.M)
+    assert table, "chapter 8's Literature table is not where this test looks for it"
+    rows = [ln for ln in table.group(0).splitlines()[2:] if ln.startswith("|")]
+    assert rows, "the table has no rows"
+
+    with _gallery_build() as build:
+        nums = gallery_refs.numbers(build)
+    traits = {i for i, n in nums.items() if n.startswith("Tr")}
+
+    cited, order = [], []
+    for n, row in enumerate(rows, start=1):
+        ids = re.findall(r"<!--gallery:([a-z0-9_]+)-->", row)
+        assert ids, f"row {n} of chapter 8's Literature table cites no gallery example"
+        cited += ids
+        order += [int(nums[i][2:]) for i in ids]
+
+    assert sorted(cited) == sorted(traits), (
+        "the table and the gallery disagree on the trait examples — "
+        f"cited but absent: {sorted(set(cited) - traits)}; "
+        f"in the gallery but uncited: {sorted(traits - set(cited))}")
+    assert order == sorted(order), (
+        "the Gallery column does not ascend down the table: "
+        f"{order}. Reorder TRAITS_ORDER in gallery/build.py to match the table, then run "
+        "`python scripts/gallery_refs.py`")

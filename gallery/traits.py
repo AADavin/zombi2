@@ -6,12 +6,15 @@ import helpers as h
 from helpers import Example
 
 import phylustrator as ph
-from zombi2.params import PerLineage
+from zombi2.params import Drift, LogNormal, PerLineage, TotalDiversity
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous, simulate_discrete
 
 SEED = 42
 N = 100
+
+#: the carrying capacity the diversity-dependent card's tree and trait rate share
+_DD_CAP = 80
 
 # two binary characters X, Y as compound Mk states; only single-bit flips are named (all else 0).
 # the dependence: gaining Y is slow while X is absent (00->01) but fast once X is present (10->11).
@@ -152,6 +155,92 @@ def speciation_jumps(out):
         ax.tick_params(labelsize=11)
 
     h.composite_beside(png, out, panel, figsize=(13, 6.6), ratios=(2.5, 1.6))
+
+
+# --- the rest of the Literature table: a rate that varies between lineages, one that answers to the
+# --- tree's own size, two traits reverting each to its own optimum, and a state read off a liability
+
+
+def varying_rate_trait(out):
+    """The diffusion rate itself varies between lineages, inherited and nudged at each split.
+
+    Same drift law the species tree can put on its birth rate, and the same signature: whole clades
+    wander far while their sisters barely move, instead of every branch contributing alike."""
+    ct, tree = _tree()
+    res = simulate_continuous(
+        ct, start=0.0, seed=SEED,
+        rate=PerLineage(1.0).varying_among("lineages", Drift(LogNormal(0.0, 0.6))))
+    (ph.trees.plot(tree, style=_style())
+     + ph.trees.color_branches(h.node_values(res))
+     + ph.trees.colorbar("trait value  —  the rate drifts, inherited at each split",
+                         width=240, height=16, size=20)
+     + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(out)
+
+
+def diversity_dependent_trait(out):
+    """The diffusion rate answers to how full the tree is, so change stops as diversity saturates.
+
+    Its own tree, and a diversity-dependent one: the species tree's birth rate is scaled by the same
+    `TotalDiversity` the trait's is, so the tree fills up and levels off instead of growing without
+    bound. The curve below shares the time axis and is the number of lineages alive — the quantity
+    both rates are divided by. Where it flattens, the colour stops changing."""
+    sp = simulate_species_tree(birth=PerLineage(1.4).scaled_by(TotalDiversity(cap=_DD_CAP)),
+                               death=0.05, total_time=9.0, seed=5)
+    ct = sp.complete_tree
+    tree = ph.trees.loads(ct.to_newick())
+    res = simulate_continuous(ct, start=0.0, seed=SEED,
+                              rate=PerLineage(6.0).scaled_by(TotalDiversity(cap=_DD_CAP)))
+    png = out.replace(".png", "_tree.png")
+    present = max(ct.nodes[i].end_time for i in ct.extant_leaves())
+    (ph.trees.plot(tree, dashed=h.dashed_extinct(tree, ct),
+                   style=ph.Style(width=1250, height=760, margin=80, branch_width=1.4))
+     + ph.trees.color_branches(h.node_values(res))
+     + ph.trees.colorbar("trait value", width=240, height=16, size=20)).save(png)
+    times, counts = h.lineages_through_time(ct)
+
+    def panel(ax):
+        ax.step(times, counts, where="post", color="#333333", lw=1.8)
+        ax.set_ylim(0, _DD_CAP * 1.15)
+
+    h.composite_below(png, present, out, panel, "lineages alive")
+
+
+def multivariate_ou(out):
+    """Two traits drifting together, each pulled to its own optimum at its own strength."""
+    ct, _ = _tree()
+    res = simulate_continuous(ct, start={"x": 0.0, "y": 0.0}, rate={"x": 1.0, "y": 1.0},
+                              correlation={("x", "y"): 0.8},
+                              reverts_to={"x": 4.0, "y": -4.0}, pull={"x": 2.0, "y": 0.6},
+                              seed=SEED)
+    vx = {f"n{i}": v["x"] for i, v in res.node_values.items()}
+    vy = {f"n{i}": v["y"] for i, v in res.node_values.items()}
+    px, py = out.replace(".png", "_x.png"), out.replace(".png", "_y.png")
+    for png, vals in ((px, vx), (py, vy)):
+        h.render_tree_for_composite(ph.trees.loads(ct.to_newick()), png, vals,
+                                    width=1000, height=520, branch_width=1.2)
+    tips = list(ct.extant_leaves())
+    xs = [res.node_values[n]["x"] for n in tips]
+    ys = [res.node_values[n]["y"] for n in tips]
+    h.composite_two_trees_scatter(px, py, xs, ys, out)
+
+
+#: the threshold model's palette: the state is read off a liability nobody sees
+_THRESHOLD = {"small": "#B7C4CC", "large": "#2E5F6E"}
+
+
+def threshold_trait(out):
+    """A discrete state read off a continuous liability: which side of the threshold it sits on.
+
+    The crossings carry no times — the liability is what evolves, and the state is a reading of it —
+    so this is the state at each node rather than a painted history, and a branch takes the state its
+    far end is in."""
+    ct, tree = _tree()
+    res = simulate_discrete(ct, states=("small", "large"), liability=1.0, threshold=0.0, seed=9)
+    (ph.trees.plot(tree, style=_style())
+     + ph.trees.color_branches({f"n{i}": v for i, v in res.node_values.items()},
+                               palette=_THRESHOLD)
+     + ph.trees.legend("state")
+     + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(out)
 
 
 def asymmetric_switch(out):
@@ -347,7 +436,7 @@ _C_DRIVEN = '''\
 ### simulate  —  a discrete trait drives a continuous one: the driver first, then the target
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous, simulate_discrete
-from zombi2.params import PerLineage
+from zombi2.params import Drift, LogNormal, PerLineage, TotalDiversity
 
 ct = simulate_species_tree(birth=1.0, n_extant=50, seed=7).complete_tree
 hab = simulate_discrete(ct, states=["stable", "fluctuating"], switch=0.4, start="stable", seed=5)
@@ -371,7 +460,7 @@ _C_EARLY_BURST = '''\
 ### simulate  —  the diffusion rate falls 100-fold partway down the tree
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous
-from zombi2.params import PerLineage
+from zombi2.params import Drift, LogNormal, PerLineage, TotalDiversity
 
 sp = simulate_species_tree(birth=1.0, n_extant=100, seed=42)
 res = simulate_continuous(sp.complete_tree, start=0.0, seed=42,
@@ -449,6 +538,54 @@ for res in (jumps, diffusion):
     y = [abs(res.node_values[a] - res.node_values[b]) for _, (a, b) in pairs]'''
 
 
+_C_VARYING_RATE = '''\
+### simulate  —  the diffusion rate itself varies between lineages, inherited and nudged
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_continuous
+from zombi2.params import Drift, LogNormal, PerLineage
+
+sp = simulate_species_tree(birth=1.0, n_extant=100, seed=42)
+res = simulate_continuous(sp.complete_tree, start=0.0, seed=42,
+                          rate=PerLineage(1.0).varying_among("lineages", Drift(LogNormal(0.0, 0.6))))
+# the same drift law a species tree can put on its birth rate — see the Species section'''
+
+_C_DIVERSITY = '''\
+### simulate  —  both rates answer to how full the tree is: the tree's own, and the trait's
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_continuous
+from zombi2.params import PerLineage, TotalDiversity
+
+sp = simulate_species_tree(birth=PerLineage(1.4).scaled_by(TotalDiversity(cap=80)),
+                           death=0.05, total_time=9.0, seed=5)
+res = simulate_continuous(sp.complete_tree, start=0.0, seed=42,
+                          rate=PerLineage(6.0).scaled_by(TotalDiversity(cap=80)))
+# the panel below the tree is the lineages-through-time curve: the quantity both rates read'''
+
+_C_MV_OU = '''\
+### simulate  —  two traits drifting together, each pulled to its own optimum at its own strength
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_continuous
+
+sp = simulate_species_tree(birth=1.0, n_extant=100, seed=42)
+res = simulate_continuous(sp.complete_tree,
+                          start={"x": 0.0, "y": 0.0}, rate={"x": 1.0, "y": 1.0},
+                          correlation={("x", "y"): 0.8},
+                          reverts_to={"x": 4.0, "y": -4.0},     # each its own optimum
+                          pull={"x": 2.0, "y": 0.6},            # and its own strength
+                          seed=42)'''
+
+_C_THRESHOLD = '''\
+### simulate  —  a discrete state read off a continuous liability
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_discrete
+
+sp = simulate_species_tree(birth=1.0, n_extant=100, seed=42)
+res = simulate_discrete(sp.complete_tree, states=("small", "large"),
+                        liability=1.0, threshold=0.0, seed=9)
+# the liability is what evolves; the state is which side of `threshold` it is on. The crossings
+# carry no times, so this run has no event log — `res.node_values` is the state at each node'''
+
+
 EXAMPLES = [
     Example("bm", "Brownian motion", "Free diffusion — sister lineages drift apart with time.",
             "rate", brownian_motion, code=_C_BM),
@@ -459,6 +596,15 @@ EXAMPLES = [
             "clades separate and then every one of them freezes. "
             "<code>rate&nbsp;=&nbsp;PerLineage(2.0).changing_at({0:&nbsp;1.0,&nbsp;4.5:&nbsp;0.01})</code>.",
             "rate · changing_at", early_burst, code=_C_EARLY_BURST),
+    Example("varying_rate", "A rate that varies between lineages",
+            "The diffusion rate is inherited at each split and nudged, so whole clades wander while "
+            "their sisters barely move — the trait-level reading of the same "
+            "<code>Drift</code> a species tree can put on its birth rate.",
+            "rate · Drift", varying_rate_trait, code=_C_VARYING_RATE),
+    Example("diversity_dependent", "A rate that answers to diversity",
+            "The diffusion rate is divided by how full the tree is. The curve below shares the time "
+            "axis: where the lineages level off, the colour stops changing.",
+            "rate · TotalDiversity", diversity_dependent_trait, code=_C_DIVERSITY),
     Example("regimes", "Two optima, one tree",
             "A discrete trait paints the tree and each painted clade reverts to its own optimum: "
             "upland to &minus;4, lowland to 4. <code>regimes=</code> with a "
@@ -477,10 +623,19 @@ EXAMPLES = [
             "structure is gained ten times more readily than it is lost, so it spreads and only "
             "rarely goes back.",
             "switch · directed", asymmetric_switch, code=_C_ASYMMETRIC),
+    Example("threshold", "A state read off a liability",
+            "The state is which side of a threshold a continuous liability sits on, so relatives "
+            "flip back and forth near the boundary. The crossings carry no times — the liability is "
+            "what evolves — so a branch takes the state its far end is in.",
+            "liability · threshold", threshold_trait, code=_C_THRESHOLD),
     Example("correlated", "Dependent continuous traits",
             "Two traits evolve together (r&nbsp;=&nbsp;0.9) — two trees, coloured by each trait, and the "
             "tip scatter.",
             "rate · correlated", correlated, code=_C_CORRELATED),
+    Example("mv_ou", "Two traits, two optima",
+            "The correlation carries the reversion as well: both traits drift together, and each is "
+            "pulled to its own optimum at its own strength — x hard to 4, y gently to &minus;4.",
+            "correlation · reverts_to", multivariate_ou, code=_C_MV_OU),
     Example("dependent", "Dependent discrete traits",
             "Two binary characters where one's flip rate depends on the other's state. X in green, Y in "
             "purple, so you can see Y is present where X is; the 2×2 chain is the model.",

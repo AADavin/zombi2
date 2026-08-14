@@ -11,6 +11,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
+- Four more trait examples, so every model chapter 8's Literature table names has one: a
+  diffusion rate that drifts between lineages, one that answers to how full the tree is (with
+  the lineages-through-time curve below it), two traits each reverting to its own optimum, and
+  a discrete state read off a continuous liability. (#363)
 - Sampling and fossils in the gallery: one complete tree with every fate on it — the sampled
   survivors solid, the lineages the data never sees dashed, and the fossils recovered along any
   branch, including lineages the present has no record of. (#363)
@@ -26,6 +30,9 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 - The version the landing page shows is written from the same single source as everything else at
   release time; it had been maintained by hand, and said 0.32.0 while PyPI served 0.38.0. (#362)
+- Chapter 8's Literature table points at the gallery instead of spelling each call out: the
+  column that held the expression is the example that shows it, thirteen rows for thirteen
+  cards, and a test holds the two in step the way chapter 9's table is held. (#363)
 - Chapter 3 cites the gallery for the four varying rates, the mass extinction, and sampling and
   fossils instead of drawing all four again: those are cards now, and the chapter keeps the one
   figure that establishes what a dashed branch means. (#363)
