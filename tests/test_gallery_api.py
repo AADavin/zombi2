@@ -461,6 +461,7 @@ _LITERATURE_TABLES = [
     # chapter 7's clocks cite the sequences section and, for the trait-driven rate, the
     # conditioning one — so no single prefix covers it and only the ascent is checked
     ("ch7", "| What it does | From the literature | Gallery |", None, False),
+    ("ch10", "| What it does | From the literature | Gallery |", "Jo", False),
 ]
 
 
@@ -481,7 +482,7 @@ def test_a_literature_table_is_the_index_into_its_gallery_section(chapter, heade
     finally:
         sys.path.remove(str(GALLERY.parent / "scripts"))
     text = (GALLERY.parent / "manual" / "book" / f"{chapter}.md").read_text(encoding="utf-8")
-    table = re.search(re.escape(header) + r".*?(?=\n\n)", text, re.S)
+    table = re.search(re.escape(header) + r".*?(?=\n\n|\Z)", text, re.S)   # a table can end the file
     assert table, f"{chapter}'s Literature table is not where this test looks for it"
     rows = [ln for ln in table.group(0).splitlines()[2:] if ln.startswith("|")]
     assert rows, "the table has no rows"

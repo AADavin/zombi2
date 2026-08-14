@@ -66,6 +66,33 @@ def bisse(out):
         loc=(0.02, 0.04, 0.34, 0.30))
 
 
+def classe(out):
+    """The state drives the split, and the split changes the state — change at the fork, not along it.
+
+    BiSSE's trait wanders down the branches and the tree feels it. Here almost nothing happens along a
+    branch (`switch=0.08`): the state changes **at** speciations, one daughter taking a new one, which
+    is what the field calls a cladogenetic model. The squares mark the splits where it happened, and
+    they are on the tree the same trait was shaping — which is why this is joint and not a trait
+    painted on a tree that was finished first."""
+    r = joint.simulate_joint(
+        birth=PerLineage(1.0).scaled_by("trait", {"fast": 2.6, "slow": 0.7}),
+        trait=traits.discrete(states=["fast", "slow"], switch=0.08, at_speciation=0.15),
+        n_extant=70, seed=3)
+    label = r.complete_tree.labels()
+    at_split = [{"kind": "change at the split", "node": label[e.lineage], "x": e.time}
+                for e in r.trait.events if e.kind == "on_speciation"]
+    tree_png = out.replace(".png", "_tree.png")
+    (ph.trees.plot(ph.trees.loads(r.complete_tree.to_newick()), style=_style(), skeleton=False)
+     + ph.trees.color_history(_history(r), palette=_BISSE)
+     + ph.trees.branch_events(at_split, size=5.5, legend_title="", legend_loc="top-right",
+                              legend_size=20,
+                              styles={"change at the split": ("square", "#111111")})
+     + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
+    h.composite_markov(tree_png, out, lambda ax: h.draw_markov(
+        ax, ["fast", "slow"], _BISSE, {"fast": 2.6, "slow": 0.7}, symbol="λ"),
+        loc=(0.02, 0.04, 0.34, 0.30))
+
+
 def key_innovation(out):
     """GENE CONTENT drives speciation — the joint model that is not about a trait. A lineage carrying
     the family splits five times as often, and the tree is an **output** of that.
@@ -798,6 +825,21 @@ ramp = {f: colors.to_hex(cm.viridis(f)) for f in {f for s in kept.values() for f
 # every tip above half the module ends aerobic, every tip below it anaerobic'''
 
 
+_C_CLASSE = '''\
+### simulate  —  the state drives the split, and the split changes the state
+from zombi2 import joint, traits
+from zombi2.params import PerLineage
+
+r = joint.simulate_joint(
+    birth=PerLineage(1.0).scaled_by("trait", {"fast": 2.6, "slow": 0.7}),
+    trait=traits.discrete(states=["fast", "slow"],
+                          switch=0.08,          # almost nothing happens along a branch
+                          at_speciation=0.15),  # it happens at the fork instead
+    n_extant=70, seed=3)
+
+# the squares are the splits where the state changed: r.trait.events, kind "on_speciation"'''
+
+
 CONDITIONING = [
     Example("genome_reduction", "Genome reduction",
             "A lifestyle trait drives gene loss. Endosymbionts shed genes faster and gain fewer, so "
@@ -871,6 +913,11 @@ JOINING = [
             "Three graded speciation rates with constant death — the fastest state fills the tree, "
             "extinct lineages dashed.",
             "trait → speciation", musse, code=_C_MUSSE),
+    Example("classe", "Change at the split",
+            "The state drives how fast a lineage splits, and the split is where the state changes — "
+            "the squares. Along the branches almost nothing happens "
+            "(<code>switch=0.08</code>, <code>at_speciation=0.15</code>).",
+            "at_speciation · joint", classe, code=_C_CLASSE),
 ]
 
 EXAMPLES = CONDITIONING + JOINING        # the module's full list; build.py takes the two separately
