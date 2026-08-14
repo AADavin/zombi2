@@ -127,8 +127,9 @@
   .nav-inner { display: flex; align-items: center; gap: 20px; height: 62px; }
   .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 700; letter-spacing: -0.01em; font-size: 1.15rem; }
   .brand:hover { text-decoration: none; }
-  .brand svg { display: block; }
-  .brand b { color: var(--accent); }
+  /* the Z is the mark: it takes the accent, and the rest of the name takes the ink of
+     whatever it sits on — dark on the page, white in the footer. */
+  .brand b { color: var(--accent); font-weight: inherit; }
   .nav-links { display: flex; align-items: center; gap: 22px; }
   .nav-links a { color: var(--body); font-size: 0.94rem; font-weight: 500; }
   .nav-links a:hover { color: var(--accent); text-decoration: none; }
@@ -146,7 +147,6 @@
   :root[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
 
   /* ---------- logo mark ---------- */
-  .brand .mark { flex: none; }
 
   /* ---------- hero ---------- */
   .hero { padding: 78px 0 40px; position: relative; overflow: hidden; }
@@ -160,8 +160,7 @@
   }
   .hero-tag { display: inline-flex; align-items: center; gap: 8px; font-size: 0.82rem; font-weight: 600; color: var(--accent-strong); background: var(--accent-soft); padding: 5px 12px; border-radius: 999px; margin-bottom: 24px; }
   .hero h1 { font-size: clamp(2.5rem, 5.6vw, 3.6rem); letter-spacing: -0.025em; }
-  .hero h1 .n { color: var(--accent); }
-  .hero-mark { width: 1.07em; height: 1.07em; margin-left: 0.34em; vertical-align: -0.12em; }
+  .hero h1 .z { color: var(--accent); }
   .hero .lede { font-size: clamp(1.15rem, 2.3vw, 1.4rem); color: var(--body); max-width: 40ch; margin-top: 18px; }
   .hero .sub { margin-top: 20px; max-width: 62ch; color: var(--muted); }
   .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
@@ -230,6 +229,7 @@
   .foot h4 { color: #fff; font-size: 0.82rem; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px; }
   .foot ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 9px; font-size: 0.92rem; }
   .foot .blurb { font-size: 0.92rem; max-width: 32ch; color: #8fa8a3; }
+  .foot .brand-f .z { color: var(--accent-on-dark, #34c6b3); }
   .foot .brand-f { color: #fff; font-weight: 700; font-size: 1.1rem; margin-bottom: 12px; display: inline-flex; gap: 8px; align-items: center; }
   .foot-bottom { margin-top: 42px; padding-top: 20px; border-top: 1px solid #21332f; display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: space-between; font-size: 0.84rem; color: #7f9893; }
 
@@ -254,17 +254,7 @@
   <header class="nav">
     <div class="wrap nav-inner">
       <a class="brand" href="#top" aria-label="ZOMBI2 home">
-        <span>ZOMBI<b>2</b></span>
-        <svg class="mark" width="27" height="27" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-          <path d="M14 25.5V18" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
-          <path d="M14 18L7.5 9.5" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
-          <path d="M14 18V7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
-          <path d="M14 18L21 10" stroke="var(--ghost)" stroke-width="2" stroke-linecap="round" stroke-dasharray="2.2 3"/>
-          <circle cx="14" cy="18" r="1.9" fill="var(--accent)"/>
-          <circle cx="7.5" cy="9.5" r="1.9" fill="var(--accent)"/>
-          <circle cx="14" cy="7" r="1.9" fill="var(--accent)"/>
-          <circle cx="21" cy="10" r="1.7" fill="var(--bg)" stroke="var(--ghost)" stroke-width="1.5"/>
-        </svg>
+        <span><b>Z</b>OMBI2</span>
       </a>
       <div class="nav-controls">
         <nav class="nav-links" id="navlinks">
@@ -299,7 +289,7 @@
         <circle class="ghost-tip" cx="330" cy="300" r="3.6" fill="var(--bg)" stroke="var(--ghost)" stroke-width="1.6"/>
       </svg>
       <div class="wrap hero-inner">
-        <h1>ZOMBI<span class="n">2</span><svg class="hero-mark" viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M14 25.5V18" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M14 18L7.5 9.5" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M14 18V7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M14 18L21 10" stroke="var(--ghost)" stroke-width="2" stroke-linecap="round" stroke-dasharray="2.2 3"/><circle cx="14" cy="18" r="1.9" fill="var(--accent)"/><circle cx="7.5" cy="9.5" r="1.9" fill="var(--accent)"/><circle cx="14" cy="7" r="1.9" fill="var(--accent)"/><circle cx="21" cy="10" r="1.7" fill="var(--bg)" stroke="var(--ghost)" stroke-width="1.5"/></svg></h1>
+        <h1><span class="z">Z</span>OMBI2</h1>
         <p class="lede">Simulating genome and phylogenetic evolution.</p>
         <p class="sub">Evolve life end to end — <b>species trees</b>, then <b>genomes</b>, molecular <b>sequences</b> and <b>traits</b> along them. A ground-up redesign of ZOMBI, with a fast, composable Python library and a command-line interface.</p>
         <div class="hero-actions">
@@ -438,7 +428,7 @@ g.write(<span class="s">"out/"</span>)
     <div class="wrap">
       <div class="foot-cols">
         <div>
-          <div class="brand-f">ZOMBI2</div>
+          <div class="brand-f"><span class="z">Z</span>OMBI2</div>
           <p class="blurb">A phylogenetic simulator of species trees, genomes, sequences and traits. Free and open source, MIT-licensed.</p>
         </div>
         <div>

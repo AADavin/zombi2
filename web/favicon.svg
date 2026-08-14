@@ -1,11 +1,8 @@
+<!-- The Z of ZOMBI2, which is the mark: the wordmark carries it, so the tab does too. Drawn as
+     strokes rather than as text — an SVG that names a font renders in whatever the viewer happens to
+     have, and a favicon is 16 px, where that difference is the whole letter. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" fill="none">
   <rect width="28" height="28" rx="6" fill="#0b1413"/>
-  <path d="M14 24V18" stroke="#34c6b3" stroke-width="2" stroke-linecap="round"/>
-  <path d="M14 18L7.5 9.5" stroke="#34c6b3" stroke-width="2" stroke-linecap="round"/>
-  <path d="M14 18V7.5" stroke="#34c6b3" stroke-width="2" stroke-linecap="round"/>
-  <path d="M14 18L20.5 10.5" stroke="#718479" stroke-width="2" stroke-linecap="round" stroke-dasharray="2.2 3"/>
-  <circle cx="14" cy="18" r="1.9" fill="#34c6b3"/>
-  <circle cx="7.5" cy="9.5" r="1.9" fill="#34c6b3"/>
-  <circle cx="14" cy="7.5" r="1.9" fill="#34c6b3"/>
-  <circle cx="20.5" cy="10.5" r="1.7" fill="#0b1413" stroke="#718479" stroke-width="1.5"/>
+  <path d="M8 8.5H20M20 8.5L8 20M8 20H20" stroke="#34c6b3" stroke-width="2.6"
+        stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

@@ -21,6 +21,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Changed
 
+- The site's mark is the **Z** of ZOMBI2 itself — the wordmark carries it, the browser tab is that
+  same Z, and the small tree drawn beside the name is gone. One mark instead of two things to
+  recognise. (#360)
+
 - The examples gallery numbers every example — `Ge3` is the third genome example — and cites it that
   way. The number is derived from the example's position at build time rather than stored, so an
   example can be inserted anywhere and the numbering follows. The page carries the ZOMBI2 version it
