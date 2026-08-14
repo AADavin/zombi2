@@ -50,7 +50,7 @@ PREFIX = {"species": "Sp", "genomes": "Ge", "sequences": "Sq",
 #: what keeps "every pair is illustrated" a fact rather than a hope.
 #: Chapter 8's order: the continuous menu, then the discrete one, then the two that evolve together.
 TRAITS_ORDER = [
-    "bm", "ou", "early_burst", "regimes",   # ch8, continuous: the diffusion and what is added to it
+    "bm", "ou", "early_burst", "regimes", "jumps",   # ch8, the diffusion and what is added to it
     "discrete", "asymmetric",               # ch8, discrete: one rate, then a matrix of them
     "correlated", "dependent",              # ch8, traits that evolve together
 ]

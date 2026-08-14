@@ -34,7 +34,7 @@ traits.simulate_continuous(tree, start=0.0,
 
 The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root ([Tr3](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:early_burst-->); it is written with the same `changing_at` that gives the species tree its skyline.
 
-Two more arguments sit alongside `rate`. `regimes=` paints a multi-optimum OU, where clades pull toward different optima ([Tr4](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:regimes-->) (a discrete trait supplies the painting and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches, so change concentrates at branching. The value is the jump variance, so `at_speciation=0.5` gives a jump of width √0.5. None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one verb and two arguments.
+Two more arguments sit alongside `rate`. `regimes=` paints a multi-optimum OU, where clades pull toward different optima ([Tr4](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:regimes-->) (a discrete trait supplies the painting and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches, so change concentrates at branching ([Tr5](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:jumps-->). The value is the jump variance, so `at_speciation=0.5` gives a jump of width √0.5. None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one verb and two arguments.
 
 `regimes=` is the one argument that asks you to give things up, and it says so rather than ignoring them: it takes a plain σ² (not a modified one), one jump variance shared across regimes (not one per regime), and one trait (so not `correlation=`).
 
@@ -48,7 +48,7 @@ traits.simulate_discrete(tree, states=["marine", "terrestrial"],
                          switch=0.1, start="marine", seed=1)
 ```
 
-When the flips are not symmetric, replace the single rate with a small matrix of directed rates ([Tr6](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:asymmetric-->):
+When the flips are not symmetric, replace the single rate with a small matrix of directed rates ([Tr7](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:asymmetric-->):
 
 ```python
 # asymmetric: gains are commoner than losses
@@ -59,7 +59,7 @@ traits.simulate_discrete(tree, states=["absent", "present"],
 
 ## Correlated traits
 
-Two traits that evolve independently are two separate calls, in either order. Two traits that drift *together* cannot be simulated one before the other, because each is entangled with the other as it unfolds ([Tr7](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:correlated-->). Correlation is specified as per-trait rates plus a correlation overlay:
+Two traits that evolve independently are two separate calls, in either order. Two traits that drift *together* cannot be simulated one before the other, because each is entangled with the other as it unfolds ([Tr8](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:correlated-->). Correlation is specified as per-trait rates plus a correlation overlay:
 
 ```python
 traits.simulate_continuous(tree,
