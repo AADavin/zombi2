@@ -323,3 +323,54 @@ def test_the_published_page_serves_the_current_gallery_code():
     assert not drift, ("web/gallery.html is stale — the published page serves code the gallery sources "
                        "no longer produce. Rebuild it with `cd gallery && python build.py` and commit "
                        "the page:\n  " + "\n  ".join(drift))
+
+
+def test_a_cached_run_expires_when_its_helper_changes(tmp_path, monkeypatch):
+    """Editing a `*_run()` helper has to invalidate that helper's cached run.
+
+    It did not. The stamp held the zombi2 version alone, so changing a seed, a rate or `--n-extant`
+    left the cache valid: `build.py` re-rendered the figure from the *previous* run, silently, with
+    the new parameters sitting unused in the source. Changing the karyotype figure's seed from 3 to
+    71 did exactly that, and the only way out was deleting `figures/_data/karyotype` by hand.
+
+    The key now hashes the source of the helper asking, which is that run's definition — so this
+    test edits two helpers that differ only in a parameter and asks for the key each would stamp.
+    """
+    monkeypatch.syspath_prepend(str(GALLERY))
+    for name in _DRAWING:
+        monkeypatch.setitem(sys.modules, name, _Draw())
+    sys.modules.pop("helpers", None)
+    helpers = importlib.import_module("helpers")
+
+    def a_run():                       # the same helper, twice, differing only in the seed
+        return helpers._cache_key(depth=1)
+
+    def a_run_with_another_seed():
+        return helpers._cache_key(depth=1)   # --seed 71
+
+    assert a_run() != a_run_with_another_seed(), (
+        "two helpers with different parameters share a cache key, so editing a run would not "
+        "rebuild it")
+
+    # and the whole mechanism, the way a real helper uses it: one function both stamps its run and
+    # asks whether it is stale, so the two keys match while the helper is unedited
+    run = tmp_path / "run"
+
+    def a_helper(step):
+        if step == "stale":
+            return helpers._stale(str(run))
+        run.mkdir(exist_ok=True)
+        (run / "kept.txt").write_text("data from the old parameters")
+        return helpers._stamp(str(run))
+
+    def the_same_helper_edited(step):
+        if step == "stale":
+            return helpers._stale(str(run))       # --seed 71
+        run.mkdir(exist_ok=True)
+        (run / "kept.txt").write_text("data from the old parameters")
+        return helpers._stamp(str(run))
+
+    a_helper("stamp")
+    assert a_helper("stale") is False and (run / "kept.txt").exists()
+    assert the_same_helper_edited("stale") is True
+    assert not run.exists(), "an expired cache has to be thrown away, not just reported"
