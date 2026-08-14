@@ -643,3 +643,87 @@ def test_identity_does_not_count_a_shared_gap_as_a_match():
     assert _identity_counts(["ACGT", "ACGT"]) == (4, 4)
     assert _identity_counts(["AC--", "AC--"]) == (2, 2)        # the gaps count for nothing
     assert _identity_counts(["ACGT", "AC--"]) == (2, 2)
+
+
+def _spliced_run(**kw):
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=2)
+    params = dict(deletion=30.0, insertion=30.0, deletion_extent=5.0, insertion_extent=6.0,
+                  root_length=1500, genes=4, gene_length=200, seed=2)
+    params.update(kw)
+    g = simulate_genomes_nucleotide(sp, **params)
+    return g, simulate_sequences(g, model=jc69(), divergence=0.3, seed=2)
+
+
+def test_a_blocks_alignment_can_be_read_with_the_insertions_spliced_back_in():
+    # `alignments` holds what evolved: an insertion is its own block, so a gene's alignment shows
+    # every deletion as a gap and no insertion at all. This puts them back as real columns.
+    g, r = _spliced_run()
+    assert r._insertions, "nothing was inserted into a block, so this proves nothing"
+    host = next(iter(r._insertions))
+    runs, _ = r._insertions[host]
+    plain, full = r.alignments[host], r.alignment_with_insertions(host)
+    width = g.root_blocks[host][2] - g.root_blocks[host][1]
+    assert len({len(v) for v in full.values()}) == 1              # still an alignment
+    assert len(next(iter(full.values()))) == width + sum(w for _o, _b, w in runs)
+    assert set(plain) <= set(full)
+
+
+def test_splicing_leaves_the_blocks_own_columns_untouched():
+    # the host's own positions must come through exactly as they were, or the two views disagree
+    # about what evolved
+    g, r = _spliced_run()
+    for host, (runs, _carried) in r._insertions.items():
+        plain = {**r.alignments.get(host, {}), **r.ancestral.get(host, {})}
+        for record, row in r.alignment_with_insertions(host).items():
+            rest, pos = [], 0
+            for i, (off, _b, w) in enumerate(runs):
+                shift = sum(x[2] for x in runs[:i])
+                rest.append(row[pos:off + shift])
+                pos = off + shift + w
+            rest.append(row[pos:])
+            assert "".join(rest) == plain[record]
+
+
+def test_an_inserted_run_is_a_lineages_own_bases_or_it_is_gaps():
+    # never anything else: a record either carried that run or it did not
+    g, r = _spliced_run()
+    seen_both = [0, 0]
+    for host, (runs, carried) in r._insertions.items():
+        for record, row in r.alignment_with_insertions(host).items():
+            for i, (off, blk, w) in enumerate(runs):
+                shift = sum(x[2] for x in runs[:i])
+                seg = row[off + shift:off + shift + w]
+                mine = carried.get(record, {}).get(blk)
+                theirs = None if mine is None else (
+                    r.alignments.get(blk, {}).get(mine) or r.ancestral.get(blk, {}).get(mine))
+                assert seg == (theirs if theirs is not None else "-" * w)
+                seen_both[seg == "-" * w] += 1
+    assert all(seen_both), "every run was carried by everyone or no one — the gapping went untested"
+
+
+def test_a_run_inside_a_reversed_host_is_spliced_too():
+    # on a reversed host the pieces come out in descending order, so the two that meet are the left
+    # piece's `lo` and the right piece's `hi`. The offset is the same number: it is ancestral, and an
+    # inversion does not move those.
+    g, r = _spliced_run(inversion=8.0, inversion_extent=200)
+    reversed_hosts = 0
+    labels = g.complete_tree.labels()
+    for nid in g.node_genomes:
+        for pieces in g.assembly(nid).values():
+            for k in range(1, len(pieces) - 1):
+                left, mid, right = pieces[k - 1], pieces[k], pieces[k + 1]
+                if (left[2] == -1 and left[0] == right[0] != mid[0]
+                        and left[3] == right[4] and left[0] in r._insertions):
+                    runs, carried = r._insertions[left[0]]
+                    rec = f"{labels[nid]}_g{left[1]}"
+                    assert mid[0] in carried.get(rec, {}), "a reversed host's run was not spliced"
+                    reversed_hosts += 1
+    assert reversed_hosts, "no run landed inside a reversed host, so this proves nothing"
+
+
+def test_a_block_nothing_was_inserted_into_reads_back_unchanged():
+    g, r = _spliced_run(insertion=0.0)
+    assert not r._insertions
+    block = next(iter(r.alignments))
+    assert r.alignment_with_insertions(block) == {**r.alignments[block],
+                                                 **r.ancestral.get(block, {})}
