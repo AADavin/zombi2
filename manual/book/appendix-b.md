@@ -76,6 +76,7 @@ writes, which are left as they are.
 | Summary | `species_summary.json` | JSON | yes | what the run produced — counts by fate, tree height, stem, total branch length, the realised birth and death rates, and the seed |
 | The trees | `.complete_tree` · `.extant_tree` | Tree | Python | the whole tree that grew, extinct lineages and all — **this is what the next level runs along**, which is what lets a gene be transferred out of a lineage that later dies — and the survivors' tree, dated and bifurcating, which is the tree an analysis would be handed. Each holds every node, internal ones included, in `.nodes`, and answers `.leaves()`, `.extant_leaves()`, `.extinct_leaves()` and `.unsampled_leaves()` |
 | Fossils | `.fossils` | list | Python | the sampled fossil lineages and the times they were sampled at, present when the run asked for `fossils` |
+| Lineage rates | `.lineage_rates(kind)` | dict | Python | `{lineage: rate}` — the birth (or `"death"`) rate each lineage itself ran under, taken at the lineage's birth, which is when its factors are drawn. Every lineage of the complete tree has one, extinct ones included. A rate that varies among lineages gives each a different number; one that does not gives the same number for all of them. Under a rate that also depends on time or diversity, this is its value at the start of the branch |
 
 ¹ written only if fossil sampling recovered any.
 
