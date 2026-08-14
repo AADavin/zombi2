@@ -59,7 +59,7 @@ traits.simulate_discrete(tree, states=["absent", "present"],
 
 ## Correlated traits
 
-Two traits that evolve independently are two separate calls, in either order. Two traits that drift *together* cannot be simulated one before the other, because each is entangled with the other as it unfolds. Correlation is specified as per-trait rates plus a correlation overlay:
+Two traits that evolve independently are two separate calls, in either order. Two traits that drift *together* cannot be simulated one before the other, because each is entangled with the other as it unfolds ([Tr4](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:correlated-->). Correlation is specified as per-trait rates plus a correlation overlay:
 
 ```python
 traits.simulate_continuous(tree,

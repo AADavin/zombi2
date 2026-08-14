@@ -65,6 +65,9 @@ class SpeciesResult:
     #: recovered fossils as ``(lineage_id, time)`` pairs, sorted by time — a side output, present
     #: only when ``fossils`` was set; the fossil's lineage is not removed and is not in the extant tree
     fossils: list[tuple[int, float]] = field(default_factory=list)
+    #: each lineage's own ``(birth, death)`` rate at the moment it was born, keyed by node id.
+    #: Read it through `lineage_rates`, which names the lineages as every output file does.
+    rates_at_birth: dict[int, tuple[float, float]] = field(default_factory=dict, repr=False)
 
     def __repr__(self) -> str:
         fossils = f", {len(self.fossils)} fossils" if self.fossils else ""
@@ -84,6 +87,28 @@ class SpeciesResult:
         ``simulate_species_tree`` refuses to return: a run with no present raises there instead, so a
         result that came from it always has one."""
         return prune(self.complete_tree, keep="extant")
+
+    def lineage_rates(self, kind: str = "birth") -> dict[str, float]:
+        """``{lineage: rate}`` — the rate that lineage itself ran under, in events per unit time.
+
+        A rate that varies among lineages gives every lineage a factor of its own, and the tree
+        records only what happened, not the rate it happened under: two runs with the same shape can
+        come from very different rates. This is that number, for the lineage rather than for the run
+        — the base with this lineage's own factors applied — so a branch can be coloured by it.
+
+        Taken **at the lineage's birth**, which is when its factors are drawn. A rate that also
+        depends on time or on standing diversity keeps moving along the branch afterwards; this is
+        its value at the start of it. A rate that varies among lineages in no way gives the same
+        number for every lineage, which is correct rather than useless: it is that rate.
+
+        Lineages are named as every output file names them (``n12``), so the result drops straight
+        into a plot keyed by tip name.
+        """
+        if kind not in ("birth", "death"):
+            raise ValueError(f"kind must be 'birth' or 'death', got {kind!r}")
+        label = self.complete_tree.labels()
+        j = 0 if kind == "birth" else 1
+        return {label[i]: r[j] for i, r in self.rates_at_birth.items() if i in label}
 
     def summary(self) -> dict:
         """What this run produced, as a plain dict — the payload of ``species_summary.json``.
@@ -200,7 +225,7 @@ def _per_lineage(rate) -> tuple:
 
 def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float | None,
           pulses: list[tuple[float, float]], progress: bool = False,
-          max_lineages: int | None = None) -> tuple[Tree, list[Event]]:
+          max_lineages: int | None = None) -> tuple[Tree, list[Event], dict[int, tuple[float, float]]]:
     """Grow one forward birth-death tree until it reaches ``n_extant`` living lineages,
     reaches ``total_time``, or dies out. Returns the complete tree and the event log.
 
@@ -210,6 +235,10 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
     daughter's factor is its parent's, nudged at the split (clade drift); under a per-lineage draw it is an
     independent draw with no memory of the parent (relaxed rates). Birth and death vary independently
     of each other. A rate with neither keeps a factor of 1 and picks uniformly, exactly as before.
+
+    The third return is each lineage's **own** birth and death rate at the moment it was born —
+    scope(base) times the factors that lineage carries — which is the only place that number exists:
+    the tree records what happened, not the rate it happened under.
 
     ``pulses`` are scheduled mass extinctions as ``(time, survival)`` pairs sorted by time (time runs
     forward from the origin): at each instant every standing lineage is kept with probability
@@ -240,6 +269,17 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
     inh_d = [values_at_birth(death_drift, rng, root_shared)]
     t = 0.0
     events: list[Event] = []
+    # each lineage's own (birth, death) rate at the moment it was born, keyed by node id. Evaluated
+    # at birth because that is when the lineage's factors are drawn; a rate that also depends on time
+    # or on diversity keeps moving afterwards, which `lineage_rates` says.
+    own: dict[int, tuple[float, float]] = {}
+
+    def record(node_id: int, fb: tuple, fd: tuple, at: float, n_alive: int) -> None:
+        ctx = {"time": at, "diversity": n_alive, "lineages": 1}
+        own[node_id] = (birth_rate.effective(carried_factor=math.prod(fb), **ctx),
+                        death_rate.effective(carried_factor=math.prod(fd), **ctx))
+
+    record(root, inh_b[0], inh_d[0], 0.0, 1)
     pulse_idx = 0  # the next unfired mass extinction in `pulses`
 
     # a tree grows toward whichever stop condition was given: a tip count, or a time
@@ -326,6 +366,8 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
                                   values_at_split(birth_drift, parent_b, rng, d2)))
                     inh_d.extend((values_at_split(death_drift, parent_d, rng, d1),
                                   values_at_split(death_drift, parent_d, rng, d2)))
+                    record(c1, inh_b[-2], inh_d[-2], t, len(alive))
+                    record(c2, inh_b[-1], inh_d[-1], t, len(alive))
                     events.append(Event(t, "speciation", node, (c1, c2)))
                 else:
                     nodes[node].end_time = t
@@ -368,7 +410,7 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
         nodes[i].end_time = t
         nodes[i].fate = "extant"
 
-    return Tree(nodes, root), events
+    return Tree(nodes, root), events, own
 
 
 def _mass_extinction_pulses(mass_extinctions, total_time: float | None) -> list[tuple[float, float]]:
@@ -555,7 +597,8 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
 
     rng, seed = stream("species", seed)     # own stream, and a drawn seed if none was given
 
-    def _finish(tree: Tree, events: list[Event]) -> SpeciesResult:
+    def _finish(tree: Tree, events: list[Event],
+                rates: dict[int, tuple[float, float]]) -> SpeciesResult:
         # observe (sampling relabels survivors) then recover fossils along the grown branches
         alive = sum(1 for nd in tree.nodes.values() if nd.fate == "extant")
         _apply_sampling(tree, sampling, rng)
@@ -571,11 +614,11 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                 f"or trait along. This is the sampling process, not a bad parameter — it has "
                 f"probability {(1 - sampling) ** alive:.3g} here — so raise sampling, ask for more "
                 f"survivors, or draw another seed.")
-        return SpeciesResult(tree, events, seed, _recover_fossils(tree, fossils, rng))
+        return SpeciesResult(tree, events, seed, _recover_fossils(tree, fossils, rng), rates)
 
     if total_time is not None:
-        tree, events = _grow(rng, birth_rate, death_rate, None, total_time, pulses, progress,
-                             max_lineages)
+        tree, events, rates = _grow(rng, birth_rate, death_rate, None, total_time, pulses, progress,
+                                    max_lineages)
         # A time-conditioned run is not conditioned on survival, so with death ≥ birth it can reach
         # total_time with nothing alive. An empty tree is not a sample anyone can use — the extant
         # tree is None and every downstream level would otherwise mistake the last-dying tip for a
@@ -586,13 +629,13 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                 f"present, so there is nothing to grow a genome, sequence or trait along. With death "
                 f"close to or above birth, total extinction is likely — lower death, shorten "
                 f"total_time, or use n_extant=... (which is conditioned on survival).")
-        return _finish(tree, events)
+        return _finish(tree, events, rates)
 
     for _ in range(_MAX_ATTEMPTS):
-        tree, events = _grow(rng, birth_rate, death_rate, n_extant, None, [], progress,
-                             max_lineages)
+        tree, events, rates = _grow(rng, birth_rate, death_rate, n_extant, None, [], progress,
+                                    max_lineages)
         if sum(1 for nd in tree.nodes.values() if nd.fate == "extant") == n_extant:  # survivors (pre-sampling)
-            return _finish(tree, events)
+            return _finish(tree, events, rates)
     raise RuntimeError(
         f"could not grow a tree to {n_extant} extant lineages in {_MAX_ATTEMPTS} attempts; "
         "birth must comfortably exceed death for large n_extant"

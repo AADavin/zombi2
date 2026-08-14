@@ -664,6 +664,21 @@ def aln_run() -> str:
     return _stamp(run)
 
 
+def protein_run() -> str:
+    """A cached 20-species run whose genes hold **proteins**: LG, 60 residues, one family per genome.
+
+    The same shape as `aln_run`, one model apart, so the two cards differ in the alphabet and nothing
+    else. Protein models belong to a family or ordered run: a nucleotide genome is measured in base
+    pairs and read on either strand, and amino acids have no complement."""
+    run = os.path.join(_DATA, "protein")
+    if _stale(run):
+        _zombi("species", run, "--birth", 1.0, "--death", 0.25, "--n-extant", 20, "--seed", 4)
+        _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 45,
+               "--duplication", 0.04, "--loss", 0.0, "--transfer", 0.0, "--seed", 6)
+        _zombi("sequences", run, "--model", "lg", "--length", 60, "--divergence", 0.7, "--seed", 7)
+    return _stamp(run)
+
+
 def mycoplasma_gff() -> str:
     """Path to a real *Mycoplasma genitalium* G37 GFF3 (NCBI GCF_000027325.1), downloaded + cached."""
     dest = os.path.join(_DATA, "mycoplasma.gff")
@@ -808,7 +823,7 @@ def _chain(ax, states, arcs, colours, *, cx, y, span):
         if forward is not None:
             ax.add_patch(FancyArrowPatch((a+17, y-4), (b-17, y-4), arrowstyle="-|>", mutation_scale=8,
                                          lw=1.0, color=_DIM, connectionstyle="arc3,rad=-0.42"))
-            ax.text((a+b)/2, y-30, forward, ha="center", va="center", color=_DIM, fontsize=8.5)
+            ax.text((a+b)/2, y-37, forward, ha="center", va="center", color=_DIM, fontsize=8.5)
         if back is not None:
             ax.add_patch(FancyArrowPatch((b-17, y+4), (a+17, y+4), arrowstyle="-|>", mutation_scale=8,
                                          lw=1.0, color=_DIM, connectionstyle="arc3,rad=-0.42"))
@@ -816,7 +831,7 @@ def _chain(ax, states, arcs, colours, *, cx, y, span):
 
 
 def conditioning_png(path, *, driver, connection, target_level, targets,
-                     chain=None, curve=None, target_chain=None):
+                     chain=None, curve=None, target_chain=None, returns=False):
     """Draw one conditioning diagram to the standard above, and return the path.
 
     ``driver``      ``(level, name, kind)`` — "traits", "habitat", "two states"
@@ -828,6 +843,10 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
     ``chain``       ``(states, [(forward, back)], colours)`` for a driver with states
     ``curve``       ``(fn, x label, (lo, hi))`` for a mapping that is a curve
     ``target_chain``the same, when the thing being driven is itself a trait with states
+    ``returns``     draw a second arrow, running back from the target to the driver. That one arrow
+                    is the whole difference between a conditioned run and a **joint** one: the driver
+                    is not grown first and read, it is grown *by* what it drives. Everything else is
+                    deliberately the same picture, because everything else is the same.
     """
     from matplotlib.patches import FancyArrowPatch, Rectangle
 
@@ -861,20 +880,31 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
     dcx, tcx = dx + dw/2, tx + tw/2
     a0, a1 = dx + dw + 14, tx - 14
     ccx = (a0 + a1)/2
-    for cx, label in ((dcx, "DRIVER"), (ccx, "CONNECTION"), (tcx, "TARGET")):
-        ax.text(cx, _HEAD, label, ha="center", va="center", color=_DIM, fontsize=11.5,
-                fontweight="bold")
+    if not returns:
+        for cx, label in ((dcx, "DRIVER"), (ccx, "CONNECTION"), (tcx, "TARGET")):
+            ax.text(cx, _HEAD, label, ha="center", va="center", color=_DIM, fontsize=11.5,
+                    fontweight="bold")
+    else:
+        # neither box is only a driver or only a target here — each is the other's — so the roles
+        # are not labelled, and the pair of arrows says it instead
+        ax.text(ccx, _HEAD, "EACH DRIVES THE OTHER", ha="center", va="center", color=_DIM,
+                fontsize=11.5, fontweight="bold")
 
     ax.add_patch(Rectangle((dx, mid-_BOX_H/2), dw, _BOX_H, facecolor="#f2f2f0", edgecolor=_INK, lw=1.5))
     ax.text(dcx, mid-27, driver[0], ha="center", va="center", color=_DIM, fontsize=9, style="italic")
     ax.text(dcx, mid+1, driver[1], ha="center", va="center", color=_INK, fontsize=17)
     ax.text(dcx, mid+29, driver[2], ha="center", va="center", color=_DIM, fontsize=10.5, style="italic")
 
-    ax.add_patch(FancyArrowPatch((a0, mid), (a1, mid), arrowstyle="-|>", mutation_scale=14,
+    out_y = mid - 13 if returns else mid
+    ax.add_patch(FancyArrowPatch((a0, out_y), (a1, out_y), arrowstyle="-|>", mutation_scale=14,
                                  lw=1.6, color=_INK))
+    if returns:
+        ax.add_patch(FancyArrowPatch((a1, mid + 13), (a0, mid + 13), arrowstyle="-|>",
+                                     mutation_scale=14, lw=1.6, color=_INK))
     ax.text(ccx, mid-30, verb, ha="center", va="center", color=_INK, fontsize=13.5, family="monospace")
-    ax.text(ccx, mid-12, mapping_kind, ha="center", va="center", color=_DIM, fontsize=10.5,
-            style="italic")
+    if not returns:
+        ax.text(ccx, mid-12, mapping_kind, ha="center", va="center", color=_DIM, fontsize=10.5,
+                style="italic")
 
     if n == 1:
         name, kind, mapping = targets[0]
@@ -885,7 +915,8 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
         ax.text(tcx, mid+1, name, ha="center", va="center", color=_INK, fontsize=17)
         ax.text(tcx, mid+29, kind, ha="center", va="center", color=_DIM, fontsize=10.5, style="italic")
         if mapping:
-            ax.text(ccx, mid+16, mapping, ha="center", va="top", color=_DIM, fontsize=10)
+            ax.text(ccx, mid + (30 if returns else 16), mapping, ha="center", va="top", color=_DIM,
+                    fontsize=10)
     else:
         ax.add_patch(Rectangle((tx, mid-th/2), tw, th, facecolor="#f2f2f0", edgecolor=_INK, lw=1.5))
         ax.text(tcx, mid-th/2+17, target_level, ha="center", va="center", color=_DIM, fontsize=9,
@@ -916,9 +947,9 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
         ax.text(bx-10, by+bh/2, "factor", ha="center", va="center", color=_DIM, fontsize=9, rotation=90)
 
     if chain is not None:
-        _chain(ax, *chain, cx=dcx, y=bottom+40, span=dw)
+        _chain(ax, *chain, cx=dcx, y=bottom+52, span=dw)
     if target_chain is not None:
-        _chain(ax, *target_chain, cx=tcx, y=bottom+40, span=tw)
+        _chain(ax, *target_chain, cx=tcx, y=bottom+52, span=tw)
 
     fig.savefig(path, dpi=180, transparent=True, bbox_inches="tight")
     plt.close(fig)

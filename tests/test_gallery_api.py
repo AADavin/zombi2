@@ -31,6 +31,7 @@ import contextlib
 import importlib
 import json
 import pathlib
+import re
 import sys
 from unittest import mock
 from unittest.mock import MagicMock
@@ -378,3 +379,71 @@ def test_a_cached_run_expires_when_its_helper_changes(tmp_path, monkeypatch):
     assert a_helper("stale") is False and (run / "kept.txt").exists()
     assert the_same_helper_edited("stale") is True
     assert not run.exists(), "an expired cache has to be thrown away, not just reported"
+
+
+def test_the_manual_cites_the_gallery_by_the_right_number():
+    """A `(Ge7)` in a chapter has to be the example it names.
+
+    The number is derived from the example's position, so inserting or reordering one renumbers every
+    citation after it. The citation carries the example **id** in an HTML comment, and
+    `scripts/gallery_refs.py` rewrites the numbers from the gallery's own sources — this runs that
+    script's check, so a reorder cannot land with a chapter pointing at the wrong figure.
+
+    In process, under the same stubs as the rest of this file: the script imports `build` for the
+    numbering, and neither PIL nor Phylustrator is installed in the test job."""
+    sys.path.insert(0, str(GALLERY.parent / "scripts"))
+    try:
+        import gallery_refs
+    finally:
+        sys.path.remove(str(GALLERY.parent / "scripts"))
+    with _gallery_build() as build:
+        seen, stale = gallery_refs.review(gallery_refs.numbers(build), write=False)
+    assert seen, "no gallery citations found — has the comment been stripped?"
+    assert not stale, ("the manual's gallery citations are stale — run "
+                       "`python scripts/gallery_refs.py`:\n  " + "\n  ".join(stale))
+
+
+def test_chapter_nine_s_table_and_the_gallery_agree_on_the_conditioning_examples():
+    """Chapter 9's table of what can condition what is the index into the gallery's conditioning
+    section, and the section is ordered to match — so the Gallery column reads straight down.
+
+    That coupling is held by hand in two files: the table's rows in `ch9.md`, and
+    `CONDITIONING_ORDER` in `gallery/build.py`. Nothing else notices when one moves. Three things
+    have to stay true, and each is a way the pair has already nearly gone wrong:
+
+    * every row cites at least one example — a pair the book says is possible and the gallery does
+      not show is a claim nothing backs;
+    * every conditioning example is cited by exactly one row — which is what makes "all seventeen are
+      used, none left over" a fact rather than something that was true once;
+    * the numbers ascend down the table — the reason the section was reordered at all.
+    """
+    sys.path.insert(0, str(GALLERY.parent / "scripts"))
+    try:
+        import gallery_refs
+    finally:
+        sys.path.remove(str(GALLERY.parent / "scripts"))
+    text = (GALLERY.parent / "manual" / "book" / "ch9.md").read_text(encoding="utf-8")
+    table = re.search(r"^\| \| Driver \| Target \|.*?(?=\n\n)", text, re.S | re.M)
+    assert table, "chapter 9's driver/target table is not where this test looks for it"
+    rows = [ln for ln in table.group(0).splitlines() if ln.startswith("| **")]
+    assert rows, "the table has no numbered rows"
+
+    with _gallery_build() as build:
+        nums = gallery_refs.numbers(build)
+    conditioning = {i for i, n in nums.items() if n.startswith("Co")}
+
+    cited, order = [], []
+    for n, row in enumerate(rows, start=1):
+        ids = re.findall(r"<!--gallery:([a-z0-9_]+)-->", row)
+        assert ids, f"row {n} of chapter 9's table cites no gallery example"
+        cited += ids
+        order += [int(nums[i][2:]) for i in ids]
+
+    assert sorted(cited) == sorted(conditioning), (
+        "the table and the gallery disagree on the conditioning examples — "
+        f"cited but absent: {sorted(set(cited) - conditioning)}; "
+        f"in the gallery but uncited: {sorted(conditioning - set(cited))}")
+    assert order == sorted(order), (
+        "the Gallery column does not ascend down the table, so the gallery's conditioning section is "
+        f"no longer in the table's order: {order}. Reorder CONDITIONING_ORDER in gallery/build.py to "
+        "match the table, then run `python scripts/gallery_refs.py`")

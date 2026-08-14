@@ -19,7 +19,7 @@ The initial genome, at the beginning of the stem, starts with `initial_families`
 
 ### Four things to know
 
-- **Families need not evolve at the same pace.** A rate can vary among families as well as among lineages, and that one choice is what separates a genome with a core and an accessory part from one where every family behaves alike. Appendix A gives the spelling.
+- **Families need not evolve at the same pace.** A rate can vary among families as well as among lineages, and that one choice is what separates a genome with a core and an accessory part from one where every family behaves alike ([Ge4](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_pangenome_by_family-->). Appendix A gives the spelling.
 - **A family's copies within one genome are capped**, at `max_family_size=10` by default, because a duplication rate above the loss rate grows without bound. Set `max_family_size=None` when you are measuring rates: a cap that binds discards events and pulls the realised rates below the ones you declared.
 - **There is no floor.** Loss is counted per copy and the last copy is a copy like any other, so a high loss rate can leave a lineage with nothing. `genome_summary.json` reports `empty_genomes` and the command warns, because an empty genome is otherwise invisible.
 - **The chromosome-based resolutions do have a floor**: a loss never takes a chromosome below its last gene. That is what a chromosome is, not a bound on genome size.
@@ -95,7 +95,7 @@ Transfers can arrive **from a lineage that later goes extinct** [@szollosi2013lg
 
 ### Transfer between named clades
 
-`"distance"` biases transfer by relatedness, but sometimes you want to name the groups yourself: "let genes flow between these two clades, and nowhere else." `Clades` does that. You name each clade, by a few of its tips (the clade is the subtree below their MRCA) or by a node id, and give a `Between` kernel of weights, one for each ordered **(donor clade, recipient clade)** pair.
+`"distance"` biases transfer by relatedness, but sometimes you want to name the groups yourself: "let genes flow between these two clades, and nowhere else." `Clades` does that. You name each clade, by a few of its tips (the clade is the subtree below their MRCA) or by a node id, and give a `Between` kernel of weights, one for each ordered **(donor clade, recipient clade)** pair ([Ge3](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_transfer_highway-->).
 
 ```python
 from zombi2 import species, genomes
