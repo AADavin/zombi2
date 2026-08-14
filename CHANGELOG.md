@@ -9,6 +9,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- Appendix B is two columns — the file, and what it holds in a phrase — with what needs explaining
+  in a paragraph under each table and the Python accessors listed after the files. It was five
+  columns, one of them a page of prose per row; the manual is eight pages shorter. (#365)
+
+
 ### Added
 
 - A protein alignment with indels in the gallery: sites gained and lost as well as changed, so
