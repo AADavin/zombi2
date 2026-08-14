@@ -261,6 +261,28 @@ ends become partition bounds. That broke the recovery three ways, each needing a
 Each of the three reads identically on a run without indels, which is why the suite kept passing
 until one was wrong.
 
+**An insertion can be read as columns of the block it landed in.** The note called this the union
+column set and put it at the heart of the design; in the event the genome level did not need it —
+an insertion is its own block there, with its own tree, which is the honest ancestry — and it turned
+out to be a *reading* of the result rather than a change to it. `alignment_with_insertions(block)`
+opens each inserted run at the host offset it landed on, so a lineage that has one shows its bases
+where the others show gaps, and an insertion finally reads the way a deletion always did.
+
+Which record carries which run comes from the genome's own layout — an inserted block sitting
+physically between two pieces of the same host — so a duplicated gene's two copies each get their
+own without anything having to track that. On a host carried reversed the pieces come out in
+descending order, so the two that meet are the left piece's `lo` and the right piece's `hi`; the
+offset itself is the same number either way, because it is an ancestral position and an inversion
+does not move those. Measured on *M. genitalium* with inversions on, 228 runs sat inside a reversed
+host. A run carried away from its host, or one that landed on a block boundary and so is inside no
+block at all, is left alone: it is no longer in that gene.
+
+Two things stay open. The ordering of runs is `(offset, source)` and the source id is a counter, so
+two insertions at the same offset in different lineages stay two runs rather than one — which is the
+homology point the note made, satisfied by construction rather than by a check. And there are now
+two things a reader could call the alignment of a block: what evolved, and what evolved plus what
+arrived. That is a naming problem left unresolved.
+
 **The alignment is gapped**, and that answers the question this note left open. A block is evolved
 over its whole ancestral extent, so an ungapped row hands back bases the lineage deleted — a 120 bp
 row for a copy carrying one base of the block. Each row is now the block's full width with ``-``

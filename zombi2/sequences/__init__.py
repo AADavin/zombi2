@@ -158,6 +158,11 @@ class SequencesResult:
     #: Kept because a sequences result carries its trees as Newick text, not as a `Tree`, so there is
     #: otherwise nothing here that says which of the labels is a survivor.
     extant_tips: tuple[str, ...] = ()
+    #: The plan `alignment_with_insertions()` reads, per host block: which inserted runs sit inside
+    #: it and which record carries which. The *plan*, not the rows — it is small, where the rows are
+    #: the alignment over again, and a whole-genome run cannot afford a second copy of that.
+    #: Empty unless the run came from a nucleotide genome that used ``insertion``.
+    _insertions: dict = field(default_factory=dict, repr=False)
 
     def __repr__(self) -> str:
         n = sum(len(a) for a in self.alignments.values())
@@ -175,6 +180,49 @@ class SequencesResult:
         ``node_genomes``, and it reads here the way ``alignments`` reads against ``ancestral``:
         what you observe, and the truth behind it."""
         return {t: self.node_genomes[t] for t in self.extant_tips if t in self.node_genomes}
+
+    def alignment_with_insertions(self, block: int) -> dict[str, str]:
+        """One block's alignment **including the material inserted into it** — the columns a lineage
+        gained, beside the columns it lost.
+
+        `alignments` holds each block's own evolved sequence, over the ancestral positions that block
+        has always had. An insertion has no position there: novel DNA descends from nothing, so it
+        arrives on a source of its own and is a block of its own, with its own tree and its own
+        entry in ``alignments``. A gene's alignment therefore shows every deletion as a gap and no
+        insertion at all — correct about what evolved, quiet about half of what happened.
+
+        This splices them back: the columns are the host block's positions with each inserted run
+        opened at the offset it landed on, so a lineage that has a run shows its bases and one that
+        does not shows gaps, exactly as a deletion reads. Runs are ordered by ``(offset, source)``,
+        and two insertions that landed at the same offset in different lineages stay **two** runs —
+        merging them would assert homology between material that was never related.
+
+        Which record carries which run is read off the genome's own layout, an inserted block sitting
+        physically between two pieces of the same host, so a duplicated gene's two copies each get
+        their own. A run carried away from its host by a rearrangement, or one that landed on a block
+        boundary and so sits inside no block at all, keeps its own entry in ``alignments`` and is not
+        spliced anywhere: it is no longer in that gene.
+
+        Returns ``alignments[block]`` unchanged when nothing was inserted into it."""
+        plan = self._insertions.get(block)
+        rows = {**self.alignments.get(block, {}), **self.ancestral.get(block, {})}
+        if not plan:
+            return rows
+        runs, carried = plan
+        out: dict[str, str] = {}
+        for record, seq in rows.items():
+            mine, parts, at = carried.get(record, {}), [], 0
+            for (offset, ins_block, width) in runs:
+                parts.append(seq[at:offset])
+                theirs = mine.get(ins_block)
+                got = None if theirs is None else (
+                    self.alignments.get(ins_block, {}).get(theirs)
+                    or self.ancestral.get(ins_block, {}).get(theirs))
+                parts.append(got if got is not None else "-" * width)
+                at = offset
+            parts.append(seq[at:])
+            out[record] = "".join(parts)
+        return out
 
     def composition(self, letters: str):
         """The share of a lineage's sequence that is one of ``letters``, at every instant, as a
@@ -375,6 +423,59 @@ def _gap_what_is_not_carried(layouts, alignments, ancestral, root_blocks) -> Non
         if at < width:
             out.append("-" * (width - at))
         table[block][record] = "".join(out)
+
+
+def _insertion_plan(genomes, layouts, names) -> dict:
+    """``{host block: (runs, carried)}`` — where each inserted run sits inside its host block, and
+    which record carries which. What `SequencesResult.alignment_with_insertions()` reads.
+
+    ``runs`` is ``[(host offset, inserted block, width), …]`` ordered by ``(offset, source)``: the
+    source id is a counter, so two runs that landed at the same offset in different lineages get a
+    stable order and stay two runs rather than one. ``carried`` is ``{host record: {inserted block:
+    that node's record in it}}``.
+
+    The host of a run is read off the genome's **own layout** rather than from the insertion event:
+    an inserted block sitting physically between two pieces of the same host block is inside it, and
+    doing it this way gets a duplicated gene right for free, since each copy has its own pieces. On a
+    host carried **reversed** the pieces come out in descending coordinate order, so the two that
+    meet are the left piece's ``lo`` and the right piece's ``hi`` — the offset itself is the same
+    number either way, because it is an ancestral position and inversion does not move those. The
+    splice needs no orientation either: an alignment is in ancestral orientation throughout, and
+    strand is applied only when a genome is assembled.
+
+    A run between two *different* blocks belongs to neither — it landed on a block boundary, or a
+    rearrangement carried it off — and is left alone."""
+    from ..genomes.nucleotide import Origination
+
+    inserted = {i for i, (src, _a, _b) in enumerate(genomes.root_blocks)
+                if src in {e.source for e in genomes.events
+                           if isinstance(e, Origination) and e.kind == "insertion"}}
+    if not inserted:
+        return {}
+    width = {i: b - a for i, (_s, a, b) in enumerate(genomes.root_blocks)}
+    source = {i: s for i, (s, _a, _b) in enumerate(genomes.root_blocks)}
+    at_offset: dict[int, dict[int, int]] = {}                    # host -> {ins block: offset}
+    carried: dict[int, dict[str, dict[int, str]]] = {}           # host -> {record: {ins: record}}
+    for label, by_chrom in layouts.items():
+        for pieces in by_chrom.values():
+            for k in range(1, len(pieces) - 1):
+                block, gene, _strand, _lo, _hi = pieces[k]
+                if block not in inserted:
+                    continue
+                left, right = pieces[k - 1], pieces[k + 1]
+                if left[0] != right[0] or left[0] == block:
+                    continue                                     # no single host to belong to
+                meet = (left[4], right[3]) if left[2] == 1 else (left[3], right[4])
+                if meet[0] != meet[1]:
+                    continue                                     # not adjacent: material between them went
+                host = left[0]
+                at_offset.setdefault(host, {})[block] = meet[0]
+                carried.setdefault(host, {}).setdefault(
+                    f"{label}_{gene_label(left[1])}", {})[block] = f"{label}_{gene_label(gene)}"
+    return {host: (sorted(((off, b, width[b]) for b, off in blocks.items()),
+                          key=lambda r: (r[0], source[r[1]])),
+                   carried.get(host, {}))
+            for host, blocks in at_offset.items()}
 
 
 class _AssembledGenomes(Mapping):
@@ -1471,6 +1572,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     # per-block sequences they are built from.
     assembled: "Mapping[str, dict[int, str]]" = {}
     initial_genome: dict[int, str] = {}
+    insertion_plan: dict = {}                  # only a nucleotide run with insertions has one
     if nucleotide:
         # Capture the layouts in the same order the eager build used — extant nodes (read from
         # `alignments`) sorted first, then the rest (read from `ancestral`) — so the map iterates,
@@ -1481,6 +1583,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         ordered_ids = extant_ids + [i for i in sorted(species_tree.nodes) if i not in extant_id_set]
         layouts = {names[i]: genomes.assembly(i) for i in ordered_ids}
         _gap_what_is_not_carried(layouts, alignments, ancestral, genomes.root_blocks)
+        insertion_plan = _insertion_plan(genomes, layouts, names)
         assembled = _AssembledGenomes(layouts, alignments, ancestral, extant_labels)
         # The genome the run started with. Its blocks were all laid down at the start, so each one's
         # sequence there is its `founding` draw — the state the stem leads *from*. It is not a node,
@@ -1510,7 +1613,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                            # None — each block brings its own); elsewhere every partition shares one
                            # alphabet, so the first one speaks for the run
                            BASES if parts is None else parts[0][0].alphabet,
-                           tuple(names[i] for i in sorted(species_tree.extant_leaves())))
+                           tuple(names[i] for i in sorted(species_tree.extant_leaves())),
+                           insertion_plan)
 
 
 __all__ = ["simulate_sequences", "SequencesResult", "StreamedSequences",

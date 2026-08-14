@@ -92,7 +92,16 @@ Rules for keeping this honest:
   refused rather than ignored. (#TBD)
 ```
 
-Nothing is left to stage for the model itself. Still outstanding, and not a changelog entry: a
+```markdown
+- `result.alignment_with_insertions(block)` reads a block's alignment with the material inserted into
+  it spliced back in as real columns, so a lineage that gained a run shows its bases where the others
+  show gaps. `alignments` holds what evolved — an insertion is a block of its own there, with its own
+  tree — and a gene's alignment therefore showed every deletion and no insertion. Which lineage
+  carries which run is read off the genome's layout, so a duplicated gene's two copies each get their
+  own, and a run carried away from its host by a rearrangement is left where it now is. (#TBD)
+```
+
+Nothing else is left to stage for the model itself. Still outstanding, and not a changelog entry: a
 manual chapter for Chapter 6 and a gallery example.
 
 ---
