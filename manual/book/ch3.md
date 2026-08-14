@@ -53,7 +53,7 @@ By default you see every surviving species. **`sampling`** keeps a random fracti
 
 ## On the command line
 
-The command mirrors the Python call: the base rates, the stop condition, and and the sampling and fossil settings each have a flag.
+The command mirrors the Python call: the base rates, the stop condition, and the sampling and fossil settings each have a flag.
 
 ```bash
 # a birth–death tree of 20 surviving lineages
