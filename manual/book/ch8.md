@@ -34,7 +34,7 @@ traits.simulate_continuous(tree, start=0.0,
 
 The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root ([Tr3](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:early_burst-->); it is written with the same `changing_at` that gives the species tree its skyline.
 
-Two more arguments sit alongside `rate`. `regimes=` paints a multi-optimum OU, where clades pull toward different optima ([Tr4](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:regimes-->) (a discrete trait supplies the painting and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches, so change concentrates at branching. The value is the jump variance, so `at_speciation=0.5` gives a jump of width √0.5. None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one verb and two arguments.
+Two more arguments sit alongside `rate`. `regimes=` paints a multi-optimum OU, where clades pull toward different optima ([Tr6](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:regimes-->) (a discrete trait supplies the painting and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches, so change concentrates at branching ([Tr7](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:jumps-->). The value is the jump variance, so `at_speciation=0.5` gives a jump of width √0.5. None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one verb and two arguments.
 
 `regimes=` is the one argument that asks you to give things up, and it says so rather than ignoring them: it takes a plain σ² (not a modified one), one jump variance shared across regimes (not one per regime), and one trait (so not `correlation=`).
 
@@ -48,7 +48,7 @@ traits.simulate_discrete(tree, states=["marine", "terrestrial"],
                          switch=0.1, start="marine", seed=1)
 ```
 
-When the flips are not symmetric, replace the single rate with a small matrix of directed rates ([Tr6](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:asymmetric-->):
+When the flips are not symmetric, replace the single rate with a small matrix of directed rates ([Tr9](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:asymmetric-->):
 
 ```python
 # asymmetric: gains are commoner than losses
@@ -59,7 +59,7 @@ traits.simulate_discrete(tree, states=["absent", "present"],
 
 ## Correlated traits
 
-Two traits that evolve independently are two separate calls, in either order. Two traits that drift *together* cannot be simulated one before the other, because each is entangled with the other as it unfolds ([Tr7](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:correlated-->). Correlation is specified as per-trait rates plus a correlation overlay:
+Two traits that evolve independently are two separate calls, in either order. Two traits that drift *together* cannot be simulated one before the other, because each is entangled with the other as it unfolds ([Tr11](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:correlated-->). Correlation is specified as per-trait rates plus a correlation overlay:
 
 ```python
 traits.simulate_continuous(tree,
@@ -85,22 +85,23 @@ traits.simulate_continuous(tree,
 
 ## Literature
 
-Trait models arrive under a thicket of names, and a reader who wants "an OU model" or "a threshold model" should be able to find it. The names live here, in one table, and organise nothing else in the chapter.
+Trait models arrive under a thicket of names, and a reader who wants "an OU model" or "a threshold model" should be able to find it. The names live here, in one table, each beside the example that shows it; the example carries the run that made it, so the table does not spell the call out a second time. It organises nothing else in the chapter.
 
-| What it does | ZOMBI2 | From the literature |
+| What it does | Gallery | From the literature |
 |---|---|---|
-| a value diffusing | `simulate_continuous(rate=…)` | Brownian motion (BM) [@felsenstein1985comparative] |
-| diffusion pulled to an optimum | `simulate_continuous(rate=…, reverts_to=…, pull=…)` | Ornstein–Uhlenbeck (OU) [@hansen1997stabilizing; @butler2004phylogenetic] |
-| diffusion rate decays through time | `simulate_continuous(rate=PerLineage(1.0).changing_at({…}))` | Early burst (EB / ACDC) [@harmon2010earlyburst] |
-| diffusion rate drifts between lineages | `simulate_continuous(rate=PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, …))))` | Variable-rates BM [@maliet2019clads] |
-| diffusion rate slows as the clade fills | `simulate_continuous(rate=PerLineage(1.0).scaled_by(TotalDiversity(cap=…)))` | Diversity-dependent / ecological limits [@etienne2012diversitydependence] |
-| the optimum differs between painted clades | `simulate_continuous(regimes=…, reverts_to={…}, pull=…)` | Multi-optimum OU (OUM) [@beaulieu2012ouwie] |
-| the value jumps at each split | `at_speciation=…` (continuous, and Mk `switch=` traits, not threshold ones) | Cladogenetic / punctuational change |
-| traits evolving together | one `simulate_continuous(rate={…}, correlation={…})` call | Multivariate BM |
-| traits reverting together, each to its own optimum | `simulate_continuous(rate={…}, correlation={…}, reverts_to={…}, pull=…)` | Multivariate OU, diagonal drift [@clavel2015mvmorph] |
-| a discrete state switching | `simulate_discrete(states=…, switch=…)` | Mk (k-state Markov) |
-| discrete driven by continuous liability | `simulate_discrete(liability=…, threshold=…)` | Threshold / liability (Wright–Felsenstein) [@felsenstein2012threshold] |
-| discrete traits evolving together | `simulate_discrete(liability={…}, correlation={…})` | Correlated binary / Pagel [@pagel1994correlated] |
+| a value diffusing | [Tr1](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:bm--> | Brownian motion (BM) [@felsenstein1985comparative] |
+| diffusion pulled to an optimum | [Tr2](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:ou--> | Ornstein–Uhlenbeck (OU) [@hansen1997stabilizing; @butler2004phylogenetic] |
+| diffusion rate decays through time | [Tr3](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:early_burst--> | Early burst (EB / ACDC) [@harmon2010earlyburst] |
+| diffusion rate drifts between lineages | [Tr4](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:varying_rate--> | Variable-rates BM [@maliet2019clads] |
+| diffusion rate slows as the clade fills | [Tr5](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:diversity_dependent--> | Diversity-dependent / ecological limits [@etienne2012diversitydependence] |
+| the optimum differs between painted clades | [Tr6](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:regimes--> | Multi-optimum OU (OUM) [@beaulieu2012ouwie] |
+| the value jumps at each split | [Tr7](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:jumps--> | Cladogenetic / punctuational change |
+| a discrete state switching | [Tr8](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:discrete--> | Mk (k-state Markov) |
+| gains and losses at different rates | [Tr9](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:asymmetric--> | All-rates-different Mk (ARD) |
+| discrete driven by continuous liability | [Tr10](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:threshold--> | Threshold / liability (Wright–Felsenstein) [@felsenstein2012threshold] |
+| traits evolving together | [Tr11](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:correlated--> | Multivariate BM |
+| traits reverting together, each to its own optimum | [Tr12](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:mv_ou--> | Multivariate OU, diagonal drift [@clavel2015mvmorph] |
+| discrete traits evolving together | [Tr13](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:dependent--> | Correlated binary / Pagel [@pagel1994correlated] |
 
 ## On the command line
 

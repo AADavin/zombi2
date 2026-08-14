@@ -6,7 +6,7 @@ The species tree is the backbone every other level runs on, so it is where almos
 
 A species tree grows by two kinds of event: a lineage **speciates**, splitting in two, or it **goes extinct** and stops. You give a **speciation rate** and an **extinction rate**, and every lineage alive at a given moment has the same constant chance per unit time of splitting or dying, independently of the rest.
 
-The two rates set the tempo. Their difference fixes how fast diversity builds up. Their ratio fixes how much of the history is hidden, because a lineage that goes extinct takes its part of the tree with it. With extinction set to zero nothing is ever lost, and the tree you get is the whole tree that grew: this is the classic **Yule** (pure-birth) process. The lineages that died are kept: they are in the complete tree, and Appendix B says which file holds it.
+The two rates set the tempo. Their difference fixes how fast diversity builds up. Their ratio fixes how much of the history is hidden, because a lineage that goes extinct takes its part of the tree with it. With extinction set to zero nothing is ever lost, and the tree you get is the whole tree that grew: this is the classic **Yule** (pure-birth) process. The lineages that died are kept: they are in the complete tree, which is the tree the next level runs along — that is what lets a gene be transferred out of a lineage that later dies — while the extant tree is the one an analysis would be handed. Appendix B says which file holds each.
 
 ![A species tree grown by the birth–death process. Every lineage alive at a given moment has the same chance per unit time of splitting or of dying. The lineages that died are drawn dashed and stop where they died; the survivors reach the present. Both are in the complete tree, and only the solid ones are in the extant tree.](figures/species_tree.pdf){width=100%}
 
@@ -20,30 +20,26 @@ You also say when to stop: grow to a fixed **total time** (`total_time`), or to 
 
 ## Rates that vary
 
-A birth or death rate need not be constant. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**. There are four of them, one panel of the figure apiece, and the Literature table below gives the expression that writes each.
+A birth or death rate need not be constant. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**. There are four of them, and the Literature table below names each one as the field does, beside the example that shows it.
 
 - **On time.** The rates change at set points in time, which is the skyline, or episodic, tree: full rate until a breakpoint, a third of it after. Each entry in the schedule holds from its own time up to the next, and the earliest entry also applies *backwards* to the origin — so a schedule that starts at time 3 runs at that rate for the whole tree, not only after time 3. Start it at 0 whenever you mean "full rate until".
-- **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound ([Sp4](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:diversity-->).
+- **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound.
 - **On the parent's rate.** Each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other.
 - **By lineage.** Each lineage draws its own rate instead, with no memory of its parent. The distribution means a different thing in the two: inherited, it is the step taken at each split, which accumulates, so lineages deeper in the tree spread further apart; drawn afresh, it is the spread of rates across lineages and nothing accumulates.
 
-![Four ways a rate can vary, one tree apiece, all stopped at the same 25 surviving lineages, so what differs is how they got there; solid lineages survive to the present and dashed ones died, as in the previous figure.](figures/variable_rates.pdf){width=100%}
-
 ## Other models
 
-One model does not fit the modifier framework: a **mass extinction**, where at one instant only a fraction of the living lineages survive.
-
-![A mass extinction as a survival pulse. The tree grows under a constant birth–death process until, at one instant, a fraction of the standing lineages die together, the cohort of dots along the vertical wall. Survivors are solid and extinct lineages dashed. The lineages-through-time curve below shares the time axis and shows the diversity crash at the pulse and the recovery after it. This tree was grown with `mass_extinctions=[(2.5, 0.75)]`.](figures/mass_extinction.pdf){width=100%}
+One model does not fit the modifier framework: a **mass extinction**, where at one instant only a fraction of the living lineages survive. Diversity crashes at the pulse and recovers after it.
 
 ## Literature
 
-| What it does | Here | From the literature |
+| What it does | Gallery | From the literature |
 |---|---|---|
-| rates change at set times | `PerLineage(1.0).changing_at({…})` | skyline / episodic birth–death [@stadler2011mammalian] |
-| rate slows as the tree fills | `PerLineage(1.0).scaled_by(TotalDiversity(cap=…))` | diversity-dependent diversification [@rabosky2008densitydependent; @etienne2012diversitydependence] |
-| rates drift, inherited at each split | `PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, …)))` | ClaDS [@maliet2019clads] |
-| rates vary, drawn afresh per lineage | `PerLineage(1.0).varying_among('lineages', LogNormal(0.0, …))` | uncorrelated ("relaxed") rates |
-| a fraction culled at an instant | `mass_extinctions=[(t, f)]` | mass extinction |
+| rates change at set times | [Sp3](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:rateshift--> | skyline / episodic birth–death [@stadler2011mammalian] |
+| rate slows as the tree fills | [Sp4](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:diversity--> | diversity-dependent diversification [@rabosky2008densitydependent; @etienne2012diversitydependence] |
+| rates drift, inherited at each split | [Sp5](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:inherited--> | ClaDS [@maliet2019clads] |
+| rates vary, drawn afresh per lineage | [Sp6](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:perlineage--> | uncorrelated ("relaxed") rates |
+| a fraction culled at an instant | [Sp7](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:massext--> | mass extinction |
 
 ## Sampling
 
@@ -53,21 +49,11 @@ By default you see every surviving species. **`sampling`** keeps a random fracti
 
 `n_extant` counts survivors, and sampling happens afterwards, so the two compose rather than cancel: `n_extant=20, sampling=0.5` grows to 20 survivors and then shows you about 10 of them. If you want 20 tips in hand, ask for 40. The rest are not gone: they stay in the complete tree with the fate `unsampled`, which is why the run's summary counts them separately from the extinct.
 
-**`fossils`** does the opposite: it recovers lineages from the past [@heath2014fossilized; @gavryushkina2014sampledancestor]. Fossils are picked up along **every** branch of the complete tree at a rate you set, a surviving lineage's branch as readily as an extinct one, so `fossils=0.1` scatters dated samples through its history. They are a side output, reported alongside the trees; a fossil does not remove its lineage and does not appear in the extant tree.
-
-![Sampling and fossils, the two ways a dataset falls short of the whole tree. A single complete tree shows every lineage's fate. Sampled species reach the present as solid lines and are the data you keep. Lineages alive today but not sampled reach the present as dashed lines ending in an open ring. Lineages that went extinct are dashed and stop where they died. Fossils are dated samples recovered along any branch of the complete tree, a surviving lineage's branch as readily as an extinct one, shown as black diamonds. The data is the solid tips together with the diamonds; the dashed lineages are never observed. This tree was grown with `sampling=0.6, fossils=0.15`.](figures/sampling_fossils.pdf){width=100%}
-
-## What a run gives back
-
-`simulate_species_tree` returns a `SpeciesResult`. Two of the things on it are different trees, and
-the difference matters: **`.complete_tree` is the whole tree that grew**, extinct lineages and all,
-and it is what the next level runs along — which is what lets a gene be transferred out of a lineage
-that later dies. **`.extant_tree` is the survivors' tree**, the one an analysis would be handed.
-Appendix B lists everything a run carries and every file it writes.
+**`fossils`** does the opposite: it recovers lineages from the past [@heath2014fossilized; @gavryushkina2014sampledancestor]. Fossils are picked up along **every** branch of the complete tree at a rate you set, a surviving lineage's branch as readily as an extinct one, so `fossils=0.1` scatters dated samples through its history. They are a side output, reported alongside the trees; a fossil does not remove its lineage and does not appear in the extant tree ([Sp8](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:sampling-->).
 
 ## On the command line
 
-The command mirrors the Python call: the base rates, the stop condition, and and the sampling and fossil settings each have a flag.
+The command mirrors the Python call: the base rates, the stop condition, and the sampling and fossil settings each have a flag.
 
 ```bash
 # a birth–death tree of 20 surviving lineages

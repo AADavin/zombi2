@@ -112,22 +112,9 @@ There is one group you do not have to name: **`"rest"`** is every lineage outsid
 
 Each entry is a weight, read the same way `"distance"`'s weights are: normalised over the lineages alive at the instant a transfer occurs. Naming only `("A", "B")` and `("B", "A")` and setting `default=0.0` means every other pairing weighs 0: a clade-A donor can reach clade B but not another clade-A lineage, and the rest of the tree neither sends nor receives. Drop the `default=0.0` and unlisted pairs return to weight 1 (baseline), so `Between({("A", "B"): 5.0})` *enriches* A→B fivefold while leaving everything else to happen normally. A weight of 0 means "cannot receive", exactly as in Chapter 9: when a donor's every candidate weighs 0, the transfer has nowhere to land and does not happen.
 
-## What a run gives back
-
-`simulate_genomes_family` returns a `FamilyGenomesResult`. The pair worth knowing is
-**`.genomes`, the observed dataset** — the genome at each *extant* tip, keyed by the tip name the
-tree writes (`n5`), so it joins to the tree and to a trait grown on the same tree — and
-**`.node_genomes`, the run's own record**, every node, extant and extinct and internal alike, keyed
-by node id. One is what a dataset contains; the other is what happened. Every resolution carries the
-same pair, and Appendix B lists the rest.
-
-```python
-g.genomes["n27"]                     # the gene copies at the extant tip n27
-g.node_genomes[5]                    # any node, extant or not, by node id
-g.write("out/")                      # every default output, to disk
-```
-
 ## Profiles and gene trees
+
+A run hands back two views of the same history, and the pair is worth keeping straight: the genomes at the *extant* tips are the observed dataset, and the genomes at **every** node, extinct and internal alike, are the run's own record of what happened. Appendix B names them and everything else.
 
 **Profiles** are the classic comparative-genomics view [@pellegrini1999profiles]: how many copies of each gene family sit in each extant species. They are read off the observed genomes on access, so the run itself stays lean.
 
