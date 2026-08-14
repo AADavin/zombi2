@@ -77,7 +77,11 @@ def draw_indel_history(root, length: int, *, insertion: float, deletion: float,
     if insertion <= 0.0 and deletion <= 0.0:
         return None
 
-    order = list(range(length))                    # the alignment's column ids, in order
+    # Where each run sits is recorded as "immediately after this id" rather than spliced into a
+    # shared list as it happens: splicing needs the anchor's index, and looking that up per event
+    # made the whole pass quadratic in the number of insertions. The order is built once at the end.
+    after: dict[int, list[int]] = {}
+    head: list[int] = []                           # runs that landed before every original column
     carried: dict[int, list[int]] = {}
     next_id = length
     n_ins = n_del = 0
@@ -87,7 +91,7 @@ def draw_indel_history(root, length: int, *, insertion: float, deletion: float,
     # The root's parent time is `None` rather than its origination: the founding sequence IS the
     # root's column set, so its stem carries substitutions but no indels. Giving the stem indels
     # would mean the family started at a length nobody asked for.
-    stack: "list[tuple[GeneNode, float | None, list[int]]]" = [(root, None, list(order))]
+    stack: "list[tuple[GeneNode, float | None, list[int]]]" = [(root, None, list(range(length)))]
     while stack:
         node, parent_time, parent_seq = stack.pop()
         seq = list(parent_seq)
@@ -104,10 +108,9 @@ def draw_indel_history(root, length: int, *, insertion: float, deletion: float,
                         at = int(rng.integers(len(seq) + 1))
                         fresh = list(range(next_id, next_id + size))
                         next_id += size
-                        # into the shared order immediately after the id this run follows, so every
-                        # lineage's own order is preserved and two runs in the same place stay two
-                        anchor = order.index(seq[at - 1]) + 1 if at else 0
-                        order[anchor:anchor] = fresh
+                        # anchored to the id it follows, so a lineage's own order is preserved, two
+                        # runs in the same place stay two, and a run inside an earlier run nests
+                        (after.setdefault(seq[at - 1], []) if at else head).extend(fresh)
                         seq[at:at] = fresh
                         n_ins += 1
                     else:
@@ -120,6 +123,15 @@ def draw_indel_history(root, length: int, *, insertion: float, deletion: float,
         carried[id(node)] = seq
         for child in reversed(node.children or ()):
             stack.append((child, node.time, seq))
+
+    order: list[int] = []                          # every column, in the alignment's order
+    work = list(reversed(head + list(range(length))))
+    while work:                                    # depth-first: a run follows the id it anchors to
+        cid = work.pop()
+        order.append(cid)
+        runs = after.get(cid)
+        if runs:
+            work.extend(reversed(runs))
 
     where = {cid: i for i, cid in enumerate(order)}
     present: dict[int, np.ndarray] = {}
