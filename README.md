@@ -89,11 +89,13 @@ evolves along a species tree, so you run whichever you need, composed into one s
 
 ## Conditioning
 
-**[Conditioning](https://aadavin.github.io/zombi2/docs/guide/conditioning/)** is a run reading a value
-that has already been grown. There are four parts: the **driver**, the value that is read; the
-**target**, what the factor is attached to (a rate, an extent, or which lineage receives a transfer);
-the **verb**, `scaled_by`, which joins them; and the **mapping** it carries, which says what each
-value of the driver becomes.
+**[Conditioning](https://aadavin.github.io/zombi2/docs/guide/conditioning/)** is how ZOMBI2 simulates
+a scenario where one part of the run controls another — a habitat trait that makes lineages lose genes
+four times faster in the water, a gene family whose presence speeds up transfer for the rest of the
+genome, a GC content that sets how fast a trait changes. Three parts: the **driver**, the thing doing
+the controlling; the **target**, the parameter it controls (a rate, an extent, or which lineage
+receives a transfer); and the **connection** between them, which says both how they are joined
+(`scaled_by`) and what each value of the driver is worth.
 
 <p align="center">
   <img alt="Conditioning: a habitat trait on the left, an arrow labelled drives running right to the gene loss rate and carrying a multiplier for each habitat state, and under the loss rate the expression you write on it, a per-copy loss rate of 0.25 scaled by habitat" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/conditioning.svg" width="560">
@@ -107,10 +109,11 @@ zombi2 genomes out/ --loss "PerCopy(0.25).scaled_by('out/traits/trait_events.tsv
 
 ## Joining
 
-**[Joining](https://aadavin.github.io/zombi2/docs/guide/joining/)** is what to reach for when neither
-level can be grown first, because each drives the other: one run grows both. A trait
-that speeds up speciation is the standard case: the tree shapes the trait's history and the trait
-shapes the tree, so the tree is an *output* of the joint run rather than an input to it.
+**[Joining](https://aadavin.github.io/zombi2/docs/guide/joining/)** is how ZOMBI2 simulates two
+levels **at the same time**, for the scenarios where neither can be grown first because each shapes
+the other. A trait that speeds up speciation is the standard case: lineages carrying it split more
+often, so the trait decides the shape of the tree while the tree decides where the trait can go. One
+run grows both, and the tree comes out as a result rather than going in as an input.
 
 <p align="center">
   <img alt="Joining, drawn as conditioning is: body size on the left, the speciation rate on the right, and two arrows between them — one carrying the multiplier each state hands over, one running back, because the tree that rate builds is the tree body size evolves along" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/joining.svg" width="760">
@@ -151,3 +154,13 @@ A dedicated ZOMBI2 paper is in preparation. Until then, cite the original
 ## License
 
 ZOMBI2 is released under the [MIT License](LICENSE).
+
+## Maintainer, and contributing
+
+ZOMBI2 is maintained and supervised by **Adrián Arellano Davín**.
+
+Contributions are welcome, from humans and from agents alike — a bug report, a model you wish it
+could express, a fix, a worked example for the gallery. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md), and open an
+[issue](https://github.com/AADavin/zombi2/issues) or a
+[pull request](https://github.com/AADavin/zombi2/pulls).
