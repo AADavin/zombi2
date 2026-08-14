@@ -84,7 +84,16 @@ Rules for keeping this honest:
   shared by both, so the column is there. (#TBD)
 ```
 
-Still to write, as the remaining slices land: the CLI flags.
+```markdown
+- Indels reach the command line: `--deletion` and `--insertion` with `--deletion-extent` and
+  `--insertion-extent`, at `--resolution nucleotide` only. The two extent flags take the written form
+  rather than a bare number, so `--deletion-extent 'Fixed(1)'` is a single-nucleotide indel on the
+  command line exactly as it is from Python. Either rate under `--resolution family` or `ordered` is
+  refused rather than ignored. (#TBD)
+```
+
+Nothing is left to stage for the model itself. Still outstanding, and not a changelog entry: a
+manual chapter for Chapter 6 and a gallery example.
 
 ---
 
@@ -103,7 +112,7 @@ Both under **Genomes, nucleotide: `simulate_genomes_nucleotide`**.
 | Output | File | Format | Default | Contents |
 |---|---|---|---|---|
 | Assembly | `.assembly(node)` · `.initial_assembly()` | dict | Python | **changed shape:** a piece is `(block, gene, strand, lo, hi)`, `[lo, hi)` being the sub-range of that block the node carries — a whole block unless an indel took a stretch out of it |
-| Indel log | `.deletions` | list | Python | one `Deletion` per indel — `time` · `lineage` · `chromosome` · `deleted`, the last being `(copy, source, start, end)` rows in **ancestral** coordinates, the same payload a loss carries. Kept out of `events` because a deletion ends no copy lineage, so the gene-tree recovery must not read it, and out of the root partition because cutting there would shatter it. Only deletions are here: an **insertion** brings material that descends from nothing, so it must begin a copy lineage and is recorded in `events` as a root of its own kind instead. Not written to a file yet, and `assembly()` — so a sequence run on top — refuses a genome that used either |
+| Indel log | `.deletions` | list | Python | one `Deletion` per indel — `time` · `lineage` · `chromosome` · `deleted`, the last being `(copy, source, start, end)` rows in **ancestral** coordinates, the same payload a loss carries. Kept out of `events` because a deletion ends no copy lineage, so the gene-tree recovery must not read it, and out of the root partition because cutting there would shatter it. Only deletions are here: an **insertion** brings material that descends from nothing, so it must begin a copy lineage and is recorded in `events` as a root of its own kind instead. Written into `block_events.tsv` under kind `deletion`, which is also how it is read back |
 
 **3. Extend the `block_events.tsv` row.** Its Contents cell lists the kinds and now needs the new
 column too:
@@ -118,9 +127,8 @@ column too:
 **4. Extend the `rearrangement_events.tsv` row** with the same column, and say that the ordered
 resolution leaves it blank.
 
-The `Default` column of the indel-log row becomes a file rather than `Python` if the indel log is
-given one — an open question in [`indels.md`](indels.md), and now a blocking one, since without it a
-run with indels cannot be read back at all.
+**5. Say that the indel flags exist** wherever Appendix B lists what `zombi2 genomes` takes:
+`--deletion` · `--insertion` · `--deletion-extent` · `--insertion-extent`, nucleotide only.
 
 **Also needs saying somewhere user-facing:** `genome_summary.json`'s `block_events` gains a kind that
 its `events` counterpart does not have. `insertion` is DNA and nothing else — it brings sequence
