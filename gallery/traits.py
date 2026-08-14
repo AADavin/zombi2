@@ -282,6 +282,13 @@ EXAMPLES = [
             "Two binary characters where one's flip rate depends on the other's state. X in green, Y in "
             "purple, so you can see Y is present where X is; the 2×2 chain is the model.",
             "switch · dependent", dependent_characters, code=_C_DEPENDENT),
+]
+
+#: A trait driving a trait is **conditioning**, not a trait model: one trait is grown first and held
+#: fixed, and the second reads it through the same `scaled_by` a genome rate would. The code lives
+#: here, beside the trait models it is built from; the card belongs in the Conditioning section, and
+#: `build.py` puts it there.
+CONDITIONING = [
     Example("driven", "A trait driving a trait",
             "A habitat trait sets how fast body size diffuses: twenty times faster where the habitat "
             "fluctuates. <code>rate&nbsp;=&nbsp;PerLineage(0.25).scaled_by(habitat,&nbsp;{…})</code>.",

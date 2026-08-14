@@ -25,14 +25,14 @@ Not everything can act as a driver and not everything can be a target. A sequenc
 | **1** | a trait | a gene family | habitat sets the loss rate; all four rates take a driver | [Co1–Co6](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:genome_reduction--><!--gallery:genome_expansion--><!--gallery:hgt_uptake--><!--gallery:continuous_conditioning--><!--gallery:curve_saturating--><!--gallery:curve_optimum--> |
 | **2** | a trait | an ordered or nucleotide genome | eleven rates, and the extents besides | [Co7](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_inversions--> |
 | **3** | a trait | a sequence | habitat sets the substitution rate | [Co8](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_substitution--> |
-| **4** | a trait | a trait | one character sets another's `rate` or `switch` | [Co9](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:trait_drives_trait--> |
-| **5** | a gene family | a gene family | a mobile element makes transfer likelier for the rest of the genome | [Co10](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:mobile_element--> |
-| **6** | a gene family | a sequence | lose the repair gene and evolve faster | [Co11](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:repair_gene--> |
-| **7** | a gene family | a trait | carry the toxin family and turn pathogenic | [Co12](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gene_drives_trait--> |
-| **8** | an ordered or nucleotide genome | a sequence | as **6**, with coordinates in the genome run | [Co13](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:operon_substitution--> |
-| **9** | an ordered or nucleotide genome | a trait | as **7**, with coordinates in the genome run | [Co14–Co15](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:module_drives_metabolism--><!--gallery:operon_trait--> |
-| **10** | a sequence | a sequence | compensatory evolution: one gene's sequence sets another's rate | [Co16](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_sequence--> |
-| **11** | a sequence | a trait | GC content sets how fast a trait changes | [Co17](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_trait--> |
+| **4** | a trait | a trait | one character sets another's `rate` or `switch` | [Co9–Co10](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:driven--><!--gallery:trait_drives_trait--> |
+| **5** | a gene family | a gene family | a mobile element makes transfer likelier for the rest of the genome | [Co11](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:mobile_element--> |
+| **6** | a gene family | a sequence | lose the repair gene and evolve faster | [Co12](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:repair_gene--> |
+| **7** | a gene family | a trait | carry the toxin family and turn pathogenic | [Co13](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gene_drives_trait--> |
+| **8** | an ordered or nucleotide genome | a sequence | as **6**, with coordinates in the genome run | [Co14](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:operon_substitution--> |
+| **9** | an ordered or nucleotide genome | a trait | as **7**, with coordinates in the genome run | [Co15–Co16](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:module_drives_metabolism--><!--gallery:operon_trait--> |
+| **10** | a sequence | a sequence | compensatory evolution: one gene's sequence sets another's rate | [Co17](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_sequence--> |
+| **11** | a sequence | a trait | GC content sets how fast a trait changes | [Co18](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_trait--> |
 
 ## The driver
 
