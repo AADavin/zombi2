@@ -132,20 +132,6 @@ re-running the driver afterwards refuses rather than leaving the target silently
 **within one run directory** — a driver and a target written to two directories with `--from` are
 not linked.
 
-## `--parallel` from a script stopped with a message about `__main__`.
-
-Put the call under a `__main__` guard. That is the standard requirement for anything starting worker
-processes: they re-import your script, and without the guard they would run it again from the top.
-
-<!-- doc-test: skip — the guard is the point: run under exec there is no `__main__` to guard -->
-```python
-if __name__ == "__main__":
-    g = genomes.simulate_genomes_family(tree, duplication=0.2, seed=1, parallel=8)
-```
-
-A notebook or `python -c` has no script to re-import, so neither needs the guard; the library
-notices and runs single-process there instead.
-
 ## `sequences` printed a warning about "saturated" alignments — did it fail?
 
 No — it succeeded; that is a *warning*, not an error (the exit status is still 0). It compares the mean
