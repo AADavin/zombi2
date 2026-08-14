@@ -456,8 +456,8 @@ def test_chapter_nine_s_table_and_the_gallery_agree_on_the_conditioning_examples
 #: about the rate models only, so the species section also holds cards it does not name (a plain
 #: Yule tree, sampling, a study over many trees) and the coverage check would be false there.
 _LITERATURE_TABLES = [
-    ("ch8", "| What it does | Gallery |", "Tr", True),
-    ("ch3", "| What it does | Gallery |", "Sp", False),
+    ("ch8", "| What it does | From the literature | Gallery |", "Tr", True),
+    ("ch3", "| What it does | From the literature | Gallery |", "Sp", False),
 ]
 
 

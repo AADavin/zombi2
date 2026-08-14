@@ -33,13 +33,13 @@ One model does not fit the modifier framework: a **mass extinction**, where at o
 
 ## Literature
 
-| What it does | Gallery | From the literature |
-|---|---|---|
-| rates change at set times | [Sp3](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:rateshift--> | skyline / episodic birth–death [@stadler2011mammalian] |
-| rate slows as the tree fills | [Sp4](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:diversity--> | diversity-dependent diversification [@rabosky2008densitydependent; @etienne2012diversitydependence] |
-| rates drift, inherited at each split | [Sp5](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:inherited--> | ClaDS [@maliet2019clads] |
-| rates vary, drawn afresh per lineage | [Sp6](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:perlineage--> | uncorrelated ("relaxed") rates |
-| a fraction culled at an instant | [Sp7](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:massext--> | mass extinction |
+| What it does | From the literature | Gallery |
+| --- | --- | --- |
+| rates change at set times | skyline / episodic birth–death [@stadler2011mammalian] | [Sp3](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:rateshift--> |
+| rate slows as the tree fills | diversity-dependent diversification [@rabosky2008densitydependent; @etienne2012diversitydependence] | [Sp4](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:diversity--> |
+| rates drift, inherited at each split | ClaDS [@maliet2019clads] | [Sp5](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:inherited--> |
+| rates vary, drawn afresh per lineage | uncorrelated ("relaxed") rates | [Sp6](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:perlineage--> |
+| a fraction culled at an instant | mass extinction | [Sp7](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:massext--> |
 
 ## Sampling
 

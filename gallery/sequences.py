@@ -143,6 +143,57 @@ def protein_beside_tree(out):
               width=1150, tree_fraction=0.30, footer=70).save(out)
 
 
+# --- a protein with indels: the same alphabet, now with sites gained and lost -------------------
+#
+# Indels at the family and ordered resolutions belong to the *sequence* level (a nucleotide genome
+# owns its own, because there a base pair has a position). The rates are relative to substitution,
+# so `deletion=0.05` is five deletions for every hundred substitutions a site expects and means the
+# same on a tree of any height.
+
+_PROTEIN_INDEL_CACHE: dict = {}
+
+
+def _protein_indel_run():
+    """A cached fourteen-species protein run with indels, built through the Python API.
+
+    The command line cannot write this one: `zombi2 sequences` has no indel flags, though
+    `simulate_sequences` takes them — so the snippet on this card is Python, not a pipeline."""
+    if not _PROTEIN_INDEL_CACHE:
+        from zombi2.genomes import simulate_genomes_family
+        from zombi2.sequences import lg, simulate_sequences
+        from zombi2.species import simulate_species_tree
+
+        sp = simulate_species_tree(birth=1.0, death=0.25, n_extant=14, seed=4)
+        g = simulate_genomes_family(sp.complete_tree, initial_families=2, duplication=0.0,
+                                    loss=0.0, transfer=0.0, seed=6)
+        r = simulate_sequences(g, model=lg(), length=60, divergence=0.6, seed=3,
+                               insertion=0.06, deletion=0.06,
+                               insertion_extent=4, deletion_extent=4)
+        _PROTEIN_INDEL_CACHE.update(species=sp, genomes=g, sequences=r)
+    return _PROTEIN_INDEL_CACHE
+
+
+def protein_indels(out):
+    """The protein alignment again, with sites gained and lost: a column of gaps is an indel.
+
+    A gap is a shared derived character like any other, so the rows that carry one are a clade —
+    which is why the gaps line up against the tree rather than scattering down it."""
+    run = _protein_indel_run()
+    sp, res = run["species"], run["sequences"]
+    tree = ph.trees.loads(sp.extant_tree.to_newick())
+    fam = sorted(res.alignments)[0]
+    rows = res.alignments[fam]
+    # the alignment is keyed by gene copy ("n10_g20"); the tree by species. One copy per species
+    # here (no duplication, no loss), so the species part of the label is the row name.
+    seqs = {k.split("_")[0]: v for k, v in rows.items()}
+    aln = ph.genomes.Alignment(rows=list(seqs), seqs=seqs, kind="aa")
+    fig = ph.trees.plot(tree, style=h.style())
+    ph.beside(fig, ph.genomes.alignment(aln, palette=ph.genomes.AA_COLORS, letters=True,
+                                        legend=True),
+              width=1150, tree_fraction=0.28, footer=70).save(out)
+
+
+
 # --- a small tree with numbered nodes, beside the ancestral sequence at each -----------------
 
 _NT = {"A": "#4E9F50", "C": "#3B7DD8", "G": "#F2A93B", "T": "#D75455", "-": "#dddddd", "N": "#bbbbbb"}
@@ -502,6 +553,28 @@ fig = ph.trees.plot(ph.trees.read("species_extant.nwk"))
 ph.beside(fig, ph.genomes.alignment(ph.zombi.Alignment(tips, aln), letters=False,
                                     legend=False)).save("indels.png")'''
 
+_C_PROTEIN_INDELS = '''\
+### simulate  —  proteins with indels: sites gained and lost, so the alignment has gaps
+from zombi2.species import simulate_species_tree
+from zombi2.genomes import simulate_genomes_family
+from zombi2.sequences import simulate_sequences, lg
+
+sp = simulate_species_tree(birth=1.0, death=0.25, n_extant=14, seed=4)
+g = simulate_genomes_family(sp.complete_tree, initial_families=2,
+                            duplication=0.0, loss=0.0, transfer=0.0, seed=6)
+res = simulate_sequences(g, model=lg(), length=60, divergence=0.6, seed=3,
+                         insertion=0.06, deletion=0.06,      # per substitution, not per unit time
+                         insertion_extent=4, deletion_extent=4)   # mean sites per event
+
+### plot  —  the alignment beside the tree, gaps in the pale gap colour
+import phylustrator as ph
+
+tree = ph.trees.read("run/species/species_extant.nwk")
+ph.beside(ph.trees.plot(tree),
+          ph.genomes.alignment(aln, palette=ph.genomes.AA_COLORS),
+          footer=70).save("protein_indels.png")'''
+
+
 EXAMPLES = [
     Example("clock_ucln", "Uncorrelated lognormal clock",
             "Every lineage draws its own rate, with no memory of its parent, so the colour is "
@@ -523,6 +596,12 @@ EXAMPLES = [
             "A small tree with its internal nodes numbered, and beside it the sequence at each. The rows "
             "are one per node, <i>not</i> aligned to the tips.",
             "substitution · .ancestral", numbered_ancestral, code=_C_ANCESTRAL),
+    Example("seq_protein_indels", "A protein with indels",
+            "Sites gained and lost as well as changed, so the alignment has gaps. A gap is a shared "
+            "derived character like any other, which is why the columns of gaps line up with clades "
+            "of the tree rather than scattering down it. "
+            "<code>insertion</code> and <code>deletion</code> are given relative to substitution.",
+            "insertion · deletion · lg", protein_indels, code=_C_PROTEIN_INDELS),
     Example("seq_indels", "Indels in a real gene",
             "A real gene down twenty species. The pale band at 158&ndash;170 is one insertion, "
             "carried by exactly one of the two clades at the root — an indel is a shared derived "
