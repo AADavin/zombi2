@@ -2,7 +2,7 @@
 
 The trait level evolves **phenotypes**: a body size, a habitat, the presence or absence of a structure. A trait evolves along the species tree like everything else here. There are two kinds, continuous and discrete.
 
-![The two kinds, on the same tree. A **continuous** trait starts at one value and drifts along every branch, so each tip ends at a number of its own and close relatives end up close. A **discrete** trait sits in one state and switches to another now and then; the dots mark the two switches, and every branch below a switch is in the new state until it switches again. The chips at the tips are the state each one ended in. The two are different functions, `simulate_continuous` and `simulate_discrete`, because they answer different questions.](figures/trait_kinds_print.png){width=100%}
+![The two kinds, on the same tree. A **continuous** trait starts at one value and drifts along every branch, so every node ends at a number of its own — each branch is painted with the value at its far end — and close relatives end up close. A **discrete** trait sits in one state and switches to another now and then; the dots mark the two switches, and every branch below a switch is in the new state until it switches again. The chips at the tips are the state each one ended in. The two are different functions, `simulate_continuous` and `simulate_discrete`, because they answer different questions.](figures/trait_kinds_print.png){width=100%}
 
 ## Continuous traits
 
