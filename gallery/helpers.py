@@ -8,6 +8,8 @@ renders them all and regenerates ``gallery.html``.
 
 from __future__ import annotations
 
+import hashlib
+import inspect
 import math
 import os
 import shutil
@@ -491,14 +493,44 @@ def _zombi(*args) -> None:
                    stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
 
+#: The file a cached run is stamped with. Named for what it holds rather than for the version it
+#: used to hold; a directory carrying the old ``.zombi2-version`` simply reads as unstamped and is
+#: rebuilt once, which is right — it was built under a rule that ignored the run's own parameters.
+_STAMP = ".cache-key"
+
+
+def _cache_key(depth: int = 2) -> str:
+    """What a cached run depends on: the zombi2 that would build it, and **the helper asking for it**.
+
+    The second half is the fix for a trap. The key used to be the version alone, so editing a run —
+    a seed, a rate, ``--n-extant`` — left the cache valid and the figure regenerated from the old
+    data, silently, with the new parameters sitting in the source unused. Changing the karyotype
+    figure's seed from 3 to 71 did exactly that, and the only way out was deleting the directory by
+    hand. The helper's source *is* the run's definition, so hashing it invalidates on any edit that
+    could change what the run produces. It over-invalidates on an edit that could not — a reworded
+    docstring costs one rebuild — which is the side to err on.
+
+    ``depth`` is how far up the stack the helper sits: 2 when called from `_stale` or `_stamp`, which
+    is where it is called from, so no ``*_run()`` has to remember to pass anything.
+    """
+    from zombi2 import __version__
+
+    try:
+        source = inspect.getsource(inspect.stack()[depth].frame)
+    except (OSError, IndexError):                  # no source (a REPL): fall back to the version
+        source = ""
+    return f"{__version__} {hashlib.sha256(source.encode()).hexdigest()[:16]}"
+
+
 def _stale(run: str) -> bool:
-    """Is this cached run older than the ZOMBI2 that would build it now — and if so, **clear it**?
+    """Is this cached run out of date with what would build it now — and if so, **clear it**?
 
     The caches under ``figures/_data/`` used to be guarded on "does the file exist", which never
     expires. Four of them survived the one-row-per-event redesign holding the *old* columns
     (``lineage`` · ``copy`` · ``parent`` · ``recipient`` · ``donor``), so the events figure read a
-    format zombi2 had not written in months and the rebuild tracebacked. Stamping the cache with the
-    version that produced it is what makes it a cache rather than a fossil.
+    format zombi2 had not written in months and the rebuild tracebacked. Stamping the cache with
+    what produced it is what makes it a cache rather than a fossil — see `_cache_key` for what
+    "what produced it" has to mean.
 
     Clearing it is the other half, and it was missing: the rebuild writes with the CLI, and a run
     directory that already holds a downstream level refuses a re-run of the level above it — "would
@@ -507,12 +539,9 @@ def _stale(run: str) -> bool:
     it is thrown away here rather than at each of the five call sites, none of which would have
     remembered.
     """
-    from zombi2 import __version__
-
-    stamp = os.path.join(run, ".zombi2-version")
     try:
-        with open(stamp) as fh:
-            if fh.read().strip() == __version__:
+        with open(os.path.join(run, _STAMP)) as fh:
+            if fh.read().strip() == _cache_key():
                 return False
     except OSError:
         pass
@@ -521,10 +550,8 @@ def _stale(run: str) -> bool:
 
 
 def _stamp(run: str) -> str:
-    from zombi2 import __version__
-
-    with open(os.path.join(run, ".zombi2-version"), "w") as fh:
-        fh.write(__version__)
+    with open(os.path.join(run, _STAMP), "w") as fh:
+        fh.write(_cache_key())
     return run
 
 
