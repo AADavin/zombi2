@@ -9,6 +9,58 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- **Indels at the nucleotide resolution.** `deletion` and `insertion` (per lineage, with
+  `deletion_extent` and `insertion_extent`) remove and add DNA without changing gene content: no
+  copy dies and no family is born, so `loss` still says what a lineage *has* and `deletion` how much
+  of a surviving copy it *carries*. Their breakpoints do not cut the root partition, which is what
+  lets a genome carry thousands of them and still recover the gene and block trees it would have had
+  without any — 631 deletions leave the partition at one root block where the same events as `loss`
+  leave 860. An indel may fall **inside a gene**, where a segmental event still may not, so a genome
+  with no spacer at all evolves rather than standing still. The extents take any distribution, unlike
+  the segmental ones: `deletion_extent=Fixed(1)` is a single-nucleotide indel and a `scipy.stats.zipf`
+  extent gives the power law indel lengths really have. On the command line as `--deletion` /
+  `--insertion` with `--deletion-extent` / `--insertion-extent`, nucleotide only, the extent flags
+  taking the written form so `--deletion-extent 'Fixed(1)'` says there what it says in Python. (#357)
+- **Indels at the family and ordered resolutions**, so a protein alignment can finally have a gap in
+  it: `insertion` and `deletion` on `simulate_sequences`. There is no coordinate space at those
+  resolutions, so the sequence level is what owns the sites and draws them — one word and one meaning
+  at whichever level knows how long a sequence is. The rates are relative to substitution
+  (`deletion=0.05` is five deletions per hundred substitutions a site expects), so a lineage's clock
+  reaches its indels and the number means the same on a tree of any height. Refused beside a
+  nucleotide genome, which owns its own, and beside `partitions` or `profiles`, which are written
+  against a site count an indel changes. (#357)
+- **A nucleotide run with indels writes a true gapped alignment** and reads back from the files it
+  wrote. Each row of a locus is its full ancestral width with `-` where that lineage carries nothing,
+  while the assembled genome FASTA beside it stays gap-free — the alignment is what evolved, the
+  genome is what exists. Mean pairwise identity no longer counts a shared gap as a match. Read-back
+  works because every event record now carries the ancestral breakpoints it used, in a new `cuts`
+  column; a rearrangement therefore states where it cut in **ancestral** coordinates for the first
+  time, where that log was physical-only and could not be joined to the block log at all. (#357)
+- A gallery example for indels: the real *M. genitalium* `MG_RS02195`, a 210 bp gene across twenty
+  species, stretched to 256 alignment columns by three insertions and four deletions — four of them
+  falling on whole clades, so the gap pattern can be read against the tree. (#357)
+
+### Changed
+
+- **BREAKING:** a piece of `result.assembly(node)` is now `(block, gene, strand, lo, hi)`, and of
+  `result.initial_assembly()` `(block, strand, lo, hi)`, where `[lo, hi)` is the sub-range of that
+  block the node carries. An indel leaves a lineage holding part of a block rather than all of it, so
+  a piece can no longer be a whole block. Without indels `lo` is 0 and `hi` the block's length, so the
+  shape says what it always did at one extra pair of numbers. (#357)
+- **BREAKING:** `result.alignments[block]` is the **locus**, not the block — its own columns with the
+  runs inserted into it opened as real columns, so a lineage that gained one shows its bases where the
+  others show gaps. An inserted run folded into a host has no entry of its own there, since its
+  letters are the host's columns, but keeps one in `phylograms` and `founding` because it does have
+  its own history: the columns of such an alignment do not all share one tree. On a nucleotide run
+  with insertions `alignments` and `ancestral` are a mapping rather than a dict, as `node_genomes`
+  already was — they index, iterate and compare as before, but `json.dumps` on one needs `dict()`
+  around it. (#357)
+- **BREAKING:** `rearrangement_events.tsv` gains a `cuts` column at both resolutions. The **ordered**
+  resolution always leaves it empty — it has no ancestral coordinates to give — but the file is shared
+  by both, so the column is there. (#357)
+
 ## [0.37.0] - 2026-08-14
 
 ### Added

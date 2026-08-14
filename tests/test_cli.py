@@ -2435,3 +2435,56 @@ def test_tools_tree_clades_refuses_what_cannot_answer(tmp_path, argv, msg, capsy
         main(["tools", "tree", str(run / "species" / "species_complete.nwk"), *argv])
     assert e.value.code == 2
     assert msg in capsys.readouterr().err
+
+
+# ── indels on the command line ───────────────────────────────────────────────────────
+
+def _indel_tree(tmp_path):
+    main(["species", str(tmp_path), "--birth", "1.0", "--death", "0.2", "--n-extant", "8",
+          "--seed", "4", "--quiet"])
+    return tmp_path
+
+
+def test_the_indel_flags_drive_a_nucleotide_run(tmp_path):
+    run = _indel_tree(tmp_path)
+    rc = main(["genomes", str(run), "--resolution", "nucleotide", "--root-length", "600",
+               "--genes", "3", "--gene-length", "90", "--deletion", "40", "--insertion", "40",
+               "--deletion-extent", "Fixed(1)", "--insertion-extent", "5", "--inversion", "3",
+               "--seed", "4", "--quiet"])
+    assert rc == 0
+    import json
+    s = json.loads((run / "genomes" / "genome_summary.json").read_text())
+    assert s["deletions"] > 100 and s["block_events"]["insertion"] > 100
+    # `Fixed(1)` on the command line means one nucleotide, exactly as it does from Python
+    assert s["base_pairs_deleted"] == s["deletions"]
+    # and the breakpoints are written, or the run could not be read back
+    header = (run / "genomes" / "block_events.tsv").read_text().splitlines()[0]
+    assert header.split("\t")[-1] == "cuts"
+
+
+def test_an_indel_run_flows_into_a_separate_sequences_command(tmp_path):
+    # the two-command workflow read-back exists for: the genome level writes, the sequence level
+    # reads, and neither is holding the other's run in memory
+    run = _indel_tree(tmp_path)
+    main(["genomes", str(run), "--resolution", "nucleotide", "--root-length", "600", "--genes", "3",
+          "--gene-length", "90", "--deletion", "40", "--insertion", "40", "--seed", "4", "--quiet"])
+    assert main(["sequences", str(run), "--model", "hky85", "--divergence", "0.2", "--seed", "4",
+                 "--quiet"]) == 0
+    alignments = list((run / "sequences" / "alignments").glob("*.fasta"))
+    assert alignments
+    gapped = [f for f in alignments if "-" in f.read_text()]
+    assert gapped, "no written alignment carried a gap"
+    # the genome beside them is what exists, and carries none
+    for f in (run / "sequences" / "genomes").glob("*.fasta"):
+        assert "-" not in f.read_text()
+
+
+@pytest.mark.parametrize("resolution", ["family", "ordered"])
+@pytest.mark.parametrize("flag", ["--deletion", "--insertion"])
+def test_an_indel_flag_is_refused_where_it_means_nothing(tmp_path, resolution, flag):
+    # a gene copy is the unit at those resolutions; an indel is measured in base pairs and acts
+    # inside a gene, so neither says anything there — and a silently ignored flag is a run that is
+    # not the one asked for
+    run = _indel_tree(tmp_path)
+    with pytest.raises(SystemExit):
+        main(["genomes", str(run), "--resolution", resolution, flag, "1", "--seed", "1", "--quiet"])

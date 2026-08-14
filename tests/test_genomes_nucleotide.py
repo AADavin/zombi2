@@ -22,6 +22,7 @@ from zombi2.genomes import simulate_genomes_nucleotide
 from zombi2.genomes.nucleotide import (
     Block,
     Chromosome,
+    Deletion,
     Duplication,
     Inversion,
     Loss,
@@ -31,6 +32,9 @@ from zombi2.genomes.nucleotide import (
     Transfer,
     Translocation,
     Transposition,
+    _skippable_bounds,
+    _CutsGene,
+    read_nucleotide_genomes,
     _do_duplication,
     _do_loss,
     _do_translocation,
@@ -1841,7 +1845,7 @@ def test_written_events_account_for_every_recorded_event(tmp_path):
     for e in r.events:
         kind = type(e).__name__.lower()
         if kind == "origination":                    # the initial genome is 'initial', not 'origination'
-            kind = "initial" if e.initial else "origination"
+            kind = e.kind
         n = {"loss": len(getattr(e, "lost", ())), "duplication": len(getattr(e, "copied", ())),
              "transfer": len(getattr(e, "transferred", ())),
              "speciation": len(getattr(e, "children", ()))}.get(kind, 1)
@@ -1879,7 +1883,7 @@ def test_rearrangements_are_their_own_table(tmp_path):
     assert not (tmp_path / "rearrangements.tsv").exists()
     cols, rows = _read(tmp_path / "rearrangement_events.tsv")
     assert cols == ["time", "kind", "lineage", "chromosome", "start", "length",
-                    "dest_chromosome", "dest_position", "flipped"]
+                    "dest_chromosome", "dest_position", "flipped", "cuts"]
     kinds = {"inversion", "transposition", "translocation"}
     assert len(rows) == len(r.rearrangements) and {row["kind"] for row in rows} == kinds
     for row, rec in zip(rows, r.rearrangements, strict=True):
@@ -1947,9 +1951,9 @@ def _expand(result, node_id):
     out = {}
     for cid, pieces in result.assembly(node_id).items():
         seq = []
-        for (i, _gene, strand) in pieces:
-            src, a, z = blocks[i]
-            span = range(a, z)
+        for (i, _gene, strand, lo, hi) in pieces:
+            src, a, _z = blocks[i]
+            span = range(a + lo, a + hi)
             seq.extend((src, p, strand) for p in (span if strand == 1 else reversed(span)))
         out[cid] = seq
     return out
@@ -2119,7 +2123,12 @@ def test_block_events_counts_what_the_gene_counters_cannot_see():
     g = simulate_genomes_nucleotide(sp, root_length=10000, genes=10, gene_length=500,
                                     duplication=2.0, transfer=2.0, loss=2.0, seed=5)
     s = g.summary()
-    assert set(s["block_events"]) == set(s["events"])          # the same six kinds, side by side
+    # The kinds line up side by side, with one exception: `insertion` is DNA and nothing else — it
+    # brings sequence rather than a gene family, so the gene-level counters have no such kind. With
+    # genes declared it is invisible to them; with none, every block is a family and it lands under
+    # their `origination`. Every other kind appears in both.
+    assert set(s["block_events"]) - set(s["events"]) == {"insertion"}
+    assert not set(s["events"]) - set(s["block_events"])
     assert s["events"]["duplication"] == 0                     # no arc took a whole gene ...
     assert s["block_events"]["duplication"] > 0                # ... but the events did happen
     # the two count different things and neither bounds the other, in either direction: `initial` is
@@ -2164,3 +2173,418 @@ def test_the_summary_counts_every_gene_not_only_the_declared_ones():
 
     quiet = simulate_genomes_nucleotide(sp, root_length=20000, genes=5, gene_length=400, seed=1)
     assert quiet.summary()["genes"] == 5                    # and with none minted it is what was declared
+
+
+# --- indels: deletion, and the breakpoint provenance that keeps the partition coarse ---------------
+#
+# A `deletion` removes exactly what a `loss` removes. What differs is attribution: its breakpoints are
+# indel-made, so the root partition does not cut at them, and no copy lineage ends, so the genealogy
+# never sees it. Without that the partition is cut twice per event and collapses to fragments a few
+# bases wide — which is the whole reason the provenance exists.
+
+def _deletion_run(**kw):
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=10, seed=1)
+    params = dict(root_length=2000, deletion_extent=5.0, seed=3)
+    params.update(kw)
+    return simulate_genomes_nucleotide(sp, **params)
+
+
+def test_a_deletion_removes_material_without_cutting_the_partition():
+    # the claim the design rests on: the partition stays as coarse as the layout however many
+    # deletions fire, while the same events as `loss` shatter it
+    quiet = _deletion_run(deletion=0.0)
+    busy = _deletion_run(deletion=80.0)
+    assert busy.summary()["deletions"] > 300, "the deletion rate did not bite"
+    assert busy.root_blocks == quiet.root_blocks == [(0, 0, 2000)]
+
+    control = _deletion_run(loss=80.0, loss_extent=5.0)
+    assert len(control.root_blocks) > 300, "the control did not shatter, so it proves nothing"
+
+
+def test_a_deletion_shrinks_every_genome_by_exactly_what_it_reports():
+    g = _deletion_run(deletion=80.0)
+    per_lineage = collections.Counter()
+    for e in g.deletions:
+        per_lineage[e.lineage] += sum(end - beg for (_cp, _src, beg, end) in e.deleted)
+    assert per_lineage, "no deletion fired"
+    # a node's genome is its parent's, less what this branch deleted (nothing else is on in this run)
+    for node_id, genome in g.node_genomes.items():
+        node = g.complete_tree.nodes[node_id]
+        before = (2000 if node.parent is None
+                  else g.node_genomes[node.parent].length)
+        assert genome.length == before - per_lineage[node_id]
+
+
+def test_a_deletion_writes_no_genealogy_event_and_no_rearrangement():
+    g = _deletion_run(deletion=80.0, duplication=1.0, loss=1.0)
+    assert g.deletions
+    assert not any(isinstance(e, Deletion) for e in g.events)
+    assert not any(isinstance(e, Deletion) for e in g.rearrangements)
+    assert {type(e).__name__ for e in g.events} <= {
+        "Origination", "Loss", "Duplication", "Transfer", "Speciation"}
+
+
+def test_a_breakpoint_reached_both_ways_stays_in_the_partition():
+    # the case that makes `skippable` a subtraction rather than the indel set outright: an indel cuts
+    # at 40 in one lineage and an ordinary event cuts at 40 in another. Skipping it there would merge
+    # two blocks a real event separated.
+    g = _deletion_run(deletion=60.0, loss=8.0, loss_extent=5.0, inversion=8.0, inversion_extent=5.0)
+    assert g.deletions and any(e.cuts for e in g.rearrangements)
+    indel = {at for e in g.deletions for (_s, at) in e.cuts}
+    event = {at for e in (*g.events, *g.rearrangements) for (_s, at) in e.cuts}
+    both = indel & event
+    assert both, "no position was reached both ways in this run, so it proves nothing"
+    assert not (both & _skippable_bounds(g).get(0, set()))
+
+
+def test_an_event_records_the_breakpoints_it_USED_not_the_ones_it_created():
+    # what is attributed is which kinds of event have relied on a boundary, not who first cut it.
+    # An ordinary event that merely STARTS where an indel once cut still needs that position in the
+    # partition, or its arc covers only part of a block it should have covered whole.
+    used: list = []
+    c = Chromosome(0, "linear", [Block(0, 0, 40, 1, 1), Block(0, 40, 100, 1, 1)])
+    c.delete(40, 20, used=used)                        # 40 exists already; 60 has to be made
+    assert used == [(0, 40), (0, 60)]
+
+
+def test_a_reversed_block_reports_the_ancestral_position_it_really_cut():
+    # a reversed block's first physical positions are its source's HIGH end, so a cut `o` in from the
+    # left falls at `end - o` ancestrally, not `start + o`
+    c = Chromosome(0, "linear", [Block(0, 0, 100, -1, 1)])
+    assert c._split_at(30, indel=True) == (0, 70)
+
+
+def test_genes_still_recover_as_exactly_one_root_block_under_heavy_deletion():
+    g = _deletion_run(deletion=80.0, genes=4, gene_length=100)
+    assert g.summary()["deletions"] > 200
+    for fam, span in g.gene_spans.items():
+        assert g.root_blocks[g.block_of(fam)] == span
+    assert len(g.root_blocks) == 8                     # the layout: four genes, four spacers
+    assert len(g.gene_trees) == 4
+
+
+def test_the_summary_reports_the_indel_log():
+    g = _deletion_run(deletion=80.0)
+    s = g.summary()
+    assert s["deletions"] == len(g.deletions)
+    assert s["base_pairs_deleted"] == sum(end - beg for e in g.deletions
+                                          for (_cp, _src, beg, end) in e.deleted)
+    assert _deletion_run(deletion=0.0).summary()["deletions"] == 0
+
+
+def test_assembly_tiles_an_indel_run_exactly_as_its_trace_back():
+    # the oracle, now over indels: a lineage carries only PART of a root block, so every piece carries
+    # the sub-range it holds, and expanding those back one entry per nucleotide has to reproduce the
+    # per-nucleotide ancestry the genome itself records. At EVERY node, with everything else running.
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=4)
+    g = simulate_genomes_nucleotide(sp, deletion=40.0, insertion=40.0, deletion_extent=5.0,
+                                    insertion_extent=5.0, inversion=3.0, inversion_extent=80,
+                                    loss=0.4, loss_extent=40, duplication=0.4,
+                                    duplication_extent=40, transfer=0.6, transfer_extent=60,
+                                    root_length=600, genes=3, gene_length=90, seed=4)
+    assert g.indels > 100, "no indels fired, so this proves nothing"
+    for node_id in sorted(g.node_genomes):
+        assert _expand(g, node_id) == g.trace_back(node_id)
+    # and a piece really is narrower than its block somewhere, or the sub-range went untested
+    partial = sum(1 for pieces in g.assembly(g.complete_tree.root).values()
+                  for (i, _gene, _s, lo, hi) in pieces
+                  if (lo, hi) != (0, g.root_blocks[i][2] - g.root_blocks[i][1]))
+    assert partial, "every piece was a whole block"
+
+
+def test_a_deletion_by_hand_matches_what_the_engine_does():
+    # the mutator takes explicit coordinates, so a scripted call is the code the engine runs
+    used: list = []
+    c = Chromosome(0, "linear", [Block(0, 0, 100, 1, 7)])
+    gone = c.delete(40, 5, indel=True, used=used)
+    assert gone == ((7, 0, 40, 45),) and used == [(0, 40), (0, 45)]
+    assert [(b.start, b.end) for b in c.blocks] == [(0, 40), (45, 100)]
+    assert c.length == 95
+
+
+# --- indels: insertion ------------------------------------------------------------------------------
+#
+# The asymmetry with deletion is the point. A deletion ends no copy lineage, so it stays out of the
+# genealogy entirely. Novel DNA has no ancestor: it must arrive on a fresh source under a fresh copy
+# lineage, or the recovery has no root to build its block tree from. So an insertion IS a birth — an
+# origination of sequence rather than of a gene family — and is recorded as one.
+
+def test_an_insertion_adds_material_without_cutting_the_source_it_lands_in():
+    busy = _deletion_run(insertion=80.0, insertion_extent=5.0)
+    n = busy.summary()["block_events"]["insertion"]
+    assert n > 300, "the insertion rate did not bite"
+    # the original 2 kb is untouched: one root block, however many gaps were opened inside it
+    assert [b for b in busy.root_blocks if b[0] == 0] == [(0, 0, 2000)]
+    # and the new material is one block apiece — linear, not compounding
+    assert len(busy.root_blocks) == 1 + n
+    assert sum(g.length for g in busy.node_genomes.values()) > 2000 * len(busy.node_genomes)
+
+
+def test_an_insertion_is_a_root_carrying_spacer_rather_than_a_gene():
+    g = _deletion_run(insertion=80.0, insertion_extent=5.0, genes=3, gene_length=100)
+    inserts = [e for e in g.events if isinstance(e, Origination) and e.kind == "insertion"]
+    assert inserts
+    for e in inserts:
+        assert e.start == 0 and e.end > 0        # a fresh source, its own coordinate space
+        assert e.kind == "insertion"
+    # spacer: no gene family, so no gene tree — but a block tree, like any other stretch of DNA
+    assert len(g.gene_trees) == 3
+    assert len(g.block_trees) == len(g.root_blocks) > 3
+    inserted_sources = {e.source for e in inserts}
+    assert not (inserted_sources & {src for (src, _a, _b) in
+                                    (g.gene_spans[f] for f in g.gene_spans)})
+    for genome in g.node_genomes.values():
+        for chrom in genome.chromosomes:
+            for b in chrom.blocks:
+                if b.source in inserted_sources:
+                    assert b.gene == 0, "an insertion laid down a gene"
+
+
+def test_insertion_origination_and_the_initial_genome_are_counted_apart():
+    g = _deletion_run(insertion=60.0, insertion_extent=5.0, origination=1.0, genes=2,
+                      gene_length=100)
+    s = g.summary()["block_events"]
+    assert s["insertion"] > 100 and s["origination"] > 0 and s["initial"] == 1
+    for kind in ("insertion", "origination", "initial"):
+        assert s[kind] == sum(1 for e in g.events
+                              if isinstance(e, Origination) and e.kind == kind)
+    # the three are exclusive by construction now: one field, not a flag apiece
+    assert {e.kind for e in g.events if isinstance(e, Origination)} <= {
+        "initial", "origination", "insertion"}
+
+
+def test_an_insertion_by_hand_lays_spacer_and_makes_one_indel_breakpoint():
+    used: list = []
+    c = Chromosome(0, "linear", [Block(0, 0, 100, 1, 7)])
+    c.originate(40, 5, source=9, copy=12, family=0, indel=True, used=used)
+    assert [(b.source, b.start, b.end, b.gene) for b in c.blocks] == [
+        (0, 0, 40, 0), (9, 0, 5, 0), (0, 40, 100, 0)]
+    assert c.length == 105
+    assert used == [(0, 40)]
+
+
+def test_both_indels_together_leave_the_declared_genes_recoverable():
+    g = _deletion_run(insertion=40.0, deletion=40.0, insertion_extent=5.0,
+                      inversion=2.0, duplication=0.5, loss=0.5, genes=4, gene_length=100)
+    assert g.summary()["block_events"]["insertion"] > 100 and g.summary()["deletions"] > 100
+    for fam, span in g.gene_spans.items():
+        assert g.root_blocks[g.block_of(fam)] == span
+    assert len(g.gene_trees) == len(g.gene_spans)
+
+
+def test_an_indel_run_round_trips_through_the_files_it_wrote(tmp_path):
+    # the whole point of every event carrying the breakpoints it used: the distinction between an
+    # indel breakpoint and an ordinary one is IN the record, so it survives a write. Get that wrong
+    # and the partition is cut at every indel and every tree comes back different.
+    g = _deletion_run(deletion=40.0, insertion=40.0, insertion_extent=5.0, loss=1.0,
+                      duplication=1.0, inversion=2.0, genes=2, gene_length=100)
+    g.write(tmp_path)
+    text = (tmp_path / "block_events.tsv").read_text()
+    assert "\tinsertion\t" in text and "\tdeletion\t" in text
+
+    back = read_nucleotide_genomes(tmp_path, g.complete_tree)
+    assert len(back.deletions) == len(g.deletions)
+    assert back.root_blocks == g.root_blocks
+    assert {f: t.to_newick("complete") for f, t in back.gene_trees.items()} == \
+           {f: t.to_newick("complete") for f, t in g.gene_trees.items()}
+    for nid in g.node_genomes:
+        assert back.assembly(nid) == g.assembly(nid)
+
+
+def test_the_initial_genome_assembles_under_indels_too():
+    g = _deletion_run(deletion=80.0, insertion=80.0, insertion_extent=5.0)
+    assert g.indels > 100
+    # the initial genome is the one thing no indel ever touched: it sits at the START of the root
+    # branch, so every piece of it is still a whole block
+    for _cid, pieces in g.initial_assembly().items():
+        for (i, _strand, lo, hi) in pieces:
+            src, a, z = g.root_blocks[i]
+            assert (lo, hi) == (0, z - a)
+
+
+# --- indels: the legal-cut exemption ---------------------------------------------------------------
+#
+# `_legal_cuts()` writes down the one rule — a breakpoint may never fall strictly inside a gene — and
+# every event draws its breakpoints from it, which is what makes a gene recover as exactly one root
+# block. An INDEL is exempt, and safely so: its breakpoints are skipped by the partition, so the gene
+# is still one never-cut interval there. Without the exemption an indel could land in spacer alone,
+# which is not where most of them happen.
+
+def test_the_cut_set_opens_a_gene_to_an_indel_and_to_nothing_else():
+    c = Chromosome(0, "linear", [Block(0, 0, 100, 1, 1, 3)])       # one gene, no spacer at all
+    assert c._legal_cuts() == [(0, 0), (100, 100)]                 # its edges, and no interior
+    assert c._legal_cuts(indel=True) == [(0, 99), (100, 100)]      # every position, for an indel
+
+
+def test_an_indel_may_cut_inside_a_gene_and_an_event_may_not():
+    c = Chromosome(0, "linear", [Block(0, 0, 100, 1, 7, 3)])
+    with pytest.raises(_CutsGene):
+        c._split_at(40)                                            # an ordinary event: refused
+    assert c.blocks == [Block(0, 0, 100, 1, 7, 3)]                 # and nothing was mutated
+    assert c._split_at(40, indel=True) == (0, 40)
+    assert [(b.start, b.end, b.gene) for b in c.blocks] == [(0, 40, 3), (40, 100, 3)]
+
+
+def test_a_gene_cut_by_an_indel_still_counts_as_one_gene():
+    # the guard that keeps a chromosome from losing its last gene counts genes, and an indel can now
+    # leave one gene as two blocks — counted by block it would read as two and let the last one go
+    c = Chromosome(0, "linear", [Block(0, 0, 100, 1, 7, 3)])
+    assert c.n_genes == 1
+    c._split_at(40, indel=True)
+    assert len(c.blocks) == 2 and c.n_genes == 1
+
+
+def test_a_fully_genic_genome_still_takes_indels_and_recovers_every_gene():
+    # ten 200 bp genes in 2000 bp: no spacer anywhere, so before the exemption an indel had nowhere
+    # to go. Every gene must still come back as exactly one root block with one tree.
+    g = _deletion_run(deletion=60.0, insertion=60.0, insertion_extent=5.0,
+                      genes=10, gene_length=200)
+    s = g.summary()
+    assert s["deletions"] > 100 and s["block_events"]["insertion"] > 100
+    assert len(g.gene_spans) == 10 and len(g.gene_trees) == 10
+    for fam, span in g.gene_spans.items():
+        assert g.root_blocks[g.block_of(fam)] == span
+    # and the cuts really did fall inside genes, or this proves nothing
+    split = sum(1 for genome in g.node_genomes.values() for chrom in genome.chromosomes
+                for (gene, copy), n in collections.Counter(
+                    (b.gene, b.copy) for b in chrom.blocks if b.is_gene).items() if n > 1)
+    assert split > 10, "no gene was ever cut inside, so the exemption went untested"
+
+
+def test_a_deletion_that_takes_a_whole_block_ends_that_copy():
+    # a deletion ends no copy lineage — unless it takes a whole block, and then the copy carries
+    # nothing of it and the tree has to say so. `covers`, not `overlaps`, is the difference.
+    # many small blocks against a wide extent, so whole ones really do go — and insertion on, or the
+    # genome shrinks until `delete` starts refusing and the case never arises
+    g = _deletion_run(deletion=80.0, deletion_extent=100.0, insertion=60.0, insertion_extent=30.0,
+                      genes=20, gene_length=40, root_length=3000)
+    assert g.summary()["deletions"] > 100
+    whole = sum(1 for e in g.deletions for (_cp, src, x, y) in e.deleted
+                for (s2, a, b) in g.root_blocks if s2 == src and x <= a and b <= y)
+    assert whole > 5, "no deletion took a whole block, so the `covers` path went untested"
+    # every copy a genome still carries must have a live tip in the recovery, or assembly's own
+    # guard would be the thing that caught it
+    tips = g._recover_blocks()[2]
+    for genome in g.node_genomes.values():
+        for chrom in genome.chromosomes:
+            for b in chrom.blocks:
+                for i, (src, x, y) in enumerate(g.root_blocks):
+                    if src == b.source and b.start <= x and y <= b.end:
+                        assert tips.get((i, b.copy), "missing") not in (None, "missing"), (
+                            f"block {i} is carried under copy {b.copy} but its genealogy "
+                            f"does not have it alive")
+
+
+# --- indels: the extent may take any shape ----------------------------------------------------------
+#
+# A segmental extent must be Geometric, because that engine samples an arc's far end out of the legal
+# cut set and reaches the mutator as a MEAN — a shape it cannot express would be accepted and then
+# silently sampled as a geometric anyway. An indel has no restriction on where it may cut, so it draws
+# its size outright and any shape works. That is what makes `Fixed(1)` mean one nucleotide.
+
+def _sizes(g):
+    """bp per deletion EVENT, not per row: one deletion spanning two blocks writes a row each."""
+    return [sum(e - b for (_c, _s, b, e) in ev.deleted) for ev in g.deletions]
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+def test_a_fixed_indel_extent_removes_and_adds_exactly_that_many_bases(n):
+    from zombi2.params.distributions import Fixed
+    g = _deletion_run(deletion=60.0, insertion=60.0, deletion_extent=Fixed(n),
+                      insertion_extent=Fixed(n), root_length=20000)
+    assert set(_sizes(g)) == {n}
+    assert {e.end - e.start for e in g.events
+            if isinstance(e, Origination) and e.kind == "insertion"} == {n}
+
+
+def test_a_geometric_indel_extent_still_spreads_around_its_mean():
+    from zombi2.params.distributions import Geometric
+    g = _deletion_run(deletion=60.0, deletion_extent=Geometric(5.0), root_length=20000)
+    sizes = _sizes(g)
+    assert 4.0 < sum(sizes) / len(sizes) < 6.5
+    assert min(sizes) == 1 and max(sizes) > 10           # a decaying spread, not a point mass
+
+
+def test_a_segmental_extent_still_refuses_a_shape_it_cannot_express():
+    from zombi2.params.distributions import Fixed
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    for label in ("loss_extent", "duplication_extent", "inversion_extent"):
+        with pytest.raises(ValueError, match="geometric extent only"):
+            simulate_genomes_nucleotide(sp, root_length=500, seed=1, **{label: Fixed(3)})
+    # ...and the indels accept it, which is the whole difference
+    simulate_genomes_nucleotide(sp, root_length=500, seed=1, deletion_extent=Fixed(3),
+                                insertion_extent=Fixed(3))
+
+
+def test_an_indel_extent_takes_a_power_law():
+    # indel lengths in real data are closer to a power law than to a geometric, and the exemption
+    # from the cut set is what makes one samplable here
+    scipy_stats = pytest.importorskip("scipy.stats")
+    g = _deletion_run(deletion=60.0, deletion_extent=scipy_stats.zipf(1.7), root_length=20000)
+    sizes = _sizes(g)
+    assert sorted(sizes)[len(sizes) // 2] <= 3           # nearly all of them tiny ...
+    assert max(sizes) > 50                               # ... with a long tail
+    assert sum(1 for x in sizes if x == 1) > len(sizes) // 4
+
+
+# --- the cut set is about GENES, not about blocks --------------------------------------------------
+#
+# `_legal_cuts` protects a gene by offering its own outer edge and never its interior. An indel
+# fragments a gene, and every fragment is still tagged with the family — so testing `is_gene` per
+# BLOCK let each fragment offer its own edge, and an ordinary event could then cut at an indel-made
+# boundary strictly inside the gene. Event breakpoints do reach the partition, so the gene's root
+# block split and it lost its identity as a locus: `block_of` raised, and its single alignment
+# became several. In every lineage, including the ones that never touched it.
+
+def _fragmented_gene(**kw):
+    """One 100 bp gene, cut in two by an indel — the state the old test never reached."""
+    c = Chromosome(0, "linear", [Block(0, 0, 50, 1, 1),
+                                 Block(0, 50, 150, 1, 1, 3),      # the gene, [50,150)
+                                 Block(0, 150, 200, 1, 1)], {3: (0, 50, 150)}, **kw)
+    c._split_at(100, indel=True)                                  # an indel cuts inside it
+    assert [(b.start, b.end, b.gene) for b in c.blocks] == [
+        (0, 50, 0), (50, 100, 3), (100, 150, 3), (150, 200, 0)]
+    return c
+
+
+def test_an_event_may_not_cut_at_an_indel_made_boundary_inside_a_gene():
+    c = _fragmented_gene()
+    # physical 100 is the gene's two fragments meeting: inside the gene, so not a legal cut
+    assert 100 not in {p for lo, hi in c._legal_cuts() for p in range(lo, hi + 1)}
+    with pytest.raises(_CutsGene):
+        c._check_cut(100)
+    # its own two edges still are, and so is the spacer around it
+    legal = {p for lo, hi in c._legal_cuts() for p in range(lo, hi + 1)}
+    assert 50 in legal and 150 in legal
+    # ...and an indel may still cut anywhere, which is the whole point of the exemption
+    assert 100 in {p for lo, hi in c._legal_cuts(indel=True) for p in range(lo, hi + 1)}
+
+
+def test_a_gene_with_no_declared_span_is_its_own_whole_gene():
+    # a chromosome built by hand or read back from a file has no span table, and then a genic block
+    # IS the gene — which is what this was before an indel could split one
+    c = Chromosome(0, "linear", [Block(0, 0, 50, 1, 1), Block(0, 50, 150, 1, 1, 3)])
+    assert c._legal_cuts() == [(0, 49), (50, 50), (150, 150)]
+
+
+def test_a_reversed_gene_fragment_knows_which_edge_is_its_own():
+    # physically the leading edge of a reversed block is its source's HIGH end, so the span test
+    # flips with it
+    genes = {3: (0, 50, 150)}
+    c = Chromosome(0, "linear", [Block(0, 100, 150, -1, 1, 3), Block(0, 50, 100, -1, 1, 3)], genes)
+    assert c._opens(c.blocks[0]) and not c._closes(c.blocks[0])   # holds the gene's high end
+    assert not c._opens(c.blocks[1]) and c._closes(c.blocks[1])   # holds its low end
+    assert 50 not in {p for lo, hi in c._legal_cuts() for p in range(lo, hi + 1)}
+
+
+def test_no_gene_is_ever_split_across_root_blocks():
+    # the invariant the bug broke, end to end: a gene is one root block or it is gone, never several
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=5)
+    g = simulate_genomes_nucleotide(sp, root_length=1200, genes=3, gene_length=200,
+                                    deletion=8.0, insertion=8.0, deletion_extent=6.0,
+                                    insertion_extent=6.0, inversion=2.0, inversion_extent=400,
+                                    loss=0.5, duplication=0.5, seed=5)
+    assert g.indels > 50 and g.summary()["rearrangements"]["inversion"] > 3
+    for fam, (src, a, b) in g.gene_spans.items():
+        covering = [rb for rb in g.root_blocks if rb[0] == src and rb[1] < b and a < rb[2]]
+        assert covering in ([], [(src, a, b)]), (fam, covering)

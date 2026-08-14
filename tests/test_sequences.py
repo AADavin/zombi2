@@ -9,7 +9,9 @@ import numpy as np
 import pytest
 
 from zombi2 import species
-from zombi2.genomes import FamilyGenomesResult, simulate_genomes_family
+from zombi2.species import simulate_species_tree
+from zombi2.genomes import (FamilyGenomesResult, simulate_genomes_family,
+                            simulate_genomes_nucleotide, simulate_genomes_ordered)
 from zombi2.genomes.events import copy_label
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
 from zombi2.params import Drift, LogNormal, PerSite, Random
@@ -913,3 +915,144 @@ def test_a_scheduled_mapping_entry_is_refused_at_the_sequences_level():
     # the same rate with one factor per state is untouched
     assert simulate_sequences(g, model=hky85(), length=50, seed=1,
                               substitution=PerSite(0.05).scaled_by(clade, {"fast": 4.0})).alignments
+
+
+# --- indels at the sequence level -------------------------------------------------------------
+#
+# The family and ordered resolutions have no coordinate space, so nothing at the genome level can
+# say how long a gene's sequence is — the sequence level can, and that is where an indel lives for
+# them. Same word and same meaning as the nucleotide resolution's, drawn by whichever level owns the
+# sites. Geometry first (which columns exist, who carries them), then the existing engine over that
+# fixed width: exact, because a reversible model founded at π is still at π after any branch.
+
+def _indel_run(model=None, **kw):
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=3)
+    g = simulate_genomes_family(sp, duplication=0.3, loss=0.3, origination=0.8, seed=3)
+    params = dict(length=80, divergence=0.5, seed=3)
+    params.update(kw)
+    return g, simulate_sequences(g, model=model or lg(), **params)
+
+
+def test_a_protein_alignment_can_have_gaps_in_it():
+    _g, r = _indel_run(insertion=0.05, deletion=0.05)
+    gaps = sum(v.count("-") for a in r.alignments.values() for v in a.values())
+    assert gaps > 100, "no indel fired"
+    assert r.alphabet == AMINO_ACIDS
+    # it is still an alignment: one width per family, and wider than the sequence it started from
+    widths = set()
+    for rows in r.alignments.values():
+        assert len({len(v) for v in rows.values()}) <= 1
+        widths |= {len(v) for v in rows.values()}
+    assert min(widths) >= 80 and max(widths) > 80
+
+
+def test_asking_for_no_indels_is_the_run_that_never_had_them():
+    # zero rates must take not one draw, or every run written before this moves
+    _g, plain = _indel_run()
+    _g2, zeros = _indel_run(insertion=0.0, deletion=0.0)
+    assert plain.alignments == zeros.alignments
+    assert plain.ancestral == zeros.ancestral
+    assert not any(v.count("-") for a in plain.alignments.values() for v in a.values())
+
+
+def test_indels_work_over_nucleotides_and_at_the_ordered_resolution_too():
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=8, seed=3)
+    g = simulate_genomes_ordered(sp, duplication=0.3, loss=0.3, origination=0.8, seed=3)
+    r = simulate_sequences(g, model=jc69(), length=60, divergence=0.4,
+                           insertion=0.05, deletion=0.05, seed=3)
+    assert sum(v.count("-") for a in r.alignments.values() for v in a.values()) > 100
+
+
+def test_a_fixed_extent_means_exactly_that_many_sites():
+    # an indel here has no cut set to be re-weighted over, so it draws its size outright and any
+    # distribution works — `Fixed(1)` really is a one-site indel
+    from zombi2.params.distributions import Fixed
+    _g, one = _indel_run(insertion=0.08, deletion=0.0, insertion_extent=Fixed(1))
+    widths = {len(v) for a in one.alignments.values() for v in a.values()}
+    _g2, five = _indel_run(insertion=0.08, deletion=0.0, insertion_extent=Fixed(5))
+    wider = {len(v) for a in five.alignments.values() for v in a.values()}
+    assert max(wider) > max(widths), "a five-site insertion did not widen more than a one-site one"
+
+
+def test_the_sequence_levels_indels_are_refused_where_the_genome_owns_them():
+    # a nucleotide genome has its own, because there a base pair has a position
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    g = simulate_genomes_nucleotide(sp, root_length=400, genes=2, gene_length=80, seed=1)
+    with pytest.raises(ValueError, match="simulate_genomes_nucleotide"):
+        simulate_sequences(g, model=jc69(), divergence=0.3, deletion=0.05, seed=1)
+
+
+def test_indels_and_a_fixed_site_layout_are_refused_together():
+    # partitions and profiles are written against a site count that an indel changes
+    sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=4, seed=1)
+    g = simulate_genomes_family(sp, duplication=0.2, loss=0.2, origination=0.5, seed=1)
+    with pytest.raises(ValueError, match="fixed site count"):
+        simulate_sequences(g, partitions=[(jc69(), 30), (k80(2.0), 30)], divergence=0.3,
+                           insertion=0.05, seed=1)
+
+
+def _reference_history(root, length, *, insertion, deletion, extent, rate_base, rng):
+    """A deliberately obvious reference for `draw_indel_history`: splice each run straight into the
+    shared column order, finding its anchor by scanning. Quadratic, and correct by construction.
+
+    The real one records "after which id" and builds the order once at the end, which is linear and
+    was subtly wrong: a run inserted *before* one already anchored at the same id ended up after it
+    in the shared order, while the lineage that made it holds it before — so that lineage's bases
+    would have been written into the wrong columns. Nothing downstream could have noticed, because
+    the masks keep which columns a lineage has and not what order it has them in."""
+    order, carried, next_id = list(range(length)), {}, length
+    stack = [(root, None, list(range(length)))]
+    while stack:
+        node, parent_time, parent_seq = stack.pop()
+        seq = list(parent_seq)
+        if parent_time is not None:
+            bl = rate_base * (node.time - parent_time)
+            if bl > 0.0 and seq:
+                for _ in range(int(rng.poisson((insertion + deletion) * bl * len(seq)))):
+                    if not seq:
+                        break
+                    if rng.random() * (insertion + deletion) < insertion:
+                        size = max(1, int(extent.sample(rng)))
+                        at = int(rng.integers(len(seq) + 1))
+                        fresh = list(range(next_id, next_id + size))
+                        next_id += size
+                        cut = order.index(seq[at - 1]) + 1 if at else 0
+                        order[cut:cut] = fresh
+                        seq[at:at] = fresh
+                    else:
+                        size = max(1, int(extent.sample(rng)))
+                        if size >= len(seq):
+                            continue
+                        at = int(rng.integers(len(seq) - size + 1))
+                        del seq[at:at + size]
+        carried[id(node)] = seq
+        for child in reversed(node.children or ()):
+            stack.append((child, node.time, seq))
+    where = {c: i for i, c in enumerate(order)}
+    for s in carried.values():                       # the reference's own invariant, checked
+        assert [where[c] for c in s] == sorted(where[c] for c in s)
+    return len(order), {k: sorted(where[c] for c in s) for k, s in carried.items()}
+
+
+def test_the_column_order_matches_an_obvious_reference_implementation():
+    from zombi2.params.parameter import as_extent
+    from zombi2.sequences.indels import draw_indel_history
+
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=12, seed=5)
+    g = simulate_genomes_family(sp, duplication=0.4, loss=0.3, origination=0.9, seed=5)
+    extent = as_extent(4.0)
+    checked = 0
+    for fam in sorted(g.gene_trees)[:12]:
+        for seed in (1, 2):
+            kw = dict(insertion=0.15, deletion=0.15, extent=extent, rate_base=1.0)
+            mine = draw_indel_history(
+                g.gene_trees[fam].complete, 60, insertion=0.15, deletion=0.15,
+                insertion_extent=extent, deletion_extent=extent, rate_base=1.0, clock=None,
+                rng=np.random.default_rng(seed))
+            width, carried = _reference_history(
+                g.gene_trees[fam].complete, 60, rng=np.random.default_rng(seed), **kw)
+            assert mine.width == width
+            for key, columns in carried.items():
+                assert list(np.flatnonzero(mine.present[key])) == columns
+            checked += 1
+    assert checked == 24

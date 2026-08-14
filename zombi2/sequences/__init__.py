@@ -75,6 +75,7 @@ from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
 from .clock import Clock, resolve_clock
 from .evolution import evolve_gene_tree
+from .indels import draw_indel_history
 from .lineage_models import Models
 from .substitution_models import (BASES, SubstitutionModel, _with_frequencies, dayhoff, decode,
                                   encode, gtr, hky85, jc69, jtt, k80, lg, poisson, wag)
@@ -142,8 +143,11 @@ class SequencesResult:
       asked to count against.
     """
 
-    alignments: dict[int, dict[str, str]]
-    ancestral: dict[int, dict[str, str]]
+    #: ``{block: {record: sequence}}`` — read as a plain mapping. On a nucleotide run with
+    #: insertions it is a `_SplicedAlignments` view rather than a dict, so a block's rows arrive
+    #: with the runs inserted into it opened as real columns.
+    alignments: "Mapping[int, dict[str, str]]"
+    ancestral: "Mapping[int, dict[str, str]]"
     founding: dict[int, str]
     phylograms: dict[int, dict[str, str | None]]
     species_phylogram: dict[str, str | None]
@@ -158,6 +162,15 @@ class SequencesResult:
     #: Kept because a sequences result carries its trees as Newick text, not as a `Tree`, so there is
     #: otherwise nothing here that says which of the labels is a survivor.
     extant_tips: tuple[str, ...] = ()
+    #: Per host block, which inserted runs sit inside it and which record carries which — the plan
+    #: `alignments` splices by. Kept because it is the *plan*, not the rows: the rows are the
+    #: alignment over again, and a whole-genome run cannot afford a second copy of that.
+    #: Empty unless the run came from a nucleotide genome that used ``insertion``.
+    _insertions: dict = field(default_factory=dict, repr=False)
+    #: The per-block rows underneath the spliced view — what a genome is assembled from, and what a
+    #: test checks the splice against. Same objects `alignments` / `ancestral` read through.
+    _raw_rows: dict = field(default_factory=dict, repr=False)
+    _raw_ancestral: dict = field(default_factory=dict, repr=False)
 
     def __repr__(self) -> str:
         n = sum(len(a) for a in self.alignments.values())
@@ -338,6 +351,166 @@ class SequencesResult:
                                  {f"{lineage}_chr{cid}": seq for cid, seq in chroms.items()})
 
 
+def _gap_what_is_not_carried(layouts, alignments, ancestral, root_blocks) -> None:
+    """Write ``-`` into every position of a block's sequence that its own lineage does not carry.
+
+    A block is evolved over its whole ancestral extent, because that is the coordinate space its
+    tree lives in; an indel then leaves a lineage holding only part of it. Without this the alignment
+    hands back bases that lineage does not have — a 120 bp row for a copy carrying 1 bp of the block —
+    and those rows are what the per-family FASTA files are written from. The gapped row is the true
+    alignment, and it costs nothing to say: the sub-ranges in ``layouts`` already record where the
+    gaps go.
+
+    Safe to do **in place**, though the assembly reads these same strings: a gap only ever falls
+    outside a carried sub-range, so slicing one out still yields unbroken sequence.
+
+    A record no layout mentions is left alone — a copy that died mid-branch is in no node's genome,
+    and blanking it would be a change to every run, indels or not. Without indels every piece is a
+    whole block, so nothing here is gapped and the output is what it always was."""
+    carried: dict[tuple[int, str], list[tuple[int, int]]] = {}
+    for label, by_cid in layouts.items():
+        for pieces in by_cid.values():
+            for (block, gene, _strand, lo, hi) in pieces:
+                carried.setdefault((block, f"{label}_{gene_label(gene)}"), []).append((lo, hi))
+    for (block, record), spans in carried.items():
+        width = root_blocks[block][2] - root_blocks[block][1]
+        spans.sort()
+        if len(spans) == 1 and spans[0] == (0, width):
+            continue                                    # the whole block: nothing to gap
+        table = alignments if record in alignments.get(block, ()) else ancestral
+        seq = table[block][record]
+        out, at = [], 0
+        for lo, hi in spans:
+            if lo > at:
+                out.append("-" * (lo - at))
+            out.append(seq[lo:hi])
+            at = hi
+        if at < width:
+            out.append("-" * (width - at))
+        table[block][record] = "".join(out)
+
+
+def _insertion_plan(genomes, layouts, names) -> dict:
+    """``{host block: (runs, carried)}`` — where each inserted run sits inside its host block, and
+    which record carries which. The plan `SequencesResult.alignments` splices by.
+
+    ``runs`` is ``[(host offset, inserted block, width), …]`` ordered by ``(offset, source)``: the
+    source id is a counter, so two runs that landed at the same offset in different lineages get a
+    stable order and stay two runs rather than one. ``carried`` is ``{host record: {inserted block:
+    that node's record in it}}``.
+
+    The host of a run is read off the genome's **own layout** rather than from the insertion event:
+    an inserted block sitting physically between two pieces of the same host block is inside it, and
+    doing it this way gets a duplicated gene right for free, since each copy has its own pieces. On a
+    host carried **reversed** the pieces come out in descending coordinate order, so the two that
+    meet are the left piece's ``lo`` and the right piece's ``hi`` — the offset itself is the same
+    number either way, because it is an ancestral position and inversion does not move those. The
+    splice needs no orientation either: an alignment is in ancestral orientation throughout, and
+    strand is applied only when a genome is assembled.
+
+    A run between two *different* blocks belongs to neither — it landed on a block boundary, or a
+    rearrangement carried it off — and is left alone."""
+    from ..genomes.nucleotide import Origination
+
+    inserted = {i for i, (src, _a, _b) in enumerate(genomes.root_blocks)
+                if src in {e.source for e in genomes.events
+                           if isinstance(e, Origination) and e.kind == "insertion"}}
+    if not inserted:
+        return {}
+    width = {i: b - a for i, (_s, a, b) in enumerate(genomes.root_blocks)}
+    source = {i: s for i, (s, _a, _b) in enumerate(genomes.root_blocks)}
+    at_offset: dict[int, dict[int, int]] = {}                    # host -> {ins block: offset}
+    carried: dict[int, dict[str, dict[int, str]]] = {}           # host -> {record: {ins: record}}
+    for label, by_chrom in layouts.items():
+        for pieces in by_chrom.values():
+            for k in range(1, len(pieces) - 1):
+                block, gene, _strand, _lo, _hi = pieces[k]
+                if block not in inserted:
+                    continue
+                left, right = pieces[k - 1], pieces[k + 1]
+                if left[0] != right[0] or left[0] == block:
+                    continue                                     # no single host to belong to
+                meet = (left[4], right[3]) if left[2] == 1 else (left[3], right[4])
+                if meet[0] != meet[1]:
+                    continue                                     # not adjacent: material between them went
+                host = left[0]
+                at_offset.setdefault(host, {})[block] = meet[0]
+                carried.setdefault(host, {}).setdefault(
+                    f"{label}_{gene_label(left[1])}", {})[block] = f"{label}_{gene_label(gene)}"
+    return {host: (sorted(((off, b, width[b]) for b, off in blocks.items()),
+                          key=lambda r: (r[0], source[r[1]])),
+                   carried.get(host, {}))
+            for host, blocks in at_offset.items()}
+
+
+class _SplicedAlignments(Mapping):
+    """One block's alignment **as a locus**: its own columns, with the runs inserted into it opened
+    at the offsets they landed on. What ``alignments`` and ``ancestral`` hand back.
+
+    An insertion has no position in the block it lands in — novel DNA descends from nothing, so it
+    arrives on a source of its own and is a block of its own, with its own tree. Left at that, a
+    gene's alignment would show every deletion as a gap and no insertion at all: correct about what
+    evolved, quiet about half of what happened. So the columns are put back where they belong, and a
+    lineage that lacks a run shows gaps there exactly as a deletion reads.
+
+    A block that *is* such a run is hidden from here, because its letters are now columns of its
+    host: each base appears in exactly one alignment. It keeps its entry in `phylograms` and
+    `founding`, which is not an inconsistency but the honest shape — an inserted run has its own
+    history, starting at the insertion, and the columns of a spliced alignment therefore do **not**
+    all share one tree. That is true of any alignment with indels in it.
+
+    Spliced on access rather than stored: the plan is small and the rows are the whole alignment
+    again. The per-block rows underneath are what a genome is assembled from, and they stay as they
+    are — the assembly slices a block's own coordinates, which the spliced view no longer counts in."""
+
+    __slots__ = ("_raw", "_plan", "_width", "_hidden", "_span")
+
+    def __init__(self, raw: dict, plan: dict, width: dict, hidden: frozenset) -> None:
+        self._raw, self._plan, self._width, self._hidden = raw, plan, width, hidden
+        self._span: dict[int, int] = {}
+
+    def _columns(self, block: int) -> int:
+        """How many columns ``block`` has once its runs are opened — its own width plus theirs,
+        and theirs may hold runs of their own: an insertion can land inside one that arrived
+        earlier. Memoised, and it terminates because a run is always younger than what it landed in."""
+        if block not in self._span:
+            runs = self._plan.get(block, ((), {}))[0]
+            self._span[block] = self._width[block] + sum(self._columns(b) for (_o, b, _w) in runs)
+        return self._span[block]
+
+    def _rows(self, block: int) -> dict[str, str]:
+        """``block``'s rows with its runs spliced in, hidden or not — what `__getitem__` guards."""
+        rows = self._raw.get(block, {})
+        plan = self._plan.get(block)
+        if not plan:
+            return rows
+        runs, carried = plan
+        inner = {b: self._rows(b) for (_o, b, _w) in runs}     # spliced, so nesting composes
+        out: dict[str, str] = {}
+        for record, seq in rows.items():
+            mine, parts, at = carried.get(record, {}), [], 0
+            for (offset, ins_block, _w) in runs:
+                parts.append(seq[at:offset])
+                theirs = mine.get(ins_block)
+                got = None if theirs is None else inner[ins_block].get(theirs)
+                parts.append(got if got is not None else "-" * self._columns(ins_block))
+                at = offset
+            parts.append(seq[at:])
+            out[record] = "".join(parts)
+        return out
+
+    def __getitem__(self, block: int) -> dict[str, str]:
+        if block in self._hidden or block not in self._raw:
+            raise KeyError(block)
+        return self._rows(block)
+
+    def __iter__(self):
+        return (b for b in self._raw if b not in self._hidden)
+
+    def __len__(self) -> int:
+        return sum(1 for _ in self)
+
+
 class _AssembledGenomes(Mapping):
     """Every node's genome, assembled **on demand** rather than all held at once.
 
@@ -374,10 +547,12 @@ class _AssembledGenomes(Mapping):
         chroms: dict[int, str] = {}
         for cid, pieces in pieces_by_cid.items():
             parts = []
-            for (block, gene, strand) in pieces:
+            for (block, gene, strand, lo, hi) in pieces:
                 # the copy a node carries is a copy *of that node*, so its record is named for this
-                # label — which is already `n<id>`, the first half of the record name
-                seq = src[block][f"{label}_{gene_label(gene)}"]
+                # label — which is already `n<id>`, the first half of the record name.
+                # `[lo, hi)` is the part of the block this node actually carries: the whole of it
+                # unless an indel took a stretch out of the middle or opened a gap inside it.
+                seq = src[block][f"{label}_{gene_label(gene)}"][lo:hi]
                 parts.append(seq if strand == 1 else seq.translate(_COMPLEMENT)[::-1])
             chroms[cid] = "".join(parts)
         return chroms
@@ -405,11 +580,21 @@ def _identity_counts(seqs) -> tuple[int, int]:
         return 0, 0
     k = len(seqs)
     arr = np.frombuffer("".join(s[:n] for s in seqs).encode(), dtype=np.uint8).reshape(k, n)
+    # A gap is not a residue and two of them are not a match — `np.unique` walks the bytes that are
+    # actually there, so without this exclusion a pair of lineages that both deleted the same stretch
+    # would read as identical across it. Pairs are counted per column over the sequences that have a
+    # residue there, which on an alignment with no gaps is every pair at every column, exactly as
+    # this counted before indels could put one in.
+    gap = ord("-")
+    real = np.count_nonzero(arr != gap, axis=0).astype(np.int64)
+    compared = int((real * (real - 1) // 2).sum())
     matched = 0
     for residue in np.unique(arr):
+        if residue == gap:
+            continue
         c = np.count_nonzero(arr == residue, axis=0).astype(np.int64)
         matched += int((c * (c - 1) // 2).sum())
-    return matched, n * k * (k - 1) // 2
+    return matched, compared
 
 
 def mean_pairwise_identity(alignments) -> float | None:
@@ -447,7 +632,8 @@ def _write_fasta(path, records: dict[str, str], width: int = 70) -> None:
 
 
 def _split(gene_tree, states_by_id: dict[int, np.ndarray], names,
-           model: SubstitutionModel) -> tuple[dict[str, str], dict[str, str]]:
+           model: SubstitutionModel, present: "dict | None" = None
+           ) -> tuple[dict[str, str], dict[str, str]]:
     """Label one family's evolved nodes by their **gene id** and split them into the **observable**
     half — the extant tips — and everything else. Gene ids are per-segment (each node has a unique
     ``copy``), so ``g<copy>`` uniquely names every node and matches the gene tree's and phylogram's
@@ -474,6 +660,10 @@ def _split(gene_tree, states_by_id: dict[int, np.ndarray], names,
     ancestral: dict[str, str] = {}
     for i, node in enumerate(nodes):
         seq = flat[i * length:(i + 1) * length]
+        if present is not None:                     # gaps where this lineage carries no site
+            mask = present.get(id(node))
+            if mask is not None and not mask.all():
+                seq = "".join(c if keep else "-" for c, keep in zip(seq, mask))
         observable = node.is_leaf and node.kind == "extant"
         (alignment if observable else ancestral)[f"{names[node.species]}_{gene_label(node.copy)}"] = seq
     return alignment, ancestral
@@ -899,7 +1089,24 @@ def _resolve_profiles(profiles, model, length) -> dict:
     return out
 
 
-def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=None):
+def _bp_extent(spec, label):
+    """An indel's size, as an `~zombi2.params.parameter.Extent` (SPEC §6): ``base × modifiers``, no
+    scope. A bare number is the mean of a geometric draw, as everywhere else; any distribution is
+    allowed, because an indel here has no cut set to be re-weighted over — so ``Fixed(1)`` really is
+    a one-site indel and a power law is the shape indel lengths actually take."""
+    from ..params.parameter import as_extent
+
+    if isinstance(spec, (int, float)) and not isinstance(spec, bool) and spec < 1:
+        raise ValueError(f"{label} must be >= 1 site, got {spec}")
+    e = as_extent(spec)
+    if e.has_modifiers:
+        raise ValueError(f"{label} takes a plain size or a distribution here; a modifier on it is "
+                         f"not read at this level.")
+    return e
+
+
+def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=None,
+                       present: "dict | None" = None):
     """Evolve one gene tree partition by partition and hand back the family's whole sequences:
     ``(alignment, ancestral, founding_string)``, each sequence the partitions concatenated in order.
 
@@ -938,7 +1145,7 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
             founding=None if founding is None else founding[at:at + n],
             cdf_cache=cdf_caches, models=per_species)
         at += n
-        aln, anc = _split(gt, states, names, base)
+        aln, anc = _split(gt, states, names, base, present=present)
         pieces.append((aln, anc, decode(founding_states, base.alphabet)))
     if len(pieces) == 1:
         return pieces[0]
@@ -952,6 +1159,7 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
 def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                        length: int | None = None, partitions=None, profiles=None,
                        intergene_model: SubstitutionModel | None = None, intergene_speed=3.0,
+                       insertion=0.0, deletion=0.0, insertion_extent=3.0, deletion_extent=3.0,
                        substitution=None, divergence=None, seed=None, parallel=False,
                        stream_to=None, outputs=None, flat: bool = False,
                        progress=False) -> "SequencesResult | StreamedSequences":
@@ -972,6 +1180,21 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     rate (default ``1.0``): a branch of ``Δt`` time accrues ``substitution · Δt`` substitutions/site.
     The founding sequence of each family is drawn from the model's stationary frequencies. Deterministic
     given ``seed``.
+
+    ``insertion`` and ``deletion`` give the sequences **indels**, so an alignment gains gaps: a
+    lineage loses sites it had, or gains sites the others never did. They are the family and ordered
+    resolutions' indels — a **nucleotide** genome owns its own, because there a base pair has a
+    position, and passing these alongside one is refused rather than merged. The rates are
+    **relative to substitution**: ``deletion=0.05`` is five deletions for every hundred substitutions
+    a site expects, so a lineage's clock reaches its indels too and the number means the same on a
+    tree of any height. ``insertion_extent`` / ``deletion_extent`` are how many sites an event takes,
+    a bare number being the mean of a geometric draw; any distribution works, so ``Fixed(1)`` is a
+    single-site indel and a power law is the shape indel lengths really have.
+
+    The columns are the union of every site any lineage ever had, and a lineage that carries none of
+    one shows a gap there — the same alignment a nucleotide run writes, arrived at by the level that
+    knows the sites. Refused beside ``partitions`` or ``profiles``, which are written against a site
+    count an indel changes.
 
     ``substitution`` may carry a **lineage clock** — one factor per species branch, shared across
     families, computed once before evolving, rescaling each gene-tree branch by the clock of the species
@@ -1090,6 +1313,22 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         genomes = read_run(genomes)
 
     nucleotide = isinstance(genomes, NucleotideGenomesResult)
+    # Indels here are the family and ordered resolutions' — the nucleotide one has its own, on the
+    # genome, where a base pair has a position (docs/design/indels.md). One word, one meaning, at
+    # whichever level owns the sites; two levels drawing them in one run would be two models.
+    if (insertion or deletion) and nucleotide:
+        raise ValueError(
+            "insertion= / deletion= here are the family and ordered resolutions' indels. A "
+            "nucleotide genome owns its own, because there a base pair has a position — it can fall "
+            "inside a gene and move a coordinate. Pass them to simulate_genomes_nucleotide(...) "
+            "instead, and leave them off the sequence run.")
+    if (insertion or deletion) and (partitions is not None or profiles is not None):
+        raise ValueError(
+            "indels change how many sites a lineage has, and partitions/profiles are written "
+            "against a fixed site count — so a site's partition or profile would stop meaning "
+            "anything the moment one fired. Use one or the other.")
+    ins_extent = _bp_extent(insertion_extent, "insertion_extent")
+    del_extent = _bp_extent(deletion_extent, "deletion_extent")
     # An ordered run is admitted here as a family one: this level reads a genome run's `gene_trees`
     # and its `complete_tree`, and the ordered result carries both — the coordinates it adds are
     # simply not something a sequence needs. It used to be refused, because `OrderedGenomesResult`
@@ -1360,6 +1599,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 f"{len(gene_trees)} of them, keyed {min(gene_trees, key=str)}…{max(gene_trees, key=str)}. "
                 f"A profile for a family that is not here applies to nothing.")
         cdf_caches: dict[int, dict[float, np.ndarray]] = {}
+        n_insertions = n_deletions = 0
         bar = progress_bar(len(gene_trees), "sequences", unit="family", enabled=progress)
         for family in sorted(gene_trees):  # sorted for reproducibility given the seed
             bar.update()
@@ -1381,8 +1621,25 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                         f"{per_block[family][0]} bp. A profile carries one row per site, and on a "
                         f"nucleotide run the genome already fixed the length.")
             seed_states = None if per_block is None else founding_seed[family]
+            # Geometry first, letters second: which columns exist and who carries them is drawn over
+            # the tree, and then the existing engine evolves that fixed width down it. Exact rather
+            # than convenient — see `indels.draw_indel_history`.
+            history = None
+            if insertion or deletion:
+                assert f_parts is not None    # None means a nucleotide run, which refuses these
+                sites = sum(int(n) for _model, n in f_parts)
+                history = draw_indel_history(
+                    gt.complete, sites, insertion=insertion, deletion=deletion,
+                    insertion_extent=ins_extent, deletion_extent=del_extent,
+                    rate_base=f_rate, clock=clock, rng=rng)
+            if history is not None:
+                assert f_parts is not None
+                f_parts = ((f_parts[0][0], history.width),)
+                n_insertions += history.insertions
+                n_deletions += history.deletions
             aln, anc, fnd = _evolve_partitions(gt, f_parts, f_rate, clock, rng, cdf_caches, names,
-                                               founding=seed_states)
+                                               founding=seed_states,
+                                               present=None if history is None else history.present)
             scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site
             ext = scaled.extant
             phylo = {"complete": _gene_newick(scaled.complete, names),
@@ -1420,6 +1677,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     # per-block sequences they are built from.
     assembled: "Mapping[str, dict[int, str]]" = {}
     initial_genome: dict[int, str] = {}
+    insertion_plan: dict = {}                  # only a nucleotide run with insertions has one
     if nucleotide:
         # Capture the layouts in the same order the eager build used — extant nodes (read from
         # `alignments`) sorted first, then the rest (read from `ancestral`) — so the map iterates,
@@ -1429,14 +1687,29 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         extant_labels = {names[i] for i in extant_ids}
         ordered_ids = extant_ids + [i for i in sorted(species_tree.nodes) if i not in extant_id_set]
         layouts = {names[i]: genomes.assembly(i) for i in ordered_ids}
-        assembled = _AssembledGenomes(layouts, alignments, ancestral, extant_labels)
+        _gap_what_is_not_carried(layouts, alignments, ancestral, genomes.root_blocks)
+        insertion_plan = _insertion_plan(genomes, layouts, names)
+        # `alignments` / `ancestral` become the spliced view; the per-block rows underneath stay as
+        # they are, because that is what a genome is assembled from — the assembly slices a block's
+        # OWN coordinates, and the spliced columns are not in that frame.
+        block_rows, block_ancestral = alignments, ancestral
+        widths = {i: b - a for i, (_s, a, b) in enumerate(genomes.root_blocks)}
+        folded = frozenset(b for _host, (runs, _c) in insertion_plan.items()
+                           for (_off, b, _w) in runs)
+        spliced: "Mapping[int, dict[str, str]]" = _SplicedAlignments(
+            block_rows, insertion_plan, widths, folded)
+        spliced_anc: "Mapping[int, dict[str, str]]" = _SplicedAlignments(
+            block_ancestral, insertion_plan, widths, folded)
+        alignments, ancestral = spliced, spliced_anc            # type: ignore[assignment]
+        assembled = _AssembledGenomes(layouts, block_rows, block_ancestral, extant_labels)
         # The genome the run started with. Its blocks were all laid down at the start, so each one's
         # sequence there is its `founding` draw — the state the stem leads *from*. It is not a node,
         # so it is in neither map above; the same reason `founding` is not in `ancestral`.
         for cid, pieces in genomes.initial_assembly().items():
             initial_genome[cid] = "".join(
-                founding[block] if strand == 1 else founding[block].translate(_COMPLEMENT)[::-1]
-                for (block, strand) in pieces)
+                piece if strand == 1 else piece.translate(_COMPLEMENT)[::-1]
+                for (block, strand, lo, hi) in pieces
+                for piece in (founding[block][lo:hi],))
 
     if sink is not None:
         sink.finish(species_phylogram)
@@ -1457,7 +1730,10 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                            # None — each block brings its own); elsewhere every partition shares one
                            # alphabet, so the first one speaks for the run
                            BASES if parts is None else parts[0][0].alphabet,
-                           tuple(names[i] for i in sorted(species_tree.extant_leaves())))
+                           tuple(names[i] for i in sorted(species_tree.extant_leaves())),
+                           insertion_plan,
+                           alignments._raw if isinstance(alignments, _SplicedAlignments) else alignments,
+                           ancestral._raw if isinstance(ancestral, _SplicedAlignments) else ancestral)
 
 
 __all__ = ["simulate_sequences", "SequencesResult", "StreamedSequences",
