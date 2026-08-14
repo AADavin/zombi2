@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-08-14
+
 ### Added
 
 - `SpeciesResult.lineage_rates("birth" | "death")` — the rate each lineage itself ran under,
