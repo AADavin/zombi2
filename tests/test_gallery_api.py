@@ -31,6 +31,7 @@ import contextlib
 import importlib
 import json
 import pathlib
+import re
 import sys
 from unittest import mock
 from unittest.mock import MagicMock
@@ -400,3 +401,49 @@ def test_the_manual_cites_the_gallery_by_the_right_number():
     assert seen, "no gallery citations found — has the comment been stripped?"
     assert not stale, ("the manual's gallery citations are stale — run "
                        "`python scripts/gallery_refs.py`:\n  " + "\n  ".join(stale))
+
+
+def test_chapter_nine_s_table_and_the_gallery_agree_on_the_conditioning_examples():
+    """Chapter 9's table of what can condition what is the index into the gallery's conditioning
+    section, and the section is ordered to match — so the Gallery column reads straight down.
+
+    That coupling is held by hand in two files: the table's rows in `ch9.md`, and
+    `CONDITIONING_ORDER` in `gallery/build.py`. Nothing else notices when one moves. Three things
+    have to stay true, and each is a way the pair has already nearly gone wrong:
+
+    * every row cites at least one example — a pair the book says is possible and the gallery does
+      not show is a claim nothing backs;
+    * every conditioning example is cited by exactly one row — which is what makes "all seventeen are
+      used, none left over" a fact rather than something that was true once;
+    * the numbers ascend down the table — the reason the section was reordered at all.
+    """
+    sys.path.insert(0, str(GALLERY.parent / "scripts"))
+    try:
+        import gallery_refs
+    finally:
+        sys.path.remove(str(GALLERY.parent / "scripts"))
+    text = (GALLERY.parent / "manual" / "book" / "ch9.md").read_text(encoding="utf-8")
+    table = re.search(r"^\| \| Driver \| Target \|.*?(?=\n\n)", text, re.S | re.M)
+    assert table, "chapter 9's driver/target table is not where this test looks for it"
+    rows = [ln for ln in table.group(0).splitlines() if ln.startswith("| **")]
+    assert rows, "the table has no numbered rows"
+
+    with _gallery_build() as build:
+        nums = gallery_refs.numbers(build)
+    conditioning = {i for i, n in nums.items() if n.startswith("Co")}
+
+    cited, order = [], []
+    for n, row in enumerate(rows, start=1):
+        ids = re.findall(r"<!--gallery:([a-z0-9_]+)-->", row)
+        assert ids, f"row {n} of chapter 9's table cites no gallery example"
+        cited += ids
+        order += [int(nums[i][2:]) for i in ids]
+
+    assert sorted(cited) == sorted(conditioning), (
+        "the table and the gallery disagree on the conditioning examples — "
+        f"cited but absent: {sorted(set(cited) - conditioning)}; "
+        f"in the gallery but uncited: {sorted(conditioning - set(cited))}")
+    assert order == sorted(order), (
+        "the Gallery column does not ascend down the table, so the gallery's conditioning section is "
+        f"no longer in the table's order: {order}. Reorder CONDITIONING_ORDER in gallery/build.py to "
+        "match the table, then run `python scripts/gallery_refs.py`")
