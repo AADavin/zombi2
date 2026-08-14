@@ -9,6 +9,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- The species rate cards give their colour key a row of its own, so the tree's first branch no
+  longer runs alongside the label (Phylustrator 0.2.15, `Style(headroom=…)`). (#366)
+- The README shows the Z, not the retired tree mark, and `assets/logo.svg` is gone with it. (#366)
+
+
 ## [0.39.1] - 2026-08-14
 
 ### Changed
