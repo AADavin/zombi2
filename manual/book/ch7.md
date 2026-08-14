@@ -165,7 +165,7 @@ fixed it.
 
 Rate variation across sites says which *positions* change fast. A clock says which *lineages* do. The two are orthogonal and compose.
 
-The rate is `substitution`, counted **per site**: a gene-tree branch of Δ*t* time accrues `substitution · Δt` substitutions at every site. Left alone it is `1.0` everywhere — the **strict clock**, one tempo for the whole tree. Let it change from lineage to lineage and it is what the field calls a **relaxed clock** [@lepage2007general], written by chaining a verb onto the rate exactly as at every other level ([Sq1, Sq4](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_ucln--><!--gallery:clock_discrete_bin-->). Whichever distribution you give is **normalised to mean 1**, so it contributes its *shape* and the base keeps meaning the average rate.
+The rate is `substitution`, counted **per site**: a gene-tree branch of Δ*t* time accrues `substitution · Δt` substitutions at every site. Left alone it is `1.0` everywhere — the **strict clock**, one tempo for the whole tree. Let it change from lineage to lineage and it is what the field calls a **relaxed clock** [@lepage2007general], written by chaining a verb onto the rate exactly as at every other level ([Sq3–Sq6](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_ucln--><!--gallery:clock_ugam--><!--gallery:clock_autocorrelated--><!--gallery:clock_discrete_bin-->). Whichever distribution you give is **normalised to mean 1**, so it contributes its *shape* and the base keeps meaning the average rate.
 
 | What it does | ZOMBI2 | From the literature |
 |---|---|---|
@@ -267,7 +267,7 @@ The caveat: every model is normalised to one expected substitution per site per 
 alignment a phylogenetic method would be handed; **`.ancestral` is every node the alignment leaves
 out**, the internal ones and the tips where a copy was lost or its species died. The run wrote a
 sequence at each node as it went, so those are the exact ancestors rather than estimates, and
-together the two account for every node of the tree exactly once ([Sq5](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_ancestral-->). Appendix B lists the rest.
+together the two account for every node of the tree exactly once ([Sq7](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_ancestral-->). Appendix B lists the rest.
 
 
 ### Where a sequence starts
