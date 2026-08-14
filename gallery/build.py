@@ -10,12 +10,12 @@ may feed more than one section: joining.py supplies both the conditioning and th
 
 from __future__ import annotations
 
-import base64
 import inspect
-import io
 import json
 import os
 import textwrap
+
+from zombi2 import __version__ as __zombi2_version__
 
 from PIL import Image
 
@@ -29,6 +29,18 @@ import traits
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIGDIR = os.path.join(HERE, "figures")
 OUT = os.path.abspath(os.path.join(HERE, "..", "web", "gallery.html"))   # published at /gallery.html
+#: Where the page's figures are written, beside it rather than inside it. They used to be embedded as
+#: base64 data URIs, which made one self-contained file — and made every rebuild a fresh six-megabyte
+#: blob in git, because base64 does not delta against its previous version. Fifty of those were the
+#: bulk of a seventy-five-megabyte clone. As files, a rebuild costs only the figures that changed.
+WEBFIG = os.path.abspath(os.path.join(HERE, "..", "web", "figures"))
+
+#: Each section's reference prefix. An example is cited as `Ge3` — the section, then its position in
+#: it. The number is **derived at build time**, never stored: the id (`genome_synteny_tree`) is the
+#: identity, so an example can be inserted anywhere and every number after it simply follows on the
+#: next build. Two letters because species and sequences both start with one S.
+PREFIX = {"species": "Sp", "genomes": "Ge", "sequences": "Sq",
+          "traits": "Tr", "conditioning": "Co", "joining": "Jo"}
 
 # (slug, title, blurb, examples) — the slug is the section id the landing-page cards link to.
 # The first section is the one that starts open; every other section starts folded.
@@ -74,13 +86,14 @@ def render_all():
 MAXW = 1200
 
 
-def _data_uri(path, maxw=MAXW):
-    im = Image.open(path).convert("RGB")
+def _figure_url(ex, maxw=MAXW):
+    """Write the card's figure to ``web/figures/`` and return the page-relative URL for it."""
+    im = Image.open(os.path.join(FIGDIR, f"{ex.id}.png")).convert("RGB")
     if im.width > maxw:
         im = im.resize((maxw, round(im.height * maxw / im.width)), Image.LANCZOS)
-    buf = io.BytesIO()
-    im.save(buf, format="PNG", optimize=True)
-    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    os.makedirs(WEBFIG, exist_ok=True)
+    im.save(os.path.join(WEBFIG, f"{ex.id}.png"), format="PNG", optimize=True)
+    return f"figures/{ex.id}.png"
 
 
 def _code_for(ex):
@@ -95,19 +108,20 @@ def _code_for(ex):
     return textwrap.dedent("\n".join(src[i + 1:])).strip()
 
 
-def _detail_data(examples, store):
-    for ex in examples:
-        store[ex.id] = {"title": ex.title, "caption": ex.caption,
+def _detail_data(examples, store, slug):
+    for i, ex in enumerate(examples, start=1):
+        store[ex.id] = {"num": f"{PREFIX[slug]}{i}", "title": ex.title, "caption": ex.caption,
                         "tag": ex.tag, "code": _code_for(ex)}
 
 
-def _cards(examples):
+def _cards(examples, slug):
     out = []
-    for ex in examples:
-        uri = _data_uri(os.path.join(FIGDIR, f"{ex.id}.png"))
+    for i, ex in enumerate(examples, start=1):
+        uri = _figure_url(ex)
+        num = f"{PREFIX[slug]}{i}"
         out.append(f"""      <figure class="card" tabindex="0" role="button" data-id="{ex.id}" aria-label="Open: {ex.title}">
         <div class="thumb"><img loading="lazy" src="{uri}" alt="{ex.title}"></div>
-        <figcaption><h3>{ex.title}</h3><p>{ex.caption}</p><span class="tag">{ex.tag}</span></figcaption>
+        <figcaption><h3><span class="num">{num}</span>{ex.title}</h3><p>{ex.caption}</p><span class="tag">{ex.tag}</span></figcaption>
       </figure>""")
     return "\n".join(out)
 
@@ -115,13 +129,13 @@ def _cards(examples):
 def build_html():
     sections, detail = [], {}
     for i, (slug, name, blurb, examples) in enumerate(LEVELS):
-        _detail_data(examples, detail)
+        _detail_data(examples, detail, slug)
         # <details>/<summary>: folding works with JavaScript off, and the count and blurb stay in the
         # summary, so a folded section still says what is inside it. Only the first section opens.
         sections.append(f"""  <details class="level" id="{slug}"{" open" if i == 0 else ""}>
     <summary class="level-head"><h2>{name}</h2><span class="count">{len(examples)}</span><span class="blurb">{blurb}</span></summary>
     <div class="grid">
-{_cards(examples)}
+{_cards(examples, slug)}
     </div>
   </details>""")
     data = "<script>window.EX = " + json.dumps(detail) + ";</script>"
@@ -182,6 +196,8 @@ summary.level-head::after{content:"";flex:none;align-self:center;width:9px;heigh
 figcaption{padding:16px 17px 17px;display:flex;flex-direction:column;gap:6px}
 figcaption h3{margin:0;font-size:1.03rem;font-weight:640;letter-spacing:-.01em}
 figcaption p{margin:0;color:var(--muted);font-size:.88rem;line-height:1.5}
+.num{display:inline-block;min-width:2.6em;color:var(--accent);font:600 .78rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em;vertical-align:.08em}
+.version{font:500 .5em/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--faint);vertical-align:.5em;letter-spacing:.02em}
 .tag{margin-top:4px;font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em;color:var(--accent-ink);text-transform:lowercase}
 footer{margin-top:64px;padding-top:22px;border-top:1px solid var(--line);color:var(--faint);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
 footer code{font:600 .82rem ui-monospace,monospace;color:var(--muted)}
@@ -225,13 +241,13 @@ _PAGE_OPEN = """
     <button class="toggle" id="toggle" aria-label="Toggle colour theme">◑ <span>Dark</span></button>
   </div>
   <header class="masthead">
-    <h1>Examples gallery</h1>
+    <h1>Examples gallery <span class="version">ZOMBI2 @VERSION@</span></h1>
     <p class="lede gallery-note">Click any figure for the code that produces it. Every example
       simulates with ZOMBI2 and plots with <a href="https://pypi.org/project/phylustrator/">Phylustrator</a>,
       a separate package &mdash; so to run one you need both:</p>
     <pre class="gallery-install">pip install zombi2 phylustrator</pre>
   </header>
-"""
+""".replace("@VERSION@", __zombi2_version__)
 
 _PAGE_CLOSE = """
   <footer>
@@ -289,7 +305,7 @@ _JS = """<script>
   function open(c){
     var id=c.getAttribute("data-id"), meta=EX[id]||{}, img=c.querySelector("img");
     dImg.src=img.src; dImg.alt=img.alt;
-    dTag.innerHTML=meta.tag||""; dTitle.textContent=meta.title||img.alt;
+    dTag.innerHTML=meta.tag||""; dTitle.textContent=(meta.num?meta.num+"  ":"")+(meta.title||img.alt);
     dCap.innerHTML=meta.caption||""; dCode.innerHTML=hl(meta.code||"");
     dCopy.textContent="copy";
     det.classList.add("open"); det.setAttribute("aria-hidden","false"); det.scrollTop=0;

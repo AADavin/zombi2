@@ -858,8 +858,7 @@ r.genome         # the gene content grown with it"""
 JOINING = [
     Example("key_innovation", "A gene drives the splitting",
             "Gene content drives speciation, so the tree is an <b>output</b>. Loss runs at twice "
-            "origination — on a tree that does not feel it the family reaches ~9% of tips; here it "
-            "reaches 83%, because its carriers split five times as often.",
+            "origination, yet the family reaches 83% of tips — its carriers split five times as often.",
             "gene content → speciation", key_innovation, code=_C_KEY),
     Example("bisse", "BiSSE",
             "A two-state trait drives speciation — the fast state's clades take over; the inset is the "

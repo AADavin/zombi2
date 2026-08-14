@@ -298,13 +298,17 @@ def test_the_published_page_serves_the_current_gallery_code():
     against the ``window.EX`` block the page carries. The whole record, not just the code: the title,
     the caption and the tag are written from the same sources and go stale the same way.
 
-    What it cannot see is the figures. They are images built from the same sources, but
-    ``gallery/figures/`` is git-ignored and they reach the page as base64, so a source change that
-    moves a plot without touching its code or its caption still needs someone to rebuild."""
+    That now includes each example's **number** (``Ge3``), which is derived from its position, so
+    inserting or reordering an example without rebuilding fails here rather than leaving the page
+    citing the wrong one.
+
+    What it cannot see is the figures. They are images built from the same sources and written to
+    ``web/figures/``, so a source change that moves a plot without touching its code or its caption
+    still needs someone to rebuild."""
     with _gallery_build() as build:
         current: dict[str, dict] = {}
-        for _, _, _, examples in build.LEVELS:
-            build._detail_data(examples, current)
+        for slug, _, _, examples in build.LEVELS:
+            build._detail_data(examples, current, slug)
     published = _published_examples()
 
     assert len(current) >= 9, "the gallery shrank — is the import finding the examples?"

@@ -289,23 +289,23 @@ plt.savefig("shape.png", dpi=125, bbox_inches="tight")'''
 
 EXAMPLES = [
     Example("basic", "Yule tree", "Pure birth, no extinction — a forward tree of 100 lineages.",
-            "pure birth (Yule)", yule, code=_C_BASIC),
+            "birth", yule, code=_C_BASIC),
     Example("extinct", "Extinct lineages",
             "The full history behind 50 survivors — their branches solid, extinct lineages dashed.",
-            "birth–death", extinct_lineages, code=_C_EXTINCT),
+            "birth · death", extinct_lineages, code=_C_EXTINCT),
     Example("massext", "Mass extinction",
             "A pulse at t&nbsp;=&nbsp;3 culls 75% of lineages — the skyline drops sharply at the dashed "
             "line, then recovers.",
-            "mass extinction · +&nbsp;skyline", mass_extinction, code=_C_MASSEXT),
+            "mass_extinctions", mass_extinction, code=_C_MASSEXT),
     Example("rateshift", "Rate shifts",
             "Speciation runs slow, then fast, then slow — the burst packs branches between the two "
             "dashed regime lines.",
-            "time-varying birth", rate_shift, code=_C_RATESHIFT),
+            "birth · changing_at", rate_shift, code=_C_RATESHIFT),
     Example("diversity", "Diversity-dependent",
             "Speciation slows as diversity fills up; the skyline rises and plateaus at the cap of 100.",
-            "birth–death · +&nbsp;skyline", diversity_dependent, code=_C_DIVERSITY),
+            "birth · TotalDiversity", diversity_dependent, code=_C_DIVERSITY),
     Example("shape", "Shape statistics over many trees",
             "Two thousand trees under each of two processes. "
             "<code>zombi2 tools tree --gamma</code> separates them almost perfectly.",
-            "simulation study · 4000&nbsp;trees", shape_statistics, code=_C_SHAPE),
+            "tools tree --gamma", shape_statistics, code=_C_SHAPE),
 ]
