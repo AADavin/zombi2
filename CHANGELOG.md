@@ -19,7 +19,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 - Every trait card gives its colour key a row of its own, as the species ones do. (#367)
 - The clade-transition card is the tree alone: the driver/target diagram belongs to conditioning,
   and a rate scoped to a clade and a time is not one level reading another. (#367)
-- The README's title is the wordmark with a teal Z, and no icon beside it. (#367)
+- The README's title is the wordmark with a teal Z, and no icon beside it; its conditioning
+  section leads with what conditioning is for — a trait that controls a loss rate — and counts the
+  three parts, not four. (#367)
+- A ClaSSE example in the gallery: the trait drives how fast a lineage splits, and the split is
+  where the trait changes. Chapter 10's Literature table cites the gallery like the others now that
+  every model it names has a card. (#367)
 
 
 ## [0.39.2] - 2026-08-14

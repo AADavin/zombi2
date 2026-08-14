@@ -89,11 +89,13 @@ evolves along a species tree, so you run whichever you need, composed into one s
 
 ## Conditioning
 
-**[Conditioning](https://aadavin.github.io/zombi2/docs/guide/conditioning/)** is a run reading a value
-that has already been grown. There are four parts: the **driver**, the value that is read; the
-**target**, what the factor is attached to (a rate, an extent, or which lineage receives a transfer);
-the **verb**, `scaled_by`, which joins them; and the **mapping** it carries, which says what each
-value of the driver becomes.
+**[Conditioning](https://aadavin.github.io/zombi2/docs/guide/conditioning/)** is how ZOMBI2 simulates
+a scenario where one part of the run controls another — a habitat trait that makes lineages lose genes
+four times faster in the water, a gene family whose presence speeds up transfer for the rest of the
+genome, a GC content that sets how fast a trait changes. Three parts: the **driver**, the thing doing
+the controlling; the **target**, the parameter it controls (a rate, an extent, or which lineage
+receives a transfer); and the **connection** between them, which says both how they are joined
+(`scaled_by`) and what each value of the driver is worth.
 
 <p align="center">
   <img alt="Conditioning: a habitat trait on the left, an arrow labelled drives running right to the gene loss rate and carrying a multiplier for each habitat state, and under the loss rate the expression you write on it, a per-copy loss rate of 0.25 scaled by habitat" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/conditioning.svg" width="560">
