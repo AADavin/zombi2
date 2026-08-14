@@ -127,7 +127,7 @@
 <path d="M952.7182165671481,308.8 L1083.9999999999998,308.8" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M557.0359160966945,316.4 L1083.9999999999998,316.4" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M249.51524862222934,324.0 L1083.9999999999998,324.0" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
-<text x="96" y="79.6" font-size="22" fill="#1a1a1a" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold">A    birth = PerLineage(1.2).changing_at({0.0: 1.0, 2.0: 0.3})</text>
+<text x="96" y="79.6" font-size="22" fill="#1a1a1a" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold">A    on time: the rate drops at a set moment</text>
 <path d="M96.0,338 L1084.0,338" stroke="#333333" stroke-width="1.2" />
 <path d="M96.0,338 L96.0,343" stroke="#333333" stroke-width="1.2" />
 <text x="96.0" y="355.45" font-size="14.45" fill="#1a1a1a" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="normal">0</text>
@@ -272,7 +272,7 @@
 <path d="M941.2758661178593,309.2903225806451 L1084.0,309.2903225806451" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M840.9973644101302,316.64516129032256 L1084.0,316.64516129032256" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M821.6151489877997,324.0 L896.737080062208,324.0" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="butt" stroke-dasharray="5,4" />
-<text x="96" y="79.6" font-size="22" fill="#1a1a1a" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold">B    birth = PerLineage(1.2).scaled_by(TotalDiversity(cap=30.0))</text>
+<text x="96" y="79.6" font-size="22" fill="#1a1a1a" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold">B    on total diversity: the rate slows as the tree fills</text>
 <path d="M96.0,338 L1084.0,338" stroke="#333333" stroke-width="1.2" />
 <path d="M96.0,338 L96.0,343" stroke="#333333" stroke-width="1.2" />
 <text x="96.0" y="355.45" font-size="14.45" fill="#1a1a1a" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="normal">0</text>
@@ -396,7 +396,7 @@
 <path d="M990.5247094887732,306.46153846153845 L1084.0,306.46153846153845" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M990.5247094887732,315.2307692307692 L1084.0,315.2307692307692" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M141.12963089586327,324.0 L1084.0,324.0" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
-<text x="96" y="79.6" font-size="22" fill="#1a1a1a" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold">C    birth = PerLineage(0.45).varying_among('lineages', Drift(LogNormal(0.0, 0.5)))</text>
+<text x="96" y="79.6" font-size="22" fill="#1a1a1a" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold">C    on the parent's rate: each lineage inherits and drifts from it</text>
 <path d="M96.0,338 L1084.0,338" stroke="#333333" stroke-width="1.2" />
 <path d="M96.0,338 L96.0,343" stroke="#333333" stroke-width="1.2" />
 <text x="96.0" y="355.45" font-size="14.45" fill="#1a1a1a" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="normal">0</text>
@@ -516,7 +516,7 @@
 <path d="M1065.5799899912438,305.76 L1084.0,305.76" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M991.1102474316062,314.88 L1084.0,314.88" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
 <path d="M771.8106741276671,324.0 L1084.0,324.0" stroke="#1a1a1a" stroke-width="2.6" stroke-linecap="round" />
-<text x="96" y="79.6" font-size="22" fill="#1a1a1a" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold">D    birth = PerLineage(0.85).varying_among('lineages', LogNormal(0.0, 0.5))</text>
+<text x="96" y="79.6" font-size="22" fill="#1a1a1a" font-family="Helvetica" text-anchor="start" dominant-baseline="central" font-weight="bold">D    by lineage: each draws its own rate, with no memory of its parent</text>
 <path d="M96.0,338 L1084.0,338" stroke="#333333" stroke-width="1.2" />
 <path d="M96.0,338 L96.0,343" stroke="#333333" stroke-width="1.2" />
 <text x="96.0" y="355.45" font-size="14.45" fill="#1a1a1a" font-family="Helvetica" text-anchor="middle" dominant-baseline="central" font-weight="normal">0</text>
