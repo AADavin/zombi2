@@ -108,9 +108,14 @@ def draw_indel_history(root, length: int, *, insertion: float, deletion: float,
                         at = int(rng.integers(len(seq) + 1))
                         fresh = list(range(next_id, next_id + size))
                         next_id += size
-                        # anchored to the id it follows, so a lineage's own order is preserved, two
-                        # runs in the same place stay two, and a run inside an earlier run nests
-                        (after.setdefault(seq[at - 1], []) if at else head).extend(fresh)
+                        # Anchored to the id it follows, so two runs in the same place stay two and
+                        # a run inside an earlier run nests. It goes at the FRONT of that anchor's
+                        # list, not the back: a lineage may insert *before* a run already anchored
+                        # there (its own earlier run, or another lineage's), and appending would put
+                        # the new columns after those in the shared order while this lineage holds
+                        # them before — its bases would land in the wrong columns.
+                        into = after.setdefault(seq[at - 1], []) if at else head
+                        into[0:0] = fresh
                         seq[at:at] = fresh
                         n_ins += 1
                     else:
