@@ -469,43 +469,35 @@ EXAMPLES = [
     Example("clock_ucln", "Uncorrelated lognormal clock",
             "Every lineage draws its own rate, with no memory of its parent, so the colour is "
             "salt-and-pepper. <code>substitution&nbsp;=&nbsp;PerSite().varying_among('lineages',&nbsp;LogNormal(0.0, 0.55))</code>.",
-            "phylustrator · clocks", clock_ucln, code=_C_CLOCKS),
+            "substitution · LogNormal", clock_ucln, code=_C_CLOCKS),
     Example("clock_ugam", "Uncorrelated gamma clock",
             "The same independent draw with a gamma instead of a lognormal. "
             "<code>varying_among('lineages',&nbsp;Gamma(shape=3.31,&nbsp;scale=0.302))</code>.",
-            "phylustrator · clocks", clock_ugam, code=_C_CLOCKS),
+            "substitution · Gamma", clock_ugam, code=_C_CLOCKS),
     Example("clock_autocorrelated", "Autocorrelated clock",
             "A daughter starts at its parent's rate and is nudged, so the colour moves in <b>clades</b> "
             "rather than branch to branch. <code>substitution&nbsp;=&nbsp;PerSite().varying_among('lineages',&nbsp;Drift(LogNormal(0.0, 0.4)))</code>.",
-            "phylustrator · clocks", clock_autocorrelated, code=_C_CLOCKS),
+            "substitution · Drift", clock_autocorrelated, code=_C_CLOCKS),
     Example("clock_discrete_bin", "Discrete-bin clock",
             "The same inherited drift in <b>steps</b>: the rate takes one of a few values and a daughter "
             "moves to a neighbouring one. <code>varying_among('lineages',&nbsp;Drift(LogNormal(0.0, 0.45),&nbsp;bins=6))</code>.",
-            "phylustrator · clocks", clock_discrete_bin, code=_C_CLOCKS),
+            "substitution · Drift (binned)", clock_discrete_bin, code=_C_CLOCKS),
     Example("seq_ancestral", "Ancestral sequences at the nodes",
             "A small tree with its internal nodes numbered, and beside it the sequence at each. The rows "
             "are one per node, <i>not</i> aligned to the tips.",
-            "phylustrator · ancestral", numbered_ancestral, code=_C_ANCESTRAL),
+            "substitution · .ancestral", numbered_ancestral, code=_C_ANCESTRAL),
     Example("seq_indels", "Indels in a real gene",
-            "The real <i>M. genitalium</i> <code>MG_RS00730</code>, 303&nbsp;bp, evolving down "
-            "twenty species. The alignment is 316 columns wide, because half the tree gained "
-            "13&nbsp;bases the other half never had: the pale band at 158&ndash;170 is one insertion, "
-            "and the eight species that carry it are <b>exactly one of the two clades</b> at the "
-            "root. An indel is a shared derived character, and here it can be read straight off the "
-            "topology beside it. <code>r.alignments[block]</code> gives the locus: the block's own "
-            "columns and the runs inserted into it.",
-                        "phylustrator · indels", indel_alignment, code=_C_INDEL),
+            "A real gene down twenty species. The pale band at 158&ndash;170 is one insertion, "
+            "carried by exactly one of the two clades at the root — an indel is a shared derived "
+            "character.",
+            "insertion · deletion", indel_alignment, code=_C_INDEL),
     Example("seq_alignment", "Alignment beside the tree",
             "A single-copy family across 20 species, residues coloured (with a nucleotide key), each "
             "row locked to its tip. <code>beside(tree,&nbsp;alignment(aln))</code>.",
-            "phylustrator", alignment_beside_tree, code=_C_ALN),
-    Example("clade_own_model", "A clade with its own substitution model",
-            "Rates say how <i>fast</i> a lineage evolves; the model says what the change looks like. "
-            "Branches are coloured by the model they run under, and the inset is what the two models "
-            "differ in — one pulls its sequences toward A and T, the other toward nothing in "
-            "particular. The bars are the GC content each tip arrived at, and they sit on their own "
-            "model's equilibrium: 0.20 in the clade, 0.50 outside. A rate cannot say this however it "
-            "is scoped, and an AT-rich branch misleads a tree-builder differently from a fast one. "
-            "<code>Models().set_by(Clade({...}),&nbsp;{'at':&nbsp;at_rich,&nbsp;'rest':&nbsp;hky85()})</code>.",
-            "phylustrator · composition", clade_own_model, code=_C_CLADE_MODEL),
+            "length · .alignments", alignment_beside_tree, code=_C_ALN),
+    Example("clade_own_model", "A clade's own model",
+            "A rate says how <i>fast</i> a lineage evolves; the model says what the change looks "
+            "like. One clade is pulled toward A and T, and its tips arrive at 0.20 GC against 0.50 "
+            "outside — each on its own model's equilibrium.",
+            "model · Clade", clade_own_model, code=_C_CLADE_MODEL),
 ]

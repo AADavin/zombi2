@@ -830,57 +830,50 @@ karyo = sorted(genome.chromosomes, key=lambda c: -len(c.genes))   # largest firs
 '''
 
 EXAMPLES = [
-    Example("genome_karyotype", "A karyotype per tip, and the events that made it",
-            "Seven lineages from the three circular chromosomes drawn above the stem. Fission splits "
-            "one in two, fusion joins two into one, and each is marked on the branch it happened on "
-            "— so the karyotypes on the right are what those marks did, counted from the same start. "
-            "Tips end with one, two or three chromosomes, and nothing about them differs except "
-            "which events fell where.",
-            "phylustrator · karyotype", karyotype, code=_C_KARYOTYPE),
     Example("genome_circular_ordered", "Circular genome (ordered)",
             "A genome as a ring — genes evenly spaced by rank, coloured by family, arrows by strand. "
             "<code>plot(g,&nbsp;layout=&quot;circular&quot;)&nbsp;+&nbsp;genes()</code>.",
-            "phylustrator · circular", circular_ordered, code=_C_CIRC_ORD),
+            "ordered", circular_ordered, code=_C_CIRC_ORD),
     Example("genome_synteny", "Synteny between two genomes",
             "Two genomes, one per row; ribbons link same-family genes and cross where the order was "
             "rearranged. <code>stack([a,b])&nbsp;+&nbsp;synteny()</code>.",
-            "phylustrator · synteny", synteny_pair, code=_C_SYNTENY),
+            "inversion", synteny_pair, code=_C_SYNTENY),
     Example("genome_synteny_tree", "Synteny across a whole clade",
             "Every tip's gene order beside the tree. Genes are coloured by their <em>ancestral</em> "
             "position, so each rearrangement is a break in the gradient.",
-            "phylustrator · synteny", synteny_on_the_tree, code=_C_SYNTENY_TREE),
+            "inversion", synteny_on_the_tree, code=_C_SYNTENY_TREE),
     Example("genome_tree_events", "Gene-family events on the tree",
             "One family's history on the species tree: duplications (squares), losses (crosses), "
             "transfers (arrows, donor→recipient).",
-            "phylustrator · events", tree_with_events, code=_C_EVENTS),
+            "duplication · transfer · loss", tree_with_events, code=_C_EVENTS),
     Example("genome_tree_profiles", "Profile copy-number",
             "A family&nbsp;×&nbsp;genome copy-number heatmap, its rows locked to the tips. "
             "<code>beside(tree,&nbsp;heatmap(profiles))</code>.",
-            "phylustrator", tree_with_profiles, code=_C_PROFILES),
+            "duplication · loss", tree_with_profiles, code=_C_PROFILES),
     Example("genome_circular_nucleotide", "Real genome (Mycoplasma)",
             "A real bacterium: <i>Mycoplasma genitalium</i>, 546 genes at their true base positions. "
             "The forward/reverse switch marks the replication origin.",
-            "phylustrator · real GFF", circular_nucleotide, code=_C_CIRC_NUC),
+            "nucleotide · --gff", circular_nucleotide, code=_C_CIRC_NUC),
     Example("genome_inversion", "An inversion, before → after",
             "One inversion on a circular genome: the segment is reversed and its strands flip. The band "
             "marks it in both rings.",
-            "phylustrator · circular", genome_inversion, code=_C_INVERSION),
+            "inversion · inversion_extent", genome_inversion, code=_C_INVERSION),
     Example("genome_transfer_highway", "A transfer highway between clades",
             "Transfers steered to run <i>between</i> two clades, by topology rather than by a trait. The "
             "barplot counts them by clade pair, so A↔B towers over within-clade.",
-            "clades · transfer_to", transfer_highway, code=_C_HIGHWAY),
+            "transfer_to · Clades", transfer_highway, code=_C_HIGHWAY),
     Example("genome_pangenome_by_family", "Core and accessory, from one parameter",
             "Two runs at the same mean rates. Every family alike gives no core at all; letting families "
             "differ gives 28 core families and a U-shaped spectrum.",
-            "phylustrator · heterogeneity", pangenome_by_family, code=_C_PANGENOME),
-    Example("genome_clade_transition", "One clade's loss rate changes, from a given time",
-            "The shading marks the clade the run selected. Its lineages lose genes at the base rate "
-            "up to the dashed line and twenty times faster after it, so the colour changes <i>along</i> "
-            "the branches the line crosses — nothing about them differs beforehand. The bars are what "
-            "each genome is left with: about 140 genes against 270 outside, all of it lost in the last "
-            "third of the run. One factor, scoped to a group <b>and</b> to a time — chaining "
-            "<code>scaled_by</code> with <code>changing_at</code> cannot say this, because the two "
-            "factors would each apply to every lineage. "
-            "<code>scaled_by(clade,&nbsp;{'selected':&nbsp;{0:&nbsp;1.0,&nbsp;2.0:&nbsp;20.0},&nbsp;'rest':&nbsp;1.0})</code>.",
-            "clades · schedules", clade_transition, code=_C_TRANSITION),
+            "varying_among('families')", pangenome_by_family, code=_C_PANGENOME),
+    Example("genome_clade_transition", "A clade slows down",
+            "The shaded clade loses genes twenty times faster after the dashed line, and nothing "
+            "about it differs before. It ends with about 140 genes against 270 outside — one factor, "
+            "scoped to a group <b>and</b> to a time.",
+            "Clade · changing_at", clade_transition, code=_C_TRANSITION),
+    Example("genome_karyotype", "Karyotypes",
+            "Seven lineages from the three circular chromosomes drawn above the stem. Fission and "
+            "fusion are marked on the branch where they happened, so the karyotypes are what those "
+            "marks did.",
+            "fission · fusion", karyotype, code=_C_KARYOTYPE),
 ]

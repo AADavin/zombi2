@@ -222,8 +222,10 @@ def draw_grid_markov(ax, rates, xpal, ypal, *, labels=("00", "01", "10", "11")) 
     import matplotlib.patches as mpatches
     import matplotlib.patheffects as pe
 
-    pos = {labels[0]: (0.27, 0.72), labels[1]: (0.73, 0.72),
-           labels[2]: (0.27, 0.28), labels[3]: (0.73, 0.28)}
+    # a touch below centre: the rate on the top arrow sits above it, and at 0.72 that label was
+    # pinched between the arrow and the circles. The caption at 0.015 leaves room underneath.
+    pos = {labels[0]: (0.27, 0.68), labels[1]: (0.73, 0.68),
+           labels[2]: (0.27, 0.24), labels[3]: (0.73, 0.24)}
     rad = 0.108
     mx = max(rates.values()) or 1.0
     curve = 0.32
