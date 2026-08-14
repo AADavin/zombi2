@@ -165,7 +165,7 @@ fixed it.
 
 Rate variation across sites says which *positions* change fast. A clock says which *lineages* do. The two are orthogonal and compose.
 
-The rate is `substitution`, counted **per site**: a gene-tree branch of Δ*t* time accrues `substitution · Δt` substitutions at every site. Left alone it is `1.0` everywhere — the **strict clock**, one tempo for the whole tree. Let it change from lineage to lineage and it is what the field calls a **relaxed clock** [@lepage2007general], written by chaining a verb onto the rate exactly as at every other level ([Sq1–Sq4](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_ucln--><!--gallery:clock_discrete_bin-->). Whichever distribution you give is **normalised to mean 1**, so it contributes its *shape* and the base keeps meaning the average rate.
+The rate is `substitution`, counted **per site**: a gene-tree branch of Δ*t* time accrues `substitution · Δt` substitutions at every site. Left alone it is `1.0` everywhere — the **strict clock**, one tempo for the whole tree. Let it change from lineage to lineage and it is what the field calls a **relaxed clock** [@lepage2007general], written by chaining a verb onto the rate exactly as at every other level ([Sq1, Sq4](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_ucln--><!--gallery:clock_discrete_bin-->). Whichever distribution you give is **normalised to mean 1**, so it contributes its *shape* and the base keeps meaning the average rate.
 
 | What it does | ZOMBI2 | From the literature |
 |---|---|---|

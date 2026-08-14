@@ -29,7 +29,7 @@ SECTION = {"Sp": "species", "Ge": "genomes", "Sq": "sequences",
            "Tr": "traits", "Co": "conditioning", "Jo": "joining"}
 
 #: `[Ge7](url#genomes)<!--gallery:the_id-->` or a range, `[Sq1–Sq4](…)<!--…--><!--…-->`
-CITATION = re.compile(r"\[(?P<shown>[A-Za-z]{2}\d+(?:–[A-Za-z]{2}\d+)?)\]\((?P<url>[^)]*)\)"
+CITATION = re.compile(r"\[(?P<shown>[A-Za-z]{2}\d+(?:[–,] ?[A-Za-z]{2}\d+)*)\]\((?P<url>[^)]*)\)"
                       r"(?P<tags>(?:<!--gallery:[a-z0-9_]+-->)+)")
 _TAG = re.compile(r"<!--gallery:([a-z0-9_]+)-->")
 
@@ -50,6 +50,17 @@ def numbers(build=None) -> dict[str, str]:
     return out
 
 
+def _shown(got: list[str]) -> str:
+    """`Co4`, `Co1–Co6` when they run consecutively, `Co9, Co15` when they do not."""
+    if len(got) == 1:
+        return got[0]
+    prefix = got[0][:2]
+    ns = [int(g[2:]) for g in got]
+    if all(g[:2] == prefix for g in got) and ns == list(range(ns[0], ns[0] + len(ns))):
+        return f"{got[0]}–{got[-1]}"
+    return ", ".join(got)
+
+
 def fix(text: str, nums: dict[str, str]) -> tuple[str, list[str]]:
     """The text with every citation renumbered, and what changed."""
     notes: list[str] = []
@@ -61,7 +72,7 @@ def fix(text: str, nums: dict[str, str]) -> tuple[str, list[str]]:
             notes.append(f"cites {', '.join(missing)}, which the gallery no longer has")
             return m.group(0)
         got = [nums[i] for i in ids]
-        shown = got[0] if len(got) == 1 else f"{got[0]}–{got[-1]}"
+        shown = _shown(got)
         anchor = SECTION[got[0][:2]]
         if shown != m["shown"]:
             notes.append(f"{m['shown']} is now {shown}")
