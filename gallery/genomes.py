@@ -860,7 +860,7 @@ EXAMPLES = [
             "Transfers steered to run <i>between</i> two clades, by topology rather than by a trait. The "
             "barplot counts them by clade pair, so A↔B towers over within-clade.",
             "transfer_to · Clades", transfer_highway, code=_C_HIGHWAY),
-    Example("genome_pangenome_by_family", "Rates that vary among gene families",
+    Example("genome_pangenome_by_family", "Gene family heterogeneity",
             "Two runs at the same mean rates. Every family alike gives no core at all; letting families "
             "differ gives 28 core families and a U-shaped spectrum.",
             "varying_among('families')", pangenome_by_family, code=_C_PANGENOME),

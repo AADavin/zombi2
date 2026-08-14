@@ -91,27 +91,68 @@ def diversity_dependent(out):
 #: figure, so the picture here is the panel there rather than a second run of the same idea.
 _VARY = dict(death=0.1, n_extant=25, seed=3)
 
+#: The two ways a birth rate can vary among lineages, as chapter 3 draws them: inherited at each
+#: split and nudged from the parent's, or drawn afresh with no memory of it. Same base as the book's
+#: figure — the drifting one starts lower because drift accumulates down a path and the independent
+#: one does not.
+_VARYING = {
+    "inherited": PerLineage(0.45).varying_among("lineages", Drift(LogNormal(0.0, 0.5))),
+    "independent": PerLineage(0.85).varying_among("lineages", LogNormal(0.0, 0.5)),
+}
 
-def _bare_tree(sp, out, note):
-    tree = ph.trees.loads(sp.complete_tree.to_newick())
-    style = ph.Style(width=1250, height=760, margin=80, branch_width=2.0)
-    (ph.trees.plot(tree, style=style)
-     + ph.trees.note(note, loc="top-left", size=20, dy=-14)
+_RATE_CACHE: dict = {}
+
+
+def _rate_panels() -> dict:
+    """Both runs, and the colour scale they share: ``{name: (tree, dashed, log rates)}`` + ``limits``.
+
+    Grown together and cached because the pair is a comparison. Coloured independently, each would
+    normalise to its own range and the same green would mean a different rate on the two cards. The
+    scale is logarithmic (these rates are lognormal) and clipped to the pooled 2nd-98th percentile,
+    so one runaway lineage cannot flatten the rest."""
+    import math
+
+    if _RATE_CACHE:
+        return _RATE_CACHE
+    panels, every = {}, []
+    for name, birth in _VARYING.items():
+        sp = simulate_species_tree(birth=birth, **_VARY)
+        ct = sp.complete_tree
+        tree = ph.trees.loads(ct.to_newick())
+        logr = {k: math.log10(v) for k, v in sp.lineage_rates().items()}
+        panels[name] = (tree, h.dashed_extinct(tree, ct), logr)
+        every += list(logr.values())
+    every.sort()
+    lo, hi = every[int(0.02 * len(every))], every[int(0.98 * len(every)) - 1]
+    _RATE_CACHE.update(panels=panels, limits=(lo, hi))
+    return _RATE_CACHE
+
+
+def _rate_tree(name, out):
+    """One card: the complete tree, each branch coloured by the rate that lineage itself ran under.
+
+    Extinct branches dashed, as everywhere else in this section. No note on the figure: the card's
+    title and caption say which kind of variation this is, and a label inside the picture would be
+    the third place saying it."""
+    got = _rate_panels()
+    tree, dashed, logr = got["panels"][name]
+    style = ph.Style(width=1250, height=760, margin=80, branch_width=2.6)
+    (ph.trees.plot(tree, dashed=dashed, style=style)
+     + ph.trees.color_branches(logr, cmap="viridis", limits=got["limits"])
+     + ph.trees.colorbar("birth rate  (speciations per lineage per unit time)", loc="top-left",
+                         width=210, height=14, size=19,
+                         labels=tuple(f"{10 ** v:.2f}" for v in got["limits"]))
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(out)
 
 
 def inherited_rates(out):
     """Each lineage inherits its parent's rate and drifts from it, so clades run at their own tempo."""
-    sp = simulate_species_tree(
-        birth=PerLineage(0.45).varying_among("lineages", Drift(LogNormal(0.0, 0.5))), **_VARY)
-    _bare_tree(sp, out, "a rate inherited at each split, then nudged")
+    _rate_tree("inherited", out)
 
 
 def lineage_rates(out):
     """Each lineage draws its own rate, with no memory of its parent."""
-    sp = simulate_species_tree(
-        birth=PerLineage(0.85).varying_among("lineages", LogNormal(0.0, 0.5)), **_VARY)
-    _bare_tree(sp, out, "a rate drawn afresh for every lineage")
+    _rate_tree("independent", out)
 
 
 # --- many trees, measured (local to this module: helpers.py is shared) ------
@@ -366,11 +407,11 @@ EXAMPLES = [
     Example("diversity", "Diversity-dependent",
             "Speciation slows as diversity fills up; the skyline rises and plateaus at the cap of 100.",
             "birth · TotalDiversity", diversity_dependent, code=_C_DIVERSITY),
-    Example("inherited", "A rate inherited, then drifting",
+    Example("inherited", "Inherited rates",
             "Each lineage starts at its parent's rate and is nudged from it, so close relatives run "
             "at similar speeds and one clade radiates while its sister stays sparse.",
             "birth · Drift", inherited_rates, code=_C_INHERITED),
-    Example("perlineage", "A rate per lineage",
+    Example("perlineage", "Independent rates",
             "The same distribution without the inheritance: every lineage draws for itself, so a "
             "fast lineage tells you nothing about its neighbours.",
             "birth · LogNormal", lineage_rates, code=_C_PERLINEAGE),

@@ -129,15 +129,16 @@ def alignment_beside_tree(out):
 def protein_beside_tree(out):
     """The same picture in the other alphabet: LG down the same twenty species.
 
-    Residues are coloured by chemical **class**, not one hue each, so what the column shows is where
-    the chemistry is conserved — a column that stays blue while its letters change is a run of
-    different hydrophobic residues, which is not the same thing as a column that stays put."""
+    Each residue has its own shade of its chemical class's hue, and carries its letter, so a column
+    reads twice: one hue down the column is conserved chemistry, and one shade is a conserved
+    residue — a column of blues whose letters change is a run of different hydrophobics, which is
+    not the same thing as a column that stays put."""
     run = h.protein_run()                                # 20 species, LG, 60 residues
     tree = ph.trees.read(run + "/species/species_extant.nwk")
     fam = _best_single_copy(ph.zombi.read_profiles(run))
     aln = ph.zombi.read_alignment(run, fam)
     fig = ph.trees.plot(tree, style=h.style())                            # no leaf labels
-    ph.beside(fig, ph.genomes.alignment(aln, palette=ph.genomes.AA_COLORS, letters=False,
+    ph.beside(fig, ph.genomes.alignment(aln, palette=ph.genomes.AA_COLORS, letters=True,
                                         legend=True),                     # the six-class key
               width=1150, tree_fraction=0.30, footer=70).save(out)
 
@@ -295,7 +296,7 @@ import phylustrator as ph
 tree = ph.trees.read("run/species/species_extant.nwk")
 aln = ph.zombi.read_alignment("run", family=2)
 ph.beside(ph.trees.plot(tree),
-          ph.genomes.alignment(aln, palette=ph.genomes.AA_COLORS, letters=False),
+          ph.genomes.alignment(aln, palette=ph.genomes.AA_COLORS),
           footer=70).save("protein.png")'''
 
 
