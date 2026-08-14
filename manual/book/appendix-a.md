@@ -72,7 +72,7 @@ grow as the tree does. The scopes are `Global`, `PerLineage`, `PerCopy`, `PerSit
 handed a scope other than the one in the table above is refused, and the error names the scope that
 level takes. No other scope is implemented anywhere.
 
-## Bending a rate: modifiers
+## How a rate changes in context: modifiers
 
 A **modifier** alters a rate in context. You might give a gene family a constant loss rate across the
 tree except in one clade known to shed genes, a symbiotic bacterium, by multiplying the rate there.
@@ -265,7 +265,7 @@ print(len(crowded.complete_tree.extant_leaves()))   # 142 when extinction rises 
 
 Two limits. A modifier of your own is Python-only: `--death` and a `--params` file know the names
 ZOMBI2 ships and cannot build a class you wrote. And if your `factor` reads `time`, making it a rate
-that changes continuously rather than only when an event fires, give the class a `next_change(time)`
+that changes continuously rather than only when an event occurs, give the class a `next_change(time)`
 method returning the next moment the rate changes, so the engine stops and re-evaluates there instead
 of holding it at whatever it was. That is the horizon stepping described at the end of this appendix.
 `OnCrowding` needs none, because diversity only changes when something is born or dies, and the engine
@@ -289,7 +289,7 @@ gene copy is lost at rate $\mu = 0.25$, then, left alone, it is lost on average 
 time units.
 
 More precisely, a rate $\lambda$ is defined by what happens over a very short slice of time $\Delta t$.
-The chance that one event fires during that slice is proportional to its length,
+The chance that one event occurs during that slice is proportional to its length,
 
 $$P(\text{an event in the next } \Delta t) \approx \lambda\,\Delta t,$$
 
@@ -304,7 +304,7 @@ length $T$ (Figure A.1).
 
 ![The count of events in a fixed window is random, not fixed. With rate $\lambda$, the number of events in one unit of time is Poisson-distributed with mean $\lambda$ (dashed line). At a low rate (left) most windows see zero or one event and a few see more; at a higher rate (right) the count spreads out around the mean. The rate fixes only the average.](figures/gillespie_poisson.pdf){width=100%}
 
-Now fix a single event with a constant rate $\lambda$ and ask: starting now, how long until it fires?
+Now fix a single event with a constant rate $\lambda$ and ask: starting now, how long until it occurs?
 Call that waiting time $W$. Because the chance of firing in each little slice is $\lambda\,\Delta t$ and
 slices are independent, the chance of surviving without an event up to time $t$ decays to an exponential:
 
@@ -340,14 +340,14 @@ the time to the next event, whichever it turns out to be, is a single exponentia
 More possible events, or faster ones, means a larger $R$ and therefore shorter waits. This is why we need
 only one waiting-time draw per step, however long the menu.
 
-**Which event fires?** The winner is event $i$ with probability equal to its share of the total rate,
+**Which event happens?** The winner is event $i$ with probability equal to its share of the total rate,
 
-$$P(\text{event } i \text{ fires}) = \frac{r_i}{R},$$
+$$P(\text{event } i \text{ happens}) = \frac{r_i}{R},$$
 
 and which event wins is independent of when it happens. So the two are decided separately: draw the time
 from the total rate, then pick the event on a weighted roulette wheel, each slice sized to a rate.
 
-![The two draws that make up one Gillespie step. **(1)** Each possible event has a rate; here duplication, transfer and loss have rates 3, 2 and 1, summing to a total rate $R = 6$. **(2)** The waiting time to the *next* event is a single exponential draw with rate $R$; larger total rates give shorter waits, with mean $1/R$. **(3)** Which event fires is a second, independent draw: event $i$ wins with probability $r_i/R$: the rates laid end to end as a roulette wheel, here landing on transfer. The step then advances the clock by $\Delta t$, applies the chosen event to the state, and repeats.](figures/gillespie_step.pdf){width=100%}
+![The two draws that make up one Gillespie step. **(1)** Each possible event has a rate; here duplication, transfer and loss have rates 3, 2 and 1, summing to a total rate $R = 6$. **(2)** The waiting time to the *next* event is a single exponential draw with rate $R$; larger total rates give shorter waits, with mean $1/R$. **(3)** Which event happens is a second, independent draw: event $i$ wins with probability $r_i/R$: the rates laid end to end as a roulette wheel, here landing on transfer. The step then advances the clock by $\Delta t$, applies the chosen event to the state, and repeats.](figures/gillespie_step.pdf){width=100%}
 
 In code the roulette wheel is a running sum: lay the rates end to end, draw a point uniformly along their
 combined length $R$, and see which segment it lands in.
@@ -359,7 +359,7 @@ off the current rates and their total $R$; draw a waiting time and advance the c
 has run past the target time, or the process has died out; otherwise pick one event in proportion to its
 rate, apply it to the state, record it, and go round again.
 
-![The Gillespie loop. Each pass computes the current total rate, draws one exponential waiting time, and, unless the clock has passed the target age, fires a single event chosen in proportion to its rate, updates the state, and repeats. The output is a list of events with the exact times at which they occurred: a timed history.](figures/gillespie_loop.pdf){width=68%}
+![The Gillespie loop. Each pass computes the current total rate, draws one exponential waiting time, and, unless the clock has passed the target age, applies a single event chosen in proportion to its rate, updates the state, and repeats. The output is a list of events with the exact times at which they occurred: a timed history.](figures/gillespie_loop.pdf){width=68%}
 
 As pseudocode, the whole engine is short:
 
@@ -397,7 +397,7 @@ plain Python.
 
 The loop above assumes the rates hold still *between* events, so that a single $\text{Exponential}(R)$
 draw lands exactly on the next event. That holds whenever the rates depend only on the current state,
-which changes only when an event fires. But some rates move with the clock itself, even while nothing is
+which changes only when an event occurs. But some rates move with the clock itself, even while nothing is
 happening: a `changing_at` schedule steps at fixed breakpoints, a scheduled mass extinction arrives at a set
 time, and a driven rate follows a driver that changes state on its own timetable. Now $R$ is a moving
 target, and a draw at today's $R$ would be wrong.

@@ -175,9 +175,14 @@ def genome_reduction(out):
     sizes, tipcol = _sizes(ct, g, hab, _HAB)
     _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, hab), palette=_HAB)],
                         sizes, tipcol, dict(
-        driver="lifestyle", states=["free-living", "endosymbiont"], switch=_LIFESTYLE,
-        mapping={"endosymbiont": 6, "free-living": 1}, target="loss", target_base=0.08,
-        state_colors=_HAB))
+        driver=("traits", "lifestyle", "two states"),
+        connection=("scaled_by", "table"),
+        target_level="genomes",
+        targets=[("loss", "rate · per copy", "endosymbiont × 6"),
+                 ("origination", "rate · per lineage", "endosymbiont × 0.3")],
+        chain=(("free-living", "endosymbiont"),
+               [("0.20", "0.08")],
+               (_HAB["free-living"], _HAB["endosymbiont"]))))
 
 
 def genome_expansion(out):
@@ -190,9 +195,13 @@ def genome_expansion(out):
     sizes, tipcol = _sizes(ct, g, sel, _SEL)
     _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, sel), palette=_SEL)],
                         sizes, tipcol, dict(
-        driver="selection", states=["purifying", "relaxed"], switch=_SELECTION,
-        mapping={"relaxed": 11, "purifying": 1}, target="duplication", target_base=0.05,
-        state_colors=_SEL))
+        driver=("traits", "selection", "two states"),
+        connection=("scaled_by", "table"),
+        target_level="genomes",
+        targets=[("duplication", "rate · per copy", "relaxed × 11    purifying × 1")],
+        chain=(("purifying", "relaxed"),
+               [("0.20", "0.08")],
+               (_SEL["purifying"], _SEL["relaxed"]))))
 
 
 def hgt_uptake(out):
@@ -205,10 +214,13 @@ def hgt_uptake(out):
     sizes, tipcol = _sizes(ct, g, comp, _COMP)
     _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, comp), palette=_COMP)],
                         sizes, tipcol, dict(
-        driver="competence", states=["quiet", "competent"],
-        switch={"quiet->competent": 0.12, "competent->quiet": 0.05},
-        mapping={"competent": 8, "quiet": 1}, target="transfer\nuptake", target_base=None,
-        target_sub="who receives a transfer", state_colors=_COMP))
+        driver=("traits", "competence", "two states"),
+        connection=("weighted_by", "table"),
+        target_level="genomes",
+        targets=[("transfer_to", "choice · a weight", "competent × 8    quiet × 1")],
+        chain=(("quiet", "competent"),
+               [("0.12", "0.05")],
+               (_COMP["quiet"], _COMP["competent"]))))
 
 
 def continuous_conditioning(out):
@@ -229,9 +241,11 @@ def continuous_conditioning(out):
     tipcol = {lab[n]: colors.to_hex(cmap(norm(act.node_values[n]))) for n in tips}
     _conditioned_genome(out, ct, [ph.trees.color_branches(vals, cmap="viridis")],
                         sizes, tipcol, dict(
-        draw=h.draw_conditioning_curve, driver="activity", curve=factor,
-        vrange=(min(vals.values()), max(vals.values())), value_label="activity",
-        target="origination", target_base=0.6))
+        driver=("traits", "activity", "a number"),
+        connection=("scaled_by", "curve"),
+        target_level="genomes",
+        targets=[("origination", "rate · per lineage", "")],
+        curve=(factor, "activity", (min(vals.values()), max(vals.values())))))
 
 
 def _continuous_figure(out, factor, *, driver, value_label, target, base, layer_cmap="viridis",
@@ -250,9 +264,11 @@ def _continuous_figure(out, factor, *, driver, value_label, target, base, layer_
     tipcol = {lab[n]: colors.to_hex(cmap(norm(tr.node_values[n]))) for n in tips}
     _conditioned_genome(out, ct, [ph.trees.color_branches(vals, cmap=layer_cmap)],
                         sizes, tipcol, dict(
-        draw=h.draw_conditioning_curve, driver=driver, curve=factor, cmap=layer_cmap,
-        vrange=(min(vals.values()), max(vals.values())), value_label=value_label,
-        target=target, target_base=base))
+        driver=("traits", driver, "a number"),
+        connection=("scaled_by", "curve"),
+        target_level="genomes",
+        targets=[(target, "rate · per lineage", "")],
+        curve=(factor, value_label, (min(vals.values()), max(vals.values())))))
 
 
 def curve_saturating(out):
@@ -305,9 +321,12 @@ def trait_drives_trait(out):
          + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
         pngs.append(png)
     diag = h.conditioning_png(out.replace(".png", "_diag.png"),
-                              draw=h.draw_conditioning_curve, driver="temperature", curve=factor,
-                              vrange=(min(driver.values()), max(driver.values())),
-                              value_label="temperature", target="size diffusion", target_base=0.35)
+                              driver=("traits", "temperature", "a number"),
+                              connection=("scaled_by", "curve"),
+                              target_level="traits",
+                              targets=[("size diffusion", "rate · per lineage", "")],
+                              curve=(factor, "temperature",
+                                     (min(driver.values()), max(driver.values()))))
     h.composite_under_diagram(out, diag,
                               [(pngs[0], "temperature", ("viridis", "cold", "warm")),
                                (pngs[1], "body size",
@@ -350,19 +369,18 @@ def gene_drives_trait(out):
          + ph.trees.color_history(hist, palette=palette)
          + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
         pngs.append(png)
-    diag = h.conditioning_png(out.replace(".png", "_diag.png"),
-                              driver="tox", states=["absent", "present"],
-                              switch={"present->absent": 0.13},   # the family is lost, not regained
-                              mapping={"present": 40, "absent": 1},
-                              target="pathogenic",
-                              target_base=0.02, state_colors=_TOX,
-                              # the target is itself a discrete trait, so it gets its own chain:
-                              # what the gene drives is the rate of *these* two arrows
-                              target_states=["harmless", "pathogenic"],
-                              target_switch={"harmless->pathogenic": 0.8,
-                                             "pathogenic->harmless": 0.6},
-                              target_colors=_DISEASE,
-                              target_driven="harmless->pathogenic")
+    diag = h.conditioning_png(
+        out.replace(".png", "_diag.png"),
+        driver=("genomes", "tox", "present or absent"),
+        connection=("scaled_by", "table"),
+        target_level="traits",
+        targets=[("pathogenic", "rate · per lineage", "present × 40    absent × 1")],
+        # the family is lost and not regained, so one arc; the TARGET is itself a trait with states,
+        # and what the gene drives is the rate of one of its two arrows
+        chain=(("present", "absent"), [("0.13", None)],
+               (_TOX["present"], _TOX["absent"])),
+        target_chain=(("harmless", "pathogenic"), [("driven", "0.6")],
+                      (_DISEASE["harmless"], _DISEASE["pathogenic"])))
     h.composite_under_diagram(out, diag, [(pngs[0], "the toxin family", _TOX),
                                           (pngs[1], "pathogenicity", _DISEASE)])
 
@@ -682,14 +700,15 @@ def module_drives_metabolism(out):
          + ph.trees.color_history(hist, palette=palette)
          + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
         pngs.append(png)
-    diag = h.conditioning_png(out.replace(".png", "_diag.png"),
-                              draw=h.draw_conditioning_curve, driver="aerobic module", curve=step,
-                              vrange=(0.0, 1.0), value_label="fraction of the module present",
-                              target="aerobic", target_base=0.3,
-                              target_states=["anaerobic", "aerobic"],
-                              target_switch={"anaerobic->aerobic": 6.0,
-                                             "aerobic->anaerobic": 0.3},
-                              target_colors=_METAB, target_driven="anaerobic->aerobic")
+    diag = h.conditioning_png(
+        out.replace(".png", "_diag.png"),
+        driver=("genomes", "aerobic module", "a fraction, 0–1"),
+        connection=("scaled_by", "curve"),
+        target_level="traits",
+        targets=[("aerobic", "rate · per lineage", "")],
+        curve=(step, "fraction of the module present", (0.0, 1.0)),
+        target_chain=(("anaerobic", "aerobic"), [("driven", "0.3")],
+                      (_METAB["anaerobic"], _METAB["aerobic"])))
     h.composite_under_diagram(out, diag,
                               [(pngs[0], "the aerobic module",
                                 ("viridis", "none of it", "all of it")),
