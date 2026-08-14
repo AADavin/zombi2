@@ -255,17 +255,19 @@ class Chromosome:
         position some other lineage holds inside its copy of the gene would split that gene's root
         block for everyone (`_root_block_partition`), so the surviving extent is not the test.
         On a reversed block the physically-leading edge is the source's high end."""
-        span = None if self.genes is None else self.genes.get(b.gene)
-        if not b.is_gene or span is None:
+        if not b.is_gene or self.genes is None:              # spacer, or no declared spans
             return True
-        return b.start == span[1] if b.strand == 1 else b.end == span[2]
+        span = self.genes.get(b.gene)
+        return True if span is None else (b.start == span[1] if b.strand == 1
+                                          else b.end == span[2])
 
     def _closes(self, b: Block) -> bool:
         """`_opens()` for the **trailing** edge — the boundary physically after ``b``."""
-        span = None if self.genes is None else self.genes.get(b.gene)
-        if not b.is_gene or span is None:
+        if not b.is_gene or self.genes is None:
             return True
-        return b.end == span[2] if b.strand == 1 else b.start == span[1]
+        span = self.genes.get(b.gene)
+        return True if span is None else (b.end == span[2] if b.strand == 1
+                                          else b.start == span[1])
 
     def _boundary_ok(self, i: int) -> bool:
         """Whether the boundary physically before block ``i`` may carry an event breakpoint: it must
@@ -378,19 +380,34 @@ class Chromosome:
         (a de-novo replicon) still offers position 0, so material can arrive on it, and a **fully
         genic** one still offers every boundary between its genes, so whole genes are moved about
         rather than nothing happening at all."""
-        out, pos = [], 0
-        for i, b in enumerate(self.blocks):
+        # One pass, with `_opens` / `_closes` inlined and the previous block's closing edge carried
+        # forward: this runs on every event over every block, so a helper call per block per event
+        # is not free — it measured a third of the genome level's time.
+        out, pos, genes, prev_closes = [], 0, self.genes, True
+        for b in self.blocks:
+            if not b.is_gene or not genes:
+                opens = closes = True
+            else:
+                span = genes.get(b.gene)
+                if span is None:                                # a gene with no declared span is
+                    opens = closes = True                       # its own whole gene
+                elif b.strand == 1:
+                    opens, closes = b.start == span[1], b.end == span[2]
+                else:                                           # reversed: the edges swap
+                    opens, closes = b.end == span[2], b.start == span[1]
+            joins = opens and prev_closes                       # ends one gene and begins another
             if indel:                                           # every position, gene or not
                 out.append((pos, pos + b.length - 1))
             elif b.is_gene:                                     # its own edge, and never its interior
-                if self._boundary_ok(i):
+                if joins:
                     out.append((pos, pos))
             else:                                               # spacer: its interior always, its
-                lo = pos if self._boundary_ok(i) else pos + 1   # leading edge only if that is a join
+                lo = pos if joins else pos + 1                  # leading edge only if that is a join
                 if lo <= pos + b.length - 1:
                     out.append((lo, pos + b.length - 1))
+            prev_closes = closes
             pos += b.length
-        if self.topology == "linear" and (not self.blocks or self._closes(self.blocks[-1])):
+        if self.topology == "linear" and prev_closes:
             out.append((pos, pos))                              # the far end is a legal cut too
         return out
 
@@ -2977,7 +2994,7 @@ def _carried_blocks(result, blocks) -> set[tuple[int, int, int, int]]:
 
 
 def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs, new_seg, out,
-                       tip_of, deletions=(), carried=frozenset()) -> None:
+                       tip_of, deletions=(), carried=None) -> None:
     """Replay the copy-lineage log for one root-block ``(s, [a, b))`` into per-segment events on
     ``out``. A copy lineage is a *block-copy* when it covers ``[a, b)`` in full; a duplication or a
     transfer that covers it in full begets a block-copy child (a ladder rung on its parent — the
@@ -3031,7 +3048,8 @@ def _emit_block_events(fam, s, a, b, tree, origs, dups, transfers, losses, specs
         for (cp, src, x, y) in (e.lost if isinstance(e, Loss) else e.deleted):
             if src == s and overlaps(x, y) and e.time > end_of.get(cp, -math.inf):
                 end_of[cp] = e.time
-    loss_of = {cp: t for cp, t in end_of.items() if (s, a, b, cp) not in carried}
+    loss_of = (end_of if carried is None else
+               {cp: t for cp, t in end_of.items() if (s, a, b, cp) not in carried})
     for e in root_origs:
         species[e.copy] = e.lineage                    # a de-novo origination roots at its own branch
 
@@ -3107,7 +3125,12 @@ def _recover_gene_trees(result, *, every_block: bool = False
     transfers = [e for e in result.events if isinstance(e, Transfer)]
     losses = [e for e in result.events if isinstance(e, Loss)]
     deletions = getattr(result, "deletions", ())
-    carried = _carried_blocks(result, blocks)
+    # Only an indel can leave a copy carrying part of a block, so only then is the exact
+    # "does it still carry any of this?" test needed — and it costs a pass over every node's
+    # blocks. Without indels a removal is atomic on a block, so touching one is losing it.
+    carried = (_carried_blocks(result, blocks)
+               if deletions or any(isinstance(e, Origination) and e.kind == "insertion"
+                                   for e in result.events) else None)
     specs = {e.parent: e for e in result.events if isinstance(e, Speciation)}
     counter = [0]
 
