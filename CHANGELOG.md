@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-08-14
+
 ### Added
 
 - **Indels at the nucleotide resolution.** `deletion` and `insertion` (per lineage, with
