@@ -1,25 +1,29 @@
-<svg viewBox="0 0 660 252" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
+<svg viewBox="0 0 660 262" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
 <title>The two kinds of trait: a value that drifts, and a state that switches</title>
-<desc>The same four-tip tree twice. On the left a continuous trait: it starts at 0 at the origin and drifts along every branch, so each tip ends at its own number. On the right a discrete trait: it sits in one state and switches to the other at two moments, marked with dots, so the branches below each switch are in the second state and the tips are chips of one state or the other.</desc>
+<desc>The same four-tip tree twice. On the left a continuous trait: it starts at 0 at the origin and drifts along every branch, so every node ends at its own number; each branch is painted with the value at its far end, along the same colour ramp the trait figures use. On the right a discrete trait: it sits in one state and switches to the other at two moments, marked with dots, so the branches below each switch are in the second state and the tips are chips of one state or the other.</desc>
 <!-- The same tree twice, so the only difference a reader sees is the trait. Drawing two different
      trees would invite the difference to be read as something about the trees.
-     The continuous panel puts the number at the tip rather than drawing a wandering line along the
-     branch: chapter 8's continuous run reports a value per node, and a drawn path would promise a
-     within-branch trajectory the output does not contain.
+     The continuous panel paints each branch with the value at its far end and prints that number,
+     rather than drawing a wandering line along the branch: chapter 8's continuous run reports a
+     value per node, and a drawn path would promise a within-branch trajectory the output does not
+     contain. One colour per branch says exactly what the output holds.
      The discrete panel marks the switch with a dot because that is the event the log records
      (`on_branch`); a switch AT a split is a different record and is not drawn here.
+     The two colour vocabularies are the ones the gallery and Phylustrator already use, so a reader
+     meets each idea in one colour throughout: a *number* is the line-safe viridis ramp (viridis
+     stopped before it goes pale, which a 2px line loses against white), and a *state* is a
+     categorical pair, teal and orange, which stays legible for the common colour-blindnesses.
      Colours are presentation ATTRIBUTES and literals, not CSS custom properties: GitHub's SVG
      sanitiser drops the style element and librsvg resolves no custom properties, so a figure whose
      fills live in either renders as black-on-black. The dark-mode rules below still win wherever
-     CSS survives, because CSS outranks a presentation attribute. Keep it this way. -->
+     CSS survives, because CSS outranks a presentation attribute. The ramp and the two state colours
+     need no dark variant — they read on either ground; only the ink text and the paper-filled
+     chip do. Keep it this way. -->
 <style>
   @media (prefers-color-scheme: dark) {
     .lbl{fill:#e7ebe9}
     .dim{fill:#9aa3a0}
-    .edge{stroke:#e7ebe9}
-    .edge2{stroke:#8d9599}
-    .on{fill:#e7ebe9;stroke:#e7ebe9}
-    .off{fill:#191d20;stroke:#e7ebe9}
+    .paper{fill:#191d20}
   }
 </style>
 
@@ -33,21 +37,24 @@
   <text x="490" y="43">a state that switches now and then</text>
 </g>
 
-<!-- LEFT: one tree, one number per tip -->
-<g class="edge" stroke="#1a1a1a" stroke-width="1.9" fill="none" stroke-linecap="round">
-  <path d="M 20,140 L 70,140"/>
-  <path d="M 70,90 L 70,190"/>
-  <path d="M 70,90 L 130,90"/>
-  <path d="M 130,65 L 130,115"/>
-  <path d="M 130,65 L 250,65"/>
-  <path d="M 130,115 L 250,115"/>
-  <path d="M 70,190 L 170,190"/>
-  <path d="M 170,165 L 170,215"/>
-  <path d="M 170,165 L 250,165"/>
-  <path d="M 170,215 L 250,215"/>
+<!-- LEFT: one tree, a value at every node, each branch painted with the value it ends at -->
+<g stroke-width="2.6" fill="none" stroke-linecap="round">
+  <path d="M 20,140 L 70,140" stroke="#472F7D"/>
+  <path d="M 70,90 L 70,190" stroke="#472F7D"/>
+  <path d="M 70,90 L 130,90" stroke="#365C8D"/>
+  <path d="M 130,65 L 130,115" stroke="#365C8D"/>
+  <path d="M 130,65 L 250,65" stroke="#25838E"/>
+  <path d="M 130,115 L 250,115" stroke="#440154"/>
+  <path d="M 70,190 L 170,190" stroke="#209D89"/>
+  <path d="M 170,165 L 170,215" stroke="#209D89"/>
+  <path d="M 170,165 L 250,165" stroke="#54C568"/>
+  <path d="M 170,215 L 250,215" stroke="#28AD80"/>
 </g>
-<g class="dim" fill="#6e6e6e" font-size="12.5" text-anchor="middle">
+<!-- the value at every node, not only at the tips: that is what the run reports -->
+<g class="dim" fill="#6e6e6e" font-size="11.5" text-anchor="middle">
   <text x="45" y="132">0.0</text>
+  <text x="126" y="83" text-anchor="end">0.7</text>
+  <text x="166" y="183" text-anchor="end">1.9</text>
 </g>
 <g class="lbl" fill="#1a1a1a" font-size="13">
   <text x="258" y="70">1.4</text>
@@ -57,7 +64,7 @@
 </g>
 
 <!-- RIGHT: the same tree, in two states, with the switch marked where it happens -->
-<g class="edge" stroke="#1a1a1a" stroke-width="1.9" fill="none" stroke-linecap="round">
+<g stroke="#4C9AA6" stroke-width="2.6" fill="none" stroke-linecap="round">
   <path d="M 370,140 L 420,140"/>
   <path d="M 420,90 L 420,190"/>
   <path d="M 420,90 L 480,90"/>
@@ -66,24 +73,43 @@
   <path d="M 480,115 L 540,115"/>
   <path d="M 420,190 L 470,190"/>
 </g>
-<g class="edge2" stroke="#9a9a9a" stroke-width="1.9" fill="none" stroke-linecap="round">
+<g stroke="#E08A3C" stroke-width="2.6" fill="none" stroke-linecap="round">
   <path d="M 540,115 L 600,115"/>
   <path d="M 470,190 L 520,190"/>
   <path d="M 520,165 L 520,215"/>
   <path d="M 520,165 L 600,165"/>
   <path d="M 520,215 L 600,215"/>
 </g>
-<g class="on" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.2">
-  <circle cx="540" cy="115" r="3.4"/>
-  <circle cx="470" cy="190" r="3.4"/>
+<!-- the switch itself, in the state it switches INTO -->
+<g fill="#E08A3C" stroke="#1a1a1a" stroke-width="1.0">
+  <circle cx="540" cy="115" r="4.0"/>
+  <circle cx="470" cy="190" r="4.0"/>
 </g>
 <!-- the tips, as a chip of the state they ended in -->
-<g class="on" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.3">
-  <rect x="608" y="59" width="11" height="11"/>
+<g stroke="none">
+  <rect x="608" y="59" width="11" height="11" fill="#4C9AA6"/>
+  <rect x="608" y="109" width="11" height="11" fill="#E08A3C"/>
+  <rect x="608" y="159" width="11" height="11" fill="#E08A3C"/>
+  <rect x="608" y="209" width="11" height="11" fill="#E08A3C"/>
 </g>
-<g class="off" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.3">
-  <rect x="608" y="109" width="11" height="11"/>
-  <rect x="608" y="159" width="11" height="11"/>
-  <rect x="608" y="209" width="11" height="11"/>
+<!-- a key, so neither panel needs its colours explained in the caption -->
+<defs>
+  <linearGradient id="ramp" x1="0" x2="1">
+    <stop offset="0" stop-color="#440154"/><stop offset="0.35" stop-color="#365C8D"/>
+    <stop offset="0.7" stop-color="#209D89"/><stop offset="1" stop-color="#54C568"/>
+  </linearGradient>
+</defs>
+<rect x="52" y="243" width="120" height="8" fill="url(#ramp)"/>
+<g class="dim" fill="#6e6e6e" font-size="11.5">
+  <text x="46" y="251" text-anchor="end">low</text>
+  <text x="178" y="251">high</text>
+</g>
+<g stroke="none">
+  <rect x="370" y="242" width="9" height="9" fill="#4C9AA6"/>
+  <rect x="470" y="242" width="9" height="9" fill="#E08A3C"/>
+</g>
+<g class="dim" fill="#6e6e6e" font-size="11.5">
+  <text x="384" y="251">one state</text>
+  <text x="484" y="251">the other</text>
 </g>
 </svg>

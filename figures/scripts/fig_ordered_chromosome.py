@@ -10,102 +10,70 @@ The genome is the leaf ``n4`` of the chapter's first example (``seed=231``); the
 from that run, not drawn by hand, so it cannot drift from what the code produces. Change the
 chapter's seed and this has to be re-run — the two constants below are the chapter's.
 
-House style: near-black ink, ColorBrewer identities, no title inside the figure (the manual captions
-it).
+**Drawn by Phylustrator**, which is the answer to a question the manual review asked of this figure:
+the chunky arrow bent along a ring is `plot(genome, layout="circular")` with `gene_style="arrow"`,
+the same call the gallery's inversion example makes. It used to be a hand-rolled ``drawsvg`` ring —
+about eighty lines of trigonometry for arcs, arrowheads and label placement — which meant this one
+figure drew genes by rules nothing else in the project shared. The family numbers around the ring
+are `gene_labels`, added to Phylustrator for it.
+
+House style: no title inside the figure (the manual captions it). The colours are the categorical
+four the gallery paints traits and states with, so a *family* reads as an identity here and there.
 
 Run:  python figures/scripts/fig_ordered_chromosome.py
 """
 
 from __future__ import annotations
 
-import math
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import drawsvg as draw
+import phylustrator as ph
 
 from zombi2 import species
 from zombi2.genomes import simulate_genomes_ordered
-from zombi_style import save, FONT, INK, MUTED, FS_LABEL
+from zombi_style import save, FS_LABEL
 
-# families are told apart by shade, not hue — a dark-to-light grey ramp. Two genes of the same
-# family share a shade, so a tandem duplication reads as two neighbours of one grey.
-GREYS = ["#2b2b2b", "#575757", "#838383", "#afafaf"]
-
+#: Families are told apart by hue, not by shade. Two genes of one family share a colour, so a tandem
+#: duplication reads as two neighbours of one colour; four hues are enough for this chromosome and
+#: they are the gallery's, which keeps one categorical vocabulary across the project.
+PALETTE = ["#4C9AA6", "#E08A3C", "#8B6B9E", "#3C8D6E"]
 
 SEED = 231                    # the chapter's first example
 LEAF = "n4"                   # the leaf it reads
 
+W = 760                       # square: a ring has no long side
 
-def _leaf_order(node_label: str = LEAF):
-    """The (family, strand) order of one extant leaf of the chapter's first example."""
+
+def _leaf_chromosome(node_label: str = LEAF):
+    """The chromosome of one extant leaf of the chapter's first example."""
     tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=SEED)
     g = simulate_genomes_ordered(tree, duplication=0.3, loss=0.2, origination=0.15, inversion=0.5,
                                  chromosomes=1, initial_families=5, seed=SEED)
-    target = int(node_label[1:])
-    chrom = g.node_genomes[target][0]
-    return [(gene.family, gene.strand) for gene in chrom.genes]
-
-
-W, H = 760, 720
-CX, CY = W / 2, H / 2 - 6
-R = 205                       # ring radius (gene centre-line)
-GENE_W = 42                   # gene arc thickness
-GAP_DEG = 15                  # blank arc between neighbouring genes
-HEAD = 15                     # arrowhead length in degrees of extra reach beyond the arc
-HEAD_HALF = GENE_W * 0.78     # half-width of the arrowhead base (a touch wider than the body)
-
-
-def _xy(angle_deg: float, radius: float) -> tuple[float, float]:
-    """A point at ``angle_deg`` clockwise from 12 o'clock, on ``radius``."""
-    a = math.radians(angle_deg)
-    return CX + radius * math.sin(a), CY - radius * math.cos(a)
-
-
-def _gene_arc(d, a0: float, a1: float, strand: int, colour: str) -> None:
-    """One gene as a thick arc from ``a0`` to ``a1`` (clockwise degrees), arrowhead at the end the
-    strand reads toward: the high-angle end for ``+1``, the low-angle end for ``−1``."""
-    lead, tail = (a1, a0) if strand == 1 else (a0, a1)
-    body_lead = lead - math.copysign(HEAD, lead - tail)      # leave room for the head
-    # the arc body (a stroked path along the ring)
-    x0, y0 = _xy(tail, R)
-    x1, y1 = _xy(body_lead, R)
-    large = 1 if abs(body_lead - tail) > 180 else 0
-    sweep = 1 if body_lead > tail else 0
-    d.append(draw.Path(f"M {x0:.2f} {y0:.2f} A {R} {R} 0 {large} {sweep} {x1:.2f} {y1:.2f}",
-                       stroke=colour, stroke_width=GENE_W, fill="none", stroke_linecap="butt"))
-    # the arrowhead: apex on the ring at `lead`, base a short chord just wider than the body
-    apex = _xy(lead, R)
-    br = _xy(body_lead, R + HEAD_HALF)
-    bl = _xy(body_lead, R - HEAD_HALF)
-    d.append(draw.Lines(apex[0], apex[1], br[0], br[1], bl[0], bl[1], close=True, fill=colour))
+    return g.node_genomes[int(node_label[1:])][0]
 
 
 def render() -> None:
-    order = _leaf_order(LEAF)
-    n = len(order)
-    families = sorted({fam for fam, _ in order})
-    colour_of = {fam: GREYS[i % len(GREYS)] for i, fam in enumerate(families)}
+    chrom = _leaf_chromosome(LEAF)
+    genes = [ph.genomes.Gene(family=str(gene.family), strand=gene.strand, position=i)
+             for i, gene in enumerate(chrom.genes)]
+    genome = ph.genomes.Genome(LEAF, [ph.genomes.Chromosome(str(chrom.id), genes,
+                                                            topology=chrom.topology)])
+    families = sorted({g.family for g in genes}, key=int)
+    palette = {fam: PALETTE[i % len(PALETTE)] for i, fam in enumerate(families)}
 
-    d = draw.Drawing(W, H, origin=(0, 0))
-    d.append(draw.Rectangle(0, 0, W, H, fill="white"))
-    # the backbone ring, faint, so the chromosome reads as a closed loop behind the genes
-    d.append(draw.Circle(CX, CY, R, stroke=MUTED, stroke_width=1.4, fill="none",
-                         stroke_dasharray="2,5"))
-
-    slot = 360.0 / n
-    for i, (fam, strand) in enumerate(order):
-        a0 = i * slot + GAP_DEG / 2
-        a1 = (i + 1) * slot - GAP_DEG / 2
-        _gene_arc(d, a0, a1, strand, colour_of[fam])
-        # the family label, outside the ring at the gene's mid-angle
-        lx, ly = _xy((a0 + a1) / 2, R + GENE_W / 2 + 34)
-        d.append(draw.Text(str(fam), FS_LABEL, lx, ly, font_family=FONT, fill=INK,
-                           font_weight="bold", text_anchor="middle", dominant_baseline="central"))
-
-    save(d, "ordered_chromosome")
+    # ring_gene_frac slims the body so the flared head reads as a head rather than a bulge; the
+    # margin is what the family numbers outside the ring sit in.
+    style = ph.Style(width=W, height=W, margin=int(W * 0.17), gene_stroke_width=1.0,
+                     ring_gene_frac=0.20, font_size=FS_LABEL)
+    figure = (ph.genomes.plot(genome, layout="circular", style=style)
+              + ph.genomes.genes(by="family", palette=palette)
+              + ph.genomes.gene_labels(pad=0.13))
+    save(figure.as_svg(), "ordered_chromosome")
+    print(f"  {LEAF}: [ " + " ".join(f"{g.family}{'+' if g.strand > 0 else '-'}" for g in genes)
+          + " ]  " + ", ".join(f"{f}={palette[f]}" for f in families))
 
 
 if __name__ == "__main__":
