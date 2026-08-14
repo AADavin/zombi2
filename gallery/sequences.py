@@ -391,17 +391,17 @@ result = simulate_sequences(
 # The nucleotide resolution is the only one that has indels — they are measured in base pairs and may
 # fall inside a gene — so this starts from a real annotated genome rather than a gene count.
 
-_INDEL_GENE = "gene-MG_RS01985"          # 161 bp in the M. genitalium annotation
+_INDEL_GENE = "gene-MG_RS02195"          # 210 bp in the M. genitalium annotation
 _indel_cache: dict = {}
 
 
 def _indel_run():
-    """A cached five-species run over the real *M. genitalium* genome, with indels and inversions.
+    """A cached twenty-species run over the real *M. genitalium* genome, with indels and inversions.
 
     Built through the Python API rather than the CLI because the alignment this figure wants —
     a block's own columns with the runs inserted into it spliced back in — is
-    ``result.alignment_with_insertions()``, and the command line writes only the per-block
-    alignments (an insertion is a block of its own there, with its own tree)."""
+    ``result.alignments`` on a run built in memory, and the command line writes the per-block rows
+    instead — an insertion is a block of its own on disk, with its own tree."""
     if not _indel_cache:
         from zombi2.genomes import simulate_genomes_nucleotide
         from zombi2.params.distributions import Geometric
@@ -409,7 +409,7 @@ def _indel_run():
         from zombi2.sequences.substitution_models import hky85
         from zombi2.species import simulate_species_tree
 
-        sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=7)
+        sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=20, seed=7)
         g = simulate_genomes_nucleotide(
             sp, gff=h.mycoplasma_gff(), trim_overlaps=True,
             deletion=120.0, deletion_extent=Geometric(9.0),
@@ -426,8 +426,9 @@ def indel_alignment(out):
     sp, g, r = run["species"], run["genomes"], run["sequences"]
     tips = [f"n{i}" for i in sorted(sp.complete_tree.extant_leaves())]
     host = g.block_of(g.gene_names[_INDEL_GENE])
-    full = r.alignment_with_insertions(host)
-    rows = {t: full[next(k for k in full if k.startswith(t + "_"))] for t in tips}
+    # `alignments` IS the locus: the block's own columns with the runs inserted into it opened
+    rows = {t: r.alignments[host][next(k for k in r.alignments[host] if k.startswith(t + "_"))]
+            for t in tips}
 
     nwk = os.path.join(os.path.dirname(out), "_indel_tree.nwk")
     with open(nwk, "w") as fh:
@@ -436,18 +437,18 @@ def indel_alignment(out):
     # can be read straight off the topology — which is the point here. Five tips, so they are named.
     fig = ph.trees.plot(ph.trees.read(nwk), style=h.style()) + ph.trees.tip_labels()
     ph.beside(fig, ph.genomes.alignment(ph.zombi.Alignment(list(tips), rows),
-                                        letters=False, legend=True),
-              width=1150, tree_fraction=0.28, footer=70).save(out)
+                                        letters=False, legend=False),
+              width=1150, tree_fraction=0.28).save(out)
 
 
 _C_INDEL = '''\
-### simulate  —  the real M. genitalium genome, five species, indels on
+### simulate  —  the real M. genitalium genome, twenty species, indels on
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import simulate_genomes_nucleotide
 from zombi2.sequences import simulate_sequences, hky85
 from zombi2.params.distributions import Geometric
 
-sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=5, seed=7)
+sp = simulate_species_tree(birth=1.0, death=0.0, n_extant=20, seed=7)
 g = simulate_genomes_nucleotide(sp, gff="mycoplasma.gff", trim_overlaps=True,
                                 deletion=120.0,  deletion_extent=Geometric(9.0),
                                 insertion=120.0, insertion_extent=Geometric(9.0),
@@ -455,14 +456,14 @@ g = simulate_genomes_nucleotide(sp, gff="mycoplasma.gff", trim_overlaps=True,
 r = simulate_sequences(g, model=hky85(2.5), divergence=0.10, seed=7)
 
 ### the alignment of one gene, with the runs inserted into it spliced back in
-block = g.block_of(g.gene_names["gene-MG_RS01985"])
-aln = r.alignment_with_insertions(block)     # r.alignments[block] omits the insertions
+block = g.block_of(g.gene_names["gene-MG_RS02195"])
+aln = r.alignments[block]        # the block's columns AND the runs inserted into it
 
 ### plot  —  Phylustrator
 import phylustrator as ph
 fig = ph.trees.plot(ph.trees.read("species_extant.nwk"))
-ph.beside(fig, ph.genomes.alignment(ph.zombi.Alignment(tips, aln), letters=False),
-          footer=70).save("indels.png")'''
+ph.beside(fig, ph.genomes.alignment(ph.zombi.Alignment(tips, aln), letters=False,
+                                    legend=False)).save("indels.png")'''
 
 EXAMPLES = [
     Example("clock_ucln", "Uncorrelated lognormal clock",
@@ -486,15 +487,14 @@ EXAMPLES = [
             "are one per node, <i>not</i> aligned to the tips.",
             "phylustrator · ancestral", numbered_ancestral, code=_C_ANCESTRAL),
     Example("seq_indels", "Indels in a real gene",
-            "The real <i>M. genitalium</i> <code>MG_RS01985</code>, 161&nbsp;bp, evolving down five "
-            "species with insertions and deletions — 172 alignment columns, because two lineages "
-            "gained bases the others never had. The wide block at 70&ndash;75 is a 6&nbsp;bp "
-            "insertion carried by <b>exactly the clade</b> <code>(n3,(n7,n8))</code>, so the gap "
-            "pattern agrees with the tree; the run at 153&ndash;157 is a second insertion in one "
-            "species alone, and the short gap at 43&ndash;45 a 3&nbsp;bp deletion in another. A gap "
-            "therefore means two opposite things — bases lost, or bases the lineage never had — and "
-            "only the column tells you which. <code>alignment_with_insertions(block)</code>.",
-            "phylustrator · indels", indel_alignment, code=_C_INDEL),
+            "The real <i>M. genitalium</i> <code>MG_RS00730</code>, 303&nbsp;bp, evolving down "
+            "twenty species. The alignment is 316 columns wide, because half the tree gained "
+            "13&nbsp;bases the other half never had: the pale band at 158&ndash;170 is one insertion, "
+            "and the eight species that carry it are <b>exactly one of the two clades</b> at the "
+            "root. An indel is a shared derived character, and here it can be read straight off the "
+            "topology beside it. <code>r.alignments[block]</code> gives the locus: the block's own "
+            "columns and the runs inserted into it.",
+                        "phylustrator · indels", indel_alignment, code=_C_INDEL),
     Example("seq_alignment", "Alignment beside the tree",
             "A single-copy family across 20 species, residues coloured (with a nucleotide key), each "
             "row locked to its tip. <code>beside(tree,&nbsp;alignment(aln))</code>.",

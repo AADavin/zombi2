@@ -588,7 +588,7 @@ def test_an_indel_genome_reads_base_for_base_as_its_ancestry_says():
     checked = 0
     for nid in g.node_genomes:
         label = labels[nid]
-        src = r.alignments if label in r.extant_tips else r.ancestral
+        src = r._raw_rows if label in r.extant_tips else r._raw_ancestral
         for cid, pieces in g.assembly(nid).items():
             rebuilt = []
             for (block, gene, strand, lo, hi) in pieces:
@@ -611,17 +611,21 @@ def test_an_indel_alignment_gaps_what_the_lineage_does_not_carry():
     r = simulate_sequences(g, model=hky85(2.0), substitution=0.4, seed=4)
     labels = g.complete_tree.labels()
 
-    # a true alignment: every row of a block is that block's full ancestral width
+    # a true alignment: every row of a block is the same width. That width is the block's own
+    # ancestral span plus the runs inserted into it, which is what makes it a LOCUS rather than a
+    # block — the per-block rows underneath are still exactly the span.
     for block, rows in r.alignments.items():
-        width = g.root_blocks[block][2] - g.root_blocks[block][1]
-        assert all(len(s) == width for s in rows.values())
+        span = g.root_blocks[block][2] - g.root_blocks[block][1]
+        assert len({len(s) for s in rows.values()}) <= 1
+        assert all(len(s) == r.alignments._columns(block) for s in rows.values())
+        assert all(len(s) == span for s in r._raw_rows[block].values())
 
     # and the residues in a row are exactly what that lineage carries
     gapped = 0
     for nid in g.node_genomes:
         label = labels[nid]
-        src = r.alignments if label in r.extant_tips else r.ancestral
-        want: dict[tuple[int, str], int] = {}
+        src = r._raw_rows if label in r.extant_tips else r._raw_ancestral
+        want: dict[tuple[int, str], int] = {}   # per-block: the splice is a separate test
         for pieces in g.assembly(nid).values():
             for (block, gene, _s, lo, hi) in pieces:
                 key = (block, f"{label}_g{gene}")     # `label`, not n<id>: a died lineage is e<id>
@@ -661,11 +665,14 @@ def test_a_blocks_alignment_can_be_read_with_the_insertions_spliced_back_in():
     assert r._insertions, "nothing was inserted into a block, so this proves nothing"
     host = next(iter(r._insertions))
     runs, _ = r._insertions[host]
-    plain, full = r.alignments[host], r.alignment_with_insertions(host)
+    full = r.alignments[host]
     width = g.root_blocks[host][2] - g.root_blocks[host][1]
     assert len({len(v) for v in full.values()}) == 1              # still an alignment
-    assert len(next(iter(full.values()))) == width + sum(w for _o, _b, w in runs)
-    assert set(plain) <= set(full)
+    assert len(next(iter(full.values()))) == width + sum(r.alignments._columns(b)
+                                                        for _o, b, _w in runs)
+    # a run folded into its host is no longer a locus of its own: its letters are the host's columns
+    assert all(b not in r.alignments for (_o, b, _w) in runs)
+    assert all(b in r.phylograms for (_o, b, _w) in runs)         # but it keeps its own history
 
 
 def test_splicing_leaves_the_blocks_own_columns_untouched():
@@ -673,13 +680,15 @@ def test_splicing_leaves_the_blocks_own_columns_untouched():
     # about what evolved
     g, r = _spliced_run()
     for host, (runs, _carried) in r._insertions.items():
-        plain = {**r.alignments.get(host, {}), **r.ancestral.get(host, {})}
-        for record, row in r.alignment_with_insertions(host).items():
+        plain = {**r._raw_rows.get(host, {}), **r._raw_ancestral.get(host, {})}
+        spliced = {**r.alignments._rows(host), **r.ancestral._rows(host)}
+        for record, row in spliced.items():
+            span = r.alignments._columns
             rest, pos = [], 0
-            for i, (off, _b, w) in enumerate(runs):
-                shift = sum(x[2] for x in runs[:i])
+            for i, (off, b, _w) in enumerate(runs):
+                shift = sum(span(x[1]) for x in runs[:i])
                 rest.append(row[pos:off + shift])
-                pos = off + shift + w
+                pos = off + shift + span(b)
             rest.append(row[pos:])
             assert "".join(rest) == plain[record]
 
@@ -689,13 +698,16 @@ def test_an_inserted_run_is_a_lineages_own_bases_or_it_is_gaps():
     g, r = _spliced_run()
     seen_both = [0, 0]
     for host, (runs, carried) in r._insertions.items():
-        for record, row in r.alignment_with_insertions(host).items():
-            for i, (off, blk, w) in enumerate(runs):
-                shift = sum(x[2] for x in runs[:i])
+        spliced = {**r.alignments._rows(host), **r.ancestral._rows(host)}
+        for record, row in spliced.items():
+            span = r.alignments._columns
+            for i, (off, blk, _w) in enumerate(runs):
+                shift = sum(span(x[1]) for x in runs[:i])
+                w = span(blk)
                 seg = row[off + shift:off + shift + w]
                 mine = carried.get(record, {}).get(blk)
-                theirs = None if mine is None else (
-                    r.alignments.get(blk, {}).get(mine) or r.ancestral.get(blk, {}).get(mine))
+                inner = {**r.alignments._rows(blk), **r.ancestral._rows(blk)}
+                theirs = None if mine is None else inner.get(mine)
                 assert seg == (theirs if theirs is not None else "-" * w)
                 seen_both[seg == "-" * w] += 1
     assert all(seen_both), "every run was carried by everyone or no one — the gapping went untested"
@@ -721,9 +733,8 @@ def test_a_run_inside_a_reversed_host_is_spliced_too():
     assert reversed_hosts, "no run landed inside a reversed host, so this proves nothing"
 
 
-def test_a_block_nothing_was_inserted_into_reads_back_unchanged():
+def test_a_block_nothing_was_inserted_into_is_its_own_columns_and_no_more():
     g, r = _spliced_run(insertion=0.0)
     assert not r._insertions
-    block = next(iter(r.alignments))
-    assert r.alignment_with_insertions(block) == {**r.alignments[block],
-                                                 **r.ancestral.get(block, {})}
+    for block, (src, a, b) in enumerate(g.root_blocks):
+        assert all(len(v) == b - a for v in r.alignments[block].values())
