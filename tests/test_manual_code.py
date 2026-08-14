@@ -322,10 +322,11 @@ def test_a_value_the_manual_assigns_to_a_parameter_is_still_accepted(tmp_path, m
                                 f"which a rate no longer has")
     # A canary on the walk, not a coverage target: it fires when the walk stops finding the manual's
     # values at all. It counts the tables as well as the blocks — chapter 7's clock section traded
-    # its snippets for a reference table, and a table is where most of the rate grammar is written
-    # down now. Raise this when a chapter adds spellings; do not lower it to accommodate a walk that
-    # has quietly broken.
-    assert checked >= 15, f"only probed {checked} values; the walk is not finding the manual's values"
+    # its snippets for a reference table. Raise this when a chapter adds spellings; do not lower it
+    # to accommodate a walk that has quietly broken. It came down from 15 when chapters 3 and 8
+    # traded their Literature tables' expression column for a gallery number: those spellings are
+    # now in the cards' `code=`, where `test_gallery_api.py` runs the same name check over them.
+    assert checked >= 10, f"only probed {checked} values; the walk is not finding the manual's values"
     assert not failures, ("the manual assigns values the API no longer accepts:\n  "
                           + "\n  ".join(failures))
 

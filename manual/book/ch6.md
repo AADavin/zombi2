@@ -142,16 +142,9 @@ The **initial genome**, the genome the run starts from at time 0 before any even
 
 **A GFF file.** `gff="genome.gff"` takes exact coordinates from a real annotation. `##sequence-region` gives each replicon's extent, `gene` features give coordinates, strand and name, and other feature types are ignored. Names land in `result.gene_names`, so you can follow a named gene through the run. `gff=` and `genes=` are mutually exclusive; a GFF already declares the genes ([Ge11](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_circular_nucleotide-->). Genes may touch but never overlap, since a gene is one indivisible block. Real annotations do overlap, usually by a base or two where genes abut in an operon, so an overlap is refused rather than guessed at: `trim_overlaps=True` (`--trim-overlaps`) pushes each overlapping gene's start to its neighbour's end instead, and drops any gene swallowed whole.
 
+A genome at this resolution is *rebuilt* rather than stored: the run keeps the recovered root partition and how each node's genome is made from it, which is what keeps a million-base genome down a large tree affordable. Appendix B names both.
+
 A GFF gives coordinates, not letters. `fasta="genome.fasta"` supplies the DNA those coordinates hold — one record per replicon, matched by id, each exactly its declared length — and a later `zombi2 sequences` run founds its blocks from that DNA (Chapter 7).
-
-## What a run gives back
-
-`simulate_genomes_nucleotide` returns a `NucleotideGenomesResult`. `.genomes` and `.node_genomes`
-carry what they carry at every resolution — the observed tips, and every node — each genome now a
-list of `Chromosome`s of `Block`s. What is particular to this resolution is that a genome is
-*rebuilt* rather than stored: `.root_blocks` is the recovered root partition and `.assembly(node)`
-says how one node's genome is made from it. Appendix B lists all of it.
-
 
 ## On the command line
 

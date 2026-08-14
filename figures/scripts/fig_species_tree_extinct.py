@@ -14,7 +14,8 @@ the present), so this works on any complete-tree Newick.
 No legend inside the figure: solid-surviving / dashed-extinct is stated in the chapter's caption,
 which is where this book says a figure's words belong.
 
-This module also exports `dead_ends` and `present_of`, which `fig_variable_rates.py` reuses.
+This module also exports `dead_ends` and `present_of`, for any figure that has to tell a
+survivor from a lineage that died.
 
 Run:  python figures/scripts/fig_species_tree_extinct.py
 """
