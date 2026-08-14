@@ -36,6 +36,11 @@ import pytest
 
 MANUAL = pathlib.Path(__file__).resolve().parent.parent / "manual" / "book"
 
+#: The vocabulary a rate expression may use: what `zombi2.params` exports, and what a rate answers to.
+_KNOWN_CTORS = {n for n in dir(__import__("zombi2.params", fromlist=["x"])) if n[:1].isupper()}
+_KNOWN_VERBS = {a for a in dir(__import__("zombi2.params", fromlist=["x"]).PerLineage(1.0))
+                if not a.startswith("_")}
+
 #: blocks whose *language* is not something we can run
 #: Fenced languages the tests read. ``toml`` is here because a page that documents ``--params`` shows
 #: the file as a toml block, and the command test writes it to disk so the flag resolves against the
@@ -44,6 +49,53 @@ _FENCED = ("python", "bash", "toml")
 
 _FENCE = re.compile(r"^```(\w+)?\s*$")
 _SKIP = re.compile(r"<!--\s*doc-test:\s*skip")
+
+
+
+#: A backticked cell of a manual table. The reference tables are where most of the rate grammar is
+#: written down — chapter 7's clocks, and the "From the literature" tables of chapters 3, 4, 7 and 8 —
+#: and a table is not a python block, so nothing checked a word of them. `ByFamily` sat in one of
+#: those tables for two releases after the class was renamed, and `*` stayed in another after it
+#: stopped composing a rate.
+_CELL = re.compile(r"`([^`]+)`")
+
+#: The names a rate expression starts with. A cell headed by one of these is meant to be code; a cell
+#: headed by anything else is prose in backticks — a flag, a file name — and is not this test's
+#: business. `simulate_*(...)` cells are signatures rather than values, so they are not here either.
+_GRAMMAR = ("PerCopy", "PerLineage", "PerSite", "PerChromosome", "Extent", "Clade", "Clades",
+            "Between", "Drift", "LogNormal", "Gamma", "Random", "TotalDiversity", "Curve", "Table")
+
+
+def _grammar_cells(text: str) -> list[tuple[int, str]]:
+    """``(line, expression)`` for every rate-grammar expression written in a table cell."""
+    out = []
+    for n, line in enumerate(text.splitlines(), start=1):
+        if not line.startswith("|"):
+            continue
+        for cell in _CELL.findall(line):
+            expr = cell.strip()
+            # `substitution = PerSite(…)` is an assignment and the value is what matters; the `=` in
+            # `simulate_continuous(rate=…)` is a keyword argument and splitting on it leaves an
+            # unbalanced tail, so only a bare name on the left counts as an assignment
+            head, _, tail = expr.partition("=")
+            if tail and head.strip().isidentifier():
+                expr = tail.strip()
+            if expr.startswith(_GRAMMAR) and "(" in expr:
+                out.append((n, expr))
+    return out
+
+
+def _names_used(expr: str) -> tuple[set, set]:
+    """The constructors and the chained verbs an expression names, without running it.
+
+    The cells are **schemas**, not expressions — the ellipsis in ``changing_at({…})`` stands for a
+    dict and the one in ``Gamma(…)`` for two arguments — so substituting a value and evaluating
+    invents failures. What can be checked without guessing is the vocabulary: a renamed class or a
+    removed verb is a name that no longer resolves, which is exactly what rotted before."""
+    tree = ast.parse(expr.replace("…", "None").replace("...", "None"), mode="eval")
+    ctors = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and n.id[:1].isupper()}
+    verbs = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
+    return ctors, verbs
 
 
 def _blocks(path: pathlib.Path) -> list[tuple[int, str, str]]:
@@ -254,12 +306,26 @@ def test_a_value_the_manual_assigns_to_a_parameter_is_still_accepted(tmp_path, m
                     checked += 1
                     if (why := _probe(target.id, ns[target.id])) is not None:
                         failures.append(f"{chapter.name}:{line} — {why}")
-    # A canary on the walk, not a coverage target: it fires when the walk stops finding blocks at
-    # all. The floor came down from 8 when chapter 7's clock section traded its snippets for a
-    # reference table — the values are still in the manual, but a table is not a python block, so
-    # this test can no longer reach them. Raise it again if a chapter adds assignments; do not lower
-    # it to accommodate a walk that has quietly broken.
-    assert checked >= 6, f"only probed {checked} values; the walk is not finding the manual's blocks"
+        # and the same spellings written in the chapter's *tables*, which no block executes
+        # and the rate grammar written in the chapter's *tables*, which no block executes
+        for line, expr in _grammar_cells(chapter.read_text(encoding="utf-8")):
+            try:
+                ctors, verbs = _names_used(expr)
+            except SyntaxError:
+                continue        # a schema an ellipsis cannot be filled into; nothing to resolve
+            checked += 1
+            for missing in sorted(ctors - _KNOWN_CTORS):
+                failures.append(f"{chapter.name}:{line} (table) — `{expr}` names {missing}, "
+                                f"which zombi2.params no longer has")
+            for missing in sorted(verbs - _KNOWN_VERBS):
+                failures.append(f"{chapter.name}:{line} (table) — `{expr}` chains .{missing}(), "
+                                f"which a rate no longer has")
+    # A canary on the walk, not a coverage target: it fires when the walk stops finding the manual's
+    # values at all. It counts the tables as well as the blocks — chapter 7's clock section traded
+    # its snippets for a reference table, and a table is where most of the rate grammar is written
+    # down now. Raise this when a chapter adds spellings; do not lower it to accommodate a walk that
+    # has quietly broken.
+    assert checked >= 15, f"only probed {checked} values; the walk is not finding the manual's values"
     assert not failures, ("the manual assigns values the API no longer accepts:\n  "
                           + "\n  ".join(failures))
 

@@ -260,18 +260,15 @@ The caveat: every model is normalised to one expected substitution per site per 
 
 `Models` is Python only, and there is no flag for it: a model is a K×K matrix, which has no written form a flag can carry — the same reason `reversible()` has none.
 
-## The `SequencesResult` object
+## What a run gives back
 
-`simulate_sequences` returns a **`SequencesResult`**, which carries:
+`simulate_sequences` returns a `SequencesResult`, and its two halves are the point:
+**`.alignments` is the observable data**, the sequence at every *extant* gene copy, which is the
+alignment a phylogenetic method would be handed; **`.ancestral` is every node the alignment leaves
+out**, the internal ones and the tips where a copy was lost or its species died. The run wrote a
+sequence at each node as it went, so those are the exact ancestors rather than estimates, and
+together the two account for every node of the tree exactly once. Appendix B lists the rest.
 
-- `.alignments`, the observable data: for each family, the sequence at every **extant** gene copy. This is the alignment a phylogenetic method would be handed.
-- `.ancestral`, the sequence at every node the alignment leaves out: internal nodes, and the tips where a copy was lost or its species died. The run wrote a sequence at each node as it went, so these are the exact ancestors, not estimates. With `.alignments` it accounts for every node of the tree exactly once, so every label in a complete phylogram names a sequence.
-- `.founding`, for each family, the sequence it began with, at its origination.
-- `.phylograms`, for each family, its gene tree with branch lengths converted from time into substitutions per site: the tree the sequences were drawn along.
-- `.species_phylogram`, the same conversion applied to the species tree, so the clock is visible as branch lengths.
-- `.genomes`, the assembled genome of each **extant** tip, keyed by tip name — the genomes you would have sequenced. `.node_genomes` is the same for every node, ancestors and extinct lineages included, and `.initial_genome` is the run's starting point. All three are present only when the run came from a **nucleotide** genome. See below.
-
-As with every level, the bundle also carries `.seed` and `.write(directory, outputs=[...])` to put the chosen outputs on disk.
 
 ### Where a sequence starts
 
