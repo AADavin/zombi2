@@ -9,6 +9,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- Three examples in the gallery: a protein alignment, coloured by chemical class rather than
+  one hue per residue, and the two remaining ways a species-tree rate can vary — inherited at
+  each split and then nudged, or drawn afresh by every lineage. Chapter 3 drew four and the
+  gallery showed two. (#360)
+
 ### Changed
 
 - The examples gallery numbers every example — `Ge3` is the third genome example — and cites it that

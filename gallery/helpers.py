@@ -664,6 +664,21 @@ def aln_run() -> str:
     return _stamp(run)
 
 
+def protein_run() -> str:
+    """A cached 20-species run whose genes hold **proteins**: LG, 60 residues, one family per genome.
+
+    The same shape as `aln_run`, one model apart, so the two cards differ in the alphabet and nothing
+    else. Protein models belong to a family or ordered run: a nucleotide genome is measured in base
+    pairs and read on either strand, and amino acids have no complement."""
+    run = os.path.join(_DATA, "protein")
+    if _stale(run):
+        _zombi("species", run, "--birth", 1.0, "--death", 0.25, "--n-extant", 20, "--seed", 4)
+        _zombi("genomes", run, "--resolution", "ordered", "--initial-families", 45,
+               "--duplication", 0.04, "--loss", 0.0, "--transfer", 0.0, "--seed", 6)
+        _zombi("sequences", run, "--model", "lg", "--length", 60, "--divergence", 0.7, "--seed", 7)
+    return _stamp(run)
+
+
 def mycoplasma_gff() -> str:
     """Path to a real *Mycoplasma genitalium* G37 GFF3 (NCBI GCF_000027325.1), downloaded + cached."""
     dest = os.path.join(_DATA, "mycoplasma.gff")
