@@ -73,31 +73,56 @@ _QUASSE_BASE = 0.4
 _QUASSE_STEP = 0.05
 
 
+def _quasse_tips(ax, values, lo, hi):
+    """Where the tips ended up, against where Brownian motion says they should be.
+
+    The point of the card is not that a trait varies down a tree — Chapter 8 does that — but that
+    driving speciation with it **biases** it. Under plain Brownian motion the expected value at a tip
+    is exactly the value at the root, on any tree whatever: the diffusion has no direction. So the
+    null needs no second run, and it is the line at 0. What the panel shows is that the tips sit
+    almost entirely above it."""
+    edges = [lo + (hi - lo) * k / 22 for k in range(23)]
+    counts = [0] * 22
+    for v in values:
+        counts[min(21, max(0, int((v - lo) / (hi - lo) * 22)))] += 1
+    mid = [(edges[k] + edges[k + 1]) / 2 for k in range(22)]
+    ax.barh(mid, counts, height=(hi - lo) / 22 * 0.86,
+            color=[cm.viridis((m - lo) / (hi - lo)) for m in mid])
+    right = max(counts) * 1.62         # room to the right of the bars for the two lines' labels
+    ax.axhline(0.0, color="#1a1a1a", lw=1.6)
+    ax.text(right * 0.99, -0.3, "where every lineage started,\nand where a diffusion on its own\n"
+            "would leave them", ha="right", va="top", fontsize=10.5, color="#1a1a1a")
+    mean = sum(values) / len(values)
+    ax.axhline(mean, color="#B0413E", lw=1.6, ls=(0, (4, 2)))
+    ax.text(right * 0.99, mean + 0.28, f"the {len(values)} tips average {mean:+.1f}", ha="right",
+            va="bottom", fontsize=10.5, color="#B0413E")
+    ax.set_ylim(lo, hi)
+    ax.set_xlim(0, right)
+    ax.set_xlabel("tips", fontsize=13)
+    ax.set_ylabel("body size", fontsize=13)
+    ax.tick_params(labelsize=11)
+
+
 def _draw_response(ax, lo, hi):
-    """The inset the other joint cards give to a Markov chain: how the driver sets the rate.
+    """The rate the colours buy: λ against body size, painted in the tree's own colours.
 
-    A continuous driver has no states to draw a chain between, so what goes here is the response
-    curve — **painted in the tree's own colours**, so it doubles as the key. A branch's colour is
-    found on the curve and read straight across to a speciation rate. A separate ramp needed a strip
-    of axis below zero to sit in, which on an axis labelled "speciation rate" said the colours were
-    negative rates.
-
-    The range is the run's own spread rather than a round pair of numbers: on an exponential curve a
-    bit of unused axis at the top flattens everything the tree actually did into the bottom line."""
+    A continuous driver has no states to draw a Markov chain between, which is what the other joint
+    cards put here. What replaces it is the response curve, in the same colours as the branches, so
+    it doubles as the key: find a branch's colour on the curve and read across to its rate."""
     from matplotlib.collections import LineCollection
 
-    ax.set_facecolor("#ffffff")             # the tree is the background; the inset has to cover it
+    ax.set_facecolor("#ffffff")
     xs = [lo + (hi - lo) * k / 240 for k in range(241)]
     ys = [_QUASSE_BASE * math.exp(_QUASSE_SLOPE * x) for x in xs]
     ax.add_collection(LineCollection(
         [[(xs[k], ys[k]), (xs[k + 1], ys[k + 1])] for k in range(len(xs) - 1)],
-        cmap="viridis", norm=colors.Normalize(lo, hi), array=xs[:-1], linewidth=6.0,
+        cmap="viridis", norm=colors.Normalize(lo, hi), array=xs[:-1], linewidth=5.0,
         capstyle="round"))
     ax.set_xlim(lo, hi)
     ax.set_ylim(0.0, ys[-1] * 1.08)
-    ax.set_xlabel("body size — the branch colours", fontsize=16, labelpad=3)
-    ax.set_ylabel("speciation rate", fontsize=16, labelpad=3)
-    ax.tick_params(labelsize=13)
+    ax.set_xlabel("body size", fontsize=11, labelpad=1)
+    ax.set_ylabel("speciation rate", fontsize=11, labelpad=1)
+    ax.tick_params(labelsize=9, length=2, pad=1)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
 
@@ -110,9 +135,11 @@ def quasse(out):
     can be simulated first: the size needs a tree to diffuse on, and the tree's shape is what the size
     decides. So one run does both, and the tree is an output.
 
-    The result is a biased sample of a diffusion. Brownian motion has no direction — a tree grown
-    without the arrow leaves its tips averaging the root value, 0 — but here the big lineages leave
-    more descendants, and those descendants start big. The tips average about +2.7 over twenty seeds.
+    What the panel shows is that this **biases** the trait, which is the whole difference from a
+    trait painted on a tree it did not shape. Brownian motion has no direction: on any tree
+    whatever, the expected value at a tip is exactly the value at the root. So the null is the line
+    at 0 and needs no second run. Here 61 of the 70 tips are above it and they average +2.6, because
+    the big lineages left more descendants and those descendants started big.
 
     **This one slices.** Every other driver in this section changes only at events, and an event ends
     the Gillespie step, so the rate is constant in between. A diffusion moves at every instant. The
@@ -129,17 +156,20 @@ def quasse(out):
     ct = r.complete_tree
     lab = ct.labels()
     vals = {lab[i]: r.trait.node_values[i] for i in ct.nodes}
+    tips = [r.trait.node_values[i] for i in sorted(ct.extant_leaves())]
     limits = (math.floor(min(vals.values())), math.ceil(max(vals.values())))
     tree_png = out.replace(".png", "_tree.png")
-    (ph.trees.plot(ph.trees.loads(ct.to_newick()), style=_style(), skeleton=False)
-     # the same limits the inset's ramp spans, so the two say the same thing about a colour
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()),
+                   style=ph.Style(width=1150, height=1000, margin=82, branch_width=3.4),
+                   skeleton=False)
+     # the same limits the panel and the inset span, so all three say the same thing about a colour
      + ph.trees.color_branches(vals, cmap="viridis", limits=limits)
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
-    # up in the empty quarter of the tree, not down beside its time axis: the inset is a plot with an
-    # x axis of its own, and next to the tree's the two read as one set of coordinates
-    h.composite_markov(tree_png, out, lambda ax: _draw_response(ax, *limits),
-                       loc=(0.235, 0.53, 0.24, 0.23), keep_axes=True,
-                       panel=(0.085, 0.095, 0.035, 0.045))
+    h.composite_beside(tree_png, out, lambda ax: _quasse_tips(ax, tips, *limits),
+                       figsize=(13, 6.4), ratios=(2.5, 1.25), wspace=0.16,
+                       # the model, up in the empty quarter of the tree: what a colour buys in rate
+                       inset=((0.25, 0.55, 0.30, 0.28),
+                              lambda ax: _draw_response(ax, *limits), True))
 
 
 def classe(out):

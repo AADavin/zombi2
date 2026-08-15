@@ -137,17 +137,21 @@ def composite_beside(tree_png: str, out: str, panel, figsize=(12, 6), ratios=(3,
     canvas height and not the PNG's, which Phylustrator renders at 2x.
 
     ``inset`` is ``(rect, draw_fn)`` — a small schematic drawn over the tree, as `composite_markov`
-    does for a Markov chain, for a figure whose model is worth stating as a picture."""
+    does for a Markov chain, for a figure whose model is worth stating as a picture. Add a third
+    element, ``keep_axes``, when the inset is a plot rather than a schematic: a drawing in bare
+    coordinates wants no axes, and a curve of one quantity against another is nothing without
+    them."""
     img = mpimg.imread(tree_png)
     fig, (axt, axp) = plt.subplots(1, 2, figsize=figsize,
                                    gridspec_kw={"width_ratios": list(ratios), "wspace": wspace})
     axt.imshow(img)
     axt.set_axis_off()
     if inset is not None:
-        rect, draw_fn = inset
+        rect, draw_fn, *rest = inset
         ax_in = axt.inset_axes(rect)
         draw_fn(ax_in)
-        ax_in.set_axis_off()
+        if not (rest and rest[0]):
+            ax_in.set_axis_off()
     panel(axp)
     if geometry is not None:
         axp.set_ylim(geometry.size[1], 0)      # the tree's own coordinate space, top-down
