@@ -9,6 +9,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- Appendix A stops deriving the Gillespie algorithm from scratch. What a reader running ZOMBI2
+  needs is what the loop does in three lines, that it steps to every moment a rate changes, what
+  each level feeds it, and where it is not used at all — sequences and continuous traits, which are
+  drawn from closed forms. The derivation, with its three figures, moved to `ZOMBI2_FUTURE` for the
+  didactic book it belongs in. Appendix A: 4,805 words to 3,676, and the manual 90 pages to 85. (#374)
+
+
 ### Fixed
 
 - The gallery page shows the version of the release it is published with. Both web pages carry the

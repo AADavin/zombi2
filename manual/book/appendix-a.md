@@ -2,11 +2,11 @@
 \appendix
 ```
 
-# Rates in detail, and the Gillespie algorithm
+# Rates in detail
 
 Chapter 2 introduced the shape every rate takes, `effective rate = scope(base) × modifiers`. This
 appendix is the full reference: how a rate's units work, the default scope at each level, the catalogue
-of modifiers and which levels accept them, and the Gillespie algorithm that turns rates into events.
+of modifiers and which levels accept them, and what the engine does with a rate once it has one.
 
 ## How a rate is counted: the scope
 
@@ -271,127 +271,19 @@ of holding it at whatever it was. That is the horizon stepping described at the 
 `OnCrowding` needs none, because diversity only changes when something is born or dies, and the engine
 already re-evaluates then.
 
-## The Gillespie algorithm
+## How a rate becomes an event
 
 Almost every simulation here comes from one small engine, run over and over: the same loop grows a
 birth–death tree, duplicates and loses genes, and switches a discrete trait between states, given a
-different list of events each time.
+different list of events each time. That engine is the **Gillespie algorithm** [@gillespie1976;
+@gillespie1977], an exact, event-by-event recipe for a continuous-time process defined by rates.
 
-That engine is the **Gillespie algorithm** [@gillespie1976; @gillespie1977], an exact, event-by-event
-recipe for a continuous-time process defined by rates. This section builds it from scratch, covering what a
-rate is, why waiting times are exponential, how competing events race, and how those assemble into the
-loop, assuming no prior exposure to continuous-time Markov chains. **Rates in, a timed history out.**
-
-### From a rate to a waiting time
-
-A rate says *how fast* something tends to happen: the expected number of events per unit of time. If a
-gene copy is lost at rate $\mu = 0.25$, then, left alone, it is lost on average once every $1/0.25 = 4$
-time units.
-
-More precisely, a rate $\lambda$ is defined by what happens over a very short slice of time $\Delta t$.
-The chance that one event occurs during that slice is proportional to its length,
-
-$$P(\text{an event in the next } \Delta t) \approx \lambda\,\Delta t,$$
-
-and the shorter the slice, the better the approximation. Notice this says nothing about a clock ticking
-down to the next event: in any instant the chance of firing is the same regardless of how long we have
-already been waiting. A rate has no memory. That single fact is what makes the whole algorithm work.
-
-It also means a rate is a statement about probability, not a fixed schedule. A loss rate of one per unit
-of time does not deliver exactly one loss in every unit: over any given unit the number of events that
-fire is random. That count follows the **Poisson distribution**, with mean $\lambda T$ over an interval of
-length $T$ (Figure A.1).
-
-![The count of events in a fixed window is random, not fixed. With rate $\lambda$, the number of events in one unit of time is Poisson-distributed with mean $\lambda$ (dashed line). At a low rate (left) most windows see zero or one event and a few see more; at a higher rate (right) the count spreads out around the mean. The rate fixes only the average.](figures/gillespie_poisson.pdf){width=100%}
-
-Now fix a single event with a constant rate $\lambda$ and ask: starting now, how long until it occurs?
-Call that waiting time $W$. Because the chance of firing in each little slice is $\lambda\,\Delta t$ and
-slices are independent, the chance of surviving without an event up to time $t$ decays to an exponential:
-
-$$P(W > t) = e^{-\lambda t}.$$
-
-$W$ follows an **exponential distribution** with rate $\lambda$, whose mean is $1/\lambda$. Short waits
-are the most common. Because the exponential is memoryless, we never have to simulate the empty time
-*between* events tick by tick: we can draw the waiting time in one shot and jump to the next event.
-Drawing it is a single line: given a uniform random number $u$ on $(0, 1)$,
-
-$$\Delta t = -\frac{\ln u}{\lambda},$$
-
-which is what `rng.exponential(1 / lambda)` returns, its argument being the mean. Every waiting time in
-ZOMBI2 is drawn this way.
-
-### When several things can happen: the race
-
-A real simulation never has just one possible event. A genome with many gene families can duplicate any
-of them, transfer any of them, or lose any of them; a species tree with many lineages can speciate or go
-extinct on any branch. At a given moment there is a whole menu of possible events, event $i$ with its own
-rate $r_i$.
-
-Treat every possible event as an independent alarm clock, each set to go off after its own exponential
-waiting time. They all start together and race; the first alarm to ring is the event that happens. Two
-facts govern that race, and together they *are* the Gillespie algorithm.
-
-**When does the first event fire?** The minimum of independent exponential waiting times is itself
-exponential, with a rate equal to the sum of the individual rates. So with a **total rate**
-
-$$R = \sum_i r_i,$$
-
-the time to the next event, whichever it turns out to be, is a single exponential draw with rate $R$.
-More possible events, or faster ones, means a larger $R$ and therefore shorter waits. This is why we need
-only one waiting-time draw per step, however long the menu.
-
-**Which event happens?** The winner is event $i$ with probability equal to its share of the total rate,
-
-$$P(\text{event } i \text{ happens}) = \frac{r_i}{R},$$
-
-and which event wins is independent of when it happens. So the two are decided separately: draw the time
-from the total rate, then pick the event on a weighted roulette wheel, each slice sized to a rate.
-
-![The two draws that make up one Gillespie step. **(1)** Each possible event has a rate; here duplication, transfer and loss have rates 3, 2 and 1, summing to a total rate $R = 6$. **(2)** The waiting time to the *next* event is a single exponential draw with rate $R$; larger total rates give shorter waits, with mean $1/R$. **(3)** Which event happens is a second, independent draw: event $i$ wins with probability $r_i/R$: the rates laid end to end as a roulette wheel, here landing on transfer. The step then advances the clock by $\Delta t$, applies the chosen event to the state, and repeats.](figures/gillespie_step.pdf){width=100%}
-
-In code the roulette wheel is a running sum: lay the rates end to end, draw a point uniformly along their
-combined length $R$, and see which segment it lands in.
-
-### The loop
-
-Assembling the pieces gives the loop below. Starting from an initial state at time $t = 0$, repeat: read
-off the current rates and their total $R$; draw a waiting time and advance the clock; stop if the clock
-has run past the target time, or the process has died out; otherwise pick one event in proportion to its
-rate, apply it to the state, record it, and go round again.
-
-![The Gillespie loop. Each pass computes the current total rate, draws one exponential waiting time, and, unless the clock has passed the target age, applies a single event chosen in proportion to its rate, updates the state, and repeats. The output is a list of events with the exact times at which they occurred: a timed history.](figures/gillespie_loop.pdf){width=68%}
-
-As pseudocode, the whole engine is short:
-
-<!-- doc-test: skip - pseudocode, deliberately not the real engine -->
-```python
-t = 0.0
-state = initial_state
-history = []
-while t < total_time:
-    rates = event_rates(state)      # every possible event's rate, given the state
-    R = sum(rates)                  # the total rate
-    if R == 0:                      # nothing can happen; the process is frozen
-        break
-    t += rng.exponential(1 / R)     # WHEN: draw the waiting time, advance the clock
-    if t >= total_time:
-        break                       # the next event would fall past the horizon
-    i = choose(rates, R, rng)       # WHAT: pick an event with probability r_i / R
-    state = apply(state, i)         # update the state
-    history.append((t, i))          # record the timed event
-```
-
-The result is not a snapshot but a **timed history**: the exact sequence of events and the exact
-real-valued times at which they happened. That is what a phylogenetic simulator needs: a species tree
-*is* the history of its speciation and extinction events, and a gene family *is* the history of its
-duplications, transfers and losses. Because the times are drawn from continuous exponentials rather than
-stepped through a fixed grid, the histories are exact: no time-step to tune, and no discretisation error.
-
-::: note
-The `rng` is a seeded `numpy` random generator. Because the waiting times and event choices are its only
-source of randomness, the same seed reproduces the same history exactly. The clean core runs this loop in
-plain Python.
-:::
+One pass of the loop is three steps. Add the rates of everything that could happen next, which gives
+the total rate. Draw one waiting time from an exponential with that total — the rate has no memory,
+so how long the run has already waited changes nothing. Then pick which event fired, each in
+proportion to its own rate, apply it, and start again from the state it left. Rates in, a timed
+history out. The derivation — why the waiting time is exponential, why the competing events can be
+raced this way — is a textbook one and is not repeated here.
 
 ### When the rate changes with the clock
 
@@ -417,7 +309,7 @@ Discarding is sound for the same reason the loop works at all: the exponential i
 partial wait carries no information into the next stretch. The rates are piecewise constant, each piece
 gets its own exact draw, and no integral or rejection step is ever needed.
 
-### It's all Gillespie
+### What each level supplies
 
 Each level supplies its own events and rates, and the same loop realises all of them:
 
@@ -432,11 +324,12 @@ Each level supplies its own events and rates, and the same loop realises all of 
 Swapping levels swaps the list of events and how their rates are computed; the timing machinery of total rate,
 exponential wait and proportional choice never changes.
 
-### …except when it isn't
+## Where the loop is not used
 
 ZOMBI2 steps outside the event-by-event loop in two places, for the same reason both times: when only
-the endpoints are needed, not the whole timed history, an exact shortcut beats simulating events you
-would throw away.
+the endpoints are needed, not the whole timed history, an exact draw beats simulating events you would
+throw away. Neither is an approximation — both give the same distribution the loop would, in one
+step.
 
 The first is **sequence substitution along a branch**. Once a gene tree and its branch lengths are
 settled, evolving a sequence down a branch does not require the individual substitution events, only the
