@@ -100,7 +100,7 @@ if [[ "$BUMP" == "patch" ]] && grep -q '^### Removed' <<<"$UNRELEASED"; then
 fi
 
 echo "ZOMBI2 release  $CURRENT -> $VERSION   (tag $TAG, $DATE)"
-echo "  · set __version__ in zombi2/__init__.py, and the version the landing page shows"
+echo "  · set __version__ in zombi2/__init__.py, and the version both web pages show"
 echo "  · roll CHANGELOG [Unreleased] -> [$VERSION] - $DATE"
 echo "  · commit + tag $TAG + push origin main $TAG"
 echo "  · gh release create $TAG   <-- PUBLISHES to PyPI"
@@ -121,19 +121,25 @@ if new == s:
 p.write_text(new)
 PY
 
-# --- 1b. the version the landing page shows ------------------------------------------------------
-# The pill on web/index.html is the first version a visitor sees, and it was maintained by hand: it
-# said v0.32.0 while PyPI served 0.38.0, because nothing here touched it. It is written from the same
-# single source as everything else now.
+# --- 1b. the version the published pages show ----------------------------------------------------
+# Both pages carry the version, and both are built artifacts committed to the repo, so neither
+# follows a bump on its own: the landing page's pill was maintained by hand and said v0.32.0 while
+# PyPI served 0.38.0, and the gallery's header keeps whatever `gallery/build.py` last stamped, which
+# is whenever a figure last changed. Rewriting the string is enough — a release changes no figure,
+# so the gallery is not re-rendered here (it needs Phylustrator's development API and minutes of
+# drawing; `python gallery/build.py` is how a figure change gets published).
 "$PY" - "$VERSION" <<'PY'
 import re, sys, pathlib
 v = sys.argv[1]
-p = pathlib.Path("web/index.html")
-s = p.read_text()
-new = re.sub(r'(<span class="pill" data-version>)v[\d.]+(</span>)', rf'\g<1>v{v}\g<2>', s, count=1)
-if new == s:
-    raise SystemExit("release: could not find the data-version pill in web/index.html")
-p.write_text(new)
+for path, pattern, repl in (
+        ("web/index.html", r'(<span class="pill" data-version>)v[\d.]+(</span>)', rf'\g<1>v{v}\g<2>'),
+        ("web/gallery.html", r'(<span class="version">ZOMBI2 )[\d.]+(</span>)', rf'\g<1>{v}\g<2>')):
+    p = pathlib.Path(path)
+    s = p.read_text()
+    new = re.sub(pattern, repl, s, count=1)
+    if new == s:
+        raise SystemExit(f"release: could not find the version to rewrite in {path}")
+    p.write_text(new)
 PY
 
 # --- 2. roll the CHANGELOG, and extract this version's notes --------------------------------------
@@ -163,7 +169,7 @@ PY
 [[ -n "$NOTES" ]] || die "the [Unreleased] section is empty — nothing to release"
 
 # --- 3. commit, tag, push ------------------------------------------------------------------------
-git add zombi2/__init__.py CHANGELOG.md web/index.html
+git add zombi2/__init__.py CHANGELOG.md web/index.html web/gallery.html
 git commit -m "release: bump version to $VERSION"
 git tag -a "$TAG" -m "$TAG"
 git push origin main "$TAG"
