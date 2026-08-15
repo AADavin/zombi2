@@ -117,11 +117,12 @@ from collections import Counter
 
 import numpy as np
 
+from zombi2 import species
 from zombi2.params import Drift, LogNormal, PerLineage, PerSite, Random
 from zombi2.genomes import (simulate_genomes_family, simulate_genomes_nucleotide,
                             simulate_genomes_ordered)
 from zombi2.genomes.ordered import Inversion
-from zombi2.joint import simulate_joint
+from zombi2.joint import simulate
 from zombi2.params.mapping import Curve
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import BASES, gtr, hky85, jc69, k80, lg, poisson
@@ -630,9 +631,7 @@ def test_a_joint_rate_realises_the_multiplier_it_was_given():
     splits, lineage_time = Counter(), Counter()
 
     for s in range(60):
-        run = simulate_joint(birth=PerLineage(base).scaled_by("trait", factors),
-                             trait=discrete(states=list(factors), switch=0.4),
-                             n_extant=120, seed=s)
+        run = simulate(species.birth_death(birth=PerLineage(base).scaled_by("trait", factors), n_extant=120), discrete(states=list(factors), switch=0.4), seed=s)
         for segments in run.trait.history.values():
             for state, duration in segments:
                 lineage_time[state] += duration

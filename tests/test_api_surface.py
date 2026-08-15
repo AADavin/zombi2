@@ -152,11 +152,10 @@ _VIA_CONSTRUCTOR = {
     "invariant": "zombi2.sequences.substitution_models:SubstitutionModel.across_sites",
     "rate-categories": "zombi2.sequences.substitution_models:SubstitutionModel.across_sites",
     "tip-fates": "zombi2.tree:read_newick",
-    "duplication": "zombi2.genomes:family",
-    "loss": "zombi2.genomes:family",
-    "origination": "zombi2.genomes:family",
-    "initial-families": "zombi2.genomes:family",
-    "family-names": "zombi2.genomes:family",
+    "duplication": "zombi2.genomes:genome",
+    "loss": "zombi2.genomes:genome",
+    "origination": "zombi2.genomes:genome",
+    "initial-families": "zombi2.genomes:genome",
     "states": "zombi2.traits:discrete",
     "switch": "zombi2.traits:discrete",
     "start": "zombi2.traits:discrete",
@@ -166,7 +165,10 @@ _VIA_CONSTRUCTOR = {
 #: The one flag whose name deliberately differs, and why: it is `action="append"`, so each use names
 #: ONE pulse while the parameter holds the list of them. Pluralising the flag would misname the
 #: single use it is written for, and singularising the parameter would misname a list.
-_PLURAL = {"mass-extinction": ("zombi2.species:simulate_species_tree", "mass_extinctions")}
+_PLURAL = {"mass-extinction": ("zombi2.species:simulate_species_tree", "mass_extinctions"),
+           # the flag takes a list of names; Python declares each family, which can also
+           # carry its rates, its origin and its group — so the two are not the same word
+           "family-names": ("zombi2.genomes:family", "name")}
 
 
 def _params_of(path: str) -> set:
@@ -207,7 +209,7 @@ def test_every_cli_flag_is_reachable_from_python():
                     genomes.simulate_genomes_nucleotide],
         "sequences": [sequences.simulate_sequences],
         "traits": [traits.simulate_continuous, traits.simulate_discrete],
-        "joint": [joint.simulate_joint],
+        "joint": [joint.simulate, species.birth_death, traits.discrete, genomes.genome],
     }
     unreachable = []
     for command, fns in entry_points.items():

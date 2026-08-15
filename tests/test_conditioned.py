@@ -15,6 +15,7 @@ import re
 
 import pytest
 
+from zombi2 import species
 from zombi2 import genomes, sequences, traits
 from zombi2.params.conditioned import DriverTrajectory, load_driver
 from zombi2.params import (Extent, LogNormal, PerChromosome, PerCopy, PerLineage, PerSite,
@@ -756,9 +757,7 @@ def test_the_trait_and_joint_engines_refuse_a_between_kernel_on_a_rate():
         traits.simulate_discrete(tree, states=["x", "y"],
                                  switch=PerLineage(0.2).scaled_by(hab, kernel), seed=3)
     with pytest.raises(ValueError, match="donor-conditioned"):
-        joint.simulate_joint(birth=PerLineage(1.0).scaled_by("trait", kernel), death=0.3,
-                             trait=traits.discrete(states=["a", "b"], switch=0.3),
-                             n_extant=20, seed=3)
+        joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("trait", kernel), death=0.3, n_extant=20), traits.discrete(states=["a", "b"], switch=0.3), seed=3)
 
 
 def test_a_family_draw_beside_a_driven_rate_still_obeys_the_driver(tmp_path):

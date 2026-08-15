@@ -774,6 +774,43 @@ def rearranged_pair(genomes: dict) -> tuple:
 _INK, _DIM = "#1a1a1a", "#6e6e6e"
 
 
+def joint_png(path, *, left, right, forward, back):
+    """The **joint** diagram: two things, and the rule each one sets for the other.
+
+    Deliberately not the conditioning diagram with a second arrow bolted on. That one is built round
+    driver / connection / target, and in a joint model neither box is only a driver or only a target,
+    so those headings have nothing to label. What is left is the two things and the two rules, and
+    each rule reads as a plain sentence rather than as a verb and a mapping — ``scaled_by`` and
+    ``table`` say how a rate is written, which is Chapter 9's subject, not what the model claims.
+
+    ``left`` / ``right`` are ``(name, what it is)``; ``forward`` and ``back`` are the two sentences,
+    read left-to-right and right-to-left.
+    """
+    from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+
+    W, H = 1240, 300
+    fig = plt.figure(figsize=(W / 100, H / 100), dpi=190)
+    ax = fig.add_axes([0, 0, 1, 1]); ax.set_xlim(0, W); ax.set_ylim(H, 0); ax.set_axis_off()
+    mid = H / 2
+    for x, (name, kind) in ((150, left), (1090, right)):
+        ax.add_patch(FancyBboxPatch((x - 108, mid - 42), 216, 84, boxstyle="round,pad=14",
+                                    facecolor="#f2f2f0", edgecolor=_INK, lw=1.8))
+        ax.text(x, mid - 8, name, ha="center", va="center", color=_INK, fontsize=25)
+        ax.text(x, mid + 24, kind, ha="center", va="center", color=_DIM, fontsize=13,
+                style="italic")
+    # the arrows span the gap between the boxes, and each sentence sits clear of both
+    a0, a1 = 285, 955
+    ax.add_patch(FancyArrowPatch((a0, mid - 20), (a1, mid - 20), arrowstyle="-|>",
+                                 mutation_scale=17, lw=2.0, color=_INK))
+    ax.add_patch(FancyArrowPatch((a1, mid + 20), (a0, mid + 20), arrowstyle="-|>",
+                                 mutation_scale=17, lw=2.0, color=_INK))
+    ax.text((a0 + a1) / 2, mid - 34, forward, ha="center", va="bottom", color=_INK, fontsize=16)
+    ax.text((a0 + a1) / 2, mid + 34, back, ha="center", va="top", color=_INK, fontsize=16)
+    fig.savefig(path, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    return path
+
+
 #: The conditioning diagram, to one standard. Every one of these figures answers the same three
 #: questions in the same three places — what is read, how it is read, what it changes — so two of them
 #: side by side can be compared rather than deciphered.
