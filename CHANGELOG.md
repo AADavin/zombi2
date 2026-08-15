@@ -11,6 +11,19 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
+- **Two genes can read each other's composition, in one run** — the sequence level joined to itself,
+  and the last of the three loops. `simulate_sequences(g, joint=True, genes=[sequences.gene(...),
+  ...])`, where each gene's `substitution` reads another by `"sequences:<name>"` and each gene
+  `offers=sequences.composition("KR", absent=0.08)`. The walk is by **time** rather than by family:
+  species time is sliced, and inside a slice every living copy of every gene advances at a rate read
+  off the other gene's composition as it stood at the top of the slice. An ordinary run finishes one
+  family before starting the next, which a cycle cannot do. `step=` on the connection is required,
+  as it is for a diffusing trait, and for the same reason. `gene(start=...)` founds a gene from a
+  second model's stationary frequencies, so it arrives with a foreign composition and ameliorates
+  toward its own — without it a gene sits at its own equilibrium and a rate reading it reads a
+  constant. A joint run has no `species_phylogram`: each gene runs at a rate the other sets, so no
+  one set of branch lengths is the run's.
+
 - **One gene family's composition can drive another's rate.** `simulate_sequences(..., families=
   ["chaperone"])` restricts a run to named families, so its pooled `composition()` / `gc()` is that
   family's, and both runs read the same genome run — so the driver's gene tree is the one the
