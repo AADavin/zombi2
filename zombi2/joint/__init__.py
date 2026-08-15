@@ -50,7 +50,7 @@ from ..traits import Change, DiscreteTrait, TraitsResult
 #: other level, so the gate below cannot fall behind what the engine threads: the loop passes ``time``
 #: and ``diversity`` into every rate and steps its Gillespie at each ``next_change``, so the two
 #: covariates are as real here as at the species level, and ``scaled_by`` is what makes the run joint
-#: at all. What is missing is missing on purpose — see the rejections in `simulate_joint()`.
+#: at all. What is missing is missing on purpose — see the rejections in `_simulate_joint()`.
 IMPLEMENTED_MODIFIERS = (OnTime, OnTotalDiversity, Driven)
 
 #: `JointResult.write`'s vocabulary. The tokens are the two **levels** and the run's own summary, not
@@ -67,7 +67,7 @@ _ONE_TRAIT = "trait"
 
 @dataclass
 class JointResult:
-    """What `simulate_joint()` returns — **both** grown levels of a joint run. ``species`` is the
+    """What `simulate()` returns — **both** simulated levels of a joint run. ``species`` is the
     grown tree (a `SpeciesResult`: ``complete_tree``, ``extant_tree``, the
     speciation/extinction ``events``); the **driver** level that grew with it is either ``trait`` (a
     `TraitsResult`, for a trait→speciation run) or ``genome`` (a
@@ -469,14 +469,15 @@ def _simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None,
     - ``genome = genomes.genome(...)`` — **gene content** drives speciation (``P(Species, Genomes)``),
       read as the total gene count ``.scaled_by("genomes:count", curve)`` or the presence of a named
       family ``.scaled_by("genomes:toxin", {"present": 2.0, "absent": 1.0})`` (declare it with
-      ``family_names=["toxin"]``).
+      ``families=[family("toxin")]``).
 
-    ::
+    The engine behind `simulate()`, which is the way to call it::
 
-        joint.simulate_joint(
-            birth  = PerLineage(1.0).scaled_by("genomes:toxin", {"present": 3.0, "absent": 1.0}),
-            genome = genomes.genome(origination=0.2, loss=0.1, family_names=["toxin"]),
-            n_extant = 100, seed = 1)
+        joint.simulate(
+            species.birth_death(
+                birth = PerLineage(1.0).scaled_by("genomes:toxin", {"present": 3.0, "absent": 1.0}),
+                n_extant = 100),
+            genomes.genome(origination=0.2, loss=0.1, families=[family("toxin")]), seed = 1)
 
     ``max_lineages`` (default 100000) stops a run that has no realistic end. A joint birth rate reads
     a driver the run itself grows, so it can feed itself — gene content accumulates, birth rises, and
@@ -595,7 +596,7 @@ def _simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None,
                 if name not in genome.family_names:
                     raise ValueError(
                         f'scaled_by("{s}", ...) names family {name!r}, but genomes.family was not '
-                        f"declared with it — add family_names=[…, {name!r}]."
+                        f"declared with it — add families=[…, family({name!r})]."
                     )
                 continue
             raise ValueError(
@@ -948,7 +949,7 @@ def simulate(*participants, tree=None, seed=None, max_lineages=100_000) -> Joint
                        traits.discrete(name="size", states=["small", "large"], switch=0.1), seed=1)
 
         joint.simulate(species.birth_death(birth=faster_with_toxin, n_extant=100),
-                       genomes.genome(origination=0.2, loss=0.1, family_names=["toxin"]), seed=1)
+                       genomes.genome(origination=0.2, loss=0.1, families=[family("toxin")]), seed=1)
 
     A rate reads the other participant by **name**, ``"<level>:<handle>"`` — ``"traits:size"`` for a
     named trait, ``"genomes:toxin"`` for a declared family, ``"genomes:count"`` for a lineage's whole
