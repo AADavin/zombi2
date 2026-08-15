@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.39.4] - 2026-08-15
+
 ### Added
 
 - `NucleotideGenomesResult.describe(node)` — one node's genome written out block by block, each
