@@ -31,7 +31,7 @@ Not everything can act as a driver and not everything can be a target. A sequenc
 | **7** | a gene family | a trait | carry the toxin family and turn pathogenic | [Co13](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gene_drives_trait--> |
 | **8** | an ordered or nucleotide genome | a sequence | as **6**, with coordinates in the genome run | [Co14](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:operon_substitution--> |
 | **9** | an ordered or nucleotide genome | a trait | as **7**, with coordinates in the genome run | [Co15–Co16](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:module_drives_metabolism--><!--gallery:operon_trait--> |
-| **10** | a sequence | a sequence | compensatory evolution: one gene's sequence sets another's rate | [Co17–Co18](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_sequence--><!--gallery:named_family_drives_sequence--> |
+| **10** | a sequence | a sequence | one gene's composition indexes something about the lineage, and that sets another gene's rate | [Co17–Co18](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_sequence--><!--gallery:named_family_drives_sequence--> |
 | **11** | a sequence | a trait | GC content sets how fast a trait changes | [Co19](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_trait--> |
 
 ## The driver
@@ -47,7 +47,7 @@ A driver is the input to the function that controls the target. The easiest one 
 | a gene family | `present` or `absent` | `g.presence("IS1")`, for families declared with `families=[family("IS1")]` |
 | a module | a fraction, 0 to 1 | `g.completion("flagellum")`, for a group of families declared with `modules=` |
 | a sequence's composition | a number, 0 to 1 | `seqs.gc()`, or `seqs.composition("KR")` for any letters of the alphabet |
-| **one family's** composition | a number, 0 to 1 | the same, on a run restricted to it with `families=["chaperone"]`, plus an `absent=` |
+| **one family's** composition | a number, 0 to 1 | the same, on a run restricted to it with `families=["marker"]`, plus an `absent=` |
 
 Every row is a level **grown first** and then read. Where a lineage sits in the tree and when it is alive are not: `Clade` and `changing_at` (Appendix A) read facts the run already has, so they need no driver and work at every level whether or not anything is being conditioned.
 
@@ -66,15 +66,17 @@ from zombi2.species import simulate_species_tree
 ct = simulate_species_tree(birth=1.0, n_extant=25, seed=1).complete_tree
 g = simulate_genomes_family(ct, initial_families=8, duplication=0.05, loss=0.25,
                             origination=0.1, seed=2,
-                            families=[family("chaperone"), family("client")])
+                            families=[family("marker"), family("ribosomal")])
 
-chaperone = simulate_sequences(g, families=["chaperone"], model=lg(), length=300, seed=3)
-basic = chaperone.composition("KR", absent=0.08)
+marker = simulate_sequences(g, families=["marker"], model=lg(), length=300, seed=3)
+hotness = marker.composition("IVYWREL", absent=0.40)
 
-client = simulate_sequences(
-    g, families=["client"], model=lg(), length=300, seed=4,
-    substitution=PerSite(1.0).scaled_by(basic, Curve(lambda x: 20.0 ** (x - 0.1))))
+ribosomal = simulate_sequences(
+    g, families=["ribosomal"], model=lg(), length=300, seed=4,
+    substitution=PerSite(1.0).scaled_by(hotness, Curve(lambda s: 4.0 ** ((s - 0.32) / 0.20))))
 ```
+
+A word on what a composition is for. It is not a mechanism: no count of residues reaches out and sets another gene's rate. What it is good for is standing in for a property of the **lineage**. The share of a protein that is I, V, Y, W, R, E or L rises with the temperature its owner lives at, which is the compositional signature of thermophily that holds across the tree of life [@zeldovich2007ivywrel]; a genome's GC content indexes its mutational regime much the same way. Written like that the driver says something a reader can check. Written as a mechanism it does not.
 
 `families=` names families the genome run declared, and both runs then read the **same** genome run, so the driver's gene tree is the one the target's run also saw. Two separate genome runs would have put the driver on gene trees the target never met.
 
