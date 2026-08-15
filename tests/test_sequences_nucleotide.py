@@ -13,7 +13,7 @@ import collections
 
 import pytest
 
-from zombi2.genomes import simulate_genomes_nucleotide, simulate_genomes_family
+from zombi2.genomes import simulate_genomes_family, simulate_genomes_nucleotide
 from zombi2.genomes.events import copy_label, node_from_label, node_label
 from zombi2.sequences import simulate_sequences
 from zombi2.sequences.substitution_models import hky85, jc69, lg

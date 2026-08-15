@@ -15,6 +15,7 @@ import pytest
 from zombi2.params import Drift, Global, LogNormal, PerLineage, TotalDiversity
 from zombi2.params import law as law
 from zombi2.params import scope
+from zombi2 import species
 from zombi2.species import simulate_species_tree
 from zombi2.traits import Change, TraitsResult, simulate_continuous, simulate_discrete
 
@@ -710,9 +711,7 @@ def test_a_joint_run_takes_the_same_switch_spellings():
     # saying why rather than by listing shapes.
     from zombi2 import joint, traits
 
-    grow = lambda sw: joint.simulate_joint(
-        birth=PerLineage(1.0).scaled_by("trait", {"a": 2.0, "b": 1.0}), death=0.1,
-        trait=traits.discrete(states=["a", "b"], switch=sw), n_extant=20, seed=1)
+    grow = lambda sw: joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"a": 2.0, "b": 1.0}), death=0.1, n_extant=20), traits.discrete(states=["a", "b"], switch=sw), seed=1)
     bare, scoped = grow(0.4), grow(PerLineage(0.4))
     assert bare.complete_tree.to_newick() == scoped.complete_tree.to_newick()
     assert bare.trait.node_values == scoped.trait.node_values

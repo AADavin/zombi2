@@ -20,7 +20,7 @@ import phylustrator as ph
 import matplotlib.pyplot as plt
 from matplotlib import colors
 
-from zombi2.genomes import simulate_genomes_family, simulate_genomes_ordered
+from zombi2.genomes import family, simulate_genomes_family, simulate_genomes_ordered
 from zombi2.params import Curve, PerCopy, PerLineage, PerSite
 from zombi2.sequences import jc69, simulate_sequences
 from zombi2.species import simulate_species_tree
@@ -41,7 +41,7 @@ def _carrier_run(ct, name, *, seed=5):
 
     Loss a little above duplication is what makes the figure worth drawing — the family survives in
     some clades and decays in others, instead of blanketing the tree or dying on the stem."""
-    return simulate_genomes_family(ct, initial_families=20, family_names=[name],
+    return simulate_genomes_family(ct, initial_families=20, families=[family(name)],
                                    duplication=0.1, loss=0.13, seed=seed)
 
 
@@ -228,8 +228,8 @@ def _gc_by_node(seqs) -> dict:
     reads as the run walks the tree."""
     hits, total = collections.Counter(), collections.Counter()
     for table in (seqs.alignments, seqs.ancestral):
-        for family in table.values():
-            for label, seq in family.items():
+        for by_label in table.values():
+            for label, seq in by_label.items():
                 node = label.split("_", 1)[0]
                 hits[node] += sum(seq.count(c) for c in "GC")
                 total[node] += len(seq)
@@ -243,8 +243,8 @@ def _operon_run(ct, names, *, seed=2):
     in runs rather than one at a time. ``loss`` here takes a run of *consecutive* genes, so the
     operon decays in blocks — the reason this pair is a different model from the family one, and not
     just a different spelling of it."""
-    return simulate_genomes_ordered(ct, initial_families=24, family_names=names,
-                                    modules={"repair": tuple(names)},
+    return simulate_genomes_ordered(ct, initial_families=24,
+                                    families=[family(n, module="repair") for n in names],
                                     duplication=0.08, loss=0.055, loss_extent=1.5, seed=seed)
 
 
@@ -410,13 +410,13 @@ def gc_drives_trait(out):
 # --- the snippets shown on the detail views ----------------------------------------------------
 
 _C_REPAIR = """### the driver: a repair family, grown first and held fixed
-from zombi2.genomes import simulate_genomes_family
+from zombi2.genomes import family, simulate_genomes_family
 from zombi2.params import PerSite
 from zombi2.sequences import jc69, simulate_sequences
 from zombi2.species import simulate_species_tree
 
 ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
-repair = simulate_genomes_family(ct, initial_families=20, family_names=["mutS"],
+repair = simulate_genomes_family(ct, initial_families=20, families=[family('mutS')],
                                  duplication=0.1, loss=0.13, seed=5)
 
 ### the target: sequences evolve 8x faster where the family has been lost
@@ -437,7 +437,7 @@ seqs = simulate_sequences(genes, model=jc69(), length=60, seed=1,
 _C_MOBILE = """### one level conditioning itself: an element makes its genome donate more
 from zombi2.params import PerCopy
 
-element = simulate_genomes_family(ct, initial_families=20, family_names=["IS1"],
+element = simulate_genomes_family(ct, initial_families=families=[family('IS1')]S1"],
                                   duplication=0.1, loss=0.13, seed=5)
 genome = simulate_genomes_family(
     ct, initial_families=25, loss=0.15, seed=7,
@@ -447,7 +447,7 @@ genome = simulate_genomes_family(
 donated = [e for e in genome.edges if e.kind == "transfer" and e.recipient is not None]"""
 
 _C_INVERSION = """### a trait drives an ordered genome — the rate AND the extent
-from zombi2.genomes import simulate_genomes_ordered
+from zombi2.genomes import family, simulate_genomes_ordered
 from zombi2.params import Extent, PerCopy
 
 genome = simulate_genomes_ordered(
@@ -458,14 +458,14 @@ genome = simulate_genomes_ordered(
 # more often AND more coarsely"""
 
 _C_OPERON_SUB = """### the driver is a FRACTION: how much of a six-gene operon survives
-from zombi2.genomes import simulate_genomes_ordered
+from zombi2.genomes import family, simulate_genomes_ordered
 from zombi2.params import Curve, PerSite
 
 operon = ["mutS", "mutL", "mutH", "uvrA", "uvrB", "uvrC"]
 # at the ordered resolution a loss takes a RUN of consecutive genes, so an
 # operon goes in blocks and completion drops in steps
-repair = simulate_genomes_ordered(ct, initial_families=24, family_names=operon,
-                                  modules={"repair": tuple(operon)},
+repair = simulate_genomes_ordered(ct, initial_families=24,
+                                  families=[family(n, module="repair") for n in operon],
                                   duplication=0.08, loss=0.055, loss_extent=1.5, seed=2)
 
 seqs = simulate_sequences(genes, model=jc69(), length=60, seed=1,

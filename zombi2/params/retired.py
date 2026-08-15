@@ -46,6 +46,14 @@ RETIRED_KEYWORDS = {
                "One word named both, which is why it is gone"),
     "per": ("the unit is varying_among's first argument, and units are plural: "
             "varying_among('families', LogNormal(0.0, 0.5))"),
+    # the three that said one thing between them: a family's name, where it starts, and the group it
+    # belongs to. One list of declarations says all three, and can give the family rates besides.
+    "family_names": ("a family is declared with the rest of what is known about it: "
+                     "families=[family('IS1'), family('toxin')]"),
+    "origins": ("where a family starts is part of declaring it, and it keeps its name there: "
+                "families=[family('toxin', origin=('n5', 0.4))]"),
+    "modules": ("a family names the group it belongs to: "
+                "families=[family('nuoA', module='aerobic'), family('nuoB', module='aerobic')]"),
 }
 
 

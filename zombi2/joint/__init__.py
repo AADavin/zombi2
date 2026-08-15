@@ -1,7 +1,9 @@
-"""Joint models — the driver co-evolves with what it drives (SPEC §2–4).
+"""Joint models — one run simulates two levels at once (SPEC §2–4).
 
-When the driver **cannot** be grown first — because it is entangled with what it drives as the tree
-unfolds — one run must produce both. Two drivers of speciation are grown here, the tree an **output**:
+A run is **joint** when neither level can be finished before the other starts, so one run has to
+produce both. That is the whole of it, and it says nothing on its own about the species tree: two
+levels can drive each other on a tree handed to the run. In the two models built here the species
+tree **is** one of the two being simulated, so it comes out of the run rather than going into it:
 
 - a **discrete trait** drives speciation (BiSSE / MuSSE), ``P(Species, Traits)`` — birth/death read the
   trait state on each lineage while the trait evolves by its own Mk process on the growing tree;
@@ -30,7 +32,7 @@ from dataclasses import dataclass
 
 from .._runtime.draw import weighted_index as _weighted_index
 from .._runtime.summary import write_summary
-from ..genomes import GeneEdge, GeneCopy, FamilyGenomesResult, FamilyGenome
+from ..genomes import GeneEdge, GeneCopy, FamilyGenomesResult, FamilyGenome, GeneFamily
 from ..genomes.family import _duplicate, _lose_at, _originate, _pick_copy  # engine internals
 from ..params.mapping import check_not_a_kernel
 from ..rng import stream
@@ -48,7 +50,7 @@ from ..traits import Change, DiscreteTrait, TraitsResult
 #: other level, so the gate below cannot fall behind what the engine threads: the loop passes ``time``
 #: and ``diversity`` into every rate and steps its Gillespie at each ``next_change``, so the two
 #: covariates are as real here as at the species level, and ``scaled_by`` is what makes the run joint
-#: at all. What is missing is missing on purpose — see the rejections in `simulate_joint()`.
+#: at all. What is missing is missing on purpose — see the rejections in `_simulate_joint()`.
 IMPLEMENTED_MODIFIERS = (OnTime, OnTotalDiversity, Driven)
 
 #: `JointResult.write`'s vocabulary. The tokens are the two **levels** and the run's own summary, not
@@ -58,11 +60,14 @@ _WRITE_OUTPUTS = ("summary", "species", "driver")
 
 _MAX_ATTEMPTS = 1000  # survival-conditioned retries before giving up on n_extant
 _GENOME_COUNT = "genomes:count"  # the live gene-content driver source for a count → Curve/Scalar
+#: What a trait driver is called when the run holds one and it was given no name. Naming is
+#: what lets a run hold two, so the bare form stays for the common case of one.
+_ONE_TRAIT = "trait"
 
 
 @dataclass
 class JointResult:
-    """What `simulate_joint()` returns — **both** grown levels of a joint run. ``species`` is the
+    """What `simulate()` returns — **both** simulated levels of a joint run. ``species`` is the
     grown tree (a `SpeciesResult`: ``complete_tree``, ``extant_tree``, the
     speciation/extinction ``events``); the **driver** level that grew with it is either ``trait`` (a
     `TraitsResult`, for a trait→speciation run) or ``genome`` (a
@@ -165,7 +170,7 @@ def _runaway(ceiling: int, t: float) -> RuntimeError:
 
 
 def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, total_time,
-                max_lineages=None):
+                max_lineages=None, keys=(_ONE_TRAIT,)):
     """Grow a forward birth-death tree whose birth/death read a discrete trait that evolves on it.
     Returns ``(tree, species_events, node_values, trait_events)`` — the complete tree, the
     speciation/extinction log, the trait state at every node, and the trait's switch log."""
@@ -212,8 +217,9 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
         ctx = {"diversity": n, "time": t}
         # per-lineage rates: birth/death read the lineage's trait state (scaled_by("trait", …)); the
         # trait switch rate is the CTMC out-rate for that state (the trait's own dynamics, undriven).
-        wb = [birth_rate.effective(lineages=1, drivers={"trait": states[st[k]]}, **ctx) for k in range(n)]
-        wd = [death_rate.effective(lineages=1, drivers={"trait": states[st[k]]}, **ctx) for k in range(n)]
+        vals = [{key: states[st[k]] for key in keys} for k in range(n)]
+        wb = [birth_rate.effective(lineages=1, drivers=vals[k], **ctx) for k in range(n)]
+        wd = [death_rate.effective(lineages=1, drivers=vals[k], **ctx) for k in range(n)]
         ws = [out_rate[st[k]] for k in range(n)]
         total_b, total_d, total_s = sum(wb), sum(wd), sum(ws)
         total = total_b + total_d + total_s
@@ -446,8 +452,8 @@ def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, driver_n
     return Tree(nodes, root), species_events, genomes_out, genome_events, named
 
 
-def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, total_time=None,
-                   seed=None, max_lineages=100_000) -> JointResult:
+def _simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None,
+                    total_time=None, seed=None, max_lineages=100_000) -> JointResult:
     """Grow a tree **and** the driver that drives its speciation, in one run (SPEC §2–4).
 
     ``birth`` and ``death`` are rate specs (per lineage). Make either read the driver with
@@ -460,17 +466,18 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
     - ``trait = traits.discrete(...)`` — a discrete trait drives speciation (BiSSE / MuSSE), read as
       ``.scaled_by("trait", {"small": 1.0, "large": 2.0})``. Driving both birth and death gives
       state-dependent λ *and* μ.
-    - ``genome = genomes.family(...)`` — **gene content** drives speciation (``P(Species, Genomes)``),
+    - ``genome = genomes.genome(...)`` — **gene content** drives speciation (``P(Species, Genomes)``),
       read as the total gene count ``.scaled_by("genomes:count", curve)`` or the presence of a named
       family ``.scaled_by("genomes:toxin", {"present": 2.0, "absent": 1.0})`` (declare it with
-      ``family_names=["toxin"]``).
+      ``families=[family("toxin")]``).
 
-    ::
+    The engine behind `simulate()`, which is the way to call it::
 
-        joint.simulate_joint(
-            birth  = PerLineage(1.0).scaled_by("genomes:toxin", {"present": 3.0, "absent": 1.0}),
-            genome = genomes.family(origination=0.2, loss=0.1, family_names=["toxin"]),
-            n_extant = 100, seed = 1)
+        joint.simulate(
+            species.birth_death(
+                birth = PerLineage(1.0).scaled_by("genomes:toxin", {"present": 3.0, "absent": 1.0}),
+                n_extant = 100),
+            genomes.genome(origination=0.2, loss=0.1, families=[family("toxin")]), seed = 1)
 
     ``max_lineages`` (default 100000) stops a run that has no realistic end. A joint birth rate reads
     a driver the run itself grows, so it can feed itself — gene content accumulates, birth rises, and
@@ -490,7 +497,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
     death_rate = as_rate(death, default_scope=PerLineage)
     if (trait is None) == (genome is None):
         raise TypeError(
-            "give exactly one driver: trait=traits.discrete(...) OR genome=genomes.family(...)."
+            "give exactly one driver: trait=traits.discrete(...) OR genome=genomes.genome(...)."
         )
     # collect the Driven driver names on birth/death (a joint model's diversification must be per lineage)
     driver_names: list[str] = []
@@ -563,15 +570,24 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 "Continuous trait→speciation (QuaSSE) is not available: a continuously varying "
                 "rate needs thinning, which this exact race does not do."
             )
-        bad = sorted({s for s in driver_names if s != "trait"})
+        # a run holds one trait, so the bare "trait" always names it; a name additionally lets a rate
+        # say which, which is what a run holding two will need
+        trait_keys = {_ONE_TRAIT} | ({f"traits:{trait.name}"} if trait.name else set())
+        bad = sorted({s for s in driver_names if s not in trait_keys})
         if bad:
+            named = " or ".join(f'"{k}"' for k in sorted(trait_keys))
             raise ValueError(
-                f'with trait=, drive from the live trait — scaled_by("trait", ...); got driver(s) '
-                f"{bad}. (A filename driver is conditioning, not a joint run.)"
+                f"with a trait participant, drive from that trait — scaled_by({named}, ...); got "
+                f"driver(s) {bad}. (A filename driver is conditioning, not a joint run.)"
             )
     else:
         if not isinstance(genome, FamilyGenome):
-            raise TypeError("genome= must be genomes.family(...) — a family-genome process spec.")
+            raise TypeError("genome= must be genomes.genome(...) — a family-genome process spec.")
+        if genome.transfer:
+            raise ValueError(
+                "transfer is not available while the tree is being simulated: a transfer needs the "
+                "set of lineages alive at that instant, and on a growing tree that set is still "
+                "forming. It works on a tree handed to the run — genomes with traits.")
         for s in driver_names:
             if s == _GENOME_COUNT:
                 continue
@@ -580,7 +596,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
                 if name not in genome.family_names:
                     raise ValueError(
                         f'scaled_by("{s}", ...) names family {name!r}, but genomes.family was not '
-                        f"declared with it — add family_names=[…, {name!r}]."
+                        f"declared with it — add families=[…, family({name!r})]."
                     )
                 continue
             raise ValueError(
@@ -601,7 +617,7 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
     def grow_once(target_n, tt) -> tuple[Tree, JointResult]:
         if trait is not None:
             tree, se, nv, te = _grow_joint(rng, birth_rate, death_rate, trait, target_n, tt,
-                                           max_lineages)
+                                           max_lineages, tuple(sorted(trait_keys)))
             te.sort(key=lambda c: c.time)
             result = JointResult(SpeciesResult(tree, se, seed, []), seed,
                                  trait=TraitsResult(tree, nv, te, seed, kind="discrete"))
@@ -626,4 +642,369 @@ def simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None, 
     )
 
 
-__all__ = ["simulate_joint", "JointResult"]
+def _classify(participants):
+    """Sort the things handed to `simulate()` by which level each belongs to.
+
+    A participant is a **process spec** — `~zombi2.species.BirthDeath`,
+    `~zombi2.traits.DiscreteTrait`, `~zombi2.genomes.FamilyGenome` — never a finished result. A
+    finished result is a driver you already have, which is conditioning, and it belongs in the driven
+    level's own run."""
+    from ..species import BirthDeath
+
+    kinds = {"species": [], "traits": [], "genomes": []}
+    for p in participants:
+        if isinstance(p, BirthDeath):
+            kinds["species"].append(p)
+        elif isinstance(p, DiscreteTrait):
+            kinds["traits"].append(p)
+        elif isinstance(p, FamilyGenome):
+            kinds["genomes"].append(p)
+        else:
+            raise TypeError(
+                f"joint.simulate takes process specs — species.birth_death(...), "
+                f"traits.discrete(...), genomes.genome(...) — and got {p!r}. A finished result is a "
+                f"driver you already have, which is conditioning: pass it to the driven level's own "
+                f"run instead.")
+    return kinds
+
+
+def _grow_genomes_traits(rng, tree, genome: FamilyGenome, trait: DiscreteTrait, trait_keys,
+                         seed) -> "tuple":
+    """A genome and a discrete trait on a **given** tree, each reading the other as the run goes.
+
+    The first joint model whose tree is an input. The two halves exist already but in different
+    shapes: the genome level races its events over every living lineage at once, while the discrete
+    trait walks one branch at a time. Neither survives the merge on its own terms — a trait that
+    walks a whole branch cannot see a gene lost half-way down it — so the trait moves into the
+    genome's race, exactly as it does in `_grow_joint()` against speciation.
+
+    One Gillespie over the living set, then, with five event classes: the genome's
+    duplication / transfer / loss / origination, and the trait's switch. Each lineage's rates read
+    the other level's state on that lineage — the genome's from ``drivers[k]``, the trait's by
+    rebuilding its generator per lineage (`_driven_q`). Both are piecewise-constant between events
+    and every event ends the step, so the race is exact and nothing is thinned.
+
+    **Transfer works here**, unlike the tree-growing joint models, and for the reason they refuse it:
+    on a tree handed to the run the set of lineages alive at an instant is already known.
+
+    Returns ``(genomes_out, genome_events, named, node_values, trait_changes)``.
+    """
+    from ..genomes.family import (_FamilyCounts, _do_transfer, GeneCopy, resolve_families)
+    from ..genomes._live import enter, retire, weighted_index
+    from ..genomes._transfer import mean_root_to_tip
+    from ..traits.discrete import _driven_entries, _driven_q
+    from ..params.parameter import as_rate
+    from ..params.scope import PerCopy
+
+    # `DiscreteTrait._resolve` settles the generator into one constant matrix, which is exactly what a
+    # switch rate reading the genome cannot be. So the alphabet and the root state are taken from the
+    # spec here and the generator is left as rate specs, rebuilt per lineage below.
+    states = list(trait.states)
+    k_states = len(states)
+    idx = {s: i for i, s in enumerate(states)}
+    if trait.start is None:
+        start_i = int(rng.integers(k_states))
+    elif trait.start in idx:
+        start_i = idx[trait.start]
+    else:
+        raise ValueError(f"start must be one of states={states} (or None for a uniform draw), "
+                         f"got {trait.start!r}")
+    # `DiscreteTrait._resolve` checks this, and this engine does not call it (its generator is one
+    # constant matrix, which a switch rate reading the genome cannot be), so the check comes along
+    at_split = trait.at_speciation
+    if at_split is not None and (isinstance(at_split, bool)
+                                 or not isinstance(at_split, (int, float))
+                                 or not 0.0 <= at_split <= 1.0):
+        raise ValueError(f"at_speciation must be a probability in [0, 1] (the shift chance), "
+                         f"got {at_split!r}")
+    shift = 0.0 if at_split is None else float(at_split)
+    entries = _driven_entries(states, trait.switch)          # rate specs, so they can read the genome
+    # `FamilyGenome._resolve` refuses a driven rate, and rightly: where the tree is being simulated
+    # the genome is what drives it. Here the tree is given and the genome is a target as well, so the
+    # rates are resolved on their own terms.
+    dup = as_rate(genome.duplication, default_scope=PerCopy, label="duplication")
+    los = as_rate(genome.loss, default_scope=PerCopy, label="loss")
+    tra = as_rate(genome.transfer, default_scope=PerCopy, label="transfer")
+    org = as_rate(genome.origination, default_scope=PerLineage, label="origination")
+    for label, rate in (("duplication", dup), ("loss", los), ("transfer", tra),
+                        ("origination", org)):
+        for m in rate.modifiers:
+            if not isinstance(m, (Driven, OnTime)):
+                raise ValueError(
+                    f"{label} carries {describe(m)}, which this engine does not thread. On a joint "
+                    f"run over a given tree a genome rate takes changing_at and scaled_by — the "
+                    f"verb that reads the trait simulated beside it.")
+    declared, _modules, planted = resolve_families(
+        [GeneFamily(n) for n in genome.family_names], tree)
+
+    counter = {"copy": 0, "family": 0}
+
+    def new_copy(fam):
+        c = GeneCopy(counter["copy"], fam)
+        counter["copy"] += 1
+        return c
+
+    def new_family():
+        f = counter["family"]
+        counter["family"] += 1
+        return f
+
+    root = tree.nodes[tree.root]
+    t = root.birth_time
+    alive: list[int] = []
+    gen: list[list] = []
+    pos: dict[int, int] = {}
+    st: list[int] = []                       # each lineage's trait state index, parallel to `alive`
+    genomes_out: dict[int, tuple] = {}
+    node_state: dict[int, int] = {}
+    events: list[GeneEdge] = []
+    changes: list[Change] = [Change(t, "initial", root.id, None, states[start_i])]
+    enter(alive, gen, pos, root.id, [])
+    st.append(start_i)
+    for _ in range(genome.initial_families):
+        _originate(gen[0], root, t, events, new_copy, new_family)
+    named: dict[str, int] = {}
+    for spec in declared:
+        fid = new_family()
+        named[spec.name] = fid
+        c = new_copy(fid)
+        gen[0].append(c)
+        events.append(GeneEdge(t, "origination", root.id, fid, c.id))
+    total_copies = len(gen[0])
+    initial_genome = tuple(gen[0])
+    counts = _FamilyCounts(gen)
+    depth = mean_root_to_tip(tree)
+    schedule = sorted((tree.nodes[i].end_time, i) for i in tree.nodes)
+    si = 0
+
+    def gene_drivers(k):
+        """What the trait's switch rate and the genome's own rates read on lineage ``k``."""
+        d = {_GENOME_COUNT: len(gen[k])}
+        for name, fid in named.items():
+            d[f"genomes:{name}"] = "present" if counts.holds(k, fid) else "absent"
+        return d
+
+    while si < len(schedule):
+        n_alive = len(alive)
+        drivers = []
+        for k in range(n_alive):
+            d = gene_drivers(k)
+            for key in trait_keys:
+                d[key] = states[st[k]]
+            drivers.append(d)
+        can_xfer = total_copies > 0 and n_alive >= 2
+        w_dup = [dup.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
+                 for k in range(n_alive)]
+        w_los = [los.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
+                 for k in range(n_alive)]
+        w_org = [org.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
+                 for k in range(n_alive)]
+        w_tra = ([tra.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
+                  for k in range(n_alive)] if can_xfer else [0.0] * n_alive)
+        # the trait's generator is rebuilt per lineage, because its entries read that lineage's genome
+        qs = [_driven_q(entries, k_states, drivers[k], t) for k in range(n_alive)]
+        w_sw = [float(-qs[k][st[k], st[k]]) for k in range(n_alive)]
+        r_dup, r_los, r_org, r_tra, r_sw = (sum(w) for w in (w_dup, w_los, w_org, w_tra, w_sw))
+        total = r_dup + r_los + r_org + r_tra + r_sw
+
+        horizon = min(schedule[si][0], dup.next_change(t), los.next_change(t),
+                      org.next_change(t), tra.next_change(t))
+        if total > 0.0:
+            t_ev = t + float(rng.exponential(1.0 / total))
+            if t_ev < horizon:
+                t = t_ev
+                r = float(rng.random()) * total
+                if r < r_dup:
+                    k = weighted_index(rng, w_dup, r_dup)
+                    j = int(rng.integers(len(gen[k])))
+                    fam = gen[k][j].family
+                    if not counts.at_cap(k, fam, genome.max_family_size):
+                        _duplicate(gen[k], j, tree.nodes[alive[k]], t, events, new_copy)
+                        counts.added(k, fam); total_copies += 1
+                elif r < r_dup + r_los:
+                    k = weighted_index(rng, w_los, r_los)
+                    j = int(rng.integers(len(gen[k])))
+                    counts.removed(k, gen[k][j].family)
+                    _lose_at(gen[k], j, tree.nodes[alive[k]], t, events)
+                    total_copies -= 1
+                elif r < r_dup + r_los + r_org:
+                    k = weighted_index(rng, w_org, r_org)
+                    _originate(gen[k], tree.nodes[alive[k]], t, events, new_copy, new_family)
+                    counts.added(k, gen[k][-1].family); total_copies += 1
+                elif r < r_dup + r_los + r_org + r_tra:
+                    kd = weighted_index(rng, w_tra, r_tra)
+                    jd = int(rng.integers(len(gen[kd])))
+                    delta, _kr = _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events,
+                                              new_copy, "uniform", False, False, depth, None,
+                                              genome.max_family_size, None)
+                    total_copies += delta
+                else:                                  # the trait switches; the topology is untouched
+                    k = weighted_index(rng, w_sw, r_sw)
+                    cur = st[k]
+                    probs = qs[k][cur].copy()
+                    probs[cur] = 0.0
+                    probs /= float(-qs[k][cur, cur])
+                    new = int(rng.choice(k_states, p=probs))
+                    st[k] = new
+                    changes.append(Change(t, "on_branch", alive[k], states[cur], states[new]))
+                continue
+
+        if horizon == schedule[si][0]:
+            t = schedule[si][0]
+            while si < len(schedule) and schedule[si][0] == t:
+                i = schedule[si][1]
+                k_out = pos[i]
+                g = gen[k_out]
+                genomes_out[i] = tuple(g)
+                node_state[i] = st[k_out]
+                total_copies -= len(g)
+                cur = st[k_out]
+                retire(alive, gen, pos, k_out)
+                st[k_out] = st[-1]; st.pop()           # mirror the swap-remove, or the arrays desync
+                inherited = counts.retired(k_out)
+                node = tree.nodes[i]
+                if node.children:
+                    per_daughter = []
+                    for c in node.children:
+                        child, rows = [], []
+                        for old in g:
+                            nc = new_copy(old.family)
+                            child.append(nc)
+                            rows.append(GeneEdge(t, "speciation", c, old.family, nc.id, parent=old.id))
+                        per_daughter.append(rows)
+                        enter(alive, gen, pos, c, child)
+                        counts.entered_like(inherited)
+                        total_copies += len(child)
+                        d = cur
+                        if shift > 0.0 and float(rng.random()) < shift:
+                            jj = int(rng.integers(k_states - 1))     # a uniform *other* state
+                            d = jj if jj < cur else jj + 1
+                            changes.append(Change(t, "on_speciation", c, states[cur], states[d]))
+                        st.append(d)
+                    for pair in zip(*per_daughter):
+                        events.extend(pair)
+                si += 1
+        else:
+            t = horizon
+    node_values = {i: states[node_state[i]] for i in tree.nodes}
+    return genomes_out, events, named, initial_genome, node_values, changes
+
+
+def _on_a_given_tree(kinds, *, tree, seed) -> JointResult:
+    """The joint models whose tree is an **input** — today, a genome and a discrete trait.
+
+    ``tree`` is required here for the reason it is refused when the species level is a participant:
+    a run simulates what it is given specs for, and takes everything else."""
+    from ..tree import as_tree
+
+    n_traits, n_genomes = len(kinds["traits"]), len(kinds["genomes"])
+    if not (n_traits == 1 and n_genomes == 1):
+        raise NotImplementedError(
+            f"a joint run on a tree you supply is built for one genome and one trait; got "
+            f"{n_genomes} genome(s) and {n_traits} trait(s). A level joined to **itself** does not "
+            f"come here at all — that is one level and one result, so it stays on that level's own "
+            f"function with joint=True.")
+    if tree is None:
+        raise ValueError(
+            "neither participant simulates the species tree, so this run needs one: pass tree=. "
+            "Give what you are not simulating.")
+    tree = as_tree(tree, level="joint")
+    genome, trait = kinds["genomes"][0], kinds["traits"][0]
+
+    # each level must actually read the other, or these are two independent runs wearing one call
+    trait_keys = {_ONE_TRAIT} | ({f"traits:{trait.name}"} if trait.name else set())
+    reads_trait, reads_genome = False, False
+    for rate in (genome.duplication, genome.loss, genome.origination, genome.transfer):
+        r = as_rate(rate, default_scope=PerLineage)
+        for m in r.modifiers:
+            if isinstance(m, Driven) and m.driver in trait_keys:
+                reads_trait = True
+    from ..traits.discrete import _switch_specs
+    for spec in _switch_specs(trait.switch):
+        if not isinstance(spec, (int, float)):
+            for m in as_rate(spec, default_scope=PerLineage).modifiers:
+                if isinstance(m, Driven) and str(m.driver).startswith("genomes:"):
+                    reads_genome = True
+    if not (reads_trait or reads_genome):
+        raise ValueError(
+            'neither level reads the other, so this is two independent runs rather than one joint '
+            'one. Give a genome rate a scaled_by("trait", ...), or the trait\'s switch a '
+            'scaled_by("genomes:<family>", ...) — or run the two levels separately.')
+
+    rng, seed = stream("joint", seed)
+    genomes_out, events, named, initial, node_values, changes = _grow_genomes_traits(
+        rng, tree, genome, trait, tuple(sorted(trait_keys)), seed)
+    changes.sort(key=lambda c: c.time)
+    return JointResult(
+        # the tree came in rather than out, so its own event log is not this run's to write
+        SpeciesResult(tree, [], seed, []), seed,
+        trait=TraitsResult(tree, node_values, changes, seed, kind="discrete"),
+        genome=FamilyGenomesResult(tree, genomes_out, events, seed, named, {}, initial,
+                                   genome.max_family_size))
+
+
+def simulate(*participants, tree=None, seed=None, max_lineages=100_000) -> JointResult:
+    """Simulate two levels **at once**, because neither can be finished before the other starts
+    (SPEC §2–4).
+
+    Each participant is a process spec, and you **give what you are not simulating**::
+
+        # the tree is one of the two, so it comes out of the run
+        joint.simulate(species.birth_death(birth=faster_if_large, death=0.2, n_extant=100),
+                       traits.discrete(name="size", states=["small", "large"], switch=0.1), seed=1)
+
+        joint.simulate(species.birth_death(birth=faster_with_toxin, n_extant=100),
+                       genomes.genome(origination=0.2, loss=0.1, families=[family("toxin")]), seed=1)
+
+    A rate reads the other participant by **name**, ``"<level>:<handle>"`` — ``"traits:size"`` for a
+    named trait, ``"genomes:toxin"`` for a declared family, ``"genomes:count"`` for a lineage's whole
+    gene count. A run holding one unnamed trait also answers to ``"trait"``.
+
+    The species tree is an output exactly when `~zombi2.species.birth_death` is one of the
+    participants; otherwise ``tree`` supplies it. A level driving **itself** does not come here at
+    all — that is one level and one result, so it stays on that level's own function with
+    ``joint=True``.
+
+    Returns a `JointResult`. Deterministic given ``seed``.
+    """
+    kinds = _classify(participants)
+    n_species, n_traits, n_genomes = (len(kinds[k]) for k in ("species", "traits", "genomes"))
+    if n_species == 0:
+        return _on_a_given_tree(kinds, tree=tree, seed=seed)
+    if tree is not None:
+        raise ValueError(
+            "the species tree is one of the things this run simulates, so it comes out rather than "
+            "going in: drop tree=, or drop species.birth_death(...) and hand the tree over.")
+    if n_species > 1:
+        raise ValueError("give one species.birth_death(...) — a run grows one tree.")
+    if n_traits + n_genomes != 1:
+        raise ValueError(
+            "give exactly one level for the tree to be simulated with: traits.discrete(...) or "
+            f"genomes.genome(...). Got {n_traits} trait(s) and {n_genomes} genome(s).")
+    spec = kinds["species"][0]
+    driver = kinds["traits"][0] if n_traits else kinds["genomes"][0]
+    return _simulate_joint(birth=spec.birth, death=spec.death,
+                          n_extant=spec.n_extant, total_time=spec.total_time,
+                          seed=seed, max_lineages=max_lineages,
+                          **({"trait": driver} if n_traits else {"genome": driver}))
+
+
+def simulate_joint(**_):
+    """Retired. A joint run is written as its **participants** now (SPEC §2–4)::
+
+        joint.simulate(species.birth_death(birth=…, death=…, n_extant=100),
+                       traits.discrete(name="size", states=[…], switch=0.1), seed=1)
+
+    The rates and the stop condition move onto `~zombi2.species.birth_death`, which makes the tree
+    one of the things being simulated rather than a keyword of the run; and the driver is a
+    participant beside it rather than a ``trait=`` / ``genome=`` slot. That is what lets one function
+    take every joint model instead of one per pair.
+    """
+    raise TypeError(
+        "simulate_joint is no longer written — a joint run is its participants: "
+        "joint.simulate(species.birth_death(birth=…, death=…, n_extant=100), "
+        "traits.discrete(name='size', states=[…], switch=0.1), seed=1). The rates and the stop "
+        "condition go on species.birth_death, and the driver is a participant beside it.")
+
+
+__all__ = ["simulate", "JointResult"]

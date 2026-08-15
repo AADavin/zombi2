@@ -9,7 +9,8 @@ from collections import Counter
 
 import pytest
 
-from zombi2 import traits
+from zombi2 import species, traits
+from zombi2.genomes import family
 from zombi2 import joint
 from zombi2.joint import JointResult
 from zombi2.params import Drift, LogNormal, PerLineage
@@ -18,12 +19,7 @@ from zombi2.traits import DiscreteTrait, TraitsResult
 
 
 def _bisse(birth_large=4.0, death=0.2, switch=0.15, n_extant=200, seed=1):
-    return joint.simulate_joint(
-        birth=PerLineage(1.0).scaled_by("trait", {"small": 1.0, "large": birth_large}),
-        death=death,
-        trait=traits.discrete(states=["small", "large"], switch=switch),
-        n_extant=n_extant, seed=seed,
-    )
+    return joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"small": 1.0, "large": birth_large}), death=death, n_extant=n_extant), traits.discrete(states=["small", "large"], switch=switch), seed=seed)
 
 
 def _fraction_large(res):
@@ -112,34 +108,19 @@ def test_asymmetry_beats_symmetry():
 
 
 def test_musse_three_states_runs():
-    res = joint.simulate_joint(
-        birth=PerLineage(1.0).scaled_by("trait", {"lo": 1.0, "mid": 2.0, "hi": 4.0}),
-        death=0.1,
-        trait=traits.discrete(states=["lo", "mid", "hi"], switch=0.2),
-        n_extant=150, seed=4,
-    )
+    res = joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"lo": 1.0, "mid": 2.0, "hi": 4.0}), death=0.1, n_extant=150), traits.discrete(states=["lo", "mid", "hi"], switch=0.2), seed=4)
     seen = set(res.trait.values.values())
     assert seen and seen <= {"lo", "mid", "hi"}
 
 
 def test_full_bisse_drives_birth_and_death():
     # both λ and μ state-dependent: "large" speciates faster AND goes extinct slower
-    res = joint.simulate_joint(
-        birth=PerLineage(1.0).scaled_by("trait", {"small": 1.0, "large": 3.0}),
-        death=PerLineage(0.3).scaled_by("trait", {"small": 2.0, "large": 0.5}),
-        trait=traits.discrete(states=["small", "large"], switch=0.2),
-        n_extant=150, seed=5,
-    )
+    res = joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"small": 1.0, "large": 3.0}), death=PerLineage(0.3).scaled_by("trait", {"small": 2.0, "large": 0.5}), n_extant=150), traits.discrete(states=["small", "large"], switch=0.2), seed=5)
     assert _fraction_large(res) > 0.6
 
 
 def test_total_time_mode():
-    res = joint.simulate_joint(
-        birth=PerLineage(1.0).scaled_by("trait", {"small": 1.0, "large": 2.0}),
-        death=0.1,
-        trait=traits.discrete(states=["small", "large"], switch=0.3),
-        total_time=4.0, seed=6,
-    )
+    res = joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"small": 1.0, "large": 2.0}), death=0.1, total_time=4.0), traits.discrete(states=["small", "large"], switch=0.3), seed=6)
     # every extant lineage reaches the present at total_time
     assert all(n.end_time == pytest.approx(4.0) for n in (res.complete_tree.nodes[_i] for _i in res.complete_tree.extant_leaves()))
 
@@ -148,33 +129,27 @@ def test_total_time_mode():
 
 def test_trait_must_be_a_process_spec():
     with pytest.raises(TypeError, match="traits.discrete"):        # a dict is not a DiscreteTrait spec
-        joint.simulate_joint(birth=PerLineage(1.0).scaled_by("trait", {"a": 1.0}),
-                       trait={"states": ["a", "b"]}, n_extant=10, seed=1)
+        joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"a": 1.0}), n_extant=10), {"states": ["a", "b"]}, seed=1)
 
 
 def test_non_trait_source_rejected():
     with pytest.raises(ValueError, match="trait"):
-        joint.simulate_joint(birth=PerLineage(1.0).scaled_by("habitat.tsv", {"a": 1.0}),
-                       trait=traits.discrete(states=["a", "b"], switch=0.1), n_extant=10, seed=1)
+        joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("habitat.tsv", {"a": 1.0}), n_extant=10), traits.discrete(states=["a", "b"], switch=0.1), seed=1)
 
 
 def test_must_actually_drive_something():
     with pytest.raises(ValueError, match="drive"):
-        joint.simulate_joint(birth=1.0, death=0.1,
-                       trait=traits.discrete(states=["a", "b"], switch=0.1), n_extant=10, seed=1)
+        joint.simulate(species.birth_death(birth=1.0, death=0.1, n_extant=10), traits.discrete(states=["a", "b"], switch=0.1), seed=1)
 
 
 def test_one_of_n_extant_or_total_time():
     with pytest.raises(ValueError, match="exactly one"):
-        joint.simulate_joint(birth=PerLineage(1.0).scaled_by("trait", {"a": 2.0}),
-                       trait=traits.discrete(states=["a", "b"], switch=0.1),
-                       n_extant=10, total_time=3.0, seed=1)
+        joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"a": 2.0}), n_extant=10, total_time=3.0), traits.discrete(states=["a", "b"], switch=0.1), seed=1)
 
 
 def test_an_inherited_rate_is_rejected():
     with pytest.raises(ValueError, match="inherited among lineages"):
-        joint.simulate_joint(birth=PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2))).scaled_by("trait", {"a": 2.0}),
-                       trait=traits.discrete(states=["a", "b"], switch=0.1), n_extant=10, seed=1)
+        joint.simulate(species.birth_death(birth=PerLineage(1.0).varying_among('lineages', Drift(LogNormal(0.0, 0.2))).scaled_by("trait", {"a": 2.0}), n_extant=10), traits.discrete(states=["a", "b"], switch=0.1), seed=1)
 
 
 def test_mapping_matching_no_trait_state_is_refused():
@@ -182,9 +157,7 @@ def test_mapping_matching_no_trait_state_is_refused():
     # factor — a silently undriven run — so it is refused rather than run as if it were driven. The
     # trait's alphabet is known up front, so the exhaustive check names the offending key precisely.
     with pytest.raises(ValueError, match="not among the driver's states"):
-        joint.simulate_joint(birth=PerLineage(1.0).scaled_by("trait", {"tiny": 2.0}),   # trait is small/large
-                       death=0.2, trait=traits.discrete(states=["small", "large"], switch=0.15),
-                       n_extant=10, seed=1)
+        joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"tiny": 2.0}), death=0.2, n_extant=10), traits.discrete(states=["small", "large"], switch=0.15), seed=1)
 
 
 def test_mapping_naming_a_non_trait_state_is_refused():
@@ -192,9 +165,7 @@ def test_mapping_naming_a_non_trait_state_is_refused():
     # keys match, a key outside the alphabet ('tiny' ∉ small/large) is a state that can never occur — a
     # typo whose factor would silently never apply — so the whole mapping is refused, not run as driven
     with pytest.raises(ValueError, match="not among the driver's states"):
-        joint.simulate_joint(birth=PerLineage(1.0).scaled_by("trait", {"small": 2.0, "tiny": 3.0}),
-                       death=0.2, trait=traits.discrete(states=["small", "large"], switch=0.15),
-                       n_extant=10, seed=1)
+        joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"small": 2.0, "tiny": 3.0}), death=0.2, n_extant=10), traits.discrete(states=["small", "large"], switch=0.15), seed=1)
 
 
 def test_a_gene_content_mapping_that_can_never_fire_is_refused_too():
@@ -212,11 +183,8 @@ def test_a_gene_content_mapping_that_can_never_fire_is_refused_too():
     from zombi2 import genomes as g
 
     def run(mapping, **kw):
-        return joint.simulate_joint(
-            birth=PerLineage(1.0).scaled_by(kw.pop("source"), mapping),
-            genome=g.family(duplication=0.1, loss=0.1, origination=0.2, initial_families=3,
-                            family_names=["toxin"]),
-            n_extant=15, seed=1)
+        return joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by(kw.pop("source"), mapping), n_extant=15), g.genome(duplication=0.1, loss=0.1, origination=0.2, initial_families=3,
+                            families=[family('toxin')]), seed=1)
 
     with pytest.raises(ValueError, match="not among the driver's states"):
         run({"presnt": 3.0, "absent": 1.0}, source="genomes:toxin")      # typo: presnt
@@ -236,11 +204,7 @@ def test_joint_trait_can_jump_at_speciation_while_driving_it():
     import collections
     from zombi2 import joint, traits
 
-    res = joint.simulate_joint(
-        birth=PerLineage(1.0).scaled_by("trait", {"small": 1.0, "large": 2.5}),
-        death=0.2,
-        trait=traits.discrete(states=["small", "large"], switch=0.3, at_speciation=0.4),
-        n_extant=30, seed=1)
+    res = joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"small": 1.0, "large": 2.5}), death=0.2, n_extant=30), traits.discrete(states=["small", "large"], switch=0.3, at_speciation=0.4), seed=1)
 
     kinds = collections.Counter(e.kind for e in res.trait.events)
     assert kinds["on_speciation"] > 0, "no jump at a split — at_speciation was ignored"
@@ -253,11 +217,7 @@ def test_joint_speciation_jump_is_off_by_default():
     import collections
     from zombi2 import joint, traits
 
-    res = joint.simulate_joint(
-        birth=PerLineage(1.0).scaled_by("trait", {"small": 1.0, "large": 2.5}),
-        death=0.2,
-        trait=traits.discrete(states=["small", "large"], switch=0.3),
-        n_extant=30, seed=1)
+    res = joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"small": 1.0, "large": 2.5}), death=0.2, n_extant=30), traits.discrete(states=["small", "large"], switch=0.3), seed=1)
     assert collections.Counter(e.kind for e in res.trait.events)["on_speciation"] == 0
 
 
@@ -273,10 +233,7 @@ def test_joint_refuses_per_lineage_rate_variation():
     from zombi2 import joint, traits
 
     with pytest.raises(ValueError, match="drawn among lineages"):
-        joint.simulate_joint(
-            birth=PerLineage(1.0).varying_among('lineages', LogNormal(0.0, 0.5)).scaled_by("trait", {"small": 1.0, "large": 2.0}),
-            death=0.1, n_extant=8, seed=1,
-            trait=traits.DiscreteTrait(states=("small", "large"), switch=0.3))
+        joint.simulate(species.birth_death(birth=PerLineage(1.0).varying_among('lineages', LogNormal(0.0, 0.5)).scaled_by("trait", {"small": 1.0, "large": 2.0}), death=0.1, n_extant=8), traits.DiscreteTrait(states=("small", "large"), switch=0.3), seed=1)
 
 
 def test_joint_refuses_a_modifier_it_does_not_thread():
@@ -294,16 +251,13 @@ def test_joint_refuses_a_modifier_it_does_not_thread():
     trait = traits.DiscreteTrait(states=("small", "large"), switch=0.3)
     mapping = {"small": 1.0, "large": 2.0}
     with pytest.raises(ValueError, match="no gene families"):
-        joint.simulate_joint(
-            birth=PerLineage(1.0).varying_among('families', LogNormal(0.0, 0.5))
-            .scaled_by("trait", mapping),
-            death=0.1, n_extant=8, seed=1, trait=trait)
+        joint.simulate(species.birth_death(birth=PerLineage(1.0).varying_among('families', LogNormal(0.0, 0.5))
+            .scaled_by("trait", mapping), death=0.1, n_extant=8), trait, seed=1)
     # the two covariates are genuinely wired, so they must still run
     for wired in (lambda r: r.changing_at({0: 1.0, 0.2: 0.4}),
                   lambda r: r.scaled_by(TotalDiversity(cap=40))):
         birth = wired(PerLineage(1.0)).scaled_by("trait", mapping)
-        assert joint.simulate_joint(birth=birth, death=0.1, n_extant=8,
-                                    seed=1, trait=trait).species.n_extant == 8
+        assert joint.simulate(species.birth_death(birth=birth, death=0.1, n_extant=8), trait, seed=1).species.n_extant == 8
 
 
 def test_joint_raises_rather_than_growing_without_end():
@@ -316,12 +270,13 @@ def test_joint_raises_rather_than_growing_without_end():
     from zombi2 import genomes
     from zombi2.params import Curve
 
-    for driver, spec in ((dict(trait=traits.DiscreteTrait(states=("a", "b"), switch=0.3)),
+    for driver, spec in ((traits.DiscreteTrait(states=("a", "b"), switch=0.3),
                           PerLineage(4.0).scaled_by("trait", {"a": 1.0, "b": 3.0})),
-                         (dict(genome=genomes.family(origination=0.2, loss=0.15)),
+                         (genomes.genome(origination=0.2, loss=0.15),
                           PerLineage(0.6).scaled_by("genomes:count", Curve(lambda n: 1 + n / 20)))):
         with pytest.raises(RuntimeError, match="still growing"):
-            joint.simulate_joint(birth=spec, total_time=5.0, seed=1, max_lineages=1200, **driver)
+            joint.simulate(species.birth_death(birth=spec, total_time=5.0), driver,
+                           seed=1, max_lineages=1200)
 
 
 def test_joint_max_lineages_leaves_an_ordinary_run_alone():
@@ -329,7 +284,6 @@ def test_joint_max_lineages_leaves_an_ordinary_run_alone():
     `n_extant` above the ceiling raises it rather than fighting it (the species engine's rule)."""
     trait = traits.DiscreteTrait(states=("a", "b"), switch=0.3)
     birth = PerLineage(1.0).scaled_by("trait", {"a": 1.0, "b": 2.0})
-    plain = joint.simulate_joint(birth=birth, death=0.1, n_extant=20, seed=3, trait=trait)
-    guarded = joint.simulate_joint(birth=birth, death=0.1, n_extant=20, seed=3, trait=trait,
-                                   max_lineages=5)      # below n_extant, so it must not bite
+    plain = joint.simulate(species.birth_death(birth=birth, death=0.1, n_extant=20), trait, seed=3)
+    guarded = joint.simulate(species.birth_death(birth=birth, death=0.1, n_extant=20), trait, seed=3, max_lineages=5)      # below n_extant, so it must not bite
     assert plain.species.complete_tree.to_newick() == guarded.species.complete_tree.to_newick()

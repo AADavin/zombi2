@@ -44,7 +44,7 @@ A driver is the input to the function that controls the target. The easiest one 
 |---|---|---|
 | a discrete trait | one of its states | the trait's result, or the path to the event log it wrote |
 | a continuous trait | a number | the same, read every `step` of time — a hundredth of the tree's height by default |
-| a gene family | `present` or `absent` | `g.presence("IS1")`, for families named with `family_names=` |
+| a gene family | `present` or `absent` | `g.presence("IS1")`, for families declared with `families=[family("IS1")]` |
 | a module | a fraction, 0 to 1 | `g.completion("flagellum")`, for a group of families declared with `modules=` |
 | a sequence's composition | a number, 0 to 1 | `seqs.gc()`, or `seqs.composition("KR")` for any letters of the alphabet |
 

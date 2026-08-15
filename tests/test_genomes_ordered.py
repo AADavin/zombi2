@@ -20,6 +20,7 @@ from zombi2.params.distributions import Fixed, Geometric
 from zombi2.species import simulate_species_tree
 from zombi2.tree import Node, Tree
 from zombi2.genomes import (
+    family,
     Between,
     Chromosome,
     Clades,
@@ -1299,7 +1300,7 @@ def test_origins_places_a_family_where_it_was_asked_for():
     node = sp.nodes[3]
     when = (node.birth_time + node.end_time) / 2
     r = simulate_genomes_ordered(sp, initial_families=0, origination=0.0, duplication=0.4,
-                                 transfer=0.2, loss=0.3, origins=[("n3", when)], seed=7)
+                                 transfer=0.2, loss=0.3, families=[family('placed0', origin=("n3", when))], seed=7)
     born = [e for e in r.edges if e.kind == "origination"]
     assert [(e.time, e.lineage, e.family) for e in born] == [(when, 3, 0)]
     # the founding gene got a chromosome and a position like any other origination
@@ -1314,7 +1315,7 @@ def test_a_family_placed_at_the_origin_is_an_initial_family():
     seeded = simulate_genomes_ordered(sp, initial_families=1, duplication=0.3, loss=0.3,
                                       inversion=0.2, seed=4)
     placed = simulate_genomes_ordered(sp, initial_families=0, duplication=0.3, loss=0.3,
-                                      inversion=0.2, origins=[(sp.root, None)], seed=4)
+                                      inversion=0.2, families=[family('placed0', origin=(sp.root, None))], seed=4)
     assert len(seeded.edges) > 20 and seeded.edges == placed.edges
 
 
@@ -1322,8 +1323,9 @@ def test_the_same_origins_name_the_same_families_at_both_resolutions():
     sp = _placed_tree()
     node = sp.nodes[3]
     when = (node.birth_time + node.end_time) / 2
-    kw = dict(initial_families=2, family_names=["tox"], origination=0.0, duplication=0.2, loss=0.2,
-              origins=[("n7", None), ("n3", when)], seed=6)
+    kw = dict(initial_families=2, origination=0.0, duplication=0.2, loss=0.2, seed=6,
+              families=[family("tox"), family("early", origin=("n7", None)),
+                        family("late", origin=("n3", when))])
     fam = simulate_genomes_family(sp, **kw)
     ordered = simulate_genomes_ordered(sp, **kw)
     for run in (fam, ordered):

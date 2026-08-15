@@ -1,10 +1,11 @@
-"""``zombi2 joint`` — grow a species tree and the level that drives it, together.
+"""``zombi2 joint`` — simulate a species tree and the level that drives it, in one run.
 
 **Conditioning** runs one level and then reads it: a trait run writes ``trait_events.tsv``, and a
 later genome run makes its loss rate read that file. It works because the driver can be finished
 first. **Joining** is for when it cannot — when the trait drives which lineages speciate, the tree
-and the trait each depend on the other at every instant, and neither exists before the other. The two
-are grown in one pass (``SPEC §2–4``), which is what this command does.
+and the trait each depend on the other at every instant, and neither exists before the other. One run
+then simulates both (``SPEC §2–4``), which is what this command does. Here the species tree is one of
+the two levels being simulated, so it comes out of the run rather than going into it.
 
 The driver is named in the rate rather than passed as a file, and that is the whole difference:
 ``--birth "PerLineage(1.0).scaled_by('trait', {'small': 1.0, 'large': 3.0})"`` reads a **live
@@ -26,8 +27,8 @@ from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_params_arg, 
                                   _rate, _rates_help, _write_params_log, default_outputs, signpost,
                                   level_dir, print_wrote)
 from zombi2.cli.traits import _DISCRETE_DEFAULT as TRAITS_DEFAULT
-from zombi2.genomes import family
-from zombi2.joint import simulate_joint
+from zombi2.genomes import family, genome
+from zombi2.joint import simulate
 from zombi2._runtime.report import write_run_report
 from zombi2._runtime.summary import write_summary
 from zombi2.joint import IMPLEMENTED_MODIFIERS
@@ -102,7 +103,7 @@ def _add_joint_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--origination", type=_rate, default=0.0, metavar="RATE",
                    help="new-family origination rate, per lineage")
     # `None`, not 0: this doubles as the "was it given?" sentinel above, and 0 is a value a user
-    # may mean. Left out, `genomes.family()`'s own default applies, as it does for `zombi2 genomes`.
+    # may mean. Left out, `genomes.genome()`'s own default applies, as it does for `zombi2 genomes`.
     g.add_argument("--initial-families", type=int, default=None, metavar="N", dest="initial_families",
                    help="gene families the root genome starts with (default 100, as zombi2 genomes)")
     g.add_argument("--family-names", metavar="A,B,...", default=None, dest="family_names",
@@ -144,22 +145,26 @@ def run(args, parser):
         if len(states) < 2:
             parser.error(f"--states needs at least two, got {args.states!r}")
         jump = {} if args.at_speciation is None else {"at_speciation": args.at_speciation}
-        driver = dict(trait=discrete(states=states, switch=args.switch, start=args.start, **jump))
+        driver = discrete(states=states, switch=args.switch, start=args.start, **jump)
     else:
         names = ([s.strip() for s in args.family_names.split(",") if s.strip()]
-                 if args.family_names else None)
+                 if args.family_names else [])
         counts = ({} if args.initial_families is None
                   else {"initial_families": args.initial_families})
-        spec = family(duplication=args.duplication, loss=args.loss,
-                      origination=args.origination, family_names=names, **counts)
+        spec = genome(duplication=args.duplication, loss=args.loss,
+                      origination=args.origination,
+                      families=[family(n) for n in names], **counts)
         # the log is written from `args`, and the sentinel is not a number anyone ran with: put back
         # what the spec resolved to, so the record says what the run did
         args.initial_families = spec.initial_families
-        driver = dict(genome=spec)
+        driver = spec
 
     t0 = time.perf_counter()
-    result = simulate_joint(birth=args.birth, death=args.death, n_extant=args.n_extant,
-                            total_time=args.total_time, seed=args.seed, **driver)
+    from zombi2.species import birth_death
+
+    result = simulate(birth_death(birth=args.birth, death=args.death, n_extant=args.n_extant,
+                                  total_time=args.total_time),
+                      driver, seed=args.seed)
 
     os.makedirs(args.run, exist_ok=True)
     # Both levels belong to one run, so each is written where — and how — its own command would
