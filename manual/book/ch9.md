@@ -31,8 +31,8 @@ Not everything can act as a driver and not everything can be a target. A sequenc
 | **7** | a gene family | a trait | carry the toxin family and turn pathogenic | [Co13](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gene_drives_trait--> |
 | **8** | an ordered or nucleotide genome | a sequence | as **6**, with coordinates in the genome run | [Co14](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:operon_substitution--> |
 | **9** | an ordered or nucleotide genome | a trait | as **7**, with coordinates in the genome run | [Co15–Co16](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:module_drives_metabolism--><!--gallery:operon_trait--> |
-| **10** | a sequence | a sequence | compensatory evolution: one gene's sequence sets another's rate | [Co17](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_sequence--> |
-| **11** | a sequence | a trait | GC content sets how fast a trait changes | [Co18](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_trait--> |
+| **10** | a sequence | a sequence | compensatory evolution: one gene's sequence sets another's rate | [Co17–Co18](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_sequence--><!--gallery:named_family_drives_sequence--> |
+| **11** | a sequence | a trait | GC content sets how fast a trait changes | [Co19](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_trait--> |
 
 ## The driver
 
@@ -47,10 +47,40 @@ A driver is the input to the function that controls the target. The easiest one 
 | a gene family | `present` or `absent` | `g.presence("IS1")`, for families declared with `families=[family("IS1")]` |
 | a module | a fraction, 0 to 1 | `g.completion("flagellum")`, for a group of families declared with `modules=` |
 | a sequence's composition | a number, 0 to 1 | `seqs.gc()`, or `seqs.composition("KR")` for any letters of the alphabet |
+| **one family's** composition | a number, 0 to 1 | the same, on a run restricted to it with `families=["chaperone"]`, plus an `absent=` |
 
 Every row is a level **grown first** and then read. Where a lineage sits in the tree and when it is alive are not: `Clade` and `changing_at` (Appendix A) read facts the run already has, so they need no driver and work at every level whether or not anything is being conditioned.
 
 A driver is read wherever it changes, not once per branch: a lineage that switches habitat halfway down one loses genes at one rate before the switch and another after it ([Co4](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:continuous_conditioning-->). That works because a discrete driver changes at moments the run can step to exactly. A continuous one never stops changing, so there are no such moments: it is sampled every `step` instead, a hundredth of the tree's height unless you set it, and the rate holds between samples. 
+
+### One family's composition
+
+A composition is pooled over whatever the sequence run evolved, so on a whole genome it is the lineage's whole complement and belongs to no family in particular. To read **one** family's, restrict the run to it:
+
+```python
+from zombi2.genomes import family, simulate_genomes_family
+from zombi2.params import Curve, PerSite
+from zombi2.sequences import lg, simulate_sequences
+from zombi2.species import simulate_species_tree
+
+ct = simulate_species_tree(birth=1.0, n_extant=25, seed=1).complete_tree
+g = simulate_genomes_family(ct, initial_families=8, duplication=0.05, loss=0.25,
+                            origination=0.1, seed=2,
+                            families=[family("chaperone"), family("client")])
+
+chaperone = simulate_sequences(g, families=["chaperone"], model=lg(), length=300, seed=3)
+basic = chaperone.composition("KR", absent=0.08)
+
+client = simulate_sequences(
+    g, families=["client"], model=lg(), length=300, seed=4,
+    substitution=PerSite(1.0).scaled_by(basic, Curve(lambda x: 20.0 ** (x - 0.1))))
+```
+
+`families=` names families the genome run declared, and both runs then read the **same** genome run, so the driver's gene tree is the one the target's run also saw. Two separate genome runs would have put the driver on gene trees the target never met.
+
+What that costs is the branches where the family is absent. There is no sequence there and so nothing to count, and a driver has to answer for every branch the target walks. `absent=` is that answer, and it is required rather than guessed: without it the run raises, because carrying the parent's value forward would drive those branches as though the family were still there, which is a different model ([Co18](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:named_family_drives_sequence-->).
+
+This one is Python only. A composition is an object in memory, and reaching the command line would mean writing a per-node composition table and teaching the driver loader to read it.
 
 ## The target
 
