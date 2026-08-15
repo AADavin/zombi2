@@ -39,7 +39,7 @@ How often an event occurs is controlled by its **effective rate**:
 
 $$\text{effective rate} = \text{scope}(\text{base}) \times \text{modifiers}$$
 
-The **base** is the speed of a single event, in units of inverse time. The **scope** says how we measure the event: per lineage, per copy, per site. The **modifiers** are the dimensionless multipliers a rate picks up from its context. Appendix A is the full reference: the units, each level's default scope, every modifier and which levels accept it, and the Gillespie algorithm that turns rates into events.
+The **base** is the speed of a single event, in units of inverse time. The **scope** says how we measure the event: per lineage, per copy, per site. The **modifiers** are the dimensionless multipliers a rate picks up from its context. Appendix A is the full reference: the units, each level's default scope, every modifier and which levels accept it, and what the engine does with a rate once it has one.
 
 ## Conditioning
 
