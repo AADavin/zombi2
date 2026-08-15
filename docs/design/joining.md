@@ -1,10 +1,9 @@
 # Joining — a design note
 
-**Status: designed, not built.** This note records what joining is and which pairs can be joined. It
-also says where each joint model lives in the API, and the order the work will be done in. It is
-subordinate to
-[`SPEC.md`](SPEC.md): where the two disagree, SPEC wins. Two places where SPEC is now out of date are
-marked below, and they change when this is built.
+**Status: steps 1 to 6 of §14 are built; the rest is designed.** This note records what joining is
+and which pairs can be joined. It also says where each joint model lives in the API, and the order
+the work is done in. It is subordinate to
+[`SPEC.md`](SPEC.md): where the two disagree, SPEC wins.
 
 ---
 
@@ -35,13 +34,12 @@ This wording replaces the older one in several places. See §13.
 | Species – Sequences | no | — |
 | a level with itself | yes | no |
 
-**SPEC §3 is out of date on Traits – Sequences.** It says the pair cannot be joined, and Chapter 10
-gives the reason as "a sequence never feeds back into a trait". A sequence does feed back into a
-trait: `composition()` drives a trait's switch rate, and that is Co18 in the gallery. Both directions
-already run as conditioning, so a cycle between them is possible. SPEC's own generating rule allows
-it, because the two sit on separate branches. The table is what is wrong, not the rule.
-
-Figure 10.2 gains an arrow for that pair.
+**Traits – Sequences was the one correction to SPEC §3.** SPEC used to say the pair cannot be
+joined, and Chapter 10 gave the reason as "a sequence never feeds back into a trait". A sequence does
+feed back into a trait: `composition()` drives a trait's switch rate, and that is Co18 in the
+gallery. Both directions already run as conditioning, so a cycle between them is possible. SPEC's own
+generating rule allows it, because the two sit on separate branches. The table was what was wrong,
+not the rule, and step 1 fixed it. Figure 10.2 gained an arrow for that pair.
 
 ---
 
@@ -377,7 +375,7 @@ New cards go in `gallery/joining.py` and `gallery/crosslevel.py`.
 
 ## 14. Order of work
 
-Part by part, not all at once. Steps 1 to 4 are **built**.
+Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), and step 6 after them.
 
 1. ~~**The wording.**~~ Done. SPEC, the manual, the two docstrings, Figure 10.2's new arrow.
 2. ~~**Per-family rates.**~~ Done. §5, with the `genomes.genome` rename. No figure: per-family rates
@@ -388,9 +386,13 @@ Part by part, not all at once. Steps 1 to 4 are **built**.
 4. ~~**The API shape.**~~ Done. `joint.simulate`, `species.birth_death`, the `"<level>:<handle>"`
    drivers, and the retired spellings — `simulate_joint`, `family_names=`, `origins=`, `modules=`,
    each answering with its replacement. The two built cells moved over.
-5. **Genomes with Traits.** §7. The first cross-level join, and the first thing `joint.simulate`
-   raises `NotImplementedError` for.
-6. **`simulate_traits` and the trait loop.** §6.
+5. ~~**Genomes with Traits.**~~ Done. §7, on a tree the run is handed. Transfer works there, and is
+   still refused where the tree is being simulated. Figure: a habitat and a genome each other's
+   driver. The **command line stops here**. These two models are Python only. One needs a rate written
+   for a single named family. The other needs two levels' flags plus a tree.
+6. ~~**`simulate_traits` and the trait loop.**~~ Done. §6, `joint=True` on `traits.simulate_traits`,
+   with a `name=` on each trait. The pair is one Markov chain over the pairs of their states, so the
+   run is exact. Figure: body size and the cave, each reading the other.
 7. **Slicing, and a continuous trait driving speciation.** §8.
 8. **Composition for one family, and `families=`.** §9.
 9. **The sequence loop.** §6, on the slicing from step 7.

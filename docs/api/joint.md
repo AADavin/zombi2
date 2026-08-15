@@ -6,6 +6,11 @@ can be finished first — a trait that drives speciation, or gene content that d
 driver handed to the second as an object (in Python) or as its written log (across two commands).
 See [conditioning](../guide/conditioning.md) and [joining](../guide/joining.md).
 
-::: zombi2.joint.simulate_joint
+A level joined to **itself** stays on that level's own function, with `joint=True`:
+[`simulate_genomes_family`][zombi2.genomes.simulate_genomes_family] for a gene family driving the
+rest of its genome, and [`simulate_traits`][zombi2.traits.simulate_traits] for two traits reading
+each other.
+
+::: zombi2.joint.simulate
 
 ::: zombi2.joint.JointResult
