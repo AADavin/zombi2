@@ -9,6 +9,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+
+- The gallery page shows the version of the release it is published with. Both web pages carry the
+  version and both are committed artifacts, so neither followed a bump on its own: the gallery kept
+  whatever `gallery/build.py` last stamped, which is whenever a figure last changed. `release.sh`
+  rewrites both now. (#373)
+
+
 ## [0.39.4] - 2026-08-15
 
 ### Added
