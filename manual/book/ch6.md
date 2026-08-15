@@ -91,20 +91,11 @@ A transfer here is always **additive**, since the donor keeps its copy, so steer
 
 An event either **engulfs a gene whole** or leaves it alone; a breakpoint never falls strictly inside one. So an event does not pick an arc and then clean up afterwards. Both of its ends are drawn **directly from the positions where a breakpoint is legal**. A genome can therefore be **all gene, with no spacer at all**: ten 100 bp genes in 1000 bp is a legal genome, and it evolves. Its breakpoints simply all fall at the joins between genes, so genes are inverted, moved, duplicated and lost whole. Genes may sit flush; they are not required to leave a gap.
 
-Two leaves of the run at the top of the chapter show what those events did. Each line is a **block**: a stretch of DNA with one unbroken ancestry, written as the interval it came from on the initial sequence, read forward (`+`) or reverse-complemented (`−`). A gene is always one block, because nothing may cut it. Spacer is not, so a run of several intergene lines in a row is simply spacer that has been cut apart and rearranged: the accumulated breakpoints of everything that happened to that lineage.
+Two leaves of the run at the top of the chapter show what those events did. `describe` writes one out: each line is a **block**, a stretch of DNA with one unbroken ancestry, written as the interval it came from on the initial sequence, read forward (`+`) or reverse-complemented (`−`). A gene is always one block, because nothing may cut it. Spacer is not, so a run of several intergene lines in a row is simply spacer that has been cut apart and rearranged: the accumulated breakpoints of everything that happened to that lineage.
 
 ```python
-def show(node):
-    for chromosome, blocks in g.mosaic(node).items():
-        print(f"n{node}, chromosome {chromosome}")
-        for source, start, end, strand in blocks:
-            gene = next((f"gene {f}" for f, span in g.gene_spans.items()
-                         if span == (source, start, end)), "intergene")
-            print(f"  [{start:4d},{end:4d}) {'+' if strand == 1 else '−'} "
-                  f"{end - start:4d} bp  {gene}")
-
-show(2)
-show(5)
+print(g.describe(2))
+print(g.describe(5))
 ```
 
 ```

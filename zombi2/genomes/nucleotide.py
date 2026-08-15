@@ -984,6 +984,39 @@ class NucleotideGenomesResult:
     def trace_back(self, node_id: int) -> dict[int, list[tuple[int, int, int]]]:
         return self.node_genomes[node_id].trace_back()
 
+    def describe(self, node_id: int) -> str:
+        """One node's genome written out block by block, for reading by eye.
+
+        `mosaic` is the same information as data — ``(source, start, end, strand)`` per block — and
+        this is it as text, one line per block, each labelled with the gene it is or ``intergene``:
+
+            n2, chromosome 2
+              [   0, 600) +  600 bp  intergene
+              [ 600,1000) +  400 bp  gene 1
+
+        A block is a stretch of DNA with one unbroken ancestry, written as the interval it came from
+        on the **initial** sequence and the strand it is read on, so a gene keeps its coordinates
+        wherever it turns up and whichever way it points. A gene is always one block, because
+        nothing may cut one; a run of intergene lines is spacer that events have cut apart.
+
+        Genes declared with a name (from a GFF) are named; the rest are numbered by family.
+        """
+        by_span = {span: fam for fam, span in self.gene_spans.items()}
+        named = {fam: name for name, fam in self.gene_names.items()}
+        # `node_label` and not an f-string: a lineage that died is `e5`, and the one place that
+        # spelling is decided is the tree's own helper
+        node = self.complete_tree.nodes.get(node_id)
+        name = node_label(node_id, node.fate if node is not None else None)
+        out = []
+        for chromosome, blocks in self.mosaic(node_id).items():
+            out.append(f"{name}, chromosome {chromosome}")
+            for source, start, end, strand in blocks:
+                fam = by_span.get((source, start, end))
+                what = "intergene" if fam is None else named.get(fam, f"gene {fam}")
+                out.append(f"  [{start:4d},{end:4d}) {'+' if strand == 1 else '−'} "
+                           f"{end - start:4d} bp  {what}")
+        return "\n".join(out)
+
     def ancestry(self, node_id: int) -> list[tuple[int, int]]:
         return self.node_genomes[node_id].ancestry()
 
