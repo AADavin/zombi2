@@ -11,6 +11,19 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Changed
 
+- The two species rate cards grow 80 lineages instead of 25, so the trees are bushy enough to read
+  the pattern off. The inherited one's drift is narrower to match: over 80 tips the old spread
+  compounded to a birth rate of 135 in one clade, which swallowed the tree and the colour scale
+  with it. (#372)
+- The change-at-the-splits card is the tree alone. With nothing happening along a branch, the
+  colour breaks at the forks and nowhere else, which is the whole model — the panel that ran the
+  sister-pair test was proving what the tree was already showing. (#372)
+- A gallery colour key makes room for the name at its low end, which ran off the left edge of the
+  figure when it was longer than a word ("none of it"). (#372)
+
+
+### Changed
+
 - Chapter 2's tour of joining leads with what it does — two levels grown at the same time — rather
   than with the condition under which you would need it, as the README now does. (#369)
 - Fossils are a section of their own in chapter 3, not a paragraph at the end of sampling. (#369)

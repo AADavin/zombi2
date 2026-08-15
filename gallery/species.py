@@ -89,14 +89,14 @@ def diversity_dependent(out):
 #: The two rate-varying models chapter 3 draws and the gallery had not: a rate a lineage inherits and
 #: drifts from, and a rate each lineage draws for itself. Same parameters and seed as the book's
 #: figure, so the picture here is the panel there rather than a second run of the same idea.
-_VARY = dict(death=0.1, n_extant=25, seed=3)
+_VARY = dict(death=0.1, n_extant=80, seed=3)
 
 #: The two ways a birth rate can vary among lineages, as chapter 3 draws them: inherited at each
 #: split and nudged from the parent's, or drawn afresh with no memory of it. Same base as the book's
 #: figure — the drifting one starts lower because drift accumulates down a path and the independent
 #: one does not.
 _VARYING = {
-    "inherited": PerLineage(0.45).varying_among("lineages", Drift(LogNormal(0.0, 0.5))),
+    "inherited": PerLineage(0.45).varying_among("lineages", Drift(LogNormal(0.0, 0.3))),
     "independent": PerLineage(0.85).varying_among("lineages", LogNormal(0.0, 0.5)),
 }
 
