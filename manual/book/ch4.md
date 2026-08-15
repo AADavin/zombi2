@@ -26,60 +26,13 @@ The initial genome, at the beginning of the stem, starts with `initial_families`
 
 ## What the rate depends on
 
- By default, duplication, transfer, and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is usually what you want — more genes, more chances. Origination is counted **per lineage** (i.e. per branch of the species tree): acquiring a wholly new family is a property of the lineage, not of any gene it already has, and it takes no other scope.
+By default, duplication, transfer and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is usually what you want — more genes, more chances. Origination is counted **per lineage** (per branch of the species tree): acquiring a wholly new family is a property of the lineage, not of any gene it already has, and it takes no other scope.
 
-Duplication, transfer and loss do take another, and it is worth knowing because it is a different model rather than a different spelling:
+The three per-copy rates also take `PerLineage`, and that is a different model rather than a different spelling. `PerCopy(0.25)` puts every copy independently at risk, so a big genome loses often; `PerLineage(0.25)` is a deletion budget, and the lineage loses at that rate whatever it holds — deletion-biased genomes lose at their own pace, and shrinking does not slow them down. The same `0.25` means something a hundred times different in a genome of a hundred genes, so it is a choice to make rather than a default to leave alone.
 
-```python
-from zombi2 import species, genomes
-from zombi2.params import PerCopy, PerLineage
+A rate can also depend on **time**, on **where in the tree** a lineage sits, or on a level grown before it. Chaining `changing_at` onto a rate makes it change at set moments — the skyline genome, fast early and slow later; `Clade` scopes a factor to a named group, and the two compose ([Ge5](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_clade_transition-->); and `scaled_by` reads a driver, which is Chapter 9. Appendix A is the full grammar, and every rate at this level takes all of it.[^origins]
 
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-g = genomes.simulate_genomes_family(
-    tree, duplication=0.2, loss=0.25, origination=0.5, initial_families=20, seed=1)
-```
-
-```python
-from zombi2.params import PerCopy, PerLineage
-
-loss = PerCopy(0.25)      # every copy independently at risk — a big genome loses often
-loss = PerLineage(0.25)   # a deletion budget — the lineage loses at 0.25 whatever it holds
-```
-
-The second is how you write a lineage whose losses are set by its own biology rather than by how many genes it happens to carry: deletion-biased genomes lose at their own pace, and shrinking does not slow them down. The same `0.25` means something a hundred times different in a genome of a hundred genes, so this is a choice to make deliberately rather than a default to leave alone.
-
-Rates can also depend on **time**. Chaining `changing_at` onto a rate makes it change at set moments. That is the skyline, or episodic, genome: fast early and slow later, or any schedule you give.
-
-```python
-# lots of new families early, then origination shuts off after time 2
-g = genomes.simulate_genomes_family(
-    tree, origination=PerLineage(1.0).changing_at({0: 1.0, 2: 0.0}), seed=1)
-```
-
-Rates can also depend on **where in the tree** a lineage sits.
-
-```python
-from zombi2.params import Clade
-
-# the clade below the MRCA of n27 and n51 loses genes three times as fast
-g = genomes.simulate_genomes_family(
-    tree, loss=PerCopy(0.25).scaled_by(Clade({"fast": ["n27", "n51"]}), {"fast": 3.0}),
-    duplication=0.2, origination=0.5, seed=1)
-```
-
-### A family placed where you want it
-
-Origination leaves it to the rate where a family arises. `origins` says *here* instead — a family originates on the lineage you name, at the time you give:
-
-```python
-placed = genomes.simulate_genomes_family(
-    tree, duplication=0.2, loss=0.25, origination=0.0, initial_families=0,
-    origins=[("n1", 0.4)], seed=1)          # one family, born on n1 at time 0.4
-```
-
-That is the question a run asks when a family is the subject rather than a sample: one gene family born on the branch leading to a clade, and what duplication, transfer and loss then do to it. It **adds to** the run rather than replacing part of it, so it sits beside `initial_families` and `origination` — with both of those at zero, as above, the tree carries exactly the families you placed, and with them set you get an ordinary genome with one family planted where you want it.
-
-A lineage is written as the tree writes it (`n1`, or `e5` for one that went extinct, or the bare node id) and the time is the run's own clock, with the origin at 0. The families are numbered in the order you wrote them. The ordered resolution takes the same argument, and the same origins name the same families there. There is no command-line flag: a list of branch-and-time pairs is a script, not an argument.
+[^origins]: `origins=[("n1", 0.4)]` places a family instead of leaving it to the rate: it originates on the lineage you name, at the time you give, and **adds to** whatever `initial_families` and `origination` produce. With both of those at zero the tree carries exactly the families you placed.
 
 ## Lateral gene transfers
 
@@ -140,6 +93,9 @@ The root of a gene tree carries a branch length, as the species tree's does. A f
 Because families are independent, and no event ever mixes two families, a run can evolve them **concurrently**, one family per worker process. It is off by default; `parallel` turns it on.
 
 ```python
+from zombi2 import species, genomes
+
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 g = genomes.simulate_genomes_family(
     tree, duplication=0.2, loss=0.25, origination=0.5,
     initial_families=1000, seed=1, parallel=8)      # 8 workers

@@ -9,6 +9,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- Chapter 2's tour of joining leads with what it does — two levels grown at the same time — rather
+  than with the condition under which you would need it, as the README now does. (#369)
+- Fossils are a section of their own in chapter 3, not a paragraph at the end of sampling. (#369)
+- Chapter 4's section on what a rate depends on is prose: the four code blocks were spellings the
+  grammar appendix already gives, and placing a family with `origins=` is a footnote. (#369)
+
+
 ## [0.39.3] - 2026-08-14
 
 ### Changed
