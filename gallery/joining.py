@@ -73,36 +73,6 @@ _QUASSE_BASE = 0.4
 _QUASSE_STEP = 0.05
 
 
-def _quasse_tips(ax, values, lo, hi):
-    """Where the tips ended up, against where Brownian motion says they should be.
-
-    The point of the card is not that a trait varies down a tree — Chapter 8 does that — but that
-    driving speciation with it **biases** it. Under plain Brownian motion the expected value at a tip
-    is exactly the value at the root, on any tree whatever: the diffusion has no direction. So the
-    null needs no second run, and it is the line at 0. What the panel shows is that the tips sit
-    almost entirely above it."""
-    edges = [lo + (hi - lo) * k / 22 for k in range(23)]
-    counts = [0] * 22
-    for v in values:
-        counts[min(21, max(0, int((v - lo) / (hi - lo) * 22)))] += 1
-    mid = [(edges[k] + edges[k + 1]) / 2 for k in range(22)]
-    ax.barh(mid, counts, height=(hi - lo) / 22 * 0.86,
-            color=[cm.viridis((m - lo) / (hi - lo)) for m in mid])
-    right = max(counts) * 1.62         # room to the right of the bars for the two lines' labels
-    ax.axhline(0.0, color="#1a1a1a", lw=1.6)
-    ax.text(right * 0.99, -0.3, "where every lineage started,\nand where a diffusion on its own\n"
-            "would leave them", ha="right", va="top", fontsize=10.5, color="#1a1a1a")
-    mean = sum(values) / len(values)
-    ax.axhline(mean, color="#B0413E", lw=1.6, ls=(0, (4, 2)))
-    ax.text(right * 0.99, mean + 0.28, f"the {len(values)} tips average {mean:+.1f}", ha="right",
-            va="bottom", fontsize=10.5, color="#B0413E")
-    ax.set_ylim(lo, hi)
-    ax.set_xlim(0, right)
-    ax.set_xlabel("tips", fontsize=13)
-    ax.set_ylabel("body size", fontsize=13)
-    ax.tick_params(labelsize=11)
-
-
 def _draw_response(ax, lo, hi):
     """The rate the colours buy: λ against body size, painted in the tree's own colours.
 
@@ -120,9 +90,9 @@ def _draw_response(ax, lo, hi):
         capstyle="round"))
     ax.set_xlim(lo, hi)
     ax.set_ylim(0.0, ys[-1] * 1.08)
-    ax.set_xlabel("body size", fontsize=11, labelpad=1)
-    ax.set_ylabel("speciation rate", fontsize=11, labelpad=1)
-    ax.tick_params(labelsize=9, length=2, pad=1)
+    ax.set_xlabel("body size", fontsize=13, labelpad=2)
+    ax.set_ylabel("speciation rate", fontsize=13, labelpad=2)
+    ax.tick_params(labelsize=11, length=3, pad=2)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
 
@@ -135,11 +105,12 @@ def quasse(out):
     can be simulated first: the size needs a tree to diffuse on, and the tree's shape is what the size
     decides. So one run does both, and the tree is an output.
 
-    What the panel shows is that this **biases** the trait, which is the whole difference from a
-    trait painted on a tree it did not shape. Brownian motion has no direction: on any tree
-    whatever, the expected value at a tip is exactly the value at the root. So the null is the line
-    at 0 and needs no second run. Here 61 of the 70 tips are above it and they average +2.6, because
-    the big lineages left more descendants and those descendants started big.
+    The tree is the whole picture, and what to look at is which lineages left descendants. The
+    yellow clade in the middle is a radiation: once a lineage was large it split fast, and its
+    daughters started large. The blue and purple lineages above and below it are the ones the trait
+    never favoured, and they sit on long branches with almost no daughters. That bias is what makes
+    this joint rather than a trait painted on a tree it did not shape — a diffusion has no direction
+    of its own, so on a tree it does not touch the tips would sit around the root value.
 
     **This one slices.** Every other driver in this section changes only at events, and an event ends
     the Gillespie step, so the rate is constant in between. A diffusion moves at every instant. The
@@ -152,24 +123,21 @@ def quasse(out):
             birth=PerLineage(_QUASSE_BASE).scaled_by(
                 "trait", Curve(lambda x: math.exp(_QUASSE_SLOPE * x)), step=_QUASSE_STEP),
             death=0.05, n_extant=70),
-        traits.continuous(start=0.0, rate=1.0), seed=11)
+        traits.continuous(start=0.0, rate=1.0), seed=20)
     ct = r.complete_tree
     lab = ct.labels()
     vals = {lab[i]: r.trait.node_values[i] for i in ct.nodes}
-    tips = [r.trait.node_values[i] for i in sorted(ct.extant_leaves())]
     limits = (math.floor(min(vals.values())), math.ceil(max(vals.values())))
     tree_png = out.replace(".png", "_tree.png")
-    (ph.trees.plot(ph.trees.loads(ct.to_newick()),
-                   style=ph.Style(width=1150, height=1000, margin=82, branch_width=3.4),
-                   skeleton=False)
-     # the same limits the panel and the inset span, so all three say the same thing about a colour
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), style=_style(), skeleton=False)
+     # the same limits the key spans, so the two say the same thing about a colour
      + ph.trees.color_branches(vals, cmap="viridis", limits=limits)
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
-    h.composite_beside(tree_png, out, lambda ax: _quasse_tips(ax, tips, *limits),
-                       figsize=(13, 6.4), ratios=(2.5, 1.25), wspace=0.16,
-                       # the model, up in the empty quarter of the tree: what a colour buys in rate
-                       inset=((0.25, 0.55, 0.30, 0.28),
-                              lambda ax: _draw_response(ax, *limits), True))
+    # the key goes in the tree's empty upper-left, on a card: it is a plot with axes of its own, and
+    # unframed beside the tree's time axis the two read as one set of coordinates
+    h.composite_markov(tree_png, out, lambda ax: _draw_response(ax, *limits),
+                       loc=(0.125, 0.695, 0.245, 0.20), keep_axes=True,
+                       panel=(0.068, 0.078, 0.026, 0.032))
 
 
 def classe(out):
