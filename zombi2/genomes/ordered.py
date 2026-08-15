@@ -66,7 +66,7 @@ from ..params.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv, rearrangement_events_tsv
 from ..params.retired import check_no_retired_keywords
-from .family import resolve_families, resolve_max_family_size, resolve_origins
+from .family import resolve_families, resolve_max_family_size
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
                         resolve_transfer_to)
@@ -1382,7 +1382,6 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # the family resolution's own resolver, so the two engines cannot disagree about what a
     # declaration means
     declared, module_map, planted_named = resolve_families(families, tree)
-    placed = []
     family_names = [f.name for f in declared]
     if any(f.written() for f in declared):
         raise ValueError(

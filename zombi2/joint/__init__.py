@@ -689,10 +689,7 @@ def _grow_genomes_traits(rng, tree, genome: FamilyGenome, trait: DiscreteTrait, 
 
     Returns ``(genomes_out, genome_events, named, node_values, trait_changes)``.
     """
-    import numpy as np
-
-    from ..genomes.family import (_FamilyCounts, _do_transfer, _pick_copy, GeneCopy,
-                                  resolve_families)
+    from ..genomes.family import (_FamilyCounts, _do_transfer, GeneCopy, resolve_families)
     from ..genomes._live import enter, retire, weighted_index
     from ..genomes._transfer import mean_root_to_tip
     from ..traits.discrete import _driven_entries, _driven_q
@@ -712,7 +709,15 @@ def _grow_genomes_traits(rng, tree, genome: FamilyGenome, trait: DiscreteTrait, 
     else:
         raise ValueError(f"start must be one of states={states} (or None for a uniform draw), "
                          f"got {trait.start!r}")
-    shift = 0.0 if trait.at_speciation is None else float(trait.at_speciation)
+    # `DiscreteTrait._resolve` checks this, and this engine does not call it (its generator is one
+    # constant matrix, which a switch rate reading the genome cannot be), so the check comes along
+    at_split = trait.at_speciation
+    if at_split is not None and (isinstance(at_split, bool)
+                                 or not isinstance(at_split, (int, float))
+                                 or not 0.0 <= at_split <= 1.0):
+        raise ValueError(f"at_speciation must be a probability in [0, 1] (the shift chance), "
+                         f"got {at_split!r}")
+    shift = 0.0 if at_split is None else float(at_split)
     entries = _driven_entries(states, trait.switch)          # rate specs, so they can read the genome
     # `FamilyGenome._resolve` refuses a driven rate, and rightly: where the tree is being simulated
     # the genome is what drives it. Here the tree is given and the genome is a target as well, so the
