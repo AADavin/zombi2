@@ -207,33 +207,7 @@ sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, divergence=
 
 The two settings say different things and can be given together: `substitution` says what *kind* of clock, `divergence` says how far it drifts. A relaxed clock calibrated to a divergence is written with the shape alone — `PerSite().varying_among('lineages', LogNormal(0.0, 0.3))` — and `divergence=0.2` beside it. Giving that rate a base number as well is an error rather than an override, since the base is exactly what `divergence` solves for; the resolved rate goes into the run log either way.
 
-### A trait can drive the rate
-
-The two clocks above make a lineage fast or slow at random. A third verb makes it fast or slow for a *reason*: `scaled_by` reads a trait grown first and looks the factor up from that lineage's state.
-
-```python
-from zombi2 import traits
-from zombi2.params import LogNormal, PerSite
-
-habitat = traits.simulate_discrete(tree, states=["cave", "surface"], switch=0.3, seed=1)
-
-result = sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, seed=2,
-    substitution = PerSite(0.05).scaled_by(habitat, {"cave": 0.5, "surface": 1.0}))
-```
-
-Cave lineages now evolve at half the rate of surface ones. The driver is the grown trait, or the path to the `trait_events.tsv` it wrote, the same two spellings every driven rate takes. This is conditioning, so it is two ordinary runs in order, and Chapter 9 covers the whole mechanism.
-
-A clock and a driver **compose**, because verbs chain and their factors multiply. Written together, a lineage's branch length is the base rate, times the tempo it was dealt, times the factor its state gives:
-
-```python
-sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, seed=2,
-    substitution = PerSite(0.05).varying_among('lineages', LogNormal(0.0, 0.3))
-                                .scaled_by(habitat, {"cave": 0.5, "surface": 1.0}))
-```
-
-A discrete trait switches partway along a branch, and ZOMBI2 does not read the driver once per branch. It integrates the rate across the branch, breaking at each switch. A lineage that leaves the cave halfway down a branch of length 2 accrues `0.05 × 0.5 × 1` substitutions per site before the move and `0.05 × 1.0 × 1` after it, so the branch is `0.075` long rather than `0.05` or `0.1`. The gene phylograms and the clock species tree carry that same number, so the tree a run writes is the tree its alignments were drawn along.
-
-The reverse direction runs too: `result.gc()` makes a finished run's GC content drive a trait grown after it, or a further sequence run, and `result.composition(letters)` does the same for any letters of the run's alphabet, an amino-acid frequency say (Chapter 9). What the pair cannot be is **joined**, because a sequence lives inside a gene and never feeds back into the trait, so there is nothing for the two to decide together. Naming a live level (`scaled_by("trait", …)`) says so rather than looking for a file. One other limit here: `divergence` is refused alongside a driven rate, because it solves for the base by assuming the modifiers average to 1, which the two clocks are corrected to do and a driver is not. Set the base yourself there.
+A clock and a driver **compose**, because verbs chain and their factors multiply: a lineage's branch length is the base rate, times the tempo it was dealt, times the factor its state gives. A driven rate is conditioning — two ordinary runs in order — and Chapter 9 covers it, including how a driver that switches partway along a branch is integrated across the branch rather than read once for it. One limit belongs here: `divergence` is refused alongside a driven rate, because it solves for the base by assuming the modifiers average to 1, which the two clocks are corrected to do and a driver is not. Set the base yourself there.
 
 ### A clade can evolve differently, not only faster
 
@@ -277,47 +251,11 @@ It is a memory choice and not a modelling one: the same seed writes the same fil
 
 Hand the level a **nucleotide** genome run — one ZOMBI2 drew, or a real annotation you supply — and you get whole assembled genomes in FASTA, at every tip and at every ancestor. Genes and spacer get their own models: `model` evolves the genes, and `intergene_model` evolves the spacer at `intergene_speed` times the rate (3× by default), under `jc69`, which is flat and has no free parameters.
 
-```python
-from zombi2 import species, genomes, sequences
-from zombi2.sequences.substitution_models import hky85
-
-tree = species.simulate_species_tree(
-    birth=1.0, death=0.2, n_extant=5, seed=1).complete_tree
-my_genomes = genomes.simulate_genomes_nucleotide(
-    tree, root_length=6000, genes=6, gene_length=400,
-    inversion=1.0, inversion_extent=500, duplication=1.0, loss=1.0,
-    duplication_extent=1200, loss_extent=1200, seed=1)
-
-result = sequences.simulate_sequences(my_genomes, model=hky85(kappa=3.0),
-                                      intergene_speed=3.0, substitution=0.05, seed=1)
-
-result.genomes["n5"]             # {chromosome: sequence}, a whole assembled genome
-result.node_genomes["n0"]        # the same at an ancestor, reconstructed not estimated
-result.initial_genome            # the genome the run started with
-```
-
-From the command line it is the same two commands as any other run:
-
-```bash
-zombi2 genomes out/ --resolution nucleotide --gff ecoli.gff --trim-overlaps \
-  --inversion 5.0 --inversion-extent 50000 --loss 2.0 --loss-extent 8000 --seed 7
-
-zombi2 sequences out/ --model hky85 --kappa 3.0 --substitution 0.02 \
-  --intergene-speed 3.0 --seed 7
-```
+It is the same two steps as any other run — a genomes run at `--resolution nucleotide`, then a sequences run over it. What comes back is every node's assembled genome: `.genomes` at the tips, `.node_genomes` at the ancestors, reconstructed rather than estimated, and `.initial_genome` for the state the run started from.
 
 ### Starting from a real sequence
 
-So far the founding sequence of each block is *drawn* from the model's frequencies, random ACGT. Hand the genomes run a **FASTA** alongside the GFF and it starts from the sequence you supply instead:
-
-<!-- doc-test: skip — needs an annotation and its FASTA, which the reader supplies -->
-```python
-my_genomes = genomes.simulate_genomes_nucleotide(
-    tree, gff="ecoli.gff", fasta="ecoli.fasta",     # layout AND letters
-    inversion=1.0, loss=0.3, loss_extent=3000, seed=1)
-result = sequences.simulate_sequences(
-    my_genomes, model=hky85(kappa=3.0), substitution=0.05, seed=1)
-```
+So far the founding sequence of each block is *drawn* from the model's frequencies, random ACGT. Hand the genomes run a **FASTA** alongside the GFF (`fasta=`, or `--fasta`) and it starts from the sequence you supply instead — the layout from the annotation, the letters from the DNA.
 
 The FASTA has one `>seqid` record per GFF `##sequence-region`, each exactly its declared length. Every block is then founded from the real DNA at its own initial coordinates, so an assembled genome descends from exactly what you gave. A gene that origination invents mid-run has no supplied DNA (it did not exist initially), so its block still draws from the model.
 
