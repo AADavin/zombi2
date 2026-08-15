@@ -77,21 +77,26 @@ def _draw_response(ax, lo, hi):
     """The inset the other joint cards give to a Markov chain: how the driver sets the rate.
 
     A continuous driver has no states to draw a chain between, so what goes here is the response
-    curve itself — and the colour ramp under it is the tree's own, over the same range, so a branch
-    colour reads straight across to a speciation rate. The range is the run's own spread rather than
-    a round pair of numbers: on an exponential curve a bit of unused axis at the top flattens
-    everything the tree actually did into the bottom line."""
-    top = _QUASSE_BASE * math.exp(_QUASSE_SLOPE * hi)
-    ax.patch.set_facecolor("#ffffff")       # the tree is the background; the inset has to cover it
-    ax.patch.set_alpha(0.94)
-    xs = [lo + (hi - lo) * k / 200 for k in range(201)]
-    ax.plot(xs, [_QUASSE_BASE * math.exp(_QUASSE_SLOPE * x) for x in xs], color="#1a1a1a", lw=2.4)
-    ax.imshow([[k / 255 for k in range(256)]], aspect="auto", cmap="viridis",
-              extent=(lo, hi, -0.19 * top, -0.04 * top), zorder=2)
+    curve — **painted in the tree's own colours**, so it doubles as the key. A branch's colour is
+    found on the curve and read straight across to a speciation rate. A separate ramp needed a strip
+    of axis below zero to sit in, which on an axis labelled "speciation rate" said the colours were
+    negative rates.
+
+    The range is the run's own spread rather than a round pair of numbers: on an exponential curve a
+    bit of unused axis at the top flattens everything the tree actually did into the bottom line."""
+    from matplotlib.collections import LineCollection
+
+    ax.set_facecolor("#ffffff")             # the tree is the background; the inset has to cover it
+    xs = [lo + (hi - lo) * k / 240 for k in range(241)]
+    ys = [_QUASSE_BASE * math.exp(_QUASSE_SLOPE * x) for x in xs]
+    ax.add_collection(LineCollection(
+        [[(xs[k], ys[k]), (xs[k + 1], ys[k + 1])] for k in range(len(xs) - 1)],
+        cmap="viridis", norm=colors.Normalize(lo, hi), array=xs[:-1], linewidth=6.0,
+        capstyle="round"))
     ax.set_xlim(lo, hi)
-    ax.set_ylim(-0.26 * top, top * 1.06)
-    ax.set_xlabel("body size", fontsize=17, labelpad=2)
-    ax.set_ylabel("speciation rate", fontsize=17, labelpad=2)
+    ax.set_ylim(0.0, ys[-1] * 1.08)
+    ax.set_xlabel("body size — the branch colours", fontsize=16, labelpad=3)
+    ax.set_ylabel("speciation rate", fontsize=16, labelpad=3)
     ax.tick_params(labelsize=13)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
