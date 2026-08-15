@@ -16,6 +16,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 - Fossils are a section of their own in chapter 3, not a paragraph at the end of sampling. (#369)
 - Chapter 4's section on what a rate depends on is prose: the four code blocks were spellings the
   grammar appendix already gives, and placing a family with `origins=` is a footnote. (#369)
+- Chapter 7 no longer has a section on driving the substitution rate with a trait: that is
+  conditioning, and chapter 9 is where conditioning is. What stays is what the clock section owes
+  it — a clock and a driver compose, and `divergence` is refused beside a driven rate. (#370)
+- Chapter 7's nucleotide section is prose: the two blocks it carried set up a genome run and a
+  sequence run, which every earlier chapter has already shown. (#370)
 
 
 ## [0.39.3] - 2026-08-14
