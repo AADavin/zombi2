@@ -282,7 +282,8 @@ From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...
 
 From Python: `.genomes` · `.node_genomes` (each a `NucleotideGenome`: a list of `Chromosome`s, each a
 list of `Block`s), `.root_blocks` · `.block_trees` (the recovered root partition and a tree for every
-interval), `.assembly(node)` · `.initial_assembly()`, `.mosaic(node)` · `.trace_back(node)`,
+interval), `.assembly(node)` · `.initial_assembly()`, `.mosaic(node)` · `.trace_back(node)` ·
+`.describe(node)`,
 `.deletions` (the indel log), `.gene_spans` · `.gene_names` · `.gene_strands` · `.block_of(family)`,
 and the driver views `.presence(name)` · `.completion(name)`, which here read **declared genes**: the
 name is the GFF's `ID` / `Name`, and what takes a gene away is an arc of DNA rather than a whole copy.
@@ -342,6 +343,10 @@ real sequence.
 **started** with. The GFF is the annotation to read beside the sequence level's
 `genome_<lineage>.fasta`, which names its sequences to match; the BED is the ancestry as a browser
 track.
+
+**`.describe(node)`** — one node's genome written out block by block, for reading by eye:
+`mosaic` as text, one line per block, each labelled with the gene it is or `intergene`.
+Genes declared with a name are named; the rest are numbered by family.
 
 **`.assembly(node)` and `.initial_assembly()`** — how a node's genome is built from the recovered
 root blocks: `(block, gene, strand, lo, hi)` in physical order, `[lo, hi)` being the sub-range of that

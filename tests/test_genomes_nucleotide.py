@@ -2588,3 +2588,24 @@ def test_no_gene_is_ever_split_across_root_blocks():
     for fam, (src, a, b) in g.gene_spans.items():
         covering = [rb for rb in g.root_blocks if rb[0] == src and rb[1] < b and a < rb[2]]
         assert covering in ([], [(src, a, b)]), (fam, covering)
+
+
+def test_describe_writes_a_genome_out_block_by_block():
+    """`describe` is `mosaic` as text: one line per block, each labelled gene or intergene.
+
+    It was a helper the manual defined for the reader to copy, which is a thing the tool should do
+    for them — and a thing that then goes stale, since nothing ran it."""
+    tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=5, seed=1).complete_tree
+    g = simulate_genomes_nucleotide(tree, root_length=3000, genes=3, gene_length=400,
+                                    inversion=1.0, inversion_extent=500, seed=1)
+    text = g.describe(2)
+    lines = text.splitlines()
+    assert lines[0] == "n2, chromosome 2"
+    blocks = [b for chrom in g.mosaic(2).values() for b in chrom]
+    assert len(lines) == len(blocks) + len(g.mosaic(2))          # one header per chromosome
+    assert sum(1 for ln in lines if ln.endswith("intergene")) + 3 == len(blocks)   # three genes
+    for fam, (source, start, end) in g.gene_spans.items():
+        assert f"gene {fam}" in text
+        assert f"[{start:4d},{end:4d})" in text
+    # every block's length is written, and the strands are + or the minus sign the manual uses
+    assert " bp  " in text and (" + " in text or " − " in text)

@@ -9,6 +9,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- `NucleotideGenomesResult.describe(node)` — one node's genome written out block by block, each
+  line labelled with the gene it is or `intergene`. Chapter 6 defined that as a helper for the
+  reader to copy; it is the tool's job, and now it is. (#371)
+
 ### Changed
 
 - Chapter 2's tour of joining leads with what it does — two levels grown at the same time — rather
