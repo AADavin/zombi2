@@ -135,8 +135,11 @@ def quasse(out):
      # the same limits the inset's ramp spans, so the two say the same thing about a colour
      + ph.trees.color_branches(vals, cmap="viridis", limits=limits)
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
+    # up in the empty quarter of the tree, not down beside its time axis: the inset is a plot with an
+    # x axis of its own, and next to the tree's the two read as one set of coordinates
     h.composite_markov(tree_png, out, lambda ax: _draw_response(ax, *limits),
-                       loc=(0.075, 0.17, 0.27, 0.25), keep_axes=True)
+                       loc=(0.235, 0.53, 0.24, 0.23), keep_axes=True,
+                       panel=(0.085, 0.095, 0.035, 0.045))
 
 
 def classe(out):

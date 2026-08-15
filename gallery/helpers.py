@@ -280,17 +280,33 @@ def composite_model_realization(realization_png: str, out: str, draw_model, *,
 
 
 def composite_markov(tree_png: str, out: str, draw_fn, *, loc=(0.02, 0.09, 0.34, 0.36),
-                     keep_axes: bool = False) -> None:
+                     keep_axes: bool = False, panel=None) -> None:
     """Place a tree PNG as the full background and draw the model as an inset in the bottom-left.
 
     ``keep_axes`` leaves the inset's own axes on. A Markov chain is drawn in bare coordinates and
     wants them off; a response curve is a plot, and without its axes it says nothing about what
-    value gives what rate."""
+    value gives what rate.
+
+    ``panel`` is ``(left, bottom, right, top)`` in figure fractions, and puts a bordered white card
+    under the inset, grown by those margins. A drawing in bare coordinates does not need one — there
+    is nothing to confuse it with. A plot does: its own axes ran alongside the tree's time axis with
+    nothing between them, so the two read as one coordinate system, and branches came right up to
+    the tick labels."""
     img = mpimg.imread(tree_png)
     fig = plt.figure(figsize=(img.shape[1] / 150, img.shape[0] / 150))
     bg = fig.add_axes([0, 0, 1, 1])
     bg.imshow(img)
     bg.set_axis_off()
+    if panel is not None:
+        left, bottom, right, top = panel
+        card = fig.add_axes([loc[0] - left, loc[1] - bottom,
+                             loc[2] + left + right, loc[3] + bottom + top])
+        card.set_xticks([])
+        card.set_yticks([])
+        card.patch.set_facecolor("#ffffff")
+        for spine in card.spines.values():
+            spine.set_color("#d3d7da")
+            spine.set_linewidth(1.1)
     inset = fig.add_axes(loc)
     draw_fn(inset)
     if not keep_axes:
