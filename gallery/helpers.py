@@ -312,7 +312,10 @@ def _draw_key(ax, key) -> None:
     cmap, *names = key
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
-    left, right = 0.055, 0.235                          # the ramp, in axes fractions
+    # the low name is written to the LEFT of the ramp, so the ramp starts far enough in to leave
+    # room for it: at a fixed 0.055 a name of any length ran off the figure ("none of it" did)
+    left = 0.02 + 0.0135 * len(str(names[0]))
+    right = left + 0.18                                 # the ramp, in axes fractions
     ax.imshow([[i / 255 for i in range(256)]], aspect="auto", cmap=cmap,
               extent=(left, right, 0.32, 0.68), zorder=2)
     ax.text(left - 0.012, 0.5, names[0], ha="right", va="center", fontsize=13)
