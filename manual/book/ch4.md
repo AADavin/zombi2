@@ -32,7 +32,7 @@ The three per-copy rates also take `PerLineage`, and that is a different model r
 
 A rate can also depend on **time**, on **where in the tree** a lineage sits, or on a level grown before it. Chaining `changing_at` onto a rate makes it change at set moments — the skyline genome, fast early and slow later; `Clade` scopes a factor to a named group, and the two compose ([Ge5](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_clade_transition-->); and `scaled_by` reads a driver, which is Chapter 9. Appendix A is the full grammar, and every rate at this level takes all of it.[^origins]
 
-[^origins]: `origins=[("n1", 0.4)]` places a family instead of leaving it to the rate: it originates on the lineage you name, at the time you give, and **adds to** whatever `initial_families` and `origination` produce. With both of those at zero the tree carries exactly the families you placed.
+[^origins]: `families=[family("toxin", origin=("n1", 0.4))]` declares a family and places it instead of leaving it to the rate: it originates on the lineage you name, at the time you give, keeps its name, and **adds to** whatever `initial_families` and `origination` produce. With both of those at zero the tree carries exactly the families you declared.
 
 ## Lateral gene transfers
 

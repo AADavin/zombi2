@@ -9,7 +9,7 @@ read a finished run:
 - ``zombi2 sequences``  → `zombi2.sequences.simulate_sequences()`
 - ``zombi2 traits``     → `zombi2.traits.simulate_continuous()` /
   `simulate_discrete()` (chosen by ``--kind``)
-- ``zombi2 joint``      → `zombi2.joint.simulate_joint()`, a tree and the level driving it at once
+- ``zombi2 joint``      → `zombi2.joint.simulate()`, a tree and the level driving it at once
 - ``zombi2 tools``      → analyses that read a run someone has already made
 
 Each subcommand's long options **are** the API keyword names (one word per concept across the API,

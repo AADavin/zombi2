@@ -9,6 +9,27 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- **A genome and a trait can be simulated together on a tree you hand the run** —
+  `joint.simulate(genomes.genome(...), traits.discrete(...), tree=tree)`. Gene content sets the
+  trait's switch rate while the trait sets the genome's rates, in one Gillespie over the living
+  lineages, and one run returns both levels. The first joint model whose tree is an input rather
+  than an output. Transfer works here, and is still refused where the tree is being simulated: a
+  transfer needs the lineages alive at that instant, and a growing tree's set is still forming.
+- **A gene family can drive the rest of its own genome**, in one run —
+  `simulate_genomes_family(..., joint=True)` with a rate reading `"genomes:<family>"` or
+  `"genomes:count"`. The driver is read off the live genome, so an element can be lost by the
+  transfer it caused. `joint=True` is checked both ways, and the per-family engine refuses it.
+- **Per-family rates**: `families=[family("IS1", transfer=PerCopy(1.5), loss=0.02)]` gives one named
+  family rates of its own, with the run's rate as the fallback. `family()` also takes `origin=` and
+  `module=`.
+- `joint.simulate(...)` is the one front door for a joint run, taking **participants** — process
+  specs — and the new `species.birth_death(...)` among them is what makes the tree an output. A rate
+  reads another participant by name, `"traits:<name>"` / `"genomes:<family>"` / `"genomes:count"`.
+- A design note, `docs/design/joining.md`, recording which pairs can be joined, where each model
+  lives, and the order the rest will be built in.
+
 ### Changed
 
 - Appendix A stops deriving the Gillespie algorithm from scratch. What a reader running ZOMBI2
@@ -16,15 +37,29 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   each level feeds it, and where it is not used at all — sequences and continuous traits, which are
   drawn from closed forms. The derivation, with its three figures, moved to `ZOMBI2_FUTURE` for the
   didactic book it belongs in. Appendix A: 4,805 words to 3,676, and the manual 90 pages to 85. (#374)
-
+- **`families=` replaces `family_names=`, `origins=` and `modules=`**, which said three parts of one
+  thing between them and could not carry rates. **`joint.simulate` replaces `simulate_joint`**, and
+  **`genomes.genome` replaces `genomes.family`** as the whole-genome process spec, since a family is
+  a gene family everywhere else. Each retired spelling answers with the sentence naming what
+  replaced it.
+- Joining is described as **one run simulating two levels at once**, in SPEC, chapters 2 and 10, and
+  the two `joint` docstrings. The species tree becoming an output is one thing that happens in a
+  joint run, not what joining means.
+- SPEC §3: **Traits–Sequences can be joined**. Both directions already run as conditioning, so a
+  cycle between them is possible, and SPEC's own generating rule allows it. Figure 10.2 gains the
+  arrow, and two more turn solid for the models now built.
+- SPEC §3 no longer says a rate driven by an aggregate of its own level needs a new engine. The
+  family genome engine already races every family in one loop and takes it unchanged; what it costs
+  there is the parallel and streaming engines.
 
 ### Fixed
 
+- `family(origin=...)` does not run on the per-family engine (`parallel=` / `stream_to=`), which
+  enumerates every origination before it starts. Refused by name rather than dropped.
 - The gallery page shows the version of the release it is published with. Both web pages carry the
   version and both are committed artifacts, so neither followed a bump on its own: the gallery kept
   whatever `gallery/build.py` last stamped, which is whenever a figure last changed. `release.sh`
   rewrites both now. (#373)
-
 
 ## [0.39.4] - 2026-08-15
 

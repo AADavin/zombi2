@@ -18,7 +18,7 @@ import os
 import pytest
 
 from zombi2._runtime.parallel import flatten_gene_tree, rebuild_gene_tree, resolve_workers
-from zombi2.genomes import StreamedRun, simulate_genomes_nucleotide, simulate_genomes_family
+from zombi2.genomes import StreamedRun, family, simulate_genomes_family, simulate_genomes_nucleotide
 from zombi2.genomes.events import edges_from_tsv, node_label
 from zombi2.genomes.gene_trees import GeneNode, GeneTree
 from zombi2.params import PerCopy, PerLineage, Recipients
@@ -178,7 +178,7 @@ def test_genomes_parallel_is_a_valid_run(species_for_genomes):
 
 def test_genomes_parallel_named_families_survive(species_for_genomes):
     r = simulate_genomes_family(species_for_genomes, origination=0.2, loss=0.1,
-                                family_names=["toxin", "operon"], initial_families=10,
+                                families=[family('toxin'), family('operon')], initial_families=10,
                                 seed=5, parallel=2)
     assert set(r.family_names) == {"toxin", "operon"}
     assert all(fid in {c.family for g in r.node_genomes.values() for c in g} for fid in r.family_names.values())

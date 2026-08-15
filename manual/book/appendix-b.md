@@ -457,7 +457,7 @@ handoff too — it recognises one by its `blocks.tsv` — so all of this is reac
 
 ## Joint: `simulate_joint` / `zombi2 joint`
 
-A joint run grows two levels at once, so it writes both, each in the format its own command would
+A joint run simulates two levels at once, so it writes both, each in the format its own command would
 give it: the species files, and then the driver's — the trait's or the genomes'. Its own output is one
 file: `joint_summary.json`, at the run root beside the run report.
 

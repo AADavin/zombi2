@@ -569,7 +569,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                     f"rates)."
                     + (" A trait or gene content that drives speciation has to grow with the tree, "
                        "since the tree is what it would grow on, so the model is a joint run: "
-                       "joint.simulate_joint(birth=PerLineage(1.0).scaled_by('trait', {...}), ...)."
+                       "joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by('trait', {...})), ...)."
                        if driven else "")
                 )
         # SPEC §5: one memory structure per axis. A bare distribution has no memory and a Drift has a
@@ -642,4 +642,36 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
     )
 
 
-__all__ = ["simulate_species_tree", "SpeciesResult", "Event"]
+# --- process spec: a diversification process bundled but UNEXECUTED, for a joint run --------------
+
+@dataclass(frozen=True)
+class BirthDeath:
+    """A birth-death **process** — its rates and its stop condition bundled but not yet run.
+
+    The species level's twin of `~zombi2.traits.DiscreteTrait` and
+    `~zombi2.genomes.FamilyGenome`. `simulate_species_tree()` runs one on its own;
+    handing it to `zombi2.joint.simulate` makes the tree one of the things being simulated, so it
+    comes **out** of that run rather than going into it.
+
+    The stop condition rides here rather than on the joint run because it is a fact about growing a
+    tree: everything else in a joint run rides the tree that this produces."""
+
+    birth: object
+    death: object = 0.0
+    n_extant: "int | None" = None
+    total_time: "float | None" = None
+
+
+def birth_death(birth, death=0.0, *, n_extant=None, total_time=None) -> BirthDeath:
+    """A diversification **process spec** — `BirthDeath`, unexecuted — for a joint run to simulate
+    alongside whatever drives it::
+
+        joint.simulate(species.birth_death(birth=faster_if_large, death=0.2, n_extant=100),
+                       traits.discrete(name="size", states=["small", "large"], switch=0.1), seed=1)
+
+    Same ``birth`` / ``death`` / ``n_extant`` / ``total_time`` as `simulate_species_tree()`; give
+    exactly one stop condition, which the joint run checks when it resolves this."""
+    return BirthDeath(birth, death, n_extant, total_time)
+
+
+__all__ = ["simulate_species_tree", "SpeciesResult", "Event", "BirthDeath", "birth_death"]

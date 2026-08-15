@@ -13,6 +13,7 @@ import math
 
 import pytest
 
+from zombi2 import species
 from zombi2 import genomes, traits
 from zombi2.genomes._transfer import resolve_groups
 from zombi2.params import Clade, PerCopy, PerLineage, Table
@@ -102,10 +103,8 @@ class TestWhatItRefuses:
         """A joint run grows the tree as it goes, so a clade is not defined while the run is
         happening — the refusal is about the model, not the implementation."""
         with pytest.raises(TypeError, match="live level"):
-            from zombi2.joint import simulate_joint
-            simulate_joint(birth=PerLineage(1.0).scaled_by(halves, {"fast": 2.0}), death=0.2,
-                           trait=traits.discrete(states=["x", "y"], switch=0.1),
-                           n_extant=10, seed=1)
+            from zombi2.joint import simulate
+            simulate(species.birth_death(birth=PerLineage(1.0).scaled_by(halves, {"fast": 2.0}), death=0.2, n_extant=10), traits.discrete(states=["x", "y"], switch=0.1), seed=1)
 
     def test_overlapping_clades_are_refused(self, tree):
         with pytest.raises(ValueError, match="disjoint"):

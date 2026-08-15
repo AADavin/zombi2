@@ -4,11 +4,12 @@
 second run reads it, driving a genome rate, another trait's rate, or which lineage receives a
 transfer. **Joining** grows both at once, because
 the trait drives speciation or extinction and so shapes the tree it is evolving on
-(``joint.simulate_joint``). The two lists below feed two gallery sections.
+(``joint.simulate``). The two lists below feed two gallery sections.
 """
 
 from __future__ import annotations
 
+import collections
 import math
 
 import matplotlib.pyplot as plt
@@ -18,9 +19,10 @@ import helpers as h
 from helpers import Example
 
 import phylustrator as ph
+from zombi2 import species
 from zombi2.params import Curve, PerCopy, PerLineage, Recipients
 from zombi2 import joint, traits
-from zombi2.genomes import family as genomes_spec
+from zombi2.genomes import family, genome as genomes_spec
 from zombi2.genomes import simulate_genomes_family
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous, simulate_discrete
@@ -35,6 +37,8 @@ _TOX = {"absent": "#b9bec4", "present": "#2E8B6F"}          # a gene family, pre
 _DISEASE = {"harmless": "#8f99a3", "pathogenic": "#C2453C"}
 _METAB = {"anaerobic": "#6b5b95", "aerobic": "#2E8B6F"}
 _KEY = {"absent": "#b9bec4", "present": "#2E8B6F"}          # the gene that drives the splitting
+_IS1J = {"absent": "#b9bec4", "present": "#C25A3C"}         # the element that drives its own genome
+_CAVE = {"surface": "#2E8B6F", "cave": "#4A4A6A"}           # a habitat and a genome, each driving the other
 
 
 def _style():
@@ -53,10 +57,7 @@ def _history(r):
 # --- joining: the trait and the tree grow together ------------------------------------------
 
 def bisse(out):
-    r = joint.simulate_joint(
-        birth=PerLineage(1.0).scaled_by("trait", {"fast": 2.6, "slow": 0.7}),
-        trait=traits.discrete(states=["fast", "slow"], switch=0.35),
-        n_extant=70, seed=3)
+    r = joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"fast": 2.6, "slow": 0.7}), n_extant=70), traits.discrete(states=["fast", "slow"], switch=0.35), seed=3)
     tree_png = out.replace(".png", "_tree.png")
     (ph.trees.plot(ph.trees.loads(r.complete_tree.to_newick()), style=_style(), skeleton=False)
      + ph.trees.color_history(_history(r), palette=_BISSE)
@@ -102,12 +103,8 @@ def key_innovation(out):
     because the lineages that carry it split faster than the ones that shed it. Nothing selects for
     the gene directly — what selects for it is the tree it is shaping, which is what makes this
     joint rather than a genome run on a tree handed to it."""
-    r = joint.simulate_joint(
-        birth=PerLineage(0.7).scaled_by("genomes:toxin", {"present": 5.0, "absent": 1.0}),
-        death=0.15,
-        genome=genomes_spec(origination=0.15, loss=0.3, family_names=["toxin"],
-                            initial_families=5),
-        n_extant=70, seed=3)
+    r = joint.simulate(species.birth_death(birth=PerLineage(0.7).scaled_by("genomes:toxin", {"present": 5.0, "absent": 1.0}), death=0.15, n_extant=70), genomes_spec(origination=0.15, loss=0.3, families=[family("toxin")],
+                            initial_families=5), seed=3)
     ct = r.complete_tree
     lab = ct.labels()
     history = {lab[i]: segs for i, segs in r.genome.presence("toxin").history(ct).items()}
@@ -120,12 +117,116 @@ def key_innovation(out):
         loc=(0.02, 0.04, 0.34, 0.30))
 
 
+def mobile_element_joint(out):
+    """A gene family driving the rest of its OWN genome, in one run — the level joined to itself.
+
+    An insertion sequence is planted on one branch. Where it is present the whole genome donates
+    genes thirty times as often, and the element also moves itself, so it jumps into lineages that
+    never inherited it and makes them donors too. That is the loop: the element decides the transfer
+    rate, and the transfer rate is how the element spreads.
+
+    Nothing here can be simulated first. In the conditioning version of this figure the element lives
+    in a *separate* genome run, finished before the run it drives — so it could never be moved by the
+    transfer it caused, and the genes it mobilised were not in the same organism. One run removes
+    both of those, and the driver is a live name rather than a finished result.
+
+    The bars count transfers **given**, since a driven ``transfer`` says how often a lineage donates.
+    The 13 carriers give away 4.5 genes each against 0.35 for the other 17.
+    """
+    ct = simulate_species_tree(birth=1.0, n_extant=30, seed=4).complete_tree
+    g = simulate_genomes_family(
+        ct, initial_families=25, duplication=0.05, loss=0.12, seed=7, joint=True, max_family_size=8,
+        families=[family("IS1", origin=(11, None), transfer=PerCopy(0.30), loss=0.08)],
+        transfer=PerCopy(0.025).scaled_by("genomes:IS1", {"present": 30.0, "absent": 1.0}))
+
+    is1 = g.family_names["IS1"]
+    lab = ct.labels()
+    # every transfer writes two edges; take the recipient-side one so each is counted once, and group
+    # it by the branch that gave the copy away. The element's own moves are left out — the claim is
+    # about the genes it mobilises, not about itself.
+    donated = collections.Counter(e.donor for e in g.edges
+                                  if e.kind == "transfer" and e.recipient is not None
+                                  and e.family != is1)
+    tips = list(ct.extant_leaves())
+    given = {lab[n]: donated.get(n, 0) for n in sorted(tips)}
+    carriers = {lab[n] for n in tips if g.family_counts(n)[is1] > 0}
+    tipcol = {n: _IS1J["present" if n in carriers else "absent"] for n in given}
+    history = {lab[i]: segs for i, segs in g.presence("IS1").history(ct).items()}
+    fig = (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False,
+                         style=ph.Style(width=900, height=900, margin=92, branch_width=3.0))
+           + ph.trees.color_history(history, palette=_IS1J)
+           + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False))
+    real = out.replace(".png", "_real.png")
+    ph.beside(fig, ph.genomes.bars(given, colors=tipcol, label="transfers given",
+                                   tick_size=20, label_size=26),
+              width=1150, tree_fraction=0.58, footer=36).save(real)
+    # The same inset the other joining cards use: the two states a lineage can be in, and the rate
+    # each one transfers at. The arrows are deliberately unlabelled — a lineage leaves `present` by
+    # losing its last copy and enters it by receiving one from elsewhere, and neither of those is a
+    # rate this lineage carries, so putting a number on them would be inventing one.
+    h.composite_markov(real, out, lambda ax: h.draw_markov(
+        ax, ["present", "absent"], _IS1J, {"present": 0.75, "absent": 0.025}, symbol="τ"),
+        loc=(0.005, 0.665, 0.33, 0.30))
+
+
+def cave_genomes(out):
+    """A trait and a genome driving **each other**, on a tree the run is handed.
+
+    Two statements point opposite ways. A lineage in the cave loses genes five times as fast, so the
+    habitat drives the genome. And a lineage that has lost its eye gene turns to the cave twenty-five
+    times as readily, so the genome drives the habitat. Neither can be simulated first: to grow the
+    habitat you would need to know whether the eye is still there, and whether the eye survives
+    depends on the habitat.
+
+    This is the first joint model whose tree is an **input**. The two that drive speciation produce
+    the tree; here it is handed over like any other input, and what comes back is two levels' results
+    from one run.
+
+    Twenty-six of the forty tips end up underground, and their genomes are a third the size. With the
+    returning arrow taken out — the habitat grown on its own, which is the only way the model can be
+    written as two runs in order — almost nothing goes underground at all.
+    """
+    import matplotlib.image as mpimg
+
+    ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
+    r = joint.simulate(
+        genomes_spec(duplication=0.05, origination=12.0, initial_families=60,
+                     loss=PerCopy(0.30).scaled_by("trait", {"cave": 5.0, "surface": 1.0}),
+                     families=[family("eye")]),
+        traits.discrete(states=["surface", "cave"], start="surface",
+                        switch={"surface->cave": PerLineage(0.02).scaled_by(
+                                    "genomes:eye", {"present": 1.0, "absent": 25.0}),
+                                "cave->surface": 0.10}),
+        tree=ct, seed=2)
+
+    lab, tips = ct.labels(), sorted(ct.extant_leaves())
+    sizes = {lab[n]: len(r.genome.genomes[lab[n]]) for n in tips}
+    tipcol = {lab[n]: _CAVE[r.trait.values[lab[n]]] for n in tips}
+    fig = (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False,
+                         style=ph.Style(width=900, height=900, margin=92, branch_width=3.0))
+           + ph.trees.color_history(_state_history(ct, r.trait), palette=_CAVE)
+           + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False))
+    real = out.replace(".png", "_real.png")
+    ph.beside(fig, ph.genomes.bars(sizes, colors=tipcol, label="genome size (genes)",
+                                   tick_size=20, label_size=26),
+              width=1150, tree_fraction=0.58, footer=36).save(real)
+
+    # the two things and the two rules, each as a sentence: in a joint model neither box is only a
+    # driver or only a target, so the conditioning diagram's headings have nothing to label
+    diag = h.joint_png(out.replace(".png", "_diag.png"),
+                       left=("habitat", "surface or cave"),
+                       right=("genome", "which genes are left"),
+                       forward="in the cave, genes go 5× faster",
+                       back="with no eye, turns cave 25× faster")
+    fig2 = plt.figure(figsize=(12, 9.4))
+    axr = fig2.add_axes([0.0, 0.0, 1.0, 0.80]); axr.imshow(mpimg.imread(real)); axr.set_axis_off()
+    axd = fig2.add_axes([0.14, 0.795, 0.72, 0.185]); axd.imshow(mpimg.imread(diag)); axd.set_axis_off()
+    fig2.savefig(out, dpi=140, bbox_inches="tight")
+    plt.close(fig2)
+
+
 def state_extinction(out):
-    r = joint.simulate_joint(
-        birth=1.0,
-        death=PerLineage(1.0).scaled_by("trait", {"doomed": 0.75, "safe": 0.05}),
-        trait=traits.discrete(states=["doomed", "safe"], switch=0.3),
-        n_extant=35, seed=1)
+    r = joint.simulate(species.birth_death(birth=1.0, death=PerLineage(1.0).scaled_by("trait", {"doomed": 0.75, "safe": 0.05}), n_extant=35), traits.discrete(states=["doomed", "safe"], switch=0.3), seed=1)
     ct = r.complete_tree
     tree = ph.trees.loads(ct.to_newick())
     dashed = h.dashed_extinct(tree, ct)
@@ -139,11 +240,7 @@ def state_extinction(out):
 
 
 def musse(out):
-    r = joint.simulate_joint(
-        birth=PerLineage(1.0).scaled_by("trait", {"slow": 0.6, "medium": 1.3, "fast": 2.6}),
-        death=0.4,                                                    # so some lineages die (dashed)
-        trait=traits.discrete(states=["slow", "medium", "fast"], switch=0.3),
-        n_extant=50, seed=2)
+    r = joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"slow": 0.6, "medium": 1.3, "fast": 2.6}), death=0.4, n_extant=50), traits.discrete(states=["slow", "medium", "fast"], switch=0.3), seed=2)
     ct = r.complete_tree
     tree = ph.trees.loads(ct.to_newick())
     dashed = h.dashed_extinct(tree, ct)
@@ -373,7 +470,7 @@ def gene_drives_trait(out):
     # Loss a little above duplication, so the family survives in some clades and decays in others:
     # 59% of the tree's branch length carries it, and 23 tips do against 22 that do not. At the old
     # loss=0.3 the family died on the stem and both panels came out blank.
-    g = simulate_genomes_family(ct, initial_families=20, family_names=["tox"],
+    g = simulate_genomes_family(ct, initial_families=20, families=[family("tox")],
                                 duplication=0.1, loss=0.13, seed=5)
     tox = g.presence("tox")
     # the gene drives ONE direction: carrying a toxin makes a lineage *become* pathogenic, it does
@@ -414,13 +511,13 @@ def gene_drives_trait(out):
 
 _C_BISSE = '''\
 ### simulate  —  a 2-state trait drives speciation (BiSSE)
-from zombi2 import joint, traits
+from zombi2 import joint, species, traits
 from zombi2.params import PerLineage
 
-r = joint.simulate_joint(
-    birth=PerLineage(1.0).scaled_by("trait", {"fast": 2.6, "slow": 0.7}),
-    trait=traits.discrete(states=["fast", "slow"], switch=0.35),
-    n_extant=70, seed=3)
+r = joint.simulate(
+    species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"fast": 2.6, "slow": 0.7}),
+                        n_extant=70),
+    traits.discrete(states=["fast", "slow"], switch=0.35), seed=3)
 
 ### plot  —  color_history paints each branch by its state history; a Markov-chain inset shows the model
 import phylustrator as ph
@@ -437,14 +534,14 @@ h.composite_markov("tree.png", "bisse.png", lambda ax: h.draw_markov(
 
 _C_STATE = '''\
 ### simulate  —  one state dies far faster (state-dependent extinction)
-from zombi2 import joint, traits
+from zombi2 import joint, species, traits
 from zombi2.params import PerLineage
 
-r = joint.simulate_joint(
-    birth=1.0,
-    death=PerLineage(1.0).scaled_by("trait", {"doomed": 0.75, "safe": 0.05}),
-    trait=traits.discrete(states=["doomed", "safe"], switch=0.3),
-    n_extant=35, seed=1)
+r = joint.simulate(
+    species.birth_death(birth=1.0,
+                        death=PerLineage(1.0).scaled_by("trait", {"doomed": 0.75, "safe": 0.05}),
+                        n_extant=35),
+    traits.discrete(states=["doomed", "safe"], switch=0.3), seed=1)
 ct = r.complete_tree
 
 ### plot  —  coloured by state history, extinct lineages dashed, model inset
@@ -464,14 +561,14 @@ h.composite_markov("tree.png", "sse.png", lambda ax: h.draw_markov(
 
 _C_MUSSE = '''\
 ### simulate  —  three graded speciation rates + constant death (MuSSE)
-from zombi2 import joint, traits
+from zombi2 import joint, species, traits
 from zombi2.params import PerLineage
 
-r = joint.simulate_joint(
-    birth=PerLineage(1.0).scaled_by("trait", {"slow": 0.6, "medium": 1.3, "fast": 2.6}),
-    death=0.4,
-    trait=traits.discrete(states=["slow", "medium", "fast"], switch=0.3),
-    n_extant=50, seed=2)
+r = joint.simulate(
+    species.birth_death(
+        birth=PerLineage(1.0).scaled_by("trait", {"slow": 0.6, "medium": 1.3, "fast": 2.6}),
+        death=0.4, n_extant=50),
+    traits.discrete(states=["slow", "medium", "fast"], switch=0.3), seed=2)
 ct = r.complete_tree
 
 ### plot  —  state history + dashed extinct lineages + a 3-state Markov chain
@@ -494,7 +591,7 @@ _C_REDUCTION = '''\
 ### simulate  —  a trait CONDITIONS the genome: grow the tree + trait, then the genome
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_discrete
-from zombi2.genomes import simulate_genomes_family
+from zombi2.genomes import family, simulate_genomes_family
 from zombi2.params import PerCopy, PerLineage
 
 sp = simulate_species_tree(birth=1.0, n_extant=36, seed=4)
@@ -529,7 +626,7 @@ _C_EXPANSION = '''\
 ### simulate  —  a trait conditions DUPLICATION, so genomes grow
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_discrete
-from zombi2.genomes import simulate_genomes_family
+from zombi2.genomes import family, simulate_genomes_family
 from zombi2.params import PerCopy
 
 ct = simulate_species_tree(birth=1.0, n_extant=32, seed=4).complete_tree
@@ -559,7 +656,7 @@ _C_UPTAKE = '''\
 ### simulate  —  competence conditions WHO RECEIVES a transfer (uptake), not a rate
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_discrete
-from zombi2.genomes import simulate_genomes_family
+from zombi2.genomes import family, simulate_genomes_family
 from zombi2.params import Recipients
 
 ct = simulate_species_tree(birth=1.0, n_extant=30, seed=4).complete_tree
@@ -589,7 +686,7 @@ _C_CONTINUOUS = '''\
 ### simulate  —  a CONTINUOUS trait conditions a genome rate (via a Curve, not a state table)
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous
-from zombi2.genomes import simulate_genomes_family
+from zombi2.genomes import family, simulate_genomes_family
 from zombi2.params import Curve, PerLineage
 
 ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
@@ -623,7 +720,7 @@ _C_SATURATING = '''\
 import math
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous
-from zombi2.genomes import simulate_genomes_family
+from zombi2.genomes import family, simulate_genomes_family
 from zombi2.params import Curve, PerLineage
 
 ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
@@ -643,7 +740,7 @@ _C_OPTIMUM = '''\
 import math
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous
-from zombi2.genomes import simulate_genomes_family
+from zombi2.genomes import family, simulate_genomes_family
 from zombi2.params import Curve, PerLineage
 
 ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
@@ -704,8 +801,8 @@ def module_drives_metabolism(out):
     # Loss matched to duplication: the module stays above half on 51% of the tree's branch length and
     # decays below it on the rest, which is what puts branches on both sides of the threshold. At the
     # old duplication=0.08 / loss=0.06 it survived nearly everywhere and the figure was one colour.
-    g = simulate_genomes_family(ct, initial_families=20, family_names=nuo,
-                                modules={"aerobic": nuo}, duplication=0.08, loss=0.08, seed=11)
+    g = simulate_genomes_family(ct, initial_families=20, duplication=0.08, loss=0.08, seed=11,
+                                families=[family(n, module="aerobic") for n in nuo])
     comp = g.completion("aerobic")
     step = (lambda f: 20.0 if f > 0.5 else 1.0)
     back = (lambda f: 1.0 if f > 0.5 else 20.0)
@@ -745,7 +842,7 @@ def module_drives_metabolism(out):
 _C_GENE_TRAIT = '''\
 ### simulate  —  a GENE FAMILY drives a trait (the other direction of the same relation)
 from zombi2.species import simulate_species_tree
-from zombi2.genomes import simulate_genomes_family
+from zombi2.genomes import family, simulate_genomes_family
 from zombi2.traits import simulate_discrete
 from zombi2.params import PerLineage
 
@@ -753,7 +850,7 @@ ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_t
 
 # 1. the driver: genomes with ONE family named, so it can be referred to. Loss a little above
 #    duplication, so the family survives in some clades and decays in others.
-g = simulate_genomes_family(ct, initial_families=20, family_names=["tox"],
+g = simulate_genomes_family(ct, initial_families=20, families=[family("tox")],
                             duplication=0.1, loss=0.13, seed=5)
 
 # 2. the target: a trait whose switch rate reads whether that family is there. `presence` is a
@@ -786,7 +883,7 @@ trait = {lab[i]: segs for i, segs in disease.history.items()}
 _C_MODULE = '''\
 ### simulate  —  a MODULE of gene families drives a trait, through a step
 from zombi2.species import simulate_species_tree
-from zombi2.genomes import simulate_genomes_family
+from zombi2.genomes import family, simulate_genomes_family
 from zombi2.traits import simulate_discrete
 from zombi2.params import Curve, PerLineage
 
@@ -795,8 +892,8 @@ nuo = [f"nuo{c}" for c in "ABCD"]
 
 # 1. the driver: four families grouped into one module. Loss matched to duplication, so the
 #    module survives in about half the tree and decays in the rest.
-g = simulate_genomes_family(ct, initial_families=20, family_names=nuo,
-                            modules={"aerobic": nuo}, duplication=0.08, loss=0.08, seed=11)
+g = simulate_genomes_family(ct, initial_families=20, duplication=0.08, loss=0.08, seed=11,
+                            families=[family(n, module="aerobic") for n in nuo])
 
 # 2. the target: a DISCONTINUOUS response. `completion` is a number in [0, 1] and the Curve is a
 #    step — more than half the module and the lineage turns aerobic, below and it turns back.
@@ -880,24 +977,102 @@ CONDITIONING = [
 ]
 
 _C_KEY = """### gene content drives speciation — the tree is an OUTPUT
-from zombi2 import genomes, joint
+from zombi2 import genomes, joint, species
+from zombi2.genomes import family
 from zombi2.params import PerLineage
 
-r = joint.simulate_joint(
-    birth=PerLineage(0.7).scaled_by("genomes:toxin", {"present": 5.0, "absent": 1.0}),
-    death=0.15,
-    genome=genomes.family(origination=0.15, loss=0.3,
-                          family_names=["toxin"], initial_families=5),
-    n_extant=70, seed=3)
+r = joint.simulate(
+    species.birth_death(
+        birth=PerLineage(0.7).scaled_by("genomes:toxin", {"present": 5.0, "absent": 1.0}),
+        death=0.15, n_extant=70),
+    genomes.genome(origination=0.15, loss=0.3, families=[family("toxin")], initial_families=5),
+    seed=3)
 
 # loss is twice origination, so the family is losing ground on its own — on a tree
 # that does not feel it, it ends up on ~9% of tips. Here it reaches 83%, because the
 # lineages carrying it split five times as often.
-r.species        # the grown tree
-r.genome         # the gene content grown with it"""
+r.species        # the tree that came out
+r.genome         # the gene content simulated with it"""
+
+
+_C_MOBILE_JOINT = """### a gene family drives the rest of its OWN genome — one run, the level joined to itself
+from zombi2.species import simulate_species_tree
+from zombi2.genomes import family, simulate_genomes_family
+from zombi2.params import PerCopy
+
+ct = simulate_species_tree(birth=1.0, n_extant=30, seed=4).complete_tree
+
+# `joint=True` says the two things drive each other. The driver is a live NAME —
+# "genomes:IS1" — not a finished run, because the element is what this run is producing.
+g = simulate_genomes_family(
+    ct, initial_families=25, duplication=0.05, loss=0.12, seed=7, joint=True, max_family_size=8,
+    # the element moves itself, and is planted on one branch rather than at the origin
+    families=[family("IS1", origin=(11, None), transfer=PerCopy(0.30), loss=0.08)],
+    # ...and where it is present, the whole genome donates 30x as often
+    transfer=PerCopy(0.025).scaled_by("genomes:IS1", {"present": 30.0, "absent": 1.0}))
+
+g.presence("IS1")                # where it went, exact and mid-branch
+# 13 carriers give away 4.5 genes each; the other 17 give away 0.35
+
+### plot  —  the tree by where the element is, beside transfers GIVEN by each tip
+import phylustrator as ph
+
+lab = ct.labels()
+history = {lab[i]: segs for i, segs in g.presence("IS1").history(ct).items()}
+(ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False)
+ + ph.trees.color_history(history, palette={"absent": "#b9bec4", "present": "#C25A3C"})
+ + ph.trees.time_axis("time", bold=False)).save("tree.png")
+# a driven `transfer` says how often a lineage DONATES, so the bars count transfers given"""
+
+
+_C_CAVE = """### a trait and a genome driving EACH OTHER, on a tree the run is handed
+from zombi2 import genomes, joint, traits
+from zombi2.genomes import family
+from zombi2.params import PerCopy, PerLineage
+from zombi2.species import simulate_species_tree
+
+ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
+
+# no species.birth_death among the participants, so the tree is an INPUT: pass it with tree=
+r = joint.simulate(
+    # the cave costs genes — the habitat drives the genome
+    genomes.genome(duplication=0.05, origination=0.35, initial_families=60,
+                   loss=PerCopy(0.05).scaled_by("trait", {"cave": 7.0, "surface": 1.0}),
+                   families=[family("eye")]),
+    # ...and losing the eye commits a lineage to the cave — the genome drives the habitat
+    traits.discrete(states=["surface", "cave"], start="surface",
+                    switch={"surface->cave": PerLineage(0.06).scaled_by(
+                                "genomes:eye", {"present": 1.0, "absent": 15.0}),
+                            "cave->surface": 0.10}),
+    tree=ct, seed=1)
+
+r.trait          # the habitat, as the traits level would have written it
+r.genome         # the genome, as the genomes level would have written it
+# 49 genes at the median cave tip against 70 on the surface
+
+### plot  —  the tree by habitat, beside genome size at each tip
+import phylustrator as ph
+
+lab = ct.labels()
+history = {lab[i]: segs for i, segs in r.trait.history.items()}
+pal = {"surface": "#2E8B6F", "cave": "#4A4A6A"}
+fig = (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False)
+       + ph.trees.color_history(history, palette=pal)
+       + ph.trees.time_axis("time", bold=False))
+sizes = {lab[n]: len(r.genome.genomes[lab[n]]) for n in sorted(ct.extant_leaves())}
+ph.beside(fig, ph.genomes.bars(sizes, label="genome size (genes)")).save("cave.png")"""
 
 
 JOINING = [
+    Example("cave_genomes", "A trait and a genome, each other's driver",
+            "The cave costs genes, and losing the eye commits a lineage to the cave. Neither can be "
+            "simulated first, and the tree is an <b>input</b> here rather than an output.",
+            "trait ↔ gene content", cave_genomes, code=_C_CAVE),
+    Example("mobile_element_joint", "A gene drives its own genome",
+            "An insertion sequence makes the genome it sits in donate genes 30x as often — and moves "
+            "itself, so it spreads into lineages that never inherited it. One run, because neither "
+            "half can be finished first.",
+            "gene content → transfer", mobile_element_joint, code=_C_MOBILE_JOINT),
     Example("key_innovation", "A gene drives the splitting",
             "Gene content drives speciation, so the tree is an <b>output</b>. Loss runs at twice "
             "origination, yet the family reaches 83% of tips — its carriers split five times as often.",

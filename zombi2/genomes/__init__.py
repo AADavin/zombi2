@@ -21,7 +21,8 @@ from ._transfer import Clades, Distance
 from .events import GeneEdge
 from .gene_trees import GeneNode, GeneTree
 from .profiles import Profiles
-from .family import GeneCopy, FamilyGenomesResult, FamilyGenome, simulate_genomes_family, family
+from .family import (GeneCopy, FamilyGenomesResult, FamilyGenome, GeneFamily,
+                     simulate_genomes_family, family, genome)
 # re-exported on the package path for the CLI / tests, but kept out of __all__ (not public API):
 from .family import IMPLEMENTED_MODIFIERS, resolve_max_family_size  # noqa: F401
 from .chromosomes import ChromosomeEvent
@@ -41,7 +42,7 @@ from .read import read_run
 
 __all__ = ["simulate_genomes_family", "read_run", "FamilyGenomesResult", "GeneEdge", "GeneCopy", "Distance",
            "Clades", "Between",
-           "Profiles", "GeneTree", "GeneNode", "FamilyGenome", "family",
+           "Profiles", "GeneTree", "GeneNode", "FamilyGenome", "genome", "GeneFamily", "family",
            "simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",
            "ChromosomeEvent", "Inversion", "Transposition", "Translocation", "EventPosition",
            "simulate_genomes_nucleotide", "NucleotideGenomesResult", "NucleotideGenome",

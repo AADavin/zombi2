@@ -52,8 +52,9 @@ two factors collapse into one term, so do their runs.
   From Python the finished driver is handed over as the **object**; across two commands it is handed
   over as a **file**, because that is all a second process can read. The file is the CLI's way of
   passing it, not part of the model — do not define conditioning by it.
-- **Joint** — neither can go first, so one run makes both; when a level feeds back into the species
-  tree, the tree becomes an **output** and crosses the bar (`P(Species, Traits)`).
+- **Joint** — neither can go first, so **one run simulates both**. That is the whole of it. When the
+  species tree is one of the two, it comes **out** of the run and crosses the bar
+  (`P(Species, Traits)`); when it is not, the run takes a tree the way every other level does.
 
 ---
 
@@ -68,13 +69,17 @@ one level lives on the other or they sit on separate branches:
 | Species – Traits | no (a trait lives on the species tree) | yes — a trait drives speciation (tree grown) |
 | Genomes – Sequences | no (a sequence lives inside a gene) | in principle yes, deferred |
 | Genomes – Traits | yes, either direction | yes — the two drive each other |
-| Traits – Sequences | yes, either direction | no |
+| Traits – Sequences | yes, either direction | yes — the two drive each other |
 | Species – Sequences | no | no — too far apart to connect |
 
 The generating rule: a pair can be **conditioned** only on separate branches (Genomes–Traits,
 Traits–Sequences); it can be **joined** either by a level feeding back into its own tree (Species–Genomes,
-Species–Traits, tree grown as an output) or by two separate-branch levels driving each other
-(Genomes–Traits). Species and Sequences are too far apart to connect.
+Species–Traits, where the tree comes out of the run) or by two separate-branch levels driving each
+other (Genomes–Traits, Traits–Sequences). Species and Sequences are too far apart to connect.
+
+The same rule settles Traits–Sequences, which reads *yes* above because **both directions exist**: a
+trait drives a gene's substitution rate, and that gene's composition drives the trait. Either on its
+own is conditioning. Both at once is a cycle, and a cycle is joint.
 
 This table is about the **model**, not about what is built. A pair marked *yes* is one the framework
 permits; whether an engine implements it is a separate question, and the manual answers that one.
@@ -88,7 +93,10 @@ starts?* If it can, that is conditioning, whichever levels the two sit at. So:
   conditioning: `P(A|Species) · P(B|Species, A)`, two runs in order.
 - **cyclic, or driven by an aggregate of the level itself** — every family's rate reading total genome
   size, sites evolving in each other's context. The level's units stop being independent, so this is a
-  joint model and a new engine (§9), not a knob.
+  **joint** model rather than a knob. Whether it needs a new engine (§9) is a separate question, and
+  the answer is per level: the family genome engine already races every family in one loop and takes
+  this unchanged, so what it costs there is the parallel and streaming engines, which evolve one
+  family per process. The sequences level, where a site's rate would read other sites, does need one.
 
 Cross-level and within-level are therefore not different mechanisms, and the vocabulary does not fork.
 
@@ -103,6 +111,7 @@ Cross-level and within-level are therefore not different mechanisms, and the voc
 - a trait drives speciation and also changes at speciation events (the tree is grown)
 - gene content drives speciation, with a burst of gene change at each split (the tree is grown)
 - a trait and gene content drive each other (the tree stays fixed)
+- a trait and a gene's sequence drive each other (the tree stays fixed)
 
 The literature calls these models by acronyms (BiSSE, MuSSE, QuaSSE, HiSSE, ClaSSE, key innovation,
 co-diversification, trait–gene feedback). **Those names are deprecated as structure, not hidden:**
