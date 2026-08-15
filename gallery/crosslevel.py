@@ -22,7 +22,7 @@ from matplotlib import colors
 
 from zombi2.genomes import family, simulate_genomes_family, simulate_genomes_ordered
 from zombi2.params import Curve, PerCopy, PerLineage, PerSite
-from zombi2.sequences import jc69, simulate_sequences
+from zombi2.sequences import hky85, jc69, simulate_sequences
 from zombi2.species import simulate_species_tree
 from zombi2.traits import simulate_continuous, simulate_discrete
 
@@ -379,6 +379,78 @@ def gc_drives_sequence(out):
                                           (pngs[1], "the same tree in substitutions")])
 
 
+_CHAPERONE_ABSENT = 0.5      # no chaperone → the driver reads the run's even background
+
+
+def named_family_drives_sequence(out):
+    """One **named family's** composition driving another named family's rate, out of a single
+    genome run — and the thing that used to make this unwritable.
+
+    A composition is pooled over whatever a run evolved, so on a whole genome it is the lineage's
+    whole complement and belongs to no family in particular. Restricting the run to one family with
+    ``families=["chaperone"]`` makes the pooled statistic that family's. Both runs then read the
+    **same** genome run, so the driver's history is the one on disk; two separate genome runs would
+    have put the driver on gene trees the target never saw.
+
+    What that costs is the branches with no chaperone at all — grey here, and a third of them. A
+    driver has to answer for every branch the target walks, so the run declares what they read:
+    ``absent=0.5``, the even background. Leaving it out is an error rather than a guess, because
+    carrying the parent's value forward would drive those branches as though the family were still
+    there.
+
+    One clade's chaperone evolves under an AT-rich model, so its GC settles near 0.20 while the rest
+    sits near 0.50, and the client's substitution rate reads that through a curve: AT-rich lineages
+    run four times faster. The second panel is the same tree measured in substitutions, so the branches
+    the driver sped up are the long ones.
+    """
+    from zombi2.params import Clade
+    from zombi2.sequences import Models
+
+    ct = _composition_tree()
+    g = simulate_genomes_family(ct, initial_families=6, duplication=0.0, loss=0.0, origination=0.0,
+                                seed=2, families=[family("chaperone", loss=0.30), family("client")])
+    chaperone = simulate_sequences(
+        g, families=["chaperone"], length=300, substitution=0.55, seed=2,
+        model=Models().set_by(Clade({"at": ["n13", "n33"]}),
+                              {"at": hky85(kappa=2.0, frequencies=_AT_RICH),
+                               "rest": hky85(kappa=2.0)}))
+    factor = (lambda gc: 4.0 ** ((0.5 - gc) / 0.3))       # AT-rich → fast, GC-rich → slow
+    driver = chaperone.gc(absent=_CHAPERONE_ABSENT)
+    client = simulate_sequences(g, families=["client"], model=jc69(), length=200, seed=5,
+                                substitution=PerSite(0.2).scaled_by(driver, Curve(factor)))
+
+    lab = ct.labels()
+    read = driver._node_values(ct)
+    # only the branches that HAVE the family are painted, so the grey ones are exactly the branches
+    # `absent=` had to answer for — a partial mapping, which Phylustrator leaves in its own colour
+    gc = {lab[i]: v for i, v in read.items() if v != _CHAPERONE_ABSENT}
+    span = (min(gc.values()), max(gc.values()))
+    # the branch colour a lineage keeps when the map has no value for it, set light on purpose: the
+    # AT-rich end of this ramp is near-black, and against the default dark it was the one thing on
+    # the figure a reader could not tell from another
+    style = ph.Style(width=1400, height=660, margin=96, branch_width=3.0, branch_color="#c3c8cc")
+    pngs = []
+    for k, (newick, axis) in enumerate(((ct.to_newick(), "time"),
+                                        (client.species_phylogram["complete"],
+                                         "substitutions/site"))):
+        png = out.replace(".png", f"_p{k}.png")
+        (ph.trees.plot(ph.trees.loads(newick), skeleton=False, style=style)
+         + ph.trees.color_branches(gc, cmap=_GC, limits=span)
+         + ph.trees.time_axis(axis, tick_size=20, label_size=26, bold=False)).save(png)
+        pngs.append(png)
+    diag = h.conditioning_png(out.replace(".png", "_diag.png"),
+                              driver=("sequences", "chaperone GC", "a number"),
+                              connection=("scaled_by", "curve"),
+                              target_level="sequences",
+                              targets=[("client substitution", "rate · per site", "")],
+                              curve=(factor, "the chaperone's GC", span))
+    h.composite_under_diagram(
+        out, diag,
+        [(pngs[0], "the chaperone's GC  (grey: no chaperone, so the driver reads absent=0.5)",
+          (_GC, "AT-rich", "GC-rich")),
+         (pngs[1], "the client, in substitutions")])
+
+
 def gc_drives_trait(out):
     """A SEQUENCE drives a TRAIT — the last pair on the map, and the only one whose driver is grown at
     the sequence level and whose target is not. Base composition sets how fast a discrete character
@@ -497,6 +569,31 @@ seqs = simulate_sequences(second, model=jc69(), length=60, seed=5,
                           substitution=PerSite(0.2).scaled_by(
                               first.gc(), Curve(lambda gc: 4.0 ** ((0.5 - gc) / 0.3))))"""
 
+_C_NAMED_SEQ = """### ONE NAMED FAMILY's composition drives another's rate — one genome run, two sequence runs
+from zombi2.genomes import family, simulate_genomes_family
+from zombi2.params import Clade, Curve, PerSite
+from zombi2.sequences import Models, hky85, jc69, simulate_sequences
+
+# both families come out of ONE genome run, so the driver's gene tree is the one
+# the target's run also saw. Per-family rates: the chaperone is lost sometimes.
+g = simulate_genomes_family(ct, initial_families=6, duplication=0.0, loss=0.0, seed=2,
+                            families=[family("chaperone", loss=0.30), family("client")])
+
+# `families=` restricts the run, so its POOLED composition is that family's
+chaperone = simulate_sequences(
+    g, families=["chaperone"], length=300, substitution=0.55, seed=2,
+    model=Models().set_by(Clade({"at": ["n13", "n33"]}),
+                          {"at": hky85(kappa=2.0, frequencies=(0.40, 0.10, 0.10, 0.40)),
+                           "rest": hky85(kappa=2.0)}))
+
+# absent= is what a branch WITHOUT the chaperone reads. Required, not guessed: a
+# driver has to answer for every branch the target walks, and carrying the parent's
+# value forward would say the family was still there.
+client = simulate_sequences(
+    g, families=["client"], model=jc69(), length=200, seed=5,
+    substitution=PerSite(0.2).scaled_by(chaperone.gc(absent=0.5),
+                                        Curve(lambda gc: 4.0 ** ((0.5 - gc) / 0.3))))"""
+
 _C_GC_TRAIT = """### base composition sets how fast a character switches
 from zombi2.params import Curve, PerLineage
 from zombi2.traits import simulate_discrete
@@ -537,6 +634,11 @@ EXAMPLES = [
             "A sequence drives a sequence. It cannot drive the gene it grows inside — that "
             "would read a run’s own output — but it can drive a different one, run after it.",
             "GC → substitution", gc_drives_sequence, code=_C_GC_SEQ),
+    Example("named_family_drives_sequence", "One named gene drives another",
+            "The same pair, out of <b>one</b> genome run: <code>families=</code> makes a run's "
+            "pooled composition one family's, and <code>absent=</code> answers for the branches "
+            "that family is missing from (grey).",
+            "one family’s GC → substitution", named_family_drives_sequence, code=_C_NAMED_SEQ),
     Example("gc_drives_trait", "Composition drives a character",
             "The only pair whose driver is grown at the sequence level and whose target is not. "
             "<code>gc()</code> is a number, so the connection carries a <code>Curve</code>.",

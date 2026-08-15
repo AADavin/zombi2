@@ -162,6 +162,11 @@ class SequencesResult:
     #: Kept because a sequences result carries its trees as Newick text, not as a `Tree`, so there is
     #: otherwise nothing here that says which of the labels is a survivor.
     extant_tips: tuple[str, ...] = ()
+    #: The named families the run was **restricted** to (``families=``), empty when it evolved every
+    #: one. `composition` reads it: pooled over the whole genome a lineage always has some sequence,
+    #: but a run holding one family has none wherever that family is absent, and what to read there
+    #: is then a question only the caller can answer.
+    families: tuple[str, ...] = ()
     #: Per host block, which inserted runs sit inside it and which record carries which — the plan
     #: `alignments` splices by. Kept because it is the *plan*, not the rows: the rows are the
     #: alignment over again, and a whole-genome run cannot afford a second copy of that.
@@ -189,7 +194,7 @@ class SequencesResult:
         what you observe, and the truth behind it."""
         return {t: self.node_genomes[t] for t in self.extant_tips if t in self.node_genomes}
 
-    def composition(self, letters: str):
+    def composition(self, letters: str, *, absent: float | None = None):
         """The share of a lineage's sequence that is one of ``letters``, at every instant, as a
         conditioning driver (`~zombi2.sequences.composition.Composition`)::
 
@@ -204,15 +209,33 @@ class SequencesResult:
 
         A number, so it takes a `~zombi2.params.mapping.Curve` or a `~zombi2.params.mapping.Scalar`, and
         it drives what comes **after** a sequence — a trait, or a further sequence run — never the
-        genome the gene trees came from."""
+        genome the gene trees came from.
+
+        ``absent`` is what a branch reads where the run has **no sequence at all** on that lineage,
+        and it is what makes **one family's** composition a usable driver: restrict the run with
+        ``families=["chaperone"]`` and this statistic is that family's, but the family is missing on
+        some branches and a driver has to answer for every branch the target walks::
+
+            chaperone = simulate_sequences(g, families=["chaperone"], model=lg(), length=300, seed=3)
+            chaperone.composition("KR", absent=0.08)
+
+        On a restricted run with a gap and no ``absent``, resolving the driver raises rather than
+        carrying the parent's value forward, which would be a different model from the one asked
+        for."""
         from .composition import Composition
         if not isinstance(letters, str):
             raise TypeError(
                 f"composition() takes the letters to count as a string — composition('KR'), not "
                 f"{letters!r}.")
-        return Composition(self, letters.upper())
+        if absent is not None and (isinstance(absent, bool)
+                                   or not isinstance(absent, (int, float))
+                                   or not 0.0 <= absent <= 1.0):
+            raise ValueError(
+                f"absent is the share this statistic reads where the run has no sequence, so it is "
+                f"a fraction in [0, 1]; got {absent!r}.")
+        return Composition(self, letters.upper(), None if absent is None else float(absent))
 
-    def gc(self, family: object = None):
+    def gc(self, family: object = None, *, absent: float | None = None):
         """This run's **GC content** as a conditioning driver: `composition` over ``"GC"``, the
         fraction of a lineage's DNA that is G or C, pooled over every family the run evolved::
 
@@ -223,19 +246,22 @@ class SequencesResult:
 
         Nucleotide runs only, because G and C are also glycine and cysteine: on a protein run the
         call is ambiguous rather than wrong, so it is refused and `composition` asked for instead.
-        ``family`` is here only to refuse one."""
+        ``family`` is here only to refuse one — one family's GC is asked for by restricting the run
+        to it with ``families=``, and ``absent`` then says what a branch without it reads
+        (`composition`)."""
         if family is not None:
             raise ValueError(
-                f"gc() is pooled over every family this run evolved, so it takes no family — got "
-                f"{family!r}. One family's GC is not offered: it is undefined wherever that family is "
-                f"absent, and a driver has to answer for every branch the target walks. Evolve that "
-                f"family in a run of its own if its GC alone should drive the rate.")
+                f"gc() is pooled over whatever this run evolved, so it takes no family — got "
+                f"{family!r}. To read one family's GC, restrict the run to it instead — "
+                f"simulate_sequences(g, families=[{family!r}], ...) — and say what a branch reads "
+                f"where that family is absent: .gc() then needs an absent=, or "
+                f"composition('GC', absent=...) directly.")
         if set(self.alphabet) != set(BASES):
             raise ValueError(
                 f"gc() is GC content, so it needs DNA; this run's alphabet is {self.alphabet!r}. A "
                 f"protein run's G and C are glycine and cysteine — ask for those by name with "
                 f"composition('GC') if that is what you meant.")
-        return self.composition("GC")
+        return self.composition("GC", absent=absent)
 
     @property
     def _stem(self) -> str:
@@ -1156,8 +1182,34 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
     return alignment, ancestral, "".join(p[2] for p in pieces)
 
 
+def _restrict_to(families, genomes) -> list[int]:
+    """The family ids ``families=`` names, checked against what the genome run declared.
+
+    **Names, not ids.** A run's family ids are handed out as it goes, so a number here would be a
+    reference to something the caller did not write; a name is the handle the genome run was asked
+    for, ``families=[family("chaperone")]``. That is also what makes this usable at all — the point
+    of restricting a run is to have a statistic that belongs to a family you can name."""
+    declared = getattr(genomes, "family_names", {}) or {}
+    if isinstance(families, str):
+        raise TypeError(
+            f"families= takes a list of names, so one name is families=[{families!r}] rather than a "
+            f"bare string (which reads as a list of its letters).")
+    names = list(families)
+    if not names:
+        raise ValueError(
+            "families=[] would evolve nothing. Leave families= off to evolve every family, or name "
+            "the ones to keep.")
+    unknown = [n for n in names if n not in declared]
+    if unknown:
+        raise ValueError(
+            f"families={unknown} names no family of this genome run. A family is nameable only if "
+            f"the genome run declared it — simulate_genomes_family(..., families=[family('chaperone')]) "
+            f"— and this one declared {sorted(declared) or 'none'}.")
+    return [declared[n] for n in names]
+
+
 def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
-                       length: int | None = None, partitions=None, profiles=None,
+                       length: int | None = None, partitions=None, profiles=None, families=None,
                        intergene_model: SubstitutionModel | None = None, intergene_speed=3.0,
                        insertion=0.0, deletion=0.0, insertion_extent=3.0, deletion_extent=3.0,
                        substitution=None, divergence=None, seed=None, parallel=False,
@@ -1214,6 +1266,13 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     the branch rather than one sample of it (`clock`), so the phylograms are the trees the alignments
     were actually drawn along. Any other modifier (the ``Markov`` clock, a draw among
     families), a second lineage clock, or a non-``PerSite`` scope raises.
+
+    ``families`` restricts the run to **named** families — ``families=["chaperone"]`` — instead of
+    evolving every one. The names are the genome run's, declared there with
+    ``families=[family("chaperone")]``. Two uses: a run of one family, whose pooled `composition` is
+    then that family's composition, and a pair of runs that let one gene's sequence drive another's
+    rate. That pair needs it: without it the second run re-evolves the driver alongside its target,
+    so the rate reads one history of the driver while the file on disk holds a different one.
 
     Rate variation **across sites** rides on ``model``, not on ``substitution``:
     ``model=hky85(2.0).across_sites(gamma_shape=0.5, invariant=0.1)`` sorts the sites into a
@@ -1386,6 +1445,12 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             "drop `profiles`.")
     site_profiles = {} if profiles is None else _resolve_profiles(profiles, model, length)
 
+    if nucleotide and families is not None:
+        raise ValueError(
+            "families= restricts the run to named gene families, and a nucleotide genome run "
+            "evolves blocks — genes and the spacer between them — rather than a family's gene "
+            "trees. Run the family or ordered resolution at the genome level if one family's "
+            "sequences are what you want.")
     if nucleotide:
         # Every recovered root block evolves — spacer as well as genes — so the run reconstructs the
         # whole genome rather than the declared loci. Each block brings its own length in bp, which
@@ -1454,6 +1519,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         parts = None                # a nucleotide block's model and length come from `per_block`
     else:
         gene_trees = genomes.gene_trees
+        if families is not None:
+            gene_trees = {i: gene_trees[i] for i in _restrict_to(families, genomes)}
         parts = _resolve_partitions(model, partitions, length)
         # A per-lineage model set is painted against THIS run's tree, once, before any family is
         # evolved — the same shape as a driven rate resolving its trajectory above. It is checked
@@ -1731,6 +1798,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                            # alphabet, so the first one speaks for the run
                            BASES if parts is None else parts[0][0].alphabet,
                            tuple(names[i] for i in sorted(species_tree.extant_leaves())),
+                           () if families is None else tuple(families),
                            insertion_plan,
                            alignments._raw if isinstance(alignments, _SplicedAlignments) else alignments,
                            ancestral._raw if isinstance(ancestral, _SplicedAlignments) else ancestral)

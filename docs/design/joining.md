@@ -1,6 +1,6 @@
 # Joining — a design note
 
-**Status: steps 1 to 7 of §14 are built; the rest is designed.** This note records what joining is
+**Status: steps 1 to 8 of §14 are built; the rest is designed.** This note records what joining is
 and which pairs can be joined. It also says where each joint model lives in the API, and the order
 the work is done in. It is subordinate to
 [`SPEC.md`](SPEC.md): where the two disagree, SPEC wins.
@@ -257,10 +257,10 @@ say this.
 
 This is conditioning, not joining, and it is in scope because the sequence loops need it.
 
-`Composition` is pooled over every family in the run today, and one family's is refused. The stated
+`Composition` was pooled over every family in the run, and one family's was refused. The stated
 reason is that a per-family composition is undefined wherever that family is absent. A driver has to
-answer for every branch the target walks. `gc()` already carries a `family` argument whose only job is
-to refuse one.
+answer for every branch the target walks. `gc()` carries a `family` argument whose only job is to
+refuse one, and it still does — it now names the way instead.
 
 **The fix is a declared default.** `composition("KR", absent=0.08)` says what a branch reads where the
 family is not there.
@@ -376,7 +376,7 @@ New cards go in `gallery/joining.py` and `gallery/crosslevel.py`.
 
 ## 14. Order of work
 
-Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), then 6 and 7.
+Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), then 6, 7 and 8.
 
 1. ~~**The wording.**~~ Done. SPEC, the manual, the two docstrings, Figure 10.2's new arrow.
 2. ~~**Per-family rates.**~~ Done. §5, with the `genomes.genome` rename. No figure: per-family rates
@@ -399,7 +399,10 @@ Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), then 6 and 
    fixed across. Required rather than defaulted: a step is the size of the approximation, and any
    number the code invented would be a claim about a timescale only the model knows. Figure: body
    size diffusing, and the big lineages radiating.
-8. **Composition for one family, and `families=`.** §9.
+8. ~~**Composition for one family, and `families=`.**~~ Done. §9. `families=` on
+   `simulate_sequences` and `absent=` on `composition()` / `gc()`. Conditioning, not
+   joining, and here because step 9 needs it. Figure: a chaperone's GC setting a
+   client's substitution rate, both families out of one genome run.
 9. **The sequence loop.** §6, on the slicing from step 7.
 10. **Traits with Sequences.** §7, the new arrow.
 11. **`record=`.** §10, last, because nothing above depends on it.

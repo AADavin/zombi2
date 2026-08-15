@@ -173,9 +173,12 @@ def test_gc_is_a_number_so_a_state_table_is_refused():
                                  switch=PerLineage(0.3).scaled_by(seqs.gc(), {"0.5": 2.0}))
 
 
-def test_one_family_s_gc_is_refused_rather_than_offered():
+def test_one_family_s_gc_is_asked_for_by_restricting_the_run():
+    """`gc(family)` never was the way, and now the refusal names the way that is: restrict the
+    sequence run to that family with `families=`, where the statistic is genuinely that family's and
+    `absent=` answers for the branches it is missing from."""
     tree, seqs = _run()
-    with pytest.raises(ValueError, match="pooled over every family"):
+    with pytest.raises(ValueError, match="restrict the run to it"):
         seqs.gc("fam3")
 
 

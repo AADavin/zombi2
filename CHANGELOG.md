@@ -11,6 +11,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
+- **One gene family's composition can drive another's rate.** `simulate_sequences(..., families=
+  ["chaperone"])` restricts a run to named families, so its pooled `composition()` / `gc()` is that
+  family's, and both runs read the same genome run — so the driver's gene tree is the one the
+  target's run also saw. `composition("KR", absent=0.08)` says what a branch reads where the family
+  is not there; on a restricted run with a gap, leaving it out raises rather than carrying the
+  parent's value forward, which would drive that branch as though the family were still present.
+  `gc(family)` still refuses, and now names this as the way instead.
 - **A continuously diffusing trait can drive speciation** — QuaSSE.
   `traits.continuous(start=..., rate=...)` is a process spec now rather than a refusal, and goes to
   `joint.simulate` beside `species.birth_death(...)`. The driver is a number, so the connection takes
