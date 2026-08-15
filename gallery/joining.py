@@ -80,19 +80,22 @@ def _draw_response(ax, lo, hi):
     cards put here. What replaces it is the response curve, in the same colours as the branches, so
     it doubles as the key: find a branch's colour on the curve and read across to its rate."""
     from matplotlib.collections import LineCollection
+    from matplotlib.ticker import MaxNLocator
 
     ax.set_facecolor("#ffffff")
     xs = [lo + (hi - lo) * k / 240 for k in range(241)]
     ys = [_QUASSE_BASE * math.exp(_QUASSE_SLOPE * x) for x in xs]
     ax.add_collection(LineCollection(
         [[(xs[k], ys[k]), (xs[k + 1], ys[k + 1])] for k in range(len(xs) - 1)],
-        cmap="viridis", norm=colors.Normalize(lo, hi), array=xs[:-1], linewidth=5.0,
+        cmap="viridis", norm=colors.Normalize(lo, hi), array=xs[:-1], linewidth=3.4,
         capstyle="round"))
     ax.set_xlim(lo, hi)
     ax.set_ylim(0.0, ys[-1] * 1.08)
-    ax.set_xlabel("body size", fontsize=13, labelpad=2)
-    ax.set_ylabel("speciation rate", fontsize=13, labelpad=2)
-    ax.tick_params(labelsize=11, length=3, pad=2)
+    ax.set_xlabel("body size", fontsize=10.5, labelpad=2)
+    ax.set_ylabel("speciation rate", fontsize=10.5, labelpad=2)
+    ax.tick_params(labelsize=9, length=3, pad=2)
+    ax.xaxis.set_major_locator(MaxNLocator(4))
+    ax.yaxis.set_major_locator(MaxNLocator(4))
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
 
@@ -136,8 +139,8 @@ def quasse(out):
     # the key goes in the tree's empty upper-left, on a card: it is a plot with axes of its own, and
     # unframed beside the tree's time axis the two read as one set of coordinates
     h.composite_markov(tree_png, out, lambda ax: _draw_response(ax, *limits),
-                       loc=(0.125, 0.695, 0.245, 0.20), keep_axes=True,
-                       panel=(0.068, 0.078, 0.026, 0.032))
+                       loc=(0.091, 0.787, 0.147, 0.12), keep_axes=True,
+                       panel=(0.041, 0.047, 0.016, 0.019))
 
 
 def classe(out):
