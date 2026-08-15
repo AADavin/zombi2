@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import pytest
 
+from zombi2 import species
 from zombi2 import traits
 from zombi2.genomes import (simulate_genomes_family, simulate_genomes_nucleotide,
                             simulate_genomes_ordered)
@@ -155,13 +156,12 @@ def test_no_genome_can_be_driven_by_a_sequence():
 
 def test_a_joint_run_and_the_species_level_refuse_it_too():
     """Neither reaches the driver, and both say why on their own terms."""
-    from zombi2.joint import simulate_joint
+    from zombi2.joint import simulate
 
     tree, seqs = _run()
     driven = PerLineage(1.0).scaled_by(seqs.gc(), _RESPONSE)
     with pytest.raises(TypeError, match="live level"):
-        simulate_joint(birth=driven, trait=traits.discrete(states=["a", "b"], switch=0.3),
-                       n_extant=10, seed=4)
+        simulate(species.birth_death(birth=driven, n_extant=10), traits.discrete(states=["a", "b"], switch=0.3), seed=4)
     with pytest.raises(ValueError, match="species engine does not support"):
         simulate_species_tree(birth=driven, death=0.2, n_extant=8, seed=4)
 

@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import pytest
 
-from zombi2.genomes import (simulate_genomes_family, simulate_genomes_nucleotide,
+from zombi2.genomes.family import resolve_modules
+from zombi2.genomes import (family, simulate_genomes_family, simulate_genomes_nucleotide,
                             simulate_genomes_ordered)
 from zombi2.params import PerLineage
 from zombi2.species import simulate_species_tree
@@ -25,7 +26,7 @@ from zombi2.traits import simulate_discrete
 
 def _run(loss=0.15, seed=9, n_extant=40):
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=n_extant, seed=4)
-    g = simulate_genomes_family(sp.complete_tree, initial_families=20, family_names=["tox"],
+    g = simulate_genomes_family(sp.complete_tree, initial_families=20, families=[family("tox")],
                                 duplication=0.1, loss=loss, seed=seed)
     return sp.complete_tree, g
 
@@ -94,7 +95,7 @@ def test_a_driver_that_never_changes_leaves_the_run_byte_identical():
 
 def test_ordered_runs_carry_the_same_signal():
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=12, seed=4)
-    g = simulate_genomes_ordered(sp.complete_tree, initial_families=12, family_names=["tox"],
+    g = simulate_genomes_ordered(sp.complete_tree, initial_families=12, families=[family("tox")],
                                  duplication=0.1, loss=0.2, inversion=0.2, seed=7)
     traj = g.presence("tox").as_driver_trajectory(sp.complete_tree)
     assert traj.states() <= {"present", "absent"}
@@ -119,8 +120,9 @@ _FLG = [f"flg{i}" for i in range(6)]
 
 def _module_run(loss=0.2, seed=9, n_extant=60):
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=n_extant, seed=4)
-    g = simulate_genomes_family(sp.complete_tree, initial_families=20, family_names=_FLG,
-                                modules={"flagellum": _FLG}, duplication=0.05, loss=loss, seed=seed)
+    g = simulate_genomes_family(sp.complete_tree, initial_families=20, duplication=0.05,
+                                families=[family(n, module="flagellum") for n in _FLG],
+                                loss=loss, seed=seed)
     return sp.complete_tree, g
 
 
@@ -148,8 +150,9 @@ def test_a_module_of_one_family_is_that_family_s_presence():
     must reduce to presence, 1.0 where present and 0.0 where absent."""
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=30, seed=4)
     tree = sp.complete_tree
-    g = simulate_genomes_family(tree, initial_families=15, family_names=["tox"],
-                                modules={"just_tox": ["tox"]}, duplication=0.1, loss=0.15, seed=9)
+    g = simulate_genomes_family(tree, initial_families=15,
+                                families=[family("tox", module="just_tox")],
+                                duplication=0.1, loss=0.15, seed=9)
     one = g.completion("just_tox").as_driver_trajectory(tree)
     pres = g.presence("tox").as_driver_trajectory(tree)
     for node in tree.nodes.values():
@@ -187,15 +190,18 @@ def test_a_module_refuses_what_it_cannot_mean():
     tree, g = _module_run()
     with pytest.raises(KeyError, match="no module"):
         g.completion("nope")
-    kw = dict(initial_families=4, family_names=["a", "b"], seed=1)
+    kw = dict(initial_families=4, families=[family("a"), family("b")], seed=1)
     for bad, fragment in (({"m": []}, "no families in it"),
                           ({"m": ["a", "z"]}, "not declared families"),
                           ({"m": ["a", "a"]}, "names a family twice"),
                           ({"": ["a"]}, "non-empty name")):
         with pytest.raises(ValueError, match=fragment):
-            simulate_genomes_family(tree, modules=bad, **kw)
+            resolve_modules(bad, ["a", "b"])
     with pytest.raises(TypeError, match="must be a dict"):
-        simulate_genomes_family(tree, modules=["a"], **kw)
+        resolve_modules(["a"], ["a"])
+    # and the keyword that used to carry them answers with what replaced it
+    with pytest.raises(TypeError, match="module="):
+        simulate_genomes_family(tree, modules={"m": ["a"]}, **kw)
 
 
 # --- the nucleotide resolution: a declared gene, and DNA taken away in arcs --------------------
@@ -216,7 +222,7 @@ def _nucleotide_run(loss=1.5, seed=9, n_extant=30):
     sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=n_extant, seed=4)
     g = simulate_genomes_nucleotide(sp.complete_tree, gff=_gff(), duplication=0.2,
                                     duplication_extent=300, loss=loss, loss_extent=300,
-                                    modules={"operon": _GENES}, seed=seed)
+                                    modules={"operon": tuple(_GENES)}, seed=seed)
     return sp.complete_tree, g
 
 

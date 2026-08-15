@@ -20,6 +20,7 @@ import json
 
 import pytest
 
+from zombi2 import species
 from zombi2.params import PerLineage
 from zombi2.genomes import simulate_genomes_family
 from zombi2.sequences import simulate_sequences
@@ -192,12 +193,10 @@ def test_a_continuous_trait_summary_describes_where_the_values_got_to():
 
 
 def test_a_joint_summary_holds_both_levels_it_grew():
-    from zombi2.joint import simulate_joint
+    from zombi2.joint import simulate
     from zombi2.traits import DiscreteTrait
 
-    r = simulate_joint(birth=PerLineage(1.0).scaled_by("trait", {"small": 1.0, "large": 3.0}), death=0.2,
-                       trait=DiscreteTrait(states=("small", "large"), switch=0.3),
-                       n_extant=20, seed=1)
+    r = simulate(species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"small": 1.0, "large": 3.0}), death=0.2, n_extant=20), DiscreteTrait(states=("small", "large"), switch=0.3), seed=1)
     s = r.summary()
     assert s["level"] == "joint" and s["driver"] == "trait"
     # the same payloads the two levels would write alone — one vocabulary, not a third

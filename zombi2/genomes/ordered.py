@@ -65,7 +65,8 @@ from ..params.parameter import Rate, as_rate
 from ..params.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv, rearrangement_events_tsv
-from .family import resolve_modules, resolve_max_family_size, resolve_origins
+from ..params.retired import check_no_retired_keywords
+from .family import resolve_families, resolve_max_family_size, resolve_origins
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
                         resolve_transfer_to)
@@ -1161,9 +1162,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              inversion_extent=None, transposition_extent=None,
                              translocation_extent=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
-                             initial_families=100, family_names=None, modules=None, origins=None,
+                             initial_families=100, families=None, joint=False,
                              max_family_size=10, seed=None,
-                             progress=False) -> OrderedGenomesResult:
+                             progress=False, **retired) -> OrderedGenomesResult:
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
     species tree, by the D/T/L/O core plus segmental rearrangements and the chromosome events.
 
@@ -1377,15 +1378,22 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     transfer_to = resolve_transfer_to(transfer_to)
     if isinstance(initial_families, bool) or not isinstance(initial_families, int) or initial_families < 0:
         raise ValueError(f"initial_families must be a non-negative integer, got {initial_families!r}")
-    family_names = list(family_names) if family_names is not None else []
-    for name in family_names:
-        if not isinstance(name, str) or not name.strip():
-            raise ValueError(f"family_names must be a list of non-empty family names (strings), got {name!r}")
-    if len(set(family_names)) != len(family_names):
-        raise ValueError(f"family names must be unique, got {family_names}")
-    module_map = resolve_modules(modules, family_names)
-    # families placed at a chosen branch and time rather than drawn by the origination rate
-    placed = resolve_origins(origins, tree)
+    check_no_retired_keywords(retired, where="simulate_genomes_ordered")
+    # the family resolution's own resolver, so the two engines cannot disagree about what a
+    # declaration means
+    declared, module_map, planted_named = resolve_families(families, tree)
+    placed = []
+    family_names = [f.name for f in declared]
+    if any(f.written() for f in declared):
+        raise ValueError(
+            "a family writing its own rate is implemented at the family resolution and not yet here. "
+            "This engine carries a segment's extent as well as its rate, and what a per-family extent "
+            "means is not decided. Declare the family without rates, or run at "
+            "resolution='family'.")
+    if joint:
+        raise ValueError(
+            "joint=True — a rate reading the genome's own live content — is implemented at the "
+            "family resolution and not yet here. Run at resolution='family' for it.")
 
     # The growth guard, as at the family resolution: duplication compounds, so a run whose rate sits
     # above its loss rate — or a family that drew a high a per-family draw factor — multiplies without bound
@@ -1512,9 +1520,16 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         event_positions.append(EventPosition(t, "origination", root.id, chrom.id,
                                              len(chrom.genes) - 1, 1, family=fam))
     named: dict[str, int] = {}  # a minted id per declared name, dealt round-robin after the anonymous ones
+    named_plants: list[tuple[float, int, int]] = []
     for j, name in enumerate(family_names):
         fam = new_family()
         named[name] = fam
+        if j in planted_named:
+            # given an `origin`, so it arrives there rather than at the tree's origin — the same
+            # event, at a point chosen instead of drawn
+            t_p, lineage = planted_named[j]
+            named_plants.append((t_p, lineage, fam))
+            continue
         chrom = initial_chroms[(initial_families + j) % n_initial_chrom]
         _live(chrom).append(new_gene(fam, +1))
         events.append(GeneEdge(t, "origination", root.id, fam, chrom.genes[-1].id))
@@ -1524,11 +1539,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # the ids of the families `origins=` places: minted here, straight after the initial and named
     # ones and in the order they were written, so the same origins name the same families at either
     # resolution. Each is planted at its own time, in the loop below.
-    plants = sorted((t_p, lineage, new_family()) for t_p, lineage in placed)
+    plants = sorted(named_plants)
     plant_i = 0
     initial_genome = tuple(Chromosome(c.id, c.topology, list(c.genes)) for c in initial_chroms)
     enter(alive, gen, pos, root.id, initial_chroms)
-    total_copies = initial_families + len(family_names)
+    # a family given an `origin` is not in the root genome — it arrives later, in the loop
+    total_copies = initial_families + len(family_names) - len(named_plants)
     total_chromosomes = n_initial_chrom
 
     bar = progress_bar(len(schedule), "genomes", unit="branch", enabled=progress)

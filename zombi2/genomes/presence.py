@@ -39,7 +39,7 @@ class GenePresence:
 
     Built by ``result.presence("name")`` and read with ``scaled_by`` like a grown trait::
 
-        g = simulate_genomes_family(sp, family_names=["tox"], loss=0.3, seed=1)
+        g = simulate_genomes_family(sp, families=[family("tox")], loss=0.3, seed=1)
         simulate_discrete(sp.complete_tree, states=["harmless", "pathogenic"], start="harmless",
                           switch=PerLineage(0.1).scaled_by(g.presence("tox"),
                                                            {"present": 5.0, "absent": 1.0}), seed=2)
@@ -84,8 +84,8 @@ class ModuleCompletion:
     A number in ``[0, 1]``: the fraction of the module's families with at least one copy. Built by
     ``result.completion("name")`` and read with a `Curve`, the way any continuous driver is::
 
-        g = simulate_genomes_family(sp, family_names=[...],
-                                    modules={"flagellum": ["flgA", "flgB", "flgC"]}, seed=1)
+        g = simulate_genomes_family(sp, seed=1, families=[
+            family(n, module="flagellum") for n in ("flgA", "flgB", "flgC")])
         simulate_discrete(sp.complete_tree, states=["sessile", "motile"], start="sessile",
                           switch=PerLineage(0.05).scaled_by(g.completion("flagellum"),
                                                             Curve(lambda f: 0.2 + 20.0 * f ** 4)), seed=2)
@@ -187,7 +187,7 @@ def _named(result, name: str) -> int:
     if name not in names:
         raise KeyError(
             f"no named family {name!r} in this genome run; declared families are {sorted(names)}. A "
-            f"family must be declared to be named here — `family_names=` at the family and ordered "
+            f"family must be declared to be named here — `families=[family(...)]` at the family and ordered "
             f"resolutions, a GFF `ID` / `Name` at the nucleotide one.")
     return names[name]
 

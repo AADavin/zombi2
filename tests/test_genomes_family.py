@@ -13,7 +13,7 @@ from zombi2.params.scope import Global, PerCopy, PerLineage
 
 from zombi2.params import Clade, Drift, Fixed, LogNormal, Random, TotalDiversity
 from zombi2.species import simulate_species_tree
-from zombi2.genomes import simulate_genomes_family
+from zombi2.genomes import family, simulate_genomes_family
 from zombi2.tree import Node, Tree
 
 
@@ -859,7 +859,7 @@ def test_origins_places_a_family_where_it_was_asked_for():
     sp = _tree(seed=1, n_extant=12).complete_tree
     when = _mid(sp, 3)
     g = simulate_genomes_family(sp, initial_families=0, origination=0.0, duplication=0.4,
-                                transfer=0.2, loss=0.3, origins=[("n3", when)], seed=7)
+                                transfer=0.2, loss=0.3, families=[family('placed0', origin=("n3", when))], seed=7)
     assert _origination(g, 0) == (when, 3)
     # and it is then an ordinary family: it evolves, and it has a gene tree like any other
     assert {c.family for gen in g.node_genomes.values() for c in gen} == {0}
@@ -873,7 +873,7 @@ def test_a_family_placed_at_the_origin_is_an_initial_family():
     seeded = simulate_genomes_family(sp, initial_families=1, duplication=0.4, transfer=0.2,
                                      loss=0.3, seed=11)
     placed = simulate_genomes_family(sp, initial_families=0, duplication=0.4, transfer=0.2,
-                                     loss=0.3, origins=[(sp.root, None)], seed=11)
+                                     loss=0.3, families=[family('placed0', origin=(sp.root, None))], seed=11)
     assert len(seeded.edges) > 20 and seeded.edges == placed.edges
 
 
@@ -882,9 +882,10 @@ def test_origins_add_to_the_families_the_run_seeds_and_draws():
     # still fires, and the placed family's id follows them
     sp = _tree(seed=1, n_extant=12).complete_tree
     when = _mid(sp, 3)
-    g = simulate_genomes_family(sp, initial_families=3, family_names=["tox"], origination=0.5,
-                                duplication=0.2, loss=0.2, origins=[("n3", when)], seed=5)
-    assert g.family_names == {"tox": 3}
+    g = simulate_genomes_family(sp, initial_families=3, origination=0.5,
+                                duplication=0.2, loss=0.2, seed=5,
+                                families=[family("tox"), family("placed", origin=("n3", when))])
+    assert g.family_names == {"tox": 3, "placed": 4}
     assert _origination(g, 4) == (when, 3)          # initial_families + one named
     assert g.summary()["families"]["born"] > 5      # origination went on drawing its own
 
@@ -893,7 +894,7 @@ def test_placed_family_ids_follow_the_order_they_were_written():
     sp = _tree(seed=1, n_extant=12).complete_tree
     late, early = _mid(sp, 7), _mid(sp, 3)
     g = simulate_genomes_family(sp, initial_families=0, origination=0.0, duplication=0.3,
-                                loss=0.3, origins=[("n7", late), (3, early)], seed=2)
+                                loss=0.3, families=[family('placed0', origin=("n7", late)), family('placed1', origin=(3, early))], seed=2)
     assert _origination(g, 0)[1] == 7               # written first, though it happens second
     assert _origination(g, 1)[1] == 3
 
@@ -902,32 +903,31 @@ def test_a_placed_family_can_start_at_the_branch_start():
     sp = _tree(seed=1, n_extant=12).complete_tree
     kid = [i for i in sorted(sp.nodes) if sp.nodes[i].parent is not None][5]
     g = simulate_genomes_family(sp, initial_families=0, origination=0.0, duplication=0.3,
-                                loss=0.3, origins=[(kid, None)], seed=3)
+                                loss=0.3, families=[family('placed0', origin=(kid, None))], seed=3)
     assert _origination(g, 0) == (sp.nodes[kid].birth_time, kid)
 
 
-def test_both_engines_place_the_same_family_at_the_same_point():
+def test_the_per_family_engine_refuses_a_planted_family():
+    """That engine enumerates every family's origination before it starts, so a family that arrives
+    partway down the tree has nowhere in the enumeration to be. Refused by name rather than dropped."""
     sp = _tree(seed=1, n_extant=12).complete_tree
     when = _mid(sp, 3)
-    kw = dict(initial_families=2, origination=0.3, duplication=0.3, loss=0.3,
-              origins=[("n3", when)], seed=9)
-    serial = simulate_genomes_family(sp, **kw)
-    per_family = simulate_genomes_family(sp, **kw, parallel=True)
-    assert _origination(serial, 2) == _origination(per_family, 2) == (when, 3)
+    with pytest.raises(ValueError, match="per-family engine"):
+        simulate_genomes_family(sp, initial_families=2, loss=0.3, seed=1, parallel=True,
+                                families=[family("late", origin=("n3", when))])
 
 
-@pytest.mark.parametrize("origins, message", [
-    (("n3", 0.1), "list of (lineage, time) pairs"),
-    ([("n99", 0.1)], "is not one of this tree's 23 lineages"),
-    ([("banana", 0.1)], "not a lineage label"),
-    ([("n3",)], "(lineage, time) pair"),
-    ([("n3", "soon")], "must be a number"),
-    ([(None, 0.1)], "must be a label"),
+@pytest.mark.parametrize("origin, message", [
+    (("n99", 0.1), "is not one of this tree's 23 lineages"),
+    (("banana", 0.1), "not a lineage label"),
+    (("n3",), "(lineage, time) pair"),
+    (("n3", "soon"), "must be a number"),
+    ((None, 0.1), "must be a label"),
 ])
-def test_origins_are_validated(origins, message):
+def test_an_origin_is_validated(origin, message):
     sp = _tree(seed=1, n_extant=12).complete_tree
     with pytest.raises(ValueError, match=re.escape(message)):
-        simulate_genomes_family(sp, origins=origins, seed=1)
+        simulate_genomes_family(sp, families=[family("late", origin=origin)], seed=1)
 
 
 def test_an_origin_must_fall_inside_its_branch():
@@ -936,5 +936,5 @@ def test_an_origin_must_fall_inside_its_branch():
     node = sp.nodes[3]
     for when in (node.birth_time - 0.01, node.end_time, node.end_time + 0.01):
         with pytest.raises(ValueError, match="is outside lineage n3"):
-            simulate_genomes_family(sp, origins=[("n3", when)], seed=1)
-    simulate_genomes_family(sp, origins=[("n3", node.birth_time)], seed=1)   # the start is fine
+            simulate_genomes_family(sp, families=[family('placed0', origin=("n3", when))], seed=1)
+    simulate_genomes_family(sp, families=[family('placed0', origin=("n3", node.birth_time))], seed=1)   # the start is fine

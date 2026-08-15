@@ -226,7 +226,7 @@ def test_the_zombi2_commands_in_the_manual_parse(chapter, tmp_path, monkeypatch)
 #: the public entry points, and a setup small enough to probe one keyword against in milliseconds
 def _entry_points():
     from zombi2 import genomes, joint, sequences, species, traits
-    return {"joint": joint.simulate_joint,
+    return {"joint": joint.simulate,
             "species": species.simulate_species_tree,
             "genomes": genomes.simulate_genomes_family,
             "ordered": genomes.simulate_genomes_ordered,

@@ -488,7 +488,8 @@ class DiscreteTrait:
     """A discrete (Mk) trait **process** — its parameters bundled but not yet run (SPEC §4).
     ``simulate_discrete(tree, ...)`` is the runner that grows this on a *fixed*
     tree; a **joint** model instead takes this spec and grows the trait *with* the tree it drives
-    (``joint.simulate_joint(trait=traits.discrete(...))``), so neither can be simulated first. Same
+    (``joint.simulate(species.birth_death(...), traits.discrete(...))``), so neither can be simulated
+    first. Same
     parameters as `simulate_discrete()` (the Mk half): ``states``, ``switch`` (the rate spec),
     ``start`` (the root state, ``None`` = uniform), ``at_speciation`` (the on-speciation shift
     probability)."""
@@ -497,6 +498,9 @@ class DiscreteTrait:
     switch: object
     start: object = None
     at_speciation: object = None
+    #: what a driver calls this trait — ``scaled_by("traits:size", …)``. A run with one trait in it
+    #: needs no name and takes ``"trait"``; naming is what lets a run hold two.
+    name: "str | None" = None
 
     def _resolve(self, rng):
         """Build the concrete CTMC the engine grows: ``(states_list, Q, start_index, shift_prob)`` —
@@ -519,9 +523,10 @@ class DiscreteTrait:
 
 
 
-def discrete(*, states, switch=None, start=None, at_speciation=None) -> DiscreteTrait:
+def discrete(*, states, switch=None, start=None, at_speciation=None, name=None) -> DiscreteTrait:
     """A discrete-trait **process spec** — `DiscreteTrait`, unexecuted — for a joint model to
-    grow with the tree it drives (``joint.simulate_joint(trait=traits.discrete(states=[...], switch=...))``).
+    simulate with the tree it drives (``joint.simulate(species.birth_death(...),
+    traits.discrete(states=[...], switch=...))``).
     A thin bundle of `simulate_discrete()`'s Mk parameters; validated when the joint run resolves
     it. (Threshold traits are not a driving process; there is no ``discrete`` spec for them.)"""
     states = list(states)
@@ -531,6 +536,9 @@ def discrete(*, states, switch=None, start=None, at_speciation=None) -> Discrete
         raise ValueError(f"states must be unique, got {states!r}")
     if switch is None:
         raise ValueError("give switch= — the transition rate(s) between the discrete states.")
-    return DiscreteTrait(tuple(states), switch, start, at_speciation)
+    if name is not None and (not isinstance(name, str) or not name.strip()):
+        raise ValueError(f"a trait's name is what a driver calls it, so it must be a non-empty "
+                         f"string; got {name!r}")
+    return DiscreteTrait(tuple(states), switch, start, at_speciation, name)
 
 
