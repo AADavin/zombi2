@@ -1,6 +1,6 @@
 <svg viewBox="-6 6 418 362" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
 <title>Joining: which levels are simulated together</title>
-<desc>The four levels of ZOMBI2 in the same arrangement as the levels figure. Solid double-headed arrows mark the four joint models that exist: Species with Genomes, Species with Traits, Genomes with Traits, and Genomes with itself. Dashed arrows and loops mark the four pairs nothing rules out and nobody has written. One pair has no arrow at all: the species tree with a sequence.</desc>
+<desc>The four levels of ZOMBI2 in the same arrangement as the levels figure. Solid double-headed arrows mark the five joint models that exist: Species with Genomes, Species with Traits, Genomes with Traits, Genomes with itself, and Traits with itself. Dashed arrows and loops mark the three pairs nothing rules out and nobody has written. One pair has no arrow at all: the species tree with a sequence.</desc>
 <!-- Built on the four-levels figure (manual/book/figures/fig-2-1-four-levels.svg): same node
      positions, same box style, same label baseline offset. What changes is the edges. There the
      arrows run one way, because a level is grown and the next reads it. Here every arrow is
@@ -18,29 +18,45 @@
     .note{fill:#9aa1a5}
   }
 </style>
+<!-- Arrowheads are in USER units, not stroke widths. On the default (markerUnits="strokeWidth") the
+     head is scaled by the line it sits on, so the solid heads came out a third larger than the
+     dashed ones and both were long enough to cut the corner of a curve and to overshoot into a box.
+     Fixed at 9 by 7 they are the same on every edge, and `refX` puts the TIP on the path's endpoint —
+     so every path below ends exactly on the outline it points at. A box with rx=21 is a rounded
+     rectangle, so its outline on the short sides is the cap circle, not the bounding box: the
+     Genomes cap is centred (85,171) with r=21, which is where the loop's two attachment points
+     come from. -->
 <defs>
-  <marker id="a" markerWidth="5" markerHeight="5" refX="4.2" refY="2.5" orient="auto">
-    <path class="head" d="M0,0 L5,2.5 L0,5 z" fill="#1a1a1a"/>
+  <marker id="a" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="7" refX="9" refY="3.5"
+          orient="auto">
+    <path class="head" d="M0,0 L9,3.5 L0,7 z" fill="#1a1a1a"/>
   </marker>
-  <marker id="a0" markerWidth="5" markerHeight="5" refX="0.8" refY="2.5" orient="auto">
-    <path class="head" d="M5,0 L0,2.5 L5,5 z" fill="#1a1a1a"/>
+  <marker id="a0" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="7" refX="0" refY="3.5"
+          orient="auto">
+    <path class="head" d="M9,0 L0,3.5 L9,7 z" fill="#1a1a1a"/>
   </marker>
-  <marker id="o" markerWidth="5" markerHeight="5" refX="4.2" refY="2.5" orient="auto">
-    <path class="openhead" d="M0,0 L5,2.5 L0,5 z" fill="#9a9a9a"/>
+  <marker id="o" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="7" refX="9" refY="3.5"
+          orient="auto">
+    <path class="openhead" d="M0,0 L9,3.5 L0,7 z" fill="#9a9a9a"/>
   </marker>
-  <marker id="o0" markerWidth="5" markerHeight="5" refX="0.8" refY="2.5" orient="auto">
-    <path class="openhead" d="M5,0 L0,2.5 L5,5 z" fill="#9a9a9a"/>
+  <marker id="o0" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="7" refX="0" refY="3.5"
+          orient="auto">
+    <path class="openhead" d="M9,0 L0,3.5 L9,7 z" fill="#9a9a9a"/>
   </marker>
 </defs>
 
 <!-- BUILT. The two that reach Species simulate the tree, so it comes out of the run. The other
-     two are on a tree handed to the run: Genomes with Traits, and Genomes with itself — one family
-     driving the rates of the genome it sits in. -->
+     three are on a tree handed to the run: Genomes with Traits, Genomes with itself — one family
+     driving the rates of the genome it sits in — and Traits with itself, two characters each
+     reading the other. -->
 <g class="edge" fill="none" stroke="#1a1a1a" stroke-width="2.1">
-  <path d="M 186,74 C 162,102 120,112 120,144" marker-end="url(#a)" marker-start="url(#a0)"/>
-  <path d="M 234,74 C 258,102 300,112 300,144" marker-end="url(#a)" marker-start="url(#a0)"/>
-  <path d="M 182,171 L 244,171" marker-end="url(#a)" marker-start="url(#a0)"/>
-  <path d="M 62,160 C 24,146 24,196 62,182" marker-end="url(#a)" marker-start="url(#a0)"/>
+  <path d="M 186,72 C 162,102 120,112 120,150" marker-end="url(#a)" marker-start="url(#a0)"/>
+  <path d="M 234,72 C 258,102 300,112 300,150" marker-end="url(#a)" marker-start="url(#a0)"/>
+  <path d="M 176,171 L 250,171" marker-end="url(#a)" marker-start="url(#a0)"/>
+  <!-- the two loops leave and re-enter the cap circle along its own radius, so each head points at
+       the middle of the box rather than across its corner -->
+  <path d="M 65.97,179.87 C 9.8,206.1 9.8,135.9 65.97,162.13" marker-end="url(#a)" marker-start="url(#a0)"/>
+  <path d="M 348.03,179.87 C 404.2,206.1 404.2,135.9 348.03,162.13" marker-end="url(#a)" marker-start="url(#a0)"/>
 </g>
 
 <!-- NOT BUILT: nothing rules these out. One pair is deliberately absent rather than dashed — a
@@ -50,12 +66,11 @@
      gene's substitution rate, and that gene's composition drives the trait. Either alone is
      conditioning. Both at once is a cycle, so the pair is joinable and now carries a dashed arrow. -->
 <g class="open" fill="none" stroke="#9a9a9a" stroke-width="1.6" stroke-dasharray="5 4">
-  <path d="M 120,198 L 120,264" marker-end="url(#o)" marker-start="url(#o0)"/>
-  <path d="M 300,198 C 300,244 244,291 182,291" marker-end="url(#o)" marker-start="url(#o0)"/>
+  <path d="M 120,192 L 120,270" marker-end="url(#o)" marker-start="url(#o0)"/>
+  <path d="M 300,192 C 300,244 238,291 176,291" marker-end="url(#o)" marker-start="url(#o0)"/>
   <!-- a level joined to itself: many genes, many characters, inside one run. The genome's own
        loop is solid above — a named family driving the rates of the genome it sits in. -->
-  <path d="M 62,280 C 24,266 24,316 62,302" marker-end="url(#o)" marker-start="url(#o0)"/>
-  <path d="M 352,160 C 390,146 390,196 352,182" marker-end="url(#o)" marker-start="url(#o0)"/>
+  <path d="M 65.97,299.87 C 9.8,326.1 9.8,255.9 65.97,282.13" marker-end="url(#o)" marker-start="url(#o0)"/>
 </g>
 
 <g class="node" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.6">

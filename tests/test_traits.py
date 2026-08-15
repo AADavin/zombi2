@@ -1629,19 +1629,18 @@ def test_a_discrete_trait_steps_at_a_rate_that_changes_on_its_own_clock():
     assert result.events, "the test proves nothing if nothing switched before time 1 either"
 
 
-def test_there_is_no_continuous_process_spec_and_the_name_says_so():
-    """`traits.discrete` is a process spec for a joint run, so `traits.continuous` is what a reader
-    reaches for next. There is none — QuaSSE needs thinning and the joint race is exact — and before
-    this the name resolved to the *module*, so the reach failed with "'module' object is not
-    callable", which names neither traits nor speciation nor what to write instead."""
+def test_the_continuous_process_spec_takes_the_package_attribute():
+    """`traits.discrete` is a process spec for a joint run, and `traits.continuous` is what a reader
+    reaches for next: the diffusing twin, for QuaSSE. The name has to be the function rather than the
+    *module* of the same name — that reach used to fail with "'module' object is not callable", which
+    names neither traits nor speciation nor what to write instead."""
     from zombi2 import traits
+    from zombi2.traits import ContinuousTrait
 
-    assert callable(traits.continuous), "the module is shadowing the refusal again"
-    with pytest.raises(TypeError, match="no continuous process spec"):
-        traits.continuous(rate=1.0)
-    message = str(pytest.raises(TypeError, traits.continuous, rate=1.0).value)
-    assert "traits.discrete" in message           # what to use to drive speciation
-    assert "simulate_continuous" in message       # and what to use for a continuous trait itself
+    assert callable(traits.continuous), "the module is shadowing the spec again"
+    spec = traits.continuous(rate=1.0, start=2.0, name="size")
+    assert isinstance(spec, ContinuousTrait)
+    assert (spec.rate, spec.start, spec.name) == (1.0, 2.0, "size")
 
 
 def test_shadowing_the_module_leaves_both_ways_in_working():
