@@ -9,6 +9,25 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- **A continuously diffusing trait can drive speciation** — QuaSSE.
+  `traits.continuous(start=..., rate=...)` is a process spec now rather than a refusal, and goes to
+  `joint.simulate` beside `species.birth_death(...)`. The driver is a number, so the connection takes
+  a `Curve` or a `Scalar` rather than a `{state: factor}` table, and it takes a `step=`.
+  This is the one joint model that does not race exactly: a diffusion moves at every instant, so
+  there is no interval where the birth rate holds still. The run slices instead — the value is held
+  fixed across `step` and released at the boundary, where each lineage takes the exact transition law
+  of its own diffusion. So the trait is exact and only its grip on speciation is approximated.
+  `step` has no default, because any number would be a claim about a timescale only the model knows;
+  halve it, rerun the same seed, and see whether the answer moves.
+
+- **Two traits can read each other on one tree** — `traits.simulate_traits(tree, [a, b], joint=True)`
+  with each switch rate reading the other by `"traits:<name>"`. `traits.discrete()` takes a `name=`,
+  and the run returns one ordinary `TraitsResult` per name. This one is **exact**: a pair of traits
+  reading each other is a Markov chain over the pairs of their states, so the run builds that
+  generator and walks each branch with it — nothing thinned and nothing approximated.
+
 ## [0.40.0] - 2026-08-15
 
 ### Added

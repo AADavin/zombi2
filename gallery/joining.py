@@ -38,6 +38,7 @@ _DISEASE = {"harmless": "#8f99a3", "pathogenic": "#C2453C"}
 _METAB = {"anaerobic": "#6b5b95", "aerobic": "#2E8B6F"}
 _KEY = {"absent": "#b9bec4", "present": "#2E8B6F"}          # the gene that drives the splitting
 _IS1J = {"absent": "#b9bec4", "present": "#C25A3C"}         # the element that drives its own genome
+_SIZE = {"small": "#b9bec4", "large": "#8C5E8B"}            # the other half of the trait loop
 _CAVE = {"surface": "#2E8B6F", "cave": "#4A4A6A"}           # a habitat and a genome, each driving the other
 
 
@@ -65,6 +66,72 @@ def bisse(out):
     h.composite_markov(tree_png, out, lambda ax: h.draw_markov(
         ax, ["fast", "slow"], _BISSE, {"fast": 2.6, "slow": 0.7}, symbol="λ"),
         loc=(0.02, 0.04, 0.34, 0.30))
+
+
+_QUASSE_SLOPE = 0.5      # λ = 0.4·e^{0.5·size}: the size doubles the rate every 1.4 units
+_QUASSE_BASE = 0.4
+_QUASSE_STEP = 0.05
+
+
+def _draw_response(ax, lo, hi):
+    """The inset the other joint cards give to a Markov chain: how the driver sets the rate.
+
+    A continuous driver has no states to draw a chain between, so what goes here is the response
+    curve itself — and the colour ramp under it is the tree's own, over the same range, so a branch
+    colour reads straight across to a speciation rate. The range is the run's own spread rather than
+    a round pair of numbers: on an exponential curve a bit of unused axis at the top flattens
+    everything the tree actually did into the bottom line."""
+    top = _QUASSE_BASE * math.exp(_QUASSE_SLOPE * hi)
+    ax.patch.set_facecolor("#ffffff")       # the tree is the background; the inset has to cover it
+    ax.patch.set_alpha(0.94)
+    xs = [lo + (hi - lo) * k / 200 for k in range(201)]
+    ax.plot(xs, [_QUASSE_BASE * math.exp(_QUASSE_SLOPE * x) for x in xs], color="#1a1a1a", lw=2.4)
+    ax.imshow([[k / 255 for k in range(256)]], aspect="auto", cmap="viridis",
+              extent=(lo, hi, -0.19 * top, -0.04 * top), zorder=2)
+    ax.set_xlim(lo, hi)
+    ax.set_ylim(-0.26 * top, top * 1.06)
+    ax.set_xlabel("body size", fontsize=17, labelpad=2)
+    ax.set_ylabel("speciation rate", fontsize=17, labelpad=2)
+    ax.tick_params(labelsize=13)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+
+
+def quasse(out):
+    """A **continuously diffusing** trait driving speciation — QuaSSE, and the one joint model here
+    that does not race exactly.
+
+    Body size diffuses down every lineage, and a lineage splits at a rate that rises with it. Neither
+    can be simulated first: the size needs a tree to diffuse on, and the tree's shape is what the size
+    decides. So one run does both, and the tree is an output.
+
+    The result is a biased sample of a diffusion. Brownian motion has no direction — a tree grown
+    without the arrow leaves its tips averaging the root value, 0 — but here the big lineages leave
+    more descendants, and those descendants start big. The tips average about +2.7 over twenty seeds.
+
+    **This one slices.** Every other driver in this section changes only at events, and an event ends
+    the Gillespie step, so the rate is constant in between. A diffusion moves at every instant. The
+    run holds each lineage's size fixed across a step of 0.05 and releases it at the boundary, where
+    the exact transition law applies — so the trait is exact and only its grip on speciation is
+    approximated. Halve the step, rerun the same seed, and see whether the answer moves.
+    """
+    r = joint.simulate(
+        species.birth_death(
+            birth=PerLineage(_QUASSE_BASE).scaled_by(
+                "trait", Curve(lambda x: math.exp(_QUASSE_SLOPE * x)), step=_QUASSE_STEP),
+            death=0.05, n_extant=70),
+        traits.continuous(start=0.0, rate=1.0), seed=11)
+    ct = r.complete_tree
+    lab = ct.labels()
+    vals = {lab[i]: r.trait.node_values[i] for i in ct.nodes}
+    limits = (math.floor(min(vals.values())), math.ceil(max(vals.values())))
+    tree_png = out.replace(".png", "_tree.png")
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), style=_style(), skeleton=False)
+     # the same limits the inset's ramp spans, so the two say the same thing about a colour
+     + ph.trees.color_branches(vals, cmap="viridis", limits=limits)
+     + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
+    h.composite_markov(tree_png, out, lambda ax: _draw_response(ax, *limits),
+                       loc=(0.075, 0.17, 0.27, 0.25), keep_axes=True)
 
 
 def classe(out):
@@ -223,6 +290,49 @@ def cave_genomes(out):
     axd = fig2.add_axes([0.14, 0.795, 0.72, 0.185]); axd.imshow(mpimg.imread(diag)); axd.set_axis_off()
     fig2.savefig(out, dpi=140, bbox_inches="tight")
     plt.close(fig2)
+
+
+def trait_loop(out):
+    """Two traits, each reading the other, on one tree — the trait level joined to itself.
+
+    Body size sets how readily a lineage goes underground; living underground sets how readily it
+    grows. Neither can be simulated first, so one run does both.
+
+    This one is **exact**. Two traits that read each other are one Markov chain over the pairs of
+    their states, so the pair has an ordinary generator and the same branch walk a single trait takes
+    runs it — nothing thinned, nothing approximated.
+
+    The same tree twice, painted by each trait. What the loop produces is the alignment between the
+    two panels, and it is a statement neither trait makes on its own: twelve of the twenty-one cave
+    tips are large, against one of the nineteen on the surface.
+    """
+    ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
+    r = traits.simulate_traits(ct, [
+        traits.discrete(name="habitat", states=["surface", "cave"], start="surface",
+                        switch={"surface->cave": PerLineage(0.05).scaled_by(
+                                    "traits:size", {"small": 1.0, "large": 8.0}),
+                                "cave->surface": 0.1}),
+        traits.discrete(name="size", states=["small", "large"], start="small",
+                        switch={"small->large": PerLineage(0.05).scaled_by(
+                                    "traits:habitat", {"surface": 1.0, "cave": 6.0}),
+                                "large->small": 0.1})],
+        joint=True, seed=16)
+
+    style = _panel_style()
+    pngs = []
+    for k, (name, palette) in enumerate((("habitat", _CAVE), ("size", _SIZE))):
+        png = out.replace(".png", f"_t{k}.png")
+        (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
+         + ph.trees.color_history(_state_history(ct, r[name]), palette=palette)
+         + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
+        pngs.append(png)
+    diag = h.joint_png(out.replace(".png", "_diag.png"),
+                       left=("habitat", "surface or cave"),
+                       right=("size", "small or large"),
+                       forward="in the cave, grows 6× more readily",
+                       back="when large, goes underground 8× more readily")
+    h.composite_under_diagram(out, diag, [(pngs[0], "habitat", _CAVE), (pngs[1], "body size", _SIZE)],
+                              diagram_frac=0.72)
 
 
 def state_extinction(out):
@@ -996,6 +1106,33 @@ r.species        # the tree that came out
 r.genome         # the gene content simulated with it"""
 
 
+_C_QUASSE = """### a CONTINUOUSLY diffusing trait drives speciation — QuaSSE, and the one model that slices
+import math
+from zombi2 import joint, species, traits
+from zombi2.params import Curve, PerLineage
+
+# the driver is a number, so the mapping is a Curve (value -> factor), never a table.
+# `step=` is the stretch of time the size is held fixed across: a diffusion moves at
+# every instant, so there is no interval where the birth rate holds still on its own.
+r = joint.simulate(
+    species.birth_death(
+        birth=PerLineage(0.4).scaled_by("trait", Curve(lambda x: math.exp(0.5 * x)), step=0.05),
+        death=0.05, n_extant=70),
+    traits.continuous(start=0.0, rate=1.0), seed=11)
+
+r.species        # the tree that came out
+r.trait          # the diffusion simulated with it — an ordinary continuous TraitsResult
+
+### plot  —  the tree painted by the value the birth rate was reading
+import phylustrator as ph
+
+ct, lab = r.complete_tree, r.complete_tree.labels()
+(ph.trees.plot(ph.trees.loads(ct.to_newick()))
+ + ph.trees.color_branches({lab[i]: r.trait.node_values[i] for i in ct.nodes}, cmap="viridis")
+ + ph.trees.time_axis("time")).save("quasse.png")
+# the check the manual asks for: halve step, rerun the same seed, see whether it moves"""
+
+
 _C_MOBILE_JOINT = """### a gene family drives the rest of its OWN genome — one run, the level joined to itself
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import family, simulate_genomes_family
@@ -1064,7 +1201,48 @@ sizes = {lab[n]: len(r.genome.genomes[lab[n]]) for n in sorted(ct.extant_leaves(
 ph.beside(fig, ph.genomes.bars(sizes, label="genome size (genes)")).save("cave.png")"""
 
 
+_C_TRAIT_LOOP = """### two traits, each reading the other — the trait level joined to itself
+from zombi2 import traits
+from zombi2.params import PerLineage
+from zombi2.species import simulate_species_tree
+
+ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
+
+# `joint=True`, and each switch rate reads the OTHER trait by name. Neither can be
+# simulated first: to grow the habitat you would need the size, and the size needs
+# the habitat. One run does both, exactly — the pair is a Markov chain over the
+# pairs of their states, so there is nothing to thin and nothing to approximate.
+r = traits.simulate_traits(ct, [
+    traits.discrete(name="habitat", states=["surface", "cave"], start="surface",
+                    switch={"surface->cave": PerLineage(0.05).scaled_by(
+                                "traits:size", {"small": 1.0, "large": 8.0}),
+                            "cave->surface": 0.1}),
+    traits.discrete(name="size", states=["small", "large"], start="small",
+                    switch={"small->large": PerLineage(0.05).scaled_by(
+                                "traits:habitat", {"surface": 1.0, "cave": 6.0}),
+                            "large->small": 0.1})],
+    joint=True, seed=16)
+
+r["habitat"], r["size"]    # one ordinary TraitsResult each, keyed by name
+
+### plot  —  the same tree painted by each trait, one above the other
+import phylustrator as ph
+
+lab = ct.labels()
+for name, palette in (("habitat", {"surface": "#2E8B6F", "cave": "#4A4A6A"}),
+                      ("size", {"small": "#b9bec4", "large": "#8C5E8B"})):
+    history = {lab[i]: segs for i, segs in r[name].history.items()}
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False)
+     + ph.trees.color_history(history, palette=palette)
+     + ph.trees.time_axis("time", bold=False)).save(f"{name}.png")
+# the loop shows in the alignment: cave lineages are far likelier to be large"""
+
+
 JOINING = [
+    Example("trait_loop", "Two traits, each other's driver",
+            "Body size decides how readily a lineage goes underground, and underground decides how "
+            "readily it grows. One run, and exact: the pair is a Markov chain over their states.",
+            "trait ↔ trait", trait_loop, code=_C_TRAIT_LOOP),
     Example("cave_genomes", "A trait and a genome, each other's driver",
             "The cave costs genes, and losing the eye commits a lineage to the cave. Neither can be "
             "simulated first, and the tree is an <b>input</b> here rather than an output.",
@@ -1094,6 +1272,11 @@ JOINING = [
             "the squares. Along the branches almost nothing happens "
             "(<code>switch=0.08</code>, <code>at_speciation=0.15</code>).",
             "at_speciation · joint", classe, code=_C_CLASSE),
+    Example("quasse", "QuaSSE",
+            "A <b>diffusing</b> body size drives speciation. Brownian motion has no direction, but "
+            "the big lineages leave more descendants, so the tips end up well above the root. The "
+            "one model here that slices rather than racing exactly.",
+            "continuous trait → speciation", quasse, code=_C_QUASSE),
 ]
 
 EXAMPLES = CONDITIONING + JOINING        # the module's full list; build.py takes the two separately
