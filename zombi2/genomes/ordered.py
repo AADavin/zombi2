@@ -257,7 +257,7 @@ class OrderedGenomesResult:
     rearrangements: list[Inversion | Transposition | Translocation]
     chromosome_events: list[ChromosomeEvent]
     seed: int | None
-    #: ``{name: family id}`` for families declared by ``family_names=[…]`` — the handle to a *named* family.
+    #: ``{name: family id}`` for families declared by ``families=[family(…)]`` — the handle to a *named* family.
     family_names: dict[str, int] = field(default_factory=dict)
     #: ``{module name: (family name, …)}`` for groups declared by ``modules=`` — a pathway or a
     #: complex, whose *completion* in a lineage (`completion`) is a driver. Empty when none were
@@ -1191,7 +1191,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     are **per chromosome**; and the two events that make something from nothing,
     ``origination``/``chromosome_origination``, are **per lineage**. The
     run starts with ``chromosomes`` chromosomes of the given ``topology``, across which the
-    ``initial_families`` founding genes are dealt **round-robin**; ``family_names=["toxin", …]`` additionally
+    ``initial_families`` founding genes are dealt **round-robin**; ``families=[family("toxin")]`` additionally
     declares **named** families (remembered in ``result.family_names`` for ``result.has_family(node,
     "toxin")``), as in the family core; ``replacement`` / ``self_transfer`` behave as in the family
     core. So does ``transfer_to``, which **chooses who receives** — ``"uniform"``,

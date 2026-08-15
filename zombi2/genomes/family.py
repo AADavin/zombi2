@@ -979,7 +979,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     overwrites a homologous
     copy in the recipient (additive fallback if it has none); ``self_transfer=True`` lets a lineage
     donate to itself. The root starts with ``initial_families`` families of one copy each, recorded
-    as originations at the origin. ``family_names=["toxin", …]`` additionally declares **named** families —
+    as originations at the origin. ``families=[family("toxin")]`` additionally declares **named** families —
     each gets a normal (integer) family id, but its name is remembered in ``result.family_names`` so
     you can track a specific family (``result.has_family(node, "toxin")``); this is the handle a joint
     ``scaled_by("genomes:toxin", …)`` reads. Deterministic given ``seed``.
@@ -989,7 +989,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     of the genome — a mobile element that transfers constantly, a core gene that is almost never lost.
     Whatever a family leaves out falls back to the run's rate for that event, so
     ``families=[family("toxin")]`` is a family declared for its name alone and is exactly
-    ``family_names=["toxin"]``. `family()` also takes ``origin=`` and ``module=``, which are
+    ``families=[family("toxin")]``. `family()` also takes ``origin=`` and ``module=``, which are
     ``origins=`` and ``modules=`` said on the family itself. Origination takes no per-family value:
     when it is read the family does not exist yet to have one.
 
@@ -1600,7 +1600,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
 class FamilyGenome:
     """A family-genome **process** — its D/T/L/O parameters bundled but not yet run (the genome
     twin of `DiscreteTrait`). ``simulate_genomes_family(tree, ...)`` runs
-    this on a *fixed* tree; a **joint** model (``joint.simulate_joint(genome=genomes.genome(...))``)
+    this on a *fixed* tree; a **joint** model (``joint.simulate(species.birth_death(...),
+    genomes.genome(...))``)
     grows the genome *with* the tree whose speciation its gene content drives. Duplication, loss, and
     origination (each a ``scope(base) × modifiers`` rate, ``changing_at`` allowed) plus ``initial_families``
     and named ``family_names`` (the handle a ``scaled_by("genomes:<name>", …)`` reads). Transfer is not
