@@ -1138,6 +1138,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         for key, rate in (("duplication", dup), ("transfer", tra), ("loss", los)):
             if key not in fam_own:
                 continue
+            assert rate.scope is not None        # `as_rate` filled the level's default above
             if rate.scope is not PerCopy:
                 raise ValueError(
                     f"a family writes its own {key}, but the run's {key} is {rate.scope.__name__}. "
@@ -1298,6 +1299,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 if own is not None:
                     # this family's rate IS the number it wrote, so the run's rate does not reach it
                     # and neither does a draw meant to vary the run's rate among families
+                    assert fam_fixed is not None     # a written rate is exactly when it was built
                     fam_mult[key][f] = 0.0
                     fam_fixed[key][f] = own
                     continue

@@ -88,8 +88,6 @@ def test_it_is_deterministic():
 def test_the_trait_log_reads_back_as_a_driver():
     """A joint run's trait log has to carry the ``initial`` row, or nothing downstream can replay it
     against the tree — the same rule the tree-growing joint models follow."""
-    from zombi2.params.conditioned import load_driver
-
     tree, r = _cave_run()
     first = r.trait.events[0]
     assert (first.kind, first.lineage, first.from_state) == ("initial", tree.root, None)

@@ -228,8 +228,8 @@ def _gc_by_node(seqs) -> dict:
     reads as the run walks the tree."""
     hits, total = collections.Counter(), collections.Counter()
     for table in (seqs.alignments, seqs.ancestral):
-        for family in table.values():
-            for label, seq in family.items():
+        for by_label in table.values():
+            for label, seq in by_label.items():
                 node = label.split("_", 1)[0]
                 hits[node] += sum(seq.count(c) for c in "GC")
                 total[node] += len(seq)
