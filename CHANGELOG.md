@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-08-15
+
 ### Added
 
 - **A genome and a trait can be simulated together on a tree you hand the run** —
