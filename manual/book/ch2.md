@@ -63,12 +63,12 @@ Not everything can be connected in ZOMBI2, but it is flexible enough to allow ve
 
 ## Joining
 
-**Joining** is for when the driver cannot be finished first. Two scenarios need it:
+**Joining** simulates two levels **at the same time**, for the scenarios where each one shapes the other:
 
-- A trait evolves along a tree and controls how fast that tree speciates.
+- A trait controls how fast a lineage speciates — body size, or a habitat.
 - Gene content decides survival: lineages that acquire a key gene diversify faster.
 
-If a trait speeds up speciation, faster-speciating lineages leave more descendants, so the tree's shape depends on the trait while the trait is evolving along that very tree. No order works, so both are grown together in one run, and the tree becomes an output rather than an input.
+Take the first. Lineages in the fast state split more often, so the trait decides the shape of the tree; and the trait evolves along that very tree, so the tree decides where the trait can go. Neither can be grown first and handed over, so one run grows both, and the tree comes out as a result rather than going in as an input.
 
 Because neither is finished first, neither can be written out and handed over. There is no conditional probability to write, only a joint one:
 
