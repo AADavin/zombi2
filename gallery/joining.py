@@ -75,10 +75,10 @@ def classe(out):
     is what the field calls a cladogenetic model. The squares mark the splits where it happened, and
     they are on the tree the same trait was shaping — which is why this is joint and not a trait
     painted on a tree that was finished first."""
-    r = joint.simulate_joint(
-        birth=PerLineage(1.0).scaled_by("trait", {"fast": 2.6, "slow": 0.7}),
-        trait=traits.discrete(states=["fast", "slow"], switch=0.08, at_speciation=0.15),
-        n_extant=70, seed=3)
+    r = joint.simulate(
+        species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"fast": 2.6, "slow": 0.7}),
+                            n_extant=70),
+        traits.discrete(states=["fast", "slow"], switch=0.08, at_speciation=0.15), seed=3)
     label = r.complete_tree.labels()
     at_split = [{"kind": "change at the split", "node": label[e.lineage], "x": e.time}
                 for e in r.trait.events if e.kind == "on_speciation"]
@@ -924,15 +924,16 @@ ramp = {f: colors.to_hex(cm.viridis(f)) for f in {f for s in kept.values() for f
 
 _C_CLASSE = '''\
 ### simulate  —  the state drives the split, and the split changes the state
-from zombi2 import joint, traits
+from zombi2 import joint, species, traits
 from zombi2.params import PerLineage
 
-r = joint.simulate_joint(
-    birth=PerLineage(1.0).scaled_by("trait", {"fast": 2.6, "slow": 0.7}),
-    trait=traits.discrete(states=["fast", "slow"],
-                          switch=0.08,          # almost nothing happens along a branch
-                          at_speciation=0.15),  # it happens at the fork instead
-    n_extant=70, seed=3)
+r = joint.simulate(
+    species.birth_death(birth=PerLineage(1.0).scaled_by("trait", {"fast": 2.6, "slow": 0.7}),
+                        n_extant=70),
+    traits.discrete(states=["fast", "slow"],
+                    switch=0.08,          # almost nothing happens along a branch
+                    at_speciation=0.15),  # it happens at the fork instead
+    seed=3)
 
 # the squares are the splits where the state changed: r.trait.events, kind "on_speciation"'''
 

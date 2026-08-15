@@ -455,7 +455,7 @@ those filenames is then a **root block index**, not a gene family id, and the fi
 different, so go from a gene to its block with `genomes.block_of(family)` (Ch6). `zombi2 sequences` reads a nucleotide
 handoff too — it recognises one by its `blocks.tsv` — so all of this is reachable from the command line.
 
-## Joint: `simulate_joint` / `zombi2 joint`
+## Joint: `joint.simulate` / `zombi2 joint`
 
 A joint run simulates two levels at once, so it writes both, each in the format its own command would
 give it: the species files, and then the driver's — the trait's or the genomes'. Its own output is one
