@@ -1,6 +1,6 @@
 <svg viewBox="-6 6 418 362" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
 <title>Joining: which levels are simulated together</title>
-<desc>The four levels of ZOMBI2 in the same arrangement as the levels figure. Solid double-headed arrows mark the four joint models that exist: Species with Genomes, Species with Traits, Genomes with Traits, and Genomes with itself. Dashed arrows and loops mark the four pairs nothing rules out and nobody has written. One pair has no arrow at all: the species tree with a sequence.</desc>
+<desc>The four levels of ZOMBI2 in the same arrangement as the levels figure. Solid double-headed arrows mark the five joint models that exist: Species with Genomes, Species with Traits, Genomes with Traits, Genomes with itself, and Traits with itself. Dashed arrows and loops mark the three pairs nothing rules out and nobody has written. One pair has no arrow at all: the species tree with a sequence.</desc>
 <!-- Built on the four-levels figure (manual/book/figures/fig-2-1-four-levels.svg): same node
      positions, same box style, same label baseline offset. What changes is the edges. There the
      arrows run one way, because a level is grown and the next reads it. Here every arrow is
@@ -34,13 +34,15 @@
 </defs>
 
 <!-- BUILT. The two that reach Species simulate the tree, so it comes out of the run. The other
-     two are on a tree handed to the run: Genomes with Traits, and Genomes with itself — one family
-     driving the rates of the genome it sits in. -->
+     three are on a tree handed to the run: Genomes with Traits, Genomes with itself — one family
+     driving the rates of the genome it sits in — and Traits with itself, two characters each
+     reading the other. -->
 <g class="edge" fill="none" stroke="#1a1a1a" stroke-width="2.1">
   <path d="M 186,74 C 162,102 120,112 120,144" marker-end="url(#a)" marker-start="url(#a0)"/>
   <path d="M 234,74 C 258,102 300,112 300,144" marker-end="url(#a)" marker-start="url(#a0)"/>
   <path d="M 182,171 L 244,171" marker-end="url(#a)" marker-start="url(#a0)"/>
   <path d="M 62,160 C 24,146 24,196 62,182" marker-end="url(#a)" marker-start="url(#a0)"/>
+  <path d="M 352,160 C 390,146 390,196 352,182" marker-end="url(#a)" marker-start="url(#a0)"/>
 </g>
 
 <!-- NOT BUILT: nothing rules these out. One pair is deliberately absent rather than dashed — a
@@ -55,7 +57,6 @@
   <!-- a level joined to itself: many genes, many characters, inside one run. The genome's own
        loop is solid above — a named family driving the rates of the genome it sits in. -->
   <path d="M 62,280 C 24,266 24,316 62,302" marker-end="url(#o)" marker-start="url(#o0)"/>
-  <path d="M 352,160 C 390,146 390,196 352,182" marker-end="url(#o)" marker-start="url(#o0)"/>
 </g>
 
 <g class="node" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.6">

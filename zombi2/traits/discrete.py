@@ -542,3 +542,171 @@ def discrete(*, states, switch=None, start=None, at_speciation=None, name=None) 
     return DiscreteTrait(tuple(states), switch, start, at_speciation, name)
 
 
+
+
+# --- two traits, each reading the other: the trait level joined to itself --------------------------
+
+def _product_generator(specs, resolved):
+    """The generator of the **pair**, over every combination of the two traits' states.
+
+    Two traits that read each other are one Markov chain on the product of their state spaces, and
+    that is not an approximation of the pair — it *is* the pair. From ``(i, j)`` the only moves are
+    to ``(i', j)`` at trait A's rate, read with B sitting in ``j``, and to ``(i, j')`` at B's rate
+    read with A sitting in ``i``. Nothing moves both at once, because two switches never coincide.
+
+    Because each rate depends only on the *other* trait's current state, the whole matrix can be
+    built once and handed to `_gillespie()` — the same exact branch walk a single trait takes. What
+    makes the pair joint is that neither column of it can be filled in without the other."""
+    (a_states, a_entries), (b_states, b_entries) = resolved
+    ka, kb = len(a_states), len(b_states)
+    n = ka * kb
+    Q = np.zeros((n, n))
+    at = lambda i, j: i * kb + j
+    for i in range(ka):
+        for j in range(kb):
+            row = at(i, j)
+            # trait A moves, reading B's state right now
+            drivers_b = {k: b_states[j] for k in _driver_keys(specs[1])}
+            for x, y, r in a_entries:
+                if x == i:
+                    Q[row, at(y, j)] += r.effective(lineages=1, drivers=drivers_b)
+            # trait B moves, reading A's
+            drivers_a = {k: a_states[i] for k in _driver_keys(specs[0])}
+            for x, y, r in b_entries:
+                if x == j:
+                    Q[row, at(i, y)] += r.effective(lineages=1, drivers=drivers_a)
+    np.fill_diagonal(Q, 0.0)
+    np.fill_diagonal(Q, -Q.sum(axis=1))
+    return Q
+
+
+def _driver_keys(spec):
+    """What a rate may call this trait: its name, and the bare word when a run holds one of it."""
+    return ("trait",) if spec.name is None else ("trait", f"traits:{spec.name}")
+
+
+def simulate_traits(tree, traits, *, joint=False, seed=None, progress=False):
+    """Evolve **several traits at once** along a fixed tree, each one able to read the others.
+
+    One trait is `simulate_discrete()` / `simulate_continuous()`, and a trait grown first and then
+    read is conditioning — two ordinary runs. This is for the case with no order: trait A's switch
+    rate reads trait B while B's reads A, so neither can be finished before the other starts. That is
+    the trait level joined to itself (SPEC §3), and being one level with one kind of result it stays
+    here rather than going to `zombi2.joint.simulate`.
+
+    ``traits`` is a list of `discrete()` specs, each with a ``name``, and a rate reads another by
+    ``scaled_by("traits:<name>", …)``. ``joint=True`` says the run is what it is, and is checked both
+    ways: asking for it when no trait reads another is an error, and reading another without it is an
+    error too.
+
+    ``at_speciation`` works here as it does in a run of its own: each trait carrying one hops on its
+    own at the split, and the pair lands wherever the two hops leave it.
+
+    Returns ``{name: TraitsResult}`` — one complete result per trait, exactly what the single-trait
+    runners return, so every reader of one works on these unchanged. Deterministic given ``seed``.
+    """
+    from ..params.connection import Driven
+
+    tree = as_tree(tree, level="traits")
+    specs = list(traits)
+    if len(specs) < 2:
+        raise ValueError(
+            f"simulate_traits evolves several traits at once, and got {len(specs)}. One trait is "
+            f"simulate_discrete(tree, ...); two that read each other are what this is for.")
+    if len(specs) > 2:
+        raise NotImplementedError(
+            f"two traits reading each other is what this evolves today, and got {len(specs)}. Three "
+            f"is the same idea over a bigger product of states, and is not built.")
+    for spec in specs:
+        if not isinstance(spec, DiscreteTrait):
+            raise TypeError(
+                f"simulate_traits takes discrete trait specs — traits.discrete(name='size', "
+                f"states=[...], switch=...) — and got {spec!r}. A continuous trait in a cycle needs "
+                f"its diffusion held still over short stretches, which is not built.")
+        if not spec.name:
+            raise ValueError(
+                "each trait needs a name here, because a rate reads the other one by it: "
+                "traits.discrete(name='habitat', ...) and scaled_by('traits:habitat', ...).")
+    if len({s.name for s in specs}) != len(specs):
+        raise ValueError(f"trait names must be unique, got {[s.name for s in specs]}")
+
+    # each trait's own alphabet and its rate specs, left unsettled: a switch rate reading the other
+    # trait is not one number, which is exactly what `_q_matrix` would demand
+    resolved = [(list(s.states), _driven_entries(list(s.states), s.switch)) for s in specs]
+    names = {k for s in specs for k in _driver_keys(s)}
+    reads = 0
+    for spec, other in ((specs[0], specs[1]), (specs[1], specs[0])):
+        for entry in _driven_entries(list(spec.states), spec.switch):
+            for m in entry[2].modifiers:
+                if isinstance(m, Driven):
+                    if m.driver not in names:
+                        raise ValueError(
+                            f"trait {spec.name!r} reads {m.driver!r}, which is not a trait in this "
+                            f"run. The traits here are {sorted(s.name for s in specs)}, read as "
+                            f'scaled_by("traits:<name>", ...).')
+                    reads += 1
+    if reads and not joint:
+        raise ValueError(
+            "a trait here reads another trait in this same run, so the two are joint — neither can "
+            "be finished before the other starts. Say so with joint=True. To read a trait grown "
+            "EARLIER, pass that run's result rather than a name, which is conditioning.")
+    if joint and not reads:
+        raise ValueError(
+            "joint=True says the traits drive each other, but none reads another. Give a switch "
+            'rate a scaled_by("traits:<name>", ...), or evolve them as separate runs.')
+
+    rng, seed = stream("traits", seed)
+    Q = _product_generator(specs, resolved)
+    (a_states, _a), (b_states, _b) = resolved
+    kb = len(b_states)
+    starts = []
+    for spec, (states, _e) in zip(specs, resolved):
+        idx = {s: i for i, s in enumerate(states)}
+        if spec.start is None:
+            starts.append(int(rng.integers(len(states))))
+        elif spec.start in idx:
+            starts.append(idx[spec.start])
+        else:
+            raise ValueError(f"start must be one of states={states} (or None for a uniform draw), "
+                             f"got {spec.start!r}")
+    start = starts[0] * kb + starts[1]
+
+    root = tree.nodes[tree.root]
+    node_pairs: dict[int, int] = {}
+    per_trait: list[list] = [
+        [Change(root.birth_time, "initial", tree.root, None, a_states[starts[0]])],
+        [Change(root.birth_time, "initial", tree.root, None, b_states[starts[1]])]]
+    shifts = [0.0 if s.at_speciation is None else float(s.at_speciation) for s in specs]
+    for i in _preorder(tree, progress):
+        node = tree.nodes[i]
+        cur = start if node.parent is None else node_pairs[node.parent]
+        if node.parent is not None and any(shifts):
+            # each trait hops on its own at the split, exactly as it would in a run of its own; the
+            # pair simply lands wherever the two hops leave it
+            parts = [cur // kb, cur % kb]
+            for k, (shift, (states, _e)) in enumerate(zip(shifts, resolved)):
+                if shift > 0.0 and float(rng.random()) < shift:
+                    j = int(rng.integers(len(states) - 1))   # to a uniform *other* state
+                    new = j if j < parts[k] else j + 1
+                    per_trait[k].append(Change(node.birth_time, "on_speciation", i,
+                                               states[parts[k]], states[new]))
+                    parts[k] = new
+            cur = parts[0] * kb + parts[1]
+        end, segs = _gillespie(cur, node.end_time - node.birth_time, Q, rng)
+        # one product move is one trait switching, so unpacking the segments splits the pair's
+        # history back into the two the reader asked for, with no state left ambiguous
+        t = node.birth_time
+        for (s1, d1), (s2, _d) in zip(segs, segs[1:]):
+            t += d1
+            for k, (states, changes) in enumerate(((a_states, per_trait[0]),
+                                                   (b_states, per_trait[1]))):
+                was, now = (s1 // kb, s2 // kb) if k == 0 else (s1 % kb, s2 % kb)
+                if was != now:
+                    changes.append(Change(t, "on_branch", i, states[was], states[now]))
+        node_pairs[i] = end
+    out = {}
+    for k, (spec, (states, _e)) in enumerate(zip(specs, resolved)):
+        values = {i: states[(p // kb) if k == 0 else (p % kb)] for i, p in node_pairs.items()}
+        per_trait[k].sort(key=lambda c: c.time)
+        out[spec.name] = TraitsResult(tree, values, per_trait[k], seed, kind="discrete")
+    return out

@@ -38,6 +38,7 @@ _DISEASE = {"harmless": "#8f99a3", "pathogenic": "#C2453C"}
 _METAB = {"anaerobic": "#6b5b95", "aerobic": "#2E8B6F"}
 _KEY = {"absent": "#b9bec4", "present": "#2E8B6F"}          # the gene that drives the splitting
 _IS1J = {"absent": "#b9bec4", "present": "#C25A3C"}         # the element that drives its own genome
+_SIZE = {"small": "#b9bec4", "large": "#8C5E8B"}            # the other half of the trait loop
 _CAVE = {"surface": "#2E8B6F", "cave": "#4A4A6A"}           # a habitat and a genome, each driving the other
 
 
@@ -223,6 +224,49 @@ def cave_genomes(out):
     axd = fig2.add_axes([0.14, 0.795, 0.72, 0.185]); axd.imshow(mpimg.imread(diag)); axd.set_axis_off()
     fig2.savefig(out, dpi=140, bbox_inches="tight")
     plt.close(fig2)
+
+
+def trait_loop(out):
+    """Two traits, each reading the other, on one tree — the trait level joined to itself.
+
+    Body size sets how readily a lineage goes underground; living underground sets how readily it
+    grows. Neither can be simulated first, so one run does both.
+
+    This one is **exact**. Two traits that read each other are one Markov chain over the pairs of
+    their states, so the pair has an ordinary generator and the same branch walk a single trait takes
+    runs it — nothing thinned, nothing approximated.
+
+    The same tree twice, painted by each trait. What the loop produces is the alignment between the
+    two panels, and it is a statement neither trait makes on its own: twelve of the twenty-one cave
+    tips are large, against one of the nineteen on the surface.
+    """
+    ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
+    r = traits.simulate_traits(ct, [
+        traits.discrete(name="habitat", states=["surface", "cave"], start="surface",
+                        switch={"surface->cave": PerLineage(0.05).scaled_by(
+                                    "traits:size", {"small": 1.0, "large": 8.0}),
+                                "cave->surface": 0.1}),
+        traits.discrete(name="size", states=["small", "large"], start="small",
+                        switch={"small->large": PerLineage(0.05).scaled_by(
+                                    "traits:habitat", {"surface": 1.0, "cave": 6.0}),
+                                "large->small": 0.1})],
+        joint=True, seed=16)
+
+    style = _panel_style()
+    pngs = []
+    for k, (name, palette) in enumerate((("habitat", _CAVE), ("size", _SIZE))):
+        png = out.replace(".png", f"_t{k}.png")
+        (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
+         + ph.trees.color_history(_state_history(ct, r[name]), palette=palette)
+         + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
+        pngs.append(png)
+    diag = h.joint_png(out.replace(".png", "_diag.png"),
+                       left=("habitat", "surface or cave"),
+                       right=("size", "small or large"),
+                       forward="in the cave, grows 6× more readily",
+                       back="when large, goes underground 8× more readily")
+    h.composite_under_diagram(out, diag, [(pngs[0], "habitat", _CAVE), (pngs[1], "body size", _SIZE)],
+                              diagram_frac=0.72)
 
 
 def state_extinction(out):
@@ -1064,7 +1108,48 @@ sizes = {lab[n]: len(r.genome.genomes[lab[n]]) for n in sorted(ct.extant_leaves(
 ph.beside(fig, ph.genomes.bars(sizes, label="genome size (genes)")).save("cave.png")"""
 
 
+_C_TRAIT_LOOP = """### two traits, each reading the other — the trait level joined to itself
+from zombi2 import traits
+from zombi2.params import PerLineage
+from zombi2.species import simulate_species_tree
+
+ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
+
+# `joint=True`, and each switch rate reads the OTHER trait by name. Neither can be
+# simulated first: to grow the habitat you would need the size, and the size needs
+# the habitat. One run does both, exactly — the pair is a Markov chain over the
+# pairs of their states, so there is nothing to thin and nothing to approximate.
+r = traits.simulate_traits(ct, [
+    traits.discrete(name="habitat", states=["surface", "cave"], start="surface",
+                    switch={"surface->cave": PerLineage(0.05).scaled_by(
+                                "traits:size", {"small": 1.0, "large": 8.0}),
+                            "cave->surface": 0.1}),
+    traits.discrete(name="size", states=["small", "large"], start="small",
+                    switch={"small->large": PerLineage(0.05).scaled_by(
+                                "traits:habitat", {"surface": 1.0, "cave": 6.0}),
+                            "large->small": 0.1})],
+    joint=True, seed=16)
+
+r["habitat"], r["size"]    # one ordinary TraitsResult each, keyed by name
+
+### plot  —  the same tree painted by each trait, one above the other
+import phylustrator as ph
+
+lab = ct.labels()
+for name, palette in (("habitat", {"surface": "#2E8B6F", "cave": "#4A4A6A"}),
+                      ("size", {"small": "#b9bec4", "large": "#8C5E8B"})):
+    history = {lab[i]: segs for i, segs in r[name].history.items()}
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False)
+     + ph.trees.color_history(history, palette=palette)
+     + ph.trees.time_axis("time", bold=False)).save(f"{name}.png")
+# the loop shows in the alignment: cave lineages are far likelier to be large"""
+
+
 JOINING = [
+    Example("trait_loop", "Two traits, each other's driver",
+            "Body size decides how readily a lineage goes underground, and underground decides how "
+            "readily it grows. One run, and exact: the pair is a Markov chain over their states.",
+            "trait ↔ trait", trait_loop, code=_C_TRAIT_LOOP),
     Example("cave_genomes", "A trait and a genome, each other's driver",
             "The cave costs genes, and losing the eye commits a lineage to the cave. Neither can be "
             "simulated first, and the tree is an <b>input</b> here rather than an output.",

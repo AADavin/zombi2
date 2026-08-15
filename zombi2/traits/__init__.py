@@ -84,8 +84,8 @@ from .continuous import simulate_continuous
 # not a feature, so it stays out of __all__ and out of the API reference.
 from .continuous import continuous  # noqa: F401
 from .continuous import IMPLEMENTED_MODIFIERS  # noqa: F401  (re-exported for the CLI, not in __all__)
-from .discrete import DiscreteTrait, discrete, simulate_discrete
+from .discrete import DiscreteTrait, discrete, simulate_discrete, simulate_traits
 from .result import Change, TraitsResult
 
-__all__ = ["simulate_continuous", "simulate_discrete", "TraitsResult", "Change",
-           "DiscreteTrait", "discrete"]
+__all__ = ["simulate_continuous", "simulate_discrete", "simulate_traits", "TraitsResult",
+           "Change", "DiscreteTrait", "discrete"]
