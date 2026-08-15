@@ -1,6 +1,6 @@
 # Joining — a design note
 
-**Status: steps 1 to 6 of §14 are built; the rest is designed.** This note records what joining is
+**Status: steps 1 to 7 of §14 are built; the rest is designed.** This note records what joining is
 and which pairs can be joined. It also says where each joint model lives in the API, and the order
 the work is done in. It is subordinate to
 [`SPEC.md`](SPEC.md): where the two disagree, SPEC wins.
@@ -174,10 +174,11 @@ simulate_traits(tree, seed=1, joint=True, traits=[
 trait and `correlation=` only makes several parts of that one trait. A cyclic pair may also be one
 discrete trait and one continuous one, so it cannot live on either existing function.
 
-`traits.continuous(...)` becomes a real process spec. It is a guardrail today that refuses.
+`traits.continuous(...)` is a real process spec as of step 7, where it drives speciation.
 
 Two discrete traits reading each other are exact. The pair is a Markov chain on the product of the
-two state spaces, so the existing branch walk runs it unchanged.
+two state spaces, so the existing branch walk runs it unchanged. That pair is what step 6 built. A
+pair with a continuous trait in it needs the slicing of §8 and is not built.
 
 ### Sequences with itself
 
@@ -221,9 +222,9 @@ A Gillespie needs the rate to hold still between events. A continuously changing
 **We slice**. Cut time into steps of `step` and hold the driver fixed inside each step. Each level
 then advances across the step by whichever method it already uses.
 
-This is one mechanism used in three places, and all three are new work:
+This is one mechanism used in three places:
 
-- a continuous trait driving speciation, which SPEC and the code currently refuse;
+- a continuous trait driving speciation — **built** (step 7), and the first user of the mechanism;
 - two genes' compositions driving each other;
 - a trait and a gene's composition driving each other.
 
@@ -375,7 +376,7 @@ New cards go in `gallery/joining.py` and `gallery/crosslevel.py`.
 
 ## 14. Order of work
 
-Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), and step 6 after them.
+Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), then 6 and 7.
 
 1. ~~**The wording.**~~ Done. SPEC, the manual, the two docstrings, Figure 10.2's new arrow.
 2. ~~**Per-family rates.**~~ Done. §5, with the `genomes.genome` rename. No figure: per-family rates
@@ -393,7 +394,11 @@ Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), and step 6 
 6. ~~**`simulate_traits` and the trait loop.**~~ Done. §6, `joint=True` on `traits.simulate_traits`,
    with a `name=` on each trait. The pair is one Markov chain over the pairs of their states, so the
    run is exact. Figure: body size and the cave, each reading the other.
-7. **Slicing, and a continuous trait driving speciation.** §8.
+7. ~~**Slicing, and a continuous trait driving speciation.**~~ Done. §8. `traits.continuous(...)`
+   is a real process spec now, and `step=` on the driven rate is the slice the diffusion is held
+   fixed across. Required rather than defaulted: a step is the size of the approximation, and any
+   number the code invented would be a claim about a timescale only the model knows. Figure: body
+   size diffusing, and the big lineages radiating.
 8. **Composition for one family, and `families=`.** §9.
 9. **The sequence loop.** §6, on the slicing from step 7.
 10. **Traits with Sequences.** §7, the new arrow.

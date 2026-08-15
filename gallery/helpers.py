@@ -279,8 +279,13 @@ def composite_model_realization(realization_png: str, out: str, draw_model, *,
     plt.close(fig)
 
 
-def composite_markov(tree_png: str, out: str, draw_fn, *, loc=(0.02, 0.09, 0.34, 0.36)) -> None:
-    """Place a tree PNG as the full background and draw a Markov-chain inset in the bottom-left."""
+def composite_markov(tree_png: str, out: str, draw_fn, *, loc=(0.02, 0.09, 0.34, 0.36),
+                     keep_axes: bool = False) -> None:
+    """Place a tree PNG as the full background and draw the model as an inset in the bottom-left.
+
+    ``keep_axes`` leaves the inset's own axes on. A Markov chain is drawn in bare coordinates and
+    wants them off; a response curve is a plot, and without its axes it says nothing about what
+    value gives what rate."""
     img = mpimg.imread(tree_png)
     fig = plt.figure(figsize=(img.shape[1] / 150, img.shape[0] / 150))
     bg = fig.add_axes([0, 0, 1, 1])
@@ -288,7 +293,8 @@ def composite_markov(tree_png: str, out: str, draw_fn, *, loc=(0.02, 0.09, 0.34,
     bg.set_axis_off()
     inset = fig.add_axes(loc)
     draw_fn(inset)
-    inset.set_axis_off()
+    if not keep_axes:
+        inset.set_axis_off()
     fig.savefig(out, dpi=150)
     plt.close(fig)
 

@@ -16,3 +16,5 @@ grow them in.
 ::: zombi2.traits.Change
 
 ::: zombi2.traits.DiscreteTrait
+
+::: zombi2.traits.ContinuousTrait
