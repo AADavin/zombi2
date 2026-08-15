@@ -9,15 +9,17 @@ tree **is** one of the two being simulated, so it comes out of the run rather th
   trait state on each lineage while the trait evolves by its own Mk process on the growing tree;
 - **gene content** drives speciation, ``P(Species, Genomes)`` — birth/death read a summary of each
   lineage's live genome (its total gene count, or the presence of a named family) while the genome
-  evolves by duplication/loss/origination on the growing tree.
+  evolves by duplication/loss/origination on the growing tree;
+- a **continuous trait** drives speciation (QuaSSE) — birth/death read a diffusing value on each
+  lineage while it diffuses on the growing tree.
 
 One Gillespie races the event classes over the living lineages at once: **speciation** and
 **extinction** (per lineage, driver-read), plus the driver's own events — a **trait switch** (the CTMC
 out-rate) or a genome **duplication/loss/origination**. A driver event changes a lineage's state
 without touching the topology; a speciation hands the parent's driver state (its trait, its genome) to
-both daughters. Because these drivers only change at events, the rate is piecewise-constant between
-them and the race is **exact** — no thinning. (A continuously-diffusing driver — QuaSSE — is not
-available: it makes the rate vary continuously, which needs thinning.)
+both daughters. Because a discrete driver only changes at events, the rate is piecewise-constant
+between them and the race is **exact** — no thinning. A diffusion is the exception: it moves at every
+instant, so that run **slices**, holding the value fixed across a ``step`` the driven rate declares.
 
 The mechanism is the same ``scaled_by`` as conditioning; only the ``driver`` differs — here a
 **live level name** (``"trait"``, ``"genomes:count"``, ``"genomes:<family>"``) rather than a filename.
@@ -44,7 +46,7 @@ from ..params.parameter import as_rate
 from ..params.scope import PerLineage
 from ..species import Event as SpeciesEvent, SpeciesResult
 from ..tree import Node, Tree
-from ..traits import Change, DiscreteTrait, TraitsResult
+from ..traits import Change, ContinuousTrait, DiscreteTrait, TraitsResult
 
 #: The rate grammar a joint run supports on ``birth`` / ``death`` (SPEC §5). Declared, like every
 #: other level, so the gate below cannot fall behind what the engine threads: the loop passes ``time``
@@ -292,6 +294,216 @@ def _grow_joint(rng, birth_rate, death_rate, trait: DiscreteTrait, n_extant, tot
     return Tree(nodes, root), species_events, node_values, trait_events
 
 
+#: How many slices a sliced run will walk before it decides nothing is going to happen. A sliced run
+#: cannot use the other engines' "nothing scheduled, so stop" test: a rate of zero now says nothing
+#: about the rate one slice later, because the driver is still moving. So the walk needs an end of
+#: its own, and this is it. It is large enough that no run reaching ``n_extant`` meets it and small
+#: enough to answer in seconds when the rates really are dead.
+_MAX_SLICES = 2_000_000
+
+
+def _slice_step(birth_rate, death_rate, trait_keys) -> float:
+    """The slice a diffusing driver is held fixed across, taken from the rates that read it.
+
+    ``step`` rides on the connection rather than on the run because it is a property of *this*
+    reading: a steep response curve needs a finer step than a flat one, and two participants reading
+    the same driver can legitimately disagree. What cannot happen is two rates reading **one live
+    trait** at two resolutions — there is one trajectory here, and it either moves at a boundary or
+    it does not — so that is refused rather than resolved to the finer of the two.
+
+    There is no default. A step is the size of the approximation being made, and any number this
+    function could invent would be a claim about a timescale only the model knows."""
+    steps, missing = set(), []
+    for label, rate in (("birth", birth_rate), ("death", death_rate)):
+        for m in rate.modifiers:
+            if isinstance(m, Driven) and m.driver in trait_keys:
+                (missing.append(label) if m.step is None else steps.add(m.step))
+    if missing:
+        raise ValueError(
+            f"{' and '.join(sorted(set(missing)))} reads a continuously diffusing trait, so it needs "
+            f"a step= — the stretch of time the driver is held fixed across. A diffusion moves at "
+            f"every instant, so there is no interval where this rate holds still on its own and "
+            f"nothing exact to draw against; the run slices instead. Write it on the connection, "
+            f'scaled_by("trait", Curve(f), step=0.05), and pick it so the trait moves little within '
+            f"one slice — then halve it, rerun the same seed, and see whether the answer moves.")
+    if len(steps) > 1:
+        raise ValueError(
+            f"birth and death read the same live trait at two resolutions, step={sorted(steps)}. "
+            f"There is one trajectory in a joint run, and it either moves at a given boundary or it "
+            f"does not, so the two readings have to agree on step.")
+    return float(next(iter(steps)))
+
+
+def _grow_joint_continuous(rng, birth_rate, death_rate, trait, step: float, n_extant, total_time,
+                           max_lineages=None, keys=(_ONE_TRAIT,)):
+    """Grow a forward birth-death tree whose birth/death read a **continuously diffusing** trait —
+    QuaSSE. Returns ``(tree, species_events, node_values, trait_events)``.
+
+    Every other joint model here races exactly, because its driver only changes at events and an
+    event ends the step. A diffusion changes at every instant, so there is no interval over which
+    the birth rate holds still and nothing for a Gillespie step to be drawn against.
+
+    **This one slices.** Time is cut into steps of ``step``; inside a step every lineage's value is
+    held where it was, so the rates *are* constant and the race inside the slice is the ordinary
+    one. At the boundary each lineage's value is advanced by the exact transition law of its own
+    diffusion — ``Normal(0, ∫σ²)`` for Brownian motion, the pull-weighted form under
+    Ornstein–Uhlenbeck — over the time since that lineage last moved, which is the slice for an old
+    lineage and the remainder of it for one born mid-slice. So the **trait** is exact and only its
+    coupling to speciation is approximated: a lineage speciates at the rate its value had at the top
+    of the slice rather than the rate it has at that instant.
+
+    The error is first-order in ``step`` and one-sided in a way worth knowing: the value is carried
+    forward, never interpolated, because a growing tree has no future to read. The conditioned
+    version of the same model — a trait grown first and handed over — interpolates between two known
+    ends, so for the same ``step`` it is the more accurate of the two.
+    """
+    from ..traits.continuous import _accrued_variance
+    from ..params.mapping import Table
+
+    rate, start, theta, alpha, jump_sd = trait._resolve()
+    is_ou = alpha is not None
+    # What to thread the value under. A `Driven` looks its value up by `m.key`, which is the driver
+    # name alone only while there is no step — with one it is `(name, step)`, because the same driver
+    # read at two resolutions is two trajectories. Threading the bare name here left every factor at
+    # 1.0 and the run silently undriven, which is the failure `Driven.factor`'s inert default makes
+    # quiet: the tree came out identical whatever curve was written.
+    lookup = set()
+    for label, r in (("birth", birth_rate), ("death", death_rate)):
+        for m in r.modifiers:
+            if not isinstance(m, Driven) or m.driver not in keys:
+                continue
+            lookup.add(m.key)
+            # a Curve or a Scalar is defined on the whole line, so there is no alphabet to check it
+            # against; a table is the one mapping a diffusing value can never match a key of
+            if isinstance(m.mapping, Table):
+                raise ValueError(
+                    f"{label} reads a continuous trait through a {{state: factor}} table, and a "
+                    f"diffusing value is a number that never equals a state name. Map it with a "
+                    f"Curve (value → factor) or a Scalar (a log-link): "
+                    f'scaled_by("trait", Curve(lambda x: math.exp(0.5 * x)), step=0.05).')
+
+    nodes: dict[int, Node] = {}
+    counter = 0
+
+    def new_node(parent, t):
+        nonlocal counter
+        i = counter
+        counter += 1
+        nodes[i] = Node(i, parent, t)
+        return i
+
+    root = new_node(None, 0.0)
+    alive = [root]              # living lineage ids
+    xs = [float(start)]         # each lineage's trait value, kept in lock-step with `alive`
+    since = [0.0]               # …and when it last diffused, so a mid-slice birth is not over-diffused
+    t = 0.0
+    slice_end = step
+    species_events: list[SpeciesEvent] = []
+    # a diffusion cannot be rebuilt from its events, so the log carries what the trait level's own log
+    # carries: the value at t=0 and each jump at a split. The values themselves ride in node_values.
+    trait_events: list[Change] = [Change(0.0, "initial", root, None, float(start))]
+    end_value: dict[int, float] = {}
+
+    ceiling = None if max_lineages is None else max(max_lineages, n_extant or 0)
+    slices = 0
+    while alive:
+        n = len(alive)
+        if ceiling is not None and n > ceiling:
+            raise _runaway(ceiling, t)
+        ctx = {"diversity": n, "time": t}
+        vals = [{key: xs[k] for key in lookup} for k in range(n)]
+        wb = [birth_rate.effective(lineages=1, drivers=vals[k], **ctx) for k in range(n)]
+        wd = [death_rate.effective(lineages=1, drivers=vals[k], **ctx) for k in range(n)]
+        total_b, total_d = sum(wb), sum(wd)
+        total = total_b + total_d
+
+        # the slice boundary is a horizon like any other: the rates change there, so the step stops
+        next_change = min(birth_rate.next_change(t), death_rate.next_change(t), slice_end)
+        horizon = next_change if total_time is None else min(next_change, total_time)
+
+        if total > 0.0:
+            t_ev = t + float(rng.exponential(1.0 / total))
+            if t_ev < horizon:
+                t = t_ev
+                if n == n_extant:
+                    break
+                if float(rng.random()) * total < total_b:      # speciation
+                    i = _weighted_index(rng, wb, total_b)
+                    node_id, x = alive[i], xs[i]
+                    alive[i] = alive[-1]; alive.pop()
+                    xs[i] = xs[-1]; xs.pop()
+                    since[i] = since[-1]; since.pop()
+                    node = nodes[node_id]
+                    node.end_time = t
+                    node.fate = "speciation"
+                    end_value[node_id] = x
+                    c1, c2 = new_node(node_id, t), new_node(node_id, t)
+                    node.children = (c1, c2)
+                    for c in (c1, c2):
+                        d = x
+                        if jump_sd > 0.0:      # the punctuational jump, drawn per daughter
+                            d = x + float(rng.normal(0.0, jump_sd))
+                            trait_events.append(Change(t, "on_speciation", c, x, d))
+                        alive.append(c); xs.append(d); since.append(t)
+                    species_events.append(SpeciesEvent(t, "speciation", node_id, (c1, c2)))
+                else:                                          # extinction
+                    i = _weighted_index(rng, wd, total_d)
+                    node_id, x = alive[i], xs[i]
+                    alive[i] = alive[-1]; alive.pop()
+                    xs[i] = xs[-1]; xs.pop()
+                    since[i] = since[-1]; since.pop()
+                    node = nodes[node_id]
+                    node.end_time = t
+                    node.fate = "extinct"
+                    end_value[node_id] = x
+                    species_events.append(SpeciesEvent(t, "extinction", node_id))
+                continue
+
+        if total_time is not None and horizon == total_time:
+            t = total_time
+            break
+        if horizon == slice_end:
+            # the slice ends: let every living lineage diffuse over the time since it last moved
+            for k in range(len(alive)):
+                xs[k] = _advance(rng, rate, xs[k], since[k], slice_end, theta, alpha, is_ou,
+                                 _accrued_variance)
+                since[k] = slice_end
+            t = slice_end
+            slice_end += step
+            slices += 1
+            if slices > _MAX_SLICES:
+                raise RuntimeError(
+                    f"the run walked {_MAX_SLICES} slices of step={step:g} — to time {t:.6g} — "
+                    f"without reaching n_extant={n_extant}. Either the driven birth rate is "
+                    f"effectively zero over the values the trait reaches, or step is far finer than "
+                    f"the timescale the tree grows on.")
+            continue
+        t = horizon      # a skyline breakpoint on birth/death: advance and re-read them
+
+    for k, node_id in enumerate(alive):
+        nodes[node_id].end_time = t
+        # whoever is still alive reached the present, and did so with the last part-slice unrun
+        end_value[node_id] = _advance(rng, rate, xs[k], since[k], t, theta, alpha, is_ou,
+                                      _accrued_variance)
+        nodes[node_id].fate = "extant"
+
+    return Tree(nodes, root), species_events, dict(end_value), trait_events
+
+
+def _advance(rng, rate, x, t0, t1, theta, alpha, is_ou, accrued):
+    """One lineage's diffusion from ``t0`` to ``t1`` — the same transition law `simulate_continuous`
+    walks a branch with, over a slice instead of a branch."""
+    if t1 <= t0:
+        return x
+    if is_ou:
+        e = math.exp(-alpha * (t1 - t0))
+        mean = theta + (x - theta) * e
+        var = accrued(rate, t0, t1, pull=alpha)
+    else:
+        mean, var = x, accrued(rate, t0, t1)
+    return mean + (float(rng.normal(0.0, math.sqrt(var))) if var > 0.0 else 0.0)
+
+
 def _grow_joint_genome(rng, birth_rate, death_rate, spec: FamilyGenome, driver_names, n_extant,
                        total_time, max_lineages=None):
     """Grow a forward birth-death tree whose birth/death read the genome's **live gene content**, while
@@ -466,6 +678,9 @@ def _simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None,
     - ``trait = traits.discrete(...)`` — a discrete trait drives speciation (BiSSE / MuSSE), read as
       ``.scaled_by("trait", {"small": 1.0, "large": 2.0})``. Driving both birth and death gives
       state-dependent λ *and* μ.
+    - ``trait = traits.continuous(...)`` — a **diffusing** trait drives speciation (QuaSSE), read
+      through a `~zombi2.params.Curve` or a `~zombi2.params.Scalar` rather than a table, and with a
+      ``step=`` on the connection: a diffusion moves at every instant, so this one run slices.
     - ``genome = genomes.genome(...)`` — **gene content** drives speciation (``P(Species, Genomes)``),
       read as the total gene count ``.scaled_by("genomes:count", curve)`` or the presence of a named
       family ``.scaled_by("genomes:toxin", {"present": 2.0, "absent": 1.0})`` (declare it with
@@ -490,8 +705,8 @@ def _simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None,
     living lineages (conditioned on survival — a birth-death tree can die out, so it restarts,
     advancing the same generator) **or** at ``total_time`` — give exactly one. Returns a
     `JointResult` carrying the grown tree and the driver level (``.trait`` or ``.genome``).
-    Deterministic given ``seed``. Continuous trait→speciation (QuaSSE), clade drift (an inherited value)
-    combined with driving, and gene transfer in a joint run are not available.
+    Deterministic given ``seed``. Clade drift (an inherited value) combined with driving, and gene
+    transfer in a joint run, are not available.
     """
     birth_rate = as_rate(birth, default_scope=PerLineage)
     death_rate = as_rate(death, default_scope=PerLineage)
@@ -564,12 +779,10 @@ def _simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None,
         )
     # the driver spec must match the driver names
     if trait is not None:
-        if not isinstance(trait, DiscreteTrait):
+        if not isinstance(trait, (DiscreteTrait, ContinuousTrait)):
             raise TypeError(
-                "trait= must be traits.discrete(states=[...], switch=...) — a discrete process spec. "
-                "Continuous trait→speciation (QuaSSE) is not available: a continuously varying "
-                "rate needs thinning, which this exact race does not do."
-            )
+                "trait= must be traits.discrete(states=[...], switch=...) or "
+                "traits.continuous(rate=...) — a trait process spec.")
         # a run holds one trait, so the bare "trait" always names it; a name additionally lets a rate
         # say which, which is what a run holding two will need
         trait_keys = {_ONE_TRAIT} | ({f"traits:{trait.name}"} if trait.name else set())
@@ -580,6 +793,8 @@ def _simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None,
                 f"with a trait participant, drive from that trait — scaled_by({named}, ...); got "
                 f"driver(s) {bad}. (A filename driver is conditioning, not a joint run.)"
             )
+        if isinstance(trait, ContinuousTrait):
+            step = _slice_step(birth_rate, death_rate, trait_keys)
     else:
         if not isinstance(genome, FamilyGenome):
             raise TypeError("genome= must be genomes.genome(...) — a family-genome process spec.")
@@ -615,7 +830,14 @@ def _simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None,
     unique_driver_names = sorted(set(driver_names))
 
     def grow_once(target_n, tt) -> tuple[Tree, JointResult]:
-        if trait is not None:
+        if isinstance(trait, ContinuousTrait):
+            tree, se, nv, te = _grow_joint_continuous(rng, birth_rate, death_rate, trait, step,
+                                                      target_n, tt, max_lineages,
+                                                      tuple(sorted(trait_keys)))
+            te.sort(key=lambda c: c.time)
+            result = JointResult(SpeciesResult(tree, se, seed, []), seed,
+                                 trait=TraitsResult(tree, nv, te, seed))
+        elif trait is not None:
             tree, se, nv, te = _grow_joint(rng, birth_rate, death_rate, trait, target_n, tt,
                                            max_lineages, tuple(sorted(trait_keys)))
             te.sort(key=lambda c: c.time)
@@ -655,14 +877,15 @@ def _classify(participants):
     for p in participants:
         if isinstance(p, BirthDeath):
             kinds["species"].append(p)
-        elif isinstance(p, DiscreteTrait):
+        elif isinstance(p, (DiscreteTrait, ContinuousTrait)):
             kinds["traits"].append(p)
         elif isinstance(p, FamilyGenome):
             kinds["genomes"].append(p)
         else:
             raise TypeError(
                 f"joint.simulate takes process specs — species.birth_death(...), "
-                f"traits.discrete(...), genomes.genome(...) — and got {p!r}. A finished result is a "
+                f"traits.discrete(...), traits.continuous(...), genomes.genome(...) — and got "
+                f"{p!r}. A finished result is a "
                 f"driver you already have, which is conditioning: pass it to the driven level's own "
                 f"run instead.")
     return kinds
@@ -910,6 +1133,12 @@ def _on_a_given_tree(kinds, *, tree, seed) -> JointResult:
             "Give what you are not simulating.")
     tree = as_tree(tree, level="joint")
     genome, trait = kinds["genomes"][0], kinds["traits"][0]
+    if not isinstance(trait, DiscreteTrait):
+        raise NotImplementedError(
+            "a genome and a CONTINUOUS trait driving each other on a given tree is not built. The "
+            "genome's race would have to be sliced against the diffusion, as a continuous trait "
+            "driving speciation already is. Use traits.discrete(...) here, or grow one level first "
+            "and condition the other on it.")
 
     # each level must actually read the other, or these are two independent runs wearing one call
     trait_keys = {_ONE_TRAIT} | ({f"traits:{trait.name}"} if trait.name else set())
@@ -959,6 +1188,10 @@ def simulate(*participants, tree=None, seed=None, max_lineages=100_000) -> Joint
     A rate reads the other participant by **name**, ``"<level>:<handle>"`` — ``"traits:size"`` for a
     named trait, ``"genomes:toxin"`` for a declared family, ``"genomes:count"`` for a lineage's whole
     gene count. A run holding one unnamed trait also answers to ``"trait"``.
+
+    `~zombi2.traits.continuous` is a participant too, and it is the one driver that does not race
+    exactly: a diffusion moves at every instant, so the run holds it fixed across a ``step=`` written
+    on the connection and releases it at each boundary.
 
     The species tree is an output exactly when `~zombi2.species.birth_death` is one of the
     participants; otherwise ``tree`` supplies it. A level driving **itself** does not come here at

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import bisect
 import math
+from dataclasses import dataclass
 from typing import cast
 
 import numpy as np
@@ -598,21 +599,97 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
 
 
 
-def continuous(**_) -> None:
-    """Refused, and the name exists in order to refuse.
+@dataclass(frozen=True)
+class ContinuousTrait:
+    """A continuous (diffusing) trait **process** — its parameters bundled but not yet run (SPEC §4).
 
-    `discrete` is a process spec for a **joint** run — a trait grown with the tree it drives. The
-    continuous twin of it is what a reader reaches for next, and there is none: a continuously
-    diffusing driver (QuaSSE) makes the rate vary continuously, which needs thinning, and the joint
-    engine's race is exact.
+    `simulate_continuous` is the runner that grows this on a tree that already exists. This spec is
+    for the case where the tree does not: hand it to
+    ``joint.simulate(species.birth_death(...), traits.continuous(...))`` and the trait grows *with*
+    the tree whose speciation it drives — QuaSSE. Same arguments, same meanings, no tree.
 
-    Without this the name still resolved — to *this module* — so the reach failed with
-    ``TypeError: 'module' object is not callable``, which says nothing about traits, speciation or
-    what to write instead. A continuous trait itself is not the problem and runs fine: it is driving
-    speciation *with* one that is unavailable."""
-    raise TypeError(
-        "there is no continuous process spec: a continuously varying rate needs thinning, which the "
-        "joint engine's exact race does not do, so continuous trait→speciation (QuaSSE) is not "
-        "available. To drive speciation, use traits.discrete(states=[...], switch=...). To evolve a "
-        "continuous trait on a tree you already have — including one driven by another level — use "
-        "traits.simulate_continuous(tree, rate=...).")
+    A diffusing driver moves at every instant, so the birth rate it drives is never constant and a
+    Gillespie step has nothing to hold still. The run therefore **slices**: the driver is held fixed
+    across a step of ``step`` and released at each boundary, which the driven rate declares —
+    ``scaled_by("trait", Curve(f), step=0.05)``. That is an approximation, and the only one in a
+    joint run: everything else races exactly. Halve ``step``, rerun the same seed, and see whether
+    the answer moves.
+
+    The fields are `simulate_continuous`'s: ``start`` (the value at t=0), ``rate`` (the variance-rate
+    σ², per lineage, a bare number or a ``changing_at`` skyline), ``reverts_to`` + ``pull``
+    (Ornstein–Uhlenbeck; give both or neither), ``at_speciation`` (the variance of a jump at each
+    split) and ``name`` (what a rate calls it, ``"traits:<name>"``; a run holding one trait also
+    answers to ``"trait"``).
+    """
+
+    start: float = 0.0
+    rate: object = 1.0
+    reverts_to: float | None = None
+    pull: float | None = None
+    at_speciation: object = None
+    name: str | None = None
+
+    def __post_init__(self) -> None:
+        if isinstance(self.start, bool) or not isinstance(self.start, (int, float)) \
+                or not math.isfinite(self.start):
+            raise ValueError(f"start must be a finite number, got {self.start!r}")
+        if (self.reverts_to is None) != (self.pull is None):
+            raise ValueError(
+                "reverts_to (the optimum θ) and pull (the strength α) turn the diffusion into "
+                "Ornstein–Uhlenbeck and are one setting: give both or neither.")
+        if self.pull is not None and (isinstance(self.pull, bool)
+                                      or not isinstance(self.pull, (int, float))
+                                      or not math.isfinite(self.pull) or self.pull <= 0):
+            raise ValueError(f"pull must be a positive finite number (α > 0), got {self.pull!r}")
+        if self.reverts_to is not None and (isinstance(self.reverts_to, bool)
+                                            or not isinstance(self.reverts_to, (int, float))
+                                            or not math.isfinite(self.reverts_to)):
+            raise ValueError(f"reverts_to must be a finite number (θ), got {self.reverts_to!r}")
+        _at_speciation_jump_sd(self.at_speciation)      # validates, discarded until the run
+        if self.name is not None and (not isinstance(self.name, str) or not self.name.strip()):
+            raise ValueError(f"name must be a non-empty string, got {self.name!r}")
+
+    def _resolve(self):
+        """The settled σ², optimum, pull and jump width the growing engine walks with.
+
+        The σ² modifiers `simulate_continuous` takes are the ones that read a **finished** tree —
+        the standing diversity over its whole lineages-through-time curve, or a driver already grown
+        on it. A tree that is still growing has neither, so those are refused here rather than
+        quietly read as 1.0. A skyline stays: it reads the clock, which a growing tree does have."""
+        r = as_rate(self.rate, default_scope=PerLineage)
+        if r.scope is not PerLineage:
+            raise ValueError(
+                f"rate is the variance-rate σ² per lineage — write PerLineage(...) (the default, so "
+                f"a bare number is enough); got a {r.scope.__name__} scope.")
+        for m in r.modifiers:
+            if not isinstance(m, OnTime):
+                raise ValueError(
+                    f"σ² carries {describe(m)}, and a trait growing with the tree takes only a bare "
+                    f"number or a changing_at(...) skyline. The others read a tree that is already "
+                    f"there — its standing diversity over the whole run, or a driver grown on it — "
+                    f"and this tree is still growing. Grow the tree first and use "
+                    f"traits.simulate_continuous(tree, rate=...) for those.")
+        return (r, float(self.start), self.reverts_to, self.pull,
+                _at_speciation_jump_sd(self.at_speciation))
+
+
+def continuous(*, start=0.0, rate=1.0, reverts_to=None, pull=None, at_speciation=None,
+               name=None) -> ContinuousTrait:
+    """A continuous trait **process** for a joint run — the diffusing twin of `discrete`.
+
+    Bundles the arguments `simulate_continuous` takes and runs none of them, because the tree it
+    would run on is what the joint run is about to grow::
+
+        joint.simulate(
+            species.birth_death(
+                birth=PerLineage(0.6).scaled_by("trait", Curve(lambda x: math.exp(0.5 * x)),
+                                                step=0.05),
+                n_extant=200),
+            traits.continuous(start=0.0, rate=1.0), seed=1)
+
+    ``step`` on the driven rate is required and is the slice the diffusing driver is held fixed
+    across; see `ContinuousTrait` for what that costs. To evolve a continuous trait on a tree you
+    already have — including one driven by another level — call
+    `simulate_continuous(tree, ...)` instead.
+    """
+    return ContinuousTrait(start, rate, reverts_to, pull, at_speciation, name)

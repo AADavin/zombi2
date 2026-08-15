@@ -72,20 +72,16 @@ apply to a correlated set, as **multivariate OU restricted to a diagonal drift**
 reverts to its own optimum at its own strength, and the correlation rides in the diffusion rather
 than in the reversion; a full drift matrix, where one trait's deviation pulls another, is refused
 by name. SSE is **not** a trait model — it is trait↔species *joint*, Chapter 10 (Joining),
-`zombi2.joint`, which grows a **discrete** trait with the tree (BiSSE, MuSSE). A continuously
-diffusing driver (QuaSSE) needs thinning and is refused there.
+`zombi2.joint`, which grows the trait with the tree: `discrete` for BiSSE and MuSSE, `continuous`
+for QuaSSE. A diffusing driver moves at every instant, so that one run slices.
 """
 
 from __future__ import annotations
 
-from .continuous import simulate_continuous
-# `continuous` shadows the module of the same name so that reaching for the continuous twin of
-# `discrete` refuses with a sentence instead of "'module' object is not callable". A guardrail,
-# not a feature, so it stays out of __all__ and out of the API reference.
-from .continuous import continuous  # noqa: F401
+from .continuous import ContinuousTrait, continuous, simulate_continuous
 from .continuous import IMPLEMENTED_MODIFIERS  # noqa: F401  (re-exported for the CLI, not in __all__)
 from .discrete import DiscreteTrait, discrete, simulate_discrete, simulate_traits
 from .result import Change, TraitsResult
 
 __all__ = ["simulate_continuous", "simulate_discrete", "simulate_traits", "TraitsResult",
-           "Change", "DiscreteTrait", "discrete"]
+           "Change", "DiscreteTrait", "discrete", "ContinuousTrait", "continuous"]
