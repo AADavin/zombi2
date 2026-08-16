@@ -65,9 +65,13 @@ class SpeciesResult:
     #: recovered fossils as ``(lineage_id, time)`` pairs, sorted by time — a side output, present
     #: only when ``fossils`` was set; the fossil's lineage is not removed and is not in the extant tree
     fossils: list[tuple[int, float]] = field(default_factory=list)
-    #: each lineage's own ``(birth, death)`` rate at the moment it was born, keyed by node id.
-    #: Read it through `lineage_rates`, which names the lineages as every output file does.
-    rates_at_birth: dict[int, tuple[float, float]] = field(default_factory=dict, repr=False)
+    #: what each lineage carried at the moment it was born, keyed by node id:
+    #: ``(birth factor, death factor, time, standing diversity)``. Raw material for `lineage_rates`,
+    #: which is what reads it; the rates themselves are worked out there rather than here.
+    rates_at_birth: dict[int, tuple[float, float, float, int]] = field(default_factory=dict,
+                                                                       repr=False)
+    #: the two rates as the run resolved them, so `lineage_rates` can evaluate a lineage's own.
+    _rates: dict = field(default_factory=dict, repr=False)
 
     def __repr__(self) -> str:
         fossils = f", {len(self.fossils)} fossils" if self.fossils else ""
@@ -106,9 +110,13 @@ class SpeciesResult:
         """
         if kind not in ("birth", "death"):
             raise ValueError(f"kind must be 'birth' or 'death', got {kind!r}")
+        rate = self._rates.get(kind)
+        if rate is None:                       # a result built by hand, or unpickled from an old run
+            raise ValueError(f"this result carries no {kind} rate to evaluate")
         label = self.complete_tree.labels()
         j = 0 if kind == "birth" else 1
-        return {label[i]: r[j] for i, r in self.rates_at_birth.items() if i in label}
+        return {label[i]: rate.effective(carried_factor=r[j], time=r[2], diversity=r[3], lineages=1)
+                for i, r in self.rates_at_birth.items() if i in label}
 
     def summary(self) -> dict:
         """What this run produced, as a plain dict — the payload of ``species_summary.json``.
@@ -225,7 +233,8 @@ def _per_lineage(rate) -> tuple:
 
 def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float | None,
           pulses: list[tuple[float, float]], progress: bool = False,
-          max_lineages: int | None = None) -> tuple[Tree, list[Event], dict[int, tuple[float, float]]]:
+          max_lineages: int | None = None,
+          ) -> tuple[Tree, list[Event], dict[int, tuple[float, float, float, int]]]:
     """Grow one forward birth-death tree until it reaches ``n_extant`` living lineages,
     reaches ``total_time``, or dies out. Returns the complete tree and the event log.
 
@@ -269,15 +278,14 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
     inh_d = [values_at_birth(death_drift, rng, root_shared)]
     t = 0.0
     events: list[Event] = []
-    # each lineage's own (birth, death) rate at the moment it was born, keyed by node id. Evaluated
-    # at birth because that is when the lineage's factors are drawn; a rate that also depends on time
-    # or on diversity keeps moving afterwards, which `lineage_rates` says.
-    own: dict[int, tuple[float, float]] = {}
+    # what each lineage needs for its own rate to be worked out later: the factors it carries and the
+    # context it was born into. Four numbers, not two rates — evaluating the rates here cost 40% of
+    # the species level's running time, on every run, whether or not anyone ever asked for them.
+    # `SpeciesResult.lineage_rates` does the evaluating, for the lineages it is asked about.
+    own: dict[int, tuple[float, float, float, int]] = {}
 
     def record(node_id: int, fb: tuple, fd: tuple, at: float, n_alive: int) -> None:
-        ctx = {"time": at, "diversity": n_alive, "lineages": 1}
-        own[node_id] = (birth_rate.effective(carried_factor=math.prod(fb), **ctx),
-                        death_rate.effective(carried_factor=math.prod(fd), **ctx))
+        own[node_id] = (math.prod(fb), math.prod(fd), at, n_alive)
 
     record(root, inh_b[0], inh_d[0], 0.0, 1)
     pulse_idx = 0  # the next unfired mass extinction in `pulses`
@@ -598,7 +606,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
     rng, seed = stream("species", seed)     # own stream, and a drawn seed if none was given
 
     def _finish(tree: Tree, events: list[Event],
-                rates: dict[int, tuple[float, float]]) -> SpeciesResult:
+                rates: dict[int, tuple[float, float, float, int]]) -> SpeciesResult:
         # observe (sampling relabels survivors) then recover fossils along the grown branches
         alive = sum(1 for nd in tree.nodes.values() if nd.fate == "extant")
         _apply_sampling(tree, sampling, rng)
@@ -614,7 +622,8 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
                 f"or trait along. This is the sampling process, not a bad parameter — it has "
                 f"probability {(1 - sampling) ** alive:.3g} here — so raise sampling, ask for more "
                 f"survivors, or draw another seed.")
-        return SpeciesResult(tree, events, seed, _recover_fossils(tree, fossils, rng), rates)
+        return SpeciesResult(tree, events, seed, _recover_fossils(tree, fossils, rng), rates,
+                             {"birth": birth_rate, "death": death_rate})
 
     if total_time is not None:
         tree, events, rates = _grow(rng, birth_rate, death_rate, None, total_time, pulses, progress,
