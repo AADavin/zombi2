@@ -1294,7 +1294,8 @@ def gene(*, name: str, model, length: int, substitution=None,
     return GeneSpec(name, model, length, substitution, offers, start)
 
 
-def _simulate_loop(genomes, genes, *, joint: bool, seed, progress) -> "SequencesResult":
+def _simulate_loop(genomes, genes, *, joint: bool, seed, record: bool = False,
+                   progress=False) -> "SequencesResult":
     """Two genes, each one's substitution rate reading the other's composition, in one run.
 
     The sequence level joined to **itself** (SPEC §3): neither gene can be finished before the other
@@ -1442,10 +1443,16 @@ def _simulate_loop(genomes, genes, *, joint: bool, seed, progress) -> "Sequences
     tallest = max(n.end_time for n in species_tree.nodes.values())
     step = _loop.check_step(next(iter(steps)), tallest)
     rng, seed = stream("sequences", seed)
+    events: list = []
+    recorder = None
+    if record:
+        from ._record import Recorder
+        recorder = Recorder(events, species_tree.labels())
     grown = _loop.grow(specs, trees,
                        {s.name: s.model for s in specs}, {s.name: s.length for s in specs},
                        rates, offers, step, rng,
-                       starts={s.name: s.start for s in specs}, progress=progress)
+                       starts={s.name: s.start for s in specs}, record=recorder, progress=progress)
+    events.sort(key=lambda e: e.time)
 
     labels = species_tree.labels()
     alignments: dict[int, dict[str, str]] = {}
@@ -1468,7 +1475,7 @@ def _simulate_loop(genomes, genes, *, joint: bool, seed, progress) -> "Sequences
         # other gene sets, so no one set of branch lengths belongs to the run
         {"complete": None, "extant": None}, seed, {}, {}, "family", alphabet,
         tuple(labels[i] for i in sorted(species_tree.extant_leaves())),
-        tuple(s.name for s in specs))
+        tuple(s.name for s in specs), events)
 
 
 def _restrict_to(families, genomes) -> list[int]:
@@ -1690,7 +1697,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 f"{'have' if len(offered) > 1 else 'has'} nothing to apply to: each gene carries its "
                 f"own model, length and substitution rate. Write them on "
                 f"sequences.gene(name=..., model=..., length=..., substitution=...).")
-        return _simulate_loop(genomes, genes, joint=joint, seed=seed, progress=progress)
+        return _simulate_loop(genomes, genes, joint=joint, seed=seed, record=record,
+                              progress=progress)
 
     nucleotide = isinstance(genomes, NucleotideGenomesResult)
     # Indels here are the family and ordered resolutions' — the nucleotide one has its own, on the
