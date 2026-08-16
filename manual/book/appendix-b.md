@@ -28,7 +28,7 @@ out/genomes/                profiles.tsv                                      (f
 out/genomes/                rearrangement_events.tsv · chromosome_events.tsv  (ordered, nucleotide)
 out/genomes/                gene_order.tsv                                    (ordered)
 out/genomes/                block_events.tsv · blocks.tsv · genes.tsv         (nucleotide)
-out/genomes/markers.tsv     one file for the run, not a directory        (zombi2 tools format)
+out/genomes/markers.tsv     the marker table, one file for the run — Appendix C  (zombi2 tools format)
 out/genomes/gene_trees/     gene_tree_fam<f>_complete.nwk · …_extant.nwk
 out/genomes/gff/            genome_<lineage>.gff                              (nucleotide)
 out/genomes/bed/            genome_<lineage>.bed                              (nucleotide)
@@ -42,6 +42,12 @@ out/sequences/genomes/      genome_<lineage>.fasta                       (nucleo
 out/traits/                 trait_values.tsv · trait_tree.nwk · trait_events.tsv
 out/traits/<name>/          the same files, when --name was given
 ```
+
+**`run.zombi2`** — the run report, plain text for reading rather than parsing. One section for each
+level in the directory — the seed, the parameters as resolved, what came out in numbers, and each
+file with a one-line gloss — and a closing **TO REPRODUCE** with the exact commands, seeds filled
+in, that rebuild the whole chain. Each command rewrites it, so it always describes the directory as
+it stands.
 
 Each level directory also holds that command's log — `species.log`, `genomes.log`, `sequences.log`,
 `traits.log` — with the version, the command line and every resolved parameter, rates in their written
@@ -135,7 +141,8 @@ the branch it was on. A family with no surviving copy writes no `_extant` file.
 not readable, by anyone or by `genomes.read_run()`, without it. `result.write()` writes it by
 default, so a directory written from Python stands alone; `zombi2 genomes` leaves it out — except
 under `--stream`, which is family-only — because a run already keeps one copy at
-`species/species_complete.nwk`, shared by every level.
+`species/species_complete.nwk`, shared by every level. Its token in `outputs=` and `--write` is
+`species_tree`, not the file's name.
 
 **`names.tsv`** — the join from every other output back to your taxa.
 
@@ -150,7 +157,7 @@ same at every resolution, and the distinction is the model's: one is what a data
 other is what happened.
 
 **`.presence(name)` and `.completion(name)`** — a named family's presence (`present` / `absent`) and
-a declared module's completion (a fraction) along every lineage, for use as a driver (Ch9). Read off
+a declared module's completion (a fraction) along every lineage, for use as a driver (Ch8). Read off
 the families' gene trees, so they change *inside* a branch; the **ordered** resolution gives the same
 two.
 
@@ -419,7 +426,8 @@ frequencies the realised count falls a little short of the length written here.
 
 **`clock_species_tree_*.nwk`** — the mean over sites under `+Γ`/`+I`, as for the phylograms. A driven
 substitution rate shows here too: a branch is the rate times the driver integrated along it, so this
-is where you read what the trait did.
+is where you read what the trait did. The token that writes the pair, in `outputs=` and `--write`,
+is `species_phylogram`, not the file's name.
 
 **`sequences_ancestral_fam<f>.fasta`** — internal nodes, and the tips where a copy was lost or its
 species died.
@@ -444,7 +452,7 @@ so these are the exact ancestors, not estimates, and together they account for e
 exactly once.
 
 **`.gc()` and `.composition(letters)`** — the share of a lineage's sequence that is those letters,
-pooled over all its families, for use as a driver (Ch9): GC content, or any amino-acid frequency. A
+pooled over all its families, for use as a driver (Ch8): GC content, or any amino-acid frequency. A
 number, so it takes a `Curve` or a `Scalar`; it drives a trait or a further sequence run, never the
 genome its gene trees came from.
 
@@ -453,7 +461,7 @@ writes *b* alignments and *b* phylograms — that is what makes the genomes asse
 those filenames is then a **root block index**, not a gene family id, and the files say so: `block6.fasta`,
 `phylogram_block6_complete.nwk` and `sequences_ancestral_block6.fasta` in place of `fam6.…`, and
 `sequences_founding.fasta`'s records are `block<b>` rather than `fam<f>`. The two numbering schemes are
-different, so go from a gene to its block with `genomes.block_of(family)` (Ch6). `zombi2 sequences` reads a nucleotide
+different, so go from a gene to its block with `genomes.block_of(family)` (Ch5). `zombi2 sequences` reads a nucleotide
 handoff too — it recognises one by its `blocks.tsv` — so all of this is reachable from the command line.
 
 ## Joint: `joint.simulate` / `zombi2 joint`
@@ -484,7 +492,7 @@ under `species/`.
 ## Traits: `simulate_continuous` / `simulate_discrete`
 
 `zombi2 traits --name NAME` writes this trait's files to `traits/NAME/` instead of `traits/`, so one
-run can hold several traits and one can drive another (Ch9). `--name` and `--flat` are refused
+run can hold several traits and one can drive another (Ch8). `--name` and `--flat` are refused
 together.
 
 | File | What it holds |
@@ -516,7 +524,7 @@ because a correlated jump moves every trait at once and is one event.
 **`trait_summary.json`** — what came out, not what was asked for. The root node sits at the end of the
 stem, so `value_at_root_node` is not the value the run started from.
 
-**`conditioned_on`** — a trait driven by a trait grown first records `traits` (Ch9). Both sides sit
+**`conditioned_on`** — a trait driven by a trait grown first records `traits` (Ch8). Both sides sit
 under `traits/`, so the record is kept but re-running the driver trait does not invalidate this run.
 
 **`.values` and `.node_values`** — `.values` is the observable vector, the trait at each *extant* tip,

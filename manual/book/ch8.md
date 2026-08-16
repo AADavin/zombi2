@@ -1,133 +1,163 @@
-# Traits
+# Conditioning
 
-The trait level evolves **phenotypes**: a body size, a habitat, the presence or absence of a structure. A trait evolves along the species tree like everything else here — the **complete** tree, extinct lineages included, so that is the tree to hand it. There are two kinds, continuous and discrete.
+The book has so far run the levels one at a time: species tree, then genomes, then sequences, then traits. Each already depends on the tree. Sometimes you want to simulate more complex scenarios with dependencies, for example:
 
-![The two kinds, on the same tree. A **continuous** trait starts at one value and drifts along every branch, so every node ends at a number of its own — each branch is painted with the value at its far end — and close relatives end up close. A **discrete** trait sits in one state and switches to another now and then; the dots mark the two switches, and every branch below a switch is in the new state until it switches again. The chips at the tips are the state each one ended in. The two are different functions, `simulate_continuous` and `simulate_discrete`, because they answer different questions.](figures/trait_kinds_print.png){width=100%}
+- A trait controls how quickly duplications occur.
+- A gene controls how quickly a different gene is lost.
+- The GC content of an organism controls some trait.
 
-## Continuous traits
+As long as the thing doing the controlling can be simulated first and independently — even within one level, if the two entities are separable — we talk about **conditioning**. If instead the two have to grow at the same time, we are dealing with **joining**, which is the next chapter.
 
-A continuous trait **diffuses**. Give it a starting value and a rate, and it wanders down every branch, its variance growing in proportion to elapsed time. On its own that is **Brownian motion**, the null model of continuous trait evolution:
+## The three parts
+
+![A conditioned run. The **driver** is a level already simulated, a habitat trait here, with the two states each lineage switches between, and how fast, shown below it. The **target** is what it controls: a parameter of the run that comes next, named with what kind it is — a rate here, counted per copy. The **connection** is the arrow, carrying the verb that joins them and the multiplier each state hands over, so that a branch's habitat sets that branch's loss rate.](figures/conditioning_print.png){width=95%}
+
+Chapter 1 named the three, and this chapter takes them one at a time. The **driver** is the value that is read. The **target** is what reads it. The **connection** is what joins them: it decides what number arrives, and what that number does when it gets there.
+
+### Across levels, and within one
+
+![What can condition what. Rows drive, columns are driven. The five shaded cells are the pairs that are not: three would need two genomes for one lineage, and two are a sequence driving a genome, which would condition a run on its own output. The three boxed cells are on the diagonal — a level conditioning itself.](figures/conditioning_map_print.png){width=95%}
+
+Not everything can act as a driver and not everything can be a target. A sequence cannot control the gene it grows inside, by construction — although it can control a different one, if the two are simulated in order. 
+
+| | Driver | Target | What it says | Gallery |
+|---|---|---|---|---|
+| **1** | a trait | a gene family | habitat sets the loss rate; all four rates take a driver | [Co1–Co6](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:genome_reduction--><!--gallery:genome_expansion--><!--gallery:hgt_uptake--><!--gallery:continuous_conditioning--><!--gallery:curve_saturating--><!--gallery:curve_optimum--> |
+| **2** | a trait | an ordered or nucleotide genome | eleven rates, and the extents besides | [Co7](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_inversions--> |
+| **3** | a trait | a sequence | habitat sets the substitution rate | [Co8](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_substitution--> |
+| **4** | a trait | a trait | one character sets another's `rate` or `switch` | [Co9–Co10](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:driven--><!--gallery:trait_drives_trait--> |
+| **5** | a gene family | a gene family | a mobile element makes transfer likelier for the rest of the genome | [Co11](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:mobile_element--> |
+| **6** | a gene family | a sequence | lose the repair gene and evolve faster | [Co12](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:repair_gene--> |
+| **7** | a gene family | a trait | carry the toxin family and turn pathogenic | [Co13](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gene_drives_trait--> |
+| **8** | an ordered or nucleotide genome | a sequence | as **6**, with coordinates in the genome run | [Co14](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:operon_substitution--> |
+| **9** | an ordered or nucleotide genome | a trait | as **7**, with coordinates in the genome run | [Co15–Co16](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:module_drives_metabolism--><!--gallery:operon_trait--> |
+| **10** | a sequence | a sequence | one gene's composition indexes something about the lineage, and that sets another gene's rate | [Co17–Co18](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_sequence--><!--gallery:named_family_drives_sequence--> |
+| **11** | a sequence | a trait | GC content sets how fast a trait changes | [Co19](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_trait--> |
+
+## The driver
+
+A driver is the input to the function that controls the target. The easiest one to think about is a trait that controls a rate at the genome level, but a trait is not the only thing that can drive. The presence of a gene family works too, and so does how complete a declared group of families is.
+
+### What can be a driver
+
+| Driver | What it offers | How you write it |
+|---|---|---|
+| a discrete trait | one of its states | the trait's result, or the path to the event log it wrote |
+| a continuous trait | a number | the same, read every `step` of time — a hundredth of the tree's height by default |
+| a gene family | `present` or `absent` | `g.presence("IS1")`, for families declared with `families=[family("IS1")]` |
+| a module | a fraction, 0 to 1 | `g.completion("flagellum")`, for a group of families declared with `modules=` |
+| a sequence's composition | a number, 0 to 1 | `seqs.gc()`, or `seqs.composition("KR")` for any letters of the alphabet |
+| **one family's** composition | a number, 0 to 1 | the same, on a run restricted to it with `families=["marker"]`, plus an `absent=` |
+
+Every row is a level **grown first** and then read. Where a lineage sits in the tree and when it is alive are not: `Clade` and `changing_at` (Appendix A) read facts the run already has, so they need no driver and work at every level whether or not anything is being conditioned.
+
+A driver is read wherever it changes, not once per branch: a lineage that switches habitat halfway down one loses genes at one rate before the switch and another after it ([Co4](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:continuous_conditioning-->). That works because a discrete driver changes at moments the run can step to exactly. A continuous one never stops changing, so there are no such moments: it is sampled every `step` instead, a hundredth of the tree's height unless you set it, and the rate holds between samples. 
+
+### One family's composition
+
+A composition is pooled over whatever the sequence run evolved, so on a whole genome it is the lineage's whole complement and belongs to no family in particular. To read **one** family's, restrict the run to it:
 
 ```python
-from zombi2 import species, traits
-from zombi2.params import PerLineage
+from zombi2.genomes import family, simulate_genomes_family
+from zombi2.params import Curve, PerSite
+from zombi2.sequences import lg, simulate_sequences
+from zombi2.species import simulate_species_tree
+
+ct = simulate_species_tree(birth=1.0, n_extant=25, seed=1).complete_tree
+g = simulate_genomes_family(ct, initial_families=8, duplication=0.05, loss=0.25,
+                            origination=0.1, seed=2,
+                            families=[family("marker"), family("ribosomal")])
+
+marker = simulate_sequences(g, families=["marker"], model=lg(), length=300, seed=3)
+hotness = marker.composition("IVYWREL", absent=0.40)
+
+ribosomal = simulate_sequences(
+    g, families=["ribosomal"], model=lg(), length=300, seed=4,
+    substitution=PerSite(1.0).scaled_by(hotness, Curve(lambda s: 4.0 ** ((s - 0.32) / 0.20))))
+```
+
+A word on what a composition is for. It is not a mechanism: no count of residues reaches out and sets another gene's rate. What it is good for is standing in for a property of the **lineage**. The share of a protein that is I, V, Y, W, R, E or L rises with the temperature its owner lives at, which is the compositional signature of thermophily that holds across the tree of life [@zeldovich2007ivywrel]; a genome's GC content indexes its mutational regime much the same way. Written like that the driver says something a reader can check. Written as a mechanism it does not.
+
+`families=` names families the genome run declared, and both runs then read the **same** genome run, so the driver's gene tree is the one the target's run also saw. Two separate genome runs would have put the driver on gene trees the target never met.
+
+What that costs is the branches where the family is absent. There is no sequence there and so nothing to count, and a driver has to answer for every branch the target walks. `absent=` is that answer, and it is required rather than guessed: without it the run raises, because carrying the parent's value forward would drive those branches as though the family were still there, which is a different model ([Co18](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:named_family_drives_sequence-->).
+
+This one is Python only. A composition is an object in memory, and reaching the command line would mean writing a per-node composition table and teaching the driver loader to read it.
+
+## The target
+
+A target is the parameter the connection is written on — what would otherwise be a plain number. In Python it is the keyword, on the command line the flag. A level takes only the targets it has, and refuses a driven parameter it cannot honour rather than accepting and ignoring it.
+
+### What can be a target
+
+| Target | Kind | Level |
+|---|---|---|
+| `duplication`, `transfer`, `loss`, `origination` | how often | genomes, every resolution |
+| `inversion`, `transposition`, `translocation`, `fission`, `fusion`, `chromosome_origination`, `chromosome_loss` | how often | genomes, ordered and nucleotide |
+| `substitution` | how often | sequences |
+| `rate` (continuous), `switch` (discrete) | how often | traits |
+| every event's extent | how much | genomes, ordered and nucleotide — Python only |
+| `transfer_to` | which one | genomes, every resolution |
+
+## The connection
+
+A driver does not speak in the units of a target. A habitat is `aquatic` or `terrestrial`; a loss rate is a number of losses per copy per unit time. The connection is what gets from one to the other, so it has to say two things — what number this driver value is worth, which is the **mapping**, and what that number then does to the parameter, which is the **verb**.
+
+```
+loss = PerCopy(0.25).scaled_by(habitat, {"aquatic": 4.0, "terrestrial": 1.0})
+```
+
+That line reads as a sentence: loss is scaled by habitat, four-fold in water and unchanged on land. `scaled_by` is the verb and the dict is the mapping, and those are the argument names too: `scaled_by(driver, mapping)`.
+
+### Ways of connecting
+
+Three verbs, because a number arriving at a target can do three things.
+
+| Verb | What the number does | Written on |
+|---|---|---|
+| `scaled_by` | multiplies the base in front of it | a rate, an extent |
+| `set_by` | replaces the base, in the rate's own units, so nothing is written in front | a rate |
+| `weighted_by` | weighs the candidates against each other | `transfer_to`, from `Recipients()` |
+
+`set_by` is for when the literature states the rate itself — *the loss rate is 1.0 in the water* — rather than a multiple of a base you had to invent. `weighted_by` needs no base because weights are normalised, so doubling them all changes nothing.
+
+Four mappings, and which one you need follows from the **driver**, not from what it drives.
+
+| The driver gives | Mapping | What you give it |
+|---|---|---|
+| named states | `Table` | one factor per state; a bare dict is read as one, and a state left out is unchanged |
+| a number | `Curve` | any function of it; a bare function is read as one, and `bound=` caps it |
+| a number | `Scalar` | a strength, giving `exp(strength × value)` |
+| a pair of states | `Between` | one weight per ordered (donor, recipient) pair, `default=` for the rest — `transfer_to` only |
+
+Whatever the shape, the number that comes out is non-negative and has no units.
+
+### Writing one
+
+A conditioned run is two ordinary runs, the driver first:
+
+```python
+from zombi2 import species, traits, genomes
+from zombi2.params import PerCopy
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
+habitat = traits.simulate_discrete(tree, states=["aquatic", "terrestrial"], switch=0.1, seed=1)
+
+genomes.simulate_genomes_family(tree,
+    loss = PerCopy(0.25).scaled_by(habitat, {"aquatic": 4.0, "terrestrial": 1.0}),
+    duplication=0.2, origination=0.5, seed=2)
 ```
 
-```python
-# BM: a body size diffusing from 0 at variance-rate σ² = 1.0
-traits.simulate_continuous(tree, start=0.0, rate=1.0, seed=1)
-```
-
-Here `rate` is the Brownian variance-rate σ², the trait level's reading of "how fast", and like every rate in ZOMBI2 it takes the verbs. For example, two variations on this are:
-
-```python
-# OU: the same diffusion, pulled toward an optimum value
-traits.simulate_continuous(tree, start=0.0, rate=1.0,
-                           reverts_to=2.0, pull=0.5, seed=1)
-
-# early burst: the diffusion rate itself decays through time
-traits.simulate_continuous(tree, start=0.0,
-                           rate=PerLineage(1.0).changing_at({0: 1.0, 5: 0.2}), seed=1)
-```
-
-The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root ([Tr3](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:early_burst-->); it is written with the same `changing_at` that gives the species tree its skyline.
-
-Two more arguments sit alongside `rate`. `regimes=` paints a multi-optimum OU, where clades pull toward different optima ([Tr6](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:regimes-->) (a discrete trait supplies the painting and `reverts_to` becomes one optimum per regime), and `at_speciation=` adds a jump *at* each split rather than along the branches, so change concentrates at branching ([Tr7](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:jumps-->). The value is the jump variance, so `at_speciation=0.5` gives a jump of width √0.5. None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one verb and two arguments.
-
-`regimes=` is the one argument that asks you to give things up, and it says so rather than ignoring them: it takes a plain σ² (not a modified one), one jump variance shared across regimes (not one per regime), and one trait (so not `correlation=`).
-
-## Discrete traits
-
-A discrete trait takes a finite set of states and switches between them along the branches: a continuous-time Markov chain, the field's **Mk model** [@lewis2001mk].
-
-```python
-# Mk: habitat flips between two states at rate 0.1
-traits.simulate_discrete(tree, states=["marine", "terrestrial"],
-                         switch=0.1, start="marine", seed=1)
-```
-
-When the flips are not symmetric, replace the single rate with a small matrix of directed rates ([Tr9](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:asymmetric-->):
-
-```python
-# asymmetric: gains are commoner than losses
-traits.simulate_discrete(tree, states=["absent", "present"],
-                         switch={"absent->present": 0.2, "present->absent": 0.05},
-                         seed=1)
-```
-
-## Correlated traits
-
-Two traits that evolve independently are two separate calls, in either order. Two traits that drift *together* cannot be simulated one before the other, because each is entangled with the other as it unfolds ([Tr11](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:correlated-->). Correlation is specified as per-trait rates plus a correlation overlay:
-
-```python
-traits.simulate_continuous(tree,
-    start={"size": 0.0, "limb": 0.0},
-    rate={"size": 1.0, "limb": 0.8},        # one variance-rate per trait
-    correlation={("size", "limb"): 0.6},    # the overlay, ∈ [−1, 1]
-    seed=1)
-```
-
-The overlay is a dimensionless number in `[−1, 1]`, not a covariance matrix. Under `correlation=` the per-trait rates are plain numbers.
-
-The overlay carries the reversion and the speciation jumps as well. Add `reverts_to` and `pull` and each trait reverts to its own optimum at its own strength; add `at_speciation` and the jump at each split is drawn under the same correlation the diffusion uses. Each argument takes one value shared across the traits, or a dict giving one per trait:
-
-```python
-traits.simulate_continuous(tree,
-    start={"size": 0.0, "limb": 0.0},
-    rate={"size": 1.0, "limb": 0.8},
-    correlation={("size", "limb"): 0.6},
-    reverts_to={"size": 3.0, "limb": -1.0},   # each trait its own optimum
-    pull={"size": 1.5, "limb": 0.4},          # and its own strength
-    at_speciation=0.5, seed=1)
-```
-
-## Literature
-
-Trait models arrive under a thicket of names, and a reader who wants "an OU model" or "a threshold model" should be able to find it. The names live here, in one table, each beside the example that shows it; the example carries the run that made it, so the table does not spell the call out a second time. It organises nothing else in the chapter.
-
-| What it does | From the literature | Gallery |
-|-------------------|--------------------------------|---|
-| a value diffusing | Brownian motion (BM) [@felsenstein1985comparative] | [Tr1](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:bm--> |
-| diffusion pulled to an optimum | Ornstein–Uhlenbeck (OU) [@hansen1997stabilizing; @butler2004phylogenetic] | [Tr2](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:ou--> |
-| diffusion rate decays through time | Early burst (EB / ACDC) [@harmon2010earlyburst] | [Tr3](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:early_burst--> |
-| diffusion rate drifts between lineages | Variable-rates BM [@maliet2019clads] | [Tr4](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:varying_rate--> |
-| diffusion rate slows as the clade fills | Diversity-dependent / ecological limits [@etienne2012diversitydependence] | [Tr5](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:diversity_dependent--> |
-| the optimum differs between painted clades | Multi-optimum OU (OUM) [@beaulieu2012ouwie] | [Tr6](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:regimes--> |
-| the value jumps at each split | Cladogenetic / punctuational change | [Tr7](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:jumps--> |
-| a discrete state switching | Mk (k-state Markov) | [Tr8](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:discrete--> |
-| gains and losses at different rates | All-rates-different Mk (ARD) | [Tr9](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:asymmetric--> |
-| discrete driven by continuous liability | Threshold / liability (Wright–Felsenstein) [@felsenstein2012threshold] | [Tr10](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:threshold--> |
-| traits evolving together | Multivariate BM | [Tr11](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:correlated--> |
-| traits reverting together, each to its own optimum | Multivariate OU, diagonal drift [@clavel2015mvmorph] | [Tr12](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:mv_ou--> |
-| discrete traits evolving together | Correlated binary / Pagel [@pagel1994correlated] | [Tr13](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:dependent--> |
-
-## On the command line
-
-The state space is `--kind`, and it is required. It decides which of the other flags apply, since `--rate` and the OU flags belong to a continuous trait while `--states` and `--switch` belong to a discrete one, so there is no default that would not silently pick a model for you:
+and the same thing on the command line, where the driver reaches the second run as the file the first one wrote:
 
 ```bash
-# a continuous (Brownian) trait along a species tree
-zombi2 traits out/ --kind continuous \
-    --start 0.0 --rate 1.0 --seed 1
+zombi2 species out/ --birth 1 --death 0.3 --n-extant 20 --seed 1
 
-# a discrete two-state trait
 zombi2 traits out/ --kind discrete \
-    --states marine,terrestrial --switch 0.1 --seed 1
+    --states aquatic,terrestrial --switch 0.1 --seed 1 --write values tree events
 
-# the states the next command drives from — a discrete run writes trait_events.tsv by default,
-# the driver file a conditioned genome, sequence or trait run reads (Chapter 9)
-zombi2 traits out/ --kind discrete \
-    --states cave,surface --switch 0.1 --seed 1
-
-# a second trait, in its own directory, whose switch rate reads the first (Chapter 9)
-zombi2 traits out/ --kind discrete --name diet --states plant,fish --seed 2 \
-    --switch "PerLineage(0.2).scaled_by('out/traits/trait_events.tsv', {'cave': 5.0, 'surface': 1.0})"
+zombi2 genomes out/ --duplication 0.2 --origination 0.5 --seed 2 \
+    --loss "PerCopy(0.25).scaled_by('out/traits/trait_events.tsv', {'aquatic': 4.0, 'terrestrial': 1.0})"
 ```
 
-Every rate flag takes a rate in its written form, `--switch` as much as `--rate`, so the expression above is the same text the Python API takes. `--switch` reads the other two shapes its keyword does as well: a `{'a->b': rate}` dict and a `k x k` matrix.
-
-Two keywords have no flag. `correlation=` grows several traits in one call, and the command line grows one trait per run. `regimes=` takes a discrete result object, the painting, handed to the call. Both stay in the Python API.
-
-The trait evolves on the **complete** tree, extinct lineages included, so `species_complete.nwk` is the file to hand it. An external tree works too; if it is not ultrametric you must declare each tip's fate with `--tip-fates`, because ZOMBI will not guess which early-ending tips are extinct.
+There is no conditioning command and no object to build: the second run is an ordinary genome run whose `loss` happens to carry a `scaled_by` instead of a bare number. It records what it read in a `conditioned_on` file, and re-running the driver afterwards refuses unless you pass `--force`, so that the runs beneath it cannot be left quietly out of step.

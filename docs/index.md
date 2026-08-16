@@ -52,7 +52,7 @@ sp = species.simulate_species_tree(
 
 ## Where next
 
-- New here? Start with the [**Introduction**](guide/introduction.md) and [**a tour of ZOMBI2**](guide/tour.md).
+- New here? Start with the [**Introduction**](guide/introduction.md), which tours the whole tool in one pass.
 - The level guides — each grows one level and the objects a run returns:
   [**Species trees**](guide/species-trees.md),
   [**Genomes**](guide/genomes.md) (with [ordered](guide/genomes-ordered.md) and
