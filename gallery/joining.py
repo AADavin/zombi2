@@ -40,6 +40,7 @@ _KEY = {"absent": "#b9bec4", "present": "#2E8B6F"}          # the gene that driv
 _IS1J = {"absent": "#b9bec4", "present": "#C25A3C"}         # the element that drives its own genome
 _SIZE = {"small": "#b9bec4", "large": "#8C5E8B"}            # the other half of the trait loop
 _CAVE = {"surface": "#2E8B6F", "cave": "#4A4A6A"}           # a habitat and a genome, each driving the other
+_CLIMATE = {"cold": "#3A7CA5", "hot": "#E4572E"}            # a habitat and a gene's sequence, likewise
 
 
 def _style():
@@ -386,6 +387,72 @@ def sequence_loop(out):
     h.composite_under_diagram(out, diag,
                               [(pngs[0], "hisA", ("magma_dark", "KR-poor", "at LG's own")),
                                (pngs[1], "hisF", ("magma_dark", "KR-poor", "at LG's own"))],
+                              diagram_frac=0.72)
+
+
+def trait_and_sequence(out):
+    """A trait and a gene's SEQUENCE, each driving the other — the cross-level join whose two ends
+    are the furthest apart, and the last cell of the map to be built.
+
+    Both directions already ran as conditioning, one card each. A trait drives a gene's substitution
+    rate (Co8), and that gene's composition drives how fast a trait switches (Co19). Written at once
+    they are a cycle: to evolve the sequence you would need the trait on every stretch of every
+    branch, and the trait's own rate is what the sequence decides.
+
+    The model here closes that loop in one direction. `rpoB` arrives KR-poor and ameliorates toward
+    LG's own composition; the richer it gets, the more readily its lineage turns hot; and a hot
+    lineage substitutes four times faster, which is what carries `rpoB` further. Against the same run
+    with the trait's response flattened, four-fifths of the tree ends hot rather than three-fifths,
+    over eight seeds.
+
+    Species time is sliced. Inside a slice the trait's own Gillespie is exact — switches mid-slice
+    included — and the gene's branch length is the trait's factor **integrated** across those
+    switches, drawn once, which is exact too. What is approximated is only the composition the trait
+    reads: it belongs to the top of the slice rather than to each instant.
+
+    The tree twice: the habitat the trait walked, and the same tree painted by how far `rpoB` has
+    got. The hot clades are the ameliorated ones, in both directions at once.
+    """
+    from zombi2.sequences import composition as offers_composition
+    from zombi2.sequences import gene as gene_spec
+    from zombi2.sequences import lg
+    from zombi2.params import PerSite
+
+    ct = simulate_species_tree(birth=1.0, n_extant=30, seed=1).complete_tree
+    g = simulate_genomes_family(ct, initial_families=3, duplication=0.0, loss=0.0, origination=0.0,
+                                seed=2, families=[family("rpoB")])
+    r = joint.simulate(
+        traits.discrete(name="habitat", states=["cold", "hot"], start="cold",
+                        switch={"cold->hot": PerLineage(0.5).scaled_by(
+                                    "sequences:rpoB", Curve(lambda x: 0.05 + 30.0 * x), step=0.05),
+                                "hot->cold": 0.3}),
+        gene_spec(name="rpoB", model=lg(), length=250, start=_kr_poor(),
+                  offers=offers_composition("KR", absent=0.02),
+                  substitution=PerSite(0.6).scaled_by("trait", {"hot": 4.0, "cold": 1.0})),
+        genomes=g, seed=5)
+
+    lab = ct.labels()
+    fam = g.family_names["rpoB"]
+    share = _kr_by_node(r.sequences, fam)
+    span = (min(share.values()), max(share.values()))
+    style = _panel_style()
+    habitat = out.replace(".png", "_habitat.png")
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
+     + ph.trees.color_history({lab[i]: segs for i, segs in r.trait.history.items()},
+                              palette=_CLIMATE)
+     + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(habitat)
+    gene_png = out.replace(".png", "_rpoB.png")
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
+     + ph.trees.color_branches(share, cmap="magma_dark", limits=span)
+     + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(gene_png)
+    diag = h.joint_png(out.replace(".png", "_diag.png"),
+                       left=("habitat", "cold or hot"),
+                       right=("rpoB", "how much of it is K or R"),
+                       forward="hot lineages substitute 4x faster",
+                       back="the richer rpoB is, the readier the switch to hot")
+    h.composite_under_diagram(out, diag,
+                              [(habitat, "habitat", _CLIMATE),
+                               (gene_png, "rpoB", ("magma_dark", "KR-poor", "at LG's own"))],
                               diagram_frac=0.72)
 
 
@@ -1361,7 +1428,33 @@ r.alignments        # one entry per family, as any sequence run returns
 r.phylograms        # branch lengths accumulated slice by slice, not one sample of a rate"""
 
 
+_C_TRAIT_SEQ = """### a TRAIT and a GENE's SEQUENCE, each driving the other — the two ends furthest apart
+from zombi2 import joint, traits
+from zombi2.params import Curve, PerLineage, PerSite
+from zombi2.sequences import composition, gene, lg
+
+# the genome run is handed over, and carries the tree its gene trees sit on:
+# a sequence lives on a gene tree, which lives on the species tree
+r = joint.simulate(
+    traits.discrete(name="habitat", states=["cold", "hot"], start="cold",
+                    switch={"cold->hot": PerLineage(0.5).scaled_by(
+                                "sequences:rpoB", Curve(lambda x: 0.05 + 30.0 * x), step=0.05),
+                            "hot->cold": 0.3}),
+    gene(name="rpoB", model=lg(), length=250, start=kr_poor,
+         offers=composition("KR", absent=0.02),
+         substitution=PerSite(0.6).scaled_by("trait", {"hot": 4.0, "cold": 1.0})),
+    genomes=g, seed=5)
+
+r.trait          # the habitat, an ordinary TraitsResult
+r.sequences      # the gene, an ordinary SequencesResult holding the one family"""
+
+
 JOINING = [
+    Example("trait_and_sequence", "A trait and a gene's sequence",
+            "The two ends of the map, joined. <code>rpoB</code> arrives KR-poor and ameliorates; "
+            "the richer it gets the readier its lineage turns hot, and a hot lineage substitutes "
+            "four times faster — which is what carries it further.",
+            "trait \u2194 sequence", trait_and_sequence, code=_C_TRAIT_SEQ),
     Example("sequence_loop", "Two genes, each other's driver",
             "Two genes arrive KR-poor and ameliorate together: each one's substitution rate reads "
             "how far the other has got, so the pair is slow while both are behind and accelerates "

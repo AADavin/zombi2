@@ -11,6 +11,17 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
+- **A trait and a gene's sequence can drive each other**, on a tree the run is handed —
+  `joint.simulate(traits.discrete(...), sequences.gene(...), genomes=g)`. The last cross-level cell
+  of the map: a character sets a gene's substitution rate, and how much of that gene is a given set
+  of residues sets how readily the character switches. Both directions already ran as conditioning;
+  written at once they are a cycle. The genome run is what you hand over rather than a bare tree,
+  because a sequence lives on a gene tree, which lives on the species tree. `JointResult` gains
+  `.sequences`. Species time is sliced: inside a slice the trait takes its own Gillespie, so its
+  mid-slice switches are exact, and the gene's branch length is the trait's factor **integrated**
+  across them and drawn once — exact too, since the matrix does not change when the trait switches.
+  Only the composition the trait reads is approximated, being the one from the top of the slice.
+
 - **Two genes can read each other's composition, in one run** — the sequence level joined to itself,
   and the last of the three loops. `simulate_sequences(g, joint=True, genes=[sequences.gene(...),
   ...])`, where each gene's `substitution` reads another by `"sequences:<name>"` and each gene
