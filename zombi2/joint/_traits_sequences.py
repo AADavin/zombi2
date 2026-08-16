@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..genomes.gene_trees import GeneNode, GeneTree
+from ..sequences._record import walk as _walk
 from ..sequences.evolution import _cdf_for, _sample
 from ..traits.discrete import _driven_q, _gillespie
 from ..traits.result import Change
@@ -60,7 +61,7 @@ class _Out:
 def grow(rng, tree, *, gene_tree: GeneTree, model, length: int, founder, letters: str,
          absent: float, gene_keys, base_rate: float, gene_factors,
          trait_states, trait_entries, trait_start: int, trait_shift: float, trait_keys,
-         step: float):
+         step: float, record=None):
     """Walk the trait and the gene's sequence together, slice by slice.
 
     ``gene_factors`` are the ``(lookup key, mapping)`` pairs the substitution rate reads off the
@@ -123,7 +124,7 @@ def grow(rng, tree, *, gene_tree: GeneTree, model, length: int, founder, letters
 
         # 3. the gene, across the slice — its rate reads the trait the step above just walked
         live = _advance(live, out, model, base_rate, gene_factors, trait_keys, trait_states, traj,
-                        nxt, rng, cache)
+                        nxt, rng, cache, record)
         t = nxt
 
     for copy in live:                       # whatever is still in flight reached the present
@@ -146,7 +147,7 @@ def _shares(live: list[_Copy], idx) -> dict[int, float]:
 
 
 def _advance(live, out: _Out, model, base: float, factors, trait_keys, trait_states, traj,
-             until: float, rng, cache):
+             until: float, rng, cache, record=None):
     """Carry the gene's copies to ``until``, splitting at every gene-tree node they pass.
 
     A copy's branch length over the slice is the trait's factor **integrated** across the segments
@@ -165,8 +166,15 @@ def _advance(live, out: _Out, model, base: float, factors, trait_keys, trait_sta
                 f = 1.0
                 for key, mapping in factors:
                     f *= mapping.multiplier(trait_states[st]) if key in trait_keys else 1.0
-                bl += base * f * (hi - lo)
-            if bl > 0.0:
+                piece = base * f * (hi - lo)
+                bl += piece
+                # A RECORDED run walks each of the trait's segments on its own, because a row's time
+                # has to fall in the segment whose rate produced it — summing first and drawing once
+                # is right for the end state and says nothing about where on the way it happened.
+                if record is not None and piece > 0.0:
+                    copy.states, rows = _walk(copy.states, model.Q, piece, rng)
+                    record.add(copy.node, lo, hi - lo, rows, model.alphabet)
+            if bl > 0.0 and record is None:
                 copy.states = _sample(copy.states, _cdf_for(cache, model, bl), rng)
             copy.accrued += bl
             copy.at = stop

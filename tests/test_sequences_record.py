@@ -173,3 +173,60 @@ def test_a_nucleotide_run_is_refused():
                                     loss_extent=40, seed=2)
     with pytest.raises(ValueError, match="not on that path"):
         simulate_sequences(g, model=jc69(), seed=3, record=True)
+
+
+# --- the joint engines record too -----------------------------------------------------------------
+
+def test_the_sequence_loop_records():
+    """A joint run slices, and a slice is exactly the interval its rate is constant over — so a row's
+    time is as exact here as on an ordinary branch."""
+    from zombi2.params import Curve, PerSite
+    from zombi2.sequences import composition, gene, lg
+    from zombi2.genomes import family
+
+    ct = species.simulate_species_tree(birth=1.0, n_extant=8, seed=1).complete_tree
+    g = simulate_genomes_family(ct, initial_families=3, duplication=0.0, loss=0.0, seed=2,
+                                families=[family("A"), family("B")])
+    pair = [gene(name=n, model=lg(), length=60, offers=composition("KR", absent=0.02),
+                 substitution=PerSite(0.5).scaled_by(f"sequences:{o}", Curve(lambda x: 1.0),
+                                                     step=0.05))
+            for n, o in (("A", "B"), ("B", "A"))]
+    kept = simulate_sequences(g, joint=True, seed=1, record=True, genes=pair)
+    assert kept.events and {e.kind for e in kept.events} == {"substitution"}
+    assert [e.time for e in kept.events] == sorted(e.time for e in kept.events)
+    assert simulate_sequences(g, joint=True, seed=1, genes=pair).events == []
+
+
+def test_a_trait_and_a_sequence_record():
+    from zombi2 import joint, traits
+    from zombi2.params import Curve, PerLineage, PerSite
+    from zombi2.sequences import composition, gene, lg
+    from zombi2.genomes import family
+
+    ct = species.simulate_species_tree(birth=1.0, n_extant=8, seed=1).complete_tree
+    g = simulate_genomes_family(ct, initial_families=3, duplication=0.0, loss=0.0, seed=2,
+                                families=[family("rpoB")])
+
+    def run(**kw):
+        return joint.simulate(
+            traits.discrete(name="h", states=["cold", "hot"], start="cold",
+                            switch={"cold->hot": PerLineage(0.4).scaled_by(
+                                        "sequences:rpoB", Curve(lambda x: 1.0), step=0.05),
+                                    "hot->cold": 0.3}),
+            gene(name="rpoB", model=lg(), length=60, offers=composition("KR", absent=0.02),
+                 substitution=PerSite(0.5).scaled_by("trait", {"hot": 3.0, "cold": 1.0})),
+            genomes=g, seed=1, **kw)
+
+    kept = run(record=True)
+    assert kept.sequences.events
+    assert [e.time for e in kept.sequences.events] == sorted(e.time for e in kept.sequences.events)
+    assert run().sequences.events == []
+
+
+def test_record_on_a_run_with_no_sequence_level_is_refused():
+    from zombi2 import joint, traits
+
+    with pytest.raises(ValueError, match="only a run holding that level"):
+        joint.simulate(species.birth_death(birth=1.0, n_extant=10),
+                       traits.discrete(name="h", states=["a", "b"], switch=0.1),
+                       seed=1, record=True)
