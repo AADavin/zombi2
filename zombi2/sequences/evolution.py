@@ -130,7 +130,7 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
             # the way (`_record`).
             from ._record import walk as _walk
             states, rows = _walk(parent_states, m.Q, bl, rng, present=record.mask(node))
-            record.add(node, parent_time, rows, m.alphabet)
+            record.add(node, parent_time, node.time - parent_time, rows, m.alphabet)
         elif groups is None:
             states = _sample(parent_states, _cdf_for(cache, m, bl), rng)
         else:

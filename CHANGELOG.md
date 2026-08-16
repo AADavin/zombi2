@@ -20,6 +20,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   recorded run is a valid run, but a **different realisation** for the same seed. A site is named by
   an id rather than a position, because a position moves with every insertion above it; an insertion
   row carries the id it follows, so a reader can rebuild any lineage's column list at any moment.
+  The **joint** sequence engines record too — `simulate_sequences(..., joint=True, record=True)` and
+  `joint.simulate(..., record=True)` — and a slice is exactly the interval those runs' rates are
+  constant over, so a row's time is as exact there as on an ordinary branch. `record=` on a joint run
+  holding no sequence level is refused rather than ignored.
 
 - **A trait and a gene's sequence can drive each other**, on a tree the run is handed —
   `joint.simulate(traits.discrete(...), sequences.gene(...), genomes=g)`. The last cross-level cell

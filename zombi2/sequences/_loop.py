@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..genomes.gene_trees import GeneNode, GeneTree
+from ._record import walk as _walk
 from .evolution import _cdf_for, _sample
 
 
@@ -73,13 +74,17 @@ def _composition_by_lineage(fam: _Family, letters: tuple[int, ...], absent: floa
 
 
 def grow(genes, trees, models, lengths, rates, offers, step, rng, *, starts=None,
-         progress=False):
+         record=None, progress=False):
     """Walk every family forward together, slice by slice.
 
     ``genes`` is the list of gene specs in the order they were written; the others are dicts keyed by
     the gene's **name**: its `GeneTree`, its model, its site count, its ``(base, factors)`` rate — a
     number and the list of ``(driver name, mapping)`` it reads — and the ``(letters, absent)`` it
     offers, or ``None`` where it offers nothing.
+
+    ``record`` is a `~zombi2.sequences._record.Recorder`, and then each slice's stretch of each
+    branch is **walked** rather than jumped: a slice is exactly the interval this run's rate is
+    constant over, so the rows' times are as exact here as on an ordinary branch.
 
     Returns ``{name: (states_by_id, founding_states, length_by_id)}``: the arrays every node of that
     family ended up with, the sequence it began with, and each branch's length in substitutions per
@@ -119,7 +124,8 @@ def grow(genes, trees, models, lengths, rates, offers, step, rng, *, starts=None
         shares = {name: _composition_by_lineage(fams[name], *letters[name])
                   for name in fams if letters[name]}
         for g in genes:                                 # gene order, so the draws are reproducible
-            _advance(fams[g.name], models[g.name], rates[g.name], shares, offers, nxt, rng, cache)
+            _advance(fams[g.name], models[g.name], rates[g.name], shares, offers, nxt, rng, cache,
+                     record)
         t = nxt
         slices += 1
     for fam in fams.values():                           # whatever is still in flight ends here
@@ -140,7 +146,8 @@ def _deepest(node: GeneNode) -> float:
     return best
 
 
-def _advance(fam: _Family, model, rate, shares, offers, until: float, rng, cache) -> None:
+def _advance(fam: _Family, model, rate, shares, offers, until: float, rng, cache,
+             record=None) -> None:
     """Carry one family's live copies forward to ``until``, splitting at every node they pass.
 
     A copy that reaches the end of its branch inside this slice does not wait: its node is recorded,
@@ -162,7 +169,10 @@ def _advance(fam: _Family, model, rate, shares, offers, until: float, rng, cache
                 per_lineage = shares[driver]
                 f *= mapping.multiplier(per_lineage.get(live.node.species, offers[driver][1]))
             bl = base * f * dt
-            if bl > 0.0:
+            if bl > 0.0 and record is not None:
+                live.states, rows = _walk(live.states, model.Q, bl, rng)
+                record.add(live.node, live.at, dt, rows, model.alphabet)
+            elif bl > 0.0:
                 live.states = _sample(live.states, _cdf_for(cache, model, bl), rng)
             live.accrued += bl
             live.at = stop
