@@ -1,6 +1,6 @@
 # Genomes III: nucleotide
 
-At the **nucleotide** resolution a chromosome is a **coordinate axis of DNA** rather than a list of gene tokens, and events have an extension measured in base pairs: an inversion reverses 600 bp, a loss deletes 900 bp, a duplication copies 2 kb in tandem. Genes still exist and still get gene trees, but they are stretches of that axis with a start and an end, and the DNA between them is simulated too.
+At the **nucleotide** resolution a chromosome is a **coordinate axis of DNA** rather than a list of gene tokens, and events have an extension measured in base pairs: an inversion reverses 600 bp, a loss deletes 900 bp, a duplication copies 2 kb in tandem. Genes still exist and still get gene trees, but they are stretches of that axis with a start and an end, and the DNA between them is simulated too. The coordinates are the whole content: letters only exist once a sequence run reads the genome (Chapter 6), from a FASTA you supply or from the model's draw.
 
 ## Genes and intergenes
 
@@ -9,22 +9,22 @@ A genome here is DNA, and its DNA is of two kinds:
 - a **gene** is *declared* and *indivisible*: one family, one id, never cut in two. It carries a gene tree.
 - an **intergene** is the spacer between genes. Nothing protects it, so events cut it wherever they land.
 
+![Why a gene is never split. The strip beneath the replicon is the set of positions a breakpoint may take: every stretch of spacer, and no part of a gene. An event's two ends are drawn from that strip in the first place, rather than drawn anywhere and repaired afterwards, so the deletion above either takes gene 2 whole or does not touch it. A genome with no spacer at all is still legal: the strip is then just the joins between genes, and events move genes around whole.](figures/legal_breakpoints_print.png){width=100%}
+
+An event either **engulfs a gene whole** or leaves it alone; a breakpoint never falls strictly inside one. So an event does not pick a stretch and then clean up afterwards. Both of its ends are drawn **directly from the positions where a breakpoint is legal**. A genome can therefore be **all gene, with no spacer at all**: ten 100 bp genes in 1000 bp is a legal genome, and it evolves. Its breakpoints simply all fall at the joins between genes, so genes are inverted, moved, duplicated and lost whole. Genes may sit flush; they are not required to leave a gap.
+
 ## Extents
 
-There is one important consequence: **the realised extent is not always the extent you asked for.** It is quantised to the legal breakpoints, and on a gene-dense genome the difference is large. Take thirty-one 3000 bp genes in a 100 kb genome, 93% genic, so the spacers are about 200 bp, and ask for an inversion of:
+Indivisible genes have one consequence to meet before the rates: **the realised extent is not always the extent you asked for.** An event covers an **arc** — the stretch of DNA it takes — and both ends of an arc must fall where a breakpoint is legal. The draw is therefore the distribution you asked for, restricted to the ends that exist; nothing is drawn and rejected, so no event silently vanishes. Take thirty-one 3000 bp genes in a 100 kb genome, 93% genic, so the spacers are about 200 bp, and ask for an inversion of:
 
-| asked | realised |
+| asked | mean realised |
 |---|---|
-| 500 bp | 59 |
-| 1 500 bp | 1 000 |
-| 3 000 bp | 2 916 |
-| 10 000 bp | 10 315 |
+| 500 bp | 100 |
+| 1 500 bp | 1 022 |
+| 3 000 bp | 2 506 |
+| 10 000 bp | 9 329 |
 
-A 500 bp event has nowhere to go but inside a spacer, so it comes out at 59 bp. Long events land near what you asked for, because they can span whole genes.
-
-**The correction can also run the other way.** When no legal end lies within reach of the extent you asked for, the arc snaps out to the nearest legal breakpoint, which is **longer** than the extent you set. Ask for a 5 bp inversion on a genome that is all gene — ten 100 bp genes in 1000 bp — and every event comes out at 100 bp, because the gene joins are the only places a breakpoint may fall. When the genome cannot give what you asked at all, the arc is capped by the replicon and comes out shorter. Either way the event still happens: an extent is a request, and the genome answers it.
-
-The one case that yields no event is degenerate: a replicon with no legal end within reach at all, such as one under 2 bp, where the event is skipped rather than forced.
+Means over about 1,500 inversions each. A 500 bp request has mostly spacer to land in, so the typical event collapses into one — the median is under 40 bp — while the occasional arc that spans a whole gene pulls the mean up to 100. Long requests can take genes whole, so they land near what you asked. The correction runs the other way too: on the all-gene genome above, the joins between genes are the only legal ends, so a 5 bp request comes out at 100 bp, a whole gene. Either way the event still happens: an extent is a request, and the genome answers it with the nearest thing it has. The one case that yields no event is a replicon with no legal end at all, such as one under 2 bp, where the event is skipped rather than forced.
 
 ## A note on rates
 
@@ -38,9 +38,9 @@ The one case that yields no event is degenerate: a replicon with no legal end wi
 
 The chromosome rates are the exception: `fission`, `fusion` and `chromosome_loss` are counted **per chromosome**, and `chromosome_origination` per lineage. A fusion joins two chromosomes of the **same topology**, for the same reason it does at the ordered resolution: a ring and a molecule with two ends cannot become one molecule.
 
-Rates here are written the same way as everywhere else — a scope with verbs chained onto it — and the scopes above are the defaults, so a bare number stays a bare number. The **skyline** works: `inversion = PerLineage(5.0).changing_at({0: 1.0, 3: 0.2})` drops the inversion rate fivefold at time 3, and the run re-reads its rates at each step rather than racing past it.
+Rates here are written the same way as everywhere else — a scope with verbs chained onto it — and the scopes above are the only ones this resolution takes: a different scope is refused (Appendix A), so a bare number stays a bare number. Of the verbs, this engine reads `changing_at` and `scaled_by`; a per-family draw is refused with the reason. The **skyline** works: `inversion = PerLineage(5.0).changing_at({0: 1.0, 3: 0.2})` drops the inversion rate fivefold at time 3, and the run re-reads its rates at each step rather than racing past it.
 
-So does **conditioning**. Every rate here takes a `scaled_by`, so a trait can drive how much DNA a lineage sheds, which is genome reduction as it is usually meant, and can drive the rearrangements too:
+So does **conditioning**. Every rate here takes a `scaled_by`, so a trait can drive how much DNA a lineage sheds, which is genome reduction as it is usually meant, and can drive the rearrangements too. First a plain run, which the block listing below reads:
 
 ```python
 from zombi2 import species, genomes
@@ -51,24 +51,31 @@ g = genomes.simulate_genomes_nucleotide(
     inversion=1.0, inversion_extent=600, seed=56)
 ```
 
+Then the same genome under a habitat, driving the deletions on both axes at once:
+
 ```python
 from zombi2 import traits
 from zombi2.params import Extent, PerLineage
 
 habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=2)
-loss = PerLineage(0.8).scaled_by(habitat, {"host": 20.0, "free": 0.5})
+g2 = genomes.simulate_genomes_nucleotide(
+    tree, root_length=3000, genes=3, gene_length=400, seed=57,
+    loss=PerLineage(0.8).scaled_by(habitat, {"host": 20.0, "free": 0.5}),  # more often
+    loss_extent=Extent(150).scaled_by(habitat, {"host": 6.0, "free": 1.0}))  # bigger chunks
 ```
 
-**The extent takes the same verbs**, and that is a different statement:
+**The extent takes the same verbs**, and that is a different statement: the rate raises how often a host-restricted lineage deletes, the extent how much each deletion takes. Set both and they multiply: the DNA shed per unit time goes up by the product, not the sum.
 
-```python
-loss        = PerLineage(0.8).scaled_by(habitat, {"host": 20.0, "free": 0.5})  # more often
-loss_extent = Extent(150).scaled_by(habitat, {"host": 6.0,  "free": 1.0})      # bigger chunks
-```
+A modifier on an *extent* is read only once an event has fired, so unlike the same modifier on a rate it adds no step to the run's clock (a modifier on a rate can change when the next event lands, so the engine must stop and re-read it at each change — Appendix A's horizon). Chapter 8 covers what a driver is and how to grow one; anything the level does not accept raises rather than being quietly ignored.
 
-The first raises how often a host-restricted lineage deletes, the second how much each deletion takes. Set both and they multiply: the DNA shed per unit time goes up by the product, not the sum.
+## Insertions and deletions
 
-A modifier on an *extent* is read when an event occurs, so unlike the same modifier on a rate it adds no step to the run's clock. Chapter 8 covers what a driver is and how to grow one; anything the level does not accept raises rather than being quietly ignored.
+Two more events move DNA without touching the gene inventory — the **indels**. They pair off against the events of Chapter 3 by what they do to ancestry:
+
+- **`deletion`** removes an arc, as `loss` does, but no copy lineage ends: the material goes, and every gene keeps its place in the genealogy. `loss` changes what a lineage *has* — copies die, a gene can go whole; `deletion` changes how much of a surviving stretch it *carries*.
+- **`insertion`** lays down a stretch of **novel spacer**, as `origination` lays down a new gene: `origination` brings a gene family into the run, `insertion` brings sequence — DNA that descends from nothing.
+
+In practice the difference is one of scale, and the extent defaults say so: 50 bp for the ancestry-changing events, 5 bp for the indels. Appendix B says where each is written — deletions in their own record, insertions as roots of their own kind.
 
 ## Who receives a transfer
 
@@ -83,15 +90,11 @@ g6 = genomes.simulate_genomes_nucleotide(
     transfer_to=genomes.Clades({"A": ["n49", "n50"], "B": ["n30", "n36"]}, flows))
 ```
 
-A transfer here is always **additive**, since the donor keeps its copy, so steering changes only which lineage the arc lands on. Nothing is taken from anyone, and a transfer whose every candidate weighs 0 simply does not fire.
+A transfer here is always **additive** — `replacement` is not among this resolution's arguments, and handing it in fails as an unknown argument rather than being ignored — so steering changes only which lineage the arc lands on. `self_transfer` is accepted as in Chapter 3. Nothing is taken from anyone, and a transfer whose every candidate weighs 0 simply does not fire.
 
-## Genes are never split
+## Reading a genome, block by block
 
-![Why a gene is never split. The strip beneath the replicon is the set of positions a breakpoint may take: every stretch of spacer, and no part of a gene. An event's two ends are drawn from that strip in the first place, rather than drawn anywhere and repaired afterwards, so the deletion above either takes gene 2 whole or does not touch it. A genome with no spacer at all is still legal: the strip is then just the joins between genes, and events move genes around whole.](figures/legal_breakpoints_print.png){width=100%}
-
-An event either **engulfs a gene whole** or leaves it alone; a breakpoint never falls strictly inside one. So an event does not pick an arc and then clean up afterwards. Both of its ends are drawn **directly from the positions where a breakpoint is legal**. A genome can therefore be **all gene, with no spacer at all**: ten 100 bp genes in 1000 bp is a legal genome, and it evolves. Its breakpoints simply all fall at the joins between genes, so genes are inverted, moved, duplicated and lost whole. Genes may sit flush; they are not required to leave a gap.
-
-Two leaves of the inversion run in the rates section above show what those events did. `describe` writes one out: each line is a **block**, a stretch of DNA with one unbroken ancestry, written as the interval it came from on the initial sequence, read forward (`+`) or reverse-complemented (`−`). A gene is always one block, because nothing may cut it. Spacer is not, so a run of several intergene lines in a row is simply spacer that has been cut apart and rearranged: the accumulated breakpoints of everything that happened to that lineage.
+Two leaves of the inversion run in the rates section above show what its events did. `describe` writes one out: each line is a **block**, a stretch of DNA with one unbroken ancestry, written as the interval it came from on the initial sequence, read forward (`+`) or reverse-complemented (`−`). A gene is always one block, because nothing may cut it. Spacer is not, so several intergene lines in a row are simply spacer that has been cut apart and rearranged: the accumulated breakpoints of everything that happened to that lineage.
 
 ```python
 print(g.describe(2))
@@ -123,17 +126,17 @@ n5, chromosome 5
   [2000,2532) +  532 bp  intergene
 ```
 
-Both leaves still carry all three genes, and both are still 3000 bp. In `n2` an inversion covered gene 2, which now reads on the `−` strand with the spacer around it reversed; in `n5` a different inversion covered gene 3 instead, taking the spacer on either side of it with it. The coordinates are what make this readable: every block still names where it came from in the root, so `[600, 1000)` is gene 1 wherever it turns up and whichever way it points.
+Both leaves still carry all three genes, and both are still 3000 bp. In `n2` an inversion covered gene 2, which now reads on the `−` strand with the spacer around it reversed; in `n5` a different inversion covered gene 3 instead, taking the spacer on either side of it with it. The coordinates are what make this readable: every block still names where it came from on the initial sequence, so `[600, 1000)` is gene 1 wherever it turns up and whichever way it points.
 
 ## The initial genome
 
 The **initial genome**, the genome the run starts from at time 0 before any event, is declared in one of two ways. (It is not the same as the genome at the root *node*: the root branch is real simulated time, so that one already carries stem events. See `.initial_genome` in Appendix B.)
 
-**Evenly spaced genes.** `genes=N, gene_length=L` lays down `N` genes of `L` bp on each replicon, spreading the leftover DNA evenly between them. Good for controlled experiments, since gene density is then a number you set.
+**Evenly spaced genes.** `root_length=L` sets each replicon's length in base pairs, and `genes=N, gene_length=l` lays down `N` genes of `l` bp on each replicon, spreading the leftover DNA evenly between them. The karyotype is `chromosomes=`: an integer makes that many equal replicons of `root_length` each, `"circular"` by default or `topology="linear"`; a list of `(length, topology)` pairs makes them unequal. Good for controlled experiments, since gene density is then a number you set.
 
-**A GFF file.** `gff="genome.gff"` takes exact coordinates from a real annotation. `##sequence-region` gives each replicon's extent, `gene` features give coordinates, strand and name, and other feature types are ignored. Names land in `result.gene_names`, so you can follow a named gene through the run. `gff=` and `genes=` are mutually exclusive; a GFF already declares the genes ([Ge11](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_circular_nucleotide-->). Genes may touch but never overlap, since a gene is one indivisible block. Real annotations do overlap, usually by a base or two where genes abut in an operon, so an overlap is refused rather than guessed at: `trim_overlaps=True` (`--trim-overlaps`) pushes each overlapping gene's start to its neighbour's end instead, and drops any gene swallowed whole.
+**A GFF file.** `gff="genome.gff"` takes exact coordinates from a real annotation. `##sequence-region` gives each replicon's length, `gene` features give coordinates, strand and name, and other feature types are ignored. Names land in `result.gene_names`, so you can follow a named gene through the run. `gff=` and `genes=` are mutually exclusive; a GFF already declares the genes ([Ge11](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_circular_nucleotide-->). Genes may touch but never overlap, since a gene is one indivisible block. Real annotations do overlap, usually by a base or two where genes abut in an operon, so an overlap is refused rather than guessed at: `trim_overlaps=True` (`--trim-overlaps`) pushes each overlapping gene's start to its neighbour's end instead, and drops any gene swallowed whole.
 
-A genome at this resolution is *rebuilt* rather than stored: the run keeps the recovered root partition and how each node's genome is made from it, which is what keeps a million-base genome down a large tree affordable. Appendix B names both.
+A genome at this resolution is *rebuilt* rather than stored: the run keeps the **root partition** — the initial sequence, cut at every breakpoint any lineage ever used — and how each node's genome is assembled from those pieces, which is what keeps a million-base genome down a large tree affordable. Appendix B names both (`.root_blocks`, `.assembly`).
 
 A GFF gives coordinates, not letters. `fasta="genome.fasta"` supplies the DNA those coordinates hold — one record per replicon, matched by id, each exactly its declared length — and a later `zombi2 sequences` run founds its blocks from that DNA (Chapter 6).
 
@@ -154,4 +157,4 @@ zombi2 genomes out/ --resolution nucleotide \
   --inversion 0.5 --loss 0.4 --loss-extent 900 --seed 1
 ```
 
-Every event kind has its own `--<event>-extent`, the mean of a geometric draw in base pairs: `--inversion-extent`, `--loss-extent`, `--duplication-extent`, `--transfer-extent`, `--transposition-extent`, `--translocation-extent`, `--origination-extent`.
+Every event kind has its own `--<event>-extent`, the mean of a geometric draw in base pairs — 50 bp unless you set it, 5 bp for the indels: `--inversion-extent`, `--loss-extent`, `--duplication-extent`, `--transfer-extent`, `--transposition-extent`, `--translocation-extent`, `--origination-extent` (the length of the new gene an origination lays down), `--insertion-extent`, `--deletion-extent`.
