@@ -27,11 +27,11 @@ finished run, computed here as the run goes. A lineage carrying none of the fami
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 
 import numpy as np
 
+from .._runtime.grown import Grown
 from ..genomes.gene_trees import GeneNode, GeneTree
 from ._record import walk as _walk
 from .evolution import _cdf_for, _sample
@@ -86,10 +86,11 @@ def grow(genes, trees, models, lengths, rates, offers, step, rng, *, starts=None
     branch is **walked** rather than jumped: a slice is exactly the interval this run's rate is
     constant over, so the rows' times are as exact here as on an ordinary branch.
 
-    Returns ``{name: (states_by_id, founding_states, length_by_id)}``: the arrays every node of that
-    family ended up with, the sequence it began with, and each branch's length in substitutions per
-    site — accumulated slice by slice, because a driven rate is not constant down a branch and a
-    phylogram scaled by one sample of it would not be the tree its own alignment was drawn along.
+    Returns a `~zombi2._runtime.grown.Grown` whose ``sequences`` holds, per gene name, the arrays
+    every node of that family ended up with, the sequence it began with, and each branch's length in
+    substitutions per site — accumulated slice by slice, because a driven rate is not constant down a
+    branch and a phylogram scaled by one sample of it would not be the tree its own alignment was
+    drawn along.
     """
     fams = {g.name: _Family(g, trees[g.name]) for g in genes}
     letters = {g.name: (tuple(models[g.name].alphabet.index(c) for c in offers[g.name][0]),
@@ -132,7 +133,8 @@ def grow(genes, trees, models, lengths, rates, offers, step, rng, *, starts=None
         for live in fam.live:
             fam.states[id(live.node)] = live.states
             fam.length_of[id(live.node)] = live.accrued
-    return {name: (fam.states, fam.founding, fam.length_of) for name, fam in fams.items()}
+    return Grown(sequences={name: (fam.states, fam.founding, fam.length_of)
+                            for name, fam in fams.items()})
 
 
 def _deepest(node: GeneNode) -> float:
@@ -202,17 +204,3 @@ def scaled_tree(gt: GeneTree, length_of: dict[int, float]) -> GeneTree:
             stack.append((ochild, schild))
     return GeneTree(gt.family, scaled_root, 0.0)
 
-
-def check_step(step, tallest: float) -> float:
-    """``step`` is the stretch of species time a composition is held fixed across."""
-    if isinstance(step, bool) or not isinstance(step, (int, float)) or not math.isfinite(step) \
-            or step <= 0:
-        raise ValueError(
-            f"step is the stretch of time each gene's composition is held fixed across, in the "
-            f"tree's own units, so it must be finite and positive; got {step!r}.")
-    if step >= tallest:
-        raise ValueError(
-            f"step={step:g} is not shorter than the tree itself ({tallest:.3g}), so every gene "
-            f"would read the other's composition once, at the start, and the loop would be one "
-            f"conditioned run in each direction. Pick a step the composition moves little within.")
-    return float(step)
