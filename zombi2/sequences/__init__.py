@@ -81,7 +81,7 @@ from .substitution_models import (BASES, SubstitutionModel, _with_frequencies, d
                                   encode, gtr, hky85, jc69, jtt, k80, lg, poisson, wag)
 
 _WRITE_OUTPUTS = ("summary", "alignments", "ancestral", "founding", "phylograms", "species_phylogram",
-                  "genomes", "initial_genome")
+                  "genomes", "initial_genome", "events")
 
 #: complement of each base, for reading a block laid down on the reverse strand
 _COMPLEMENT = str.maketrans("ACGT", "TGCA")
@@ -167,6 +167,11 @@ class SequencesResult:
     #: but a run holding one family has none wherever that family is absent, and what to read there
     #: is then a question only the caller can answer.
     families: tuple[str, ...] = ()
+    #: This run's own history — every substitution, and every site gained or lost — as
+    #: `~zombi2.sequences._record.SequenceEvent` rows. **Empty unless the run asked for it** with
+    #: ``record=True``: this is the one level whose log is bigger than its output, so it is the one
+    #: level that does not record by default. See `zombi2.sequences._record`.
+    events: list = field(default_factory=list)
     #: Per host block, which inserted runs sit inside it and which record carries which — the plan
     #: `alignments` splices by. Kept because it is the *plan*, not the rows: the rows are the
     #: alignment over again, and a whole-genome run cannot afford a second copy of that.
@@ -277,6 +282,11 @@ class SequencesResult:
         prints it and warns when it is near the floor; this is the machine-readable copy of that."""
         aligned = {k: v for k, v in self.alignments.items() if v}
         sites = sorted({len(s) for aln in aligned.values() for s in aln.values()})
+        # the recorded history is reported only when there is one: a run that did not ask for it
+        # writes the summary it always wrote, so a streamed run and an in-memory one still match
+        recorded = ({"events": {kind: sum(1 for e in self.events if e.kind == kind)
+                                for kind in ("substitution", "insertion", "deletion")}}
+                    if self.events else {})
         return {
             "level": "sequences",
             "seed": self.seed,
@@ -288,6 +298,7 @@ class SequencesResult:
             "sites": {"min": sites[0], "max": sites[-1]} if sites else {"min": None, "max": None},
             "mean_pairwise_identity": mean_pairwise_identity(aligned),
             "assembled_genomes": len(self.node_genomes),
+            **recorded,
         }
 
     def write(self, directory, outputs=("alignments", "phylograms", "species_phylogram", "genomes",
@@ -359,6 +370,14 @@ class SequencesResult:
             if "ancestral" not in outputs:
                 written.pop("ancestral_sequences", None)
             write_summary(d / "sequences_summary.json", written)
+        # This level's own log, and the one output that is empty unless the run asked for it: a
+        # substitution log is bigger than the alignment it explains, so `record=True` is what turns
+        # it on and nothing else does (`_record`).
+        if "events" in outputs and self.events:
+            from ._record import HEADER
+            rows = "\n".join("\t".join(str(x) for x in e.row()) for e in self.events)
+            (d / "sequence_events.tsv").write_text("\t".join(HEADER) + "\n" + rows + "\n",
+                                                   encoding="utf-8")
         # A joint run has no species phylogram and says so with None, rather than with a tree that
         # would be one gene's: the species phylogram is the clock made visible, and there each gene's
         # rate reads the other's composition, so no single set of branch lengths is the run's.
@@ -1134,7 +1153,7 @@ def _bp_extent(spec, label):
 
 
 def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=None,
-                       present: "dict | None" = None):
+                       present: "dict | None" = None, record=None):
     """Evolve one gene tree partition by partition and hand back the family's whole sequences:
     ``(alignment, ancestral, founding_string)``, each sequence the partitions concatenated in order.
 
@@ -1171,7 +1190,7 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
         states, founding_states = evolve_gene_tree(
             gt.complete, base, n, rate, clock, rng, gt.origination,
             founding=None if founding is None else founding[at:at + n],
-            cdf_cache=cdf_caches, models=per_species)
+            cdf_cache=cdf_caches, models=per_species, record=record)
         at += n
         aln, anc = _split(gt, states, names, base, present=present)
         pieces.append((aln, anc, decode(founding_states, base.alphabet)))
@@ -1484,7 +1503,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                        insertion=0.0, deletion=0.0, insertion_extent=3.0, deletion_extent=3.0,
                        substitution=None, divergence=None, seed=None, parallel=False,
                        stream_to=None, outputs=None, flat: bool = False, genes=None,
-                       joint: bool = False,
+                       joint: bool = False, record: bool = False,
                        progress=False) -> "SequencesResult | StreamedSequences":
     """Evolve one sequence down each family's gene tree under a substitution ``model``.
 
@@ -1537,6 +1556,17 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     the branch rather than one sample of it (`clock`), so the phylograms are the trees the alignments
     were actually drawn along. Any other modifier (the ``Markov`` clock, a draw among
     families), a second lineage clock, or a non-``PerSite`` scope raises.
+
+    ``record=True`` keeps this level's own **history** — every substitution, and every site gained
+    or lost — in ``result.events``, written as ``sequence_events.tsv``. It is off by default and is
+    the only level's log that is, because it is the one log bigger than the output it explains: three
+    hundred sites over thirty time units at rate 1.0 is nine thousand rows for one family. Recording
+    also changes the *sampler*: an ordinary run draws each branch's end from ``exp(Q·bl)`` and never
+    simulates the path between the two ends, while a recorded run walks that path site by site. The
+    two are the same process and the same distribution at a branch's end, so a recorded run is a
+    valid run — but it is a **different realisation** for the same seed, which is the price of asking
+    what happened rather than only where it ended. A site is named by an id rather than a position,
+    because a position moves with every insertion above it; see `zombi2.sequences._record`.
 
     ``families`` restricts the run to **named** families — ``families=["chaperone"]`` — instead of
     evolving every one. The names are the genome run's, declared there with
@@ -1677,6 +1707,21 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             "indels change how many sites a lineage has, and partitions/profiles are written "
             "against a fixed site count — so a site's partition or profile would stop meaning "
             "anything the moment one fired. Use one or the other.")
+    if record:
+        # `record=` runs a different sampler — a forward Gillespie down each branch — so what it
+        # cannot walk it refuses rather than quietly recording something else (SPEC §5).
+        bad = [n for n, v in (("partitions", partitions), ("profiles", profiles),
+                              ("stream_to", stream_to)) if v is not None]
+        bad += [n for n, v in (("parallel", parallel),) if v]
+        if nucleotide:
+            bad.append("a nucleotide genome run")
+        if bad:
+            raise ValueError(
+                f"record=True walks every branch site by site, and {', '.join(bad)} is not on that "
+                f"path: partitions and profiles give a family several models, a nucleotide run "
+                f"evolves blocks rather than one sequence per family, and the parallel and "
+                f"streaming engines hand a family off before its rows could be collected. Record a "
+                f"serial, in-memory, single-model run.")
     ins_extent = _bp_extent(insertion_extent, "insertion_extent")
     del_extent = _bp_extent(deletion_extent, "deletion_extent")
     # An ordered run is admitted here as a family one: this level reads a genome run's `gene_trees`
@@ -1936,6 +1981,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     ancestral: dict[int, dict[str, str]] = {}
     founding: dict[int, str] = {}
     phylograms: dict[int, dict[str, str | None]] = {}
+    events: list = []                      # empty unless record=True; see `_record`
     seed = resolve_seed(seed)      # drawn if none was given, so either engine below records it
     if not parallel:
         # Serial reference engine — the default, left exactly as it was. One shared generator draws the
@@ -1983,21 +2029,28 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             # the tree, and then the existing engine evolves that fixed width down it. Exact rather
             # than convenient — see `indels.draw_indel_history`.
             history = None
+            recorder = None
+            if record:
+                from ._record import Recorder
+                recorder = Recorder(events, names)
             if insertion or deletion:
                 assert f_parts is not None    # None means a nucleotide run, which refuses these
                 sites = sum(int(n) for _model, n in f_parts)
                 history = draw_indel_history(
                     gt.complete, sites, insertion=insertion, deletion=deletion,
                     insertion_extent=ins_extent, deletion_extent=del_extent,
-                    rate_base=f_rate, clock=clock, rng=rng)
+                    rate_base=f_rate, clock=clock, rng=rng, record=recorder)
             if history is not None:
                 assert f_parts is not None
                 f_parts = ((f_parts[0][0], history.width),)
                 n_insertions += history.insertions
                 n_deletions += history.deletions
+                if recorder is not None:      # a column is no longer its own id once sites move
+                    recorder.site_ids, recorder.present = history.order, history.present
             aln, anc, fnd = _evolve_partitions(gt, f_parts, f_rate, clock, rng, cdf_caches, names,
                                                founding=seed_states,
-                                               present=None if history is None else history.present)
+                                               present=None if history is None else history.present,
+                                               record=recorder)
             scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site
             ext = scaled.extant
             phylo = {"complete": _gene_newick(scaled.complete, names),
@@ -2023,6 +2076,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             founding_seed if nucleotide else None, spawned[1:], workers, progress, names,
             sink=None if sink is None else sink.family, partitions=parts)
 
+    events.sort(key=lambda e: e.time)      # one log, in time order, as every other level writes one
     sp_scaled = _scaled_species_tree(species_tree, rate_base, clock)   # the clock made visible
     sp_extant = prune(sp_scaled, keep="extant")
     species_phylogram = {"complete": sp_scaled.to_newick(),
@@ -2090,6 +2144,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                            BASES if parts is None else parts[0][0].alphabet,
                            tuple(names[i] for i in sorted(species_tree.extant_leaves())),
                            () if families is None else tuple(families),
+                           events,
                            insertion_plan,
                            alignments._raw if isinstance(alignments, _SplicedAlignments) else alignments,
                            ancestral._raw if isinstance(ancestral, _SplicedAlignments) else ancestral)
