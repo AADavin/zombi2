@@ -1,0 +1,199 @@
+{
+  "name": "gene_families",
+  "title": "Genome simulation at three resolutions: family, ordered, nucleotide",
+  "x_label": "Number of extant tips",
+  "meta": {
+    "regime": "birth-death(\u03bb=1.0, \u03bc=0.3), grown to N extant tips; D=0.2 T=0.1 L=0.25 O=0.5, initial_families=20",
+    "profile": "standard",
+    "note": "ordered adds inversion=0.1 on the shared D/T/L/O regime; nucleotide runs the same rate values on an M. tuberculosis genome (4.41 Mbp, ~4000 genes), but per-lineage segmental events vs per-copy family rates"
+  },
+  "env": {
+    "timestamp_utc": "2026-08-16T19:38:38+00:00",
+    "git_commit": null,
+    "git_dirty": false,
+    "zombi2_version": "0.42.1",
+    "python": "3.12.2",
+    "python_impl": "CPython",
+    "numpy": "1.26.4",
+    "platform": "macOS-26.6.1-arm64-arm-64bit",
+    "processor": "arm",
+    "cpu_count": 10
+  },
+  "points": [
+    {
+      "series": "family (content)",
+      "x": 100,
+      "times": [
+        0.012729250000006687,
+        0.018346083999972507,
+        0.015247625000029075,
+        0.016429249999987405,
+        0.01964587500003745
+      ],
+      "work": {
+        "n_families": 81
+      }
+    },
+    {
+      "series": "family (content)",
+      "x": 300,
+      "times": [
+        0.06298391699999684,
+        0.04865612499997951,
+        0.06500204099995699,
+        0.0493447080000351,
+        0.060489000000075066
+      ],
+      "work": {
+        "n_families": 181
+      }
+    },
+    {
+      "series": "family (content)",
+      "x": 1000,
+      "times": [
+        0.2606940000000577,
+        0.336930499999994,
+        0.42579008300003807,
+        0.29782587499994406,
+        0.3242989169999646
+      ],
+      "work": {
+        "n_families": 515
+      }
+    },
+    {
+      "series": "family (content)",
+      "x": 3000,
+      "times": [
+        2.1319290830000455,
+        2.4550994579999497,
+        2.5868297499999926,
+        2.800339834000056,
+        3.056065291999971
+      ],
+      "work": {
+        "n_families": 1630
+      }
+    },
+    {
+      "series": "family (content)",
+      "x": 10000,
+      "times": [
+        22.749910750000026,
+        17.311280499999953
+      ],
+      "work": {
+        "n_families": 5196
+      }
+    },
+    {
+      "series": "ordered (+ synteny)",
+      "x": 100,
+      "times": [
+        0.01664116599999943,
+        0.02380500000003849,
+        0.028469916999938505,
+        0.02186949999997978,
+        0.03629029199998968
+      ],
+      "work": {
+        "n_families": 77
+      }
+    },
+    {
+      "series": "ordered (+ synteny)",
+      "x": 300,
+      "times": [
+        0.0889689159999989,
+        0.14770341700000245,
+        0.12834529200006273,
+        0.07423945899995488,
+        0.1556350419999717
+      ],
+      "work": {
+        "n_families": 187
+      }
+    },
+    {
+      "series": "ordered (+ synteny)",
+      "x": 1000,
+      "times": [
+        0.5676849170000651,
+        0.6831841669999221,
+        0.6812234999999873,
+        0.7726231249999955,
+        0.9534082500000522
+      ],
+      "work": {
+        "n_families": 504
+      }
+    },
+    {
+      "series": "ordered (+ synteny)",
+      "x": 3000,
+      "times": [
+        8.334163333999982,
+        4.910472916999993,
+        7.219568833000039,
+        6.883514958999967,
+        6.367785041999923
+      ],
+      "work": {
+        "n_families": 1548
+      }
+    },
+    {
+      "series": "nucleotide (M. tuberculosis)",
+      "x": 100,
+      "times": [
+        1.1310601249999763,
+        1.2945930829999952,
+        1.3512951669999893,
+        1.3332958329999656,
+        1.2856224580000344
+      ],
+      "work": {
+        "n_genes": 4060
+      }
+    },
+    {
+      "series": "nucleotide (M. tuberculosis)",
+      "x": 300,
+      "times": [
+        3.578033624999989,
+        3.6531340420000333,
+        3.7438102079999,
+        3.938775582999938,
+        3.935608666999997
+      ],
+      "work": {
+        "n_genes": 4196
+      }
+    },
+    {
+      "series": "nucleotide (M. tuberculosis)",
+      "x": 1000,
+      "times": [
+        11.55724120800005,
+        12.127948124999989,
+        11.885605124999984,
+        11.951709208000011
+      ],
+      "work": {
+        "n_genes": 4573
+      }
+    },
+    {
+      "series": "nucleotide (M. tuberculosis)",
+      "x": 3000,
+      "times": [
+        34.7552364579999,
+        38.35524904199997
+      ],
+      "work": {
+        "n_genes": 5833
+      }
+    }
+  ]
+}
