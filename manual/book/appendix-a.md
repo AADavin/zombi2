@@ -4,7 +4,7 @@
 
 # Rates in detail
 
-Chapter 2 introduced the shape every rate takes, `effective rate = scope(base) × modifiers`. This
+Chapter 1 introduced the shape every rate takes, `effective rate = scope(base) × modifiers`. This
 appendix is the full reference: how a rate's units work, the default scope at each level, the catalogue
 of modifiers and which levels accept them, and what the engine does with a rate once it has one.
 
@@ -51,7 +51,8 @@ different spelling:
 The difference is large and worth stating plainly. `loss = PerCopy(0.25)` puts every copy
 independently at risk, so a genome of a thousand genes loses ten times as often as one of a hundred.
 `loss = PerLineage(0.25)` is a deletion budget: the lineage loses at 0.25 whatever it holds, and the
-genome's size never enters. The same number, a hundredfold different model.
+genome's size never enters. The same number, and in the hundred-gene genome the two models sit a
+hundredfold apart.
 
 `origination` stays per lineage — it is the rate at which *new* families arrive, so per copy it would
 be zero in an empty genome — and the chromosome rates stay per chromosome. The nucleotide resolution
@@ -88,7 +89,7 @@ The modifiers are:
 | `varying_among('lineages', Drift(...))` | Is **inherited from the parent lineage and nudged at each split**, so the rate drifts gradually down the tree and close relatives keep similar rates. |
 | `varying_among('lineages', ...)` | Is an **independent draw for each lineage**, with no memory of its parent, so nearby branches are no more alike than distant ones. |
 | `varying_among('families', ...)` | Is an **independent draw for each gene family**, so one family is prone to transfer and another is not, whatever lineage either sits in. |
-| `scaled_by(driver, mapping)` | **Reads an evolved value**: the factor is looked up from a driver's state, either another level or another run of the same one, which is how one thing conditions another (Chapter 9). |
+| `scaled_by(driver, mapping)` | **Reads an evolved value**: the factor is looked up from a driver's state, either another level or another run of the same one, which is how one thing conditions another (Chapter 8). |
 | `set_by(driver, mapping)` | **Replaces the base** instead of multiplying it: the mapping gives the rate itself, in the rate's own units, so nothing is written in front of it. It reads a driver just as `scaled_by` does, the scope still applies, and a rate carries one. |
 
 The first two are **deterministic**: the clock and standing diversity are fixed functions of the state of
@@ -116,7 +117,7 @@ factor multiplies an **extent** at the ordered and nucleotide resolutions. An ex
 `set_by` has no base to replace. Drivers also go on `transfer_to`, written
 `Recipients().weighted_by(driver, mapping)` rather than `scaled_by` because there the numbers are
 normalised **weights** over the candidate recipients, compared against each other, with no base in
-front of them (Chapter 9).
+front of them (Chapter 8).
 
 **How wide the variation is, and what shape it takes.** The **law** is `varying_among`'s second
 argument, the distribution written out — any built-in one, so `varying_among('families',
@@ -267,7 +268,8 @@ Two limits. A modifier of your own is Python-only: `--death` and a `--params` fi
 ZOMBI2 ships and cannot build a class you wrote. And if your `factor` reads `time`, making it a rate
 that changes continuously rather than only when an event occurs, give the class a `next_change(time)`
 method returning the next moment the rate changes, so the engine stops and re-evaluates there instead
-of holding it at whatever it was. That is the horizon stepping described at the end of this appendix.
+of holding it at whatever it was. That is the horizon stepping described under "When the rate
+changes with the clock", below.
 `OnCrowding` needs none, because diversity only changes when something is born or dies, and the engine
 already re-evaluates then.
 
@@ -335,13 +337,14 @@ The first is **sequence substitution along a branch**. Once a gene tree and its 
 settled, evolving a sequence down a branch does not require the individual substitution events, only the
 state at each end. The probability of ending in each state after a branch of length $t$ is given exactly
 by the matrix exponential $P(t) = e^{Qt}$, so ZOMBI2 draws each site's descendant state straight from
-$P(t)$ in one step (Chapter 7). Running Gillespie here would generate,
-and then discard, thousands of intermediate substitutions.
+$P(t)$ in one step (Chapter 6). Running Gillespie here would generate,
+and then discard, thousands of intermediate substitutions. The exception is a run that asks for the
+history: `record=True` needs those substitutions, so it walks each branch event by event after all.
 
 The second is a **continuous trait**. Brownian motion has no events to fire, since it moves at every instant,
 so there is nothing for the loop to enumerate. ZOMBI2 walks the tree branch by branch instead, in
 preorder, and draws one normal per branch: mean the parent's end value, variance the exact integral of
-$\sigma^2$ along the branch (Chapter 8). With a constant $\sigma^2$ that integral is just
+$\sigma^2$ along the branch (Chapter 7). With a constant $\sigma^2$ that integral is just
 $\sigma^2 \times$ branch length, and the values that come out have the Brownian structure exactly —
 variance $\sigma^2 \times$ root-to-tip depth at a tip, covariance $\sigma^2 \times$ shared path length
 between two — with no event drawn anywhere. A $\sigma^2$ that varies along the branch changes only the
@@ -351,3 +354,25 @@ The rule of thumb is the same each time. Reach for Gillespie when you need the w
 branching, gain and loss at its exact time; reach for a shortcut when the endpoints are all you need. For
 the trees and genomes that are ZOMBI2's real subject the history *is* the result, so the loop is the norm
 and these two shortcuts are the exceptions.
+
+## Paths on Windows
+
+ZOMBI2's test suite runs on Windows on every change, so the same command does the same thing
+there. Two things differ and are worth knowing before they bite:
+
+- **Paths in a rate expression.** A driver path goes inside the rate. On the command line ZOMBI2
+  reads the backslashes as written, so `PerCopy(0.25).scaled_by('C:\Users\me\trait_events.tsv',
+  {...})` works as pasted. In a Python script the same line is Python source, and Python reads `\U`
+  as an escape, so it is a `SyntaxError` — worse, `C:\temp` is read quietly as `C:` followed by a
+  tab. Write the path as a raw string there: `r'C:\Users\me\trait_events.tsv'`. Forward slashes work
+  in all three places — the command line, a Python script, and a `--params` file — and Windows
+  accepts them.
+- **Paths in a `--params` file**, the TOML file that can carry a run's flags (`--params run.toml`).
+  TOML, not ZOMBI2, reads that file, and TOML's ordinary `"…"` string
+  treats a backslash as an escape, so `C:\Users` fails there with a message about a hex value. Put a
+  value containing a path in a TOML **literal** string instead, `'''…'''`, which is taken exactly as
+  written:
+
+  ```toml
+  transfer-to = '''Recipients().weighted_by('C:\Users\me\trait_events.tsv', {'competent': 2.0})'''
+  ```

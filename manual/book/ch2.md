@@ -1,77 +1,67 @@
-# A tour of ZOMBI2
+# Species trees
 
-This chapter is the whole tool in one pass. The most important concepts are explained here, but you might not need all of them: to simulate something simple, like a species tree, you can go straight to the dedicated chapter.
+The species tree is the backbone every other level runs on, so it is where almost every workflow begins.
 
-## The four levels of ZOMBI2
+## The birth–death process
 
-ZOMBI2 simulates four levels of evolution.
+A species tree grows by two kinds of event: a lineage **speciates**, splitting in two, or it **goes extinct** and stops. You give a **speciation rate** and an **extinction rate**, and every lineage alive at a given moment has the same constant chance per unit time of splitting or dying, independently of the rest.
 
-- **Species**, the tree of lineages: a strictly bifurcating rooted tree, with branches measured in time.
-- **Genomes**, the genes that exist in each lineage. Genomes can be simulated at three **resolutions**: gene families alone, genes placed on chromosomes, or a full nucleotide genome. A genome is always simulated within a species tree.
-- **Sequences**, the nucleotides or amino acids inside each gene. Sequences evolve on gene trees (which are generated during the genome simulation), so genomes must be simulated first.
-- **Traits**, phenotypes evolving along a tree: body size, optimal growth temperature, the presence or absence of a flagellum.
+The two rates set the tempo. Their difference fixes how fast diversity builds up. Their ratio fixes how much of the history is hidden, because a lineage that goes extinct takes its part of the tree with it. With extinction set to zero nothing is ever lost, and the tree you get is the whole tree that grew: this is the classic **Yule** (pure-birth) process. The lineages that died are kept: they are in the complete tree, which is the tree the next level runs along — that is what lets a gene be transferred out of a lineage that later dies — while the extant tree is the one an analysis would be handed. Appendix B says which file holds each.
 
-![The four levels of ZOMBI2. Everything starts from the species tree, which is the general backbone of a simulation run. Then, in that species tree, you can simulate genomes, or traits. If you simulate genomes, you can also simulate their sequences.](figures/fig-2-1-four-levels_print.png){width=45%}
+![A species tree grown by the birth–death process. Every lineage alive at a given moment has the same chance per unit time of splitting or of dying. The lineages that died are drawn dashed and stop where they died; the survivors reach the present. Both are in the complete tree, and only the solid ones are in the extant tree.](figures/species_tree.pdf){width=100%}
 
-A run in which every level is simulated:
+You also say when to stop: grow to a fixed **total time** (`total_time`), or to a fixed **number of surviving lineages** (`n_extant`).[^stopping]
 
-$$P(\text{Species}) \cdot P(\text{Genomes} \mid \text{Species}) \cdot P(\text{Sequences} \mid \text{Genomes}) \cdot P(\text{Traits} \mid \text{Species})$$
+`n_extant` bounds the run by construction; `total_time` does not, because standing diversity grows like exp((birth − death) · t), so a rate slightly too high or a time slightly too long is the difference between a thousand lineages and ten million. A run that passes **100,000 standing lineages** stops with an error rather than filling memory. Raise `max_lineages` if that is the size you want, or set it to `None` to lift the guard. It never truncates: a tree cut off at a size is no longer a sample from the process you asked for.
 
-You need not run them all. Skip sequences if you only want gene trees, which the genome level already produces; skip genomes if you want a species tree with traits on it. Everything depends on a species tree, so a workflow almost always begins by simulating one alone. The exception is a **joint** model, below, where the tree is an output rather than an input.
+`total_time` is not conditioned on survival. A run that dies out raises an error rather than handing back a tree with no present, so if you loop over seeds and skip the failures, you are conditioning on survival yourself, and everything downstream inherits that.
 
-## Time
+[^stopping]: The two rules also give different tree shapes, which matters if you are going to estimate rates from the trees. `n_extant` stops the first moment that many lineages are alive together, then draws one more waiting time and puts the present where the next event would have fired, so the two newest tips have a real branch length instead of a zero-length one. With `death=0` that is exactly the standard way to sample a tree of a given size [@hartmann2010sampling]. With extinction it is not: the run stops the *first* time it touches the target, so the trees come out shallower than a birth–death process conditioned on that many tips: nothing measurable at `death=0`, about a tenth of the tree height at 10 tips with `death` at 0.4 of `birth`, a third to a half at 10 tips with `death` at 0.8 of `birth`, and back to nothing by 50 tips at moderate turnover. Use `total_time` if you need the conditioned distribution exactly; otherwise say in your methods which rule made the trees.
 
-ZOMBI2 is a forward simulator: evolution runs from an ancestral state at time 0 to the present.
+## Rates that vary
 
-Time is imposed by the species tree, and every rate is measured against that scale. If your tree runs from 0 at the origin to 1 at the tips, the simulation lasts one unit of time. Time 0 is the origin of the founding lineage, and every time you give ZOMBI2 is measured on it: the moment of a mass extinction, the breakpoints of a rate that changes through time.
+A birth or death rate need not be constant. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**. There are four of them, and the Literature table below names each one as the field does, beside the example that shows it.
 
-The founding lineage lives for a while before it first splits. That stretch is the tree's **stem**, and the first split is its **crown**.
+- **On time.** The rates change at set points in time, which is the skyline, or episodic, tree: full rate until a breakpoint, a third of it after. Each entry in the schedule holds from its own time up to the next, and the earliest entry also applies *backwards* to the origin — so a schedule that starts at time 3 runs at that rate for the whole tree, not only after time 3. Start it at 0 whenever you mean "full rate until".
+- **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound.
+- **On the parent's rate.** Each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other.
+- **By lineage.** Each lineage draws its own rate instead, with no memory of its parent. The distribution means a different thing in the two: inherited, it is the step taken at each split, which accumulates, so lineages deeper in the tree spread further apart; drawn afresh, it is the spread of rates across lineages and nothing accumulates.
 
-![The stem. A run starts from one lineage at time 0, the origin, which lives for a while before it first splits. Everything up to that split is the stem, and it is ordinary simulated time: genes are gained and lost along it, traits drift along it. Every tree ZOMBI2 writes therefore gives its root a branch length.](figures/stem.pdf){width=70%}
+## Other models
 
-Some tree viewers do not draw the stem by default, so be careful. We recommend plotting trees with Phylustrator, a companion package to ZOMBI2 maintained by the same author.
+One model does not fit the modifier framework: a **mass extinction**, where at one instant only a fraction of the living lineages survive. Diversity crashes at the pulse and recovers after it.
 
-## Rates
+## Literature
 
-In ZOMBI2 different events happen over time with different probability: speciations and extinctions at the species level; duplications, transfers, losses, originations and rearrangements at the genome level; substitutions in a sequence; changes in a trait.
+| What it does | From the literature | Gallery |
+|-------------------|--------------------------------|---|
+| rates change at set times | skyline / episodic birth–death [@stadler2011mammalian] | [Sp3](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:rateshift--> |
+| rate slows as the tree fills | diversity-dependent diversification [@rabosky2008densitydependent; @etienne2012diversitydependence] | [Sp4](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:diversity--> |
+| rates drift, inherited at each split | ClaDS [@maliet2019clads] | [Sp5](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:inherited--> |
+| rates vary, drawn afresh per lineage | uncorrelated ("relaxed") rates | [Sp6](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:perlineage--> |
+| a fraction culled at an instant | mass extinction | [Sp7](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:massext--> |
 
-How often an event occurs is controlled by its **effective rate**:
+## Sampling
 
-$$\text{effective rate} = \text{scope}(\text{base}) \times \text{modifiers}$$
+Sampling and fossils decide not how the tree grows, but how much of it you get to see.
 
-The **base** is the speed of a single event, in units of inverse time. The **scope** says how we measure the event: per lineage, per copy, per site. The **modifiers** are the dimensionless multipliers a rate picks up from its context. Appendix A is the full reference: the units, each level's default scope, every modifier and which levels accept it, and what the engine does with a rate once it has one.
+By default you see every surviving species. **`sampling`** keeps a random fraction of the extant tips, so `sampling=0.5` gives you half [@stadler2009incomplete]. It thins a tree that has already grown, so it costs nothing.
 
-## Conditioning
+`n_extant` counts survivors, and sampling happens afterwards, so the two compose rather than cancel: `n_extant=20, sampling=0.5` grows to 20 survivors and then shows you about 10 of them. If you want 20 tips in hand, ask for 40. The rest are not gone: they stay in the complete tree with the fate `unsampled`, which is why the run's summary counts them separately from the extinct.
 
-ZOMBI2 includes options for dependencies between different parts of the simulation, so that complex scenarios can be simulated. In some cases we want to run a model that depends on a different model — genome evolution that depends on some trait, for instance. If both models can strictly be run in sequence, we talk about **conditioning**.
+## Fossils
 
-This is best explained with an example. Imagine we are simulating the evolution of mammals and their olfactory genes. A habitat trait switches between aquatic and terrestrial along the tree, and aquatic lineages lose those genes four times faster.
+**`fossils`** recovers lineages from the past [@heath2014fossilized; @gavryushkina2014sampledancestor]. Fossils are picked up along **every** branch of the complete tree at a rate you set, a surviving lineage's branch as readily as an extinct one, so `fossils=0.1` scatters dated samples through its history. They are a side output, reported alongside the trees; a fossil does not remove its lineage and does not appear in the extant tree ([Sp8](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:sampling-->).
 
-![Conditioning: a habitat trait is grown first and held fixed, and a gene loss rate reads it. The driver, the connection and the target are the three parts every conditioned run has, and Chapter 9 takes them one at a time.](figures/conditioning_print.png){width=95%}
+## On the command line
 
-We can write this run like this:
+The command mirrors the Python call: the base rates, the stop condition, and the sampling and fossil settings each have a flag.
 
-$$P(\text{Species}) \cdot P(\text{Traits} \mid \text{Species}) \cdot P(\text{Genomes} \mid \text{Species}, \text{Traits})$$
+```bash
+# a birth–death tree of 20 surviving lineages
+zombi2 species out/ --birth 1.0 --death 0.3 --n-extant 20 --seed 1
 
-When we condition there are three things to pay attention to:
-
-- the **driver**: the variable controlling the run.
-- the **target**: the variable that the driver modifies.
-- the **connection**: how the driver controls the target.
-
-Not everything can be connected in ZOMBI2, but it is flexible enough to allow very specific rules — a trait can set how often a lineage loses genes, and a gene family's presence can set how fast a trait changes. There is a full chapter devoted to conditioning, and a user should read it to study the different cases.
-
-## Joining
-
-**Joining** simulates two levels **at the same time**, for the scenarios where each one shapes the other:
-
-- A trait controls how fast a lineage speciates — body size, or a habitat.
-- Gene content decides survival: lineages that acquire a key gene diversify faster.
-
-Take the first. Lineages in the fast state split more often, so the trait decides the shape of the tree; and the trait evolves along that very tree, so the tree decides where the trait can go. Neither can be grown first and handed over, so one run grows both, and the tree comes out as a result rather than going in as an input.
-
-Because neither is finished first, neither can be written out and handed over. There is no conditional probability to write, only a joint one:
-
-$$P(\text{Species}, \text{Traits})$$
-
-The test is one question: can the driver be grown first, on its own, and handed over? If it can, condition. If it cannot, join. Chapter 9 works through conditioning and Chapter 10 through joining.
+# grow to time 5, with a mass extinction at time 3 and half the survivors sampled
+zombi2 species out/ --birth 1.0 --death 0.4 --total-time 5 \
+    --mass-extinction 3 0.75 --sampling 0.5 --seed 2
+```

@@ -1,130 +1,192 @@
-# Genomes I: gene families
+# Genomes II: ordered
 
-Genomes live inside the species tree, and they can be simulated at three **resolutions**, one per chapter: **family** here, **ordered** in Chapter 5, **nucleotide** in Chapter 6. The simplest is a gene family evolving along the tree; the most detailed tracks every nucleotide across several chromosomes.
-
-The **family** resolution is genomes made of gene families and nothing more: no position along a chromosome, no DNA sequence. Genes are copied, lost, born from nothing, and passed sideways between lineages.
-
-## The four events
-
-A genome at the family resolution evolves by four kinds of event, applied to every lineage as it runs down the species tree:
-
-- **Duplication.** A gene copy is copied, so its family gains a member in that lineage.
-- **Transfer.** A copy jumps from one lineage to another that is alive at the same moment.
-- **Loss.** A gene copy is deleted; a family that loses its last copy is gone from that lineage.
-- **Origination.** A brand-new family appears in a lineage, with one copy.
-
-![The four events, one to a panel. ](figures/four_events_print.png){width=100%}
-
-The initial genome, at the beginning of the stem, starts with `initial_families` families of one copy each; from there the four rates drive everything.
-
-### Four things to know
-
-- **Families need not evolve at the same pace.** A rate can vary among families as well as among lineages, and that one choice is what separates a genome with a core and an accessory part from one where every family behaves alike ([Ge4](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_pangenome_by_family-->). Appendix A gives the spelling.
-- **A family's copies within one genome are capped**, at `max_family_size=10` by default, because a duplication rate above the loss rate grows without bound. Set `max_family_size=None` when you are measuring rates: a cap that binds discards events and pulls the realised rates below the ones you declared.
-- **There is no floor.** Loss is counted per copy and the last copy is a copy like any other, so a high loss rate can leave a lineage with nothing. `genome_summary.json` reports `empty_genomes` and the command warns, because an empty genome is otherwise invisible.
-- **The chromosome-based resolutions do have a floor**: a loss never takes a chromosome below its last gene. That is what a chromosome is, not a bound on genome size.
-
-## What the rate depends on
-
-By default, duplication, transfer and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is usually what you want — more genes, more chances. Origination is counted **per lineage** (per branch of the species tree): acquiring a wholly new family is a property of the lineage, not of any gene it already has, and it takes no other scope.
-
-The three per-copy rates also take `PerLineage`, and that is a different model rather than a different spelling. `PerCopy(0.25)` puts every copy independently at risk, so a big genome loses often; `PerLineage(0.25)` is a deletion budget, and the lineage loses at that rate whatever it holds — deletion-biased genomes lose at their own pace, and shrinking does not slow them down. The same `0.25` means something a hundred times different in a genome of a hundred genes, so it is a choice to make rather than a default to leave alone.
-
-A rate can also depend on **time**, on **where in the tree** a lineage sits, or on a level grown before it. Chaining `changing_at` onto a rate makes it change at set moments — the skyline genome, fast early and slow later; `Clade` scopes a factor to a named group, and the two compose ([Ge5](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_clade_transition-->); and `scaled_by` reads a driver, which is Chapter 9. Appendix A is the full grammar, and every rate at this level takes all of it.[^origins]
-
-[^origins]: `families=[family("toxin", origin=("n1", 0.4))]` declares a family and places it instead of leaving it to the rate: it originates on the lineage you name, at the time you give, keeps its name, and **adds to** whatever `initial_families` and `origination` produce. With both of those at zero the tree carries exactly the families you declared.
-
-## Lateral gene transfers
-
-When a transfer event occurs, a copy is picked from the whole pool of live genes, and it is delivered to another lineage that is **alive at that same instant**.
-
-Three arguments shape what a transfer does:
-
-- **`transfer_to`**, who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier, weighting recipients by how far they sit from the donor on the tree. The distance version is *scale-free*. A third rule, `Clades(...)`, weights recipients by **named clades of the tree**, described below.
-- **`replacement`**, what happens on arrival. By default the incoming copy is **additive**: the recipient simply gains a copy. With `replacement=True` it **overwrites** a copy of the same family already present, and falls back to additive when the recipient has none.
-- **`self_transfer`**, whether a lineage may donate to itself. Off by default. With additive arrival the lineage gains a copy, so the gene content changes as it would under a duplication, but the event is recorded as a transfer.
-
-Transfers can arrive **from a lineage that later goes extinct** [@szollosi2013lgtdead]. A genome run happens on the complete tree, dead branches included, so a gene can enter a survivor from a donor that leaves no other trace. That is the feature the software was originally named for.
-
-### Transfer between named clades
-
-`"distance"` biases transfer by relatedness, but sometimes you want to name the groups yourself: "let genes flow between these two clades, and nowhere else." `Clades` does that. You name each clade, by a few of its tips (the clade is the subtree below their MRCA) or by a node id, and give a `Between` kernel of weights, one for each ordered **(donor clade, recipient clade)** pair ([Ge3](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_transfer_highway-->).
+The previous chapter put genes on the tree as a *bag of families*, how many copies of each, and nothing more. This chapter gives them **structure**. A genome becomes one or more **chromosomes**, each an ordered run of genes, and each gene knows which way it points. This is the **ordered** resolution.
 
 ```python
 from zombi2 import species, genomes
 
-sp = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1)
-# genes flow only BETWEEN clade A and clade B, never within either, never to the rest
+tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=231)
+g = genomes.simulate_genomes_ordered(
+    tree, duplication=0.3, loss=0.2, origination=0.15, inversion=0.5,
+    chromosomes=1, initial_families=5, seed=231)
+```
+
+Reading one extant leaf:
+
+```
+leaf n4, chromosome 4 (circular):  [ 0+ 0+ 1+ 3+ 4− ]
+```
+
+Each gene is written as its family with the strand as `+` or `−` (the strand is the integer `+1` or `−1`). This leaf has one chromosome of five genes, in which family `0` sits in a run of two tandem copies and family `4` points backwards, left that way by an inversion. The gene tree of a family is unchanged from Chapter 3, the true genealogy read off the same event log:
+
+```python
+g.gene_trees[0].to_newick("extant")
+# (((n5_g25:0.02994724,n6_g30:0.02994724)speciation_n3:0.3253988,(n4_g21:0.227248,n4_g22:0.227248)duplication_n4:0.128098)speciation_n1:0.1181814,n2_g9:0.4735275)speciation_n0:1.090775;
+```
+
+![Leaf `n4`, the same chromosome `[ 0+ 0+ 1+ 3+ 4− ]` drawn as the ring it is. Each gene is an arrow that points the way its strand reads, and its colour marks its family. The two copies of family `0` are a tandem duplication, one colour side by side; family `4`, left backward by an inversion, is the one arrow pointing against the flow.](figures/ordered_chromosome.pdf){width=58%}
+
+## The karyotype
+
+A genome has a **karyotype**: `chromosomes=N` chromosomes, each with a `topology`: `"circular"` (the default) or `"linear"`, or a per-chromosome list like `["circular", "linear"]` for a mixed set. The founding `initial_families` genes are dealt round-robin across them. Topology is not just a label: it decides where a segmental event stops, which the section on segments below takes up.
+
+## Chromosomes split, merge, appear and die
+
+On top of the karyotype, four events change the **number** of chromosomes ([Ge10](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_karyotype-->):
+
+- **`fission`** *(per chromosome)*. A chromosome splits in two.
+- **`fusion`** *(per chromosome)*. Two chromosomes of a genome merge into one. Only two of the **same topology**: a ring and a molecule with two ends cannot become one molecule, so a circular chromosome never fuses with a linear one, and a genome holding one of each never fuses at all.
+- **`chromosome_origination`** *(per lineage)*. A de-novo replicon appears: a new chromosome, empty and circular, a plasmid.
+- **`chromosome_loss`** *(per chromosome)*. A whole chromosome dies, and every gene on it is recorded as a loss. A lineage never loses its *last* chromosome this way.
+
+```python
+tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=42)
+g = genomes.simulate_genomes_ordered(
+    tree, duplication=0.15, loss=0.1, origination=0.25,
+    chromosomes=2, fission=0.25, fusion=0.25,
+    chromosome_origination=0.03, chromosome_loss=0.03,
+    initial_families=5, seed=42)
+```
+
+## The chromosome network
+
+Chromosomes are tracked. A chromosome id is re-minted at every event that reshapes it, whether a speciation, a fission or a fusion, and each of those edges is recorded. So the run leaves behind not just the chromosomes at the tips but the *genealogy* that connects them: the **chromosome network**. It is the middle of three genealogies that nest, the species tree containing the chromosome network, which contains the gene trees:
+
+```
+species tree  ⊃  chromosome network  ⊃  gene trees
+```
+
+It is a **network** and not a tree because of one event: **fusion joins two chromosome lineages into one**, two parents and one child. Fission and speciation are ordinary splits (one parent, two children); `initial` and `origination` are roots: the chromosomes the run began with, and the new replicons `chromosome_origination` creates, kept apart so you can tell which is which. Loss is a leaf. It is a directed graph, and it is written the way graphs are, as an **edge list**: `chromosome_events`, one row per event. The run above gives:
+
+```
+  time   kind          parents -> children
+  0.00   initial            -  -> 0          a chromosome the run started with
+  0.00   initial            -  -> 1          a chromosome the run started with
+  0.75   fission            0  -> 2, 3       a bifurcation
+  1.52   fusion          2, 1  -> 4          a reticulation (two parents)
+  1.52   fission            4  -> 5, 6
+  2.02   fusion          3, 5  -> 7
+  2.11   loss               7  -> -          chromosome 7 (and its genes) dies
+  2.19   speciation         6  -> 8, 9
+  2.49   fission            9  -> 10, 11
+  3.27   speciation         8  -> 12, 13
+  3.30   fusion        10, 11  -> 14
+```
+
+## Events act on segments
+
+Once genes have neighbours, **a gene-level event acts on a segment**, a run of consecutive genes, not on one gene. A duplication copies a segment, a loss removes one, a transfer sends one sideways. That produces the signature of real genome evolution: neighbouring genes sharing a history because they were copied, moved or lost *together*.
+
+How much does an event take? That is its **extent**, set per event type as `<event>_extent`. A bare number is the **mean**, so `duplication_extent=3` copies about three adjacent genes: often two or three, sometimes one, occasionally many more. Write `Fixed(3)` for exactly three every time, or name any other distribution. The default is a single gene, so out of the box every event touches one gene and you recover the simplest behaviour.
+
+Topology decides where a segment stops — the promise the karyotype section made. On a circular chromosome a segment that reaches the last gene continues from the first, wrapping position 0, so only the whole chromosome bounds it; on a linear one it stops at the last gene, and a draw that would overrun the end is cut short there.
+
+```python
+from zombi2.params.distributions import Geometric
+
+tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=332)
+g = genomes.simulate_genomes_ordered(
+    tree, duplication=0.35, loss=0.3,
+    duplication_extent=Geometric(mean=3),      # ~3 adjacent genes copied at once
+    chromosomes=1, initial_families=5, seed=332)
+```
+
+```
+leaf n3:  [ 4+ 1+ 4+ 1+ 2+ 3+ ]
+            └────┘ └────┘
+            the segment 4 1, duplicated as a unit and landed in tandem
+```
+
+The segment `4 1` appears twice: a single segmental duplication copied those two adjacent genes together. (Family `0` is absent because it was lost earlier, which is what left `4` and `1` next to each other.) A duplication puts its copy **in tandem**, immediately after the original run; a transferred segment arrives together on the recipient. **Origination is the exception**: a family is born once, as a single new gene, so it has no extent.
+
+### How often, where, how much
+
+A segmental event answers three questions, and it takes two numbers to describe one:
+
+- **how often** it starts, the rate;
+- **where** it starts, a gene drawn from the genome;
+- **how much** it takes, the extent.
+
+In Chapter 3 the third answer was always "one gene", so the rate was the whole story. Here it is not, and the two numbers **multiply**.
+
+One consequence catches people out: **a rate counts starts, not hits.** `duplication=0.2` with `duplication_extent=3` does *not* mean each gene is duplicated 0.2 times per unit time. A gene is copied whenever any event begins on a run that covers it, which is about three times as often, so roughly `0.2 × 3 = 0.6`. If you want genes duplicated at a known rate, divide that rate by the mean extent.
+
+The same reading holds at the nucleotide resolution of Chapter 5, where the extent is in base pairs rather than genes.
+
+### Families that differ, once events cover several at once
+
+`varying_among('families', ...)` works here as it does in Chapter 3, but with one difference that matters. A run covers several families at once, so the weight is applied to **the run, averaged over the genes it covers**, not to the gene the run happened to start on.
+
+Weighting the starting gene is the obvious implementation and the wrong one: a fast family's rate would then apply to whatever sat beside it, so you would be describing the *neighbourhood* of a fast family rather than the family, and the neighbourhood is reshuffled by every inversion and translocation, so the parameter would not name a stable thing. Averaging over the run keeps what you wrote true: a run of heavily-weighted genes is favoured, a mixed one sits between, an ordinary one is unweighted.
+
+With no weights set every run averages to one, so a run without it is unchanged.
+
+### Who receives a transfer
+
+The recipient rule is Chapter 3's, unchanged: `transfer_to` takes `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or `Recipients().weighted_by(...)` read off a trait (Chapter 8). What is ordered about an ordered transfer is the block that moves; who receives it is the same question and the same answer as at the family resolution.
+
+```python
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1)
 flows = genomes.Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)
-g = genomes.simulate_genomes_family(
-    sp, transfer=1.0, initial_families=20, seed=2,
+g = genomes.simulate_genomes_ordered(
+    tree, transfer=1.0, transfer_extent=3, initial_families=20, seed=2,
     transfer_to=genomes.Clades({"A": ["n27", "n28"], "B": ["n21", "n26"]}, flows))
 ```
 
-There is one group you do not have to name: **`"rest"`** is every lineage outside the clades you did name, so `Between({("rest", "A"): 8.0})` makes clade A a transfer hotspot that the whole rest of the tree donates into, without having to enumerate the rest of the tree.
+Every transferred block now crosses between the two named clades and never lands inside either. The numbers are weights, normalised over the lineages alive when a transfer occurs, so they redistribute transfers without changing how many happen. A weight of 0 means "cannot receive", so a transfer whose every candidate weighs 0 does not happen at all, leaving the donor exactly as it was.
 
-Each entry is a weight, read the same way `"distance"`'s weights are: normalised over the lineages alive at the instant a transfer occurs. Naming only `("A", "B")` and `("B", "A")` and setting `default=0.0` means every other pairing weighs 0: a clade-A donor can reach clade B but not another clade-A lineage, and the rest of the tree neither sends nor receives. Drop the `default=0.0` and unlisted pairs return to weight 1 (baseline), so `Between({("A", "B"): 5.0})` *enriches* A→B fivefold while leaving everything else to happen normally. A weight of 0 means "cannot receive", exactly as in Chapter 9: when a donor's every candidate weighs 0, the transfer has nowhere to land and does not happen.
+One thing to watch when you combine a restrictive rule with a tight `max_family_size`: the two thin transfers independently. A block is refused when it would take any family it carries past the cap, and refused again when the kernel forbids the pair, so the realised amount of transfer can sit well below the rate you declared. Raise the cap while you are measuring the weights.
 
-## Profiles and gene trees
+### A rate or an extent can be driven by a trait
 
-A run hands back two views of the same history, and the pair is worth keeping straight: the genomes at the *extant* tips are the observed dataset, and the genomes at **every** node, extinct and internal alike, are the run's own record of what happened. Appendix B names them and everything else.
+Every rate here also takes `scaled_by`, so a habitat can decide how often a lineage rearranges its gene order, and every extent takes it too, so the same habitat can decide how long the rearranged runs are. The mechanism is Chapter 8's and is not repeated here.
 
-**Profiles** are the classic comparative-genomics view [@pellegrini1999profiles]: how many copies of each gene family sit in each extant species. They are read off the observed genomes on access, so the run itself stays lean.
+What belongs here is why the per-family draw above and a trait driver sit apart. A trait driver attaches to the **lineage**: at any instant it is one factor for that lineage's whole genome, so it composes with any extent unchanged and the run is drawn exactly as it would be without it. `varying_among('families', ...)` attaches to the **contents**, so it has to weight the run by what the run covers. The two therefore cannot be set on the **rates** of one run yet: combining them there means weighting by the product of a lineage factor and a segment factor, which is neither model on its own. A driven extent, or a driven `transfer_to`, is a different axis and runs alongside a per-family draw unchanged.
 
-```python
-g.profiles.matrix        # families × extant-species copy counts, a NumPy array
-g.profiles.presence      # the same as 0/1 presence/absence
-g.profiles.to_tsv()      # the table as text
-```
+## Rearrangements: inversion, transposition, translocation
 
-**Gene trees** are the deeper output. Every family has a `.complete` tree with every gene lineage, and, when at least one copy survives, an `.extant` tree pruned to the genes that do. A family that died out has no extant tree: `.extant` is `None`, `to_newick("extant")` returns `None`, and the run writes no `_extant` file for it.
+Three more events reshape the order without creating or destroying genes:
 
-```python
-gt = g.gene_trees[7]                 # the gene tree of family 7
-gt.to_newick("extant")               # the surviving copies as Newick ...
-gt.to_newick("complete")             # ... or the whole genealogy
-gt.origination                       # when the family began
-```
+- **Inversion.** Reverse a segment in place, flipping every gene's strand: `+2 +3 +4` becomes `−4 −3 −2`. On a circular chromosome the segment may span the origin ([Ge9](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_inversion-->).
+- **Transposition.** Cut a segment out and reinsert it **elsewhere on the same chromosome**.
+- **Translocation.** Move a segment to a **different chromosome** of the same genome. A no-op if the genome has only one chromosome.
 
-The root of a gene tree carries a branch length, as the species tree's does. A family starts at its origination, and the founding gene lives a while before its first duplication, transfer or speciation; that wait is the root's branch, the family's stem. A gene that originated and never split at all is a one-node tree, written as its own lifespan, `n26_g545:0.6614353;`.
+A moved segment, transposed or translocated, lands **inverted** with probability `inversion_probability` (default `0`, so it keeps its orientation).
 
-## Evolving families in parallel
-
-Because families are independent, and no event ever mixes two families, a run can evolve them **concurrently**, one family per worker process. It is off by default; `parallel` turns it on.
+Every parameter in this chapter is an argument of the one call, so a rate and its extent can each read the same trait, on separate axes:
 
 ```python
-from zombi2 import species, genomes
+from zombi2 import species, genomes, traits
+from zombi2.params import Extent, PerCopy
 
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-g = genomes.simulate_genomes_family(
-    tree, duplication=0.2, loss=0.25, origination=0.5,
-    initial_families=1000, seed=1, parallel=8)      # 8 workers
+tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=30, seed=1)
+
+# a host-restricted lineage inverts four times as often, and each inversion
+# covers three times as many genes
+habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.5, seed=1)
+g = genomes.simulate_genomes_ordered(
+    tree,
+    inversion=PerCopy(0.3).scaled_by(habitat, {"host": 4.0, "free": 1.0}),
+    inversion_extent=Extent(4).scaled_by(habitat, {"host": 3.0, "free": 1.0}),
+    initial_families=10, seed=1)
 ```
-
-`parallel=True` uses every core and an integer sets the worker count; on the command line it is `--parallel` for all cores or `--parallel 8` for eight. It is a **separate engine**, not a faster path through the default one: each family draws from its own random stream, so the result is identical for any worker count, but it differs from a serial run of the same seed. Both are valid draws of the same process.
-
-A **conditioned** rate (Chapter 9) runs here too. Conditioning does not tie families to one another: the driver was grown before this run and is an input to it, so a lineage's factor at a given moment is the same number whichever family is asking, and no family can reach another through it. Each worker reads the driver as a lookup, and the decomposition is untouched.
-
-For very large runs of hundreds of thousands of families, or a million, the difficulty stops being speed and becomes memory: the finished result itself no longer fits. `stream_to` writes each family to a directory the moment it is done, and hands back a light handle holding a path rather than a `FamilyGenomesResult` holding everything. Memory then stays flat however many families you run, so a run that would have held 2 GB streams in about 40 MB, and the sequence level reads the families back off the disk afterwards. Choose which files to write with `outputs=`, exactly as `.write` takes them. On the command line this is `--stream`.
-
-```python
-run = genomes.simulate_genomes_family(
-    tree, origination=2.0, initial_families=5000, seed=1,
-    parallel=8, stream_to="out/", outputs=("events", "profiles", "species_tree"))
-run.path("events")            # out/genome_events.tsv, the log, ready to replay
-```
-
-The handle goes straight into the next level, and so does the directory: `sequences.simulate_sequences(run, …)` and `sequences.simulate_sequences("out/", …)` both reopen it. `genomes.read_run("out/")` gives the run itself back, the event log and the gene trees derived from it, for anything you would rather do in Python than on the command line.
 
 ## On the command line
 
-`zombi2 genomes` evolves gene families along the species tree already in the run directory, or one given with `--from` (a Newick file, or another run). The family resolution is the default, and a rate is a plain number or a quoted expression in the written form of Appendix A.
+The ordered resolution is `--resolution ordered`. It adds the chromosome flags and the **extent** flags (`--inversion-extent`, `--duplication-extent` and the rest, each the mean number of genes an event takes) to the Chapter 3 events, each still a plain number. Leave an extent out and every event takes a single gene, which for an inversion means flipping one gene's strand and shuffling nothing:
 
 ```bash
-# duplication–loss–origination along a species tree
-zombi2 genomes out/ --duplication 0.2 --loss 0.25 --origination 0.5 --seed 1
+# chromosomes split and merge along the tree
+zombi2 genomes out/ --resolution ordered \
+    --origination 0.5 --fission 0.05 --fusion 0.05 --chromosomes 2 --seed 1
 
-# horizontal transfer biased toward close relatives, overwriting resident copies
-zombi2 genomes out/ --transfer 0.5 --transfer-to distance --replacement \
-    --origination 0.4 --seed 3
+# segmental duplications, losses and inversions on three chromosomes
+zombi2 genomes out/ --resolution ordered \
+    --duplication 0.2 --loss 0.2 --origination 0.5 \
+    --inversion 0.3 --chromosomes 3 --seed 1
+
+# segments relocate and move between chromosomes, sometimes inverting
+zombi2 genomes out/ --resolution ordered \
+    --origination 0.5 --transposition 0.2 --translocation 0.1 \
+    --inversion-probability 0.5 --chromosomes 2 --seed 1
 ```
