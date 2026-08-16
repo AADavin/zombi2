@@ -282,8 +282,8 @@ def cave_genomes(out):
     # the two things and the two rules, each as a sentence: in a joint model neither box is only a
     # driver or only a target, so the conditioning diagram's headings have nothing to label
     diag = h.joint_png(out.replace(".png", "_diag.png"),
-                       left=("habitat", "surface or cave"),
-                       right=("genome", "which genes are left"),
+                       left=("traits", "habitat", "surface or cave"),
+                       right=("genomes", "the genome", "which genes are left"),
                        forward="in the cave, genes go 5× faster",
                        back="with no eye, turns cave 25× faster")
     fig2 = plt.figure(figsize=(12, 9.4))
@@ -380,8 +380,8 @@ def sequence_loop(out):
          + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
         pngs.append(png)
     diag = h.joint_png(out.replace(".png", "_diag.png"),
-                       left=("hisA", "how much of it is K or R"),
-                       right=("hisF", "how much of it is K or R"),
+                       left=("sequences", "hisA", "how much of it is K or R"),
+                       right=("sequences", "hisF", "how much of it is K or R"),
                        forward="the richer hisA is, the faster hisF evolves",
                        back="the richer hisF is, the faster hisA evolves")
     h.composite_under_diagram(out, diag,
@@ -446,8 +446,8 @@ def trait_and_sequence(out):
      + ph.trees.color_branches(share, cmap="magma_dark", limits=span)
      + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(gene_png)
     diag = h.joint_png(out.replace(".png", "_diag.png"),
-                       left=("habitat", "cold or hot"),
-                       right=("rpoB", "how much of it is K or R"),
+                       left=("traits", "habitat", "cold or hot"),
+                       right=("sequences", "rpoB", "how much of it is K or R"),
                        forward="hot lineages substitute 4x faster",
                        back="the richer rpoB is, the readier the switch to hot")
     h.composite_under_diagram(out, diag,
@@ -491,8 +491,8 @@ def trait_loop(out):
          + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
         pngs.append(png)
     diag = h.joint_png(out.replace(".png", "_diag.png"),
-                       left=("habitat", "surface or cave"),
-                       right=("size", "small or large"),
+                       left=("traits", "habitat", "surface or cave"),
+                       right=("traits", "size", "small or large"),
                        forward="in the cave, grows 6× more readily",
                        back="when large, goes underground 8× more readily")
     h.composite_under_diagram(out, diag, [(pngs[0], "habitat", _CAVE), (pngs[1], "body size", _SIZE)],

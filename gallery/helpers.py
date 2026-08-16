@@ -789,8 +789,10 @@ def joint_png(path, *, left, right, forward, back):
     each rule reads as a plain sentence rather than as a verb and a mapping — ``scaled_by`` and
     ``table`` say how a rate is written, which is Chapter 9's subject, not what the model claims.
 
-    ``left`` / ``right`` are ``(name, what it is)``; ``forward`` and ``back`` are the two sentences,
-    read left-to-right and right-to-left.
+    ``left`` / ``right`` are ``(level, name, what it is)`` — the level in small caps above the name,
+    exactly as the conditioning diagram labels its driver and target boxes, because a reader coming
+    from Chapter 9 should not have to work out which level a box belongs to. ``forward`` and ``back``
+    are the two sentences, read left-to-right and right-to-left.
     """
     from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 
@@ -798,14 +800,25 @@ def joint_png(path, *, left, right, forward, back):
     fig = plt.figure(figsize=(W / 100, H / 100), dpi=190)
     ax = fig.add_axes([0, 0, 1, 1]); ax.set_xlim(0, W); ax.set_ylim(H, 0); ax.set_axis_off()
     mid = H / 2
-    for x, (name, kind) in ((150, left), (1090, right)):
-        ax.add_patch(FancyBboxPatch((x - 108, mid - 42), 216, 84, boxstyle="round,pad=14",
+    # each box is sized to its own longest line, measured rather than guessed: "how much of it is K
+    # or R" is twice the width of "cold or hot", and a fixed box cut it off
+    half = {}
+    for side, (level, name, kind) in (("l", left), ("r", right)):
+        widest = max(_text_w(fig, ax, level, 13, style="italic"),
+                     _text_w(fig, ax, name, 25),
+                     _text_w(fig, ax, kind, 13, style="italic"))
+        half[side] = max(108, widest / 2 + 16)
+    for x, side, (level, name, kind) in ((150, "l", left), (1090, "r", right)):
+        ax.add_patch(FancyBboxPatch((x - half[side], mid - 52), 2 * half[side], 104,
+                                    boxstyle="round,pad=14",
                                     facecolor="#f2f2f0", edgecolor=_INK, lw=1.8))
-        ax.text(x, mid - 8, name, ha="center", va="center", color=_INK, fontsize=25)
-        ax.text(x, mid + 24, kind, ha="center", va="center", color=_DIM, fontsize=13,
+        ax.text(x, mid - 34, level, ha="center", va="center", color=_DIM, fontsize=13,
+                style="italic")
+        ax.text(x, mid - 2, name, ha="center", va="center", color=_INK, fontsize=25)
+        ax.text(x, mid + 30, kind, ha="center", va="center", color=_DIM, fontsize=13,
                 style="italic")
     # the arrows span the gap between the boxes, and each sentence sits clear of both
-    a0, a1 = 285, 955
+    a0, a1 = 150 + half["l"] + 28, 1090 - half["r"] - 28
     ax.add_patch(FancyArrowPatch((a0, mid - 20), (a1, mid - 20), arrowstyle="-|>",
                                  mutation_scale=17, lw=2.0, color=_INK))
     ax.add_patch(FancyArrowPatch((a1, mid + 20), (a0, mid + 20), arrowstyle="-|>",

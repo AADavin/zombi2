@@ -326,7 +326,6 @@ _PAGE_OPEN = """
 _PAGE_CLOSE = """
   <footer>
     <span><a href="./">ZOMBI2</a> · <a href="docs/">docs</a> · <a href="https://github.com/AADavin/zombi2">GitHub</a></span>
-    <span><code>plot(tree) + color_branches(…) + …</code></span>
   </footer>
 </div>
 <div class="detail" id="detail" aria-hidden="true">
