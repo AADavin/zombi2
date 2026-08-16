@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-08-16
+
 ### Added
 
 - **The sequence level can record its own history** — `simulate_sequences(..., record=True)` keeps
