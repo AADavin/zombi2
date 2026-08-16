@@ -404,11 +404,11 @@ def test_the_manual_cites_the_gallery_by_the_right_number():
                        "`python scripts/gallery_refs.py`:\n  " + "\n  ".join(stale))
 
 
-def test_chapter_nine_s_table_and_the_gallery_agree_on_the_conditioning_examples():
+def test_chapter_eight_s_table_and_the_gallery_agree_on_the_conditioning_examples():
     """Chapter 9's table of what can condition what is the index into the gallery's conditioning
     section, and the section is ordered to match — so the Gallery column reads straight down.
 
-    That coupling is held by hand in two files: the table's rows in `ch9.md`, and
+    That coupling is held by hand in two files: the table's rows in `ch8.md`, and
     `CONDITIONING_ORDER` in `gallery/build.py`. Nothing else notices when one moves. Three things
     have to stay true, and each is a way the pair has already nearly gone wrong:
 
@@ -423,9 +423,9 @@ def test_chapter_nine_s_table_and_the_gallery_agree_on_the_conditioning_examples
         import gallery_refs
     finally:
         sys.path.remove(str(GALLERY.parent / "scripts"))
-    text = (GALLERY.parent / "manual" / "book" / "ch9.md").read_text(encoding="utf-8")
-    table = re.search(r"^\| \| Driver \| Target \|.*?(?=\n\n)", text, re.S | re.M)
-    assert table, "chapter 9's driver/target table is not where this test looks for it"
+    text = (GALLERY.parent / "manual" / "book" / "ch8.md").read_text(encoding="utf-8")
+    table = re.search(r"^\| # \| Driver \| Target \|.*?(?=\n\n)", text, re.S | re.M)
+    assert table, "chapter 8's driver/target table is not where this test looks for it"
     rows = [ln for ln in table.group(0).splitlines() if ln.startswith("| **")]
     assert rows, "the table has no numbered rows"
 
@@ -436,7 +436,7 @@ def test_chapter_nine_s_table_and_the_gallery_agree_on_the_conditioning_examples
     cited, order = [], []
     for n, row in enumerate(rows, start=1):
         ids = re.findall(r"<!--gallery:([a-z0-9_]+)-->", row)
-        assert ids, f"row {n} of chapter 9's table cites no gallery example"
+        assert ids, f"row {n} of chapter 8's table cites no gallery example"
         cited += ids
         order += [int(nums[i][2:]) for i in ids]
 
@@ -452,16 +452,16 @@ def test_chapter_nine_s_table_and_the_gallery_agree_on_the_conditioning_examples
 
 #: (chapter, the table's header line, the section prefix, whether the table must cite EVERY card)
 #:
-#: Chapter 8's table is the traits section's index — every card is a model it names. Chapter 3's is
+#: Chapter 7's table is the traits section's index — every card is a model it names. Chapter 2's is
 #: about the rate models only, so the species section also holds cards it does not name (a plain
 #: Yule tree, sampling, a study over many trees) and the coverage check would be false there.
 _LITERATURE_TABLES = [
-    ("ch8", "| What it does | From the literature | Gallery |", "Tr", True),
-    ("ch3", "| What it does | From the literature | Gallery |", "Sp", False),
-    # chapter 7's clocks cite the sequences section and, for the trait-driven rate, the
+    ("ch7", "| What it does | From the literature | Gallery |", "Tr", True),
+    ("ch2", "| What it does | From the literature | Gallery |", "Sp", False),
+    # chapter 6's clocks cite the sequences section and, for the trait-driven rate, the
     # conditioning one — so no single prefix covers it and only the ascent is checked
-    ("ch7", "| What it does | From the literature | Gallery |", None, False),
-    ("ch10", "| What it does | From the literature | Gallery |", "Jo", False),
+    ("ch6", "| What it does | From the literature | Gallery |", None, False),
+    ("ch9", "| What it does | From the literature | Gallery |", "Jo", False),
 ]
 
 
@@ -470,7 +470,7 @@ def test_a_literature_table_is_the_index_into_its_gallery_section(chapter, heade
                                                                   exhaustive):
     """A Literature table names each model as the field does and points at the example that shows it.
 
-    The same coupling chapter 9's driver/target table has, and the same things have to stay true:
+    The same coupling chapter 8's driver/target table has, and the same things have to stay true:
     every row cites an example, the numbers ascend down the table, and — where the table is the
     section's whole index — every card is cited exactly once. What makes it worth a test is that
     these tables used to carry the call itself, `simulate_continuous(rate=…)`, and now carry only the
