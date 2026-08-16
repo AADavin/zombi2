@@ -299,6 +299,14 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
     # early — a tree cut off at a size is no longer a sample from the process asked for, and handing
     # one back as if it were would be worse than not running at all.
     ceiling = None if max_lineages is None else max(max_lineages, n_extant or 0)
+    # two bare numbers — no modifier on either rate — is the common run, and it needs none of the
+    # loop's context machinery: each total is scope(base) exactly, resolved here once. A rate
+    # whose base is None carries a set_by, which is a modifier, so `plain` is False and its 0.0
+    # placeholder is never read.
+    plain = not (birth_rate.modifiers or death_rate.modifiers)
+    birth_base, death_base = birth_rate.base or 0.0, death_rate.base or 0.0
+    birth_scales = birth_rate.scope.unit is not None    # per lineage: base × n; Global: base
+    death_scales = death_rate.scope.unit is not None
     while alive:
         bar.to(len(alive) if n_extant is not None else t)
         n = len(alive)
@@ -310,25 +318,34 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
                 f"rates, shorten total_time, cap the growth "
                 f"(birth = PerLineage(...).scaled_by(TotalDiversity(cap=...))), or raise "
                 f"max_lineages if the size is what you want (max_lineages=None removes the guard).")
-        # standing diversity = the living lineages; OnTotalDiversity/OnTime read `diversity`/`time`
-        ctx = {"diversity": n, "time": t}
-        # a drifting rate's total is the sum over lineages of each lineage's effective rate —
-        # scope(base) × modifiers evaluated per lineage through its inherited factor (lineages=1
-        # is one lineage); a non-drifting rate is scope(base) × modifiers once, over all n lineages
-        if birth_drift:
-            w_b = [birth_rate.effective(lineages=1, carried_factor=math.prod(x), **ctx) for x in inh_b]
-            total_birth = sum(w_b)
+        if plain:
+            # neither rate carries a modifier: each total is scope(base) — base × n per lineage,
+            # base alone under Global — and neither ever changes on its own. Exactly what
+            # effective() and next_change() answer, without paying two calls per event for a
+            # number the context cannot move.
+            total_birth = birth_base * n if birth_scales else birth_base
+            total_death = death_base * n if death_scales else death_base
+            next_change = math.inf
         else:
-            total_birth = birth_rate.effective(lineages=n, **ctx)
-        if death_drift:
-            w_d = [death_rate.effective(lineages=1, carried_factor=math.prod(x), **ctx) for x in inh_d]
-            total_death = sum(w_d)
-        else:
-            total_death = death_rate.effective(lineages=n, **ctx)
+            # standing diversity = the living lineages; OnTotalDiversity/OnTime read `diversity`/`time`
+            ctx = {"diversity": n, "time": t}
+            # a drifting rate's total is the sum over lineages of each lineage's effective rate —
+            # scope(base) × modifiers evaluated per lineage through its inherited factor (lineages=1
+            # is one lineage); a non-drifting rate is scope(base) × modifiers once, over all n lineages
+            if birth_drift:
+                w_b = [birth_rate.effective(lineages=1, carried_factor=math.prod(x), **ctx) for x in inh_b]
+                total_birth = sum(w_b)
+            else:
+                total_birth = birth_rate.effective(lineages=n, **ctx)
+            if death_drift:
+                w_d = [death_rate.effective(lineages=1, carried_factor=math.prod(x), **ctx) for x in inh_d]
+                total_death = sum(w_d)
+            else:
+                total_death = death_rate.effective(lineages=n, **ctx)
+            # the total rate is constant until the next skyline breakpoint, mass extinction, or the
+            # total_time limit — advance no further than the earliest of them before re-evaluating
+            next_change = min(birth_rate.next_change(t), death_rate.next_change(t))
         total = total_birth + total_death
-        # the total rate is constant until the next skyline breakpoint, mass extinction, or the total_time
-        # limit — advance no further than the earliest of them before re-evaluating
-        next_change = min(birth_rate.next_change(t), death_rate.next_change(t))
         next_pulse = pulses[pulse_idx][0] if pulse_idx < len(pulses) else math.inf
         horizon = min(next_change, next_pulse)
         if total_time is not None:
@@ -362,20 +379,27 @@ def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float |
                     c1, c2 = new_node(node, t), new_node(node, t)
                     nodes[node].children = (c1, c2)
                     alive.extend((c1, c2))
-                    # each daughter takes its own factors — the parent's nudged under a Drift law, a
-                    # fresh independent draw under a bare distribution (an empty tuple when the rate
-                    # carries neither, so nothing is drawn and the product stays 1.0). One cache per
-                    # daughter, so a modifier written on both rates draws once for that daughter;
-                    # the birth pass still runs before the death pass, which keeps the draw order
-                    # of a run that shares nothing exactly as it was.
-                    d1: dict[int, float] = {}
-                    d2: dict[int, float] = {}
-                    inh_b.extend((values_at_split(birth_drift, parent_b, rng, d1),
-                                  values_at_split(birth_drift, parent_b, rng, d2)))
-                    inh_d.extend((values_at_split(death_drift, parent_d, rng, d1),
-                                  values_at_split(death_drift, parent_d, rng, d2)))
-                    record(c1, inh_b[-2], inh_d[-2], t, len(alive))
-                    record(c2, inh_b[-1], inh_d[-1], t, len(alive))
+                    if birth_drift or death_drift:
+                        # each daughter takes its own factors — the parent's nudged under a Drift
+                        # law, a fresh independent draw under a bare distribution. One cache per
+                        # daughter, so a modifier written on both rates draws once for that
+                        # daughter; the birth pass still runs before the death pass, which keeps
+                        # the draw order of a run that shares nothing exactly as it was.
+                        d1: dict[int, float] = {}
+                        d2: dict[int, float] = {}
+                        inh_b.extend((values_at_split(birth_drift, parent_b, rng, d1),
+                                      values_at_split(birth_drift, parent_b, rng, d2)))
+                        inh_d.extend((values_at_split(death_drift, parent_d, rng, d1),
+                                      values_at_split(death_drift, parent_d, rng, d2)))
+                        record(c1, inh_b[-2], inh_d[-2], t, len(alive))
+                        record(c2, inh_b[-1], inh_d[-1], t, len(alive))
+                    else:
+                        # neither rate varies among lineages: nothing is drawn, both factor
+                        # products are math.prod(()) == 1, and asking values_at_split and record
+                        # to find that out was paid at every split of every plain run.
+                        inh_b.extend(((), ()))
+                        inh_d.extend(((), ()))
+                        own[c1] = own[c2] = (1, 1, t, len(alive))
                     events.append(Event(t, "speciation", node, (c1, c2)))
                 else:
                     nodes[node].end_time = t
