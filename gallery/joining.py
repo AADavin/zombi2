@@ -326,16 +326,78 @@ def _kr_poor():
     return reversible(S, pi / pi.sum(), name="KR-poor LG", alphabet=AMINO_ACIDS)
 
 
-def _kr_by_node(result, fam):
-    """``{node label: the share of that copy's sequence that is K or R}``, over every node of one
+def _kr_by_node(result, fam, letters="KR"):
+    """``{node label: the share of that copy's sequence that is ``letters``}``, over every node of one
     family's gene tree, pooled onto the species lineage each copy sits on."""
     hits, total = collections.Counter(), collections.Counter()
     for table in (result.alignments[fam], result.ancestral[fam]):
         for label, seq in table.items():
             node = label.split("_", 1)[0]
-            hits[node] += sum(seq.count(c) for c in "KR")
+            hits[node] += sum(seq.count(c) for c in letters)
             total[node] += len(seq)
     return {node: hits[node] / total[node] for node in total}
+
+
+def genome_and_sequence(out):
+    """A GENOME and a gene's SEQUENCE, each driving the other — the last cell of the map.
+
+    `hisA` arrives AT-rich, as a horizontally acquired gene does, and ameliorates toward the
+    composition its host's model settles on. While it is still AT-rich its lineage loses genes fast.
+    So how far one gene has got decides how much of the whole genome survives, and the genome decides
+    which copies of that gene exist to be counted.
+
+    Neither can be simulated first. To evolve the sequences you need to know which copies exist and
+    when. To know which copies exist you need the loss rate, which reads the sequences.
+
+    The tree is the only thing handed to the run. The gene trees are not: they come out of the genome
+    participant, which is what makes this different from every conditioned run at this level.
+
+    Two panels of the same tree. Above, how far `hisA` has ameliorated. Below, how many genes each
+    lineage has left. The pale clades are the ameliorated ones, and they are the full genomes.
+    """
+    from zombi2.genomes import genome as genomes_spec_
+    from zombi2.sequences import composition as offers_composition
+    from zombi2.sequences import gene as gene_spec
+    from zombi2.sequences import hky85
+
+    ct = simulate_species_tree(birth=1.0, n_extant=30, seed=1).complete_tree
+    at_rich = hky85(2.0, frequencies=(0.40, 0.10, 0.10, 0.40))
+    r = joint.simulate(
+        genomes_spec_(duplication=0.15, origination=0.05, initial_families=25,
+                      loss=PerCopy(0.15).scaled_by(
+                          "sequences:hisA", Curve(lambda gc: 30.0 ** ((0.35 - gc) / 0.2)),
+                          step=0.05),
+                      families=[family("hisA")]),
+        gene_spec(name="hisA", model=hky85(2.0), length=250, start=at_rich, substitution=0.8,
+                  offers=offers_composition("GC", absent=0.35)),
+        tree=ct, seed=3)
+
+    lab = ct.labels()
+    fam = r.genome.family_names["hisA"]
+    gc = _kr_by_node(r.sequences, fam, letters="GC")
+    span = (min(gc.values()), max(gc.values()))
+    sizes = {lab[n]: len(r.genome.genomes[lab[n]]) for n in sorted(ct.extant_leaves())}
+    # a lineage that carries no copy of hisA keeps the default colour, so the grey branches are
+    # exactly the ones `absent=` had to answer for
+    style = _panel_style()
+    style = ph.Style(width=style.width, height=style.height, margin=style.margin,
+                     branch_width=style.branch_width, branch_color="#c3c8cc")
+    fig = (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
+           + ph.trees.color_branches(gc, cmap="magma_dark", limits=span)
+           + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False))
+    png = out.replace(".png", "_panel.png")
+    ph.beside(fig, ph.genomes.bars(sizes, label="genes left", tick_size=20, label_size=26),
+              width=1150, tree_fraction=0.58, footer=36).save(png)
+    diag = h.joint_png(out.replace(".png", "_diag.png"),
+                       left=("genomes", "the genome", "which genes are left"),
+                       right=("sequences", "hisA", "how much of it is G or C"),
+                       forward="the genome says which copies of hisA exist",
+                       back="while hisA is AT-rich, genes go 30x faster")
+    h.composite_under_diagram(
+        out, diag,
+        [(png, "hisA, and what each tip has left  (grey: no copy, so the driver reads absent=0.35)",
+          ("magma_dark", "AT-rich", "at the model's own"))],
+        diagram_frac=0.72)
 
 
 def sequence_loop(out):
@@ -1458,7 +1520,34 @@ r.trait          # the habitat, an ordinary TraitsResult
 r.sequences      # the gene, an ordinary SequencesResult holding the one family"""
 
 
+_C_GENOME_SEQ = """### a GENOME and a gene's SEQUENCE, each driving the other — the last cell of the map
+from zombi2 import joint
+from zombi2.genomes import family, genome
+from zombi2.params import Curve, PerCopy
+from zombi2.sequences import composition, gene, hky85
+
+# BOTH levels are participants, so both come out. The tree is the one thing handed
+# over — the gene trees are not, because the genome participant produces them.
+r = joint.simulate(
+    genome(duplication=0.15, origination=0.05, initial_families=25,
+           families=[family("hisA")],
+           loss=PerCopy(0.15).scaled_by("sequences:hisA",
+                                        Curve(lambda gc: 30.0 ** ((0.35 - gc) / 0.2)),
+                                        step=0.05)),
+    gene(name="hisA", model=hky85(2.0), length=250, start=at_rich, substitution=0.8,
+         offers=composition("GC", absent=0.35)),
+    tree=ct, seed=3)
+
+r.genome        # the gene content, an ordinary FamilyGenomesResult
+r.sequences     # hisA's alignment, along the gene tree this run produced"""
+
+
 JOINING = [
+    Example("genome_and_sequence", "A genome and a gene's sequence",
+            "The last cell of the map. <code>hisA</code> arrives AT-rich and ameliorates; while it "
+            "is AT-rich its lineage loses genes fast. So how far one gene has got decides how much "
+            "of the whole genome survives — and the genome decides which copies of it exist.",
+            "gene content \u2194 sequence", genome_and_sequence, code=_C_GENOME_SEQ),
     Example("trait_and_sequence", "A trait and a gene's sequence",
             "The two ends of the map, joined. <code>rpoB</code> arrives KR-poor and ameliorates; "
             "the richer it gets the readier its lineage turns hot, and a hot lineage substitutes "
