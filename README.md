@@ -128,12 +128,16 @@ zombi2 joint out/ --birth "PerLineage(1.0).scaled_by('trait', {'small': 1.0, 'la
 
 ## Performance
 
-A species tree of a million leaves takes a few seconds. On the same gene-family task, ZOMBI2 runs
-about **183× faster than the legacy ZOMBI v1** — both pure Python.
+A species tree of a million leaves takes about six seconds. On the same gene-family task, ZOMBI2
+runs about **210× faster than the legacy ZOMBI v1** — both pure Python.
 
 <p align="center">
-  <img alt="ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at the family, ordered and nucleotide resolutions; (c) ZOMBI2 about 183 times faster than the legacy ZOMBI v1 on one shared 1,000-tip tree" src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/performance-overview.svg" width="840">
+  <img alt="ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at the family, ordered and nucleotide resolutions; (c) ZOMBI2 about 210 times faster than the legacy ZOMBI v1 on one shared 1,000-tip tree" src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/performance-overview.svg" width="840">
 </p>
+
+The numbers behind the figure are in [`assets/performance/`](assets/performance/), one JSON per
+benchmark with the raw times and their provenance; the full read is the docs site's
+[Performance page](https://aadavin.github.io/zombi2/performance/).
 
 ## Gallery
 
