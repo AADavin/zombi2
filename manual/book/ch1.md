@@ -47,7 +47,7 @@ How often an event occurs is controlled by its **effective rate**:
 
 $$\text{effective rate} = \text{scope}(\text{base}) \times \text{modifiers}$$
 
-The **base** is the expected number of events per unit time, for one unit of whatever the scope counts. The **scope** names that unit — a lineage, a gene copy, a site — and so decides how many independent chances run at once: a loss rate of 0.25 counted per copy, in a genome of forty copies, is a total loss rate of 40 × 0.25 = 10 per unit time; counted per lineage, it stays 0.25 however large the genome grows. The **modifiers** are the dimensionless multipliers a rate picks up from its context. Appendix A is the full reference: the units, each level's default scope, every modifier and which levels accept it, and what the engine does with a rate once it has one.
+The **base** is the expected number of events per unit time, for one unit of whatever the scope counts. The **scope** names that unit — a lineage, a gene copy, a site — and so decides how many independent chances run at once: a loss rate of 0.25 counted per copy, in a genome of forty copies, is a total loss rate of 40 × 0.25 = 10 per unit time; counted per lineage, it stays 0.25 however large the genome grows. The **modifiers** are the dimensionless multipliers a rate picks up from its context; they are written as **verbs** chained onto the rate — `.changing_at(…)`, `.scaled_by(…)` — and that is what this book calls them. Appendix A is the full reference: the units, each level's default scope, every modifier and which levels accept it, and what the engine does with a rate once it has one.
 
 ## Conditioning
 
