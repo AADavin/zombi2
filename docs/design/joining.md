@@ -30,7 +30,7 @@ This wording replaces the older one in several places. See §13.
 | Species – Genomes | yes | yes, family resolution |
 | Genomes – Traits | yes | yes |
 | Traits – Sequences | yes | yes |
-| Genomes – Sequences | yes | no, out of scope here |
+| Genomes – Sequences | yes | yes, family resolution |
 | Species – Sequences | no | — |
 | a level with itself | yes | yes |
 
@@ -349,8 +349,10 @@ These are real and not being built here.
 - Position at the ordered resolution driving a rate.
 - Three-way joins.
 - Contact maps between two proteins, which need an event-driven engine and interleaved indels.
-- Genomes joined with Sequences, which needs every live gene copy to carry a sequence inside the
-  genome race.
+- ~~Genomes joined with Sequences~~ — built, at the family resolution, in
+  [`genomes-sequences.md`](genomes-sequences.md). It does need every live gene copy to carry a
+  sequence inside the genome race, and the answer was to let only the **declared** families carry
+  one.
 - Gene content driving speciation at the ordered and nucleotide resolutions. The family resolution is
   enough.
 

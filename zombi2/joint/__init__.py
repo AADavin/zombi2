@@ -456,6 +456,121 @@ def _on_a_given_tree(kinds, *, tree, seed) -> JointResult:
                                    g.genome_initial, genome.max_family_size))
 
 
+def _genomes_and_sequences(kinds, *, tree, genomes, seed, record=False) -> JointResult:
+    """A genome and a gene's sequence, each driving the other — the last cell of the map.
+
+    Both levels are participants, so both come out of the run. The **tree** is the one thing handed
+    over, which is the rule every joint model follows: give what you are not simulating. The gene
+    trees are not handed over either — the genome participant produces them.
+
+    See ``docs/design/genomes-sequences.md`` for why this is the family resolution only, and for what
+    a genome event does to a sequence."""
+    from .._runtime.slicing import check_step, step_of
+    from ..genomes import FamilyGenomesResult
+    from ..genomes.gene_trees import gene_trees_from_edges
+    from ..params.parameter import as_rate
+    from ..params.scope import PerCopy
+    from ..sequences import GeneSpec, SequencesResult, _gene_newick, _split
+    from ..sequences._loop import scaled_tree
+    from ..sequences._record import recorder_for
+    from ..sequences.substitution_models import SubstitutionModel, decode
+    from ..tree import as_tree
+    from . import _genomes_sequences
+
+    if genomes is not None:
+        raise ValueError(
+            "genomes= hands over a FINISHED genome run, and here the genome is one of the things "
+            "being simulated. Pass the tree instead: joint.simulate(genomes.genome(...), "
+            "sequences.gene(...), tree=ct).")
+    if len(kinds["genomes"]) != 1 or len(kinds["sequences"]) != 1:
+        raise NotImplementedError(
+            f"this pair is built for one genome and one gene; got {len(kinds['genomes'])} genome(s) "
+            f"and {len(kinds['sequences'])} gene(s).")
+    if tree is None:
+        raise ValueError(
+            "neither participant simulates the species tree, so this run needs one: pass tree=. "
+            "Give what you are not simulating.")
+    tree = as_tree(tree, level="joint")
+    genome, spec = kinds["genomes"][0], kinds["sequences"][0]
+    if not isinstance(spec, GeneSpec):
+        raise TypeError(f"the sequence participant is sequences.gene(...), got {spec!r}.")
+    if not isinstance(spec.model, SubstitutionModel):
+        raise TypeError(f"gene {spec.name!r} needs one substitution model — model=jc69() — and got "
+                        f"{spec.model!r}.")
+    if spec.offers is None:
+        raise ValueError(
+            f"the genome reads this gene, so the gene has to say what it publishes: "
+            f"offers=sequences.composition('GC', absent=0.5) on sequences.gene({spec.name!r}, ...).")
+    stray = sorted(set(spec.offers.letters) - set(spec.model.alphabet))
+    if stray:
+        raise ValueError(
+            f"gene {spec.name!r} offers composition({spec.offers.letters!r}), which names {stray} — "
+            f"not in this model's alphabet ({spec.model.alphabet}).")
+    if spec.name not in genome.family_names:
+        raise ValueError(
+            f"gene {spec.name!r} names no family this genome spec declared. Declare it there — "
+            f"genomes.genome(..., families=[family({spec.name!r})]).")
+
+    gene_name = f"sequences:{spec.name}"
+    connections, lookup = [], set()
+    for label, rate in (("duplication", genome.duplication), ("loss", genome.loss),
+                        ("transfer", genome.transfer), ("origination", genome.origination)):
+        for m in as_rate(rate, default_scope=PerCopy).modifiers:
+            if not isinstance(m, Driven):
+                continue
+            if m.driver != gene_name:
+                raise ValueError(
+                    f"{label} reads {m.driver!r}. Here a genome rate reads the gene in this same "
+                    f'run: scaled_by("{gene_name}", Curve(f), step=0.05).')
+            connections.append(m)
+            lookup.add(m.key)
+    if not connections:
+        raise ValueError(
+            "neither level reads the other, so this is two independent runs wearing one call. Give "
+            f'a genome rate a scaled_by("{gene_name}", ...), or run the two levels in order — '
+            "a genome run, then simulate_sequences over it.")
+    tallest = max(n.end_time for n in tree.nodes.values())
+    step = check_step(step_of(connections, what="the genome's rates",
+                              how=f'scaled_by("{gene_name}", Curve(f), step=0.05)'), tallest)
+
+    rng, seed = stream("joint", seed)
+    events, recorder = recorder_for(record, tree.labels())
+    g = _genomes_sequences.grow(rng, tree, genome, spec, tuple(lookup), step, record=recorder)
+    events.sort(key=lambda e: e.time)
+
+    labels = tree.labels()
+    fam = g.genome_names[spec.name]
+    trees = gene_trees_from_edges(g.genome_events, tree)
+    by_copy, founding_states, length_by_copy = g.sequences[spec.name]
+    gt = trees[fam]
+    states = {id(n): by_copy[n.copy] for n in _walk_nodes(gt.complete)}
+    lengths = {id(n): length_by_copy[n.copy] for n in _walk_nodes(gt.complete)}
+    aln, anc = _split(gt, states, labels, spec.model)
+    scaled = scaled_tree(gt, lengths)
+    ext = scaled.extant
+    seqs = SequencesResult(
+        {fam: aln}, {fam: anc}, {fam: decode(founding_states, spec.model.alphabet)},
+        {fam: {"complete": _gene_newick(scaled.complete, labels),
+               "extant": _gene_newick(ext, labels) if ext is not None else None}},
+        {"complete": None, "extant": None}, seed, {}, {}, "family", spec.model.alphabet,
+        tuple(labels[i] for i in sorted(tree.extant_leaves())), (spec.name,), events)
+    return JointResult(
+        SpeciesResult(tree, [], seed, []), seed,
+        genome=FamilyGenomesResult(tree, g.genomes, g.genome_events, seed, g.genome_names, {},
+                                   g.genome_initial, genome.max_family_size),
+        sequences=seqs)
+
+
+def _walk_nodes(root):
+    """Every node of a gene tree, in any order."""
+    stack, out = [root], []
+    while stack:
+        n = stack.pop()
+        out.append(n)
+        stack.extend(n.children)
+    return out
+
+
 def _traits_and_sequences(kinds, *, tree, genomes, seed, record=False) -> JointResult:
     """A trait and a gene's sequence, each driving the other — the cross-level join whose two ends
     are the furthest apart (design note §7).
@@ -476,6 +591,8 @@ def _traits_and_sequences(kinds, *, tree, genomes, seed, record=False) -> JointR
     from . import _traits_sequences
 
     n_traits, n_genes = len(kinds["traits"]), len(kinds["sequences"])
+    if kinds["genomes"] and not kinds["species"] and not kinds["traits"]:
+        return _genomes_and_sequences(kinds, tree=tree, genomes=genomes, seed=seed, record=record)
     if kinds["species"] or kinds["genomes"]:
         raise ValueError(
             "a trait and a sequence drive each other on a tree the run is handed, so the species "
