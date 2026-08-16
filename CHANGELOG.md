@@ -15,6 +15,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   both rates at every node, on every run, whether or not anyone asked for `lineage_rates`; the loop
   keeps the four numbers the answer is made of and the accessor does the arithmetic. Measured
   back to back on one machine: 1.44x at 100,000 tips, 1.71x at 10,000. (#384)
+- Growing a species tree with plain rates is 1.6x faster again, and faster than 0.18.0 for the
+  first time since the rate grammar. From 0.32.0 on, every split paid for the machinery of rates
+  that vary among lineages even when neither rate varied — the residual slowdown against 0.18.0 —
+  and every step re-asked both rates for a total the context cannot move. A plain run now resolves
+  both once, before the loop; the trees are identical, seed for seed. Alternating the two builds on
+  one machine at 100,000 tips: 0.96 s to 0.58 s, against 0.78 s on 0.18.0. (#385)
 
 
 ## [0.42.1] - 2026-08-16
