@@ -2492,23 +2492,23 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     for label, spec, want in _scoped:
         if isinstance(spec, (int, float)) and not isinstance(spec, bool) and spec < 0:
             raise ValueError(f"{label} must be >= 0, got {spec}")
-        r = as_rate(spec, default_scope=want)
-        # `r.scope` holds the scope CLASS, not an instance — a scope constructor returns the rate
+        rate = as_rate(spec, default_scope=want)
+        # `rate.scope` holds the scope CLASS, not an instance — a scope constructor returns the rate
         # itself — so this is an identity test rather than an isinstance one.
-        assert r.scope is not None               # as_rate fills the level's default where none was written
-        if r.scope is not want:
+        assert rate.scope is not None            # as_rate fills the level's default where none was written
+        if rate.scope is not want:
             raise ValueError(
-                f"{label} has a {r.scope.__name__} scope, but the nucleotide engine reads {label} "
+                f"{label} has a {rate.scope.__name__} scope, but the nucleotide engine reads {label} "
                 f"as {want.__name__} and cannot read it any other way. Write {want.__name__}(...), "
                 f"or drop the scope and let the level fill in its own.")
-        for m in r.modifiers:
+        for m in rate.modifiers:
             if isinstance(m, Driven):
                 check_not_a_kernel(m.mapping, label=label)
             if not is_implemented(m, IMPLEMENTED_MODIFIERS, "genomes.nucleotide"):
                 raise ValueError(
                     f"{label} carries {describe(m)}, which the nucleotide genome engine does not "
                     f"support. It takes {', '.join(cell_name(w) for w in IMPLEMENTED_MODIFIERS)}.")
-        _rates[label] = r
+        _rates[label] = rate
     def _as_bp_extent(spec, label, any_base=False):
         """An extent in base pairs (SPEC §6): ``base × modifiers``, no scope. A bare number *is* the
         mean, so ``500`` reads the same here as anywhere else.
@@ -2720,64 +2720,100 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
     total_length = sum(c.length for c in initial_chroms)
     total_chromosomes = len(initial_chroms)
 
+    # thirteen bare numbers on their stated scopes — no modifier on any rate, none on any extent —
+    # is the common run, and it needs none of the loop's context machinery: each total is
+    # scope(base) exactly, resolved here once. A rate whose base is None carries a set_by, which is
+    # a modifier, so `plain` is False and its 0.0 is never read.
+    plain = (not any(r.modifiers for r in _rates.values())
+             and not any(e.has_modifiers for e in _extents.values()))
+    _b = {label: (rate.base or 0.0) for label, rate in _rates.items()}
+    inv_b, trl_b, trp_b = _b["inversion"], _b["translocation"], _b["transposition"]
+    los_b, del_b, ins_b = _b["loss"], _b["deletion"], _b["insertion"]
+    dup_b, tra_b, org_b = _b["duplication"], _b["transfer"], _b["origination"]
+    fis_b, fus_b = _b["fission"], _b["fusion"]
+    cor_b, clo_b = _b["chromosome_origination"], _b["chromosome_loss"]
+    no_weights: dict = {}    # what `w` is when nothing is driven: read by .get, never written
+
     bar = progress_bar(len(schedule), "genomes", unit="branch", enabled=progress)
     si = 0
     while si < len(schedule):
         bar.to(si)
         length, count, nlin = total_length, total_chromosomes, len(alive)
         can_xfer = nlin >= 2 or self_transfer
-        # Each rate carries its own scope, so the count it is "per" comes from the context rather than
-        # from a multiplication written here. The gene events are PER LINEAGE: the rate says how often
-        # a lineage does the event and the extent says how much DNA it touches, so a bigger genome does
-        # NOT get more events (that would double-count size and explode).
-        ctx = {"copies": 0, "lineages": nlin, "chromosomes": count, "time": t}
-        # A driven rate differs from lineage to lineage, so it is summed **over the living lineages**,
-        # each read with its own driver value and its own chromosome count — and the weights are kept,
-        # because the affected lineage must then be drawn with them too. An undriven rate stays pooled
-        # (one .effective, uniform pick), so a run with no driver is byte-identical to before.
-        w: dict[str, list[float]] = {}
-        if any_driven:
-            drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(nlin)]
-            for label, rate in _rates.items():
-                if driven[label]:
-                    w[label] = [rate.effective(copies=0, lineages=1,
-                                               chromosomes=len(gen[k].chromosomes), time=t,
-                                               drivers=drivers[k]) for k in range(nlin)]
+        next_species = schedule[si][0]
+        if plain:
+            # no modifier on any rate or extent: each total is scope(base) exactly — a gene event
+            # per living lineage, a chromosome event per standing chromosome — none of them ever
+            # changes on its own (next_change is inf), and nothing below reads a context or a
+            # weight.
+            w = no_weights
+            r_inv = inv_b * nlin
+            r_trl = trl_b * nlin
+            r_trp = trp_b * nlin
+            r_los = los_b * nlin
+            r_del = del_b * nlin
+            r_ins = ins_b * nlin
+            r_dup = dup_b * nlin
+            r_tra = tra_b * nlin if can_xfer else 0.0
+            r_org = org_b * nlin
+            r_fis = fis_b * count
+            r_fus = fus_b * count
+            r_cor = cor_b * nlin
+            r_clo = clo_b * count
+            horizon = next_species
+        else:
+            # Each rate carries its own scope, so the count it is "per" comes from the context rather
+            # than from a multiplication written here. The gene events are PER LINEAGE: the rate says
+            # how often a lineage does the event and the extent says how much DNA it touches, so a
+            # bigger genome does NOT get more events (that would double-count size and explode).
+            ctx = {"copies": 0, "lineages": nlin, "chromosomes": count, "time": t}
+            # A driven rate differs from lineage to lineage, so it is summed **over the living
+            # lineages**, each read with its own driver value and its own chromosome count — and the
+            # weights are kept, because the affected lineage must then be drawn with them too. An
+            # undriven rate stays pooled (one .effective, uniform pick), so a run with no driver is
+            # byte-identical to before.
+            w = {}
+            if any_driven:
+                drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(nlin)]
+                for label, rate in _rates.items():
+                    if driven[label]:
+                        w[label] = [rate.effective(copies=0, lineages=1,
+                                                   chromosomes=len(gen[k].chromosomes), time=t,
+                                                   drivers=drivers[k]) for k in range(nlin)]
 
-        def _r(label, pooled, live=True):
-            """The total for one event class: summed per-lineage when driven, pooled when not."""
-            if not live:
-                return 0.0
-            return sum(w[label]) if label in w else pooled
+            def _r(label, pooled, live=True):
+                """The total for one event class: summed per-lineage when driven, pooled when not."""
+                if not live:
+                    return 0.0
+                return sum(w[label]) if label in w else pooled
 
-        r_inv = _r("inversion", rates.inversion.effective(**ctx))
-        r_trl = _r("translocation", rates.translocation.effective(**ctx))
-        r_trp = _r("transposition", rates.transposition.effective(**ctx))
-        r_los = _r("loss", rates.loss.effective(**ctx))
-        r_del = _r("deletion", rates.deletion.effective(**ctx))
-        r_ins = _r("insertion", rates.insertion.effective(**ctx))
-        r_dup = _r("duplication", rates.duplication.effective(**ctx))
-        r_tra = _r("transfer", rates.transfer.effective(**ctx), live=can_xfer)
-        r_org = _r("origination", rates.origination.effective(**ctx))
-        r_fis = _r("fission", rates.fission.effective(**ctx))
-        r_fus = _r("fusion", rates.fusion.effective(**ctx))
-        r_cor = _r("chromosome_origination", rates.chromosome_origination.effective(**ctx))
-        r_clo = _r("chromosome_loss", rates.chromosome_loss.effective(**ctx))
+            r_inv = _r("inversion", rates.inversion.effective(**ctx))
+            r_trl = _r("translocation", rates.translocation.effective(**ctx))
+            r_trp = _r("transposition", rates.transposition.effective(**ctx))
+            r_los = _r("loss", rates.loss.effective(**ctx))
+            r_del = _r("deletion", rates.deletion.effective(**ctx))
+            r_ins = _r("insertion", rates.insertion.effective(**ctx))
+            r_dup = _r("duplication", rates.duplication.effective(**ctx))
+            r_tra = _r("transfer", rates.transfer.effective(**ctx), live=can_xfer)
+            r_org = _r("origination", rates.origination.effective(**ctx))
+            r_fis = _r("fission", rates.fission.effective(**ctx))
+            r_fus = _r("fusion", rates.fusion.effective(**ctx))
+            r_cor = _r("chromosome_origination", rates.chromosome_origination.effective(**ctx))
+            r_clo = _r("chromosome_loss", rates.chromosome_loss.effective(**ctx))
+            # a skyline steps at a known time, so the race runs only to the next of those or the next
+            # species event — whichever comes first — and the rates are re-read on the other side.
+            horizon = min(next_species, rates.inversion.next_change(t), rates.translocation.next_change(t),
+                          rates.transposition.next_change(t), rates.loss.next_change(t),
+                          rates.deletion.next_change(t), rates.insertion.next_change(t),
+                          rates.duplication.next_change(t), rates.transfer.next_change(t),
+                          rates.origination.next_change(t), rates.fission.next_change(t),
+                          rates.fusion.next_change(t), rates.chromosome_origination.next_change(t),
+                          rates.chromosome_loss.next_change(t))
+            if any_driven:  # a driven rate also changes when its driver switches mid-branch — step there
+                horizon = min(horizon, min((trajs[key].next_change(alive[k], t) for key in trajs
+                                            for k in range(nlin)), default=math.inf))
         total = (r_inv + r_trl + r_trp + r_los + r_del + r_ins + r_dup + r_tra + r_org + r_fis
                  + r_fus + r_cor + r_clo)
-        next_species = schedule[si][0]
-        # a skyline steps at a known time, so the race runs only to the next of those or the next
-        # species event — whichever comes first — and the rates are re-read on the other side.
-        horizon = min(next_species, rates.inversion.next_change(t), rates.translocation.next_change(t),
-                      rates.transposition.next_change(t), rates.loss.next_change(t),
-                      rates.deletion.next_change(t), rates.insertion.next_change(t),
-                      rates.duplication.next_change(t), rates.transfer.next_change(t),
-                      rates.origination.next_change(t), rates.fission.next_change(t),
-                      rates.fusion.next_change(t), rates.chromosome_origination.next_change(t),
-                      rates.chromosome_loss.next_change(t))
-        if any_driven:  # a driven rate also changes when its driver switches mid-branch — step there
-            horizon = min(horizon, min((trajs[key].next_change(alive[k], t) for key in trajs
-                                        for k in range(nlin)), default=math.inf))
 
         def _ext(label, k):
             """An extent's mean in bp for this event: the base mean, scaled by its modifiers read on

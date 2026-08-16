@@ -21,6 +21,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   and every step re-asked both rates for a total the context cannot move. A plain run now resolves
   both once, before the loop; the trees are identical, seed for seed. Alternating the two builds on
   one machine at 100,000 tips: 0.96 s to 0.58 s, against 0.78 s on 0.18.0. (#385)
+- The three genome engines take the same shortcut: a run whose rates and extents carry no modifier
+  resolves each total once, before the loop, instead of re-asking every rate at every event for a
+  number the context cannot move. Identical runs, seed for seed; alternating the two builds on one
+  machine: family 1.2x, ordered 1.3x, nucleotide 1.3x faster. (#386)
 
 
 ## [0.42.1] - 2026-08-16

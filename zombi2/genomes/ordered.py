@@ -1546,119 +1546,157 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     total_copies = initial_families + len(family_names) - len(named_plants)
     total_chromosomes = n_initial_chrom
 
+    # eleven bare numbers on their default scopes — no modifier on any rate, none on any extent,
+    # no per-lineage budget — is the common run, and it needs none of the loop's context machinery:
+    # each total is scope(base) exactly, resolved here once. A rate whose base is None carries a
+    # set_by, which is a modifier, so `plain` is False and its 0.0 is never read.
+    plain = (not any(r.modifiers for r in _rates.values()) and not any_per_lineage
+             and not any(e.has_modifiers for e in (dup_ext, los_ext, tra_ext, inv_ext, trp_ext,
+                                                   trl_ext)))
+    dup_base, los_base, tra_base = dup.base or 0.0, los.base or 0.0, tra.base or 0.0
+    org_base, inv_base, trp_base = org.base or 0.0, inv.base or 0.0, trp.base or 0.0
+    trl_base, fis_base, fus_base = trl.base or 0.0, fis.base or 0.0, fus.base or 0.0
+    cor_base, clo_base = cor.base or 0.0, clo.base or 0.0
+    no_weights: dict = {}    # what `w` is when nothing is driven: read by .get, never written
+    if plain:
+        def _ext_ctx(k):
+            # nothing in this run carries a modifier (`plain` pinned every extent to
+            # has_modifiers=False), so an extent's sample() reads none of this: an empty context
+            # is the same multiplication by 1.0, without rebuilding the loop's context per event.
+            return {}
+
     bar = progress_bar(len(schedule), "genomes", unit="branch", enabled=progress)
     si = 0
     while si < len(schedule):
         bar.to(si)
         n = total_copies
         k_alive = len(alive)
-        ctx = {"copies": n, "lineages": k_alive, "chromosomes": total_chromosomes, "time": t}
         c = total_chromosomes
-        # A gene-level event counted PER LINEAGE is counted per lineage that HOLDS a gene: an empty
-        # genome offers nothing to act on, so it must not take a share of the total and then be
-        # picked with no victim inside it. Built only when some rate needs it, so the per-copy path
-        # does exactly the work it did before.
-        if any_per_lineage:
-            gene_hosts = [k for k in range(k_alive) if _genome_size(gen[k])]
-            gene_ctx = {**ctx, "lineages": len(gene_hosts)}
-        else:
-            gene_hosts, gene_ctx = None, ctx
         can_xfer = n > 0 and (k_alive >= 2 or self_transfer)
-        # A driven rate differs from lineage to lineage, so it is summed **over the living lineages**,
-        # each read with its own driver value, its own gene count and its own chromosome count — and
-        # the weights are kept, because the affected lineage must then be drawn with them too. The
-        # gene count sits inside the weight, which is what makes a driven per-copy rate a two-stage
-        # pick (a lineage, then a gene in it) rather than the one-stage lineage draw a per-lineage
-        # rate takes. A per-family draw and a Driven cannot both be set, so `w` and `fw` never
-        # coexist.
-        w: dict[str, list[float]] = {}
-        if any_driven:
-            drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(k_alive)]
-            for label, rate in _rates.items():
-                if driven[label]:
-                    w[label] = [rate.effective(copies=_genome_size(gen[k]), lineages=1,
-                                               chromosomes=len(gen[k]), time=t, drivers=drivers[k])
-                                for k in range(k_alive)]
-
-        def _r(label, pooled, live=True):
-            """The total for one event class: summed per-lineage when driven, pooled when not."""
-            if not live:
-                return 0.0
-            return sum(w[label]) if label in w else pooled
-
-        # A per-copy rate pools over genes, so with per-family weights the total is the unit rate
-        # times those weights summed over the live genes — and the run must then be drawn with the
-        # same weights, or the rate would say one thing and the picking another. Summed per lineage,
-        # so the lineage pick can reuse them. On a circular chromosome ``Σ_s mean_w(s, m)`` is exactly
-        # this sum for every run size, which is why no per-size term appears here (SPEC §6).
-        fw = None
-        if any_family:
-            fw = {key: [sum(mult[g.family] for chrom in gen[k] for g in chrom.genes)
-                        for k in range(k_alive)]
-                  for key, mult in fam_mult.items()}
-            one = {"copies": 1, "lineages": 1, "chromosomes": 1, "time": t}
-            r_dup = dup.effective(**one) * sum(fw["duplication"]) if n else 0.0
-            r_los = los.effective(**one) * sum(fw["loss"]) if n else 0.0
-            r_tra = tra.effective(**one) * sum(fw["transfer"]) if can_xfer else 0.0
-            r_inv = inv.effective(**one) * sum(fw["inversion"]) if n else 0.0
-            r_trp = trp.effective(**one) * sum(fw["transposition"]) if n else 0.0
-            r_trl = trl.effective(**one) * sum(fw["translocation"]) if n else 0.0
-        else:
-            # each gene-level rate is read in the context its own scope asks for: `gene_ctx` counts
-            # only the occupied genomes, which is what a per-lineage budget is counted over
-            def _gc(label):
-                return gene_ctx if per_lineage[label] else ctx
-
-            r_dup = _r("duplication", dup.effective(**_gc("duplication")) if n else 0.0, live=bool(n))
-            r_los = _r("loss", los.effective(**_gc("loss")) if n else 0.0, live=bool(n))
-            r_tra = _r("transfer", tra.effective(**_gc("transfer")) if can_xfer else 0.0,
-                       live=can_xfer)
-            r_inv = _r("inversion", inv.effective(**_gc("inversion")) if n else 0.0, live=bool(n))
-            r_trp = _r("transposition", trp.effective(**_gc("transposition")) if n else 0.0,
-                       live=bool(n))
-            r_trl = _r("translocation", trl.effective(**_gc("translocation")) if n else 0.0,
-                       live=bool(n))
-        r_org = _r("origination", org.effective(**ctx))                 # per lineage
-        r_fis = _r("fission", fis.effective(**ctx) if c else 0.0, live=bool(c))  # per chromosome
-        r_fus = _r("fusion", fus.effective(**ctx) if c else 0.0, live=bool(c))
-        r_cor = _r("chromosome_origination", cor.effective(**ctx))      # per lineage (de-novo replicon)
-        r_clo = _r("chromosome_loss", clo.effective(**ctx) if c else 0.0, live=bool(c))
-        total = (r_dup + r_los + r_org + r_tra + r_inv + r_trp + r_trl
-                 + r_fis + r_fus + r_cor + r_clo)
-
         next_species = schedule[si][0]
         # a family placed by `origins=` originates at a fixed instant, so it joins the horizon like
         # any other breakpoint: the waiting time can never step over it
         next_plant = plants[plant_i][0] if plant_i < len(plants) else math.inf
-        horizon = min(next_species, next_plant,
-                      dup.next_change(t), los.next_change(t), org.next_change(t),
-                      tra.next_change(t), inv.next_change(t), trp.next_change(t), trl.next_change(t),
-                      fis.next_change(t), fus.next_change(t), cor.next_change(t), clo.next_change(t))
-        if any_driven:  # a driven rate also changes when its driver switches mid-branch — step there
-            horizon = min(horizon, min((trajs[key].next_change(alive[k], t) for key in trajs
-                                        for k in range(k_alive)), default=math.inf))
+        if plain:
+            # no modifier on any rate or extent: each total is scope(base) exactly — a gene rate
+            # times the live genes, a chromosome rate times the standing chromosomes, the two
+            # originations per living lineage — none of them ever changes on its own (next_change
+            # is inf), and nothing below reads a context or a weight.
+            w = no_weights
+            fw = None
+            r_dup = dup_base * n
+            r_los = los_base * n
+            r_tra = tra_base * n if can_xfer else 0.0
+            r_inv = inv_base * n
+            r_trp = trp_base * n
+            r_trl = trl_base * n
+            r_org = org_base * k_alive
+            r_fis = fis_base * c
+            r_fus = fus_base * c
+            r_cor = cor_base * k_alive
+            r_clo = clo_base * c
+            horizon = min(next_species, next_plant)
+        else:
+            ctx = {"copies": n, "lineages": k_alive, "chromosomes": total_chromosomes, "time": t}
+            # A gene-level event counted PER LINEAGE is counted per lineage that HOLDS a gene: an
+            # empty genome offers nothing to act on, so it must not take a share of the total and
+            # then be picked with no victim inside it. Built only when some rate needs it, so the
+            # per-copy path does exactly the work it did before.
+            if any_per_lineage:
+                gene_hosts = [k for k in range(k_alive) if _genome_size(gen[k])]
+                gene_ctx = {**ctx, "lineages": len(gene_hosts)}
+            else:
+                gene_hosts, gene_ctx = None, ctx
+            # A driven rate differs from lineage to lineage, so it is summed **over the living
+            # lineages**, each read with its own driver value, its own gene count and its own
+            # chromosome count — and the weights are kept, because the affected lineage must then
+            # be drawn with them too. The gene count sits inside the weight, which is what makes a
+            # driven per-copy rate a two-stage pick (a lineage, then a gene in it) rather than the
+            # one-stage lineage draw a per-lineage rate takes. A per-family draw and a Driven
+            # cannot both be set, so `w` and `fw` never coexist.
+            w = {}
+            if any_driven:
+                drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(k_alive)]
+                for label, rate in _rates.items():
+                    if driven[label]:
+                        w[label] = [rate.effective(copies=_genome_size(gen[k]), lineages=1,
+                                                   chromosomes=len(gen[k]), time=t, drivers=drivers[k])
+                                    for k in range(k_alive)]
 
-        def _ext_ctx(k):
-            """The context an extent is sampled in, on the lineage the event landed on.
+            def _r(label, pooled, live=True):
+                """The total for one event class: summed per-lineage when driven, pooled when not."""
+                if not live:
+                    return 0.0
+                return sum(w[label]) if label in w else pooled
 
-            It cannot be built before the lineage is drawn, because a driven extent is read on the
-            **acting** lineage at the instant the event fires — which is also why an extent adds no
-            Gillespie breakpoint and never enters the horizon above (SPEC §6). With no driven extent
-            this is the same context the rates were read in.
+            # A per-copy rate pools over genes, so with per-family weights the total is the unit rate
+            # times those weights summed over the live genes — and the run must then be drawn with the
+            # same weights, or the rate would say one thing and the picking another. Summed per lineage,
+            # so the lineage pick can reuse them. On a circular chromosome ``Σ_s mean_w(s, m)`` is exactly
+            # this sum for every run size, which is why no per-size term appears here (SPEC §6).
+            fw = None
+            if any_family:
+                fw = {key: [sum(mult[g.family] for chrom in gen[k] for g in chrom.genes)
+                            for k in range(k_alive)]
+                      for key, mult in fam_mult.items()}
+                one = {"copies": 1, "lineages": 1, "chromosomes": 1, "time": t}
+                r_dup = dup.effective(**one) * sum(fw["duplication"]) if n else 0.0
+                r_los = los.effective(**one) * sum(fw["loss"]) if n else 0.0
+                r_tra = tra.effective(**one) * sum(fw["transfer"]) if can_xfer else 0.0
+                r_inv = inv.effective(**one) * sum(fw["inversion"]) if n else 0.0
+                r_trp = trp.effective(**one) * sum(fw["transposition"]) if n else 0.0
+                r_trl = trl.effective(**one) * sum(fw["translocation"]) if n else 0.0
+            else:
+                # each gene-level rate is read in the context its own scope asks for: `gene_ctx` counts
+                # only the occupied genomes, which is what a per-lineage budget is counted over
+                def _gc(label):
+                    return gene_ctx if per_lineage[label] else ctx
 
-            The rest of `ctx` — the gene, lineage and chromosome counts — goes with it, because
-            `Modifier.implemented_for` promises this engine supplies them and a modifier of your own
-            is admitted onto an extent by the same gate that admits it onto a rate. Handing an
-            extent a thinner context meant one gate certifying two different contracts: a modifier
-            written the documented way read zeros, and one with a required keyword died mid-run."""
-            # `ctx` was snapshotted at the top of the loop, before `t` advanced to the firing
-            # instant, so `time` has to be taken fresh: an extent's own breakpoints are kept out of
-            # the horizon, so a schedule's breakpoint routinely falls inside a stretch, and reading
-            # the stale `t` would size the event on the wrong side of it.
-            if not any_ext_driven:
-                return {**ctx, "time": t}
-            return {**ctx, "time": t,
-                    "drivers": {key: resolved[key].value(alive[k], t) for key in resolved}}
+                r_dup = _r("duplication", dup.effective(**_gc("duplication")) if n else 0.0, live=bool(n))
+                r_los = _r("loss", los.effective(**_gc("loss")) if n else 0.0, live=bool(n))
+                r_tra = _r("transfer", tra.effective(**_gc("transfer")) if can_xfer else 0.0,
+                           live=can_xfer)
+                r_inv = _r("inversion", inv.effective(**_gc("inversion")) if n else 0.0, live=bool(n))
+                r_trp = _r("transposition", trp.effective(**_gc("transposition")) if n else 0.0,
+                           live=bool(n))
+                r_trl = _r("translocation", trl.effective(**_gc("translocation")) if n else 0.0,
+                           live=bool(n))
+            r_org = _r("origination", org.effective(**ctx))                 # per lineage
+            r_fis = _r("fission", fis.effective(**ctx) if c else 0.0, live=bool(c))  # per chromosome
+            r_fus = _r("fusion", fus.effective(**ctx) if c else 0.0, live=bool(c))
+            r_cor = _r("chromosome_origination", cor.effective(**ctx))      # per lineage (de-novo replicon)
+            r_clo = _r("chromosome_loss", clo.effective(**ctx) if c else 0.0, live=bool(c))
+            horizon = min(next_species, next_plant,
+                          dup.next_change(t), los.next_change(t), org.next_change(t),
+                          tra.next_change(t), inv.next_change(t), trp.next_change(t), trl.next_change(t),
+                          fis.next_change(t), fus.next_change(t), cor.next_change(t), clo.next_change(t))
+            if any_driven:  # a driven rate also changes when its driver switches mid-branch — step there
+                horizon = min(horizon, min((trajs[key].next_change(alive[k], t) for key in trajs
+                                            for k in range(k_alive)), default=math.inf))
+            def _ext_ctx(k):
+                """The context an extent is sampled in, on the lineage the event landed on.
+
+                It cannot be built before the lineage is drawn, because a driven extent is read on
+                the **acting** lineage at the instant the event fires — which is also why an extent
+                adds no Gillespie breakpoint and never enters the horizon above (SPEC §6). With no
+                driven extent this is the same context the rates were read in.
+
+                The rest of `ctx` — the gene, lineage and chromosome counts — goes with it, because
+                `Modifier.implemented_for` promises this engine supplies them and a modifier of
+                your own is admitted onto an extent by the same gate that admits it onto a rate.
+                Handing an extent a thinner context meant one gate certifying two different
+                contracts: a modifier written the documented way read zeros, and one with a
+                required keyword died mid-run."""
+                # `ctx` was snapshotted at the top of the loop, before `t` advanced to the firing
+                # instant, so `time` has to be taken fresh: an extent's own breakpoints are kept out
+                # of the horizon, so a schedule's breakpoint routinely falls inside a stretch, and
+                # reading the stale `t` would size the event on the wrong side of it.
+                if not any_ext_driven:
+                    return {**ctx, "time": t}
+                return {**ctx, "time": t,
+                        "drivers": {key: resolved[key].value(alive[k], t) for key in resolved}}
+        total = (r_dup + r_los + r_org + r_tra + r_inv + r_trp + r_trl
+                 + r_fis + r_fus + r_cor + r_clo)
 
         if total > 0.0:
             t_ev = t + float(rng.exponential(1.0 / total))
