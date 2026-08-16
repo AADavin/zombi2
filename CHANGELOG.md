@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.42.2] - 2026-08-16
+
 ### Fixed
 
 - Growing a species tree is about a third faster again. Recording each lineage's own rate evaluated
