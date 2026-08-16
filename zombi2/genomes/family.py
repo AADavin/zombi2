@@ -1371,6 +1371,17 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     weights = _FamilyWeights(_tables, gen) if any_family else None
     counts = _FamilyCounts(gen)      # the family cap's question, answered without walking a genome
 
+    # four bare numbers — the per-copy trio and a per-lineage origination, no modifier on any rate,
+    # no family writing its own — is the common run, and it needs none of the loop's context
+    # machinery: each total is scope(base) exactly, resolved here once. A rate whose base is None
+    # carries a set_by, which is a modifier, so `plain` is False and its 0.0 is never read.
+    plain = (not (dup.modifiers or los.modifiers or org.modifiers or tra.modifiers)
+             and fam_fixed is None and not any_per_lineage
+             and dup.scope is PerCopy and los.scope is PerCopy and tra.scope is PerCopy
+             and org.scope is PerLineage)
+    dup_base, los_base = dup.base or 0.0, los.base or 0.0
+    tra_base, org_base = tra.base or 0.0, org.base or 0.0
+
     # the species tree's schedule is the run's spine: one entry per speciation/extinction, so how
     # far through it we are is how far through the tree the genomes have got
     bar = progress_bar(len(schedule), "genomes", unit="branch", enabled=progress)
@@ -1384,91 +1395,101 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 f"growing — a rate reading the genome's own content is feeding itself. Lower the "
                 f"rates, flatten the mapping the driver is read through, or set a max_family_size.")
         k_alive = len(alive)
-        ctx = {"copies": n, "lineages": k_alive, "time": t}
-        # A copy-consuming event counted *per lineage* is counted per lineage that HOLDS a copy: an
-        # empty genome offers nothing to duplicate or lose, so it must not contribute its share of
-        # the total and then be picked with no victim inside it. Origination keeps `ctx` — an empty
-        # genome can still gain a family. Computed only when some rate needs it, so the per-copy
-        # path does exactly the work it did before.
-        if any_per_lineage:
-            n_hosts = sum(1 for g in gen if g)
-            host_ctx = {"copies": n, "lineages": n_hosts, "time": t}
-        else:
-            n_hosts, host_ctx = 0, ctx
         can_xfer = n > 0 and (k_alive >= 2 or self_transfer)  # a recipient must be able to exist
-        # a driven rate is per-lineage: sum its effective rate over the living lineages (each read with
-        # its own copy count and its branch's driver value), keeping the weights for the affected-lineage
-        # pick — the species_tree._grow shape. An undriven rate stays pooled (one .effective, uniform
-        # pick), so a run with no driver is byte-identical to before. For transfer the affected
-        # lineage is the donor, so a driven transfer weights who donates. A run carrying BOTH a driver
-        # and a per-family draw multiplies the two — the driver's factor is the lineage's, the
-        # multipliers are its contents' — which is what `_driven_weights` does with `fam_sums`.
-        w_dup = w_los = w_org = w_tra = None
-        fw = None
-        if any_driven:  # each lineage's driver values, read before the weights that multiply them in
-            drivers = [{**{key: trajs[key].value(alive[k], t) for key in trajs},
-                        **{src: live_value(src, k) for src in live_keys}} for k in range(k_alive)]
-        if any_family:
-            # A per-copy rate pools over copies, so with per-family multipliers the total is the
-            # unit rate times the sum of those multipliers over the live copies — and the copy has
-            # to be drawn with the same weights, or the rates would say one thing and the picking
-            # another. Summed per lineage, so the existing weighted-lineage pick can be reused.
-            assert weights is not None       # `any_family` is exactly when it was built
-            fw = weights.current(gen)
-            unit = {"duplication": dup.effective(copies=1, lineages=1, time=t),
-                    "loss": los.effective(copies=1, lineages=1, time=t),
-                    "transfer": tra.effective(copies=1, lineages=1, time=t) if can_xfer else 0.0}
-            own_sums = (lambda key: fw[key + _FIXED]) if fam_fixed is not None else (lambda key: None)
-
-            def unit_at(key, k, _rates={"duplication": dup, "loss": los, "transfer": tra}):
-                """The run's unit rate as lineage ``k`` reads it. Identical to ``unit[key]`` unless
-                the rate is driven, and then it is the number `_driven_weights` used for that
-                lineage — which the copy pick has to use too, or the totals and the pick disagree
-                about how a written family rate compares with the run's."""
-                if not any_driven:
-                    return unit[key]
-                return _rates[key].effective(copies=1, lineages=1, time=t, drivers=drivers[k])
-            w_dup = _family_weights(unit["duplication"], fw["duplication"], own_sums("duplication"))
-            w_los = _family_weights(unit["loss"], fw["loss"], own_sums("loss"))
-            if can_xfer:
-                w_tra = _family_weights(unit["transfer"], fw["transfer"], own_sums("transfer"))
-        if any_driven:
-            if dup_mods:
-                w_dup = _driven_weights(dup, gen, k_alive, t, drivers,
-                                        fw["duplication"] if fw is not None else None,
-                                        own_sums("duplication") if fw is not None else None)
-            if los_mods:
-                w_los = _driven_weights(los, gen, k_alive, t, drivers,
-                                        fw["loss"] if fw is not None else None,
-                                        own_sums("loss") if fw is not None else None)
-            if org_mods:
-                # origination can never carry a per-family draw (refused above: when it is read there
-                # is no family yet), so it needs no fam_sums branch
-                w_org = [org.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
-                         for k in range(k_alive)]
-            if tra_mods and can_xfer:
-                w_tra = _driven_weights(tra, gen, k_alive, t, drivers,
-                                        fw["transfer"] if fw is not None else None,
-                                        own_sums("transfer") if fw is not None else None)
-        r_dup = sum(w_dup) if w_dup is not None else (
-            dup.effective(**(host_ctx if dup_per_lineage else ctx)) if n else 0.0)
-        r_los = sum(w_los) if w_los is not None else (
-            los.effective(**(host_ctx if los_per_lineage else ctx)) if n else 0.0)
-        r_org = sum(w_org) if w_org is not None else org.effective(**ctx)
-        r_tra = sum(w_tra) if w_tra is not None else (
-            tra.effective(**(host_ctx if tra_per_lineage else ctx)) if can_xfer else 0.0)
-        total = r_dup + r_los + r_org + r_tra
-
         next_species = schedule[si][0]  # the tree's own next event: who is alive changes only here
         # a family placed by `origins=` originates at a fixed instant, so it joins the horizon like
         # any other breakpoint: the waiting time can never step over it
         next_plant = plants[plant_i][0] if plant_i < len(plants) else math.inf
-        horizon = min(next_species, next_plant, dup.next_change(t), los.next_change(t),
-                      org.next_change(t), tra.next_change(t))
-        if any_driven:  # a driven rate also changes when the driver switches mid-branch — step there
-            driver_next = min((trajs[key].next_change(alive[k], t) for key in trajs
-                               for k in range(k_alive)), default=math.inf)
-            horizon = min(horizon, driver_next)
+        w_dup = w_los = w_org = w_tra = None
+        if plain:
+            # no modifier on any rate: each total is scope(base) exactly — the per-copy trio times
+            # the live copies, origination times the living lineages — none of them ever changes on
+            # its own (next_change is inf), and nothing below reads a context or a weight.
+            r_dup = dup_base * n
+            r_los = los_base * n
+            r_org = org_base * k_alive
+            r_tra = tra_base * n if can_xfer else 0.0
+            horizon = min(next_species, next_plant)
+        else:
+            ctx = {"copies": n, "lineages": k_alive, "time": t}
+            # A copy-consuming event counted *per lineage* is counted per lineage that HOLDS a copy:
+            # an empty genome offers nothing to duplicate or lose, so it must not contribute its
+            # share of the total and then be picked with no victim inside it. Origination keeps
+            # `ctx` — an empty genome can still gain a family. Computed only when some rate needs
+            # it, so the per-copy path does exactly the work it did before.
+            if any_per_lineage:
+                n_hosts = sum(1 for g in gen if g)
+                host_ctx = {"copies": n, "lineages": n_hosts, "time": t}
+            else:
+                n_hosts, host_ctx = 0, ctx
+            # a driven rate is per-lineage: sum its effective rate over the living lineages (each
+            # read with its own copy count and its branch's driver value), keeping the weights for
+            # the affected-lineage pick — the species_tree._grow shape. An undriven rate stays
+            # pooled (one .effective, uniform pick), so a run with no driver is byte-identical to
+            # before. For transfer the affected lineage is the donor, so a driven transfer weights
+            # who donates. A run carrying BOTH a driver and a per-family draw multiplies the two —
+            # the driver's factor is the lineage's, the multipliers are its contents' — which is
+            # what `_driven_weights` does with `fam_sums`.
+            fw = None
+            if any_driven:  # each lineage's driver values, read before the weights that multiply them in
+                drivers = [{**{key: trajs[key].value(alive[k], t) for key in trajs},
+                            **{src: live_value(src, k) for src in live_keys}} for k in range(k_alive)]
+            if any_family:
+                # A per-copy rate pools over copies, so with per-family multipliers the total is the
+                # unit rate times the sum of those multipliers over the live copies — and the copy has
+                # to be drawn with the same weights, or the rates would say one thing and the picking
+                # another. Summed per lineage, so the existing weighted-lineage pick can be reused.
+                assert weights is not None       # `any_family` is exactly when it was built
+                fw = weights.current(gen)
+                unit = {"duplication": dup.effective(copies=1, lineages=1, time=t),
+                        "loss": los.effective(copies=1, lineages=1, time=t),
+                        "transfer": tra.effective(copies=1, lineages=1, time=t) if can_xfer else 0.0}
+                own_sums = (lambda key: fw[key + _FIXED]) if fam_fixed is not None else (lambda key: None)
+
+                def unit_at(key, k, _rates={"duplication": dup, "loss": los, "transfer": tra}):
+                    """The run's unit rate as lineage ``k`` reads it. Identical to ``unit[key]`` unless
+                    the rate is driven, and then it is the number `_driven_weights` used for that
+                    lineage — which the copy pick has to use too, or the totals and the pick disagree
+                    about how a written family rate compares with the run's."""
+                    if not any_driven:
+                        return unit[key]
+                    return _rates[key].effective(copies=1, lineages=1, time=t, drivers=drivers[k])
+                w_dup = _family_weights(unit["duplication"], fw["duplication"], own_sums("duplication"))
+                w_los = _family_weights(unit["loss"], fw["loss"], own_sums("loss"))
+                if can_xfer:
+                    w_tra = _family_weights(unit["transfer"], fw["transfer"], own_sums("transfer"))
+            if any_driven:
+                if dup_mods:
+                    w_dup = _driven_weights(dup, gen, k_alive, t, drivers,
+                                            fw["duplication"] if fw is not None else None,
+                                            own_sums("duplication") if fw is not None else None)
+                if los_mods:
+                    w_los = _driven_weights(los, gen, k_alive, t, drivers,
+                                            fw["loss"] if fw is not None else None,
+                                            own_sums("loss") if fw is not None else None)
+                if org_mods:
+                    # origination can never carry a per-family draw (refused above: when it is read
+                    # there is no family yet), so it needs no fam_sums branch
+                    w_org = [org.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
+                             for k in range(k_alive)]
+                if tra_mods and can_xfer:
+                    w_tra = _driven_weights(tra, gen, k_alive, t, drivers,
+                                            fw["transfer"] if fw is not None else None,
+                                            own_sums("transfer") if fw is not None else None)
+            r_dup = sum(w_dup) if w_dup is not None else (
+                dup.effective(**(host_ctx if dup_per_lineage else ctx)) if n else 0.0)
+            r_los = sum(w_los) if w_los is not None else (
+                los.effective(**(host_ctx if los_per_lineage else ctx)) if n else 0.0)
+            r_org = sum(w_org) if w_org is not None else org.effective(**ctx)
+            r_tra = sum(w_tra) if w_tra is not None else (
+                tra.effective(**(host_ctx if tra_per_lineage else ctx)) if can_xfer else 0.0)
+            horizon = min(next_species, next_plant, dup.next_change(t), los.next_change(t),
+                          org.next_change(t), tra.next_change(t))
+            if any_driven:  # a driven rate also changes when the driver switches mid-branch — step there
+                driver_next = min((trajs[key].next_change(alive[k], t) for key in trajs
+                                   for k in range(k_alive)), default=math.inf)
+                horizon = min(horizon, driver_next)
+        total = r_dup + r_los + r_org + r_tra
 
         if total > 0.0:
             t_ev = t + float(rng.exponential(1.0 / total))
