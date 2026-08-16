@@ -131,3 +131,13 @@ class Recorder:
         label = self.names.get(node.species, str(node.species))
         for site in sites:
             self.events.append(SequenceEvent(time, kind, label, node.copy, site, after=after))
+
+
+def recorder_for(record: bool, labels):
+    """``(events, recorder)`` for a run, or ``(events, None)`` when it did not ask to record.
+
+    Every engine that can record calls this rather than building a `Recorder` itself. Three of them
+    built their own, and the third forgot: `record=True` on a joint run was accepted and logged
+    nothing. One place to build it is one place to get it wrong."""
+    events: list = []
+    return events, (Recorder(events, labels) if record else None)
