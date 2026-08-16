@@ -9,6 +9,18 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- **The manual was reviewed cover to cover by simulated first readers** — one per chapter, each
+  seeing only the chapters before its own, none seeing the code — and rewritten against their ~245
+  findings, with every factual claim run against the engine. The introduction absorbed the tour, so
+  the book is nine chapters now; the ordered, nucleotide and joining chapters were restructured; the
+  sequences chapter lost its heaviest asides and gained the sequence-level indels and `partitions=`
+  it never documented; the appendices now define their own vocabulary (tokens, the `blocks.tsv`
+  columns, the RF convention) and the file map lists every file the tables do. Two text losses were
+  recovered outright: chapter 6's "Where a sequence starts" section, and the nucleotide extents
+  table, regenerated because its numbers did not reproduce.
+
 ## [0.42.0] - 2026-08-16
 
 ### Added
