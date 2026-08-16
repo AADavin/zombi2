@@ -1,6 +1,6 @@
 # Joining — a design note
 
-**Status: steps 1 to 9 of §14 are built; the rest is designed.** This note records what joining is
+**Status: steps 1 to 10 of §14 are built; only step 11 is designed.** This note records what joining is
 and which pairs can be joined. It also says where each joint model lives in the API, and the order
 the work is done in. It is subordinate to
 [`SPEC.md`](SPEC.md): where the two disagree, SPEC wins.
@@ -28,8 +28,8 @@ This wording replaces the older one in several places. See §13.
 |---|---|---|
 | Species – Traits | yes | yes |
 | Species – Genomes | yes | yes, family resolution |
-| Genomes – Traits | yes | no |
-| Traits – Sequences | yes | no |
+| Genomes – Traits | yes | yes |
+| Traits – Sequences | yes | yes |
 | Genomes – Sequences | yes | no, out of scope here |
 | Species – Sequences | no | — |
 | a level with itself | yes | yes |
@@ -376,7 +376,7 @@ New cards go in `gallery/joining.py` and `gallery/crosslevel.py`.
 
 ## 14. Order of work
 
-Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), then 6 to 9.
+Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), then 6 to 10.
 
 1. ~~**The wording.**~~ Done. SPEC, the manual, the two docstrings, Figure 10.2's new arrow.
 2. ~~**Per-family rates.**~~ Done. §5, with the `genomes.genome` rename. No figure: per-family rates
@@ -409,5 +409,10 @@ Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), then 6 to 9
    sketch: `gene(start=...)`, a second model to found from. Without it a gene sits at
    its own equilibrium, its composition never moves, and the loop drives nothing a
    figure could show. Figure: two genes ameliorating together.
-10. **Traits with Sequences.** §7, the new arrow.
+10. ~~**Traits with Sequences.**~~ Done. §7, the new arrow. `joint.simulate(traits.discrete(...),
+    sequences.gene(...), genomes=g)`; the genome run is the handover, because a sequence
+    lives on a gene tree. Sliced, but only the composition the trait reads is approximated:
+    the trait's own Gillespie inside a slice is exact, and the gene's branch length is the
+    trait's factor integrated across those switches. Figure: rpoB ameliorating and the tree
+    turning hot, each because of the other.
 11. **`record=`.** §10, last, because nothing above depends on it.
