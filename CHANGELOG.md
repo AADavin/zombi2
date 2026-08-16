@@ -9,6 +9,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+
+- Growing a species tree is about a third faster again. Recording each lineage's own rate evaluated
+  both rates at every node, on every run, whether or not anyone asked for `lineage_rates`; the loop
+  keeps the four numbers the answer is made of and the accessor does the arithmetic. Measured
+  back to back on one machine: 1.44x at 100,000 tips, 1.71x at 10,000. (#384)
+
+
 ## [0.42.1] - 2026-08-16
 
 ### Changed
