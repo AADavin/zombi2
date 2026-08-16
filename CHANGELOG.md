@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-08-16
+
 ### Added
 
 - **A genome and a gene's sequence can drive each other** — the last cell of Figure 10.2, which now
