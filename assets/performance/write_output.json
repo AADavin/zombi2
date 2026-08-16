@@ -1,0 +1,83 @@
+{
+  "name": "write_output",
+  "title": "Serialising a full simulation to disk (reconstruct + write)",
+  "x_label": "Number of extant tips",
+  "meta": {
+    "regime": "birth-death(\u03bb=1.0, \u03bc=0.3), grown to N extant tips; D=0.2 T=0.1 L=0.25 O=0.5, initial_families=20",
+    "profile": "standard"
+  },
+  "env": {
+    "timestamp_utc": "2026-08-16T19:51:46+00:00",
+    "git_commit": null,
+    "git_dirty": false,
+    "zombi2_version": "0.42.1",
+    "python": "3.12.2",
+    "python_impl": "CPython",
+    "numpy": "1.26.4",
+    "platform": "macOS-26.6.1-arm64-arm-64bit",
+    "processor": "arm",
+    "cpu_count": 10
+  },
+  "points": [
+    {
+      "series": "write()",
+      "x": 100,
+      "times": [
+        0.04023454200000742,
+        0.04295741700002509,
+        0.04019304200005536,
+        0.040366375000076005,
+        0.03963637500010009
+      ],
+      "work": {
+        "n_families": 79,
+        "n_files": 177
+      }
+    },
+    {
+      "series": "write()",
+      "x": 1000,
+      "times": [
+        0.34922754100011844,
+        0.3625953749999553,
+        0.34469879200014475,
+        0.3436192089998258,
+        0.3454846660001749
+      ],
+      "work": {
+        "n_families": 508,
+        "n_files": 1103
+      }
+    },
+    {
+      "series": "write()",
+      "x": 3000,
+      "times": [
+        1.7889777919999688,
+        1.7976702500000101,
+        1.7799085829999512,
+        1.7921028330001718,
+        1.7846298750000642
+      ],
+      "work": {
+        "n_families": 1596,
+        "n_files": 3447
+      }
+    },
+    {
+      "series": "write()",
+      "x": 10000,
+      "times": [
+        7.754137457999832,
+        7.7241717920001065,
+        7.759741915999939,
+        7.735351832999868,
+        7.781135042000187
+      ],
+      "work": {
+        "n_families": 5224,
+        "n_files": 11197
+      }
+    }
+  ]
+}

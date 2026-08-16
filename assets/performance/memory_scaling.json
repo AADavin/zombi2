@@ -1,0 +1,145 @@
+{
+  "name": "memory_scaling",
+  "title": "Peak memory footprint vs run size",
+  "x_label": "Number of extant tips",
+  "meta": {
+    "regime": "birth-death(\u03bb=1.0, \u03bc=0.3), grown to N extant tips; D=0.2 T=0.1 L=0.25 O=0.5, initial_families=20",
+    "profile": "standard",
+    "note": "peak RSS from resource.getrusage in an isolated subprocess"
+  },
+  "env": {
+    "timestamp_utc": "2026-08-16T19:38:38+00:00",
+    "git_commit": null,
+    "git_dirty": false,
+    "zombi2_version": "0.42.1",
+    "python": "3.12.2",
+    "python_impl": "CPython",
+    "numpy": "1.26.4",
+    "platform": "macOS-26.6.1-arm64-arm-64bit",
+    "processor": "arm",
+    "cpu_count": 10
+  },
+  "points": [
+    {
+      "series": "Species tree",
+      "x": 10000,
+      "times": [
+        0.0913
+      ],
+      "work": {
+        "rss_mb": 91.0,
+        "nodes": 10000
+      }
+    },
+    {
+      "series": "Species tree",
+      "x": 100000,
+      "times": [
+        1.3018
+      ],
+      "work": {
+        "rss_mb": 294.7,
+        "nodes": 100000
+      }
+    },
+    {
+      "series": "Species tree",
+      "x": 1000000,
+      "times": [
+        15.4991
+      ],
+      "work": {
+        "rss_mb": 2312.3,
+        "nodes": 1000000
+      }
+    },
+    {
+      "series": "Genomes \u00b7 family",
+      "x": 1000,
+      "times": [
+        0.3056
+      ],
+      "work": {
+        "rss_mb": 95.9,
+        "families": 523
+      }
+    },
+    {
+      "series": "Genomes \u00b7 family",
+      "x": 3000,
+      "times": [
+        2.0673
+      ],
+      "work": {
+        "rss_mb": 155.4,
+        "families": 1533
+      }
+    },
+    {
+      "series": "Genomes \u00b7 family",
+      "x": 10000,
+      "times": [
+        21.3128
+      ],
+      "work": {
+        "rss_mb": 386.7,
+        "families": 5236
+      }
+    },
+    {
+      "series": "Genomes \u00b7 ordered",
+      "x": 1000,
+      "times": [
+        0.6437
+      ],
+      "work": {
+        "rss_mb": 96.2,
+        "families": 554
+      }
+    },
+    {
+      "series": "Genomes \u00b7 ordered",
+      "x": 3000,
+      "times": [
+        5.0874
+      ],
+      "work": {
+        "rss_mb": 158.2,
+        "families": 1629
+      }
+    },
+    {
+      "series": "Genomes \u00b7 family (streamed)",
+      "x": 1000,
+      "times": [
+        0.4544
+      ],
+      "work": {
+        "rss_mb": 75.9,
+        "families": 622
+      }
+    },
+    {
+      "series": "Genomes \u00b7 family (streamed)",
+      "x": 3000,
+      "times": [
+        2.687
+      ],
+      "work": {
+        "rss_mb": 91.6,
+        "families": 1800
+      }
+    },
+    {
+      "series": "Genomes \u00b7 family (streamed)",
+      "x": 10000,
+      "times": [
+        27.1966
+      ],
+      "work": {
+        "rss_mb": 149.1,
+        "families": 6083
+      }
+    }
+  ]
+}

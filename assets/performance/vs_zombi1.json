@@ -1,0 +1,158 @@
+{
+  "name": "vs_zombi1",
+  "title": "ZOMBI2 vs ZOMBI 1: same gene-family task (both pure Python)",
+  "x_label": "Number of extant tips",
+  "meta": {
+    "regime": "birth-death(\u03bb=1.0, \u03bc=0.3), grown to N extant tips; D=0.2 T=0.1 L=0.25 O=0.5, initial_families=20",
+    "profile": "standard",
+    "zombi1_available": true,
+    "note": "Yule(\u03bb=1) tree grown to matched tips; genome step only is timed; ZOMBI 1 Gm regime D=0.2 T=0.1 L=0.25 O=0.5, initial size 20, replacement transfers (see vs_zombi1/NOTES.md)"
+  },
+  "env": {
+    "timestamp_utc": "2026-08-16T19:53:29+00:00",
+    "git_commit": null,
+    "git_dirty": false,
+    "zombi2_version": "0.42.1",
+    "python": "3.12.2",
+    "python_impl": "CPython",
+    "numpy": "1.26.4",
+    "platform": "macOS-26.6.1-arm64-arm-64bit",
+    "processor": "arm",
+    "cpu_count": 10
+  },
+  "points": [
+    {
+      "series": "ZOMBI2",
+      "x": 20,
+      "times": [
+        0.002147041999933208,
+        0.002277332999938153,
+        0.0023311249999551364,
+        0.001940709000109564,
+        0.0019750409999232943
+      ],
+      "work": {
+        "n_families": 28
+      }
+    },
+    {
+      "series": "ZOMBI2",
+      "x": 100,
+      "times": [
+        0.006560709000041243,
+        0.012057874999982232,
+        0.01096791600002689,
+        0.00946445800013862,
+        0.0086503749998883
+      ],
+      "work": {
+        "n_families": 68
+      }
+    },
+    {
+      "series": "ZOMBI2",
+      "x": 300,
+      "times": [
+        0.026127708999865717,
+        0.04528683400008049,
+        0.04047387499986144,
+        0.0341807909999261,
+        0.03360799999995834
+      ],
+      "work": {
+        "n_families": 158
+      }
+    },
+    {
+      "series": "ZOMBI2",
+      "x": 1000,
+      "times": [
+        0.1790260830000534,
+        0.19905654099989079,
+        0.19635645800008206,
+        0.18295370900000307,
+        0.16801312500001586
+      ],
+      "work": {
+        "n_families": 489
+      }
+    },
+    {
+      "series": "ZOMBI2",
+      "x": 3000,
+      "times": [
+        1.5358351249999487,
+        1.0662515829999393,
+        1.0843328749999728,
+        1.234633957999904,
+        0.8978678339999533
+      ],
+      "work": {
+        "n_families": 1355
+      }
+    },
+    {
+      "series": "ZOMBI2",
+      "x": 10000,
+      "times": [
+        12.271316125000112,
+        9.595987083999944,
+        10.995917666999958,
+        10.612604042000157
+      ],
+      "work": {
+        "n_families": 4371
+      }
+    },
+    {
+      "series": "ZOMBI 1",
+      "x": 20,
+      "times": [
+        0.647
+      ],
+      "work": {
+        "n_families": 29
+      }
+    },
+    {
+      "series": "ZOMBI 1",
+      "x": 100,
+      "times": [
+        1.053
+      ],
+      "work": {
+        "n_families": 52
+      }
+    },
+    {
+      "series": "ZOMBI 1",
+      "x": 300,
+      "times": [
+        4.843
+      ],
+      "work": {
+        "n_families": 178
+      }
+    },
+    {
+      "series": "ZOMBI 1",
+      "x": 1000,
+      "times": [
+        27.454
+      ],
+      "work": {
+        "n_families": 519
+      }
+    },
+    {
+      "series": "ZOMBI 1",
+      "x": 1200,
+      "times": [
+        47.958
+      ],
+      "work": {
+        "n_families": 599
+      }
+    }
+  ]
+}

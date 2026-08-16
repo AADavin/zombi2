@@ -1,0 +1,65 @@
+{
+  "name": "vs_zombi1_fixedtree",
+  "title": "ZOMBI2 vs ZOMBI 1 on one shared 1000-tip tree",
+  "x_label": "Wall-clock time (one full genome simulation)",
+  "meta": {
+    "regime": "birth-death(\u03bb=1.0, \u03bc=0.3), grown to N extant tips; D=0.2 T=0.1 L=0.25 O=0.5, initial_families=20",
+    "profile": "standard",
+    "zombi1_available": true,
+    "n_tips": 1000,
+    "reps": 10,
+    "note": "ONE ZOMBI 1 pure-birth tree (~1000 extant tips); both engines run their genome step on it, one run per seed. D=0.2 T=0.1 L=0.25 O=0.5, initial size 20, replacement transfers (see vs_zombi1/NOTES.md)"
+  },
+  "env": {
+    "timestamp_utc": "2026-08-16T19:57:02+00:00",
+    "git_commit": null,
+    "git_dirty": false,
+    "zombi2_version": "0.42.1",
+    "python": "3.12.2",
+    "python_impl": "CPython",
+    "numpy": "1.26.4",
+    "platform": "macOS-26.6.1-arm64-arm-64bit",
+    "processor": "arm",
+    "cpu_count": 10
+  },
+  "points": [
+    {
+      "series": "ZOMBI2",
+      "x": 1000,
+      "times": [
+        0.1789968329999283,
+        0.1969403749999401,
+        0.18442545900006735,
+        0.17326516700018146,
+        0.1989591249998739,
+        0.19770733300015308,
+        0.19896112499986884,
+        0.17786358299986205,
+        0.174777167000002,
+        0.16469874999984313
+      ],
+      "work": {
+        "n_families": 507
+      }
+    },
+    {
+      "series": "ZOMBI 1",
+      "x": 1000,
+      "times": [
+        35.01596129199993,
+        32.85750562500016,
+        26.11432333399989,
+        39.44193100000007,
+        41.269602459,
+        39.955709708000086,
+        27.05559320899988,
+        42.15171108300001,
+        36.87031008399981,
+        48.32786533399985
+      ],
+      "work": {
+        "n_families": 505
+      }
+    }
+  ]
+}

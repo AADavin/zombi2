@@ -1,0 +1,93 @@
+{
+  "name": "species_tree",
+  "title": "Species-tree simulation scales to millions of tips",
+  "x_label": "Number of extant tips",
+  "meta": {
+    "regime": "birth-death(\u03bb=1.0, \u03bc=0.3), grown to N extant tips; D=0.2 T=0.1 L=0.25 O=0.5, initial_families=20",
+    "profile": "standard"
+  },
+  "env": {
+    "timestamp_utc": "2026-08-16T19:38:38+00:00",
+    "git_commit": null,
+    "git_dirty": false,
+    "zombi2_version": "0.42.1",
+    "python": "3.12.2",
+    "python_impl": "CPython",
+    "numpy": "1.26.4",
+    "platform": "macOS-26.6.1-arm64-arm-64bit",
+    "processor": "arm",
+    "cpu_count": 10
+  },
+  "points": [
+    {
+      "series": "Species tree",
+      "x": 1000,
+      "times": [
+        0.004901999999901818,
+        0.004657708999957322,
+        0.0046586669999442165,
+        0.005176333000008526,
+        0.004776750000019092
+      ],
+      "work": {
+        "n_extant": 1000
+      }
+    },
+    {
+      "series": "Species tree",
+      "x": 10000,
+      "times": [
+        0.04798004199994921,
+        0.05130895800004964,
+        0.049544874999924104,
+        0.05046249999998054,
+        0.04975916600005803
+      ],
+      "work": {
+        "n_extant": 10000
+      }
+    },
+    {
+      "series": "Species tree",
+      "x": 100000,
+      "times": [
+        0.5403547920000165,
+        0.5823681670000269,
+        0.5687606669999923,
+        0.5707541250000077,
+        0.5704445000000078
+      ],
+      "work": {
+        "n_extant": 100000
+      }
+    },
+    {
+      "series": "Species tree",
+      "x": 500000,
+      "times": [
+        2.9575808749999624,
+        3.1597509169999967,
+        3.1011291250000568,
+        3.1577245409999932,
+        3.131856374999984
+      ],
+      "work": {
+        "n_extant": 500000
+      }
+    },
+    {
+      "series": "Species tree",
+      "x": 1000000,
+      "times": [
+        6.110127375000047,
+        6.729697708000003,
+        6.470234000000005,
+        6.669921584000008,
+        6.471508708999977
+      ],
+      "work": {
+        "n_extant": 1000000
+      }
+    }
+  ]
+}
