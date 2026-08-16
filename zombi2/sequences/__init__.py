@@ -1302,8 +1302,10 @@ def _simulate_loop(genomes, genes, *, joint: bool, seed, record: bool = False,
     starts, so one walk carries both. See `zombi2.sequences._loop` for the walk, which slices species
     time because a composition moves with every substitution and so is never constant for a whole
     branch."""
+    from .._runtime.slicing import check_step, step_of
     from ..genomes import OrderedGenomesResult
     from . import _loop
+    from ._record import recorder_for
 
     if genes is None:
         raise ValueError(
@@ -1367,8 +1369,7 @@ def _simulate_loop(genomes, genes, *, joint: bool, seed, record: bool = False,
     # each gene's rate, and what it reads
     offers = {s.name: (s.offers.letters, s.offers.absent) if s.offers else None for s in specs}
     rates: dict[str, tuple] = {}
-    steps: set[float] = set()
-    missing_step: list[str] = []
+    connections: list = []            # every reading, for the one place the step rule lives
     reads = 0
     for spec in specs:
         r = as_rate(1.0 if spec.substitution is None else spec.substitution, default_scope=PerSite)
@@ -1403,7 +1404,7 @@ def _simulate_loop(genomes, genes, *, joint: bool, seed, record: bool = False,
                 raise ValueError(
                     f"gene {spec.name!r} reads {m.driver!r}, but gene {other!r} offers nothing. Say "
                     f"what it publishes: offers=sequences.composition('KR', absent=0.08).")
-            (missing_step.append(spec.name) if m.step is None else steps.add(m.step))
+            connections.append(m)
             factors.append((other, m.mapping))
             reads += 1
         # the per-site base, read straight off the rate: this level multiplies it by
@@ -1424,30 +1425,13 @@ def _simulate_loop(genomes, genes, *, joint: bool, seed, record: bool = False,
             "joint=True says the genes drive each other, but none reads another. Give a "
             'substitution rate a scaled_by("sequences:<name>", ...), or evolve the genes as '
             "separate runs.")
-    if missing_step:
-        raise ValueError(
-            f"gene {sorted(set(missing_step))} reads another gene's composition, so it needs a "
-            f"step= — the stretch of time that composition is held fixed across. A composition "
-            f"moves with every substitution, so there is no interval where this rate holds still on "
-            f"its own; the run slices instead. Write it on the connection, "
-            f'scaled_by("sequences:<other>", Curve(f), step=0.05), and pick it so a gene turns over '
-            f"little within one slice — then halve it, rerun the same seed, and see whether the "
-            f"answer moves.")
-    if len(steps) > 1:
-        raise ValueError(
-            f"the genes read each other at two resolutions, step={sorted(steps)}. One walk carries "
-            f"them both and it has one set of slice boundaries, so the readings have to agree.")
-
     species_tree = genomes.complete_tree
     trees = {s.name: genomes.gene_trees[declared[s.name]] for s in specs}
     tallest = max(n.end_time for n in species_tree.nodes.values())
-    step = _loop.check_step(next(iter(steps)), tallest)
+    step = check_step(step_of(connections, what="the genes",
+                              how='scaled_by("sequences:<other>", Curve(f), step=0.05)'), tallest)
     rng, seed = stream("sequences", seed)
-    events: list = []
-    recorder = None
-    if record:
-        from ._record import Recorder
-        recorder = Recorder(events, species_tree.labels())
+    events, recorder = recorder_for(record, species_tree.labels())
     grown = _loop.grow(specs, trees,
                        {s.name: s.model for s in specs}, {s.name: s.length for s in specs},
                        rates, offers, step, rng,
@@ -1461,7 +1445,7 @@ def _simulate_loop(genomes, genes, *, joint: bool, seed, record: bool = False,
     phylograms: dict[int, dict[str, str | None]] = {}
     for spec in specs:
         fam = declared[spec.name]
-        states, founding_states, length_of = grown[spec.name]
+        states, founding_states, length_of = grown.sequences[spec.name]
         aln, anc = _split(trees[spec.name], states, labels, spec.model)
         alignments[fam], ancestral[fam] = aln, anc
         founding[fam] = decode(founding_states, spec.model.alphabet)

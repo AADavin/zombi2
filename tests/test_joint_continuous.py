@@ -155,7 +155,7 @@ def test_a_diffusing_driver_needs_a_step():
 
 
 def test_two_readings_of_one_live_trait_must_agree_on_the_step():
-    with pytest.raises(ValueError, match="agree on step"):
+    with pytest.raises(ValueError, match="have to agree"):
         joint.simulate(
             species.birth_death(
                 birth=PerLineage(0.4).scaled_by("trait", Curve(math.exp), step=0.05),
@@ -200,9 +200,9 @@ def test_a_continuous_trait_with_a_genome_on_a_given_tree_says_it_is_not_built()
 def test_a_run_that_can_never_reach_its_target_says_so_rather_than_walking_for_ever():
     """A sliced run cannot use the other engines' "nothing is scheduled, so stop" test: a rate of
     zero now says nothing about the rate one slice later, because the driver is still moving."""
-    import zombi2.joint as J
-    old = J._MAX_SLICES
-    J._MAX_SLICES = 500
+    from zombi2.joint import _species_continuous as engine
+    old = engine._MAX_SLICES
+    engine._MAX_SLICES = 500
     try:
         with pytest.raises(RuntimeError, match="without reaching n_extant"):
             joint.simulate(
@@ -211,7 +211,7 @@ def test_a_run_that_can_never_reach_its_target_says_so_rather_than_walking_for_e
                     n_extant=20),
                 traits.continuous(rate=1.0), seed=1)
     finally:
-        J._MAX_SLICES = old
+        engine._MAX_SLICES = old
 
 
 def test_the_runaway_guard_still_holds():

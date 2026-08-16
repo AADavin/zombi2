@@ -9,6 +9,22 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- **The six joint engines now follow one set of conventions.** They stay separate — each pair really
+  does differ, and an interface wide enough to cover all of them would be as hard to read as the
+  engines. What was accidental rather than deliberate is gone.
+  - One entry point name. Each pair is its own module under `zombi2/joint/`, and each exposes `grow`:
+    `_species_traits`, `_species_continuous`, `_species_genomes`, `_genomes_traits`,
+    `_traits_sequences`, plus `zombi2/sequences/_loop`. `zombi2/joint/__init__.py` drops from 1439
+    lines to 700 and holds no engine.
+  - One return shape. They handed back a four-tuple, a five-tuple, a dict and a private record;
+    they now all return `_runtime.grown.Grown`, whose field names are the run result's own.
+  - One name per thing. The gene copy in flight is `_Live` in every engine, and the slice end is
+    `horizon` in every engine.
+  - One home for a rule every engine repeats. The `step` contract moves to `_runtime.slicing`, from
+    three copies; the recorder is built by `sequences._record.recorder_for`, from three.
+
 ## [0.41.0] - 2026-08-16
 
 ### Added
