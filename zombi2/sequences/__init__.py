@@ -81,7 +81,7 @@ from .substitution_models import (BASES, SubstitutionModel, _with_frequencies, d
                                   encode, gtr, hky85, jc69, jtt, k80, lg, poisson, wag)
 
 _WRITE_OUTPUTS = ("summary", "alignments", "ancestral", "founding", "phylograms", "species_phylogram",
-                  "genomes", "initial_genome")
+                  "genomes", "initial_genome", "events")
 
 #: complement of each base, for reading a block laid down on the reverse strand
 _COMPLEMENT = str.maketrans("ACGT", "TGCA")
@@ -162,6 +162,16 @@ class SequencesResult:
     #: Kept because a sequences result carries its trees as Newick text, not as a `Tree`, so there is
     #: otherwise nothing here that says which of the labels is a survivor.
     extant_tips: tuple[str, ...] = ()
+    #: The named families the run was **restricted** to (``families=``), empty when it evolved every
+    #: one. `composition` reads it: pooled over the whole genome a lineage always has some sequence,
+    #: but a run holding one family has none wherever that family is absent, and what to read there
+    #: is then a question only the caller can answer.
+    families: tuple[str, ...] = ()
+    #: This run's own history — every substitution, and every site gained or lost — as
+    #: `~zombi2.sequences._record.SequenceEvent` rows. **Empty unless the run asked for it** with
+    #: ``record=True``: this is the one level whose log is bigger than its output, so it is the one
+    #: level that does not record by default. See `zombi2.sequences._record`.
+    events: list = field(default_factory=list)
     #: Per host block, which inserted runs sit inside it and which record carries which — the plan
     #: `alignments` splices by. Kept because it is the *plan*, not the rows: the rows are the
     #: alignment over again, and a whole-genome run cannot afford a second copy of that.
@@ -189,9 +199,9 @@ class SequencesResult:
         what you observe, and the truth behind it."""
         return {t: self.node_genomes[t] for t in self.extant_tips if t in self.node_genomes}
 
-    def composition(self, letters: str):
+    def composition(self, letters: str, *, absent: float | None = None):
         """The share of a lineage's sequence that is one of ``letters``, at every instant, as a
-        conditioning driver (`~zombi2.sequences.composition.Composition`)::
+        conditioning driver (`~zombi2.sequences._composition.Composition`)::
 
             proteins = simulate_sequences(g, model=lg(), length=300, seed=1)
             simulate_discrete(tree, states=["mesophile", "thermophile"], start="mesophile", seed=2,
@@ -204,15 +214,33 @@ class SequencesResult:
 
         A number, so it takes a `~zombi2.params.mapping.Curve` or a `~zombi2.params.mapping.Scalar`, and
         it drives what comes **after** a sequence — a trait, or a further sequence run — never the
-        genome the gene trees came from."""
-        from .composition import Composition
+        genome the gene trees came from.
+
+        ``absent`` is what a branch reads where the run has **no sequence at all** on that lineage,
+        and it is what makes **one family's** composition a usable driver: restrict the run with
+        ``families=["chaperone"]`` and this statistic is that family's, but the family is missing on
+        some branches and a driver has to answer for every branch the target walks::
+
+            chaperone = simulate_sequences(g, families=["chaperone"], model=lg(), length=300, seed=3)
+            chaperone.composition("KR", absent=0.08)
+
+        On a restricted run with a gap and no ``absent``, resolving the driver raises rather than
+        carrying the parent's value forward, which would be a different model from the one asked
+        for."""
+        from ._composition import Composition
         if not isinstance(letters, str):
             raise TypeError(
                 f"composition() takes the letters to count as a string — composition('KR'), not "
                 f"{letters!r}.")
-        return Composition(self, letters.upper())
+        if absent is not None and (isinstance(absent, bool)
+                                   or not isinstance(absent, (int, float))
+                                   or not 0.0 <= absent <= 1.0):
+            raise ValueError(
+                f"absent is the share this statistic reads where the run has no sequence, so it is "
+                f"a fraction in [0, 1]; got {absent!r}.")
+        return Composition(self, letters.upper(), None if absent is None else float(absent))
 
-    def gc(self, family: object = None):
+    def gc(self, family: object = None, *, absent: float | None = None):
         """This run's **GC content** as a conditioning driver: `composition` over ``"GC"``, the
         fraction of a lineage's DNA that is G or C, pooled over every family the run evolved::
 
@@ -223,19 +251,22 @@ class SequencesResult:
 
         Nucleotide runs only, because G and C are also glycine and cysteine: on a protein run the
         call is ambiguous rather than wrong, so it is refused and `composition` asked for instead.
-        ``family`` is here only to refuse one."""
+        ``family`` is here only to refuse one — one family's GC is asked for by restricting the run
+        to it with ``families=``, and ``absent`` then says what a branch without it reads
+        (`composition`)."""
         if family is not None:
             raise ValueError(
-                f"gc() is pooled over every family this run evolved, so it takes no family — got "
-                f"{family!r}. One family's GC is not offered: it is undefined wherever that family is "
-                f"absent, and a driver has to answer for every branch the target walks. Evolve that "
-                f"family in a run of its own if its GC alone should drive the rate.")
+                f"gc() is pooled over whatever this run evolved, so it takes no family — got "
+                f"{family!r}. To read one family's GC, restrict the run to it instead — "
+                f"simulate_sequences(g, families=[{family!r}], ...) — and say what a branch reads "
+                f"where that family is absent: .gc() then needs an absent=, or "
+                f"composition('GC', absent=...) directly.")
         if set(self.alphabet) != set(BASES):
             raise ValueError(
                 f"gc() is GC content, so it needs DNA; this run's alphabet is {self.alphabet!r}. A "
                 f"protein run's G and C are glycine and cysteine — ask for those by name with "
                 f"composition('GC') if that is what you meant.")
-        return self.composition("GC")
+        return self.composition("GC", absent=absent)
 
     @property
     def _stem(self) -> str:
@@ -251,6 +282,11 @@ class SequencesResult:
         prints it and warns when it is near the floor; this is the machine-readable copy of that."""
         aligned = {k: v for k, v in self.alignments.items() if v}
         sites = sorted({len(s) for aln in aligned.values() for s in aln.values()})
+        # the recorded history is reported only when there is one: a run that did not ask for it
+        # writes the summary it always wrote, so a streamed run and an in-memory one still match
+        recorded = ({"events": {kind: sum(1 for e in self.events if e.kind == kind)
+                                for kind in ("substitution", "insertion", "deletion")}}
+                    if self.events else {})
         return {
             "level": "sequences",
             "seed": self.seed,
@@ -262,6 +298,7 @@ class SequencesResult:
             "sites": {"min": sites[0], "max": sites[-1]} if sites else {"min": None, "max": None},
             "mean_pairwise_identity": mean_pairwise_identity(aligned),
             "assembled_genomes": len(self.node_genomes),
+            **recorded,
         }
 
     def write(self, directory, outputs=("alignments", "phylograms", "species_phylogram", "genomes",
@@ -333,10 +370,20 @@ class SequencesResult:
             if "ancestral" not in outputs:
                 written.pop("ancestral_sequences", None)
             write_summary(d / "sequences_summary.json", written)
-        if "species_phylogram" in outputs:
+        # This level's own log, and the one output that is empty unless the run asked for it: a
+        # substitution log is bigger than the alignment it explains, so `record=True` is what turns
+        # it on and nothing else does (`_record`).
+        if "events" in outputs and self.events:
+            from ._record import HEADER
+            rows = "\n".join("\t".join(str(x) for x in e.row()) for e in self.events)
+            (d / "sequence_events.tsv").write_text("\t".join(HEADER) + "\n" + rows + "\n",
+                                                   encoding="utf-8")
+        # A joint run has no species phylogram and says so with None, rather than with a tree that
+        # would be one gene's: the species phylogram is the clock made visible, and there each gene's
+        # rate reads the other's composition, so no single set of branch lengths is the run's.
+        complete = self.species_phylogram["complete"]
+        if "species_phylogram" in outputs and complete is not None:
             sp = self.species_phylogram
-            complete = sp["complete"]
-            assert complete is not None
             (d / "clock_species_tree_complete.nwk").write_text(complete + "\n", encoding="utf-8")
             if sp["extant"] is not None:
                 (d / "clock_species_tree_extant.nwk").write_text(sp["extant"] + "\n", encoding="utf-8")
@@ -1106,7 +1153,7 @@ def _bp_extent(spec, label):
 
 
 def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=None,
-                       present: "dict | None" = None):
+                       present: "dict | None" = None, record=None):
     """Evolve one gene tree partition by partition and hand back the family's whole sequences:
     ``(alignment, ancestral, founding_string)``, each sequence the partitions concatenated in order.
 
@@ -1143,7 +1190,7 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
         states, founding_states = evolve_gene_tree(
             gt.complete, base, n, rate, clock, rng, gt.origination,
             founding=None if founding is None else founding[at:at + n],
-            cdf_cache=cdf_caches, models=per_species)
+            cdf_cache=cdf_caches, models=per_species, record=record)
         at += n
         aln, anc = _split(gt, states, names, base, present=present)
         pieces.append((aln, anc, decode(founding_states, base.alphabet)))
@@ -1156,12 +1203,307 @@ def _evolve_partitions(gt, parts, rate, clock, rng, cdf_caches, names, founding=
     return alignment, ancestral, "".join(p[2] for p in pieces)
 
 
+# --- the sequence level joined to itself: process specs -------------------------------------------
+
+
+@dataclass(frozen=True)
+class OfferedComposition:
+    """What a gene **publishes** for the other genes in a joint run to read — the share of its
+    sequence that is ``letters``, and what a lineage carrying none of the family reads instead.
+
+    Written with `composition`, and the same statistic
+    `~zombi2.sequences._composition.Composition` computes off a finished run. The difference is only
+    when: that one reads a run that is over, this one is read as the run goes."""
+
+    letters: str
+    absent: float
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.letters, str) or not self.letters:
+            raise ValueError("composition() needs at least one letter to count, e.g. 'KR'")
+        if isinstance(self.absent, bool) or not isinstance(self.absent, (int, float)) \
+                or not 0.0 <= self.absent <= 1.0:
+            raise ValueError(
+                f"absent is the share this statistic reads where a lineage carries none of the "
+                f"family, so it is a fraction in [0, 1]; got {self.absent!r}. It has no default: a "
+                f"driver has to answer for every branch the target walks, and only the model knows "
+                f"what a lineage without the gene should read.")
+
+    def __repr__(self) -> str:
+        return f"composition({self.letters!r}, absent={self.absent!r})"
+
+
+def composition(letters: str, *, absent: float) -> OfferedComposition:
+    """The statistic a gene offers the rest of a joint run — ``composition("KR", absent=0.08)``.
+
+    Written on `gene`, and read by another gene's rate as
+    ``scaled_by("sequences:<name>", Curve(...), step=...)``. ``absent`` is required: a lineage that
+    carries none of the family has no sequence to count, and a driver has to answer for every branch
+    the target walks."""
+    return OfferedComposition(letters.upper(), float(absent))
+
+
+@dataclass(frozen=True)
+class GeneSpec:
+    """One named gene of a joint sequence run — its parameters bundled but not yet evolved.
+
+    Built by `gene`. ``name`` is the family the genome run declared, and is also how another gene's
+    rate names this one: ``"sequences:<name>"``."""
+
+    name: str
+    model: object
+    length: int
+    substitution: object = None
+    offers: OfferedComposition | None = None
+    start: object = None
+
+
+def gene(*, name: str, model, length: int, substitution=None,
+         offers: OfferedComposition | None = None, start=None) -> GeneSpec:
+    """A gene **process** for a joint sequence run — the sequence level's process spec::
+
+        simulate_sequences(g, joint=True, seed=1, genes=[
+            sequences.gene(name="chaperone", model=lg(), length=300,
+                           offers=sequences.composition("KR", absent=0.08),
+                           substitution=PerSite(1.0).scaled_by(
+                               "sequences:client", Curve(f), step=0.05)),
+            sequences.gene(name="client", model=lg(), length=300,
+                           offers=sequences.composition("KR", absent=0.08),
+                           substitution=PerSite(1.0).scaled_by(
+                               "sequences:chaperone", Curve(f), step=0.05))])
+
+    ``name`` names a family the genome run declared with ``families=[family("chaperone")]``.
+    ``offers`` is what this gene publishes for the others to read, and is needed only on a gene
+    something reads. ``substitution`` is its own per-site rate, and reading another gene by name is
+    what makes the run joint.
+
+    ``start`` is a second model, and only its **stationary frequencies** are used: the founding
+    sequence is drawn from those and then evolves under ``model``. Without it a gene founds at its
+    own model's equilibrium and stays there, so its composition never moves and a rate reading it
+    reads a constant. With it the gene arrives with a foreign composition and ameliorates toward its
+    own — which is where a composition has something to say, and what a loop between two of them has
+    to work with."""
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError(f"a gene needs a name — the family the genome run declared; got {name!r}")
+    if not isinstance(length, int) or isinstance(length, bool) or length < 1:
+        raise ValueError(f"length must be a positive integer number of sites, got {length!r}")
+    if offers is not None and not isinstance(offers, OfferedComposition):
+        raise TypeError(
+            f"offers= is what this gene publishes, written with sequences.composition('KR', "
+            f"absent=0.08); got {offers!r}.")
+    return GeneSpec(name, model, length, substitution, offers, start)
+
+
+def _simulate_loop(genomes, genes, *, joint: bool, seed, progress) -> "SequencesResult":
+    """Two genes, each one's substitution rate reading the other's composition, in one run.
+
+    The sequence level joined to **itself** (SPEC §3): neither gene can be finished before the other
+    starts, so one walk carries both. See `zombi2.sequences._loop` for the walk, which slices species
+    time because a composition moves with every substitution and so is never constant for a whole
+    branch."""
+    from ..genomes import OrderedGenomesResult
+    from . import _loop
+
+    if genes is None:
+        raise ValueError(
+            "joint=True says the genes drive each other, so it needs the genes: "
+            "genes=[sequences.gene(name='chaperone', ...), sequences.gene(name='client', ...)].")
+    specs = list(genes)
+    if not isinstance(genomes, (FamilyGenomesResult, OrderedGenomesResult)):
+        raise TypeError(
+            f"a joint sequence run reads a family or ordered genome run's gene trees, got "
+            f"{type(genomes).__name__}. A nucleotide run has blocks rather than named families.")
+    for spec in specs:
+        if not isinstance(spec, GeneSpec):
+            raise TypeError(
+                f"genes= takes gene specs — sequences.gene(name=..., model=..., length=...) — and "
+                f"got {spec!r}.")
+    if len(specs) < 2:
+        raise ValueError(
+            f"a joint sequence run is genes reading each other, and got {len(specs)}. One gene is "
+            f"an ordinary run: simulate_sequences(g, families=[name], model=..., length=...).")
+    if len({s.name for s in specs}) != len(specs):
+        raise ValueError(f"gene names must be unique, got {[s.name for s in specs]}")
+    declared = getattr(genomes, "family_names", {}) or {}
+    unknown = [s.name for s in specs if s.name not in declared]
+    if unknown:
+        raise ValueError(
+            f"genes {unknown} name no family of this genome run, which declared "
+            f"{sorted(declared) or 'none'}. Declare them there — "
+            f"simulate_genomes_family(..., families=[family('chaperone'), family('client')]).")
+    for spec in specs:
+        if not isinstance(spec.model, SubstitutionModel):
+            raise TypeError(
+                f"gene {spec.name!r} needs one substitution model — model=lg() — and got "
+                f"{spec.model!r}. A per-lineage set or a partition list is not read on this path.")
+        if spec.start is not None:
+            if not isinstance(spec.start, SubstitutionModel):
+                raise TypeError(
+                    f"gene {spec.name!r}'s start= is the model whose stationary frequencies the "
+                    f"founding sequence is drawn from, and got {spec.start!r}.")
+            if spec.start.alphabet != spec.model.alphabet:
+                raise ValueError(
+                    f"gene {spec.name!r} founds from a {spec.start.alphabet[:4]}… model and evolves "
+                    f"under a {spec.model.alphabet[:4]}… one; a founding sequence has to be written "
+                    f"in the alphabet it then evolves in.")
+    alphabets = {s.model.alphabet for s in specs}
+    if len(alphabets) != 1:
+        raise ValueError(
+            f"every gene of one run writes in one alphabet, and these use {sorted(alphabets)}. "
+            f"A composition is counted in that alphabet's letters, so a run holding two of them "
+            f"could not say which a driver's letters belong to.")
+    alphabet = specs[0].model.alphabet
+    for spec in specs:
+        if spec.offers is None:
+            continue
+        stray = sorted(set(spec.offers.letters) - set(alphabet))
+        if stray:
+            raise ValueError(
+                f"gene {spec.name!r} offers composition({spec.offers.letters!r}), which names "
+                f"{stray} — not in this run's alphabet ({alphabet}). They occur nowhere, so every "
+                f"lineage would read 0.0.")
+
+    # each gene's rate, and what it reads
+    offers = {s.name: (s.offers.letters, s.offers.absent) if s.offers else None for s in specs}
+    rates: dict[str, tuple] = {}
+    steps: set[float] = set()
+    missing_step: list[str] = []
+    reads = 0
+    for spec in specs:
+        r = as_rate(1.0 if spec.substitution is None else spec.substitution, default_scope=PerSite)
+        if r.scope is not PerSite:
+            assert r.scope is not None      # `as_rate` above fills in the default scope
+            raise ValueError(
+                f"gene {spec.name!r}'s substitution rate has a {r.scope.__name__} scope; the "
+                f"sequence level reads it per site — write PerSite(...).")
+        factors = []
+        for m in r.modifiers:
+            if not isinstance(m, Driven) or not isinstance(m.driver, str):
+                raise ValueError(
+                    f"gene {spec.name!r}'s substitution rate carries {describe(m)}, and a joint "
+                    f"sequence run reads one kind of modifier: another gene of the same run, by "
+                    f'name — scaled_by("sequences:<name>", Curve(...), step=...). A lineage clock '
+                    f"or a driver grown beforehand belongs on an ordinary run.")
+            if not m.driver.startswith("sequences:"):
+                raise ValueError(
+                    f"gene {spec.name!r} reads {m.driver!r}. In a joint sequence run a rate reads "
+                    f'another gene of the same run: scaled_by("sequences:<name>", ...).')
+            other = m.driver.split(":", 1)[1]
+            if other not in offers:
+                raise ValueError(
+                    f"gene {spec.name!r} reads {m.driver!r}, which is not a gene in this run. The "
+                    f"genes here are {sorted(offers)}.")
+            if other == spec.name:
+                raise ValueError(
+                    f"gene {spec.name!r} reads its own composition. That is a run conditioned on "
+                    f"its own output — the rate at which a sequence changes would be read off the "
+                    f"sequence that rate is producing. Read another gene of the run.")
+            if offers[other] is None:
+                raise ValueError(
+                    f"gene {spec.name!r} reads {m.driver!r}, but gene {other!r} offers nothing. Say "
+                    f"what it publishes: offers=sequences.composition('KR', absent=0.08).")
+            (missing_step.append(spec.name) if m.step is None else steps.add(m.step))
+            factors.append((other, m.mapping))
+            reads += 1
+        # the per-site base, read straight off the rate: this level multiplies it by
+        # a stretch of branch, exactly as the ordinary engine's `rate_base` does
+        if r.base is None:
+            raise ValueError(
+                f"gene {spec.name!r}'s substitution rate has no base — set_by replaces it with a "
+                f"driver's own number, and a joint sequence run reads a driver as a factor on a "
+                f"rate you wrote. Write PerSite(1.0).scaled_by(...).")
+        rates[spec.name] = (float(r.base), tuple(factors))
+    if reads and not joint:
+        raise ValueError(
+            "a gene here reads another gene of this same run, so the two are joint — neither can be "
+            "finished before the other starts. Say so with joint=True. To read a gene grown "
+            "EARLIER, pass that run's composition object rather than a name, which is conditioning.")
+    if joint and not reads:
+        raise ValueError(
+            "joint=True says the genes drive each other, but none reads another. Give a "
+            'substitution rate a scaled_by("sequences:<name>", ...), or evolve the genes as '
+            "separate runs.")
+    if missing_step:
+        raise ValueError(
+            f"gene {sorted(set(missing_step))} reads another gene's composition, so it needs a "
+            f"step= — the stretch of time that composition is held fixed across. A composition "
+            f"moves with every substitution, so there is no interval where this rate holds still on "
+            f"its own; the run slices instead. Write it on the connection, "
+            f'scaled_by("sequences:<other>", Curve(f), step=0.05), and pick it so a gene turns over '
+            f"little within one slice — then halve it, rerun the same seed, and see whether the "
+            f"answer moves.")
+    if len(steps) > 1:
+        raise ValueError(
+            f"the genes read each other at two resolutions, step={sorted(steps)}. One walk carries "
+            f"them both and it has one set of slice boundaries, so the readings have to agree.")
+
+    species_tree = genomes.complete_tree
+    trees = {s.name: genomes.gene_trees[declared[s.name]] for s in specs}
+    tallest = max(n.end_time for n in species_tree.nodes.values())
+    step = _loop.check_step(next(iter(steps)), tallest)
+    rng, seed = stream("sequences", seed)
+    grown = _loop.grow(specs, trees,
+                       {s.name: s.model for s in specs}, {s.name: s.length for s in specs},
+                       rates, offers, step, rng,
+                       starts={s.name: s.start for s in specs}, progress=progress)
+
+    labels = species_tree.labels()
+    alignments: dict[int, dict[str, str]] = {}
+    ancestral: dict[int, dict[str, str]] = {}
+    founding: dict[int, str] = {}
+    phylograms: dict[int, dict[str, str | None]] = {}
+    for spec in specs:
+        fam = declared[spec.name]
+        states, founding_states, length_of = grown[spec.name]
+        aln, anc = _split(trees[spec.name], states, labels, spec.model)
+        alignments[fam], ancestral[fam] = aln, anc
+        founding[fam] = decode(founding_states, spec.model.alphabet)
+        scaled = _loop.scaled_tree(trees[spec.name], length_of)
+        ext = scaled.extant
+        phylograms[fam] = {"complete": _gene_newick(scaled.complete, labels),
+                           "extant": _gene_newick(ext, labels) if ext is not None else None}
+    return SequencesResult(
+        alignments, ancestral, founding, phylograms,
+        # no species phylogram: it is the clock made visible, and here every gene runs at a rate the
+        # other gene sets, so no one set of branch lengths belongs to the run
+        {"complete": None, "extant": None}, seed, {}, {}, "family", alphabet,
+        tuple(labels[i] for i in sorted(species_tree.extant_leaves())),
+        tuple(s.name for s in specs))
+
+
+def _restrict_to(families, genomes) -> list[int]:
+    """The family ids ``families=`` names, checked against what the genome run declared.
+
+    **Names, not ids.** A run's family ids are handed out as it goes, so a number here would be a
+    reference to something the caller did not write; a name is the handle the genome run was asked
+    for, ``families=[family("chaperone")]``. That is also what makes this usable at all — the point
+    of restricting a run is to have a statistic that belongs to a family you can name."""
+    declared = getattr(genomes, "family_names", {}) or {}
+    if isinstance(families, str):
+        raise TypeError(
+            f"families= takes a list of names, so one name is families=[{families!r}] rather than a "
+            f"bare string (which reads as a list of its letters).")
+    names = list(families)
+    if not names:
+        raise ValueError(
+            "families=[] would evolve nothing. Leave families= off to evolve every family, or name "
+            "the ones to keep.")
+    unknown = [n for n in names if n not in declared]
+    if unknown:
+        raise ValueError(
+            f"families={unknown} names no family of this genome run. A family is nameable only if "
+            f"the genome run declared it — simulate_genomes_family(..., families=[family('chaperone')]) "
+            f"— and this one declared {sorted(declared) or 'none'}.")
+    return [declared[n] for n in names]
+
+
 def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
-                       length: int | None = None, partitions=None, profiles=None,
+                       length: int | None = None, partitions=None, profiles=None, families=None,
                        intergene_model: SubstitutionModel | None = None, intergene_speed=3.0,
                        insertion=0.0, deletion=0.0, insertion_extent=3.0, deletion_extent=3.0,
                        substitution=None, divergence=None, seed=None, parallel=False,
-                       stream_to=None, outputs=None, flat: bool = False,
+                       stream_to=None, outputs=None, flat: bool = False, genes=None,
+                       joint: bool = False, record: bool = False,
                        progress=False) -> "SequencesResult | StreamedSequences":
     """Evolve one sequence down each family's gene tree under a substitution ``model``.
 
@@ -1214,6 +1556,24 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     the branch rather than one sample of it (`clock`), so the phylograms are the trees the alignments
     were actually drawn along. Any other modifier (the ``Markov`` clock, a draw among
     families), a second lineage clock, or a non-``PerSite`` scope raises.
+
+    ``record=True`` keeps this level's own **history** — every substitution, and every site gained
+    or lost — in ``result.events``, written as ``sequence_events.tsv``. It is off by default and is
+    the only level's log that is, because it is the one log bigger than the output it explains: three
+    hundred sites over thirty time units at rate 1.0 is nine thousand rows for one family. Recording
+    also changes the *sampler*: an ordinary run draws each branch's end from ``exp(Q·bl)`` and never
+    simulates the path between the two ends, while a recorded run walks that path site by site. The
+    two are the same process and the same distribution at a branch's end, so a recorded run is a
+    valid run — but it is a **different realisation** for the same seed, which is the price of asking
+    what happened rather than only where it ended. A site is named by an id rather than a position,
+    because a position moves with every insertion above it; see `zombi2.sequences._record`.
+
+    ``families`` restricts the run to **named** families — ``families=["chaperone"]`` — instead of
+    evolving every one. The names are the genome run's, declared there with
+    ``families=[family("chaperone")]``. Two uses: a run of one family, whose pooled `composition` is
+    then that family's composition, and a pair of runs that let one gene's sequence drive another's
+    rate. That pair needs it: without it the second run re-evolves the driver alongside its target,
+    so the rate reads one history of the driver while the file on disk holds a different one.
 
     Rate variation **across sites** rides on ``model``, not on ``substitution``:
     ``model=hky85(2.0).across_sites(gamma_shape=0.5, invariant=0.1)`` sorts the sites into a
@@ -1312,6 +1672,26 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     if isinstance(genomes, (str, os.PathLike, StreamedRun)):
         genomes = read_run(genomes)
 
+    if joint or genes is not None:
+        # The joint path is its own engine and takes its own arguments, so everything the ordinary
+        # one reads is refused here rather than accepted and ignored (SPEC §5). A gene carries its
+        # own model, length and rate, which is what leaves nothing for the run-wide ones to mean.
+        offered = [n for n, v in (("model", model), ("length", length), ("partitions", partitions),
+                                  ("profiles", profiles), ("families", families),
+                                  ("substitution", substitution), ("divergence", divergence),
+                                  ("intergene_model", intergene_model), ("stream_to", stream_to),
+                                  ("outputs", outputs))
+                   if v is not None]
+        offered += [n for n, v in (("insertion", insertion), ("deletion", deletion),
+                                   ("parallel", parallel)) if v]
+        if offered:
+            raise ValueError(
+                f"a joint sequence run is written gene by gene, so {', '.join(sorted(offered))} "
+                f"{'have' if len(offered) > 1 else 'has'} nothing to apply to: each gene carries its "
+                f"own model, length and substitution rate. Write them on "
+                f"sequences.gene(name=..., model=..., length=..., substitution=...).")
+        return _simulate_loop(genomes, genes, joint=joint, seed=seed, progress=progress)
+
     nucleotide = isinstance(genomes, NucleotideGenomesResult)
     # Indels here are the family and ordered resolutions' — the nucleotide one has its own, on the
     # genome, where a base pair has a position (docs/design/indels.md). One word, one meaning, at
@@ -1327,6 +1707,21 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             "indels change how many sites a lineage has, and partitions/profiles are written "
             "against a fixed site count — so a site's partition or profile would stop meaning "
             "anything the moment one fired. Use one or the other.")
+    if record:
+        # `record=` runs a different sampler — a forward Gillespie down each branch — so what it
+        # cannot walk it refuses rather than quietly recording something else (SPEC §5).
+        bad = [n for n, v in (("partitions", partitions), ("profiles", profiles),
+                              ("stream_to", stream_to)) if v is not None]
+        bad += [n for n, v in (("parallel", parallel),) if v]
+        if nucleotide:
+            bad.append("a nucleotide genome run")
+        if bad:
+            raise ValueError(
+                f"record=True walks every branch site by site, and {', '.join(bad)} is not on that "
+                f"path: partitions and profiles give a family several models, a nucleotide run "
+                f"evolves blocks rather than one sequence per family, and the parallel and "
+                f"streaming engines hand a family off before its rows could be collected. Record a "
+                f"serial, in-memory, single-model run.")
     ins_extent = _bp_extent(insertion_extent, "insertion_extent")
     del_extent = _bp_extent(deletion_extent, "deletion_extent")
     # An ordered run is admitted here as a family one: this level reads a genome run's `gene_trees`
@@ -1386,6 +1781,12 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             "drop `profiles`.")
     site_profiles = {} if profiles is None else _resolve_profiles(profiles, model, length)
 
+    if nucleotide and families is not None:
+        raise ValueError(
+            "families= restricts the run to named gene families, and a nucleotide genome run "
+            "evolves blocks — genes and the spacer between them — rather than a family's gene "
+            "trees. Run the family or ordered resolution at the genome level if one family's "
+            "sequences are what you want.")
     if nucleotide:
         # Every recovered root block evolves — spacer as well as genes — so the run reconstructs the
         # whole genome rather than the declared loci. Each block brings its own length in bp, which
@@ -1454,6 +1855,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         parts = None                # a nucleotide block's model and length come from `per_block`
     else:
         gene_trees = genomes.gene_trees
+        if families is not None:
+            gene_trees = {i: gene_trees[i] for i in _restrict_to(families, genomes)}
         parts = _resolve_partitions(model, partitions, length)
         # A per-lineage model set is painted against THIS run's tree, once, before any family is
         # evolved — the same shape as a driven rate resolving its trajectory above. It is checked
@@ -1578,6 +1981,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     ancestral: dict[int, dict[str, str]] = {}
     founding: dict[int, str] = {}
     phylograms: dict[int, dict[str, str | None]] = {}
+    events: list = []                      # empty unless record=True; see `_record`
     seed = resolve_seed(seed)      # drawn if none was given, so either engine below records it
     if not parallel:
         # Serial reference engine — the default, left exactly as it was. One shared generator draws the
@@ -1625,21 +2029,28 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             # the tree, and then the existing engine evolves that fixed width down it. Exact rather
             # than convenient — see `indels.draw_indel_history`.
             history = None
+            recorder = None
+            if record:
+                from ._record import Recorder
+                recorder = Recorder(events, names)
             if insertion or deletion:
                 assert f_parts is not None    # None means a nucleotide run, which refuses these
                 sites = sum(int(n) for _model, n in f_parts)
                 history = draw_indel_history(
                     gt.complete, sites, insertion=insertion, deletion=deletion,
                     insertion_extent=ins_extent, deletion_extent=del_extent,
-                    rate_base=f_rate, clock=clock, rng=rng)
+                    rate_base=f_rate, clock=clock, rng=rng, record=recorder)
             if history is not None:
                 assert f_parts is not None
                 f_parts = ((f_parts[0][0], history.width),)
                 n_insertions += history.insertions
                 n_deletions += history.deletions
+                if recorder is not None:      # a column is no longer its own id once sites move
+                    recorder.site_ids, recorder.present = history.order, history.present
             aln, anc, fnd = _evolve_partitions(gt, f_parts, f_rate, clock, rng, cdf_caches, names,
                                                founding=seed_states,
-                                               present=None if history is None else history.present)
+                                               present=None if history is None else history.present,
+                                               record=recorder)
             scaled = _scaled_gene_tree(gt, f_rate, clock)  # branch lengths in subs/site
             ext = scaled.extant
             phylo = {"complete": _gene_newick(scaled.complete, names),
@@ -1665,6 +2076,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             founding_seed if nucleotide else None, spawned[1:], workers, progress, names,
             sink=None if sink is None else sink.family, partitions=parts)
 
+    events.sort(key=lambda e: e.time)      # one log, in time order, as every other level writes one
     sp_scaled = _scaled_species_tree(species_tree, rate_base, clock)   # the clock made visible
     sp_extant = prune(sp_scaled, keep="extant")
     species_phylogram = {"complete": sp_scaled.to_newick(),
@@ -1731,6 +2143,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                            # alphabet, so the first one speaks for the run
                            BASES if parts is None else parts[0][0].alphabet,
                            tuple(names[i] for i in sorted(species_tree.extant_leaves())),
+                           () if families is None else tuple(families),
+                           events,
                            insertion_plan,
                            alignments._raw if isinstance(alignments, _SplicedAlignments) else alignments,
                            ancestral._raw if isinstance(ancestral, _SplicedAlignments) else ancestral)
@@ -1738,6 +2152,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
 
 __all__ = ["simulate_sequences", "SequencesResult", "StreamedSequences",
            "mean_pairwise_identity",
+           # the sequence level joined to itself: its process specs
+           "gene", "GeneSpec", "composition", "OfferedComposition",
            # the substitution-model menu, re-exported: the TypeError raised for a bad
            # `model=` names these symbols, so they must be importable from the module it names
            "jc69", "k80", "hky85", "gtr", "poisson", "jtt", "dayhoff", "wag", "lg",

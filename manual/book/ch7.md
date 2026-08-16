@@ -239,6 +239,33 @@ The caveat: every model is normalised to one expected substitution per site per 
 
 ### Where a sequence starts
 
+## Keeping the history
+
+Every other level records what happened to it. This one records the letters at every node and no events, and that is deliberate: a substitution log is bigger than the alignment it explains. Three hundred sites on a tree whose branches total thirty time units at rate 1.0 is nine thousand substitutions for **one** family, and a hundred families is close to a million rows, where the genome log for the same run holds a few thousand.
+
+`record=True` asks for it:
+
+```python
+from zombi2.genomes import simulate_genomes_family
+from zombi2.sequences import jc69, simulate_sequences
+from zombi2.species import simulate_species_tree
+
+ct = simulate_species_tree(birth=1.0, n_extant=10, seed=1).complete_tree
+g = simulate_genomes_family(ct, initial_families=4, duplication=0.05, loss=0.1, seed=2)
+
+r = simulate_sequences(g, model=jc69(), length=300, seed=1, record=True)
+r.events[0]                 # time · kind · lineage · gene · site · strand · after · from · to
+r.write("out/", outputs=("alignments", "events"))    # sequence_events.tsv
+```
+
+Insertions and deletions get rows too, one per site. Without them the log would say a site changed and never say when that site arrived or left.
+
+A site is named by an **id**, not by a position. A position in a lineage's own sequence shifts with every insertion above it, and the alignment column index is stable only once the run has finished — so neither can go in a row written while the run is going. An insertion row carries the id it follows, and a deletion row the ids dropped; with those two a reader can rebuild any lineage's column list at any moment, which is what turns an id back into a position. The `strand` column is there because the nucleotide level's blocks can sit reverse-complemented; at this level it is always `+1`.
+
+Recording changes the **sampler**, and it is worth knowing why. An ordinary run draws each branch's end from `exp(Q·bl)` — one matrix, one draw per site — and never simulates the path between the two ends, because nothing asks what it was. A recorded run has to walk that path, so it runs a forward Gillespie over the sites. The two are the same process and give the same distribution at a branch's end, so a recorded run is a valid run; it is a *different realisation* for the same seed, which is the price of asking what happened rather than only where it ended.
+
+What it will not walk, it refuses: partitions and profiles, which give a family several models; a nucleotide genome run, which evolves blocks rather than one sequence per family; and the parallel and streaming engines, which hand a family off before its rows could be collected.
+
 ## Large runs
 
 This is the level where a run's memory goes. Every family's alignment and every ancestral sequence are held at once, so what you can run is bounded by families × copies × sites rather than by time. `stream_to` writes each family's files the moment it is finished and keeps nothing, handing back a light handle with a path instead of a `SequencesResult` holding everything. On the command line it is `--stream`.

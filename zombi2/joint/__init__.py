@@ -30,6 +30,7 @@ from __future__ import annotations
 import math
 import pathlib
 from dataclasses import dataclass
+from typing import Any
 
 
 from .._runtime.draw import weighted_index as _weighted_index
@@ -80,10 +81,16 @@ class JointResult:
     seed: int | None
     trait: TraitsResult | None = None
     genome: FamilyGenomesResult | None = None
+    #: the sequence level, when it is one of the two — a `~zombi2.sequences.SequencesResult` holding
+    #: the one gene the run evolved. Set only by the trait-and-sequence model, whose tree and gene
+    #: trees both come in. Typed loosely because importing that result here would be a cycle: the
+    #: sequence level imports the genome level, which this module imports too.
+    sequences: "Any | None" = None
 
     def __repr__(self) -> str:
-        driver = "trait" if self.trait is not None else "genome"
-        return (f"JointResult({self.n_extant} extant tips grown with a {driver}, "
+        grown = [n for n, v in (("trait", self.trait), ("genome", self.genome),
+                                ("sequences", self.sequences)) if v is not None]
+        return (f"JointResult({self.n_extant} extant tips, {' and '.join(grown)}, "
                 f"seed={self.seed})")
 
     @property
@@ -115,6 +122,8 @@ class JointResult:
         out = {"level": "joint", "seed": self.seed,
                "driver": "trait" if self.trait is not None else "genome",
                "species": self.species.summary()}
+        if self.sequences is not None:
+            out["sequences"] = self.sequences.summary()
         if self.trait is not None:
             out["trait"] = self.trait.summary()
         if self.genome is not None:
@@ -155,6 +164,8 @@ class JointResult:
                 self.trait.write(d)
             if self.genome is not None:
                 self.genome.write(d, flat=flat)
+            if self.sequences is not None:
+                self.sequences.write(d, flat=flat)
 
 
 #: What ``max_lineages`` says when it fires. The species engine has had this guard since it grew a
@@ -873,7 +884,7 @@ def _classify(participants):
     level's own run."""
     from ..species import BirthDeath
 
-    kinds = {"species": [], "traits": [], "genomes": []}
+    kinds = {"species": [], "traits": [], "genomes": [], "sequences": []}
     for p in participants:
         if isinstance(p, BirthDeath):
             kinds["species"].append(p)
@@ -881,11 +892,13 @@ def _classify(participants):
             kinds["traits"].append(p)
         elif isinstance(p, FamilyGenome):
             kinds["genomes"].append(p)
+        elif type(p).__name__ == "GeneSpec":
+            kinds["sequences"].append(p)
         else:
             raise TypeError(
                 f"joint.simulate takes process specs — species.birth_death(...), "
-                f"traits.discrete(...), traits.continuous(...), genomes.genome(...) — and got "
-                f"{p!r}. A finished result is a "
+                f"traits.discrete(...), traits.continuous(...), genomes.genome(...), "
+                f"sequences.gene(...) — and got {p!r}. A finished result is a "
                 f"driver you already have, which is conditioning: pass it to the driven level's own "
                 f"run instead.")
     return kinds
@@ -1172,7 +1185,170 @@ def _on_a_given_tree(kinds, *, tree, seed) -> JointResult:
                                    genome.max_family_size))
 
 
-def simulate(*participants, tree=None, seed=None, max_lineages=100_000) -> JointResult:
+def _traits_and_sequences(kinds, *, tree, genomes, seed) -> JointResult:
+    """A trait and a gene's sequence, each driving the other — the cross-level join whose two ends
+    are the furthest apart (design note §7).
+
+    A sequence lives on a gene tree, which lives on the species tree, so this run needs a **genome
+    run** handed over rather than a bare tree: that is where the gene trees and the tree they sit on
+    both come from. Everything else follows the same rule as the other joint models — you give what
+    you are not simulating."""
+    from ..genomes import FamilyGenomesResult, OrderedGenomesResult
+    from ..params.parameter import as_rate
+    from ..params.scope import PerSite
+    from ..sequences import SequencesResult, _gene_newick, _split
+    from ..sequences._loop import check_step, scaled_tree
+    from ..sequences.substitution_models import SubstitutionModel, decode
+    from ..traits.discrete import _driven_entries, _switch_specs
+    from . import _traits_sequences
+
+    n_traits, n_genes = len(kinds["traits"]), len(kinds["sequences"])
+    if kinds["species"] or kinds["genomes"]:
+        raise ValueError(
+            "a trait and a sequence drive each other on a tree the run is handed, so the species "
+            "tree and the genome are inputs rather than participants: hand the genome run over with "
+            "genomes=g, which carries the tree its gene trees sit on.")
+    if not (n_traits == 1 and n_genes == 1):
+        raise NotImplementedError(
+            f"this pair is built for one trait and one gene; got {n_traits} trait(s) and "
+            f"{n_genes} gene(s).")
+    if not isinstance(genomes, (FamilyGenomesResult, OrderedGenomesResult)):
+        raise ValueError(
+            "a sequence needs the gene trees to evolve along, so this run takes the genome run that "
+            "produced them: joint.simulate(traits.discrete(...), sequences.gene(...), genomes=g). "
+            f"Got {type(genomes).__name__}." + (
+                " A bare tree is not enough — a sequence lives on a gene tree, and the genome run is "
+                "what has both." if tree is not None else ""))
+    if tree is not None:
+        raise ValueError(
+            "the tree comes with the genome run here — its gene trees sit on it — so passing both "
+            "leaves two answers to one question. Give genomes=g alone.")
+    trait, spec = kinds["traits"][0], kinds["sequences"][0]
+    if not isinstance(trait, DiscreteTrait):
+        raise NotImplementedError(
+            "a CONTINUOUS trait and a sequence driving each other is not built: the trait's own walk "
+            "would have to be sliced against the sequence's, which the discrete one is not. Use "
+            "traits.discrete(...) here.")
+    if not isinstance(spec.model, SubstitutionModel):
+        raise TypeError(f"gene {spec.name!r} needs one substitution model — model=lg() — and got "
+                        f"{spec.model!r}.")
+    declared = getattr(genomes, "family_names", {}) or {}
+    if spec.name not in declared:
+        raise ValueError(
+            f"gene {spec.name!r} names no family of this genome run, which declared "
+            f"{sorted(declared) or 'none'}. Declare it there — "
+            f"simulate_genomes_family(..., families=[family({spec.name!r})]).")
+    if spec.offers is None:
+        raise ValueError(
+            f"the trait reads this gene, so the gene has to say what it publishes: "
+            f"offers=sequences.composition('KR', absent=0.08) on sequences.gene({spec.name!r}, ...).")
+    stray = sorted(set(spec.offers.letters) - set(spec.model.alphabet))
+    if stray:
+        raise ValueError(
+            f"gene {spec.name!r} offers composition({spec.offers.letters!r}), which names {stray} — "
+            f"not in this model's alphabet ({spec.model.alphabet}).")
+
+    # each side's connection: the trait reads "sequences:<name>", the gene reads the trait by name
+    trait_keys = {_ONE_TRAIT} | ({f"traits:{trait.name}"} if trait.name else set())
+    gene_name = f"sequences:{spec.name}"
+    steps, missing, reads = set(), [], 0
+    gene_lookup, trait_lookup = set(), set()
+    for sw in _switch_specs(trait.switch):
+        if isinstance(sw, (int, float)):
+            continue
+        for m in as_rate(sw, default_scope=PerLineage).modifiers:
+            if not isinstance(m, Driven):
+                continue
+            if m.driver != gene_name:
+                raise ValueError(
+                    f"the trait's switch rate reads {m.driver!r}. Here it reads the gene in this "
+                    f'same run: scaled_by("{gene_name}", Curve(...), step=0.05).')
+            gene_lookup.add(m.key)
+            (missing.append("the trait's switch") if m.step is None else steps.add(m.step))
+            reads += 1
+    rate = as_rate(1.0 if spec.substitution is None else spec.substitution, default_scope=PerSite)
+    if rate.scope is not PerSite or rate.base is None:
+        raise ValueError(
+            f"gene {spec.name!r}'s substitution rate is read per site and needs a base — write "
+            f"PerSite(1.0).scaled_by(...).")
+    factors = []
+    for m in rate.modifiers:
+        if not isinstance(m, Driven) or m.driver not in trait_keys:
+            raise ValueError(
+                f"gene {spec.name!r}'s substitution rate carries {describe(m)}; here it reads the "
+                f'trait of this same run: scaled_by("{sorted(trait_keys)[0]}", {{...}}).')
+        trait_lookup.add(m.key)
+        factors.append((m.key, m.mapping))
+        reads += 1
+    if not reads:
+        raise ValueError(
+            "neither level reads the other, so this is two independent runs wearing one call. Give "
+            f'the trait\'s switch a scaled_by("{gene_name}", ...), or the gene\'s substitution rate '
+            f'a scaled_by("trait", ...).')
+    if missing:
+        raise ValueError(
+            f"{missing[0]} reads a composition, so it needs a step= — the stretch of time that "
+            f"composition is held fixed across. A composition moves with every substitution, so "
+            f"there is no interval where the switch rate holds still on its own; the run slices "
+            f'instead. Write it on the connection, scaled_by("{gene_name}", Curve(f), step=0.05).')
+    if len(steps) > 1:
+        raise ValueError(f"one walk carries both levels and has one set of slice boundaries, so the "
+                         f"readings have to agree on step; got {sorted(steps)}.")
+
+    tree = genomes.complete_tree
+    gene_tree = genomes.gene_trees[declared[spec.name]]
+    tallest = max(n.end_time for n in tree.nodes.values())
+    step = check_step(next(iter(steps)) if steps else tallest / 100.0, tallest)
+    rng, seed = stream("joint", seed)
+    # `DiscreteTrait._resolve` settles the generator into one constant matrix, which is exactly what
+    # a switch rate reading a composition cannot be. So the alphabet, the root state and the split
+    # shift are taken from the spec here — its own checks along with them — and the generator is left
+    # as rate specs, rebuilt per lineage inside the walk.
+    states = list(trait.states)
+    idx = {s: i for i, s in enumerate(states)}
+    if trait.start is None:
+        start_i = int(rng.integers(len(states)))
+    elif trait.start in idx:
+        start_i = idx[trait.start]
+    else:
+        raise ValueError(f"start must be one of states={states} (or None for a uniform draw), "
+                         f"got {trait.start!r}")
+    at_split = trait.at_speciation
+    if at_split is not None and (isinstance(at_split, bool)
+                                 or not isinstance(at_split, (int, float))
+                                 or not 0.0 <= at_split <= 1.0):
+        raise ValueError(f"at_speciation must be a probability in [0, 1] (the shift chance), "
+                         f"got {at_split!r}")
+    shift = 0.0 if at_split is None else float(at_split)
+    founder = (spec.model if spec.start is None else spec.start)
+    founding = rng.choice(spec.model.k, size=spec.length,
+                          p=founder.stationary).astype("int8")
+    grown = _traits_sequences.grow(
+        rng, tree, gene_tree=gene_tree, model=spec.model, length=spec.length, founder=founding,
+        letters=spec.offers.letters, absent=spec.offers.absent, gene_keys=tuple(gene_lookup),
+        base_rate=float(rate.base), gene_factors=tuple(factors),
+        trait_states=states, trait_entries=_driven_entries(list(states), trait.switch),
+        trait_start=start_i, trait_shift=shift, trait_keys=tuple(trait_lookup), step=step)
+
+    labels = tree.labels()
+    fam = declared[spec.name]
+    aln, anc = _split(gene_tree, grown.states, labels, spec.model)
+    scaled = scaled_tree(gene_tree, grown.length_of)
+    ext = scaled.extant
+    seqs = SequencesResult(
+        {fam: aln}, {fam: anc}, {fam: decode(founding, spec.model.alphabet)},
+        {fam: {"complete": _gene_newick(scaled.complete, labels),
+               "extant": _gene_newick(ext, labels) if ext is not None else None}},
+        {"complete": None, "extant": None}, seed, {}, {}, "family", spec.model.alphabet,
+        tuple(labels[i] for i in sorted(tree.extant_leaves())), (spec.name,))
+    return JointResult(
+        SpeciesResult(tree, [], seed, []), seed,
+        trait=TraitsResult(tree, grown.values, grown.changes, seed, kind="discrete"),
+        sequences=seqs)
+
+
+def simulate(*participants, tree=None, genomes=None, seed=None,
+             max_lineages=100_000) -> JointResult:
     """Simulate two levels **at once**, because neither can be finished before the other starts
     (SPEC §2–4).
 
@@ -1202,6 +1378,13 @@ def simulate(*participants, tree=None, seed=None, max_lineages=100_000) -> Joint
     """
     kinds = _classify(participants)
     n_species, n_traits, n_genomes = (len(kinds[k]) for k in ("species", "traits", "genomes"))
+    if kinds["sequences"]:
+        return _traits_and_sequences(kinds, tree=tree, genomes=genomes, seed=seed)
+    if genomes is not None:
+        raise ValueError(
+            "genomes= hands over a finished genome run, and only a sequence participant needs one — "
+            "a sequence lives on the gene trees it produced. Drop it, or add "
+            "sequences.gene(name=..., model=..., length=...).")
     if n_species == 0:
         return _on_a_given_tree(kinds, tree=tree, seed=seed)
     if tree is not None:

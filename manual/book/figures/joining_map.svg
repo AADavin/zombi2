@@ -1,6 +1,6 @@
 <svg viewBox="-6 6 418 362" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
 <title>Joining: which levels are simulated together</title>
-<desc>The four levels of ZOMBI2 in the same arrangement as the levels figure. Solid double-headed arrows mark the five joint models that exist: Species with Genomes, Species with Traits, Genomes with Traits, Genomes with itself, and Traits with itself. Dashed arrows and loops mark the three pairs nothing rules out and nobody has written. One pair has no arrow at all: the species tree with a sequence.</desc>
+<desc>The four levels of ZOMBI2 in the same arrangement as the levels figure. Solid double-headed arrows mark the seven joint models that exist: Species with Genomes, Species with Traits, Genomes with Traits, Traits with Sequences, and each of Genomes, Traits and Sequences with itself. One dashed arrow marks the pair nothing rules out and nobody has written. One pair has no arrow at all: the species tree with a sequence.</desc>
 <!-- Built on the four-levels figure (manual/book/figures/fig-2-1-four-levels.svg): same node
      positions, same box style, same label baseline offset. What changes is the edges. There the
      arrows run one way, because a level is grown and the next reads it. Here every arrow is
@@ -46,9 +46,10 @@
 </defs>
 
 <!-- BUILT. The two that reach Species simulate the tree, so it comes out of the run. The other
-     three are on a tree handed to the run: Genomes with Traits, Genomes with itself — one family
-     driving the rates of the genome it sits in — and Traits with itself, two characters each
-     reading the other. -->
+     five are on a tree handed to the run: Genomes with Traits, Traits with Sequences, Genomes with
+     itself — one family driving the rates of the genome it sits in — Traits with itself, two
+     characters each reading the other, and Sequences with itself, two genes each reading the
+     other's composition. -->
 <g class="edge" fill="none" stroke="#1a1a1a" stroke-width="2.1">
   <path d="M 186,72 C 162,102 120,112 120,150" marker-end="url(#a)" marker-start="url(#a0)"/>
   <path d="M 234,72 C 258,102 300,112 300,150" marker-end="url(#a)" marker-start="url(#a0)"/>
@@ -57,20 +58,21 @@
        the middle of the box rather than across its corner -->
   <path d="M 65.97,179.87 C 9.8,206.1 9.8,135.9 65.97,162.13" marker-end="url(#a)" marker-start="url(#a0)"/>
   <path d="M 348.03,179.87 C 404.2,206.1 404.2,135.9 348.03,162.13" marker-end="url(#a)" marker-start="url(#a0)"/>
+  <!-- the sequence level joined to itself: two genes, each one's substitution rate reading
+       the other's composition, walked together in slices -->
+  <path d="M 65.97,299.87 C 9.8,326.1 9.8,255.9 65.97,282.13" marker-end="url(#a)" marker-start="url(#a0)"/>
+  <!-- a trait and a gene's sequence, each driving the other, on a tree the run is handed -->
+  <path d="M 300,192 C 300,244 238,291 176,291" marker-end="url(#a)" marker-start="url(#a0)"/>
 </g>
 
-<!-- NOT BUILT: nothing rules these out. One pair is deliberately absent rather than dashed — a
-     sequence and the species tree, because a sequence lives on a gene tree, so simulating it with
-     the tree would mean simulating the genome as well.
-     Traits and Sequences was absent here until the two directions were both built: a trait drives a
-     gene's substitution rate, and that gene's composition drives the trait. Either alone is
-     conditioning. Both at once is a cycle, so the pair is joinable and now carries a dashed arrow. -->
+<!-- NOT BUILT: nothing rules this out. Genomes and Sequences can be joined and never conditioned —
+     a sequence is grown along the gene trees the genome level produces, so reading it back would
+     condition a run on its own output — and no engine for the pair exists.
+     One pair is deliberately absent rather than dashed: a sequence and the species tree, because a
+     sequence lives on a gene tree, so simulating it with the tree would mean simulating the genome
+     as well. -->
 <g class="open" fill="none" stroke="#9a9a9a" stroke-width="1.6" stroke-dasharray="5 4">
   <path d="M 120,192 L 120,270" marker-end="url(#o)" marker-start="url(#o0)"/>
-  <path d="M 300,192 C 300,244 238,291 176,291" marker-end="url(#o)" marker-start="url(#o0)"/>
-  <!-- a level joined to itself: many genes, many characters, inside one run. The genome's own
-       loop is solid above — a named family driving the rates of the genome it sits in. -->
-  <path d="M 65.97,299.87 C 9.8,326.1 9.8,255.9 65.97,282.13" marker-end="url(#o)" marker-start="url(#o0)"/>
 </g>
 
 <g class="node" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.6">
