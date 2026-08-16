@@ -1,67 +1,130 @@
-# Species trees
+# Genomes I: gene families
 
-The species tree is the backbone every other level runs on, so it is where almost every workflow begins.
+Genomes live inside the species tree, and they can be simulated at three **resolutions**, one per chapter: **family** here, **ordered** in Chapter 4, **nucleotide** in Chapter 5. The simplest is a gene family evolving along the tree; the most detailed tracks every nucleotide across several chromosomes.
 
-## The birth–death process
+The **family** resolution is genomes made of gene families and nothing more: no position along a chromosome, no DNA sequence. Genes are copied, lost, born from nothing, and passed sideways between lineages.
 
-A species tree grows by two kinds of event: a lineage **speciates**, splitting in two, or it **goes extinct** and stops. You give a **speciation rate** and an **extinction rate**, and every lineage alive at a given moment has the same constant chance per unit time of splitting or dying, independently of the rest.
+## The four events
 
-The two rates set the tempo. Their difference fixes how fast diversity builds up. Their ratio fixes how much of the history is hidden, because a lineage that goes extinct takes its part of the tree with it. With extinction set to zero nothing is ever lost, and the tree you get is the whole tree that grew: this is the classic **Yule** (pure-birth) process. The lineages that died are kept: they are in the complete tree, which is the tree the next level runs along — that is what lets a gene be transferred out of a lineage that later dies — while the extant tree is the one an analysis would be handed. Appendix B says which file holds each.
+A genome at the family resolution evolves by four kinds of event, applied to every lineage as it runs down the species tree:
 
-![A species tree grown by the birth–death process. Every lineage alive at a given moment has the same chance per unit time of splitting or of dying. The lineages that died are drawn dashed and stop where they died; the survivors reach the present. Both are in the complete tree, and only the solid ones are in the extant tree.](figures/species_tree.pdf){width=100%}
+- **Duplication.** A gene copy is copied, so its family gains a member in that lineage.
+- **Transfer.** A copy jumps from one lineage to another that is alive at the same moment.
+- **Loss.** A gene copy is deleted; a family that loses its last copy is gone from that lineage.
+- **Origination.** A brand-new family appears in a lineage, with one copy.
 
-You also say when to stop: grow to a fixed **total time** (`total_time`), or to a fixed **number of surviving lineages** (`n_extant`).[^stopping]
+![The four events, one to a panel, labelled beneath. Each grey band is a lineage of the species tree, each black line one gene copy, and time reads left to right: a duplication forks a copy inside its lineage, a transfer carries one into another lineage, a loss ends one, and an origination starts a family from nothing.](figures/four_events_print.png){width=100%}
 
-`n_extant` bounds the run by construction; `total_time` does not, because standing diversity grows like exp((birth − death) · t), so a rate slightly too high or a time slightly too long is the difference between a thousand lineages and ten million. A run that passes **100,000 standing lineages** stops with an error rather than filling memory. Raise `max_lineages` if that is the size you want, or set it to `None` to lift the guard. It never truncates: a tree cut off at a size is no longer a sample from the process you asked for.
+The initial genome, at the beginning of the stem, starts with `initial_families` families of one copy each — 100 unless you say otherwise; from there the four rates drive everything.
 
-`total_time` is not conditioned on survival. A run that dies out raises an error rather than handing back a tree with no present, so if you loop over seeds and skip the failures, you are conditioning on survival yourself, and everything downstream inherits that.
+### Four things to know
 
-[^stopping]: The two rules also give different tree shapes, which matters if you are going to estimate rates from the trees. `n_extant` stops the first moment that many lineages are alive together, then draws one more waiting time and puts the present where the next event would have fired, so the two newest tips have a real branch length instead of a zero-length one. With `death=0` that is exactly the standard way to sample a tree of a given size [@hartmann2010sampling]. With extinction it is not: the run stops the *first* time it touches the target, so the trees come out shallower than a birth–death process conditioned on that many tips: nothing measurable at `death=0`, about a tenth of the tree height at 10 tips with `death` at 0.4 of `birth`, a third to a half at 10 tips with `death` at 0.8 of `birth`, and back to nothing by 50 tips at moderate turnover. Use `total_time` if you need the conditioned distribution exactly; otherwise say in your methods which rule made the trees.
+- **Families need not evolve at the same pace.** A rate can vary among **families** — an independent draw for each — and that one choice is what separates a genome with a core and an accessory part from one where every family behaves alike ([Ge4](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_pangenome_by_family-->). Appendix A gives the spelling.
+- **A family's copies within one genome are capped**, at `max_family_size=10` by default, because a duplication rate above the loss rate grows without bound. Set `max_family_size=None` when you are measuring rates: a full family discards the duplications and arrivals that would pass the cap, pulling the realised rates below the ones you declared.
+- **There is no minimum number of genes.** Loss is counted per copy and the last copy is a copy like any other, so a high loss rate can leave a lineage with nothing. `genome_summary.json` reports `empty_genomes` and the command warns, because an empty genome is otherwise invisible.
+- **The chromosome-based resolutions do keep a minimum**: one gene per chromosome. A loss never takes a chromosome below its last gene, because a chromosome with nothing on it is not a chromosome. The minimum is per chromosome, not a bound on the genome's size — a whole chromosome, genes and all, still dies by `chromosome_loss` (Chapter 4).
 
-## Rates that vary
+## What the rate depends on
 
-A birth or death rate need not be constant. It can depend on **time**, on **how crowded the tree is**, or on a lineage's **ancestry**. There are four of them, and the Literature table below names each one as the field does, beside the example that shows it.
+By default, duplication, transfer and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is usually what you want — more genes, more chances. Origination is counted **per lineage** (per branch of the species tree): acquiring a wholly new family is a property of the lineage, not of any gene it already has, and it takes no other scope.
 
-- **On time.** The rates change at set points in time, which is the skyline, or episodic, tree: full rate until a breakpoint, a third of it after. Each entry in the schedule holds from its own time up to the next, and the earliest entry also applies *backwards* to the origin — so a schedule that starts at time 3 runs at that rate for the whole tree, not only after time 3. Start it at 0 whenever you mean "full rate until".
-- **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound.
-- **On the parent's rate.** Each lineage inherits its parent's rate, nudged at every split, so rates wander across the tree and close relatives resemble each other.
-- **By lineage.** Each lineage draws its own rate instead, with no memory of its parent. The distribution means a different thing in the two: inherited, it is the step taken at each split, which accumulates, so lineages deeper in the tree spread further apart; drawn afresh, it is the spread of rates across lineages and nothing accumulates.
+The three per-copy rates also take `PerLineage`, and that is a different model rather than a different spelling. `PerCopy(0.25)` puts every copy independently at risk, so a big genome loses often; `PerLineage(0.25)` is a deletion budget, and the lineage loses at that rate whatever it holds — deletion-biased genomes lose at their own pace, and shrinking does not slow them down. In a genome of a hundred genes the same `0.25` is a total loss rate of 25 one way and of 0.25 the other — a hundredfold apart — so it is a choice to make rather than a default to leave alone.
 
-## Other models
+A rate can also depend on **time**, on **where in the tree** a lineage sits, or on a level grown before it. Chaining `changing_at` onto a rate makes it change at set moments — the skyline genome, fast early and slow later; `Clade` multiplies a rate inside a named subtree of the species tree, and the two compose ([Ge5](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_clade_transition-->); and `scaled_by` reads a driver, which is Chapter 8. (`Clade`, which scales a rate, is not the `Clades` of the transfer section below, which picks recipients.) Appendix A is the full grammar, and every rate at this level takes all of it.[^origins]
 
-One model does not fit the modifier framework: a **mass extinction**, where at one instant only a fraction of the living lineages survive. Diversity crashes at the pulse and recovers after it.
+[^origins]: `families=[family("toxin", origin=("n1", 0.4))]` declares a family and places it instead of leaving it to the rate: it originates on the lineage you name, at the time you give, keeps its name, and **adds to** whatever `initial_families` and `origination` produce. With both of those at zero the tree carries exactly the families you declared.
 
-## Literature
+## Lateral gene transfers
 
-| What it does | From the literature | Gallery |
-|-------------------|--------------------------------|---|
-| rates change at set times | skyline / episodic birth–death [@stadler2011mammalian] | [Sp3](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:rateshift--> |
-| rate slows as the tree fills | diversity-dependent diversification [@rabosky2008densitydependent; @etienne2012diversitydependence] | [Sp4](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:diversity--> |
-| rates drift, inherited at each split | ClaDS [@maliet2019clads] | [Sp5](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:inherited--> |
-| rates vary, drawn afresh per lineage | uncorrelated ("relaxed") rates | [Sp6](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:perlineage--> |
-| a fraction culled at an instant | mass extinction | [Sp7](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:massext--> |
+When a transfer event occurs, the copy that fires is one of that family's live copies, anywhere on the tree — no event ever mixes two families, so the donor pool is the family's own — and it is delivered to another lineage that is **alive at that same instant**.
 
-## Sampling
+Three arguments shape what a transfer does:
 
-Sampling and fossils decide not how the tree grows, but how much of it you get to see.
+- **`transfer_to`**, who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier: a recipient at distance *d* from the donor gets weight exp(−decay · *d* / depth), the depth being the tree's mean root-to-tip time, so the same `decay` means the same thing on trees of different timescales. `"distance"` is `Distance(decay=1.0)`, and `Distance(decay=)` sets its own. A third rule, `Clades(...)`, weights recipients by **named clades of the tree**, described below.
+- **`replacement`**, what happens on arrival. By default the incoming copy is **additive**: the recipient simply gains a copy. With `replacement=True` it **overwrites** a copy of the same family already present — picked at random when the recipient holds several — and falls back to additive when it has none.
+- **`self_transfer`**, whether a lineage may donate to itself. Off by default. With additive arrival the lineage gains a copy, so the gene content changes as it would under a duplication, but the event is recorded as a transfer. Under `replacement` the arrival never overwrites its own continuation: it displaces one of the lineage's *other* copies, or falls back to additive when there is none.
 
-By default you see every surviving species. **`sampling`** keeps a random fraction of the extant tips, so `sampling=0.5` gives you half [@stadler2009incomplete]. It thins a tree that has already grown, so it costs nothing.
+Transfers can arrive **from a lineage that later goes extinct** [@szollosi2013lgtdead]. A genome run happens on the complete tree, dead branches included, so a gene can enter a survivor from a donor that leaves no other trace. That is the feature the software was originally named for: transfers from the dead — from zombie lineages.
 
-`n_extant` counts survivors, and sampling happens afterwards, so the two compose rather than cancel: `n_extant=20, sampling=0.5` grows to 20 survivors and then shows you about 10 of them. If you want 20 tips in hand, ask for 40. The rest are not gone: they stay in the complete tree with the fate `unsampled`, which is why the run's summary counts them separately from the extinct.
+### Transfer between named clades
 
-## Fossils
+`"distance"` biases transfer by relatedness, but sometimes you want to name the groups yourself: "let genes flow between these two clades, and nowhere else." `Clades` does that. You name each clade, by a few of its tips (the clade is the subtree below their MRCA) or by the id of its root node — either way a lineage is written as the `n<id>` label the tree files use, read off `species_complete.nwk` or `species_events.tsv`, so the example below names each clade by two of its tips. The weights go in a `Between` kernel, a table with one weight for each ordered **(donor clade, recipient clade)** pair ([Ge3](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_transfer_highway-->).
 
-**`fossils`** recovers lineages from the past [@heath2014fossilized; @gavryushkina2014sampledancestor]. Fossils are picked up along **every** branch of the complete tree at a rate you set, a surviving lineage's branch as readily as an extinct one, so `fossils=0.1` scatters dated samples through its history. They are a side output, reported alongside the trees; a fossil does not remove its lineage and does not appear in the extant tree ([Sp8](https://aadavin.github.io/zombi2/gallery.html#species)<!--gallery:sampling-->).
+```python
+from zombi2 import species, genomes
+
+sp = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1)
+# genes flow only BETWEEN clade A and clade B, never within either, never to the rest
+flows = genomes.Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)
+g = genomes.simulate_genomes_family(
+    sp, transfer=1.0, initial_families=20, seed=2,
+    transfer_to=genomes.Clades({"A": ["n27", "n28"], "B": ["n21", "n26"]}, flows))
+```
+
+There is one group you do not have to name: **`"rest"`** is every lineage outside the clades you did name, so `Between({("rest", "A"): 8.0})` makes clade A a transfer hotspot that the whole rest of the tree donates into, without having to enumerate the rest of the tree.
+
+Each entry is a weight, read the same way `"distance"`'s weights are: normalised over the lineages alive at the instant a transfer occurs. The weight belongs to each candidate lineage, not to the clade as a whole, so at the same weight a clade of twenty lineages receives ten times the flow of a clade of two. Naming only `("A", "B")` and `("B", "A")` and setting `default=0.0` means every other pairing weighs 0: a clade-A donor can reach clade B but not another clade-A lineage, and the rest of the tree neither sends nor receives. Drop the `default=0.0` and unlisted pairs return to weight 1 (baseline), so `Between({("A", "B"): 5.0})` *enriches* A→B fivefold while leaving everything else to happen normally. A weight of 0 means "cannot receive", exactly as in Chapter 8: when a donor's every candidate weighs 0, the transfer has nowhere to land and does not happen.
+
+## Profiles and gene trees
+
+A run hands back two views of the same history, and the pair is worth keeping straight: the genomes at the *extant* tips are the observed dataset, and the genomes at **every** node, extinct and internal alike, are the run's own record of what happened. Appendix B names them and everything else.
+
+**Profiles** are the classic comparative-genomics view [@pellegrini1999profiles]: how many copies of each gene family sit in each extant species. They are read off the observed genomes on access, so the run itself stays lean.
+
+```python
+g.profiles.matrix        # families × extant-species copy counts, a NumPy array
+g.profiles.presence      # the same as 0/1 presence/absence
+g.profiles.to_tsv()      # the table as text
+```
+
+**Gene trees** are the deeper output. Every family has a `.complete` tree with every gene lineage, and, when at least one copy survives, an `.extant` tree pruned to the genes that do. A family that died out has no extant tree: `.extant` is `None`, `to_newick("extant")` returns `None`, and the run writes no `_extant` file for it.
+
+```python
+gt = g.gene_trees[7]                 # the gene tree of family 7
+gt.to_newick("extant")               # the surviving copies as Newick ...
+gt.to_newick("complete")             # ... or the whole genealogy
+gt.origination                       # when the family began
+```
+
+The root of a gene tree carries a branch length, as the species tree's does. A family starts at its origination, and the founding gene lives a while before its first duplication, transfer or speciation; that wait is the root's branch, the family's stem. A gene that originated and never split at all is a one-node tree, written as its own lifespan, `n26_g545:0.6614353;`.
+
+## Evolving families in parallel
+
+Because families are independent, and no event ever mixes two families, a run can evolve them **concurrently**, one family per worker process. It is off by default; `parallel` turns it on.
+
+```python
+from zombi2 import species, genomes
+
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
+g = genomes.simulate_genomes_family(
+    tree, duplication=0.2, loss=0.25, origination=0.5,
+    initial_families=1000, seed=1, parallel=8)      # 8 workers
+```
+
+`parallel=True` uses every core and an integer sets the worker count; on the command line it is `--parallel` for all cores or `--parallel 8` for eight. It is a **separate engine**, not a faster path through the default one: each family draws from its own random stream, so the result is identical for any worker count, but it differs from a serial run of the same seed. Both are valid draws of the same process.
+
+A **conditioned** rate (Chapter 8) runs here too. Conditioning does not tie families to one another: the driver was grown before this run and is an input to it, so a lineage's factor at a given moment is the same number whichever family is asking, and no family can reach another through it. Each worker reads the driver as a lookup, and the split into independent per-family processes — the fact the parallel engine rests on — is untouched.
+
+For very large runs of hundreds of thousands of families, or a million, the difficulty stops being speed and becomes memory: the finished result itself no longer fits. `stream_to` writes each family to a directory the moment it is done, and hands back a light handle holding a path rather than the ordinary result object (a `FamilyGenomesResult`) holding everything. Memory then stays flat however many families you run, so a run that would have held 2 GB in memory streams in about 40 MB, and the sequence level reads the families back off the disk afterwards. Choose which files to write with `outputs=`, exactly as `.write` takes them: the tokens are `events`, `profiles`, `genomes`, `initial_genome`, `gene_trees`, `species_tree` and `summary`, and Appendix B shows the file each one writes. On the command line this is `--stream`.
+
+```python
+run = genomes.simulate_genomes_family(
+    tree, origination=2.0, initial_families=5000, seed=1,
+    parallel=8, stream_to="out/", outputs=("events", "profiles", "species_tree"))
+run.path("events")            # out/genome_events.tsv — the log the sequence level replays
+```
+
+The handle goes straight into the next level, and so does the directory: `sequences.simulate_sequences(run, …)` and `sequences.simulate_sequences("out/", …)` both reopen it. `genomes.read_run("out/")` gives the run itself back, the event log and the gene trees derived from it, for anything you would rather do in Python than on the command line.
 
 ## On the command line
 
-The command mirrors the Python call: the base rates, the stop condition, and the sampling and fossil settings each have a flag.
+`zombi2 genomes` evolves gene families along the species tree already in the run directory, or one given with `--from` (a Newick file, or another run). The family resolution is the default, and a rate is a plain number or a quoted expression in the written form of Appendix A.
 
 ```bash
-# a birth–death tree of 20 surviving lineages
-zombi2 species out/ --birth 1.0 --death 0.3 --n-extant 20 --seed 1
+# duplication–loss–origination along a species tree
+zombi2 genomes out/ --duplication 0.2 --loss 0.25 --origination 0.5 --seed 1
 
-# grow to time 5, with a mass extinction at time 3 and half the survivors sampled
-zombi2 species out/ --birth 1.0 --death 0.4 --total-time 5 \
-    --mass-extinction 3 0.75 --sampling 0.5 --seed 2
+# horizontal transfer biased toward close relatives, overwriting resident copies
+zombi2 genomes out/ --transfer 0.5 --transfer-to distance --replacement \
+    --origination 0.4 --seed 3
 ```

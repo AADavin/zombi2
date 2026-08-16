@@ -1,190 +1,162 @@
-# Genomes II: ordered
+# Genomes III: nucleotide
 
-The previous chapter put genes on the tree as a *bag of families*, how many copies of each, and nothing more. This chapter gives them **structure**. A genome becomes one or more **chromosomes**, each an ordered run of genes, and each gene knows which way it points. This is the **ordered** resolution.
+At the **nucleotide** resolution a chromosome is a **coordinate axis of DNA** rather than a list of gene tokens, and events have an extension measured in base pairs: an inversion reverses 600 bp, a loss deletes 900 bp, a duplication copies 2 kb in tandem. Genes still exist and still get gene trees, but they are stretches of that axis with a start and an end, and the DNA between them is simulated too. The coordinates are the whole content: letters only exist once a sequence run reads the genome (Chapter 6), from a FASTA you supply or from the model's draw.
+
+## Genes and intergenes
+
+A genome here is DNA, and its DNA is of two kinds:
+
+- a **gene** is *declared* and *indivisible*: one family, one id, never cut in two. It carries a gene tree.
+- an **intergene** is the spacer between genes. Nothing protects it, so events cut it wherever they land.
+
+![Why a gene is never split. The strip beneath the replicon is the set of positions a breakpoint may take: every stretch of spacer, and no part of a gene. An event's two ends are drawn from that strip in the first place, rather than drawn anywhere and repaired afterwards, so the deletion above either takes gene 2 whole or does not touch it. A genome with no spacer at all is still legal: the strip is then just the joins between genes, and events move genes around whole.](figures/legal_breakpoints_print.png){width=100%}
+
+An event either **engulfs a gene whole** or leaves it alone; a breakpoint never falls strictly inside one. So an event does not pick a stretch and then clean up afterwards. Both of its ends are drawn **directly from the positions where a breakpoint is legal**. A genome can therefore be **all gene, with no spacer at all**: ten 100 bp genes in 1000 bp is a legal genome, and it evolves. Its breakpoints simply all fall at the joins between genes, so genes are inverted, moved, duplicated and lost whole. Genes may sit flush; they are not required to leave a gap.
+
+## Extents
+
+Indivisible genes have one consequence to meet before the rates: **the realised extent is not always the extent you asked for.** An event covers an **arc** — the stretch of DNA it takes — and both ends of an arc must fall where a breakpoint is legal. The draw is therefore the distribution you asked for, restricted to the ends that exist; nothing is drawn and rejected, so no event silently vanishes. Take thirty-one 3000 bp genes in a 100 kb genome, 93% genic, so the spacers are about 200 bp, and ask for an inversion of:
+
+| asked | mean realised |
+|---|---|
+| 500 bp | 100 |
+| 1 500 bp | 1 022 |
+| 3 000 bp | 2 506 |
+| 10 000 bp | 9 329 |
+
+Means over about 1,500 inversions each. A 500 bp request has mostly spacer to land in, so the typical event collapses into one — the median is under 40 bp — while the occasional arc that spans a whole gene pulls the mean up to 100. Long requests can take genes whole, so they land near what you asked. The correction runs the other way too: on the all-gene genome above, the joins between genes are the only legal ends, so a 5 bp request comes out at 100 bp, a whole gene. Either way the event still happens: an extent is a request, and the genome answers it with the nearest thing it has. The one case that yields no event is a replicon with no legal end at all, such as one under 2 bp, where the event is skipped rather than forced.
+
+## A note on rates
+
+**Every rate here is per lineage.** The rate sets how often a lineage does the event; the extent (above) sets how much DNA it touches. Keeping the rate per lineage means the number you type reads the same whatever the genome's size: a rate counted per base pair would rise as the genome grew, so `inversion=5.0` would mean one thing at 10 kb and another at 1 Mb. Per lineage, the event count stays flat as the genome grows. The same tree at `inversion=5.0`, with the genome ten times longer each row, gives:
+
+```
+   10 000 bp  ->  77 inversions
+  100 000 bp  ->  77 inversions
+1 000 000 bp  ->  77 inversions
+```
+
+The chromosome rates are the exception: `fission`, `fusion` and `chromosome_loss` are counted **per chromosome**, and `chromosome_origination` per lineage. A fusion joins two chromosomes of the **same topology**, for the same reason it does at the ordered resolution: a ring and a molecule with two ends cannot become one molecule.
+
+Rates here are written the same way as everywhere else — a scope with verbs chained onto it — and the scopes above are the only ones this resolution takes: a different scope is refused (Appendix A), so a bare number stays a bare number. Of the verbs, this engine reads `changing_at` and `scaled_by`; a per-family draw is refused with the reason. The **skyline** works: `inversion = PerLineage(5.0).changing_at({0: 1.0, 3: 0.2})` drops the inversion rate fivefold at time 3, and the run re-reads its rates at each step rather than racing past it.
+
+So does **conditioning**. Every rate here takes a `scaled_by`, so a trait can drive how much DNA a lineage sheds, which is genome reduction as it is usually meant, and can drive the rearrangements too. First a plain run, which the block listing below reads:
 
 ```python
 from zombi2 import species, genomes
 
-tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=231)
-g = genomes.simulate_genomes_ordered(
-    tree, duplication=0.3, loss=0.2, origination=0.15, inversion=0.5,
-    chromosomes=1, initial_families=5, seed=231)
+tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=56)
+g = genomes.simulate_genomes_nucleotide(
+    tree, root_length=3000, genes=3, gene_length=400,
+    inversion=1.0, inversion_extent=600, seed=56)
 ```
 
-Reading one extant leaf:
-
-```
-leaf n4, chromosome 4 (circular):  [ 0+ 0+ 1+ 3+ 4− ]
-```
-
-Each gene is written as its family with the strand as `+` or `−` (the strand is the integer `+1` or `−1`). This leaf has one chromosome of five genes, in which family `0` sits in a run of two tandem copies and family `4` points backwards, left that way by an inversion. The gene tree of a family is unchanged from Chapter 4, the true genealogy read off the same event log:
+Then the same genome under a habitat, driving the deletions on both axes at once:
 
 ```python
-g.gene_trees[0].to_newick("extant")
-# (((n5_g25:0.02994724,n6_g30:0.02994724)speciation_n3:0.3253988,(n4_g21:0.227248,n4_g22:0.227248)duplication_n4:0.128098)speciation_n1:0.1181814,n2_g9:0.4735275)speciation_n0:1.090775;
+from zombi2 import traits
+from zombi2.params import Extent, PerLineage
+
+habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=2)
+loss        = PerLineage(0.8).scaled_by(habitat, {"host": 20.0, "free": 0.5})   # more often
+loss_extent = Extent(150).scaled_by(habitat, {"host": 6.0, "free": 1.0})        # bigger chunks
+
+g2 = genomes.simulate_genomes_nucleotide(
+    tree, root_length=3000, genes=3, gene_length=400, seed=57,
+    loss=loss, loss_extent=loss_extent)
 ```
 
-![Leaf `n4`, the same chromosome `[ 0+ 0+ 1+ 3+ 4− ]` drawn as the ring it is. Each gene is an arrow that points the way its strand reads, and its colour marks its family. The two copies of family `0` are a tandem duplication, one colour side by side; family `4`, left backward by an inversion, is the one arrow pointing against the flow.](figures/ordered_chromosome.pdf){width=58%}
+**The extent takes the same verbs**, and that is a different statement: the rate raises how often a host-restricted lineage deletes, the extent how much each deletion takes. Set both and they multiply: the DNA shed per unit time goes up by the product, not the sum.
 
-## The karyotype
+A modifier on an *extent* is read only once an event has fired, so unlike the same modifier on a rate it adds no step to the run's clock (a modifier on a rate can change when the next event lands, so the engine must stop and re-read it at each change — Appendix A's horizon). Chapter 8 covers what a driver is and how to grow one; anything the level does not accept raises rather than being quietly ignored.
 
-A genome has a **karyotype**: `chromosomes=N` chromosomes, each with a `topology`: `"circular"` (the default) or `"linear"`, or a per-chromosome list like `["circular", "linear"]` for a mixed set. The founding `initial_families` genes are dealt round-robin across them. Topology is not just a label: it decides where a segmental event stops, which the section on segments below takes up.
+## Insertions and deletions
 
-## Chromosomes split, merge, appear and die
+Two more events move DNA without touching the gene inventory — the **indels**. They pair off against the events of Chapter 3 by what they do to ancestry:
 
-On top of the karyotype, four events change the **number** of chromosomes ([Ge10](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_karyotype-->):
+- **`deletion`** removes an arc, as `loss` does, but no copy lineage ends: the material goes, and every gene keeps its place in the genealogy. `loss` changes what a lineage *has* — copies die, a gene can go whole; `deletion` changes how much of a surviving stretch it *carries*.
+- **`insertion`** lays down a stretch of **novel spacer**, as `origination` lays down a new gene: `origination` brings a gene family into the run, `insertion` brings sequence — DNA that descends from nothing.
 
-- **`fission`** *(per chromosome)*. A chromosome splits in two.
-- **`fusion`** *(per chromosome)*. Two chromosomes of a genome merge into one. Only two of the **same topology**: a ring and a molecule with two ends cannot become one molecule, so a circular chromosome never fuses with a linear one, and a genome holding one of each never fuses at all.
-- **`chromosome_origination`** *(per lineage)*. A de-novo replicon appears: a new chromosome, empty and circular, a plasmid.
-- **`chromosome_loss`** *(per chromosome)*. A whole chromosome dies, and every gene on it is recorded as a loss. A lineage never loses its *last* chromosome this way.
+In practice the difference is one of scale, and the extent defaults say so: 50 bp for the ancestry-changing events, 5 bp for the indels. Appendix B says where each is written — deletions in their own record, insertions as roots of their own kind.
+
+## Who receives a transfer
+
+`transfer_to` is Chapter 3's recipient rule, and it works here unchanged: `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or `Recipients().weighted_by(...)` read off a trait. It is not a rate: the numbers are weights normalised over the lineages alive when a transfer occurs, so it says who receives and never how much transfer happens.
 
 ```python
-tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=42)
-g = genomes.simulate_genomes_ordered(
-    tree, duplication=0.15, loss=0.1, origination=0.25,
-    chromosomes=2, fission=0.25, fusion=0.25,
-    chromosome_origination=0.03, chromosome_loss=0.03,
-    initial_families=5, seed=42)
-```
-
-## The chromosome network
-
-Chromosomes are tracked. A chromosome id is re-minted at every event that reshapes it, whether a speciation, a fission or a fusion, and each of those edges is recorded. So the run leaves behind not just the chromosomes at the tips but the *genealogy* that connects them: the **chromosome network**. It is the middle of three genealogies that nest, the species tree containing the chromosome network, which contains the gene trees:
-
-```
-species tree  ⊃  chromosome network  ⊃  gene trees
-```
-
-It is a **network** and not a tree because of one event: **fusion joins two chromosome lineages into one**, two parents and one child. Fission and speciation are ordinary splits (one parent, two children); `initial` and `origination` are roots: the chromosomes the run began with, and the new replicons `chromosome_origination` creates, kept apart so you can tell which is which. Loss is a leaf. It is a directed graph, and it is written the way graphs are, as an **edge list**: `chromosome_events`, one row per event. The run above gives:
-
-```
-  time   kind          parents -> children
-  0.00   initial            -  -> 0          a chromosome the run started with
-  0.00   initial            -  -> 1          a chromosome the run started with
-  0.75   fission            0  -> 2, 3       a bifurcation
-  1.52   fusion          2, 1  -> 4          a reticulation (two parents)
-  1.52   fission            4  -> 5, 6
-  2.02   fusion          3, 5  -> 7
-  2.11   loss               7  -> -          chromosome 7 (and its genes) dies
-  2.19   speciation         6  -> 8, 9
-  2.49   fission            9  -> 10, 11
-  3.27   speciation         8  -> 12, 13
-  3.30   fusion        10, 11  -> 14
-```
-
-## Events act on segments
-
-Once genes have neighbours, **a gene-level event acts on a segment**, a run of consecutive genes, not on one gene. A duplication copies a segment, a loss removes one, a transfer sends one sideways. That produces the signature of real genome evolution: neighbouring genes sharing a history because they were copied, moved or lost *together*.
-
-How much does an event take? That is its **extent**, set per event type as `<event>_extent`. A bare number is the **mean**, so `duplication_extent=3` copies about three adjacent genes: often two or three, sometimes one, occasionally many more. Write `Fixed(3)` for exactly three every time, or name any other distribution. The default is a single gene, so out of the box every event touches one gene and you recover the simplest behaviour.
-
-```python
-from zombi2.params.distributions import Geometric
-
-tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=332)
-g = genomes.simulate_genomes_ordered(
-    tree, duplication=0.35, loss=0.3,
-    duplication_extent=Geometric(mean=3),      # ~3 adjacent genes copied at once
-    chromosomes=1, initial_families=5, seed=332)
-```
-
-```
-leaf n3:  [ 4+ 1+ 4+ 1+ 2+ 3+ ]
-            └────┘ └────┘
-            the segment 4 1, duplicated as a unit and landed in tandem
-```
-
-The segment `4 1` appears twice: a single segmental duplication copied those two adjacent genes together. (Family `0` is absent because it was lost earlier, which is what left `4` and `1` next to each other.) A duplication puts its copy **in tandem**, immediately after the original run; a transferred segment arrives together on the recipient. **Origination is the exception**: a family is born once, as a single new gene, so it has no extent.
-
-### How often, where, how much
-
-A segmental event answers three questions, and it takes two numbers to describe one:
-
-- **how often** it starts, the rate;
-- **where** it starts, a gene drawn from the genome;
-- **how much** it takes, the extent.
-
-In Chapter 4 the third answer was always "one gene", so the rate was the whole story. Here it is not, and the two numbers **multiply**.
-
-One consequence catches people out: **a rate counts starts, not hits.** `duplication=0.2` with `duplication_extent=3` does *not* mean each gene is duplicated 0.2 times per unit time. A gene is copied whenever any event begins on a run that covers it, which is about three times as often, so roughly `0.2 × 3 = 0.6`. If you want genes duplicated at a known rate, divide that rate by the mean extent.
-
-The same reading holds at the nucleotide resolution of Chapter 6, where the extent is in base pairs rather than genes.
-
-### Families that differ, once events cover several at once
-
-`varying_among('families', ...)` works here as it does in Chapter 4, but with one difference that matters. A run covers several families at once, so the weight is applied to **the run, averaged over the genes it covers**, not to the gene the run happened to start on.
-
-Weighting the starting gene is the obvious implementation and the wrong one: a fast family's rate would then apply to whatever sat beside it, so you would be describing the *neighbourhood* of a fast family rather than the family, and the neighbourhood is reshuffled by every inversion and translocation, so the parameter would not name a stable thing. Averaging over the run keeps what you wrote true: a run of heavily-weighted genes is favoured, a mixed one sits between, an ordinary one is unweighted.
-
-With no weights set every run averages to one, so a run without it is unchanged.
-
-### Who receives a transfer
-
-The recipient rule is Chapter 4's, unchanged: `transfer_to` takes `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or `Recipients().weighted_by(...)` read off a trait (Chapter 9). What is ordered about an ordered transfer is the block that moves; who receives it is the same question and the same answer as at the family resolution.
-
-```python
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1)
+tree6 = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=6)
 flows = genomes.Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)
-g = genomes.simulate_genomes_ordered(
-    tree, transfer=1.0, transfer_extent=3, initial_families=20, seed=2,
-    transfer_to=genomes.Clades({"A": ["n27", "n28"], "B": ["n21", "n26"]}, flows))
+g6 = genomes.simulate_genomes_nucleotide(
+    tree6, root_length=6000, genes=6, gene_length=400,
+    transfer=2.0, transfer_extent=900, seed=6,
+    transfer_to=genomes.Clades({"A": ["n49", "n50"], "B": ["n30", "n36"]}, flows))
 ```
 
-Every transferred block now crosses between the two named clades and never lands inside either. The numbers are weights, normalised over the lineages alive when a transfer occurs, so they redistribute transfers without changing how many happen. A weight of 0 means "cannot receive", so a transfer whose every candidate weighs 0 does not happen at all, leaving the donor exactly as it was.
+A transfer here is always **additive** — `replacement` is not among this resolution's arguments, and handing it in fails as an unknown argument rather than being ignored — so steering changes only which lineage the arc lands on. `self_transfer` is accepted as in Chapter 3. Nothing is taken from anyone, and a transfer whose every candidate weighs 0 simply does not fire.
 
-One thing to watch when you combine a restrictive rule with a tight `max_family_size`: the two thin transfers independently. A block is refused when it would take any family it carries past the cap, and refused again when the kernel forbids the pair, so the realised amount of transfer can sit well below the rate you declared. Raise the cap while you are measuring the weights.
+## Reading a genome, block by block
 
-### A rate or an extent can be driven by a trait
-
-Every rate here also takes `scaled_by`, so a habitat can decide how often a lineage rearranges its gene order, and every extent takes it too, so the same habitat can decide how long the rearranged runs are. The mechanism is Chapter 9's and is not repeated here.
-
-What belongs here is why the per-family draw above and a trait driver sit apart. A trait driver attaches to the **lineage**: at any instant it is one factor for that lineage's whole genome, so it composes with any extent unchanged and the run is drawn exactly as it would be without it. `varying_among('families', ...)` attaches to the **contents**, so it has to weight the run by what the run covers. The two therefore cannot be set on the **rates** of one run yet: combining them there means weighting by the product of a lineage factor and a segment factor, which is neither model on its own. A driven extent, or a driven `transfer_to`, is a different axis and runs alongside a per-family draw unchanged.
-
-## Rearrangements: inversion, transposition, translocation
-
-Three more events reshape the order without creating or destroying genes:
-
-- **Inversion.** Reverse a segment in place, flipping every gene's strand: `+2 +3 +4` becomes `−4 −3 −2`. On a circular chromosome the segment may span the origin ([Ge9](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_inversion-->).
-- **Transposition.** Cut a segment out and reinsert it **elsewhere on the same chromosome**.
-- **Translocation.** Move a segment to a **different chromosome** of the same genome. A no-op if the genome has only one chromosome.
-
-A moved segment, transposed or translocated, lands **inverted** with probability `inversion_probability` (default `0`, so it keeps its orientation).
-
-Every parameter in this chapter is an argument of the one call, so a rate and its extent can each read the same trait, on separate axes:
+Two leaves of the inversion run in the rates section above show what its events did. `describe` writes one out: each line is a **block**, a stretch of DNA with one unbroken ancestry, written as the interval it came from on the initial sequence, read forward (`+`) or reverse-complemented (`−`). A gene is always one block, because nothing may cut it. Spacer is not, so several intergene lines in a row are simply spacer that has been cut apart and rearranged: the accumulated breakpoints of everything that happened to that lineage.
 
 ```python
-from zombi2 import species, genomes, traits
-from zombi2.params import Extent, PerCopy
-
-tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=30, seed=1)
-
-# a host-restricted lineage inverts four times as often, and each inversion
-# covers three times as many genes
-habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.5, seed=1)
-g = genomes.simulate_genomes_ordered(
-    tree,
-    inversion=PerCopy(0.3).scaled_by(habitat, {"host": 4.0, "free": 1.0}),
-    inversion_extent=Extent(4).scaled_by(habitat, {"host": 3.0, "free": 1.0}),
-    initial_families=10, seed=1)
+print(g.describe(2))
+print(g.describe(5))
 ```
+
+```
+n2, chromosome 2
+  [   0, 600) +  600 bp  intergene
+  [ 600,1000) +  400 bp  gene 1
+  [1000,1140) +  140 bp  intergene
+  [2000,2065) −   65 bp  intergene
+  [1600,2000) −  400 bp  gene 2
+  [1573,1600) −   27 bp  intergene
+  [1410,1573) +  163 bp  intergene
+  [1140,1410) −  270 bp  intergene
+  [2065,2563) +  498 bp  intergene
+  [2563,2596) −   33 bp  intergene
+  [2596,2600) +    4 bp  intergene
+  [2600,3000) +  400 bp  gene 3
+n5, chromosome 5
+  [   0, 512) −  512 bp  intergene
+  [2600,3000) −  400 bp  gene 3
+  [2532,2600) −   68 bp  intergene
+  [ 512, 600) +   88 bp  intergene
+  [ 600,1000) +  400 bp  gene 1
+  [1000,1600) +  600 bp  intergene
+  [1600,2000) +  400 bp  gene 2
+  [2000,2532) +  532 bp  intergene
+```
+
+Both leaves still carry all three genes, and both are still 3000 bp. In `n2` an inversion covered gene 2, which now reads on the `−` strand with the spacer around it reversed; in `n5` a different inversion covered gene 3 instead, taking the spacer on either side of it with it. The coordinates are what make this readable: every block still names where it came from on the initial sequence, so `[600, 1000)` is gene 1 wherever it turns up and whichever way it points.
+
+## The initial genome
+
+The **initial genome**, the genome the run starts from at time 0 before any event, is declared in one of two ways. (It is not the same as the genome at the root *node*: the root branch is real simulated time, so that one already carries stem events. See `.initial_genome` in Appendix B.)
+
+**Evenly spaced genes.** `root_length=L` sets each replicon's length in base pairs, and `genes=N, gene_length=l` lays down `N` genes of `l` bp on each replicon, spreading the leftover DNA evenly between them. The karyotype is `chromosomes=`: an integer makes that many equal replicons of `root_length` each, `"circular"` by default or `topology="linear"`; a list of `(length, topology)` pairs makes them unequal. Good for controlled experiments, since gene density is then a number you set.
+
+**A GFF file.** `gff="genome.gff"` takes exact coordinates from a real annotation. `##sequence-region` gives each replicon's length, `gene` features give coordinates, strand and name, and other feature types are ignored. Names land in `result.gene_names`, so you can follow a named gene through the run. `gff=` and `genes=` are mutually exclusive; a GFF already declares the genes ([Ge11](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_circular_nucleotide-->). Genes may touch but never overlap, since a gene is one indivisible block. Real annotations do overlap, usually by a base or two where genes abut in an operon, so an overlap is refused rather than guessed at: `trim_overlaps=True` (`--trim-overlaps`) pushes each overlapping gene's start to its neighbour's end instead, and drops any gene swallowed whole.
+
+A genome at this resolution is *rebuilt* rather than stored: the run keeps the **root partition** — the initial sequence, cut at every breakpoint any lineage ever used — and how each node's genome is assembled from those pieces, which is what keeps a million-base genome down a large tree affordable. Appendix B names both (`.root_blocks`, `.assembly`).
+
+A GFF gives coordinates, not letters. `fasta="genome.fasta"` supplies the DNA those coordinates hold — one record per replicon, matched by id, each exactly its declared length — and a later `zombi2 sequences` run founds its blocks from that DNA (Chapter 6).
 
 ## On the command line
 
-The ordered resolution is `--resolution ordered`. It adds the chromosome flags and the **extent** flags (`--inversion-extent`, `--duplication-extent` and the rest, each the mean number of genes an event takes) to the Chapter 4 events, each still a plain number. Leave an extent out and every event takes a single gene, which for an inversion means flipping one gene's strand and shuffling nothing:
+`--resolution nucleotide` takes the same event rates as Chapter 4 and adds two things: how to set up the initial genome, and how long an event is in base pairs.
 
 ```bash
-# chromosomes split and merge along the tree
-zombi2 genomes out/ --resolution ordered \
-    --origination 0.5 --fission 0.05 --fusion 0.05 --chromosomes 2 --seed 1
+# an evenly spaced initial genome: 5 kb, six 300 bp genes, inversions averaging 400 bp
+zombi2 genomes out/ --resolution nucleotide \
+  --root-length 5000 --genes 6 --gene-length 300 \
+  --inversion 1.0 --inversion-extent 400 --duplication 0.3 --loss 0.3 --seed 1
 
-# segmental duplications, losses and inversions on three chromosomes
-zombi2 genomes out/ --resolution ordered \
-    --duplication 0.2 --loss 0.2 --origination 0.5 \
-    --inversion 0.3 --chromosomes 3 --seed 1
-
-# segments relocate and move between chromosomes, sometimes inverting
-zombi2 genomes out/ --resolution ordered \
-    --origination 0.5 --transposition 0.2 --translocation 0.1 \
-    --inversion-probability 0.5 --chromosomes 2 --seed 1
+# or start from a real genome: the GFF declares the replicons and the genes,
+# and a paired FASTA supplies the actual DNA those coordinates hold
+zombi2 genomes out/ --resolution nucleotide \
+  --gff ecoli.gff --fasta ecoli.fasta \
+  --inversion 0.5 --loss 0.4 --loss-extent 900 --seed 1
 ```
+
+Every event kind has its own `--<event>-extent`, the mean of a geometric draw in base pairs — 50 bp unless you set it, 5 bp for the indels: `--inversion-extent`, `--loss-extent`, `--duplication-extent`, `--transfer-extent`, `--transposition-extent`, `--translocation-extent`, `--origination-extent` (the length of the new gene an origination lays down), `--insertion-extent`, `--deletion-extent`.
