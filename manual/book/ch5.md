@@ -58,10 +58,12 @@ from zombi2 import traits
 from zombi2.params import Extent, PerLineage
 
 habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=2)
+loss        = PerLineage(0.8).scaled_by(habitat, {"host": 20.0, "free": 0.5})   # more often
+loss_extent = Extent(150).scaled_by(habitat, {"host": 6.0, "free": 1.0})        # bigger chunks
+
 g2 = genomes.simulate_genomes_nucleotide(
     tree, root_length=3000, genes=3, gene_length=400, seed=57,
-    loss=PerLineage(0.8).scaled_by(habitat, {"host": 20.0, "free": 0.5}),  # more often
-    loss_extent=Extent(150).scaled_by(habitat, {"host": 6.0, "free": 1.0}))  # bigger chunks
+    loss=loss, loss_extent=loss_extent)
 ```
 
 **The extent takes the same verbs**, and that is a different statement: the rate raises how often a host-restricted lineage deletes, the extent how much each deletion takes. Set both and they multiply: the DNA shed per unit time goes up by the product, not the sum.

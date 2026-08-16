@@ -123,6 +123,12 @@ Three verbs, because a number arriving at a target can do three things.
 `set_by` is for when the literature states the rate itself — *the loss rate is 1.0 in the water* — rather than a multiple of a base you had to invent. `weighted_by` needs no base because weights are normalised, so doubling them all changes nothing. Written out:
 
 ```python
+from zombi2 import traits
+from zombi2.params import PerCopy, Recipients
+
+habitat    = traits.simulate_discrete(ct, states=["aquatic", "terrestrial"], switch=0.1, seed=5)
+competence = traits.simulate_discrete(ct, states=["competent", "closed"], switch=0.3, seed=6)
+
 # set_by: the mapping IS the rate, so the scope is written empty
 loss = PerCopy().set_by(habitat, {"aquatic": 1.0, "terrestrial": 0.25})
 
