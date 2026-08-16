@@ -17,8 +17,10 @@ trees, beside the run under `genomes/`. `--format` is required and takes several
 `--format homology recphylo`. Family and ordered runs rebuild their gene trees from the event log; a
 nucleotide run recovers them from the genome, one file per **declared gene** (the intergenic spacer is
 not a gene, so it gets none). A nucleotide run that declared no genes at all is one uninterrupted
-intergene, and `format` refuses it: there is nothing to relate. `--from PATH` reads a run elsewhere;
-`--flat` writes straight into the output directory.
+intergene, and `format` refuses it: there is nothing to relate. `--from PATH` reads a run elsewhere,
+and `DIR` is then only the output; `--flat` writes straight into it rather than under `genomes/`. A
+declared gene's file is numbered by its family, like everything else — `result.gene_names` maps the
+numbers back to the annotation's names.
 
 | File | What it holds |
 |---|---|
@@ -67,14 +69,15 @@ The smallest interesting case: species `((a, b), c)`, where `c` donates a copy o
   n3_g4      Sx       Sx        T        -
 ```
 
-Every pair involving the arrival `g4` carries the `x`; no other pair does. `n3_g1` against `n3_g4` —
-two genes in the same genome — reads `Sx`: they diverged when `a` and `c` split, and one came back by
-transfer.
+Every pair that reaches the arrival `g4` across the transfer carries the `x` — the pair `g3`–`g4`,
+which diverged *at* the transfer, is the `T` itself — and no other pair has one. `n3_g1` against
+`n3_g4`, two genes in the same genome, reads `Sx`: they diverged when `a` and `c` split, and one came
+back by transfer.
 
-The table is read off each family's **complete** gene tree. The pairs and the letters are the same
-either way, but the `x` is a fact about the path: in a pruned tree a transfer whose donor-side copy
-left no surviving descendant is suppressed, taking the record of the transfer with it. On an ordinary
-run that is a fifth of all cells.
+The table is read off each family's **complete** gene tree rather than the pruned one. The pairs and
+the letters would come out the same on either, but the `x` is a fact about the path: a pruned tree
+suppresses any transfer whose donor-side copy left no surviving descendant, taking the record of the
+transfer with it — a suppression that touches about a fifth of all cells on an ordinary run.
 
 A cell is the event, not a label for it. "Ortholog" and "paralog" are readings laid over the event and
 the published definitions disagree, so ZOMBI2 reports the event and the definition stays yours. For
@@ -101,13 +104,17 @@ that replaced the resident gene. That is hidden paralogy, and in real data it pa
 would apply. On a transfer-rich run with replacing transfers, 111 of 299 families came out single-copy
 and universal, and 106 of those did **not** recover the species tree.
 
+The yes-or-no columns hold literally `yes` and `no`, and `congruent` is empty exactly where `rf` is:
+
 ```bash
 # every family that would make a trustworthy marker
 zombi2 tools format out/ --format markers
 awk -F'\t' 'NR==1 || ($4=="yes" && $5=="yes" && $10=="yes")' out/genomes/markers.tsv
 ```
 
-`rf` is the same distance `zombi2 tools treedist` reports, on the same rooted-clade convention.
+`rf` counts **rooted clades** — each internal node's tip set, sizes 2 to n−1, so singletons and the
+whole tree are excluded — present in one tree and not the other. It is the same count `zombi2 tools
+treedist` reports, so the two agree.
 
 ### recPhyloXML
 
@@ -134,8 +141,10 @@ Origination has no tag and needs none: a family founded mid-branch is a gene tre
 there. Branch lengths are left out, as in the format's own reference files; the dated trees are next
 door in `genomes/gene_trees/` and `species/species_complete.nwk`.
 
-In Python, `zombi2.tools.recphylo.recphylo_xml(gene_trees, tree)` returns the document as a string —
-hand it every family for one file a viewer can draw them all in, or one family for that family's own.
+In Python, `zombi2.tools.recphylo.recphylo_xml(gene_trees, tree)` returns the document as a string.
+`gene_trees` is a dict of family id to gene tree — `g.gene_trees` whole for one file a viewer can
+draw every family in, or a one-entry slice like `{7: g.gene_trees[7]}` for that family's own — and
+`tree` is the complete species tree, `sp.complete_tree`.
 
 ### The extant-only reconciliation
 
@@ -149,9 +158,10 @@ entirely when the abandoned daughter has no surviving descendant. A duplication 
 disappears too.
 
 Transfers are the interesting case. When a copy arrives from a lineage that leaves no survivor, the
-transfer node vanishes with the donor. If that copy has surviving relatives, the point where it rejoins
-them is written as a transfer out of the branch they share — the strongest claim the extant tree can
-express. If it has none, the family appears to begin where it landed.
+transfer node vanishes with the donor. If the arriving copy has surviving relatives in the gene tree,
+the transfer is rewritten to leave from those relatives' shared ancestral branch — the point where
+the copy rejoins them, and the strongest claim the extant tree can express. If it has none, the
+family appears to begin where it landed.
 
 | | rooted at | what it is for |
 |---|---|---|
@@ -178,11 +188,13 @@ Unsampled survivors are treated exactly as extinct lineages: nothing in the data
 to a file with `-o`: a Newick tree for the transforms, a table or a number for the measurements.
 Exactly one action runs per call. `TREE` is a tree file, or `-` for stdin.
 
-`--prune` and `--clades` need each tip's fate, so they read the fates a ZOMBI complete tree carries; an
-ultrametric tree counts as all-extant, and a plain non-ultrametric tree with no fates is refused. Every
-other action ignores fates and loads any tree.
+`--prune` and `--clades` need each tip's fate, so they read the fates a ZOMBI2 complete tree carries
+(the run's `species_fates.tsv`, found beside the tree); an ultrametric tree counts as all-extant, and
+a plain non-ultrametric tree with no fates is refused — there is no flag to hand fates in from
+elsewhere yet, so a foreign non-ultrametric tree cannot be pruned. Every other action ignores fates
+and loads any tree.
 
-`--clades` lists the clades a tree offers to name — one row per internal node, biggest first, as
+`--clades` lists the clades a tree offers to name — one row per internal node that passes the filter, biggest first, as
 `node` · `extant` · `crown` · `example_tips`, filtered by `--min-extant` / `--max-extant`. It is the
 read-back for `Clade({...})`: scoping a rate to a clade means naming a node, and nothing else tells
 you which nodes are there or how big they are. `crown` is when the clade first splits; the clade
@@ -202,7 +214,7 @@ n4	9	0.708753	n7,n30
 | Action | What it writes |
 |-----------------------------------|-------------------------------------------------|
 | `--prune` | the extant tree: the dead and unsampled lineages dropped, and the unifurcations they leave behind suppressed so the tree stays bifurcating |
-| `--round` | the tree snapped to exactly ultrametric, by extending the terminal branches to a common depth. `--tol` is the tolerance as a fraction of tree height (default `1e-3`); a wider tip-depth spread raises, because it is real tip-date signal, not rounding. Written round-trip exact: this is the flag whose whole promise is the exactness of the file. (A **species** tree is written at full precision — the shortest string that reads back as exactly the same float — which is well inside `ape::is.ultrametric()`'s tolerance, so an extant species tree from a dated run does not need this flag to survive R. A gene tree and a trait tree are written to seven significant figures, so those, and any tree that arrives near-ultrametric from somewhere else, are what this is for.) |
+| `--round` | the tree snapped to exactly ultrametric, by extending the terminal branches to a common depth. `--tol` is the tolerance as a fraction of tree height (default `1e-3`); a wider tip-depth spread raises an error, because that much spread is real tip-date signal, not rounding. Written round-trip exact: this is the flag whose whole promise is the exactness of the file. (A **species** tree is written at full precision — the shortest string that reads back as exactly the same float — which is well inside `ape::is.ultrametric()`'s tolerance, so an extant species tree from a dated run does not need this flag to survive R. A gene tree and a trait tree are written to seven significant figures, so those, and any tree that arrives near-ultrametric from somewhere else, are what this is for.) |
 | `--stem LEN` / `--stem-add LEN` | the branch above the crown set to `LEN`, or extended by `LEN`; nothing below the crown moves |
 | `--rescale-height H` / `--rescale-factor F` | every branch length scaled — so the root-to-tip height becomes `H`, or by a raw multiplier `F` |
 | `--red` | the RED-rescaled tree: node depths become their Relative Evolutionary Divergence [@parks2018standardized], ultrametric on `[0, 1]` with the root at 0 and every tip at 1. `--red --values` writes a two-column `node<TAB>RED` table instead of a tree |
@@ -228,8 +240,9 @@ zombi2 tools tree out/species/species_complete.nwk --prune | zombi2 tools tree -
 
 <!-- --8<-- [start:treedist] -->
 
-`zombi2 tools treedist TREE_A TREE_B` reports how far apart two rooted trees are over their shared
-tips, printed as `<metric><TAB><value>` to stdout (or a file with `-o`). Pick the metric with
+`zombi2 tools treedist TREE_A TREE_B` reports how far apart two rooted trees are — over the same tip
+set, or with `--restrict` over the tips they share — printed as `<metric><TAB><value>` to stdout (or
+a file with `-o`). Pick the metric with
 `--metric`:
 
 | `--metric` | Distance |
@@ -239,7 +252,7 @@ tips, printed as `<metric><TAB><value>` to stdout (or a file with `-o`). Pick th
 | `branch-score` | Kuhner–Felsenstein — the square root of the summed squared branch-length differences over every clade, terminal branches included; unlike RF it moves even when only the branch lengths differ |
 | `all` | every metric above, one per line |
 
-Tips are matched by **label** — the tip name for an external tree, or `n<id>` for a ZOMBI tree — so a
+Tips are matched by **label** — the tip name for an external tree, or `n<id>` for a ZOMBI2 tree — so a
 true tree and an inferred tree line up by taxon whatever order their files list them in. The two trees
 must carry the same tip set, or `--restrict` prunes both to the taxa they share and scores them
 there, saying on stderr how many that left; fewer than three shared taxa is refused, since there is
@@ -258,7 +271,7 @@ the two share no labels. `treedist` notices and compares them on **the species e
 "does this family's tree recover the species tree?" — saying so on stderr. It works only when the
 family is **single-copy**, so the mapping is one-to-one; a family with two copies in some genome is
 refused, naming the genomes at fault, rather than answered with a plausible number. Two trees of the
-same kind are left alone and nothing is printed.
+same kind are compared as they are, with no such note.
 
 A family rarely sits in every genome, so the two tip sets usually still differ after that mapping,
 even when the family is single-copy. Pass `--restrict` to score them on the genomes the family
