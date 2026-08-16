@@ -233,7 +233,8 @@ def _per_lineage(rate) -> tuple:
 
 def _grow(rng, birth_rate, death_rate, n_extant: int | None, total_time: float | None,
           pulses: list[tuple[float, float]], progress: bool = False,
-          max_lineages: int | None = None) -> tuple[Tree, list[Event], dict[int, tuple[float, float]]]:
+          max_lineages: int | None = None,
+          ) -> tuple[Tree, list[Event], dict[int, tuple[float, float, float, int]]]:
     """Grow one forward birth-death tree until it reaches ``n_extant`` living lineages,
     reaches ``total_time``, or dies out. Returns the complete tree and the event log.
 
@@ -605,7 +606,7 @@ def simulate_species_tree(birth, death=0.0, *, n_extant=None, total_time=None,
     rng, seed = stream("species", seed)     # own stream, and a drawn seed if none was given
 
     def _finish(tree: Tree, events: list[Event],
-                rates: dict[int, tuple[float, float]]) -> SpeciesResult:
+                rates: dict[int, tuple[float, float, float, int]]) -> SpeciesResult:
         # observe (sampling relabels survivors) then recover fossils along the grown branches
         alive = sum(1 for nd in tree.nodes.values() if nd.fate == "extant")
         _apply_sampling(tree, sampling, rng)
