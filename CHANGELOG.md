@@ -9,6 +9,21 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- **A genome and a gene's sequence can drive each other** — the last cell of Figure 10.2, which now
+  has no dashed arrow left. `joint.simulate(genomes.genome(...), sequences.gene(...), tree=ct)`. The
+  genome decides which sequences exist, and their composition decides how fast the genome changes.
+  Both levels are participants, so both come out; the tree is the only thing handed over, and the
+  gene trees are not — they come out of the genome participant.
+  Only the **declared** family carries a sequence, which is what keeps the cost proportional to what
+  the model reads: measured at ten times an ordinary two-run pipeline, and a tenth of a second on
+  sixty species with thirty families. Species time is sliced, and at an event the picked copy's
+  sequence is carried to that instant before it is cloned or ended.
+  The family resolution only. At the nucleotide resolution an event can fall inside a gene, so a
+  copy's sequence stops being one string; that is refused by name. See
+  `docs/design/genomes-sequences.md`.
+
 ### Changed
 
 - **The six joint engines now follow one set of conventions.** They stay separate — each pair really
