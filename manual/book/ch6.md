@@ -61,9 +61,7 @@ custom = sequences.simulate_sequences(my_genomes, model=mine, length=1000, seed=
 
 The rate of $i \to j$ is $Q_{ij} = S_{ij}\,\pi_j$, the diagonal is minus the rest of its row, and the whole matrix is then scaled so that one unit of branch length is one expected substitution per site, the same scaling every model on the menu gets. So a phylogram from your matrix is comparable with one from `hky85` without converting anything. This is the constructor the menu itself uses: the matrix above *is* HKY85, so `mine` and `hky85(kappa=2.0, frequencies=(0.3, 0.2, 0.2, 0.3))` are the same model. Pass `alphabet=AMINO_ACIDS` for a twenty-state matrix of your own.
 
-You give $S$ and $\pi$ rather than $Q$ directly, and that restriction is deliberate. ZOMBI2 computes $P(t) = e^{Qt}$ through a symmetric eigendecomposition that is only valid for a **time-reversible** model, one where $\pi_i Q_{ij} = \pi_j Q_{ji}$ for every pair. A symmetric $S$ times $\pi$ satisfies that by construction, so there is no way to write a model here that the engine would evaluate wrongly. A general $Q$ handed straight to `SubstitutionModel` could be, and is refused with an error rather than run: non-reversible models such as UNREST are not implemented, and a wrong transition matrix produces plausible sequences that are not the model you asked for. Adding them is a small change in one place and a real cost everywhere else: only `p_matrix` depends on reversibility, but a general $Q$ needs a general matrix exponential, which means either a SciPy dependency ZOMBI2 does not have or a hand-written one, and it gives up the decomposition that is computed once per model and reused for every branch.
-
-There is no command-line flag for a custom matrix. A twenty-state matrix is 190 numbers, which is a file format rather than an argument; `--model` offers the menu, and your own matrix is a Python constructor.
+You give $S$ and $\pi$ rather than $Q$ directly, and the restriction is deliberate: the engine's matrix exponential is only valid for a **time-reversible** model, which a symmetric $S$ times $\pi$ satisfies by construction. A general $Q$ is refused with an error rather than run — a wrong transition matrix produces plausible sequences that are not the model you asked for. There is no command-line flag for a custom matrix: a twenty-state matrix is 190 numbers, which is a file format rather than an argument.
 
 ## Rate variation across sites
 
@@ -75,7 +73,7 @@ print(both.name)                  # HKY85+I+G4
 sequences.simulate_sequences(my_genomes, model=both, length=1000, seed=1)
 ```
 
-**Branch lengths do not change.** The Gamma is cut into equal-probability classes, four by default and set with `rate_categories`, and the classes are normalised so the mean rate over all sites is exactly 1, invariant sites included. A branch length is therefore still substitutions per site, now the mean over them, and a run with rate variation and one without, at the same rate, have the *same tree* — what differs is how the change is spread across the columns. Two consequences: the mean pairwise identity a run reports goes **up** at the same divergence, because the slow and invariant sites keep their matches while the fast ones saturate; and on a nucleotide run the spacer between genes keeps its own flat model, since `model` does not reach `intergene_model`.
+**Branch lengths do not change.** The Gamma is cut into equal-probability classes, four by default and set with `rate_categories`, and the classes are normalised so the mean rate over all sites is exactly 1, invariant sites included. A branch length is therefore still substitutions per site, now the mean over them, and a run with rate variation and one without, at the same rate, have the *same tree* — what differs is how the change is spread across the columns. One visible consequence: the mean pairwise identity a run reports goes **up** at the same divergence, because the slow and invariant sites keep their matches while the fast ones saturate.
 
 ## Site-specific amino-acid profiles
 
@@ -104,12 +102,11 @@ Each row is normalised to sum to 1, and the exchangeabilities (which pairs of am
 easily, the chemistry the model already encodes) are left alone. Families you leave out evolve under
 `model` untouched. A row of exact zeros is refused, because it makes that site's matrix degenerate: a
 real profile says a residue is unlikely at a position, not that it is impossible, so add a
-pseudocount.
+pseudocount. A **flat** profile — every row the model's own frequencies — is statistically the model
+without one.
 
-Where the numbers come from is your business. Two ways.
-
-**From an alignment of the real family.** Column frequencies, with a pseudocount so nothing is
-impossible:
+Where the numbers come from is your business. From an alignment of the real family, column
+frequencies with a pseudocount so nothing is impossible:
 
 ```python
 def profile_from_alignment(columns, alphabet, pseudocount=0.1):
@@ -122,46 +119,41 @@ columns = ["LLLIL", "GGGGA", "KKRKK"]           # three columns of a five-sequen
 print(profile_from_alignment(columns, protein.alphabet).shape)      # (3, 20)
 ```
 
-**From a protein language model.** These already produce a distribution over amino acids at every
-position, which is the table this section wants, so nothing has to be derived from it:
+Or from a **protein language model**, which already produces a distribution over amino acids at
+every position — exactly the table this section wants. Compute it once, save the array beside your
+script, and load it: calling a model at simulation time would put its version and its hardware inside
+your run's reproducibility, whereas a saved array keeps the simulation bit-identical from the seed as
+usual.
 
-<!-- doc-test: skip — transformers and torch are not ZOMBI2 dependencies -->
-
-```python
-import torch
-from transformers import T5ForConditionalGeneration, T5Tokenizer
-
-def profile_from_prott5(sequence, alphabet, model_name="Rostlab/prot_t5_xl_uniref50"):
-    tok = T5Tokenizer.from_pretrained(model_name)
-    mdl = T5ForConditionalGeneration.from_pretrained(model_name).eval()
-    ids = tok(" ".join(sequence), return_tensors="pt")
-    with torch.no_grad():
-        logits = mdl(**ids, decoder_input_ids=ids["input_ids"]).logits[0]
-    p = torch.softmax(logits, dim=-1).numpy()
-    cols = [tok.convert_tokens_to_ids(a) for a in alphabet]      # the model's own token ids
-    prof = p[:len(sequence), cols]
-    return prof / prof.sum(axis=1, keepdims=True)
-```
-
-**Compute the table once and keep it.** A language model's output depends on its version and on the
-hardware it ran on, so calling one at simulation time would put something outside this manual's
-reproducibility promise inside your run. Save the array beside your script and load it. The
-simulation is then bit-identical from the seed as usual, and a reader can inspect the profile without
-owning a GPU.
-
-A **flat** profile, every row the model's own frequencies, is the model without one. Statistically,
-not byte for byte: a hundred single-site models walk the random stream differently from one
-hundred-site model, so the same seed gives a different draw from the same distribution.
-
-Profiles and `+Γ` are about different things and compose. A profile says **which** amino acids belong
-at a site; a Gamma says **how fast** sites change. Decorate the model as usual and you get both.
+Profiles and `+Γ` are about different things and compose: a profile says **which** amino acids belong
+at a site, a Gamma says **how fast** sites change. `partitions=` is the same idea at block grain — the
+gene evolves as consecutive blocks of sites, each under its own model, `partitions=[(lg(), 100),
+(wag(), 200)]` — and it replaces `model=` and `length=`, which it already answers.
 
 **An amino-acid profile needs a protein model, so it belongs to a family or ordered run.** A
 nucleotide genome is measured in base pairs and its blocks are read on either strand, so that
-resolution refuses protein models altogether: there is no complement of an amino acid. Profiles are
-still accepted there, but over the four bases: a row per base pair, saying what belongs at that
-coordinate. The row count then has to match the block's length in bp, since the genome run already
-fixed it.
+resolution refuses protein models altogether: there is no complement of an amino acid. Profiles there
+are over the four bases, one row per base pair of the block, the row count matching the block's
+length.
+
+## Insertions and deletions
+
+`insertion` and `deletion` give the sequences **indels**, so an alignment gains gaps: a lineage loses
+sites it had, or gains sites the others never did. The rates are **relative to the substitution
+rate** — `deletion=0.05` is five deletions for every hundred substitutions a site expects — so a
+lineage's clock reaches its indels too, and the number means the same on a tree of any height.
+`insertion_extent` and `deletion_extent` say how many sites an event takes, a bare number the mean of
+a geometric draw (3 by default); `Fixed(1)` is a single-site indel, and any distribution works.
+
+```python
+gapped = sequences.simulate_sequences(my_genomes, model=hky85(2.0), length=300,
+                                      insertion=0.05, deletion=0.05, seed=4)
+```
+
+The alignment columns are the union of every site any lineage ever had, and a lineage that carries
+none of one shows a gap. Two refusals, each because something else already owns the sites: a
+**nucleotide** genome brings its own indels (Chapter 5), where a base pair has a position these rates
+do not know; and `partitions` and `profiles` are written against a site count an indel changes.
 
 ## Relaxed molecular clocks
 
@@ -178,7 +170,7 @@ The rate is `substitution`, counted **per site**: a gene-tree branch of Δ*t* ti
 | the rate takes one of a few values, inherited in steps | Discrete rate categories | [Sq8](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_discrete_bin--> |
 | the rate reads another level | Trait-dependent rate of molecular evolution | [Co8](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_substitution--> |
 
-A bare distribution has **no memory**: each lineage is an independent draw. `Drift` has memory: a daughter starts at its parent's rate and takes one step from it, so close relatives evolve at similar rates — the autocorrelated clock. And whichever you use, **the clock belongs to the species tree, not to the gene trees**: ZOMBI2 draws one rate per species branch, and every gene passing through that branch evolves at it, so a fast species is fast in all of its genes at once.
+Row by row, the written forms: the uncorrelated lognormal clock is `PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3))`, and swapping the law for a `Gamma` gives UGAM; wrapping the law in `Drift(...)` gives the autocorrelated clock, and `Drift(..., bins=6)` the discrete categories (Appendix A spells each out); the driven rate is Chapter 8's. A bare distribution has **no memory** — each lineage is an independent draw — where `Drift` starts a daughter at its parent's rate and takes one step from it, so close relatives evolve at similar rates. And whichever you use, **the clock belongs to the species tree, not to the gene trees**: ZOMBI2 draws one rate per species branch, and every gene passing through that branch evolves at it, so a fast species is fast in all of its genes at once.
 
 ### Setting the rate, or letting the divergence set it
 
@@ -197,17 +189,15 @@ On that 20-unit tree, sequences around 80% identical need `0.2 / 20 = 0.01`. The
 | 0.86 | 46% |
 | 1.72 | 34% |
 
-Measured on simulated JC69 alignments. The first column transfers between trees, being rate times height; the second is a mean over pairs of tips, so it depends on where the tree's splits sit — a tree splitting near its tips keeps more identity than one splitting near its root, and at the deep end two ordinary trees can differ by twenty points. Read it as a guide, not a lookup. Two unrelated DNA sequences already match at 25% by chance, so the last row is nearly no signal; every run reports the identity it produced and warns when it lands that close to the floor.
+Measured on simulated JC69 alignments. The first column carries over between trees, being rate times height; the second is a mean over pairs of tips, so it depends on where the tree's splits sit, and at the deep end two ordinary trees can differ by twenty points. Read it as a guide, not a lookup. Two unrelated DNA sequences already match at 25% by chance, so the last row is nearly no signal; every run reports the identity it produced and warns when it lands that close to the floor.
 
-`divergence` states the first column directly and lets ZOMBI2 do the division against the height of the tree the run is about to use — `divergence=0.2` in Python, `--divergence 0.2` on the command line.
+`divergence` states the first column directly and lets ZOMBI2 do the division against the height of the tree — `divergence=0.2` in Python, `--divergence 0.2` on the command line. The height is the **species tree's**: the clock is drawn per species branch, so a family born late simply accrues less.
 
 ```python
 sequences.simulate_sequences(my_genomes, model=hky85(), length=1000, divergence=0.2)
 ```
 
-The two settings say different things and can be given together: `substitution` says what *kind* of clock, `divergence` says how far it drifts. A relaxed clock calibrated to a divergence is written with the shape alone — `PerSite().varying_among('lineages', LogNormal(0.0, 0.3))` — and `divergence=0.2` beside it. Giving that rate a base number as well is an error rather than an override, since the base is exactly what `divergence` solves for; the resolved rate goes into the run log either way.
-
-A clock and a driver **compose**, because verbs chain and their factors multiply: a lineage's branch length is the base rate, times the tempo it was dealt, times the factor its state gives. A driven rate is conditioning — two ordinary runs in order — and Chapter 8 covers it, including how a driver that switches partway along a branch is integrated across the branch rather than read once for it. One limit belongs here: `divergence` is refused alongside a driven rate, because it solves for the base by assuming the modifiers average to 1, which the two clocks are corrected to do and a driver is not. Set the base yourself there.
+The two settings say different things and can be given together: `substitution` says what *kind* of clock, `divergence` how much change it must deliver. A relaxed clock calibrated to a divergence is written with the shape alone — `PerSite().varying_among('lineages', LogNormal(0.0, 0.3))` — and `divergence=0.2` beside it. Giving that rate a base number as well is an error rather than an override, since the base is exactly what `divergence` solves for; the resolved rate goes into the run log either way. One limit: `divergence` is refused alongside a **driven** rate. The clocks are normalised to mean 1, so the division still lands; a driver's factors average to whatever the driver does, so the solved base would deliver a divergence off by the driver's mean while the log claimed otherwise. Set the base yourself there — a driven rate is conditioning, two ordinary runs in order, and Chapter 8 covers it, including how a driver that switches partway along a branch is integrated across the branch rather than read once for it.
 
 ### A clade can evolve differently, not only faster
 
@@ -225,15 +215,11 @@ model = Models().set_by(Clade({"endo": ["n76", "n112"]}),
 
 Every group the clade paints needs a model, `"rest"` included — a lineage in no named clade is in `"rest"`, and a missing one is refused rather than filled in.
 
-This is what an endosymbiont study needs. Its clade evolves faster *and* drifts toward AT, and the two mislead a tree-builder differently: a fast branch causes long-branch attraction, an AT-rich one causes compositional attraction, where unrelated AT-rich lineages group together because they look alike. Scoping the rate to the same clade gives both at once.
+This is what an endosymbiont study needs. Its clade evolves faster *and* drifts toward AT, and the two mislead a tree-builder differently: a fast branch causes long-branch attraction, an AT-rich one causes compositional attraction, where unrelated AT-rich lineages group together because they look alike. Scoping the rate to the same clade gives both at once: `substitution=PerSite(1.0).scaled_by(clade, {"endo": 3.0, "rest": 1.0})` beside the model set.
 
-Two limits, and one caveat worth knowing before you read the output.
+Two limits. The alphabet and the across-site rate classes are shared, because one gene copy's sequence is one string and a site's class is drawn once for the family — asking for either to differ by clade is refused with the reason. And the driver of a model set must be a `Clade`: this level samples one transition matrix per branch, so a model that switched mid-branch, as a trait can, would need the branch cut at the switch — that is not built. A trait can still drive the *rate*.
 
-The alphabet is shared, because one gene copy's sequence is one string. So are the across-site rate classes: a site's class is drawn once for the family and holds all the way down the tree, so two clades cannot sort the same site into different classes. Both are refused with the reason rather than accepted and half applied.
-
-The driver must be a clade. A trait switches partway along a branch, and this level samples one transition matrix per branch, so a model that changed mid-branch would need the branch cut at the switch — that is not built. A trait can still drive the *rate*.
-
-The caveat: every model is normalised to one expected substitution per site per unit branch length, and that holds **at stationarity**. A lineage that has just entered the AT-rich clade is not yet at its frequencies, so while its composition is still relaxing it accrues somewhat fewer substitutions than its branch length claims. That transient is usually the thing being studied, and it is the ordinary price of a model that varies along the tree, not a defect. It shows up plainly if you raise the divergence: the clade's A+T climbs from 0.54 toward 0.80 as it has more time to get there.
+One caveat before you read the output: every model is normalised to one expected substitution per site per unit branch length, and that holds **at stationarity**. A lineage that has just entered the AT-rich clade is still relaxing toward its frequencies, so while its composition catches up it accrues somewhat fewer substitutions than its branch length claims. That transient is usually the very thing being studied — the ordinary price of a model that varies along the tree, not a defect.
 
 `Models` is Python only, and there is no flag for it: a model is a K×K matrix, which has no written form a flag can carry — the same reason `reversible()` has none.
 
@@ -245,9 +231,7 @@ This is why a phylogram's root carries a branch length: it is the stem in substi
 
 ## Keeping the history
 
-Every other level records what happened to it. This one records the letters at every node and no events, and that is deliberate: a substitution log is bigger than the alignment it explains. Three hundred sites on a tree whose branches total thirty time units at rate 1.0 is nine thousand substitutions for **one** family, and a hundred families is close to a million rows, where the genome log for the same run holds a few thousand.
-
-`record=True` asks for it:
+Every other level records what happened to it. This one records the letters at every node and no events, and that is deliberate: a substitution log is bigger than the alignment it explains — a hundred families down an ordinary tree is close to a million rows, where the genome log for the same run holds a few thousand. `record=True` asks for it:
 
 ```python
 from zombi2.genomes import simulate_genomes_family
@@ -262,27 +246,21 @@ r.events[0]                 # time · kind · lineage · gene · site · strand 
 r.write("out/", outputs=("alignments", "events"))    # sequence_events.tsv
 ```
 
-Insertions and deletions get rows too, one per site. Without them the log would say a site changed and never say when that site arrived or left.
+`kind` is `substitution`, `insertion` or `deletion` — the indels above get rows too, one per site — and `from` and `to` are the states. A site is named by an **id**, not by a position: a position shifts with every insertion above it, and the alignment column index is stable only once the run has finished, so neither can go in a row written while the run is going. An insertion row carries the id it follows, and a deletion row the ids dropped; with those two a reader can rebuild any lineage's column list at any moment. The `strand` column is there because the nucleotide level's blocks can sit reverse-complemented; at this level it is always `+1`.
 
-A site is named by an **id**, not by a position. A position in a lineage's own sequence shifts with every insertion above it, and the alignment column index is stable only once the run has finished — so neither can go in a row written while the run is going. An insertion row carries the id it follows, and a deletion row the ids dropped; with those two a reader can rebuild any lineage's column list at any moment, which is what turns an id back into a position. The `strand` column is there because the nucleotide level's blocks can sit reverse-complemented; at this level it is always `+1`.
+Recording changes the **sampler**. An ordinary run draws each branch's end in one step and never simulates the path between, because nothing asks what it was; a recorded run has to walk that path, event by event. The two give the same distribution at a branch's end, so a recorded run is a valid run — it is a *different realisation* for the same seed, the price of asking what happened rather than only where it ended.
 
-Recording changes the **sampler**, and it is worth knowing why. An ordinary run draws each branch's end from `exp(Q·bl)` — one matrix, one draw per site — and never simulates the path between the two ends, because nothing asks what it was. A recorded run has to walk that path, so it runs a forward Gillespie over the sites. The two are the same process and give the same distribution at a branch's end, so a recorded run is a valid run; it is a *different realisation* for the same seed, which is the price of asking what happened rather than only where it ended.
-
-What it will not walk, it refuses: partitions and profiles, which give a family several models; a nucleotide genome run, which evolves blocks rather than one sequence per family; and the parallel and streaming engines, which hand a family off before its rows could be collected.
-
-A **joint** run records as well — `joint=True` here, or `joint.simulate(..., record=True)` for a trait and a gene together (Chapter 9). Those runs slice, and a slice is exactly the interval their rate is constant over, so a row's time is as exact there as on an ordinary branch.
+What it will not walk, it refuses: `partitions` and `profiles`, which give a family several models; a nucleotide genome run, which evolves blocks rather than one sequence per family; and the parallel and streaming engines, which hand a family off before its rows could be collected. A **joint** run records as well — `joint=True` here, or `joint.simulate(..., record=True)` for a trait and a gene together (Chapter 9); those runs advance in slices of species time, and a slice is exactly the interval their rate is constant over, so a row's time is as exact there as on an ordinary branch.
 
 ## Large runs
 
 This is the level where a run's memory goes. Every family's alignment and every ancestral sequence are held at once, so what you can run is bounded by families × copies × sites rather than by time. `stream_to` writes each family's files the moment it is finished and keeps nothing, handing back a light handle with a path instead of a `SequencesResult` holding everything. On the command line it is `--stream`.
 
-Memory then stops growing with the sequences. Two hundred species and 640 families at 300 sites costs 466 MB in memory and 329 MB streamed; raise the sites to 1500 and the in-memory run goes to 1008 MB while the streamed one barely moves, to 392 MB. What is left is the genome run being read, which is the floor.
-
-It is a memory choice and not a modelling one: the same seed writes the same files either way, so a streamed run and an in-memory one are the same dataset. `outputs=` picks which files, exactly as `.write` takes them, and it composes with `parallel`. A **nucleotide** run cannot stream: it puts whole genomes back together, which needs every block's sequence at once.
+Memory then stops growing with the sequences: raise the sites fivefold and an in-memory run doubles while a streamed one barely moves. What is left is the genome run being read, which is the remaining cost. It is a memory choice and not a modelling one: the same seed writes the same files either way, so a streamed run and an in-memory one are the same dataset. `outputs=` picks which files, exactly as `.write` takes them, and it composes with `parallel`. A **nucleotide** run cannot stream: it puts whole genomes back together, which needs every block's sequence at once.
 
 ## Running on a nucleotide genome
 
-Hand the level a **nucleotide** genome run — one ZOMBI2 drew, or a real annotation you supply — and you get whole assembled genomes in FASTA, at every tip and at every ancestor. Genes and spacer get their own models: `model` evolves the genes, and `intergene_model` evolves the spacer at `intergene_speed` times the rate (3× by default), under `jc69`, which is flat and has no free parameters.
+Hand the level a **nucleotide** genome run — one ZOMBI2 drew, or a real annotation you supply — and you get whole assembled genomes in FASTA, at every tip and at every ancestor. Genes and spacer get their own models: `model` evolves the genes, and `intergene_model` evolves the spacer at `intergene_speed` times the rate (3× by default), under `jc69` unless you hand it a model of its own — decorated or plain, like any other.
 
 It is the same two steps as any other run — a genomes run at `--resolution nucleotide`, then a sequences run over it. What comes back is every node's assembled genome: `.genomes` at the tips, `.node_genomes` at the ancestors, reconstructed rather than estimated, and `.initial_genome` for the state the run started from.
 
@@ -294,7 +272,7 @@ The FASTA has one `>seqid` record per GFF `##sequence-region`, each exactly its 
 
 ## On the command line
 
-On the command line the genome run is handed over as a **directory**, the run directory itself, which by then holds the genomes. `zombi2 sequences out/` reads that run's species tree and event log and replays the gene genealogy from them, so the two commands chain without anything else passing between them. A nucleotide run given a `--fasta` also hands its initial DNA across (in `initial_sequence.fasta`), so the sequences descend from your real sequence without you naming it twice. Point `--from` at another run to read one and write somewhere else.
+The positional directory is the run being written, and it doubles as the input: `zombi2 sequences out/` runs **in place**, reading the genome run already in `out/` — its species tree and event log, replaying the gene genealogy from them — and writing beside it. `zombi2 sequences seqs/ --from out/` reads one run and writes into a fresh directory. A nucleotide run given a `--fasta` also hands its initial DNA across (in `initial_sequence.fasta`), so the sequences descend from your real sequence without you naming it twice. `--write` picks the outputs, the command line's `outputs=`.
 
 ```bash
 # 1. genomes along a species tree (from the previous chapters)
