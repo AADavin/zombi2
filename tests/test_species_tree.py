@@ -720,3 +720,16 @@ def test_the_extant_tree_never_names_a_dead_lineage():
     # the ALE-ready gene trees all name extant tips, so none of them changed
     r = simulate_species_tree(birth=1.0, death=0.6, n_extant=10, sampling=0.7, seed=11)
     assert "e" not in r.extant_tree.to_newick()
+
+
+def test_growing_a_tree_does_not_evaluate_the_rates_it_only_records_them():
+    """The growth loop stores what a lineage carried, not what its rate worked out to.
+
+    Evaluating both rates at every node cost about a third of the species level's running time on
+    every run, whether or not anyone asked for `lineage_rates`. The loop keeps four numbers per node
+    now and the accessor does the arithmetic, so what is stored is raw material, not a rate."""
+    r = simulate_species_tree(birth=1.0, death=0.3, n_extant=50, seed=1)
+    factor_b, factor_d, at, alive = r.rates_at_birth[r.complete_tree.root]
+    assert (factor_b, factor_d) == (1.0, 1.0)      # no per-lineage modifier: nothing carried
+    assert at == 0.0 and alive == 1                # the root is born into an empty tree
+    assert r.lineage_rates()[r.complete_tree.labels()[r.complete_tree.root]] == 1.0
