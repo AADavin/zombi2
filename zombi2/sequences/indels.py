@@ -53,11 +53,15 @@ class IndelHistory:
     #: How many insertions and deletions actually fired, for the run's counters.
     insertions: int
     deletions: int
+    #: every column's **id**, in the alignment's order — what turns a column index back into the site
+    #: a log row names. `_record` reads it; nothing else needs it.
+    order: tuple[int, ...] = ()
 
 
 def draw_indel_history(root, length: int, *, insertion: float, deletion: float,
                        insertion_extent, deletion_extent, rate_base: float,
-                       clock: "Clock | None", rng: np.random.Generator) -> "IndelHistory | None":
+                       clock: "Clock | None", rng: np.random.Generator,
+                       record=None) -> "IndelHistory | None":
     """Walk the gene tree rooted at ``root`` drawing indels, and return who ends up carrying what.
 
     ``None`` when both rates are zero, and then **not one draw is taken** — a run that did not ask
@@ -100,7 +104,14 @@ def draw_indel_history(root, length: int, *, insertion: float, deletion: float,
                   else clock.branch_length(rate_base, node.species, parent_time, node.time))
             if bl > 0.0 and seq:
                 total = (insertion + deletion) * bl * len(seq)
-                for _ in range(int(rng.poisson(total))):
+                n_events = int(rng.poisson(total))
+                # Only a RECORDED run needs to know *when* on the branch each event fell — the
+                # counts alone decide who ends up carrying what. So the times are drawn here and
+                # nowhere else, which is what leaves a run without `record=` drawing exactly what it
+                # always drew. Uniform on the branch is the Poisson process conditioned on its count.
+                when = (sorted(float(x) for x in rng.random(n_events)) if record is not None
+                        else [0.0] * n_events)
+                for _k in range(n_events):
                     if not seq:
                         break
                     if rng.random() * (insertion + deletion) < insertion:
@@ -116,6 +127,9 @@ def draw_indel_history(root, length: int, *, insertion: float, deletion: float,
                         # them before — its bases would land in the wrong columns.
                         into = after.setdefault(seq[at - 1], []) if at else head
                         into[0:0] = fresh
+                        if record is not None:
+                            record.indel("insertion", parent_time + when[_k] * (node.time - parent_time),
+                                         node, fresh, after=seq[at - 1] if at else -1)
                         seq[at:at] = fresh
                         n_ins += 1
                     else:
@@ -123,6 +137,9 @@ def draw_indel_history(root, length: int, *, insertion: float, deletion: float,
                         if size >= len(seq):           # never empty the sequence
                             continue
                         at = int(rng.integers(len(seq) - size + 1))
+                        if record is not None:
+                            record.indel("deletion", parent_time + when[_k] * (node.time - parent_time),
+                                         node, seq[at:at + size])
                         del seq[at:at + size]
                         n_del += 1
         carried[id(node)] = seq
@@ -145,7 +162,7 @@ def draw_indel_history(root, length: int, *, insertion: float, deletion: float,
         if seq:
             mask[[where[c] for c in seq]] = True
         present[key] = mask
-    return IndelHistory(len(order), present, n_ins, n_del)
+    return IndelHistory(len(order), present, n_ins, n_del, tuple(order))
 
 
 __all__ = ["IndelHistory", "draw_indel_history"]

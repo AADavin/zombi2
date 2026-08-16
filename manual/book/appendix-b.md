@@ -35,6 +35,7 @@ out/genomes/bed/            genome_<lineage>.bed                              (n
 out/genomes/homology/       homology_fam<f>.tsv                          (zombi2 tools format)
 out/genomes/recphylo/       recphylo_fam<f>.xml                          (zombi2 tools format)
 out/sequences/              clock_species_tree_complete.nwk · …_extant.nwk
+out/sequences/              sequence_events.tsv                          (record=True)
 out/sequences/alignments/   fam<f>.fasta
 out/sequences/phylograms/   phylogram_fam<f>_*.nwk
 out/sequences/genomes/      genome_<lineage>.fasta                       (nucleotide runs)

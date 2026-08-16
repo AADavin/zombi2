@@ -11,6 +11,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
+- **The sequence level can record its own history** — `simulate_sequences(..., record=True)` keeps
+  every substitution and every site gained or lost in `result.events`, written as
+  `sequence_events.tsv`. Off by default, and the only level's log that is: three hundred sites over
+  thirty time units at rate 1.0 is nine thousand rows for one family. Recording changes the sampler
+  as well — an ordinary branch jumps to its end with `exp(Q·bl)` and never simulates the path, a
+  recorded one walks it site by site. Same process and same distribution at a branch's end, so a
+  recorded run is a valid run, but a **different realisation** for the same seed. A site is named by
+  an id rather than a position, because a position moves with every insertion above it; an insertion
+  row carries the id it follows, so a reader can rebuild any lineage's column list at any moment.
+
 - **A trait and a gene's sequence can drive each other**, on a tree the run is handed —
   `joint.simulate(traits.discrete(...), sequences.gene(...), genomes=g)`. The last cross-level cell
   of the map: a character sets a gene's substitution rate, and how much of that gene is a given set

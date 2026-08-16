@@ -44,7 +44,8 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
                      origination: float,
                      founding: "np.ndarray | None" = None,
                      cdf_cache: "dict[tuple[int, float], np.ndarray] | None" = None,
-                     models: "dict[int, SubstitutionModel] | None" = None
+                     models: "dict[int, SubstitutionModel] | None" = None,
+                     record=None,
                      ) -> tuple[dict[int, np.ndarray], np.ndarray]:
     """Evolve a sequence of ``length`` sites down the gene tree rooted at ``root`` (a
     `GeneNode`), starting at ``origination``.
@@ -123,6 +124,13 @@ def evolve_gene_tree(root, model: SubstitutionModel, length: int, rate_base: flo
         m = model if models is None else models[node.species]
         if bl <= 0.0:
             states = parent_states
+        elif record is not None:
+            # A recorded branch walks the path rather than jumping to its end: same process, same
+            # distribution at the end, and the only one of the two that can say what happened on
+            # the way (`_record`).
+            from ._record import walk as _walk
+            states, rows = _walk(parent_states, m.Q, bl, rng, present=record.mask(node))
+            record.add(node, parent_time, rows, m.alphabet)
         elif groups is None:
             states = _sample(parent_states, _cdf_for(cache, m, bl), rng)
         else:

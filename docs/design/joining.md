@@ -1,6 +1,6 @@
 # Joining — a design note
 
-**Status: steps 1 to 10 of §14 are built; only step 11 is designed.** This note records what joining is
+**Status: every step of §14 is built.** This note records what joining is
 and which pairs can be joined. It also says where each joint model lives in the API, and the order
 the work is done in. It is subordinate to
 [`SPEC.md`](SPEC.md): where the two disagree, SPEC wins.
@@ -376,7 +376,7 @@ New cards go in `gallery/joining.py` and `gallery/crosslevel.py`.
 
 ## 14. Order of work
 
-Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), then 6 to 10.
+Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), then 6 to 11.
 
 1. ~~**The wording.**~~ Done. SPEC, the manual, the two docstrings, Figure 10.2's new arrow.
 2. ~~**Per-family rates.**~~ Done. §5, with the `genomes.genome` rename. No figure: per-family rates
@@ -415,4 +415,8 @@ Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), then 6 to 1
     the trait's own Gillespie inside a slice is exact, and the gene's branch length is the
     trait's factor integrated across those switches. Figure: rpoB ameliorating and the tree
     turning hot, each because of the other.
-11. **`record=`.** §10, last, because nothing above depends on it.
+11. ~~**`record=`.**~~ Done. §10, last, because nothing above depends on it. The plain
+    forward Gillespie, as the note chose; the third method — draw the two ends, then fill
+    the path between — is still the thing to add if this measures too slow, and not
+    before. Refuses what it cannot walk: partitions, profiles, a nucleotide run, and the
+    parallel and streaming engines.
