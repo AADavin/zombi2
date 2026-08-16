@@ -2,7 +2,8 @@
 
 One table per level, listing the files it writes: the file, and what it holds. Every file listed is
 written with no arguments unless its line says otherwise; a few are written only when you name their
-token, and those say so. What a run gives back in **Python** — the objects and accessors, which are
+**token** — the short names `outputs=` and `--write` take, `events`, `alignments`, `ancestral` — and
+those lines say so, naming the token where it is not simply the file's own name. What a run gives back in **Python** — the objects and accessors, which are
 not files — follows each table. Trees are Newick, tables and logs TSV, sequences FASTA; branch
 lengths are time, except in the sequence phylograms, which are in substitutions per site.
 
@@ -21,27 +22,40 @@ one — so matching by name is what these tables have always required.
 
 ```
 out/run.zombi2              the run report — one page for the whole run
+out/joint_summary.json      the joint run's own file                          (joint runs)
 out/species/                species_{complete,extant}.nwk · species_events.tsv · species_fates.tsv
+out/species/                species_fossils.tsv                               (fossil sampling)
 out/genomes/                genome_events.tsv · initial_genome.tsv
 out/genomes/                genomes.tsv                                       (family)
 out/genomes/                profiles.tsv                                      (family, ordered)
 out/genomes/                rearrangement_events.tsv · chromosome_events.tsv  (ordered, nucleotide)
 out/genomes/                gene_order.tsv                                    (ordered)
 out/genomes/                block_events.tsv · blocks.tsv · genes.tsv         (nucleotide)
-out/genomes/markers.tsv     the marker table, one file for the run — Appendix C  (zombi2 tools format)
+out/genomes/                initial_sequence.fasta                            (nucleotide + fasta)
+out/genomes/                names.tsv                                    (--from with own labels)
+out/genomes/markers.tsv     the marker table, one file for the run — Appendix C  (via zombi2 tools format)
 out/genomes/gene_trees/     gene_tree_fam<f>_complete.nwk · …_extant.nwk
-out/genomes/gff/            genome_<lineage>.gff                              (nucleotide)
-out/genomes/bed/            genome_<lineage>.bed                              (nucleotide)
-out/genomes/homology/       homology_fam<f>.tsv                          (zombi2 tools format)
-out/genomes/recphylo/       recphylo_fam<f>.xml                          (zombi2 tools format)
+out/genomes/gff/            genome_<lineage>.gff · genome_initial.gff         (nucleotide)
+out/genomes/bed/            genome_<lineage>.bed · genome_initial.bed         (nucleotide)
+out/genomes/homology/       homology_fam<f>.tsv                          (via zombi2 tools format)
+out/genomes/recphylo/       recphylo_fam<f>.xml                          (via zombi2 tools format)
 out/sequences/              clock_species_tree_complete.nwk · …_extant.nwk
 out/sequences/              sequence_events.tsv                          (record=True)
+out/sequences/              sequences_founding.fasta                     (the founding token)
 out/sequences/alignments/   fam<f>.fasta
+out/sequences/ancestral/    sequences_ancestral_fam<f>.fasta             (the ancestral token)
 out/sequences/phylograms/   phylogram_fam<f>_*.nwk
-out/sequences/genomes/      genome_<lineage>.fasta                       (nucleotide runs)
+out/sequences/genomes/      genome_<lineage>.fasta · genome_initial.fasta  (nucleotide runs)
 out/traits/                 trait_values.tsv · trait_tree.nwk · trait_events.tsv
 out/traits/<name>/          the same files, when --name was given
+out/<level>/conditioned_on  the driver record                            (conditioned runs)
 ```
+
+Two rules hold everywhere before any table. A lineage is written `n<id>`, and `e<id>` once it goes
+extinct — in every file, the trees included — while an unsampled tip keeps its `n<id>`; a gene copy
+is `n<species>_g<copy>` on the same convention. And a run whose tree came from `--from` keeps a copy
+of that tree, with `species_fates.tsv` beside it, in the run's own `species/` directory, so the
+directory stands alone for whatever reads it next.
 
 **`run.zombi2`** — the run report, plain text for reading rather than parsing. One section for each
 level in the directory — the seed, the parameters as resolved, what came out in numbers, and each
@@ -71,9 +85,9 @@ written by the CLI alone. To group a Python run, name the level directory yourse
 
 Every directory a run fills with one file per family or per node — `gene_trees/`, `gff/` and `bed/` at
 the genome level, `alignments/`, `ancestral/`, `phylograms/` and `genomes/` at the sequence level — is
-**emptied before that run fills it**, so its contents describe one run and nothing else. Two do not:
-`--flat`, which empties nothing, and the `homology/` and `recphylo/` directories `zombi2 tools format`
-writes, which are left as they are.
+**emptied before that run fills it**, so its contents describe one run and nothing else. Two
+exceptions: a `--flat` run empties nothing, and the `homology/` and `recphylo/` directories that
+`zombi2 tools format` writes are left as they are.
 
 ## Species trees: `simulate_species_tree`
 
@@ -179,7 +193,7 @@ arrived.
 | `speciation` | the copy that ends at the split | one copy in each daughter species |
 | `loss` | the copy that ends | — |
 | `transfer_additive` | the donor's copy | the continuation on the donor branch, then the copy that arrived |
-| `transfer_replacing` | the donor's copy, then the copy it overwrote | the same two |
+| `transfer_replacing` | the donor's copy, then the copy it overwrote | the continuations of those two lineages |
 
 One row of each kind, from a real run:
 
@@ -198,7 +212,9 @@ material went: the `transfer_additive` above left `n1` and landed on `n5`. A `tr
 carries two parents — the donor's copy, then the copy it overwrote on the recipient branch — and
 writes **no separate `loss` row** for the copy it displaced. That death is what the kind means.
 
-One row is one event, so counting rows by kind counts events. `genome_summary.json` counts the
+The file is time-ordered, one row per event, so counting rows by kind counts events — except at the
+**ordered** resolution, where a segmental event writes one row per gene it covers; dedupe on `time`
+there before counting (the ordered section's Segment note). An absent value is an empty cell. `genome_summary.json` counts the
 biology instead, and differs in three places: it reports `transfer` as one number over both kinds, it
 counts each replacing transfer's displaced copy under `loss`, and it separates the families the run
 started with (`initial`) from the ones the origination rate made. It also reports `empty_genomes`,
@@ -244,7 +260,8 @@ speciation copies a genome whole and leaves all five coordinate cells empty.
 `dest_chromosome` · `dest_position` · `flipped`. These begin and end no gene lineage, so they have no
 `parents` and `children` and get a file of their own; a segment has no name either, which is why this
 is the one event log that still puts its branch in a column. `dest_chromosome` is set only by a
-translocation, and `flipped` by the two events that move a segment, which may land inverted. The
+translocation; `flipped` is `1` or `0` on the two events that move a segment, which may land
+inverted, and empty on an inversion, which flips by definition. The
 `events` token writes this file and the log above together.
 
 **A segment**, in both of those files, is named by `start` (its first position, in the chromosome's
@@ -328,8 +345,13 @@ breakpoints the rearrangement used, which only this resolution can give (the ord
 blank). No token of its own either: `events` writes all three tables here. A nucleotide translocation
 records no `dest_position`: its blocks keep their source coordinates and the engine places the arc.
 
-**`blocks.tsv`** — the rows of one chromosome tile it end to end from 0. The largest file this level
-writes: blocks are not kept maximal during a run, so it grows with their number × every node.
+**`blocks.tsv`** — `position` is the block's physical offset, and the rows of one chromosome tile it
+end to end from 0. `source` names the coordinate frame an interval lives in — an initial replicon,
+or the fresh source an insertion or origination laid down — and `start`/`end` are the interval on
+that source. `copy` is the copy-lineage token the event log uses for the block's carrier, and `gene`
+numbers the declared gene a block is, 1 upward in declaration order, 0 for spacer. The largest file
+this level writes: blocks are not kept maximal during a run, so it grows with their number × every
+node.
 
 **`genome_summary.json`** — `events` counted as *biology* rather than rows (see the ordered section),
 `block_events` counting this resolution's own log the same way, `genes` (every gene the run holds —
@@ -359,7 +381,7 @@ Genes declared with a name are named; the rest are numbered by family.
 **`.assembly(node)` and `.initial_assembly()`** — how a node's genome is built from the recovered
 root blocks: `(block, gene, strand, lo, hi)` in physical order, `[lo, hi)` being the sub-range of that
 block the node carries — the whole block unless an indel took a stretch out of it or opened a gap
-inside it. `.mosaic(node)` and `.trace_back(node)` are the same genome at two coarser grains, per
+inside it. `.mosaic(node)` and `.trace_back(node)` are the same genome at two grains, per
 block and per nucleotide.
 
 **`.root_blocks` and `.block_trees`** — the maximal never-cut intervals that some node still carries,
@@ -406,8 +428,8 @@ ancestral sequences.
 | `fam<f>.fasta` | one row per extant gene copy — nucleotides or amino acids, following the model, in `alignments/` |
 | `phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | the gene tree each family's sequences were drawn along, in substitutions per site, in `phylograms/` |
 | `clock_species_tree_complete.nwk` · `…_extant.nwk` | the species tree with its branches in substitutions per site — the molecular clock made visible |
-| `sequences_ancestral_fam<f>.fasta` | the nodes the alignment leaves out, one file per family in `ancestral/`. Only when you name its token |
-| `sequences_founding.fasta` | one record `fam<f>` per family — the sequence it originated with. Only when you name its token |
+| `sequences_ancestral_fam<f>.fasta` | the nodes the alignment leaves out, one file per family in `ancestral/`. Only when you name its token, `ancestral` |
+| `sequences_founding.fasta` | one record `fam<f>` per family — the sequence it originated with. Only when you name its token, `founding` |
 | `genome_<lineage>.fasta` | one file per node of the complete tree, one record `<lineage>_chr<c>` per chromosome, in `genomes/`. Nucleotide genome runs only |
 | `genome_initial.fasta` | the genome the run **started** with, as sequence. Nucleotide runs only |
 | `sequences_summary.json` | `unit` (`family` or `block`), families with sequences, how many, sites min/max, `mean_pairwise_identity`, assembled genomes, the seed |
@@ -475,14 +497,14 @@ file: `joint_summary.json`, at the run root beside the run report.
 | `species/species_complete.nwk` · `…_extant.nwk` · `species_events.tsv` · `species_fates.tsv` · `species_summary.json` | the grown tree — complete, so the extinct lineages whose fate the driver decided are kept |
 | `traits/trait_values.tsv` · `trait_events.tsv` · `trait_tree.nwk` · `trait_summary.json` | as the traits level writes them, when the trait was the driver |
 | `genomes/genome_events.tsv` · `profiles.tsv` · `genomes.tsv` · `initial_genome.tsv` · `gene_trees/` · `genome_summary.json` · `species_complete.nwk` | as the genomes level writes them, when the genome was the driver |
-| `joint_summary.json` | both levels' summaries in one file, at the **run root** as well as under each level |
+| `joint_summary.json` | both levels' summaries in one file, at the **run root** — the one file that is the joint run's own |
 | `species/joint.log` | the resolved parameters, as every command writes |
 
 One driver per run, never both, so a run writes the trait files or the genome files, not each.
 
-**`joint_summary.json`** — `seed` · `driver` (`trait` / `genome`) · `species`, whose realised rates
-are what the driver did · one of `trait` / `genome`, the driver's own. It sits at the run root because
-neither level was grown first. The same payloads the two levels write alone, so there is nothing new
+**`joint_summary.json`** — four keys: `seed`; `driver`, saying which level it was (`trait` /
+`genome`); `species`, whose realised rates are what the driver did; and a fourth named `trait` or
+`genome`, the driver's own summary. It sits at the run root because neither level was grown first. The same payloads the two levels write alone, so there is nothing new
 to read.
 
 **The genome files** include the species tree, which a joint run grew and so keeps here as well as
@@ -497,7 +519,7 @@ together.
 
 | File | What it holds |
 |---|---|
-| `trait_values.tsv` | the value at every node — `node` · `kind` · `trait`, where `kind` is the tip's fate (`extant` / `extinct` / `unsampled`) or `ancestor` |
+| `trait_values.tsv` | the value at every node — `node` · `kind` · one column per trait, headed by the trait's name (`trait` when unnamed, side by side in a correlated run); `kind` is the tip's fate (`extant` / `extinct` / `unsampled`) or `ancestor` |
 | `trait_events.tsv` | the trait's whole history: an `initial` row giving the state at t=0, then every switch |
 | `trait_tree.nwk` | the tree with every node annotated `[&trait=…]`, for FigTree or iTOL |
 | `trait_summary.json` | `tips` · `nodes` · `events`, then `states` · `most_common_share` for a discrete trait, or `values` (min/mean/max) · `value_at_root_node` for a continuous one |
@@ -505,10 +527,11 @@ together.
 | `conditioned_on` | the levels this run reads as a driver, in the trait's own directory. Only when `--rate` or `--switch` was conditioned |
 
 `zombi2 traits` writes the values, the events, the tree and the summary; the Python
-`TraitsResult.write` default is `("values",)` alone, and a continuous trait has no switches to write.
+`TraitsResult.write` default matches the kind — a continuous run writes the values, the tree and the
+summary, having no switches to log, and a discrete run writes everything, events included.
 
-From Python: `.values` · `.node_values` (the values), `.values_by_id` (`.values` keyed by bare node
-id, for joining against `.node_values`), and `.history`.
+From Python: `.values` · `.node_values` (the values), `.values_by_id` (`.values` keyed by the bare
+integer node id — `5` for tip `n5` — for joining against `.node_values`), and `.history`.
 
 **`trait_events.tsv`** — `time` · `kind` · `lineage` · `from` · `to`, where `kind` is `initial` ·
 `on_branch` · `on_speciation`. The one event log whose payload is a **state change** rather than a
