@@ -266,6 +266,8 @@ Recording changes the **sampler**, and it is worth knowing why. An ordinary run 
 
 What it will not walk, it refuses: partitions and profiles, which give a family several models; a nucleotide genome run, which evolves blocks rather than one sequence per family; and the parallel and streaming engines, which hand a family off before its rows could be collected.
 
+A **joint** run records as well — `joint=True` here, or `joint.simulate(..., record=True)` for a trait and a gene together (Chapter 10). Those runs slice, and a slice is exactly the interval their rate is constant over, so a row's time is as exact there as on an ordinary branch.
+
 ## Large runs
 
 This is the level where a run's memory goes. Every family's alignment and every ancestral sequence are held at once, so what you can run is bounded by families × copies × sites rather than by time. `stream_to` writes each family's files the moment it is finished and keeps nothing, handing back a light handle with a path instead of a `SequencesResult` holding everything. On the command line it is `--stream`.

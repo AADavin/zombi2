@@ -1185,7 +1185,7 @@ def _on_a_given_tree(kinds, *, tree, seed) -> JointResult:
                                    genome.max_family_size))
 
 
-def _traits_and_sequences(kinds, *, tree, genomes, seed) -> JointResult:
+def _traits_and_sequences(kinds, *, tree, genomes, seed, record=False) -> JointResult:
     """A trait and a gene's sequence, each driving the other — the cross-level join whose two ends
     are the furthest apart (design note §7).
 
@@ -1323,12 +1323,19 @@ def _traits_and_sequences(kinds, *, tree, genomes, seed) -> JointResult:
     founder = (spec.model if spec.start is None else spec.start)
     founding = rng.choice(spec.model.k, size=spec.length,
                           p=founder.stationary).astype("int8")
+    events: list = []
+    recorder = None
+    if record:
+        from ..sequences._record import Recorder
+        recorder = Recorder(events, tree.labels())
     grown = _traits_sequences.grow(
         rng, tree, gene_tree=gene_tree, model=spec.model, length=spec.length, founder=founding,
         letters=spec.offers.letters, absent=spec.offers.absent, gene_keys=tuple(gene_lookup),
         base_rate=float(rate.base), gene_factors=tuple(factors),
         trait_states=states, trait_entries=_driven_entries(list(states), trait.switch),
-        trait_start=start_i, trait_shift=shift, trait_keys=tuple(trait_lookup), step=step)
+        trait_start=start_i, trait_shift=shift, trait_keys=tuple(trait_lookup), step=step,
+        record=recorder)
+    events.sort(key=lambda e: e.time)
 
     labels = tree.labels()
     fam = declared[spec.name]
@@ -1340,14 +1347,14 @@ def _traits_and_sequences(kinds, *, tree, genomes, seed) -> JointResult:
         {fam: {"complete": _gene_newick(scaled.complete, labels),
                "extant": _gene_newick(ext, labels) if ext is not None else None}},
         {"complete": None, "extant": None}, seed, {}, {}, "family", spec.model.alphabet,
-        tuple(labels[i] for i in sorted(tree.extant_leaves())), (spec.name,))
+        tuple(labels[i] for i in sorted(tree.extant_leaves())), (spec.name,), events)
     return JointResult(
         SpeciesResult(tree, [], seed, []), seed,
         trait=TraitsResult(tree, grown.values, grown.changes, seed, kind="discrete"),
         sequences=seqs)
 
 
-def simulate(*participants, tree=None, genomes=None, seed=None,
+def simulate(*participants, tree=None, genomes=None, seed=None, record: bool = False,
              max_lineages=100_000) -> JointResult:
     """Simulate two levels **at once**, because neither can be finished before the other starts
     (SPEC §2–4).
@@ -1379,7 +1386,13 @@ def simulate(*participants, tree=None, genomes=None, seed=None,
     kinds = _classify(participants)
     n_species, n_traits, n_genomes = (len(kinds[k]) for k in ("species", "traits", "genomes"))
     if kinds["sequences"]:
-        return _traits_and_sequences(kinds, tree=tree, genomes=genomes, seed=seed)
+        return _traits_and_sequences(kinds, tree=tree, genomes=genomes, seed=seed,
+                                     record=record)
+    if record:
+        raise ValueError(
+            "record= keeps the SEQUENCE level's own history, and only a run holding that level has "
+            "one to keep. The trait and genome levels record theirs always, in trait.events and "
+            "genome.events.")
     if genomes is not None:
         raise ValueError(
             "genomes= hands over a finished genome run, and only a sequence participant needs one — "

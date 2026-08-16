@@ -110,20 +110,19 @@ class Recorder:
     def mask(self, node):
         return None if self.present is None else self.present.get(id(node))
 
-    def add(self, node, parent_time: float, rows, alphabet: str) -> None:
-        """Turn one branch's walk into rows, in the run's own frame.
+    def add(self, node, start: float, span: float, rows, alphabet: str) -> None:
+        """Turn one **stretch** of a walk into rows, in the run's own frame.
 
-        A position along the branch is in **substitutions per site**, and the time it maps to is that
-        fraction of the branch's own span. That is exact wherever the rate is constant down the
-        branch, which is every run this records: a rate whose driver switches mid-branch is refused
-        up front, because its branch length is an integral and a fraction of it is not a fraction of
-        the time."""
-        span = node.time - parent_time
+        A position is in substitutions per site, and the time it maps to is that fraction of the
+        stretch's own span. The stretch is a whole branch on an ordinary run, where the rate is
+        constant down it. On a joint run it is one slice of one branch, or one segment of a slice —
+        which is exactly the interval the rate *is* constant over, and why the mapping stays exact
+        where the branch as a whole would not have been."""
         label = self.names.get(node.species, str(node.species))
         for frac, column, was, new in rows:
             site = column if self.site_ids is None else self.site_ids[column]
             self.events.append(SequenceEvent(
-                parent_time + frac * span, "substitution", label, node.copy, site,
+                start + frac * span, "substitution", label, node.copy, site,
                 from_state=alphabet[was], to_state=alphabet[new]))
 
     def indel(self, kind: str, time: float, node, sites, after: int = -1) -> None:
