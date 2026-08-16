@@ -40,6 +40,7 @@ _KEY = {"absent": "#b9bec4", "present": "#2E8B6F"}          # the gene that driv
 _IS1J = {"absent": "#b9bec4", "present": "#C25A3C"}         # the element that drives its own genome
 _SIZE = {"small": "#b9bec4", "large": "#8C5E8B"}            # the other half of the trait loop
 _CAVE = {"surface": "#2E8B6F", "cave": "#4A4A6A"}           # a habitat and a genome, each driving the other
+_CLIMATE = {"cold": "#3A7CA5", "hot": "#E4572E"}            # a habitat and a gene's sequence, likewise
 
 
 def _style():
@@ -290,8 +291,8 @@ def cave_genomes(out):
     # the two things and the two rules, each as a sentence: in a joint model neither box is only a
     # driver or only a target, so the conditioning diagram's headings have nothing to label
     diag = h.joint_png(out.replace(".png", "_diag.png"),
-                       left=("habitat", "surface or cave"),
-                       right=("genome", "which genes are left"),
+                       left=("traits", "habitat", "surface or cave"),
+                       right=("genomes", "the genome", "which genes are left"),
                        forward="in the cave, genes go 5× faster",
                        back="with no eye, turns cave 25× faster")
     fig2 = plt.figure(figsize=(12, 9.4))
@@ -299,6 +300,169 @@ def cave_genomes(out):
     axd = fig2.add_axes([0.14, 0.795, 0.72, 0.185]); axd.imshow(mpimg.imread(diag)); axd.set_axis_off()
     fig2.savefig(out, dpi=140, bbox_inches="tight")
     plt.close(fig2)
+
+
+_SEQ_LOOP_STEP = 0.05
+_SEQ_LOOP_RESPONSE = (0.10, 25.0)      # factor = 0.10 + 25·(the other gene's KR share)
+
+
+def _kr_poor():
+    """LG's chemistry over KR-depleted frequencies.
+
+    Both genes are founded here rather than at LG's own equilibrium, and that is the whole reason the
+    figure has anything to show: a gene founded at its model's equilibrium sits there, so its
+    composition never moves and a rate reading it reads a constant. Founded away from it, a gene
+    **ameliorates** toward it, which is a real thing a horizontally acquired gene does — and while it
+    does, its composition is a quantity with somewhere to go."""
+    import numpy as np
+    from zombi2.sequences.substitution_models import AMINO_ACIDS, lg, reversible
+
+    m = lg()
+    S = m.Q / m.stationary[None, :]
+    S = (S + S.T) / 2.0
+    np.fill_diagonal(S, 0.0)
+    pi = m.stationary.copy()
+    pi[[AMINO_ACIDS.index(c) for c in "KR"]] *= 0.12
+    return reversible(S, pi / pi.sum(), name="KR-poor LG", alphabet=AMINO_ACIDS)
+
+
+def _kr_by_node(result, fam):
+    """``{node label: the share of that copy's sequence that is K or R}``, over every node of one
+    family's gene tree, pooled onto the species lineage each copy sits on."""
+    hits, total = collections.Counter(), collections.Counter()
+    for table in (result.alignments[fam], result.ancestral[fam]):
+        for label, seq in table.items():
+            node = label.split("_", 1)[0]
+            hits[node] += sum(seq.count(c) for c in "KR")
+            total[node] += len(seq)
+    return {node: hits[node] / total[node] for node in total}
+
+
+def sequence_loop(out):
+    """Two genes, each one's substitution rate reading the other's composition — the **sequence**
+    level joined to itself, and the last of the three loops.
+
+    Both genes arrive KR-poor and ameliorate toward LG's own composition. What each one's rate reads
+    is how far the *other* has got: a gene beside a KR-poor partner runs at a tenth of its base rate,
+    and one beside a partner at LG's equilibrium runs at three times it. So the pair is slow while
+    both are still poor and accelerates as neither is — a loop that pushes rather than settles.
+
+    Neither can be simulated first. To evolve the first gene you would need the second's composition
+    at every instant of every branch, and that composition is what the first gene's own rate decides.
+
+    **This one slices.** A composition moves with every substitution, so there is no interval where
+    either rate holds still. The run holds both fixed across a step of 0.05 of species time and
+    releases them at the boundary; inside a slice the transition matrix is the ordinary one. Against
+    the same run with the response flattened to 1.0, the loop carries the pair measurably further —
+    every seed, not on average.
+
+    The same tree twice, painted by each gene's share of K and R. What the loop produces is that the
+    two panels move together: neither gene ameliorates far while the other is still behind.
+    """
+    from zombi2.sequences import composition as offers_composition
+    from zombi2.sequences import gene as gene_spec
+    from zombi2.sequences import lg, simulate_sequences
+    from zombi2.params import PerSite
+
+    ct = simulate_species_tree(birth=1.0, n_extant=40, seed=1).complete_tree
+    g = simulate_genomes_family(ct, initial_families=4, duplication=0.0, loss=0.0, origination=0.0,
+                                seed=2, families=[family("hisA"), family("hisF")])
+    a, b = _SEQ_LOOP_RESPONSE
+    start = _kr_poor()
+    r = simulate_sequences(g, joint=True, seed=3, genes=[
+        gene_spec(name=name, model=lg(), length=250, start=start,
+                  offers=offers_composition("KR", absent=0.02),
+                  substitution=PerSite(0.5).scaled_by(f"sequences:{other}",
+                                                      Curve(lambda x: a + b * x),
+                                                      step=_SEQ_LOOP_STEP))
+        for name, other in (("hisA", "hisF"), ("hisF", "hisA"))])
+
+    shares = {name: _kr_by_node(r, g.family_names[name]) for name in ("hisA", "hisF")}
+    span = (min(min(v.values()) for v in shares.values()),
+            max(max(v.values()) for v in shares.values()))
+    style = _panel_style()
+    pngs = []
+    for name in ("hisA", "hisF"):
+        png = out.replace(".png", f"_{name}.png")
+        (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
+         + ph.trees.color_branches(shares[name], cmap="magma_dark", limits=span)
+         + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
+        pngs.append(png)
+    diag = h.joint_png(out.replace(".png", "_diag.png"),
+                       left=("sequences", "hisA", "how much of it is K or R"),
+                       right=("sequences", "hisF", "how much of it is K or R"),
+                       forward="the richer hisA is, the faster hisF evolves",
+                       back="the richer hisF is, the faster hisA evolves")
+    h.composite_under_diagram(out, diag,
+                              [(pngs[0], "hisA", ("magma_dark", "KR-poor", "at LG's own")),
+                               (pngs[1], "hisF", ("magma_dark", "KR-poor", "at LG's own"))],
+                              diagram_frac=0.72)
+
+
+def trait_and_sequence(out):
+    """A trait and a gene's SEQUENCE, each driving the other — the cross-level join whose two ends
+    are the furthest apart, and the last cell of the map to be built.
+
+    Both directions already ran as conditioning, one card each. A trait drives a gene's substitution
+    rate (Co8), and that gene's composition drives how fast a trait switches (Co19). Written at once
+    they are a cycle: to evolve the sequence you would need the trait on every stretch of every
+    branch, and the trait's own rate is what the sequence decides.
+
+    The model here closes that loop in one direction. `rpoB` arrives KR-poor and ameliorates toward
+    LG's own composition; the richer it gets, the more readily its lineage turns hot; and a hot
+    lineage substitutes four times faster, which is what carries `rpoB` further. Against the same run
+    with the trait's response flattened, four-fifths of the tree ends hot rather than three-fifths,
+    over eight seeds.
+
+    Species time is sliced. Inside a slice the trait's own Gillespie is exact — switches mid-slice
+    included — and the gene's branch length is the trait's factor **integrated** across those
+    switches, drawn once, which is exact too. What is approximated is only the composition the trait
+    reads: it belongs to the top of the slice rather than to each instant.
+
+    The tree twice: the habitat the trait walked, and the same tree painted by how far `rpoB` has
+    got. The hot clades are the ameliorated ones, in both directions at once.
+    """
+    from zombi2.sequences import composition as offers_composition
+    from zombi2.sequences import gene as gene_spec
+    from zombi2.sequences import lg
+    from zombi2.params import PerSite
+
+    ct = simulate_species_tree(birth=1.0, n_extant=30, seed=1).complete_tree
+    g = simulate_genomes_family(ct, initial_families=3, duplication=0.0, loss=0.0, origination=0.0,
+                                seed=2, families=[family("rpoB")])
+    r = joint.simulate(
+        traits.discrete(name="habitat", states=["cold", "hot"], start="cold",
+                        switch={"cold->hot": PerLineage(0.5).scaled_by(
+                                    "sequences:rpoB", Curve(lambda x: 0.05 + 30.0 * x), step=0.05),
+                                "hot->cold": 0.3}),
+        gene_spec(name="rpoB", model=lg(), length=250, start=_kr_poor(),
+                  offers=offers_composition("KR", absent=0.02),
+                  substitution=PerSite(0.6).scaled_by("trait", {"hot": 4.0, "cold": 1.0})),
+        genomes=g, seed=5)
+
+    lab = ct.labels()
+    fam = g.family_names["rpoB"]
+    share = _kr_by_node(r.sequences, fam)
+    span = (min(share.values()), max(share.values()))
+    style = _panel_style()
+    habitat = out.replace(".png", "_habitat.png")
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
+     + ph.trees.color_history({lab[i]: segs for i, segs in r.trait.history.items()},
+                              palette=_CLIMATE)
+     + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(habitat)
+    gene_png = out.replace(".png", "_rpoB.png")
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
+     + ph.trees.color_branches(share, cmap="magma_dark", limits=span)
+     + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(gene_png)
+    diag = h.joint_png(out.replace(".png", "_diag.png"),
+                       left=("traits", "habitat", "cold or hot"),
+                       right=("sequences", "rpoB", "how much of it is K or R"),
+                       forward="hot lineages substitute 4x faster",
+                       back="the richer rpoB is, the readier the switch to hot")
+    h.composite_under_diagram(out, diag,
+                              [(habitat, "habitat", _CLIMATE),
+                               (gene_png, "rpoB", ("magma_dark", "KR-poor", "at LG's own"))],
+                              diagram_frac=0.72)
 
 
 def trait_loop(out):
@@ -336,8 +500,8 @@ def trait_loop(out):
          + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
         pngs.append(png)
     diag = h.joint_png(out.replace(".png", "_diag.png"),
-                       left=("habitat", "surface or cave"),
-                       right=("size", "small or large"),
+                       left=("traits", "habitat", "surface or cave"),
+                       right=("traits", "size", "small or large"),
                        forward="in the cave, grows 6× more readily",
                        back="when large, goes underground 8× more readily")
     h.composite_under_diagram(out, diag, [(pngs[0], "habitat", _CAVE), (pngs[1], "body size", _SIZE)],
@@ -1247,7 +1411,64 @@ for name, palette in (("habitat", {"surface": "#2E8B6F", "cave": "#4A4A6A"}),
 # the loop shows in the alignment: cave lineages are far likelier to be large"""
 
 
+_C_SEQ_LOOP = """### two genes, each one's rate reading the other's composition — the SEQUENCE level joined to itself
+from zombi2.genomes import family, simulate_genomes_family
+from zombi2.params import Curve, PerSite
+from zombi2.sequences import composition, gene, lg, simulate_sequences
+
+# both families out of ONE genome run: a joint run walks their gene trees together
+g = simulate_genomes_family(ct, initial_families=4, duplication=0.0, loss=0.0, seed=2,
+                            families=[family("hisA"), family("hisF")])
+
+# `start=` founds each gene AWAY from its model's equilibrium, so it ameliorates toward
+# it — which is the one way a composition has anywhere to go. `offers=` is what a gene
+# publishes; `absent=` answers for a lineage carrying none of it.
+#
+# Each rate reads the OTHER gene by name, with a step=: a composition moves with every
+# substitution, so there is no interval where either rate holds still, and the run slices.
+r = simulate_sequences(g, joint=True, seed=3, genes=[
+    gene(name=name, model=lg(), length=250, start=kr_poor,
+         offers=composition("KR", absent=0.02),
+         substitution=PerSite(0.5).scaled_by(f"sequences:{other}",
+                                             Curve(lambda x: 0.10 + 25.0 * x), step=0.05))
+    for name, other in (("hisA", "hisF"), ("hisF", "hisA"))])
+
+r.alignments        # one entry per family, as any sequence run returns
+r.phylograms        # branch lengths accumulated slice by slice, not one sample of a rate"""
+
+
+_C_TRAIT_SEQ = """### a TRAIT and a GENE's SEQUENCE, each driving the other — the two ends furthest apart
+from zombi2 import joint, traits
+from zombi2.params import Curve, PerLineage, PerSite
+from zombi2.sequences import composition, gene, lg
+
+# the genome run is handed over, and carries the tree its gene trees sit on:
+# a sequence lives on a gene tree, which lives on the species tree
+r = joint.simulate(
+    traits.discrete(name="habitat", states=["cold", "hot"], start="cold",
+                    switch={"cold->hot": PerLineage(0.5).scaled_by(
+                                "sequences:rpoB", Curve(lambda x: 0.05 + 30.0 * x), step=0.05),
+                            "hot->cold": 0.3}),
+    gene(name="rpoB", model=lg(), length=250, start=kr_poor,
+         offers=composition("KR", absent=0.02),
+         substitution=PerSite(0.6).scaled_by("trait", {"hot": 4.0, "cold": 1.0})),
+    genomes=g, seed=5)
+
+r.trait          # the habitat, an ordinary TraitsResult
+r.sequences      # the gene, an ordinary SequencesResult holding the one family"""
+
+
 JOINING = [
+    Example("trait_and_sequence", "A trait and a gene's sequence",
+            "The two ends of the map, joined. <code>rpoB</code> arrives KR-poor and ameliorates; "
+            "the richer it gets the readier its lineage turns hot, and a hot lineage substitutes "
+            "four times faster — which is what carries it further.",
+            "trait \u2194 sequence", trait_and_sequence, code=_C_TRAIT_SEQ),
+    Example("sequence_loop", "Two genes, each other's driver",
+            "Two genes arrive KR-poor and ameliorate together: each one's substitution rate reads "
+            "how far the other has got, so the pair is slow while both are behind and accelerates "
+            "as neither is. The <b>sequence</b> level joined to itself.",
+            "sequence \u2194 sequence", sequence_loop, code=_C_SEQ_LOOP),
     Example("trait_loop", "Two traits, each other's driver",
             "Body size decides how readily a lineage goes underground, and underground decides how "
             "readily it grows. One run, and exact: the pair is a Markov chain over their states.",

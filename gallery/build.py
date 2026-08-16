@@ -67,7 +67,7 @@ CONDITIONING_ORDER = [
     "gene_drives_trait",                                           #  7 a gene family -> a trait
     "operon_substitution",                                         #  8 an ordered or nucleotide genome -> a sequence
     "module_drives_metabolism", "operon_trait",                    #  9 an ordered or nucleotide genome -> a trait
-    "gc_drives_sequence",                                          # 10 a sequence -> a sequence
+    "gc_drives_sequence", "named_family_drives_sequence",          # 10 a sequence -> a sequence
     "gc_drives_trait",                                             # 11 a sequence -> a trait
 ]
 
@@ -326,7 +326,6 @@ _PAGE_OPEN = """
 _PAGE_CLOSE = """
   <footer>
     <span><a href="./">ZOMBI2</a> · <a href="docs/">docs</a> · <a href="https://github.com/AADavin/zombi2">GitHub</a></span>
-    <span><code>plot(tree) + color_branches(…) + …</code></span>
   </footer>
 </div>
 <div class="detail" id="detail" aria-hidden="true">

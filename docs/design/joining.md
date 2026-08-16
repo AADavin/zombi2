@@ -1,6 +1,6 @@
 # Joining — a design note
 
-**Status: steps 1 to 7 of §14 are built; the rest is designed.** This note records what joining is
+**Status: every step of §14 is built.** This note records what joining is
 and which pairs can be joined. It also says where each joint model lives in the API, and the order
 the work is done in. It is subordinate to
 [`SPEC.md`](SPEC.md): where the two disagree, SPEC wins.
@@ -28,11 +28,11 @@ This wording replaces the older one in several places. See §13.
 |---|---|---|
 | Species – Traits | yes | yes |
 | Species – Genomes | yes | yes, family resolution |
-| Genomes – Traits | yes | no |
-| Traits – Sequences | yes | no |
+| Genomes – Traits | yes | yes |
+| Traits – Sequences | yes | yes |
 | Genomes – Sequences | yes | no, out of scope here |
 | Species – Sequences | no | — |
-| a level with itself | yes | no |
+| a level with itself | yes | yes |
 
 **Traits – Sequences was the one correction to SPEC §3.** SPEC used to say the pair cannot be
 joined, and Chapter 10 gave the reason as "a sequence never feeds back into a trait". A sequence does
@@ -257,10 +257,10 @@ say this.
 
 This is conditioning, not joining, and it is in scope because the sequence loops need it.
 
-`Composition` is pooled over every family in the run today, and one family's is refused. The stated
+`Composition` was pooled over every family in the run, and one family's was refused. The stated
 reason is that a per-family composition is undefined wherever that family is absent. A driver has to
-answer for every branch the target walks. `gc()` already carries a `family` argument whose only job is
-to refuse one.
+answer for every branch the target walks. `gc()` carries a `family` argument whose only job is to
+refuse one, and it still does — it now names the way instead.
 
 **The fix is a declared default.** `composition("KR", absent=0.08)` says what a branch reads where the
 family is not there.
@@ -376,7 +376,7 @@ New cards go in `gallery/joining.py` and `gallery/crosslevel.py`.
 
 ## 14. Order of work
 
-Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), then 6 and 7.
+Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), then 6 to 11.
 
 1. ~~**The wording.**~~ Done. SPEC, the manual, the two docstrings, Figure 10.2's new arrow.
 2. ~~**Per-family rates.**~~ Done. §5, with the `genomes.genome` rename. No figure: per-family rates
@@ -399,7 +399,24 @@ Part by part, not all at once. Steps 1 to 5 are **built** (PR #375), then 6 and 
    fixed across. Required rather than defaulted: a step is the size of the approximation, and any
    number the code invented would be a claim about a timescale only the model knows. Figure: body
    size diffusing, and the big lineages radiating.
-8. **Composition for one family, and `families=`.** §9.
-9. **The sequence loop.** §6, on the slicing from step 7.
-10. **Traits with Sequences.** §7, the new arrow.
-11. **`record=`.** §10, last, because nothing above depends on it.
+8. ~~**Composition for one family, and `families=`.**~~ Done. §9. `families=` on
+   `simulate_sequences` and `absent=` on `composition()` / `gc()`. Conditioning, not
+   joining, and here because step 9 needs it. Figure: a chaperone's GC setting a
+   client's substitution rate, both families out of one genome run.
+9. ~~**The sequence loop.**~~ Done. §6, on the slicing from step 7 and the per-family
+   composition from step 8. `joint=True` and `genes=[sequences.gene(...)]` on
+   `simulate_sequences`; the walk is by time rather than by family. One addition to the
+   sketch: `gene(start=...)`, a second model to found from. Without it a gene sits at
+   its own equilibrium, its composition never moves, and the loop drives nothing a
+   figure could show. Figure: two genes ameliorating together.
+10. ~~**Traits with Sequences.**~~ Done. §7, the new arrow. `joint.simulate(traits.discrete(...),
+    sequences.gene(...), genomes=g)`; the genome run is the handover, because a sequence
+    lives on a gene tree. Sliced, but only the composition the trait reads is approximated:
+    the trait's own Gillespie inside a slice is exact, and the gene's branch length is the
+    trait's factor integrated across those switches. Figure: rpoB ameliorating and the tree
+    turning hot, each because of the other.
+11. ~~**`record=`.**~~ Done. §10, last, because nothing above depends on it. The plain
+    forward Gillespie, as the note chose; the third method — draw the two ends, then fill
+    the path between — is still the thing to add if this measures too slow, and not
+    before. Refuses what it cannot walk: partitions, profiles, a nucleotide run, and the
+    parallel and streaming engines.

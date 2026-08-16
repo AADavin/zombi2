@@ -50,17 +50,28 @@ class Composition:
     ``letters`` must be letters of the run's own ``alphabet``, so a set that could never occur is
     refused rather than driving every lineage at 0.0.
 
-    **Pooled over the lineage, not one family**, because that is what a composition means. One
-    family's is refused rather than offered: it is undefined wherever that family is absent, and a
-    driver has to answer for every branch the target walks.
+    **Pooled over whatever the run evolved.** Over a whole genome that is the lineage's whole
+    complement, which is what a composition ordinarily means. To read **one family's**, restrict the
+    run to it — ``simulate_sequences(g, families=["chaperone"], …)`` — and the pooled statistic is
+    that family's. What that costs is the branches where the family is absent: there is no sequence
+    there and so nothing to count, and a driver has to answer for every branch the target walks.
+    ``absent`` is the answer, declared rather than guessed::
 
-    One value per species node — the lineage's whole complement at the end of its branch — with the
+        chaperone = simulate_sequences(g, families=["chaperone"], model=lg(), length=300, seed=3)
+        chaperone.composition("KR", absent=0.08)
+
+    One value per species node — the lineage's complement at the end of its branch — with the
     path between two nodes taken as the straight line, cut at ``step`` (`interpolated_segments`,
     where that approximation's caveats are written).
     """
 
     result: "SequencesResult"
     letters: str
+    #: what a branch reads where the run put no sequence on the lineage. ``None`` carries the
+    #: parent's value forward, which is right for a pooled run — a gap there is a lineage that
+    #: momentarily held nothing, not a statistic that has stopped existing — and is refused on a run
+    #: restricted with ``families=``, where the gap is the family being absent.
+    absent: float | None = None
 
     def __post_init__(self) -> None:
         alphabet = self.result.alphabet
@@ -94,8 +105,14 @@ class Composition:
         ``tree``.
 
         Sequences are keyed ``n7_g12``, so the lineage is the half before the ``_g`` — the join every
-        ZOMBI2 file uses. A lineage carrying no sequence at all takes its parent's value: 0.0 would
-        drive that branch as though its whole complement had turned over."""
+        ZOMBI2 file uses.
+
+        A lineage carrying no sequence needs a value all the same, and which one depends on what the
+        gap is. On a **pooled** run it is a lineage that momentarily held nothing, and it takes its
+        parent's value: 0.0 would drive that branch as though its whole complement had turned over.
+        On a run restricted with ``families=`` the gap is the family being absent, and carrying the
+        parent's value forward would say the family was still there — so that one is refused unless
+        ``absent`` says what to read."""
         counts: dict[int, list[int]] = {}
         for by_gene in (self.result.alignments, self.result.ancestral):
             for sequences in by_gene.values():
@@ -104,6 +121,7 @@ class Composition:
                     c = counts.setdefault(node, [0, 0])
                     c[0] += sum(seq.count(x) for x in self.letters)
                     c[1] += len(seq)
+        restricted = tuple(self.result.families)
         values: dict[int, float] = {}
         stack = [tree.root]
         while stack:                             # pre-order, so a lineage can read its parent's value
@@ -112,6 +130,16 @@ class Composition:
             hits, total = counts.get(i, (0, 0))
             if total:
                 values[i] = hits / total
+            elif self.absent is not None:
+                values[i] = self.absent
+            elif restricted:
+                raise ValueError(
+                    f"this run was restricted to {list(restricted)}, and lineage "
+                    f"{node_label(i)} carries none of it — so there is no sequence there to count "
+                    f"and the driver has no value for that branch. Say what a branch without the "
+                    f"family reads: composition({self.letters!r}, absent=0.08). Carrying the "
+                    f"parent's value forward instead would drive the branch as though the family "
+                    f"were still present, which is a different model.")
             elif node.parent is not None:
                 values[i] = values[node.parent]
             else:
@@ -129,7 +157,8 @@ class Composition:
         return DriverTrajectory(interpolated_segments(tree, self._node_values(tree), step))
 
     def __repr__(self) -> str:
-        return f"composition({self.letters!r})"
+        absent = "" if self.absent is None else f", absent={self.absent!r}"
+        return f"composition({self.letters!r}{absent})"
 
 
 def _species_of(label: str, tree) -> int:

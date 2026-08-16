@@ -11,6 +11,47 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
+- **The sequence level can record its own history** — `simulate_sequences(..., record=True)` keeps
+  every substitution and every site gained or lost in `result.events`, written as
+  `sequence_events.tsv`. Off by default, and the only level's log that is: three hundred sites over
+  thirty time units at rate 1.0 is nine thousand rows for one family. Recording changes the sampler
+  as well — an ordinary branch jumps to its end with `exp(Q·bl)` and never simulates the path, a
+  recorded one walks it site by site. Same process and same distribution at a branch's end, so a
+  recorded run is a valid run, but a **different realisation** for the same seed. A site is named by
+  an id rather than a position, because a position moves with every insertion above it; an insertion
+  row carries the id it follows, so a reader can rebuild any lineage's column list at any moment.
+
+- **A trait and a gene's sequence can drive each other**, on a tree the run is handed —
+  `joint.simulate(traits.discrete(...), sequences.gene(...), genomes=g)`. The last cross-level cell
+  of the map: a character sets a gene's substitution rate, and how much of that gene is a given set
+  of residues sets how readily the character switches. Both directions already ran as conditioning;
+  written at once they are a cycle. The genome run is what you hand over rather than a bare tree,
+  because a sequence lives on a gene tree, which lives on the species tree. `JointResult` gains
+  `.sequences`. Species time is sliced: inside a slice the trait takes its own Gillespie, so its
+  mid-slice switches are exact, and the gene's branch length is the trait's factor **integrated**
+  across them and drawn once — exact too, since the matrix does not change when the trait switches.
+  Only the composition the trait reads is approximated, being the one from the top of the slice.
+
+- **Two genes can read each other's composition, in one run** — the sequence level joined to itself,
+  and the last of the three loops. `simulate_sequences(g, joint=True, genes=[sequences.gene(...),
+  ...])`, where each gene's `substitution` reads another by `"sequences:<name>"` and each gene
+  `offers=sequences.composition("KR", absent=0.08)`. The walk is by **time** rather than by family:
+  species time is sliced, and inside a slice every living copy of every gene advances at a rate read
+  off the other gene's composition as it stood at the top of the slice. An ordinary run finishes one
+  family before starting the next, which a cycle cannot do. `step=` on the connection is required,
+  as it is for a diffusing trait, and for the same reason. `gene(start=...)` founds a gene from a
+  second model's stationary frequencies, so it arrives with a foreign composition and ameliorates
+  toward its own — without it a gene sits at its own equilibrium and a rate reading it reads a
+  constant. A joint run has no `species_phylogram`: each gene runs at a rate the other sets, so no
+  one set of branch lengths is the run's.
+
+- **One gene family's composition can drive another's rate.** `simulate_sequences(..., families=
+  ["chaperone"])` restricts a run to named families, so its pooled `composition()` / `gc()` is that
+  family's, and both runs read the same genome run — so the driver's gene tree is the one the
+  target's run also saw. `composition("KR", absent=0.08)` says what a branch reads where the family
+  is not there; on a restricted run with a gap, leaving it out raises rather than carrying the
+  parent's value forward, which would drive that branch as though the family were still present.
+  `gc(family)` still refuses, and now names this as the way instead.
 - **A continuously diffusing trait can drive speciation** — QuaSSE.
   `traits.continuous(start=..., rate=...)` is a process spec now rather than a refusal, and goes to
   `joint.simulate` beside `species.birth_death(...)`. The driver is a number, so the connection takes
