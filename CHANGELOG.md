@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.42.1] - 2026-08-16
+
 ### Changed
 
 - **The manual was reviewed cover to cover by simulated first readers** — one per chapter, each
