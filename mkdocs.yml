@@ -125,8 +125,11 @@ markdown_extensions:
 # the book's reading order. Adding a chapter means adding a stub page and a line here.
 nav:
   - Home: index.md
-  # A worked study, straight after Home: what the tool is *for*, before what it does.
-  - An example ZOMBI2 application: example-red.md
+  # Worked studies, straight after Home: what the tool is *for*, before what it does.
+  - Examples:
+      - Examples: examples/index.md
+      - Can RED be trusted?: examples/red.md
+      - Can BiSSE find the gene that drives speciation?: examples/bisse.md
   - Guide:
       - Introduction: guide/introduction.md
       - Species trees: guide/species-trees.md
