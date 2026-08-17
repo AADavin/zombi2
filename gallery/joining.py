@@ -461,7 +461,7 @@ def genome_and_sequence(out):
     png = out.replace(".png", "_panel.png")
     ph.beside(fig, ph.genomes.bars(sizes, label="genes left", tick_size=20, label_size=26),
               width=1150, tree_fraction=0.58, footer=36).save(png)
-    ramp = [("gradient", "magma_dark", ("AT-rich", "at the model's own"))]
+    ramp = [("gradient", "magma_dark", ("AT-rich", "AT-poor"))]
     diag = h.joint_png(out.replace(".png", "_diag.png"), [
         (("genomes", "the genome", [("swatch", _BAR, "genes left")]),
          ("sequences", "hisA", ramp),
@@ -524,7 +524,7 @@ def sequence_loop(out):
          + ph.trees.color_branches(shares[name], cmap="magma_dark", limits=span)
          + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
         pngs.append(png)
-    ramp = [("gradient", "magma_dark", ("KR-poor", "at LG's own"))]
+    ramp = [("gradient", "magma_dark", ("KR-poor", "KR-rich"))]
     diag = h.joint_png(out.replace(".png", "_diag.png"), [
         (("sequences", "hisA", ramp),
          ("sequences", "hisF's rate", [("word", None, "a site changes")]),
@@ -600,7 +600,7 @@ def trait_and_sequence(out):
                                 ("swatch", _CLIMATE["hot"], "hot")]),
          ("sequences", "rpoB's rate", [("word", None, "a site changes")]),
          "hot lineages substitute 4× faster"),
-        (("sequences", "rpoB", [("gradient", "magma_dark", ("KR-poor", "at LG's own"))]),
+        (("sequences", "rpoB", [("gradient", "magma_dark", ("KR-poor", "KR-rich"))]),
          ("traits", "switch rate", _switch_key(_CLIMATE, ["hot", "cold"])),
          "the richer rpoB is, the readier the switch to hot"),
     ])
