@@ -99,13 +99,60 @@ def panel_b(ax, d, v) -> None:
                  fontweight="bold")
 
 
+def panel_c(ax, vs) -> None:
+    """Power against tree size, from verdicts_size.json (which folds in the
+    150-tip cells of verdicts.json)."""
+    sizes = [150, 500, 1000]
+    alpha = 0.05
+    ax.axhline(alpha, color=MUTED, linewidth=0.8, linestyle=(0, (2, 2)))
+    ax.annotate(f"$\\alpha = {alpha:g}$", (137, alpha + 0.015), ha="left",
+                color=MUTED, fontsize=7.5)
+
+    def cell(n, f, char):
+        return vs["cells"][f"n{n}_f{f}_{char}"]
+
+    for f, style_kw in (("3.0", dict(color=INK, marker="o", linestyle="-")),
+                        ("5.0", dict(color=DARK, marker="D",
+                                     linestyle=(0, (3, 1.5))))):
+        m = np.array([cell(n, f, "driver")["positive_rate_among_fit"]
+                      for n in sizes])
+        lo = np.array([cell(n, f, "driver")["wilson_ci95"][0] for n in sizes])
+        hi = np.array([cell(n, f, "driver")["wilson_ci95"][1] for n in sizes])
+        # at a rate of exactly 1.0 the Wilson centre sits below the point
+        # estimate, so clamp the bar lengths at zero
+        ax.errorbar(sizes, m, yerr=[np.maximum(m - lo, 0), np.maximum(hi - m, 0)],
+                    capsize=2, elinewidth=0.8,
+                    markerfacecolor="white", label=f"driver, $f={float(f):g}$",
+                    **style_kw)
+    # the control pooled over both factors at each size: the calibration line
+    k = np.array([sum(cell(n, f, "control")["n_significant"]
+                      for f in ("3.0", "5.0")) for n in sizes], float)
+    nfit = np.array([sum(cell(n, f, "control")["n_fit"]
+                         for f in ("3.0", "5.0")) for n in sizes], float)
+    ax.plot(sizes, k / nfit, color=MUTED, marker="s", markerfacecolor="white",
+            linestyle=(0, (5, 2)), label="control (pooled)")
+
+    ax.set_xscale("log")
+    ax.set_xticks(sizes)
+    ax.set_xticklabels([str(s) for s in sizes])
+    ax.xaxis.set_minor_locator(matplotlib.ticker.NullLocator())
+    ax.set_xlim(130, 1150)
+    ax.set_ylim(0, 1.05)
+    ax.set_xlabel("Extant tips per tree")
+    ax.set_ylabel("Fraction of fits with $p<0.05$")
+    ax.legend(loc="center left", frameon=False)
+    ax.set_title("C   Power against tree size", loc="left", fontweight="bold")
+
+
 def main() -> int:
     d = json.loads((HERE / "results.json").read_text())
     v = json.loads((HERE / "verdicts.json").read_text())
+    vs = json.loads((HERE / "verdicts_size.json").read_text())
     FIG.mkdir(exist_ok=True)
-    fig, axes = plt.subplots(1, 2, figsize=(9.0, 3.8))
+    fig, axes = plt.subplots(1, 3, figsize=(13.0, 3.8))
     panel_a(axes[0], d)
     panel_b(axes[1], d, v)
+    panel_c(axes[2], vs)
     fig.tight_layout(w_pad=2.5)
     for ext in ("png", "pdf"):
         out = FIG / f"bisse.{ext}"
@@ -113,7 +160,8 @@ def main() -> int:
         print(" ", out)
     plt.close(fig)
     # one image per panel too, large enough to read inline on the website
-    for letter, fn, args in (("a", panel_a, (d,)), ("b", panel_b, (d, v))):
+    for letter, fn, args in (("a", panel_a, (d,)), ("b", panel_b, (d, v)),
+                             ("c", panel_c, (vs,))):
         fig, ax = plt.subplots(figsize=(6.4, 4.4))
         fn(ax, *args)
         fig.tight_layout()
