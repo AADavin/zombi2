@@ -11,10 +11,13 @@ detect the family that drives, and stay quiet on a family that does not?
 One joint run grows the species tree and the genome together: a `driver` family, present
 in the root genome and lost per copy at rate 0.12, multiplies the speciation rate
 (base 1.0, extinction 0.3) by a factor *f* while present. We grew 200 replicate clades to
-150 extant tips at each of six factors, *f* = 1, 1.25, 1.5, 2, 3, 5, on matched seeds; at
-*f* = 1 the driver reads as a factor of one, so that arm is the null. Every genome also
-carries a `control` family with the same loss rate that no rate reads. A separate
-duration-matched null arm reruns the *f* = 3 replicates undriven to the same total time.
+150 extant tips at each of six factors, *f* = 1, 1.25, 1.5, 2, 3, 5, on matched seeds.
+At *f* = 1 the family multiplies speciation by one, which is to say not at all: those 200
+runs are the null. Every genome also carries a second family, `control`, which appears at
+the root and is lost at the same rate as the driver but which no rate reads, so it cannot
+influence the tree; any rise in its prevalence can only come from the shape of the tree.
+A separate duration-matched null arm reruns the *f* = 3 replicates undriven to the same
+total time.
 
 The written form of the dependency, in full:
 
@@ -29,7 +32,7 @@ joint.simulate(
     seed=seed)
 ```
 
-## What the simulation shows (panels A and B)
+## What the simulation shows (panel A)
 
 The driver's prevalence among extant tips rises with the factor, from 0.41 in the null to
 0.95 at five-fold. The control says most of that rise is not selection: carried through
@@ -43,7 +46,7 @@ with the in-run control (0.80 against 0.81), two independent estimates of the sa
 tree-age effect. The control also lands on its closed form exp(−loss × height) at every
 factor, which checks the joint engine's genome half against something it does not know.
 
-## What BiSSE reports (panel C)
+## What BiSSE reports (panel B)
 
 For every replicate we fit the six-parameter BiSSE model and the state-independent
 constraint (λ₁ = λ₀, μ₁ = μ₀) on each family's tip presence, a likelihood-ratio test on
@@ -63,7 +66,7 @@ invariant character cannot be fit, no fit errors.
   likelihood. On data like these the risk is not the false positive; it is reading a
   non-significant result as the absence of the effect.
 
-![The three panels](figures/bisse.png)
+![The two panels](figures/bisse.png)
 
 ## Reproducing it
 
