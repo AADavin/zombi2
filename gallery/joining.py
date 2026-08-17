@@ -524,17 +524,18 @@ def sequence_loop(out):
          + ph.trees.color_branches(shares[name], cmap="magma_dark", limits=span)
          + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
         pngs.append(png)
-    ramp = [("gradient", "magma_dark", ("KR-poor", "KR-rich"))]
+    ramp = [("word", None, "aa composition"),
+            ("gradient", "magma_dark", ("KR-poor", "KR-rich"))]
     diag = h.joint_png(out.replace(".png", "_diag.png"), [
-        (("sequences", "hisA", ramp),
-         ("sequences", "hisF's rate", [("word", None, "a site changes")]),
-         "the richer hisA is, the faster hisF evolves"),
-        (("sequences", "hisF", ramp),
-         ("sequences", "hisA's rate", [("word", None, "a site changes")]),
-         "the richer hisF is, the faster hisA evolves"),
+        (("sequences", "protein A", ramp),
+         ("sequences", "protein B's rate", [("word", None, "a site changes")]),
+         "the richer in KR is protein A, the quicker protein B evolves"),
+        (("sequences", "protein B", ramp),
+         ("sequences", "protein A's rate", [("word", None, "a site changes")]),
+         "the richer in KR is protein B, the quicker protein A evolves"),
     ])
     # the ramp is named once per gene in the diagram, so the rows below carry no key of their own
-    h.composite_under_diagram(out, diag, [(pngs[0], "hisA"), (pngs[1], "hisF")],
+    h.composite_under_diagram(out, diag, [(pngs[0], "protein A"), (pngs[1], "protein B")],
                               diagram_frac=0.72)
 
 
@@ -600,7 +601,8 @@ def trait_and_sequence(out):
                                 ("swatch", _CLIMATE["hot"], "hot")]),
          ("sequences", "rpoB's rate", [("word", None, "a site changes")]),
          "hot lineages substitute 4× faster"),
-        (("sequences", "rpoB", [("gradient", "magma_dark", ("KR-poor", "KR-rich"))]),
+        (("sequences", "rpoB", [("word", None, "aa composition"),
+                                 ("gradient", "magma_dark", ("KR-poor", "KR-rich"))]),
          ("traits", "switch rate", _switch_key(_CLIMATE, ["hot", "cold"])),
          "the richer rpoB is, the readier the switch to hot"),
     ])
