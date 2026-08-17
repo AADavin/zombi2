@@ -42,6 +42,55 @@ _SIZE = {"small": "#b9bec4", "large": "#8C5E8B"}            # the other half of 
 _CAVE = {"surface": "#2E8B6F", "cave": "#4A4A6A"}           # a habitat and a genome, each driving the other
 _CLIMATE = {"cold": "#3A7CA5", "hot": "#E4572E"}            # a habitat and a gene's sequence, likewise
 
+#: The two colours the joint figures mark events in, on the tree and in the diagram's key alike: a
+#: gene family's presence is drawn in ink, a loss in red. They are constants because the same value
+#: has to reach both, and a glyph that does not match its key is worse than no key.
+_INK, _LOSS = "#1a1a1a", "#c1443c"
+_BAR = "#6a9bd8"                                            # Phylustrator's default bar colour
+
+
+def _switch_events(ct, trait):
+    """A discrete trait's switches as branch events: ``to <state>``, on the branch, at its own time.
+
+    ``initial`` is dropped — it is the root's starting state, not a change — and so is any lineage
+    the tree does not name. The kind carries the state switched **to**, which is what colours the
+    triangle: a marker in the colour a branch is about to become reads as the moment it turned.
+    """
+    lab = ct.labels()
+    return [{"kind": f"to {c.to_state}", "node": lab[c.lineage], "x": float(c.time)}
+            for c in trait.events if c.kind != "initial" and lab.get(c.lineage)]
+
+
+def _switch_styles(palette):
+    return {f"to {state}": ("triangle_right", colour) for state, colour in palette.items()}
+
+
+def _switch_key(palette, order):
+    """The diagram key that matches :func:`_switch_styles` — one triangle per destination state.
+
+    ``order`` is given rather than taken from the palette because a key reads best with the state the
+    model is *about* first: the cave before the surface, hot before cold."""
+    return [("triangle", palette[s], f"to {s}") for s in order]
+
+
+def _presence_events(ct, genome, name):
+    """A named family's presence at the INTERNAL nodes: a filled dot where it is, a ring where it is not.
+
+    Ancestors only. Every tip would be marked too, and fifty markers stacked against the tip labels
+    say nothing the bars beside them do not already say."""
+    lab, tips = ct.labels(), set(ct.extant_leaves())
+    return [{"kind": f"{name} present" if genome.has_family(n, name) else f"{name} absent",
+             "node": lab[n], "x": ct.nodes[n].end_time}
+            for n in ct.nodes if n not in tips and lab.get(n) is not None]
+
+
+def _loss_events(ct, genome, name):
+    """One named family's losses as branch events, for the red cross the diagram's key names."""
+    lab, fam = ct.labels(), genome.family_names[name]
+    return [{"kind": "loss", "node": lab[e.lineage], "x": float(e.time)}
+            for e in genome.edges
+            if getattr(e, "kind", None) == "loss" and e.family == fam and lab.get(e.lineage)]
+
 
 def _style():
     return ph.Style(width=1300, height=1000, margin=82, branch_width=3.4)
@@ -259,13 +308,20 @@ def cave_genomes(out):
     the tree; here it is handed over like any other input, and what comes back is two levels' results
     from one run.
 
-    Twenty-six of the forty tips end up underground, and their genomes are a third the size. With the
-    returning arrow taken out — the habitat grown on its own, which is the only way the model can be
-    written as two runs in order — almost nothing goes underground at all.
+    Twenty-one of the fifty tips end up underground, and their genomes are half the size: twenty-seven
+    genes at the median cave tip against fifty-three on the surface. The eye is gone from every cave
+    tip — the twenty-three tips that still carry it are all on the surface. With the returning arrow
+    taken out — the habitat grown on its own, which is the only way the model can be written as two
+    runs in order — a median of one tip in fifty goes underground, over twenty seeds.
+
+    The tree carries the whole story, and the diagram above it is the key. Dots and rings mark the
+    ancestors that still had the eye and the ones that had lost it; the six red crosses are where it
+    went; the triangles are the ten switches to the cave, and nine of the ten hang off a branch whose
+    ancestor is already a ring.
     """
     import matplotlib.image as mpimg
 
-    ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
+    ct = simulate_species_tree(birth=1.0, n_extant=50, seed=2).complete_tree
     r = joint.simulate(
         genomes_spec(duplication=0.05, origination=12.0, initial_families=60,
                      loss=PerCopy(0.30).scaled_by("trait", {"cave": 5.0, "surface": 1.0}),
@@ -279,25 +335,37 @@ def cave_genomes(out):
     lab, tips = ct.labels(), sorted(ct.extant_leaves())
     sizes = {lab[n]: len(r.genome.genomes[lab[n]]) for n in tips}
     tipcol = {lab[n]: _CAVE[r.trait.values[lab[n]]] for n in tips}
+    # three annotation layers, no legend on any of them: the diagram's boxes carry the key
     fig = (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False,
                          style=ph.Style(width=900, height=900, margin=92, branch_width=3.0))
            + ph.trees.color_history(_state_history(ct, r.trait), palette=_CAVE)
+           + ph.trees.branch_events(_presence_events(ct, r.genome, "eye"),
+                                    styles={"eye present": ("circle", _INK),
+                                            "eye absent": ("ring", _INK)},
+                                    size=3.8, legend=False)
+           + ph.trees.branch_events(_loss_events(ct, r.genome, "eye"),
+                                    styles={"loss": ("cross", _LOSS)}, size=7.5, legend=False)
+           + ph.trees.branch_events(_switch_events(ct, r.trait), styles=_switch_styles(_CAVE),
+                                    size=6.0, legend=False)
            + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False))
     real = out.replace(".png", "_real.png")
     ph.beside(fig, ph.genomes.bars(sizes, colors=tipcol, label="genome size (genes)",
                                    tick_size=20, label_size=26),
               width=1150, tree_fraction=0.58, footer=36).save(real)
 
-    # the two things and the two rules, each as a sentence: in a joint model neither box is only a
-    # driver or only a target, so the conditioning diagram's headings have nothing to label
-    diag = h.joint_png(out.replace(".png", "_diag.png"),
-                       left=("traits", "habitat", "surface or cave"),
-                       right=("genomes", "the genome", "which genes are left"),
-                       forward="in the cave, genes go 5× faster",
-                       back="with no eye, turns cave 25× faster")
-    fig2 = plt.figure(figsize=(12, 9.4))
-    axr = fig2.add_axes([0.0, 0.0, 1.0, 0.80]); axr.imshow(mpimg.imread(real)); axr.set_axis_off()
-    axd = fig2.add_axes([0.14, 0.795, 0.72, 0.185]); axd.imshow(mpimg.imread(diag)); axd.set_axis_off()
+    # one row per statement, each row reading driver · sentence · the rate it drives
+    diag = h.joint_png(out.replace(".png", "_diag.png"), [
+        (("traits", "habitat", [("swatch", _CAVE["surface"], "surface"),
+                                ("swatch", _CAVE["cave"], "cave")]),
+         ("genomes", "loss rate", [("cross", _LOSS, "a gene is lost")]),
+         "in the cave, genes are lost 5× faster"),
+        (("genomes", "the eye family", [("circle", _INK, "present"), ("ring", _INK, "absent")]),
+         ("traits", "switch rate", _switch_key(_CAVE, ["cave", "surface"])),
+         "with no eye, turns cave 25× faster"),
+    ])
+    fig2 = plt.figure(figsize=(12, 9.1))
+    axr = fig2.add_axes([0.0, 0.0, 1.0, 0.79]); axr.imshow(mpimg.imread(real)); axr.set_axis_off()
+    axd = fig2.add_axes([0.14, 0.762, 0.72, 0.185]); axd.imshow(mpimg.imread(diag)); axd.set_axis_off()
     fig2.savefig(out, dpi=140, bbox_inches="tight")
     plt.close(fig2)
 
@@ -352,8 +420,10 @@ def genome_and_sequence(out):
     The tree is the only thing handed to the run. The gene trees are not: they come out of the genome
     participant, which is what makes this different from every conditioned run at this level.
 
-    Two panels of the same tree. Above, how far `hisA` has ameliorated. Below, how many genes each
-    lineage has left. The pale clades are the ameliorated ones, and they are the full genomes.
+    One panel: how far `hisA` has ameliorated, and beside it how many genes each lineage has left.
+    The pale clades are the ameliorated ones, and they are the full genomes. In this run `hisA`
+    survives at all thirty tips, so no branch is left grey for `absent=0.35` to answer for, and the
+    twenty-two losses the driven rate fired are all of other families.
     """
     from zombi2.genomes import genome as genomes_spec_
     from zombi2.sequences import composition as offers_composition
@@ -382,22 +452,26 @@ def genome_and_sequence(out):
     style = _panel_style()
     style = ph.Style(width=style.width, height=style.height, margin=style.margin,
                      branch_width=style.branch_width, branch_color="#c3c8cc")
+    # no loss crosses here, unlike cave_genomes: `hisA` itself is never lost in this run, and the
+    # twenty-two losses of everything else pile up half a dozen deep on the stem, where they read as
+    # one red smudge rather than as events. The bars are what the loss rate did, and they say it
     fig = (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
            + ph.trees.color_branches(gc, cmap="magma_dark", limits=span)
            + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False))
     png = out.replace(".png", "_panel.png")
     ph.beside(fig, ph.genomes.bars(sizes, label="genes left", tick_size=20, label_size=26),
               width=1150, tree_fraction=0.58, footer=36).save(png)
-    diag = h.joint_png(out.replace(".png", "_diag.png"),
-                       left=("genomes", "the genome", "which genes are left"),
-                       right=("sequences", "hisA", "how much of it is G or C"),
-                       forward="the genome says which copies of hisA exist",
-                       back="while hisA is AT-rich, genes go 30x faster")
-    h.composite_under_diagram(
-        out, diag,
-        [(png, "hisA, and what each tip has left  (grey: no copy, so the driver reads absent=0.35)",
-          ("magma_dark", "AT-rich", "at the model's own"))],
-        diagram_frac=0.72)
+    ramp = [("gradient", "magma_dark", ("AT-rich", "at the model's own"))]
+    diag = h.joint_png(out.replace(".png", "_diag.png"), [
+        (("genomes", "the genome", [("swatch", _BAR, "genes left")]),
+         ("sequences", "hisA", ramp),
+         "the genome says which copies of hisA exist"),
+        (("sequences", "hisA", ramp),
+         ("genomes", "loss rate", [("cross", _LOSS, "a gene is lost")]),
+         "while hisA is AT-rich, genes are lost 30× faster"),
+    ])
+    h.composite_under_diagram(out, diag, [(png, "hisA, and what each tip has left")],
+                              diagram_frac=0.72)
 
 
 def sequence_loop(out):
@@ -450,14 +524,17 @@ def sequence_loop(out):
          + ph.trees.color_branches(shares[name], cmap="magma_dark", limits=span)
          + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
         pngs.append(png)
-    diag = h.joint_png(out.replace(".png", "_diag.png"),
-                       left=("sequences", "hisA", "how much of it is K or R"),
-                       right=("sequences", "hisF", "how much of it is K or R"),
-                       forward="the richer hisA is, the faster hisF evolves",
-                       back="the richer hisF is, the faster hisA evolves")
-    h.composite_under_diagram(out, diag,
-                              [(pngs[0], "hisA", ("magma_dark", "KR-poor", "at LG's own")),
-                               (pngs[1], "hisF", ("magma_dark", "KR-poor", "at LG's own"))],
+    ramp = [("gradient", "magma_dark", ("KR-poor", "at LG's own"))]
+    diag = h.joint_png(out.replace(".png", "_diag.png"), [
+        (("sequences", "hisA", ramp),
+         ("sequences", "hisF's rate", [("word", None, "a site changes")]),
+         "the richer hisA is, the faster hisF evolves"),
+        (("sequences", "hisF", ramp),
+         ("sequences", "hisA's rate", [("word", None, "a site changes")]),
+         "the richer hisF is, the faster hisA evolves"),
+    ])
+    # the ramp is named once per gene in the diagram, so the rows below carry no key of their own
+    h.composite_under_diagram(out, diag, [(pngs[0], "hisA"), (pngs[1], "hisF")],
                               diagram_frac=0.72)
 
 
@@ -511,19 +588,23 @@ def trait_and_sequence(out):
     (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
      + ph.trees.color_history({lab[i]: segs for i, segs in r.trait.history.items()},
                               palette=_CLIMATE)
+     + ph.trees.branch_events(_switch_events(ct, r.trait), styles=_switch_styles(_CLIMATE),
+                              size=6.0, legend=False)
      + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(habitat)
     gene_png = out.replace(".png", "_rpoB.png")
     (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
      + ph.trees.color_branches(share, cmap="magma_dark", limits=span)
      + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(gene_png)
-    diag = h.joint_png(out.replace(".png", "_diag.png"),
-                       left=("traits", "habitat", "cold or hot"),
-                       right=("sequences", "rpoB", "how much of it is K or R"),
-                       forward="hot lineages substitute 4x faster",
-                       back="the richer rpoB is, the readier the switch to hot")
-    h.composite_under_diagram(out, diag,
-                              [(habitat, "habitat", _CLIMATE),
-                               (gene_png, "rpoB", ("magma_dark", "KR-poor", "at LG's own"))],
+    diag = h.joint_png(out.replace(".png", "_diag.png"), [
+        (("traits", "habitat", [("swatch", _CLIMATE["cold"], "cold"),
+                                ("swatch", _CLIMATE["hot"], "hot")]),
+         ("sequences", "rpoB's rate", [("word", None, "a site changes")]),
+         "hot lineages substitute 4× faster"),
+        (("sequences", "rpoB", [("gradient", "magma_dark", ("KR-poor", "at LG's own"))]),
+         ("traits", "switch rate", _switch_key(_CLIMATE, ["hot", "cold"])),
+         "the richer rpoB is, the readier the switch to hot"),
+    ])
+    h.composite_under_diagram(out, diag, [(habitat, "habitat"), (gene_png, "rpoB")],
                               diagram_frac=0.72)
 
 
@@ -537,9 +618,10 @@ def trait_loop(out):
     their states, so the pair has an ordinary generator and the same branch walk a single trait takes
     runs it — nothing thinned, nothing approximated.
 
-    The same tree twice, painted by each trait. What the loop produces is the alignment between the
-    two panels, and it is a statement neither trait makes on its own: twelve of the twenty-one cave
-    tips are large, against one of the nineteen on the surface.
+    The same tree twice, painted by each trait, with a triangle at every switch in the colour of the
+    state it turned into. What the loop produces is the alignment between the two panels, and it is a
+    statement neither trait makes on its own: twelve of the twenty-one cave tips are large, against
+    one of the nineteen on the surface.
     """
     ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
     r = traits.simulate_traits(ct, [
@@ -559,14 +641,22 @@ def trait_loop(out):
         png = out.replace(".png", f"_t{k}.png")
         (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
          + ph.trees.color_history(_state_history(ct, r[name]), palette=palette)
+         + ph.trees.branch_events(_switch_events(ct, r[name]), styles=_switch_styles(palette),
+                                  size=6.0, legend=False)
          + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
         pngs.append(png)
-    diag = h.joint_png(out.replace(".png", "_diag.png"),
-                       left=("traits", "habitat", "surface or cave"),
-                       right=("traits", "size", "small or large"),
-                       forward="in the cave, grows 6× more readily",
-                       back="when large, goes underground 8× more readily")
-    h.composite_under_diagram(out, diag, [(pngs[0], "habitat", _CAVE), (pngs[1], "body size", _SIZE)],
+    diag = h.joint_png(out.replace(".png", "_diag.png"), [
+        (("traits", "body size", [("swatch", _SIZE["small"], "small"),
+                                  ("swatch", _SIZE["large"], "large")]),
+         ("traits", "habitat switch", _switch_key(_CAVE, ["cave", "surface"])),
+         "when large, turns cave 8× more readily"),
+        (("traits", "habitat", [("swatch", _CAVE["surface"], "surface"),
+                                ("swatch", _CAVE["cave"], "cave")]),
+         ("traits", "size switch", _switch_key(_SIZE, ["large", "small"])),
+         "in the cave, grows 6× more readily"),
+    ])
+    # no colour key under either row label: the diagram's boxes carry both palettes
+    h.composite_under_diagram(out, diag, [(pngs[0], "habitat"), (pngs[1], "body size")],
                               diagram_frac=0.72)
 
 
@@ -1404,24 +1494,24 @@ from zombi2.genomes import family
 from zombi2.params import PerCopy, PerLineage
 from zombi2.species import simulate_species_tree
 
-ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
+ct = simulate_species_tree(birth=1.0, n_extant=50, seed=2).complete_tree
 
 # no species.birth_death among the participants, so the tree is an INPUT: pass it with tree=
 r = joint.simulate(
     # the cave costs genes — the habitat drives the genome
-    genomes.genome(duplication=0.05, origination=0.35, initial_families=60,
-                   loss=PerCopy(0.05).scaled_by("trait", {"cave": 7.0, "surface": 1.0}),
+    genomes.genome(duplication=0.05, origination=12.0, initial_families=60,
+                   loss=PerCopy(0.30).scaled_by("trait", {"cave": 5.0, "surface": 1.0}),
                    families=[family("eye")]),
     # ...and losing the eye commits a lineage to the cave — the genome drives the habitat
     traits.discrete(states=["surface", "cave"], start="surface",
-                    switch={"surface->cave": PerLineage(0.06).scaled_by(
-                                "genomes:eye", {"present": 1.0, "absent": 15.0}),
+                    switch={"surface->cave": PerLineage(0.02).scaled_by(
+                                "genomes:eye", {"present": 1.0, "absent": 25.0}),
                             "cave->surface": 0.10}),
-    tree=ct, seed=1)
+    tree=ct, seed=2)
 
 r.trait          # the habitat, as the traits level would have written it
 r.genome         # the genome, as the genomes level would have written it
-# 49 genes at the median cave tip against 70 on the surface
+# 27 genes at the median cave tip against 53 on the surface
 
 ### plot  —  the tree by habitat, beside genome size at each tip
 import phylustrator as ph
@@ -1429,8 +1519,13 @@ import phylustrator as ph
 lab = ct.labels()
 history = {lab[i]: segs for i, segs in r.trait.history.items()}
 pal = {"surface": "#2E8B6F", "cave": "#4A4A6A"}
+# every switch as a triangle in the colour of the state it turned INTO
+switches = [{"kind": f"to {c.to_state}", "node": lab[c.lineage], "x": c.time}
+            for c in r.trait.events if c.kind != "initial"]
 fig = (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False)
        + ph.trees.color_history(history, palette=pal)
+       + ph.trees.branch_events(switches, legend=False,
+                                styles={f"to {s}": ("triangle_right", c) for s, c in pal.items()})
        + ph.trees.time_axis("time", bold=False))
 sizes = {lab[n]: len(r.genome.genomes[lab[n]]) for n in sorted(ct.extant_leaves())}
 ph.beside(fig, ph.genomes.bars(sizes, label="genome size (genes)")).save("cave.png")"""
@@ -1467,8 +1562,13 @@ lab = ct.labels()
 for name, palette in (("habitat", {"surface": "#2E8B6F", "cave": "#4A4A6A"}),
                       ("size", {"small": "#b9bec4", "large": "#8C5E8B"})):
     history = {lab[i]: segs for i, segs in r[name].history.items()}
+    # a triangle at each switch, in the colour of the state it turned INTO
+    switches = [{"kind": f"to {c.to_state}", "node": lab[c.lineage], "x": c.time}
+                for c in r[name].events if c.kind != "initial"]
     (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False)
      + ph.trees.color_history(history, palette=palette)
+     + ph.trees.branch_events(switches, legend=False,
+                              styles={f"to {s}": ("triangle_right", c) for s, c in palette.items()})
      + ph.trees.time_axis("time", bold=False)).save(f"{name}.png")
 # the loop shows in the alignment: cave lineages are far likelier to be large"""
 
