@@ -68,9 +68,10 @@ line follows each replicate across them. On the left, the driver in the null run
 on average, what the family does under loss alone. In the middle, the control inside the
 driven runs: 0.81. It rose by +0.40 without being driven, so that step is the tree-age
 effect on its own, what any family gains from a younger tree. On the right, the driver in
-those same driven runs: 0.92. That final step, +0.11, is the only part caused by the gene
-itself: lineages that carry it speciate three times faster, so tips descending from
-carriers end up overrepresented. The two steps sum exactly to the raw +0.50 gap. An
+those same driven runs: 0.92. That final step, +0.11, is the only part caused by the
+driver's effect on speciation: lineages that carry the family split three times faster,
+so tips descending from carriers end up overrepresented. The two steps sum exactly to
+the raw +0.50 gap. An
 analysis of real genomes would see only that raw gap, with no way to tell the two causes
 apart; this dataset carries its own control, so it can.
 
