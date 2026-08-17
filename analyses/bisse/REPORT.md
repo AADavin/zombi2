@@ -11,10 +11,13 @@ detect the family that drives, and stay quiet on a family that does not?
 One joint run grows the species tree and the genome together: a `driver` family, present
 in the root genome and lost per copy at rate 0.12, multiplies the speciation rate
 (base 1.0, extinction 0.3) by a factor *f* while present. We grew 200 replicate clades to
-150 extant tips at each of six factors, *f* = 1, 1.25, 1.5, 2, 3, 5, on matched seeds; at
-*f* = 1 the driver reads as a factor of one, so that arm is the null. Every genome also
-carries a `control` family with the same loss rate that no rate reads. A separate
-duration-matched null arm reruns the *f* = 3 replicates undriven to the same total time.
+150 extant tips at each of six factors, *f* = 1, 1.25, 1.5, 2, 3, 5, on matched seeds.
+At *f* = 1 the family multiplies speciation by one, which is to say not at all: those 200
+runs are the null. Every genome also carries a second family, `control`, which appears at
+the root and is lost at the same rate as the driver but which no rate reads, so it cannot
+influence the tree; any rise in its prevalence can only come from the shape of the tree.
+A separate duration-matched null arm reruns the *f* = 3 replicates undriven to the same
+total time.
 
 The written form of the dependency, in full:
 

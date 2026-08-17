@@ -75,7 +75,7 @@ def panel_a(ax, d) -> None:
     ax.set_xlabel("Driver factor $f$ ($\\times$ speciation when present)")
     log_x(ax, factors)
     ax.legend(loc="upper left", frameon=False)
-    ax.set_title("A   Prevalence against the driver factor", loc="left",
+    ax.set_title("A   Prevalence of the driver and control families", loc="left",
                  fontweight="bold")
 
 
@@ -106,7 +106,7 @@ def panel_b(ax, d) -> None:
         ax.text(xa + 0.1, (lo + hi) / 2, f"$+${hi - lo:.2f}\n{lab}",
                 va="center", fontsize=7.5, color=INK)
     head = d["summary"]["headline"]["paired_coupled_minus_null"]
-    ax.set_title("B   The headline factor against its matched null", loc="left",
+    ax.set_title("B   Where the driver's rise comes from ($f=3$)", loc="left",
                  fontweight="bold")
     ax.text(0.98, 0.03, f"paired gap $+${head['mean']:.2f} "
             f"(95% CI {head['ci95_low']:.2f}–{head['ci95_high']:.2f})",
@@ -156,6 +156,17 @@ def main() -> int:
         out = FIG / f"bisse.{ext}"
         fig.savefig(out, dpi=300)
         print(" ", out)
+    plt.close(fig)
+    # one image per panel too, large enough to read inline on the website
+    for letter, fn, args in (("a", panel_a, (d,)), ("b", panel_b, (d,)),
+                             ("c", panel_c, (d, v))):
+        fig, ax = plt.subplots(figsize=(6.4, 4.4))
+        fn(ax, *args)
+        fig.tight_layout()
+        out = FIG / f"bisse_{letter}.png"
+        fig.savefig(out, dpi=300)
+        print(" ", out)
+        plt.close(fig)
     return 0
 
 
