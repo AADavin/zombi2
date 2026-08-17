@@ -42,23 +42,34 @@ result = joint.simulate(
 ```
 
 We grew 200 replicate clades to 150 extant tips at each of six factors, `f` = 1 to 5, on
-matched seeds; at `f` = 1 the driver reads as a factor of one, so that arm is the null.
-Every genome also carries the `control` family, lost at the same rate, that no rate
-reads. The whole sweep is 1,400 joint runs.
+matched seeds. At `f` = 1 the family multiplies the speciation rate by one, which is to
+say it has no effect at all: those 200 runs are the null, the same machinery with nothing
+to find.
+
+Every genome also carries a second family, called `control`. It appears at the root and
+is lost at the same rate as the driver, but nothing in the simulation depends on it: no
+rate reads it, so it cannot make any lineage speciate faster or slower. If its prevalence
+still rises in the driven runs, that rise can only come from the shape of the tree, never
+from anything the family itself does. The whole sweep is 1,400 joint runs.
 
 ## What the dependency does to the data
 
 The driver's prevalence among the extant tips rises with the factor, from 0.41 in the
-null to 0.95 at five-fold (panel A below). The control shows that most of that rise is
-not selection: carried through the very same runs, it rises from 0.42 to 0.83 with
-nothing driving it, because a driven clade reaches its 150 tips sooner (the mean tree
-height falls from 7.6 to 1.4) and a younger tree has lost less of everything. At `f` = 3
-the decomposition is exact (panel B): of the raw +0.50 gap between the driven run and its
-matched null, +0.40 is the shorter tree, shared with the control, and +0.11 is carriers
-proliferating differentially, the only part that is selection on the gene. An analysis of
-real genomes would see the raw gap; this run carries its own control.
+null to 0.95 at five-fold (panel A). But the control rises too, from 0.42 to 0.83, with
+nothing driving it. The reason is the shape of the tree: a driven clade reaches its 150
+tips sooner (the mean tree height falls from 7.6 to 1.4 time units), and on a younger
+tree every family, driven or not, has had less time to be lost.
 
-![Prevalence, the decomposition, and the BiSSE verdict](../assets/bisse/bisse.png)
+![Prevalence of the driver and control families](../assets/bisse/bisse_a.png)
+
+Because both families sit in the same genomes, the driver's rise splits cleanly into its
+two causes. Take `f` = 3. The control stands at 0.81 against 0.41 in the null runs: a
+step of +0.40 that can only be the younger tree, since nothing drives the control. The
+driver stands at 0.92, another +0.11 above the control on the very same trees: that last
+step is the only part caused by the driver's effect on speciation, carriers splitting
+three times faster and leaving more descendants. An analysis of real genomes would see
+only the total rise, with no way to tell the two causes apart; this dataset can, because
+it carries its own control.
 
 ## What BiSSE reports
 
@@ -70,19 +81,11 @@ The test is well calibrated here. It rejects on the driver at the null in 3.5% o
 and on the control in 5.2%, even on the driven trees, whose rate heterogeneity is real
 but belongs to the other family. When it rejects at `f` > 1, it puts the higher
 speciation rate on the carrier state in 255 of 256 fits. What limits it is power, and not
-monotonically (panel C): a three-fold effect on speciation, enough to move prevalence by
+monotonically (panel B): a three-fold effect on speciation, enough to move prevalence by
 +0.50, is found in 36% of 150-tip clades, and a five-fold effect is found *less* often,
 in 30%, because a stronger driver pushes the family toward fixation and the shorter, more
 uniform trees carry fewer of the events the likelihood needs. On data like these the risk
 is not the false positive; it is reading a non-significant result as the absence of the
 effect.
 
-## The recipe, generalised
-
-Simulate the dependency you suspect, at a range of strengths, with the null and a neutral
-control from the same machinery. Run the inference method exactly as its documentation
-recommends. The dataset then scores the method: its false-positive rate where nothing
-drives, its power where something does, and the direction of its errors. Every number
-above regenerates from one script and one master seed; see
-[`analyses/bisse/REPORT.md`](https://github.com/AADavin/zombi2/blob/main/analyses/bisse/REPORT.md)
-for the exact commands.
+![What a default BiSSE fit reports](../assets/bisse/bisse_b.png)
