@@ -99,3 +99,22 @@ regenerates it byte-identically from the master seed recorded in `results.json`
 This analysis is the worked example "Can BiSSE find the gene that drives speciation?" in
 the ZOMBI2 manuscript. The manuscript's figure is rendered from the same two JSON files
 by the paper workspace's own script; `figures.py` here is a self-contained equivalent.
+
+## Does a bigger tree fix the power? (panel C)
+
+The 150-tip ceiling asks whether the limit is the method or the information. Rerunning
+the *f* = 3 and *f* = 5 arms at 500 and 1,000 extant tips answers it (100 replicates
+each, the same first hundred seeds; `size_experiment.py`, `fit_bisse_size.R`,
+`aggregate_size.py`): power at *f* = 3 climbs from 36% through 96% to 99%, and at
+*f* = 5 from 30% through 86% to 100%. Two details matter. The *f* = 5 deficit is not a
+small-tree artifact: it persists at 500 tips (86% against 96%) and closes only at 1,000.
+And calibration is not free at scale: the control, at the nominal level through 500
+tips, is rejected in 8.2% of the 1,000-tip fits pooled over both factors (16 of 196,
+Wilson CI 5.1-12.9%), consistent with the false-positive inflation reported for
+state-dependent diversification on large trees. On these data, small trees hide true
+drivers, and on the largest trees false positives begin to appear.
+
+The size arms add 400 joint runs (about 30 minutes) and 800 fits (15 minutes at 500
+tips and 28 at 1,000, on 8 cores). The outcome files are committed
+(`results_size.json`, `fits_n500.tsv`, `fits_n1000.tsv`, `verdicts_size.json`); the
+trees regenerate from the master seed as before.

@@ -89,3 +89,16 @@ is not the false positive; it is reading a non-significant result as the absence
 effect.
 
 ![What a default BiSSE fit reports](../assets/bisse/bisse_b.png)
+
+## Does a bigger tree fix it?
+
+Tree size settles what the 150-tip ceiling was made of. Rerunning the `f` = 3 and
+`f` = 5 arms at 500 and 1,000 extant tips lifts detection to 96% and 86%, then to 99%
+and 100%. So the test does find the gene, given enough tree: the ceiling was information
+starvation, and even the five-fold deficit, still there at 500 tips, closes at 1,000.
+The catch arrives with size. The control, calibrated at every smaller size, is rejected
+in 8% of the 1,000-tip fits, above the nominal 5%. The practical reading: on small trees
+a negative result says little, on very large trees a bare positive deserves a second
+look, and in between the test behaves.
+
+![Power against tree size](../assets/bisse/bisse_c.png)

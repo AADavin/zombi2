@@ -1,0 +1,3624 @@
+{
+ "what": "tree-size arms for the BiSSE power-vs-size question",
+ "zombi2_version": "0.42.2",
+ "master_seed": 20260802,
+ "n_reps": 100,
+ "factors": [
+  3.0,
+  5.0
+ ],
+ "sizes": [
+  500,
+  1000
+ ],
+ "arms": {
+  "n500_f3.0": [
+   {
+    "seed": 359953596,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.2267222109444225,
+    "prevalence_driver": 0.908,
+    "prevalence_control": 0.886,
+    "seconds": 1.607
+   },
+   {
+    "seed": 173322755,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.098185424156341,
+    "prevalence_driver": 0.956,
+    "prevalence_control": 0.616,
+    "seconds": 1.837
+   },
+   {
+    "seed": 1382915259,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.271438613858942,
+    "prevalence_driver": 0.932,
+    "prevalence_control": 0.68,
+    "seconds": 1.447
+   },
+   {
+    "seed": 1229376484,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.7069844941602073,
+    "prevalence_driver": 0.952,
+    "prevalence_control": 0.866,
+    "seconds": 1.479
+   },
+   {
+    "seed": 516411429,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.1386598827021355,
+    "prevalence_driver": 0.934,
+    "prevalence_control": 0.868,
+    "seconds": 1.92
+   },
+   {
+    "seed": 254246123,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.6571294825625045,
+    "prevalence_driver": 0.942,
+    "prevalence_control": 0.664,
+    "seconds": 1.563
+   },
+   {
+    "seed": 1251577664,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.515500758922424,
+    "prevalence_driver": 0.964,
+    "prevalence_control": 0.802,
+    "seconds": 1.43
+   },
+   {
+    "seed": 1086822266,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.6758786032005393,
+    "prevalence_driver": 0.936,
+    "prevalence_control": 0.6,
+    "seconds": 1.139
+   },
+   {
+    "seed": 1383945410,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.5542909222528816,
+    "prevalence_driver": 0.938,
+    "prevalence_control": 0.876,
+    "seconds": 1.734
+   },
+   {
+    "seed": 2105959714,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.9969757135746664,
+    "prevalence_driver": 0.926,
+    "prevalence_control": 0.744,
+    "seconds": 1.411
+   },
+   {
+    "seed": 1024891611,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.820515598479512,
+    "prevalence_driver": 0.938,
+    "prevalence_control": 0.9,
+    "seconds": 1.868
+   },
+   {
+    "seed": 1073068360,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.959337034460324,
+    "prevalence_driver": 0.884,
+    "prevalence_control": 0.774,
+    "seconds": 1.737
+   },
+   {
+    "seed": 1059457171,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.4766355328038445,
+    "prevalence_driver": 0.94,
+    "prevalence_control": 0.626,
+    "seconds": 1.554
+   },
+   {
+    "seed": 1327781054,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.3499858225591397,
+    "prevalence_driver": 0.924,
+    "prevalence_control": 0.504,
+    "seconds": 1.883
+   },
+   {
+    "seed": 2062073177,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.3739849974753904,
+    "prevalence_driver": 0.916,
+    "prevalence_control": 0.824,
+    "seconds": 1.577
+   },
+   {
+    "seed": 1228510184,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.337134073519548,
+    "prevalence_driver": 0.928,
+    "prevalence_control": 0.866,
+    "seconds": 1.578
+   },
+   {
+    "seed": 1304516886,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.468516316539226,
+    "prevalence_driver": 0.922,
+    "prevalence_control": 0.87,
+    "seconds": 1.442
+   },
+   {
+    "seed": 2056361159,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.9711759637605843,
+    "prevalence_driver": 0.938,
+    "prevalence_control": 0.722,
+    "seconds": 1.305
+   },
+   {
+    "seed": 1133767570,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.233840469520015,
+    "prevalence_driver": 0.938,
+    "prevalence_control": 0.856,
+    "seconds": 1.838
+   },
+   {
+    "seed": 981178642,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.2193610399318193,
+    "prevalence_driver": 0.942,
+    "prevalence_control": 0.85,
+    "seconds": 1.463
+   },
+   {
+    "seed": 742168842,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.1184882666502896,
+    "prevalence_driver": 0.968,
+    "prevalence_control": 0.952,
+    "seconds": 2.081
+   },
+   {
+    "seed": 2028533353,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.388153016564116,
+    "prevalence_driver": 0.94,
+    "prevalence_control": 0.898,
+    "seconds": 1.845
+   },
+   {
+    "seed": 293119530,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 1.6830202612760352,
+    "prevalence_driver": 0.968,
+    "prevalence_control": 0.852,
+    "seconds": 1.491
+   },
+   {
+    "seed": 604157730,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.7145391940217,
+    "prevalence_driver": 0.964,
+    "prevalence_control": 0.544,
+    "seconds": 1.677
+   },
+   {
+    "seed": 1148210257,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.0567873589665036,
+    "prevalence_driver": 0.948,
+    "prevalence_control": 0.802,
+    "seconds": 1.845
+   },
+   {
+    "seed": 1086031219,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.0615227281325854,
+    "prevalence_driver": 0.964,
+    "prevalence_control": 0.824,
+    "seconds": 1.509
+   },
+   {
+    "seed": 634363217,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.100679983807758,
+    "prevalence_driver": 0.95,
+    "prevalence_control": 0.91,
+    "seconds": 2.214
+   },
+   {
+    "seed": 1058011519,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.936292867510262,
+    "prevalence_driver": 0.98,
+    "prevalence_control": 0.73,
+    "seconds": 1.627
+   },
+   {
+    "seed": 1101969961,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.7166997801069868,
+    "prevalence_driver": 0.946,
+    "prevalence_control": 0.646,
+    "seconds": 1.228
+   },
+   {
+    "seed": 686319552,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.3688608922092236,
+    "prevalence_driver": 0.954,
+    "prevalence_control": 0.764,
+    "seconds": 2.021
+   },
+   {
+    "seed": 1982184307,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.325758043582369,
+    "prevalence_driver": 0.938,
+    "prevalence_control": 0.882,
+    "seconds": 1.748
+   },
+   {
+    "seed": 874487673,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 1.9528402592317298,
+    "prevalence_driver": 0.958,
+    "prevalence_control": 0.778,
+    "seconds": 1.746
+   },
+   {
+    "seed": 938671648,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.4359849845756503,
+    "prevalence_driver": 0.944,
+    "prevalence_control": 0.764,
+    "seconds": 2.019
+   },
+   {
+    "seed": 1669477463,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.153145964554765,
+    "prevalence_driver": 0.954,
+    "prevalence_control": 0.854,
+    "seconds": 1.851
+   },
+   {
+    "seed": 559149078,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 1.875614247288375,
+    "prevalence_driver": 0.944,
+    "prevalence_control": 0.884,
+    "seconds": 1.544
+   },
+   {
+    "seed": 1627976559,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.020902924597088,
+    "prevalence_driver": 0.932,
+    "prevalence_control": 0.0,
+    "seconds": 1.629
+   },
+   {
+    "seed": 1882472440,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.047613732590718,
+    "prevalence_driver": 0.944,
+    "prevalence_control": 0.888,
+    "seconds": 1.962
+   },
+   {
+    "seed": 343611722,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.675281125325366,
+    "prevalence_driver": 0.938,
+    "prevalence_control": 0.908,
+    "seconds": 1.944
+   },
+   {
+    "seed": 1108519607,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.2323191254114283,
+    "prevalence_driver": 0.914,
+    "prevalence_control": 0.798,
+    "seconds": 1.697
+   },
+   {
+    "seed": 1537466833,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.6604069905086076,
+    "prevalence_driver": 0.95,
+    "prevalence_control": 0.46,
+    "seconds": 1.519
+   },
+   {
+    "seed": 988940917,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.3047014455112547,
+    "prevalence_driver": 0.916,
+    "prevalence_control": 0.85,
+    "seconds": 1.675
+   },
+   {
+    "seed": 923462705,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.323950084893667,
+    "prevalence_driver": 0.93,
+    "prevalence_control": 0.86,
+    "seconds": 2.04
+   },
+   {
+    "seed": 738755598,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 1.8674037003554371,
+    "prevalence_driver": 0.934,
+    "prevalence_control": 0.896,
+    "seconds": 1.807
+   },
+   {
+    "seed": 814447312,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.834318536108564,
+    "prevalence_driver": 0.9,
+    "prevalence_control": 0.888,
+    "seconds": 1.439
+   },
+   {
+    "seed": 102728731,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.5584435428954073,
+    "prevalence_driver": 0.952,
+    "prevalence_control": 0.838,
+    "seconds": 1.395
+   },
+   {
+    "seed": 765986500,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.3958938934869796,
+    "prevalence_driver": 0.954,
+    "prevalence_control": 0.894,
+    "seconds": 1.562
+   },
+   {
+    "seed": 778565025,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.4123265236914664,
+    "prevalence_driver": 0.948,
+    "prevalence_control": 0.748,
+    "seconds": 1.711
+   },
+   {
+    "seed": 1506670368,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 1.9961177450464647,
+    "prevalence_driver": 0.914,
+    "prevalence_control": 0.916,
+    "seconds": 1.612
+   },
+   {
+    "seed": 881264285,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.661196862266401,
+    "prevalence_driver": 0.924,
+    "prevalence_control": 0.76,
+    "seconds": 1.968
+   },
+   {
+    "seed": 881790413,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 1.868289742336348,
+    "prevalence_driver": 0.938,
+    "prevalence_control": 0.838,
+    "seconds": 1.984
+   },
+   {
+    "seed": 1475576896,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.1664372278065454,
+    "prevalence_driver": 0.952,
+    "prevalence_control": 0.544,
+    "seconds": 2.286
+   },
+   {
+    "seed": 418996215,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 1.9625120196777852,
+    "prevalence_driver": 0.95,
+    "prevalence_control": 0.892,
+    "seconds": 2.004
+   },
+   {
+    "seed": 1937368344,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.595662511664074,
+    "prevalence_driver": 0.952,
+    "prevalence_control": 0.88,
+    "seconds": 2.513
+   },
+   {
+    "seed": 1933153634,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.3826075710374908,
+    "prevalence_driver": 0.964,
+    "prevalence_control": 0.746,
+    "seconds": 1.87
+   },
+   {
+    "seed": 123946801,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.54716578608944,
+    "prevalence_driver": 0.956,
+    "prevalence_control": 0.786,
+    "seconds": 1.852
+   },
+   {
+    "seed": 624055090,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.18664093892174,
+    "prevalence_driver": 0.948,
+    "prevalence_control": 0.804,
+    "seconds": 1.472
+   },
+   {
+    "seed": 553658604,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 1.9869441484145047,
+    "prevalence_driver": 0.938,
+    "prevalence_control": 0.892,
+    "seconds": 1.599
+   },
+   {
+    "seed": 1525306851,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.1264240028388106,
+    "prevalence_driver": 0.932,
+    "prevalence_control": 0.92,
+    "seconds": 2.106
+   },
+   {
+    "seed": 639346669,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.294394926838198,
+    "prevalence_driver": 0.942,
+    "prevalence_control": 0.642,
+    "seconds": 1.971
+   },
+   {
+    "seed": 1907011187,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.36101272899472,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.712,
+    "seconds": 2.013
+   },
+   {
+    "seed": 1767466436,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 1.9257904908110615,
+    "prevalence_driver": 0.96,
+    "prevalence_control": 0.9,
+    "seconds": 1.811
+   },
+   {
+    "seed": 1176645935,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.7282317340510653,
+    "prevalence_driver": 0.896,
+    "prevalence_control": 0.926,
+    "seconds": 1.457
+   },
+   {
+    "seed": 735475445,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.957426726404426,
+    "prevalence_driver": 0.94,
+    "prevalence_control": 0.776,
+    "seconds": 1.812
+   },
+   {
+    "seed": 417100595,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.4104031238403194,
+    "prevalence_driver": 0.946,
+    "prevalence_control": 0.904,
+    "seconds": 2.007
+   },
+   {
+    "seed": 91739328,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.5455593330357043,
+    "prevalence_driver": 0.932,
+    "prevalence_control": 0.868,
+    "seconds": 2.526
+   },
+   {
+    "seed": 217331561,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.004833399942427,
+    "prevalence_driver": 0.926,
+    "prevalence_control": 0.938,
+    "seconds": 1.705
+   },
+   {
+    "seed": 1074841655,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.4881204512296056,
+    "prevalence_driver": 0.922,
+    "prevalence_control": 0.75,
+    "seconds": 2.157
+   },
+   {
+    "seed": 1021328403,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 1.9207026306279877,
+    "prevalence_driver": 0.94,
+    "prevalence_control": 0.876,
+    "seconds": 2.162
+   },
+   {
+    "seed": 1962566488,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.1019306892337903,
+    "prevalence_driver": 0.93,
+    "prevalence_control": 0.912,
+    "seconds": 2.087
+   },
+   {
+    "seed": 1705269125,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.0620470906662587,
+    "prevalence_driver": 0.946,
+    "prevalence_control": 0.768,
+    "seconds": 1.77
+   },
+   {
+    "seed": 976754694,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.3822443894712264,
+    "prevalence_driver": 0.962,
+    "prevalence_control": 0.812,
+    "seconds": 1.871
+   },
+   {
+    "seed": 318513231,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 4.139098097203094,
+    "prevalence_driver": 0.912,
+    "prevalence_control": 0.906,
+    "seconds": 1.936
+   },
+   {
+    "seed": 382722628,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.0082502568393394,
+    "prevalence_driver": 0.952,
+    "prevalence_control": 0.946,
+    "seconds": 1.973
+   },
+   {
+    "seed": 233491684,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.3282893375853653,
+    "prevalence_driver": 0.93,
+    "prevalence_control": 0.754,
+    "seconds": 1.949
+   },
+   {
+    "seed": 1226142170,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 10.80048166054224,
+    "prevalence_driver": 0.0,
+    "prevalence_control": 0.558,
+    "seconds": 2.196
+   },
+   {
+    "seed": 704884425,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.1468101587937176,
+    "prevalence_driver": 0.946,
+    "prevalence_control": 0.87,
+    "seconds": 1.968
+   },
+   {
+    "seed": 1763828821,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.5822238471441477,
+    "prevalence_driver": 0.928,
+    "prevalence_control": 0.802,
+    "seconds": 1.614
+   },
+   {
+    "seed": 684518883,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.683780533745141,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.12,
+    "seconds": 1.682
+   },
+   {
+    "seed": 1683298199,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.9051745073922244,
+    "prevalence_driver": 0.946,
+    "prevalence_control": 0.932,
+    "seconds": 2.073
+   },
+   {
+    "seed": 1619562812,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 1.9052827297765644,
+    "prevalence_driver": 0.95,
+    "prevalence_control": 0.914,
+    "seconds": 1.476
+   },
+   {
+    "seed": 568980746,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.025419889978716,
+    "prevalence_driver": 0.958,
+    "prevalence_control": 0.518,
+    "seconds": 1.576
+   },
+   {
+    "seed": 987492007,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.704670871492427,
+    "prevalence_driver": 0.962,
+    "prevalence_control": 0.722,
+    "seconds": 2.138
+   },
+   {
+    "seed": 460100960,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.182336529653608,
+    "prevalence_driver": 0.958,
+    "prevalence_control": 0.908,
+    "seconds": 2.344
+   },
+   {
+    "seed": 867132818,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.261817704750399,
+    "prevalence_driver": 0.95,
+    "prevalence_control": 0.914,
+    "seconds": 2.349
+   },
+   {
+    "seed": 676490449,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 1.9992334131254947,
+    "prevalence_driver": 0.968,
+    "prevalence_control": 0.908,
+    "seconds": 1.666
+   },
+   {
+    "seed": 2042651192,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.4601265867440785,
+    "prevalence_driver": 0.944,
+    "prevalence_control": 0.922,
+    "seconds": 2.493
+   },
+   {
+    "seed": 1254391544,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.3945037187685614,
+    "prevalence_driver": 0.91,
+    "prevalence_control": 0.726,
+    "seconds": 1.922
+   },
+   {
+    "seed": 928696171,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.3600520206731326,
+    "prevalence_driver": 0.97,
+    "prevalence_control": 0.878,
+    "seconds": 1.936
+   },
+   {
+    "seed": 1762990594,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.4963547773848673,
+    "prevalence_driver": 0.886,
+    "prevalence_control": 0.826,
+    "seconds": 2.322
+   },
+   {
+    "seed": 481747002,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 9.156633685437646,
+    "prevalence_driver": 0.0,
+    "prevalence_control": 0.276,
+    "seconds": 2.349
+   },
+   {
+    "seed": 1463891800,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.036743918280861,
+    "prevalence_driver": 0.946,
+    "prevalence_control": 0.892,
+    "seconds": 1.691
+   },
+   {
+    "seed": 1641290635,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 3.151804156804051,
+    "prevalence_driver": 0.948,
+    "prevalence_control": 0.794,
+    "seconds": 1.664
+   },
+   {
+    "seed": 905347993,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.6324903071592254,
+    "prevalence_driver": 0.946,
+    "prevalence_control": 0.868,
+    "seconds": 1.959
+   },
+   {
+    "seed": 1228092019,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.181902652154468,
+    "prevalence_driver": 0.928,
+    "prevalence_control": 0.844,
+    "seconds": 2.22
+   },
+   {
+    "seed": 1475486019,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.3840905423262053,
+    "prevalence_driver": 0.958,
+    "prevalence_control": 0.874,
+    "seconds": 3.052
+   },
+   {
+    "seed": 1354795389,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.3595413901751012,
+    "prevalence_driver": 0.956,
+    "prevalence_control": 0.736,
+    "seconds": 2.533
+   },
+   {
+    "seed": 651047717,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.594962381813785,
+    "prevalence_driver": 0.93,
+    "prevalence_control": 0.808,
+    "seconds": 1.456
+   },
+   {
+    "seed": 966522209,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.039757297794031,
+    "prevalence_driver": 0.94,
+    "prevalence_control": 0.684,
+    "seconds": 2.161
+   },
+   {
+    "seed": 1689688407,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.444013985063795,
+    "prevalence_driver": 0.902,
+    "prevalence_control": 0.354,
+    "seconds": 1.923
+   },
+   {
+    "seed": 1052271161,
+    "factor": 3.0,
+    "n_extant": 500,
+    "height": 2.5817132449958384,
+    "prevalence_driver": 0.946,
+    "prevalence_control": 0.82,
+    "seconds": 1.49
+   }
+  ],
+  "n500_f5.0": [
+   {
+    "seed": 359953596,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.3866617118250195,
+    "prevalence_driver": 0.988,
+    "prevalence_control": 0.958,
+    "seconds": 2.215
+   },
+   {
+    "seed": 173322755,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.1976982173635575,
+    "prevalence_driver": 0.974,
+    "prevalence_control": 0.942,
+    "seconds": 1.277
+   },
+   {
+    "seed": 1382915259,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.34501700031119,
+    "prevalence_driver": 0.98,
+    "prevalence_control": 0.894,
+    "seconds": 1.536
+   },
+   {
+    "seed": 1229376484,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.4972630456685172,
+    "prevalence_driver": 0.956,
+    "prevalence_control": 0.0,
+    "seconds": 1.318
+   },
+   {
+    "seed": 516411429,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.0941887528472187,
+    "prevalence_driver": 0.986,
+    "prevalence_control": 0.886,
+    "seconds": 1.489
+   },
+   {
+    "seed": 254246123,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 8.96133499945498,
+    "prevalence_driver": 0.0,
+    "prevalence_control": 0.29,
+    "seconds": 2.771
+   },
+   {
+    "seed": 1251577664,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.1199471832632486,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.964,
+    "seconds": 1.418
+   },
+   {
+    "seed": 1086822266,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.93328092363495,
+    "prevalence_driver": 0.936,
+    "prevalence_control": 0.962,
+    "seconds": 1.651
+   },
+   {
+    "seed": 1383945410,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.5828913700327936,
+    "prevalence_driver": 0.978,
+    "prevalence_control": 0.982,
+    "seconds": 1.686
+   },
+   {
+    "seed": 2105959714,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 2.5352507414052923,
+    "prevalence_driver": 0.98,
+    "prevalence_control": 0.86,
+    "seconds": 1.082
+   },
+   {
+    "seed": 1024891611,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.4688635675262611,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.87,
+    "seconds": 1.751
+   },
+   {
+    "seed": 1073068360,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.335624639831349,
+    "prevalence_driver": 0.982,
+    "prevalence_control": 0.906,
+    "seconds": 2.081
+   },
+   {
+    "seed": 1059457171,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.2958905551845565,
+    "prevalence_driver": 0.982,
+    "prevalence_control": 0.958,
+    "seconds": 1.585
+   },
+   {
+    "seed": 1327781054,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.5178949956258452,
+    "prevalence_driver": 0.96,
+    "prevalence_control": 0.504,
+    "seconds": 1.187
+   },
+   {
+    "seed": 2062073177,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.9682629299860597,
+    "prevalence_driver": 0.97,
+    "prevalence_control": 0.736,
+    "seconds": 1.142
+   },
+   {
+    "seed": 1228510184,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.1426384789414812,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.93,
+    "seconds": 1.245
+   },
+   {
+    "seed": 1304516886,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.582798355193029,
+    "prevalence_driver": 0.96,
+    "prevalence_control": 0.898,
+    "seconds": 1.401
+   },
+   {
+    "seed": 2056361159,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.5081263943369385,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.938,
+    "seconds": 1.315
+   },
+   {
+    "seed": 1133767570,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.03130865804352,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.966,
+    "seconds": 1.441
+   },
+   {
+    "seed": 981178642,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.465888658829883,
+    "prevalence_driver": 0.964,
+    "prevalence_control": 0.816,
+    "seconds": 1.022
+   },
+   {
+    "seed": 742168842,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.3638408425335036,
+    "prevalence_driver": 0.974,
+    "prevalence_control": 0.766,
+    "seconds": 1.643
+   },
+   {
+    "seed": 2028533353,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.43577374762359,
+    "prevalence_driver": 0.98,
+    "prevalence_control": 0.982,
+    "seconds": 2.124
+   },
+   {
+    "seed": 293119530,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.0218759815159744,
+    "prevalence_driver": 0.98,
+    "prevalence_control": 0.914,
+    "seconds": 1.323
+   },
+   {
+    "seed": 604157730,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.6161662153482164,
+    "prevalence_driver": 0.984,
+    "prevalence_control": 0.686,
+    "seconds": 1.536
+   },
+   {
+    "seed": 1148210257,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.5511421906789977,
+    "prevalence_driver": 0.95,
+    "prevalence_control": 0.918,
+    "seconds": 1.467
+   },
+   {
+    "seed": 1086031219,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.2008877292816722,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.96,
+    "seconds": 1.477
+   },
+   {
+    "seed": 634363217,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.3361724991396131,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.942,
+    "seconds": 1.598
+   },
+   {
+    "seed": 1058011519,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.4470523517968255,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.832,
+    "seconds": 2.242
+   },
+   {
+    "seed": 1101969961,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.7348587556623272,
+    "prevalence_driver": 0.958,
+    "prevalence_control": 0.916,
+    "seconds": 1.328
+   },
+   {
+    "seed": 686319552,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 2.2619490915316667,
+    "prevalence_driver": 0.978,
+    "prevalence_control": 0.936,
+    "seconds": 1.966
+   },
+   {
+    "seed": 1982184307,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.3901954344916165,
+    "prevalence_driver": 0.962,
+    "prevalence_control": 0.984,
+    "seconds": 1.87
+   },
+   {
+    "seed": 874487673,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.4272873548257536,
+    "prevalence_driver": 0.958,
+    "prevalence_control": 0.728,
+    "seconds": 1.18
+   },
+   {
+    "seed": 938671648,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.515217033462936,
+    "prevalence_driver": 0.962,
+    "prevalence_control": 0.786,
+    "seconds": 1.232
+   },
+   {
+    "seed": 1669477463,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.4605817864554476,
+    "prevalence_driver": 0.974,
+    "prevalence_control": 0.828,
+    "seconds": 1.277
+   },
+   {
+    "seed": 559149078,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.2511248406723252,
+    "prevalence_driver": 0.982,
+    "prevalence_control": 0.844,
+    "seconds": 1.632
+   },
+   {
+    "seed": 1627976559,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.6956125264186217,
+    "prevalence_driver": 0.986,
+    "prevalence_control": 0.0,
+    "seconds": 1.262
+   },
+   {
+    "seed": 1882472440,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.277401781631135,
+    "prevalence_driver": 0.968,
+    "prevalence_control": 0.762,
+    "seconds": 1.819
+   },
+   {
+    "seed": 343611722,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.6271376418675227,
+    "prevalence_driver": 0.972,
+    "prevalence_control": 0.824,
+    "seconds": 1.766
+   },
+   {
+    "seed": 1108519607,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.3808538569994306,
+    "prevalence_driver": 0.97,
+    "prevalence_control": 0.798,
+    "seconds": 1.859
+   },
+   {
+    "seed": 1537466833,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.5296577899822654,
+    "prevalence_driver": 0.97,
+    "prevalence_control": 0.346,
+    "seconds": 1.297
+   },
+   {
+    "seed": 988940917,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.8118094698269291,
+    "prevalence_driver": 0.972,
+    "prevalence_control": 0.74,
+    "seconds": 1.194
+   },
+   {
+    "seed": 923462705,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.4547899153658277,
+    "prevalence_driver": 0.984,
+    "prevalence_control": 0.932,
+    "seconds": 1.802
+   },
+   {
+    "seed": 738755598,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.1012709621644856,
+    "prevalence_driver": 0.972,
+    "prevalence_control": 0.964,
+    "seconds": 1.757
+   },
+   {
+    "seed": 814447312,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.2651184190423788,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.936,
+    "seconds": 1.278
+   },
+   {
+    "seed": 102728731,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.5026671061936763,
+    "prevalence_driver": 0.99,
+    "prevalence_control": 0.806,
+    "seconds": 1.002
+   },
+   {
+    "seed": 765986500,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.4553804383728604,
+    "prevalence_driver": 0.962,
+    "prevalence_control": 0.832,
+    "seconds": 1.959
+   },
+   {
+    "seed": 778565025,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.4665062030401217,
+    "prevalence_driver": 0.97,
+    "prevalence_control": 0.822,
+    "seconds": 2.561
+   },
+   {
+    "seed": 1506670368,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.2135323853976219,
+    "prevalence_driver": 0.97,
+    "prevalence_control": 0.806,
+    "seconds": 1.194
+   },
+   {
+    "seed": 881264285,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.828241950240544,
+    "prevalence_driver": 0.982,
+    "prevalence_control": 0.942,
+    "seconds": 1.188
+   },
+   {
+    "seed": 881790413,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.1120003581750013,
+    "prevalence_driver": 0.956,
+    "prevalence_control": 0.906,
+    "seconds": 1.423
+   },
+   {
+    "seed": 1475576896,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.3965208237331659,
+    "prevalence_driver": 0.986,
+    "prevalence_control": 0.93,
+    "seconds": 1.378
+   },
+   {
+    "seed": 418996215,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.278625614314327,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.934,
+    "seconds": 1.699
+   },
+   {
+    "seed": 1937368344,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.2387528967554118,
+    "prevalence_driver": 0.954,
+    "prevalence_control": 0.956,
+    "seconds": 1.208
+   },
+   {
+    "seed": 1933153634,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.9889593373466141,
+    "prevalence_driver": 0.964,
+    "prevalence_control": 0.936,
+    "seconds": 0.998
+   },
+   {
+    "seed": 123946801,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.521911676946998,
+    "prevalence_driver": 0.968,
+    "prevalence_control": 0.906,
+    "seconds": 1.107
+   },
+   {
+    "seed": 624055090,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.2929992069491025,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.652,
+    "seconds": 1.25
+   },
+   {
+    "seed": 553658604,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.0306020776866196,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.964,
+    "seconds": 1.349
+   },
+   {
+    "seed": 1525306851,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.8560533839028455,
+    "prevalence_driver": 0.96,
+    "prevalence_control": 0.912,
+    "seconds": 1.305
+   },
+   {
+    "seed": 639346669,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.4164919011858275,
+    "prevalence_driver": 0.974,
+    "prevalence_control": 0.964,
+    "seconds": 1.183
+   },
+   {
+    "seed": 1907011187,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 2.545112336649699,
+    "prevalence_driver": 0.978,
+    "prevalence_control": 0.916,
+    "seconds": 1.072
+   },
+   {
+    "seed": 1767466436,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.663449032671558,
+    "prevalence_driver": 0.974,
+    "prevalence_control": 0.06,
+    "seconds": 1.039
+   },
+   {
+    "seed": 1176645935,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.7236856332567727,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.902,
+    "seconds": 1.541
+   },
+   {
+    "seed": 735475445,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 2.0510871895432112,
+    "prevalence_driver": 0.974,
+    "prevalence_control": 0.886,
+    "seconds": 1.37
+   },
+   {
+    "seed": 417100595,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.0958459929104565,
+    "prevalence_driver": 0.982,
+    "prevalence_control": 0.962,
+    "seconds": 1.314
+   },
+   {
+    "seed": 91739328,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.448844203234683,
+    "prevalence_driver": 0.982,
+    "prevalence_control": 0.904,
+    "seconds": 1.206
+   },
+   {
+    "seed": 217331561,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.3113829812707922,
+    "prevalence_driver": 0.952,
+    "prevalence_control": 0.938,
+    "seconds": 1.291
+   },
+   {
+    "seed": 1074841655,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.3661151320631917,
+    "prevalence_driver": 0.96,
+    "prevalence_control": 0.94,
+    "seconds": 1.82
+   },
+   {
+    "seed": 1021328403,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.229594586960505,
+    "prevalence_driver": 0.974,
+    "prevalence_control": 0.958,
+    "seconds": 1.371
+   },
+   {
+    "seed": 1962566488,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.385724453630705,
+    "prevalence_driver": 0.972,
+    "prevalence_control": 0.848,
+    "seconds": 1.316
+   },
+   {
+    "seed": 1705269125,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 2.1476198408258145,
+    "prevalence_driver": 0.968,
+    "prevalence_control": 0.92,
+    "seconds": 1.122
+   },
+   {
+    "seed": 976754694,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 11.483698292386116,
+    "prevalence_driver": 0.0,
+    "prevalence_control": 0.26,
+    "seconds": 2.021
+   },
+   {
+    "seed": 318513231,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.094349744621663,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.788,
+    "seconds": 1.441
+   },
+   {
+    "seed": 382722628,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.5751735098160131,
+    "prevalence_driver": 0.968,
+    "prevalence_control": 0.932,
+    "seconds": 1.317
+   },
+   {
+    "seed": 233491684,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.1793778964947998,
+    "prevalence_driver": 0.97,
+    "prevalence_control": 0.964,
+    "seconds": 1.577
+   },
+   {
+    "seed": 1226142170,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 10.794992440045597,
+    "prevalence_driver": 0.0,
+    "prevalence_control": 0.558,
+    "seconds": 2.199
+   },
+   {
+    "seed": 704884425,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.055786678647241,
+    "prevalence_driver": 0.984,
+    "prevalence_control": 0.956,
+    "seconds": 1.55
+   },
+   {
+    "seed": 1763828821,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 2.443196300062667,
+    "prevalence_driver": 0.98,
+    "prevalence_control": 0.0,
+    "seconds": 1.132
+   },
+   {
+    "seed": 684518883,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.130883792941268,
+    "prevalence_driver": 0.978,
+    "prevalence_control": 0.936,
+    "seconds": 1.447
+   },
+   {
+    "seed": 1683298199,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.4283523419244717,
+    "prevalence_driver": 0.96,
+    "prevalence_control": 0.74,
+    "seconds": 1.709
+   },
+   {
+    "seed": 1619562812,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.3762027967551758,
+    "prevalence_driver": 0.97,
+    "prevalence_control": 0.846,
+    "seconds": 1.005
+   },
+   {
+    "seed": 568980746,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.743863836185626,
+    "prevalence_driver": 0.956,
+    "prevalence_control": 0.866,
+    "seconds": 1.32
+   },
+   {
+    "seed": 987492007,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.2104723821225722,
+    "prevalence_driver": 0.974,
+    "prevalence_control": 0.63,
+    "seconds": 1.129
+   },
+   {
+    "seed": 460100960,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 0.9904327781297249,
+    "prevalence_driver": 0.97,
+    "prevalence_control": 0.978,
+    "seconds": 1.28
+   },
+   {
+    "seed": 867132818,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.2280228649883183,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.85,
+    "seconds": 1.359
+   },
+   {
+    "seed": 676490449,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.2434394566705451,
+    "prevalence_driver": 0.97,
+    "prevalence_control": 0.94,
+    "seconds": 1.194
+   },
+   {
+    "seed": 2042651192,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.9457572651593202,
+    "prevalence_driver": 0.968,
+    "prevalence_control": 0.864,
+    "seconds": 1.362
+   },
+   {
+    "seed": 1254391544,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.1664808953253614,
+    "prevalence_driver": 0.968,
+    "prevalence_control": 0.9,
+    "seconds": 1.756
+   },
+   {
+    "seed": 928696171,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.3762697139227524,
+    "prevalence_driver": 0.992,
+    "prevalence_control": 0.806,
+    "seconds": 1.319
+   },
+   {
+    "seed": 1762990594,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.582636883349323,
+    "prevalence_driver": 0.964,
+    "prevalence_control": 0.64,
+    "seconds": 1.675
+   },
+   {
+    "seed": 481747002,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.3973774855735106,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.872,
+    "seconds": 1.029
+   },
+   {
+    "seed": 1463891800,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.471839544349605,
+    "prevalence_driver": 0.954,
+    "prevalence_control": 0.586,
+    "seconds": 1.291
+   },
+   {
+    "seed": 1641290635,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.6724268010463959,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.918,
+    "seconds": 1.3
+   },
+   {
+    "seed": 905347993,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.7318458203928724,
+    "prevalence_driver": 0.962,
+    "prevalence_control": 0.328,
+    "seconds": 1.618
+   },
+   {
+    "seed": 1228092019,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.3155326780230068,
+    "prevalence_driver": 0.97,
+    "prevalence_control": 0.948,
+    "seconds": 1.858
+   },
+   {
+    "seed": 1475486019,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.4225393618437079,
+    "prevalence_driver": 0.972,
+    "prevalence_control": 0.75,
+    "seconds": 1.731
+   },
+   {
+    "seed": 1354795389,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.2553381013005516,
+    "prevalence_driver": 0.978,
+    "prevalence_control": 0.924,
+    "seconds": 1.334
+   },
+   {
+    "seed": 651047717,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.3714991001571575,
+    "prevalence_driver": 0.956,
+    "prevalence_control": 0.844,
+    "seconds": 1.001
+   },
+   {
+    "seed": 966522209,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.0102590488677083,
+    "prevalence_driver": 0.968,
+    "prevalence_control": 0.894,
+    "seconds": 1.174
+   },
+   {
+    "seed": 1689688407,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.2885039922013533,
+    "prevalence_driver": 0.972,
+    "prevalence_control": 0.918,
+    "seconds": 1.41
+   },
+   {
+    "seed": 1052271161,
+    "factor": 5.0,
+    "n_extant": 500,
+    "height": 1.1643101087357794,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.888,
+    "seconds": 1.487
+   }
+  ],
+  "n1000_f3.0": [
+   {
+    "seed": 359953596,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.5021218128705898,
+    "prevalence_driver": 0.91,
+    "prevalence_control": 0.894,
+    "seconds": 6.692
+   },
+   {
+    "seed": 173322755,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.353127004492415,
+    "prevalence_driver": 0.95,
+    "prevalence_control": 0.591,
+    "seconds": 7.735
+   },
+   {
+    "seed": 1382915259,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.544827359411402,
+    "prevalence_driver": 0.921,
+    "prevalence_control": 0.669,
+    "seconds": 5.954
+   },
+   {
+    "seed": 1229376484,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.9755639742406363,
+    "prevalence_driver": 0.942,
+    "prevalence_control": 0.83,
+    "seconds": 5.769
+   },
+   {
+    "seed": 516411429,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.4033712969066725,
+    "prevalence_driver": 0.937,
+    "prevalence_control": 0.841,
+    "seconds": 7.729
+   },
+   {
+    "seed": 254246123,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.9188634710755808,
+    "prevalence_driver": 0.936,
+    "prevalence_control": 0.608,
+    "seconds": 8.62
+   },
+   {
+    "seed": 1251577664,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.793147037182643,
+    "prevalence_driver": 0.96,
+    "prevalence_control": 0.758,
+    "seconds": 6.063
+   },
+   {
+    "seed": 1086822266,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.9273328799904696,
+    "prevalence_driver": 0.939,
+    "prevalence_control": 0.564,
+    "seconds": 5.055
+   },
+   {
+    "seed": 1383945410,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.8308573951092315,
+    "prevalence_driver": 0.93,
+    "prevalence_control": 0.851,
+    "seconds": 7.889
+   },
+   {
+    "seed": 2105959714,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.265333547881692,
+    "prevalence_driver": 0.927,
+    "prevalence_control": 0.708,
+    "seconds": 5.902
+   },
+   {
+    "seed": 1024891611,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.101176911513898,
+    "prevalence_driver": 0.93,
+    "prevalence_control": 0.883,
+    "seconds": 7.522
+   },
+   {
+    "seed": 1073068360,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.2499084847621793,
+    "prevalence_driver": 0.908,
+    "prevalence_control": 0.782,
+    "seconds": 6.988
+   },
+   {
+    "seed": 1059457171,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.7561744311709857,
+    "prevalence_driver": 0.947,
+    "prevalence_control": 0.617,
+    "seconds": 6.549
+   },
+   {
+    "seed": 1327781054,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.6191654882516455,
+    "prevalence_driver": 0.92,
+    "prevalence_control": 0.513,
+    "seconds": 6.641
+   },
+   {
+    "seed": 2062073177,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.662602360765166,
+    "prevalence_driver": 0.907,
+    "prevalence_control": 0.781,
+    "seconds": 6.774
+   },
+   {
+    "seed": 1228510184,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.625332319037272,
+    "prevalence_driver": 0.935,
+    "prevalence_control": 0.848,
+    "seconds": 7.098
+   },
+   {
+    "seed": 1304516886,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.7176163210656434,
+    "prevalence_driver": 0.933,
+    "prevalence_control": 0.836,
+    "seconds": 5.348
+   },
+   {
+    "seed": 2056361159,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.2635332188972637,
+    "prevalence_driver": 0.943,
+    "prevalence_control": 0.7,
+    "seconds": 5.065
+   },
+   {
+    "seed": 1133767570,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.512324197636276,
+    "prevalence_driver": 0.94,
+    "prevalence_control": 0.826,
+    "seconds": 8.09
+   },
+   {
+    "seed": 981178642,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.4771224661164126,
+    "prevalence_driver": 0.945,
+    "prevalence_control": 0.821,
+    "seconds": 6.148
+   },
+   {
+    "seed": 742168842,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.3773645550413285,
+    "prevalence_driver": 0.946,
+    "prevalence_control": 0.923,
+    "seconds": 8.923
+   },
+   {
+    "seed": 2028533353,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.673516362968527,
+    "prevalence_driver": 0.942,
+    "prevalence_control": 0.869,
+    "seconds": 8.222
+   },
+   {
+    "seed": 293119530,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 1.9394723333936286,
+    "prevalence_driver": 0.954,
+    "prevalence_control": 0.831,
+    "seconds": 7.446
+   },
+   {
+    "seed": 604157730,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.963258960585215,
+    "prevalence_driver": 0.95,
+    "prevalence_control": 0.549,
+    "seconds": 6.906
+   },
+   {
+    "seed": 1148210257,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.3215143209317057,
+    "prevalence_driver": 0.943,
+    "prevalence_control": 0.789,
+    "seconds": 7.227
+   },
+   {
+    "seed": 1086031219,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.3261005307892066,
+    "prevalence_driver": 0.959,
+    "prevalence_control": 0.786,
+    "seconds": 6.318
+   },
+   {
+    "seed": 634363217,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.3534423142199112,
+    "prevalence_driver": 0.956,
+    "prevalence_control": 0.894,
+    "seconds": 7.811
+   },
+   {
+    "seed": 1058011519,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.1793531555522963,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.709,
+    "seconds": 5.764
+   },
+   {
+    "seed": 1101969961,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.9929661013530366,
+    "prevalence_driver": 0.944,
+    "prevalence_control": 0.642,
+    "seconds": 4.978
+   },
+   {
+    "seed": 686319552,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.6570087387412613,
+    "prevalence_driver": 0.954,
+    "prevalence_control": 0.756,
+    "seconds": 8.611
+   },
+   {
+    "seed": 1982184307,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.6050989593117446,
+    "prevalence_driver": 0.946,
+    "prevalence_control": 0.843,
+    "seconds": 7.755
+   },
+   {
+    "seed": 874487673,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.229710197850018,
+    "prevalence_driver": 0.942,
+    "prevalence_control": 0.777,
+    "seconds": 8.392
+   },
+   {
+    "seed": 938671648,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.731688654750045,
+    "prevalence_driver": 0.938,
+    "prevalence_control": 0.748,
+    "seconds": 9.19
+   },
+   {
+    "seed": 1669477463,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.416656994677901,
+    "prevalence_driver": 0.958,
+    "prevalence_control": 0.825,
+    "seconds": 7.781
+   },
+   {
+    "seed": 559149078,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.1316394966284293,
+    "prevalence_driver": 0.937,
+    "prevalence_control": 0.833,
+    "seconds": 6.65
+   },
+   {
+    "seed": 1627976559,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.266438020630224,
+    "prevalence_driver": 0.935,
+    "prevalence_control": 0.0,
+    "seconds": 7.177
+   },
+   {
+    "seed": 1882472440,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.3173970409103966,
+    "prevalence_driver": 0.928,
+    "prevalence_control": 0.854,
+    "seconds": 7.968
+   },
+   {
+    "seed": 343611722,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.9879771238984305,
+    "prevalence_driver": 0.939,
+    "prevalence_control": 0.864,
+    "seconds": 8.889
+   },
+   {
+    "seed": 1108519607,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.485692397162667,
+    "prevalence_driver": 0.939,
+    "prevalence_control": 0.755,
+    "seconds": 6.813
+   },
+   {
+    "seed": 1537466833,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.946333126890068,
+    "prevalence_driver": 0.946,
+    "prevalence_control": 0.483,
+    "seconds": 6.173
+   },
+   {
+    "seed": 988940917,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.586635408664914,
+    "prevalence_driver": 0.922,
+    "prevalence_control": 0.808,
+    "seconds": 7.292
+   },
+   {
+    "seed": 923462705,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.6058631181915928,
+    "prevalence_driver": 0.929,
+    "prevalence_control": 0.809,
+    "seconds": 9.385
+   },
+   {
+    "seed": 738755598,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.1410404177531697,
+    "prevalence_driver": 0.939,
+    "prevalence_control": 0.86,
+    "seconds": 8.088
+   },
+   {
+    "seed": 814447312,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 4.147845910162538,
+    "prevalence_driver": 0.926,
+    "prevalence_control": 0.87,
+    "seconds": 6.119
+   },
+   {
+    "seed": 102728731,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.812109800939149,
+    "prevalence_driver": 0.943,
+    "prevalence_control": 0.801,
+    "seconds": 5.866
+   },
+   {
+    "seed": 765986500,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.644112871024066,
+    "prevalence_driver": 0.947,
+    "prevalence_control": 0.9,
+    "seconds": 6.153
+   },
+   {
+    "seed": 778565025,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.6794298742824902,
+    "prevalence_driver": 0.952,
+    "prevalence_control": 0.754,
+    "seconds": 6.383
+   },
+   {
+    "seed": 1506670368,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.2904949006551387,
+    "prevalence_driver": 0.929,
+    "prevalence_control": 0.894,
+    "seconds": 6.457
+   },
+   {
+    "seed": 881264285,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.937172266465497,
+    "prevalence_driver": 0.93,
+    "prevalence_control": 0.749,
+    "seconds": 5.957
+   },
+   {
+    "seed": 881790413,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.1180306628039602,
+    "prevalence_driver": 0.949,
+    "prevalence_control": 0.81,
+    "seconds": 7.907
+   },
+   {
+    "seed": 1475576896,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.4155254433176134,
+    "prevalence_driver": 0.952,
+    "prevalence_control": 0.486,
+    "seconds": 6.778
+   },
+   {
+    "seed": 418996215,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.2033342297364946,
+    "prevalence_driver": 0.945,
+    "prevalence_control": 0.836,
+    "seconds": 8.329
+   },
+   {
+    "seed": 1937368344,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.8633890862127496,
+    "prevalence_driver": 0.949,
+    "prevalence_control": 0.857,
+    "seconds": 7.163
+   },
+   {
+    "seed": 1933153634,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.6927375132200417,
+    "prevalence_driver": 0.956,
+    "prevalence_control": 0.706,
+    "seconds": 9.152
+   },
+   {
+    "seed": 123946801,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.8285360102653176,
+    "prevalence_driver": 0.946,
+    "prevalence_control": 0.753,
+    "seconds": 9.867
+   },
+   {
+    "seed": 624055090,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.463775859915542,
+    "prevalence_driver": 0.951,
+    "prevalence_control": 0.788,
+    "seconds": 7.185
+   },
+   {
+    "seed": 553658604,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.2376386304856584,
+    "prevalence_driver": 0.944,
+    "prevalence_control": 0.876,
+    "seconds": 6.834
+   },
+   {
+    "seed": 1525306851,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.3866295271206175,
+    "prevalence_driver": 0.924,
+    "prevalence_control": 0.884,
+    "seconds": 9.332
+   },
+   {
+    "seed": 639346669,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.5320133398211753,
+    "prevalence_driver": 0.944,
+    "prevalence_control": 0.605,
+    "seconds": 8.118
+   },
+   {
+    "seed": 1907011187,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.609791221923828,
+    "prevalence_driver": 0.962,
+    "prevalence_control": 0.673,
+    "seconds": 9.878
+   },
+   {
+    "seed": 1767466436,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.1924156391336704,
+    "prevalence_driver": 0.956,
+    "prevalence_control": 0.856,
+    "seconds": 9.978
+   },
+   {
+    "seed": 1176645935,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 4.016931360508252,
+    "prevalence_driver": 0.905,
+    "prevalence_control": 0.907,
+    "seconds": 7.514
+   },
+   {
+    "seed": 735475445,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.2333559466763595,
+    "prevalence_driver": 0.939,
+    "prevalence_control": 0.752,
+    "seconds": 9.228
+   },
+   {
+    "seed": 417100595,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.69098938522754,
+    "prevalence_driver": 0.939,
+    "prevalence_control": 0.87,
+    "seconds": 8.213
+   },
+   {
+    "seed": 91739328,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.8260671247767326,
+    "prevalence_driver": 0.923,
+    "prevalence_control": 0.834,
+    "seconds": 8.641
+   },
+   {
+    "seed": 217331561,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.287945887959104,
+    "prevalence_driver": 0.924,
+    "prevalence_control": 0.892,
+    "seconds": 8.06
+   },
+   {
+    "seed": 1074841655,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.770992202729905,
+    "prevalence_driver": 0.927,
+    "prevalence_control": 0.71,
+    "seconds": 9.529
+   },
+   {
+    "seed": 1021328403,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.1821703805551076,
+    "prevalence_driver": 0.931,
+    "prevalence_control": 0.843,
+    "seconds": 8.596
+   },
+   {
+    "seed": 1962566488,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.3647580720857446,
+    "prevalence_driver": 0.921,
+    "prevalence_control": 0.88,
+    "seconds": 9.097
+   },
+   {
+    "seed": 1705269125,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.332136935617772,
+    "prevalence_driver": 0.947,
+    "prevalence_control": 0.737,
+    "seconds": 8.549
+   },
+   {
+    "seed": 976754694,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.6555674052586706,
+    "prevalence_driver": 0.958,
+    "prevalence_control": 0.751,
+    "seconds": 8.855
+   },
+   {
+    "seed": 318513231,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 4.415635964650068,
+    "prevalence_driver": 0.924,
+    "prevalence_control": 0.888,
+    "seconds": 6.562
+   },
+   {
+    "seed": 382722628,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.2752832640046785,
+    "prevalence_driver": 0.947,
+    "prevalence_control": 0.928,
+    "seconds": 8.42
+   },
+   {
+    "seed": 233491684,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.608209224911121,
+    "prevalence_driver": 0.93,
+    "prevalence_control": 0.714,
+    "seconds": 8.448
+   },
+   {
+    "seed": 1226142170,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 11.726273852686429,
+    "prevalence_driver": 0.0,
+    "prevalence_control": 0.494,
+    "seconds": 6.932
+   },
+   {
+    "seed": 704884425,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.4118822919384284,
+    "prevalence_driver": 0.94,
+    "prevalence_control": 0.828,
+    "seconds": 8.228
+   },
+   {
+    "seed": 1763828821,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.862367218344593,
+    "prevalence_driver": 0.93,
+    "prevalence_control": 0.783,
+    "seconds": 6.551
+   },
+   {
+    "seed": 684518883,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.937529233400918,
+    "prevalence_driver": 0.958,
+    "prevalence_control": 0.096,
+    "seconds": 6.154
+   },
+   {
+    "seed": 1683298199,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.173008060640353,
+    "prevalence_driver": 0.941,
+    "prevalence_control": 0.922,
+    "seconds": 9.67
+   },
+   {
+    "seed": 1619562812,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.1573997417863895,
+    "prevalence_driver": 0.941,
+    "prevalence_control": 0.898,
+    "seconds": 6.582
+   },
+   {
+    "seed": 568980746,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.312499854914842,
+    "prevalence_driver": 0.945,
+    "prevalence_control": 0.522,
+    "seconds": 6.62
+   },
+   {
+    "seed": 987492007,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.9881195837323884,
+    "prevalence_driver": 0.945,
+    "prevalence_control": 0.699,
+    "seconds": 9.682
+   },
+   {
+    "seed": 460100960,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.4403315472253926,
+    "prevalence_driver": 0.954,
+    "prevalence_control": 0.903,
+    "seconds": 6.998
+   },
+   {
+    "seed": 867132818,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.5301504435758324,
+    "prevalence_driver": 0.95,
+    "prevalence_control": 0.877,
+    "seconds": 8.687
+   },
+   {
+    "seed": 676490449,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.2808618994052967,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.876,
+    "seconds": 6.434
+   },
+   {
+    "seed": 2042651192,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.7295886412593973,
+    "prevalence_driver": 0.947,
+    "prevalence_control": 0.904,
+    "seconds": 8.158
+   },
+   {
+    "seed": 1254391544,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.647718730226687,
+    "prevalence_driver": 0.926,
+    "prevalence_control": 0.715,
+    "seconds": 6.829
+   },
+   {
+    "seed": 928696171,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.6130994726057324,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.884,
+    "seconds": 7.562
+   },
+   {
+    "seed": 1762990594,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.77753340795263,
+    "prevalence_driver": 0.915,
+    "prevalence_control": 0.799,
+    "seconds": 9.285
+   },
+   {
+    "seed": 481747002,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 10.077883290557729,
+    "prevalence_driver": 0.0,
+    "prevalence_control": 0.247,
+    "seconds": 9.058
+   },
+   {
+    "seed": 1463891800,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.319366119387963,
+    "prevalence_driver": 0.93,
+    "prevalence_control": 0.86,
+    "seconds": 7.702
+   },
+   {
+    "seed": 1641290635,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 3.4034004721403806,
+    "prevalence_driver": 0.95,
+    "prevalence_control": 0.794,
+    "seconds": 6.648
+   },
+   {
+    "seed": 905347993,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.8937700918536358,
+    "prevalence_driver": 0.948,
+    "prevalence_control": 0.832,
+    "seconds": 7.205
+   },
+   {
+    "seed": 1228092019,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.4507626151286046,
+    "prevalence_driver": 0.935,
+    "prevalence_control": 0.823,
+    "seconds": 8.778
+   },
+   {
+    "seed": 1475486019,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.618700662000873,
+    "prevalence_driver": 0.951,
+    "prevalence_control": 0.847,
+    "seconds": 7.338
+   },
+   {
+    "seed": 1354795389,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.590920275709579,
+    "prevalence_driver": 0.95,
+    "prevalence_control": 0.74,
+    "seconds": 6.725
+   },
+   {
+    "seed": 651047717,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.8654968096197075,
+    "prevalence_driver": 0.94,
+    "prevalence_control": 0.778,
+    "seconds": 5.166
+   },
+   {
+    "seed": 966522209,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.305928338837501,
+    "prevalence_driver": 0.929,
+    "prevalence_control": 0.681,
+    "seconds": 7.869
+   },
+   {
+    "seed": 1689688407,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.7160545832483014,
+    "prevalence_driver": 0.919,
+    "prevalence_control": 0.339,
+    "seconds": 6.85
+   },
+   {
+    "seed": 1052271161,
+    "factor": 3.0,
+    "n_extant": 1000,
+    "height": 2.830937657540927,
+    "prevalence_driver": 0.94,
+    "prevalence_control": 0.784,
+    "seconds": 5.153
+   }
+  ],
+  "n1000_f5.0": [
+   {
+    "seed": 359953596,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5376432151713313,
+    "prevalence_driver": 0.981,
+    "prevalence_control": 0.95,
+    "seconds": 5.682
+   },
+   {
+    "seed": 173322755,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.346571039548978,
+    "prevalence_driver": 0.961,
+    "prevalence_control": 0.934,
+    "seconds": 4.431
+   },
+   {
+    "seed": 1382915259,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5035344170475433,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.89,
+    "seconds": 5.071
+   },
+   {
+    "seed": 1229376484,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.6487153727913313,
+    "prevalence_driver": 0.969,
+    "prevalence_control": 0.0,
+    "seconds": 4.881
+   },
+   {
+    "seed": 516411429,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.2351799588243375,
+    "prevalence_driver": 0.98,
+    "prevalence_control": 0.881,
+    "seconds": 4.805
+   },
+   {
+    "seed": 254246123,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 10.011968371387587,
+    "prevalence_driver": 0.0,
+    "prevalence_control": 0.253,
+    "seconds": 9.969
+   },
+   {
+    "seed": 1251577664,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.2668289013036742,
+    "prevalence_driver": 0.979,
+    "prevalence_control": 0.953,
+    "seconds": 5.803
+   },
+   {
+    "seed": 1086822266,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 2.083159785290278,
+    "prevalence_driver": 0.95,
+    "prevalence_control": 0.941,
+    "seconds": 6.417
+   },
+   {
+    "seed": 1383945410,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.7313297854322476,
+    "prevalence_driver": 0.972,
+    "prevalence_control": 0.953,
+    "seconds": 7.257
+   },
+   {
+    "seed": 2105959714,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 2.6784155449062905,
+    "prevalence_driver": 0.972,
+    "prevalence_control": 0.846,
+    "seconds": 4.059
+   },
+   {
+    "seed": 1024891611,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.6296234505477434,
+    "prevalence_driver": 0.98,
+    "prevalence_control": 0.865,
+    "seconds": 6.351
+   },
+   {
+    "seed": 1073068360,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.4867329604220023,
+    "prevalence_driver": 0.983,
+    "prevalence_control": 0.901,
+    "seconds": 6.166
+   },
+   {
+    "seed": 1059457171,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.458899056554008,
+    "prevalence_driver": 0.974,
+    "prevalence_control": 0.928,
+    "seconds": 16.585
+   },
+   {
+    "seed": 1327781054,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.666126507444952,
+    "prevalence_driver": 0.965,
+    "prevalence_control": 0.468,
+    "seconds": 13.343
+   },
+   {
+    "seed": 2062073177,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 2.1192179432764067,
+    "prevalence_driver": 0.967,
+    "prevalence_control": 0.695,
+    "seconds": 11.751
+   },
+   {
+    "seed": 1228510184,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.3066917215557605,
+    "prevalence_driver": 0.967,
+    "prevalence_control": 0.916,
+    "seconds": 15.716
+   },
+   {
+    "seed": 1304516886,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.7294163369138347,
+    "prevalence_driver": 0.965,
+    "prevalence_control": 0.877,
+    "seconds": 13.977
+   },
+   {
+    "seed": 2056361159,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.673702571669275,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.914,
+    "seconds": 14.852
+   },
+   {
+    "seed": 1133767570,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.1905947580407235,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.955,
+    "seconds": 16.064
+   },
+   {
+    "seed": 981178642,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.6055669770704806,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.778,
+    "seconds": 10.079
+   },
+   {
+    "seed": 742168842,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5060592345227095,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.76,
+    "seconds": 16.357
+   },
+   {
+    "seed": 2028533353,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5862570883217701,
+    "prevalence_driver": 0.977,
+    "prevalence_control": 0.962,
+    "seconds": 17.296
+   },
+   {
+    "seed": 293119530,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.163064251492888,
+    "prevalence_driver": 0.975,
+    "prevalence_control": 0.891,
+    "seconds": 14.753
+   },
+   {
+    "seed": 604157730,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.7620999620947417,
+    "prevalence_driver": 0.984,
+    "prevalence_control": 0.623,
+    "seconds": 13.646
+   },
+   {
+    "seed": 1148210257,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.701981294010053,
+    "prevalence_driver": 0.961,
+    "prevalence_control": 0.909,
+    "seconds": 15.672
+   },
+   {
+    "seed": 1086031219,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.3483645436059781,
+    "prevalence_driver": 0.97,
+    "prevalence_control": 0.933,
+    "seconds": 16.57
+   },
+   {
+    "seed": 634363217,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.496651225345308,
+    "prevalence_driver": 0.975,
+    "prevalence_control": 0.907,
+    "seconds": 18.407
+   },
+   {
+    "seed": 1058011519,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5925796638790046,
+    "prevalence_driver": 0.977,
+    "prevalence_control": 0.826,
+    "seconds": 18.63
+   },
+   {
+    "seed": 1101969961,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.8898703643420416,
+    "prevalence_driver": 0.959,
+    "prevalence_control": 0.895,
+    "seconds": 8.976
+   },
+   {
+    "seed": 686319552,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 2.422476654737113,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.911,
+    "seconds": 16.397
+   },
+   {
+    "seed": 1982184307,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.548631439292121,
+    "prevalence_driver": 0.967,
+    "prevalence_control": 0.968,
+    "seconds": 14.282
+   },
+   {
+    "seed": 874487673,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5863740110249769,
+    "prevalence_driver": 0.961,
+    "prevalence_control": 0.725,
+    "seconds": 12.361
+   },
+   {
+    "seed": 938671648,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.6678447997158055,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.782,
+    "seconds": 13.409
+   },
+   {
+    "seed": 1669477463,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.6101813164653307,
+    "prevalence_driver": 0.975,
+    "prevalence_control": 0.826,
+    "seconds": 14.83
+   },
+   {
+    "seed": 559149078,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.3960333621065677,
+    "prevalence_driver": 0.977,
+    "prevalence_control": 0.822,
+    "seconds": 20.852
+   },
+   {
+    "seed": 1627976559,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.8316209228297344,
+    "prevalence_driver": 0.977,
+    "prevalence_control": 0.0,
+    "seconds": 13.536
+   },
+   {
+    "seed": 1882472440,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.4303488110883809,
+    "prevalence_driver": 0.972,
+    "prevalence_control": 0.733,
+    "seconds": 16.254
+   },
+   {
+    "seed": 343611722,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.7708837634512846,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.791,
+    "seconds": 16.138
+   },
+   {
+    "seed": 1108519607,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5285632616420213,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.797,
+    "seconds": 16.884
+   },
+   {
+    "seed": 1537466833,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.6831311367970807,
+    "prevalence_driver": 0.969,
+    "prevalence_control": 0.335,
+    "seconds": 13.009
+   },
+   {
+    "seed": 988940917,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.9661154786266504,
+    "prevalence_driver": 0.973,
+    "prevalence_control": 0.704,
+    "seconds": 11.971
+   },
+   {
+    "seed": 923462705,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5976527060496544,
+    "prevalence_driver": 0.981,
+    "prevalence_control": 0.917,
+    "seconds": 17.067
+   },
+   {
+    "seed": 738755598,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.2572930277667367,
+    "prevalence_driver": 0.971,
+    "prevalence_control": 0.962,
+    "seconds": 14.373
+   },
+   {
+    "seed": 814447312,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.4269765961108305,
+    "prevalence_driver": 0.967,
+    "prevalence_control": 0.918,
+    "seconds": 7.684
+   },
+   {
+    "seed": 102728731,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.646773100735187,
+    "prevalence_driver": 0.987,
+    "prevalence_control": 0.809,
+    "seconds": 4.83
+   },
+   {
+    "seed": 765986500,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.6017701455231463,
+    "prevalence_driver": 0.963,
+    "prevalence_control": 0.834,
+    "seconds": 10.829
+   },
+   {
+    "seed": 778565025,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.6204774658406087,
+    "prevalence_driver": 0.971,
+    "prevalence_control": 0.805,
+    "seconds": 19.735
+   },
+   {
+    "seed": 1506670368,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.373291901995253,
+    "prevalence_driver": 0.967,
+    "prevalence_control": 0.79,
+    "seconds": 13.113
+   },
+   {
+    "seed": 881264285,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.97676078490529,
+    "prevalence_driver": 0.973,
+    "prevalence_control": 0.913,
+    "seconds": 12.921
+   },
+   {
+    "seed": 881790413,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.2698881452696622,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.903,
+    "seconds": 16.307
+   },
+   {
+    "seed": 1475576896,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5472375239165226,
+    "prevalence_driver": 0.977,
+    "prevalence_control": 0.917,
+    "seconds": 16.191
+   },
+   {
+    "seed": 418996215,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.4261129505196328,
+    "prevalence_driver": 0.969,
+    "prevalence_control": 0.918,
+    "seconds": 17.486
+   },
+   {
+    "seed": 1937368344,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.3857469617430442,
+    "prevalence_driver": 0.962,
+    "prevalence_control": 0.937,
+    "seconds": 13.197
+   },
+   {
+    "seed": 1933153634,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 2.135397073349053,
+    "prevalence_driver": 0.967,
+    "prevalence_control": 0.918,
+    "seconds": 10.209
+   },
+   {
+    "seed": 123946801,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.6747750185684538,
+    "prevalence_driver": 0.969,
+    "prevalence_control": 0.911,
+    "seconds": 13.208
+   },
+   {
+    "seed": 624055090,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.4401631546200717,
+    "prevalence_driver": 0.973,
+    "prevalence_control": 0.631,
+    "seconds": 15.927
+   },
+   {
+    "seed": 553658604,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.1729750502378458,
+    "prevalence_driver": 0.965,
+    "prevalence_control": 0.947,
+    "seconds": 19.577
+   },
+   {
+    "seed": 1525306851,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 2.0094916640874323,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.902,
+    "seconds": 16.695
+   },
+   {
+    "seed": 639346669,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5569618762647457,
+    "prevalence_driver": 0.977,
+    "prevalence_control": 0.941,
+    "seconds": 13.86
+   },
+   {
+    "seed": 1907011187,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 2.6869721173136516,
+    "prevalence_driver": 0.976,
+    "prevalence_control": 0.905,
+    "seconds": 12.897
+   },
+   {
+    "seed": 1767466436,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.825700335230115,
+    "prevalence_driver": 0.965,
+    "prevalence_control": 0.055,
+    "seconds": 11.984
+   },
+   {
+    "seed": 1176645935,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.8690702369809664,
+    "prevalence_driver": 0.974,
+    "prevalence_control": 0.89,
+    "seconds": 13.113
+   },
+   {
+    "seed": 735475445,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 2.2010547547945594,
+    "prevalence_driver": 0.972,
+    "prevalence_control": 0.876,
+    "seconds": 8.493
+   },
+   {
+    "seed": 417100595,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.2608519512679504,
+    "prevalence_driver": 0.974,
+    "prevalence_control": 0.942,
+    "seconds": 15.724
+   },
+   {
+    "seed": 91739328,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.6063698280813046,
+    "prevalence_driver": 0.977,
+    "prevalence_control": 0.868,
+    "seconds": 13.704
+   },
+   {
+    "seed": 217331561,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.4597448326004265,
+    "prevalence_driver": 0.957,
+    "prevalence_control": 0.929,
+    "seconds": 13.285
+   },
+   {
+    "seed": 1074841655,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5176030836376757,
+    "prevalence_driver": 0.963,
+    "prevalence_control": 0.923,
+    "seconds": 19.011
+   },
+   {
+    "seed": 1021328403,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.3765973451348208,
+    "prevalence_driver": 0.971,
+    "prevalence_control": 0.948,
+    "seconds": 15.587
+   },
+   {
+    "seed": 1962566488,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5375429982323312,
+    "prevalence_driver": 0.962,
+    "prevalence_control": 0.838,
+    "seconds": 17.643
+   },
+   {
+    "seed": 1705269125,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 2.30803718601813,
+    "prevalence_driver": 0.979,
+    "prevalence_control": 0.903,
+    "seconds": 15.387
+   },
+   {
+    "seed": 976754694,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 12.27835793926489,
+    "prevalence_driver": 0.0,
+    "prevalence_control": 0.224,
+    "seconds": 15.52
+   },
+   {
+    "seed": 318513231,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.2448001807518498,
+    "prevalence_driver": 0.972,
+    "prevalence_control": 0.793,
+    "seconds": 16.593
+   },
+   {
+    "seed": 382722628,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.7249790426879228,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.929,
+    "seconds": 15.459
+   },
+   {
+    "seed": 233491684,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.3253385703411515,
+    "prevalence_driver": 0.971,
+    "prevalence_control": 0.95,
+    "seconds": 17.915
+   },
+   {
+    "seed": 1226142170,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 11.720784632189787,
+    "prevalence_driver": 0.0,
+    "prevalence_control": 0.494,
+    "seconds": 18.861
+   },
+   {
+    "seed": 704884425,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.206129770859127,
+    "prevalence_driver": 0.975,
+    "prevalence_control": 0.942,
+    "seconds": 16.726
+   },
+   {
+    "seed": 1763828821,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 2.5919896484112117,
+    "prevalence_driver": 0.972,
+    "prevalence_control": 0.0,
+    "seconds": 12.193
+   },
+   {
+    "seed": 684518883,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.2870279366866955,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.923,
+    "seconds": 12.468
+   },
+   {
+    "seed": 1683298199,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.574493560474834,
+    "prevalence_driver": 0.968,
+    "prevalence_control": 0.69,
+    "seconds": 10.861
+   },
+   {
+    "seed": 1619562812,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5305981074396824,
+    "prevalence_driver": 0.957,
+    "prevalence_control": 0.833,
+    "seconds": 4.603
+   },
+   {
+    "seed": 568980746,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.9021877246484729,
+    "prevalence_driver": 0.973,
+    "prevalence_control": 0.85,
+    "seconds": 5.12
+   },
+   {
+    "seed": 987492007,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.3750282545526897,
+    "prevalence_driver": 0.972,
+    "prevalence_control": 0.638,
+    "seconds": 5.179
+   },
+   {
+    "seed": 460100960,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.1530178942184226,
+    "prevalence_driver": 0.973,
+    "prevalence_control": 0.958,
+    "seconds": 5.811
+   },
+   {
+    "seed": 867132818,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.3846469767879919,
+    "prevalence_driver": 0.969,
+    "prevalence_control": 0.839,
+    "seconds": 6.892
+   },
+   {
+    "seed": 676490449,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.3997592341814231,
+    "prevalence_driver": 0.973,
+    "prevalence_control": 0.925,
+    "seconds": 4.537
+   },
+   {
+    "seed": 2042651192,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 2.0917627707994826,
+    "prevalence_driver": 0.975,
+    "prevalence_control": 0.848,
+    "seconds": 6.341
+   },
+   {
+    "seed": 1254391544,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.3080384437545,
+    "prevalence_driver": 0.971,
+    "prevalence_control": 0.9,
+    "seconds": 6.958
+   },
+   {
+    "seed": 928696171,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5213626028100233,
+    "prevalence_driver": 0.985,
+    "prevalence_control": 0.784,
+    "seconds": 6.195
+   },
+   {
+    "seed": 1762990594,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.7388965129800087,
+    "prevalence_driver": 0.966,
+    "prevalence_control": 0.608,
+    "seconds": 8.597
+   },
+   {
+    "seed": 481747002,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5306283640629381,
+    "prevalence_driver": 0.97,
+    "prevalence_control": 0.85,
+    "seconds": 3.887
+   },
+   {
+    "seed": 1463891800,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.6249154461557098,
+    "prevalence_driver": 0.95,
+    "prevalence_control": 0.575,
+    "seconds": 4.821
+   },
+   {
+    "seed": 1641290635,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.8295921357127853,
+    "prevalence_driver": 0.979,
+    "prevalence_control": 0.903,
+    "seconds": 5.913
+   },
+   {
+    "seed": 905347993,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.874202094113234,
+    "prevalence_driver": 0.959,
+    "prevalence_control": 0.348,
+    "seconds": 6.32
+   },
+   {
+    "seed": 1228092019,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.471967900447564,
+    "prevalence_driver": 0.967,
+    "prevalence_control": 0.937,
+    "seconds": 6.834
+   },
+   {
+    "seed": 1475486019,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.5744827611444443,
+    "prevalence_driver": 0.967,
+    "prevalence_control": 0.777,
+    "seconds": 6.974
+   },
+   {
+    "seed": 1354795389,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.4005881146976018,
+    "prevalence_driver": 0.98,
+    "prevalence_control": 0.905,
+    "seconds": 6.583
+   },
+   {
+    "seed": 651047717,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.522625420312039,
+    "prevalence_driver": 0.964,
+    "prevalence_control": 0.806,
+    "seconds": 3.833
+   },
+   {
+    "seed": 966522209,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.1611639269978427,
+    "prevalence_driver": 0.971,
+    "prevalence_control": 0.863,
+    "seconds": 4.831
+   },
+   {
+    "seed": 1689688407,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.4476948964649992,
+    "prevalence_driver": 0.974,
+    "prevalence_control": 0.899,
+    "seconds": 5.107
+   },
+   {
+    "seed": 1052271161,
+    "factor": 5.0,
+    "n_extant": 1000,
+    "height": 1.3093701512579126,
+    "prevalence_driver": 0.971,
+    "prevalence_control": 0.897,
+    "seconds": 5.058
+   }
+  ]
+ }
+}
