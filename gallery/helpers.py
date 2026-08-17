@@ -821,9 +821,11 @@ def _joint_key_width(entry, measure) -> float:
     kind, _colour, word = entry
     if kind == "gradient":                       # low name · ramp · high name
         low, high = word
-        return measure(low, _JOINT_KEY_FS) + measure(high, _JOINT_KEY_FS) + 56
+        return measure(low, _JOINT_KEY_FS) + measure(high, _JOINT_KEY_FS) + 96
     if kind == "word":                           # no glyph exists for it, so the word stands alone
-        return len(word) * _JOINT_KEY_FS * 0.58
+        # measured, not estimated: the word draws at the entry's left edge with no glyph
+        # offset, so a real measure lines the next entry up exactly
+        return measure(word, _JOINT_KEY_FS)
     return 22 + len(word) * _JOINT_KEY_FS * 0.58
 
 
@@ -868,12 +870,12 @@ def _draw_joint_key(ax, x, y, entries) -> None:
             ax.text(cx, y, low, ha="left", va="center", fontsize=fs, color="#444")
             x0 = cx + measure(low, fs) + 8
             ramp = plt.get_cmap(colour)
-            for k in range(40):                  # drawn as strips: imshow would fight the equal aspect
-                ax.add_patch(Rectangle((x0 + k, y - 7), 1.06, 14, facecolor=ramp(k / 39.0),
+            for k in range(80):                  # drawn as strips: imshow would fight the equal aspect
+                ax.add_patch(Rectangle((x0 + k, y - 7), 1.06, 14, facecolor=ramp(k / 79.0),
                                        edgecolor="none"))
-            ax.add_patch(Rectangle((x0, y - 7), 40, 14, facecolor="none", edgecolor="#666",
+            ax.add_patch(Rectangle((x0, y - 7), 80, 14, facecolor="none", edgecolor="#666",
                                    linewidth=0.5))
-            ax.text(x0 + 48, y, high, ha="left", va="center", fontsize=fs, color="#444")
+            ax.text(x0 + 88, y, high, ha="left", va="center", fontsize=fs, color="#444")
             cx += w + 18
             continue
         ax.text(cx + (20 if kind == "swatch" else 0 if kind == "word" else 18), y, word,
