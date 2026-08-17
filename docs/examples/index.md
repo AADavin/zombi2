@@ -20,3 +20,11 @@ its own controls, a matched null and an undriven family in the same genomes, so 
 standard test for state-dependent diversification can be scored on data where the truth
 is known: how often it fires when nothing drives, and how often it finds the gene that
 does.
+
+**[What can gene order constrain?](rearrangements.md)** Inversions and translocations
+both scramble gene order, and gene order in turn carries information about them. Genomes
+are simulated at known rearrangement rates down a dated tree and the parameters inferred
+back, so every estimate is graded against the value that generated it. The verdict: the
+rates come back, including the share of each event type in a mixture, and the size of the
+events does not; fixing that unidentifiable size at a wrong value quietly distorts the
+rates that are identifiable.
