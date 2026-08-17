@@ -399,7 +399,8 @@ def root_to_tip(seqs) -> dict:
 
 
 def composite_under_diagram(out: str, diagram_png: str, rows, *, width=12.0, diagram_frac=0.42,
-                            pad=0.03, gap=0.30, label=0.36, key=0.40, dpi=182) -> None:
+                            pad=0.03, gap=0.30, label=0.12, key=0.40, dpi=182,
+                            label_at=96.0 / 1400.0) -> None:
     """The driver·modifier·target diagram on top, then one labelled panel per row.
 
     ``rows`` is ``[(png, label), ...]``, or ``[(png, label, key), ...]`` to put a colour key under
@@ -432,7 +433,11 @@ def composite_under_diagram(out: str, diagram_png: str, rows, *, width=12.0, dia
     for im, h, top, k, row in zip(imgs, heights, tops, keys, rows):
         y -= top + h
         fig.add_axes(box(pad * width, y, body, h)).imshow(im)
-        fig.text(pad, (y + h + top - label + 0.08) / height, row[1], fontsize=15, ha="left",
+        # the label's left edge sits on the time axis' zero (the panel's own margin,
+        # label_at as a fraction of panel width), and low enough to sit just above
+        # the drawn tree rather than floating in the panel's white margin
+        lx = pad + (1 - 2 * pad) * label_at
+        fig.text(lx, (y + h - 0.45) / height, row[1], fontsize=15, ha="left",
                  va="bottom")
         if k is not None:
             _draw_key(fig.add_axes(box(pad * width, y + h, body, key)), k)
@@ -1153,3 +1158,50 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
     fig.savefig(path, dpi=180, transparent=True, bbox_inches="tight")
     plt.close(fig)
     return path
+
+
+def gene_tree_newick_by_copy(gt, *, complete=False) -> str:
+    """The gene tree's newick with EVERY node labelled ``n<species>_g<copy>`` — the same key
+    the sequence tables use — so a per-copy quantity can be painted onto every branch.
+
+    ``GeneTree.to_newick`` labels internal nodes by event and species (``speciation_n3``),
+    which repeats when several copies pass the same species node, so a share keyed per copy
+    cannot find them. Tips already carry the per-copy key; this walk gives it to the
+    internal nodes too. The stem runs from the family's origination time to the root."""
+    def key(n):
+        return f"n{n.species}_g{n.copy}"
+
+    def rec(n):
+        if not n.children:
+            return key(n)
+        inner = ",".join(f"{rec(c)}:{c.time - n.time:.10g}" for c in n.children)
+        return f"({inner}){key(n)}"
+
+    root = gt.complete if complete else gt.extant
+    return f"({rec(root)}:{root.time - gt.origination:.10g});"
+
+
+def gene_tree_events_by_copy(gt, *, complete=False) -> list[dict]:
+    """The gene tree's own events — duplication, transfer arrival, loss — as
+    ``branch_events`` dicts keyed like :func:`gene_tree_newick_by_copy`, so the marks land
+    on the right copies. Losses exist only on the complete tree."""
+    out = []
+    def rec(n):
+        if n.kind in ("duplication", "transfer", "loss"):
+            out.append({"kind": n.kind, "node": f"n{n.species}_g{n.copy}", "x": n.time})
+        for c in n.children:
+            rec(c)
+    rec(gt.complete if complete else gt.extant)
+    return out
+
+
+def share_by_copy(result, fam, letters="KR") -> dict[str, float]:
+    """``{n<species>_g<copy>: that copy's share of ``letters``}`` over every node of one
+    family's gene tree — the per-copy sibling of the lineage-pooled ``_kr_by_node`` in
+    ``joining.py``. Keys match :func:`gene_tree_newick_by_copy`, so the pair paints a
+    true gene tree, duplications, transfers and all."""
+    out = {}
+    for table in (result.alignments[fam], result.ancestral[fam]):
+        for label, seq in table.items():
+            out[label] = sum(seq.count(c) for c in letters) / len(seq)
+    return out

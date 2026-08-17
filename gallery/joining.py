@@ -535,7 +535,7 @@ def sequence_loop(out):
          "the richer in KR is protein B, the quicker protein A evolves"),
     ])
     # the ramp is named once per gene in the diagram, so the rows below carry no key of their own
-    h.composite_under_diagram(out, diag, [(pngs[0], "protein A"), (pngs[1], "protein B")],
+    h.composite_under_diagram(out, diag, [(pngs[0], "Gene Tree - Protein A"), (pngs[1], "Gene Tree - Protein B")],
                               diagram_frac=0.72)
 
 
@@ -568,8 +568,8 @@ def trait_and_sequence(out):
     from zombi2.params import PerSite
 
     ct = simulate_species_tree(birth=1.0, n_extant=30, seed=1).complete_tree
-    g = simulate_genomes_family(ct, initial_families=3, duplication=0.0, loss=0.0, origination=0.0,
-                                seed=2, families=[family("rpoB")])
+    g = simulate_genomes_family(ct, initial_families=3, duplication=0.08, transfer=0.08,
+                                loss=0.06, origination=0.0, seed=2, families=[family("rpoB")])
     r = joint.simulate(
         traits.discrete(name="habitat", states=["cold", "hot"], start="cold",
                         switch={"cold->hot": PerLineage(0.5).scaled_by(
@@ -593,20 +593,35 @@ def trait_and_sequence(out):
                               size=6.0, legend=False)
      + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(habitat)
     gene_png = out.replace(".png", "_rpoB.png")
-    (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
-     + ph.trees.color_branches(share, cmap="magma_dark", limits=span)
+    # the TRUE gene tree, complete, every node keyed per copy so its own composition
+    # paints it, and its own events marked: with DTL on, the gene tree is no longer a
+    # mirror of the species tree, and pretending otherwise is what confused readers
+    nwk = h.gene_tree_newick_by_copy(g.gene_trees[fam], complete=True)
+    events = h.gene_tree_events_by_copy(g.gene_trees[fam], complete=True)
+    per_copy = h.share_by_copy(r.sequences, fam)
+    (ph.trees.plot(ph.trees.loads(nwk), skeleton=False, style=style)
+     + ph.trees.color_branches(per_copy, cmap="magma_dark",
+                               limits=(min(per_copy.values()), max(per_copy.values())))
+     + ph.trees.branch_events(events,
+                              styles={"duplication": ("square", "#3a7ca5"),
+                                      "transfer": ("circle", "#2e8b57"),
+                                      "loss": ("cross", "#c1443c")},
+                              size=6.5, legend=False)
      + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(gene_png)
     diag = h.joint_png(out.replace(".png", "_diag.png"), [
         (("traits", "habitat", [("swatch", _CLIMATE["cold"], "cold"),
                                 ("swatch", _CLIMATE["hot"], "hot")]),
-         ("sequences", "rpoB's rate", [("word", None, "a site changes")]),
+         ("sequences", "protein A's rate", [("word", None, "a site changes")]),
          "hot lineages substitute 4× faster"),
-        (("sequences", "rpoB", [("word", None, "aa composition"),
-                                 ("gradient", "magma_dark", ("KR-poor", "KR-rich"))]),
+        (("sequences", "protein A", [("word", None, "aa composition"),
+                                 ("gradient", "magma_dark", ("KR-poor", "KR-rich")),
+                                 ("square", "#3a7ca5", "duplication"),
+                                 ("circle", "#2e8b57", "transfer"),
+                                 ("cross", "#c1443c", "loss")]),
          ("traits", "switch rate", _switch_key(_CLIMATE, ["hot", "cold"])),
-         "the richer rpoB is, the readier the switch to hot"),
+         "the richer in KR is protein A, the readier the switch to hot"),
     ])
-    h.composite_under_diagram(out, diag, [(habitat, "habitat"), (gene_png, "rpoB")],
+    h.composite_under_diagram(out, diag, [(habitat, "Species Tree - Habitat"), (gene_png, "Gene Tree - Protein A")],
                               diagram_frac=0.72)
 
 
