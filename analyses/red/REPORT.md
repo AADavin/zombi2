@@ -5,7 +5,7 @@ a phylogram into a relative divergence scale — recovers a tree's divergence ti
 molecular rates are in play. **How:** RED cannot be checked on a real tree, because a real tree's
 true divergence times are unknown. So we read how rate-variable real trees are off one model-free
 number on a real phylogeny (the GTDB archaeal tree), simulate trees that variable — where the true
-times are known by construction — and grade RED against them.
+times are known by construction — and test RED against them.
 
 ## The question
 
@@ -19,17 +19,17 @@ longer time. The question is whether RED still recovers the ages.
 
 We check the exact case first. On a dated (ultrametric) tree, RED equals `node age / root age` to
 machine precision — in this port, the largest deviation over a 400-tip tree is 2×10⁻¹⁶. So RED of
-the dated tree is the ground truth, and RED of the rate-distorted phylogram is the estimate we grade
+the dated tree is the ground truth, and RED of the rate-distorted phylogram is the estimate we test
 against it.
 
 ## Why we cannot check on real data
 
 On a real tree the answer is hidden. A phylogram measures substitutions, which are rate × time; from
-substitutions alone rate and time are jointly unidentifiable, so the true node ages we would grade
+substitutions alone rate and time are jointly unidentifiable, so the true node ages we would test
 RED against cannot be read off. Dating the tree first would assume a rate model — the thing in
 question — and make the test circular.
 
-Simulation avoids this. In a simulated tree the true node ages are known, so RED can be graded
+Simulation avoids this. In a simulated tree the true node ages are known, so RED can be tested
 exactly. The only thing we take from the real world is how much rate variation to put in. That
 single number is all we borrow from GTDB; no real branch length enters the forward model.
 
@@ -133,10 +133,10 @@ Three things are worth being precise about.
   interval. **Uncorrelated is the harder case**, so the uncorrelated number is the conservative one to
   quote.
 
-> **Calibrate realism, then test against known truth.** A method like RED cannot be graded on the data
+> **Calibrate realism, then test against known truth.** A method like RED cannot be tested on the data
 > it is meant for, because that data hides the answer. But one honest number can say how demanding the
 > real case is (here, CV = 0.2315), that number can be reproduced in a simulation where the answer is
-> known, and the method graded there. One summary pins one thing cleanly, and hands what it cannot
+> known, and the method tested there. One summary pins one thing cleanly, and hands what it cannot
 > pin to a stated modelling choice.
 
 ## Assumptions and limitations
@@ -160,7 +160,7 @@ itself. Every number regenerates deterministically from fixed seeds.
 ```bash
 cd analyses/red
 python observable.py     # the observable: GTDB root-to-tip substitution CV (= 0.2315)
-python experiment.py     # calibrate the clocks, then grade RED vs root-to-tip variation -> results.json
+python experiment.py     # calibrate the clocks, then test RED vs root-to-tip variation -> results.json
 python figures.py        # Figures 1-4 from results.json (also into docs/assets/red/)
 ```
 

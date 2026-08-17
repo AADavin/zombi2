@@ -1,10 +1,10 @@
 """The four-panel figure for the rearrangement recovery study, from ``results.json``.
 
-Panel A  the ridge — the ABC misfit over arm A's (inversion rate x inversion extent) grid. The
+Panel A  the ridge — the ABC distance over arm A's (inversion rate x inversion extent) grid. The
          band of equally good fits runs the full height of the grid, so the extent is free.
-Panel B  the identifiability statement — misfit against each parameter as a multiple of its true
+Panel B  the identifiability statement — distance against each parameter as a multiple of its true
          value, profiled over the other. The rate has a minimum at the truth; the extent is flat.
-Panel C  the mixed arm — misfit over arm B's (inversion rate x translocation rate) grid. Both
+Panel C  the mixed arm — distance over arm B's (inversion rate x translocation rate) grid. Both
          rates have a joint minimum, so a mixed model's two rates can be told apart.
 Panel D  recovery — the recovered value as a multiple of the truth, for every arm, axis and
          observed replicate. Arm C repeats arm B with the extent fixed at twice the truth.
@@ -39,7 +39,7 @@ plt.rcParams.update({
 
 
 def surface(arm, x_axis, y_axis, observed=0):
-    """The misfit as a (y, x) array, with the grid's axis values."""
+    """The distance as a (y, x) array, with the grid's axis values."""
     xs = np.array(arm["grid"][x_axis], float)
     ys = np.array(arm["grid"][y_axis], float)
     d = np.array(arm["inference"][observed]["distances"], float)
@@ -82,7 +82,7 @@ def panel_a(ax, fig, d):
         xlabel="Inversion rate (per gene per time unit)",
         ylabel="Inversion extent (genes)",
         title="A   Inversions only: the rate-extent ridge")
-    fig.colorbar(mesh, ax=ax, label="ABC misfit", pad=0.02)
+    fig.colorbar(mesh, ax=ax, label="ABC distance", pad=0.02)
 
 
 def panel_b(ax, d):
@@ -101,7 +101,7 @@ def panel_b(ax, d):
                 xytext=(4, 0), textcoords="offset points", color=MUTED, fontsize=7.5)
     ax.set_xscale("log", base=2)
     ax.set_xlabel("Value as a multiple of the truth")
-    ax.set_ylabel("ABC misfit (best over the other axis)")
+    ax.set_ylabel("ABC distance (best over the other axis)")
     ax.set_title("B   The rate has a minimum, the extent does not", loc="left",
                  fontweight="bold")
     ax.legend(loc="upper center", frameon=False)
@@ -117,7 +117,7 @@ def panel_c(ax, fig, d):
         xlabel="Inversion rate (per gene per time unit)",
         ylabel="Translocation rate (per gene per time unit)",
         title="C   Mixed model: both rates are pinned")
-    fig.colorbar(mesh, ax=ax, label="ABC misfit", pad=0.02)
+    fig.colorbar(mesh, ax=ax, label="ABC distance", pad=0.02)
 
 
 def panel_d(ax, d):
