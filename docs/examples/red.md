@@ -1,7 +1,7 @@
-# An example ZOMBI2 application
+# Can RED be trusted?
 
-ZOMBI2 is a tool to generate datasets in which the user knows everything about them. Let's see how it
-can be used in a practical example. All the relevant files are in
+A method for reading relative ages off a tree, tested at the rate variation real archaea show. All
+the relevant files are in
 [`analyses/red/`](https://github.com/AADavin/zombi2/tree/main/analyses/red).
 
 ## The question
@@ -35,7 +35,7 @@ in root-to-tip *substitutions* can therefore only come from rate variation.
 We call that spread **root-to-tip variation**, and measure it as the coefficient of variation (CV) of
 the root-to-tip distances.
 
-![What root-to-tip variation is, and how much of it real archaea show](assets/red/observable.png)
+![What root-to-tip variation is, and how much of it real archaea show](../assets/red/observable.png)
 
 Across 10,122 archaeal genomes the CV is **0.2315**. The fastest lineage has accumulated roughly four
 times the substitutions of the slowest. That one number is all we take from the real world; no real
@@ -89,7 +89,7 @@ is arranged, and arrangement matters for a method that walks from root to tip:
 Each clock has a spread parameter σ. Turning σ up makes the simulated trees vary more, so for each
 clock we look for the σ that reproduces the real archaeal value of 0.2315.
 
-![Which σ reproduces the real spread, clock by clock](assets/red/clock_recovery.png)
+![Which σ reproduces the real spread, clock by clock](../assets/red/clock_recovery.png)
 
 The three clocks reach it at very different σ: 0.54 and 0.59 for the two uncorrelated ones, 0.14 for
 the autocorrelated one, because an inherited rate compounds down the tree. What matters is not σ but
@@ -101,7 +101,7 @@ Sweep each clock across its σ grid. At every point, compare RED computed on the
 computed on the dated tree it came from. Two measures: how well they correlate, and how far apart
 they are as a percentage of tree depth.
 
-![RED accuracy and error against root-to-tip variation](assets/red/red_bridge.png)
+![RED accuracy and error against root-to-tip variation](../assets/red/red_bridge.png)
 
 Then read straight up from 0.2315, the value real archaea show.
 
@@ -120,7 +120,7 @@ harder case, so 0.94 is the conservative number to quote.
 Node by node, on one 500-tip tree under the uncorrelated lognormal clock, below the real value, at
 it, and past it:
 
-![RED-recovered against true node ages, at three levels of variation](assets/red/red_scatter.png)
+![RED-recovered against true node ages, at three levels of variation](../assets/red/red_scatter.png)
 
 Two things worth being precise about. RED is an **ordinal** proxy: even at its best there is a
 few-percent age error, so use it to order divergences and normalise ranks, which is its designed job,
