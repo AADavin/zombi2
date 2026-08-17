@@ -169,6 +169,17 @@ def main() -> int:
         out = FIG / f"rearrangements.{ext}"
         fig.savefig(out, dpi=300)
         print(" ", out)
+    plt.close(fig)
+    # one image per panel too, large enough to read inline on the website
+    for letter, fn, needs_fig in (("a", panel_a, True), ("b", panel_b, False),
+                                  ("c", panel_c, True), ("d", panel_d, False)):
+        fig, ax = plt.subplots(figsize=(6.6, 4.6))
+        fn(ax, fig, d) if needs_fig else fn(ax, d)
+        fig.tight_layout()
+        out = FIG / f"rearrangements_{letter}.png"
+        fig.savefig(out, dpi=300)
+        print(" ", out)
+        plt.close(fig)
     return 0
 
 
