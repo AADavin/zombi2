@@ -62,20 +62,14 @@ tree every family, driven or not, has had less time to be lost.
 
 ![Prevalence of the driver and control families](../assets/bisse/bisse_a.png)
 
-Panel B takes one factor, `f` = 3, and splits the driver's rise into its two causes.
-Three boxes summarise three measurements of prevalence, 200 replicates each, and one grey
-line follows each replicate across them. On the left, the driver in the null runs: 0.41
-on average, what the family does under loss alone. In the middle, the control inside the
-driven runs: 0.81. It rose by +0.40 without being driven, so that step is the tree-age
-effect on its own, what any family gains from a younger tree. On the right, the driver in
-those same driven runs: 0.92. That final step, +0.11, is the only part caused by the
-driver's effect on speciation: lineages that carry the family split three times faster,
-so tips descending from carriers end up overrepresented. The two steps sum exactly to
-the raw +0.50 gap. An
-analysis of real genomes would see only that raw gap, with no way to tell the two causes
-apart; this dataset carries its own control, so it can.
-
-![Where the driver's rise comes from](../assets/bisse/bisse_b.png)
+Because both families sit in the same genomes, the driver's rise splits cleanly into its
+two causes. Take `f` = 3. The control stands at 0.81 against 0.41 in the null runs: a
+step of +0.40 that can only be the younger tree, since nothing drives the control. The
+driver stands at 0.92, another +0.11 above the control on the very same trees: that last
+step is the only part caused by the driver's effect on speciation, carriers splitting
+three times faster and leaving more descendants. An analysis of real genomes would see
+only the total rise, with no way to tell the two causes apart; this dataset can, because
+it carries its own control.
 
 ## What BiSSE reports
 
@@ -87,11 +81,11 @@ The test is well calibrated here. It rejects on the driver at the null in 3.5% o
 and on the control in 5.2%, even on the driven trees, whose rate heterogeneity is real
 but belongs to the other family. When it rejects at `f` > 1, it puts the higher
 speciation rate on the carrier state in 255 of 256 fits. What limits it is power, and not
-monotonically (panel C): a three-fold effect on speciation, enough to move prevalence by
+monotonically (panel B): a three-fold effect on speciation, enough to move prevalence by
 +0.50, is found in 36% of 150-tip clades, and a five-fold effect is found *less* often,
 in 30%, because a stronger driver pushes the family toward fixation and the shorter, more
 uniform trees carry fewer of the events the likelihood needs. On data like these the risk
 is not the false positive; it is reading a non-significant result as the absence of the
 effect.
 
-![What a default BiSSE fit reports](../assets/bisse/bisse_c.png)
+![What a default BiSSE fit reports](../assets/bisse/bisse_b.png)

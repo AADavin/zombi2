@@ -32,7 +32,7 @@ joint.simulate(
     seed=seed)
 ```
 
-## What the simulation shows (panels A and B)
+## What the simulation shows (panel A)
 
 The driver's prevalence among extant tips rises with the factor, from 0.41 in the null to
 0.95 at five-fold. The control says most of that rise is not selection: carried through
@@ -46,7 +46,7 @@ with the in-run control (0.80 against 0.81), two independent estimates of the sa
 tree-age effect. The control also lands on its closed form exp(−loss × height) at every
 factor, which checks the joint engine's genome half against something it does not know.
 
-## What BiSSE reports (panel C)
+## What BiSSE reports (panel B)
 
 For every replicate we fit the six-parameter BiSSE model and the state-independent
 constraint (λ₁ = λ₀, μ₁ = μ₀) on each family's tip presence, a likelihood-ratio test on
@@ -66,7 +66,7 @@ invariant character cannot be fit, no fit errors.
   likelihood. On data like these the risk is not the false positive; it is reading a
   non-significant result as the absence of the effect.
 
-![The three panels](figures/bisse.png)
+![The two panels](figures/bisse.png)
 
 ## Reproducing it
 
