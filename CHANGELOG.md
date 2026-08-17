@@ -9,6 +9,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- `GeneTree.to_newick(labels="copies")` names every internal node the way the leaves are
+  named, `n<species>_g<copy>` — the key the alignment and ancestral tables use — so a
+  per-copy quantity (an ancestral sequence, a composition) can be attached to every branch
+  of a gene tree, not only its tips. The default `labels="events"` form is unchanged.
+
 ## [0.42.2] - 2026-08-16
 
 ### Fixed
