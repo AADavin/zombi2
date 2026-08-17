@@ -42,23 +42,39 @@ result = joint.simulate(
 ```
 
 We grew 200 replicate clades to 150 extant tips at each of six factors, `f` = 1 to 5, on
-matched seeds; at `f` = 1 the driver reads as a factor of one, so that arm is the null.
-Every genome also carries the `control` family, lost at the same rate, that no rate
-reads. The whole sweep is 1,400 joint runs.
+matched seeds. At `f` = 1 the family multiplies the speciation rate by one, which is to
+say it has no effect at all: those 200 runs are the null, the same machinery with nothing
+to find.
+
+Every genome also carries a second family, called `control`. It appears at the root and
+is lost at the same rate as the driver, but nothing in the simulation depends on it: no
+rate reads it, so it cannot make any lineage speciate faster or slower. If its prevalence
+still rises in the driven runs, that rise can only come from the shape of the tree, never
+from anything the family itself does. The whole sweep is 1,400 joint runs.
 
 ## What the dependency does to the data
 
 The driver's prevalence among the extant tips rises with the factor, from 0.41 in the
-null to 0.95 at five-fold (panel A below). The control shows that most of that rise is
-not selection: carried through the very same runs, it rises from 0.42 to 0.83 with
-nothing driving it, because a driven clade reaches its 150 tips sooner (the mean tree
-height falls from 7.6 to 1.4) and a younger tree has lost less of everything. At `f` = 3
-the decomposition is exact (panel B): of the raw +0.50 gap between the driven run and its
-matched null, +0.40 is the shorter tree, shared with the control, and +0.11 is carriers
-proliferating differentially, the only part that is selection on the gene. An analysis of
-real genomes would see the raw gap; this run carries its own control.
+null to 0.95 at five-fold (panel A). But the control rises too, from 0.42 to 0.83, with
+nothing driving it. The reason is the shape of the tree: a driven clade reaches its 150
+tips sooner (the mean tree height falls from 7.6 to 1.4 time units), and on a younger
+tree every family, driven or not, has had less time to be lost.
 
-![Prevalence, the decomposition, and the BiSSE verdict](../assets/bisse/bisse.png)
+![Prevalence of the driver and control families](../assets/bisse/bisse_a.png)
+
+Panel B takes one factor, `f` = 3, and splits the driver's rise into its two causes.
+Three boxes summarise three measurements of prevalence, 200 replicates each, and one grey
+line follows each replicate across them. On the left, the driver in the null runs: 0.41
+on average, what the family does under loss alone. In the middle, the control inside the
+driven runs: 0.81. It rose by +0.40 without being driven, so that step is the tree-age
+effect on its own, what any family gains from a younger tree. On the right, the driver in
+those same driven runs: 0.92. That final step, +0.11, is the only part caused by the gene
+itself: lineages that carry it speciate three times faster, so tips descending from
+carriers end up overrepresented. The two steps sum exactly to the raw +0.50 gap. An
+analysis of real genomes would see only that raw gap, with no way to tell the two causes
+apart; this dataset carries its own control, so it can.
+
+![Where the driver's rise comes from](../assets/bisse/bisse_b.png)
 
 ## What BiSSE reports
 
@@ -77,12 +93,4 @@ uniform trees carry fewer of the events the likelihood needs. On data like these
 is not the false positive; it is reading a non-significant result as the absence of the
 effect.
 
-## The recipe, generalised
-
-Simulate the dependency you suspect, at a range of strengths, with the null and a neutral
-control from the same machinery. Run the inference method exactly as its documentation
-recommends. The dataset then scores the method: its false-positive rate where nothing
-drives, its power where something does, and the direction of its errors. Every number
-above regenerates from one script and one master seed; see
-[`analyses/bisse/REPORT.md`](https://github.com/AADavin/zombi2/blob/main/analyses/bisse/REPORT.md)
-for the exact commands.
+![What a default BiSSE fit reports](../assets/bisse/bisse_c.png)
