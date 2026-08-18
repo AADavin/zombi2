@@ -188,3 +188,31 @@ def test_deep_tree_serialises_without_recursion_error():
     for which in ("complete", "extant"):
         nw = g.gene_trees[0].to_newick(which)         # must not raise RecursionError
         assert nw.endswith(";") and nw.count("(") == nw.count(")")
+
+
+def test_copy_labels_name_every_node_uniquely():
+    # labels="copies" exists so a per-copy quantity (an ancestral sequence, a composition)
+    # can be attached to internal branches: every node carries the n<species>_g<copy> key
+    # the sequence tables use, and no label repeats
+    import re
+    _, g = _run(seed=5)
+    for gt in g.gene_trees.values():
+        for which in ("complete", "extant"):
+            nw = gt.to_newick(which, labels="copies")
+            if nw is None:
+                continue
+            labels = re.findall(r"([A-Za-z]\w*)(?=:)", nw)
+            assert labels, nw
+            assert all(re.fullmatch(r"[ne]\d+_g\d+", l) for l in labels), labels[:5]
+            assert len(labels) == len(set(labels))
+            # the tip set is the same as the default form's
+            tips_default = set(re.findall(r"[\(,]([ne]\d+_g\d+)(?=:)", gt.to_newick(which)))
+            tips_copies = set(re.findall(r"[\(,]([ne]\d+_g\d+)(?=:)", nw))
+            assert tips_default == tips_copies
+
+
+def test_copy_labels_rejects_unknown_mode():
+    _, g = _run(seed=5)
+    gt = next(iter(g.gene_trees.values()))
+    with pytest.raises(ValueError):
+        gt.to_newick(labels="species")

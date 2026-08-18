@@ -399,7 +399,8 @@ def root_to_tip(seqs) -> dict:
 
 
 def composite_under_diagram(out: str, diagram_png: str, rows, *, width=12.0, diagram_frac=0.42,
-                            pad=0.03, gap=0.30, label=0.36, key=0.40, dpi=182) -> None:
+                            pad=0.03, gap=0.30, label=0.12, key=0.40, dpi=182,
+                            label_at=96.0 / 1400.0) -> None:
     """The driver·modifier·target diagram on top, then one labelled panel per row.
 
     ``rows`` is ``[(png, label), ...]``, or ``[(png, label, key), ...]`` to put a colour key under
@@ -432,7 +433,11 @@ def composite_under_diagram(out: str, diagram_png: str, rows, *, width=12.0, dia
     for im, h, top, k, row in zip(imgs, heights, tops, keys, rows):
         y -= top + h
         fig.add_axes(box(pad * width, y, body, h)).imshow(im)
-        fig.text(pad, (y + h + top - label + 0.08) / height, row[1], fontsize=15, ha="left",
+        # the label's left edge sits on the time axis' zero (the panel's own margin,
+        # label_at as a fraction of panel width), and low enough to sit just above
+        # the drawn tree rather than floating in the panel's white margin
+        lx = pad + (1 - 2 * pad) * label_at
+        fig.text(lx, (y + h - 0.45) / height, row[1], fontsize=15, ha="left",
                  va="bottom")
         if k is not None:
             _draw_key(fig.add_axes(box(pad * width, y + h, body, key)), k)
@@ -799,53 +804,190 @@ def rearranged_pair(genomes: dict) -> tuple:
 
 _INK, _DIM = "#1a1a1a", "#6e6e6e"
 
+# --- the joint diagram (one framed panel, one row per connection) ------------------------
 
-def joint_png(path, *, left, right, forward, back):
-    """The **joint** diagram: two things, and the rule each one sets for the other.
+#: The joint diagram's smallest box half-width, its smallest driver-to-target gap, and the size the
+#: key row is set in — in the canvas's own units, where 1 unit is 1 pixel at 100 dpi. They are floors
+#: rather than fixed values: a long name or a long sentence pushes past them and the canvas grows
+#: with it. Everything else is derived, so that a one-row panel and a three-row panel are the same
+#: figure at two heights: a box is 104 tall plus 12 of rounded padding, rows sit 156 apart, and the
+#: frame keeps 22 of clear space round every box on all four sides.
+_JOINT_HALF, _JOINT_GAP, _JOINT_KEY_FS = 170.0, 506.0, 12.5
 
-    Deliberately not the conditioning diagram with a second arrow bolted on. That one is built round
-    driver / connection / target, and in a joint model neither box is only a driver or only a target,
-    so those headings have nothing to label. What is left is the two things and the two rules, and
-    each rule reads as a plain sentence rather than as a verb and a mapping — ``scaled_by`` and
-    ``table`` say how a rate is written, which is Chapter 9's subject, not what the model claims.
 
-    ``left`` / ``right`` are ``(level, name, what it is)`` — the level in small caps above the name,
-    exactly as the conditioning diagram labels its driver and target boxes, because a reader coming
-    from Chapter 9 should not have to work out which level a box belongs to. ``forward`` and ``back``
-    are the two sentences, read left-to-right and right-to-left.
+def _joint_key_width(entry, measure) -> float:
+    """The drawn width of one key entry, in the diagram's units.
+
+    A glyph entry is estimated from its character count, because that estimate is also what lays the
+    entry out in :func:`_draw_joint_key` — measuring here and estimating there would put the glyph
+    and its word a pixel or two off centre on every entry. A **gradient** is measured with
+    ``measure(text, size)``, since its ramp has to start clear of a name of any length.
+    """
+    kind, _colour, word = entry
+    if kind == "gradient":                       # low name · ramp · high name
+        low, high = word
+        return measure(low, _JOINT_KEY_FS) + measure(high, _JOINT_KEY_FS) + 96
+    if kind == "word":                           # no glyph exists for it, so the word stands alone
+        # measured, not estimated: the word draws at the entry's left edge with no glyph
+        # offset, so a real measure lines the next entry up exactly
+        return measure(word, _JOINT_KEY_FS)
+    return 22 + len(word) * _JOINT_KEY_FS * 0.58
+
+
+def _draw_joint_key(ax, x, y, entries) -> None:
+    """One box's key row, centred on ``x``: the glyphs the tree below actually draws, and their words.
+
+    Each entry is ``(kind, colour, word)``. ``swatch`` is a state's colour in the palette the tree
+    uses; ``circle`` / ``ring`` is a gene family present or absent; ``cross`` is a loss; ``triangle``
+    is a state switch, coloured by the state it goes **to**; ``gradient`` is a continuous quantity,
+    drawn as the ramp itself with its two ends named (``colour`` is the colormap, ``word`` the pair);
+    ``word`` is the fallback for a rate whose event has no glyph on the tree.
+    """
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Circle, FancyBboxPatch, Rectangle
+
+    fs = _JOINT_KEY_FS
+
+    def measure(s, size):
+        return _text_w(ax.figure, ax, s, size)
+
+    widths = [_joint_key_width(e, measure) for e in entries]
+    total = sum(widths) + 18 * (len(entries) - 1)
+    cx = x - total / 2
+    for (kind, colour, word), w in zip(entries, widths):
+        gx, gy = cx + 7, y
+        if kind == "swatch":
+            ax.add_patch(FancyBboxPatch((cx, y - 7), 14, 14, boxstyle="round,pad=1",
+                                        facecolor=colour, edgecolor="#666", linewidth=0.5))
+        elif kind == "triangle":
+            ax.add_patch(plt.Polygon([(gx + 6, gy), (gx - 5, gy - 6), (gx - 5, gy + 6)],
+                                     facecolor=colour, edgecolor="white", lw=0.6))
+        elif kind == "circle":
+            ax.add_patch(Circle((gx, gy), 6, facecolor=colour, edgecolor="white", lw=0.8))
+        elif kind == "ring":
+            ax.add_patch(Circle((gx, gy), 6, facecolor="white", edgecolor=colour, lw=2.0))
+        elif kind == "cross":
+            for a, b, c, d in ((-5, -5, 5, 5), (-5, 5, 5, -5)):
+                ax.add_line(Line2D([gx + a, gx + c], [gy + b, gy + d], color=colour,
+                                   lw=2.6, solid_capstyle="round"))
+        elif kind == "gradient":
+            low, high = word
+            ax.text(cx, y, low, ha="left", va="center", fontsize=fs, color="#444")
+            x0 = cx + measure(low, fs) + 8
+            ramp = plt.get_cmap(colour)
+            for k in range(80):                  # drawn as strips: imshow would fight the equal aspect
+                ax.add_patch(Rectangle((x0 + k, y - 7), 1.06, 14, facecolor=ramp(k / 79.0),
+                                       edgecolor="none"))
+            ax.add_patch(Rectangle((x0, y - 7), 80, 14, facecolor="none", edgecolor="#666",
+                                   linewidth=0.5))
+            ax.text(x0 + 88, y, high, ha="left", va="center", fontsize=fs, color="#444")
+            cx += w + 18
+            continue
+        ax.text(cx + (20 if kind == "swatch" else 0 if kind == "word" else 18), y, word,
+                ha="left", va="center", fontsize=fs, color="#444")
+        cx += w + 18
+
+
+def joint_png(path, rows, *, frame="one run"):
+    """The **joint** diagram: one framed panel labelled "one run", one ROW per connection.
+
+    Deliberately not the conditioning diagram with a second arrow bolted on, and no longer two boxes
+    with an arrow each way. A joint model is a set of statements, and each statement has a direction:
+    something is read, and some rate is changed by it. So each one gets its own row — driver on the
+    left, the rate it drives on the right, the arrow always pointing left to right — and a model with
+    one connection gets one row where a feedback pair gets two. Two arrows crossing in opposite
+    directions said "these two are tangled"; a row per statement says which statement is which.
+
+    The frame is what carries the claim the diagram exists to make: every row happened in **one run**,
+    at the same time, which is the whole difference from conditioning.
+
+    Each box has three lines: the level it belongs to, its name, and a KEY row. The key is the
+    figure's legend, and it is the only one — the trees below carry no legend of their own any more.
+    A discrete driver shows its states in the palette the tree paints them in; a gene family shows
+    a filled circle and a ring; a rate shows the glyph of the event it fires, so a loss rate shows
+    the red cross the tree marks losses with; a continuous quantity shows its colour ramp with both
+    ends named. A reader who wants to know what a glyph on the tree means looks in the box it
+    belongs to, rather than at a legend that repeats the same three words on every panel.
+
+    ``rows`` is ``[(driver, target, sentence), ...]``, where a box is ``(level, name, key)`` and a
+    key is a list of ``(kind, colour, word)`` — see :func:`_draw_joint_key` for the kinds. Box widths
+    are measured per COLUMN at the sizes they are drawn at, so every driver box is the same width as
+    every other driver box and the arrows all start and end on the same two verticals.
     """
     from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 
-    W, H = 1240, 300
+    n = len(rows)
+    # measure on a canvas at the final scale (100 units to the inch), so a width measured here is
+    # the width drawn there
+    probe = plt.figure(figsize=(13.2, 3.96), dpi=190)
+    pax = probe.add_axes([0, 0, 1, 1]); pax.set_xlim(0, 1320); pax.set_ylim(396, 0)
+
+    def measure(s, size, **kw):
+        return _text_w(probe, pax, s, size, **kw)
+
+    def half_of(boxes):
+        widest = 0.0
+        for level, name, key in boxes:
+            keyw = sum(_joint_key_width(e, measure) for e in key) + 18 * (len(key) - 1)
+            widest = max(widest, _text_w(probe, pax, name, 24),
+                         _text_w(probe, pax, level, 13, style="italic"), keyw)
+        return max(_JOINT_HALF, widest / 2 + 14)
+
+    def wrap(sentence):
+        if measure(sentence, 15) <= 430:
+            return [sentence]
+        words = sentence.split()
+        best = None
+        for i in range(1, len(words)):
+            lines = [" ".join(words[:i]), " ".join(words[i:])]
+            widest = max(measure(l, 15) for l in lines)
+            if best is None or widest < best[0]:
+                best = (widest, lines)
+        return best[1]
+
+    sentences = [wrap(r[2]) for r in rows]
+    hl = half_of([r[0] for r in rows])
+    hr = half_of([r[1] for r in rows])
+    gap = max(360.0, max(measure(l, 15) for ls in sentences for l in ls) + 56)
+    plt.close(probe)
+
+    xl = 55 + hl                                   # 21 of margin, 22 of clearance, 12 of box padding
+    xr = xl + hl + hr + 24 + gap
+    right_edge = xr + hr + 34
+    W, bottom = right_edge + 21, 226 + 156 * (n - 1)
+    H = bottom + 14
+
     fig = plt.figure(figsize=(W / 100, H / 100), dpi=190)
-    ax = fig.add_axes([0, 0, 1, 1]); ax.set_xlim(0, W); ax.set_ylim(H, 0); ax.set_axis_off()
-    mid = H / 2
-    # each box is sized to its own longest line, measured rather than guessed: "how much of it is K
-    # or R" is twice the width of "cold or hot", and a fixed box cut it off
-    half = {}
-    for side, (level, name, kind) in (("l", left), ("r", right)):
-        widest = max(_text_w(fig, ax, level, 13, style="italic"),
-                     _text_w(fig, ax, name, 25),
-                     _text_w(fig, ax, kind, 13, style="italic"))
-        half[side] = max(108, widest / 2 + 16)
-    for x, side, (level, name, kind) in ((150, "l", left), (1090, "r", right)):
-        ax.add_patch(FancyBboxPatch((x - half[side], mid - 52), 2 * half[side], 104,
-                                    boxstyle="round,pad=14",
-                                    facecolor="#f2f2f0", edgecolor=_INK, lw=1.8))
-        ax.text(x, mid - 34, level, ha="center", va="center", color=_DIM, fontsize=13,
-                style="italic")
-        ax.text(x, mid - 2, name, ha="center", va="center", color=_INK, fontsize=25)
-        ax.text(x, mid + 30, kind, ha="center", va="center", color=_DIM, fontsize=13,
-                style="italic")
-    # the arrows span the gap between the boxes, and each sentence sits clear of both
-    a0, a1 = 150 + half["l"] + 28, 1090 - half["r"] - 28
-    ax.add_patch(FancyArrowPatch((a0, mid - 20), (a1, mid - 20), arrowstyle="-|>",
-                                 mutation_scale=17, lw=2.0, color=_INK))
-    ax.add_patch(FancyArrowPatch((a1, mid + 20), (a0, mid + 20), arrowstyle="-|>",
-                                 mutation_scale=17, lw=2.0, color=_INK))
-    ax.text((a0 + a1) / 2, mid - 34, forward, ha="center", va="bottom", color=_INK, fontsize=16)
-    ax.text((a0 + a1) / 2, mid + 34, back, ha="center", va="top", color=_INK, fontsize=16)
-    fig.savefig(path, bbox_inches="tight", facecolor="white")
+    ax = fig.add_axes([0, 0, 1, 1]); ax.set_xlim(0, W); ax.set_ylim(H, 0)
+    ax.set_axis_off(); ax.set_aspect("equal")
+    if frame is not None:
+        ax.add_patch(FancyBboxPatch((21, 54), W - 42, bottom - 54, boxstyle="round,pad=0",
+                                    facecolor="none", edgecolor="#8a8a8a", linewidth=1.3))
+        # the label breaks the frame's top border rather than sitting inside it, so it reads as
+        # the panel's name and not as a first row
+        ax.text(50, 54, f" {frame} ", fontsize=15, style="italic", color="#555", ha="left",
+                va="center", backgroundcolor="white")
+
+    def box(x, half, y, level, name, key):
+        ax.add_patch(FancyBboxPatch((x - half, y - 52), 2 * half, 104, boxstyle="round,pad=12",
+                                    facecolor="#f2f2f0", edgecolor="#2b2b2b", linewidth=1.6))
+        ax.text(x, y - 30, level, ha="center", va="center", fontsize=13, style="italic",
+                color="#666")
+        ax.text(x, y - 2, name, ha="center", va="center", fontsize=24)
+        _draw_joint_key(ax, x, y + 30, key)
+
+    for i, (driver, target, _sentence) in enumerate(rows):
+        y = 140 + 156 * i
+        box(xl, hl, y, *driver)
+        box(xr, hr, y, *target)
+        a0, a1 = xl + hl + 20, xr - hr - 20
+        ax.add_patch(FancyArrowPatch((a0, y), (a1, y), arrowstyle="-|>", mutation_scale=26,
+                                     linewidth=1.8, color="#2b2b2b"))
+        lines = sentences[i]
+        for k, line in enumerate(lines):
+            ax.text((a0 + a1) / 2, y - 20 - 21 * (len(lines) - 1 - k), line,
+                    ha="center", va="center", fontsize=15)
+    fig.savefig(path)
     plt.close(fig)
     return path
 
@@ -935,11 +1077,9 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
     probe = plt.figure(figsize=(10, 3), dpi=180)          # measure before committing to a canvas
     pax = probe.add_axes([0, 0, 1, 1]); pax.set_xlim(0, 1200); pax.set_ylim(400, 0)
     dw = max(_MIN_W, _PAD*2 + max(_text_w(probe, pax, driver[1], 17),
-                                  _text_w(probe, pax, driver[2], 10.5, style="italic"),
                                   _text_w(probe, pax, driver[0], 9, style="italic")))
     if n == 1:
         tw = max(_MIN_W, _PAD*2 + max(_text_w(probe, pax, targets[0][0], 17),
-                                      _text_w(probe, pax, targets[0][1], 10.5, style="italic"),
                                       _text_w(probe, pax, target_level, 9, style="italic")))
     else:
         tw = max(_MIN_W, _PAD*2 + max(max(_text_w(probe, pax, a, 15.5),
@@ -960,8 +1100,8 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
     a0, a1 = dx + dw + 14, tx - 14
     ccx = (a0 + a1)/2
     if not returns:
-        for cx, label in ((dcx, "DRIVER"), (ccx, "CONNECTION"), (tcx, "TARGET")):
-            ax.text(cx, _HEAD, label, ha="center", va="center", color=_DIM, fontsize=11.5,
+        for cx, label in ((dcx, "Driver"), (ccx, "Link"), (tcx, "Target")):
+            ax.text(cx, _HEAD, label, ha="center", va="center", color=_INK, fontsize=12,
                     fontweight="bold")
     else:
         # neither box is only a driver or only a target here — each is the other's — so the roles
@@ -970,9 +1110,8 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
                 fontsize=11.5, fontweight="bold")
 
     ax.add_patch(Rectangle((dx, mid-_BOX_H/2), dw, _BOX_H, facecolor="#f2f2f0", edgecolor=_INK, lw=1.5))
-    ax.text(dcx, mid-27, driver[0], ha="center", va="center", color=_DIM, fontsize=9, style="italic")
-    ax.text(dcx, mid+1, driver[1], ha="center", va="center", color=_INK, fontsize=17)
-    ax.text(dcx, mid+29, driver[2], ha="center", va="center", color=_DIM, fontsize=10.5, style="italic")
+    ax.text(dcx, mid-20, driver[0], ha="center", va="center", color=_DIM, fontsize=9, style="italic")
+    ax.text(dcx, mid+10, driver[1], ha="center", va="center", color=_INK, fontsize=17)
 
     out_y = mid - 13 if returns else mid
     ax.add_patch(FancyArrowPatch((a0, out_y), (a1, out_y), arrowstyle="-|>", mutation_scale=14,
@@ -989,10 +1128,9 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
         name, kind, mapping = targets[0]
         ax.add_patch(Rectangle((tx, mid-_BOX_H/2), tw, _BOX_H, facecolor="#f2f2f0",
                                edgecolor=_INK, lw=1.5))
-        ax.text(tcx, mid-27, target_level, ha="center", va="center", color=_DIM, fontsize=9,
+        ax.text(tcx, mid-20, target_level, ha="center", va="center", color=_DIM, fontsize=9,
                 style="italic")
-        ax.text(tcx, mid+1, name, ha="center", va="center", color=_INK, fontsize=17)
-        ax.text(tcx, mid+29, kind, ha="center", va="center", color=_DIM, fontsize=10.5, style="italic")
+        ax.text(tcx, mid+10, name, ha="center", va="center", color=_INK, fontsize=17)
         if mapping:
             ax.text(ccx, mid + (30 if returns else 16), mapping, ha="center", va="top", color=_DIM,
                     fontsize=10)
@@ -1033,3 +1171,115 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
     fig.savefig(path, dpi=180, transparent=True, bbox_inches="tight")
     plt.close(fig)
     return path
+
+
+def joined_mark_png(path, top="genomes", bottom="sequences"):
+    """The small execution mark for a joint figure: the two joined levels as ellipses in one
+    column, one vertical arrow with two heads between them, nothing else. It says how the run
+    executed, where the connection row beside it says what was written."""
+    from matplotlib.patches import Ellipse, FancyArrowPatch
+
+    rx, ry, gap = 112.0, 41.0, 80.0
+    W, H = 2 * rx + 24, 4 * ry + gap + 24
+    fig = plt.figure(figsize=(W / 100, H / 100), dpi=190)
+    ax = fig.add_axes([0, 0, 1, 1]); ax.set_xlim(0, W); ax.set_ylim(H, 0)
+    ax.set_axis_off(); ax.set_aspect("equal")
+    x = W / 2
+    y1, y2 = 12 + ry, 12 + 3 * ry + gap
+    for y, name in ((y1, top), (y2, bottom)):
+        ax.add_patch(Ellipse((x, y), 2 * rx, 2 * ry, facecolor="#f2f2f0",
+                             edgecolor="#2b2b2b", linewidth=1.4))
+        ax.text(x, y, name, ha="center", va="center", fontsize=20)
+    ax.add_patch(FancyArrowPatch((x, y1 + ry + 6), (x, y2 - ry - 6),
+                                 arrowstyle="<|-|>", mutation_scale=18, linewidth=1.6,
+                                 color="#2b2b2b"))
+    fig.savefig(path)
+    plt.close(fig)
+    return path
+
+
+def joint_header(path, rows, *, mark):
+    """The header of a joint figure: the connection rows on the left, no frame, then a dashed
+    vertical line, then the small stacked-ellipse mark saying which two levels ran as one.
+    ``mark`` is ``(top, bottom)``, the two level names in the order the hierarchy builds them.
+    The mark's height is capped so its labels keep roughly the size of the boxes' level tags
+    whether the figure has one connection row or two."""
+    from PIL import Image, ImageChops, ImageDraw
+
+    rows_png = joint_png(path.replace(".png", "_rows.png"), rows, frame=None)
+    mark_png = joined_mark_png(path.replace(".png", "_mark.png"), top=mark[0], bottom=mark[1])
+
+    def trim(im):
+        bg = Image.new("RGB", im.size, "white")
+        return im.crop(ImageChops.difference(im.convert("RGB"), bg).getbbox())
+
+    rows_im = trim(Image.open(rows_png))
+    mark_im = trim(Image.open(mark_png))
+    # scale the mark DOWN to at most 0.72 of its native size (where its labels match the
+    # boxes' level tags) and never up: upscaling the one-ellipse self-join mark to the
+    # two-ellipse cap made its label tower over everything else
+    mh = min(int(rows_im.height * 0.96), int(mark_im.height * 0.72))
+    mark_im = mark_im.resize((int(mark_im.width * mh / mark_im.height), mh))
+    pad_top, pad_bot, sep_gap = 30, 18, 56
+    H = rows_im.height + pad_top + pad_bot
+    W = rows_im.width + sep_gap + 3 + sep_gap + mark_im.width
+    canvas = Image.new("RGB", (W, H), "white")
+    canvas.paste(rows_im, (0, pad_top))
+    canvas.paste(mark_im, (W - mark_im.width, pad_top + (rows_im.height - mh) // 2))
+    # the dashed vertical line divides the connection (left) from how it ran (right)
+    draw = ImageDraw.Draw(canvas)
+    x = rows_im.width + sep_gap
+    yy = pad_top
+    while yy < pad_top + rows_im.height:
+        draw.line([(x, yy), (x, min(yy + 14, pad_top + rows_im.height))],
+                  fill="#8a8a8a", width=3)
+        yy += 24
+    canvas.save(path)
+    return path
+
+
+def gene_tree_newick_by_copy(gt, *, complete=False) -> str:
+    """The gene tree's newick with EVERY node labelled ``n<species>_g<copy>`` — the same key
+    the sequence tables use — so a per-copy quantity can be painted onto every branch.
+
+    ``GeneTree.to_newick`` labels internal nodes by event and species (``speciation_n3``),
+    which repeats when several copies pass the same species node, so a share keyed per copy
+    cannot find them. Tips already carry the per-copy key; this walk gives it to the
+    internal nodes too. The stem runs from the family's origination time to the root."""
+    def key(n):
+        return f"n{n.species}_g{n.copy}"
+
+    def rec(n):
+        if not n.children:
+            return key(n)
+        inner = ",".join(f"{rec(c)}:{c.time - n.time:.10g}" for c in n.children)
+        return f"({inner}){key(n)}"
+
+    root = gt.complete if complete else gt.extant
+    return f"({rec(root)}:{root.time - gt.origination:.10g});"
+
+
+def gene_tree_events_by_copy(gt, *, complete=False) -> list[dict]:
+    """The gene tree's own events — duplication, transfer arrival, loss — as
+    ``branch_events`` dicts keyed like :func:`gene_tree_newick_by_copy`, so the marks land
+    on the right copies. Losses exist only on the complete tree."""
+    out = []
+    def rec(n):
+        if n.kind in ("duplication", "transfer", "loss"):
+            out.append({"kind": n.kind, "node": f"n{n.species}_g{n.copy}", "x": n.time})
+        for c in n.children:
+            rec(c)
+    rec(gt.complete if complete else gt.extant)
+    return out
+
+
+def share_by_copy(result, fam, letters="KR") -> dict[str, float]:
+    """``{n<species>_g<copy>: that copy's share of ``letters``}`` over every node of one
+    family's gene tree — the per-copy sibling of the lineage-pooled ``_kr_by_node`` in
+    ``joining.py``. Keys match :func:`gene_tree_newick_by_copy`, so the pair paints a
+    true gene tree, duplications, transfers and all."""
+    out = {}
+    for table in (result.alignments[fam], result.ancestral[fam]):
+        for label, seq in table.items():
+            out[label] = sum(seq.count(c) for c in letters) / len(seq)
+    return out
