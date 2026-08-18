@@ -354,7 +354,7 @@ def cave_genomes(out):
               width=1150, tree_fraction=0.58, footer=36).save(real)
 
     # one row per statement, each row reading driver · sentence · the rate it drives
-    diag = h.joint_png(out.replace(".png", "_diag.png"), [
+    diag = h.joint_header(out.replace(".png", "_diag.png"), [
         (("traits", "habitat", [("swatch", _CAVE["surface"], "surface"),
                                 ("swatch", _CAVE["cave"], "cave")]),
          ("genomes", "loss rate", [("cross", _LOSS, "a gene is lost")]),
@@ -362,7 +362,7 @@ def cave_genomes(out):
         (("genomes", "the eye family", [("circle", _INK, "present"), ("ring", _INK, "absent")]),
          ("traits", "switch rate", _switch_key(_CAVE, ["cave", "surface"])),
          "with no eye, turns cave 25× faster"),
-    ])
+    ], mark=("genomes", "traits"))
     fig2 = plt.figure(figsize=(12, 9.1))
     axr = fig2.add_axes([0.0, 0.0, 1.0, 0.79]); axr.imshow(mpimg.imread(real)); axr.set_axis_off()
     axd = fig2.add_axes([0.14, 0.762, 0.72, 0.185]); axd.imshow(mpimg.imread(diag)); axd.set_axis_off()
@@ -490,36 +490,11 @@ def genome_and_sequence(out):
     # hierarchy itself (the genome decides which copies of protein A exist), and the hierarchy
     # is not a connection, so it gets no row. The small ellipse mark at the top right is what
     # says the two levels ran as one; the row needs no frame for that any more
-    rows_png = h.joint_png(out.replace(".png", "_rows.png"), [
+    diag = h.joint_header(out.replace(".png", "_diag.png"), [
         (("sequences", "protein A", ramp),
          ("genomes", "loss rate", []),
          "while protein A is AT-rich, genes are lost 30× faster"),
-    ], frame=None)
-    mark_png = h.joined_mark_png(out.replace(".png", "_mark.png"))
-    diag = out.replace(".png", "_diag.png")
-    from PIL import Image, ImageChops, ImageDraw
-    def _trim(im):
-        bg = Image.new("RGB", im.size, "white")
-        return im.crop(ImageChops.difference(im.convert("RGB"), bg).getbbox())
-    rows_im = _trim(Image.open(rows_png))
-    mark_im = _trim(Image.open(mark_png))
-    mh = int(rows_im.height * 0.96)
-    mark_im = mark_im.resize((int(mark_im.width * mh / mark_im.height), mh))
-    pad_top, pad_bot, sep_gap = 30, 18, 56
-    H = rows_im.height + pad_top + pad_bot
-    W = rows_im.width + sep_gap + 3 + sep_gap + mark_im.width
-    canvas = Image.new("RGB", (W, H), "white")
-    canvas.paste(rows_im, (0, pad_top))
-    canvas.paste(mark_im, (W - mark_im.width, pad_top + (rows_im.height - mh) // 2))
-    # the dashed vertical line divides the connection (left) from how it ran (right)
-    draw = ImageDraw.Draw(canvas)
-    x = rows_im.width + sep_gap
-    yy = pad_top
-    while yy < pad_top + rows_im.height:
-        draw.line([(x, yy), (x, min(yy + 14, pad_top + rows_im.height))],
-                  fill="#8a8a8a", width=3)
-        yy += 24
-    canvas.save(diag)
+    ], mark=("genomes", "sequences"))
     h.composite_under_diagram(out, diag, [(species_png, "Species Tree - nt composition"),
                                           (gene_png, "Gene Tree - Protein A")],
                               diagram_frac=0.88)
@@ -660,7 +635,7 @@ def trait_and_sequence(out):
                               size=6.5, legend=True, legend_title="",
                               legend_loc="top-left", legend_size=20)
      + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(gene_png)
-    diag = h.joint_png(out.replace(".png", "_diag.png"), [
+    diag = h.joint_header(out.replace(".png", "_diag.png"), [
         (("traits", "habitat", [("swatch", _CLIMATE["cold"], "cold"),
                                 ("swatch", _CLIMATE["hot"], "hot")]),
          ("sequences", "protein A's rate", [("word", None, "a site changes")]),
@@ -668,8 +643,8 @@ def trait_and_sequence(out):
         (("sequences", "protein A", [("word", None, "aa composition"),
                                  ("gradient", "magma_dark", ("KR-poor", "KR-rich"))]),
          ("traits", "switch rate", _switch_key(_CLIMATE, ["hot", "cold"])),
-         "the richer in KR is protein A, the readier the switch to hot"),
-    ])
+         "the richer in KR is protein A, the faster the switch to hot"),
+    ], mark=("sequences", "traits"))
     h.composite_under_diagram(out, diag, [(habitat, "Species Tree - Habitat"), (gene_png, "Gene Tree - Protein A")],
                               diagram_frac=0.72)
 
