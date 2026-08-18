@@ -1,7 +1,7 @@
 # What can gene order constrain?
 
 A genome rearrangement model, inferred back from the gene orders it produced, so that
-every estimate can be graded against the value that generated the data. All the relevant
+every estimate can be checked against the value that generated the data. All the relevant
 files are in
 [`analyses/rearrangements/`](https://github.com/AADavin/zombi2/tree/main/analyses/rearrangements).
 
@@ -34,11 +34,11 @@ replicates per grid cell, every seed recorded.
 
 ## One event type: the rate is pinned, the extent is not
 
-With inversions only, the misfit surface has a sharp valley along the rate axis and a
+With inversions only, the ABC distance surface has a sharp valley along the rate axis and a
 flat ridge along the extent axis. The inversion rate comes back within one grid step of
 the truth in every replicate. The mean extent does not come back at all: its credible
 interval covers the entire grid, from 1 gene to 64 genes. Profiled along each axis, the
-misfit moves 31 times more when the rate changes than when the extent does. Gene order
+distance moves 31 times more when the rate changes than when the extent does. Gene order
 tells you how often inversions happen; it does not tell you how big they are.
 
 ![Inversions only: the rate-extent ridge](../assets/rearrangements/rearrangements_a.png)
@@ -50,7 +50,7 @@ tells you how often inversions happen; it does not tell you how big they are.
 In the mixed arm the method recovers everything it is asked for, exactly, in all three
 replicates: the inversion rate, the translocation rate, and the 0.20 translocation share.
 The data also reject the simpler model rather than merely tolerating the mixture: the
-best inversion-only cell misfits the mixed data 8.2 times worse than the best mixed cell.
+best inversion-only cell sits 8.2 times further from the mixed data than the best mixed cell.
 The statistic behind that separation is clean by construction, since cross-chromosome
 breaks read exactly zero when only inversions act.
 

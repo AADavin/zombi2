@@ -11,7 +11,7 @@ a relative divergence scale, and GTDB uses it to align taxonomic ranks across th
 life. That works only if branch length stands in for time, and real data cannot say
 whether it does, because the true node ages are exactly what a real tree withholds. We
 measure how rate-variable real archaea are with one model-free number, simulate trees
-exactly that variable, and grade RED where the ages are known.
+exactly that variable, and test RED where the ages are known.
 
 **[Can BiSSE find the gene that drives speciation?](bisse.md)** A gene family multiplies a
 lineage's speciation rate while it is present: a genomic key innovation, simulated as one
@@ -24,7 +24,7 @@ does.
 **[What can gene order constrain?](rearrangements.md)** Inversions and translocations
 both scramble gene order, and gene order in turn carries information about them. Genomes
 are simulated at known rearrangement rates down a dated tree and the parameters inferred
-back, so every estimate is graded against the value that generated it. The verdict: the
+back, so every estimate is checked against the value that generated it. The verdict: the
 rates come back, including the share of each event type in a mixture, and the size of the
 events does not; fixing that unidentifiable size at a wrong value quietly distorts the
 rates that are identifiable.

@@ -23,7 +23,7 @@ actually pin, and whether two event types acting together can be told apart.
 
 The question is asked on simulated data on purpose. Given a real pair of genomes there is no way to
 check an inferred rate, because the true rate is unknown. Simulating the data first makes the answer
-available, so the method can be graded rather than trusted.
+available, so the method can be tested rather than trusted.
 
 ## The design
 
@@ -123,18 +123,18 @@ reversal model.
 
 ![Figure 1](figures/rearrangements.png)
 
-*Figure 1. Panel A, the misfit over arm A's grid of inversion rate against inversion extent. The
-band of good fits is narrow in rate and runs the full height of the grid. Panel B, the misfit
+*Figure 1. Panel A, the distance over arm A's grid of inversion rate against inversion extent. The
+band of good fits is narrow in rate and runs the full height of the grid. Panel B, the distance
 against each parameter as a multiple of its true value, profiled over the other parameter. The rate
-has a minimum at the truth and the extent is flat. Panel C, the misfit over arm B's grid of the two
+has a minimum at the truth and the extent is flat. Panel C, the distance over arm B's grid of the two
 rates, with a single minimum on the truth. Panel D, the recovered value as a multiple of the truth,
 for all three observed replicates of every arm.*
 
 **Arm A: the rate is pinned, the extent is not.** The recovered inversion rate is 7.07e-4 in all
 three replicates, one grid step below the true 1.0e-3. The recovered extent is 32, 64 and 64 genes
 against a true 4 genes, and its credible interval covers the entire grid, 1 to 64 genes, in all
-three replicates. The clearest way to see the difference is to profile the misfit along each axis,
-taking the best value over the other axis. Along the rate axis the misfit runs from 0.022 to 1.051, a
+three replicates. The clearest way to see the difference is to profile the distance along each axis,
+taking the best value over the other axis. Along the rate axis the distance runs from 0.022 to 1.051, a
 range of 1.03. Along the extent axis it runs from 0.022 to 0.055, a range of 0.033. The data respond
 about 31 times more strongly to the rate than to the extent.
 
@@ -150,7 +150,7 @@ recovered inversion rate is 1.0e-3 and the recovered translocation rate is 2.5e-
 replicates, both exactly the true values. The recovered translocation share is 0.20 against a true
 0.20. The credible interval is 5.0e-4 to 2.0e-3 for the inversion rate and 6.25e-5 to 5.0e-4 for the
 translocation rate. The best inversion-only cell, meaning the best cell of the whole translocation
-rate of zero row, reaches a misfit of 0.809, against 0.098 for the best mixed cell, a factor of 8.2.
+rate of zero row, reaches a distance of 0.809, against 0.098 for the best mixed cell, a factor of 8.2.
 So the data do not merely allow a translocation rate to be estimated, they reject the inversion-only
 model outright.
 
@@ -165,10 +165,10 @@ rate.
 ## Assumptions and limitations
 
 - **The credible interval is a rough one.** Grid cells are weighted by how closely they match, with
-  the tolerance set at the tenth percentile of the misfits over the grid. That is a working choice,
+  the tolerance set at the tenth percentile of the distances over the grid. That is a working choice,
   not a calibrated posterior, and the width of the interval depends partly on it and partly on the
   span of the grid. The recovery claims rest on the best cell and on the shape of the profiled
-  misfit, not on the interval.
+  distance, not on the interval.
 - **The point estimate cannot be finer than the grid.** The rate grid steps by a factor of the square
   root of 2, so the smallest deviation this study can resolve is 41% up or 29% down. Arm A's and arm
   C's rate estimates are one step low, which is the finest error the design can report.
@@ -180,7 +180,7 @@ rate.
   requests of 1, 2, 4 and 8 genes are realised at 1.0, 2.0, 4.1 and 8.0 genes, while requests of 32
   and 64 genes are realised at 27.4 and 42.0. The extent axis therefore compresses at its top end.
   This does not weaken the finding, since the axis still spans a 42-fold range of realised extent and
-  the misfit barely responds to it.
+  the distance barely responds to it.
 - **Two event types, not the full set.** Only inversions and translocations act here.
   Transpositions, and rearrangements that change the number of chromosomes, are left out. The
   statistics used would extend to them, since the breakpoint distance is indifferent to what broke an
@@ -201,7 +201,7 @@ for arm C. It needs no input data and no network access. The dated tree is regen
 `TREE_SEED` on every run and written to `data/tree.nwk`; every simulation seed is derived from
 `MASTER_SEED` together with the arm, the cell and the replicate, so the run does not depend on how
 many worker processes are used. `results.json` is committed and holds the provenance, the design, all
-grid and observed summary statistics, the full misfit surfaces and the verdicts. Figures are
+grid and observed summary statistics, the full distance surfaces and the verdicts. Figures are
 regenerated rather than committed.
 
 Verified against ZOMBI2 0.42.2 at commit 98cb4f9.
