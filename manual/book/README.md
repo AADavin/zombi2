@@ -23,7 +23,7 @@ Nine chapters and three appendices, one file each:
 chapter list. This directory is its exposition. When a chapter and SPEC disagree, SPEC wins.
 
 Ch1–Ch9 are published to the docs site under `docs/guide/`, Appendix A as `docs/rates.md`,
-Appendix B as `docs/output-files.md`, and Appendix C as `docs/tools.md` plus one page per tool, all by
+Appendix B as `docs/output-files.md`, and Appendix D as `docs/tools.md` plus one page per tool, all by
 snippet include. Renaming a file here breaks those includes; CI's `mkdocs --strict` will fail if you do.
 
 Run every example before trusting a chapter. Chapters drift behind the code in both directions.
