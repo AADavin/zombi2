@@ -933,9 +933,22 @@ def joint_png(path, rows, *, frame="one run"):
                          _text_w(probe, pax, level, 13, style="italic"), keyw)
         return max(_JOINT_HALF, widest / 2 + 14)
 
+    def wrap(sentence):
+        if measure(sentence, 15) <= 430:
+            return [sentence]
+        words = sentence.split()
+        best = None
+        for i in range(1, len(words)):
+            lines = [" ".join(words[:i]), " ".join(words[i:])]
+            widest = max(measure(l, 15) for l in lines)
+            if best is None or widest < best[0]:
+                best = (widest, lines)
+        return best[1]
+
+    sentences = [wrap(r[2]) for r in rows]
     hl = half_of([r[0] for r in rows])
     hr = half_of([r[1] for r in rows])
-    gap = max(_JOINT_GAP, max(_text_w(probe, pax, r[2], 15) for r in rows) + 60)
+    gap = max(360.0, max(measure(l, 15) for ls in sentences for l in ls) + 56)
     plt.close(probe)
 
     xl = 55 + hl                                   # 21 of margin, 22 of clearance, 12 of box padding
@@ -947,12 +960,13 @@ def joint_png(path, rows, *, frame="one run"):
     fig = plt.figure(figsize=(W / 100, H / 100), dpi=190)
     ax = fig.add_axes([0, 0, 1, 1]); ax.set_xlim(0, W); ax.set_ylim(H, 0)
     ax.set_axis_off(); ax.set_aspect("equal")
-    ax.add_patch(FancyBboxPatch((21, 54), W - 42, bottom - 54, boxstyle="round,pad=0",
-                                facecolor="none", edgecolor="#8a8a8a", linewidth=1.3))
-    # the label breaks the frame's top border rather than sitting inside it, so it reads as the
-    # panel's name and not as a first row
-    ax.text(50, 54, f" {frame} ", fontsize=15, style="italic", color="#555", ha="left",
-            va="center", backgroundcolor="white")
+    if frame is not None:
+        ax.add_patch(FancyBboxPatch((21, 54), W - 42, bottom - 54, boxstyle="round,pad=0",
+                                    facecolor="none", edgecolor="#8a8a8a", linewidth=1.3))
+        # the label breaks the frame's top border rather than sitting inside it, so it reads as
+        # the panel's name and not as a first row
+        ax.text(50, 54, f" {frame} ", fontsize=15, style="italic", color="#555", ha="left",
+                va="center", backgroundcolor="white")
 
     def box(x, half, y, level, name, key):
         ax.add_patch(FancyBboxPatch((x - half, y - 52), 2 * half, 104, boxstyle="round,pad=12",
@@ -962,14 +976,17 @@ def joint_png(path, rows, *, frame="one run"):
         ax.text(x, y - 2, name, ha="center", va="center", fontsize=24)
         _draw_joint_key(ax, x, y + 30, key)
 
-    for i, (driver, target, sentence) in enumerate(rows):
+    for i, (driver, target, _sentence) in enumerate(rows):
         y = 140 + 156 * i
         box(xl, hl, y, *driver)
         box(xr, hr, y, *target)
         a0, a1 = xl + hl + 20, xr - hr - 20
         ax.add_patch(FancyArrowPatch((a0, y), (a1, y), arrowstyle="-|>", mutation_scale=26,
                                      linewidth=1.8, color="#2b2b2b"))
-        ax.text((a0 + a1) / 2, y - 20, sentence, ha="center", va="center", fontsize=15)
+        lines = sentences[i]
+        for k, line in enumerate(lines):
+            ax.text((a0 + a1) / 2, y - 20 - 21 * (len(lines) - 1 - k), line,
+                    ha="center", va="center", fontsize=15)
     fig.savefig(path)
     plt.close(fig)
     return path
@@ -1060,11 +1077,9 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
     probe = plt.figure(figsize=(10, 3), dpi=180)          # measure before committing to a canvas
     pax = probe.add_axes([0, 0, 1, 1]); pax.set_xlim(0, 1200); pax.set_ylim(400, 0)
     dw = max(_MIN_W, _PAD*2 + max(_text_w(probe, pax, driver[1], 17),
-                                  _text_w(probe, pax, driver[2], 10.5, style="italic"),
                                   _text_w(probe, pax, driver[0], 9, style="italic")))
     if n == 1:
         tw = max(_MIN_W, _PAD*2 + max(_text_w(probe, pax, targets[0][0], 17),
-                                      _text_w(probe, pax, targets[0][1], 10.5, style="italic"),
                                       _text_w(probe, pax, target_level, 9, style="italic")))
     else:
         tw = max(_MIN_W, _PAD*2 + max(max(_text_w(probe, pax, a, 15.5),
@@ -1085,8 +1100,8 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
     a0, a1 = dx + dw + 14, tx - 14
     ccx = (a0 + a1)/2
     if not returns:
-        for cx, label in ((dcx, "DRIVER"), (ccx, "CONNECTION"), (tcx, "TARGET")):
-            ax.text(cx, _HEAD, label, ha="center", va="center", color=_DIM, fontsize=11.5,
+        for cx, label in ((dcx, "Driver"), (ccx, "Link"), (tcx, "Target")):
+            ax.text(cx, _HEAD, label, ha="center", va="center", color=_INK, fontsize=12,
                     fontweight="bold")
     else:
         # neither box is only a driver or only a target here — each is the other's — so the roles
@@ -1095,9 +1110,8 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
                 fontsize=11.5, fontweight="bold")
 
     ax.add_patch(Rectangle((dx, mid-_BOX_H/2), dw, _BOX_H, facecolor="#f2f2f0", edgecolor=_INK, lw=1.5))
-    ax.text(dcx, mid-27, driver[0], ha="center", va="center", color=_DIM, fontsize=9, style="italic")
-    ax.text(dcx, mid+1, driver[1], ha="center", va="center", color=_INK, fontsize=17)
-    ax.text(dcx, mid+29, driver[2], ha="center", va="center", color=_DIM, fontsize=10.5, style="italic")
+    ax.text(dcx, mid-20, driver[0], ha="center", va="center", color=_DIM, fontsize=9, style="italic")
+    ax.text(dcx, mid+10, driver[1], ha="center", va="center", color=_INK, fontsize=17)
 
     out_y = mid - 13 if returns else mid
     ax.add_patch(FancyArrowPatch((a0, out_y), (a1, out_y), arrowstyle="-|>", mutation_scale=14,
@@ -1114,10 +1128,9 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
         name, kind, mapping = targets[0]
         ax.add_patch(Rectangle((tx, mid-_BOX_H/2), tw, _BOX_H, facecolor="#f2f2f0",
                                edgecolor=_INK, lw=1.5))
-        ax.text(tcx, mid-27, target_level, ha="center", va="center", color=_DIM, fontsize=9,
+        ax.text(tcx, mid-20, target_level, ha="center", va="center", color=_DIM, fontsize=9,
                 style="italic")
-        ax.text(tcx, mid+1, name, ha="center", va="center", color=_INK, fontsize=17)
-        ax.text(tcx, mid+29, kind, ha="center", va="center", color=_DIM, fontsize=10.5, style="italic")
+        ax.text(tcx, mid+10, name, ha="center", va="center", color=_INK, fontsize=17)
         if mapping:
             ax.text(ccx, mid + (30 if returns else 16), mapping, ha="center", va="top", color=_DIM,
                     fontsize=10)
@@ -1156,6 +1169,31 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
         _chain(ax, *target_chain, cx=tcx, y=bottom+52, span=tw)
 
     fig.savefig(path, dpi=180, transparent=True, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def joined_mark_png(path, top="genomes", bottom="sequences"):
+    """The small execution mark for a joint figure: the two joined levels as ellipses in one
+    column, one vertical arrow with two heads between them, nothing else. It says how the run
+    executed, where the connection row beside it says what was written."""
+    from matplotlib.patches import Ellipse, FancyArrowPatch
+
+    rx, ry, gap = 112.0, 41.0, 80.0
+    W, H = 2 * rx + 24, 4 * ry + gap + 24
+    fig = plt.figure(figsize=(W / 100, H / 100), dpi=190)
+    ax = fig.add_axes([0, 0, 1, 1]); ax.set_xlim(0, W); ax.set_ylim(H, 0)
+    ax.set_axis_off(); ax.set_aspect("equal")
+    x = W / 2
+    y1, y2 = 12 + ry, 12 + 3 * ry + gap
+    for y, name in ((y1, top), (y2, bottom)):
+        ax.add_patch(Ellipse((x, y), 2 * rx, 2 * ry, facecolor="#f2f2f0",
+                             edgecolor="#2b2b2b", linewidth=1.4))
+        ax.text(x, y, name, ha="center", va="center", fontsize=20)
+    ax.add_patch(FancyArrowPatch((x, y1 + ry + 6), (x, y2 - ry - 6),
+                                 arrowstyle="<|-|>", mutation_scale=18, linewidth=1.6,
+                                 color="#2b2b2b"))
+    fig.savefig(path)
     plt.close(fig)
     return path
 
