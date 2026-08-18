@@ -552,14 +552,14 @@ def sequence_loop(out):
         pngs.append(png)
     ramp = [("word", None, "aa composition"),
             ("gradient", "magma_dark", ("KR-poor", "KR-rich"))]
-    diag = h.joint_png(out.replace(".png", "_diag.png"), [
+    diag = h.joint_header(out.replace(".png", "_diag.png"), [
         (("sequences", "protein A", ramp),
          ("sequences", "protein B's rate", [("word", None, "a site changes")]),
          "the richer in KR is protein A, the quicker protein B evolves"),
         (("sequences", "protein B", ramp),
          ("sequences", "protein A's rate", [("word", None, "a site changes")]),
          "the richer in KR is protein B, the quicker protein A evolves"),
-    ])
+    ], mark=("sequences", "sequences"))
     # the ramp is named once per gene in the diagram, so the rows below carry no key of their own
     h.composite_under_diagram(out, diag, [(pngs[0], "Gene Tree - Protein A"), (pngs[1], "Gene Tree - Protein B")],
                               diagram_frac=0.72)
