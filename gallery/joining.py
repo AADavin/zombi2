@@ -686,7 +686,7 @@ def trait_loop(out):
                                   size=6.0, legend=False)
          + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
         pngs.append(png)
-    diag = h.joint_png(out.replace(".png", "_diag.png"), [
+    diag = h.joint_header(out.replace(".png", "_diag.png"), [
         (("traits", "body size", [("swatch", _SIZE["small"], "small"),
                                   ("swatch", _SIZE["large"], "large")]),
          ("traits", "habitat switch", _switch_key(_CAVE, ["cave", "surface"])),
@@ -695,9 +695,10 @@ def trait_loop(out):
                                 ("swatch", _CAVE["cave"], "cave")]),
          ("traits", "size switch", _switch_key(_SIZE, ["large", "small"])),
          "in the cave, grows 6× more readily"),
-    ])
+    ], mark=("traits", "traits"))
     # no colour key under either row label: the diagram's boxes carry both palettes
-    h.composite_under_diagram(out, diag, [(pngs[0], "habitat"), (pngs[1], "body size")],
+    h.composite_under_diagram(out, diag, [(pngs[0], "Species Tree - Habitat"),
+                                          (pngs[1], "Species Tree - Body Size")],
                               diagram_frac=0.72)
 
 
