@@ -286,13 +286,15 @@ def mobile_element_joint(out):
     ph.beside(fig, ph.genomes.bars(given, colors=tipcol, label="transfers given",
                                    tick_size=20, label_size=26),
               width=1150, tree_fraction=0.58, footer=36).save(real)
-    # The same inset the other joining cards use: the two states a lineage can be in, and the rate
-    # each one transfers at. The arrows are deliberately unlabelled — a lineage leaves `present` by
-    # losing its last copy and enters it by receiving one from elsewhere, and neither of those is a
-    # rate this lineage carries, so putting a number on them would be inventing one.
-    h.composite_markov(real, out, lambda ax: h.draw_markov(
-        ax, ["present", "absent"], _IS1J, {"present": 0.75, "absent": 0.025}, symbol="τ"),
-        loc=(0.005, 0.665, 0.33, 0.30))
+    # ONE row: the element's presence drives the genome's transfer rate. The loop needs no
+    # second row — the transfers the rate fires are what move the element itself
+    diag = h.joint_header(out.replace(".png", "_diag.png"), [
+        (("genomes", "the IS1 element", [("swatch", _IS1J["present"], "present"),
+                                         ("swatch", _IS1J["absent"], "absent")]),
+         ("genomes", "transfer rate", [("word", None, "a gene moves")]),
+         "with IS1 present, the genome donates genes 30× more often"),
+    ], mark=("genomes", "genomes"))
+    h.composite_under_diagram(out, diag, [(real, "Species Tree - IS1")], diagram_frac=0.72)
 
 
 def cave_genomes(out):
