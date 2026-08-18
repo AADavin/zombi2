@@ -633,8 +633,6 @@ def trait_and_sequence(out):
 
     lab = ct.labels()
     fam = g.family_names["rpoB"]
-    share = _kr_by_node(r.sequences, fam)
-    span = (min(share.values()), max(share.values()))
     style = _panel_style()
     habitat = out.replace(".png", "_habitat.png")
     (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
