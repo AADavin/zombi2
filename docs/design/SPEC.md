@@ -25,8 +25,9 @@ Species → Genomes → Sequences      (a genome lives on the species tree; a se
 Species → Traits                   (a trait lives on the species tree)
 ```
 
-These "lives-on" connections are always present; they are **not** a relation you add. Because a sequence
-lives inside a gene, it sees the species tree only through its gene tree, so its notation conditions on
+This lives-on order — the **hierarchy** — is always present; it is **not** a relation you add, and it
+is not a connection (§5 reserves that word for a dependency someone writes). Because a sequence lives
+inside a gene, it sees the species tree only through its gene tree, so its notation conditions on
 Genomes, not Species.
 
 ---
@@ -34,8 +35,11 @@ Genomes, not Species.
 ## 2. How levels relate: independent, conditioned, joint
 
 Everything evolves on the tree, so every level is already conditioned on it. The real question is how
-two levels relate **to each other**. There are exactly three answers, taught with
-probability-factorisation notation, where `P(B | A)` reads "B simulated given A":
+two levels relate **to each other**. A dependency between them is always written as a **connection**
+(a driver, a link, a target — §5); the three relations below are not three kinds of connection but
+the three ways two levels can *run* — one after the other, or together — given whether a connection
+ties them and which way its reads point. Taught with probability-factorisation notation, where
+`P(B | A)` reads "B simulated given A":
 
 | Relation | Notation (a trait and a genome) | What you run |
 |---|---|---|
@@ -67,15 +71,18 @@ one level lives on the other or they sit on separate branches:
 |---|---|---|
 | Species – Genomes | no (a genome lives on the species tree) | yes — gene content drives speciation (tree grown) |
 | Species – Traits | no (a trait lives on the species tree) | yes — a trait drives speciation (tree grown) |
-| Genomes – Sequences | no (a sequence lives inside a gene) | in principle yes, deferred |
+| Genomes – Sequences | no (a sequence lives inside a gene) | yes — a composition drives a genome rate; the hierarchy closes the cycle |
 | Genomes – Traits | yes, either direction | yes — the two drive each other |
 | Traits – Sequences | yes, either direction | yes — the two drive each other |
 | Species – Sequences | no | no — too far apart to connect |
 
-The generating rule: a pair can be **conditioned** only on separate branches (Genomes–Traits,
-Traits–Sequences); it can be **joined** either by a level feeding back into its own tree (Species–Genomes,
-Species–Traits, where the tree comes out of the run) or by two separate-branch levels driving each
-other (Genomes–Traits, Traits–Sequences). Species and Sequences are too far apart to connect.
+The generating rule: a pair can be **conditioned** only when what is read can be finished first,
+which needs separate branches (Genomes–Traits, Traits–Sequences). It must be **joined** when the
+reads form a cycle, and a cycle happens two ways: two connections pointing in opposite directions
+(Genomes–Traits, Traits–Sequences, written both at once), or a single connection pointing against
+the hierarchy — a level feeding back into its own tree (Species–Genomes, Species–Traits, where the
+tree comes out of the run), or a sequence driving the genome that decides which of its copies exist
+(Genomes–Sequences). Species and Sequences are too far apart to connect.
 
 The same rule settles Traits–Sequences, which reads *yes* above because **both directions exist**: a
 trait drives a gene's substitution rate, and that gene's composition drives the trait. Either on its
@@ -112,6 +119,8 @@ Cross-level and within-level are therefore not different mechanisms, and the voc
 - gene content drives speciation, with a burst of gene change at each split (the tree is grown)
 - a trait and gene content drive each other (the tree stays fixed)
 - a trait and a gene's sequence drive each other (the tree stays fixed)
+- a gene's composition drives a genome rate, while the genome decides which copies of that gene
+  exist (the tree stays fixed) — one connection, with the hierarchy closing the cycle
 
 The literature calls these models by acronyms (BiSSE, MuSSE, QuaSSE, HiSSE, ClaSSE, key innovation,
 co-diversification, trait–gene feedback). **Those names are deprecated as structure, not hidden:**
@@ -381,6 +390,9 @@ Left column is correct; right column is a fossil to purge.
 | independent / conditioned / joint | pipeline / coevolution (as the framing) |
 | conditioning; joining; a joint model | coevolution (as a category) |
 | conditioning and joining (when the pair needs one name) | coupling (as the framing, a category or a level); the verb stays — "a transfer couples two lineages" |
+| connection — one written dependency: a driver, a link, a target | condition (as a noun for it); coupling |
+| link — what joins a driver to its target: a verb (`scaled_by` / `set_by` / `weighted_by`) carrying a mapping | connection (for the arrow alone); wire, wiring |
+| the hierarchy — the lives-on order of the levels (§1) | "lives-on connections"; substrate |
 | driver — the value a driven parameter reads, per lineage, as the run walks the tree (its first argument): grown by another level, or read off the tree itself (a clade) | source (for that argument); signal |
 | target — what a factor is attached to: a rate, an **extent**, or a **choice** | "a target is a rate"; target (for the driven level — say *the driven level*) |
 | choice — the target that decides who receives (`transfer_to`) | "which one"; slot |
