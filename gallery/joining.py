@@ -420,10 +420,14 @@ def genome_and_sequence(out):
     The tree is the only thing handed to the run. The gene trees are not: they come out of the genome
     participant, which is what makes this different from every conditioned run at this level.
 
-    One panel: how far `hisA` has ameliorated, and beside it how many genes each lineage has left.
-    The pale clades are the ameliorated ones, and they are the full genomes. In this run `hisA`
-    survives at all thirty tips, so no branch is left grey for `absent=0.35` to answer for, and the
-    twenty-two losses the driven rate fired are all of other families.
+    Two panels, the same ramp on both. **Species Tree - nt composition**: the species tree
+    painted by the pooled GC share of the `hisA` copies each lineage carries (displayed as
+    protein A); a lineage with no copy stays black, which is `absent=0.35` made visible. The
+    tiny red crosses are every loss the driven rate fired, over the whole genome: thirty-seven
+    in this run, and they sit where the tree is dark. **Gene Tree - Protein A**: the true gene
+    tree out of the joint run, every copy painted by its own GC share, with its nine
+    duplications, one transfer and one loss marked. `hisA` ends at twenty-five of the thirty
+    tips.
     """
     from zombi2.genomes import genome as genomes_spec_
     from zombi2.sequences import composition as offers_composition
@@ -433,45 +437,92 @@ def genome_and_sequence(out):
     ct = simulate_species_tree(birth=1.0, n_extant=30, seed=1).complete_tree
     at_rich = hky85(2.0, frequencies=(0.40, 0.10, 0.10, 0.40))
     r = joint.simulate(
-        genomes_spec_(duplication=0.15, origination=0.05, initial_families=25,
+        genomes_spec_(duplication=0.15, transfer=0.08, origination=0.05, initial_families=25,
                       loss=PerCopy(0.15).scaled_by(
                           "sequences:hisA", Curve(lambda gc: 30.0 ** ((0.35 - gc) / 0.2)),
                           step=0.05),
                       families=[family("hisA")]),
         gene_spec(name="hisA", model=hky85(2.0), length=250, start=at_rich, substitution=0.8,
                   offers=offers_composition("GC", absent=0.35)),
-        tree=ct, seed=3)
+        tree=ct, seed=13)
 
     lab = ct.labels()
     fam = r.genome.family_names["hisA"]
-    gc = _kr_by_node(r.sequences, fam, letters="GC")
-    span = (min(gc.values()), max(gc.values()))
-    sizes = {lab[n]: len(r.genome.genomes[lab[n]]) for n in sorted(ct.extant_leaves())}
-    # a lineage that carries no copy of hisA keeps the default colour, so the grey branches are
-    # exactly the ones `absent=` had to answer for
     style = _panel_style()
-    style = ph.Style(width=style.width, height=style.height, margin=style.margin,
-                     branch_width=style.branch_width, branch_color="#c3c8cc")
-    # no loss crosses here, unlike cave_genomes: `hisA` itself is never lost in this run, and the
-    # twenty-two losses of everything else pile up half a dozen deep on the stem, where they read as
-    # one red smudge rather than as events. The bars are what the loss rate did, and they say it
-    fig = (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
-           + ph.trees.color_branches(gc, cmap="magma_dark", limits=span)
-           + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False))
-    png = out.replace(".png", "_panel.png")
-    ph.beside(fig, ph.genomes.bars(sizes, label="genes left", tick_size=20, label_size=26),
-              width=1150, tree_fraction=0.58, footer=36).save(png)
-    ramp = [("gradient", "magma_dark", ("AT-rich", "AT-poor"))]
-    diag = h.joint_png(out.replace(".png", "_diag.png"), [
-        (("genomes", "the genome", [("swatch", _BAR, "genes left")]),
-         ("sequences", "hisA", ramp),
-         "the genome says which copies of hisA exist"),
-        (("sequences", "hisA", ramp),
-         ("genomes", "loss rate", [("cross", _LOSS, "a gene is lost")]),
-         "while hisA is AT-rich, genes are lost 30× faster"),
-    ])
-    h.composite_under_diagram(out, diag, [(png, "hisA, and what each tip has left")],
-                              diagram_frac=0.72)
+    black = ph.Style(width=style.width, height=style.height, margin=style.margin,
+                     branch_width=style.branch_width, branch_color="#1a1a1a")
+    # panel 1: the species tree painted by the POOLED composition of each lineage's copies;
+    # a lineage with no copy keeps the black skeleton, which is the `absent=` case made
+    # visible. The crosses are every loss of the whole genome, not protein A's alone
+    pooled = _kr_by_node(r.sequences, fam, letters="GC")
+    losses = [{"kind": "loss (any gene family)", "node": lab[e.lineage], "x": float(e.time)}
+              for e in r.genome.edges
+              if getattr(e, "kind", None) == "loss" and lab.get(e.lineage)]
+    species_png = out.replace(".png", "_species.png")
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), style=black)
+     + ph.trees.color_branches(pooled, cmap="magma_dark",
+                               limits=(min(pooled.values()), max(pooled.values())))
+     + ph.trees.branch_events(losses, styles={"loss (any gene family)": ("cross", _LOSS)},
+                              size=3.5,
+                              legend=True, legend_title="", legend_loc="top-left",
+                              legend_size=20)
+     + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(species_png)
+    # panel 2: the TRUE gene tree of protein A, every copy painted by its own composition,
+    # its duplications, transfer and loss marked in black with the legend in the panel
+    gt = r.genome.gene_trees[fam]
+    nwk = h.gene_tree_newick_by_copy(gt, complete=True)
+    events = h.gene_tree_events_by_copy(gt, complete=True)
+    per_copy = h.share_by_copy(r.sequences, fam, letters="GC")
+    gene_png = out.replace(".png", "_gene.png")
+    (ph.trees.plot(ph.trees.loads(nwk), style=black)
+     + ph.trees.color_branches(per_copy, cmap="magma_dark",
+                               limits=(min(per_copy.values()), max(per_copy.values())))
+     + ph.trees.branch_events(events,
+                              styles={"duplication": ("square", "#1a1a1a"),
+                                      "transfer": ("circle", "#1a1a1a"),
+                                      "loss": ("cross", "#1a1a1a")},
+                              size=6.5, legend=True, legend_title="",
+                              legend_loc="top-left", legend_size=20)
+     + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(gene_png)
+    ramp = [("word", None, "nt composition"),
+            ("gradient", "magma_dark", ("AT-rich", "AT-poor"))]
+    # ONE row: this pair has a single written connection. The other half of the cycle is the
+    # hierarchy itself (the genome decides which copies of protein A exist), and the hierarchy
+    # is not a connection, so it gets no row. The small ellipse mark at the top right is what
+    # says the two levels ran as one; the row needs no frame for that any more
+    rows_png = h.joint_png(out.replace(".png", "_rows.png"), [
+        (("sequences", "protein A", ramp),
+         ("genomes", "loss rate", []),
+         "while protein A is AT-rich, genes are lost 30× faster"),
+    ], frame=None)
+    mark_png = h.joined_mark_png(out.replace(".png", "_mark.png"))
+    diag = out.replace(".png", "_diag.png")
+    from PIL import Image, ImageChops, ImageDraw
+    def _trim(im):
+        bg = Image.new("RGB", im.size, "white")
+        return im.crop(ImageChops.difference(im.convert("RGB"), bg).getbbox())
+    rows_im = _trim(Image.open(rows_png))
+    mark_im = _trim(Image.open(mark_png))
+    mh = int(rows_im.height * 0.96)
+    mark_im = mark_im.resize((int(mark_im.width * mh / mark_im.height), mh))
+    pad_top, pad_bot, sep_gap = 30, 18, 56
+    H = rows_im.height + pad_top + pad_bot
+    W = rows_im.width + sep_gap + 3 + sep_gap + mark_im.width
+    canvas = Image.new("RGB", (W, H), "white")
+    canvas.paste(rows_im, (0, pad_top))
+    canvas.paste(mark_im, (W - mark_im.width, pad_top + (rows_im.height - mh) // 2))
+    # the dashed vertical line divides the connection (left) from how it ran (right)
+    draw = ImageDraw.Draw(canvas)
+    x = rows_im.width + sep_gap
+    yy = pad_top
+    while yy < pad_top + rows_im.height:
+        draw.line([(x, yy), (x, min(yy + 14, pad_top + rows_im.height))],
+                  fill="#8a8a8a", width=3)
+        yy += 24
+    canvas.save(diag)
+    h.composite_under_diagram(out, diag, [(species_png, "Species Tree - nt composition"),
+                                          (gene_png, "Gene Tree - Protein A")],
+                              diagram_frac=0.88)
 
 
 def sequence_loop(out):
