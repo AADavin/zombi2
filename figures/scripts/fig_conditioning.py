@@ -30,7 +30,7 @@ def main() -> None:
         driver=("traits", "habitat", "two states"),
         connection=("scaled_by", "table"),
         target_level="genomes",
-        targets=[("loss", "rate · per copy", "aquatic × 4    terrestrial × 1")],
+        targets=[("loss rate", "rate · per copy", "aquatic × 4    terrestrial × 1")],
         chain=(("terrestrial", "aquatic"), [("0.30", "0.30")],
                (_HAB["terrestrial"], _HAB["aquatic"])))
     print(f"wrote {out}")
