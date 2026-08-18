@@ -66,7 +66,8 @@ class GeneTree:
         return self._extant
 
     def to_newick(self, which: str = "extant", *, annotate: bool = True,
-                  names: "dict[int, str] | None" = None) -> str | None:
+                  names: "dict[int, str] | None" = None,
+                  labels: str = "events") -> str | None:
         """Newick of the ``"extant"`` (default) or ``"complete"`` tree; ``None`` if it is empty.
         Leaves are ``n<species>_g<copy>`` — the copy and the branch it sits on, the same name the
         alignment FASTA records and the homology tables use, so a tip needs no translation to say
@@ -82,14 +83,23 @@ class GeneTree:
         calls ``e<species>`` — a label that resolved in neither file, on exactly the transfers whose
         donor is invisible.
 
+        ``labels`` picks what internal nodes are called. ``"events"`` (default) is the
+        annotated form above. ``"copies"`` names every internal node the way the leaves are
+        named, ``n<species>_g<copy>`` — the key the alignment and ancestral tables use — so a
+        per-copy quantity (an ancestral sequence, a composition) can be attached to every
+        branch of the tree, not only its tips. Event kinds are then not in the labels; they
+        remain on the `GeneNode` objects.
+
         The root carries one too, running from ``origination`` to where the root gene ended — the
         stem of the family, real time in which that founding gene existed. On the extant tree the
         root may be a node whose ancestors were suppressed; its branch still starts at ``origination``
         and so absorbs them, exactly as the species tree's extant root absorbs its own."""
+        if labels not in ("events", "copies"):
+            raise ValueError(f"labels must be 'events' or 'copies', not {labels!r}")
         root = self.extant if which == "extant" else self.complete
         if root is None:
             return None
-        return _to_newick(root, annotate, self.origination, names) + ";"
+        return _to_newick(root, annotate, self.origination, names, labels) + ";"
 
 
 def write_gene_trees(gene_trees: dict[int, "GeneTree"], directory,
@@ -193,7 +203,7 @@ def _prune_to_extant(root: GeneNode) -> GeneNode | None:
 
 
 def _to_newick(root: GeneNode, annotate: bool, origination: float,
-               names: "dict[int, str] | None" = None) -> str:
+               names: "dict[int, str] | None" = None, labels: str = "events") -> str:
     """Serialise iteratively (gene trees run deeper than CPython's C-stack recursion guard). The root
     is given ``origination`` as its parent time, so it gets a branch length like every other
     node instead of the bare label that would drop the family's stem."""
@@ -210,6 +220,8 @@ def _to_newick(root: GeneNode, annotate: bool, origination: float,
         sp = names[node.species] if names is not None else node_label(node.species)
         if node.is_leaf:
             s = f"{sp}_{gene_label(node.copy)}{bl}"
+        elif labels == "copies":
+            s = f"({','.join(parts)}){sp}_{gene_label(node.copy)}{bl}"
         else:
             label = f"{node.kind}_{sp}" if annotate else ""
             s = f"({','.join(parts)}){label}{bl}"
