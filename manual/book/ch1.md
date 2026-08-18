@@ -65,7 +65,7 @@ When we condition there are three things to pay attention to:
 - the **target**: the variable that the driver modifies.
 - the **connection**: how the driver controls the target.
 
-![Conditioning: a habitat trait is grown first and held fixed, and a gene loss rate reads it. The driver, the connection and the target are the three parts every conditioned run has, and Chapter 8 takes them one at a time.](figures/conditioning_print.png){width=95%}
+![Conditioning: a habitat trait is grown first and held fixed, and a gene loss rate reads it. The driver, the link and the target are the three parts every connection has, and Chapter 8 takes them one at a time.](figures/conditioning_print.png){width=95%}
 
 Not everything can be connected in ZOMBI2, but it is flexible enough to allow very specific rules — a trait can set how often a lineage loses genes, and a gene family's presence can set how fast a trait changes. There is a full chapter devoted to conditioning, and a user should read it to study the different cases.
 
@@ -82,7 +82,7 @@ Because neither is finished first, neither can be written out and handed over. T
 
 $$P(\text{Species}, \text{Traits})$$
 
-The test is one question: can the driver be grown first, on its own, and handed over? If it can, condition. If it cannot, join. Chapter 8 works through conditioning and Chapter 9 through joining.
+The test is one question: can the driver be grown first, on its own, and handed over? If it can, condition. If it cannot, join. Chapter 8 works through both.
 
 ## What it can do
 
@@ -112,7 +112,7 @@ ZOMBI2 needs Python 3.10 or newer and depends on NumPy and tqdm, plus the `tomli
 pip install zombi2
 ```
 
-`zombi2 --version` confirms the install, and `zombi2 -h` lists the commands: one per level (Chapters 2 to 7 cover them in order), plus `joint`, which grows the species tree and a level that drives it in one run (Chapter 9), and `tools`, analyses that read a finished run (Appendix C).
+`zombi2 --version` confirms the install, and `zombi2 -h` lists the commands: one per level (Chapters 2 to 7 cover them in order), plus `joint`, which grows the species tree and a level that drives it in one run (Chapter 8), and `tools`, analyses that read a finished run (Appendix D).
 
 ZOMBI2 is pure Python over NumPy, with no compiled part to build, and the test suite runs on **Linux,
 macOS and Windows** on every change, so the same command does the same thing on all three. The one

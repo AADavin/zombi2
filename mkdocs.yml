@@ -139,8 +139,8 @@ nav:
       - "Genomes III: nucleotide": guide/genomes-nucleotide.md
       - Sequences: guide/sequences.md
       - Traits: guide/traits.md
-      - Conditioning: guide/conditioning.md
-      - Joining: guide/joining.md
+      - Dependent runs: guide/conditioning.md
+      - Joint runs: guide/joining.md
   - Rates in detail: rates.md
   - Output files: output-files.md
   - Tools:
