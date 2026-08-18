@@ -603,10 +603,11 @@ def trait_and_sequence(out):
      + ph.trees.color_branches(per_copy, cmap="magma_dark",
                                limits=(min(per_copy.values()), max(per_copy.values())))
      + ph.trees.branch_events(events,
-                              styles={"duplication": ("square", "#3a7ca5"),
-                                      "transfer": ("circle", "#2e8b57"),
-                                      "loss": ("cross", "#c1443c")},
-                              size=6.5, legend=False)
+                              styles={"duplication": ("square", "#1a1a1a"),
+                                      "transfer": ("circle", "#1a1a1a"),
+                                      "loss": ("cross", "#1a1a1a")},
+                              size=6.5, legend=True, legend_title="",
+                              legend_loc="top-left", legend_size=20)
      + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(gene_png)
     diag = h.joint_png(out.replace(".png", "_diag.png"), [
         (("traits", "habitat", [("swatch", _CLIMATE["cold"], "cold"),
@@ -614,10 +615,7 @@ def trait_and_sequence(out):
          ("sequences", "protein A's rate", [("word", None, "a site changes")]),
          "hot lineages substitute 4× faster"),
         (("sequences", "protein A", [("word", None, "aa composition"),
-                                 ("gradient", "magma_dark", ("KR-poor", "KR-rich")),
-                                 ("square", "#3a7ca5", "duplication"),
-                                 ("circle", "#2e8b57", "transfer"),
-                                 ("cross", "#c1443c", "loss")]),
+                                 ("gradient", "magma_dark", ("KR-poor", "KR-rich"))]),
          ("traits", "switch rate", _switch_key(_CLIMATE, ["hot", "cold"])),
          "the richer in KR is protein A, the readier the switch to hot"),
     ])
