@@ -250,7 +250,7 @@ r.write("out/", outputs=("alignments", "events"))    # sequence_events.tsv
 
 Recording changes the **sampler**. An ordinary run draws each branch's end in one step and never simulates the path between, because nothing asks what it was; a recorded run has to walk that path, event by event. The two give the same distribution at a branch's end, so a recorded run is a valid run — it is a *different realisation* for the same seed, the price of asking what happened rather than only where it ended.
 
-What it will not walk, it refuses: `partitions` and `profiles`, which give a family several models; a nucleotide genome run, which evolves blocks rather than one sequence per family; and the parallel and streaming engines, which hand a family off before its rows could be collected. A **joint** run records as well — `joint=True` here, or `joint.simulate(..., record=True)` for a trait and a gene together (Chapter 9); those runs advance in slices of species time, and a slice is exactly the interval their rate is constant over, so a row's time is as exact there as on an ordinary branch.
+What it will not walk, it refuses: `partitions` and `profiles`, which give a family several models; a nucleotide genome run, which evolves blocks rather than one sequence per family; and the parallel and streaming engines, which hand a family off before its rows could be collected. A **joint** run records as well — `joint=True` here, or `joint.simulate(..., record=True)` for a trait and a gene together (Chapter 8); those runs advance in slices of species time, and a slice is exactly the interval their rate is constant over, so a row's time is as exact there as on an ordinary branch.
 
 ## Large runs
 
