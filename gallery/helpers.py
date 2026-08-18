@@ -1198,6 +1198,46 @@ def joined_mark_png(path, top="genomes", bottom="sequences"):
     return path
 
 
+def joint_header(path, rows, *, mark):
+    """The header of a joint figure: the connection rows on the left, no frame, then a dashed
+    vertical line, then the small stacked-ellipse mark saying which two levels ran as one.
+    ``mark`` is ``(top, bottom)``, the two level names in the order the hierarchy builds them.
+    The mark's height is capped so its labels keep roughly the size of the boxes' level tags
+    whether the figure has one connection row or two."""
+    from PIL import Image, ImageChops, ImageDraw
+
+    rows_png = joint_png(path.replace(".png", "_rows.png"), rows, frame=None)
+    mark_png = joined_mark_png(path.replace(".png", "_mark.png"), top=mark[0], bottom=mark[1])
+
+    def trim(im):
+        bg = Image.new("RGB", im.size, "white")
+        return im.crop(ImageChops.difference(im.convert("RGB"), bg).getbbox())
+
+    rows_im = trim(Image.open(rows_png))
+    mark_im = trim(Image.open(mark_png))
+    # scale the mark DOWN to at most 0.72 of its native size (where its labels match the
+    # boxes' level tags) and never up: upscaling the one-ellipse self-join mark to the
+    # two-ellipse cap made its label tower over everything else
+    mh = min(int(rows_im.height * 0.96), int(mark_im.height * 0.72))
+    mark_im = mark_im.resize((int(mark_im.width * mh / mark_im.height), mh))
+    pad_top, pad_bot, sep_gap = 30, 18, 56
+    H = rows_im.height + pad_top + pad_bot
+    W = rows_im.width + sep_gap + 3 + sep_gap + mark_im.width
+    canvas = Image.new("RGB", (W, H), "white")
+    canvas.paste(rows_im, (0, pad_top))
+    canvas.paste(mark_im, (W - mark_im.width, pad_top + (rows_im.height - mh) // 2))
+    # the dashed vertical line divides the connection (left) from how it ran (right)
+    draw = ImageDraw.Draw(canvas)
+    x = rows_im.width + sep_gap
+    yy = pad_top
+    while yy < pad_top + rows_im.height:
+        draw.line([(x, yy), (x, min(yy + 14, pad_top + rows_im.height))],
+                  fill="#8a8a8a", width=3)
+        yy += 24
+    canvas.save(path)
+    return path
+
+
 def gene_tree_newick_by_copy(gt, *, complete=False) -> str:
     """The gene tree's newick with EVERY node labelled ``n<species>_g<copy>`` — the same key
     the sequence tables use — so a per-copy quantity can be painted onto every branch.
