@@ -33,7 +33,7 @@ out/genomes/                gene_order.tsv                                    (o
 out/genomes/                block_events.tsv · blocks.tsv · genes.tsv         (nucleotide)
 out/genomes/                initial_sequence.fasta                            (nucleotide + fasta)
 out/genomes/                names.tsv                                    (--from with own labels)
-out/genomes/markers.tsv     the marker table, one file for the run — Appendix C  (via zombi2 tools format)
+out/genomes/markers.tsv     the marker table, one file for the run — Appendix D  (via zombi2 tools format)
 out/genomes/gene_trees/     gene_tree_fam<f>_complete.nwk · …_extant.nwk
 out/genomes/gff/            genome_<lineage>.gff · genome_initial.gff         (nucleotide)
 out/genomes/bed/            genome_<lineage>.bed · genome_initial.bed         (nucleotide)
@@ -567,4 +567,4 @@ Neither adds a format. A **conditioned** run writes the driven level's own files
 **both** levels, each in its own format.
 
 The `zombi2 tools` commands write their own files — the homology matrix and the reconciliation/scoring
-outputs — catalogued in Appendix C.
+outputs — catalogued in Appendix D.

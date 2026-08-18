@@ -16,6 +16,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   per-copy quantity (an ancestral sequence, a composition) can be attached to every branch
   of a gene tree, not only its tips. The default `labels="events"` form is unchanged.
 
+### Changed
+
+- The manual's Conditioning and Joining chapters are one chapter now, **Dependent runs**: the three
+  kinds of run first (independent, conditioned, joint), then the connection and its three parts
+  (driver, link, target), then the joint models, with the worked code on the gallery's cards. The
+  reference tables move to a new **Appendix C, The connection reference**; Tools becomes Appendix D.
+  The site's guide URLs are unchanged and serve the same content from the new chapter.
+
 ## [0.42.2] - 2026-08-16
 
 ### Fixed
