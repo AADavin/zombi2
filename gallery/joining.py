@@ -113,9 +113,14 @@ def bisse(out):
     (ph.trees.plot(ph.trees.loads(r.complete_tree.to_newick()), style=_style(), skeleton=False)
      + ph.trees.color_history(_history(r), palette=_BISSE)
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
-    h.composite_markov(tree_png, out, lambda ax: h.draw_markov(
-        ax, ["fast", "slow"], _BISSE, {"fast": 2.6, "slow": 0.7}, symbol="λ"),
-        loc=(0.02, 0.04, 0.34, 0.30))
+    diag = h.joint_header(out.replace(".png", "_diag.png"), [
+        (("traits", "the trait", [("swatch", _BISSE["fast"], "fast"),
+                                  ("swatch", _BISSE["slow"], "slow")]),
+         ("species", "speciation rate", [("word", None, "a lineage splits")]),
+         "fast lineages split at 2.6, slow at 0.7"),
+    ], mark=("species", "traits"))
+    h.composite_under_diagram(out, diag, [(tree_png, "Species Tree - Trait")],
+                              diagram_frac=0.72)
 
 
 _QUASSE_SLOPE = 0.5      # λ = 0.4·e^{0.5·size}: the size doubles the rate every 1.4 units
@@ -188,9 +193,17 @@ def quasse(out):
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
     # the key goes in the tree's empty upper-left, on a card: it is a plot with axes of its own, and
     # unframed beside the tree's time axis the two read as one set of coordinates
-    h.composite_markov(tree_png, out, lambda ax: _draw_response(ax, *limits),
+    carded = out.replace(".png", "_carded.png")
+    h.composite_markov(tree_png, carded, lambda ax: _draw_response(ax, *limits),
                        loc=(0.091, 0.787, 0.147, 0.12), keep_axes=True,
                        panel=(0.041, 0.047, 0.016, 0.019))
+    diag = h.joint_header(out.replace(".png", "_diag.png"), [
+        (("traits", "body size", [("gradient", "viridis", ("small", "large"))]),
+         ("species", "speciation rate", [("word", None, "a lineage splits")]),
+         "the larger the body, the faster the lineage splits"),
+    ], mark=("species", "traits"))
+    h.composite_under_diagram(out, diag, [(carded, "Species Tree - Body Size")],
+                              diagram_frac=0.72)
 
 
 def classe(out):
@@ -215,9 +228,14 @@ def classe(out):
                               legend_size=20,
                               styles={"change at the split": ("square", "#111111")})
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
-    h.composite_markov(tree_png, out, lambda ax: h.draw_markov(
-        ax, ["fast", "slow"], _BISSE, {"fast": 2.6, "slow": 0.7}, symbol="λ"),
-        loc=(0.02, 0.04, 0.34, 0.30))
+    diag = h.joint_header(out.replace(".png", "_diag.png"), [
+        (("traits", "the trait", [("swatch", _BISSE["fast"], "fast"),
+                                  ("swatch", _BISSE["slow"], "slow")]),
+         ("species", "speciation rate", [("word", None, "a lineage splits")]),
+         "fast lineages split at 2.6, slow at 0.7"),
+    ], mark=("species", "traits"))
+    h.composite_under_diagram(out, diag, [(tree_png, "Species Tree - Trait")],
+                              diagram_frac=0.72)
 
 
 def key_innovation(out):
@@ -238,9 +256,14 @@ def key_innovation(out):
     (ph.trees.plot(ph.trees.loads(ct.to_newick()), style=_style(), skeleton=False)
      + ph.trees.color_history(history, palette=_KEY)
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
-    h.composite_markov(tree_png, out, lambda ax: h.draw_markov(
-        ax, ["absent", "present"], _KEY, {"absent": 0.7, "present": 3.5}, symbol="λ"),
-        loc=(0.02, 0.04, 0.34, 0.30))
+    diag = h.joint_header(out.replace(".png", "_diag.png"), [
+        (("genomes", "the toxin family", [("swatch", _KEY["present"], "present"),
+                                          ("swatch", _KEY["absent"], "absent")]),
+         ("species", "speciation rate", [("word", None, "a lineage splits")]),
+         "a lineage carrying toxin splits 5× more often"),
+    ], mark=("species", "genomes"))
+    h.composite_under_diagram(out, diag, [(tree_png, "Species Tree - Toxin")],
+                              diagram_frac=0.72)
 
 
 def mobile_element_joint(out):
@@ -713,9 +736,14 @@ def state_extinction(out):
     (ph.trees.plot(tree, style=_style(), skeleton=False)
      + ph.trees.color_history(_history(r), palette=_SSE, dashed=dashed)     # dead lineages: dashed + coloured
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
-    h.composite_markov(tree_png, out, lambda ax: h.draw_markov(
-        ax, ["doomed", "safe"], _SSE, {"doomed": 0.75, "safe": 0.05}, symbol="μ"),
-        loc=(0.02, 0.05, 0.34, 0.30))
+    diag = h.joint_header(out.replace(".png", "_diag.png"), [
+        (("traits", "the trait", [("swatch", _SSE["doomed"], "doomed"),
+                                  ("swatch", _SSE["safe"], "safe")]),
+         ("species", "extinction rate", [("word", None, "a lineage dies")]),
+         "doomed lineages die at 0.75, safe at 0.05"),
+    ], mark=("species", "traits"))
+    h.composite_under_diagram(out, diag, [(tree_png, "Species Tree - Trait")],
+                              diagram_frac=0.72)
 
 
 def musse(out):
@@ -727,9 +755,15 @@ def musse(out):
     (ph.trees.plot(tree, style=_style(), skeleton=False)
      + ph.trees.color_history(_history(r), palette=_MUSSE, dashed=dashed)
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(tree_png)
-    h.composite_markov(tree_png, out, lambda ax: h.draw_markov(
-        ax, ["slow", "medium", "fast"], _MUSSE, {"slow": 0.6, "medium": 1.3, "fast": 2.6},
-        symbol="λ"), loc=(0.02, 0.075, 0.35, 0.40))
+    diag = h.joint_header(out.replace(".png", "_diag.png"), [
+        (("traits", "the trait", [("swatch", _MUSSE["slow"], "slow"),
+                                  ("swatch", _MUSSE["medium"], "medium"),
+                                  ("swatch", _MUSSE["fast"], "fast")]),
+         ("species", "speciation rate", [("word", None, "a lineage splits")]),
+         "slow splits at 0.6, medium at 1.3, fast at 2.6"),
+    ], mark=("species", "traits"))
+    h.composite_under_diagram(out, diag, [(tree_png, "Species Tree - Trait")],
+                              diagram_frac=0.72)
 
 
 # --- conditioning: the driver is grown first, then the genome reads it -----------------------
