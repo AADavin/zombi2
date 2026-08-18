@@ -404,50 +404,59 @@ def test_the_manual_cites_the_gallery_by_the_right_number():
                        "`python scripts/gallery_refs.py`:\n  " + "\n  ".join(stale))
 
 
-def test_chapter_eight_s_table_and_the_gallery_agree_on_the_conditioning_examples():
-    """Chapter 9's table of what can condition what is the index into the gallery's conditioning
-    section, and the section is ordered to match — so the Gallery column reads straight down.
+def test_the_connection_catalog_and_the_gallery_agree_on_the_examples():
+    """Appendix C's catalog of every connection is the index into the gallery's conditioning and
+    joining sections, and the conditioning section is ordered to match — so that column reads
+    straight down.
 
-    That coupling is held by hand in two files: the table's rows in `ch8.md`, and
-    `CONDITIONING_ORDER` in `gallery/build.py`. Nothing else notices when one moves. Three things
-    have to stay true, and each is a way the pair has already nearly gone wrong:
+    That coupling is held by hand in two files: the catalog's rows in `appendix-c.md`, and
+    `CONDITIONING_ORDER` in `gallery/build.py`. Nothing else notices when one moves. What has to
+    stay true, each a way the pair has already nearly gone wrong:
 
-    * every row cites at least one example — a pair the book says is possible and the gallery does
-      not show is a claim nothing backs;
-    * every conditioning example is cited by exactly one row — which is what makes "all seventeen are
+    * every row cites at least one example — a connection the book says is possible and the gallery
+      does not show is a claim nothing backs;
+    * every conditioning example is cited by exactly one row — which is what makes "all nineteen are
       used, none left over" a fact rather than something that was true once;
-    * the numbers ascend down the table — the reason the section was reordered at all.
+    * the Co numbers ascend down the table — the reason the section was reordered at all;
+    * every joining example is cited somewhere — at least once rather than exactly once, because one
+      joint card can serve the two rows of its cycle (cave_genomes backs rows 1 and 7).
     """
     sys.path.insert(0, str(GALLERY.parent / "scripts"))
     try:
         import gallery_refs
     finally:
         sys.path.remove(str(GALLERY.parent / "scripts"))
-    text = (GALLERY.parent / "manual" / "book" / "ch8.md").read_text(encoding="utf-8")
+    text = (GALLERY.parent / "manual" / "book" / "appendix-c.md").read_text(encoding="utf-8")
     table = re.search(r"^\| # \| Driver \| Target \|.*?(?=\n\n)", text, re.S | re.M)
-    assert table, "chapter 8's driver/target table is not where this test looks for it"
+    assert table, "the connection catalog is not where this test looks for it"
     rows = [ln for ln in table.group(0).splitlines() if ln.startswith("| **")]
-    assert rows, "the table has no numbered rows"
+    assert rows, "the catalog has no numbered rows"
 
     with _gallery_build() as build:
         nums = gallery_refs.numbers(build)
     conditioning = {i for i, n in nums.items() if n.startswith("Co")}
+    joining = {i for i, n in nums.items() if n.startswith("Jo")}
 
-    cited, order = [], []
+    cited, order, jo_cited = [], [], set()
     for n, row in enumerate(rows, start=1):
         ids = re.findall(r"<!--gallery:([a-z0-9_]+)-->", row)
-        assert ids, f"row {n} of chapter 8's table cites no gallery example"
-        cited += ids
-        order += [int(nums[i][2:]) for i in ids]
+        assert ids, f"row {n} of the catalog cites no gallery example"
+        cited += [i for i in ids if nums[i].startswith("Co")]
+        jo_cited |= {i for i in ids if nums[i].startswith("Jo")}
+        order += [int(nums[i][2:]) for i in ids if nums[i].startswith("Co")]
 
     assert sorted(cited) == sorted(conditioning), (
-        "the table and the gallery disagree on the conditioning examples — "
+        "the catalog and the gallery disagree on the conditioning examples — "
         f"cited but absent: {sorted(set(cited) - conditioning)}; "
         f"in the gallery but uncited: {sorted(conditioning - set(cited))}")
+    assert jo_cited == joining, (
+        "the catalog and the gallery disagree on the joining examples — "
+        f"cited but absent: {sorted(jo_cited - joining)}; "
+        f"in the gallery but uncited: {sorted(joining - jo_cited)}")
     assert order == sorted(order), (
-        "the Gallery column does not ascend down the table, so the gallery's conditioning section is "
-        f"no longer in the table's order: {order}. Reorder CONDITIONING_ORDER in gallery/build.py to "
-        "match the table, then run `python scripts/gallery_refs.py`")
+        "the Co column does not ascend down the catalog, so the gallery's conditioning section is "
+        f"no longer in the catalog's order: {order}. Reorder CONDITIONING_ORDER in gallery/build.py "
+        "to match the catalog, then run `python scripts/gallery_refs.py`")
 
 
 #: (chapter, the table's header line, the section prefix, whether the table must cite EVERY card)
@@ -461,7 +470,7 @@ _LITERATURE_TABLES = [
     # chapter 6's clocks cite the sequences section and, for the trait-driven rate, the
     # conditioning one — so no single prefix covers it and only the ascent is checked
     ("ch6", "| What it does | From the literature | Gallery |", None, False),
-    ("ch9", "| What it does | From the literature | Gallery |", "Jo", False),
+    ("ch8", "| What it does | From the literature | Gallery |", "Jo", False),
 ]
 
 
