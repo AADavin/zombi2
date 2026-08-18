@@ -19,7 +19,7 @@ because branch length is then proportional to time. Real lineages do not share a
 ## Why real data cannot answer it
 
 A phylogram measures substitutions, and substitutions are rate times time. From substitutions alone
-you cannot separate the two, so the true node ages you would need to grade RED against cannot be read
+you cannot separate the two, so the true node ages you would need to test RED against cannot be read
 off the tree. Dating the tree first would mean assuming a rate model, which is the thing being
 tested.
 
@@ -135,7 +135,7 @@ Nothing above is specific to RED. The three moves are always the same:
 
 1. Measure one honest number on real data.
 2. Reproduce that number in a simulation, where the answer is known.
-3. Grade the method there.
+3. Test the method there.
 
 The full write-up, with the assumptions, the limitations and the provenance of every number, is in
 [`analyses/red/REPORT.md`](https://github.com/AADavin/zombi2/blob/main/analyses/red/REPORT.md). It
