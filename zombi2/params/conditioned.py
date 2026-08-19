@@ -445,13 +445,15 @@ def names_a_live_level(driver: object) -> bool:
     SPEC §5: "a finished result makes the run conditioned, and the name of a level growing beside it
     makes the run joint". One modifier, one spelling, and the *driver* is what tells the two apart —
     so this is the predicate that reads it, not a judgement about what the driven level then
-    does with it. The live names are the ones `zombi2.joint` accepts: ``"trait"``, ``"genomes:count"``
-    and ``"genomes:<family>"``.
+    does with it. The live names are the ones the joint runs read — `zombi2.joint.simulate` across
+    levels, a level's own ``joint=True`` form within one: ``"trait"``, ``"traits:<name>"``,
+    ``"genomes:count"``, ``"genomes:<family>"`` and ``"sequences:<name>"``.
 
-    A level that cannot be joined with the driver at all (Traits–Sequences, SPEC §3) uses this to say
-    so in the modelling terms, instead of letting the string fall through to `load_driver()` and come
-    back as a missing file called ``'trait'``."""
-    return isinstance(driver, str) and (driver == "trait" or driver.startswith("genomes:"))
+    An engine that resolves its drivers up front uses this to answer a live name in the modelling
+    terms — the run asked for is joint, and it belongs on the joint entry point — instead of letting
+    the string fall through to `load_driver()` and come back as a missing file called ``'trait'``."""
+    return isinstance(driver, str) and (
+        driver == "trait" or driver.startswith(("genomes:", "traits:", "sequences:")))
 
 
 def refuse_wrong_direction(driver, level: str | None) -> None:
@@ -486,7 +488,19 @@ def resolve_driver(driver, tree, *, step: float | None = None,
 
     ``step`` is the continuous-driver resolution (see `interpolated_segments`); it is ignored by a
     discrete driver, whose stretches are exact. ``level`` names the engine doing the reading, which is
-    what lets a driver refuse a level that sits above it (`refuse_wrong_direction`)."""
+    what lets a driver refuse a level that sits above it (`refuse_wrong_direction`).
+
+    A **live level name** is refused here, whichever engine is asking: it is the joint spelling of a
+    driver (`names_a_live_level`), read as the run goes by a joint engine, and there is nothing grown
+    yet for this to resolve. The refusal lives at this one choke point so that no engine that resolves
+    up front can let the name fall through to `load_driver()` as a filename."""
+    if names_a_live_level(driver):
+        raise ValueError(
+            f"the driver {driver!r} names a level growing beside the run — the joint spelling of a "
+            "driver (SPEC §5) — and this run resolves its drivers before it starts, which takes a "
+            "finished one: a result grown first, or the file it wrote. Two levels that drive each "
+            "other are one run: joint.simulate(...) across levels, or the level's own function with "
+            "joint=True within one.")
     if isinstance(driver, str):
         return load_driver(driver, tree, step=step)
     if hasattr(driver, "as_driver_trajectory"):

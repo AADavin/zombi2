@@ -1,8 +1,8 @@
 """A genome and a gene's sequence, each driving the other — the last cell of the map.
 
-See `docs/design/genomes-sequences.md`. The genome decides which sequences exist; the sequences
-decide how fast the genome changes. Species time is sliced, because a composition moves with every
-substitution and so no genome rate reading it is ever constant.
+See SPEC §3–4 and the manual's Dependent runs chapter. The genome decides which sequences exist;
+the sequences decide how fast the genome changes. Species time is sliced, because a composition
+moves with every substitution and so no genome rate reading it is ever constant.
 """
 
 import statistics

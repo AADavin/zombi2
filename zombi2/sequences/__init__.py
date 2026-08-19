@@ -8,8 +8,9 @@ or protein ``poisson`` · ``jtt`` · ``dayhoff`` · ``wag`` · ``lg``; `substitu
 substitution **rate** (``scope(base) × modifiers``; ``SPEC §5``). Sequences are a **target** here — a
 trait can drive the substitution rate (``SPEC §3``, Traits–Sequences, conditioned) — and, through
 ``result.gc()``, a **driver** as well: a finished run's GC content per lineage drives what comes after
-it, a trait on the same species tree or a further sequence run (`composition`). Never the genome,
-whose gene trees the sequences were grown along; the pair cannot be joined either.
+it, a trait on the same species tree or a further sequence run (`composition`). Never a genome grown
+first, whose gene trees the sequences were grown along — a composition driving a genome rate is a
+cycle, so that pair runs as one joint run, `zombi2.joint.simulate` (``SPEC §3``).
 
 The whole genome run is required, not just its gene trees, because a level below reads the level
 above: the **species tree** is what the lineage clock rides (one rate per species branch, shared by
@@ -1918,10 +1919,13 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         if names_a_live_level(m.driver):
             raise ValueError(
                 f"substitution is driven by {m.driver!r}, which names a level growing beside the run "
-                "— the joint spelling of a driver (SPEC §5). Traits and Sequences cannot be joined "
-                "(SPEC §3): a sequence lives inside a gene and never feeds back into the trait, so "
-                "there is nothing for the two to decide together. Grow the trait first and condition "
-                "on it — pass the TraitsResult, or the path to the trait_events.tsv it wrote."
+                "— the joint spelling of a driver (SPEC §5) — and this function reads only a driver "
+                "grown first. A trait and a gene's sequence driving each other is one joint run, "
+                "joint.simulate(traits.discrete(...), sequences.gene(...), tree=..., genomes=...), "
+                "and genes of one run reading each other stay on this function, declared as "
+                "genes=[sequences.gene(...), ...] with joint=True. To condition instead, grow the "
+                "driver first and pass its result — the TraitsResult, a composition — or the path "
+                "to the file it wrote."
             )
     rate_base = rate.base
     # The only rate with no base of its own is one whose base a `set_by` replaces, and the gate above
