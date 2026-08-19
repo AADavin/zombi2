@@ -29,7 +29,7 @@ nucleotide — with one entry point each, so the resolution is chosen by which f
 | Traits · continuous | [`simulate_continuous`][zombi2.traits.simulate_continuous] | [`TraitsResult`][zombi2.traits.TraitsResult] | [Traits](../guide/traits.md) |
 | Traits · discrete | [`simulate_discrete`][zombi2.traits.simulate_discrete] | [`TraitsResult`][zombi2.traits.TraitsResult] | [Traits](../guide/traits.md) |
 | Traits · several at once | [`simulate_traits`][zombi2.traits.simulate_traits] | one `TraitsResult` per name | [Traits](../guide/traits.md) |
-| Two levels at once | [`joint.simulate`][zombi2.joint.simulate] | [`JointResult`][zombi2.joint.JointResult] | [Joining](../guide/joining.md) |
+| Two levels at once | [`joint.simulate`][zombi2.joint.simulate] | [`JointResult`][zombi2.joint.JointResult] | [Joint runs](../guide/joining.md) |
 
 Every result writes its outputs with `.write(directory)`; which files that leaves is catalogued
 in [output files](../output-files.md).
