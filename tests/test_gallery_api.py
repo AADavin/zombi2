@@ -415,7 +415,7 @@ def test_the_connection_catalog_and_the_gallery_agree_on_the_examples():
 
     * every row cites at least one example — a connection the book says is possible and the gallery
       does not show is a claim nothing backs;
-    * every conditioning example is cited by exactly one row — which is what makes "all nineteen are
+    * every conditioning example is cited by exactly one row — which is what makes "all of them are
       used, none left over" a fact rather than something that was true once;
     * the Co numbers ascend down the table — the reason the section was reordered at all;
     * every joining example is cited somewhere — at least once rather than exactly once, because one
