@@ -141,6 +141,7 @@ nav:
       - Traits: guide/traits.md
       - Dependent runs: guide/conditioning.md
       - Joint runs: guide/joining.md
+      - The connection reference: guide/connection-reference.md
   - Rates in detail: rates.md
   - Output files: output-files.md
   - Tools:
