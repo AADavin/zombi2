@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-08-19
+
 ### Added
 
 - `GeneTree.to_newick(labels="copies")` names every internal node the way the leaves are
