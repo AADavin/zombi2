@@ -199,10 +199,17 @@ def _cards(examples, slug):
     return "\n".join(out)
 
 
+#: The two group bands mirror the book: chapters 2 to 7 are the levels, chapter 8 is the
+#: dependent runs, and the page says so with a slim heading above each group.
+GROUPS = {"species": "The levels", "conditioning": "Dependent runs"}
+
+
 def build_html():
     sections, detail = [], {}
     for i, (slug, name, blurb, examples) in enumerate(LEVELS):
         _detail_data(examples, detail, slug)
+        if slug in GROUPS:
+            sections.append(f'  <div class="group-band">{GROUPS[slug]}</div>')
         # <details>/<summary>: folding works with JavaScript off, and the count and blurb stay in the
         # summary, so a folded section still says what is inside it. Only the first section opens.
         sections.append(f"""  <details class="level" id="{slug}"{" open" if i == 0 else ""}>
@@ -249,6 +256,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,-app
 .note{margin:18px 0 0;display:inline-flex;gap:9px;align-items:center;font-size:.82rem;color:var(--faint);border:1px dashed var(--line);border-radius:8px;padding:7px 12px}
 .note b{color:var(--accent-ink);font-weight:600}
 .level{margin-top:52px}
+.group-band{margin:44px 0 6px;padding-top:18px;border-top:2px solid var(--line);font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--faint);letter-spacing:.22em;text-transform:uppercase}
+.group-band:first-of-type{margin-top:10px;border-top:none;padding-top:0}
 summary.level-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line);cursor:pointer;list-style:none;-webkit-tap-highlight-color:transparent;transition:border-color .18s}
 summary.level-head::-webkit-details-marker{display:none}
 summary.level-head::marker{content:""}

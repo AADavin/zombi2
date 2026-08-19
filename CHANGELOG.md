@@ -21,6 +21,9 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   the em-dashes swept out of the manual's prose; the retired joining figure and its generator
   deleted; and the connection reference gains the substitution-model target row.
 
+- The gallery page groups its six sections the way the book does: a slim band, The levels,
+  above Species through Traits, and another, Dependent runs, above Conditioning and Joining.
+
 ### Fixed
 
 - The README's connection figure was invisible on GitHub's dark mode: its SVG was transparent
