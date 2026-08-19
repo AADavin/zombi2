@@ -1,4 +1,7 @@
-"""The **connection** — what joins a driver to the parameter that reads it (SPEC §5).
+"""The **link** — what joins a driver to the parameter that reads it (SPEC §5, §7).
+
+The manual calls the whole written dependency a *connection* (driver, link, target); this module
+is the link, the verb-and-mapping part. The filename predates that vocabulary.
 
 A parameter is written from its scope and a driver says what it reads. What sits between them is
 this: a verb saying what the number *does*, and the object that verb builds.
