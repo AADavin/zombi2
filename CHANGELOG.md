@@ -9,6 +9,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+
+- `zombi2 genomes --resolution nucleotide --topology circular,linear` crashed: the nucleotide
+  engine paired the whole topology list with every replicon instead of giving each replicon its
+  own label, so `Chromosome` rejected it. A topology list now distributes one label per
+  chromosome, as at the ordered resolution, and a list whose length does not match
+  `--chromosomes` is rejected with the same message ordered gives.
+
 ## [0.43.2] - 2026-08-19
 
 ### Changed
