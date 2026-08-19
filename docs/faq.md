@@ -1,5 +1,17 @@
 # FAQ
 
+- [I ran `zombi2 genomes` and there is no FASTA. Where is it?](#i-ran-zombi2-genomes-and-there-is-no-fasta-where-is-it)
+- [What do `n5`, `e14`, `g203` mean?](#what-do-n5-e14-g203-mean)
+- [Why do the family (or file) numbers skip — `fam0, fam1, fam2, fam3, fam5, …`?](#why-do-the-family-or-file-numbers-skip-fam0-fam1-fam2-fam3-fam5)
+- [Why are there two of every tree — `_complete` and `_extant`?](#why-are-there-two-of-every-tree-_complete-and-_extant)
+- [How do I actually look at a tree? The `.nwk` files are just text.](#how-do-i-actually-look-at-a-tree-the-nwk-files-are-just-text)
+- [How do I read a ZOMBI2 tree in ete3 or Biopython?](#how-do-i-read-a-zombi2-tree-in-ete3-or-biopython)
+- [My genomes came out empty. Is that a bug?](#my-genomes-came-out-empty-is-that-a-bug)
+- [Why do my families stop at 10 copies?](#why-do-my-families-stop-at-10-copies)
+- [I counted losses in the event log and got fewer than I expected.](#i-counted-losses-in-the-event-log-and-got-fewer-than-i-expected)
+- [Why does re-running a level refuse?](#why-does-re-running-a-level-refuse)
+- [`sequences` printed a warning about "saturated" alignments — did it fail?](#sequences-printed-a-warning-about-saturated-alignments-did-it-fail)
+
 ## I ran `zombi2 genomes` and there is no FASTA. Where is it?
 
 There isn't one, and that is the level working as intended. **Simulating a genome, in ZOMBI2, means
