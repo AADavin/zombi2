@@ -1,0 +1,90 @@
+{
+ "feedback": {
+  "eye": {
+   "fitted": 96,
+   "skipped": 54,
+   "rejections": 87,
+   "rate": 0.9062,
+   "wilson95": [
+    0.8313,
+    0.9499
+   ]
+  },
+  "ctrl": {
+   "fitted": 116,
+   "skipped": 34,
+   "rejections": 7,
+   "rate": 0.0603,
+   "wilson95": [
+    0.0295,
+    0.1193
+   ]
+  }
+ },
+ "trait2gen": {
+  "eye": {
+   "fitted": 96,
+   "skipped": 54,
+   "rejections": 19,
+   "rate": 0.1979,
+   "wilson95": [
+    0.1305,
+    0.2886
+   ]
+  },
+  "ctrl": {
+   "fitted": 116,
+   "skipped": 34,
+   "rejections": 7,
+   "rate": 0.0603,
+   "wilson95": [
+    0.0295,
+    0.1193
+   ]
+  }
+ },
+ "gen2trait": {
+  "eye": {
+   "fitted": 102,
+   "skipped": 48,
+   "rejections": 89,
+   "rate": 0.8725,
+   "wilson95": [
+    0.7941,
+    0.924
+   ]
+  },
+  "ctrl": {
+   "fitted": 116,
+   "skipped": 34,
+   "rejections": 9,
+   "rate": 0.0776,
+   "wilson95": [
+    0.0414,
+    0.1409
+   ]
+  }
+ },
+ "null": {
+  "eye": {
+   "fitted": 101,
+   "skipped": 49,
+   "rejections": 5,
+   "rate": 0.0495,
+   "wilson95": [
+    0.0213,
+    0.1107
+   ]
+  },
+  "ctrl": {
+   "fitted": 116,
+   "skipped": 34,
+   "rejections": 5,
+   "rate": 0.0431,
+   "wilson95": [
+    0.0185,
+    0.0969
+   ]
+  }
+ }
+}

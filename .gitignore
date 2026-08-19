@@ -47,6 +47,7 @@ CLAUDE.md
 
 # Compiled analysis reports and regenerated figures
 # (run scripts, *.json results and *.tex sources stay tracked)
+analyses/**/data/
 analyses/**/*.pdf
 analyses/**/figures/*.png
 analyses/**/figures/*.svg

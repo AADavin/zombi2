@@ -15,6 +15,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   page and linked from the README — what each level does not do yet, organized by level with a
   planned / considering / not planned status on every entry. (#409)
 
+- `analyses/pagel/`: the runs behind the paper's third worked example. A genome and a
+  habitat shape each other in one joint run (the habitat multiplies every family's loss
+  rate, one family's absence multiplies the switch rate into the cave), and Pagel's
+  correlated-evolution test is fit to the two tip characters over four arms of 150
+  replicates: it detects the feedback (91%) and the switch-rate direction (87%), largely
+  misses the loss direction (20%), and stays at the nominal level on the null and on an
+  independent control family carried on the same trees.
+
 ### Fixed
 
 - `zombi2 genomes --resolution nucleotide --topology circular,linear` crashed: the nucleotide
