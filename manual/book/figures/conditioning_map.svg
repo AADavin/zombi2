@@ -120,7 +120,7 @@
 <g class="dim" fill="#666666" font-size="11">
   <text x="178" y="337">not a model: a lineage has one ordered genome, so this would need two;</text>
   <text x="178" y="350">or the pair cannot read each other (species with sequences; the nucleotide resolution)</text>
-  <text x="178" y="362">joint runs only: neither level can be simulated first</text>
+  <text x="178" y="362">only in joint levels</text>
   <text x="178" y="384">one part of a level driving another part of the same level</text>
   <text x="150" y="402">*  can also be written on the command line; the rest need the Python library</text>
 </g>
