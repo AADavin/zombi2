@@ -91,7 +91,7 @@ SEQUENCE_ORDER = [
     "seq_protein_indels",                   # ch7, and the same alphabet with sites gained and lost
     "clock_ucln", "clock_ugam", "clock_autocorrelated", "clock_discrete_bin",   # ch7, the clocks
     "seq_ancestral",                        # ch7, what a run gives back
-    "seq_indels",                           # ch7, running on a nucleotide genome
+    "seq_indels", "custom_matrix", "seq_profiles",                           # ch7, running on a nucleotide genome
 ]
 
 GENOME_ORDER = [
