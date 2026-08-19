@@ -1845,12 +1845,22 @@ def _valid_length(length) -> int:
 
 def _replicon_specs(chromosomes, root_length, topology) -> list[tuple[int, str]]:
     """Resolve the ``chromosomes`` argument to a list of ``(length, topology)`` replicon specs. An int
-    ``N`` gives ``N`` equal replicons of ``root_length`` and ``topology``; a list gives heterogeneous
-    replicons of different **sizes and shapes**, e.g. ``[(1000, "circular"), (50, "linear")]``."""
+    ``N`` gives ``N`` equal replicons of ``root_length`` — with one ``topology`` for all, or one label
+    per replicon from a list; a ``chromosomes`` list gives heterogeneous replicons of different
+    **sizes and shapes**, e.g. ``[(1000, "circular"), (50, "linear")]``."""
     if isinstance(chromosomes, bool) or isinstance(chromosomes, int):
         if isinstance(chromosomes, bool) or chromosomes < 1:
             raise ValueError(f"chromosomes must be a positive integer or a list of specs, got {chromosomes!r}")
-        return [(_valid_length(root_length), topology)] * chromosomes
+        length = _valid_length(root_length)
+        if isinstance(topology, str):
+            return [(length, topology)] * chromosomes
+        labels = list(topology)
+        if len(labels) != chromosomes:
+            raise ValueError(
+                f"topology has {len(labels)} entries but chromosomes={chromosomes}; give one label "
+                f"per chromosome or a single string for all"
+            )
+        return [(length, label) for label in labels]
     specs = [(_valid_length(length), top) for (length, top) in chromosomes]
     if not specs:
         raise ValueError("chromosomes must have at least one replicon")

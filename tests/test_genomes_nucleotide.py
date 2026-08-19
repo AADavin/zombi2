@@ -195,6 +195,19 @@ def test_heterogeneous_seeding_sizes_and_shapes():
     assert {c.blocks[0].source for c in chroms} == {0, 1, 2}
 
 
+def test_topology_list_distributes_one_label_per_replicon():
+    # the CLI's --topology circular,linear arrives as a list next to an int chromosomes=
+    sp = simulate_species_tree(birth=1.0, death=0.2, n_extant=4, seed=5)
+    r = simulate_genomes_nucleotide(sp, inversion=0, chromosomes=2, root_length=100,
+                                    topology=["circular", "linear"], seed=5)
+    tip = sorted(sp.complete_tree.extant_leaves())[0]
+    chroms = r.node_genomes[tip].chromosomes
+    assert [c.topology for c in chroms] == ["circular", "linear"]
+    assert all(c.length == 100 for c in chroms)
+    with pytest.raises(ValueError, match="one label per chromosome"):
+        simulate_genomes_nucleotide(sp, chromosomes=3, topology=["circular", "linear"], seed=5)
+
+
 def test_every_node_carries_the_whole_initial_sequence_permuted():
     # the strong invariant across chromosomes: inheritance copies ancestry, inversion changes none
     specs = [(100, "circular"), (40, "circular"), (25, "linear")]
