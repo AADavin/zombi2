@@ -168,7 +168,7 @@ The rate is `substitution`, counted **per site**: a gene-tree branch of Δ*t* ti
 | each lineage i.i.d. gamma | Uncorrelated gamma (UGAM) | [Sq6](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_ugam--> |
 | the rate drifts parent to daughter | Autocorrelated lognormal | [Sq7](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_autocorrelated--> |
 | the rate takes one of a few values, inherited in steps | Discrete rate categories | [Sq8](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clock_discrete_bin--> |
-| the rate reads another level | Trait-dependent rate of molecular evolution | [Co8](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_substitution--> |
+| the rate reads another level | Trait-dependent rate of molecular evolution | [Co10](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_substitution--> |
 
 Row by row, the written forms: the uncorrelated lognormal clock is `PerSite(1.0).varying_among('lineages', LogNormal(0.0, 0.3))`, and swapping the law for a `Gamma` gives UGAM; wrapping the law in `Drift(...)` gives the autocorrelated clock, and `Drift(..., bins=6)` the discrete categories (Appendix A spells each out); the driven rate is Chapter 8's. A bare distribution has **no memory** — each lineage is an independent draw — where `Drift` starts a daughter at its parent's rate and takes one step from it, so close relatives evolve at similar rates. And whichever you use, **the clock belongs to the species tree, not to the gene trees**: ZOMBI2 draws one rate per species branch, and every gene passing through that branch evolves at it, so a fast species is fast in all of its genes at once.
 

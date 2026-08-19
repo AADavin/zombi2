@@ -20,7 +20,7 @@ from helpers import Example
 
 import phylustrator as ph
 from zombi2 import species
-from zombi2.params import Curve, PerCopy, PerLineage, Recipients
+from zombi2.params import Curve, PerCopy, PerLineage, Recipients, Scalar
 from zombi2 import joint, traits
 from zombi2.genomes import family, genome as genomes_spec
 from zombi2.genomes import simulate_genomes_family
@@ -32,6 +32,7 @@ _SSE = {"doomed": "#B0413E", "safe": "#2A9D8F"}
 _MUSSE = {"slow": "#3A7CA5", "medium": "#F2A541", "fast": "#E4572E"}
 _HAB = {"free-living": "#2E8B6F", "endosymbiont": "#C25A3C"}
 _SEL = {"purifying": "#3A7CA5", "relaxed": "#C25A3C"}       # relaxed selection → duplicates accumulate
+_WATER = {"aquatic": "#3A7CA5", "terrestrial": "#C9A227"}
 _COMP = {"quiet": "#8f99a3", "competent": "#2E8B6F"}        # competent → takes up more DNA
 _TOX = {"absent": "#b9bec4", "present": "#2E8B6F"}          # a gene family, present or not
 _DISEASE = {"harmless": "#8f99a3", "pathogenic": "#C2453C"}
@@ -925,6 +926,53 @@ def curve_optimum(out):
                        target="origination", base=0.6)
 
 
+def set_by_habitat(out):
+    """The rate ITSELF comes from the driver — `set_by`, for when the literature states the rate
+    rather than a multiple of a base. Aquatic lineages lose genes at 1.0 per copy, terrestrial ones
+    at 0.25: the mapping gives the two rates in the rate's own units, so no base is written in
+    front and the scope is empty. With `scaled_by` this model would need a base one of the factors
+    multiplies; `set_by` writes the numbers the paper states."""
+    ct = simulate_species_tree(birth=1.0, n_extant=36, seed=4).complete_tree
+    hab = simulate_discrete(ct, states=["aquatic", "terrestrial"], start="terrestrial", seed=6,
+                            switch={"terrestrial->aquatic": 0.20, "aquatic->terrestrial": 0.08})
+    g = simulate_genomes_family(ct, initial_families=120, duplication=0.05, origination=0.4,
+            loss=PerCopy().set_by(hab, {"aquatic": 1.0, "terrestrial": 0.25}), seed=9)
+    sizes, tipcol = _sizes(ct, g, hab, _WATER)
+    _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, hab), palette=_WATER)],
+                        sizes, tipcol, dict(
+        driver=("traits", "habitat", "two states"),
+        connection=("set_by", "table"),
+        target_level="genomes",
+        targets=[("loss", "rate · per copy", "aquatic 1.0    terrestrial 0.25")],
+        chain=(("terrestrial", "aquatic"), [("0.20", "0.08")],
+               (_WATER["terrestrial"], _WATER["aquatic"]))))
+
+
+def scalar_response(out):
+    """A SCALAR is the third mapping: not a table, not a hand-written curve, but one strength,
+    giving the factor exp(strength × value). A diffusing temperature drives gene loss with
+    `Scalar(0.9)`: each unit of the trait multiplies the loss rate by e^0.9, about 2.5. The
+    response the inset plots is the exponential that one number buys."""
+    ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
+    tr = simulate_continuous(ct, start=0.0, rate=1.2, seed=3)
+    g = simulate_genomes_family(ct, initial_families=60, origination=0.4, duplication=0.05,
+            loss=PerCopy(0.08).scaled_by(tr, Scalar(0.9)), seed=9)
+    lab = ct.labels()
+    vals = {lab[i]: tr.node_values[i] for i in ct.nodes}
+    tips = list(ct.extant_leaves())
+    cmap_, norm = cm.viridis, colors.Normalize(min(vals.values()), max(vals.values()))
+    sizes = {name: len(gen) for name, gen in g.genomes.items()}
+    tipcol = {lab[n]: colors.to_hex(cmap_(norm(tr.node_values[n]))) for n in tips}
+    _conditioned_genome(out, ct, [ph.trees.color_branches(vals, cmap="viridis")],
+                        sizes, tipcol, dict(
+        driver=("traits", "temperature", "a number"),
+        connection=("scaled_by", "scalar"),
+        target_level="genomes",
+        targets=[("loss", "rate · per copy", "")],
+        curve=(lambda v: math.exp(0.9 * v), "temperature",
+               (min(vals.values()), max(vals.values())))))
+
+
 def trait_drives_trait(out):
     """The driver and the target are BOTH traits, on one tree. A continuous "temperature" trait is
     grown first; the rate at which a second trait — body size — diffuses then reads it through the
@@ -1449,6 +1497,36 @@ r = joint.simulate(
 # the squares are the splits where the state changed: r.trait.events, kind "on_speciation"'''
 
 
+_C_SET_BY = '''\
+### simulate — the mapping IS the rate: set_by gives it in the rate's own units
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_discrete
+from zombi2.genomes import simulate_genomes_family
+from zombi2.params import PerCopy
+
+ct = simulate_species_tree(birth=1.0, n_extant=36, seed=4).complete_tree
+hab = simulate_discrete(ct, states=["aquatic", "terrestrial"], start="terrestrial", seed=6,
+                        switch={"terrestrial->aquatic": 0.20, "aquatic->terrestrial": 0.08})
+# no base in front: the literature states the rate itself, so the scope is written empty
+g = simulate_genomes_family(ct, initial_families=120, duplication=0.05, origination=0.4,
+        loss=PerCopy().set_by(hab, {"aquatic": 1.0, "terrestrial": 0.25}), seed=9)
+'''
+
+_C_SCALAR = '''\
+### simulate — one strength instead of a hand-written curve
+from zombi2.species import simulate_species_tree
+from zombi2.traits import simulate_continuous
+from zombi2.genomes import simulate_genomes_family
+from zombi2.params import PerCopy, Scalar
+
+ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
+tr = simulate_continuous(ct, start=0.0, rate=1.2, seed=3)
+# Scalar(0.9): the factor is exp(0.9 x value) — every unit of the trait
+# multiplies the loss rate by about 2.5
+g = simulate_genomes_family(ct, initial_families=60, origination=0.4, duplication=0.05,
+        loss=PerCopy(0.08).scaled_by(tr, Scalar(0.9)), seed=9)
+'''
+
 CONDITIONING = [
     Example("genome_reduction", "Genome reduction",
             "A lifestyle trait drives gene loss. Endosymbionts shed genes faster and gain fewer, so "
@@ -1474,6 +1552,15 @@ CONDITIONING = [
             "The response is any function you write. Here it peaks at an intermediate value, which no "
             "table of per-state multipliers can express.",
             "continuous trait → origination", curve_optimum, code=_C_OPTIMUM),
+    Example("set_by_habitat", "The rate itself, from the driver",
+            "<code>set_by</code> replaces the base instead of multiplying one: the mapping gives "
+            "the loss rate in its own units, aquatic 1.0 and terrestrial 0.25, the numbers a paper "
+            "states.",
+            "trait → loss", set_by_habitat, code=_C_SET_BY),
+    Example("scalar_response", "One strength, not a curve",
+            "<code>Scalar(0.9)</code> is the third mapping: the factor is exp(0.9 × value), so "
+            "each unit of a diffusing temperature multiplies the loss rate by about 2.5.",
+            "continuous trait → loss", scalar_response, code=_C_SCALAR),
     Example("trait_drives_trait", "One trait drives another",
             "A temperature trait is grown first; body size then diffuses at a rate that reads it. The "
             "scale is centred on where it started, so white means it has not moved.",
