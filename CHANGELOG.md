@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.43.1] - 2026-08-19
+
 ### Changed
 
 - Chapter 1 speaks the reframing: the Conditioning and Joining sections are one section,
