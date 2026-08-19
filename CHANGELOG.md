@@ -9,8 +9,6 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
-## [0.43.1] - 2026-08-19
-
 ### Changed
 
 - One hundred and twelve findings from the first run of the review sweep (12-surface Opus
@@ -20,6 +18,19 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   counts (operon size, chromosome number, tip counts, snippet factors) in gallery code cards;
   the em-dashes swept out of the manual's prose; the retired joining figure and its generator
   deleted; and the connection reference gains the substitution-model target row.
+
+### Fixed
+
+- The README's connection figure was invisible on GitHub's dark mode: its SVG was transparent
+  and GitHub strips the CSS that could have repainted it. The figure is regenerated on an opaque
+  white page (`conditioning_png` gains a `transparent=` switch; the gallery keeps the old
+  default). The guide nav also stopped naming the chapter twice: the duplicate Joint runs entry
+  is gone, and the joining URL stays alive for old links.
+
+## [0.43.1] - 2026-08-19
+
+### Changed
+
 - Chapter 1 speaks the reframing: the Conditioning and Joining sections are one section,
   Dependent runs, built on the connection and its three parts. The Sequences chapter sends its
   four heaviest code blocks to the gallery — two new cards, `reversible()` rebuilding HKY85 by
