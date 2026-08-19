@@ -131,6 +131,7 @@ nav:
       - Can RED be trusted?: examples/red.md
       - Can BiSSE find the gene that drives speciation?: examples/bisse.md
       - What can gene order constrain?: examples/rearrangements.md
+      - Can Pagel's test detect a feedback?: examples/pagel.md
   - Guide:
       - Introduction: guide/introduction.md
       - Species trees: guide/species-trees.md
