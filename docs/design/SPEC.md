@@ -26,7 +26,7 @@ Species → Traits                   (a trait lives on the species tree)
 ```
 
 This lives-on order — the **hierarchy** — is always present; it is **not** a relation you add, and it
-is not a connection (§5 reserves that word for a dependency someone writes). Because a sequence lives
+is not a connection (§7 reserves that word for a dependency someone writes). Because a sequence lives
 inside a gene, it sees the species tree only through its gene tree, so its notation conditions on
 Genomes, not Species.
 
@@ -36,7 +36,7 @@ Genomes, not Species.
 
 Everything evolves on the tree, so every level is already conditioned on it. The real question is how
 two levels relate **to each other**. A dependency between them is always written as a **connection**
-(a driver, a link, a target — §5); the three relations below are not three kinds of connection but
+(a driver, a link, a target — §7); the three relations below are not three kinds of connection but
 the three ways two levels can *run* — one after the other, or together — given whether a connection
 ties them and which way its reads point. Taught with probability-factorisation notation, where
 `P(B | A)` reads "B simulated given A":
@@ -274,20 +274,20 @@ one lineage and have no donor to condition on.
 what?"**); "clock" for the scope (reserve **clock** strictly for the by-lineage substitution-rate
 modifier at the sequences level). **modifier** names the third factor only.
 
-**A drawn value takes any distribution that can state its mean.** The **law** written beside the unit
+**A drawn value takes any distribution whose mean is known.** The **law** written beside the unit
 says what the value is, and a bare distribution is the common case — the value itself, drawn once and
 held: ``varying_among('families', LogNormal(0.0, 0.5))``, with any of the built-ins ``Fixed``,
 ``Exponential``, ``Gamma``, ``LogNormal``, ``Uniform``, ``Geometric``. ``Drift(dist)`` is the same
 menu read as the per-split *step* instead. Each law owns and documents its own argument, so nobody
-has to infer the role from the slot. A bare callable or a scipy frozen distribution is refused here,
-though an **extent** takes either, because an extent is a size used as written rather than a
-multiplier normalised to mean 1 (below).
+has to infer the role from where the argument sits. A bare callable or a scipy frozen distribution
+is refused here, though an **extent** takes either, because an extent is a size used as written
+rather than a multiplier normalised to mean 1 (below).
 
 Whatever the distribution, **the draw is normalised to mean 1**, by dividing by that distribution's
 own mean. A drawn value is a *multiplier*, and one that does not average to 1 changes what the base
 means — a base of 0.25 would stop being the average rate. So a distribution's **location is
 normalised away** and what it contributes is its *shape*; ``Exponential(1.0)`` and ``Exponential(7.0)``
-are one modifier. A distribution that cannot state its mean is refused rather than normalised by a
+are one modifier. A distribution with no known mean is refused rather than normalised by a
 guess. A number that *is* the rate rather than a factor is a `set_by`, where nothing is normalised.
 
 **The modifier families.** Four kinds, and a modifier's kind says who produces its number:

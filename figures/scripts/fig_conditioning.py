@@ -1,10 +1,10 @@
-"""Figure: the three parts of a conditioned run — driver, connection, target.
+"""Figure: the three parts of a connection — driver, link, target.
 
-Chapter 9's opening figure, drawn by the **same generator the gallery uses**
-(``gallery/helpers.conditioning_png``). It was a hand-authored SVG, which meant the book and the
-gallery drew the same diagram twice, from two sources, in two styles — and a convention agreed for
-one of them held in the other only by memory. There is one now, so a change to the standard reaches
-both.
+Chapter 8's connection figure, also used in chapter 1, drawn by the **same generator the gallery
+uses** (``gallery/helpers.conditioning_png``). It was a hand-authored SVG, which meant the book and
+the gallery drew the same diagram twice, from two sources, in two styles — and a convention agreed
+for one of them held in the other only by memory. There is one now, so a change to the standard
+reaches both.
 
 Run:  python figures/scripts/fig_conditioning.py
 """
@@ -28,7 +28,7 @@ def main() -> None:
     h.conditioning_png(
         str(out),
         driver=("traits", "habitat", "two states"),
-        connection=("scaled_by", "table"),
+        link=("scaled_by", "table"),
         target_level="genomes",
         targets=[("loss rate", "rate · per copy", "aquatic × 4    terrestrial × 1")],
         chain=(("terrestrial", "aquatic"), [("0.30", "0.30")],

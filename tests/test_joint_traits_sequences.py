@@ -177,9 +177,9 @@ def test_a_gene_the_genome_run_never_declared_is_refused():
             _gene(name="nope", offers=composition("KR", absent=0.02)), genomes=g, seed=1)
 
 
-def test_the_gene_has_to_say_what_it_publishes():
+def test_the_gene_has_to_say_what_it_offers():
     _ct, g = _genomes()
-    with pytest.raises(ValueError, match="say what it publishes"):
+    with pytest.raises(ValueError, match="say what it offers"):
         joint.simulate(
             traits.discrete(name="h", states=["a", "b"],
                             switch=PerLineage(0.1).scaled_by("sequences:rpoB",

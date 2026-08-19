@@ -48,7 +48,7 @@ In a conditioned run, a trait driver works both from Python and from the command
 
 ### The target
 
-A target is a parameter that would otherwise be a plain number: a rate, an extent, or the recipient rule of transfers. In Python it is a keyword argument, on the command line a flag. Each level accepts only its own targets, and refuses a driven parameter it does not have. The targets are the rates of every level: the four rates of a family genome, the eleven rates of an ordered or nucleotide genome and their extents, the substitution rate of a sequence, the rate or switch of a trait, and, in joint runs only, the birth and death rates of the species tree. There is one target that is not a rate: `transfer_to`, the choice of a transfer recipient. The full table is in Appendix C.
+A target is a parameter that would otherwise be a plain number: a rate, an extent, the recipient rule of transfers, or the substitution model of a sequence. In Python it is a keyword argument, on the command line a flag. Each level accepts only its own targets, and refuses a driven parameter it does not have. The targets are the rates of every level: the four rates of a family genome, the eleven rates of an ordered genome, the thirteen of a nucleotide one, and their extents, the substitution rate of a sequence, the rate or switch of a trait, and, in joint runs only, the birth and death rates of the species tree. Two targets are not rates: `transfer_to`, the choice of a transfer recipient, and the substitution model of a sequence run. The full table is in Appendix C.
 
 ### The link
 

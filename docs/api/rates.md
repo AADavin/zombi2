@@ -65,7 +65,7 @@ choice.
 
 ## Modifiers
 
-A modifier's **kind** says who produces its number, and there are four (SPEC §5):
+A modifier's **kind** says who produces its number, and there are four:
 
 | Kind | The factor is… | Written |
 |---|---|---|

@@ -8,7 +8,7 @@ The tables of Chapter 8, in one place: every connection, every driver, every tar
 | # | Driver | Target | What it says | Conditioned | Joint |
 |---|---|---|---|---|---|
 | **1** | a trait | a gene family | habitat sets the loss rate; all four rates take a driver | [Co1–Co8](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:genome_reduction--><!--gallery:genome_expansion--><!--gallery:hgt_uptake--><!--gallery:continuous_conditioning--><!--gallery:curve_saturating--><!--gallery:curve_optimum--><!--gallery:set_by_habitat--><!--gallery:scalar_response--> | [Jo5](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:cave_genomes--> |
-| **2** | a trait | an ordered or nucleotide genome | eleven rates, and the extents besides | [Co9](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_inversions--> | — |
+| **2** | a trait | an ordered or nucleotide genome | eleven rates at the ordered resolution, thirteen at the nucleotide one, and the extents besides | [Co9](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_inversions--> | — |
 | **3** | a trait | a sequence | habitat sets the substitution rate | [Co10](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_substitution--> | [Jo2](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:trait_and_sequence--> |
 | **4** | a trait | a trait | one character sets another's `rate` or `switch` | [Co11–Co12](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:driven--><!--gallery:trait_drives_trait--> | [Jo4](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:trait_loop--> |
 | **5** | a gene family | a gene family | a mobile element makes transfer likelier for the rest of the genome | [Co13](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:mobile_element--> | [Jo6](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:mobile_element_joint--> |
@@ -54,7 +54,8 @@ In a joint run, a driver is named, and the name says which level is read:
 | `substitution` | how often | sequences | [Co10](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_substitution--> |
 | `rate` (continuous), `switch` (discrete) | how often | traits | [Co11–Co12](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:driven--><!--gallery:trait_drives_trait--> |
 | every event's extent | how much | genomes, ordered and nucleotide; Python only | [Co9](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_inversions--> |
-| `transfer_to` | which one | genomes, every resolution | [Co3](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:hgt_uptake--> |
+| `transfer_to` | a choice | genomes, every resolution | [Co3](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:hgt_uptake--> |
+| the substitution model | a model | sequences | [Sq2](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clade_own_model--> |
 | `birth`, `death` | how often | species; joint runs only | [Jo8](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:bisse--> |
 
 ## The verbs
@@ -62,7 +63,7 @@ In a joint run, a driver is named, and the name says which level is read:
 | Verb | What the number does | Written on | Gallery |
 |---|---|---|---|
 | `scaled_by` | multiplies the base in front of it | a rate, an extent | [Co1](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:genome_reduction--> |
-| `set_by` | replaces the base, in the rate's own units, so nothing is written in front | a rate | [Co7](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:set_by_habitat--> |
+| `set_by` | replaces the base, in the rate's own units, so nothing is written in front; on a substitution model it gives the model itself | a rate, a substitution model | [Co7](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:set_by_habitat--> |
 | `weighted_by` | weighs the candidates against each other | `transfer_to`, from `Recipients()` | [Co3](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:hgt_uptake--> |
 
 `set_by` is for when the literature states the rate itself (the loss rate is 1.0 in the water) rather than a multiple of a base you had to invent. `weighted_by` needs no base because its weights are normalised over whoever is alive when a transfer fires, so they choose the recipient and never change how many transfers happen.

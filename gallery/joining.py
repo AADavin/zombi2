@@ -1,4 +1,4 @@
-"""Two ways one evolved value drives another, through the same driver mechanism.
+"""One way of writing a dependency, run in two orders.
 
 **Conditioning** grows the driver first and holds it fixed: a trait is simulated on the tree, then a
 second run reads it, driving a genome rate, another trait's rate, or which lineage receives a
@@ -812,7 +812,7 @@ def genome_reduction(out):
     _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, hab), palette=_HAB)],
                         sizes, tipcol, dict(
         driver=("traits", "lifestyle", "two states"),
-        connection=("scaled_by", "table"),
+        link=("scaled_by", "table"),
         target_level="genomes",
         targets=[("loss", "rate · per copy", "endosymbiont × 6"),
                  ("origination", "rate · per lineage", "endosymbiont × 0.3")],
@@ -832,7 +832,7 @@ def genome_expansion(out):
     _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, sel), palette=_SEL)],
                         sizes, tipcol, dict(
         driver=("traits", "selection", "two states"),
-        connection=("scaled_by", "table"),
+        link=("scaled_by", "table"),
         target_level="genomes",
         targets=[("duplication", "rate · per copy", "relaxed × 11    purifying × 1")],
         chain=(("purifying", "relaxed"),
@@ -851,7 +851,7 @@ def hgt_uptake(out):
     _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, comp), palette=_COMP)],
                         sizes, tipcol, dict(
         driver=("traits", "competence", "two states"),
-        connection=("weighted_by", "table"),
+        link=("weighted_by", "table"),
         target_level="genomes",
         targets=[("transfer_to", "choice · a weight", "competent × 8    quiet × 1")],
         chain=(("quiet", "competent"),
@@ -862,7 +862,7 @@ def hgt_uptake(out):
 def continuous_conditioning(out):
     """A CONTINUOUS trait conditions a genome rate. A diffusing "activity" trait drives gene gain
     through a Curve (high activity → more originations), so genome size tracks the trait. Same layout
-    as the discrete conditioning examples; the diagram's modifier column plots the curve, because a
+    as the discrete conditioning examples; the diagram's link column plots the curve, because a
     continuous driver has no per-state multiplier to list."""
     ct = simulate_species_tree(birth=1.0, n_extant=50, seed=4).complete_tree
     act = simulate_continuous(ct, start=0.0, rate=1.8, seed=3)
@@ -878,7 +878,7 @@ def continuous_conditioning(out):
     _conditioned_genome(out, ct, [ph.trees.color_branches(vals, cmap="viridis")],
                         sizes, tipcol, dict(
         driver=("traits", "activity", "a number"),
-        connection=("scaled_by", "curve"),
+        link=("scaled_by", "curve"),
         target_level="genomes",
         targets=[("origination", "rate · per lineage", "")],
         curve=(factor, "activity", (min(vals.values()), max(vals.values())))))
@@ -901,7 +901,7 @@ def _continuous_figure(out, factor, *, driver, value_label, target, base, layer_
     _conditioned_genome(out, ct, [ph.trees.color_branches(vals, cmap=layer_cmap)],
                         sizes, tipcol, dict(
         driver=("traits", driver, "a number"),
-        connection=("scaled_by", "curve"),
+        link=("scaled_by", "curve"),
         target_level="genomes",
         targets=[(target, "rate · per lineage", "")],
         curve=(factor, value_label, (min(vals.values()), max(vals.values())))))
@@ -941,7 +941,7 @@ def set_by_habitat(out):
     _conditioned_genome(out, ct, [ph.trees.color_history(_state_history(ct, hab), palette=_WATER)],
                         sizes, tipcol, dict(
         driver=("traits", "habitat", "two states"),
-        connection=("set_by", "table"),
+        link=("set_by", "table"),
         target_level="genomes",
         targets=[("loss", "rate · per copy", "aquatic 1.0    terrestrial 0.25")],
         chain=(("terrestrial", "aquatic"), [("0.20", "0.08")],
@@ -966,7 +966,7 @@ def scalar_response(out):
     _conditioned_genome(out, ct, [ph.trees.color_branches(vals, cmap="viridis")],
                         sizes, tipcol, dict(
         driver=("traits", "temperature", "a number"),
-        connection=("scaled_by", "scalar"),
+        link=("scaled_by", "scalar"),
         target_level="genomes",
         targets=[("loss", "rate · per copy", "")],
         curve=(lambda v: math.exp(0.9 * v), "temperature",
@@ -976,7 +976,7 @@ def scalar_response(out):
 def trait_drives_trait(out):
     """The driver and the target are BOTH traits, on one tree. A continuous "temperature" trait is
     grown first; the rate at which a second trait — body size — diffuses then reads it through the
-    same saturating curve. Warm lineages redesign their size quickly and their descendants spread
+    same saturating curve. Body size diffuses fast on warm lineages, so their descendants spread
     apart; cold ones barely move from where their ancestor left them. Nothing here is a new
     mechanism: the driver is grown first and held fixed, which is conditioning, spelled the way
     every other conditioned rate is spelled."""
@@ -1005,7 +1005,7 @@ def trait_drives_trait(out):
         pngs.append(png)
     diag = h.conditioning_png(out.replace(".png", "_diag.png"),
                               driver=("traits", "temperature", "a number"),
-                              connection=("scaled_by", "curve"),
+                              link=("scaled_by", "curve"),
                               target_level="traits",
                               targets=[("size diffusion", "rate · per lineage", "")],
                               curve=(factor, "temperature",
@@ -1055,7 +1055,7 @@ def gene_drives_trait(out):
     diag = h.conditioning_png(
         out.replace(".png", "_diag.png"),
         driver=("genomes", "tox", "present or absent"),
-        connection=("scaled_by", "table"),
+        link=("scaled_by", "table"),
         target_level="traits",
         targets=[("pathogenic", "rate · per lineage", "present × 40    absent × 1")],
         # the family is lost and not regained, so one arc; the TARGET is itself a trait with states,
@@ -1179,7 +1179,7 @@ fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
        + ph.trees.time_axis("time", bold=False))
 ph.beside(fig, ph.genomes.bars(sizes, colors=colors, label="genome size (genes)")).save("reduction.png")
-# the figure then composites the driver->mapping->target diagram (lifestyle -> loss) on top'''
+# the figure then composites the driver->link->target diagram (lifestyle -> loss) on top'''
 
 _C_EXPANSION = '''\
 ### simulate  —  a trait conditions DUPLICATION, so genomes grow
@@ -1209,7 +1209,7 @@ fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
        + ph.trees.time_axis("time", bold=False))
 ph.beside(fig, ph.genomes.bars(sizes, colors=colors, label="genome size (genes)")).save("expansion.png")
-# the figure then composites the driver->mapping->target diagram (selection -> duplication) on top'''
+# the figure then composites the driver->link->target diagram (selection -> duplication) on top'''
 
 _C_UPTAKE = '''\
 ### simulate  —  competence conditions WHO RECEIVES a transfer (uptake), not a rate
@@ -1239,7 +1239,7 @@ fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_history(history, palette=pal)
        + ph.trees.time_axis("time", bold=False))
 ph.beside(fig, ph.genomes.bars(sizes, colors=colors, label="genome size (genes)")).save("uptake.png")
-# the figure then composites the driver->mapping->target diagram (competence -> uptake) on top'''
+# the figure then composites the driver->link->target diagram (competence -> uptake) on top'''
 
 _C_CONTINUOUS = '''\
 ### simulate  —  a CONTINUOUS trait conditions a genome rate (via a Curve, not a state table)
@@ -1271,7 +1271,7 @@ fig = (ph.trees.plot(tree, skeleton=False)
        + ph.trees.color_branches(vals, cmap="viridis")
        + ph.trees.time_axis("time", bold=False))
 ph.beside(fig, ph.genomes.bars(sizes, colors=bar_c, label="genome size (genes)")).save("cont.png")
-# on top goes the same driver->mapping->target diagram, its middle column plotting value -> factor'''
+# on top goes the same driver->link->target diagram, its middle column plotting value -> factor'''
 
 
 _C_SATURATING = '''\
@@ -1386,7 +1386,7 @@ def module_drives_metabolism(out):
     diag = h.conditioning_png(
         out.replace(".png", "_diag.png"),
         driver=("genomes", "aerobic module", "a fraction, 0–1"),
-        connection=("scaled_by", "curve"),
+        link=("scaled_by", "curve"),
         target_level="traits",
         targets=[("aerobic", "rate · per lineage", "")],
         curve=(step, "fraction of the module present", (0.0, 1.0)),
@@ -1746,8 +1746,8 @@ g = simulate_genomes_family(ct, initial_families=4, duplication=0.0, loss=0.0, s
                             families=[family("hisA"), family("hisF")])
 
 # `start=` founds each gene AWAY from its model's equilibrium, so it ameliorates toward
-# it — which is the one way a composition has anywhere to go. `offers=` is what a gene
-# publishes; `absent=` answers for a lineage carrying none of it.
+# it — which is the one way a composition has anywhere to go. `offers=` is the value a
+# gene makes available to other runs; `absent=` answers for a lineage carrying none of it.
 #
 # Each rate reads the OTHER gene by name, with a step=: a composition moves with every
 # substitution, so there is no interval where either rate holds still, and the run slices.

@@ -1,5 +1,5 @@
 """The sequence level joined to **itself** — two genes, each one's substitution rate reading the
-other's composition, in one run (design note §6, §8, §9).
+other's composition, in one run (SPEC §3).
 
 Every other run at this level evolves one gene tree at a time: a family is walked from its
 origination to its tips, then the next family starts. That order is impossible here. If the

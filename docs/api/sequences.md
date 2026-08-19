@@ -2,7 +2,7 @@
 
 Level 3: a sequence evolving inside a gene, along its gene tree. The level takes a whole **genome
 run**, not bare gene trees — a sequence sees the species tree only through its gene tree, but its
-clock rides the species branch that gene sits on.
+rate is set by the species branch the gene sits on.
 
 ::: zombi2.sequences.simulate_sequences
 
