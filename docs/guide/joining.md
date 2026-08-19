@@ -1,3 +1,3 @@
-<!-- Single source: this guide page IS the manual's Joining chapter, included verbatim
+<!-- Single source: this guide page IS the joint half of the manual's Dependent runs chapter, included verbatim
      so the book and the site never drift. Correct the chapter; both update. -->
 --8<-- "manual/book/ch8.md:joint"

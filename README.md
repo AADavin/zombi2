@@ -87,19 +87,23 @@ evolves along a species tree, so you run whichever you need, composed into one s
   <img alt="The four levels of evolution ZOMBI2 simulates: the species tree forks into genomes and traits, and sequences continue below genomes" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/fig-2-1-four-levels.svg" width="360">
 </p>
 
-## Conditioning
+## Dependent runs
 
-**[Conditioning](https://aadavin.github.io/zombi2/docs/guide/conditioning/)** is how ZOMBI2 simulates
-a scenario where one part of the run controls another — a habitat trait that makes lineages lose genes
-four times faster in the water, a gene family whose presence speeds up transfer for the rest of the
-genome, a GC content that sets how fast a trait changes. Three parts: the **driver**, the thing doing
-the controlling; the **target**, the parameter it controls (a rate, an extent, or which lineage
-receives a transfer); and the **connection** between them, which says both how they are joined
-(`scaled_by`) and what each value of the driver is worth.
+**[Dependent runs](https://aadavin.github.io/zombi2/docs/guide/conditioning/)** are how ZOMBI2
+simulates a scenario where one part of the run controls another — a habitat trait that makes
+lineages lose genes four times faster in the water, a gene family whose presence speeds up transfer
+for the rest of the genome, a GC content that sets how fast a trait changes. Every dependency is
+written as a **connection**, with three parts: the **driver**, the value that is read; the
+**target**, the parameter that depends on it (a rate, an extent, or which lineage receives a
+transfer); and the **link** between them, which says what each value of the driver is worth and
+what that number does to the target (`scaled_by`).
 
 <p align="center">
-  <img alt="Conditioning: a habitat trait on the left, an arrow labelled drives running right to the gene loss rate and carrying a multiplier for each habitat state, and under the loss rate the expression you write on it, a per-copy loss rate of 0.25 scaled by habitat" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/conditioning.svg" width="560">
+  <img alt="A connection: a habitat trait on the left, an arrow running right to the gene loss rate and carrying a multiplier for each habitat state, and under the driver the two states and how fast lineages switch between them" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/conditioning.svg" width="560">
 </p>
+
+When the driver can be simulated first, the run is **conditioned**: two ordinary runs in order, the
+second reading the file the first one wrote.
 
 ```bash
 zombi2 species out/ --birth 1 --death 0.3 --n-extant 20 --seed 1
@@ -107,16 +111,14 @@ zombi2 traits  out/ --kind discrete --states aquatic,terrestrial --switch 0.4 --
 zombi2 genomes out/ --loss "PerCopy(0.25).scaled_by('out/traits/trait_events.tsv', {'aquatic': 4.0})" --seed 1
 ```
 
-## Joining
-
-**[Joining](https://aadavin.github.io/zombi2/docs/guide/joining/)** is how ZOMBI2 simulates two
-levels **at the same time**, for the scenarios where neither can be grown first because each shapes
-the other. A trait that speeds up speciation is the standard case: lineages carrying it split more
-often, so the trait decides the shape of the tree while the tree decides where the trait can go. One
-run grows both, and the tree comes out as a result rather than going in as an input.
+When neither level can be simulated first, the run is
+**[joint](https://aadavin.github.io/zombi2/docs/guide/joining/)**: one run simulates both levels at
+the same time. A trait that speeds up speciation is the standard case — lineages carrying it split
+more often, so the trait decides the shape of the tree while the tree decides where the trait can
+go — and the tree comes out as a result rather than going in as an input.
 
 <p align="center">
-  <img alt="Joining, drawn as conditioning is: body size on the left, the speciation rate on the right, and two arrows between them — one carrying the multiplier each state hands over, one running back, because the tree that rate builds is the tree body size evolves along" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/joining.svg" width="760">
+  <img alt="The three kinds of run: independent, two levels one after the other; conditioned, the second run reading the finished first one; joint, both levels simulated at the same time, drawn with one arrow with two heads" src="https://raw.githubusercontent.com/AADavin/zombi2/main/manual/book/figures/execution.svg" width="760">
 </p>
 
 ```bash
