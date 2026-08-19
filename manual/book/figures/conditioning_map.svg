@@ -1,6 +1,6 @@
-<svg viewBox="0 0 566 400" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
-<title>What can condition what</title>
-<desc>A four by four grid. Rows are the driver, columns the driven level: gene families, an ordered or nucleotide genome, sequences and traits. Eleven cells are numbered, keyed to the notes. Five are shaded: the pairs that would need two genomes for one lineage, and the pair a sequence cannot drive because it lives inside a gene. Three of the four cells on the diagonal carry an inset box: a level conditioning itself.</desc>
+<svg viewBox="0 0 658 416" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Iowan Old Style, Palatino, Georgia, serif">
+<title>What can connect to what</title>
+<desc>A grid of drivers against targets: gene families, an ordered or nucleotide genome, sequences and traits as drivers; the same four plus the species tree as targets. Fourteen cells are numbered, keyed to the rows of the connection catalog. Six are shaded: pairs that would need two genomes for one lineage, or that cannot read each other. Three cells carry a small double-headed arrow: connections that run joint only, because neither level can be simulated first. Three cells on the diagonal carry an inset box: one part of a level driving another part of the same level.</desc>
 <!-- Colours are presentation ATTRIBUTES and literals, not CSS custom properties: GitHub's SVG
      sanitiser drops the style element and librsvg resolves no custom properties, so a figure whose
      fills live in either renders black-on-black. The dark-mode rules below still win wherever CSS
@@ -14,12 +14,13 @@
     .lbl{fill:#e7ebe9}
     .dim{fill:#9aa3a0}
     .num{fill:#e7ebe9}
+    .jo{stroke:#e7ebe9}
   }
 </style>
 
 <!-- axis names -->
 <g class="dim" fill="#777777" font-size="11" font-weight="600" letter-spacing="2.4">
-  <text x="350" y="20" text-anchor="middle">TARGET</text>
+  <text x="380" y="20" text-anchor="middle">TARGET</text>
   <text x="18" y="212" text-anchor="middle" transform="rotate(-90 18 212)">DRIVER</text>
 </g>
 
@@ -29,10 +30,12 @@
   <text x="288" y="42">Genomes</text>
   <text x="380" y="42">Sequences</text>
   <text x="472" y="42">Traits</text>
+  <text x="564" y="42">Species</text>
 </g>
 <g class="dim" fill="#777777" font-size="10.5" text-anchor="middle">
   <text x="196" y="56">(gene families)</text>
   <text x="288" y="56">(ordered / nt)</text>
+  <text x="564" y="56">(the tree)</text>
 </g>
 
 <!-- row labels -->
@@ -49,47 +52,76 @@
 
 <!-- the grid: shaded cells first, then every border, so no stroke is doubled -->
 <g class="shut" fill="#ebebeb" stroke="none">
-  <rect x="150" y="190" width="92" height="62"/>
   <rect x="242" y="66"  width="92" height="62"/>
   <rect x="150" y="128" width="92" height="62"/>
   <rect x="242" y="128" width="92" height="62"/>
+  <rect x="518" y="128" width="92" height="62"/>
   <rect x="242" y="190" width="92" height="62"/>
+  <rect x="518" y="190" width="92" height="62"/>
 </g>
 <g class="cell" fill="none" stroke="#a8a8a8" stroke-width="1.1">
   <rect x="150" y="66"  width="92" height="62"/><rect x="242" y="66"  width="92" height="62"/>
   <rect x="334" y="66"  width="92" height="62"/><rect x="426" y="66"  width="92" height="62"/>
+  <rect x="518" y="66"  width="92" height="62"/>
   <rect x="150" y="128" width="92" height="62"/><rect x="242" y="128" width="92" height="62"/>
   <rect x="334" y="128" width="92" height="62"/><rect x="426" y="128" width="92" height="62"/>
+  <rect x="518" y="128" width="92" height="62"/>
   <rect x="150" y="190" width="92" height="62"/><rect x="242" y="190" width="92" height="62"/>
   <rect x="334" y="190" width="92" height="62"/><rect x="426" y="190" width="92" height="62"/>
+  <rect x="518" y="190" width="92" height="62"/>
   <rect x="150" y="252" width="92" height="62"/><rect x="242" y="252" width="92" height="62"/>
   <rect x="334" y="252" width="92" height="62"/><rect x="426" y="252" width="92" height="62"/>
+  <rect x="518" y="252" width="92" height="62"/>
 </g>
 
-<!-- a level conditioning itself: an inset box, so the grid lines stay even -->
+<!-- one part of a level driving another part of the same level: an inset box -->
 <g class="self" fill="none" stroke="#4a4a4a" stroke-width="1.5">
   <rect x="155" y="71"  width="82" height="52"/>
   <rect x="339" y="195" width="82" height="52"/>
   <rect x="431" y="257" width="82" height="52"/>
 </g>
 
-<!-- the eleven pairs -->
+<!-- the fourteen connections, numbered by the catalog's rows -->
 <g class="num" fill="#1a1a1a" font-size="17" font-weight="600" text-anchor="middle">
-  <text x="196" y="103">1</text>  <text x="380" y="103">2</text>  <text x="472" y="103">3</text>
-  <text x="380" y="165">4</text>  <text x="472" y="165">5</text>
-  <text x="380" y="227">6</text>  <text x="472" y="227">7</text>
-  <text x="196" y="289">8*</text> <text x="288" y="289">9*</text>
-  <text x="380" y="289">10*</text><text x="472" y="289">11*</text>
+  <text x="196" y="103">5</text>   <text x="380" y="103">6</text>  <text x="472" y="103">7</text>
+  <text x="558" y="103">14*</text>
+  <text x="380" y="165">8</text>   <text x="472" y="165">9</text>
+  <text x="190" y="227">12</text>  <text x="380" y="227">10</text> <text x="472" y="227">11</text>
+  <text x="196" y="289">1*</text>  <text x="288" y="289">2*</text> <text x="380" y="289">3*</text>
+  <text x="472" y="289">4*</text>  <text x="558" y="289">13*</text>
+</g>
+
+<!-- the joint-only mark: a small arrow with two heads, beside the number -->
+<g class="num" fill="#1a1a1a">
+  <g transform="translate(576,96)">
+    <rect x="-0.75" y="3" width="1.5" height="8"/>
+    <path d="M 0 0 L 3.4 4.4 L -3.4 4.4 Z"/><path d="M 0 14 L 3.4 9.6 L -3.4 9.6 Z"/>
+  </g>
+  <g transform="translate(208,220)">
+    <rect x="-0.75" y="3" width="1.5" height="8"/>
+    <path d="M 0 0 L 3.4 4.4 L -3.4 4.4 Z"/><path d="M 0 14 L 3.4 9.6 L -3.4 9.6 Z"/>
+  </g>
+  <g transform="translate(576,282)">
+    <rect x="-0.75" y="3" width="1.5" height="8"/>
+    <path d="M 0 0 L 3.4 4.4 L -3.4 4.4 Z"/><path d="M 0 14 L 3.4 9.6 L -3.4 9.6 Z"/>
+  </g>
 </g>
 
 <!-- key -->
-<rect class="shut" x="150" y="332" width="20" height="14" fill="#ebebeb" stroke="#a8a8a8" stroke-width="1.1"/>
-<rect class="cell" x="150" y="361" width="20" height="14" fill="none" stroke="#a8a8a8" stroke-width="1.1"/>
-<rect class="self" x="153" y="364" width="14" height="8" fill="none" stroke="#4a4a4a" stroke-width="1.5"/>
+<rect class="shut" x="150" y="326" width="20" height="14" fill="#ebebeb" stroke="#a8a8a8" stroke-width="1.1"/>
+<g class="num" fill="#1a1a1a">
+  <g transform="translate(160,352)">
+    <rect x="-0.75" y="3" width="1.5" height="8"/>
+    <path d="M 0 0 L 3.4 4.4 L -3.4 4.4 Z"/><path d="M 0 14 L 3.4 9.6 L -3.4 9.6 Z"/>
+  </g>
+</g>
+<rect class="cell" x="150" y="374" width="20" height="14" fill="none" stroke="#a8a8a8" stroke-width="1.1"/>
+<rect class="self" x="153" y="377" width="14" height="8" fill="none" stroke="#4a4a4a" stroke-width="1.5"/>
 <g class="dim" fill="#666666" font-size="11">
-  <text x="178" y="340">not a model: a lineage has one ordered genome, so this would need two;</text>
-  <text x="178" y="353">or a sequence lives inside a gene, so a genome cannot read one back</text>
-  <text x="178" y="372">a level conditioning itself: two runs of the same level</text>
-  <text x="150" y="391">*  can also be written on the command line; the rest need the Python library</text>
+  <text x="178" y="337">not a model: a lineage has one ordered genome, so this would need two;</text>
+  <text x="178" y="350">or the pair cannot read each other (species with sequences; the nucleotide resolution)</text>
+  <text x="178" y="362">joint runs only: neither level can be simulated first</text>
+  <text x="178" y="384">one part of a level driving another part of the same level</text>
+  <text x="150" y="402">*  can also be written on the command line; the rest need the Python library</text>
 </g>
 </svg>
