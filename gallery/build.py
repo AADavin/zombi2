@@ -58,7 +58,7 @@ TRAITS_ORDER = [
 ]
 
 CONDITIONING_ORDER = [
-    "genome_reduction", "genome_expansion", "hgt_uptake", "continuous_conditioning", "curve_saturating", "curve_optimum", #  1 a trait -> a gene family
+    "genome_reduction", "genome_expansion", "hgt_uptake", "continuous_conditioning", "curve_saturating", "curve_optimum", "set_by_habitat", "scalar_response", #  1 a trait -> a gene family
     "climate_inversions",                                          #  2 a trait -> an ordered or nucleotide genome
     "climate_substitution",                                        #  3 a trait -> a sequence
     "driven", "trait_drives_trait",                                          #  4 a trait -> a trait

@@ -463,7 +463,7 @@ def _genomes_and_sequences(kinds, *, tree, genomes, seed, record=False) -> Joint
     over, which is the rule every joint model follows: give what you are not simulating. The gene
     trees are not handed over either — the genome participant produces them.
 
-    See ``docs/design/genomes-sequences.md`` for why this is the family resolution only, and for what
+    See the manual's Dependent runs chapter for why this is the family resolution only, and for what
     a genome event does to a sequence."""
     from .._runtime.slicing import check_step, step_of
     from ..genomes import FamilyGenomesResult
