@@ -14,8 +14,11 @@ on:
   workflow_dispatch:
 
 # One Pages deployment at a time; let an in-progress deploy finish.
+# (The group was renamed from "pages" on 2026-08-19: a run cancelled while still
+# queued left that group's lock dangling, and every later run queued forever
+# behind it. A fresh name carries no stale lock.)
 concurrency:
-  group: pages
+  group: pages-deploy
   cancel-in-progress: false
 
 permissions:
