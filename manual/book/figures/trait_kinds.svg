@@ -17,13 +17,12 @@
      sanitiser drops the style element and librsvg resolves no custom properties, so a figure whose
      fills live in either renders as black-on-black. The dark-mode rules below still win wherever
      CSS survives, because CSS outranks a presentation attribute. The ramp and the two state colours
-     need no dark variant — they read on either ground; only the ink text and the paper-filled
-     chip do. Keep it this way. -->
+     need no dark variant — they read on either ground; only the ink and dim text do. Keep it this
+     way. -->
 <style>
   @media (prefers-color-scheme: dark) {
     .lbl{fill:#e7ebe9}
     .dim{fill:#9aa3a0}
-    .paper{fill:#191d20}
   }
 </style>
 

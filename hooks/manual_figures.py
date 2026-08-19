@@ -1,11 +1,11 @@
 """Point the manual's chapter figures at their web originals on the docs site.
 
-A chapter figure is authored once, as an SVG in `manual/book/figures/`, painted with
-`var(--ink)`/`var(--paper)` so it follows the reader's colour scheme. The book cannot use that file:
-librsvg resolves neither the custom properties nor the `prefers-color-scheme` block, so the Makefile
-flattens it and rasterises it to `NAME_print.png`, and the chapter names *that*. The print PNG is a
-build artefact — never committed — so the site, which includes the chapter verbatim, would link to a
-file that is not there.
+A chapter figure is authored once, as an SVG in `manual/book/figures/`, with literal colours as
+presentation attributes and a `@media (prefers-color-scheme: dark)` block so it follows the reader's
+colour scheme. The book cannot use that file: librsvg does not apply the `prefers-color-scheme`
+block, so the Makefile rasterises the figure to `NAME_print.png` in its light colours, and the
+chapter names *that*. The print PNG is a build artefact — never committed — so the site, which
+includes the chapter verbatim, would link to a file that is not there.
 
 Rather than commit the raster or duplicate the figure, this rewrites the reference on the way in:
 `figures/NAME_print.png` becomes `../img/NAME.svg`, the symlink in `docs/img/` that points back at

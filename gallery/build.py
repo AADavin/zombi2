@@ -42,19 +42,19 @@ WEBFIG = os.path.abspath(os.path.join(HERE, "..", "web", "figures"))
 PREFIX = {"species": "Sp", "genomes": "Ge", "sequences": "Sq",
           "traits": "Tr", "conditioning": "Co", "joining": "Jo"}
 
-#: The conditioning section runs in the order **chapter 9's table** runs, so its Gallery column reads
-#: straight down: row 1 is Co1, row 11 is Co17. The examples come from two modules — `joining` writes
+#: The conditioning section runs in the order **chapter 8's table** runs, so its Gallery column reads
+#: straight down: row 1 is Co1, row 11 is Co21. The examples come from two modules — `joining` writes
 #: the ones a trait drives, `crosslevel` the ones a gene or a sequence does — and the table
 #: interleaves them, so the order is written here rather than left to the order two files happen to
 #: be concatenated in. `_ordered` fails loudly if an example is named twice or not at all, which is
 #: what keeps "every pair is illustrated" a fact rather than a hope.
-#: Chapter 8's order: the continuous menu, then the discrete one, then the two that evolve together.
+#: Chapter 7's order: the continuous menu, then the discrete one, then the two that evolve together.
 TRAITS_ORDER = [
-    "bm", "ou", "early_burst",              # ch8, the diffusion, and the rate's dependence on time
-    "varying_rate", "diversity_dependent",  # ch8, ...on the parent's rate, and on the tree's size
-    "regimes", "jumps",                     # ch8, the two arguments beside the rate
-    "discrete", "asymmetric", "threshold",  # ch8, discrete: one rate, a matrix, a liability
-    "correlated", "mv_ou", "dependent",     # ch8, traits that evolve together
+    "bm", "ou", "early_burst",              # ch7, the diffusion, and the rate's dependence on time
+    "varying_rate", "diversity_dependent",  # ch7, ...on the parent's rate, and on the tree's size
+    "regimes", "jumps",                     # ch7, the two arguments beside the rate
+    "discrete", "asymmetric", "threshold",  # ch7, discrete: one rate, a matrix, a liability
+    "correlated", "mv_ou", "dependent",     # ch7, traits that evolve together
 ]
 
 CONDITIONING_ORDER = [
@@ -72,34 +72,34 @@ CONDITIONING_ORDER = [
 ]
 
 
-#: The genome section runs in the order the book does: chapter 4's family resolution, then chapter
-#: 5's ordered one, then chapter 6's nucleotide one. It used to open with chapter 5's rings, which is
+#: The genome section runs in the order the book does: chapter 3's family resolution, then chapter
+#: 4's ordered one, then chapter 5's nucleotide one. It used to open with chapter 4's rings, which is
 #: the prettiest picture and the wrong place to start reading.
 SPECIES_ORDER = [
-    "basic", "extinct",                     # ch3, the birth-death process
-    "rateshift", "diversity", "inherited", "perlineage",   # ch3, rates that vary
-    "massext",                              # ch3, other models
-    "sampling",                             # ch3, sampling and fossils
-    "shape",                                # ch3, a study over many trees
+    "basic", "extinct",                     # ch2, the birth-death process
+    "rateshift", "diversity", "inherited", "perlineage",   # ch2, rates that vary
+    "massext",                              # ch2, other models
+    "sampling",                             # ch2, sampling and fossils
+    "shape",                                # ch2, a study over many trees
 ]
 
-#: Chapter 7 chooses the model first, then how fast it runs. The section led with the four clocks,
+#: Chapter 6 chooses the model first, then how fast it runs. The section led with the four clocks,
 #: which is the chapter's fifth section.
 SEQUENCE_ORDER = [
-    "seq_alignment",                        # ch7, what a run produces
-    "clade_own_model", "seq_protein",       # ch7, the substitution models — nucleotide, then protein
-    "seq_protein_indels",                   # ch7, and the same alphabet with sites gained and lost
-    "clock_ucln", "clock_ugam", "clock_autocorrelated", "clock_discrete_bin",   # ch7, the clocks
-    "seq_ancestral",                        # ch7, what a run gives back
-    "seq_indels", "custom_matrix", "seq_profiles",                           # ch7, running on a nucleotide genome
+    "seq_alignment",                        # ch6, what a run produces
+    "clade_own_model", "seq_protein",       # ch6, the substitution models — nucleotide, then protein
+    "seq_protein_indels",                   # ch6, and the same alphabet with sites gained and lost
+    "clock_ucln", "clock_ugam", "clock_autocorrelated", "clock_discrete_bin",   # ch6, the clocks
+    "seq_ancestral",                        # ch6, what a run gives back
+    "seq_indels", "custom_matrix", "seq_profiles",                           # ch6, running on a nucleotide genome
 ]
 
 GENOME_ORDER = [
-    "genome_tree_events", "genome_tree_profiles", "genome_transfer_highway",     # ch4, family
+    "genome_tree_events", "genome_tree_profiles", "genome_transfer_highway",     # ch3, family
     "genome_pangenome_by_family", "genome_clade_transition",
-    "genome_circular_ordered", "genome_synteny", "genome_synteny_tree",          # ch5, ordered
+    "genome_circular_ordered", "genome_synteny", "genome_synteny_tree",          # ch4, ordered
     "genome_inversion", "genome_karyotype",
-    "genome_circular_nucleotide",                                                # ch6, nucleotide
+    "genome_circular_nucleotide",                                                # ch5, nucleotide
 ]
 
 
@@ -134,13 +134,13 @@ LEVELS = [
      _ordered(traits.EXAMPLES, TRAITS_ORDER)),
     ("conditioning", "Conditioning",
      "Two runs, in order. The first run grows the driver on the tree and holds it fixed. The "
-     "second run reads it. A driver is a trait, a gene family or a whole module. It drives a "
-     "rate, or which lineage receives a transfer.",
+     "second run reads it. A driver is a trait, a gene family, a whole module, or the "
+     "composition of a sequence. It drives a rate, or which lineage receives a transfer.",
      _ordered(joining.CONDITIONING + crosslevel.EXAMPLES + traits.CONDITIONING,
               CONDITIONING_ORDER)),
     ("joining", "Joining",
-     "One run makes both. The trait sets the speciation or extinction rate of the lineage "
-     "carrying it. The trait and the tree therefore come out together.",
+     "One run simulates both levels at once, because neither of them can be grown first. "
+     "Sometimes the tree is an output of the run, and sometimes it is handed to the run.",
      joining.JOINING),
 ]
 

@@ -1,12 +1,13 @@
 """Conditioning across the pairs the other modules do not reach.
 
-``joining.py`` shows a trait driving a genome and a gene driving a trait. The map in Chapter 9 has
+``joining.py`` shows a trait driving a genome and a gene driving a trait. The map in Chapter 8 has
 eleven pairs, and the rest of them are here: the ones that reach the **sequence** level, at either
 end, and the ones whose driver is an **ordered** genome, where a gene has neighbours and an event has
 an extent.
 
-Every figure is the same shape as the conditioning ones beside it — the driver painted on the tree,
-what it did in the bars — so the pairs can be read against each other.
+Every figure is the same shape as the conditioning ones beside it: the driver is painted on the tree,
+and its consequence sits beside or below it, either as bars or as a second tree, so the pairs can be
+read against each other.
 """
 
 from __future__ import annotations
@@ -115,7 +116,7 @@ def repair_gene(out):
     _clock_panels(out, ct, seqs, _presence_history(ct, repair.presence("mutS")),
                   {"present": 1.0, "absent": 4.0}, _REPAIR,
                   dict(driver=("genomes", "mutS", "present or absent"),
-                       connection=("scaled_by", "table"),
+                       link=("scaled_by", "table"),
                        target_level="sequences",
                        targets=[("substitution", "rate · per site", "absent × 4    present × 1")],
                        chain=(("present", "absent"), [("0.13", None)],
@@ -139,7 +140,7 @@ def climate_substitution(out):
                                                                    {"hot": 4.0, "cold": 1.0}))
     _clock_panels(out, ct, seqs, _state_history(ct, climate), {"hot": 4.0, "cold": 1.0}, _CLIMATE,
                   dict(driver=("traits", "climate", "two states"),
-                       connection=("scaled_by", "table"),
+                       link=("scaled_by", "table"),
                        target_level="sequences",
                        targets=[("substitution", "rate · per site", "hot × 4    cold × 1")],
                        chain=(("cold", "hot"), [("0.35", "0.35")],
@@ -175,7 +176,7 @@ def mobile_element(out):
     h.conditioned_figure(
         out, ct, [ph.trees.color_history(_presence_history(ct, is1), palette=_IS1)],
         given, tipcol, dict(driver=("genomes", "IS1", "present or absent"),
-                            connection=("scaled_by", "table"),
+                            link=("scaled_by", "table"),
                             target_level="genomes",
                             targets=[("transfer", "rate · per copy", "present × 25    absent × 1")],
                             chain=(("present", "absent"), [("0.13", None)],
@@ -211,7 +212,7 @@ def climate_inversions(out):
     h.conditioned_figure(
         out, ct, [ph.trees.color_history(_state_history(ct, climate), palette=_CLIMATE)],
         inversions, tipcol, dict(driver=("traits", "climate", "two states"),
-                                 connection=("scaled_by", "table"),
+                                 link=("scaled_by", "table"),
                                  target_level="genomes",
                                  targets=[("inversion", "rate · per copy", "hot × 15"),
                                           ("inversion_extent", "extent · in genes", "hot × 3")],
@@ -253,7 +254,7 @@ _REPAIR_OPERON = ["mutS", "mutL", "mutH", "uvrA", "uvrB", "uvrC"]
 
 def operon_substitution(out):
     """An ORDERED genome drives the SUBSTITUTION rate, and the driver is a **fraction** rather than a
-    yes/no. How much of a four-gene repair operon a lineage still holds sets how fast its sequences
+    yes/no. How much of a six-gene repair operon a lineage still holds sets how fast its sequences
     evolve, through a `Curve`.
 
     Coordinates are what makes this its own model. At the ordered resolution a loss takes a *run* of
@@ -275,7 +276,7 @@ def operon_substitution(out):
     h.conditioned_figure(
         out, ct, [ph.trees.color_branches(frac, cmap=_OPERON)],
         dist, tipcol, dict(driver=("genomes", "repair operon", "a fraction, 0–1"),
-                           connection=("scaled_by", "curve"),
+                           link=("scaled_by", "curve"),
                            target_level="sequences",
                            targets=[("substitution", "rate · per site", "")],
                            curve=(factor, "fraction of the operon kept", (0.0, 1.0))),
@@ -305,7 +306,7 @@ def operon_trait(out):
     h.conditioned_figure(
         out, ct, [ph.trees.color_history(hist, cmap=_OPERON, limits=(0.0, 1.0))],
         spread, tipcol, dict(driver=("genomes", "repair operon", "a fraction, 0–1"),
-                             connection=("scaled_by", "curve"),
+                             link=("scaled_by", "curve"),
                              target_level="traits",
                              targets=[("rate", "rate · per lineage", "")],
                              curve=(factor, "fraction of the operon kept", (0.0, 1.0))),
@@ -380,7 +381,7 @@ def gc_drives_sequence(out):
         pngs.append(png)
     diag = h.conditioning_png(out.replace(".png", "_diag.png"),
                               driver=("sequences", "GC", "a number"),
-                              connection=("scaled_by", "curve"),
+                              link=("scaled_by", "curve"),
                               target_level="sequences",
                               targets=[("substitution", "rate · per site", "")],
                               curve=(factor, "GC content", span))
@@ -477,7 +478,7 @@ def named_family_drives_sequence(out):
         pngs.append(png)
     diag = h.conditioning_png(out.replace(".png", "_diag.png"),
                               driver=("sequences", "marker IVYWREL", "a number"),
-                              connection=("scaled_by", "curve"),
+                              link=("scaled_by", "curve"),
                               target_level="sequences",
                               targets=[("ribosomal substitution", "rate · per site", "")],
                               curve=(factor, "the marker's IVYWREL share", span))
@@ -509,7 +510,7 @@ def gc_drives_trait(out):
     h.conditioned_figure(
         out, ct, [ph.trees.color_branches(gc, cmap=_GC)],
         switches, tipcol, dict(driver=("sequences", "GC", "a number"),
-                               connection=("scaled_by", "curve"),
+                               link=("scaled_by", "curve"),
                                target_level="traits",
                                targets=[("switch", "rate · per lineage", "")],
                                curve=(factor, "GC content",
@@ -528,7 +529,7 @@ ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_t
 repair = simulate_genomes_family(ct, initial_families=20, families=[family('mutS')],
                                  duplication=0.1, loss=0.13, seed=5)
 
-### the target: sequences evolve 8x faster where the family has been lost
+### the target: sequences evolve 4x faster where the family has been lost
 genes = simulate_genomes_family(ct, initial_families=4, duplication=0.02, loss=0.02, seed=2)
 seqs = simulate_sequences(
     genes, model=jc69(), length=60, seed=1,
@@ -541,12 +542,12 @@ from zombi2.traits import simulate_discrete
 climate = simulate_discrete(ct, states=["cold", "hot"], switch=0.35, seed=6)
 seqs = simulate_sequences(genes, model=jc69(), length=60, seed=1,
                           substitution=PerSite(0.15).scaled_by(climate,
-                                                               {"hot": 8.0, "cold": 1.0}))"""
+                                                               {"hot": 4.0, "cold": 1.0}))"""
 
 _C_MOBILE = """### one level conditioning itself: an element makes its genome donate more
 from zombi2.params import PerCopy
 
-element = simulate_genomes_family(ct, initial_families=families=[family('IS1')]S1"],
+element = simulate_genomes_family(ct, initial_families=20, families=[family("IS1")],
                                   duplication=0.1, loss=0.13, seed=5)
 genome = simulate_genomes_family(
     ct, initial_families=25, loss=0.15, seed=7,
@@ -627,7 +628,7 @@ marker = simulate_sequences(
 # 2007), so it is read here as how hot the lineage runs — a proxy, not a mechanism.
 #
 # absent= is what a branch WITHOUT the marker reads. Required, not guessed: a driver
-# has to answer for every branch the target walks, and carrying the parent's value
+# must give a value on every branch of the target's run, and carrying the parent's value
 # forward would say the family was still there.
 ribosomal = simulate_sequences(
     g, families=["ribosomal"], model=lg(), length=200, seed=5,

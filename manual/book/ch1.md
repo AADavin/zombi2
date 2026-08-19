@@ -10,12 +10,12 @@ Simulation is the way around this. You create a dataset whose history you alread
 
 ZOMBI2 simulates four levels of evolution: **Species**, **Genomes**, **Sequences** and **Traits**. You can run one level, several in sequence, or let one drive another. It is a Python library and a command-line tool over the same engine, taking the same parameters, so a run can be written either way.
 
-The next sections are the whole tool in one pass — the concepts every level shares. You might not need all of them: to simulate something simple, like a species tree, you can go straight to its chapter.
+The next sections are the whole tool in one pass, the concepts every level shares. You might not need all of them: to simulate something simple, like a species tree, you can go straight to its chapter.
 
 ## The four levels of ZOMBI2
 
 - **Species**, the tree of lineages: a strictly bifurcating rooted tree, with branches measured in time.
-- **Genomes**, the genes that exist in each lineage. Genomes can be simulated at three **resolutions** — **family**, the gene families alone; **ordered**, the genes placed on chromosomes; **nucleotide**, a genome as DNA coordinates (Chapters 3 to 5). A genome is always simulated within a species tree — even in a joint run, below, where the two grow together.
+- **Genomes**, the genes that exist in each lineage. Genomes can be simulated at three **resolutions**: **family**, the gene families alone; **ordered**, the genes placed on chromosomes; **nucleotide**, a genome as DNA coordinates (Chapters 3 to 5). A genome is always simulated within a species tree, even in a joint run, below, where the two grow together.
 - **Sequences**, the nucleotides or amino acids inside each gene: the letters themselves, which even a nucleotide-resolution genome does not carry. Sequences evolve on gene trees (which are generated during the genome simulation), so genomes must be simulated first.
 - **Traits**, phenotypes evolving along a tree: body size, optimal growth temperature, the presence or absence of a flagellum.
 
@@ -41,13 +41,13 @@ Some tree viewers do not draw the stem by default, so a plotted tree can look sh
 
 ## Rates
 
-In ZOMBI2 different events happen over time with different probability: speciations and extinctions at the species level; duplications, transfers, losses, originations — the birth of a new gene family — and rearrangements at the genome level; substitutions in a sequence; changes in a trait.
+In ZOMBI2 different events happen over time with different probability: speciations and extinctions at the species level; duplications, transfers, losses, originations (the birth of a new gene family) and rearrangements at the genome level; substitutions in a sequence; changes in a trait.
 
 How often an event occurs is controlled by its **effective rate**:
 
 $$\text{effective rate} = \text{scope}(\text{base}) \times \text{modifiers}$$
 
-The **base** is the expected number of events per unit time, for one unit of whatever the scope counts. The **scope** names that unit — a lineage, a gene copy, a site — and so decides how many independent chances run at once: a loss rate of 0.25 counted per copy, in a genome of forty copies, is a total loss rate of 40 × 0.25 = 10 per unit time; counted per lineage, it stays 0.25 however large the genome grows. The **modifiers** are the dimensionless multipliers a rate picks up from its context; they are written as **verbs** chained onto the rate — `.changing_at(…)`, `.scaled_by(…)` — and that is what this book calls them. Appendix A is the full reference: the units, each level's default scope, every modifier and which levels accept it, and what the engine does with a rate once it has one.
+The **base** is the expected number of events per unit time, for one unit of whatever the scope counts. The **scope** names that unit (a lineage, a gene copy, a site) and so decides how many independent chances run at once: a loss rate of 0.25 counted per copy, in a genome of forty copies, is a total loss rate of 40 × 0.25 = 10 per unit time; counted per lineage, it stays 0.25 however large the genome grows. The **modifiers** are the dimensionless multipliers a rate picks up from its context; they are written as **verbs** chained onto the rate (`.changing_at(…)`, `.scaled_by(…)`), and that is what this book calls them. Appendix A is the full reference: the units, each level's default scope, every modifier and which levels accept it, and what the engine does with a rate once it has one.
 
 ## Dependent runs
 
@@ -55,9 +55,9 @@ ZOMBI2 can also simulate dependencies between the levels, so that complex scenar
 
 Every dependency is written as a **connection**, with three parts:
 
-- the **driver**: the value that is read — the habitat of each lineage.
-- the **target**: the parameter that depends on it — the loss rate.
-- the **link**: what joins them — what each value of the driver is worth, and what that number does to the target.
+- the **driver**: the value that is read, the habitat of each lineage.
+- the **target**: the parameter that depends on it, the loss rate.
+- the **link**: what joins them; what each value of the driver is worth, and what that number does to the target.
 
 ![A connection: a habitat trait is simulated first and held fixed, and a gene loss rate reads it. The driver, the link and the target are the three parts every connection has, and Chapter 8 takes them one at a time.](figures/conditioning_print.png){width=95%}
 
@@ -89,7 +89,7 @@ Some questions ZOMBI2 is built to answer:
 
 - **Does a trait actually drive diversification?** Let a trait set the speciation rate, so the tree and the trait grow together, and test whether a state-dependent method recovers the effect.
 
-- **What signal survives in gene order?** With genes placed on chromosomes — the **ordered** genome resolution (Chapter 4) — inversions, transpositions and translocations rearrange them, and fissions and fusions change the karyotype itself, so synteny and rearrangement methods can be tested against the moves that were actually made.
+- **What signal survives in gene order?** With genes placed on chromosomes at the **ordered** genome resolution (Chapter 4), inversions, transpositions and translocations rearrange them, and fissions and fusions change the karyotype itself, so synteny and rearrangement methods can be tested against the moves that were actually made.
 
 ## Installing it
 
@@ -102,18 +102,18 @@ pip install zombi2
 `zombi2 --version` confirms the install, and `zombi2 -h` lists the commands: one per level (Chapters 2 to 7 cover them in order), plus `joint`, which grows the species tree and a level that drives it in one run (Chapter 8), and `tools`, analyses that read a finished run (Appendix D).
 
 ZOMBI2 is pure Python over NumPy, with no compiled part to build, and the test suite runs on **Linux,
-macOS and Windows** on every change, so the same command does the same thing on all three. The one
-thing that differs on Windows — how backslash paths are read inside a rate expression or a
-`--params` file — is in Appendix A, under "Paths on Windows".
+macOS and Windows** on every change, so the same command does the same thing on all three. One thing
+differs on Windows: how backslash paths are read inside a rate expression or a `--params`
+file. Appendix A covers it, under "Paths on Windows".
 
 ## The examples gallery
 
 Every figure in this book is drawn from a run, and the code behind a great many of them lives in the
-[examples gallery](https://aadavin.github.io/zombi2/gallery.html) — a page of worked examples, each
+[examples gallery](https://aadavin.github.io/zombi2/gallery.html), a page of worked examples, each
 with the exact commands that made it. The gallery numbers them by section: `Sp` species, `Ge` genomes,
 `Sq` sequences and `Tr` traits for the four levels, then `Co` conditioning and `Jo` joining, the
 two kinds of dependent run (Chapter 8). This book cites them the way it cites a
-figure, so a paragraph that describes what an inversion does to a chromosome ends **(Ge7)**.
+figure, so a paragraph that describes what an inversion does to a chromosome ends **(Ge9)**.
 
 ## For the impatient
 
@@ -147,9 +147,9 @@ out/genomes/    genome_events.tsv      every duplication, transfer, loss and ori
                 genomes.log
 ```
 
-Open `run.zombi2` first — plain text, one page: it names every file the run wrote and carries the commands that rebuild it. Below it each level keeps to its own directory, run log included, and an output with one file per gene family gets a directory of its own inside the level's, so a few hundred families stay legible. `--flat` writes every file straight into `out/` instead, and writes no run report; `--quiet` turns off the progress bar.
+Open `run.zombi2` first. It is plain text, one page: it names every file the run wrote and carries the commands that rebuild it. Below it each level keeps to its own directory, run log included, and an output with one file per gene family gets a directory of its own inside the level's, so a few hundred families stay legible. `--flat` writes every file straight into `out/` instead, and writes no run report; `--quiet` turns off the progress bar.
 
-Here is the same model from Python, with seeds pinned so it is repeatable. The rates are spelled out because they are exactly the command line's defaults, and only the command line has defaults: in Python every genome rate starts at 0, so a call that names none of them still runs, and gives a history with no duplication, transfer or loss — just the families it started with, copied down the tree.
+Here is the same model from Python, with seeds pinned so it is repeatable. The rates are spelled out because they are exactly the command line's defaults, and only the command line has defaults: in Python every genome rate starts at 0, so a call that names none of them still runs, and gives a history with no duplication, transfer or loss, just the families it started with, copied down the tree.
 
 ```python
 from zombi2 import species, genomes

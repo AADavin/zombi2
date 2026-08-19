@@ -522,7 +522,7 @@ def indel_alignment(out):
     with open(nwk, "w") as fh:
         fh.write(sp.extant_tree.to_newick() + "\n")
     # `beside` matches rows to tips by label and draws them in the TREE's order, so the gap pattern
-    # can be read straight off the topology — which is the point here. Five tips, so they are named.
+    # can be read straight off the topology — which is the point here. Twenty tips, so they are named.
     fig = ph.trees.plot(ph.trees.read(nwk), style=h.style()) + ph.trees.tip_labels()
     ph.beside(fig, ph.genomes.alignment(ph.zombi.Alignment(list(tips), rows),
                                         letters=False, legend=False),

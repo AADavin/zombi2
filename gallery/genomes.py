@@ -676,8 +676,8 @@ clade = Clade({"selected": ["n13", "n33"]})
 # one factor, scoped to the clade AND to a time: x20 loss from t=2, and no transfer in from then
 my_genomes = simulate_genomes_family(
     tree, initial_families=220, duplication=PerCopy(0.02), transfer=PerCopy(0.05),
-    loss=PerCopy(0.02).scaled_by(clade, {"endo": {0: 1.0, 2.0: 20.0}, "rest": 1.0}),
-    transfer_to=Recipients().weighted_by(clade, {"endo": {0: 1.0, 2.0: 0.0}, "rest": 1.0}),
+    loss=PerCopy(0.02).scaled_by(clade, {"selected": {0: 1.0, 2.0: 20.0}, "rest": 1.0}),
+    transfer_to=Recipients().weighted_by(clade, {"selected": {0: 1.0, 2.0: 0.0}, "rest": 1.0}),
     seed=2)'''
 
 
@@ -714,10 +714,11 @@ def _karyotype_png(genome, path: str) -> str:
 def karyotype(out):
     """The whole karyotype of every survivor, beside the tree that produced them.
 
-    Seven lineages start from the same two circular chromosomes. Fission splits one in two and fusion
-    joins two into one, and both are marked on the branch they happened on — so the karyotypes on the
-    right are not a given, they are what those marks did. Some tips end with a single chromosome and
-    some with three, and nothing about them differs except which events fell on which branch."""
+    Seven lineages start from the same three circular chromosomes. Fission splits one in two and
+    fusion joins two into one, and both are marked on the branch they happened on — so the karyotypes
+    on the right are not a given, they are what those marks did. Some tips end with a single
+    chromosome and some with three, and nothing about them differs except which events fell on which
+    branch."""
     import csv
 
     run = h.karyotype_run()
@@ -854,11 +855,11 @@ EXAMPLES = [
             "Two runs at the same mean rates. Every family alike gives no core at all; letting families "
             "differ gives 28 core families and a U-shaped spectrum.",
             "varying_among('families')", pangenome_by_family, code=_C_PANGENOME),
-    Example("genome_clade_transition", "A clade slows down",
+    Example("genome_clade_transition", "A clade starts losing genes",
             "The shaded clade loses genes twenty times faster after the dashed line, and nothing "
             "about it differs before. It ends with about 140 genes against 270 outside — one factor, "
             "scoped to a group <b>and</b> to a time.",
-            "Clade · changing_at", clade_transition, code=_C_TRANSITION),
+            "Clade · schedule", clade_transition, code=_C_TRANSITION),
     Example("genome_karyotype", "Karyotypes",
             "Seven lineages from the three circular chromosomes drawn above the stem. Fission and "
             "fusion are marked on the branch where they happened, so the karyotypes are what those "
