@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.43.2] - 2026-08-19
+
 ### Changed
 
 - One hundred and twelve findings from the first run of the review sweep (12-surface Opus
