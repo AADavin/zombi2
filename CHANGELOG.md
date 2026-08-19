@@ -22,6 +22,17 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   own label, so `Chromosome` rejected it. A topology list now distributes one label per
   chromosome, as at the ordered resolution, and a list whose length does not match
   `--chromosomes` is rejected with the same message ordered gives.
+- Three refusal messages still denied joint models that shipped in 0.42.0: a composition driving a
+  genome rate was told "no joint engine for the pair exists", and a live-level driver on a sequence
+  rate was told "Traits and Sequences cannot be joined". All three now point at the entry point
+  those runs live on, `joint.simulate(...)`.
+- A live-level driver name that reached an ordinary conditioned run — `scaled_by("traits:size", …)`
+  on a trait or genome rate, `scaled_by("sequences:rpoB", …)` anywhere — surfaced as a missing-file
+  error (or, for a bare `"trait"` on a genome rate, a crash), because the live-name check knew only
+  `"trait"` and `"genomes:*"`. The check now knows every documented live name and lives at the one
+  choke point every engine resolves its drivers through, so the answer is the modelling one: the
+  run asked for is joint, and it belongs on `joint.simulate(...)` or the level's own `joint=True`
+  form.
 
 ## [0.43.2] - 2026-08-19
 
@@ -141,8 +152,8 @@ entries)*
   sixty species with thirty families. Species time is sliced, and at an event the picked copy's
   sequence is carried to that instant before it is cloned or ended.
   The family resolution only. At the nucleotide resolution an event can fall inside a gene, so a
-  copy's sequence stops being one string; that is refused by name. See
-  `docs/design/genomes-sequences.md`.
+  copy's sequence stops being one string; that is refused by name. See the manual's Dependent runs
+  chapter (the design note this entry first cited was folded into the SPEC and the manual).
 
 ### Changed
 

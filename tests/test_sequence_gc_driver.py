@@ -146,10 +146,10 @@ def test_no_genome_can_be_driven_by_a_sequence():
                 lambda: simulate_genomes_nucleotide(
                     tree, root_length=2000, genes=2,
                     loss=PerLineage(0.2).scaled_by(gc, _RESPONSE), seed=7)):
-        with pytest.raises(ValueError, match="genome level cannot be driven by a sequence"):
+        with pytest.raises(ValueError, match="genome level cannot be driven by a finished sequence"):
             run()
     # who RECEIVES a transfer is a read of the driver too, so the same refusal covers it
-    with pytest.raises(ValueError, match="genome level cannot be driven by a sequence"):
+    with pytest.raises(ValueError, match="genome level cannot be driven by a finished sequence"):
         simulate_genomes_family(tree, initial_families=3, transfer=0.2, seed=7,
                                 transfer_to=Recipients().weighted_by(gc, _RESPONSE))
 
