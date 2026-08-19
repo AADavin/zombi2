@@ -21,3 +21,9 @@ finds the gene that does.
 inversion and translocation rates and the parameters inferred back. The rates are
 recovered, including the mix of the two event types. The size of the events is not, and
 fixing it at a wrong value biases the rates that are recoverable.
+
+**[Can Pagel's test detect a feedback?](pagel.md)** A habitat drives gene loss across
+the genome, and one family's absence drives the switch rate into the cave, a feedback
+closed in one joint run. Pagel's test detects the feedback and the switch-rate direction
+in about nine runs of ten, largely misses the loss direction, and stays at the nominal
+level on the null and on an independent control family.
