@@ -575,7 +575,132 @@ ph.beside(ph.trees.plot(tree),
           footer=70).save("protein_indels.png")'''
 
 
+# --- a matrix of your own, and per-site profiles: the two written-by-you inputs -----------------
+
+def custom_matrix(out):
+    """A substitution matrix of your own, through the constructor the menu itself uses.
+
+    `reversible` takes a symmetric exchangeability matrix S and stationary frequencies, and
+    returns a model like any other, scaled so one unit of branch length is one expected
+    substitution per site. The matrix here IS HKY85 rebuilt by hand — kappa on the two
+    transitions — so the alignment is indistinguishable from the menu's `hky85`: the point is
+    the constructor, not a new model. A general Q is refused: the engine's matrix exponential
+    is valid for a time-reversible model only, which a symmetric S times pi satisfies by
+    construction."""
+    import numpy as np
+    from zombi2.genomes import simulate_genomes_family
+    from zombi2.sequences import simulate_sequences
+    from zombi2.sequences.substitution_models import reversible
+    from zombi2.species import simulate_species_tree
+
+    sp = simulate_species_tree(birth=1.0, n_extant=20, seed=1)
+    ct = sp.complete_tree
+    g = simulate_genomes_family(ct, initial_families=1, duplication=0.0, loss=0.0, seed=1)
+    kappa = 2.0
+    S = np.array([[0, 1, kappa, 1], [1, 0, 1, kappa],
+                  [kappa, 1, 0, 1], [1, kappa, 1, 0]], dtype=float)
+    mine = reversible(S, frequencies=(0.3, 0.2, 0.2, 0.3), name="mine")
+    r = simulate_sequences(g, model=mine, length=400, substitution=0.5, seed=1)
+
+    fam = sorted(r.alignments)[0]
+    labels = ct.labels()
+    rows = [labels[n] for n in sorted(ct.extant_leaves())]
+    seqs = {label.split("_")[0]: seq for label, seq in r.alignments[fam].items()}
+    aln = ph.zombi.Alignment(rows=rows, seqs=seqs, kind="nt")
+    fig = ph.trees.plot(ph.trees.loads(ct.to_newick()), style=h.style())
+    ph.beside(fig, ph.genomes.alignment(aln, letters=False, legend=True),
+              width=1150, tree_fraction=0.30, footer=70).save(out)
+
+
+def seq_profiles(out):
+    """One set of amino-acid frequencies PER POSITION, instead of one per gene.
+
+    The first thirty positions are pinned, each to its own residue; the other thirty evolve
+    under LG's own frequencies. The alignment says it directly: a frozen left half, an
+    ordinary right half. The engine normalises each row, leaves the exchangeabilities alone,
+    and refuses a row of exact zeros — a profile says a residue is unlikely, not impossible."""
+    import numpy as np
+    from zombi2.genomes import simulate_genomes_family
+    from zombi2.sequences import simulate_sequences
+    from zombi2.sequences.substitution_models import lg
+    from zombi2.species import simulate_species_tree
+
+    sp = simulate_species_tree(birth=1.0, n_extant=20, seed=1)
+    ct = sp.complete_tree
+    g = simulate_genomes_family(ct, initial_families=1, duplication=0.0, loss=0.0, seed=1)
+    protein = lg()
+    L, half = 60, 30
+    motif = "LIVFWYKREDH"                                   # the pinned residues, cycling
+    prof = np.tile(protein.stationary, (L, 1))
+    prof[:half] = 0.002
+    for i in range(half):
+        prof[i, protein.alphabet.index(motif[i % len(motif)])] = 1.0
+    r = simulate_sequences(g, model=protein, length=L, profiles={0: prof},
+                           substitution=1.2, seed=1)
+
+    fam = sorted(r.alignments)[0]
+    labels = ct.labels()
+    rows = [labels[n] for n in sorted(ct.extant_leaves())]
+    seqs = {label.split("_")[0]: seq for label, seq in r.alignments[fam].items()}
+    aln = ph.zombi.Alignment(rows=rows, seqs=seqs, kind="aa")
+    fig = ph.trees.plot(ph.trees.loads(ct.to_newick()), style=h.style())
+    ph.beside(fig, ph.genomes.alignment(aln, palette=ph.genomes.AA_COLORS, letters=True,
+                                        legend=True),
+              width=1150, tree_fraction=0.30, footer=70).save(out)
+
+
+_C_CUSTOM = '''\
+### simulate — the constructor the menu itself uses; this matrix IS HKY85
+import numpy as np
+from zombi2 import sequences
+from zombi2.sequences.substitution_models import reversible
+
+kappa = 2.0
+S = np.array([[0, 1, kappa, 1],      # A-C, A-G, A-T
+              [1, 0, 1, kappa],      # C-...
+              [kappa, 1, 0, 1],
+              [1, kappa, 1, 0]], dtype=float)
+mine = reversible(S, frequencies=(0.3, 0.2, 0.2, 0.3), name="mine")
+# a model like any other: rate i->j is S_ij * pi_j, scaled to one substitution
+# per site per unit branch length; a non-reversible Q is refused rather than run
+seqs = sequences.simulate_sequences(my_genomes, model=mine, length=400, seed=1)
+'''
+
+_C_PROFILES = '''\
+### simulate — one row of amino-acid frequencies per position
+import numpy as np
+from zombi2 import sequences
+from zombi2.sequences.substitution_models import lg
+
+protein = lg()
+constrained = np.full((300, 20), 0.002)             # everything possible, nothing likely...
+constrained[:, protein.alphabet.index("L")] = 1.0   # ...except leucine, at every position
+seqs = sequences.simulate_sequences(my_genomes, model=protein, length=300,
+                                    profiles={0: constrained}, seed=1)
+
+### where a profile comes from: a real alignment, with a pseudocount
+def profile_from_alignment(columns, alphabet, pseudocount=0.1):
+    """One row per alignment column, from the residues seen in it."""
+    counts = np.array([[c.count(a) for a in alphabet] for c in columns], dtype=float)
+    counts += pseudocount                       # nothing is impossible, only unlikely
+    return counts / counts.sum(axis=1, keepdims=True)
+
+columns = ["LLLIL", "GGGGA", "KKRKK"]           # three columns of a five-sequence alignment
+profile_from_alignment(columns, protein.alphabet)          # shape (3, 20)
+'''
+
+
+
 EXAMPLES = [
+    Example("custom_matrix", "A matrix of your own",
+            "<code>reversible(S, frequencies)</code> is the constructor the menu itself uses; "
+            "the matrix here rebuilds HKY85 by hand, and a non-reversible Q is refused rather "
+            "than run.",
+            "model · reversible", custom_matrix, code=_C_CUSTOM),
+    Example("seq_profiles", "A profile per position",
+            "One set of amino-acid frequencies per position: thirty pinned columns freeze half "
+            "the alignment while the other half evolves under LG's own frequencies.",
+            "model · profiles", seq_profiles, code=_C_PROFILES),
     Example("clock_ucln", "Uncorrelated lognormal clock",
             "Every lineage draws its own rate, with no memory of its parent, so the colour is "
             "salt-and-pepper. <code>substitution&nbsp;=&nbsp;PerSite().varying_among('lineages',&nbsp;LogNormal(0.0, 0.55))</code>.",

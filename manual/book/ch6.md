@@ -33,35 +33,20 @@ ZOMBI2 implements nine standard models of sequence evolution.
 
 The model decides the alphabet, and `length` counts whatever that alphabet holds. The nucleotide models are four different rate matrices rather than one model with four settings, but they nest in the order written — `jc69` is `k80` with `kappa=1`, and `k80` is `hky85` with equal base frequencies — so each step down the table adds free parameters. The protein matrices are **empirical**, each estimated once from a large set of real alignments and then used as a fixed table, which is why they take no parameters of their own ([Sq3](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_protein-->).
 
-### Your own matrix
-
-If none of the nine is the model you want, write the matrix yourself. `reversible` takes a symmetric **exchangeability** matrix $S$ and stationary frequencies $\pi$, and returns a model like any other:
+The examples of this chapter share one small run for the sequences to evolve on:
 
 ```python
 from zombi2 import species, genomes, sequences
-from zombi2.sequences.substitution_models import hky85, lg
+from zombi2.sequences.substitution_models import hky85, jc69, lg
 
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 my_genomes = genomes.simulate_genomes_family(
     tree, duplication=0.2, loss=0.25, origination=0.5, initial_families=20, seed=1)
 ```
 
-```python
-import numpy as np
-from zombi2.sequences.substitution_models import reversible
+### Your own matrix
 
-kappa = 2.0
-S = np.array([[0, 1, kappa, 1],      # A ↔ C, A ↔ G, A ↔ T
-              [1, 0, 1, kappa],      # C ↔ …
-              [kappa, 1, 0, 1],
-              [1, kappa, 1, 0]], dtype=float)
-mine = reversible(S, frequencies=(0.3, 0.2, 0.2, 0.3), name="mine")
-custom = sequences.simulate_sequences(my_genomes, model=mine, length=1000, seed=1)
-```
-
-The rate of $i \to j$ is $Q_{ij} = S_{ij}\,\pi_j$, the diagonal is minus the rest of its row, and the whole matrix is then scaled so that one unit of branch length is one expected substitution per site, the same scaling every model on the menu gets. So a phylogram from your matrix is comparable with one from `hky85` without converting anything. This is the constructor the menu itself uses: the matrix above *is* HKY85, so `mine` and `hky85(kappa=2.0, frequencies=(0.3, 0.2, 0.2, 0.3))` are the same model. Pass `alphabet=AMINO_ACIDS` for a twenty-state matrix of your own.
-
-You give $S$ and $\pi$ rather than $Q$ directly, and the restriction is deliberate: the engine's matrix exponential is only valid for a **time-reversible** model, which a symmetric $S$ times $\pi$ satisfies by construction. A general $Q$ is refused with an error rather than run — a wrong transition matrix produces plausible sequences that are not the model you asked for. There is no command-line flag for a custom matrix: a twenty-state matrix is 190 numbers, which is a file format rather than an argument.
+If none of the nine is the model you want, write the matrix yourself. `reversible` takes a symmetric **exchangeability** matrix $S$ and stationary frequencies $\pi$, and returns a model like any other: the rate of $i \to j$ is $Q_{ij} = S_{ij}\,\pi_j$, scaled so that one unit of branch length is one expected substitution per site, the same scaling every model on the menu gets — so a phylogram from your matrix compares with one from `hky85` without converting anything. This is the constructor the menu itself uses, and ([Sq11](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:custom_matrix-->) rebuilds HKY85 with it by hand. You give $S$ and $\pi$ rather than $Q$ directly, and the restriction is deliberate: the engine's matrix exponential is only valid for a **time-reversible** model, which a symmetric $S$ times $\pi$ satisfies by construction; a general $Q$ is refused with an error rather than run. Pass `alphabet=AMINO_ACIDS` for a twenty-state matrix of your own. There is no command-line flag for a custom matrix: a twenty-state matrix is 190 numbers, which is a file format rather than an argument.
 
 ## Rate variation across sites
 
@@ -105,25 +90,13 @@ real profile says a residue is unlikely at a position, not that it is impossible
 pseudocount. A **flat** profile — every row the model's own frequencies — is statistically the model
 without one.
 
-Where the numbers come from is your business. From an alignment of the real family, column
-frequencies with a pseudocount so nothing is impossible:
-
-```python
-def profile_from_alignment(columns, alphabet, pseudocount=0.1):
-    """One row per alignment column, from the residues seen in it."""
-    counts = np.array([[c.count(a) for a in alphabet] for c in columns], dtype=float)
-    counts += pseudocount                       # nothing is impossible, only unlikely
-    return counts / counts.sum(axis=1, keepdims=True)
-
-columns = ["LLLIL", "GGGGA", "KKRKK"]           # three columns of a five-sequence alignment
-print(profile_from_alignment(columns, protein.alphabet).shape)      # (3, 20)
-```
-
-Or from a **protein language model**, which already produces a distribution over amino acids at
-every position — exactly the table this section wants. Compute it once, save the array beside your
-script, and load it: calling a model at simulation time would put its version and its hardware inside
-your run's reproducibility, whereas a saved array keeps the simulation bit-identical from the seed as
-usual.
+Where the numbers come from is your business: column frequencies of a real alignment with a
+pseudocount, or a **protein language model**, which already produces a distribution over amino acids
+at every position. Either way, compute the table once and save the array beside your script — a
+saved array keeps the simulation bit-identical from the seed, where calling a model at simulation
+time would put its version and its hardware inside your run's reproducibility.
+([Sq12](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_profiles-->) builds
+a profile from an alignment and runs one.
 
 Profiles and `+Γ` are about different things and compose: a profile says **which** amino acids belong
 at a site, a Gamma says **how fast** sites change. `partitions=` is the same idea at block grain — the
@@ -201,21 +174,7 @@ The two settings say different things and can be given together: `substitution` 
 
 ### A clade can evolve differently, not only faster
 
-Everything above changes how *fast* a lineage evolves. `Models` changes what the change *looks like*: which residues turn into which, and what composition the sequence settles at.
-
-```python
-from zombi2.params import Clade
-from zombi2.sequences import Models
-from zombi2.sequences.substitution_models import hky85
-
-at_rich = hky85(kappa=2.0, frequencies=(0.40, 0.10, 0.10, 0.40))   # equilibrium A+T = 0.80
-model = Models().set_by(Clade({"endo": ["n76", "n112"]}),
-                        {"endo": at_rich, "rest": hky85(kappa=2.0)})
-```
-
-Every group the clade paints needs a model, `"rest"` included — a lineage in no named clade is in `"rest"`, and a missing one is refused rather than filled in.
-
-This is what an endosymbiont study needs. Its clade evolves faster *and* drifts toward AT, and the two mislead a tree-builder differently: a fast branch causes long-branch attraction, an AT-rich one causes compositional attraction, where unrelated AT-rich lineages group together because they look alike. Scoping the rate to the same clade gives both at once: `substitution=PerSite(1.0).scaled_by(clade, {"endo": 3.0, "rest": 1.0})` beside the model set.
+Everything above changes how *fast* a lineage evolves. `Models` changes what the change *looks like*: which residues turn into which, and what composition the sequence settles at ([Sq2](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:clade_own_model-->). It is written as `Models().set_by(Clade({"endo": [...]}), {"endo": at_rich, "rest": hky85(kappa=2.0)})`, and every group the clade paints needs a model, `"rest"` included — a lineage in no named clade is in `"rest"`, and a missing one is refused rather than filled in. This is what an endosymbiont study needs: its clade evolves faster *and* drifts toward AT, the two mislead a tree-builder differently (long-branch attraction and compositional attraction), and scoping the rate to the same clade gives both at once — `substitution=PerSite(1.0).scaled_by(clade, {"endo": 3.0, "rest": 1.0})` beside the model set.
 
 Two limits. The alphabet and the across-site rate classes are shared, because one gene copy's sequence is one string and a site's class is drawn once for the family — asking for either to differ by clade is refused with the reason. And the driver of a model set must be a `Clade`: this level samples one transition matrix per branch, so a model that switched mid-branch, as a trait can, would need the branch cut at the switch — that is not built. A trait can still drive the *rate*.
 
@@ -234,14 +193,7 @@ This is why a phylogram's root carries a branch length: it is the stem in substi
 Every other level records what happened to it. This one records the letters at every node and no events, and that is deliberate: a substitution log is bigger than the alignment it explains — a hundred families down an ordinary tree is close to a million rows, where the genome log for the same run holds a few thousand. `record=True` asks for it:
 
 ```python
-from zombi2.genomes import simulate_genomes_family
-from zombi2.sequences import jc69, simulate_sequences
-from zombi2.species import simulate_species_tree
-
-ct = simulate_species_tree(birth=1.0, n_extant=10, seed=1).complete_tree
-g = simulate_genomes_family(ct, initial_families=4, duplication=0.05, loss=0.1, seed=2)
-
-r = simulate_sequences(g, model=jc69(), length=300, seed=1, record=True)
+r = sequences.simulate_sequences(my_genomes, model=jc69(), length=300, seed=1, record=True)
 r.events[0]                 # time · kind · lineage · gene · site · strand · after · from · to
 r.write("out/", outputs=("alignments", "events"))    # sequence_events.tsv
 ```
@@ -250,7 +202,7 @@ r.write("out/", outputs=("alignments", "events"))    # sequence_events.tsv
 
 Recording changes the **sampler**. An ordinary run draws each branch's end in one step and never simulates the path between, because nothing asks what it was; a recorded run has to walk that path, event by event. The two give the same distribution at a branch's end, so a recorded run is a valid run — it is a *different realisation* for the same seed, the price of asking what happened rather than only where it ended.
 
-What it will not walk, it refuses: `partitions` and `profiles`, which give a family several models; a nucleotide genome run, which evolves blocks rather than one sequence per family; and the parallel and streaming engines, which hand a family off before its rows could be collected. A **joint** run records as well — `joint=True` here, or `joint.simulate(..., record=True)` for a trait and a gene together (Chapter 8); those runs advance in slices of species time, and a slice is exactly the interval their rate is constant over, so a row's time is as exact there as on an ordinary branch.
+What it will not walk, it refuses, and for one reason — anything that gives a family several models or hands it off mid-run: `partitions` and `profiles`, a nucleotide genome run, the parallel and streaming engines. A **joint** run records as well — `joint=True` here, or `joint.simulate(..., record=True)` for a trait and a gene together (Chapter 8); those runs advance in slices of species time, and a slice is exactly the interval their rate is constant over, so a row's time is as exact there as on an ordinary branch.
 
 ## Large runs
 
@@ -290,11 +242,4 @@ zombi2 sequences seqs/ --from out/ --model gtr \
     --seed 1 --write alignments phylograms species_phylogram summary ancestral
 ```
 
-A protein model is the same command with a different `--model`:
-
-```bash
-# proteins under LG, 300 residues per gene
-zombi2 sequences seqs/ --from out/ --model lg --length 300 --seed 1
-```
-
-Because a protein model has no parameters, passing one is an error rather than a flag that gets quietly ignored: `--model lg --kappa 2.0` stops with *"these options don't apply to --model lg: --kappa"*.
+A protein model is the same command with `--model lg` and a residue `--length`. Because a protein model has no parameters, passing one is an error rather than a flag that gets quietly ignored: `--model lg --kappa 2.0` stops with *"these options don't apply to --model lg: --kappa"*.
