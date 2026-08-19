@@ -286,9 +286,9 @@ class Driven(Modifier):
         birth       = PerLineage(1.0).scaled_by("trait", {"small": 1.0, "large": 2.0})  # joint
         transfer_to = Recipients().weighted_by("competence.tsv", {"competent": 3.0})
 
-    It is Ch2's definition made literal: *a rate that reads a value which varies from lineage to
-    lineage, rather than a fixed number*. It reads the driver's value on each lineage and the mapping
-    turns it into a number.
+    It is Chapter 8's definition made literal: *a rate that reads a value which varies from lineage
+    to lineage, rather than a fixed number*. It reads the driver's value on each lineage and the
+    mapping turns it into a number.
 
     ``driver`` says where the driven value comes from, and that single choice splits *conditioned*
     from *joint* — the chapter's spine, *can the driver be grown first?*:

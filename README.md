@@ -32,7 +32,7 @@ zombi2 genomes   out/ --duplication 0.2 --transfer 0.1 --loss 0.25 --seed 1
 zombi2 sequences out/ --model hky85 --length 1000 --divergence 0.2 --seed 1
 ```
 
-From Python, each level is one function, and the result object carries the history:
+From Python, each level is one call, and the result object carries the history:
 
 ```python
 from zombi2 import species, genomes, sequences
@@ -59,8 +59,9 @@ survivors. `run.zombi2` gives both, as `families 100 born · 92 surviving · 8 d
 
 ## Levels
 
-ZOMBI2 is organized around **four levels of evolution**. A genome, a sequence or a trait always
-evolves along a species tree, so you run whichever you need, composed into one seeded,
+ZOMBI2 is organized around **four levels of evolution**. A genome or a trait evolves along the
+species tree, and a sequence evolves inside a gene of the genome, so a sequences run needs a genomes
+run first. The levels you run are composed into one seeded,
 [reproducible](https://aadavin.github.io/zombi2/docs/reproducibility/) run.
 
 <p align="center">
@@ -131,15 +132,15 @@ zombi2 joint out/ --birth "PerLineage(1.0).scaled_by('trait', {'small': 1.0, 'la
 ## Performance
 
 A species tree of a million leaves takes about six seconds. On the same gene-family task, ZOMBI2
-runs about **210× faster than the legacy ZOMBI v1** — both pure Python.
+runs about **210× faster than the legacy ZOMBI1** — both pure Python.
 
 <p align="center">
-  <img alt="ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at the family, ordered and nucleotide resolutions; (c) ZOMBI2 about 210 times faster than the legacy ZOMBI v1 on one shared 1,000-tip tree" src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/performance-overview.svg" width="840">
+  <img alt="ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at the family, ordered and nucleotide resolutions; (c) ZOMBI2 about 210 times faster than the legacy ZOMBI1 on one shared 1,000-tip tree" src="https://raw.githubusercontent.com/AADavin/zombi2/main/assets/performance-overview.svg" width="840">
 </p>
 
 The numbers behind the figure are in [`assets/performance/`](assets/performance/), one JSON per
 benchmark with the raw times and their provenance; the full read is the docs site's
-[Performance page](https://aadavin.github.io/zombi2/performance/).
+[Performance page](https://aadavin.github.io/zombi2/docs/performance/).
 
 ## Gallery
 

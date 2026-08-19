@@ -42,7 +42,7 @@ def grow(rng, birth_rate, death_rate, trait, step: float, n_extant, total_time,
     diffusion — ``Normal(0, ∫σ²)`` for Brownian motion, the pull-weighted form under
     Ornstein–Uhlenbeck — over the time since that lineage last moved, which is the slice for an old
     lineage and the remainder of it for one born mid-slice. So the **trait** is exact and only its
-    coupling to speciation is approximated: a lineage speciates at the rate its value had at the top
+    effect on speciation is approximated: a lineage speciates at the rate its value had at the top
     of the slice rather than the rate it has at that instant.
 
     The error is first-order in ``step`` and one-sided in a way worth knowing: the value is carried

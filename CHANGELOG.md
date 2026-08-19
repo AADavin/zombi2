@@ -13,6 +13,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Changed
 
+- One hundred and twelve findings from the first run of the review sweep (12-surface Opus
+  fleet, `.claude/workflows/zombi2-review-sweep.js`, committed here): stale chapter numbers and
+  appendix letters across the manual's READMEs, the gallery's comments and the CLI help; the
+  gallery's section blurbs and the conditioning generator's keyword renamed to `link=`; wrong
+  counts (operon size, chromosome number, tip counts, snippet factors) in gallery code cards;
+  the em-dashes swept out of the manual's prose; the retired joining figure and its generator
+  deleted; and the connection reference gains the substitution-model target row.
 - Chapter 1 speaks the reframing: the Conditioning and Joining sections are one section,
   Dependent runs, built on the connection and its three parts. The Sequences chapter sends its
   four heaviest code blocks to the gallery — two new cards, `reversible()` rebuilding HKY85 by

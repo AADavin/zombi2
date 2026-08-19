@@ -10,15 +10,17 @@ manual into context. That is the whole point of this layout.
 
 ```
 manual/
-  book/ch1.md … ch10.md  the chapters
+  book/ch1.md … ch8.md   the chapters
   book/appendix-a.md     the appendices
   book/appendix-b.md
-  book/figures/          chapter figures, as web SVGs (see Figures below)
+  book/appendix-c.md
+  book/appendix-d.md
+  book/figures/          chapter figures, as SVGs (see Figures below)
   metadata.yaml          title, author, document class, link colours
   preamble.tex           LaTeX preamble (callout boxes, glyphs, figures, captions)
   callouts.lua           maps ::: note / ::: warning / ::: tip to boxes
   Makefile               figures + per-chapter PDFs + the merged book
-  figures/               SVG→PDF, auto-built from ../docs/img (git-ignored)
+  figures/               SVG→PDF, auto-built from ../figures/svg/ (git-ignored)
   build/                 output PDFs (git-ignored)
 ```
 
@@ -41,20 +43,18 @@ make clean
 ## Writing a chapter (for a future editor)
 
 To work on a chapter you only need: **that one chapter file**, this README, and
-`../docs/references.md` (for citation keys). You never need the other chapters.
+`../docs/references.bib` (for citation keys). You never need the other chapters.
 
 - **Headings.** Start the file with `# Chapter Title` (one level-1 heading → one `\chapter`);
   use `##`/`###` for sections.
 - **Figures.** Drop the SVG in `book/figures/` and write
   `![Caption text.](figures/NAME_print.png)`. The alt text becomes the printed caption. The
-  `_print` file is **generated** — chapter SVGs are authored for the web, painting with
-  `var(--ink)`/`var(--paper)` and carrying a dark-mode block, and librsvg resolves neither, so
-  the Makefile flattens those custom properties to their light-theme literals before
-  rasterising. Converting such an SVG straight gives black-on-black silhouettes. The site's
-  figures are also reachable: any `NAME.svg` in `../docs/img/` is auto-converted, and a chapter
-  reaches it as `![Caption.](figures/NAME.pdf)`.
+  `_print` file is **generated**: the chapter SVGs paint with literal colours, so the Makefile
+  only rasterises them to PNG. The site's figures are also reachable: any `NAME.svg` in
+  `../figures/svg/` is auto-converted, and a chapter reaches it as
+  `![Caption.](figures/NAME.pdf)`.
 - **Citations.** `[@bibkey]`, e.g. `[@davin2020zombi]`. Keys are listed in
-  `../docs/references.md` / `../docs/references.bib`. A References section is generated
+  `../docs/references.bib`. A References section is generated
   automatically (per chapter in previews; once, at the end, in the book).
 - **Callouts.** Fenced divs:
   ```
@@ -70,16 +70,15 @@ To work on a chapter you only need: **that one chapter file**, this README, and
 ## The tools manual (retired)
 
 There was a second book, `zombi2-tools-manual.pdf`, generated from `../docs/tools/` by
-`tools_to_chapters.py`. The clean-core rebuild has not ported the tools layer yet, and the
-site reset removed `docs/tools/`, so the target had no sources left and only broke the
-release build. Its two files are quarantined in `../legacy/manual/`; bring them back when
-the tools layer returns.
+`tools_to_chapters.py`. Neither the script nor the second book exists any more. The tools are
+documented as Appendix D of this manual, and the pages under `../docs/tools/` are generated
+from that appendix by snippet include.
 
 ## Scope
 
-The manual is **Concepts + Tutorial**: nine chapters and two appendices. The CLI and Python
-API reference stay in the online docs. `../docs/design/SPEC.md` §9 fixes the chapter list —
-add or reorder chapters there first, then in `book/` and in `CHAP_MDS`.
+The manual is **Concepts + Tutorial**: eight chapters and four appendices. The CLI and Python
+API reference stay in the online docs. The chapter order lives in two places, `book/README.md`
+and the Makefile's `CHAP_MDS`: add or reorder chapters in both.
 
 ## Requirements
 

@@ -71,7 +71,7 @@ and multi-optimum OU (``regimes=``, which takes the jumps too). ``reverts_to`` /
 apply to a correlated set, as **multivariate OU restricted to a diagonal drift** — each trait
 reverts to its own optimum at its own strength, and the correlation rides in the diffusion rather
 than in the reversion; a full drift matrix, where one trait's deviation pulls another, is refused
-by name. SSE is **not** a trait model — it is trait↔species *joint*, Chapter 10 (Joining),
+by name. SSE is **not** a trait model — it is trait↔species *joint*, Chapter 8 (Dependent runs),
 `zombi2.joint`, which grows the trait with the tree: `discrete` for BiSSE and MuSSE, `continuous`
 for QuaSSE. A diffusing driver moves at every instant, so that one run slices.
 """

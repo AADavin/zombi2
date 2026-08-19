@@ -1,5 +1,4 @@
-"""A trait and a gene's sequence, each driving the other, on a tree the run is handed (design note
-§7, the new arrow).
+"""A trait and a gene's sequence, each driving the other, on a tree the run is handed (SPEC §3).
 
 Both directions already run as conditioning. A trait drives a gene's substitution rate, and that
 gene's composition drives how fast the trait switches. Write both at once and there is a cycle: to

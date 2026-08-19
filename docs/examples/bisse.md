@@ -17,8 +17,8 @@ find a gene that truly drives speciation, and does it stay quiet on one that doe
 
 On a real clade nobody knows whether the gene drives diversification; that is the question
 being asked. Worse, a gene can be common among surviving species for reasons that have
-nothing to do with selection on the gene, and real data offer no way to hold those reasons
-still. A simulated dataset can, because the simulator knows which gene drives and by how
+nothing to do with selection on the gene, and on real data you cannot hold those reasons
+fixed. A simulated dataset can, because the simulator knows which gene drives and by how
 much, and can plant a second gene, identical in every rate, that drives nothing.
 
 ## The run
@@ -63,8 +63,8 @@ tree every family, driven or not, has had less time to be lost.
 ![Prevalence of the driver and control families](../assets/bisse/bisse_a.png)
 
 Because both families sit in the same genomes, the driver's rise splits cleanly into its
-two causes. Take `f` = 3. The control stands at 0.81 against 0.41 in the null runs: a
-step of +0.40 that can only be the younger tree, since nothing drives the control. The
+two causes. Take `f` = 3. The control stands at 0.81 against 0.42 in the null runs: a
+step of about +0.40 that can only be the younger tree, since nothing drives the control. The
 driver stands at 0.92, another +0.11 above the control on the very same trees: that last
 step is the only part caused by the driver's effect on speciation, carriers splitting
 three times faster and leaving more descendants. An analysis of real genomes would see

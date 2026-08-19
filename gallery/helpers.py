@@ -353,7 +353,7 @@ def _draw_key(ax, key) -> None:
 
 def conditioned_figure(out, ct, layers, values, tipcol, diagram, *, label="genome size (genes)"):
     """The conditioning-figure layout: the tree painted by the driver, beside one bar per tip, with
-    the driver·mapping·target diagram small on top.
+    the driver·link·target diagram small on top.
 
     ``layers`` are the Phylustrator layers that colour the tree, ``values`` is ``{tip name: number}``
     for the bars, ``diagram`` the kwargs for :func:`conditioning_png`, and ``label`` names what the
@@ -401,7 +401,7 @@ def root_to_tip(seqs) -> dict:
 def composite_under_diagram(out: str, diagram_png: str, rows, *, width=12.0, diagram_frac=0.42,
                             pad=0.03, gap=0.30, label=0.12, key=0.40, dpi=182,
                             label_at=96.0 / 1400.0) -> None:
-    """The driver·modifier·target diagram on top, then one labelled panel per row.
+    """The driver·link·target diagram on top, then one labelled panel per row.
 
     ``rows`` is ``[(png, label), ...]``, or ``[(png, label, key), ...]`` to put a colour key under
     the label — see :func:`_draw_key` for the two shapes a key takes. Every panel gets an axes box of
@@ -998,7 +998,7 @@ def joint_png(path, rows, *, frame="one run"):
 #:
 #: DRIVER      the level it comes from, the thing, and what kind of value it offers; its own dynamics
 #:             below it, as a state chain, when it has states
-#: CONNECTION  the verb, the kind of mapping, and the mapping itself — drawn as a curve when it is one,
+#: LINK        the verb, the kind of mapping, and the mapping itself — drawn as a curve when it is one,
 #:             because "curve" as a word cannot tell a saturating response from a humped one
 #: TARGET      the level, and each parameter it drives with that parameter's kind: a RATE (and its
 #:             scope), an EXTENT, or a CHOICE. That line is the one thing the old diagram never said.
@@ -1051,16 +1051,16 @@ def _chain(ax, states, arcs, colours, *, cx, y, span):
             ax.text((a+b)/2, y+36, back, ha="center", va="center", color=_DIM, fontsize=8.5)
 
 
-def conditioning_png(path, *, driver, connection, target_level, targets,
+def conditioning_png(path, *, driver, link, target_level, targets,
                      chain=None, curve=None, target_chain=None, returns=False):
     """Draw one conditioning diagram to the standard above, and return the path.
 
     ``driver``      ``(level, name, kind)`` — "traits", "habitat", "two states"
-    ``connection``  ``(verb, mapping kind)`` — "scaled_by", "table"
+    ``link``        ``(verb, mapping kind)`` — "scaled_by", "table"
     ``targets``     ``[(name, kind, mapping)]`` — one entry per parameter this driver reaches.
                     ``kind`` is what it IS: "rate · per copy", "extent · in genes", "choice · a weight".
                     ``mapping`` is drawn under the arrow, because the mapping is part of the
-                    *connection*, not of the target.
+                    *link*, not of the target.
     ``chain``       ``(states, [(forward, back)], colours)`` for a driver with states
     ``curve``       ``(fn, x label, (lo, hi))`` for a mapping that is a curve
     ``target_chain``the same, when the thing being driven is itself a trait with states
@@ -1072,7 +1072,7 @@ def conditioning_png(path, *, driver, connection, target_level, targets,
     from matplotlib.patches import FancyArrowPatch, Rectangle
 
     n = len(targets)
-    verb, mapping_kind = connection
+    verb, mapping_kind = link
 
     probe = plt.figure(figsize=(10, 3), dpi=180)          # measure before committing to a canvas
     pax = probe.add_axes([0, 0, 1, 1]); pax.set_xlim(0, 1200); pax.set_ylim(400, 0)

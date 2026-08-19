@@ -4,7 +4,7 @@ Timings for the two operations that dominate a run: growing a species tree, and 
 along it.
 
 <figure markdown="span">
-  ![ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at the family, ordered and nucleotide resolutions; (c) ZOMBI2 about 210 times faster than the legacy ZOMBI v1 on one shared 1,000-tip tree](img/performance-overview.svg)
+  ![ZOMBI2 performance overview: (a) species-tree simulation scaling to millions of tips; (b) genome simulation at the family, ordered and nucleotide resolutions; (c) ZOMBI2 about 210 times faster than the legacy ZOMBI1 on one shared 1,000-tip tree](img/performance-overview.svg)
 </figure>
 
 ## What was measured
@@ -25,8 +25,8 @@ matched work.
 Family and ordered are super-linear in tip count. A tree grown to *N* extant tips deepens as ln *N*,
 so genome work grows faster than *N*.
 
-**(c) ZOMBI2 against the legacy ZOMBI v1.** One shared 1,000-tip species tree, both engines running
-their genome step on it, 10 runs each. The ZOMBI2 median is 0.18 s against ZOMBI v1's 38.2 s —
+**(c) ZOMBI2 against the legacy ZOMBI1.** One shared 1,000-tip species tree, both engines running
+their genome step on it, 10 runs each. The ZOMBI2 median is 0.18 s against ZOMBI1's 38.2 s —
 **210× faster**. Both are pure Python, so this measures the rewrite, not a change of language.
 
 ## Provenance

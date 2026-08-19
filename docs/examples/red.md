@@ -95,7 +95,7 @@ The three clocks reach it at very different σ: 0.54 and 0.59 for the two uncorr
 the autocorrelated one, because an inherited rate compounds down the tree. What matters is not σ but
 the variation it produces, so every comparison below is made at the same CV.
 
-## Grading RED
+## Testing RED
 
 Sweep each clock across its σ grid. At every point, compare RED computed on the phylogram against RED
 computed on the dated tree it came from. Two measures: how well they correlate, and how far apart

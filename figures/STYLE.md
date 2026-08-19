@@ -24,7 +24,7 @@ whether it shows **data** or an **idea**:
 
 A **conceptual diagram that sits inside a chapter** is a third thing and does not live here at all:
 it is hand-authored SVG in `manual/book/figures/`, theme-aware so the docs site can render it in
-either colour scheme. `manual/book/figures/conditioning.svg` is the reference for those.
+either colour scheme. `manual/book/figures/fig-2-1-four-levels.svg` is the reference for those.
 
 ## What every figure must obey
 
@@ -36,8 +36,8 @@ These are the conventions the rewrite settled on. They outrank anything below.
 - **The four-levels layout:** a vertical chain **Species → Genomes → Sequences**, with **Traits**
   branching to the side from Species on a **curved** arrow, at the same height as Genomes. It is not
   a diamond; do not call it "the diamond". Sequences is never placed centre-bottom.
-- **Conditioning and joining diagrams:** dashed = a level a run always evolves on, solid = a
-  driving relation you add, a dashed capsule = "grown together" (joint).
+- **Conditioning and joining diagrams:** an arrow with one head = conditioned, an arrow with two
+  heads = joint, a loop = a level joined to itself.
 
 Figures already drawn to these rules, to copy from: `manual/book/figures/fig-2-1-four-levels.svg`,
 `figures/svg/stem.svg` (origin, stem, crown) and `figures/svg/species_tree.svg` (a birth–death

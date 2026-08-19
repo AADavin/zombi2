@@ -2,7 +2,7 @@
 
 A run is **joint** when neither level can be finished before the other starts, so one run has to
 produce both. That is the whole of it, and it says nothing on its own about the species tree: two
-levels can drive each other on a tree handed to the run. In the two models built here the species
+levels can drive each other on a tree handed to the run. In the three models below the species
 tree **is** one of the two being simulated, so it comes out of the run rather than going into it:
 
 - a **discrete trait** drives speciation (BiSSE / MuSSE), ``P(Species, Traits)`` — birth/death read the
@@ -499,7 +499,7 @@ def _genomes_and_sequences(kinds, *, tree, genomes, seed, record=False) -> Joint
                         f"{spec.model!r}.")
     if spec.offers is None:
         raise ValueError(
-            f"the genome reads this gene, so the gene has to say what it publishes: "
+            f"the genome reads this gene, so the gene has to say what it offers: "
             f"offers=sequences.composition('GC', absent=0.5) on sequences.gene({spec.name!r}, ...).")
     stray = sorted(set(spec.offers.letters) - set(spec.model.alphabet))
     if stray:
@@ -573,7 +573,7 @@ def _walk_nodes(root):
 
 def _traits_and_sequences(kinds, *, tree, genomes, seed, record=False) -> JointResult:
     """A trait and a gene's sequence, each driving the other — the cross-level join whose two ends
-    are the furthest apart (design note §7).
+    are the furthest apart (SPEC §3).
 
     A sequence lives on a gene tree, which lives on the species tree, so this run needs a **genome
     run** handed over rather than a bare tree: that is where the gene trees and the tree they sit on
@@ -630,7 +630,7 @@ def _traits_and_sequences(kinds, *, tree, genomes, seed, record=False) -> JointR
             f"simulate_genomes_family(..., families=[family({spec.name!r})]).")
     if spec.offers is None:
         raise ValueError(
-            f"the trait reads this gene, so the gene has to say what it publishes: "
+            f"the trait reads this gene, so the gene has to say what it offers: "
             f"offers=sequences.composition('KR', absent=0.08) on sequences.gene({spec.name!r}, ...).")
     stray = sorted(set(spec.offers.letters) - set(spec.model.alphabet))
     if stray:
@@ -806,8 +806,8 @@ def simulate_joint(**_):
 
     The rates and the stop condition move onto `~zombi2.species.birth_death`, which makes the tree
     one of the things being simulated rather than a keyword of the run; and the driver is a
-    participant beside it rather than a ``trait=`` / ``genome=`` slot. That is what lets one function
-    take every joint model instead of one per pair.
+    participant beside it rather than a fixed ``trait=`` / ``genome=`` keyword. That is what lets one
+    function take every joint model instead of one per pair.
     """
     raise TypeError(
         "simulate_joint is no longer written — a joint run is its participants: "
