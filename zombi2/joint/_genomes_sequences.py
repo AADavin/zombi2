@@ -1,6 +1,6 @@
 """A genome and a gene's sequence, each driving the other, on a tree the run is handed.
 
-The last cell of the map (``docs/design/genomes-sequences.md``). The genome decides which sequences
+The last cell of the map (the manual's Dependent runs chapter). The genome decides which sequences
 exist — when a gene is copied, when a copy moves lineage, when a copy dies — and the sequences decide
 how fast the genome changes, because a genome rate reads their composition.
 
