@@ -49,40 +49,27 @@ $$\text{effective rate} = \text{scope}(\text{base}) \times \text{modifiers}$$
 
 The **base** is the expected number of events per unit time, for one unit of whatever the scope counts. The **scope** names that unit — a lineage, a gene copy, a site — and so decides how many independent chances run at once: a loss rate of 0.25 counted per copy, in a genome of forty copies, is a total loss rate of 40 × 0.25 = 10 per unit time; counted per lineage, it stays 0.25 however large the genome grows. The **modifiers** are the dimensionless multipliers a rate picks up from its context; they are written as **verbs** chained onto the rate — `.changing_at(…)`, `.scaled_by(…)` — and that is what this book calls them. Appendix A is the full reference: the units, each level's default scope, every modifier and which levels accept it, and what the engine does with a rate once it has one.
 
-## Conditioning
+## Dependent runs
 
-ZOMBI2 includes options for dependencies between different parts of the simulation, so that complex scenarios can be simulated. In some cases we want to run a model that depends on a different model — genome evolution that depends on some trait, for instance. If both models can strictly be run in sequence, we talk about **conditioning**.
+ZOMBI2 can also simulate dependencies between the levels, so that complex scenarios can be simulated. Imagine we are simulating the evolution of mammals and their olfactory genes. A habitat trait switches between aquatic and terrestrial along the tree, and aquatic lineages lose those genes four times faster.
 
-This is best explained with an example. Imagine we are simulating the evolution of mammals and their olfactory genes. A habitat trait switches between aquatic and terrestrial along the tree, and aquatic lineages lose those genes four times faster.
+Every dependency is written as a **connection**, with three parts:
 
-We can write this run like this:
+- the **driver**: the value that is read — the habitat of each lineage.
+- the **target**: the parameter that depends on it — the loss rate.
+- the **link**: what joins them — what each value of the driver is worth, and what that number does to the target.
+
+![A connection: a habitat trait is simulated first and held fixed, and a gene loss rate reads it. The driver, the link and the target are the three parts every connection has, and Chapter 8 takes them one at a time.](figures/conditioning_print.png){width=95%}
+
+In this example the habitat can be simulated first, and the genome run then reads its finished history. The run is **conditioned**: two ordinary runs, in order.
 
 $$P(\text{Species}) \cdot P(\text{Traits} \mid \text{Species}) \cdot P(\text{Genomes} \mid \text{Species}, \text{Traits})$$
 
-When we condition there are three things to pay attention to:
-
-- the **driver**: the variable controlling the run.
-- the **target**: the variable that the driver modifies.
-- the **connection**: how the driver controls the target.
-
-![Conditioning: a habitat trait is grown first and held fixed, and a gene loss rate reads it. The driver, the link and the target are the three parts every connection has, and Chapter 8 takes them one at a time.](figures/conditioning_print.png){width=95%}
-
-Not everything can be connected in ZOMBI2, but it is flexible enough to allow very specific rules — a trait can set how often a lineage loses genes, and a gene family's presence can set how fast a trait changes. There is a full chapter devoted to conditioning, and a user should read it to study the different cases.
-
-## Joining
-
-**Joining** simulates two levels **at the same time**, for the scenarios where each one shapes the other:
-
-- A trait controls how fast a lineage speciates — body size, or a habitat.
-- Gene content decides diversification: lineages that acquire a key gene split more often.
-
-Take the first. Lineages in the fast state split more often, so the trait decides the shape of the tree; and the trait evolves along that very tree, so the tree decides where the trait can go. Neither can be grown first and handed over, so one run grows both, and the tree comes out as a result rather than going in as an input.
-
-Because neither is finished first, neither can be written out and handed over. There is no conditional probability to write, only a joint one:
+Sometimes neither level can be simulated first. A trait controls how fast a lineage speciates, and the trait evolves along the very tree those speciations build; or a key gene decides diversification, and the tree decides which genomes exist. Then one run simulates both levels at the same time, the run is **joint**, and the tree comes out as a result rather than going in as an input. There is no conditional probability to write, only a joint one:
 
 $$P(\text{Species}, \text{Traits})$$
 
-The test is one question: can the driver be grown first, on its own, and handed over? If it can, condition. If it cannot, join. Chapter 8 works through both.
+The test is one question: can the driver be simulated first, on its own, and handed over? If it can, the run is conditioned. If it cannot, it is joint. Chapter 8 works through both, and Appendix C is the full map of what can drive what.
 
 ## What it can do
 
@@ -124,8 +111,8 @@ thing that differs on Windows — how backslash paths are read inside a rate exp
 Every figure in this book is drawn from a run, and the code behind a great many of them lives in the
 [examples gallery](https://aadavin.github.io/zombi2/gallery.html) — a page of worked examples, each
 with the exact commands that made it. The gallery numbers them by section: `Sp` species, `Ge` genomes,
-`Sq` sequences and `Tr` traits for the four levels, then `Co` conditioning and `Jo` joining for the
-two ways of coupling them (Chapters 8 and 9). This book cites them the way it cites a
+`Sq` sequences and `Tr` traits for the four levels, then `Co` conditioning and `Jo` joining, the
+two kinds of dependent run (Chapter 8). This book cites them the way it cites a
 figure, so a paragraph that describes what an inversion does to a chromosome ends **(Ge7)**.
 
 ## For the impatient
