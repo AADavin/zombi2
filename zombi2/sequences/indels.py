@@ -5,7 +5,7 @@ pairs and an indel has a position: it can fall inside a gene, move a GFF coordin
 an assembled chromosome is. The family and ordered resolutions have no such space — a genome there is
 gene families and their copies — so nothing at that level can say how long a gene's sequence is. The
 sequence level can, and this is where an indel lives for them. One word, one meaning, at whichever
-level owns the sites (``docs/design/indels.md``).
+level owns the sites.
 
 **Two passes, not one.** The obvious way to do this is to walk a branch as a process, interleaving
 indels and substitutions, and it is the wrong way: it splits every branch at every event, shifts the
