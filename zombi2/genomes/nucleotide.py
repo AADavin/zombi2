@@ -194,8 +194,8 @@ def _skippable_bounds(result) -> dict[int, set[int]]:
 
     An indel breakpoint must not cut the partition: a deletion of a few bases changes which of a
     block's positions a lineage still carries, not where one block ends and the next begins, and
-    cutting there shatters the partition into fragments a few bases wide (see
-    ``docs/design/indels.md``). An ordinary breakpoint must cut it, as it always has.
+    cutting there shatters the partition into fragments a few bases wide (the sequence level
+    owns the sites). An ordinary breakpoint must cut it, as it always has.
 
     Every event records the breakpoints it used (`Loss.cuts` and the rest), so this is a read of the
     logs rather than bookkeeping kept alongside them. That is what makes it survive a write: the

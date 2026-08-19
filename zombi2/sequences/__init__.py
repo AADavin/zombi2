@@ -1686,7 +1686,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
 
     nucleotide = isinstance(genomes, NucleotideGenomesResult)
     # Indels here are the family and ordered resolutions' — the nucleotide one has its own, on the
-    # genome, where a base pair has a position (docs/design/indels.md). One word, one meaning, at
+    # genome, where a base pair has a position. One word, one meaning, at
     # whichever level owns the sites; two levels drawing them in one run would be two models.
     if (insertion or deletion) and nucleotide:
         raise ValueError(
