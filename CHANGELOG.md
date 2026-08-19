@@ -9,6 +9,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- A public roadmap: `ROADMAP.md` at the repository root, mirrored on the site as the Roadmap
+  page and linked from the README — what each level does not do yet, organized by level with a
+  planned / considering / not planned status on every entry.
+
 ## [0.43.2] - 2026-08-19
 
 ### Changed
