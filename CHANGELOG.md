@@ -9,7 +9,18 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- Chapter 1 speaks the reframing: the Conditioning and Joining sections are one section,
+  Dependent runs, built on the connection and its three parts. The Sequences chapter sends its
+  four heaviest code blocks to the gallery — two new cards, `reversible()` rebuilding HKY85 by
+  hand and a per-position profile freezing half an alignment — and the connection reference gets
+  its page on the site.
+
 ## [0.43.0] - 2026-08-19
+
+*(this section was completed after the release; the tag's own copy carries only its first two
+entries)*
 
 ### Added
 
@@ -17,6 +28,9 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   named, `n<species>_g<copy>` — the key the alignment and ancestral tables use — so a
   per-copy quantity (an ancestral sequence, a composition) can be attached to every branch
   of a gene tree, not only its tips. The default `labels="events"` form is unchanged.
+- Two gallery cards close the last verb and mapping gaps: `set_by` shown on a rate given in its
+  own units, and `Scalar` shown as the one-strength exponential response. `Between` now cites the
+  transfer-highway card it always had, so every cell of the connection reference names an example.
 
 ### Changed
 
@@ -25,6 +39,20 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   (driver, link, target), then the joint models, with the worked code on the gallery's cards. The
   reference tables move to a new **Appendix C, The connection reference**; Tools becomes Appendix D.
   The site's guide URLs are unchanged and serve the same content from the new chapter.
+- The gallery's joint figures are redrawn to the reframing's design language: one row per written
+  connection (no row for the hierarchy's own dependency), no frame, and a small stacked-ellipse
+  mark saying which two levels ran as one; the six tree-growing models trade their Markov insets
+  for the same header. The conditioning diagrams' headers read Driver / Link / Target.
+- The connection map is redrawn to the catalog: fourteen cells numbered by its rows, a Species
+  column, and the joint-only connections marked with the arrow with two heads.
+- The SPEC and the README speak the reframing's vocabulary: the lives-on order is the hierarchy,
+  a connection is driver + link + target, and independent / conditioned / joint are the three ways
+  two levels run. The four stray files under `docs/design/` are folded away; the SPEC stands alone.
+
+### Removed
+
+- `docs/design/joining.md`, `genomes-sequences.md`, `indels.md` and `nucleotide-engine.md`; what
+  was still true lives in the SPEC and the manual.
 
 ## [0.42.2] - 2026-08-16
 
