@@ -28,6 +28,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,-app
 .note{margin:18px 0 0;display:inline-flex;gap:9px;align-items:center;font-size:.82rem;color:var(--faint);border:1px dashed var(--line);border-radius:8px;padding:7px 12px}
 .note b{color:var(--accent-ink);font-weight:600}
 .level{margin-top:52px}
+.group-band{margin:44px 0 6px;padding-top:18px;border-top:2px solid var(--line);font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--faint);letter-spacing:.22em;text-transform:uppercase}
+.group-band:first-of-type{margin-top:10px;border-top:none;padding-top:0}
 summary.level-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line);cursor:pointer;list-style:none;-webkit-tap-highlight-color:transparent;transition:border-color .18s}
 summary.level-head::-webkit-details-marker{display:none}
 summary.level-head::marker{content:""}
@@ -98,6 +100,7 @@ footer code{font:600 .82rem ui-monospace,monospace;color:var(--muted)}
       a separate package &mdash; so to run one you need both:</p>
     <pre class="gallery-install">pip install zombi2 phylustrator</pre>
   </header>
+  <div class="group-band">The levels</div>
   <details class="level" id="species" open>
     <summary class="level-head"><h2>Species trees</h2><span class="count">9</span><span class="blurb">Forward birth-death trees. The run keeps the whole history, survivors and extinctions, and the diversification model shows on the tree.</span></summary>
     <div class="grid">
@@ -298,6 +301,7 @@ footer code{font:600 .82rem ui-monospace,monospace;color:var(--muted)}
       </figure>
     </div>
   </details>
+  <div class="group-band">Dependent runs</div>
   <details class="level" id="conditioning">
     <summary class="level-head"><h2>Conditioning</h2><span class="count">21</span><span class="blurb">Two runs, in order. The first run grows the driver on the tree and holds it fixed. The second run reads it. A driver is a trait, a gene family, a whole module, or the composition of a sequence. It drives a rate, or which lineage receives a transfer.</span></summary>
     <div class="grid">
