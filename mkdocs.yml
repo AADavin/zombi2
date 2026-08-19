@@ -160,5 +160,6 @@ nav:
       - zombi2.params: api/rates.md
   - Performance: performance.md
   - Reproducibility: reproducibility.md
+  - Roadmap: roadmap.md
   - Coming from ZOMBI v1: from-zombi1.md
   - FAQ: faq.md
