@@ -27,7 +27,7 @@ That command and the version it ran under are the whole record.
 - **One seed on two levels is not the same numbers twice.** Each level draws from its own stream,
   spawned from your seed under a per-level key, so `--seed 42` on both commands gives two
   *independent* runs. Before 0.28.0 both opened the same generator from the same integer, so a shared
-  seed quietly coupled them.
+  seed quietly linked them.
 - **A run written to disk is the same run in memory.** Branch lengths are written at full precision,
   so two commands and two Python calls give the same history.
 

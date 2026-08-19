@@ -86,12 +86,12 @@ def diversity_dependent(out):
                       tree_w=TW, margin=TM, figsize=(12, 9), axis_fontsize=16)
 
 
-#: The two rate-varying models chapter 3 draws and the gallery had not: a rate a lineage inherits and
+#: The two rate-varying models chapter 2 draws and the gallery had not: a rate a lineage inherits and
 #: drifts from, and a rate each lineage draws for itself. Same parameters and seed as the book's
 #: figure, so the picture here is the panel there rather than a second run of the same idea.
 _VARY = dict(death=0.1, n_extant=80, seed=3)
 
-#: The two ways a birth rate can vary among lineages, as chapter 3 draws them: inherited at each
+#: The two ways a birth rate can vary among lineages, as chapter 2 draws them: inherited at each
 #: split and nudged from the parent's, or drawn afresh with no memory of it. Same base as the book's
 #: figure — the drifting one starts lower because drift accumulates down a path and the independent
 #: one does not.
@@ -402,8 +402,8 @@ from zombi2.species import simulate_species_tree
 from zombi2.params import Drift, LogNormal, PerLineage
 
 sp = simulate_species_tree(
-    birth=PerLineage(0.45).varying_among("lineages", Drift(LogNormal(0.0, 0.5))),
-    death=0.1, n_extant=25, seed=3)
+    birth=PerLineage(0.45).varying_among("lineages", Drift(LogNormal(0.0, 0.3))),
+    death=0.1, n_extant=80, seed=3)
 # Drift: the daughter starts at the parent's rate and takes one step from it, so close
 # relatives run at similar speeds and a whole clade can be fast. This is ClaDS.
 
@@ -420,7 +420,7 @@ from zombi2.params import LogNormal, PerLineage
 
 sp = simulate_species_tree(
     birth=PerLineage(0.85).varying_among("lineages", LogNormal(0.0, 0.5)),
-    death=0.1, n_extant=25, seed=3)
+    death=0.1, n_extant=80, seed=3)
 # The same distribution as the drifting rate beside it, without the inheritance: a
 # lineage's rate says nothing about its neighbours'. This is an uncorrelated model.
 

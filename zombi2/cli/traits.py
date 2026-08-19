@@ -123,7 +123,7 @@ def _traits_slot(args, parser) -> str:
     """Which directory under the run this trait belongs in: ``traits`` or ``traits/<name>``.
 
     A run directory holds one slot per level, which is right for the levels a run has one of. It is
-    wrong for traits: a tree can carry several, and one of them can drive another (Chapter 9), so
+    wrong for traits: a tree can carry several, and one of them can drive another (Chapter 8), so
     they need somewhere to sit side by side. ``--name`` gives each its own.
 
     An unnamed run keeps the plain ``traits/`` slot and overwrites what is there, which is what

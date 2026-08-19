@@ -1,6 +1,6 @@
 # Genomes II: ordered
 
-The previous chapter put genes on the tree as a *bag of families*, how many copies of each, and nothing more. This chapter gives them **structure**. A genome becomes one or more **chromosomes**, each an ordered row of genes, and each gene knows which way it points. This is the **ordered** resolution.
+The previous chapter put genes on the tree as a *bag of families*, how many copies of each, and nothing more. This chapter gives them **structure**. A genome becomes one or more **chromosomes**, each an ordered row of genes, and each gene carries a strand, the direction it reads in. This is the **ordered** resolution.
 
 ```python
 from zombi2 import species, genomes
@@ -11,20 +11,20 @@ g = genomes.simulate_genomes_ordered(
     chromosomes=1, initial_families=5, seed=231)
 ```
 
-Reading one extant leaf — `.genomes` holds each tip's chromosomes as `Chromosome` objects (an `id`, a `topology`, and ordered genes each carrying `family` and `strand`), `g.gene_order(node)` gives the same layout as plain tuples, and `gene_order.tsv` writes it for every node, ancestors included (Appendix B):
+Reading one extant leaf: `.genomes` holds each tip's chromosomes as `Chromosome` objects (an `id`, a `topology`, and ordered genes each carrying `family` and `strand`), `g.gene_order(node)` gives the same layout as plain tuples, and `gene_order.tsv` writes it for every node, ancestors included (Appendix B):
 
 ```
 leaf n4, chromosome 4 (circular):  [ 0+ 0+ 1+ 3+ 4− ]
 ```
 
-Each gene is written as its family with the strand as `+` or `−` (the strand is the integer `+1` or `−1`). This leaf has one chromosome of five genes, in which family `0` sits in a pair of tandem copies and family `4` points backwards, left that way by an inversion. The chromosome is numbered 4 on a run that started with one, because ids are re-minted at every event — the chromosome network section below explains. The gene tree of a family is unchanged from Chapter 3, the true genealogy read off the same event log:
+Each gene is written as its family with the strand as `+` or `−` (the strand is the integer `+1` or `−1`). This leaf has one chromosome of five genes, in which family `0` sits in a pair of tandem copies and family `4` points backwards, left that way by an inversion. The chromosome is numbered 4 on a run that started with one, because a chromosome gets a new id at every event: the chromosome network section below explains. The gene tree of a family is unchanged from Chapter 3, the true genealogy read off the same event log:
 
 ```python
 g.gene_trees[0].to_newick("extant")
 # (((n5_g25:0.02994724,n6_g30:0.02994724)speciation_n3:0.3253988,(n4_g21:0.227248,n4_g22:0.227248)duplication_n4:0.128098)speciation_n1:0.1181814,n2_g9:0.4735275)speciation_n0:1.090775;
 ```
 
-Internal nodes are labelled `<event>_n<species>` — the event that ended that gene copy, and the species branch it happened on, so `duplication_n4` is a duplication on branch `n4`.
+Internal nodes are labelled `<event>_n<species>`: the event that ended that gene copy, and the species branch it happened on, so `duplication_n4` is a duplication on branch `n4`.
 
 ![Leaf `n4`, the same chromosome `[ 0+ 0+ 1+ 3+ 4− ]` drawn as the ring it is. Each gene is an arrow that points the way its strand reads, and its colour marks its family. The two copies of family `0` are a tandem duplication, one colour side by side; family `4`, left backward by an inversion, is the one arrow pointing against the flow.](figures/ordered_chromosome.pdf){width=58%}
 
@@ -36,9 +36,9 @@ A genome has a **karyotype**: `chromosomes=N` chromosomes, each with a `topology
 
 Once genes have neighbours, **a gene-level event acts on a segment**, a stretch of consecutive genes, not on one gene. A duplication copies a segment, a loss removes one, a transfer sends one sideways. That produces the signature of real genome evolution: neighbouring genes sharing a history because they were copied, moved or lost *together*.
 
-How much does an event take? That is its **extent**, set per event type as `<event>_extent`. A bare number is the mean of a **geometric** draw, so `duplication_extent=3` copies about three adjacent genes: often two or three, sometimes one, occasionally many more. Write `Fixed(3)` — from `zombi2.params.distributions`, beside `Geometric` — for exactly three every time, or name any other distribution. The default is a single gene, so out of the box every event touches one gene and you recover the simplest behaviour.
+How much does an event take? That is its **extent**, set per event type as `<event>_extent`. A bare number is the mean of a **geometric** draw, so `duplication_extent=3` copies about three adjacent genes: often two or three, sometimes one, occasionally many more. Write `Fixed(3)`, from `zombi2.params.distributions` beside `Geometric`, for exactly three every time, or name any other distribution. The default is a single gene, so out of the box every event touches one gene and you recover the simplest behaviour.
 
-Topology decides where a segment stops — the promise the karyotype section made. On a circular chromosome a segment that reaches the last gene continues from the first, wrapping position 0, so only the whole chromosome bounds it; on a linear one it stops at the last gene, and a draw that would overrun the end is cut short there.
+Topology decides where a segment stops, which is the promise the karyotype section made. On a circular chromosome a segment that reaches the last gene continues from the first, wrapping position 0, so only the whole chromosome bounds it; on a linear one it stops at the last gene, and a draw that would overrun the end is cut short there.
 
 ```python
 from zombi2.params.distributions import Geometric
@@ -102,13 +102,13 @@ g = genomes.simulate_genomes_ordered(
 
 ## The chromosome network
 
-Chromosomes are tracked. A chromosome id is re-minted at every event that hands it on or reshapes it — a speciation, a fission, a fusion — and each of those edges is recorded. So the run leaves behind not just the chromosomes at the tips but the *genealogy* that connects them: the **chromosome network**. It is the middle of three genealogies that nest, the species tree containing the chromosome network, which contains the gene trees:
+Chromosomes are tracked. A chromosome gets a new id at every event that hands it on or reshapes it: a speciation, a fission, a fusion. Each of those edges is recorded. So the run leaves behind not just the chromosomes at the tips but the *genealogy* that connects them: the **chromosome network**. It is the middle of three genealogies that nest, the species tree containing the chromosome network, which contains the gene trees:
 
 ```
 species tree  ⊃  chromosome network  ⊃  gene trees
 ```
 
-The containment is at each instant — every gene sits on one chromosome, every chromosome in one lineage — even though a gene's lineage can change chromosome by translocation and species by transfer.
+The containment is at each instant: every gene sits on one chromosome, and every chromosome in one lineage. That holds even though a gene's lineage can change chromosome by translocation and species by transfer.
 
 It is a **network** and not a tree because of one event: **fusion joins two chromosome lineages into one**, two parents and one child. Fission and speciation are ordinary splits (one parent, two children); `initial` and `origination` are roots: the chromosomes the run began with, and the new replicons `chromosome_origination` creates, kept apart so you can tell which is which. Loss is a leaf. It is a directed graph, and it is written the way graphs are, as an **edge list**: `chromosome_events.tsv` on disk, `.chromosome_events` in Python, one row per event. The run above gives:
 
@@ -177,11 +177,11 @@ g = genomes.simulate_genomes_ordered(
     initial_families=10, seed=1)
 ```
 
-What belongs here is why the per-family draw above and a trait driver sit apart. A trait driver attaches to the **lineage**: at any instant it is one factor for that lineage's whole genome, so it composes with any extent unchanged and the run is drawn exactly as it would be without it. `varying_among('families', ...)` attaches to the **contents**, so it has to weight each segment by what it covers. The two therefore cannot be set on the same **rate** yet — combining them would mean weighting by the product of a lineage factor and a segment factor, which is neither model on its own — and a rate given both is refused with the reason. A driven extent, or a driven `transfer_to`, is a different axis and runs alongside a per-family draw unchanged.
+What belongs here is why the per-family draw above and a trait driver sit apart. A trait driver attaches to the **lineage**: at any instant it is one factor for that lineage's whole genome, so it composes with any extent unchanged and the run is drawn exactly as it would be without it. `varying_among('families', ...)` attaches to the **contents**, so it has to weight each segment by what it covers. The two therefore cannot be set on the same **rate** yet, and a rate given both is refused with the reason: combining them would mean weighting by the product of a lineage factor and a segment factor, which is neither model on its own. A driven extent, or a driven `transfer_to`, is a different axis and runs alongside a per-family draw unchanged.
 
 ## On the command line
 
-The ordered resolution is `--resolution ordered`. It adds the chromosome flags — `--chromosomes N`, and `--topology` taking `circular` (the default), `linear`, or a comma-separated list of one per chromosome — and the **extent** flags (`--inversion-extent`, `--duplication-extent` and the rest, each the mean number of genes an event takes) to the Chapter 3 events, each still a plain number. Leave an extent out and every event takes a single gene, which for an inversion means flipping one gene's strand and shuffling nothing:
+The ordered resolution is `--resolution ordered`. It adds two sets of flags to the Chapter 3 events, each still a plain number: the chromosome flags, `--chromosomes N` and `--topology` taking `circular` (the default), `linear`, or a comma-separated list of one per chromosome; and the **extent** flags, `--inversion-extent`, `--duplication-extent` and the rest, each the mean number of genes an event takes. Leave an extent out and every event takes a single gene, which for an inversion means flipping one gene's strand and shuffling nothing:
 
 ```bash
 # chromosomes split and merge along the tree

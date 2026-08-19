@@ -35,11 +35,10 @@ CHAP_PDFS := $(patsubst $(BOOK)/%.md,build/%.pdf,$(CHAPTERS))
 SVGS      := $(wildcard $(IMG)/*.svg)
 FIGS      := $(patsubst $(IMG)/%.svg,figures/%.pdf,$(SVGS))
 
-# Chapter figures live beside the chapters, in book/figures/, and are authored for the web:
-# they paint with var(--ink)/var(--paper) and carry a prefers-color-scheme block. librsvg
-# resolves neither, so converting one straight gives black-on-black silhouettes — the custom
-# properties have to be flattened to their light-theme literals first. Which figures to build
-# is read out of the chapters, so adding one needs no edit here.
+# Chapter figures live beside the chapters, in book/figures/. They paint with literal colours,
+# not CSS custom properties, so nothing has to be resolved before conversion: the _print step
+# only rasterises them. Which figures to build is read out of the chapters, so adding one needs
+# no edit here.
 BOOK_FIGDIR := $(BOOK)/figures
 BOOK_FIGS   := $(sort $(addprefix $(BOOK_FIGDIR)/,$(notdir \
                  $(shell grep -ohE 'figures/[A-Za-z0-9_-]+_print\.png' $(CHAPTERS)))))
@@ -61,7 +60,7 @@ figures/%.pdf: $(IMG)/%.svg
 	@mkdir -p figures
 	rsvg-convert -f pdf -o $@ $<
 
-# --- chapter figures: web SVG -> flattened SVG -> print PNG ---
+# --- chapter figures: SVG -> print PNG ---
 $(BOOK_FIGDIR)/%_print.svg: $(BOOK_FIGDIR)/%.svg
 	sed -e 's/var(--ink)/#1a1a1a/g' -e 's/var(--paper)/#ffffff/g' $< > $@
 $(BOOK_FIGDIR)/%_print.png: $(BOOK_FIGDIR)/%_print.svg

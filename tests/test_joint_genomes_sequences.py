@@ -183,9 +183,9 @@ def test_an_undeclared_gene_is_refused():
             _gene(offers=composition("GC", absent=0.5)), tree=ct, seed=1)
 
 
-def test_the_gene_has_to_say_what_it_publishes():
+def test_the_gene_has_to_say_what_it_offers():
     ct = _tree(8)
-    with pytest.raises(ValueError, match="say what it publishes"):
+    with pytest.raises(ValueError, match="say what it offers"):
         joint.simulate(
             _spec(loss=PerCopy(0.2).scaled_by("sequences:hisA", Curve(lambda x: 1.0), step=0.05)),
             _gene(), tree=ct, seed=1)

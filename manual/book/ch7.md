@@ -1,8 +1,8 @@
 # Traits
 
-The trait level evolves **phenotypes**: a body size, a habitat, the presence or absence of a structure. A trait evolves along the species tree like everything else here — the **complete** tree, extinct lineages included. Hand it the species run itself or its `.complete_tree`; every level takes either and runs on the complete tree. There are two kinds, continuous and discrete.
+The trait level evolves **phenotypes**: a body size, a habitat, the presence or absence of a structure. A trait evolves along the species tree like everything else here: the **complete** tree, extinct lineages included. Hand it the species run itself or its `.complete_tree`; every level takes either and runs on the complete tree. There are two kinds, continuous and discrete.
 
-![The two kinds, on the same tree. A **continuous** trait starts at one value and drifts along every branch, so every node ends at a number of its own — each branch is painted with the value at its far end — and close relatives end up close. A **discrete** trait sits in one state and switches to another now and then; the dots mark the two switches, and every branch below a switch is in the new state until it switches again. The chips at the tips are the state each one ended in. The two are different functions, `simulate_continuous` and `simulate_discrete`, because they answer different questions.](figures/trait_kinds_print.png){width=100%}
+![The two kinds, on the same tree. A **continuous** trait starts at one value and drifts along every branch, so every node ends at a number of its own, with each branch painted with the value at its far end, and close relatives end up close. A **discrete** trait sits in one state and switches to another now and then; the dots mark the two switches, and every branch below a switch is in the new state until it switches again. The chips at the tips are the state each one ended in. The two are different functions, `simulate_continuous` and `simulate_discrete`, because they answer different questions.](figures/trait_kinds_print.png){width=100%}
 
 ## Continuous traits
 
@@ -24,9 +24,9 @@ size.node_values           # every node of the complete tree, ancestors and exti
 size.write("out/traits/")  # trait_values.tsv · trait_tree.nwk · trait_summary.json (Appendix B)
 ```
 
-A discrete run gives the same shape back — states instead of numbers — and writes `trait_events.tsv` besides: the switch log, which is the file a conditioned run reads as its driver (Chapter 8).
+A discrete run gives the same shape back, states instead of numbers, and writes `trait_events.tsv` besides: the switch log, which is the file a conditioned run reads as its driver (Chapter 8).
 
-Here `rate` is the Brownian variance-rate σ², the trait level's reading of "how fast" — counted per lineage, the only scope here, so `PerLineage(1.0)` is the bare `1.0` in wrapper form — and like every rate in ZOMBI2 it takes the verbs. Two variations, the first by two more arguments, the second by a verb on the rate:
+Here `rate` is the Brownian variance-rate σ², the trait level's reading of "how fast". It is counted per lineage, the only scope here, so `PerLineage(1.0)` is the bare `1.0` in wrapper form, and like every rate in ZOMBI2 it takes the verbs. Two variations, the first by two more arguments, the second by a verb on the rate:
 
 ```python
 # OU: the same diffusion, pulled toward an optimum value
@@ -38,9 +38,9 @@ traits.simulate_continuous(tree, start=0.0,
                            rate=PerLineage(1.0).changing_at({0: 1.0, 5: 0.2}), seed=1)
 ```
 
-The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root ([Tr3](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:early_burst-->); it is written with the same `changing_at` that gives the species tree its skyline — a schedule of steps, so a finer schedule is a finer approximation of the decay.
+The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `reverts_to` is the optimum it is pulled back toward, and `pull` is how hard. **Early burst** (or ACDC) is a diffusion rate that decays as the tree ages, so most of the divergence happens near the root ([Tr3](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:early_burst-->); it is written with the same `changing_at` that gives the species tree its skyline, a schedule of steps, so a finer schedule is a finer approximation of the decay.
 
-Two more arguments sit alongside `rate`. `regimes=` paints a multi-optimum OU, where clades pull toward different optima ([Tr6](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:regimes-->): a discrete run supplies the painting, and `reverts_to` becomes a dict keyed by its states — `regimes=habitat, reverts_to={"cave": -1.0, "surface": 3.0}`. And `at_speciation=` adds a jump *at* each split rather than along the branches, so change concentrates at branching ([Tr7](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:jumps-->). The value is the jump's variance: `at_speciation=0.5` draws each jump from a normal with variance 0.5, standard deviation about 0.7. None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one verb and two arguments.
+Two more arguments sit alongside `rate`. `regimes=` paints a multi-optimum OU, where clades pull toward different optima ([Tr6](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:regimes-->): a discrete run supplies the painting, and `reverts_to` becomes a dict keyed by its states, as in `regimes=habitat, reverts_to={"cave": -1.0, "surface": 3.0}`. And `at_speciation=` adds a jump *at* each split rather than along the branches, so change concentrates at branching ([Tr7](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:jumps-->). The value is the jump's variance: `at_speciation=0.5` draws each jump from a normal with variance 0.5, standard deviation about 0.7. None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one verb and two arguments.
 
 `regimes=` is the one argument that asks you to give things up, and it refuses loudly rather than ignoring what you passed: with it the σ² is a plain number (not a modified rate), the jump variance is one number shared across regimes, and the run is one trait (no `correlation=`).
 
@@ -54,7 +54,7 @@ traits.simulate_discrete(tree, states=["marine", "terrestrial"],
                          switch=0.1, start="marine", seed=1)
 ```
 
-Leave `start` out and the root state is drawn uniformly from `states`. When the flips are not symmetric, replace the single rate with directed rates, one per ordered pair — the dict below, or a full `k × k` matrix whose entry at row *i*, column *j* is the rate *i* → *j* ([Tr9](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:asymmetric-->):
+Leave `start` out and the root state is drawn uniformly from `states`. When the flips are not symmetric, replace the single rate with directed rates, one per ordered pair: the dict below, or a full `k × k` matrix whose entry at row *i*, column *j* is the rate *i* → *j* ([Tr9](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:asymmetric-->):
 
 ```python
 # asymmetric: gains are commoner than losses
@@ -63,7 +63,7 @@ traits.simulate_discrete(tree, states=["absent", "present"],
                          seed=1)
 ```
 
-Two more discrete models live on this same function. The **threshold** model reads the states off a continuous liability: `simulate_discrete(tree, states=["absent", "present"], liability=1.0, threshold=0.0)` diffuses a Brownian liability from `start` (a number here, 0.0 by default) and cuts it at the thresholds — `k − 1` increasing cuts for `k` states ([Tr10](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:threshold-->; `--liability` and `--threshold` on the command line). Give `liability` as a dict and add a `correlation={("wings", "eyes"): 0.6}` overlay and two discrete traits evolve **together**, their liabilities diffusing jointly and each cut by the shared thresholds — the correlated-binary model of the Literature table ([Tr13](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:dependent-->).
+Two more discrete models live on this same function. The **threshold** model reads the states off a continuous liability: `simulate_discrete(tree, states=["absent", "present"], liability=1.0, threshold=0.0)` diffuses a Brownian liability from `start` (a number here, 0.0 by default) and cuts it at the thresholds, `k − 1` increasing cuts for `k` states ([Tr10](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:threshold-->; `--liability` and `--threshold` on the command line). Give `liability` as a dict and add a `correlation={("wings", "eyes"): 0.6}` overlay and two discrete traits evolve **together**, their liabilities diffusing jointly and each cut by the shared thresholds, which is the correlated-binary model of the Literature table ([Tr13](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:dependent-->).
 
 ## Correlated traits
 
@@ -113,7 +113,7 @@ Trait models arrive under a thicket of names, and a reader who wants "an OU mode
 
 ## On the command line
 
-`--kind` is required — `continuous` or `discrete` — and it decides which of the other flags apply, since `--rate` and the OU flags belong to a continuous trait while `--states` and `--switch` belong to a discrete one. Any default would silently pick a model for you, so there is none:
+`--kind` is required, `continuous` or `discrete`, and it decides which of the other flags apply, since `--rate` and the OU flags belong to a continuous trait while `--states` and `--switch` belong to a discrete one. Any default would silently pick a model for you, so there is none:
 
 ```bash
 # a continuous (Brownian) trait along a species tree

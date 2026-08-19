@@ -1,7 +1,7 @@
 # Performance results
 
 The raw timing records behind the README's performance figure and the docs site's
-[Performance page](https://aadavin.github.io/zombi2/performance/): one JSON file per benchmark,
+[Performance page](https://aadavin.github.io/zombi2/docs/performance/): one JSON file per benchmark,
 holding the raw per-repeat times point by point, with a provenance header (library version,
 interpreter, NumPy, platform, timestamp) embedded in each file.
 

@@ -70,7 +70,7 @@ def discrete_states(out):
      + ph.trees.time_axis("time", tick_size=22, label_size=28)).save(out)
 
 
-# --- the rest of chapter 8's continuous menu: the same diffusion with one argument added ---------
+# --- the rest of chapter 7's continuous menu: the same diffusion with one argument added ---------
 #
 # Each is drawn on the SAME tree and seed as `bm`, so a reader can put any of them beside it and the
 # only difference is the argument named on the card. The chapter introduces them in this order.
@@ -259,7 +259,7 @@ def driven_trait(out):
     habitat is grown first and held fixed; body size then diffuses down the same tree, twenty times
     faster on the stretches of branch where the habitat fluctuates.
 
-    The figure is the tree painted by the habitat, with the driver·mapping·target diagram above it.
+    The figure is the tree painted by the habitat, with the driver·link·target diagram above it.
     What the driving *did* to body size is the Conditioning section's "One trait drives another",
     which paints the same tree twice; repeating it here only made this figure taller."""
     ct = simulate_species_tree(birth=1.0, n_extant=50, seed=7).complete_tree
@@ -277,7 +277,7 @@ def driven_trait(out):
     diag = h.conditioning_png(
         out.replace(".png", "_diag.png"),
         driver=("traits", "habitat", "two states"),
-        connection=("scaled_by", "table"),
+        link=("scaled_by", "table"),
         target_level="traits",
         targets=[("body size", "rate · per lineage", f"fluctuating × {_FACTOR:g}    stable × 1")],
         chain=(("stable", "fluctuating"),
@@ -417,7 +417,7 @@ lab = ct.labels()                                # {id: 'n<id>'}
 (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False)
  + ph.trees.color_history({lab[i]: segs for i, segs in hab.history.items()}, palette=pal)
  + ph.trees.time_axis("time", bold=False)).save("tree.png")
-# the figure then composites the driver->mapping->target diagram (habitat -> body size) on top'''
+# the figure then composites the driver->link->target diagram (habitat -> body size) on top'''
 
 
 _C_EARLY_BURST = '''\

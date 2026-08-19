@@ -15,7 +15,7 @@ An event either **engulfs a gene whole** or leaves it alone; a breakpoint never 
 
 ## Extents
 
-Indivisible genes have one consequence to meet before the rates: **the realised extent is not always the extent you asked for.** An event covers an **arc** — the stretch of DNA it takes — and both ends of an arc must fall where a breakpoint is legal. The draw is therefore the distribution you asked for, restricted to the ends that exist; nothing is drawn and rejected, so no event silently vanishes. Take thirty-one 3000 bp genes in a 100 kb genome, 93% genic, so the spacers are about 200 bp, and ask for an inversion of:
+Indivisible genes have one consequence to meet before the rates: **the realised extent is not always the extent you asked for.** An event covers an **arc**, the stretch of DNA it takes, and both ends of an arc must fall where a breakpoint is legal. The draw is therefore the distribution you asked for, restricted to the ends that exist; nothing is drawn and rejected, so no event silently vanishes. Take thirty-one 3000 bp genes in a 100 kb genome, 93% genic, so the spacers are about 200 bp, and ask for an inversion of:
 
 | asked | mean realised |
 |---|---|
@@ -24,7 +24,7 @@ Indivisible genes have one consequence to meet before the rates: **the realised 
 | 3 000 bp | 2 506 |
 | 10 000 bp | 9 329 |
 
-Means over about 1,500 inversions each. A 500 bp request has mostly spacer to land in, so the typical event collapses into one — the median is under 40 bp — while the occasional arc that spans a whole gene pulls the mean up to 100. Long requests can take genes whole, so they land near what you asked. The correction runs the other way too: on the all-gene genome above, the joins between genes are the only legal ends, so a 5 bp request comes out at 100 bp, a whole gene. Either way the event still happens: an extent is a request, and the genome answers it with the nearest thing it has. The one case that yields no event is a replicon with no legal end at all, such as one under 2 bp, where the event is skipped rather than forced.
+Means over about 1,500 inversions each. A 500 bp request has mostly spacer to land in, so the typical event collapses into one, with a median under 40 bp, while the occasional arc that spans a whole gene pulls the mean up to 100. Long requests can take genes whole, so they land near what you asked. The correction runs the other way too: on the all-gene genome above, the joins between genes are the only legal ends, so a 5 bp request comes out at 100 bp, a whole gene. Either way the event still happens: an extent is a request, and the run takes the closest arc the legal breakpoints allow. The one case that yields no event is a replicon with no legal end at all, such as one under 2 bp, where the event is skipped rather than forced.
 
 ## A note on rates
 
@@ -38,7 +38,7 @@ Means over about 1,500 inversions each. A 500 bp request has mostly spacer to la
 
 The chromosome rates are the exception: `fission`, `fusion` and `chromosome_loss` are counted **per chromosome**, and `chromosome_origination` per lineage. A fusion joins two chromosomes of the **same topology**, for the same reason it does at the ordered resolution: a ring and a molecule with two ends cannot become one molecule.
 
-Rates here are written the same way as everywhere else — a scope with verbs chained onto it — and the scopes above are the only ones this resolution takes: a different scope is refused (Appendix A), so a bare number stays a bare number. Of the verbs, this engine reads `changing_at` and `scaled_by`; a per-family draw is refused with the reason. The **skyline** works: `inversion = PerLineage(5.0).changing_at({0: 1.0, 3: 0.2})` drops the inversion rate fivefold at time 3, and the run re-reads its rates at each step rather than racing past it.
+Rates here are written the same way as everywhere else, a scope with verbs chained onto it, and the scopes above are the only ones this resolution takes: a different scope is refused (Appendix A), so a bare number stays a bare number. Of the verbs, this engine reads `changing_at` and `scaled_by`; a per-family draw is refused with the reason. The **skyline** works: `inversion = PerLineage(5.0).changing_at({0: 1.0, 3: 0.2})` drops the inversion rate fivefold at time 3, and the run re-reads its rates at each step rather than racing past it.
 
 So does **conditioning**. Every rate here takes a `scaled_by`, so a trait can drive how much DNA a lineage sheds, which is genome reduction as it is usually meant, and can drive the rearrangements too. First a plain run, which the block listing below reads:
 
@@ -68,16 +68,16 @@ g2 = genomes.simulate_genomes_nucleotide(
 
 **The extent takes the same verbs**, and that is a different statement: the rate raises how often a host-restricted lineage deletes, the extent how much each deletion takes. Set both and they multiply: the DNA shed per unit time goes up by the product, not the sum.
 
-A modifier on an *extent* is read only once an event has fired, so unlike the same modifier on a rate it adds no step to the run's clock (a modifier on a rate can change when the next event lands, so the engine must stop and re-read it at each change — Appendix A's horizon). Chapter 8 covers what a driver is and how to grow one; anything the level does not accept raises rather than being quietly ignored.
+A modifier on an *extent* is read only once an event has fired, so unlike the same modifier on a rate it adds no step to the run's clock (a modifier on a rate can change when the next event lands, so the engine must stop and re-read it at each change; see Appendix A's horizon). Chapter 8 covers what a driver is and how to grow one; anything the level does not accept raises rather than being quietly ignored.
 
 ## Insertions and deletions
 
-Two more events move DNA without touching the gene inventory — the **indels**. They pair off against the events of Chapter 3 by what they do to ancestry:
+Two more events move DNA without touching the gene inventory: the **indels**. They pair off against the events of Chapter 3 by what they do to ancestry:
 
-- **`deletion`** removes an arc, as `loss` does, but no copy lineage ends: the material goes, and every gene keeps its place in the genealogy. `loss` changes what a lineage *has* — copies die, a gene can go whole; `deletion` changes how much of a surviving stretch it *carries*.
-- **`insertion`** lays down a stretch of **novel spacer**, as `origination` lays down a new gene: `origination` brings a gene family into the run, `insertion` brings sequence — DNA that descends from nothing.
+- **`deletion`** removes an arc, as `loss` does, but no copy lineage ends: the material goes, and every gene keeps its place in the genealogy. `loss` changes what a lineage *has*, because copies die and a gene can go whole; `deletion` changes how much of a surviving stretch it *carries*.
+- **`insertion`** lays down a stretch of **novel spacer**, as `origination` lays down a new gene: `origination` brings a gene family into the run, `insertion` brings sequence, DNA that descends from nothing.
 
-In practice the difference is one of scale, and the extent defaults say so: 50 bp for the ancestry-changing events, 5 bp for the indels. Appendix B says where each is written — deletions in their own record, insertions as roots of their own kind.
+In practice the difference is one of scale, and the extent defaults say so: 50 bp for the ancestry-changing events, 5 bp for the indels. Appendix B says where each is written: deletions in their own record, insertions as roots of their own kind.
 
 ## Who receives a transfer
 
@@ -92,7 +92,7 @@ g6 = genomes.simulate_genomes_nucleotide(
     transfer_to=genomes.Clades({"A": ["n49", "n50"], "B": ["n30", "n36"]}, flows))
 ```
 
-A transfer here is always **additive** — `replacement` is not among this resolution's arguments, and handing it in fails as an unknown argument rather than being ignored — so steering changes only which lineage the arc lands on. `self_transfer` is accepted as in Chapter 3. Nothing is taken from anyone, and a transfer whose every candidate weighs 0 simply does not fire.
+A transfer here is always **additive**, so steering changes only which lineage the arc lands on. `replacement` is not among this resolution's arguments, and handing it in fails as an unknown argument rather than being ignored. `self_transfer` is accepted as in Chapter 3. Nothing is taken from anyone, and a transfer whose every candidate weighs 0 simply does not fire.
 
 ## Reading a genome, block by block
 
@@ -138,9 +138,9 @@ The **initial genome**, the genome the run starts from at time 0 before any even
 
 **A GFF file.** `gff="genome.gff"` takes exact coordinates from a real annotation. `##sequence-region` gives each replicon's length, `gene` features give coordinates, strand and name, and other feature types are ignored. Names land in `result.gene_names`, so you can follow a named gene through the run. `gff=` and `genes=` are mutually exclusive; a GFF already declares the genes ([Ge11](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_circular_nucleotide-->). Genes may touch but never overlap, since a gene is one indivisible block. Real annotations do overlap, usually by a base or two where genes abut in an operon, so an overlap is refused rather than guessed at: `trim_overlaps=True` (`--trim-overlaps`) pushes each overlapping gene's start to its neighbour's end instead, and drops any gene swallowed whole.
 
-A genome at this resolution is *rebuilt* rather than stored: the run keeps the **root partition** — the initial sequence, cut at every breakpoint any lineage ever used — and how each node's genome is assembled from those pieces, which is what keeps a million-base genome down a large tree affordable. Appendix B names both (`.root_blocks`, `.assembly`).
+A genome at this resolution is *rebuilt* rather than stored: the run keeps the **root partition**, the initial sequence cut at every breakpoint any lineage ever used, and how each node's genome is assembled from those pieces, which is what keeps a million-base genome down a large tree affordable. Appendix B names both (`.root_blocks`, `.assembly`).
 
-A GFF gives coordinates, not letters. `fasta="genome.fasta"` supplies the DNA those coordinates hold — one record per replicon, matched by id, each exactly its declared length — and a later `zombi2 sequences` run founds its blocks from that DNA (Chapter 6).
+A GFF gives coordinates, not letters. `fasta="genome.fasta"` supplies the DNA those coordinates hold, one record per replicon, matched by id and each exactly its declared length, and a later `zombi2 sequences` run founds its blocks from that DNA (Chapter 6).
 
 ## On the command line
 
@@ -159,4 +159,4 @@ zombi2 genomes out/ --resolution nucleotide \
   --inversion 0.5 --loss 0.4 --loss-extent 900 --seed 1
 ```
 
-Every event kind has its own `--<event>-extent`, the mean of a geometric draw in base pairs — 50 bp unless you set it, 5 bp for the indels: `--inversion-extent`, `--loss-extent`, `--duplication-extent`, `--transfer-extent`, `--transposition-extent`, `--translocation-extent`, `--origination-extent` (the length of the new gene an origination lays down), `--insertion-extent`, `--deletion-extent`.
+Every event kind has its own `--<event>-extent`, the mean of a geometric draw in base pairs, 50 bp unless you set it and 5 bp for the indels: `--inversion-extent`, `--loss-extent`, `--duplication-extent`, `--transfer-extent`, `--transposition-extent`, `--translocation-extent`, `--origination-extent` (the length of the new gene an origination lays down), `--insertion-extent`, `--deletion-extent`.

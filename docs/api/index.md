@@ -40,7 +40,7 @@ These are shared across levels rather than owned by one.
 
 | Page | What it holds |
 |---|---|
-| [`zombi2.params`](rates.md) | the rate grammar — **scopes** (`PerCopy`, `PerLineage`, `Global`, …), the **verbs** chained onto them (`scaled_by`, `set_by`, `weighted_by`, and the two shortcuts `varying_among`, `changing_at`), the **drivers** they read (`Random`, `TotalDiversity`, `Time`, `Clade`, a filename) and the **mappings** a driver carries (`Table`, `Curve`, `Scalar`, `Between`), the notation shared by the Python API, the CLI and a `--params` file |
+| [`zombi2.params`](rates.md) | the rate grammar — **scopes** (`PerCopy`, `PerLineage`, `Global`, …), the **verbs** chained onto them (`scaled_by`, `set_by`, `weighted_by`, and the two shortcuts `varying_among`, `changing_at`), the **drivers** they read (`Random`, `TotalDiversity`, `Time`, `Clade`, a filename) and the **mappings** the link carries (`Table`, `Curve`, `Scalar`, `Between`), the notation shared by the Python API, the CLI and a `--params` file |
 | [`zombi2.tree`](species.md#trees) | trees — `Tree`, `Node`, `prune`, `read_newick`, and the tree-shape helpers. Its own module, documented on the species page because that is the level that grows one |
 
 ## The menus inside a level

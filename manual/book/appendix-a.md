@@ -10,12 +10,12 @@ of modifiers and which levels accept them, and what the engine does with a rate 
 
 ## How a rate is counted: the scope
 
-A rate is a number of events per unit time — the time the species tree imposes — for one unit of
+A rate is a number of events per unit time, the time the species tree imposes, for one unit of
 whatever it is counted over. A substitution happens at a **site**, so a substitution rate is counted
 per site: each site is an independent chance to mutate. A speciation happens to a **lineage**, so the
 speciation rate is counted per lineage: each branch alive is an independent chance for the tree to
 split. A gene is lost one **copy** at a time, so gene loss is counted per copy. The unit a rate is
-counted over — lineage, copy, site — is what we call its **scope**.
+counted over, a lineage, a copy or a site, is what we call its **scope**.
 
 By default, this is the scope ZOMBI2 uses at each level:
 
@@ -27,7 +27,7 @@ By default, this is the scope ZOMBI2 uses at each level:
 | Genomes, ordered | copy | `inversion`, `transposition`, `translocation` |
 | Genomes, ordered | chromosome | `fission`, `fusion`, `chromosome_loss` |
 | Genomes, ordered | lineage | `chromosome_origination` |
-| Genomes, nucleotide | lineage | `duplication`, `transfer`, `loss`, `origination`, `inversion`, `transposition`, `translocation`, `chromosome_origination` |
+| Genomes, nucleotide | lineage | `duplication`, `transfer`, `loss`, `origination`, `inversion`, `transposition`, `translocation`, `chromosome_origination`, `insertion`, `deletion` |
 | Genomes, nucleotide | chromosome | `fission`, `fusion`, `chromosome_loss` |
 | Sequences | site | `substitution` (times a clock) |
 | Traits | lineage | `rate` (continuous), `switch` (discrete) |
@@ -35,7 +35,7 @@ By default, this is the scope ZOMBI2 uses at each level:
 A bare number takes the default, and writing the default scope explicitly is accepted at every
 level. A discrete trait's `switch` also takes two shapes that are not a single rate: a
 `{'from->to': rate}` dict, whose values are rates in either spelling, and a `k×k` matrix, whose
-entries are plain numbers — every entry there is counted per lineage, so a cell has no scope of its
+entries are plain numbers: every entry there is counted per lineage, so a cell has no scope of its
 own to write.
 
 Three rows of that table accept a second scope, and each extra scope is a different model rather than a
@@ -44,7 +44,7 @@ different spelling:
 | Rate | Also accepts | What that means |
 |---|---|---|
 | Species `birth`, `death` | `Global` | one budget for the whole tree: linear growth, not exponential |
-| Genomes, family and ordered: `duplication`, `transfer`, `loss` | `PerLineage` | a fixed budget per lineage — the rate is the same however much the genome holds |
+| Genomes, family and ordered: `duplication`, `transfer`, `loss` | `PerLineage` | a fixed budget per lineage: the rate is the same however much the genome holds |
 | Genomes, ordered: `inversion`, `transposition`, `translocation` | `PerLineage` | the same, for the rearrangements |
 
 The difference is large and worth stating plainly. `loss = PerCopy(0.25)` puts every copy
@@ -53,8 +53,8 @@ independently at risk, so a genome of a thousand genes loses ten times as often 
 genome's size never enters. The same number, and in the hundred-gene genome the two models sit a
 hundredfold apart.
 
-`origination` stays per lineage — it is the rate at which *new* families arrive, so per copy it would
-be zero in an empty genome — and the chromosome rates stay per chromosome. The nucleotide resolution
+`origination` stays per lineage, since it is the rate at which *new* families arrive and per copy it
+would be zero in an empty genome. The chromosome rates stay per chromosome. The nucleotide resolution
 already counts its gene events per lineage, which is why it has no second scope to offer: there the
 rate says how often a lineage does the thing and the extent says how much DNA it touches.
 
@@ -67,7 +67,7 @@ species.simulate_species_tree(birth=1.0, death=Global(0.3), total_time=8.0, seed
 ```
 
 `Global(x)` detaches the rate from the amount of material present, so a `Global` death rate does not
-grow as the tree does. When a `Global` event fires, the lineage it lands on is drawn as always —
+grow as the tree does. When a `Global` event fires, the lineage it lands on is drawn as always,
 weighted by the lineages' own factors, so uniformly among the living when nothing sets one apart.
 The scopes are `Global`, `PerLineage`, `PerCopy`, `PerSite` and `PerChromosome`, and nothing outside
 these two tables is accepted: a rate handed any other scope is refused, and the error names the
@@ -115,7 +115,7 @@ the driver's state says it is. A driver need not come from another level: `Clade
 "n27"]})` names a subtree by its tips, or by a node id, and reads membership off the tree the run is
 already walking, with every unnamed lineage in `"rest"`. A driver is not confined to a rate: the same
 factor multiplies an **extent** at the ordered and nucleotide resolutions, where an extent takes only
-`changing_at` and `scaled_by` — a per-family draw has no one family to read (a segment covers several),
+`changing_at` and `scaled_by`: a per-family draw has no one family to read (a segment covers several),
 and `set_by` on an extent is not built. Drivers also go on `transfer_to`, written
 `Recipients().weighted_by(driver, mapping)` rather than `scaled_by` because there the numbers are
 normalised **weights** over the candidate recipients, compared against each other, with no base in
@@ -124,7 +124,7 @@ clade or a trait takes a mapping beside it, because it is driver and mapping in 
 count is the driver, and the falling curve is built in.
 
 **How wide the variation is, and what shape it takes.** The **law** is `varying_among`'s second
-argument, the distribution written out — any built-in one, so `varying_among('families',
+argument, the distribution written out. Any built-in one works, so `varying_among('families',
 Gamma(shape=4.0, scale=0.25))` gives the draws a gamma's shape and `varying_among('families',
 LogNormal(0.0, 0.5))` the usual lognormal.
 
@@ -136,11 +136,11 @@ meant. The built-in distributions are `Fixed`, `Exponential`, `Gamma`, `LogNorma
 `Geometric`, all in `zombi2.params.distributions`.
 
 Whatever the distribution, the draw is divided by its own mean, so what it contributes is its shape
-and not where it sits — `Exponential(1.0)` and `Exponential(7.0)` are the same law.
+and not where it sits: `Exponential(1.0)` and `Exponential(7.0)` are the same law.
 
 `Drift` takes one more, `bins=`. With it the value moves in **steps** rather than continuously:
 it takes one of `bins` values on a log-spaced ladder, and the step the law draws at each split,
-discretised, moves the daughter to a neighbouring rung or leaves it — the model is unchanged, only
+discretised, moves the daughter to a neighbouring rung or leaves it. The model is unchanged, only
 snapped to a grid. `varying_among('lineages', Drift(LogNormal(0.0, 0.45), bins=6))` is the discrete-bin clock, where a clade's
 rate is one of a handful rather than anything at all.
 
@@ -164,15 +164,15 @@ below can do it and the rest refuse. This is what each accepts today:
 | Traits, discrete `switch` | `scaled_by` |
 | Joint, `birth` / `death` | `changing_at` · `scaled_by(TotalDiversity(...))` · `scaled_by` |
 
-Each entry is written the way you would type it, with `...` standing for the argument you choose — a
-distribution, a carrying capacity. The two `varying_among` entries are one verb and differ in their
+Each entry is written the way you would type it, with `...` standing for the argument you choose, a
+distribution or a carrying capacity. The two `varying_among` entries are one verb and differ in their
 law: `Drift(...)` is the value inherited from the parent, a bare distribution the value drawn afresh.
 
 `zombi2 <command> -h` lists a level's modifiers under "Modifiers this level takes", in these same
 words: the help is built from the level's own declaration, and a test checks this table against that
-same declaration, so neither can drift from it. Two commands each span two rows of the table —
+same declaration, so neither can drift from it. Two commands each span two rows of the table:
 `zombi2 genomes`, whose nucleotide resolution reads fewer verbs than the other two, and `zombi2
-traits`, whose `--switch` reads fewer than `--rate` — and for those the help lists the larger row
+traits`, whose `--switch` reads fewer than `--rate`. For those the help lists the larger row
 and gives the smaller in the note beneath it.
 
 A modifier missing from a row is one that level does not read **yet**. It is not a claim that the
@@ -198,8 +198,8 @@ endo_loss = PerCopy(0.02).scaled_by(Clade({"endo": ["n76", "n112"]}),
 
 The endosymbiont clade loses genes at the base rate until t=6 and twenty times faster from then on,
 while everything outside it is unchanged throughout. The breakpoints are reported into the engine's
-**horizon** — the next-change stepping described under "When the rate changes with the clock",
-below — so the run steps to them rather than past them, and any discrete driver takes one — a trait
+**horizon**, the next-change stepping described under "When the rate changes with the clock",
+below, so the run steps to them rather than past them. Any discrete driver takes one too: a trait
 state whose factor changes at a time reads the same way.
 
 The sequences level refuses a schedule inside a mapping. It walks each gene tree branch by branch
@@ -279,7 +279,7 @@ Two limits. A modifier of your own is Python-only: `--death` and a `--params` fi
 ZOMBI2 ships and cannot build a class you wrote. And if your `factor` reads `time`, making it a rate
 that changes continuously rather than only when an event occurs, give the class a `next_change(time)`
 method returning the next moment the rate changes, so the engine stops and re-evaluates there instead
-of holding it at whatever it was — the same horizon stepping again. The modifiers are drawn in the
+of holding it at whatever it was, which is the same horizon stepping again. The modifiers are drawn in the
 order you list them: the factors multiply, so the product does not care, but draws consume the
 random stream in order, and that order is part of what the seed reproduces.
 `OnCrowding` needs none, because diversity only changes when something is born or dies, and the engine
@@ -293,13 +293,13 @@ different list of events each time. That engine is the **Gillespie algorithm** [
 @gillespie1977], an exact, event-by-event recipe for a continuous-time process defined by rates.
 
 One pass of the loop is three steps. Add the rates of everything that could happen next, which gives
-the total rate — and this sum is where the scope's arithmetic happens: a per-copy loss of 0.25 in a
+the total rate. This sum is where the scope's arithmetic happens: a per-copy loss of 0.25 in a
 lineage of forty copies contributes 40 × 0.25 = 10, each copy its own independent chance, and a
-per-site rate counts its sites the same way. Draw one waiting time from an exponential with that total — the rate has no memory,
-so how long the run has already waited changes nothing. Then pick which event fired, each in
-proportion to its own rate, apply it, and start again from the state it left. Rates in, a timed
-history out. The derivation — why the waiting time is exponential, why the competing events can be
-raced this way — is a textbook one and is not repeated here.
+per-site rate counts its sites the same way. Draw one waiting time from an exponential with that
+total. The rate has no memory, so how long the run has already waited changes nothing. Then pick
+which event fired, each in proportion to its own rate, apply it, and start again from the state it
+left. Rates in, a timed history out. The derivation, why the waiting time is exponential and why the
+competing events can be raced this way, is a textbook one and is not repeated here.
 
 ### When the rate changes with the clock
 
@@ -327,7 +327,7 @@ gets its own exact draw, and no integral or rejection step is ever needed.
 
 ### What each level supplies
 
-Each level that runs on events supplies its own list, and one loop realises them all — the two that
+Each level that runs on events supplies its own list, and one loop realises them all; the two that
 do not are the next section's:
 
 | Level | The events | Their rates |
@@ -345,7 +345,7 @@ exponential wait and proportional choice never changes.
 
 ZOMBI2 steps outside the event-by-event loop in two places, for the same reason both times: when only
 the endpoints are needed, not the whole timed history, an exact draw beats simulating events you would
-throw away. Neither is an approximation — both give the same distribution the loop would, in one
+throw away. Neither is an approximation: both give the same distribution the loop would, in one
 step.
 
 The first is **sequence substitution along a branch**. Once a gene tree and its branch lengths are
@@ -360,9 +360,9 @@ The second is a **continuous trait**. Brownian motion has no events to fire, sin
 so there is nothing for the loop to enumerate. ZOMBI2 walks the tree branch by branch instead, in
 preorder, and draws one normal per branch: mean the parent's end value, variance the exact integral of
 $\sigma^2$ along the branch (Chapter 7). With a constant $\sigma^2$ that integral is just
-$\sigma^2 \times$ branch length, and the values that come out have the Brownian structure exactly —
+$\sigma^2 \times$ branch length, and the values that come out have the Brownian structure exactly,
 variance $\sigma^2 \times$ root-to-tip depth at a tip, covariance $\sigma^2 \times$ shared path length
-between two — with no event drawn anywhere. The same walk serves OU, whose pull only changes which
+between two, with no event drawn anywhere. The same walk serves OU, whose pull only changes which
 integral the branch draw uses, still exact, and the speciation jumps, one more exact draw at each
 split. A $\sigma^2$ that varies along the branch changes only the integral, not the walk.
 
@@ -379,9 +379,9 @@ there. Two things differ and are worth knowing before they bite:
 - **Paths in a rate expression.** A driver path goes inside the rate. On the command line ZOMBI2
   reads the backslashes as written, so `PerCopy(0.25).scaled_by('C:\Users\me\trait_events.tsv',
   {...})` works as pasted. In a Python script the same line is Python source, and Python reads `\U`
-  as an escape, so it is a `SyntaxError` — worse, `C:\temp` is read quietly as `C:` followed by a
+  as an escape, so it is a `SyntaxError`. Worse, `C:\temp` is read quietly as `C:` followed by a
   tab. Write the path as a raw string there: `r'C:\Users\me\trait_events.tsv'`. Forward slashes work
-  in all three places — the command line, a Python script, and a `--params` file — and Windows
+  in all three places, the command line, a Python script and a `--params` file, and Windows
   accepts them.
 - **Paths in a `--params` file**, the TOML file that can carry a run's flags (`--params run.toml`).
   TOML, not ZOMBI2, reads that file, and TOML's ordinary `"…"` string
