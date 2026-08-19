@@ -9,6 +9,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- Chapter 1 speaks the reframing: the Conditioning and Joining sections are one section,
+  Dependent runs, built on the connection and its three parts. The Sequences chapter sends its
+  four heaviest code blocks to the gallery — two new cards, `reversible()` rebuilding HKY85 by
+  hand and a per-position profile freezing half an alignment — and the connection reference gets
+  its page on the site.
+
 ## [0.43.0] - 2026-08-19
 
 *(this section was completed after the release; the tag's own copy carries only its first two
