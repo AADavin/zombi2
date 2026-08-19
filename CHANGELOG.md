@@ -15,6 +15,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   page and linked from the README — what each level does not do yet, organized by level with a
   planned / considering / not planned status on every entry. (#409)
 
+### Fixed
+
+- `zombi2 genomes --resolution nucleotide --topology circular,linear` crashed: the nucleotide
+  engine paired the whole topology list with every replicon instead of giving each replicon its
+  own label, so `Chromosome` rejected it. A topology list now distributes one label per
+  chromosome, as at the ordered resolution, and a list whose length does not match
+  `--chromosomes` is rejected with the same message ordered gives.
+
 ## [0.43.2] - 2026-08-19
 
 ### Changed
@@ -26,6 +34,9 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   counts (operon size, chromosome number, tip counts, snippet factors) in gallery code cards;
   the em-dashes swept out of the manual's prose; the retired joining figure and its generator
   deleted; and the connection reference gains the substitution-model target row.
+
+- The gallery page groups its six sections the way the book does: a slim band, The levels,
+  above Species through Traits, and another, Dependent runs, above Conditioning and Joining.
 
 ### Fixed
 
