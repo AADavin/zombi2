@@ -419,13 +419,21 @@ def test_a_between_kernel_is_refused_on_the_substitution_rate(tmp_path):
 
 
 def test_a_live_level_source_is_refused_as_a_joint_run():
-    """SPEC §3: Traits and Sequences can be conditioned and never joined. A live-level source is the
-    joint spelling of Driven, so it must come back as the modelling answer rather than as a missing
-    file called 'trait'."""
+    """A live-level source is the joint spelling of Driven (SPEC §5), and this entry point reads only
+    drivers grown first — so it must come back as the modelling answer, pointing at joint.simulate,
+    rather than as a missing file called 'trait'."""
     run = _pair_run(1.0, 2.0)
-    with pytest.raises(ValueError, match="cannot be joined"):
+    with pytest.raises(ValueError, match="joint.simulate"):
         simulate_sequences(run, model=jc69(), length=10,
                            substitution=PerSite(1.0).scaled_by("trait", {"a": 2.0}))
+    # the named forms the manual documents ("traits:<name>", "sequences:<name>") are live names too,
+    # so they get the same answer instead of falling through to load_driver as a filename
+    with pytest.raises(ValueError, match="joint spelling"):
+        simulate_sequences(run, model=jc69(), length=10,
+                           substitution=PerSite(1.0).scaled_by("traits:size", {"a": 2.0}))
+    with pytest.raises(ValueError, match="joint=True"):
+        simulate_sequences(run, model=jc69(), length=10,
+                           substitution=PerSite(1.0).scaled_by("sequences:rpoB", {"a": 2.0}))
 
 
 def test_divergence_is_refused_alongside_a_driven_rate():
