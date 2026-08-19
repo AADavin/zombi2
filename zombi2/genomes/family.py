@@ -677,6 +677,8 @@ def resolve_live_drivers(mods, declared_names, *, joint: bool) -> list[str]:
     A live driver names gene content growing in this same run — ``"genomes:count"`` for a lineage's
     whole gene count, ``"genomes:<name>"`` for whether a declared family is there. That makes the run
     joint (SPEC §2): the driver cannot be finished first, because it is what the run is producing.
+    A live name for **another** level (``"trait"``, ``"traits:<name>"``, ``"sequences:<name>"``) is a
+    cross-level joint run, which is `zombi2.joint.simulate`'s job, so it is refused here by name.
 
     ``joint`` is the run's own declaration, and it is checked both ways. Asking for a joint run with
     nothing reading a live driver is as much a mistake as reading one without saying so.
@@ -684,6 +686,15 @@ def resolve_live_drivers(mods, declared_names, *, joint: bool) -> list[str]:
     keys = []
     for m in mods:
         src = m.driver
+        if not (src == LIVE_COUNT or src.startswith("genomes:")):
+            raise ValueError(
+                f"scaled_by({src!r}, ...) names a level growing beside the run — the joint spelling "
+                f"of a driver (SPEC §5) — and this function simulates genomes alone: the live names "
+                f'it reads are its own gene content, "genomes:count" or "genomes:<family>". A '
+                f"genome and another level driving each other are simulated together — "
+                f"joint.simulate(genomes.genome(...), traits.discrete(...) or sequences.gene(...), "
+                f"tree=...). To read a level grown EARLIER, pass its result or the file it wrote, "
+                f"which is conditioning.")
         if src == LIVE_COUNT:
             check_mapping_fires(m.mapping, {0}, driver_label=f"the driver {src!r}")
         else:

@@ -94,11 +94,12 @@ class Composition:
         if level not in _UPSTREAM:
             return None
         return (
-            "the genome level cannot be driven by a sequence: a sequence is grown along the gene trees "
-            "this level produces, so reading it back conditions a run on its own output. SPEC §3 lets "
-            "Genomes and Sequences be joined, never conditioned, and no joint engine for the pair "
-            "exists. A composition drives what comes after a sequence — a trait, or a further "
-            "sequence run.")
+            "the genome level cannot be driven by a finished sequence: a sequence is grown along the "
+            "gene trees this level produces, so reading it back conditions a run on its own output. "
+            "SPEC §3 lets Genomes and Sequences be joined, never conditioned — for a composition to "
+            "drive a genome rate, simulate the pair together: joint.simulate(genomes.genome(...), "
+            "sequences.gene(...), tree=...). A finished composition drives what comes after its run "
+            "— a trait, or a further sequence run.")
 
     def _node_values(self, tree) -> dict[int, float]:
         """``{species node: the share of its sequence that is`` ``letters``\\ ``}`` for every node of
