@@ -26,7 +26,7 @@ def main() -> None:
     out = ROOT / "figures" / "svg" / "conditioning.svg"
     out.parent.mkdir(parents=True, exist_ok=True)
     h.conditioning_png(
-        str(out),
+        str(out), transparent=False,
         driver=("traits", "habitat", "two states"),
         link=("scaled_by", "table"),
         target_level="genomes",

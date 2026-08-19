@@ -1052,7 +1052,8 @@ def _chain(ax, states, arcs, colours, *, cx, y, span):
 
 
 def conditioning_png(path, *, driver, link, target_level, targets,
-                     chain=None, curve=None, target_chain=None, returns=False):
+                     chain=None, curve=None, target_chain=None, returns=False,
+                     transparent=True):
     """Draw one conditioning diagram to the standard above, and return the path.
 
     ``driver``      ``(level, name, kind)`` — "traits", "habitat", "two states"
@@ -1168,7 +1169,10 @@ def conditioning_png(path, *, driver, link, target_level, targets,
     if target_chain is not None:
         _chain(ax, *target_chain, cx=tcx, y=bottom+52, span=tw)
 
-    fig.savefig(path, dpi=180, transparent=True, bbox_inches="tight")
+    # an opaque page for the book's SVG: a transparent one with near-black ink disappears
+    # on GitHub's dark mode, which strips the CSS that could have fixed it
+    fig.savefig(path, dpi=180, transparent=transparent, bbox_inches="tight",
+                facecolor="white" if not transparent else "auto")
     plt.close(fig)
     return path
 
