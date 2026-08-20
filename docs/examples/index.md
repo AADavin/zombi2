@@ -7,7 +7,7 @@ scripts, the results and the exact reproduction recipe, is in the repository und
 [`analyses/`](https://github.com/AADavin/zombi2/tree/main/analyses).
 
 **[Can RED be trusted?](red.md)** GTDB uses Relative Evolutionary Divergence to align
-taxonomic ranks across the tree of life, which assumes branch length tracks time. We
+taxonomic ranks across the tree of life; the measure assumes branch length tracks time. We
 measure how rate-variable real archaea are, simulate trees with the same variability, and
 test RED on trees whose node ages are known.
 
@@ -23,7 +23,7 @@ recovered, including the mix of the two event types. The size of the events is n
 fixing it at a wrong value biases the rates that are recoverable.
 
 **[Can Pagel's test detect a feedback?](pagel.md)** A habitat drives gene loss across
-the genome, and one family's absence drives the switch rate into the cave, a feedback
-closed in one joint run. Pagel's test detects the feedback and the switch-rate direction
-in about nine runs of ten, largely misses the loss direction, and stays at the nominal
-level on the null and on an independent control family.
+the genome, and the eye family's absence drives the switch rate into the cave, a
+feedback closed in one joint run. Pagel's test detects the feedback and the switch-rate
+direction in about nine runs of ten, largely misses the loss direction, and rejects at
+the nominal rate on the null and on a control family carried on the same trees.
