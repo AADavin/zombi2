@@ -9,6 +9,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+
+- The prose of the Pagel example's report and website page rewritten to the manual's plain
+  register: personification and internal shorthand out, one name per arm, and the sentences
+  a reader had to re-parse split. Found by the new flag-only prose review (two rounds of
+  Opus readers over a rulebook compiled from review corrections).
+
 ### Added
 
 - A public roadmap: `ROADMAP.md` at the repository root, mirrored on the site as the Roadmap
