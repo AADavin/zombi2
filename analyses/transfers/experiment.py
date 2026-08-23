@@ -165,7 +165,12 @@ def main() -> int:
     (DATA / "gene_trees").mkdir(exist_ok=True)
 
     # --- the extant species tree, whose internal labels are the branch names below ---
-    (DATA / "species_extant.nwk").write_text(sp.extant_tree.to_newick() + "\n")
+    nwk = sp.extant_tree.to_newick()
+    (DATA / "species_extant.nwk").write_text(nwk + "\n")
+    # ALE's newick parser refuses internal node labels, so it gets an unlabeled copy;
+    # its nodes are mapped back to ours by clade content (the clades are in branches.tsv).
+    (DATA / "species_extant_ale.nwk").write_text(
+        re.sub(r"\)n\d+", ")", nwk) + "\n")
 
     # --- the extant gene trees, one file per family with enough species ---
     lab = ct.labels()
