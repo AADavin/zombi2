@@ -1,93 +1,106 @@
 # Can Pagel's test detect a feedback?
 
-**What we test:** a genome and a trait shape each other in one joint ZOMBI2 run: a binary
-habitat multiplies the loss rate of every gene family, and the cox family's absence
-multiplies the rate of switching into the anoxic habitat. The family stands for a gene
-required for aerobic respiration: losing it pushes a lineage toward anoxic habitats,
-and an anoxic lineage loses genes faster. The standard test for correlated
-evolution of two binary characters (Pagel 1994, fit with `phytools::fitPagel`) is applied
-to the two tip characters the run produces. Does it detect the feedback? Does it detect
-each direction alone? And does it reject at the nominal rate when there is
-nothing to find?
+**What we test:** a genome and a trait shape each other in one joint ZOMBI2 run. Two
+connections close the loop: (1) a binary habitat multiplies the loss rate of every gene
+family, and (2) the absence of one family, called A, multiplies the rate of switching
+into the anaerobic habitat. The family stands for a gene required for aerobic
+respiration: losing it pushes a lineage toward anaerobic habitats, and an anaerobic
+lineage loses genes faster. The standard test for correlated evolution of two binary
+characters (Pagel 1994, fit with `phytools::fitPagel`) is applied to the two tip
+characters the run produces. Does it detect the feedback? Does it detect each
+connection alone? And does it reject at the nominal rate when there is nothing to find?
 
 ## The design
 
-Four arms on matched seeds, 150 replicates each. Every replicate simulates a dated
-species tree to 150 extant tips (birth 1.0, seed = the replicate number); the tree is
-shared across the arms. On that tree one joint run simulates the genome and the habitat
-together:
+Four experiments on matched seeds, 150 replicates each. Every replicate simulates a
+dated species tree to 150 extant tips (birth 1.0, seed = the replicate number); the
+tree is shared across the experiments. On that tree one joint run simulates the genome
+and the habitat together:
 
 ```python
 r = joint.simulate(
     genome(duplication=0.05, origination=8.0, initial_families=40,
-           loss=PerCopy(0.25).scaled_by("trait", {"anoxic": L, "oxic": 1.0}),
-           families=[family("cox")]),
-    traits.discrete(states=["oxic", "anoxic"], start="oxic",
-                    switch={"oxic->anoxic": PerLineage(0.08).scaled_by(
-                                "genomes:cox", {"present": 1.0, "absent": S}),
-                            "anoxic->oxic": 0.10}),
+           loss=PerCopy(0.25).scaled_by("trait", {"anaerobic": L, "aerobic": 1.0}),
+           families=[family("A")]),
+    traits.discrete(states=["aerobic", "anaerobic"], start="aerobic",
+                    switch={"aerobic->anaerobic": PerLineage(0.08).scaled_by(
+                                "genomes:A", {"present": 1.0, "absent": S}),
+                            "anaerobic->aerobic": 0.10}),
     tree=ct, seed=seed)
 ```
 
-The arms set the two factors: `feedback` has L = 5 and S = 12, `trait2gen` only L = 5,
-`gen2trait` only S = 12, and `null` has both at 1, so the connections are written but
-multiply by one. Every replicate also carries a **control** character, connected
-to nothing: one family from a separate genome run on the same tree (loss 0.2,
-transfer 0.25, seed + 1000). Any signal the test finds on the control is an artifact of
-the tree or the method.
+The experiments set the two factors: **both connections** has L = 5 and S = 12,
+**connection 1** only L = 5, **connection 2** only S = 12, and **no connections** has
+both at 1, so the connections are written but multiply by one. Every replicate also
+carries a **control** character, connected to nothing: one family from a separate
+genome run on the same tree (loss 0.2, transfer 0.25, seed + 1000). Any signal the test
+finds on the control is an artifact of the tree or the method.
 
 ## What the test reports
 
-For every replicate we fit `fitPagel` twice: the habitat against the cox family's tip
+For every replicate we fit `fitPagel` twice: the habitat against family A's tip
 presence, and the habitat against the control. The test compares the dependent
 eight-parameter Markov model against the independent four-parameter one with a
 likelihood-ratio test at α = 0.05. That is 1,200 fits; 341 were skipped because a
 character invariant at the tips cannot be fit.
 
-| arm | habitat × cox | habitat × control |
+| experiment | habitat × A | habitat × control |
 |---|---|---|
-| feedback (both directions) | **90.6%** (87/96, CI 83.1–95.0%) | 6.0% (7/116) |
-| gen2trait (family drives the switch) | **87.3%** (89/102, CI 79.4–92.4%) | 7.8% (9/116) |
-| trait2gen (habitat drives loss) | **19.8%** (19/96, CI 13.1–28.9%) | 6.0% (7/116) |
-| null (no dependency) | 5.0% (5/101, CI 2.1–11.1%) | 4.3% (5/116) |
+| both connections | **90.6%** (87/96, CI 83.1–95.0%) | 6.0% (7/116) |
+| connection 1 (habitat drives loss) | **19.8%** (19/96, CI 13.1–28.9%) | 6.0% (7/116) |
+| connection 2 (A drives the switch) | **87.3%** (89/102, CI 79.4–92.4%) | 7.8% (9/116) |
+| no connections | 5.0% (5/101, CI 2.1–11.1%) | 4.3% (5/116) |
 
-- **Calibration is correct.** The null rejects at the nominal rate, and so does the
-  control in every arm, including on trees whose gene content and habitat are genuinely
-  dependent.
-- **Power is asymmetric.** In the feedback arm and in the switch-rate arm the test
-  detects the dependency in about nine runs of ten. In the loss arm it detects the
-  dependency in one run of five, even though that dependency is a five-fold change in
-  the loss rate of every family in the genome.
-- **The reason is mechanical.** A connection produces extra events only where the
-  driving state is present. Lineages missing the cox family are common, because copies
-  are steadily lost, so the twelve-fold switch rate applies across much of the tree;
-  anoxic lineages are rare at the base switch rates, so the five-fold loss applies to few
-  branches. Tip presence is also a coarse measure of the loss rate: a family present in
-  several copies must lose them all before the character changes.
-- **The test reports dependence, not a direction.** The feedback arm and the
-  switch-rate arm cannot be told apart from the test result.
+- **Calibration is correct.** With no connections the test rejects at the nominal
+  rate, and on the control it rejects at the nominal rate in every experiment,
+  including on trees whose gene content and habitat are genuinely dependent.
+- **Power is asymmetric.** With both connections, and with connection 2 alone, the
+  test detects the dependence in about nine replicates of ten. With connection 1 alone
+  it detects the dependence in one replicate of five, even though that connection is a
+  five-fold change in the loss rate of every family in the genome; panel C of the
+  figure shows the size of that effect on the genomes.
+- **The reason is mechanical.** A connection produces extra events only where its
+  driving state is present. Lineages missing family A are common, because copies are
+  steadily lost, so the twelve-fold switch rate applies across much of the tree;
+  anaerobic lineages are rare at the base switch rates, so the five-fold loss applies
+  to few branches. Tip presence is also a coarse measure of the loss rate: a family
+  present in several copies must lose them all before the character changes.
+- **The test reports dependence, not a direction.** The both-connections experiment and
+  the connection-2 experiment cannot be told apart from the test result.
 
-![Rejection rates by arm](figures/pagel.png)
+## The figure
+
+`figures/casestudy_pagel.png`, the manuscript's figure, has four panels: **A** one
+replicate of the both-connections experiment, drawn radially, with branches painted by
+habitat, arrowheads at the habitat switches, an inner ring for the presence of A and an
+outer ring for genome size; **B** the two connections in the diagram language of the
+website's gallery; **C** genome size at the tips by habitat, per experiment: the
+effect of connection 1, visible exactly where that connection is on; **D** the share
+of replicates on which the test is significant, with Wilson 95% intervals and the
+nominal 5% dashed.
+
+![The four panels](figures/casestudy_pagel.png)
 
 ## Reproducing it
 
-The Python side needs only ZOMBI2 (this run: 0.43.2) and numpy; matplotlib for the
-figure. The fits need R with `phytools` (the `bisse` conda env from `analyses/bisse`
-plus `install.packages("phytools")`). Then, in this directory:
+The Python side needs ZOMBI2 (this run: 0.43.2), numpy, and, for the figure,
+matplotlib, Pillow and Phylustrator. The fits need R with `phytools` (the `bisse` conda
+env from `analyses/bisse` plus `install.packages("phytools")`). Then, in this
+directory:
 
 ```bash
 python experiment.py        # ~15 min: 600 joint runs + 600 control runs -> data/
 Rscript fit_pagel.R         # ~30 min on 8 cores -> fits.tsv
 python aggregate.py         # -> results.json + the table on stdout
-python figures.py           # -> figures/pagel.{png,pdf}
+python figures.py           # -> figures/casestudy_pagel.png
 ```
 
 `data/` (600 trees and tip-state tables) is not committed: `experiment.py` regenerates
 it byte-identically, because a ZOMBI2 run is determined by its seed and the seeds here
-are the replicate numbers. The run's outcomes are committed: `fits.tsv`, `results.json` and
-`manifest.json`.
+are the replicate numbers. The run's outcomes are committed: `fits.tsv`, `results.json`
+and `manifest.json`.
 
 ## Relation to the paper
 
 This analysis is the worked example "Can Pagel's test detect a feedback?" in the ZOMBI2
-manuscript, and `figures/pagel.pdf` is the manuscript's figure.
+manuscript, and `figures/casestudy_pagel.png` is the manuscript's figure.

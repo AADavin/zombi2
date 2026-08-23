@@ -11,11 +11,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Changed
 
-- The Pagel example's story is now aerobic respiration: the habitat's states are oxic
-  and anoxic, and the driving family is `cox`, a gene required for aerobic respiration,
-  so both directions of the feedback read naturally (losing the family pushes a lineage
-  toward anoxic habitats; anoxic lineages lose genes faster). Labels only: the design,
-  the seeds and every number are unchanged.
+- The Pagel example's story is now aerobic respiration: the habitat's states are
+  aerobic and anaerobic, and the driving family is `A`, standing for a gene required
+  for aerobic respiration, so both connections of the feedback read naturally (losing
+  the family pushes a lineage toward anaerobic habitats; anaerobic lineages lose genes
+  faster). The states tables gain a `genes` column (genome size per tip), the report
+  and the website page describe the four experiments by their connections, and the
+  figure becomes the paper's four-panel composition: a radial replicate drawn with
+  Phylustrator, the connection diagram, genome size by habitat, and the test's
+  rejection shares. Labels and additions only: the design, the seeds and every number
+  are unchanged.
 
 ### Fixed
 

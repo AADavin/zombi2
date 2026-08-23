@@ -888,7 +888,16 @@ def _draw_joint_key(ax, x, y, entries) -> None:
         cx += w + 18
 
 
-def joint_png(path, rows, *, frame="one run"):
+def _splits(n, k):
+    """All ways to cut ``n`` words into ``k`` non-empty consecutive runs, as (start, end) pairs."""
+    import itertools
+    for cuts in itertools.combinations(range(1, n), k - 1):
+        edges = (0,) + cuts + (n,)
+        yield list(zip(edges, edges[1:]))
+
+
+def joint_png(path, rows, *, frame="one run", keys=True, sentence_size=15, wrap_width=430,
+              font_scale=1.0, pitch=None):
     """The **joint** diagram: one framed panel labelled "one run", one ROW per connection.
 
     Deliberately not the conditioning diagram with a second arrow bolted on, and no longer two boxes
@@ -928,33 +937,38 @@ def joint_png(path, rows, *, frame="one run"):
     def half_of(boxes):
         widest = 0.0
         for level, name, key in boxes:
-            keyw = sum(_joint_key_width(e, measure) for e in key) + 18 * (len(key) - 1)
+            keyw = (sum(_joint_key_width(e, measure) for e in key) + 18 * (len(key) - 1)) if key else 0
             widest = max(widest, _text_w(probe, pax, name, 24),
                          _text_w(probe, pax, level, 13, style="italic"), keyw)
         return max(_JOINT_HALF, widest / 2 + 14)
 
     def wrap(sentence):
-        if measure(sentence, 15) <= 430:
+        if measure(sentence, sentence_size) <= wrap_width:
             return [sentence]
         words = sentence.split()
-        best = None
-        for i in range(1, len(words)):
-            lines = [" ".join(words[:i]), " ".join(words[i:])]
-            widest = max(measure(l, 15) for l in lines)
-            if best is None or widest < best[0]:
-                best = (widest, lines)
+        # try 2 lines, then 3, until the widest line fits wrap_width (or take the best 2-line split)
+        for n_lines in (2, 3, 4):
+            best = None
+            for cuts in _splits(len(words), n_lines):
+                lines = [" ".join(words[a:b]) for a, b in cuts]
+                widest = max(measure(l, sentence_size) for l in lines)
+                if best is None or widest < best[0]:
+                    best = (widest, lines)
+            if best[0] <= wrap_width or n_lines == 4:
+                return best[1]
         return best[1]
 
     sentences = [wrap(r[2]) for r in rows]
     hl = half_of([r[0] for r in rows])
     hr = half_of([r[1] for r in rows])
-    gap = max(360.0, max(measure(l, 15) for ls in sentences for l in ls) + 56)
+    gap = max(360.0, max(measure(l, sentence_size) for ls in sentences for l in ls) + 56)
     plt.close(probe)
 
     xl = 55 + hl                                   # 21 of margin, 22 of clearance, 12 of box padding
     xr = xl + hl + hr + 24 + gap
     right_edge = xr + hr + 34
-    W, bottom = right_edge + 21, 226 + 156 * (n - 1)
+    pitch = pitch or (156 if keys else 118)
+    W, bottom = right_edge + 21, (226 if keys else 206) + pitch * (n - 1)
     H = bottom + 14
 
     fig = plt.figure(figsize=(W / 100, H / 100), dpi=190)
@@ -969,15 +983,23 @@ def joint_png(path, rows, *, frame="one run"):
                 va="center", backgroundcolor="white")
 
     def box(x, half, y, level, name, key):
-        ax.add_patch(FancyBboxPatch((x - half, y - 52), 2 * half, 104, boxstyle="round,pad=12",
-                                    facecolor="#f2f2f0", edgecolor="#2b2b2b", linewidth=1.6))
-        ax.text(x, y - 30, level, ha="center", va="center", fontsize=13, style="italic",
-                color="#666")
-        ax.text(x, y - 2, name, ha="center", va="center", fontsize=24)
-        _draw_joint_key(ax, x, y + 30, key)
+        if keys:
+            ax.add_patch(FancyBboxPatch((x - half, y - 52), 2 * half, 104, boxstyle="round,pad=12",
+                                        facecolor="#f2f2f0", edgecolor="#2b2b2b", linewidth=1.6))
+            ax.text(x, y - 30, level, ha="center", va="center", fontsize=13, style="italic",
+                    color="#666")
+            ax.text(x, y - 2, name, ha="center", va="center", fontsize=24)
+            _draw_joint_key(ax, x, y + 30, key)
+        else:
+            # no key row: a shorter box, level tag and name centred in it
+            ax.add_patch(FancyBboxPatch((x - half, y - 33), 2 * half, 66, boxstyle="round,pad=12",
+                                        facecolor="#f2f2f0", edgecolor="#2b2b2b", linewidth=1.6))
+            ax.text(x, y - 16, level, ha="center", va="center", fontsize=13 * font_scale,
+                    style="italic", color="#666")
+            ax.text(x, y + 12, name, ha="center", va="center", fontsize=24 * font_scale)
 
     for i, (driver, target, _sentence) in enumerate(rows):
-        y = 140 + 156 * i
+        y = 140 + pitch * i
         box(xl, hl, y, *driver)
         box(xr, hr, y, *target)
         a0, a1 = xl + hl + 20, xr - hr - 20
@@ -986,7 +1008,7 @@ def joint_png(path, rows, *, frame="one run"):
         lines = sentences[i]
         for k, line in enumerate(lines):
             ax.text((a0 + a1) / 2, y - 20 - 21 * (len(lines) - 1 - k), line,
-                    ha="center", va="center", fontsize=15)
+                    ha="center", va="center", fontsize=sentence_size)
     fig.savefig(path)
     plt.close(fig)
     return path
