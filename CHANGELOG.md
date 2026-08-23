@@ -11,6 +11,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Changed
 
+- The module-drives-a-trait example is retold as motility: four families (`fliA`--`fliD`)
+  form a flagellum module, and keeping more than half of it turns a lineage motile, through
+  the same step mapping. The card's figure is redrawn as a radial tree with the module's
+  completion painted on the branches and the motility state as a ring at the tips, on 200
+  extant lineages; the connection catalog's anchors follow. The aerobic telling made way for
+  the paper's feedback example, which now owns that story.
+
 - The Pagel example's story is now aerobic respiration: the habitat's states are
   aerobic and anaerobic, and the driving family is `A`, standing for a gene required
   for aerobic respiration, so both connections of the feedback read naturally (losing

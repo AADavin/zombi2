@@ -400,7 +400,7 @@ def root_to_tip(seqs) -> dict:
 
 def composite_under_diagram(out: str, diagram_png: str, rows, *, width=12.0, diagram_frac=0.42,
                             pad=0.03, gap=0.30, label=0.12, key=0.40, dpi=182,
-                            label_at=96.0 / 1400.0) -> None:
+                            label_at=96.0 / 1400.0, left_align=False) -> None:
     """The driver·link·target diagram on top, then one labelled panel per row.
 
     ``rows`` is ``[(png, label), ...]``, or ``[(png, label, key), ...]`` to put a colour key under
@@ -428,8 +428,9 @@ def composite_under_diagram(out: str, diagram_png: str, rows, *, width=12.0, dia
         return [x / width, y / height, w / width, h / height]
 
     y = height - h_diagram
-    fig.add_axes(box(width * (1 - diagram_frac) / 2, y, diagram_frac * width,
-                     h_diagram)).imshow(diagram)
+    lx_in = (pad + (1 - 2 * pad) * label_at) * width      # the panels' time-axis origin, in inches
+    dx = lx_in if left_align else width * (1 - diagram_frac) / 2
+    fig.add_axes(box(dx, y, diagram_frac * width, h_diagram)).imshow(diagram)
     for im, h, top, k, row in zip(imgs, heights, tops, keys, rows):
         y -= top + h
         fig.add_axes(box(pad * width, y, body, h)).imshow(im)
@@ -440,7 +441,8 @@ def composite_under_diagram(out: str, diagram_png: str, rows, *, width=12.0, dia
         fig.text(lx, (y + h - 0.45) / height, row[1], fontsize=15, ha="left",
                  va="bottom")
         if k is not None:
-            _draw_key(fig.add_axes(box(pad * width, y + h, body, key)), k)
+            kx = lx_in if left_align else pad * width
+            _draw_key(fig.add_axes(box(kx, y + h, body - (kx - pad * width), key)), k)
         y -= gap
     for ax in fig.axes:
         ax.set_axis_off()
