@@ -37,6 +37,7 @@ _COMP = {"quiet": "#8f99a3", "competent": "#2E8B6F"}        # competent → take
 _TOX = {"absent": "#b9bec4", "present": "#2E8B6F"}          # a gene family, present or not
 _DISEASE = {"harmless": "#8f99a3", "pathogenic": "#C2453C"}
 _METAB = {"anaerobic": "#6b5b95", "aerobic": "#2E8B6F"}
+_MOTILITY = {"sessile": "#6b5b95", "motile": "#2E8B6F"}
 _KEY = {"absent": "#b9bec4", "present": "#2E8B6F"}          # the gene that drives the splitting
 _IS1J = {"absent": "#b9bec4", "present": "#C25A3C"}         # the element that drives its own genome
 _SIZE = {"small": "#b9bec4", "large": "#8C5E8B"}            # the other half of the trait loop
@@ -1345,57 +1346,66 @@ reach = max(abs(v) for v in driven.values())            # centre the diverging s
 # white = has not moved from where its ancestor left it; the cold half of the tree stays white'''
 
 
-def module_drives_metabolism(out):
-    """A MODULE drives a trait, through a **discontinuous** response. Four families make up aerobic
-    respiration; a lineage that keeps more than half of them turns aerobic, one that drops below
+def module_drives_motility(out):
+    """A MODULE drives a trait, through a **discontinuous** response. Four families make up a
+    flagellum; a lineage that keeps more than half of them turns motile, one that drops below
     turns back. The response is a step, not a slope — the Curve is
     ``lambda f: 20.0 if f > 0.5 else 1.0`` — which is how a threshold is written in ZOMBI2: in the
     mapping, where every other response shape lives, rather than as a separate kind of driver.
 
-    Both directions read the module, oppositely, so the trait tracks the gene content rather than
-    just accumulating: every tip that keeps more than half the module ends up aerobic, and every tip
-    that does not ends up anaerobic."""
-    ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
-    nuo = [f"nuo{c}" for c in "ABCD"]
-    # Loss matched to duplication: the module stays above half on 51% of the tree's branch length and
-    # decays below it on the rest, which is what puts branches on both sides of the threshold. At the
-    # old duplication=0.08 / loss=0.06 it survived nearly everywhere and the figure was one colour.
+    The radial tree carries the driver on its branches — the module's completion, decaying from a
+    full set at the root — and the response on its rim: the motility state of every tip. The ring
+    flips from motile to sessile where the branches darken past half the module. A partial
+    flagellum does not swim, which is what makes the threshold the honest response shape here.
+
+    Both directions read the module, with opposite mappings, so the trait follows the gene
+    content: brief visits to the state the module opposes are pushed back twenty times faster
+    than they entered."""
+    from PIL import Image, ImageChops
+
+    ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=200, seed=6).complete_tree
+    fli = [f"fli{c}" for c in "ABCD"]
     g = simulate_genomes_family(ct, initial_families=20, duplication=0.08, loss=0.08, seed=11,
-                                families=[family(n, module="aerobic") for n in nuo])
-    comp = g.completion("aerobic")
+                                families=[family(n, module="flagellum") for n in fli])
+    comp = g.completion("flagellum")
     step = (lambda f: 20.0 if f > 0.5 else 1.0)
     back = (lambda f: 1.0 if f > 0.5 else 20.0)
-    metabolism = simulate_discrete(
-        ct, states=["anaerobic", "aerobic"], start="anaerobic", seed=2,
-        switch={"anaerobic->aerobic": PerLineage(0.3).scaled_by(comp, Curve(step)),
-                "aerobic->anaerobic": PerLineage(0.3).scaled_by(comp, Curve(back))})
+    motility = simulate_discrete(
+        ct, states=["sessile", "motile"], start="sessile", seed=2,
+        switch={"sessile->motile": PerLineage(0.3).scaled_by(comp, Curve(step)),
+                "motile->sessile": PerLineage(0.3).scaled_by(comp, Curve(back))})
 
-    lab = ct.labels()
-    levels = sorted({f for segs in comp.history(ct).values() for f, _ in segs})
-    ramp = {f: colors.to_hex(cm.viridis(f)) for f in levels}
-    top = {lab[i]: segs for i, segs in comp.history(ct).items()}
-    bottom = _state_history(ct, metabolism)
-    style = _panel_style()
-    pngs = []
-    for k, (hist, palette) in enumerate(((top, ramp), (bottom, _METAB))):
-        png = out.replace(".png", f"_m{k}.png")
-        (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
-         + ph.trees.color_history(hist, palette=palette)
-         + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
-        pngs.append(png)
-    diag = h.conditioning_png(
-        out.replace(".png", "_diag.png"),
-        driver=("genomes", "aerobic module", "a fraction, 0–1"),
-        link=("scaled_by", "curve"),
-        target_level="traits",
-        targets=[("aerobic", "rate · per lineage", "")],
-        curve=(step, "fraction of the module present", (0.0, 1.0)),
-        target_chain=(("anaerobic", "aerobic"), [("driven", "0.3")],
-                      (_METAB["anaerobic"], _METAB["aerobic"])))
-    h.composite_under_diagram(out, diag,
-                              [(pngs[0], "the aerobic module",
-                                ("viridis", "none of it", "all of it")),
-                               (pngs[1], "metabolism", _METAB)])
+    lab, tips = ct.labels(), sorted(ct.extant_leaves())
+    kept = {lab[i]: segs for i, segs in comp.history(ct).items()}
+    state = {lab[i]: motility.values[lab[i]] for i in tips}
+    tree_png = out.replace(".png", "_tree.png")
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), layout="radial", skeleton=False,
+                   style=ph.Style(width=1250, height=1250, margin=88, branch_width=4.8))
+     + ph.trees.ring(state, palette=_MOTILITY, gap=16, width=18)
+     + ph.trees.color_history(kept, cmap="viridis", limits=(0.0, 1.0))
+     + ph.trees.colorbar("fraction of the flagellum module", loc="top-left", width=210,
+                         height=14, size=20, inset=24, labels=("none", "all"))
+     + ph.trees.legend(entries={"motile": _MOTILITY["motile"],
+                                "sessile": _MOTILITY["sessile"]},
+                       size=20, dy=92, inset=24)).save(tree_png)
+    diag_png = out.replace(".png", "_diag.png")
+    h.joint_png(diag_png, [
+        (("genomes", "flagellum module", []), ("traits", "switch rate", []),
+         "keeping over half the module turns a lineage motile"),
+    ], frame=None, keys=False, sentence_size=15.5, wrap_width=260, font_scale=1.18)
+
+    def trim(im, bg=(255, 255, 255)):
+        diff = ImageChops.difference(im.convert("RGB"), Image.new("RGB", im.size, bg))
+        return im.crop(diff.getbbox())
+
+    tree, diag = trim(Image.open(tree_png)), trim(Image.open(diag_png))
+    W = 2000
+    dw = int(W * 0.66); diag = diag.resize((dw, int(diag.height * dw / diag.width)))
+    tw = W - 160; tree = tree.resize((tw, int(tree.height * tw / tree.width)))
+    canvas = Image.new("RGB", (W, diag.height + 50 + tree.height + 40), "white")
+    canvas.paste(diag, ((W - dw) // 2, 12))
+    canvas.paste(tree, (80, diag.height + 50))
+    canvas.save(out)
 
 
 _C_GENE_TRAIT = '''\
@@ -1446,39 +1456,35 @@ from zombi2.genomes import family, simulate_genomes_family
 from zombi2.traits import simulate_discrete
 from zombi2.params import Curve, PerLineage
 
-ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
-nuo = [f"nuo{c}" for c in "ABCD"]
+ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=200, seed=6).complete_tree
+fli = [f"fli{c}" for c in "ABCD"]
 
 # 1. the driver: four families grouped into one module. Loss matched to duplication, so the
 #    module survives in about half the tree and decays in the rest.
 g = simulate_genomes_family(ct, initial_families=20, duplication=0.08, loss=0.08, seed=11,
-                            families=[family(n, module="aerobic") for n in nuo])
+                            families=[family(n, module="flagellum") for n in fli])
 
 # 2. the target: a DISCONTINUOUS response. `completion` is a number in [0, 1] and the Curve is a
-#    step — more than half the module and the lineage turns aerobic, below and it turns back.
+#    step — more than half the module and the lineage turns motile, below and it turns back.
 #    A threshold is written here, in the mapping, not as a separate kind of driver.
-comp = g.completion("aerobic")
-metabolism = simulate_discrete(
-    ct, states=["anaerobic", "aerobic"], start="anaerobic", seed=2,
-    switch={"anaerobic->aerobic": PerLineage(0.3).scaled_by(comp, Curve(lambda f: 20.0 if f > 0.5 else 1.0)),
-            "aerobic->anaerobic": PerLineage(0.3).scaled_by(comp, Curve(lambda f: 1.0 if f > 0.5 else 20.0))})
+comp = g.completion("flagellum")
+motility = simulate_discrete(
+    ct, states=["sessile", "motile"], start="sessile", seed=2,
+    switch={"sessile->motile": PerLineage(0.3).scaled_by(comp, Curve(lambda f: 20.0 if f > 0.5 else 1.0)),
+            "motile->sessile": PerLineage(0.3).scaled_by(comp, Curve(lambda f: 1.0 if f > 0.5 else 20.0))})
 
-### plot  —  the tree by module completion, then by the metabolism it decides
+### plot  —  the driver on the branches, the response on the rim
 import phylustrator as ph
-from matplotlib import cm, colors
 
 lab = ct.labels()
-tree = ph.trees.loads(ct.to_newick())
 kept = {lab[i]: segs for i, segs in comp.history(ct).items()}
-ramp = {f: colors.to_hex(cm.viridis(f)) for f in {f for s in kept.values() for f, _ in s}}
-(ph.trees.plot(tree, skeleton=False)
- + ph.trees.color_history(kept, palette=ramp)
- + ph.trees.time_axis("time", bold=False)).save("module.png")
-(ph.trees.plot(tree, skeleton=False)
- + ph.trees.color_history({lab[i]: s for i, s in metabolism.history.items()},
-                          palette={"anaerobic": "#6b5b95", "aerobic": "#2E8B6F"})
- + ph.trees.time_axis("time", bold=False)).save("metabolism.png")
-# every tip above half the module ends aerobic, every tip below it anaerobic'''
+state = {lab[i]: motility.values[lab[i]] for i in sorted(ct.extant_leaves())}
+(ph.trees.plot(ph.trees.loads(ct.to_newick()), layout="radial", skeleton=False)
+ + ph.trees.ring(state, palette={"sessile": "#6b5b95", "motile": "#2E8B6F"})
+ + ph.trees.color_history(kept, cmap="viridis", limits=(0.0, 1.0))
+ + ph.trees.colorbar("fraction of the flagellum module", labels=("none", "all"))
+ + ph.trees.legend(entries={"motile": "#2E8B6F", "sessile": "#6b5b95"}, dy=60)).save("module.png")
+# the ring flips from motile to sessile where the branches darken past half the module'''
 
 
 _C_CLASSE = '''\
@@ -1569,10 +1575,11 @@ CONDITIONING = [
             "Carrying a toxin family makes a lineage <i>become</i> pathogenic forty times faster. 74% of "
             "the tips with the gene end up pathogenic, against none of those without.",
             "gene → trait", gene_drives_trait, code=_C_GENE_TRAIT),
-    Example("module_drives_metabolism", "A module, through a step",
-            "How much of a four-gene module a lineage keeps decides its metabolism, through a step: "
-            "<code>lambda f: 20.0 if f > 0.5 else 1.0</code>.",
-            "module → trait", module_drives_metabolism, code=_C_MODULE),
+    Example("module_drives_motility", "A module, through a step",
+            "How much of a four-gene flagellum module a lineage keeps decides whether it swims, "
+            "through a step: <code>lambda f: 20.0 if f > 0.5 else 1.0</code>. A partial flagellum "
+            "does not swim.",
+            "module → trait", module_drives_motility, code=_C_MODULE),
 ]
 
 _C_KEY = """### gene content drives speciation — the tree is an OUTPUT
