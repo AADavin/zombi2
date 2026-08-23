@@ -1,4 +1,4 @@
-# Pagel's correlated-evolution test on every replicate: habitat against the cox family,
+# Pagel's correlated-evolution test on every replicate: habitat against family A,
 # and habitat against the independent control, with phytools::fitPagel.
 #
 #   Rscript fit_pagel.R          # writes fits.tsv
@@ -15,7 +15,7 @@ one <- function(i) {
   rownames(tips) <- tips$tip
   tips <- tips[tree$tip.label, ]
   out <- list()
-  for (pair in c("cox", "ctrl")) {
+  for (pair in c("A", "ctrl")) {
     x <- setNames(tips$habitat, tips$tip)
     y <- setNames(tips[[pair]], tips$tip)
     if (length(unique(x)) < 2 || length(unique(y)) < 2) {
