@@ -29,7 +29,7 @@ def main() -> int:
     out = {}
     for arm in ("feedback", "trait2gen", "gen2trait", "null"):
         out[arm] = {}
-        for pair in ("eye", "ctrl"):
+        for pair in ("cox", "ctrl"):
             sub = [r for r in rows if r["arm"] == arm and r["pair"] == pair]
             fitted = [r for r in sub if r["note"] == ""]
             k = sum(1 for r in fitted if float(r["P"]) < ALPHA)

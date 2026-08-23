@@ -1,1201 +1,1201 @@
 arm	rep	pair	P	note
-feedback	1	eye	1.93570190551868e-06	
+feedback	1	cox	1.93570190551868e-06	
 feedback	1	ctrl	0.218868355891303	
-trait2gen	1	eye	0.0896702851908896	
+trait2gen	1	cox	0.0896702851908896	
 trait2gen	1	ctrl	0.957312344923692	
-gen2trait	1	eye	0.000631886067235889	
+gen2trait	1	cox	0.000631886067235889	
 gen2trait	1	ctrl	0.114299073244532	
-null	1	eye	0.711754896107031	
+null	1	cox	0.711754896107031	
 null	1	ctrl	0.583582877593709	
-feedback	2	eye	6.1361155190097e-09	
+feedback	2	cox	6.1361155190097e-09	
 feedback	2	ctrl	NA	invariant
-trait2gen	2	eye	0.039634122622211	
+trait2gen	2	cox	0.039634122622211	
 trait2gen	2	ctrl	NA	invariant
-gen2trait	2	eye	8.38120589475206e-06	
+gen2trait	2	cox	8.38120589475206e-06	
 gen2trait	2	ctrl	NA	invariant
-null	2	eye	0.471276352099877	
+null	2	cox	0.471276352099877	
 null	2	ctrl	NA	invariant
-feedback	3	eye	0.000350532865385918	
+feedback	3	cox	0.000350532865385918	
 feedback	3	ctrl	0.337360122835413	
-trait2gen	3	eye	0.349540415246199	
+trait2gen	3	cox	0.349540415246199	
 trait2gen	3	ctrl	0.742913201375124	
-gen2trait	3	eye	0.000318310599041794	
+gen2trait	3	cox	0.000318310599041794	
 gen2trait	3	ctrl	0.291977236249782	
-null	3	eye	0.615212442333223	
+null	3	cox	0.615212442333223	
 null	3	ctrl	0.0570270862578394	
-feedback	4	eye	2.10315795567247e-07	
+feedback	4	cox	2.10315795567247e-07	
 feedback	4	ctrl	NA	invariant
-trait2gen	4	eye	0.176339736060242	
+trait2gen	4	cox	0.176339736060242	
 trait2gen	4	ctrl	NA	invariant
-gen2trait	4	eye	NA	invariant
+gen2trait	4	cox	NA	invariant
 gen2trait	4	ctrl	NA	invariant
-null	4	eye	NA	invariant
+null	4	cox	NA	invariant
 null	4	ctrl	NA	invariant
-feedback	5	eye	NA	invariant
+feedback	5	cox	NA	invariant
 feedback	5	ctrl	0.351101136535068	
-trait2gen	5	eye	NA	invariant
+trait2gen	5	cox	NA	invariant
 trait2gen	5	ctrl	0.688824722706685	
-gen2trait	5	eye	NA	invariant
+gen2trait	5	cox	NA	invariant
 gen2trait	5	ctrl	0.529226320106995	
-null	5	eye	NA	invariant
+null	5	cox	NA	invariant
 null	5	ctrl	0.112547255549138	
-feedback	6	eye	1.90119358980835e-06	
+feedback	6	cox	1.90119358980835e-06	
 feedback	6	ctrl	0.638315811104805	
-trait2gen	6	eye	0.000120035638847642	
+trait2gen	6	cox	0.000120035638847642	
 trait2gen	6	ctrl	0.152896350636872	
-gen2trait	6	eye	0.000431648354030393	
+gen2trait	6	cox	0.000431648354030393	
 gen2trait	6	ctrl	0.5480336598236	
-null	6	eye	0.596730810240028	
+null	6	cox	0.596730810240028	
 null	6	ctrl	0.334736988921311	
-feedback	7	eye	4.65751773636026e-05	
+feedback	7	cox	4.65751773636026e-05	
 feedback	7	ctrl	NA	invariant
-trait2gen	7	eye	NA	invariant
+trait2gen	7	cox	NA	invariant
 trait2gen	7	ctrl	NA	invariant
-gen2trait	7	eye	0.172541923991935	
+gen2trait	7	cox	0.172541923991935	
 gen2trait	7	ctrl	NA	invariant
-null	7	eye	0.143630773667144	
+null	7	cox	0.143630773667144	
 null	7	ctrl	NA	invariant
-feedback	8	eye	5.1188607544927e-05	
+feedback	8	cox	5.1188607544927e-05	
 feedback	8	ctrl	0.223522230534374	
-trait2gen	8	eye	0.219658645898045	
+trait2gen	8	cox	0.219658645898045	
 trait2gen	8	ctrl	0.660305092441364	
-gen2trait	8	eye	9.65381182789029e-07	
+gen2trait	8	cox	9.65381182789029e-07	
 gen2trait	8	ctrl	0.0216777799985906	
-null	8	eye	0.51012932805524	
+null	8	cox	0.51012932805524	
 null	8	ctrl	0.441815866847223	
-feedback	9	eye	NA	invariant
+feedback	9	cox	NA	invariant
 feedback	9	ctrl	0.674451348392643	
-trait2gen	9	eye	NA	invariant
+trait2gen	9	cox	NA	invariant
 trait2gen	9	ctrl	0.476354027586679	
-gen2trait	9	eye	NA	invariant
+gen2trait	9	cox	NA	invariant
 gen2trait	9	ctrl	0.406551153567056	
-null	9	eye	NA	invariant
+null	9	cox	NA	invariant
 null	9	ctrl	0.289043402188971	
-feedback	10	eye	0.000472140470684643	
+feedback	10	cox	0.000472140470684643	
 feedback	10	ctrl	NA	invariant
-trait2gen	10	eye	0.68503712114586	
+trait2gen	10	cox	0.68503712114586	
 trait2gen	10	ctrl	NA	invariant
-gen2trait	10	eye	0.00273270903042359	
+gen2trait	10	cox	0.00273270903042359	
 gen2trait	10	ctrl	NA	invariant
-null	10	eye	0.314935033390795	
+null	10	cox	0.314935033390795	
 null	10	ctrl	NA	invariant
-feedback	11	eye	NA	invariant
+feedback	11	cox	NA	invariant
 feedback	11	ctrl	0.615194773076609	
-trait2gen	11	eye	NA	invariant
+trait2gen	11	cox	NA	invariant
 trait2gen	11	ctrl	0.470065807413471	
-gen2trait	11	eye	NA	invariant
+gen2trait	11	cox	NA	invariant
 gen2trait	11	ctrl	0.869135089453585	
-null	11	eye	NA	invariant
+null	11	cox	NA	invariant
 null	11	ctrl	0.195223393172175	
-feedback	12	eye	0.0139346057717099	
+feedback	12	cox	0.0139346057717099	
 feedback	12	ctrl	0.861227276244365	
-trait2gen	12	eye	0.891402784463333	
+trait2gen	12	cox	0.891402784463333	
 trait2gen	12	ctrl	0.573159052890607	
-gen2trait	12	eye	0.000298809988347769	
+gen2trait	12	cox	0.000298809988347769	
 gen2trait	12	ctrl	0.542966275421554	
-null	12	eye	0.743129630025758	
+null	12	cox	0.743129630025758	
 null	12	ctrl	0.107877315756019	
-feedback	13	eye	NA	invariant
+feedback	13	cox	NA	invariant
 feedback	13	ctrl	0.871582592161092	
-trait2gen	13	eye	NA	invariant
+trait2gen	13	cox	NA	invariant
 trait2gen	13	ctrl	0.997044592936838	
-gen2trait	13	eye	0.0010056543842994	
+gen2trait	13	cox	0.0010056543842994	
 gen2trait	13	ctrl	0.176549632035178	
-null	13	eye	0.148772032127731	
+null	13	cox	0.148772032127731	
 null	13	ctrl	0.297908930409863	
-feedback	14	eye	NA	invariant
+feedback	14	cox	NA	invariant
 feedback	14	ctrl	0.663578542832755	
-trait2gen	14	eye	NA	invariant
+trait2gen	14	cox	NA	invariant
 trait2gen	14	ctrl	0.315369135781749	
-gen2trait	14	eye	NA	invariant
+gen2trait	14	cox	NA	invariant
 gen2trait	14	ctrl	0.657759790082788	
-null	14	eye	NA	invariant
+null	14	cox	NA	invariant
 null	14	ctrl	0.857931925034919	
-feedback	15	eye	NA	invariant
+feedback	15	cox	NA	invariant
 feedback	15	ctrl	0.5821976695553	
-trait2gen	15	eye	NA	invariant
+trait2gen	15	cox	NA	invariant
 trait2gen	15	ctrl	0.980819428172258	
-gen2trait	15	eye	NA	invariant
+gen2trait	15	cox	NA	invariant
 gen2trait	15	ctrl	0.493105796741338	
-null	15	eye	NA	invariant
+null	15	cox	NA	invariant
 null	15	ctrl	0.114878436541483	
-feedback	16	eye	9.06294933097966e-06	
+feedback	16	cox	9.06294933097966e-06	
 feedback	16	ctrl	0.141857428842021	
-trait2gen	16	eye	0.00407645014135283	
+trait2gen	16	cox	0.00407645014135283	
 trait2gen	16	ctrl	0.231257093680263	
-gen2trait	16	eye	0.0205766742428051	
+gen2trait	16	cox	0.0205766742428051	
 gen2trait	16	ctrl	0.587720444542968	
-null	16	eye	0.225235983488513	
+null	16	cox	0.225235983488513	
 null	16	ctrl	0.407423903751016	
-feedback	17	eye	NA	invariant
+feedback	17	cox	NA	invariant
 feedback	17	ctrl	NA	invariant
-trait2gen	17	eye	NA	invariant
+trait2gen	17	cox	NA	invariant
 trait2gen	17	ctrl	NA	invariant
-gen2trait	17	eye	NA	invariant
+gen2trait	17	cox	NA	invariant
 gen2trait	17	ctrl	NA	invariant
-null	17	eye	NA	invariant
+null	17	cox	NA	invariant
 null	17	ctrl	NA	invariant
-feedback	18	eye	NA	invariant
+feedback	18	cox	NA	invariant
 feedback	18	ctrl	0.847469132031047	
-trait2gen	18	eye	NA	invariant
+trait2gen	18	cox	NA	invariant
 trait2gen	18	ctrl	0.0811186192611142	
-gen2trait	18	eye	NA	invariant
+gen2trait	18	cox	NA	invariant
 gen2trait	18	ctrl	0.539926674238583	
-null	18	eye	NA	invariant
+null	18	cox	NA	invariant
 null	18	ctrl	0.257187003424848	
-feedback	19	eye	NA	invariant
+feedback	19	cox	NA	invariant
 feedback	19	ctrl	0.659650231831064	
-trait2gen	19	eye	NA	invariant
+trait2gen	19	cox	NA	invariant
 trait2gen	19	ctrl	0.675260272273818	
-gen2trait	19	eye	NA	invariant
+gen2trait	19	cox	NA	invariant
 gen2trait	19	ctrl	0.228752870634587	
-null	19	eye	NA	invariant
+null	19	cox	NA	invariant
 null	19	ctrl	0.657169040564888	
-feedback	20	eye	1.23722065587678e-05	
+feedback	20	cox	1.23722065587678e-05	
 feedback	20	ctrl	0.261624860533908	
-trait2gen	20	eye	0.113618028489982	
+trait2gen	20	cox	0.113618028489982	
 trait2gen	20	ctrl	0.57436648523827	
-gen2trait	20	eye	2.66455070633145e-05	
+gen2trait	20	cox	2.66455070633145e-05	
 gen2trait	20	ctrl	0.523579934520562	
-null	20	eye	0.259302573818715	
+null	20	cox	0.259302573818715	
 null	20	ctrl	0.662196465683334	
-feedback	21	eye	NA	invariant
+feedback	21	cox	NA	invariant
 feedback	21	ctrl	0.543218809051155	
-trait2gen	21	eye	NA	invariant
+trait2gen	21	cox	NA	invariant
 trait2gen	21	ctrl	0.901007092253706	
-gen2trait	21	eye	NA	invariant
+gen2trait	21	cox	NA	invariant
 gen2trait	21	ctrl	0.949820749598437	
-null	21	eye	NA	invariant
+null	21	cox	NA	invariant
 null	21	ctrl	0.806530075675184	
-feedback	22	eye	5.50843855810048e-07	
+feedback	22	cox	5.50843855810048e-07	
 feedback	22	ctrl	0.285871209211509	
-trait2gen	22	eye	0.0582643458204465	
+trait2gen	22	cox	0.0582643458204465	
 trait2gen	22	ctrl	0.00341259620034379	
-gen2trait	22	eye	3.03213933578185e-07	
+gen2trait	22	cox	3.03213933578185e-07	
 gen2trait	22	ctrl	0.0711213537504733	
-null	22	eye	0.67244192877272	
+null	22	cox	0.67244192877272	
 null	22	ctrl	0.472780406485016	
-feedback	23	eye	NA	invariant
+feedback	23	cox	NA	invariant
 feedback	23	ctrl	0.757259855263126	
-trait2gen	23	eye	NA	invariant
+trait2gen	23	cox	NA	invariant
 trait2gen	23	ctrl	0.936256442172348	
-gen2trait	23	eye	NA	invariant
+gen2trait	23	cox	NA	invariant
 gen2trait	23	ctrl	0.38191691324255	
-null	23	eye	NA	invariant
+null	23	cox	NA	invariant
 null	23	ctrl	0.802396038520503	
-feedback	24	eye	1.45222339571495e-10	
+feedback	24	cox	1.45222339571495e-10	
 feedback	24	ctrl	0.348024927274813	
-trait2gen	24	eye	0.0516982288205263	
+trait2gen	24	cox	0.0516982288205263	
 trait2gen	24	ctrl	0.274606668183736	
-gen2trait	24	eye	0.00295322385738893	
+gen2trait	24	cox	0.00295322385738893	
 gen2trait	24	ctrl	0.504378576236961	
-null	24	eye	0.798950979043478	
+null	24	cox	0.798950979043478	
 null	24	ctrl	0.845066950055893	
-feedback	25	eye	1.49481003491713e-09	
+feedback	25	cox	1.49481003491713e-09	
 feedback	25	ctrl	0.484696230119661	
-trait2gen	25	eye	0.235685032413734	
+trait2gen	25	cox	0.235685032413734	
 trait2gen	25	ctrl	0.200855274327601	
-gen2trait	25	eye	0.00239791512852768	
+gen2trait	25	cox	0.00239791512852768	
 gen2trait	25	ctrl	0.981803669991137	
-null	25	eye	0.164750440975784	
+null	25	cox	0.164750440975784	
 null	25	ctrl	0.454388919378159	
-feedback	26	eye	1.28196802113815e-09	
+feedback	26	cox	1.28196802113815e-09	
 feedback	26	ctrl	0.0234166689853988	
-trait2gen	26	eye	0.137737587731552	
+trait2gen	26	cox	0.137737587731552	
 trait2gen	26	ctrl	0.718574232761268	
-gen2trait	26	eye	8.87127466007612e-05	
+gen2trait	26	cox	8.87127466007612e-05	
 gen2trait	26	ctrl	0.0923392714783888	
-null	26	eye	0.885316850746526	
+null	26	cox	0.885316850746526	
 null	26	ctrl	0.491467088270868	
-feedback	27	eye	7.79276473878328e-12	
+feedback	27	cox	7.79276473878328e-12	
 feedback	27	ctrl	NA	invariant
-trait2gen	27	eye	0.109239397884062	
+trait2gen	27	cox	0.109239397884062	
 trait2gen	27	ctrl	NA	invariant
-gen2trait	27	eye	1.63406421736002e-06	
+gen2trait	27	cox	1.63406421736002e-06	
 gen2trait	27	ctrl	NA	invariant
-null	27	eye	0.403686317928388	
+null	27	cox	0.403686317928388	
 null	27	ctrl	NA	invariant
-feedback	28	eye	0.000544099562108122	
+feedback	28	cox	0.000544099562108122	
 feedback	28	ctrl	NA	invariant
-trait2gen	28	eye	0.61297653654487	
+trait2gen	28	cox	0.61297653654487	
 trait2gen	28	ctrl	NA	invariant
-gen2trait	28	eye	0.0027563086035267	
+gen2trait	28	cox	0.0027563086035267	
 gen2trait	28	ctrl	NA	invariant
-null	28	eye	0.769363163147669	
+null	28	cox	0.769363163147669	
 null	28	ctrl	NA	invariant
-feedback	29	eye	1.90704897585741e-05	
+feedback	29	cox	1.90704897585741e-05	
 feedback	29	ctrl	0.804876139570303	
-trait2gen	29	eye	0.216551304489213	
+trait2gen	29	cox	0.216551304489213	
 trait2gen	29	ctrl	0.455485632175065	
-gen2trait	29	eye	1.06677002084243e-07	
+gen2trait	29	cox	1.06677002084243e-07	
 gen2trait	29	ctrl	0.14390803255152	
-null	29	eye	0.00574666556249029	
+null	29	cox	0.00574666556249029	
 null	29	ctrl	0.269688311462156	
-feedback	30	eye	4.90644430694288e-07	
+feedback	30	cox	4.90644430694288e-07	
 feedback	30	ctrl	0.917624384419704	
-trait2gen	30	eye	0.00013584683483858	
+trait2gen	30	cox	0.00013584683483858	
 trait2gen	30	ctrl	0.218544330065851	
-gen2trait	30	eye	1.83077237751595e-07	
+gen2trait	30	cox	1.83077237751595e-07	
 gen2trait	30	ctrl	0.743651207466981	
-null	30	eye	0.282268264576949	
+null	30	cox	0.282268264576949	
 null	30	ctrl	0.841284409816518	
-feedback	31	eye	NA	invariant
+feedback	31	cox	NA	invariant
 feedback	31	ctrl	NA	invariant
-trait2gen	31	eye	NA	invariant
+trait2gen	31	cox	NA	invariant
 trait2gen	31	ctrl	NA	invariant
-gen2trait	31	eye	NA	invariant
+gen2trait	31	cox	NA	invariant
 gen2trait	31	ctrl	NA	invariant
-null	31	eye	NA	invariant
+null	31	cox	NA	invariant
 null	31	ctrl	NA	invariant
-feedback	32	eye	7.99790802793677e-05	
+feedback	32	cox	7.99790802793677e-05	
 feedback	32	ctrl	0.275403415915773	
-trait2gen	32	eye	0.44121348536112	
+trait2gen	32	cox	0.44121348536112	
 trait2gen	32	ctrl	0.680297095182607	
-gen2trait	32	eye	0.00601017957968297	
+gen2trait	32	cox	0.00601017957968297	
 gen2trait	32	ctrl	0.149840358332973	
-null	32	eye	0.496667733941749	
+null	32	cox	0.496667733941749	
 null	32	ctrl	0.778352556173672	
-feedback	33	eye	0.0155175076789514	
+feedback	33	cox	0.0155175076789514	
 feedback	33	ctrl	1	
-trait2gen	33	eye	NA	invariant
+trait2gen	33	cox	NA	invariant
 trait2gen	33	ctrl	0.637122179223402	
-gen2trait	33	eye	0.00754900532052967	
+gen2trait	33	cox	0.00754900532052967	
 gen2trait	33	ctrl	0.241774374443506	
-null	33	eye	NA	invariant
+null	33	cox	NA	invariant
 null	33	ctrl	0.6787489848087	
-feedback	34	eye	1.0868595690966e-07	
+feedback	34	cox	1.0868595690966e-07	
 feedback	34	ctrl	0.341258694319642	
-trait2gen	34	eye	0.0750136664758498	
+trait2gen	34	cox	0.0750136664758498	
 trait2gen	34	ctrl	0.868030739374412	
-gen2trait	34	eye	0.00271856130150559	
+gen2trait	34	cox	0.00271856130150559	
 gen2trait	34	ctrl	0.242386516324978	
-null	34	eye	0.924006389529205	
+null	34	cox	0.924006389529205	
 null	34	ctrl	0.286600486626299	
-feedback	35	eye	2.74640837621472e-05	
+feedback	35	cox	2.74640837621472e-05	
 feedback	35	ctrl	0.461447713307268	
-trait2gen	35	eye	0.0455165829157636	
+trait2gen	35	cox	0.0455165829157636	
 trait2gen	35	ctrl	0.939220289926493	
-gen2trait	35	eye	2.836361552954e-06	
+gen2trait	35	cox	2.836361552954e-06	
 gen2trait	35	ctrl	0.50601779857477	
-null	35	eye	0.918429452284247	
+null	35	cox	0.918429452284247	
 null	35	ctrl	0.483378881399222	
-feedback	36	eye	NA	invariant
+feedback	36	cox	NA	invariant
 feedback	36	ctrl	1	
-trait2gen	36	eye	NA	invariant
+trait2gen	36	cox	NA	invariant
 trait2gen	36	ctrl	1	
-gen2trait	36	eye	NA	invariant
+gen2trait	36	cox	NA	invariant
 gen2trait	36	ctrl	1	
-null	36	eye	NA	invariant
+null	36	cox	NA	invariant
 null	36	ctrl	0.397267854959028	
-feedback	37	eye	NA	invariant
+feedback	37	cox	NA	invariant
 feedback	37	ctrl	0.0479561366921109	
-trait2gen	37	eye	NA	invariant
+trait2gen	37	cox	NA	invariant
 trait2gen	37	ctrl	0.501953069127991	
-gen2trait	37	eye	NA	invariant
+gen2trait	37	cox	NA	invariant
 gen2trait	37	ctrl	0.428224304329932	
-null	37	eye	NA	invariant
+null	37	cox	NA	invariant
 null	37	ctrl	0.267934876943338	
-feedback	38	eye	0.000302856621132809	
+feedback	38	cox	0.000302856621132809	
 feedback	38	ctrl	0.229911793195418	
-trait2gen	38	eye	0.0017437417541155	
+trait2gen	38	cox	0.0017437417541155	
 trait2gen	38	ctrl	0.437655027556766	
-gen2trait	38	eye	0.000159981745490354	
+gen2trait	38	cox	0.000159981745490354	
 gen2trait	38	ctrl	0.370575448573212	
-null	38	eye	0.101155887080981	
+null	38	cox	0.101155887080981	
 null	38	ctrl	0.862494411431125	
-feedback	39	eye	0.0184781686155499	
+feedback	39	cox	0.0184781686155499	
 feedback	39	ctrl	0.00386574087182725	
-trait2gen	39	eye	0.759174232422823	
+trait2gen	39	cox	0.759174232422823	
 trait2gen	39	ctrl	0.927235975324239	
-gen2trait	39	eye	0.0313160011969714	
+gen2trait	39	cox	0.0313160011969714	
 gen2trait	39	ctrl	0.358540060236942	
-null	39	eye	0.267281797544657	
+null	39	cox	0.267281797544657	
 null	39	ctrl	0.990425065306086	
-feedback	40	eye	NA	invariant
+feedback	40	cox	NA	invariant
 feedback	40	ctrl	0.155323200815125	
-trait2gen	40	eye	NA	invariant
+trait2gen	40	cox	NA	invariant
 trait2gen	40	ctrl	0.381553994972866	
-gen2trait	40	eye	NA	invariant
+gen2trait	40	cox	NA	invariant
 gen2trait	40	ctrl	0.644664931515082	
-null	40	eye	NA	invariant
+null	40	cox	NA	invariant
 null	40	ctrl	0.472254135954172	
-feedback	41	eye	NA	invariant
+feedback	41	cox	NA	invariant
 feedback	41	ctrl	0.863310507453066	
-trait2gen	41	eye	NA	invariant
+trait2gen	41	cox	NA	invariant
 trait2gen	41	ctrl	0.918865951085254	
-gen2trait	41	eye	NA	invariant
+gen2trait	41	cox	NA	invariant
 gen2trait	41	ctrl	0.928264938512017	
-null	41	eye	NA	invariant
+null	41	cox	NA	invariant
 null	41	ctrl	0.0526124425148282	
-feedback	42	eye	NA	invariant
+feedback	42	cox	NA	invariant
 feedback	42	ctrl	NA	invariant
-trait2gen	42	eye	NA	invariant
+trait2gen	42	cox	NA	invariant
 trait2gen	42	ctrl	NA	invariant
-gen2trait	42	eye	0.0862226545729165	
+gen2trait	42	cox	0.0862226545729165	
 gen2trait	42	ctrl	NA	invariant
-null	42	eye	0.0862226545729165	
+null	42	cox	0.0862226545729165	
 null	42	ctrl	NA	invariant
-feedback	43	eye	0.000303739397616203	
+feedback	43	cox	0.000303739397616203	
 feedback	43	ctrl	0.896639387170184	
-trait2gen	43	eye	0.21639624623177	
+trait2gen	43	cox	0.21639624623177	
 trait2gen	43	ctrl	0.363673739427107	
-gen2trait	43	eye	0.000506246637041213	
+gen2trait	43	cox	0.000506246637041213	
 gen2trait	43	ctrl	0.992451740655438	
-null	43	eye	0.13405516122739	
+null	43	cox	0.13405516122739	
 null	43	ctrl	0.213948666892471	
-feedback	44	eye	1.0154292713376e-07	
+feedback	44	cox	1.0154292713376e-07	
 feedback	44	ctrl	0.816710625391998	
-trait2gen	44	eye	0.135043792393091	
+trait2gen	44	cox	0.135043792393091	
 trait2gen	44	ctrl	0.0195483556468667	
-gen2trait	44	eye	0.000785342716481391	
+gen2trait	44	cox	0.000785342716481391	
 gen2trait	44	ctrl	0.980013538970673	
-null	44	eye	0.0502485445151006	
+null	44	cox	0.0502485445151006	
 null	44	ctrl	0.638588642803472	
-feedback	45	eye	5.90523665481638e-05	
+feedback	45	cox	5.90523665481638e-05	
 feedback	45	ctrl	0.674239001559465	
-trait2gen	45	eye	0.00323677559715191	
+trait2gen	45	cox	0.00323677559715191	
 trait2gen	45	ctrl	0.878846283146863	
-gen2trait	45	eye	0.00169732553548195	
+gen2trait	45	cox	0.00169732553548195	
 gen2trait	45	ctrl	0.409449870376258	
-null	45	eye	0.712350555046889	
+null	45	cox	0.712350555046889	
 null	45	ctrl	0.318487248093119	
-feedback	46	eye	NA	invariant
+feedback	46	cox	NA	invariant
 feedback	46	ctrl	0.0172475257586557	
-trait2gen	46	eye	NA	invariant
+trait2gen	46	cox	NA	invariant
 trait2gen	46	ctrl	0.540714274686316	
-gen2trait	46	eye	NA	invariant
+gen2trait	46	cox	NA	invariant
 gen2trait	46	ctrl	0.120050589930025	
-null	46	eye	NA	invariant
+null	46	cox	NA	invariant
 null	46	ctrl	0.486890774649401	
-feedback	47	eye	9.26161075503329e-06	
+feedback	47	cox	9.26161075503329e-06	
 feedback	47	ctrl	NA	invariant
-trait2gen	47	eye	0.95598574491947	
+trait2gen	47	cox	0.95598574491947	
 trait2gen	47	ctrl	NA	invariant
-gen2trait	47	eye	1.11226938589957e-07	
+gen2trait	47	cox	1.11226938589957e-07	
 gen2trait	47	ctrl	NA	invariant
-null	47	eye	0.543853831259806	
+null	47	cox	0.543853831259806	
 null	47	ctrl	NA	invariant
-feedback	48	eye	1.04342301285215e-08	
+feedback	48	cox	1.04342301285215e-08	
 feedback	48	ctrl	0.595568110750854	
-trait2gen	48	eye	0.44021282096709	
+trait2gen	48	cox	0.44021282096709	
 trait2gen	48	ctrl	0.223729502169975	
-gen2trait	48	eye	0.0162949282981863	
+gen2trait	48	cox	0.0162949282981863	
 gen2trait	48	ctrl	0.920828618574688	
-null	48	eye	0.874273962726143	
+null	48	cox	0.874273962726143	
 null	48	ctrl	0.0408416294138756	
-feedback	49	eye	0.0864099427541474	
+feedback	49	cox	0.0864099427541474	
 feedback	49	ctrl	0.812332708676496	
-trait2gen	49	eye	0.489911334844393	
+trait2gen	49	cox	0.489911334844393	
 trait2gen	49	ctrl	0.438504897830844	
-gen2trait	49	eye	0.00752963490947886	
+gen2trait	49	cox	0.00752963490947886	
 gen2trait	49	ctrl	0.474191922444493	
-null	49	eye	0.509817526046219	
+null	49	cox	0.509817526046219	
 null	49	ctrl	0.214138627663952	
-feedback	50	eye	5.70716752619256e-07	
+feedback	50	cox	5.70716752619256e-07	
 feedback	50	ctrl	NA	invariant
-trait2gen	50	eye	0.460095176137196	
+trait2gen	50	cox	0.460095176137196	
 trait2gen	50	ctrl	NA	invariant
-gen2trait	50	eye	0.000251043384605898	
+gen2trait	50	cox	0.000251043384605898	
 gen2trait	50	ctrl	NA	invariant
-null	50	eye	0.685844733559616	
+null	50	cox	0.685844733559616	
 null	50	ctrl	NA	invariant
-feedback	51	eye	1.13428246544152e-05	
+feedback	51	cox	1.13428246544152e-05	
 feedback	51	ctrl	NA	invariant
-trait2gen	51	eye	0.924044004519232	
+trait2gen	51	cox	0.924044004519232	
 trait2gen	51	ctrl	NA	invariant
-gen2trait	51	eye	0.0647758854953048	
+gen2trait	51	cox	0.0647758854953048	
 gen2trait	51	ctrl	NA	invariant
-null	51	eye	0.972660110441701	
+null	51	cox	0.972660110441701	
 null	51	ctrl	NA	invariant
-feedback	52	eye	2.40936837712171e-09	
+feedback	52	cox	2.40936837712171e-09	
 feedback	52	ctrl	NA	invariant
-trait2gen	52	eye	0.0515790362183064	
+trait2gen	52	cox	0.0515790362183064	
 trait2gen	52	ctrl	NA	invariant
-gen2trait	52	eye	0.000208843168183611	
+gen2trait	52	cox	0.000208843168183611	
 gen2trait	52	ctrl	NA	invariant
-null	52	eye	0.989780364685433	
+null	52	cox	0.989780364685433	
 null	52	ctrl	NA	invariant
-feedback	53	eye	4.63309586697063e-08	
+feedback	53	cox	4.63309586697063e-08	
 feedback	53	ctrl	0.195398227135863	
-trait2gen	53	eye	0.774180652821484	
+trait2gen	53	cox	0.774180652821484	
 trait2gen	53	ctrl	0.191338966258806	
-gen2trait	53	eye	0.00153807510009595	
+gen2trait	53	cox	0.00153807510009595	
 gen2trait	53	ctrl	0.262888286651808	
-null	53	eye	0.0467876165917773	
+null	53	cox	0.0467876165917773	
 null	53	ctrl	0.879875924939479	
-feedback	54	eye	3.49756064549081e-07	
+feedback	54	cox	3.49756064549081e-07	
 feedback	54	ctrl	0.33624582253702	
-trait2gen	54	eye	0.923835467652571	
+trait2gen	54	cox	0.923835467652571	
 trait2gen	54	ctrl	0.0446503895751778	
-gen2trait	54	eye	0.000499960642656041	
+gen2trait	54	cox	0.000499960642656041	
 gen2trait	54	ctrl	0.734712592285956	
-null	54	eye	1	
+null	54	cox	1	
 null	54	ctrl	0.0279311392198211	
-feedback	55	eye	1.9368626940043e-05	
+feedback	55	cox	1.9368626940043e-05	
 feedback	55	ctrl	0.586844547173906	
-trait2gen	55	eye	0.0243183104310795	
+trait2gen	55	cox	0.0243183104310795	
 trait2gen	55	ctrl	0.33875482790251	
-gen2trait	55	eye	2.4322657283833e-06	
+gen2trait	55	cox	2.4322657283833e-06	
 gen2trait	55	ctrl	0.719380030043377	
-null	55	eye	0.261835225573839	
+null	55	cox	0.261835225573839	
 null	55	ctrl	0.833074642644673	
-feedback	56	eye	1.29842816087849e-05	
+feedback	56	cox	1.29842816087849e-05	
 feedback	56	ctrl	0.904675378631674	
-trait2gen	56	eye	0.596134750066693	
+trait2gen	56	cox	0.596134750066693	
 trait2gen	56	ctrl	0.56294231361675	
-gen2trait	56	eye	0.000193292621056949	
+gen2trait	56	cox	0.000193292621056949	
 gen2trait	56	ctrl	0.25204516001569	
-null	56	eye	0.838169046158828	
+null	56	cox	0.838169046158828	
 null	56	ctrl	0.322714245996794	
-feedback	57	eye	NA	invariant
+feedback	57	cox	NA	invariant
 feedback	57	ctrl	0.73215625497072	
-trait2gen	57	eye	NA	invariant
+trait2gen	57	cox	NA	invariant
 trait2gen	57	ctrl	0.901397269244469	
-gen2trait	57	eye	NA	invariant
+gen2trait	57	cox	NA	invariant
 gen2trait	57	ctrl	0.995061284022675	
-null	57	eye	NA	invariant
+null	57	cox	NA	invariant
 null	57	ctrl	0.998319705860481	
-feedback	58	eye	3.17060396929262e-06	
+feedback	58	cox	3.17060396929262e-06	
 feedback	58	ctrl	0.764467109490827	
-trait2gen	58	eye	0.197569732871415	
+trait2gen	58	cox	0.197569732871415	
 trait2gen	58	ctrl	0.179893286983924	
-gen2trait	58	eye	2.47229970731914e-06	
+gen2trait	58	cox	2.47229970731914e-06	
 gen2trait	58	ctrl	0.0307333930516968	
-null	58	eye	0.333463578119966	
+null	58	cox	0.333463578119966	
 null	58	ctrl	0.0921174762425005	
-feedback	59	eye	2.05839354021662e-09	
+feedback	59	cox	2.05839354021662e-09	
 feedback	59	ctrl	0.0689538774949323	
-trait2gen	59	eye	0.21732285532478	
+trait2gen	59	cox	0.21732285532478	
 trait2gen	59	ctrl	0.189441780610895	
-gen2trait	59	eye	0.000587391549089284	
+gen2trait	59	cox	0.000587391549089284	
 gen2trait	59	ctrl	0.272695582132235	
-null	59	eye	0.931571799298163	
+null	59	cox	0.931571799298163	
 null	59	ctrl	0.93315879175269	
-feedback	60	eye	NA	invariant
+feedback	60	cox	NA	invariant
 feedback	60	ctrl	NA	invariant
-trait2gen	60	eye	NA	invariant
+trait2gen	60	cox	NA	invariant
 trait2gen	60	ctrl	NA	invariant
-gen2trait	60	eye	NA	invariant
+gen2trait	60	cox	NA	invariant
 gen2trait	60	ctrl	NA	invariant
-null	60	eye	NA	invariant
+null	60	cox	NA	invariant
 null	60	ctrl	NA	invariant
-feedback	61	eye	NA	invariant
+feedback	61	cox	NA	invariant
 feedback	61	ctrl	0.510935940316091	
-trait2gen	61	eye	NA	invariant
+trait2gen	61	cox	NA	invariant
 trait2gen	61	ctrl	0.152287821577462	
-gen2trait	61	eye	0.0127061019921967	
+gen2trait	61	cox	0.0127061019921967	
 gen2trait	61	ctrl	0.107908160389759	
-null	61	eye	0.347815516336826	
+null	61	cox	0.347815516336826	
 null	61	ctrl	0.0648915017941954	
-feedback	62	eye	0.0111132376898047	
+feedback	62	cox	0.0111132376898047	
 feedback	62	ctrl	0.275451596202985	
-trait2gen	62	eye	0.672195679866291	
+trait2gen	62	cox	0.672195679866291	
 trait2gen	62	ctrl	0.333559427448515	
-gen2trait	62	eye	0.00267320339479727	
+gen2trait	62	cox	0.00267320339479727	
 gen2trait	62	ctrl	0.339255503447315	
-null	62	eye	0.419132286958052	
+null	62	cox	0.419132286958052	
 null	62	ctrl	0.650097499952183	
-feedback	63	eye	0.340708484893727	
+feedback	63	cox	0.340708484893727	
 feedback	63	ctrl	0.327227033085064	
-trait2gen	63	eye	0.39748359461802	
+trait2gen	63	cox	0.39748359461802	
 trait2gen	63	ctrl	0.937084096732192	
-gen2trait	63	eye	0.153947604885473	
+gen2trait	63	cox	0.153947604885473	
 gen2trait	63	ctrl	0.117429751522884	
-null	63	eye	0.923235822002093	
+null	63	cox	0.923235822002093	
 null	63	ctrl	0.613533956586114	
-feedback	64	eye	2.85903270198666e-10	
+feedback	64	cox	2.85903270198666e-10	
 feedback	64	ctrl	0.569463301058578	
-trait2gen	64	eye	0.0983195004329268	
+trait2gen	64	cox	0.0983195004329268	
 trait2gen	64	ctrl	0.884593578750352	
-gen2trait	64	eye	1.55160579204539e-05	
+gen2trait	64	cox	1.55160579204539e-05	
 gen2trait	64	ctrl	0.930309164738475	
-null	64	eye	0.30752986148033	
+null	64	cox	0.30752986148033	
 null	64	ctrl	0.185570571656314	
-feedback	65	eye	0.00920163224807663	
+feedback	65	cox	0.00920163224807663	
 feedback	65	ctrl	0.510161660336914	
-trait2gen	65	eye	0.0166986227762614	
+trait2gen	65	cox	0.0166986227762614	
 trait2gen	65	ctrl	0.35767055823293	
-gen2trait	65	eye	0.571655922887675	
+gen2trait	65	cox	0.571655922887675	
 gen2trait	65	ctrl	0.5342235272663	
-null	65	eye	0.718253232546998	
+null	65	cox	0.718253232546998	
 null	65	ctrl	0.875709621246136	
-feedback	66	eye	NA	invariant
+feedback	66	cox	NA	invariant
 feedback	66	ctrl	NA	invariant
-trait2gen	66	eye	NA	invariant
+trait2gen	66	cox	NA	invariant
 trait2gen	66	ctrl	NA	invariant
-gen2trait	66	eye	NA	invariant
+gen2trait	66	cox	NA	invariant
 gen2trait	66	ctrl	NA	invariant
-null	66	eye	NA	invariant
+null	66	cox	NA	invariant
 null	66	ctrl	NA	invariant
-feedback	67	eye	4.77581009247964e-11	
+feedback	67	cox	4.77581009247964e-11	
 feedback	67	ctrl	0.194443160644096	
-trait2gen	67	eye	0.701563466568306	
+trait2gen	67	cox	0.701563466568306	
 trait2gen	67	ctrl	0.396239319511963	
-gen2trait	67	eye	0.00121219045967811	
+gen2trait	67	cox	0.00121219045967811	
 gen2trait	67	ctrl	0.55575569078492	
-null	67	eye	0.513348046323429	
+null	67	cox	0.513348046323429	
 null	67	ctrl	0.0594684143041522	
-feedback	68	eye	NA	invariant
+feedback	68	cox	NA	invariant
 feedback	68	ctrl	0.31457509160997	
-trait2gen	68	eye	NA	invariant
+trait2gen	68	cox	NA	invariant
 trait2gen	68	ctrl	0.806144668175723	
-gen2trait	68	eye	NA	invariant
+gen2trait	68	cox	NA	invariant
 gen2trait	68	ctrl	0.313132653734189	
-null	68	eye	NA	invariant
+null	68	cox	NA	invariant
 null	68	ctrl	0.842919788419237	
-feedback	69	eye	NA	invariant
+feedback	69	cox	NA	invariant
 feedback	69	ctrl	0.258135612411026	
-trait2gen	69	eye	0.60978251631338	
+trait2gen	69	cox	0.60978251631338	
 trait2gen	69	ctrl	1	
-gen2trait	69	eye	0.790547283058342	
+gen2trait	69	cox	0.790547283058342	
 gen2trait	69	ctrl	0.995381284715724	
-null	69	eye	0.81258252449654	
+null	69	cox	0.81258252449654	
 null	69	ctrl	0.987612826885387	
-feedback	70	eye	NA	invariant
+feedback	70	cox	NA	invariant
 feedback	70	ctrl	NA	invariant
-trait2gen	70	eye	NA	invariant
+trait2gen	70	cox	NA	invariant
 trait2gen	70	ctrl	NA	invariant
-gen2trait	70	eye	NA	invariant
+gen2trait	70	cox	NA	invariant
 gen2trait	70	ctrl	NA	invariant
-null	70	eye	NA	invariant
+null	70	cox	NA	invariant
 null	70	ctrl	NA	invariant
-feedback	71	eye	1.89444945634252e-08	
+feedback	71	cox	1.89444945634252e-08	
 feedback	71	ctrl	0.241751591584258	
-trait2gen	71	eye	0.356587837406234	
+trait2gen	71	cox	0.356587837406234	
 trait2gen	71	ctrl	0.586375765943524	
-gen2trait	71	eye	2.54930488285923e-05	
+gen2trait	71	cox	2.54930488285923e-05	
 gen2trait	71	ctrl	0.82337413270407	
-null	71	eye	0.601205530168375	
+null	71	cox	0.601205530168375	
 null	71	ctrl	0.406060189066931	
-feedback	72	eye	NA	invariant
+feedback	72	cox	NA	invariant
 feedback	72	ctrl	NA	invariant
-trait2gen	72	eye	NA	invariant
+trait2gen	72	cox	NA	invariant
 trait2gen	72	ctrl	NA	invariant
-gen2trait	72	eye	NA	invariant
+gen2trait	72	cox	NA	invariant
 gen2trait	72	ctrl	NA	invariant
-null	72	eye	NA	invariant
+null	72	cox	NA	invariant
 null	72	ctrl	NA	invariant
-feedback	73	eye	NA	invariant
+feedback	73	cox	NA	invariant
 feedback	73	ctrl	0.200888986491298	
-trait2gen	73	eye	NA	invariant
+trait2gen	73	cox	NA	invariant
 trait2gen	73	ctrl	0.253606462502902	
-gen2trait	73	eye	NA	invariant
+gen2trait	73	cox	NA	invariant
 gen2trait	73	ctrl	0.299846209670848	
-null	73	eye	NA	invariant
+null	73	cox	NA	invariant
 null	73	ctrl	0.776867607608367	
-feedback	74	eye	NA	invariant
+feedback	74	cox	NA	invariant
 feedback	74	ctrl	0.791342412500415	
-trait2gen	74	eye	NA	invariant
+trait2gen	74	cox	NA	invariant
 trait2gen	74	ctrl	0.362665093272522	
-gen2trait	74	eye	NA	invariant
+gen2trait	74	cox	NA	invariant
 gen2trait	74	ctrl	0.970666613935257	
-null	74	eye	NA	invariant
+null	74	cox	NA	invariant
 null	74	ctrl	0.279560528980168	
-feedback	75	eye	0.0765918803164402	
+feedback	75	cox	0.0765918803164402	
 feedback	75	ctrl	0.978919401295093	
-trait2gen	75	eye	0.365323185719234	
+trait2gen	75	cox	0.365323185719234	
 trait2gen	75	ctrl	0.603252987184943	
-gen2trait	75	eye	0.0113738677497997	
+gen2trait	75	cox	0.0113738677497997	
 gen2trait	75	ctrl	0.466636983225459	
-null	75	eye	0.472911073652652	
+null	75	cox	0.472911073652652	
 null	75	ctrl	0.921179462334639	
-feedback	76	eye	NA	invariant
+feedback	76	cox	NA	invariant
 feedback	76	ctrl	0.597348465305967	
-trait2gen	76	eye	NA	invariant
+trait2gen	76	cox	NA	invariant
 trait2gen	76	ctrl	0.785226172257092	
-gen2trait	76	eye	NA	invariant
+gen2trait	76	cox	NA	invariant
 gen2trait	76	ctrl	0.489628419758344	
-null	76	eye	NA	invariant
+null	76	cox	NA	invariant
 null	76	ctrl	0.678659184069323	
-feedback	77	eye	NA	invariant
+feedback	77	cox	NA	invariant
 feedback	77	ctrl	NA	invariant
-trait2gen	77	eye	NA	invariant
+trait2gen	77	cox	NA	invariant
 trait2gen	77	ctrl	NA	invariant
-gen2trait	77	eye	NA	invariant
+gen2trait	77	cox	NA	invariant
 gen2trait	77	ctrl	NA	invariant
-null	77	eye	NA	invariant
+null	77	cox	NA	invariant
 null	77	ctrl	NA	invariant
-feedback	78	eye	0.271404501377065	
+feedback	78	cox	0.271404501377065	
 feedback	78	ctrl	0.566439706081754	
-trait2gen	78	eye	0.377058238615357	
+trait2gen	78	cox	0.377058238615357	
 trait2gen	78	ctrl	0.038860537247858	
-gen2trait	78	eye	0.000110758769923341	
+gen2trait	78	cox	0.000110758769923341	
 gen2trait	78	ctrl	0.514967859792016	
-null	78	eye	0.468472198579338	
+null	78	cox	0.468472198579338	
 null	78	ctrl	0.159732935023543	
-feedback	79	eye	NA	invariant
+feedback	79	cox	NA	invariant
 feedback	79	ctrl	0.906191969679158	
-trait2gen	79	eye	0.19776928359252	
+trait2gen	79	cox	0.19776928359252	
 trait2gen	79	ctrl	0.132049552022362	
-gen2trait	79	eye	0.0815808937536912	
+gen2trait	79	cox	0.0815808937536912	
 gen2trait	79	ctrl	0.117899522729056	
-null	79	eye	0.881368685711753	
+null	79	cox	0.881368685711753	
 null	79	ctrl	0.0433984302301502	
-feedback	80	eye	NA	invariant
+feedback	80	cox	NA	invariant
 feedback	80	ctrl	NA	invariant
-trait2gen	80	eye	NA	invariant
+trait2gen	80	cox	NA	invariant
 trait2gen	80	ctrl	NA	invariant
-gen2trait	80	eye	0.0472015836406692	
+gen2trait	80	cox	0.0472015836406692	
 gen2trait	80	ctrl	NA	invariant
-null	80	eye	0.459176011690296	
+null	80	cox	0.459176011690296	
 null	80	ctrl	NA	invariant
-feedback	81	eye	0.000365463713076516	
+feedback	81	cox	0.000365463713076516	
 feedback	81	ctrl	0.38180814880384	
-trait2gen	81	eye	0.216394970595381	
+trait2gen	81	cox	0.216394970595381	
 trait2gen	81	ctrl	0.888836800930698	
-gen2trait	81	eye	7.03145148406054e-05	
+gen2trait	81	cox	7.03145148406054e-05	
 gen2trait	81	ctrl	0.80344895541071	
-null	81	eye	0.808908775551649	
+null	81	cox	0.808908775551649	
 null	81	ctrl	0.863005338801508	
-feedback	82	eye	5.14564399601305e-07	
+feedback	82	cox	5.14564399601305e-07	
 feedback	82	ctrl	0.198173082911535	
-trait2gen	82	eye	0.19955314812109	
+trait2gen	82	cox	0.19955314812109	
 trait2gen	82	ctrl	0.859431268187594	
-gen2trait	82	eye	2.62385571052977e-05	
+gen2trait	82	cox	2.62385571052977e-05	
 gen2trait	82	ctrl	0.105412495040213	
-null	82	eye	0.606538303311992	
+null	82	cox	0.606538303311992	
 null	82	ctrl	0.104742945984383	
-feedback	83	eye	1	
+feedback	83	cox	1	
 feedback	83	ctrl	0.907997573893034	
-trait2gen	83	eye	0.622145065099604	
+trait2gen	83	cox	0.622145065099604	
 trait2gen	83	ctrl	0.165175184727267	
-gen2trait	83	eye	0.000533064033957235	
+gen2trait	83	cox	0.000533064033957235	
 gen2trait	83	ctrl	0.0648444498248418	
-null	83	eye	0.327487874688533	
+null	83	cox	0.327487874688533	
 null	83	ctrl	0.00752191933550329	
-feedback	84	eye	6.82742760279351e-06	
+feedback	84	cox	6.82742760279351e-06	
 feedback	84	ctrl	0.20953043887973	
-trait2gen	84	eye	0.00650874076899704	
+trait2gen	84	cox	0.00650874076899704	
 trait2gen	84	ctrl	0.218903934340852	
-gen2trait	84	eye	0.000210963983239971	
+gen2trait	84	cox	0.000210963983239971	
 gen2trait	84	ctrl	0.43430902865366	
-null	84	eye	0.213320324845364	
+null	84	cox	0.213320324845364	
 null	84	ctrl	0.768362772048556	
-feedback	85	eye	7.49443073002925e-08	
+feedback	85	cox	7.49443073002925e-08	
 feedback	85	ctrl	0.0958476755569159	
-trait2gen	85	eye	0.00964124424005078	
+trait2gen	85	cox	0.00964124424005078	
 trait2gen	85	ctrl	0.874741761868658	
-gen2trait	85	eye	0.0144228082809696	
+gen2trait	85	cox	0.0144228082809696	
 gen2trait	85	ctrl	0.0770650652174533	
-null	85	eye	0.682178247627434	
+null	85	cox	0.682178247627434	
 null	85	ctrl	0.781676214896121	
-feedback	86	eye	0.000231136295199122	
+feedback	86	cox	0.000231136295199122	
 feedback	86	ctrl	0.135716065537925	
-trait2gen	86	eye	0.292649572950119	
+trait2gen	86	cox	0.292649572950119	
 trait2gen	86	ctrl	0.0563270620433333	
-gen2trait	86	eye	0.00107133633050175	
+gen2trait	86	cox	0.00107133633050175	
 gen2trait	86	ctrl	0.975623845771179	
-null	86	eye	0.778912719855886	
+null	86	cox	0.778912719855886	
 null	86	ctrl	0.589329296671574	
-feedback	87	eye	0.000149554901124638	
+feedback	87	cox	0.000149554901124638	
 feedback	87	ctrl	0.166614185074095	
-trait2gen	87	eye	0.193000467159018	
+trait2gen	87	cox	0.193000467159018	
 trait2gen	87	ctrl	0.543956457662208	
-gen2trait	87	eye	0.0460504741918804	
+gen2trait	87	cox	0.0460504741918804	
 gen2trait	87	ctrl	0.266438590459148	
-null	87	eye	0.164077325548356	
+null	87	cox	0.164077325548356	
 null	87	ctrl	0.250878391773615	
-feedback	88	eye	1.45135903829766e-10	
+feedback	88	cox	1.45135903829766e-10	
 feedback	88	ctrl	0.361389912426671	
-trait2gen	88	eye	0.909743890983636	
+trait2gen	88	cox	0.909743890983636	
 trait2gen	88	ctrl	0.0873486894127666	
-gen2trait	88	eye	2.04112019438764e-08	
+gen2trait	88	cox	2.04112019438764e-08	
 gen2trait	88	ctrl	0.342667040005585	
-null	88	eye	0.795391338470695	
+null	88	cox	0.795391338470695	
 null	88	ctrl	0.0558539377144701	
-feedback	89	eye	0.000612353230545594	
+feedback	89	cox	0.000612353230545594	
 feedback	89	ctrl	0.735856293307883	
-trait2gen	89	eye	0.215323379683283	
+trait2gen	89	cox	0.215323379683283	
 trait2gen	89	ctrl	0.200552124892787	
-gen2trait	89	eye	0.00867456089250766	
+gen2trait	89	cox	0.00867456089250766	
 gen2trait	89	ctrl	0.0281180603453229	
-null	89	eye	0.931450014369462	
+null	89	cox	0.931450014369462	
 null	89	ctrl	0.684352363276164	
-feedback	90	eye	0.95119590524008	
+feedback	90	cox	0.95119590524008	
 feedback	90	ctrl	0.445923576873768	
-trait2gen	90	eye	0.690355063082045	
+trait2gen	90	cox	0.690355063082045	
 trait2gen	90	ctrl	0.192611706785386	
-gen2trait	90	eye	0.320622908156865	
+gen2trait	90	cox	0.320622908156865	
 gen2trait	90	ctrl	0.568003852509628	
-null	90	eye	0.993830466217516	
+null	90	cox	0.993830466217516	
 null	90	ctrl	0.96735543136382	
-feedback	91	eye	0.0801717029958893	
+feedback	91	cox	0.0801717029958893	
 feedback	91	ctrl	0.52035108446393	
-trait2gen	91	eye	0.218397433800093	
+trait2gen	91	cox	0.218397433800093	
 trait2gen	91	ctrl	0.72858102870068	
-gen2trait	91	eye	0.314792044977753	
+gen2trait	91	cox	0.314792044977753	
 gen2trait	91	ctrl	0.0821881798296322	
-null	91	eye	0.387746820490404	
+null	91	cox	0.387746820490404	
 null	91	ctrl	0.102860242118277	
-feedback	92	eye	NA	invariant
+feedback	92	cox	NA	invariant
 feedback	92	ctrl	0.0824580001152956	
-trait2gen	92	eye	NA	invariant
+trait2gen	92	cox	NA	invariant
 trait2gen	92	ctrl	0.78572547084877	
-gen2trait	92	eye	NA	invariant
+gen2trait	92	cox	NA	invariant
 gen2trait	92	ctrl	0.436736582143633	
-null	92	eye	NA	invariant
+null	92	cox	NA	invariant
 null	92	ctrl	0.0699630593006452	
-feedback	93	eye	NA	invariant
+feedback	93	cox	NA	invariant
 feedback	93	ctrl	0.299047298359162	
-trait2gen	93	eye	NA	invariant
+trait2gen	93	cox	NA	invariant
 trait2gen	93	ctrl	0.70637409888233	
-gen2trait	93	eye	NA	invariant
+gen2trait	93	cox	NA	invariant
 gen2trait	93	ctrl	0.96377666347437	
-null	93	eye	NA	invariant
+null	93	cox	NA	invariant
 null	93	ctrl	0.277584755647622	
-feedback	94	eye	NA	invariant
+feedback	94	cox	NA	invariant
 feedback	94	ctrl	0.504961409224401	
-trait2gen	94	eye	NA	invariant
+trait2gen	94	cox	NA	invariant
 trait2gen	94	ctrl	0.420004422106594	
-gen2trait	94	eye	NA	invariant
+gen2trait	94	cox	NA	invariant
 gen2trait	94	ctrl	0.853050127529166	
-null	94	eye	NA	invariant
+null	94	cox	NA	invariant
 null	94	ctrl	0.364283277879954	
-feedback	95	eye	NA	invariant
+feedback	95	cox	NA	invariant
 feedback	95	ctrl	0.315165928298734	
-trait2gen	95	eye	NA	invariant
+trait2gen	95	cox	NA	invariant
 trait2gen	95	ctrl	0.166775445522543	
-gen2trait	95	eye	NA	invariant
+gen2trait	95	cox	NA	invariant
 gen2trait	95	ctrl	0.668944058872909	
-null	95	eye	NA	invariant
+null	95	cox	NA	invariant
 null	95	ctrl	0.158947130448266	
-feedback	96	eye	NA	invariant
+feedback	96	cox	NA	invariant
 feedback	96	ctrl	0.660432329408825	
-trait2gen	96	eye	NA	invariant
+trait2gen	96	cox	NA	invariant
 trait2gen	96	ctrl	0.914600004881971	
-gen2trait	96	eye	NA	invariant
+gen2trait	96	cox	NA	invariant
 gen2trait	96	ctrl	0.718885982339864	
-null	96	eye	NA	invariant
+null	96	cox	NA	invariant
 null	96	ctrl	0.187275788437878	
-feedback	97	eye	0.000338524107027497	
+feedback	97	cox	0.000338524107027497	
 feedback	97	ctrl	0.370191795512312	
-trait2gen	97	eye	0.692870020262881	
+trait2gen	97	cox	0.692870020262881	
 trait2gen	97	ctrl	0.181449093575941	
-gen2trait	97	eye	0.00388458803797678	
+gen2trait	97	cox	0.00388458803797678	
 gen2trait	97	ctrl	0.00583201947848958	
-null	97	eye	0.331166782568897	
+null	97	cox	0.331166782568897	
 null	97	ctrl	0.408153757714317	
-feedback	98	eye	0.00203597416451173	
+feedback	98	cox	0.00203597416451173	
 feedback	98	ctrl	NA	invariant
-trait2gen	98	eye	0.716488731962764	
+trait2gen	98	cox	0.716488731962764	
 trait2gen	98	ctrl	NA	invariant
-gen2trait	98	eye	0.00074216578156011	
+gen2trait	98	cox	0.00074216578156011	
 gen2trait	98	ctrl	NA	invariant
-null	98	eye	0.695801649587852	
+null	98	cox	0.695801649587852	
 null	98	ctrl	NA	invariant
-feedback	99	eye	7.32388295986673e-06	
+feedback	99	cox	7.32388295986673e-06	
 feedback	99	ctrl	0.92147700433883	
-trait2gen	99	eye	0.187988102941037	
+trait2gen	99	cox	0.187988102941037	
 trait2gen	99	ctrl	0.950844855612344	
-gen2trait	99	eye	0.000214913104813558	
+gen2trait	99	cox	0.000214913104813558	
 gen2trait	99	ctrl	0.841780698327567	
-null	99	eye	0.386403294695858	
+null	99	cox	0.386403294695858	
 null	99	ctrl	0.756381774572653	
-feedback	100	eye	0.989088643466363	
+feedback	100	cox	0.989088643466363	
 feedback	100	ctrl	0.0196702433365004	
-trait2gen	100	eye	0.662461111563202	
+trait2gen	100	cox	0.662461111563202	
 trait2gen	100	ctrl	0.0865995262501799	
-gen2trait	100	eye	0.905686797779379	
+gen2trait	100	cox	0.905686797779379	
 gen2trait	100	ctrl	0.8931665759579	
-null	100	eye	0.363398628685307	
+null	100	cox	0.363398628685307	
 null	100	ctrl	0.757300364226849	
-feedback	101	eye	3.27512880972893e-06	
+feedback	101	cox	3.27512880972893e-06	
 feedback	101	ctrl	NA	invariant
-trait2gen	101	eye	0.26634994688621	
+trait2gen	101	cox	0.26634994688621	
 trait2gen	101	ctrl	NA	invariant
-gen2trait	101	eye	0.00113365677532131	
+gen2trait	101	cox	0.00113365677532131	
 gen2trait	101	ctrl	NA	invariant
-null	101	eye	0.502743678692477	
+null	101	cox	0.502743678692477	
 null	101	ctrl	NA	invariant
-feedback	102	eye	3.71883034366916e-10	
+feedback	102	cox	3.71883034366916e-10	
 feedback	102	ctrl	0.0776258545261687	
-trait2gen	102	eye	0.0469674736854048	
+trait2gen	102	cox	0.0469674736854048	
 trait2gen	102	ctrl	0.349425125446007	
-gen2trait	102	eye	2.00472975657956e-06	
+gen2trait	102	cox	2.00472975657956e-06	
 gen2trait	102	ctrl	0.192757008158688	
-null	102	eye	0.207144682757999	
+null	102	cox	0.207144682757999	
 null	102	ctrl	0.133102253712715	
-feedback	103	eye	2.15021901400252e-05	
+feedback	103	cox	2.15021901400252e-05	
 feedback	103	ctrl	0.395838393550269	
-trait2gen	103	eye	0.00445759019457785	
+trait2gen	103	cox	0.00445759019457785	
 trait2gen	103	ctrl	0.0743293924265148	
-gen2trait	103	eye	0.000623017243381235	
+gen2trait	103	cox	0.000623017243381235	
 gen2trait	103	ctrl	0.646344560949806	
-null	103	eye	0.96871448117968	
+null	103	cox	0.96871448117968	
 null	103	ctrl	0.259739434026421	
-feedback	104	eye	0.00191684623358372	
+feedback	104	cox	0.00191684623358372	
 feedback	104	ctrl	0.119882913507761	
-trait2gen	104	eye	0.632892042768057	
+trait2gen	104	cox	0.632892042768057	
 trait2gen	104	ctrl	0.792181324269449	
-gen2trait	104	eye	0.00347594256151851	
+gen2trait	104	cox	0.00347594256151851	
 gen2trait	104	ctrl	0.552088372825105	
-null	104	eye	0.149721432893727	
+null	104	cox	0.149721432893727	
 null	104	ctrl	0.866279831802694	
-feedback	105	eye	1.37870307688009e-09	
+feedback	105	cox	1.37870307688009e-09	
 feedback	105	ctrl	0.349798012276533	
-trait2gen	105	eye	0.00186578887251014	
+trait2gen	105	cox	0.00186578887251014	
 trait2gen	105	ctrl	0.90484716906608	
-gen2trait	105	eye	1.25583471149274e-06	
+gen2trait	105	cox	1.25583471149274e-06	
 gen2trait	105	ctrl	0.810118549722365	
-null	105	eye	1	
+null	105	cox	1	
 null	105	ctrl	0.516466111908826	
-feedback	106	eye	0.00518950207762399	
+feedback	106	cox	0.00518950207762399	
 feedback	106	ctrl	0.386939639417645	
-trait2gen	106	eye	0.161474109680694	
+trait2gen	106	cox	0.161474109680694	
 trait2gen	106	ctrl	0.777544308403977	
-gen2trait	106	eye	0.161914577069163	
+gen2trait	106	cox	0.161914577069163	
 gen2trait	106	ctrl	0.0615545527815172	
-null	106	eye	0.625114911484468	
+null	106	cox	0.625114911484468	
 null	106	ctrl	0.37919739420208	
-feedback	107	eye	1.76091508669713e-08	
+feedback	107	cox	1.76091508669713e-08	
 feedback	107	ctrl	0.999952652946057	
-trait2gen	107	eye	0.0209782852330561	
+trait2gen	107	cox	0.0209782852330561	
 trait2gen	107	ctrl	0.228960335915666	
-gen2trait	107	eye	3.17817325167449e-05	
+gen2trait	107	cox	3.17817325167449e-05	
 gen2trait	107	ctrl	0.0720697808204987	
-null	107	eye	0.555647151301583	
+null	107	cox	0.555647151301583	
 null	107	ctrl	0.762525653354985	
-feedback	108	eye	3.59388682717327e-07	
+feedback	108	cox	3.59388682717327e-07	
 feedback	108	ctrl	0.498107982036441	
-trait2gen	108	eye	0.452627540305476	
+trait2gen	108	cox	0.452627540305476	
 trait2gen	108	ctrl	0.258679650839271	
-gen2trait	108	eye	0.119027334935279	
+gen2trait	108	cox	0.119027334935279	
 gen2trait	108	ctrl	0.0581669882379305	
-null	108	eye	0.198838252806777	
+null	108	cox	0.198838252806777	
 null	108	ctrl	0.337082278612458	
-feedback	109	eye	5.76662090494819e-05	
+feedback	109	cox	5.76662090494819e-05	
 feedback	109	ctrl	0.803227504604499	
-trait2gen	109	eye	0.820840446412289	
+trait2gen	109	cox	0.820840446412289	
 trait2gen	109	ctrl	0.800041655022621	
-gen2trait	109	eye	0.017092715661943	
+gen2trait	109	cox	0.017092715661943	
 gen2trait	109	ctrl	0.23480156098621	
-null	109	eye	0.325888314563392	
+null	109	cox	0.325888314563392	
 null	109	ctrl	0.489315505969987	
-feedback	110	eye	3.21859526425217e-06	
+feedback	110	cox	3.21859526425217e-06	
 feedback	110	ctrl	0.759523553056206	
-trait2gen	110	eye	0.714570383327257	
+trait2gen	110	cox	0.714570383327257	
 trait2gen	110	ctrl	0.0310435240848196	
-gen2trait	110	eye	2.19721721265744e-05	
+gen2trait	110	cox	2.19721721265744e-05	
 gen2trait	110	ctrl	0.065023563094548	
-null	110	eye	0.00557662126755044	
+null	110	cox	0.00557662126755044	
 null	110	ctrl	0.0700539220351261	
-feedback	111	eye	8.11964936498353e-06	
+feedback	111	cox	8.11964936498353e-06	
 feedback	111	ctrl	0.746296281178866	
-trait2gen	111	eye	0.649121269736372	
+trait2gen	111	cox	0.649121269736372	
 trait2gen	111	ctrl	0.335832630315198	
-gen2trait	111	eye	0.00430640637419211	
+gen2trait	111	cox	0.00430640637419211	
 gen2trait	111	ctrl	0.0860811280226198	
-null	111	eye	0.039600674832157	
+null	111	cox	0.039600674832157	
 null	111	ctrl	0.670324034678172	
-feedback	112	eye	1.30345336852223e-05	
+feedback	112	cox	1.30345336852223e-05	
 feedback	112	ctrl	0.00583519633851297	
-trait2gen	112	eye	0.516938096630465	
+trait2gen	112	cox	0.516938096630465	
 trait2gen	112	ctrl	0.0606998106235993	
-gen2trait	112	eye	0.00180707443645098	
+gen2trait	112	cox	0.00180707443645098	
 gen2trait	112	ctrl	0.610520352694914	
-null	112	eye	0.884038264147835	
+null	112	cox	0.884038264147835	
 null	112	ctrl	0.0246424295205444	
-feedback	113	eye	1.82512541755357e-07	
+feedback	113	cox	1.82512541755357e-07	
 feedback	113	ctrl	0.364828476791882	
-trait2gen	113	eye	0.0537895908078148	
+trait2gen	113	cox	0.0537895908078148	
 trait2gen	113	ctrl	0.186711798515029	
-gen2trait	113	eye	0.000132589111991692	
+gen2trait	113	cox	0.000132589111991692	
 gen2trait	113	ctrl	0.109439905264934	
-null	113	eye	0.326428049094506	
+null	113	cox	0.326428049094506	
 null	113	ctrl	0.625960309282696	
-feedback	114	eye	1.12584393903607e-06	
+feedback	114	cox	1.12584393903607e-06	
 feedback	114	ctrl	0.965835127202014	
-trait2gen	114	eye	0.254750844073918	
+trait2gen	114	cox	0.254750844073918	
 trait2gen	114	ctrl	0.76433423972822	
-gen2trait	114	eye	0.0223682595662944	
+gen2trait	114	cox	0.0223682595662944	
 gen2trait	114	ctrl	0.039879204004912	
-null	114	eye	0.847245285130149	
+null	114	cox	0.847245285130149	
 null	114	ctrl	0.907405296332257	
-feedback	115	eye	NA	invariant
+feedback	115	cox	NA	invariant
 feedback	115	ctrl	0.52048663609971	
-trait2gen	115	eye	NA	invariant
+trait2gen	115	cox	NA	invariant
 trait2gen	115	ctrl	0.746844557833903	
-gen2trait	115	eye	NA	invariant
+gen2trait	115	cox	NA	invariant
 gen2trait	115	ctrl	0.546375685737707	
-null	115	eye	NA	invariant
+null	115	cox	NA	invariant
 null	115	ctrl	0.958407371721363	
-feedback	116	eye	9.02375952928078e-05	
+feedback	116	cox	9.02375952928078e-05	
 feedback	116	ctrl	0.458922131331974	
-trait2gen	116	eye	0.00663233396462309	
+trait2gen	116	cox	0.00663233396462309	
 trait2gen	116	ctrl	0.283665441912876	
-gen2trait	116	eye	0.0016727413675887	
+gen2trait	116	cox	0.0016727413675887	
 gen2trait	116	ctrl	0.0833068114237182	
-null	116	eye	0.447065006516708	
+null	116	cox	0.447065006516708	
 null	116	ctrl	0.0684629213299135	
-feedback	117	eye	NA	invariant
+feedback	117	cox	NA	invariant
 feedback	117	ctrl	NA	invariant
-trait2gen	117	eye	NA	invariant
+trait2gen	117	cox	NA	invariant
 trait2gen	117	ctrl	NA	invariant
-gen2trait	117	eye	NA	invariant
+gen2trait	117	cox	NA	invariant
 gen2trait	117	ctrl	NA	invariant
-null	117	eye	NA	invariant
+null	117	cox	NA	invariant
 null	117	ctrl	NA	invariant
-feedback	118	eye	0.000694872349499424	
+feedback	118	cox	0.000694872349499424	
 feedback	118	ctrl	NA	invariant
-trait2gen	118	eye	0.778014404533537	
+trait2gen	118	cox	0.778014404533537	
 trait2gen	118	ctrl	NA	invariant
-gen2trait	118	eye	0.000715472469900297	
+gen2trait	118	cox	0.000715472469900297	
 gen2trait	118	ctrl	NA	invariant
-null	118	eye	0.890740672537701	
+null	118	cox	0.890740672537701	
 null	118	ctrl	NA	invariant
-feedback	119	eye	NA	invariant
+feedback	119	cox	NA	invariant
 feedback	119	ctrl	NA	invariant
-trait2gen	119	eye	NA	invariant
+trait2gen	119	cox	NA	invariant
 trait2gen	119	ctrl	NA	invariant
-gen2trait	119	eye	NA	invariant
+gen2trait	119	cox	NA	invariant
 gen2trait	119	ctrl	NA	invariant
-null	119	eye	NA	invariant
+null	119	cox	NA	invariant
 null	119	ctrl	NA	invariant
-feedback	120	eye	NA	invariant
+feedback	120	cox	NA	invariant
 feedback	120	ctrl	NA	invariant
-trait2gen	120	eye	NA	invariant
+trait2gen	120	cox	NA	invariant
 trait2gen	120	ctrl	NA	invariant
-gen2trait	120	eye	NA	invariant
+gen2trait	120	cox	NA	invariant
 gen2trait	120	ctrl	NA	invariant
-null	120	eye	NA	invariant
+null	120	cox	NA	invariant
 null	120	ctrl	NA	invariant
-feedback	121	eye	NA	invariant
+feedback	121	cox	NA	invariant
 feedback	121	ctrl	0.501559945532105	
-trait2gen	121	eye	NA	invariant
+trait2gen	121	cox	NA	invariant
 trait2gen	121	ctrl	0.0781101730736096	
-gen2trait	121	eye	NA	invariant
+gen2trait	121	cox	NA	invariant
 gen2trait	121	ctrl	0.472886904756056	
-null	121	eye	NA	invariant
+null	121	cox	NA	invariant
 null	121	ctrl	0.185890457672346	
-feedback	122	eye	0.00010817518274857	
+feedback	122	cox	0.00010817518274857	
 feedback	122	ctrl	NA	invariant
-trait2gen	122	eye	0.180757512420449	
+trait2gen	122	cox	0.180757512420449	
 trait2gen	122	ctrl	NA	invariant
-gen2trait	122	eye	0.0053248595491427	
+gen2trait	122	cox	0.0053248595491427	
 gen2trait	122	ctrl	NA	invariant
-null	122	eye	0.479446958930559	
+null	122	cox	0.479446958930559	
 null	122	ctrl	NA	invariant
-feedback	123	eye	0.282797492059569	
+feedback	123	cox	0.282797492059569	
 feedback	123	ctrl	0.253876089732852	
-trait2gen	123	eye	0.184599883991804	
+trait2gen	123	cox	0.184599883991804	
 trait2gen	123	ctrl	0.449863578636339	
-gen2trait	123	eye	0.000242288047863458	
+gen2trait	123	cox	0.000242288047863458	
 gen2trait	123	ctrl	0.30135453554103	
-null	123	eye	0.336668399409579	
+null	123	cox	0.336668399409579	
 null	123	ctrl	0.92944338104858	
-feedback	124	eye	0.00150940547744534	
+feedback	124	cox	0.00150940547744534	
 feedback	124	ctrl	NA	invariant
-trait2gen	124	eye	0.00186626590297445	
+trait2gen	124	cox	0.00186626590297445	
 trait2gen	124	ctrl	NA	invariant
-gen2trait	124	eye	1.01323849298545e-06	
+gen2trait	124	cox	1.01323849298545e-06	
 gen2trait	124	ctrl	NA	invariant
-null	124	eye	0.659870919553943	
+null	124	cox	0.659870919553943	
 null	124	ctrl	NA	invariant
-feedback	125	eye	NA	invariant
+feedback	125	cox	NA	invariant
 feedback	125	ctrl	NA	invariant
-trait2gen	125	eye	NA	invariant
+trait2gen	125	cox	NA	invariant
 trait2gen	125	ctrl	NA	invariant
-gen2trait	125	eye	NA	invariant
+gen2trait	125	cox	NA	invariant
 gen2trait	125	ctrl	NA	invariant
-null	125	eye	NA	invariant
+null	125	cox	NA	invariant
 null	125	ctrl	NA	invariant
-feedback	126	eye	6.29547003534285e-09	
+feedback	126	cox	6.29547003534285e-09	
 feedback	126	ctrl	0.75287189295587	
-trait2gen	126	eye	0.881983371882444	
+trait2gen	126	cox	0.881983371882444	
 trait2gen	126	ctrl	0.850948615432094	
-gen2trait	126	eye	3.28557322532388e-05	
+gen2trait	126	cox	3.28557322532388e-05	
 gen2trait	126	ctrl	0.0362111419864587	
-null	126	eye	0.480697544567521	
+null	126	cox	0.480697544567521	
 null	126	ctrl	0.424282324636711	
-feedback	127	eye	NA	invariant
+feedback	127	cox	NA	invariant
 feedback	127	ctrl	0.361159945904396	
-trait2gen	127	eye	NA	invariant
+trait2gen	127	cox	NA	invariant
 trait2gen	127	ctrl	0.652038398953451	
-gen2trait	127	eye	NA	invariant
+gen2trait	127	cox	NA	invariant
 gen2trait	127	ctrl	0.634778051163063	
-null	127	eye	NA	invariant
+null	127	cox	NA	invariant
 null	127	ctrl	0.450233759373594	
-feedback	128	eye	NA	invariant
+feedback	128	cox	NA	invariant
 feedback	128	ctrl	0.551160912757127	
-trait2gen	128	eye	NA	invariant
+trait2gen	128	cox	NA	invariant
 trait2gen	128	ctrl	0.998602591271305	
-gen2trait	128	eye	0.953596181694828	
+gen2trait	128	cox	0.953596181694828	
 gen2trait	128	ctrl	0.496212921011012	
-null	128	eye	NA	invariant
+null	128	cox	NA	invariant
 null	128	ctrl	0.754236413740943	
-feedback	129	eye	0.000104328720267569	
+feedback	129	cox	0.000104328720267569	
 feedback	129	ctrl	0.290201982263247	
-trait2gen	129	eye	0.172625762333034	
+trait2gen	129	cox	0.172625762333034	
 trait2gen	129	ctrl	0.717450250661937	
-gen2trait	129	eye	1.7548073217719e-08	
+gen2trait	129	cox	1.7548073217719e-08	
 gen2trait	129	ctrl	0.174527121200338	
-null	129	eye	0.982654360232948	
+null	129	cox	0.982654360232948	
 null	129	ctrl	0.732651913029275	
-feedback	130	eye	NA	invariant
+feedback	130	cox	NA	invariant
 feedback	130	ctrl	0.138951557647779	
-trait2gen	130	eye	NA	invariant
+trait2gen	130	cox	NA	invariant
 trait2gen	130	ctrl	0.862804901605223	
-gen2trait	130	eye	NA	invariant
+gen2trait	130	cox	NA	invariant
 gen2trait	130	ctrl	0.578235427209803	
-null	130	eye	NA	invariant
+null	130	cox	NA	invariant
 null	130	ctrl	0.67549858343748	
-feedback	131	eye	NA	invariant
+feedback	131	cox	NA	invariant
 feedback	131	ctrl	NA	invariant
-trait2gen	131	eye	NA	invariant
+trait2gen	131	cox	NA	invariant
 trait2gen	131	ctrl	NA	invariant
-gen2trait	131	eye	NA	invariant
+gen2trait	131	cox	NA	invariant
 gen2trait	131	ctrl	NA	invariant
-null	131	eye	NA	invariant
+null	131	cox	NA	invariant
 null	131	ctrl	NA	invariant
-feedback	132	eye	1.533094792055e-09	
+feedback	132	cox	1.533094792055e-09	
 feedback	132	ctrl	0.85923197004757	
-trait2gen	132	eye	0.772675331293108	
+trait2gen	132	cox	0.772675331293108	
 trait2gen	132	ctrl	0.874964350512778	
-gen2trait	132	eye	0.000178154713856282	
+gen2trait	132	cox	0.000178154713856282	
 gen2trait	132	ctrl	1	
-null	132	eye	0.147705557649965	
+null	132	cox	0.147705557649965	
 null	132	ctrl	0.82997633385581	
-feedback	133	eye	1.74873680278621e-06	
+feedback	133	cox	1.74873680278621e-06	
 feedback	133	ctrl	0.0359180686505742	
-trait2gen	133	eye	0.464969900067768	
+trait2gen	133	cox	0.464969900067768	
 trait2gen	133	ctrl	0.791002245191745	
-gen2trait	133	eye	1.30054964928477e-05	
+gen2trait	133	cox	1.30054964928477e-05	
 gen2trait	133	ctrl	0.0202754767336198	
-null	133	eye	0.435107285220409	
+null	133	cox	0.435107285220409	
 null	133	ctrl	0.492665845287964	
-feedback	134	eye	3.48888549516249e-10	
+feedback	134	cox	3.48888549516249e-10	
 feedback	134	ctrl	0.467006024325441	
-trait2gen	134	eye	0.260560523286967	
+trait2gen	134	cox	0.260560523286967	
 trait2gen	134	ctrl	0.365433234830477	
-gen2trait	134	eye	0.00214691841147108	
+gen2trait	134	cox	0.00214691841147108	
 gen2trait	134	ctrl	0.31875627858974	
-null	134	eye	0.27593834300798	
+null	134	cox	0.27593834300798	
 null	134	ctrl	0.309647498243626	
-feedback	135	eye	0.000918425393920077	
+feedback	135	cox	0.000918425393920077	
 feedback	135	ctrl	0.38421060443281	
-trait2gen	135	eye	0.255796379489399	
+trait2gen	135	cox	0.255796379489399	
 trait2gen	135	ctrl	0.728623260447658	
-gen2trait	135	eye	0.000162261202214985	
+gen2trait	135	cox	0.000162261202214985	
 gen2trait	135	ctrl	0.204668592057351	
-null	135	eye	0.522420383132662	
+null	135	cox	0.522420383132662	
 null	135	ctrl	0.183510175353265	
-feedback	136	eye	3.56721506578408e-06	
+feedback	136	cox	3.56721506578408e-06	
 feedback	136	ctrl	0.229596074261779	
-trait2gen	136	eye	0.162948872680986	
+trait2gen	136	cox	0.162948872680986	
 trait2gen	136	ctrl	0.214617654805414	
-gen2trait	136	eye	0.000582837830408949	
+gen2trait	136	cox	0.000582837830408949	
 gen2trait	136	ctrl	0.0430758291632322	
-null	136	eye	0.479359520278838	
+null	136	cox	0.479359520278838	
 null	136	ctrl	0.096428368318984	
-feedback	137	eye	2.1023581664135e-05	
+feedback	137	cox	2.1023581664135e-05	
 feedback	137	ctrl	NA	invariant
-trait2gen	137	eye	NA	invariant
+trait2gen	137	cox	NA	invariant
 trait2gen	137	ctrl	NA	invariant
-gen2trait	137	eye	NA	invariant
+gen2trait	137	cox	NA	invariant
 gen2trait	137	ctrl	NA	invariant
-null	137	eye	0.0451606122611913	
+null	137	cox	0.0451606122611913	
 null	137	ctrl	NA	invariant
-feedback	138	eye	NA	invariant
+feedback	138	cox	NA	invariant
 feedback	138	ctrl	NA	invariant
-trait2gen	138	eye	NA	invariant
+trait2gen	138	cox	NA	invariant
 trait2gen	138	ctrl	NA	invariant
-gen2trait	138	eye	NA	invariant
+gen2trait	138	cox	NA	invariant
 gen2trait	138	ctrl	NA	invariant
-null	138	eye	NA	invariant
+null	138	cox	NA	invariant
 null	138	ctrl	NA	invariant
-feedback	139	eye	2.86882805185082e-07	
+feedback	139	cox	2.86882805185082e-07	
 feedback	139	ctrl	0.28050067767783	
-trait2gen	139	eye	0.0534545661826145	
+trait2gen	139	cox	0.0534545661826145	
 trait2gen	139	ctrl	0.506507281222938	
-gen2trait	139	eye	4.85733559511524e-05	
+gen2trait	139	cox	4.85733559511524e-05	
 gen2trait	139	ctrl	0.612522949472087	
-null	139	eye	0.710637788480071	
+null	139	cox	0.710637788480071	
 null	139	ctrl	0.629381850641546	
-feedback	140	eye	7.20282552818039e-13	
+feedback	140	cox	7.20282552818039e-13	
 feedback	140	ctrl	0.962441487098614	
-trait2gen	140	eye	0.55386203140592	
+trait2gen	140	cox	0.55386203140592	
 trait2gen	140	ctrl	0.254415317731047	
-gen2trait	140	eye	0.0106782307258204	
+gen2trait	140	cox	0.0106782307258204	
 gen2trait	140	ctrl	0.528116404525623	
-null	140	eye	0.103783651257942	
+null	140	cox	0.103783651257942	
 null	140	ctrl	0.292858755308679	
-feedback	141	eye	NA	invariant
+feedback	141	cox	NA	invariant
 feedback	141	ctrl	0.980754115705558	
-trait2gen	141	eye	NA	invariant
+trait2gen	141	cox	NA	invariant
 trait2gen	141	ctrl	0.234496593281803	
-gen2trait	141	eye	NA	invariant
+gen2trait	141	cox	NA	invariant
 gen2trait	141	ctrl	0.898210473542864	
-null	141	eye	NA	invariant
+null	141	cox	NA	invariant
 null	141	ctrl	0.270960034372332	
-feedback	142	eye	3.77960062390165e-06	
+feedback	142	cox	3.77960062390165e-06	
 feedback	142	ctrl	NA	invariant
-trait2gen	142	eye	0.0341067270818874	
+trait2gen	142	cox	0.0341067270818874	
 trait2gen	142	ctrl	NA	invariant
-gen2trait	142	eye	0.00374476383953906	
+gen2trait	142	cox	0.00374476383953906	
 gen2trait	142	ctrl	NA	invariant
-null	142	eye	0.859689672582517	
+null	142	cox	0.859689672582517	
 null	142	ctrl	NA	invariant
-feedback	143	eye	NA	invariant
+feedback	143	cox	NA	invariant
 feedback	143	ctrl	NA	invariant
-trait2gen	143	eye	NA	invariant
+trait2gen	143	cox	NA	invariant
 trait2gen	143	ctrl	NA	invariant
-gen2trait	143	eye	NA	invariant
+gen2trait	143	cox	NA	invariant
 gen2trait	143	ctrl	NA	invariant
-null	143	eye	NA	invariant
+null	143	cox	NA	invariant
 null	143	ctrl	NA	invariant
-feedback	144	eye	5.89756287518937e-06	
+feedback	144	cox	5.89756287518937e-06	
 feedback	144	ctrl	0.474838269858577	
-trait2gen	144	eye	0.168963426313288	
+trait2gen	144	cox	0.168963426313288	
 trait2gen	144	ctrl	0.342010277351295	
-gen2trait	144	eye	9.26821594807685e-05	
+gen2trait	144	cox	9.26821594807685e-05	
 gen2trait	144	ctrl	0.323231848730972	
-null	144	eye	0.999999934950295	
+null	144	cox	0.999999934950295	
 null	144	ctrl	0.615466651678157	
-feedback	145	eye	NA	invariant
+feedback	145	cox	NA	invariant
 feedback	145	ctrl	0.28036345806064	
-trait2gen	145	eye	NA	invariant
+trait2gen	145	cox	NA	invariant
 trait2gen	145	ctrl	0.0154108158541465	
-gen2trait	145	eye	NA	invariant
+gen2trait	145	cox	NA	invariant
 gen2trait	145	ctrl	0.637580859095133	
-null	145	eye	NA	invariant
+null	145	cox	NA	invariant
 null	145	ctrl	0.84783446133357	
-feedback	146	eye	9.73254701973202e-09	
+feedback	146	cox	9.73254701973202e-09	
 feedback	146	ctrl	0.0512784861832129	
-trait2gen	146	eye	0.0711011961673916	
+trait2gen	146	cox	0.0711011961673916	
 trait2gen	146	ctrl	0.0335789006267979	
-gen2trait	146	eye	0.0410655652206331	
+gen2trait	146	cox	0.0410655652206331	
 gen2trait	146	ctrl	0.0340405339767148	
-null	146	eye	0.573067782551501	
+null	146	cox	0.573067782551501	
 null	146	ctrl	0.332076607350012	
-feedback	147	eye	NA	invariant
+feedback	147	cox	NA	invariant
 feedback	147	ctrl	0.692600083854009	
-trait2gen	147	eye	0.0250235655868812	
+trait2gen	147	cox	0.0250235655868812	
 trait2gen	147	ctrl	0.647483919039571	
-gen2trait	147	eye	0.0286478612930003	
+gen2trait	147	cox	0.0286478612930003	
 gen2trait	147	ctrl	0.85853644326819	
-null	147	eye	0.522189687163368	
+null	147	cox	0.522189687163368	
 null	147	ctrl	0.850763355828859	
-feedback	148	eye	NA	invariant
+feedback	148	cox	NA	invariant
 feedback	148	ctrl	NA	invariant
-trait2gen	148	eye	NA	invariant
+trait2gen	148	cox	NA	invariant
 trait2gen	148	ctrl	NA	invariant
-gen2trait	148	eye	NA	invariant
+gen2trait	148	cox	NA	invariant
 gen2trait	148	ctrl	NA	invariant
-null	148	eye	NA	invariant
+null	148	cox	NA	invariant
 null	148	ctrl	NA	invariant
-feedback	149	eye	0.000533078002618974	
+feedback	149	cox	0.000533078002618974	
 feedback	149	ctrl	0.477129618409334	
-trait2gen	149	eye	0.277986626924948	
+trait2gen	149	cox	0.277986626924948	
 trait2gen	149	ctrl	0.306779931966991	
-gen2trait	149	eye	0.000191545078840541	
+gen2trait	149	cox	0.000191545078840541	
 gen2trait	149	ctrl	0.912142800887372	
-null	149	eye	0.435428163562232	
+null	149	cox	0.435428163562232	
 null	149	ctrl	0.994468302623012	
-feedback	150	eye	NA	invariant
+feedback	150	cox	NA	invariant
 feedback	150	ctrl	0.130949682499744	
-trait2gen	150	eye	NA	invariant
+trait2gen	150	cox	NA	invariant
 trait2gen	150	ctrl	0.0932254885719953	
-gen2trait	150	eye	NA	invariant
+gen2trait	150	cox	NA	invariant
 gen2trait	150	ctrl	0.108641996077713	
-null	150	eye	NA	invariant
+null	150	cox	NA	invariant
 null	150	ctrl	0.751676689226975	

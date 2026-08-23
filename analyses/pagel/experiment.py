@@ -3,13 +3,13 @@
 correlated-evolution example.
 
 Four arms on matched seeds, 150 replicates each, 150 extant tips. The two connections:
-the habitat multiplies the loss rate of every gene family (5x in the cave), and the eye
-family's absence multiplies the rate of switching to the cave (12x). The arms switch
-each connection on or off:
+the habitat multiplies the loss rate of every gene family (5x in the anoxic habitat),
+and the cox family's absence multiplies the rate of switching to the anoxic habitat
+(12x). The arms switch each connection on or off:
 
   feedback    both on
   trait2gen   only the habitat drives the loss rate
-  gen2trait   only the eye family drives the switch rate
+  gen2trait   only the cox family drives the switch rate
   null        both off (the factors are 1)
 
 Every replicate also carries a control character from an INDEPENDENT genome run on the
@@ -18,7 +18,7 @@ Pagel's test finds on it is an artifact of the tree or the method.
 
 Each replicate writes
   data/trees/{arm}_r{rep:03d}.nwk   the extant tree
-  data/states/{arm}_r{rep:03d}.tsv  tip, habitat, eye presence, control presence
+  data/states/{arm}_r{rep:03d}.tsv  tip, habitat, cox presence, control presence
 
     python experiment.py
 """
@@ -44,11 +44,11 @@ STATES = os.path.join(HERE, "data", "states")
 # --------------------------------------------------------------------------- design
 N_REPS = 150
 N_EXTANT = 150
-LOSS_BASE = 0.25            # per copy; the habitat multiplies it in the cave
+LOSS_BASE = 0.25            # per copy; the habitat multiplies it in the anoxic habitat
 LOSS_FACTOR = 5.0
-SWITCH_BASE = 0.08          # surface -> cave; the eye's absence multiplies it
+SWITCH_BASE = 0.08          # oxic -> anoxic; the cox family's absence multiplies it
 SWITCH_FACTOR = 12.0
-SWITCH_BACK = 0.10          # cave -> surface, constant
+SWITCH_BACK = 0.10          # anoxic -> oxic, constant
 ARMS = {"feedback": (LOSS_FACTOR, SWITCH_FACTOR),
         "trait2gen": (LOSS_FACTOR, 1.0),
         "gen2trait": (1.0, SWITCH_FACTOR),
@@ -60,25 +60,25 @@ def one(arm, L, S, seed):
     ct = simulate_species_tree(birth=1.0, n_extant=N_EXTANT, seed=seed).complete_tree
     r = joint.simulate(
         genome_spec(duplication=0.05, origination=8.0, initial_families=40,
-                    loss=PerCopy(LOSS_BASE).scaled_by("trait", {"cave": L, "surface": 1.0}),
-                    families=[family("eye")]),
-        traits.discrete(states=["surface", "cave"], start="surface",
-                        switch={"surface->cave": PerLineage(SWITCH_BASE).scaled_by(
-                                    "genomes:eye", {"present": 1.0, "absent": S}),
-                                "cave->surface": SWITCH_BACK}),
+                    loss=PerCopy(LOSS_BASE).scaled_by("trait", {"anoxic": L, "oxic": 1.0}),
+                    families=[family("cox")]),
+        traits.discrete(states=["oxic", "anoxic"], start="oxic",
+                        switch={"oxic->anoxic": PerLineage(SWITCH_BASE).scaled_by(
+                                    "genomes:cox", {"present": 1.0, "absent": S}),
+                                "anoxic->oxic": SWITCH_BACK}),
         tree=ct, seed=seed)
     ctrl_run = simulate_genomes_family(ct, initial_families=1, duplication=0.0,
                                        origination=0.0, loss=0.2, transfer=0.25,
                                        families=[family("ctrl")],
                                        seed=seed + CTRL_SEED_OFFSET)
     lab = ct.labels()
-    eye = r.genome.family_names["eye"]
+    cox = r.genome.family_names["cox"]
     ctrl = ctrl_run.family_names["ctrl"]
     rows = []
     for n in sorted(ct.extant_leaves()):
         rows.append({"tip": lab[n],
                      "habitat": r.trait.values[lab[n]],
-                     "eye": "present" if r.genome.family_counts(n)[eye] > 0 else "absent",
+                     "cox": "present" if r.genome.family_counts(n)[cox] > 0 else "absent",
                      "ctrl": "present" if ctrl_run.family_counts(n)[ctrl] > 0 else "absent"})
     return r.species.extant_tree.to_newick(), rows
 
@@ -93,7 +93,7 @@ def main() -> int:
             with open(os.path.join(TREES, f"{arm}_r{rep:03d}.nwk"), "w") as fh:
                 fh.write(nwk + "\n")
             with open(os.path.join(STATES, f"{arm}_r{rep:03d}.tsv"), "w", newline="") as fh:
-                w = csv.DictWriter(fh, fieldnames=["tip", "habitat", "eye", "ctrl"],
+                w = csv.DictWriter(fh, fieldnames=["tip", "habitat", "cox", "ctrl"],
                                    delimiter="\t")
                 w.writeheader()
                 w.writerows(rows)

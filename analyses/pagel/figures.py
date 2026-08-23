@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The one figure: rejection rates by arm, the eye pairing against the control, with
+"""The one figure: rejection rates by arm, the cox pairing against the control, with
 Wilson intervals. Reads results.json beside it, writes figures/pagel.{png,pdf}.
 
     python figures.py
@@ -20,7 +20,7 @@ FIG = HERE / "figures"
 
 INK, MUTED, FAINT = "#1a1a1a", "#8a8a8a", "#c9c9c9"
 ARMS = [("feedback", "feedback\n(both connections)"),
-        ("gen2trait", "the eye family\ndrives the switch rate"),
+        ("gen2trait", "the cox family\ndrives the switch rate"),
         ("trait2gen", "the habitat\ndrives the loss rate"),
         ("null", "null\n(no connection)")]
 
@@ -35,7 +35,7 @@ def main() -> int:
     FIG.mkdir(exist_ok=True)
     fig, ax = plt.subplots(figsize=(8.6, 4.2))
     x = np.arange(len(ARMS)) * 1.15
-    for off, pair, color, label in ((-0.19, "eye", INK, "habitat and the eye family"),
+    for off, pair, color, label in ((-0.19, "cox", INK, "habitat and the cox family"),
                                     (0.19, "ctrl", FAINT, "habitat and the control")):
         rates = [d[a][pair]["rate"] for a, _ in ARMS]
         los = [d[a][pair]["rate"] - d[a][pair]["wilson95"][0] for a, _ in ARMS]
