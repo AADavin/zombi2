@@ -9,6 +9,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- The Pagel example's story is now aerobic respiration: the habitat's states are oxic
+  and anoxic, and the driving family is `cox`, a gene required for aerobic respiration,
+  so both directions of the feedback read naturally (losing the family pushes a lineage
+  toward anoxic habitats; anoxic lineages lose genes faster). Labels only: the design,
+  the seeds and every number are unchanged.
+
 ### Fixed
 
 - The prose of the Pagel example's report and website page rewritten to the manual's plain

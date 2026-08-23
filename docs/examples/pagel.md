@@ -25,9 +25,11 @@ the very same trees, so any signal the test finds on that family is an artifact.
 
 One joint run simulates the genome and the habitat together along a dated tree of 150
 extant tips. Two connections, one in each direction, close the feedback loop: the habitat
-multiplies the loss rate of every gene family (a cave lineage loses gene copies five
-times faster), and the `eye` family's absence multiplies the rate of switching into the
-cave by twelve.
+multiplies the loss rate of every gene family (an anoxic lineage loses gene copies five
+times faster), and the `cox` family's absence multiplies the rate of switching into the
+anoxic habitat by twelve. The family stands for a gene required for aerobic
+respiration: a lineage that loses it is pushed toward anoxic habitats, and an anoxic
+lineage loses genes faster.
 
 ```python
 from zombi2 import joint, traits
@@ -38,12 +40,12 @@ from zombi2.species import simulate_species_tree
 tree = simulate_species_tree(birth=1.0, n_extant=150, seed=1).complete_tree
 result = joint.simulate(
     genome(duplication=0.05, origination=8.0, initial_families=40,
-           loss=PerCopy(0.25).scaled_by("trait", {"cave": 5.0, "surface": 1.0}),
-           families=[family("eye")]),
-    traits.discrete(states=["surface", "cave"], start="surface",
-                    switch={"surface->cave": PerLineage(0.08).scaled_by(
-                                "genomes:eye", {"present": 1.0, "absent": 12.0}),
-                            "cave->surface": 0.10}),
+           loss=PerCopy(0.25).scaled_by("trait", {"anoxic": 5.0, "oxic": 1.0}),
+           families=[family("cox")]),
+    traits.discrete(states=["oxic", "anoxic"], start="oxic",
+                    switch={"oxic->anoxic": PerLineage(0.08).scaled_by(
+                                "genomes:cox", {"present": 1.0, "absent": 12.0}),
+                            "anoxic->oxic": 0.10}),
     tree=tree, seed=1)
 ```
 
@@ -55,13 +57,13 @@ family from a separate genome run on the same tree.
 ## What the test reports
 
 For every replicate we fit `fitPagel` (from `phytools`) to the habitat paired with the
-eye family's tip presence, and to the habitat paired with the control: 1,200 fits, of
+cox family's tip presence, and to the habitat paired with the control: 1,200 fits, of
 which 341 were skipped because a character invariant at the tips cannot be fit.
 
-| arm | habitat × eye | habitat × control |
+| arm | habitat × cox | habitat × control |
 |---|---|---|
 | feedback (both directions) | **90.6%** | 6.0% |
-| the eye family drives the switch rate | **87.3%** | 7.8% |
+| the cox family drives the switch rate | **87.3%** | 7.8% |
 | the habitat drives the loss rate | **19.8%** | 6.0% |
 | null (no dependency) | 5.0% | 4.3% |
 
@@ -77,8 +79,8 @@ is a five-fold change in the loss rate of every family in the genome.
 ## Why the asymmetry
 
 A connection produces extra events only where the driving state is present. Lineages
-missing the eye family are common, because copies are steadily lost, so the twelve-fold
-switch rate applies across much of the tree; cave lineages are rare at the base switch
+missing the cox family are common, because copies are steadily lost, so the twelve-fold
+switch rate applies across much of the tree; anoxic lineages are rare at the base switch
 rates, so the five-fold loss applies to few branches. Tip presence is also a coarse
 measure of the loss rate: a family present in several copies must lose them all before
 the character changes.

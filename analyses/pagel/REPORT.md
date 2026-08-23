@@ -1,8 +1,10 @@
 # Can Pagel's test detect a feedback?
 
 **What we test:** a genome and a trait shape each other in one joint ZOMBI2 run: a binary
-habitat multiplies the loss rate of every gene family, and the eye family's absence
-multiplies the rate of switching into the cave. The standard test for correlated
+habitat multiplies the loss rate of every gene family, and the cox family's absence
+multiplies the rate of switching into the anoxic habitat. The family stands for a gene
+required for aerobic respiration: losing it pushes a lineage toward anoxic habitats,
+and an anoxic lineage loses genes faster. The standard test for correlated
 evolution of two binary characters (Pagel 1994, fit with `phytools::fitPagel`) is applied
 to the two tip characters the run produces. Does it detect the feedback? Does it detect
 each direction alone? And does it reject at the nominal rate when there is
@@ -18,12 +20,12 @@ together:
 ```python
 r = joint.simulate(
     genome(duplication=0.05, origination=8.0, initial_families=40,
-           loss=PerCopy(0.25).scaled_by("trait", {"cave": L, "surface": 1.0}),
-           families=[family("eye")]),
-    traits.discrete(states=["surface", "cave"], start="surface",
-                    switch={"surface->cave": PerLineage(0.08).scaled_by(
-                                "genomes:eye", {"present": 1.0, "absent": S}),
-                            "cave->surface": 0.10}),
+           loss=PerCopy(0.25).scaled_by("trait", {"anoxic": L, "oxic": 1.0}),
+           families=[family("cox")]),
+    traits.discrete(states=["oxic", "anoxic"], start="oxic",
+                    switch={"oxic->anoxic": PerLineage(0.08).scaled_by(
+                                "genomes:cox", {"present": 1.0, "absent": S}),
+                            "anoxic->oxic": 0.10}),
     tree=ct, seed=seed)
 ```
 
@@ -36,13 +38,13 @@ the tree or the method.
 
 ## What the test reports
 
-For every replicate we fit `fitPagel` twice: the habitat against the eye family's tip
+For every replicate we fit `fitPagel` twice: the habitat against the cox family's tip
 presence, and the habitat against the control. The test compares the dependent
 eight-parameter Markov model against the independent four-parameter one with a
 likelihood-ratio test at α = 0.05. That is 1,200 fits; 341 were skipped because a
 character invariant at the tips cannot be fit.
 
-| arm | habitat × eye | habitat × control |
+| arm | habitat × cox | habitat × control |
 |---|---|---|
 | feedback (both directions) | **90.6%** (87/96, CI 83.1–95.0%) | 6.0% (7/116) |
 | gen2trait (family drives the switch) | **87.3%** (89/102, CI 79.4–92.4%) | 7.8% (9/116) |
@@ -57,9 +59,9 @@ character invariant at the tips cannot be fit.
   dependency in one run of five, even though that dependency is a five-fold change in
   the loss rate of every family in the genome.
 - **The reason is mechanical.** A connection produces extra events only where the
-  driving state is present. Lineages missing the eye family are common, because copies
+  driving state is present. Lineages missing the cox family are common, because copies
   are steadily lost, so the twelve-fold switch rate applies across much of the tree;
-  cave lineages are rare at the base switch rates, so the five-fold loss applies to few
+  anoxic lineages are rare at the base switch rates, so the five-fold loss applies to few
   branches. Tip presence is also a coarse measure of the loss rate: a family present in
   several copies must lose them all before the character changes.
 - **The test reports dependence, not a direction.** The feedback arm and the

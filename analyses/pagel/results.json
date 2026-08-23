@@ -1,6 +1,6 @@
 {
  "feedback": {
-  "eye": {
+  "cox": {
    "fitted": 96,
    "skipped": 54,
    "rejections": 87,
@@ -22,7 +22,7 @@
   }
  },
  "trait2gen": {
-  "eye": {
+  "cox": {
    "fitted": 96,
    "skipped": 54,
    "rejections": 19,
@@ -44,7 +44,7 @@
   }
  },
  "gen2trait": {
-  "eye": {
+  "cox": {
    "fitted": 102,
    "skipped": 48,
    "rejections": 89,
@@ -66,7 +66,7 @@
   }
  },
  "null": {
-  "eye": {
+  "cox": {
    "fitted": 101,
    "skipped": 49,
    "rejections": 5,
