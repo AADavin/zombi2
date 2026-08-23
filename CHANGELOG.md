@@ -11,6 +11,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Changed
 
+- The gene-drives-a-trait card is redrawn in the same radial language as the module card:
+  the presence of the toxin family painted on the branches, changing mid-branch at the
+  instant the family is gained or its last copy is lost, and the pathogenicity of every
+  tip as a ring, on 200 extant lineages. The one-way drive stays: 58 of the 66 pathogenic
+  tips carry the family, the other 8 come from the background rate.
+
 - The module-drives-a-trait example is retold as motility: four families (`fliA`--`fliD`)
   form a flagellum module, and keeping more than half of it turns a lineage motile, through
   the same step mapping. The card's figure is redrawn as a radial tree with the module's

@@ -1018,55 +1018,63 @@ def trait_drives_trait(out):
 
 
 def gene_drives_trait(out):
-    """A GENE FAMILY is the driver and a trait is the target — the other direction of a relation that
-    only ran one way before. A toxin family is grown first, gained and lost down the tree; a
+    """A GENE FAMILY is the driver and a trait is the target — the other direction of a relation
+    that only ran one way before. A toxin family is grown first, gained and lost down the tree; a
     pathogenicity trait then *becomes* pathogenic forty times faster in the lineages that carry it —
-    one direction only, since a toxin makes a lineage dangerous rather than helping it recover. The
-    same tree is painted twice, so the answer is in the alignment of the two panels: 74% of the tips
-    carrying the gene end up pathogenic against none of those without.
+    one direction only, since the toxin drives becoming pathogenic and not recovering.
 
-    Presence is exact and changes mid-branch, at the instant the last copy actually went."""
-    ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
-    # Loss a little above duplication, so the family survives in some clades and decays in others:
-    # 59% of the tree's branch length carries it, and 23 tips do against 22 that do not. At the old
-    # loss=0.3 the family died on the stem and both panels came out blank.
+    The radial tree carries the driver on its branches — presence of the family, exact and
+    changing mid-branch at the instant the last copy goes — and the response on its rim: the
+    pathogenicity of every tip. Red crowds the carrying half of the circle and thins to the
+    background rate over the rest: 58 of the 66 pathogenic tips are carriers."""
+    from PIL import Image, ImageChops
+
+    ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=200, seed=4).complete_tree
+    # Loss a little above duplication, so the family survives in some clades and decays in
+    # others: 105 of the 200 tips carry it.
     g = simulate_genomes_family(ct, initial_families=20, families=[family("tox")],
                                 duplication=0.1, loss=0.13, seed=5)
     tox = g.presence("tox")
-    # the gene drives ONE direction: carrying a toxin makes a lineage *become* pathogenic, it does
-    # not make it revert faster. `switch` takes a rate per transition, and only one of them reads the
-    # driver — so the signal is which tips end up pathogenic, not how much they flicker.
+    # the gene drives ONE direction: carrying a toxin makes a lineage *become* pathogenic, it
+    # does not make it revert faster. `switch` takes a rate per transition, and only one of them
+    # reads the driver — so the signal is which tips end up pathogenic.
     disease = simulate_discrete(
         ct, states=["harmless", "pathogenic"], start="harmless", seed=2,
         switch={"harmless->pathogenic":
                     PerLineage(0.02).scaled_by(tox, {"present": 40.0, "absent": 1.0}),
                 "pathogenic->harmless": 0.6})
 
-    lab = ct.labels()
-    top = {lab[i]: segs for i, segs in tox.history(ct).items()}
-    bottom = _state_history(ct, disease)
-    style = _panel_style()
-    pngs = []
-    for k, (hist, palette) in enumerate(((top, _TOX), (bottom, _DISEASE))):
-        png = out.replace(".png", f"_g{k}.png")
-        (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
-         + ph.trees.color_history(hist, palette=palette)
-         + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
-        pngs.append(png)
-    diag = h.conditioning_png(
-        out.replace(".png", "_diag.png"),
-        driver=("genomes", "tox", "present or absent"),
-        link=("scaled_by", "table"),
-        target_level="traits",
-        targets=[("pathogenic", "rate · per lineage", "present × 40    absent × 1")],
-        # the family is lost and not regained, so one arc; the TARGET is itself a trait with states,
-        # and what the gene drives is the rate of one of its two arrows
-        chain=(("present", "absent"), [("0.13", None)],
-               (_TOX["present"], _TOX["absent"])),
-        target_chain=(("harmless", "pathogenic"), [("driven", "0.6")],
-                      (_DISEASE["harmless"], _DISEASE["pathogenic"])))
-    h.composite_under_diagram(out, diag, [(pngs[0], "the toxin family", _TOX),
-                                          (pngs[1], "pathogenicity", _DISEASE)])
+    lab, tips = ct.labels(), sorted(ct.extant_leaves())
+    pres_hist = {lab[i]: segs for i, segs in tox.history(ct).items()}
+    state = {lab[i]: disease.values[lab[i]] for i in tips}
+    tree_png = out.replace(".png", "_tree.png")
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), layout="radial", skeleton=False,
+                   style=ph.Style(width=1250, height=1250, margin=88, branch_width=4.8))
+     + ph.trees.ring(state, palette=_DISEASE, gap=16, width=18)
+     + ph.trees.color_history(pres_hist, palette=_TOX)
+     + ph.trees.legend(entries={"tox present": _TOX["present"],
+                                "tox absent": _TOX["absent"]}, size=20, dy=0, inset=24)
+     + ph.trees.legend(entries={"pathogenic": _DISEASE["pathogenic"],
+                                "harmless": _DISEASE["harmless"]}, size=20, dy=92,
+                       inset=24)).save(tree_png)
+    diag_png = out.replace(".png", "_diag.png")
+    h.joint_png(diag_png, [
+        (("genomes", "the tox family", []), ("traits", "switch rate", []),
+         "carrying tox turns a lineage pathogenic 40x faster"),
+    ], frame=None, keys=False, sentence_size=15.5, wrap_width=260, font_scale=1.18)
+
+    def trim(im, bg=(255, 255, 255)):
+        diff = ImageChops.difference(im.convert("RGB"), Image.new("RGB", im.size, bg))
+        return im.crop(diff.getbbox())
+
+    tree, diag = trim(Image.open(tree_png)), trim(Image.open(diag_png))
+    W = 2000
+    dw = int(W * 0.66); diag = diag.resize((dw, int(diag.height * dw / diag.width)))
+    tw = W - 160; tree = tree.resize((tw, int(tree.height * tw / tree.width)))
+    canvas = Image.new("RGB", (W, diag.height + 50 + tree.height + 40), "white")
+    canvas.paste(diag, ((W - dw) // 2, 12))
+    canvas.paste(tree, (80, diag.height + 50))
+    canvas.save(out)
 
 
 _C_BISSE = '''\
@@ -1415,7 +1423,7 @@ from zombi2.genomes import family, simulate_genomes_family
 from zombi2.traits import simulate_discrete
 from zombi2.params import PerLineage
 
-ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=45, seed=4).complete_tree
+ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=200, seed=4).complete_tree
 
 # 1. the driver: genomes with ONE family named, so it can be referred to. Loss a little above
 #    duplication, so the family survives in some clades and decays in others.
@@ -1424,29 +1432,26 @@ g = simulate_genomes_family(ct, initial_families=20, families=[family("tox")],
 
 # 2. the target: a trait whose switch rate reads whether that family is there. `presence` is a
 #    driver like a grown trait, so the mapping is an ordinary table over its two states.
-# `switch` takes a rate per transition, and only ONE of them reads the driver: a toxin makes a
-# lineage become pathogenic, it does not help it revert. So the signal is which tips END UP
-# pathogenic — 74% of the 23 tips carrying the gene, against none of the 22 without.
+# Only ONE transition reads the driver: a toxin drives becoming pathogenic, not recovering.
+# So the signal is which tips END UP pathogenic — 58 of the 66 pathogenic tips carry the gene.
 disease = simulate_discrete(
     ct, states=["harmless", "pathogenic"], start="harmless", seed=2,
     switch={"harmless->pathogenic": PerLineage(0.02).scaled_by(g.presence("tox"),
                                                    {"present": 40.0, "absent": 1.0}),
             "pathogenic->harmless": 0.6})
 
-### plot  —  the same tree painted twice: by the gene, then by what the gene drove
+### plot  —  the driver on the branches, the response on the rim
 import phylustrator as ph
 
 lab = ct.labels()
-tree = ph.trees.loads(ct.to_newick())
-gene = {lab[i]: segs for i, segs in g.presence("tox").history(ct).items()}
-trait = {lab[i]: segs for i, segs in disease.history.items()}
-(ph.trees.plot(tree, skeleton=False)
- + ph.trees.color_history(gene, palette={"absent": "#b9bec4", "present": "#2E8B6F"})
- + ph.trees.time_axis("time", bold=False)).save("gene.png")
-(ph.trees.plot(tree, skeleton=False)
- + ph.trees.color_history(trait, palette={"harmless": "#8f99a3", "pathogenic": "#C2453C"})
- + ph.trees.time_axis("time", bold=False)).save("trait.png")
-# presence changes MID-BRANCH, at the instant the last copy actually went'''
+kept = {lab[i]: segs for i, segs in g.presence("tox").history(ct).items()}
+state = {lab[i]: disease.values[lab[i]] for i in sorted(ct.extant_leaves())}
+(ph.trees.plot(ph.trees.loads(ct.to_newick()), layout="radial", skeleton=False)
+ + ph.trees.ring(state, palette={"harmless": "#8f99a3", "pathogenic": "#C2453C"})
+ + ph.trees.color_history(kept, palette={"absent": "#b9bec4", "present": "#2E8B6F"})
+ + ph.trees.legend(entries={"tox present": "#2E8B6F", "tox absent": "#b9bec4"})
+ + ph.trees.legend(entries={"pathogenic": "#C2453C", "harmless": "#8f99a3"}, dy=60)).save("tox.png")
+# red crowds the carrying half of the circle and thins to the background rate over the rest'''
 
 
 _C_MODULE = '''\
@@ -1572,8 +1577,8 @@ CONDITIONING = [
             "scale is centred on where it started, so white means it has not moved.",
             "trait → trait", trait_drives_trait, code=_C_TRAIT_TRAIT),
     Example("gene_drives_trait", "A gene drives a trait",
-            "Carrying a toxin family makes a lineage <i>become</i> pathogenic forty times faster. 74% of "
-            "the tips with the gene end up pathogenic, against none of those without.",
+            "Carrying a toxin family makes a lineage <i>become</i> pathogenic forty times faster. "
+            "58 of the 66 pathogenic tips carry the gene; the other 8 are the background rate.",
             "gene → trait", gene_drives_trait, code=_C_GENE_TRAIT),
     Example("module_drives_motility", "A module, through a step",
             "How much of a four-gene flagellum module a lineage keeps decides whether it swims, "
