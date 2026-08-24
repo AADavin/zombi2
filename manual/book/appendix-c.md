@@ -15,7 +15,7 @@ The tables of Chapter 8, in one place: every connection, every driver, every tar
 | **6** | a gene family | a sequence | lose the repair gene and evolve faster | [Co14](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:repair_gene--> | — |
 | **7** | a gene family | a trait | carry the toxin family and turn pathogenic | [Co15](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gene_drives_trait--> | [Jo5](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:cave_genomes--> |
 | **8** | an ordered or nucleotide genome | a sequence | as **6**, with coordinates in the genome run | [Co16](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:operon_substitution--> | — |
-| **9** | an ordered or nucleotide genome | a trait | as **7**, with coordinates in the genome run | [Co17–Co18](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:module_drives_metabolism--><!--gallery:operon_trait--> | — |
+| **9** | an ordered or nucleotide genome | a trait | as **7**, with coordinates in the genome run | [Co17–Co18](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:module_drives_motility--><!--gallery:operon_trait--> | — |
 | **10** | a sequence | a sequence | one gene's composition indexes something about the lineage, and that sets another gene's rate | [Co19–Co20](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_sequence--><!--gallery:named_family_drives_sequence--> | [Jo3](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:sequence_loop--> |
 | **11** | a sequence | a trait | GC content sets how fast a trait changes | [Co21](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_trait--> | [Jo2](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:trait_and_sequence--> |
 | **12** | a sequence | a genome | composition sets the loss rate of the genome that carries the gene; it can never be simulated first | — | [Jo1](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:genome_and_sequence--> |
@@ -31,7 +31,7 @@ In a conditioned run, a driver is a finished result:
 | a discrete trait | one of its states | [Co1](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:genome_reduction--> |
 | a continuous trait | a number, read every `step` of time | [Co4](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:continuous_conditioning--> |
 | a gene family | `present` or `absent` | [Co14–Co15](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:repair_gene--><!--gallery:gene_drives_trait--> |
-| a module | a fraction, 0 to 1: how complete a declared group of families is | [Co17](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:module_drives_metabolism--> |
+| a module | a fraction, 0 to 1: how complete a declared group of families is | [Co17](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:module_drives_motility--> |
 | a sequence's composition | a number, 0 to 1: the share of its letters in a given set | [Co19](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_sequence--> |
 | **one family's** composition | the same, on a run restricted to that family, plus an `absent=` | [Co20](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:named_family_drives_sequence--> |
 

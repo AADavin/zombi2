@@ -2,15 +2,15 @@
 """A gene family and a habitat that shape each other: the runs behind the paper's
 correlated-evolution example.
 
-Four arms on matched seeds, 150 replicates each, 150 extant tips. The two connections:
-the habitat multiplies the loss rate of every gene family (5x in the cave), and the eye
-family's absence multiplies the rate of switching to the cave (12x). The arms switch
-each connection on or off:
+Four experiments on matched seeds, 150 replicates each, 150 extant tips. The two
+connections: the habitat multiplies the loss rate of every gene family (5x in the
+anaerobic habitat), and the absence of family A multiplies the rate of switching to
+the anaerobic habitat (12x). The experiments switch each connection on or off:
 
-  feedback    both on
-  trait2gen   only the habitat drives the loss rate
-  gen2trait   only the eye family drives the switch rate
-  null        both off (the factors are 1)
+  feedback    both connections on
+  trait2gen   only connection 1: the habitat drives the loss rate
+  gen2trait   only connection 2: family A drives the switch rate
+  null        no connections (both factors are 1)
 
 Every replicate also carries a control character from an INDEPENDENT genome run on the
 same tree: one family under plain loss and transfer, connected to nothing, so any signal
@@ -18,7 +18,7 @@ Pagel's test finds on it is an artifact of the tree or the method.
 
 Each replicate writes
   data/trees/{arm}_r{rep:03d}.nwk   the extant tree
-  data/states/{arm}_r{rep:03d}.tsv  tip, habitat, eye presence, control presence
+  data/states/{arm}_r{rep:03d}.tsv  tip, habitat, A presence, control presence, gene number
 
     python experiment.py
 """
@@ -44,11 +44,11 @@ STATES = os.path.join(HERE, "data", "states")
 # --------------------------------------------------------------------------- design
 N_REPS = 150
 N_EXTANT = 150
-LOSS_BASE = 0.25            # per copy; the habitat multiplies it in the cave
+LOSS_BASE = 0.25            # per copy; the habitat multiplies it in the anaerobic habitat
 LOSS_FACTOR = 5.0
-SWITCH_BASE = 0.08          # surface -> cave; the eye's absence multiplies it
+SWITCH_BASE = 0.08          # aerobic -> anaerobic; the absence of A multiplies it
 SWITCH_FACTOR = 12.0
-SWITCH_BACK = 0.10          # cave -> surface, constant
+SWITCH_BACK = 0.10          # anaerobic -> aerobic, constant
 ARMS = {"feedback": (LOSS_FACTOR, SWITCH_FACTOR),
         "trait2gen": (LOSS_FACTOR, 1.0),
         "gen2trait": (1.0, SWITCH_FACTOR),
@@ -60,26 +60,27 @@ def one(arm, L, S, seed):
     ct = simulate_species_tree(birth=1.0, n_extant=N_EXTANT, seed=seed).complete_tree
     r = joint.simulate(
         genome_spec(duplication=0.05, origination=8.0, initial_families=40,
-                    loss=PerCopy(LOSS_BASE).scaled_by("trait", {"cave": L, "surface": 1.0}),
-                    families=[family("eye")]),
-        traits.discrete(states=["surface", "cave"], start="surface",
-                        switch={"surface->cave": PerLineage(SWITCH_BASE).scaled_by(
-                                    "genomes:eye", {"present": 1.0, "absent": S}),
-                                "cave->surface": SWITCH_BACK}),
+                    loss=PerCopy(LOSS_BASE).scaled_by("trait", {"anaerobic": L, "aerobic": 1.0}),
+                    families=[family("A")]),
+        traits.discrete(states=["aerobic", "anaerobic"], start="aerobic",
+                        switch={"aerobic->anaerobic": PerLineage(SWITCH_BASE).scaled_by(
+                                    "genomes:A", {"present": 1.0, "absent": S}),
+                                "anaerobic->aerobic": SWITCH_BACK}),
         tree=ct, seed=seed)
     ctrl_run = simulate_genomes_family(ct, initial_families=1, duplication=0.0,
                                        origination=0.0, loss=0.2, transfer=0.25,
                                        families=[family("ctrl")],
                                        seed=seed + CTRL_SEED_OFFSET)
     lab = ct.labels()
-    eye = r.genome.family_names["eye"]
+    A = r.genome.family_names["A"]
     ctrl = ctrl_run.family_names["ctrl"]
     rows = []
     for n in sorted(ct.extant_leaves()):
         rows.append({"tip": lab[n],
                      "habitat": r.trait.values[lab[n]],
-                     "eye": "present" if r.genome.family_counts(n)[eye] > 0 else "absent",
-                     "ctrl": "present" if ctrl_run.family_counts(n)[ctrl] > 0 else "absent"})
+                     "A": "present" if r.genome.family_counts(n)[A] > 0 else "absent",
+                     "ctrl": "present" if ctrl_run.family_counts(n)[ctrl] > 0 else "absent",
+                     "genes": len(r.genome.genomes[lab[n]])})
     return r.species.extant_tree.to_newick(), rows
 
 
@@ -93,7 +94,7 @@ def main() -> int:
             with open(os.path.join(TREES, f"{arm}_r{rep:03d}.nwk"), "w") as fh:
                 fh.write(nwk + "\n")
             with open(os.path.join(STATES, f"{arm}_r{rep:03d}.tsv"), "w", newline="") as fh:
-                w = csv.DictWriter(fh, fieldnames=["tip", "habitat", "eye", "ctrl"],
+                w = csv.DictWriter(fh, fieldnames=["tip", "habitat", "A", "ctrl", "genes"],
                                    delimiter="\t")
                 w.writeheader()
                 w.writerows(rows)

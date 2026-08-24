@@ -66,7 +66,7 @@ CONDITIONING_ORDER = [
     "repair_gene",                                                 #  6 a gene family -> a sequence
     "gene_drives_trait",                                           #  7 a gene family -> a trait
     "operon_substitution",                                         #  8 an ordered or nucleotide genome -> a sequence
-    "module_drives_metabolism", "operon_trait",                    #  9 an ordered or nucleotide genome -> a trait
+    "module_drives_motility", "operon_trait",                    #  9 an ordered or nucleotide genome -> a trait
     "gc_drives_sequence", "named_family_drives_sequence",          # 10 a sequence -> a sequence
     "gc_drives_trait",                                             # 11 a sequence -> a trait
 ]
