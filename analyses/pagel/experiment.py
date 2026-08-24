@@ -4,8 +4,8 @@ correlated-evolution example.
 
 Four experiments on matched seeds, 150 replicates each, 150 extant tips. The two
 connections: the habitat multiplies the loss rate of every gene family (5x in the
-anaerobic habitat), and the absence of family A multiplies the rate of switching to
-the anaerobic habitat (12x). The experiments switch each connection on or off:
+parasitic habitat), and the absence of family A multiplies the rate of switching to
+the parasitic habitat (12x). The experiments switch each connection on or off:
 
   feedback    both connections on
   trait2gen   only connection 1: the habitat drives the loss rate
@@ -44,11 +44,11 @@ STATES = os.path.join(HERE, "data", "states")
 # --------------------------------------------------------------------------- design
 N_REPS = 150
 N_EXTANT = 150
-LOSS_BASE = 0.25            # per copy; the habitat multiplies it in the anaerobic habitat
+LOSS_BASE = 0.25            # per copy; the habitat multiplies it in the parasitic habitat
 LOSS_FACTOR = 5.0
-SWITCH_BASE = 0.08          # aerobic -> anaerobic; the absence of A multiplies it
+SWITCH_BASE = 0.08          # free-living -> parasitic; the absence of A multiplies it
 SWITCH_FACTOR = 12.0
-SWITCH_BACK = 0.10          # anaerobic -> aerobic, constant
+SWITCH_BACK = 0.10          # parasitic -> free-living, constant
 ARMS = {"feedback": (LOSS_FACTOR, SWITCH_FACTOR),
         "trait2gen": (LOSS_FACTOR, 1.0),
         "gen2trait": (1.0, SWITCH_FACTOR),
@@ -60,12 +60,12 @@ def one(arm, L, S, seed):
     ct = simulate_species_tree(birth=1.0, n_extant=N_EXTANT, seed=seed).complete_tree
     r = joint.simulate(
         genome_spec(duplication=0.05, origination=8.0, initial_families=40,
-                    loss=PerCopy(LOSS_BASE).scaled_by("trait", {"anaerobic": L, "aerobic": 1.0}),
+                    loss=PerCopy(LOSS_BASE).scaled_by("trait", {"parasitic": L, "free-living": 1.0}),
                     families=[family("A")]),
-        traits.discrete(states=["aerobic", "anaerobic"], start="aerobic",
-                        switch={"aerobic->anaerobic": PerLineage(SWITCH_BASE).scaled_by(
+        traits.discrete(states=["free-living", "parasitic"], start="free-living",
+                        switch={"free-living->parasitic": PerLineage(SWITCH_BASE).scaled_by(
                                     "genomes:A", {"present": 1.0, "absent": S}),
-                                "anaerobic->aerobic": SWITCH_BACK}),
+                                "parasitic->free-living": SWITCH_BACK}),
         tree=ct, seed=seed)
     ctrl_run = simulate_genomes_family(ct, initial_families=1, duplication=0.0,
                                        origination=0.0, loss=0.2, transfer=0.25,

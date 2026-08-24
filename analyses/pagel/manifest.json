@@ -1,7 +1,7 @@
 {
  "zombi2": "0.43.2",
  "python": "3.12.2",
- "elapsed_s": 883.1,
+ "elapsed_s": 885.6,
  "design": {
   "n_reps": 150,
   "n_extant": 150,
