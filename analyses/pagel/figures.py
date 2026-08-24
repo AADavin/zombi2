@@ -31,7 +31,7 @@ HERE = pathlib.Path(__file__).parent
 FIG = HERE / "figures"
 sys.path.insert(0, str(HERE.parent.parent / "gallery"))
 
-PAL = {"aerobic": "#C44E52", "anaerobic": "#4C72B0"}
+PAL = {"free-living": "#C44E52", "parasitic": "#4C72B0"}
 INK, MUTED, FAINT = "#1a1a1a", "#8a8a8a", "#c9c9c9"
 EXPERIMENTS = [("feedback", "both\nconnections"), ("trait2gen", "connection 1"),
                ("gen2trait", "connection 2"), ("null", "no\nconnections")]
@@ -55,12 +55,12 @@ def panel_a(out: pathlib.Path) -> None:
     ct = simulate_species_tree(birth=1.0, n_extant=N_EXTANT, seed=SEED_A).complete_tree
     r = joint.simulate(
         genome_spec(duplication=0.05, origination=8.0, initial_families=40,
-                    loss=PerCopy(LOSS_BASE).scaled_by("trait", {"anaerobic": L, "aerobic": 1.0}),
+                    loss=PerCopy(LOSS_BASE).scaled_by("trait", {"parasitic": L, "free-living": 1.0}),
                     families=[family("A")]),
-        traits.discrete(states=["aerobic", "anaerobic"], start="aerobic",
-                        switch={"aerobic->anaerobic": PerLineage(SWITCH_BASE).scaled_by(
+        traits.discrete(states=["free-living", "parasitic"], start="free-living",
+                        switch={"free-living->parasitic": PerLineage(SWITCH_BASE).scaled_by(
                                     "genomes:A", {"present": 1.0, "absent": S}),
-                                "anaerobic->aerobic": SWITCH_BACK}),
+                                "parasitic->free-living": SWITCH_BACK}),
         tree=ct, seed=SEED_A)
     lab, tips = ct.labels(), sorted(ct.extant_leaves())
     A = r.genome.family_names["A"]
@@ -83,7 +83,7 @@ def panel_a(out: pathlib.Path) -> None:
            + ph.trees.ring(sizes, cmap="cividis", gap=38, width=16)
            + ph.trees.colorbar("number of genes", loc="top-left", width=196, height=14,
                                size=20, inset=24)
-           + ph.trees.legend(entries={"aerobic": PAL["aerobic"], "anaerobic": PAL["anaerobic"]},
+           + ph.trees.legend(entries={"free-living": PAL["free-living"], "parasitic": PAL["parasitic"]},
                              size=20, dy=86, inset=24)
            + ph.trees.legend(entries={"A present": "#111111", "A absent": "#ffffff"},
                              size=20, dy=158, inset=24))
@@ -96,22 +96,22 @@ def panel_b(out: pathlib.Path) -> None:
 
     h.joint_png(str(out), [
         (("traits", "habitat", []), ("genomes", "loss rate", []),
-         "(1) in the anaerobic habitat, genes are lost 5x faster"),
+         "(1) in the parasitic habitat, genes are lost 5x faster"),
         (("genomes", "family A", []), ("traits", "switch rate", []),
-         "(2) with no copy of A, turns anaerobic 12x faster"),
+         "(2) with no copy of A, turns parasitic 12x faster"),
     ], frame=None, keys=False, sentence_size=15.5, wrap_width=230, font_scale=1.18, pitch=152)
 
 
 def panel_c(out: pathlib.Path) -> None:
     """Genome size at the tips by habitat, per experiment, from the states tables."""
-    sizes = {arm: {"aerobic": [], "anaerobic": []} for arm, _ in EXPERIMENTS}
+    sizes = {arm: {"free-living": [], "parasitic": []} for arm, _ in EXPERIMENTS}
     for arm, _ in EXPERIMENTS:
         for f in sorted((HERE / "data" / "states").glob(f"{arm}_r*.tsv")):
             for row in csv.DictReader(open(f), delimiter="\t"):
                 sizes[arm][row["habitat"]].append(int(row["genes"]))
     fig, ax = plt.subplots(figsize=(7.2, 3.6))
     x = np.arange(len(EXPERIMENTS)) * 1.15
-    for off, hab in ((-0.19, "aerobic"), (0.19, "anaerobic")):
+    for off, hab in ((-0.19, "free-living"), (0.19, "parasitic")):
         data = [sizes[a][hab] for a, _ in EXPERIMENTS]
         bp = ax.boxplot(data, positions=x + off, widths=0.3, patch_artist=True,
                         showfliers=False, medianprops={"color": "#111111", "lw": 1.4})
@@ -122,8 +122,8 @@ def panel_c(out: pathlib.Path) -> None:
     ax.set_xticks(x); ax.set_xticklabels([]); ax.tick_params(axis="x", length=0)
     ax.set_ylabel("gene number")
     handles = [plt.Rectangle((0, 0), 1, 1, facecolor=PAL[h], alpha=0.85, edgecolor="#333333")
-               for h in ("aerobic", "anaerobic")]
-    ax.legend(handles, ["aerobic tips", "anaerobic tips"], frameon=False, loc="lower right")
+               for h in ("free-living", "parasitic")]
+    ax.legend(handles, ["free-living tips", "parasitic tips"], frameon=False, loc="lower right")
     ax.set_xlim(-0.6, x[-1] + 0.6)
     fig.savefig(out, dpi=300)
     plt.close(fig)
