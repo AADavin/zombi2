@@ -9,8 +9,8 @@ See [Dependent runs](../guide/conditioning.md) and [Joint runs](../guide/joining
 
 A level joined to **itself** stays on that level's own function, with `joint=True`:
 [`simulate_genomes_family`][zombi2.genomes.simulate_genomes_family] for a gene family driving the
-rest of its genome, and [`simulate_traits`][zombi2.traits.simulate_traits] for two traits reading
-each other.
+rest of its genome, and [`simulate_traits`][zombi2.traits.simulate_traits] for two traits that
+depend on each other.
 
 ::: zombi2.joint.simulate
 

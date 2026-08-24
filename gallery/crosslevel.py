@@ -484,7 +484,7 @@ def named_family_drives_sequence(out):
                               curve=(factor, "the marker's IVYWREL share", span))
     h.composite_under_diagram(
         out, diag,
-        [(pngs[0], "the marker's IVYWREL share  (grey: no marker, so the driver reads absent=0.40)",
+        [(pngs[0], "the marker's IVYWREL share  (grey: no marker, so the driver takes absent=0.40)",
           (_GC, "cool", "hot")),
          (pngs[1], "the ribosomal family, in substitutions")])
 
@@ -627,7 +627,7 @@ marker = simulate_sequences(
 # of a protein that is I,V,Y,W,R,E or L rises with growth temperature (Zeldovich et al.
 # 2007), so it is read here as how hot the lineage runs — a proxy, not a mechanism.
 #
-# absent= is what a branch WITHOUT the marker reads. Required, not guessed: a driver
+# absent= is what a branch WITHOUT the marker gets. Required, not guessed: a driver
 # must give a value on every branch of the target's run, and carrying the parent's value
 # forward would say the family was still there.
 ribosomal = simulate_sequences(
@@ -652,8 +652,8 @@ EXAMPLES = [
             "substitutions: branches that have lost the mismatch-repair family run four times longer.",
             "gene → substitution", repair_gene, code=_C_REPAIR),
     Example("climate_substitution", "A trait sets the substitution rate",
-            "The same target reached from the other end of the map. A driver is read wherever it "
-            "changes, so a lineage that switches halfway down accumulates at two rates.",
+            "The same target reached from the other end of the map. A driver is evaluated wherever "
+            "it changes, so a lineage that switches halfway down accumulates at two rates.",
             "trait → substitution", climate_substitution, code=_C_CLIMATE_SUB),
     Example("mobile_element", "A mobile element spreads its genome",
             "One level conditioning itself. Carrying the element makes a lineage <b>donate</b> "

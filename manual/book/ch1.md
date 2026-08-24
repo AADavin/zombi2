@@ -55,13 +55,13 @@ ZOMBI2 can also simulate dependencies between the levels, so that complex scenar
 
 Every dependency is written as a **connection**, with three parts:
 
-- the **driver**: the value that is read, the habitat of each lineage.
+- the **driver**: the value the connection takes as input, the habitat of each lineage.
 - the **target**: the parameter that depends on it, the loss rate.
 - the **link**: what joins them; what each value of the driver is worth, and what that number does to the target.
 
-![A connection: a habitat trait is simulated first and held fixed, and a gene loss rate reads it. The driver, the link and the target are the three parts every connection has, and Chapter 8 takes them one at a time.](figures/conditioning_print.png){width=95%}
+![A connection: a habitat trait is simulated first and held fixed, and a gene loss rate depends on it. The driver, the link and the target are the three parts every connection has, and Chapter 8 takes them one at a time.](figures/conditioning_print.png){width=95%}
 
-In this example the habitat can be simulated first, and the genome run then reads its finished history. The run is **conditioned**: two ordinary runs, in order.
+In this example the habitat can be simulated first, and the genome run then depends on its finished history. The run is **conditioned**: two ordinary runs, in order.
 
 $$P(\text{Species}) \cdot P(\text{Traits} \mid \text{Species}) \cdot P(\text{Genomes} \mid \text{Species}, \text{Traits})$$
 
