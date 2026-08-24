@@ -17,13 +17,21 @@ own tree. The dataset includes a matched null and an undriven family, so the sta
 can be scored on known truth: how often it fires when nothing drives, and how often it
 finds the gene that does.
 
-**[What can gene order constrain?](rearrangements.md)** Genomes are simulated at known
-inversion and translocation rates and the parameters inferred back. The rates are
-recovered, including the mix of the two event types. The size of the events is not, and
-fixing it at a wrong value biases the rates that are recoverable.
+**[Which rearrangement parameters can be recovered from gene order?](rearrangements.md)**
+Genomes are simulated at known inversion and translocation rates and the parameters
+inferred back. The rates are recovered, including the mix of the two event types. The
+size of the events is not, and fixing it at a wrong value biases the rates that are
+recoverable.
 
 **[Can Pagel's test detect a feedback?](pagel.md)** A habitat drives gene loss across
 the genome, and the eye family's absence drives the switch rate into the cave, a
 feedback closed in one joint run. Pagel's test detects the feedback and the switch-rate
 direction in about nine runs of ten, largely misses the loss direction, and rejects at
 the nominal rate on the null and on a control family carried on the same trees.
+
+**[Who trades genes with whom?](transfers.md)** Gene transfers are drawn preferentially
+between lineages sharing a habitat, and the habitats of ancestral lineages are read
+back from the transfer network that ALE infers. A vote over the inferred transfers
+classifies all ancestral branches at 92% accuracy, equal to the ceiling a perfect
+reconciliation could reach; the cost of extinction, of dead donors and of the
+reconciliation itself is measured at every step.
