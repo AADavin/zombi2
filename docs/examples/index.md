@@ -24,10 +24,11 @@ size of the events is not, and fixing it at a wrong value biases the rates that 
 recoverable.
 
 **[Can Pagel's test detect a feedback?](pagel.md)** A habitat drives gene loss across
-the genome, and the eye family's absence drives the switch rate into the cave, a
-feedback closed in one joint run. Pagel's test detects the feedback and the switch-rate
-direction in about nine runs of ten, largely misses the loss direction, and rejects at
-the nominal rate on the null and on a control family carried on the same trees.
+the genome, and the absence of one gene family drives the switch rate into the
+anaerobic habitat, a feedback closed in one joint run. Pagel's test detects the
+feedback and the switch-rate connection in about nine replicates of ten, largely misses the
+loss connection, and rejects at the nominal rate with no connections and on a control
+family carried on the same trees.
 
 **[Who trades genes with whom?](transfers.md)** Gene transfers are drawn preferentially
 between lineages sharing a habitat, and the habitats of ancestral lineages are read
