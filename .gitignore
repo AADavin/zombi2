@@ -80,3 +80,4 @@ figures/_overview/
 .coverage
 coverage.json
 htmlcov/
+analyses/**/recs/

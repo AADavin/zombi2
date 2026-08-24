@@ -27,6 +27,6 @@ for i in $(seq "$START" $((START + PER - 1))); do
         continue
     fi
     echo "reconciling $(basename "$F")"
-    apptainer exec -B /cluster "$BASE/ale.sif" \
+    apptainer exec --cleanenv -B /cluster "$BASE/ale.sif" \
         ALEml_undated "$BASE/data/species_extant_ale.nwk" "$F" separators=_
 done
