@@ -3,8 +3,8 @@
 **What we test:** a genome and a trait shape each other in one joint ZOMBI2 run. Two
 connections close the loop: (1) a binary habitat multiplies the loss rate of every gene
 family, and (2) the absence of one family, called A, multiplies the rate of switching
-into the anaerobic habitat. The family stands for a gene required for aerobic
-respiration: losing it pushes a lineage toward anaerobic habitats, and an anaerobic
+into the parasitic habitat. The family stands for a gene required for free
+living: losing it pushes a lineage toward parasitic habitats, and a parasitic
 lineage loses genes faster. The standard test for correlated evolution of two binary
 characters (Pagel 1994, fit with `phytools::fitPagel`) is applied to the two tip
 characters the run produces. Does it detect the feedback? Does it detect each
@@ -20,12 +20,12 @@ and the habitat together:
 ```python
 r = joint.simulate(
     genome(duplication=0.05, origination=8.0, initial_families=40,
-           loss=PerCopy(0.25).scaled_by("trait", {"anaerobic": L, "aerobic": 1.0}),
+           loss=PerCopy(0.25).scaled_by("trait", {"parasitic": L, "free-living": 1.0}),
            families=[family("A")]),
-    traits.discrete(states=["aerobic", "anaerobic"], start="aerobic",
-                    switch={"aerobic->anaerobic": PerLineage(0.08).scaled_by(
+    traits.discrete(states=["free-living", "parasitic"], start="free-living",
+                    switch={"free-living->parasitic": PerLineage(0.08).scaled_by(
                                 "genomes:A", {"present": 1.0, "absent": S}),
-                            "anaerobic->aerobic": 0.10}),
+                            "parasitic->free-living": 0.10}),
     tree=ct, seed=seed)
 ```
 
@@ -62,7 +62,7 @@ character invariant at the tips cannot be fit.
 - **The reason is mechanical.** A connection produces extra events only where its
   driving state is present. Lineages missing family A are common, because copies are
   steadily lost, so the twelve-fold switch rate applies across much of the tree;
-  anaerobic lineages are rare at the base switch rates, so the five-fold loss applies
+  parasitic lineages are rare at the base switch rates, so the five-fold loss applies
   to few branches. Tip presence is also a coarse measure of the loss rate: a family
   present in several copies must lose them all before the character changes.
 - **The test reports dependence, not a direction.** The both-connections experiment and

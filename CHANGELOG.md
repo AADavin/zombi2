@@ -22,13 +22,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   the same step mapping. The card's figure is redrawn as a radial tree with the module's
   completion painted on the branches and the motility state as a ring at the tips, on 200
   extant lineages; the connection catalog's anchors follow. The aerobic telling made way for
-  the paper's feedback example, which now owns that story.
+  the paper's feedback example.
 
-- The Pagel example's story is now aerobic respiration: the habitat's states are
-  aerobic and anaerobic, and the driving family is `A`, standing for a gene required
-  for aerobic respiration, so both connections of the feedback read naturally (losing
-  the family pushes a lineage toward anaerobic habitats; anaerobic lineages lose genes
-  faster). The states tables gain a `genes` column (genome size per tip), the report
+- The Pagel example's story is now lifestyle: the habitat's states are free-living
+  and parasitic, and the driving family is `A`, standing for a gene required for
+  free living, so both connections of the feedback read naturally (losing the
+  family pushes a lineage toward parasitic habitats; parasitic lineages lose genes
+  faster, as in genome reduction). The states tables gain a `genes` column (genome size per tip), the report
   and the website page describe the four experiments by their connections, and the
   figure becomes the paper's four-panel composition: a radial replicate drawn with
   Phylustrator, the connection diagram, genome size by habitat, and the test's
