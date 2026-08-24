@@ -9,6 +9,23 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- A new worked example, "Who trades genes with whom?": a conditioned run in which the
+  recipients of gene transfers are drawn preferentially from the donor's habitat, the
+  true gene trees are reconciled with ALE undated, and the habitats of ancestral
+  branches are read back from the inferred transfer network by a frequency-weighted
+  vote. `analyses/transfers/` carries the experiment, the visibility and classification
+  ceilings computed from the truth, the scoring of ALE against them, the cluster
+  scripts, and the figure. The example replaces the rearrangements example in the
+  manuscript; the rearrangements example stays in the repository and on the website.
+
+- A public roadmap: `ROADMAP.md` at the repository root, mirrored on the site as the Roadmap
+  page and linked from the README — what each level does not do yet, organized by level with a
+  planned / considering / not planned status on every entry. (#409)
+
+
+
 ### Changed
 
 - The gene-drives-a-trait card is redrawn in the same radial language as the module card:
@@ -35,46 +52,21 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   rejection shares. Labels and additions only: the design, the seeds and every number
   are unchanged.
 
+
+
+- The manual, the website and the gallery stop describing a connection as one
+  parameter reading another: a connection lets a parameter depend on the state of
+  another level, or of an independent object in the same level. 73 instances swept;
+  the driver's definition is now "the value the connection takes as input", and the
+  appendix-C joint-driver table header aligns with the conditioned table and the
+  `offers=` keyword.
+
 ### Fixed
 
 - The prose of the Pagel example's report and website page rewritten to the manual's plain
   register: personification and internal shorthand out, one name per arm, and the sentences
   a reader had to re-parse split. Found by the new flag-only prose review (two rounds of
   Opus readers over a rulebook compiled from review corrections).
-
-### Added
-
-- A new worked example, "Who trades genes with whom?": a conditioned run in which the
-  recipients of gene transfers are drawn preferentially from the donor's habitat, the
-  true gene trees are reconciled with ALE undated, and the habitats of ancestral
-  branches are read back from the inferred transfer network by a frequency-weighted
-  vote. `analyses/transfers/` carries the experiment, the visibility and classification
-  ceilings computed from the truth, the scoring of ALE against them, the cluster
-  scripts, and the figure. The example replaces the rearrangements example in the
-  manuscript; the rearrangements example stays in the repository and on the website.
-
-- A public roadmap: `ROADMAP.md` at the repository root, mirrored on the site as the Roadmap
-  page and linked from the README — what each level does not do yet, organized by level with a
-  planned / considering / not planned status on every entry. (#409)
-
-- `analyses/pagel/`: the runs behind the paper's third worked example. A genome and a
-  habitat shape each other in one joint run (the habitat multiplies every family's loss
-  rate, one family's absence multiplies the switch rate into the cave), and Pagel's
-  correlated-evolution test is fit to the two tip characters over four arms of 150
-  replicates: it detects the feedback (91%) and the switch-rate direction (87%), largely
-  misses the loss direction (20%), and stays at the nominal level on the null and on an
-  independent control family carried on the same trees.
-
-### Changed
-
-- The rearrangements example is retitled "Which rearrangement parameters can be
-  recovered from gene order?", and its figure is reworked: rates on the axes in units
-  of 10^-3, the interpolated credible contour replaced by exact outlines of the best 5%
-  of cells, panel titles removed, and panel D now shows the mixed grid refit with the
-  extent fixed at twice its true value, so the bias is visible as the best fit sliding
-  off the truth.
-
-### Fixed
 
 - `zombi2 genomes --resolution nucleotide --topology circular,linear` crashed: the nucleotide
   engine paired the whole topology list with every replicon instead of giving each replicon its
