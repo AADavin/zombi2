@@ -9,6 +9,32 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- The gene-drives-a-trait card is redrawn in the same radial language as the module card:
+  the presence of the toxin family painted on the branches, changing mid-branch at the
+  instant the family is gained or its last copy is lost, and the pathogenicity of every
+  tip as a ring, on 200 extant lineages. The one-way drive stays: 58 of the 66 pathogenic
+  tips carry the family, the other 8 come from the background rate.
+
+- The module-drives-a-trait example is retold as motility: four families (`fliA`--`fliD`)
+  form a flagellum module, and keeping more than half of it turns a lineage motile, through
+  the same step mapping. The card's figure is redrawn as a radial tree with the module's
+  completion painted on the branches and the motility state as a ring at the tips, on 200
+  extant lineages; the connection catalog's anchors follow. The aerobic telling made way for
+  the paper's feedback example, which now owns that story.
+
+- The Pagel example's story is now aerobic respiration: the habitat's states are
+  aerobic and anaerobic, and the driving family is `A`, standing for a gene required
+  for aerobic respiration, so both connections of the feedback read naturally (losing
+  the family pushes a lineage toward anaerobic habitats; anaerobic lineages lose genes
+  faster). The states tables gain a `genes` column (genome size per tip), the report
+  and the website page describe the four experiments by their connections, and the
+  figure becomes the paper's four-panel composition: a radial replicate drawn with
+  Phylustrator, the connection diagram, genome size by habitat, and the test's
+  rejection shares. Labels and additions only: the design, the seeds and every number
+  are unchanged.
+
 ### Fixed
 
 - The prose of the Pagel example's report and website page rewritten to the manual's plain
