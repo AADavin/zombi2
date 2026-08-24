@@ -15,7 +15,7 @@ cd "$BASE"
 for f in data/gene_trees/fam_*.nwk; do
     id=$(basename "$f" .nwk)
     cp "$f" "ale/${id}.nwk"
-    apptainer exec -B /cluster "$BASE/ale.sif" ALEobserve "ale/${id}.nwk" > /dev/null
+    apptainer exec --cleanenv -B /cluster "$BASE/ale.sif" ALEobserve "ale/${id}.nwk" > /dev/null
     rm "ale/${id}.nwk"
 done
 
