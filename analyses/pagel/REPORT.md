@@ -62,8 +62,8 @@ character invariant at the tips cannot be fit.
 - **The reason is mechanical.** A connection produces extra events only where its
   driving state is present. Lineages missing family A are common, because copies are
   steadily lost, so the twelve-fold switch rate applies across much of the tree;
-  parasitic lineages are rare at the base switch rates, so the five-fold loss applies
-  to few branches. Tip presence is also a coarse measure of the loss rate: a family
+  parasitic lineages are the minority at the base switch rates, so the five-fold loss
+  applies to fewer branches. Tip presence is also a coarse measure of the loss rate: a family
   present in several copies must lose them all before the character changes.
 - **The test reports dependence, not a direction.** The both-connections experiment and
   the connection-2 experiment cannot be told apart from the test result.
