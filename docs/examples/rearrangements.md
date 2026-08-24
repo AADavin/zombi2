@@ -1,4 +1,4 @@
-# What can gene order constrain?
+# Which rearrangement parameters can be recovered from gene order?
 
 A genome rearrangement model, inferred back from the gene orders it produced, so that
 every estimate can be checked against the value that generated the data. All the relevant
@@ -62,7 +62,7 @@ still distort the ones they can.
 
 ![Mixed model: both rates are pinned](../assets/rearrangements/rearrangements_c.png)
 
-![What each arm recovered](../assets/rearrangements/rearrangements_d.png)
+![Extent fixed at twice the truth: the best fit slides off the truth](../assets/rearrangements/rearrangements_d.png)
 
 ## Why ABC, and why the breakpoint distance
 

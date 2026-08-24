@@ -44,6 +44,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
+- A new worked example, "Who trades genes with whom?": a conditioned run in which the
+  recipients of gene transfers are drawn preferentially from the donor's habitat, the
+  true gene trees are reconciled with ALE undated, and the habitats of ancestral
+  branches are read back from the inferred transfer network by a frequency-weighted
+  vote. `analyses/transfers/` carries the experiment, the visibility and classification
+  ceilings computed from the truth, the scoring of ALE against them, the cluster
+  scripts, and the figure. The example replaces the rearrangements example in the
+  manuscript; the rearrangements example stays in the repository and on the website.
+
 - A public roadmap: `ROADMAP.md` at the repository root, mirrored on the site as the Roadmap
   page and linked from the README — what each level does not do yet, organized by level with a
   planned / considering / not planned status on every entry. (#409)
@@ -55,6 +64,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   replicates: it detects the feedback (91%) and the switch-rate direction (87%), largely
   misses the loss direction (20%), and stays at the nominal level on the null and on an
   independent control family carried on the same trees.
+
+### Changed
+
+- The rearrangements example is retitled "Which rearrangement parameters can be
+  recovered from gene order?", and its figure is reworked: rates on the axes in units
+  of 10^-3, the interpolated credible contour replaced by exact outlines of the best 5%
+  of cells, panel titles removed, and panel D now shows the mixed grid refit with the
+  extent fixed at twice its true value, so the bias is visible as the best fit sliding
+  off the truth.
 
 ### Fixed
 
