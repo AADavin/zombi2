@@ -143,7 +143,7 @@ With no weights set every segment averages to one, so a run without weights is u
 
 ### Who receives a transfer
 
-The recipient rule is Chapter 3's, unchanged: `transfer_to` takes `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or `Recipients().weighted_by(...)` read off a trait (Chapter 8). What is ordered about an ordered transfer is the block that moves; who receives it is the same question and the same answer as at the family resolution.
+The recipient rule is Chapter 3's, unchanged: `transfer_to` takes `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or `Recipients().weighted_by(...)`, whose weights depend on a trait (Chapter 8). What is ordered about an ordered transfer is the block that moves; who receives it is the same question and the same answer as at the family resolution.
 
 ```python
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1)
@@ -159,7 +159,7 @@ One thing to watch when you combine a restrictive rule with a tight `max_family_
 
 ### A rate or an extent can be driven by a trait
 
-Every rate here also takes `scaled_by`, so a habitat can decide how often a lineage rearranges its gene order, and every extent takes it too, so the same habitat can decide how long the rearranged segments are. The mechanism is Chapter 8's and is not repeated here. Every parameter in this chapter is an argument of the one call, so a rate and its extent can each read the same trait, on separate axes. (`Extent(4)` is a bare `4` in wrapper form, there for the verb to chain onto.)
+Every rate here also takes `scaled_by`, so a habitat can decide how often a lineage rearranges its gene order, and every extent takes it too, so the same habitat can decide how long the rearranged segments are. The mechanism is Chapter 8's and is not repeated here. Every parameter in this chapter is an argument of the one call, so a rate and its extent can each depend on the same trait, on separate axes. (`Extent(4)` is a bare `4` in wrapper form, there for the verb to chain onto.)
 
 ```python
 from zombi2 import species, genomes, traits
