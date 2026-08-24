@@ -1,7 +1,7 @@
 """One way of writing a dependency, run in two orders.
 
 **Conditioning** grows the driver first and holds it fixed: a trait is simulated on the tree, then a
-second run reads it, driving a genome rate, another trait's rate, or which lineage receives a
+second run depends on it, driving a genome rate, another trait's rate, or which lineage receives a
 transfer. **Joining** grows both at once, because
 the trait drives speciation or extinction and so shapes the tree it is evolving on
 (``joint.simulate``). The two lists below feed two gallery sections.
@@ -766,7 +766,7 @@ def musse(out):
                               diagram_frac=0.72)
 
 
-# --- conditioning: the driver is grown first, then the genome reads it -----------------------
+# --- conditioning: the driver is grown first, then the genome depends on it -----------------------
 
 def _conditioned_genome(out, ct, layers, sizes, tipcol, diagram):
     """The conditioning-figure layout with genome size on the bars — `helpers.conditioned_figure`,
@@ -1430,9 +1430,9 @@ ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=200, seed=4).complete_
 g = simulate_genomes_family(ct, initial_families=20, families=[family("tox")],
                             duplication=0.1, loss=0.13, seed=5)
 
-# 2. the target: a trait whose switch rate reads whether that family is there. `presence` is a
+# 2. the target: a trait whose switch rate depends on whether that family is there. `presence` is a
 #    driver like a grown trait, so the mapping is an ordinary table over its two states.
-# Only ONE transition reads the driver: a toxin drives becoming pathogenic, not recovering.
+# Only ONE transition depends on the driver: a toxin drives becoming pathogenic, not recovering.
 # So the signal is which tips END UP pathogenic — 58 of the 66 pathogenic tips carry the gene.
 disease = simulate_discrete(
     ct, states=["harmless", "pathogenic"], start="harmless", seed=2,
@@ -1573,8 +1573,8 @@ CONDITIONING = [
             "each unit of a diffusing temperature multiplies the loss rate by about 2.5.",
             "continuous trait → loss", scalar_response, code=_C_SCALAR),
     Example("trait_drives_trait", "One trait drives another",
-            "A temperature trait is grown first; body size then diffuses at a rate that reads it. The "
-            "scale is centred on where it started, so white means it has not moved.",
+            "A temperature trait is grown first; body size then diffuses at a rate that depends "
+            "on it. The scale is centred on where it started, so white means it has not moved.",
             "trait → trait", trait_drives_trait, code=_C_TRAIT_TRAIT),
     Example("gene_drives_trait", "A gene drives a trait",
             "Carrying a toxin family makes a lineage <i>become</i> pathogenic forty times faster. "
@@ -1623,7 +1623,7 @@ r = joint.simulate(
 r.species        # the tree that came out
 r.trait          # the diffusion simulated with it — an ordinary continuous TraitsResult
 
-### plot  —  the tree painted by the value the birth rate was reading
+### plot  —  the tree painted by the value the birth rate depended on
 import phylustrator as ph
 
 ct, lab = r.complete_tree, r.complete_tree.labels()
@@ -1706,14 +1706,14 @@ sizes = {lab[n]: len(r.genome.genomes[lab[n]]) for n in sorted(ct.extant_leaves(
 ph.beside(fig, ph.genomes.bars(sizes, label="genome size (genes)")).save("cave.png")"""
 
 
-_C_TRAIT_LOOP = """### two traits, each reading the other — the trait level joined to itself
+_C_TRAIT_LOOP = """### two traits, each depending on the other — the trait level joined to itself
 from zombi2 import traits
 from zombi2.params import PerLineage
 from zombi2.species import simulate_species_tree
 
 ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
 
-# `joint=True`, and each switch rate reads the OTHER trait by name. Neither can be
+# `joint=True`, and each switch rate depends on the OTHER trait by name. Neither can be
 # simulated first: to grow the habitat you would need the size, and the size needs
 # the habitat. One run does both, exactly — the pair is a Markov chain over the
 # pairs of their states, so there is nothing to thin and nothing to approximate.
@@ -1748,7 +1748,7 @@ for name, palette in (("habitat", {"surface": "#2E8B6F", "cave": "#4A4A6A"}),
 # the loop shows in the alignment: cave lineages are far likelier to be large"""
 
 
-_C_SEQ_LOOP = """### two genes, each one's rate reading the other's composition — the SEQUENCE level joined to itself
+_C_SEQ_LOOP = """### two genes, each one's rate depending on the other's composition — the SEQUENCE level joined to itself
 from zombi2.genomes import family, simulate_genomes_family
 from zombi2.params import Curve, PerSite
 from zombi2.sequences import composition, gene, lg, simulate_sequences
@@ -1761,7 +1761,7 @@ g = simulate_genomes_family(ct, initial_families=4, duplication=0.0, loss=0.0, s
 # it — which is the one way a composition has anywhere to go. `offers=` is the value a
 # gene makes available to other runs; `absent=` answers for a lineage carrying none of it.
 #
-# Each rate reads the OTHER gene by name, with a step=: a composition moves with every
+# Each rate depends on the OTHER gene by name, with a step=: a composition moves with every
 # substitution, so there is no interval where either rate holds still, and the run slices.
 r = simulate_sequences(g, joint=True, seed=3, genes=[
     gene(name=name, model=lg(), length=250, start=kr_poor,
@@ -1829,9 +1829,9 @@ JOINING = [
             "four times faster — which is what carries it further.",
             "trait \u2194 sequence", trait_and_sequence, code=_C_TRAIT_SEQ),
     Example("sequence_loop", "Two genes, each other's driver",
-            "Two genes arrive KR-poor and ameliorate together: each one's substitution rate reads "
-            "how far the other has got, so the pair is slow while both are behind and accelerates "
-            "as neither is. The <b>sequence</b> level joined to itself.",
+            "Two genes arrive KR-poor and ameliorate together: each one's substitution rate "
+            "depends on how far the other has got, so the pair is slow while both are behind "
+            "and accelerates as neither is. The <b>sequence</b> level joined to itself.",
             "sequence \u2194 sequence", sequence_loop, code=_C_SEQ_LOOP),
     Example("trait_loop", "Two traits, each other's driver",
             "Body size decides how readily a lineage goes underground, and underground decides how "

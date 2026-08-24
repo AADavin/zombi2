@@ -72,7 +72,7 @@ A modifier's **kind** says who produces its number, and there are four:
 | covariate | a deterministic function of a measured quantity | `changing_at({…})`, `scaled_by(TotalDiversity(cap=…))` |
 | drawn | an i.i.d. draw, one per unit — no memory | `varying_among(unit, dist)` |
 | inherited | the parent's, perturbed — continuous memory | `varying_among(unit, Drift(dist))` |
-| driven | the state of another simulated thing, read as the run walks the tree | `scaled_by`, `set_by`, `weighted_by` |
+| driven | the state of another simulated thing, taken as the run walks the tree | `scaled_by`, `set_by`, `weighted_by` |
 
 A **driven** value comes from a level grown before this run, a level growing beside it, another
 object at the same level (a trait can drive a second trait), or the tree itself (`Clade`). Which of

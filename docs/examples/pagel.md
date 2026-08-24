@@ -17,7 +17,7 @@ it reject at the nominal rate when there is nothing to find?**
 
 On a real clade nobody knows whether the habitat and the gene family depend on each
 other; that is the question being asked. In a simulated dataset the dependency is
-known, because it is written into the run: which rate reads which state, and by how
+known, because it is written into the run: which rate depends on which state, and by how
 much. And the simulation can add a second family that depends on nothing, carried on
 the very same trees, so any signal the test finds on that family is an artifact.
 

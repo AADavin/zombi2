@@ -134,7 +134,7 @@ LEVELS = [
      _ordered(traits.EXAMPLES, TRAITS_ORDER)),
     ("conditioning", "Conditioning",
      "Two runs, in order. The first run grows the driver on the tree and holds it fixed. The "
-     "second run reads it. A driver is a trait, a gene family, a whole module, or the "
+     "second run depends on it. A driver is a trait, a gene family, a whole module, or the "
      "composition of a sequence. It drives a rate, or which lineage receives a transfer.",
      _ordered(joining.CONDITIONING + crosslevel.EXAMPLES + traits.CONDITIONING,
               CONDITIONING_ORDER)),

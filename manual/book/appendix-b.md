@@ -133,7 +133,7 @@ depends on time or diversity, this is its value at the start of the branch.
 | `species_complete.nwk` | the tree the run evolved along, without which the directory cannot be read |
 | `species/species_fates.tsv` | each tip's fate, in the format the species level writes. Only when the tree came from `--from` |
 | `names.tsv` | `node` · `name`, mapping ZOMBI2's `n<id>` back to the labels you supplied. Only when the tree came from `--from` with its own tip labels |
-| `conditioned_on` | the levels this run reads as a driver, one per line. Only when something was conditioned |
+| `conditioned_on` | the levels this run depends on as a driver, one per line. Only when something was conditioned |
 
 From Python: `.genomes` · `.node_genomes` (the genomes), `.family_counts(node)` ·
 `.has_family(node, name)` (a node's genome as `family → copies`, and whether a named family has a
@@ -161,7 +161,7 @@ under `--stream`, which is family-only, because a run already keeps one copy at
 
 **`names.tsv`**: the join from every other output back to your taxa.
 
-**`conditioned_on`** is written whether the driver was read for a rate or for `transfer_to`.
+**`conditioned_on`** is written whether the driver was used for a rate or for `transfer_to`.
 Re-running a driver level then refuses rather than leaving this run stale, unless you pass `--force`.
 
 **`.genomes` and `.node_genomes`**. `.genomes` is the observed dataset, the genome at each *extant*
@@ -311,8 +311,9 @@ list of `Block`s), `.root_blocks` · `.block_trees` (the recovered root partitio
 interval), `.assembly(node)` · `.initial_assembly()`, `.mosaic(node)` · `.trace_back(node)` ·
 `.describe(node)`,
 `.deletions` (the indel log), `.gene_spans` · `.gene_names` · `.gene_strands` · `.block_of(family)`,
-and the driver views `.presence(name)` · `.completion(name)`, which here read **declared genes**: the
-name is the GFF's `ID` / `Name`, and what takes a gene away is an arc of DNA rather than a whole copy.
+and the driver views `.presence(name)` · `.completion(name)`, which here are based on **declared
+genes**: the name is the GFF's `ID` / `Name`, and what takes a gene away is an arc of DNA rather
+than a whole copy.
 
 **`genome_events.tsv`**: the same `time` · `kind` · `family` · `parents` · `children` as at the
 family resolution, [one row per event](#one-row-per-event), so one reader serves all three
@@ -434,7 +435,7 @@ internal nodes with the ancestral sequences.
 | `genome_<lineage>.fasta` | one file per node of the complete tree, one record `<lineage>_chr<c>` per chromosome, in `genomes/`. Nucleotide genome runs only |
 | `genome_initial.fasta` | the genome the run **started** with, as sequence. Nucleotide runs only |
 | `sequences_summary.json` | `unit` (`family` or `block`), families with sequences, how many, sites min/max, `mean_pairwise_identity`, assembled genomes, the seed |
-| `conditioned_on` | the levels this run read as a driver. Only when the substitution rate was conditioned |
+| `conditioned_on` | the levels this run depended on as a driver. Only when the substitution rate was conditioned |
 
 From Python: `.alignments` · `.ancestral` (the sequences), `.genomes` · `.node_genomes` ·
 `.initial_genome` (the assembled genomes, present only when the run came from a **nucleotide**
@@ -525,7 +526,7 @@ together.
 | `trait_tree.nwk` | the tree with every node annotated `[&trait=…]`, for FigTree or iTOL |
 | `trait_summary.json` | `tips` · `nodes` · `events`, then `states` · `most_common_share` for a discrete trait, or `values` (min/mean/max) · `value_at_root_node` for a continuous one |
 | `names.tsv` | as at the genome level. Only when the tree came from `--from` with its own tip labels |
-| `conditioned_on` | the levels this run reads as a driver, in the trait's own directory. Only when `--rate` or `--switch` was conditioned |
+| `conditioned_on` | the levels this run depends on as a driver, in the trait's own directory. Only when `--rate` or `--switch` was conditioned |
 
 `zombi2 traits` writes the values, the events, the tree and the summary; the Python
 `TraitsResult.write` default matches the kind: a continuous run writes the values, the tree and the
@@ -564,8 +565,8 @@ continuous trait, which has no map, and for a threshold trait, whose liability c
 ## Conditioning and joining: no new files
 
 Neither adds a format. A **conditioned** run writes the driven level's own files and one extra record,
-`conditioned_on`, naming what it read (above), so the pairing is kept on disk; a **joint** run writes
-**both** levels, each in its own format.
+`conditioned_on`, naming what it depended on (above), so the pairing is kept on disk; a **joint** run
+writes **both** levels, each in its own format.
 
 The `zombi2 tools` commands write their own files, the homology matrix and the reconciliation/scoring
 outputs, catalogued in Appendix D.

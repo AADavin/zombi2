@@ -68,7 +68,7 @@ g2 = genomes.simulate_genomes_nucleotide(
 
 **The extent takes the same verbs**, and that is a different statement: the rate raises how often a host-restricted lineage deletes, the extent how much each deletion takes. Set both and they multiply: the DNA shed per unit time goes up by the product, not the sum.
 
-A modifier on an *extent* is read only once an event has fired, so unlike the same modifier on a rate it adds no step to the run's clock (a modifier on a rate can change when the next event lands, so the engine must stop and re-read it at each change; see Appendix A's horizon). Chapter 8 covers what a driver is and how to grow one; anything the level does not accept raises rather than being quietly ignored.
+A modifier on an *extent* is evaluated only once an event has fired, so unlike the same modifier on a rate it adds no step to the run's clock (a modifier on a rate can change when the next event lands, so the engine must stop and re-evaluate it at each change; see Appendix A's horizon). Chapter 8 covers what a driver is and how to grow one; anything the level does not accept raises rather than being quietly ignored.
 
 ## Insertions and deletions
 
@@ -81,7 +81,7 @@ In practice the difference is one of scale, and the extent defaults say so: 50 b
 
 ## Who receives a transfer
 
-`transfer_to` is Chapter 3's recipient rule, and it works here unchanged: `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or `Recipients().weighted_by(...)` read off a trait. It is not a rate: the numbers are weights normalised over the lineages alive when a transfer occurs, so it says who receives and never how much transfer happens.
+`transfer_to` is Chapter 3's recipient rule, and it works here unchanged: `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or `Recipients().weighted_by(...)`, whose weights depend on a trait. It is not a rate: the numbers are weights normalised over the lineages alive when a transfer occurs, so it says who receives and never how much transfer happens.
 
 ```python
 tree6 = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=6)

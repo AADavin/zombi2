@@ -47,8 +47,8 @@ say it has no effect at all: those 200 runs are the null, the same machinery wit
 to find.
 
 Every genome also carries a second family, called `control`. It appears at the root and
-is lost at the same rate as the driver, but nothing in the simulation depends on it: no
-rate reads it, so it cannot make any lineage speciate faster or slower. If its prevalence
+is lost at the same rate as the driver, but nothing in the simulation depends on it: it
+drives no rate, so it cannot make any lineage speciate faster or slower. If its prevalence
 still rises in the driven runs, that rise can only come from the shape of the tree, never
 from anything the family itself does. The whole sweep is 1,400 joint runs.
 

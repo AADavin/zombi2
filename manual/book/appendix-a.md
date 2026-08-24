@@ -89,8 +89,8 @@ The modifiers are:
 | `varying_among('lineages', Drift(...))` | Is **inherited from the parent lineage and nudged at each split**, so the rate drifts gradually down the tree and close relatives keep similar rates. |
 | `varying_among('lineages', ...)` | Is an **independent draw for each lineage**, with no memory of its parent, so nearby branches are no more alike than distant ones. |
 | `varying_among('families', ...)` | Is an **independent draw for each gene family**, so one family is prone to transfer and another is not, whatever lineage either sits in. |
-| `scaled_by(driver, mapping)` | **Reads an evolved value**: the factor is looked up from a driver's state, either another level or another run of the same one, which is how one thing conditions another (Chapter 8). |
-| `set_by(driver, mapping)` | **Replaces the base** instead of multiplying it: the mapping gives the rate itself, in the rate's own units, so nothing is written in front of it. It reads a driver just as `scaled_by` does, the scope still applies, and a rate carries one. |
+| `scaled_by(driver, mapping)` | **Depends on an evolved value**: the factor is looked up from a driver's state, either another level or another run of the same one, which is how one thing conditions another (Chapter 8). |
+| `set_by(driver, mapping)` | **Replaces the base** instead of multiplying it: the mapping gives the rate itself, in the rate's own units, so nothing is written in front of it. It takes a driver just as `scaled_by` does, the scope still applies, and a rate carries one. |
 
 The first two are **deterministic**: the clock and standing diversity are fixed functions of the state of
 the world, so every lineage that meets the same time, or the same diversity, gets the same factor. The
@@ -112,7 +112,7 @@ to hit the `max_lineages` guard. Mean-correcting keeps the rate honest per linea
 
 **Where a driver attaches.** A driven factor is neither random nor corrected: it is whatever
 the driver's state says it is. A driver need not come from another level: `Clade({"fast": ["n12",
-"n27"]})` names a subtree by its tips, or by a node id, and reads membership off the tree the run is
+"n27"]})` names a subtree by its tips, or by a node id, and takes membership from the tree the run is
 already walking, with every unnamed lineage in `"rest"`. A driver is not confined to a rate: the same
 factor multiplies an **extent** at the ordered and nucleotide resolutions, where an extent takes only
 `changing_at` and `scaled_by`: a per-family draw has no one family to read (a segment covers several),
@@ -151,7 +151,7 @@ Verbs **chain, and their factors multiply**, so they combine: `PerLineage(1.0).c
 
 A modifier only makes sense where the level can act on it, and a level **rejects** one it does not
 accept rather than silently ignoring it. `set_by` is listed separately from `scaled_by` even though both
-read a driver, because replacing a base is a capability an engine has or has not: the three levels
+take a driver, because replacing a base is a capability an engine has or has not: the three levels
 below can do it and the rest refuse. This is what each accepts today:
 
 | Level | The verbs it accepts |
@@ -182,8 +182,8 @@ the error names the ones it does, so this table can always be read back off the 
 
 ### A state, but only after a time
 
-`scaled_by` reads a driver and `changing_at` reads the clock, and chaining them does not combine
-them: the factors multiply, and each applies to every lineage, so `scaled_by(clade,
+`scaled_by` depends on a driver and `changing_at` follows the clock, and chaining them does not
+combine them: the factors multiply, and each applies to every lineage, so `scaled_by(clade,
 {...}).changing_at({...})` puts the time window on the whole tree rather than on the clade.
 
 To scope a factor to a driver state **and** to a time, write that state's entry as a schedule, in
@@ -226,8 +226,8 @@ the context that engine has. Every engine passes `time` and `lineages`; the rest
 | `joint` | `time`, `lineages`, `diversity`, `drivers` |
 
 `time` is the run's clock and `lineages` the branches alive; `copies` and `chromosomes` are the
-lineage's own counts, and `drivers` carries the driven values a conditioned rate reads. Take `**_`
-and default every key you read. A key your engine does not supply never arrives, and the
+lineage's own counts, and `drivers` carries the driven values a conditioned rate depends on.
+Take `**_` and default every key you read. A key your engine does not supply never arrives, and the
 genome engines pass `drivers` only on a rate that is itself driven, so it can be missing even on an
 engine that lists it. One key is there and is always 0: `copies` at the nucleotide resolution, where
 gene events are counted per lineage rather than per copy, so there is no copy count to pass. What you
