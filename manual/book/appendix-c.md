@@ -3,7 +3,7 @@ The tables of Chapter 8, in one place: every connection, every driver, every tar
 
 ## Every connection
 
-![What can connect to what. Rows drive, columns are driven, and the numbers are the rows of the table below. A shaded cell cannot be connected: three would need two genome runs for the same lineage, and the rest pair levels that cannot read each other. A cell with the arrow with two heads runs joint only, because neither level can be simulated first. A boxed cell is one part of a level driving another part of the same level. A starred cell can also be written on the command line.](figures/conditioning_map_print.png){width=95%}
+![What can connect to what. Rows drive, columns are driven, and the numbers are the rows of the table below. A shaded cell cannot be connected: three would need two genome runs for the same lineage, and the rest pair levels that cannot depend on each other. A cell with the arrow with two heads runs joint only, because neither level can be simulated first. A boxed cell is one part of a level driving another part of the same level. A starred cell can also be written on the command line.](figures/conditioning_map_print.png){width=95%}
 
 | # | Driver | Target | What it says | Conditioned | Joint |
 |---|---|---|---|---|---|
@@ -29,15 +29,15 @@ In a conditioned run, a driver is a finished result:
 | Driver | What it offers | Gallery |
 |---|---|---|
 | a discrete trait | one of its states | [Co1](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:genome_reduction--> |
-| a continuous trait | a number, read every `step` of time | [Co4](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:continuous_conditioning--> |
+| a continuous trait | a number, taken every `step` of time | [Co4](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:continuous_conditioning--> |
 | a gene family | `present` or `absent` | [Co14–Co15](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:repair_gene--><!--gallery:gene_drives_trait--> |
 | a module | a fraction, 0 to 1: how complete a declared group of families is | [Co17](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:module_drives_motility--> |
 | a sequence's composition | a number, 0 to 1: the share of its letters in a given set | [Co19](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gc_drives_sequence--> |
 | **one family's** composition | the same, on a run restricted to that family, plus an `absent=` | [Co20](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:named_family_drives_sequence--> |
 
-In a joint run, a driver is named, and the name says which level is read:
+In a joint run, a driver is named, and the name says which level it comes from:
 
-| Driver | What it reads | Mapping |
+| Driver | What it offers | Mapping |
 |---|---|---|
 | `"traits:<name>"`, discrete | that trait's current state | a table over the states |
 | `"traits:<name>"`, continuous | that trait's current value | a curve, or a `Scalar` |

@@ -24,7 +24,7 @@ size.node_values           # every node of the complete tree, ancestors and exti
 size.write("out/traits/")  # trait_values.tsv · trait_tree.nwk · trait_summary.json (Appendix B)
 ```
 
-A discrete run gives the same shape back, states instead of numbers, and writes `trait_events.tsv` besides: the switch log, which is the file a conditioned run reads as its driver (Chapter 8).
+A discrete run gives the same shape back, states instead of numbers, and writes `trait_events.tsv` besides: the switch log, which is the file a conditioned run takes as its driver (Chapter 8).
 
 Here `rate` is the Brownian variance-rate σ², the trait level's reading of "how fast". It is counted per lineage, the only scope here, so `PerLineage(1.0)` is the bare `1.0` in wrapper form, and like every rate in ZOMBI2 it takes the verbs. Two variations, the first by two more arguments, the second by a verb on the rate:
 
@@ -125,11 +125,12 @@ zombi2 traits out/ --kind discrete \
     --states marine,terrestrial --switch 0.1 --seed 1
 
 # the states the next command drives from — a discrete run writes trait_events.tsv by default,
-# the driver file a conditioned genome, sequence or trait run reads (Chapter 8)
+# the driver file a conditioned genome, sequence or trait run takes (Chapter 8)
 zombi2 traits out/ --kind discrete \
     --states cave,surface --switch 0.1 --seed 1
 
-# a second trait, kept apart in out/traits/diet/ by --name, whose switch rate reads the first (Chapter 8)
+# a second trait, kept apart in out/traits/diet/ by --name,
+# whose switch rate depends on the first (Chapter 8)
 zombi2 traits out/ --kind discrete --name diet --states plant,fish --seed 2 \
     --switch "PerLineage(0.2).scaled_by('out/traits/trait_events.tsv', {'cave': 5.0, 'surface': 1.0})"
 ```

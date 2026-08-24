@@ -522,7 +522,7 @@ sp = simulate_species_tree(birth=PerLineage(1.4).scaled_by(TotalDiversity(cap=80
                            death=0.05, total_time=9.0, seed=5)
 res = simulate_continuous(sp.complete_tree, start=0.0, seed=42,
                           rate=PerLineage(6.0).scaled_by(TotalDiversity(cap=80)))
-# the panel below the tree is the lineages-through-time curve: the quantity both rates read'''
+# the panel below the tree is the lineages-through-time curve: the quantity both rates depend on'''
 
 _C_MV_OU = '''\
 ### simulate  —  two traits drifting together, each pulled to its own optimum at its own strength
