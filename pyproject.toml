@@ -83,7 +83,11 @@ docs = ["mkdocs-material", "mkdocstrings[python]"]
 # keeps the dash the figure gave it — without it every extinct lineage in a coloured tree comes out
 # solid — and where a key clears the tree behind it instead of overlapping the branches. 0.2.15 adds
 # `Style(headroom=…)`, the row of its own a top-left key needs on a tree that reaches that corner.
-gallery = ["phylustrator>=0.2.15", "cairosvg>=2.5", "matplotlib", "pillow"]
+# 0.2.16 adds `trees.rubberband`, the smooth population band the per-species example trees draw
+# around the tips, alongside `trees.ring` (an outer coloured-arc ring) and a `shape=` option on
+# `tip_track`. 0.2.17 (the Zenodo release, doi:10.5281/zenodo.22071925) adds the radial layers the
+# joining cards draw with: radial `color_history` and event marks, ring edges, and corner guides.
+gallery = ["phylustrator>=0.2.17", "cairosvg>=2.5", "matplotlib", "pillow"]
 
 # The `zombi2` CLI exposes one command per level — `species`, `genomes`, `sequences`, `traits` —
 # plus `joint`, which grows a species tree together with the level driving it, and `tools`, which
