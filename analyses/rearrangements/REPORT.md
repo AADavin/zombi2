@@ -1,4 +1,4 @@
-# What can gene order constrain?
+# Which rearrangement parameters can be recovered from gene order?
 
 **What we test:** whether the parameters of a genome rearrangement model can be recovered from gene
 order alone. Genomes are simulated at known rates down a dated tree, the parameters are then
@@ -124,11 +124,13 @@ reversal model.
 ![Figure 1](figures/rearrangements.png)
 
 *Figure 1. Panel A, the distance over arm A's grid of inversion rate against inversion extent. The
-band of good fits is narrow in rate and runs the full height of the grid. Panel B, the distance
+band of good fits is narrow in rate and runs the full height of the grid, and the best 5% of
+cells are outlined. Panel B, the distance
 against each parameter as a multiple of its true value, profiled over the other parameter. The rate
 has a minimum at the truth and the extent is flat. Panel C, the distance over arm B's grid of the two
-rates, with a single minimum on the truth. Panel D, the recovered value as a multiple of the truth,
-for all three observed replicates of every arm.*
+rates, with a single minimum on the truth. Panel D, the distance over the same grid of the two rates
+as panel C, but with the extent fixed at twice its true value: the best fit slides one grid step off
+the truth along the rate axis.*
 
 **Arm A: the rate is pinned, the extent is not.** The recovered inversion rate is 7.07e-4 in all
 three replicates, one grid step below the true 1.0e-3. The recovered extent is 32, 64 and 64 genes
