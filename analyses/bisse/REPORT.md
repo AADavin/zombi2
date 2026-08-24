@@ -50,7 +50,7 @@ factor, which checks the joint engine's genome half against something it does no
 
 For every replicate we fit the six-parameter BiSSE model and the state-independent
 constraint (λ₁ = λ₀, μ₁ = μ₀) on each family's tip presence, a likelihood-ratio test on
-two degrees of freedom at α = 0.05: 2,165 fits, 235 replicates skipped because an
+two degrees of freedom at α = 0.05: 2,165 fits, 235 fits skipped because an
 invariant character cannot be fit, no fit errors.
 
 - **Calibration is clean.** The driver at the null is rejected in 6/171 fits (3.5%,
@@ -110,7 +110,7 @@ each, the same first hundred seeds; `size_experiment.py`, `fit_bisse_size.R`,
 small-tree artifact: it persists at 500 tips (86% against 96%) and closes only at 1,000.
 And calibration is not free at scale: the control, at the nominal level through 500
 tips, is rejected in 8.2% of the 1,000-tip fits pooled over both factors (16 of 196,
-Wilson CI 5.1-12.9%), consistent with the false-positive inflation reported for
+Wilson CI 5.1-12.8%), consistent with the false-positive inflation reported for
 state-dependent diversification on large trees. On these data, small trees hide true
 drivers, and on the largest trees false positives begin to appear.
 
