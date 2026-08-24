@@ -63,15 +63,16 @@ error.
 Each tip keeps its observed habitat, and each inferred transfer contributes one vote to
 each of the two branches it connects; the vote is for the partner's habitat, and it is
 weighted by the transfer's frequency. The votes assign a habitat to all 99 ancestral
-branches, and 92% of the assignments are correct. The same procedure on the error-free
-network built from the truth is also 92% correct, so the reconciliation's errors do not
-lower the accuracy.
+branches, and 92% of the assignments are correct. On the error-free network built from
+the truth, the same votes classify fewer branches at a similar accuracy, and the best
+variant there (label propagation, below) also reaches 92%: the reconciliation's errors
+do not lower the achievable accuracy.
 
 Two honest limits:
 
 - **Depth.** The errors concentrate where lineages are few: the share of contemporaneous
-  lineages correctly labelled rises from 50% near the root to nearly 100% at the
-  present. The deepest branches are misclassified even on the error-free network.
+  lineages correctly labelled is zero along part of the deep tree and rises to nearly
+  100% at the present. The deepest branches are misclassified even on the error-free network.
 - **Switches inside branches.** An undated reconciliation cannot place a habitat switch
   inside a branch. Seven branches switched habitat within their span; on them, part of
   the branch is mislabelled whichever habitat is assigned. The vote shares do not flag
