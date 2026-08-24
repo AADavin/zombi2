@@ -19,7 +19,6 @@ our branch names by clade content against `data/branches.tsv`). Reports:
 from __future__ import annotations
 
 import csv
-import glob
 import pathlib
 import re
 from collections import Counter, defaultdict

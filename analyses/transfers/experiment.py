@@ -30,11 +30,11 @@ import sys
 
 sys.setrecursionlimit(1_000_000)
 
-import zombi2
-from zombi2.genomes import simulate_genomes_family
-from zombi2.params import Between, Recipients
-from zombi2.species import simulate_species_tree
-from zombi2.traits import simulate_discrete
+import zombi2  # noqa: E402
+from zombi2.genomes import simulate_genomes_family  # noqa: E402
+from zombi2.params import Between, Recipients  # noqa: E402
+from zombi2.species import simulate_species_tree  # noqa: E402
+from zombi2.traits import simulate_discrete  # noqa: E402
 
 HERE = pathlib.Path(__file__).parent
 DATA = HERE / "data"
