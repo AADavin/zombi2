@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-08-24
+
 ### Added
 
 - A new worked example, "Who trades genes with whom?": a conditioned run in which the
