@@ -25,11 +25,11 @@ the very same trees, so any signal the test finds on that family is an artifact.
 
 One joint run simulates the genome and the habitat together along a dated tree of 150
 extant tips. Two connections, one in each direction, close the feedback loop: the habitat
-multiplies the loss rate of every gene family (an anaerobic lineage loses gene copies
+multiplies the loss rate of every gene family (a parasitic lineage loses gene copies
 five times faster), and the absence of one family, called A, multiplies the rate of
-switching into the anaerobic habitat by twelve. The family stands for a gene required
-for aerobic respiration: a lineage that loses it is pushed toward anaerobic habitats,
-and an anaerobic lineage loses genes faster.
+switching into the parasitic habitat by twelve. The family stands for a gene required
+for free living: a lineage that loses it is pushed toward parasitic habitats,
+and a parasitic lineage loses genes faster.
 
 ```python
 from zombi2 import joint, traits
@@ -40,12 +40,12 @@ from zombi2.species import simulate_species_tree
 tree = simulate_species_tree(birth=1.0, n_extant=150, seed=1).complete_tree
 result = joint.simulate(
     genome(duplication=0.05, origination=8.0, initial_families=40,
-           loss=PerCopy(0.25).scaled_by("trait", {"anaerobic": 5.0, "aerobic": 1.0}),
+           loss=PerCopy(0.25).scaled_by("trait", {"parasitic": 5.0, "free-living": 1.0}),
            families=[family("A")]),
-    traits.discrete(states=["aerobic", "anaerobic"], start="aerobic",
-                    switch={"aerobic->anaerobic": PerLineage(0.08).scaled_by(
+    traits.discrete(states=["free-living", "parasitic"], start="free-living",
+                    switch={"free-living->parasitic": PerLineage(0.08).scaled_by(
                                 "genomes:A", {"present": 1.0, "absent": 12.0}),
-                            "anaerobic->aerobic": 0.10}),
+                            "parasitic->free-living": 0.10}),
     tree=tree, seed=1)
 ```
 
@@ -81,7 +81,7 @@ rate of every family in the genome.
 
 A connection produces extra events only where the driving state is present. Lineages
 missing family A are common, because copies are steadily lost, so the twelve-fold
-switch rate applies across much of the tree; anaerobic lineages are rare at the base
+switch rate applies across much of the tree; parasitic lineages are rare at the base
 switch rates, so the five-fold loss applies to few branches. Tip presence is also a coarse
 measure of the loss rate: a family present in several copies must lose them all before
 the character changes.
