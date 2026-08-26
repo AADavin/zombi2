@@ -2,7 +2,7 @@
 
 Genomes live inside the species tree, and they can be simulated at three **resolutions**, one per chapter: **family** here, **ordered** in Chapter 4, **nucleotide** in Chapter 5. The simplest is a gene family evolving along the tree; the most detailed tracks every nucleotide across several chromosomes.
 
-The **family** resolution is genomes made of gene families and nothing more: no position along a chromosome, no DNA sequence. Genes are copied, lost, born from nothing, and passed sideways between lineages.
+The **family** resolution is genomes made of gene families and nothing more: no position along a chromosome, no DNA sequence. Genes can originate anywhere in the tree, and then they evolve by duplication, transfers and losses.
 
 ## The four events
 
@@ -15,32 +15,34 @@ A genome at the family resolution evolves by four kinds of event, applied to eve
 
 ![The four events, one to a panel, labelled beneath. Each grey band is a lineage of the species tree, each black line one gene copy, and time reads left to right: a duplication forks a copy inside its lineage, a transfer carries one into another lineage, a loss ends one, and an origination starts a family from nothing.](figures/four_events_print.png){width=100%}
 
-The initial genome, at the beginning of the stem, starts with `initial_families` families of one copy each, 100 unless you say otherwise; from there the four rates drive everything.
+The initial genome, at the beginning of the stem, starts with `initial_families` families of one copy each (100 gene families by default); from there the four rates determine how they evolve.
 
 ### Four things to know
 
-- **Families need not evolve at the same pace.** A rate can vary among **families**, an independent draw for each, and that one choice is what separates a genome with a core and an accessory part from one where every family behaves alike ([Ge4](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_pangenome_by_family-->). Appendix A gives the spelling.
-- **A family's copies within one genome are capped**, at `max_family_size=10` by default, because a duplication rate above the loss rate grows without bound. Set `max_family_size=None` when you are measuring rates: a full family discards the duplications and arrivals that would pass the cap, pulling the realised rates below the ones you declared.
-- **There is no minimum number of genes.** Loss is counted per copy and the last copy is a copy like any other, so a high loss rate can leave a lineage with nothing. `genome_summary.json` reports `empty_genomes` and the command warns, because an empty genome is otherwise invisible.
-- **The chromosome-based resolutions do keep a minimum**: one gene per chromosome. A loss never takes a chromosome below its last gene, because a chromosome with nothing on it is not a chromosome. The minimum is per chromosome, not a bound on the genome's size: a whole chromosome, genes and all, still dies by `chromosome_loss` (Chapter 4).
+- **Families can evolve at different rates.** This can be used to simulate for example genomes with a core and an accessory part ([Ge4](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_pangenome_by_family-->). Appendix A gives the spelling.
+- **A family's copies within one genome are capped**, at `max_family_size=10` by default, because a duplication rate above the loss rate can grow exponentially.
+- **There is no minimum number of genes.** Loss is counted per copy and the last copy is a copy like any other, so a high loss rate can leave a lineage with nothing. `genome_summary.json` reports `empty_genomes` and the command warns, because an empty genome is otherwise invisible.[^chromosome-minimum]
+- **ZOMBI2 produces both complete and extant trees for the gene trees too.** The complete tree keeps every gene lineage; the extant tree keeps only the copies that survive to the present. Both are described below.
+
+[^chromosome-minimum]: The chromosome-based resolutions do keep a minimum: one gene per chromosome. A loss never takes a chromosome below its last gene, because a chromosome with nothing on it is not a chromosome. The minimum is per chromosome, not a bound on the genome's size: a whole chromosome, genes and all, still dies by `chromosome_loss` (Chapter 4).
 
 ## What the rate depends on
 
-By default, duplication, transfer and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is usually what you want: more genes, more chances. Origination is counted **per lineage** (per branch of the species tree): acquiring a wholly new family is a property of the lineage, not of any gene it already has, and it takes no other scope.
+By default, duplication, transfer and loss are counted **per copy**: a family with ten copies is ten times as likely to duplicate or lose one as a family with a single copy, which is usually what you want: more genes, more chances. Origination is counted **per lineage** (per branch of the species tree): acquiring a wholly new family is a property of the lineage, not of any gene it already has.
 
-The three per-copy rates also take `PerLineage`, and that is a different model rather than a different spelling. `PerCopy(0.25)` puts every copy independently at risk, so a big genome loses often; `PerLineage(0.25)` is a deletion budget, and the lineage loses at that rate whatever it holds, so deletion-biased genomes lose at their own pace and shrinking does not slow them down. In a genome of a hundred genes the same `0.25` is a total loss rate of 25 one way and of 0.25 the other, a hundredfold apart, so it is a choice to make rather than a default to leave alone.
+The three events (D, T, L) can also be expressed as `PerLineage`, but that implies a different model of evolution. For example, `PerCopy(0.25)` means that every copy can undergo an event independently, so a big genome loses often; `PerLineage(0.25)` is different: the lineage loses at that rate whatever it holds, so deletion-biased genomes lose at their own pace and shrinking does not slow them down. In a genome of a hundred genes the same `0.25` is a total loss rate of 25 one way and of 0.25 the other, a hundredfold apart.
 
-A rate can also depend on **time**, on **where in the tree** a lineage sits, or on a level grown before it. Chaining `changing_at` onto a rate makes it change at set moments: the skyline genome, fast early and slow later; `Clade` multiplies a rate inside a named subtree of the species tree, and the two compose ([Ge5](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_clade_transition-->); and `scaled_by` makes a rate depend on a driver, which is Chapter 8. (`Clade`, which scales a rate, is not the `Clades` of the transfer section below, which picks recipients.) Appendix A is the full grammar, and every rate at this level takes all of it.[^origins]
+A rate can also depend on **time**, on **the clade where the gene is**, or on a different level. Using `changing_at` on a rate makes it change at set moments: the skyline genome, fast early and slow later; `Clade` multiplies a rate inside a named subtree of the species tree, and the two compose ([Ge5](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_clade_transition-->); and `scaled_by` makes a rate depend on a driver, which is Chapter 8. See Appendix A for more details.[^origins]
 
 [^origins]: `families=[family("toxin", origin=("n1", 0.4))]` declares a family and places it instead of leaving it to the rate: it originates on the lineage you name, at the time you give, keeps its name, and **adds to** whatever `initial_families` and `origination` produce. With both of those at zero the tree carries exactly the families you declared.
 
 ## Lateral gene transfers
 
-When a transfer event occurs, the copy that fires is one of that family's live copies, anywhere on the tree, and it is delivered to another lineage that is **alive at that same instant**. No event ever mixes two families, so the donor pool is the family's own.
+When a transfer event occurs, the copy that triggers the events is one of that family's live copies, anywhere on the tree, and it is copied to another lineage that is **alive at that same instant**.
 
-Three arguments shape what a transfer does:
+Three arguments are important for transfers:
 
-- **`transfer_to`**, who receives. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier: a recipient at distance *d* from the donor gets weight exp(−decay · *d* / depth), the depth being the tree's mean root-to-tip time, so the same `decay` means the same thing on trees of different timescales. `"distance"` is `Distance(decay=1.0)`, and `Distance(decay=)` sets its own. A third rule, `Clades(...)`, weights recipients by **named clades of the tree**, described below.
+- **`transfer_to`**, who receives the copy. `"uniform"` (the default) picks any other contemporaneous lineage with equal chance; `"distance"` makes closer relatives likelier: a recipient at distance *d* from the donor gets weight exp(−decay · *d* / depth), the depth being the tree's mean root-to-tip time, so the same `decay` means the same thing on trees of different timescales. `"distance"` is `Distance(decay=1.0)`, and `Distance(decay=)` sets its own. A third rule, `Clades(...)`, weights recipients by **named clades of the tree**, described below.
 - **`replacement`**, what happens on arrival. By default the incoming copy is **additive**: the recipient simply gains a copy. With `replacement=True` it **overwrites** a copy of the same family already present, picked at random when the recipient holds several, and falls back to additive when it has none.
 - **`self_transfer`**, whether a lineage may donate to itself. Off by default. With additive arrival the lineage gains a copy, so the gene content changes as it would under a duplication, but the event is recorded as a transfer. Under `replacement` the arrival never overwrites its own continuation: it displaces one of the lineage's *other* copies, or falls back to additive when there is none.
 
@@ -69,7 +71,7 @@ Each entry is a weight, read the same way `"distance"`'s weights are: normalised
 
 A run hands back two views of the same history, and the pair is worth keeping straight: the genomes at the *extant* tips are the observed dataset, and the genomes at **every** node, extinct and internal alike, are the run's own record of what happened. Appendix B names them and everything else.
 
-**Profiles** are the classic comparative-genomics view [@pellegrini1999profiles]: how many copies of each gene family sit in each extant species. They are read off the observed genomes on access, so the run itself stays lean.
+**Profiles** are the classic comparative-genomics view [@pellegrini1999profiles]: how many copies of each gene family sit in each extant species.
 
 ```python
 g.profiles.matrix        # families × extant-species copy counts, a NumPy array
@@ -77,7 +79,7 @@ g.profiles.presence      # the same as 0/1 presence/absence
 g.profiles.to_tsv()      # the table as text
 ```
 
-**Gene trees** are the deeper output. Every family has a `.complete` tree with every gene lineage, and, when at least one copy survives, an `.extant` tree pruned to the genes that do. A family that died out has no extant tree: `.extant` is `None`, `to_newick("extant")` returns `None`, and the run writes no `_extant` file for it.
+**Gene trees.** Every family has a `.complete` tree with every gene lineage, and, when at least one copy survives, an `.extant` tree pruned to the genes that do. A family that died out has no extant tree: `.extant` is `None`, `to_newick("extant")` returns `None`, and the run writes no `_extant` file for it.
 
 ```python
 gt = g.gene_trees[7]                 # the gene tree of family 7
@@ -90,22 +92,11 @@ The root of a gene tree carries a branch length, as the species tree's does. A f
 
 ## Evolving families in parallel
 
-Because families are independent, and no event ever mixes two families, a run can evolve them **concurrently**, one family per worker process. It is off by default; `parallel` turns it on.
-
-```python
-from zombi2 import species, genomes
-
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-g = genomes.simulate_genomes_family(
-    tree, duplication=0.2, loss=0.25, origination=0.5,
-    initial_families=1000, seed=1, parallel=8)      # 8 workers
-```
+Because families are independent, a run can evolve them **concurrently**, one family per worker process. It is off by default; `parallel` turns it on.
 
 `parallel=True` uses every core and an integer sets the worker count; on the command line it is `--parallel` for all cores or `--parallel 8` for eight. It is a **separate engine**, not a faster path through the default one: each family draws from its own random stream, so the result is identical for any worker count, but it differs from a serial run of the same seed. Both are valid draws of the same process.
 
-A **conditioned** rate (Chapter 8) runs here too. Conditioning does not tie families to one another: the driver was grown before this run and is an input to it, so a lineage's factor at a given moment is the same number whichever family is asking, and no family can reach another through it. Each worker uses the driver as a lookup, and the split into independent per-family processes, which is what the parallel engine rests on, is untouched.
-
-For very large runs of hundreds of thousands of families, or a million, the difficulty stops being speed and becomes memory: the finished result itself no longer fits. `stream_to` writes each family to a directory the moment it is done, and hands back a light handle holding a path rather than the ordinary result object (a `FamilyGenomesResult`) holding everything. Memory then stays flat however many families you run, so a run that would have held 2 GB in memory streams in about 40 MB, and the sequence level reads the families back off the disk afterwards. Choose which files to write with `outputs=`, exactly as `.write` takes them: the tokens are `events`, `profiles`, `genomes`, `initial_genome`, `gene_trees`, `species_tree` and `summary`, and Appendix B shows the file each one writes. On the command line this is `--stream`.
+For very large runs of hundreds of thousands of families, or a million, the difficulty stops being speed and becomes memory. `stream_to` writes each family to a directory the moment it is done, and hands back a light handle holding a path rather than the ordinary result object (a `FamilyGenomesResult`) holding everything. Memory then stays flat however many families you run, so a run that would have held 2 GB in memory streams in about 40 MB, and the sequence level reads the families back off the disk afterwards. On the command line this is `--stream`.
 
 ```python
 run = genomes.simulate_genomes_family(
@@ -113,8 +104,6 @@ run = genomes.simulate_genomes_family(
     parallel=8, stream_to="out/", outputs=("events", "profiles", "species_tree"))
 run.path("events")            # out/genome_events.tsv — the log the sequence level replays
 ```
-
-The handle goes straight into the next level, and so does the directory: `sequences.simulate_sequences(run, …)` and `sequences.simulate_sequences("out/", …)` both reopen it. `genomes.read_run("out/")` gives the run itself back, the event log and the gene trees derived from it, for anything you would rather do in Python than on the command line.
 
 ## On the command line
 

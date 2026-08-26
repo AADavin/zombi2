@@ -1,8 +1,8 @@
 # Dependent runs
 
-The book has so far run the levels one at a time: a species tree first, then genomes on it, then sequences, then traits. This order exists because each level needs the previous one: a genome evolves along the species tree, and a sequence evolves inside a gene of the genome. In ZOMBI2 this order of simulation is called the hierarchy.
+The book has so far run the levels one at a time: a species tree first, then genomes on it, then sequences, then traits. This order exists because each level needs the previous one: a genome evolves along the species tree, and a sequence evolves inside a gene of the genome.
 
-![The four levels and the order they are simulated in. Each level needs the one before it.](figures/fig-2-1-four-levels_print.png){width=60%}
+![The four levels and the order they are simulated in.](figures/fig-2-1-four-levels_print.png){width=60%}
 
 Sometimes you want to create more complex evolutionary scenarios, for example:
 
@@ -16,7 +16,7 @@ In all these scenarios, one simulation depends on another. This chapter first di
 
 ## Independent, conditioned and joint runs
 
-Two levels can be simulated in three ways.
+There are three possible relations between two simulations.
 
 ![The three kinds of run. Left: two independent runs, one after the other. Middle: a conditioned run, where the second run depends on the results of the first. Right: a joint run, where both levels are simulated at the same time.](figures/execution_print.png){width=95%}
 
