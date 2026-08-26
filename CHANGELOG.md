@@ -9,6 +9,18 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- The manual, revised chapter by chapter from Adrián's review of the printed book. Chapters 1
+  to 6 and chapter 8 are shorter and plainer: the introduction states what a connection's
+  driver, link and target are without metaphor; the species chapter says how a birth-death
+  process is stopped and what the extant tree is; the gene-family chapter names the three
+  events that can be counted per lineage; the ordered chapter merges the karyotype and
+  chromosome-events sections and moves the segment material after them; the nucleotide and
+  sequence chapters drop the passages that repeated the rate grammar, and the sequence chapter
+  opens on what a run records at ancestral nodes. "Paths on Windows" moves from Appendix A into
+  the installation section, where a reader meets it.
+
 ## [0.44.0] - 2026-08-24
 
 ### Added
