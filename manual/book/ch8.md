@@ -1,8 +1,8 @@
 # Dependent runs
 
-The book has so far run the levels one at a time: a species tree first, then genomes on it, then sequences, then traits. This order exists because each level needs the previous one: a genome evolves along the species tree, and a sequence evolves inside a gene of the genome. In ZOMBI2 this order of simulation is called the hierarchy.
+The book has so far run the levels one at a time: a species tree first, then genomes on it, then sequences, then traits. This order exists because each level needs the previous one: a genome evolves along the species tree, and a sequence evolves inside a gene of the genome.
 
-![The four levels and the order they are simulated in. Each level needs the one before it.](figures/fig-2-1-four-levels_print.png){width=60%}
+![The four levels and the order they are simulated in.](figures/fig-2-1-four-levels_print.png){width=60%}
 
 Sometimes you want to create more complex evolutionary scenarios, for example:
 
@@ -16,7 +16,7 @@ In all these scenarios, one simulation depends on another. This chapter first di
 
 ## Independent, conditioned and joint runs
 
-Two levels can be simulated in three ways.
+There are three possible relations between two simulations.
 
 ![The three kinds of run. Left: two independent runs, one after the other. Middle: a conditioned run, where the second run depends on the results of the first. Right: a joint run, where both levels are simulated at the same time.](figures/execution_print.png){width=95%}
 
@@ -24,7 +24,7 @@ In an **independent** run the levels are simulated one after the other. The seco
 
 In a **conditioned** run the levels are also simulated one after the other, but the parameters of the second run depend on the results of the first. A habitat trait is simulated first, and the loss rate of the genome run then depends on the habitat of each lineage. In Python, the result of the first run is passed to the second as an object. On the command line, the second run reads the file that the first run wrote. The second run records what it depended on in a `conditioned_on` file (Appendix B), and re-running the driver afterwards requires `--force`, so the runs that depend on it cannot be left out of date silently.
 
-In a **joint** run the two levels are simulated at the same time, in a single run. This is necessary when neither level can be simulated first, and there are two ways it happens. The first is a cycle of two connections: a trait controls the substitution rate of a gene, and the composition of that gene controls how the trait changes, so each simulation would need the other one to be finished. The second is a single connection that points against the hierarchy: the composition of a gene controls the loss rate of its genome, but the genome must be simulated to know which copies of the gene exist. In both cases there is no possible order, so one run simulates both levels.
+In a **joint** run the two levels are simulated at the same time, in a single run. This is necessary when neither level can be simulated first, and there are two ways it happens. The first is a cycle of two connections: a trait controls the substitution rate of a gene, and the composition of that gene controls how the trait changes, so each simulation would need the other one to be finished. The second is a single connection that points against the normal order of the levels: the composition of a gene controls the loss rate of its genome, but the genome must be simulated to know which copies of the gene exist. In both cases there is no possible order, so one run simulates both levels.
 
 A dependency is always created by a connection. A joint run without any connection is refused: without a dependency the result would be identical to two independent runs, and the error message says to run them independently instead.
 

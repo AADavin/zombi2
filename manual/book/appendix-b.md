@@ -442,13 +442,13 @@ From Python: `.alignments` · `.ancestral` (the sequences), `.genomes` · `.node
 genome), `.founding` · `.phylograms` · `.species_phylogram`, and the driver views `.gc()` ·
 `.composition(letters)`.
 
-**`phylogram_fam<f>_*.nwk`**: under `+Γ`/`+I` the branch length is the **mean** over sites, which is
+**`phylogram_fam<f>_*.nwk`**: with rate variation across sites the branch length is the **mean** over sites, which is
 what the rate classes are normalised to. Under a per-clade model set (`Models`) the lengths still mean
 substitutions per site, since every model is normalised to one per unit length, but that normalisation
 holds at stationarity, so on a branch whose composition is still relaxing toward its clade's
 frequencies the realised count falls a little short of the length written here.
 
-**`clock_species_tree_*.nwk`**: the mean over sites under `+Γ`/`+I`, as for the phylograms. A driven
+**`clock_species_tree_*.nwk`**: the mean over sites when rates vary across them, as for the phylograms. A driven
 substitution rate shows here too: a branch is the rate times the driver integrated along it, so this
 is where you read what the trait did. The token that writes the pair, in `outputs=` and `--write`,
 is `species_phylogram`, not the file's name.
