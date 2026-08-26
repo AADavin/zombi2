@@ -127,7 +127,7 @@ def recphylo_xml(gene_trees: dict[int, GeneTree], tree) -> str:
 
 def reconciliation_xml(root, extant_tree, fam: int) -> str:
     """One ``<recPhylo>`` for an **extant-only** reconciliation: the extant species tree, then the
-    projected gene tree. Same serialiser as the complete case — the projection hands back an ordinary
+    projected gene tree. Same serialiser as the complete case — the projection returns an ordinary
     `GeneNode` tree whose species are extant-tree branches, so nothing here is special-cased."""
     lines = ["<recPhylo>", "  <spTree>", "    <phylogeny>"]
     lines += _species_lines(extant_tree, 3)
@@ -141,7 +141,7 @@ def reconciliation_xml(root, extant_tree, fam: int) -> str:
 def write_recphylo(gene_trees: dict[int, GeneTree], tree, directory, *,
                    scope: str = "complete") -> str:
     """Write recPhyloXML into ``directory``, one family per file, as every other per-family output of
-    a run does — so a family can be handed to a viewer on its own.
+    a run does — so a family can go to a viewer on its own.
 
     ``scope`` picks which history:
 

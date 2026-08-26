@@ -74,7 +74,7 @@ Not every pair can be connected. A genome cannot be driven by a second genome ru
 
 ![What can be joined. Every arrow has two heads, because neither level can be simulated first. A loop marks a pair whose two parts belong to the same level. The pair with no arrow, species and sequences, cannot be joined.](figures/joining_map_print.png){width=88%}
 
-Levels can also be simulated jointly, as the figure shows. Two pairs reach the species tree: a trait or the gene content drives speciation, and the tree is then a result of the run. Three pairs join two different levels along a tree that is handed to the run: a trait and a genome, a trait and a sequence, a genome and a sequence. In the remaining three cases the two joined parts belong to the same level: a gene family changes the rates of the genome that carries it, one trait changes how another trait evolves, and each of two genes changes how fast the other one evolves. A joint run holds exactly two parts, and asking for a third is refused. The species tree and a sequence cannot be joined: a sequence evolves along a gene tree, which evolves along the species tree, so joining the two would require simulating the genome as well.
+Levels can also be simulated jointly, as the figure shows. Two pairs reach the species tree: a trait or the gene content drives speciation, and the tree is then a result of the run. Three pairs join two different levels along a tree used as input: a trait and a genome, a trait and a sequence, a genome and a sequence. In the remaining three cases the two joined parts belong to the same level: a gene family changes the rates of the genome that carries it, one trait changes how another trait evolves, and each of two genes changes how fast the other one evolves. A joint run holds exactly two parts, and asking for a third is refused. The species tree and a sequence cannot be joined: a sequence evolves along a gene tree, which evolves along the species tree, so joining the two would require simulating the genome as well.
 
 ### Naming the driver
 
@@ -95,12 +95,12 @@ Two kinds of driver change between events: a continuous trait diffuses at every 
 | a trait drives speciation | simulated | events, exact |
 | gene content drives speciation | simulated | events, exact |
 | a diffusing trait drives speciation | simulated | slices of `step` |
-| a trait and a genome | handed | events, exact |
-| two traits, each driving the other | handed | events, exact |
-| a trait and a gene's sequence | handed | slices; the composition is taken at the start of the slice |
-| a genome and a gene's sequence | handed | slices; the composition is held within a slice |
-| a gene family drives its own genome | handed | events, exact |
-| two genes, each depending on the other | handed | slices; both compositions held within a slice |
+| a trait and a genome | input | events, exact |
+| two traits, each driving the other | input | events, exact |
+| a trait and a gene's sequence | input | slices; the composition is taken at the start of the slice |
+| a genome and a gene's sequence | input | slices; the composition is held within a slice |
+| a gene family drives its own genome | input | events, exact |
+| two genes, each depending on the other | input | slices; both compositions held within a slice |
 
 `step` is written on the link, because the right size depends on how the value is taken: a steep curve needs a finer step than a flat one. In a joint run it has no default, and leaving it out is an error, because the timescale belongs to a model that does not exist yet. The practical check is to halve `step`, rerun, and confirm that the numbers you report move by less than their seed-to-seed spread ([Jo12](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:quasse-->).
 
