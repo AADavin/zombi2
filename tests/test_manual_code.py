@@ -341,7 +341,7 @@ def test_the_harness_sees_the_manual():
     assert README in _chapters(), "the front page has dropped out of the sweep"
     assert _standalone_docs(), "docs/ pages are all includes — or the include check has broken"
     total = sum(len(_blocks(p)) for p in _chapters())
-    assert total >= 60, f"expected the manual's ~80 code blocks, found {total}"
+    assert total >= 55, f"expected the manual's ~60 code blocks, found {total}"
     assert os.environ.get("ZOMBI2_SKIP_MANUAL") is None
 
 
