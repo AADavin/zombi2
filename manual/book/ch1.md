@@ -100,9 +100,26 @@ pip install zombi2
 `zombi2 --version` confirms the install, and `zombi2 -h` lists the commands.
 
 ZOMBI2 is pure Python over NumPy, with no compiled part to build, and the test suite runs on **Linux,
-macOS and Windows** on every change, so the same command does the same thing on all three. One thing
-differs on Windows: how backslash paths are read inside a rate expression or a `--params`
-file. Appendix A covers it, under "Paths on Windows".
+macOS and Windows** on every change, so the same command does the same thing on all three. Two things differ on
+Windows and are worth knowing before they bite:
+
+- **Paths in a rate expression.** A driver path goes inside the rate. On the command line ZOMBI2
+  reads the backslashes as written, so `PerCopy(0.25).scaled_by('C:\Users\me\trait_events.tsv',
+  {...})` works as pasted. In a Python script the same line is Python source, and Python reads `\U`
+  as an escape, so it is a `SyntaxError`. Worse, `C:\temp` is read quietly as `C:` followed by a
+  tab. Write the path as a raw string there: `r'C:\Users\me\trait_events.tsv'`. Forward slashes work
+  in all three places, the command line, a Python script and a `--params` file, and Windows
+  accepts them.
+- **Paths in a `--params` file**, the TOML file that can carry a run's flags (`--params run.toml`).
+  TOML, not ZOMBI2, reads that file, and TOML's ordinary `"…"` string
+  treats a backslash as an escape, so `C:\Users` fails there with a message about a hex value. Put a
+  value containing a path in a TOML **literal** string instead, `'''…'''`, which is taken exactly as
+  written:
+
+  ```toml
+  transfer-to = '''Recipients().weighted_by('C:\Users\me\trait_events.tsv', {'competent': 2.0})'''
+  ```
+
 
 ## The examples gallery
 

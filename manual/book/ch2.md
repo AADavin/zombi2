@@ -12,7 +12,7 @@ The two rates determine the overall shape of the tree and how quickly diversity 
 
 There are two main ways to determine the stopping time of a birth–death process. Either you stop it at a given time (`total_time`), or you stop it when the number of lineages alive reaches a certain number (`n_extant`).[^stopping]
 
-`n_extant` limits the number of leaves by construction; `total_time` does not control directly the number of leaves, which is dependent on the ratio of the speciation and extinction rate. A run that passes **100,000 standing lineages** stops with an error by default. If you really want to simulate very large trees, then just change the `max_lineages` parameter, or set it to `None` to put no limit.
+`n_extant` limits the number of leaves by construction; `total_time` does not control directly the number of leaves, which is dependent on the difference between the speciation and extinction rates. A run that passes **100,000 standing lineages** stops with an error by default. If you really want to simulate very large trees, then just change the `max_lineages` parameter, or set it to `None` to put no limit.
 
 `total_time` is not conditioned on survival. A run in which no lineages are alive at the stopping time raises an error.
 
