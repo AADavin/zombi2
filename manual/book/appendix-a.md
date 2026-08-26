@@ -111,7 +111,7 @@ to hit the `max_lineages` guard. Mean-correcting keeps the rate honest per linea
 `E[N(t)]` fixed, and nothing could.
 
 **Where a driver attaches.** A driven factor is neither random nor corrected: it is whatever
-the driver's state says it is. A driver need not come from another level: `Clade({"fast": ["n12",
+the driver's state says it is. A driver can also come from the tree itself: `Clade({"fast": ["n12",
 "n27"]})` names a subtree by its tips, or by a node id, and takes membership from the tree the run is
 already walking, with every unnamed lineage in `"rest"`. A driver is not confined to a rate: the same
 factor multiplies an **extent** at the ordered and nucleotide resolutions, where an extent takes only
