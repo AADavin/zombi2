@@ -99,6 +99,7 @@ Because families are independent, a run can evolve them **concurrently**, one fa
 For very large runs of hundreds of thousands of families, or a million, the difficulty stops being speed and becomes memory. `stream_to` writes each family to a directory the moment it is done, and hands back a light handle holding a path rather than the ordinary result object (a `FamilyGenomesResult`) holding everything. Memory then stays flat however many families you run, so a run that would have held 2 GB in memory streams in about 40 MB, and the sequence level reads the families back off the disk afterwards. On the command line this is `--stream`.
 
 ```python
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
 run = genomes.simulate_genomes_family(
     tree, origination=2.0, initial_families=5000, seed=1,
     parallel=8, stream_to="out/", outputs=("events", "profiles", "species_tree"))

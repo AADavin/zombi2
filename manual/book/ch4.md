@@ -18,6 +18,8 @@ The karyotype itself evolves: four events change the **number** of chromosomes (
 - **`chromosome_loss`** *(per chromosome)*. A whole chromosome dies, and every gene on it is recorded as a loss. A lineage never loses its *last* chromosome this way.
 
 ```python
+from zombi2 import species, genomes
+
 tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=42)
 g = genomes.simulate_genomes_ordered(
     tree, duplication=0.15, loss=0.1, origination=0.25,
