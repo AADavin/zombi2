@@ -69,7 +69,7 @@ Each entry is a weight, read the same way `"distance"`'s weights are: normalised
 
 ## Profiles and gene trees
 
-A run hands back two views of the same history, and the pair is worth keeping straight: the genomes at the *extant* tips are the observed dataset, and the genomes at **every** node, extinct and internal alike, are the run's own record of what happened. Appendix B names them and everything else.
+A run returns two views of the same history, and the pair is worth keeping straight: the genomes at the *extant* tips are the observed dataset, and the genomes at **every** node, extinct and internal alike, are the run's own record of what happened. Appendix B names them and everything else.
 
 **Profiles** are the classic comparative-genomics view [@pellegrini1999profiles]: how many copies of each gene family sit in each extant species.
 
@@ -96,7 +96,7 @@ Because families are independent, a run can evolve them **concurrently**, one fa
 
 `parallel=True` uses every core and an integer sets the worker count; on the command line it is `--parallel` for all cores or `--parallel 8` for eight. It is a **separate engine**, not a faster path through the default one: each family draws from its own random stream, so the result is identical for any worker count, but it differs from a serial run of the same seed. Both are valid draws of the same process.
 
-For very large runs of hundreds of thousands of families, or a million, the difficulty stops being speed and becomes memory. `stream_to` writes each family to a directory the moment it is done, and hands back a light handle holding a path rather than the ordinary result object (a `FamilyGenomesResult`) holding everything. Memory then stays flat however many families you run, so a run that would have held 2 GB in memory streams in about 40 MB, and the sequence level reads the families back off the disk afterwards. On the command line this is `--stream`.
+For very large runs of hundreds of thousands of families, or a million, the difficulty stops being speed and becomes memory. `stream_to` writes each family to a directory the moment it is done, and returns a light handle holding a path rather than the ordinary result object (a `FamilyGenomesResult`) holding everything. Memory then stays flat however many families you run, so a run that would have held 2 GB in memory streams in about 40 MB, and the sequence level reads the families back off the disk afterwards. On the command line this is `--stream`.
 
 ```python
 tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)

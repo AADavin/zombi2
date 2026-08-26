@@ -53,7 +53,7 @@ two factors collapse into one term, so do their runs.
 - **Independent** — neither reads the other (independent *of each other*, not of the tree).
 - **Conditioned** — one reads the other; the driver can be grown first and held fixed, so it is two runs
   in order.
-  From Python the finished driver is handed over as the **object**; across two commands it is handed
+  From Python the finished driver is used as input as the **object**; across two commands it is used
   over as a **file**, because that is all a second process can read. The file is the CLI's way of
   passing it, not part of the model — do not define conditioning by it.
 - **Joint** — neither can go first, so **one run simulates both**. That is the whole of it. When the

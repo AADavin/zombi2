@@ -167,13 +167,13 @@ This is why a phylogram's root carries a branch length: it is the stem in substi
 
 ## Large runs
 
-This is the level where a run's memory goes. Every family's alignment and every ancestral sequence are held at once, so what you can run is bounded by families × copies × sites rather than by time. `stream_to` writes each family's files the moment it is finished and keeps nothing, handing back a light handle with a path instead of a `SequencesResult` holding everything. On the command line it is `--stream`.
+This is the level where a run's memory goes. Every family's alignment and every ancestral sequence are held at once, so what you can run is bounded by families × copies × sites rather than by time. `stream_to` writes each family's files the moment it is finished and keeps nothing, returning a light handle with a path instead of a `SequencesResult` holding everything. On the command line it is `--stream`.
 
 Memory then stops growing with the sequences: raise the sites fivefold and an in-memory run doubles while a streamed one barely moves. What is left is the genome run being read, which is the remaining cost. It is a memory choice and not a modelling one: the same seed writes the same files either way, so a streamed run and an in-memory one are the same dataset. `outputs=` picks which files, exactly as `.write` takes them, and it composes with `parallel`. A **nucleotide** run cannot stream: it puts whole genomes back together, which needs every block's sequence at once.
 
 ## Running on a nucleotide genome
 
-Hand the level a **nucleotide** genome run, one ZOMBI2 drew or a real annotation you supply, and you get whole assembled genomes in FASTA, at every tip and at every ancestor. Genes and spacer get their own models: `model` evolves the genes, and `intergene_model` evolves the spacer at `intergene_speed` times the rate (3× by default), under `jc69` unless you hand it a model of its own, decorated or plain, like any other.
+Give the level a **nucleotide** genome run, one ZOMBI2 drew or a real annotation you supply, and you get whole assembled genomes in FASTA, at every tip and at every ancestor. Genes and spacer get their own models: `model` evolves the genes, and `intergene_model` evolves the spacer at `intergene_speed` times the rate (3× by default), under `jc69` unless you give it a model of its own, decorated or plain, like any other.
 
 It is the same two steps as any other run: a genomes run at `--resolution nucleotide`, then a sequences run over it. What comes back is every node's assembled genome: `.genomes` at the tips, `.node_genomes` at the ancestors, reconstructed rather than estimated, and `.initial_genome` for the state the run started from.
 
@@ -185,7 +185,7 @@ The FASTA has one `>seqid` record per GFF `##sequence-region`, each exactly its 
 
 ## On the command line
 
-The positional directory is the run being written, and it doubles as the input: `zombi2 sequences out/` runs **in place**, reading the genome run already in `out/` (its species tree and event log, replaying the gene genealogy from them) and writing beside it. `zombi2 sequences seqs/ --from out/` reads one run and writes into a fresh directory. A nucleotide run given a `--fasta` also hands its initial DNA across (in `initial_sequence.fasta`), so the sequences descend from your real sequence without you naming it twice. `--write` picks the outputs, the command line's `outputs=`.
+The positional directory is the run being written, and it doubles as the input: `zombi2 sequences out/` runs **in place**, reading the genome run already in `out/` (its species tree and event log, replaying the gene genealogy from them) and writing beside it. `zombi2 sequences seqs/ --from out/` reads one run and writes into a fresh directory. A nucleotide run given a `--fasta` also passes its initial DNA across (in `initial_sequence.fasta`), so the sequences descend from your real sequence without you naming it twice. `--write` picks the outputs, the command line's `outputs=`.
 
 ```bash
 # 1. genomes along a species tree (from the previous chapters)
