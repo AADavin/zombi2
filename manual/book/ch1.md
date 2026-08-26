@@ -23,7 +23,7 @@ A run in which every level is simulated:
 
 $$P(\text{Species}) \cdot P(\text{Genomes} \mid \text{Species}) \cdot P(\text{Sequences} \mid \text{Genomes}) \cdot P(\text{Traits} \mid \text{Species})$$
 
-You need not run them all. Skip sequences if you only want gene trees, which the genome level already produces; skip genomes if you want a species tree with traits on it. Everything depends on a species tree, so a workflow almost always begins by simulating one alone. The exception is a **joint** model, in which traits and species, or genomes and species, are simulated simultaneously.
+You can run only the levels you need. Skip sequences if you only want gene trees, which the genome level already produces; skip genomes if you want a species tree with traits on it. Everything depends on a species tree, so a workflow almost always begins by simulating one alone. The exception is a **joint** model, in which traits and species, or genomes and species, are simulated simultaneously.
 
 ## Time
 
