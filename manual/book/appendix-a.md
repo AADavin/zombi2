@@ -70,7 +70,7 @@ species.simulate_species_tree(birth=1.0, death=Global(0.3), total_time=8.0, seed
 grow as the tree does. When a `Global` event fires, the lineage it lands on is drawn as always,
 weighted by the lineages' own factors, so uniformly among the living when nothing sets one apart.
 The scopes are `Global`, `PerLineage`, `PerCopy`, `PerSite` and `PerChromosome`, and nothing outside
-these two tables is accepted: a rate handed any other scope is refused, and the error names the
+these two tables is accepted: a rate given any other scope is refused, and the error names the
 scopes its level takes.
 
 ## How a rate changes in context: modifiers
@@ -212,7 +212,7 @@ read.
 The modifiers above are the ones ZOMBI2 ships. If none of them says what your rate depends on,
 you can write your own. It is a small class, and it needs two things.
 
-**A `factor()` method, returning the multiplier.** The engine calls it as the run goes and hands it
+**A `factor()` method, returning the multiplier.** The engine calls it as the run goes and passes it
 the context that engine has. Every engine passes `time` and `lineages`; the rest differ:
 
 | Engine | Context passed to `factor` |
@@ -234,7 +234,7 @@ gene events are counted per lineage rather than per copy, so there is no copy co
 return multiplies the rate, so 1.0 leaves it alone, 2.0 doubles it, 0.0 switches it off.
 
 **An `implemented_for` list, naming the engines that read it.** A modifier an engine does not read
-would silently return 1.0 and hand you a run that is not the model you asked for, so a level takes
+would silently return 1.0 and give you a run that is not the model you asked for, so a level takes
 only the modifiers that name it and refuses the rest. The engine names are `species`,
 `genomes.family`, `genomes.ordered`, `genomes.nucleotide`, `traits.continuous`, `traits.discrete`
 and `joint`.

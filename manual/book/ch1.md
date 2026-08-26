@@ -67,7 +67,7 @@ Sometimes neither level can be simulated first. A trait controls how fast a line
 
 $$P(\text{Species}, \text{Traits})$$
 
-The test is one question: can the driver be simulated first, on its own, and handed over? If it can, the run is conditioned. If it cannot, it is joint. Chapter 8 works through both, and Appendix C is the full map of what can drive what.
+The test is one question: can the driver be simulated first, on its own, and used as input? If it can, the run is conditioned. If it cannot, it is joint. Chapter 8 works through both, and Appendix C is the full map of what can drive what.
 
 ## What it can do
 
