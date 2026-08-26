@@ -327,8 +327,9 @@ def test_a_value_the_manual_assigns_to_a_parameter_is_still_accepted(tmp_path, m
     # traded their Literature tables' expression column for a gallery number: those spellings are
     # now in the cards' `code=`, where `test_gallery_api.py` runs the same name check over them.
     # It came down again, 6 to 5, when ch8 and ch9 merged into the Dependent runs chapter and the
-    # joint models' blocks moved to the joining cards for the same treatment.
-    assert checked >= 5, f"only probed {checked} values; the walk is not finding the manual's values"
+    # joint models' blocks moved to the joining cards for the same treatment. And 5 to 3 when
+    # chapters 4 and 5 dropped their driven-rate sections, whose spellings the gallery still runs.
+    assert checked >= 3, f"only probed {checked} values; the walk is not finding the manual's values"
     assert not failures, ("the manual assigns values the API no longer accepts:\n  "
                           + "\n  ".join(failures))
 

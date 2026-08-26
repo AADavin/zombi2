@@ -38,38 +38,6 @@ Means over about 1,500 inversions each. A 500 bp request has mostly spacer to la
 
 The chromosome rates are the exception: `fission`, `fusion` and `chromosome_loss` are counted **per chromosome**, and `chromosome_origination` per lineage. A fusion joins two chromosomes of the **same topology**, for the same reason it does at the ordered resolution: a ring and a molecule with two ends cannot become one molecule.
 
-Rates here are written the same way as everywhere else, a scope with verbs chained onto it, and the scopes above are the only ones this resolution takes: a different scope is refused (Appendix A), so a bare number stays a bare number. Of the verbs, this engine reads `changing_at` and `scaled_by`; a per-family draw is refused with the reason. The **skyline** works: `inversion = PerLineage(5.0).changing_at({0: 1.0, 3: 0.2})` drops the inversion rate fivefold at time 3, and the run re-reads its rates at each step rather than racing past it.
-
-So does **conditioning**. Every rate here takes a `scaled_by`, so a trait can drive how much DNA a lineage sheds, which is genome reduction as it is usually meant, and can drive the rearrangements too. First a plain run, which the block listing below reads:
-
-```python
-from zombi2 import species, genomes
-
-tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=56)
-g = genomes.simulate_genomes_nucleotide(
-    tree, root_length=3000, genes=3, gene_length=400,
-    inversion=1.0, inversion_extent=600, seed=56)
-```
-
-Then the same genome under a habitat, driving the deletions on both axes at once:
-
-```python
-from zombi2 import traits
-from zombi2.params import Extent, PerLineage
-
-habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.8, seed=2)
-loss        = PerLineage(0.8).scaled_by(habitat, {"host": 20.0, "free": 0.5})   # more often
-loss_extent = Extent(150).scaled_by(habitat, {"host": 6.0, "free": 1.0})        # bigger chunks
-
-g2 = genomes.simulate_genomes_nucleotide(
-    tree, root_length=3000, genes=3, gene_length=400, seed=57,
-    loss=loss, loss_extent=loss_extent)
-```
-
-**The extent takes the same verbs**, and that is a different statement: the rate raises how often a host-restricted lineage deletes, the extent how much each deletion takes. Set both and they multiply: the DNA shed per unit time goes up by the product, not the sum.
-
-A modifier on an *extent* is evaluated only once an event has fired, so unlike the same modifier on a rate it adds no step to the run's clock (a modifier on a rate can change when the next event lands, so the engine must stop and re-evaluate it at each change; see Appendix A's horizon). Chapter 8 covers what a driver is and how to grow one; anything the level does not accept raises rather than being quietly ignored.
-
 ## Insertions and deletions
 
 Two more events move DNA without touching the gene inventory, the **indels**:
@@ -79,26 +47,18 @@ Two more events move DNA without touching the gene inventory, the **indels**:
 
 In practice the difference is one of scale, and the extent defaults say so: 50 bp for the ancestry-changing events, 5 bp for the indels. Appendix B says where each is written: deletions in their own record, insertions as roots of their own kind.
 
-## Who receives a transfer
-
-`transfer_to` is Chapter 3's recipient rule, and it works here unchanged: `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or `Recipients().weighted_by(...)`, whose weights depend on a trait. It is not a rate: the numbers are weights normalised over the lineages alive when a transfer occurs, so it says who receives and never how much transfer happens.
-
-```python
-tree6 = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=12, seed=6)
-flows = genomes.Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)
-g6 = genomes.simulate_genomes_nucleotide(
-    tree6, root_length=6000, genes=6, gene_length=400,
-    transfer=2.0, transfer_extent=900, seed=6,
-    transfer_to=genomes.Clades({"A": ["n49", "n50"], "B": ["n30", "n36"]}, flows))
-```
-
-A transfer here is always **additive**, so steering changes only which lineage the arc lands on. `replacement` is not among this resolution's arguments, and handing it in fails as an unknown argument rather than being ignored. `self_transfer` is accepted as in Chapter 3. Nothing is taken from anyone, and a transfer whose every candidate weighs 0 simply does not fire.
-
 ## Reading a genome, block by block
 
-Two leaves of the inversion run in the rates section above show what its events did. `describe` writes one out: each line is a **block**, a stretch of DNA with one unbroken ancestry, written as the interval it came from on the initial sequence, read forward (`+`) or reverse-complemented (`−`). A gene is always one block, because nothing may cut it. Spacer is not, so several intergene lines in a row are simply spacer that has been cut apart and rearranged: the accumulated breakpoints of everything that happened to that lineage.
+Two leaves of an inversion run show what its events did. `describe` writes one out: each line is a **block**, a stretch of DNA with one unbroken ancestry, written as the interval it came from on the initial sequence, read forward (`+`) or reverse-complemented (`−`). A gene is always one block, because nothing may cut it. Spacer is not, so several intergene lines in a row are simply spacer that has been cut apart and rearranged: the accumulated breakpoints of everything that happened to that lineage.
 
 ```python
+from zombi2 import species, genomes
+
+tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=56)
+g = genomes.simulate_genomes_nucleotide(
+    tree, root_length=3000, genes=3, gene_length=400,
+    inversion=1.0, inversion_extent=600, seed=56)
+
 print(g.describe(2))
 print(g.describe(5))
 ```
