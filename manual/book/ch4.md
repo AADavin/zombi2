@@ -2,30 +2,6 @@
 
 The previous chapter put genes on the tree as a *bag of families*, how many copies of each, and nothing more. This chapter gives them **structure**. A genome becomes one or more **chromosomes**, each an ordered row of genes, and each gene carries a strand, the direction it reads in. This is the **ordered** resolution.
 
-```python
-from zombi2 import species, genomes
-
-tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=4, seed=231)
-g = genomes.simulate_genomes_ordered(
-    tree, duplication=0.3, loss=0.2, origination=0.15, inversion=0.5,
-    chromosomes=1, initial_families=5, seed=231)
-```
-
-Reading one extant leaf: `.genomes` holds each tip's chromosomes as `Chromosome` objects (an `id`, a `topology`, and ordered genes each carrying `family` and `strand`), `g.gene_order(node)` gives the same layout as plain tuples, and `gene_order.tsv` writes it for every node, ancestors included (Appendix B):
-
-```
-leaf n4, chromosome 4 (circular):  [ 0+ 0+ 1+ 3+ 4− ]
-```
-
-Each gene is written as its family with the strand as `+` or `−` (the strand is the integer `+1` or `−1`). This leaf has one chromosome of five genes, in which family `0` sits in a pair of tandem copies and family `4` points backwards, left that way by an inversion. The chromosome is numbered 4 on a run that started with one, because a chromosome gets a new id at every event: the chromosome network section below explains. The gene tree of a family is unchanged from Chapter 3, the true genealogy read off the same event log:
-
-```python
-g.gene_trees[0].to_newick("extant")
-# (((n5_g25:0.02994724,n6_g30:0.02994724)speciation_n3:0.3253988,(n4_g21:0.227248,n4_g22:0.227248)duplication_n4:0.128098)speciation_n1:0.1181814,n2_g9:0.4735275)speciation_n0:1.090775;
-```
-
-Internal nodes are labelled `<event>_n<species>`: the event that ended that gene copy, and the species branch it happened on, so `duplication_n4` is a duplication on branch `n4`.
-
 ![An example of an ordered genome. Genes acquire a relative position to each other in a circular chromosome. The orientation of each gene is also registered.](figures/ordered_chromosome.pdf){width=58%}
 
 ## The karyotype
@@ -86,24 +62,6 @@ Once genes have neighbours, **a gene-level event acts on a segment**, a stretch 
 How many genes are affected simultaneously by one event? That is its **extent**. By default, extents are computed from a geometric distribution, but this can be changed to other probability distributions. A bare number is the mean of the draw, so `duplication_extent=3` copies about three adjacent genes. The default is a single gene, so every event takes one gene unless you set an extent.
 
 Topology decides where a segment stops. On a circular chromosome a segment that reaches the last gene continues from the first, wrapping position 0, so only the whole chromosome bounds it; on a linear one it stops at the last gene, and a draw that would overrun the end is cut short there.
-
-```python
-from zombi2.params.distributions import Geometric
-
-tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=332)
-g = genomes.simulate_genomes_ordered(
-    tree, duplication=0.35, loss=0.3,
-    duplication_extent=Geometric(mean=3),      # ~3 adjacent genes copied at once
-    chromosomes=1, initial_families=5, seed=332)
-```
-
-```
-leaf n3:  [ 4+ 1+ 4+ 1+ 2+ 3+ ]
-            └────┘ └────┘
-            the segment 4 1, duplicated as a unit and landed in tandem
-```
-
-The segment `4 1` appears twice: a single segmental duplication copied those two adjacent genes together. (Family `0` is absent because it was lost earlier, and the chromosome is a ring, so the loss closed the gap between `4` and `1`; a printed ring starts at an arbitrary gene.) A duplication puts its copy **in tandem**, immediately after the original segment; a transferred segment arrives as one block, at a random position on a random chromosome of the recipient. **Origination is the exception**: a family is born once, as a single new gene, so it has no extent.
 
 ### How often, where, how much
 
