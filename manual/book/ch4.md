@@ -4,11 +4,9 @@ The previous chapter put genes on the tree as a *bag of families*, how many copi
 
 ![An example of an ordered genome. Genes acquire a relative position to each other in a circular chromosome. The orientation of each gene is also registered.](figures/ordered_chromosome.pdf){width=58%}
 
-## The karyotype
+## Chromosomes split, merge, appear and die
 
 A genome has a **karyotype**: `chromosomes=N` chromosomes, each with a `topology`: `"circular"` (the default) or `"linear"`, or a per-chromosome list like `["circular", "linear"]` for a mixed set. The founding `initial_families` genes are distributed across the chromosomes in turn. The number of chromosomes can also evolve through different events.
-
-## Chromosomes split, merge, appear and die
 
 The karyotype itself evolves: four events change the **number** of chromosomes ([Ge10](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_karyotype-->):
 
@@ -16,17 +14,6 @@ The karyotype itself evolves: four events change the **number** of chromosomes (
 - **`fusion`** *(per chromosome)*. Two chromosomes of a genome merge into one. Only two of the **same topology**: a ring and a molecule with two ends cannot become one molecule, so a circular chromosome never fuses with a linear one, and a genome holding one of each never fuses at all.
 - **`chromosome_origination`** *(per lineage)*. A de-novo replicon appears: a new chromosome, empty and circular, a plasmid.
 - **`chromosome_loss`** *(per chromosome)*. A whole chromosome dies, and every gene on it is recorded as a loss. A lineage never loses its *last* chromosome this way.
-
-```python
-from zombi2 import species, genomes
-
-tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=42)
-g = genomes.simulate_genomes_ordered(
-    tree, duplication=0.15, loss=0.1, origination=0.25,
-    chromosomes=2, fission=0.25, fusion=0.25,
-    chromosome_origination=0.03, chromosome_loss=0.03,
-    initial_families=5, seed=42)
-```
 
 ## The chromosome network
 
@@ -38,7 +25,7 @@ species tree  ⊃  chromosome network  ⊃  gene trees
 
 The containment is at each instant: every gene sits on one chromosome, and every chromosome in one lineage. That holds even though a gene's lineage can change chromosome by translocation and species by transfer.
 
-It is a **network** and not a tree because of one event: **fusion joins two chromosome lineages into one**, two parents and one child. Fission and speciation are ordinary splits (one parent, two children); `initial` and `origination` are roots: the chromosomes the run began with, and the new replicons `chromosome_origination` creates, kept apart so you can tell which is which. Loss is a leaf. It is a directed graph, and it is written the way graphs are, as an **edge list**: `chromosome_events.tsv` on disk, `.chromosome_events` in Python, one row per event. The run above gives:
+It is a **network** and not a tree because of one event: **fusion joins two chromosome lineages into one**, two parents and one child. Fission and speciation are ordinary splits (one parent, two children); `initial` and `origination` are roots: the chromosomes the run began with, and the new replicons `chromosome_origination` creates, kept apart so you can tell which is which. Loss is a leaf. It is a directed graph, and it is written the way graphs are, as an **edge list**: `chromosome_events.tsv` on disk, `.chromosome_events` in Python, one row per event. A run with fissions and fusions gives:
 
 ```
   time   kind          parents -> children
@@ -65,17 +52,7 @@ How many genes are affected simultaneously by one event? That is its **extent**.
 
 Topology decides where a segment stops. On a circular chromosome a segment that reaches the last gene continues from the first, wrapping position 0, so only the whole chromosome bounds it; on a linear one it stops at the last gene, and a draw that would overrun the end is cut short there.
 
-### How often, where, how much
-
-A segmental event answers three questions. Two of them are numbers you set; the third is drawn by the run:
-
-- **how often** it starts, the rate;
-- **where** it starts, a gene drawn from the genome;
-- **how much** it takes, the extent.
-
-In Chapter 3 the third answer was always "one gene", so the rate was the whole story. Here it is not, and the two numbers **multiply**.
-
-One consequence catches people out: **a rate counts starts, not hits.** `duplication=0.2` with `duplication_extent=3` does *not* mean each gene is duplicated 0.2 times per unit time. A gene is copied whenever any duplication's segment covers it, which happens about three times as often as the starts alone, so roughly `0.2 × 3 = 0.6`. If you want genes duplicated at a known rate, divide that rate by the mean extent.
+One consequence of events affecting multiple genes at the same time is that **a rate counts starts, not hits.** `duplication=0.2` with `duplication_extent=3` does *not* mean each gene is duplicated 0.2 times per unit time. A gene is copied whenever any duplication's segment covers it, which happens about three times as often as the starts alone, so roughly `0.2 × 3 = 0.6`. If you want genes duplicated at a known rate, divide that rate by the mean extent.
 
 The same reading holds at the nucleotide resolution of Chapter 5, where the extent is in base pairs rather than genes.
 
@@ -88,56 +65,6 @@ Three more events reshape the order without creating or destroying genes:
 - **Translocation.** Move a segment to a **different chromosome** of the same genome, landing at a random position. A no-op if the genome has only one chromosome.
 
 All three are counted **per copy**: every gene is a potential start, so a bigger genome rearranges more often; each also takes `PerLineage`, a fixed budget independent of genome size (Appendix A). A moved segment, transposed or translocated, lands **inverted** with probability `inversion_probability` (default `0`, so it keeps its orientation).
-
-## What carries over from Chapter 3
-
-Everything Chapter 3 built runs here unchanged: the four events, the rates, the family cap, the named families. Three pieces meet the segment, and each is worth a word.
-
-### Families that differ, once events cover several at once
-
-`varying_among('families', ...)` works here as it does in Chapter 3, but with one difference that matters. A segment covers several families at once, so the weight is applied to **the segment, averaged over the genes it covers**, not to the gene the event happened to start on.
-
-Weighting the starting gene is the obvious implementation and the wrong one: a fast family's rate would then apply to whatever sat beside it, so you would be describing the *neighbourhood* of a fast family rather than the family, and the neighbourhood is reshuffled by every inversion and translocation, so the parameter would not name a stable thing. Averaging over the segment keeps what you wrote true: a segment of heavily-weighted genes is favoured, a mixed one sits between, an ordinary one is unweighted.
-
-With no weights set every segment averages to one, so a run without weights is unchanged.
-
-### Who receives a transfer
-
-The recipient rule is Chapter 3's, unchanged: `transfer_to` takes `"uniform"`, `"distance"` / `Distance(decay=)`, a `Clades(...)` kernel over named clades, or `Recipients().weighted_by(...)`, whose weights depend on a trait (Chapter 8). What is ordered about an ordered transfer is the block that moves; who receives it is the same question and the same answer as at the family resolution.
-
-```python
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=16, seed=1)
-flows = genomes.Between({("A", "B"): 1.0, ("B", "A"): 1.0}, default=0.0)
-g = genomes.simulate_genomes_ordered(
-    tree, transfer=1.0, transfer_extent=3, initial_families=20, seed=2,
-    transfer_to=genomes.Clades({"A": ["n27", "n28"], "B": ["n21", "n26"]}, flows))
-```
-
-Every transferred block now crosses between the two named clades and never lands inside either. The numbers are weights, normalised over the lineages alive when a transfer occurs, so they redistribute transfers without changing how many happen. A weight of 0 means "cannot receive", so a transfer whose every candidate weighs 0 does not happen at all, leaving the donor exactly as it was.
-
-One thing to watch when you combine a restrictive rule with a tight `max_family_size`: the two thin transfers independently. A block is refused when it would take any family it carries past the cap, and refused again when the kernel forbids the pair, so the realised amount of transfer can sit well below the rate you declared. Raise the cap while you are measuring the weights.
-
-### A rate or an extent can be driven by a trait
-
-Every rate here also takes `scaled_by`, so a habitat can decide how often a lineage rearranges its gene order, and every extent takes it too, so the same habitat can decide how long the rearranged segments are. The mechanism is Chapter 8's and is not repeated here. Every parameter in this chapter is an argument of the one call, so a rate and its extent can each depend on the same trait, on separate axes. (`Extent(4)` is a bare `4` in wrapper form, there for the verb to chain onto.)
-
-```python
-from zombi2 import species, genomes, traits
-from zombi2.params import Extent, PerCopy
-
-tree = species.simulate_species_tree(birth=1.0, death=0.2, n_extant=30, seed=1)
-
-# a host-restricted lineage inverts four times as often, and each inversion
-# covers three times as many genes
-habitat = traits.simulate_discrete(tree, states=["host", "free"], switch=0.5, seed=1)
-g = genomes.simulate_genomes_ordered(
-    tree,
-    inversion=PerCopy(0.3).scaled_by(habitat, {"host": 4.0, "free": 1.0}),
-    inversion_extent=Extent(4).scaled_by(habitat, {"host": 3.0, "free": 1.0}),
-    initial_families=10, seed=1)
-```
-
-What belongs here is why the per-family draw above and a trait driver sit apart. A trait driver attaches to the **lineage**: at any instant it is one factor for that lineage's whole genome, so it composes with any extent unchanged and the run is drawn exactly as it would be without it. `varying_among('families', ...)` attaches to the **contents**, so it has to weight each segment by what it covers. The two therefore cannot be set on the same **rate** yet, and a rate given both is refused with the reason: combining them would mean weighting by the product of a lineage factor and a segment factor, which is neither model on its own. A driven extent, or a driven `transfer_to`, is a different axis and runs alongside a per-family draw unchanged.
 
 ## On the command line
 

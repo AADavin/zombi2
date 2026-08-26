@@ -3,11 +3,9 @@
 The sequence level does two main things:
 
 * It rescales the gene trees and the species tree from time into substitutions per site (**phylograms**).
-* It evolves the residues that sit inside every gene, so each family ends with an alignment.
+* It evolves the residues that sit inside every gene, so each family ends with a sequence.
 
-The alignment is the **observable** half: the sequence at every extant gene copy, which is what a phylogenetic method would be handed. The other half is every node the alignment leaves out: the internal ones, and the tips where a copy was lost or its species died. The run wrote a sequence at each node as it went, so those are the exact ancestors rather than estimates, and together the two account for every node of the gene tree exactly once ([Sq9](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_ancestral-->).
-
-![Where a sequence lives. A sequence is not evolved along the species tree: it is evolved along the **gene tree**, which the genome run produced and which runs inside the species tree. The two forks are different events. The first is a speciation, which hands the gene to both daughters; the second, marked with a square, is a duplication, and it happens inside one lineage, which is why one lineage can hold two tips of the same family. A run gives one sequence per node of that gene tree, so the tips come out as an alignment.](figures/sequence_nesting_print.png){width=88%}
+The simulation records the sequences at the ancestral nodes too ([Sq9](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_ancestral-->).
 
 ## Creating phylograms
 
@@ -33,17 +31,6 @@ ZOMBI2 implements nine standard models of sequence evolution.
 
 The model decides the alphabet, and `length` counts whatever that alphabet holds. The nucleotide models are four different rate matrices rather than one model with four settings, but they nest in the order written, since `jc69` is `k80` with `kappa=1` and `k80` is `hky85` with equal base frequencies, so each step down the table adds free parameters. The protein matrices are **empirical**, each estimated once from a large set of real alignments and then used as a fixed table, which is why they take no parameters of their own ([Sq3](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:seq_protein-->).
 
-The examples of this chapter share one small run for the sequences to evolve on:
-
-```python
-from zombi2 import species, genomes, sequences
-from zombi2.sequences.substitution_models import hky85, jc69, lg
-
-tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
-my_genomes = genomes.simulate_genomes_family(
-    tree, duplication=0.2, loss=0.25, origination=0.5, initial_families=20, seed=1)
-```
-
 ### Your own matrix
 
 If none of the nine is the model you want, write the matrix yourself. `reversible` takes a symmetric **exchangeability** matrix $S$ and stationary frequencies $\pi$, and returns a model like any other: the rate of $i \to j$ is $Q_{ij} = S_{ij}\,\pi_j$, scaled so that one unit of branch length is one expected substitution per site, the same scaling every model on the menu gets, so a phylogram from your matrix compares with one from `hky85` without converting anything. This is the constructor the menu itself uses, and ([Sq11](https://aadavin.github.io/zombi2/gallery.html#sequences)<!--gallery:custom_matrix-->) rebuilds HKY85 with it by hand. You give $S$ and $\pi$ rather than $Q$ directly, and the restriction is deliberate: the engine's matrix exponential is only valid for a **time-reversible** model, which a symmetric $S$ times $\pi$ satisfies by construction; a general $Q$ is refused with an error rather than run. Pass `alphabet=AMINO_ACIDS` for a twenty-state matrix of your own. There is no command-line flag for a custom matrix: a twenty-state matrix is 190 numbers, which is a file format rather than an argument.
@@ -53,6 +40,13 @@ If none of the nine is the model you want, write the matrix yourself. `reversibl
 So far every site of a gene evolves at the same speed, which is a model no real gene obeys: some positions are held nearly fixed by what the protein has to do, and others drift freely. Two settings say so, and both go on the **model** rather than on the rate. `gamma_shape` gives each site a multiplier drawn from a Gamma with mean 1, so one number sets how unequal the sites are: a small shape means a few fast sites among many slow ones, and a large one is nearly flat. `invariant` sets aside a fraction of sites that never change, which a Gamma alone fits badly. The field writes them as suffixes on the model's name and so does ZOMBI2: `+G` [@yang1994variable], `+I`, and together `+I+G` [@gu1995maximum]. On the command line they are `--gamma-shape` and `--invariant`, on any model of the menu.
 
 ```python
+from zombi2 import species, genomes, sequences
+from zombi2.sequences.substitution_models import hky85, jc69, lg
+
+tree = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=20, seed=1)
+my_genomes = genomes.simulate_genomes_family(
+    tree, duplication=0.2, loss=0.25, origination=0.5, initial_families=20, seed=1)
+
 both = hky85(kappa=2.0).across_sites(gamma_shape=0.5, invariant=0.1)
 print(both.name)                  # HKY85+I+G4
 sequences.simulate_sequences(my_genomes, model=both, length=1000, seed=1)
