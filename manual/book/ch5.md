@@ -1,6 +1,6 @@
 # Genomes III: nucleotide
 
-At the **nucleotide** resolution a chromosome is a **coordinate axis of DNA** rather than a list of gene tokens, and events have an extension measured in base pairs: an inversion reverses 600 bp, a loss deletes 900 bp, a duplication copies 2 kb in tandem. Genes still exist and still get gene trees, but they are stretches of that axis with a start and an end, and the DNA between them is simulated too. The coordinates are the whole content: letters only exist once a sequence run reads the genome (Chapter 6), from a FASTA you supply or from the model's draw.
+At the **nucleotide** resolution a chromosome is a **coordinate axis of DNA** rather than a list of gene tokens, and events have an extension measured in base pairs: an inversion reverses 600 bp, a loss deletes 900 bp, a duplication copies 2 kb in tandem. Genes still exist and still get gene trees, but they are stretches of that axis with a start and an end, and the DNA between them is simulated too. The coordinates are the whole content: letters only exist once a sequence run reads the genome (Chapter 6), from a FASTA you supply or from a random sequence.
 
 ## Genes and intergenes
 
@@ -11,7 +11,7 @@ A genome here is DNA, and its DNA is of two kinds:
 
 ![Why a gene is never split. The strip beneath the replicon is the set of positions a breakpoint may take: every stretch of spacer, and no part of a gene. An event's two ends are drawn from that strip in the first place, rather than drawn anywhere and repaired afterwards, so the deletion above either takes gene 2 whole or does not touch it. A genome with no spacer at all is still legal: the strip is then just the joins between genes, and events move genes around whole.](figures/legal_breakpoints_print.png){width=100%}
 
-An event either **engulfs a gene whole** or leaves it alone; a breakpoint never falls strictly inside one. So an event does not pick a stretch and then clean up afterwards. Both of its ends are drawn **directly from the positions where a breakpoint is legal**. A genome can therefore be **all gene, with no spacer at all**: ten 100 bp genes in 1000 bp is a legal genome, and it evolves. Its breakpoints simply all fall at the joins between genes, so genes are inverted, moved, duplicated and lost whole. Genes may sit flush; they are not required to leave a gap.
+An event either **engulfs a gene whole** or leaves it alone; a breakpoint never falls strictly inside one. So an event does not pick a stretch and then clean up afterwards. Both of its ends are drawn **directly from the positions where a breakpoint is legal**. A genome can therefore be **all gene, with no spacer at all**: ten 100 bp genes in 1000 bp is a legal genome, and it evolves.
 
 ## Extents
 
@@ -72,7 +72,7 @@ A modifier on an *extent* is evaluated only once an event has fired, so unlike t
 
 ## Insertions and deletions
 
-Two more events move DNA without touching the gene inventory: the **indels**. They pair off against the events of Chapter 3 by what they do to ancestry:
+Two more events move DNA without touching the gene inventory, the **indels**:
 
 - **`deletion`** removes an arc, as `loss` does, but no copy lineage ends: the material goes, and every gene keeps its place in the genealogy. `loss` changes what a lineage *has*, because copies die and a gene can go whole; `deletion` changes how much of a surviving stretch it *carries*.
 - **`insertion`** lays down a stretch of **novel spacer**, as `origination` lays down a new gene: `origination` brings a gene family into the run, `insertion` brings sequence, DNA that descends from nothing.

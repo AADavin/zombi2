@@ -26,61 +26,11 @@ g.gene_trees[0].to_newick("extant")
 
 Internal nodes are labelled `<event>_n<species>`: the event that ended that gene copy, and the species branch it happened on, so `duplication_n4` is a duplication on branch `n4`.
 
-![Leaf `n4`, the same chromosome `[ 0+ 0+ 1+ 3+ 4− ]` drawn as the ring it is. Each gene is an arrow that points the way its strand reads, and its colour marks its family. The two copies of family `0` are a tandem duplication, one colour side by side; family `4`, left backward by an inversion, is the one arrow pointing against the flow.](figures/ordered_chromosome.pdf){width=58%}
+![An example of an ordered genome. Genes acquire a relative position to each other in a circular chromosome. The orientation of each gene is also registered.](figures/ordered_chromosome.pdf){width=58%}
 
 ## The karyotype
 
-A genome has a **karyotype**: `chromosomes=N` chromosomes, each with a `topology`: `"circular"` (the default) or `"linear"`, or a per-chromosome list like `["circular", "linear"]` for a mixed set. The founding `initial_families` genes are dealt round-robin across them. Topology is not just a label: it decides where a segmental event stops, which the next section takes up.
-
-## Events act on segments
-
-Once genes have neighbours, **a gene-level event acts on a segment**, a stretch of consecutive genes, not on one gene. A duplication copies a segment, a loss removes one, a transfer sends one sideways. That produces the signature of real genome evolution: neighbouring genes sharing a history because they were copied, moved or lost *together*.
-
-How much does an event take? That is its **extent**, set per event type as `<event>_extent`. A bare number is the mean of a **geometric** draw, so `duplication_extent=3` copies about three adjacent genes: often two or three, sometimes one, occasionally many more. Write `Fixed(3)`, from `zombi2.params.distributions` beside `Geometric`, for exactly three every time, or name any other distribution. The default is a single gene, so out of the box every event touches one gene and you recover the simplest behaviour.
-
-Topology decides where a segment stops, which is the promise the karyotype section made. On a circular chromosome a segment that reaches the last gene continues from the first, wrapping position 0, so only the whole chromosome bounds it; on a linear one it stops at the last gene, and a draw that would overrun the end is cut short there.
-
-```python
-from zombi2.params.distributions import Geometric
-
-tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=332)
-g = genomes.simulate_genomes_ordered(
-    tree, duplication=0.35, loss=0.3,
-    duplication_extent=Geometric(mean=3),      # ~3 adjacent genes copied at once
-    chromosomes=1, initial_families=5, seed=332)
-```
-
-```
-leaf n3:  [ 4+ 1+ 4+ 1+ 2+ 3+ ]
-            └────┘ └────┘
-            the segment 4 1, duplicated as a unit and landed in tandem
-```
-
-The segment `4 1` appears twice: a single segmental duplication copied those two adjacent genes together. (Family `0` is absent because it was lost earlier, and the chromosome is a ring, so the loss closed the gap between `4` and `1`; a printed ring starts at an arbitrary gene.) A duplication puts its copy **in tandem**, immediately after the original segment; a transferred segment arrives as one block, at a random position on a random chromosome of the recipient. **Origination is the exception**: a family is born once, as a single new gene, so it has no extent.
-
-### How often, where, how much
-
-A segmental event answers three questions. Two of them are numbers you set; the third is drawn by the run:
-
-- **how often** it starts, the rate;
-- **where** it starts, a gene drawn from the genome;
-- **how much** it takes, the extent.
-
-In Chapter 3 the third answer was always "one gene", so the rate was the whole story. Here it is not, and the two numbers **multiply**.
-
-One consequence catches people out: **a rate counts starts, not hits.** `duplication=0.2` with `duplication_extent=3` does *not* mean each gene is duplicated 0.2 times per unit time. A gene is copied whenever any duplication's segment covers it, which happens about three times as often as the starts alone, so roughly `0.2 × 3 = 0.6`. If you want genes duplicated at a known rate, divide that rate by the mean extent.
-
-The same reading holds at the nucleotide resolution of Chapter 5, where the extent is in base pairs rather than genes.
-
-## Rearrangements: inversion, transposition, translocation
-
-Three more events reshape the order without creating or destroying genes:
-
-- **Inversion.** Reverse a segment in place, flipping every gene's strand: `2+ 3+ 4+` becomes `4− 3− 2−`. On a circular chromosome the segment may span the origin ([Ge9](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_inversion-->).
-- **Transposition.** Cut a segment out and reinsert it **elsewhere on the same chromosome**, at a spot drawn uniformly over what is left after the cut.
-- **Translocation.** Move a segment to a **different chromosome** of the same genome, landing at a random position. A no-op if the genome has only one chromosome.
-
-All three are counted **per copy**: every gene is a potential start, so a bigger genome rearranges more often; each also takes `PerLineage`, a fixed budget however large the genome (Appendix A). A moved segment, transposed or translocated, lands **inverted** with probability `inversion_probability` (default `0`, so it keeps its orientation).
+A genome has a **karyotype**: `chromosomes=N` chromosomes, each with a `topology`: `"circular"` (the default) or `"linear"`, or a per-chromosome list like `["circular", "linear"]` for a mixed set. The founding `initial_families` genes are distributed across the chromosomes in turn. The number of chromosomes can also evolve through different events.
 
 ## Chromosomes split, merge, appear and die
 
@@ -129,9 +79,59 @@ It is a **network** and not a tree because of one event: **fusion joins two chro
 
 The rows carry no lineage column; which species holds a chromosome is read off `gene_order.tsv`, where every chromosome id sits beside its node.
 
+## Events act on segments
+
+Once genes have neighbours, **a gene-level event acts on a segment**, a stretch of consecutive genes, not on one gene. A duplication copies a segment, a loss removes one, a transfer sends one sideways. That produces the signature of real genome evolution: neighbouring genes sharing a history because they were copied, moved or lost *together*.
+
+How many genes are affected simultaneously by one event? That is its **extent**. By default, extents are computed from a geometric distribution, but this can be changed to other probability distributions. A bare number is the mean of the draw, so `duplication_extent=3` copies about three adjacent genes. The default is a single gene, so every event takes one gene unless you set an extent.
+
+Topology decides where a segment stops. On a circular chromosome a segment that reaches the last gene continues from the first, wrapping position 0, so only the whole chromosome bounds it; on a linear one it stops at the last gene, and a draw that would overrun the end is cut short there.
+
+```python
+from zombi2.params.distributions import Geometric
+
+tree = species.simulate_species_tree(birth=1.0, death=0.1, n_extant=3, seed=332)
+g = genomes.simulate_genomes_ordered(
+    tree, duplication=0.35, loss=0.3,
+    duplication_extent=Geometric(mean=3),      # ~3 adjacent genes copied at once
+    chromosomes=1, initial_families=5, seed=332)
+```
+
+```
+leaf n3:  [ 4+ 1+ 4+ 1+ 2+ 3+ ]
+            └────┘ └────┘
+            the segment 4 1, duplicated as a unit and landed in tandem
+```
+
+The segment `4 1` appears twice: a single segmental duplication copied those two adjacent genes together. (Family `0` is absent because it was lost earlier, and the chromosome is a ring, so the loss closed the gap between `4` and `1`; a printed ring starts at an arbitrary gene.) A duplication puts its copy **in tandem**, immediately after the original segment; a transferred segment arrives as one block, at a random position on a random chromosome of the recipient. **Origination is the exception**: a family is born once, as a single new gene, so it has no extent.
+
+### How often, where, how much
+
+A segmental event answers three questions. Two of them are numbers you set; the third is drawn by the run:
+
+- **how often** it starts, the rate;
+- **where** it starts, a gene drawn from the genome;
+- **how much** it takes, the extent.
+
+In Chapter 3 the third answer was always "one gene", so the rate was the whole story. Here it is not, and the two numbers **multiply**.
+
+One consequence catches people out: **a rate counts starts, not hits.** `duplication=0.2` with `duplication_extent=3` does *not* mean each gene is duplicated 0.2 times per unit time. A gene is copied whenever any duplication's segment covers it, which happens about three times as often as the starts alone, so roughly `0.2 × 3 = 0.6`. If you want genes duplicated at a known rate, divide that rate by the mean extent.
+
+The same reading holds at the nucleotide resolution of Chapter 5, where the extent is in base pairs rather than genes.
+
+## Rearrangements: inversion, transposition, translocation
+
+Three more events reshape the order without creating or destroying genes:
+
+- **Inversion.** Reverse a segment in place, flipping every gene's strand: `2+ 3+ 4+` becomes `4− 3− 2−` ([Ge9](https://aadavin.github.io/zombi2/gallery.html#genomes)<!--gallery:genome_inversion-->).
+- **Transposition.** Cut a segment out and reinsert it **elsewhere on the same chromosome**, at a spot drawn uniformly over what is left after the cut.
+- **Translocation.** Move a segment to a **different chromosome** of the same genome, landing at a random position. A no-op if the genome has only one chromosome.
+
+All three are counted **per copy**: every gene is a potential start, so a bigger genome rearranges more often; each also takes `PerLineage`, a fixed budget independent of genome size (Appendix A). A moved segment, transposed or translocated, lands **inverted** with probability `inversion_probability` (default `0`, so it keeps its orientation).
+
 ## What carries over from Chapter 3
 
-Everything Chapter 3 built runs here unchanged: the four events, the rates and their verbs, the family cap, the named families. Three pieces meet the segment, and each is worth a word.
+Everything Chapter 3 built runs here unchanged: the four events, the rates, the family cap, the named families. Three pieces meet the segment, and each is worth a word.
 
 ### Families that differ, once events cover several at once
 
