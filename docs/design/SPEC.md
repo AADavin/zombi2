@@ -224,7 +224,8 @@ name the argument the modifier does belong on. The rest are **not implemented ye
 statement about the code and not about the model; say that plainly and do not dress it up as a rule.
 
 **A driven parameter is the one mechanism** for both conditioning and joining (§2), within a level as
-much as across two (§3). Whichever verb writes it, it takes a `driver` and a `mapping`. `driver` says
+much as across two (§3, which settles what a level driving itself means; one gene family driving
+another is `scaled_by("genomes:<family>", …)` on a `joint=True` genome run). Whichever verb writes it, it takes a `driver` and a `mapping`. `driver` says
 which thing is read, never how the run is organised: a **finished result** (an object in Python, its
 written log across two commands) makes the run
 conditioned; the **name of a level growing beside it** makes the run joint. A **`Clade`** is

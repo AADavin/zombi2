@@ -2,8 +2,17 @@
 
 A run is **joint** when neither level can be finished before the other starts, so one run has to
 produce both. That is the whole of it, and it says nothing on its own about the species tree: two
-levels can drive each other on a tree handed to the run. In the three models below the species
-tree **is** one of the two being simulated, so it comes out of the run rather than going into it:
+levels can drive each other on a tree handed to the run.
+
+**A level driving itself is joint too, and it is not in this package.** That is one level and one
+result, so it stays on that level's own function with ``joint=True`` — one gene family's presence
+changing another family's rate is ``simulate_genomes_family(loss=PerCopy(0.3).scaled_by(
+"genomes:toxin", {"present": 0.1, "absent": 3.0}), joint=True)``, gated by
+`zombi2.genomes.family.resolve_live_drivers`. What comes **here** is two different levels, and
+`simulate` says the same thing from the other side. Five models do.
+
+In the first three the species tree **is** one of the two being simulated, so it comes out of the run
+rather than going into it:
 
 - a **discrete trait** drives speciation (BiSSE / MuSSE), ``P(Species, Traits)`` — birth/death read the
   trait state on each lineage while the trait evolves by its own Mk process on the growing tree;
@@ -12,6 +21,11 @@ tree **is** one of the two being simulated, so it comes out of the run rather th
   evolves by duplication/loss/origination on the growing tree;
 - a **continuous trait** drives speciation (QuaSSE) — birth/death read a diffusing value on each
   lineage while it diffuses on the growing tree.
+
+The other two run on a tree the call is handed, so the tree is an input and both levels come out:
+
+- a **genome and a discrete trait**, each reading the other (`_genomes_traits`);
+- a **genome and its sequences**, each reading the other (`_genomes_sequences`).
 
 One Gillespie races the event classes over the living lineages at once: **speciation** and
 **extinction** (per lineage, driver-read), plus the driver's own events — a **trait switch** (the CTMC
