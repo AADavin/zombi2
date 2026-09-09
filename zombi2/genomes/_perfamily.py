@@ -26,8 +26,14 @@ loss / origination, every recipient rule, a skyline ``changing_at``, the family 
 heterogeneity, ``self_transfer``, ``replacement``, named families — and a
 **conditioned** rate, which does not couple families either: a ``Driven`` driver was grown before
 this run and is an input to it, so a lineage's factor is the same number whichever family is asking.
-The workers thread the driver trajectories with the rest of the context. The engine still *has* a
-loud fallback, for the next model that genuinely couples families.
+The workers thread the driver trajectories with the rest of the context.
+
+**One model does couple families, and this engine refuses it by name.** A ``joint=True`` run whose
+rate reads live gene content — ``scaled_by("genomes:<family>", …)``, `resolve_live_drivers` — makes
+every family's rate depend on what the rest of the genome is doing right now, which is exactly the
+assumption above. The refusal is in `zombi2.genomes.family`, it names ``parallel`` / ``stream_to``,
+and it fires before any work starts; such a run is serial. That is the cost of the decomposition,
+not a gap in it.
 """
 
 from __future__ import annotations
