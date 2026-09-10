@@ -1362,17 +1362,25 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
 
     any_driven = bool(trajs) or bool(live_keys)
 
-    def live_value(src: str, k: int):
+    # Each live driver paired with the family it reads, resolved once here: `live_keys` and `named`
+    # are both fixed for the whole run, so the read below is a lookup rather than the same name
+    # taken apart again on every one of the millions of reads a joint run makes. `None` is the
+    # whole-count driver, which names no family.
+    live_reads: list[tuple[str, int | None]] = [
+        (src, None if src == LIVE_COUNT else named[src.split(":", 1)[1]]) for src in live_keys]
+
+    def live_value(fid: int | None, k: int):
         """What a live driver reads on lineage ``k`` **right now** — the joint half of the driver
         mechanism (SPEC §2). A finished driver answers from a trajectory built before the run; this
-        one answers from the genome the run is building.
+        one answers from the genome the run is building. ``fid`` is the family the driver names, or
+        None for the driver reading the whole gene count.
 
         It needs no horizon breakpoint, and that is what makes the race exact rather than thinned:
         gene content changes only when a genome event fires, and an event ends the current step, so
         every rate is already constant between two events."""
-        if src == LIVE_COUNT:
+        if fid is None:
             return len(gen[k])
-        return "present" if counts.holds(k, named[src.split(":", 1)[1]]) else "absent"
+        return "present" if counts.holds(k, fid) else "absent"
     # the per-family weight sums, carried across events rather than rebuilt each time (see the class).
     # The families that wrote their own rate ride in the same structure under a suffixed key, because
     # summing a table over a lineage's copies is the same work whichever kind of number is in it.
@@ -1444,7 +1452,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             fw = None
             if any_driven:  # each lineage's driver values, read before the weights that multiply them in
                 drivers = [{**{key: trajs[key].value(alive[k], t) for key in trajs},
-                            **{src: live_value(src, k) for src in live_keys}} for k in range(k_alive)]
+                            **{src: live_value(fid, k) for src, fid in live_reads}}
+                           for k in range(k_alive)]
             if any_family:
                 # A per-copy rate pools over copies, so with per-family multipliers the total is the
                 # unit rate times the sum of those multipliers over the live copies — and the copy has
