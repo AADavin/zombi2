@@ -2,7 +2,8 @@
 
 A run's rates apply to every family in it. `family()` declares one family and gives it its own, and
 what it leaves out falls back to the run's. These cover the declaration, the two older spellings it
-absorbs, the arithmetic reaching both the totals and the copy pick, and the four refusals.
+absorbs, the arithmetic reaching both the totals and the copy pick, a family's own rate read off a
+driver, and the refusals.
 """
 
 import collections
@@ -11,6 +12,7 @@ import pytest
 
 from zombi2.genomes import GeneFamily, family, simulate_genomes_family
 from zombi2.params import LogNormal, PerCopy, PerLineage
+from zombi2.params.conditioned import resolve_driver
 from zombi2.species import simulate_species_tree
 
 
@@ -148,13 +150,146 @@ def test_a_written_rate_ignores_the_runs_per_family_draw():
         assert _by_family(g, "loss")[steady] == 0, "a loss rate written as 0 lost copies anyway"
 
 
+# --- a family's own rate read off a driver -------------------------------------------------------
+#
+# A family's own rate takes the run's three verbs. Each test uses a factor of 0 where it matters, so
+# the check is exact rather than statistical: a copy is never lost where its rate is 0.
+
+def _timeline(driver, tree):
+    """A driver as the engine reads it, so a test can ask ``.value(lineage, time)``."""
+    return resolve_driver(driver, tree, step=None, level="genomes.family")
+
+
+def _losses(result, name):
+    fid = result.family_names[name]
+    return [e for e in result.edges if e.kind == "loss" and e.family == fid]
+
+
+@pytest.mark.parametrize("b_loss", [
+    PerCopy(0.5).scaled_by("genomes:A", {"present": 0.0, "absent": 1.0}),
+    PerCopy().set_by("genomes:A", {"present": 0.0, "absent": 0.5}),
+], ids=["scaled_by", "set_by"])
+def test_a_family_rate_reads_another_family(b_loss):
+    """B is never lost in a lineage that carries A. A has a high loss rate of its own, so it is gone
+    from some lineages, and B is lost there."""
+    tree = _tree(40)
+    g = simulate_genomes_family(tree, initial_families=10, duplication=0.3, loss=0.2, seed=7,
+                                joint=True, families=[family("A", loss=0.6), family("B", loss=b_loss)])
+    a = _timeline(g.presence("A"), tree)
+    lost = _losses(g, "B")
+    assert lost, "B was never lost, so the test shows nothing"
+    assert all(a.value(e.lineage, e.time) == "absent" for e in lost)
+
+
+def test_two_families_protect_each_other():
+    """A's loss reads B and B's loss reads A. Both are present from the start, so with a factor of 0
+    neither is ever lost, and with a factor of 1 both are."""
+    tree = _tree(40)
+
+    def run(factor):
+        def guard(other):
+            return PerCopy(1.0).scaled_by(f"genomes:{other}", {"present": factor, "absent": 1.0})
+        return simulate_genomes_family(tree, initial_families=10, duplication=0.3, loss=0.3, seed=7,
+                                       joint=True, families=[family("A", loss=guard("B")),
+                                                             family("B", loss=guard("A"))])
+
+    guarded, unguarded = run(0.0), run(1.0)
+    assert not _losses(guarded, "A") and not _losses(guarded, "B")
+    assert _losses(unguarded, "A") and _losses(unguarded, "B")
+    assert sum(_by_family(guarded, "loss").values()) > 0, "the run's other families still lose copies"
+
+
+def test_a_trait_drives_one_family():
+    """The habitat sets one family's loss and not the run's: that family is never lost in a cave,
+    while the other families are."""
+    from zombi2.traits import simulate_discrete
+
+    tree = _tree(40)
+    habitat = simulate_discrete(tree, states=["cave", "surface"], switch=0.3, seed=2)
+    g = simulate_genomes_family(tree, initial_families=10, duplication=0.3, loss=0.2, seed=7, families=[
+        family("x", loss=PerCopy(0.5).scaled_by(habitat, {"cave": 0.0, "surface": 1.0}))])
+    where = _timeline(habitat, tree)
+    x = g.family_names["x"]
+    lost_x = _losses(g, "x")
+    others_in_caves = [e for e in g.edges if e.kind == "loss" and e.family != x
+                       and where.value(e.lineage, e.time) == "cave"]
+    assert lost_x and others_in_caves
+    assert all(where.value(e.lineage, e.time) == "surface" for e in lost_x)
+
+
+def test_a_schedule_on_one_family():
+    """One family's loss is 0 until time 1. The run's own loss has no schedule, so other families
+    are lost before then."""
+    tree = _tree(40)
+    g = simulate_genomes_family(tree, initial_families=10, duplication=0.3, loss=0.2, seed=7, families=[
+        family("x", loss=PerCopy(0.5).changing_at({0: 0.0, 1.0: 1.0}))])
+    lost = _losses(g, "x")
+    assert lost and all(e.time >= 1.0 for e in lost)
+    assert any(e.time < 1.0 for e in g.edges if e.kind == "loss")
+
+
+def test_a_family_duplication_and_transfer_read_another_family():
+    """The same holds for a family's own duplication and transfer: x never duplicates in a lineage
+    that carries A and never gives a copy away from one, while the other families still do."""
+    tree = _tree(40)
+    never_with_a = {"present": 0.0, "absent": 1.0}
+    g = simulate_genomes_family(
+        tree, initial_families=10, duplication=0.2, loss=0.2, transfer=0.05, origination=0.1,
+        seed=7, joint=True,
+        families=[family("A", loss=0.6),
+                  family("x", transfer=PerCopy(1.0).scaled_by("genomes:A", never_with_a),
+                         duplication=PerCopy(0.5).scaled_by("genomes:A", never_with_a))])
+    a = _timeline(g.presence("A"), tree)
+    x = g.family_names["x"]
+    given = [e for e in g.edges if e.kind == "transfer" and e.recipient is not None]
+    x_given = [e for e in given if e.family == x]
+    x_copied = [e for e in g.edges if e.kind == "duplication" and e.family == x]
+    assert x_given and x_copied, "x never transferred or duplicated, so the test shows nothing"
+    assert all(a.value(e.donor, e.time) == "absent" for e in x_given)
+    assert all(a.value(e.lineage, e.time) == "absent" for e in x_copied)
+    assert any(a.value(e.donor, e.time) == "present" for e in given if e.family != x)
+
+
 # --- what is refused ------------------------------------------------------------------------------
 
-def test_a_family_rate_takes_no_verb_yet():
+def test_a_family_rate_takes_no_per_family_draw():
     tree = _tree(10)
-    with pytest.raises(ValueError, match="does not take yet"):
-        simulate_genomes_family(tree, initial_families=5, loss=0.1, seed=1,
-                                families=[family("x", loss=PerCopy(0.1).changing_at({0: 1.0, 2: 0.5}))])
+    with pytest.raises(ValueError, match="does not take"):
+        simulate_genomes_family(tree, initial_families=5, loss=0.1, seed=1, families=[
+            family("x", loss=PerCopy(0.1).varying_among("families", LogNormal(0.0, 0.5)))])
+
+
+def test_reading_a_family_during_the_run_needs_joint():
+    tree = _tree(10)
+    with pytest.raises(ValueError, match="joint=True"):
+        simulate_genomes_family(tree, initial_families=5, loss=0.1, seed=1, families=[
+            family("A"),
+            family("B", loss=PerCopy(0.1).scaled_by("genomes:A", {"present": 0.0, "absent": 1.0}))])
+
+
+def test_a_family_rate_reads_only_declared_families():
+    tree = _tree(10)
+    with pytest.raises(ValueError, match="does not declare"):
+        simulate_genomes_family(tree, initial_families=5, loss=0.1, seed=1, joint=True, families=[
+            family("B", loss=PerCopy(0.1).scaled_by("genomes:Z", {"present": 0.0, "absent": 1.0}))])
+
+
+def test_a_family_rate_table_names_real_states():
+    tree = _tree(10)
+    with pytest.raises(ValueError, match="not among the driver's states"):
+        simulate_genomes_family(tree, initial_families=5, loss=0.1, seed=1, joint=True, families=[
+            family("A"),
+            family("B", loss=PerCopy(0.1).scaled_by("genomes:A", {"presnt": 0.0, "absent": 1.0}))])
+
+
+def test_the_per_family_engine_refuses_a_driven_family_rate():
+    from zombi2.traits import simulate_discrete
+
+    tree = _tree(10)
+    habitat = simulate_discrete(tree, states=["cave", "surface"], switch=0.2, seed=1)
+    with pytest.raises(ValueError, match="per-family engine"):
+        simulate_genomes_family(tree, initial_families=5, loss=0.1, seed=1, parallel=True, families=[
+            family("x", loss=PerCopy(0.1).scaled_by(habitat, {"cave": 0.0, "surface": 1.0}))])
 
 
 def test_a_family_rate_is_per_copy():
