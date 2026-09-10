@@ -1530,7 +1530,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                         key: [total + sum(counts.count(k, f) * family_rate_on(rate, k)
                                           for f, rate in fam_driven_ids[key].items()
                                           if counts.holds(k, f))
-                              for k, total in enumerate(fixed_sums(key))]
+                              for k, total in enumerate(fw[key + _FIXED])]
                         for key in fam_driven}
 
                     def own_sums(key, _fixed=fixed_sums, _driven=with_driven):
