@@ -140,7 +140,7 @@ LEVELS = [
               CONDITIONING_ORDER)),
     ("joining", "Joining",
      "One run simulates both levels at once, because neither of them can be grown first. "
-     "Sometimes the tree is an output of the run, and sometimes it is handed to the run.",
+     "Sometimes the tree is an output of the run, and sometimes it is an input to it.",
      joining.JOINING),
 ]
 

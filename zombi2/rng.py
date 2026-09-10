@@ -1,7 +1,7 @@
 """One random stream per level, from one seed.
 
 A seed names a *run*, not a sequence of numbers. Every level used to open
-``np.random.default_rng(seed)`` directly, which meant two levels handed the same integer replayed the
+``np.random.default_rng(seed)`` directly, which meant two levels given the same integer replayed the
 **same** PCG64 stream from the same state — so ``zombi2 species --seed 42`` and ``zombi2 genomes
 --seed 42`` drew the same underlying variates, and a tree's height and its genome's copy count came
 out correlated (Spearman −0.79 over 6000 seeds) with nothing in the output to say so. SPEC §2 calls

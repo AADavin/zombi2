@@ -20,7 +20,7 @@ There are two main ways to determine the stopping time of a birth–death proces
 
 ## Non-constant rates
 
-A birth or death rate need not be constant. It can depend on **time**, on **the number of lineages that are alive at any given time**, or on a lineage's **ancestry**, inherited from its parent or not. Each of these possibilities is an ordinary **modifier** that affects the rates (see Appendix A or the gallery for code examples). The table in 2.4 names each one as the field does, beside the example that shows it.
+A birth or death rate can change along the tree. It can depend on **time**, on **the number of lineages that are alive at any given time**, or on a lineage's **ancestry**, inherited from its parent or not. Each of these possibilities is an ordinary **modifier** that affects the rates (see Appendix A or the gallery for code examples). The table in 2.4 names each one as the field does, beside the example that shows it.
 
 - **On time.** The rates change at set points in time: the skyline, or episodic, tree. It is written as a schedule of factors on the base: `birth=PerLineage(1.0).changing_at({0: 1.0, 3: 0.33})` runs at the full rate until time 3 and a third of it after. Each entry holds from its own time up to the next, and the earliest entry also applies *backwards* to the origin, so a schedule that starts at time 3 runs at that factor for the whole tree, not only after time 3. Start it at 0 whenever you mean "full rate until".
 - **On total diversity.** The rate slows as the tree fills up, so diversity levels off at a carrying capacity instead of growing without bound: `birth=PerLineage(1.0).scaled_by(TotalDiversity(cap=200))`.
@@ -47,7 +47,7 @@ Sampling and fossils decide not how the tree grows, but how much of it you get t
 
 By default you see every surviving species. **`sampling`** keeps a random fraction of the extant tips, so `sampling=0.5` gives you half [@stadler2009incomplete].
 
-`n_extant` counts survivors, and sampling happens afterwards, so the two compose rather than cancel: `n_extant=20, sampling=0.5` grows to 20 survivors and then shows you about 10 of them. If you want 20 tips in hand, ask for 40. The rest are not gone: they stay in the complete tree with the fate `unsampled`, which is why the run's summary counts them separately from the extinct.
+`n_extant` counts survivors, and sampling happens afterwards, so the two compose rather than cancel: `n_extant=20, sampling=0.5` grows to 20 survivors and then shows you about 10 of them. If you want 20 tips, ask for 40. The rest are not gone: they stay in the complete tree with the fate `unsampled`, which is why the run's summary counts them separately from the extinct.
 
 ## Fossils
 

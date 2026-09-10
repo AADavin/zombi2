@@ -3,7 +3,7 @@
 Two levels that cannot be run in order, grown in **one** run. A pair must be run **jointly** when
 neither level can be grown first — a trait that drives speciation, or gene content that does. When
 the driver *can* be grown first, the run is **conditioned** instead: two ordinary runs in order, the
-finished driver handed to the second as an object (in Python) or as its written log (across two
+finished driver used as input by the second as an object (in Python) or as its written log (across two
 commands).
 See [Dependent runs](../guide/conditioning.md) and [Joint runs](../guide/joining.md).
 

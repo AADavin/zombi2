@@ -39,7 +39,7 @@ same diffusion wearing different knobs, not a class each (SPEC §4):
   grown first on this same tree: a second trait, or a genome's ``presence`` / ``completion`` — the
   *same* verb that drives a genome rate.
   One trait driving another is conditioning like any other (SPEC §3): the driver can be finished
-  before the driven level starts, so it is two ordinary runs in order, handed over as the grown result or
+  before the driven level starts, so it is two ordinary runs in order, used as input as the grown result or
   as its written ``trait_events.tsv``. A discrete driver switches *mid-branch*, so the per-branch
   variance is the integral across those pieces, not one sample per branch. The **discrete** engine
   takes it too: write ``switch`` as a rate expression and a trait's switch rate is driven the same way.

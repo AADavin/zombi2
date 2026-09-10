@@ -397,7 +397,7 @@ plt.savefig("shape.png", dpi=125, bbox_inches="tight")'''
 
 
 _C_INHERITED = """\
-### simulate  —  a rate handed down, and nudged at every split
+### simulate  —  a rate passed down, and nudged at every split
 from zombi2.species import simulate_species_tree
 from zombi2.params import Drift, LogNormal, PerLineage
 

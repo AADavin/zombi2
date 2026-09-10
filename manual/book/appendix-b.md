@@ -110,7 +110,7 @@ dying lineage as the parent with no children. A lineage that died is written `e<
 
 **`.complete_tree` and `.extant_tree`**. The whole tree that grew, extinct lineages and all, is
 what the next level runs along, which is what lets a gene be transferred out of a lineage that later
-dies; the extant tree is the survivors', dated and bifurcating, the one an analysis would be handed.
+dies; the extant tree is the survivors', dated and bifurcating, the one an analysis would use as input.
 Each holds every node, internal ones included, in `.nodes`, and answers `.leaves()`,
 `.extant_leaves()`, `.extinct_leaves()` and `.unsampled_leaves()`.
 
@@ -470,7 +470,7 @@ rate writes no such file.
 every within-family pair, so it is the same number whether the run was held in memory or streamed.
 
 **`.alignments` and `.ancestral`**. `.alignments` is the observable data, for each family the
-sequence at every *extant* gene copy, the alignment a phylogenetic method would be handed;
+sequence at every *extant* gene copy, the alignment a phylogenetic method would use as input;
 `.ancestral` is every node the alignment leaves out. The run wrote a sequence at each node as it went,
 so these are the exact ancestors, not estimates, and together they account for every node of the tree
 exactly once.
