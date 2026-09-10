@@ -631,7 +631,7 @@ def resolve_families(families, tree):
 
 #: What a declared family's **own** rate takes (SPEC §5): a schedule, a driver that scales it, and a
 #: driver that replaces its base. The per-family draw is the one modifier the run's rates take that this
-#: does not, because it spreads a rate across many families and this rate belongs to one.
+#: does not, because it varies a rate among many families and this rate belongs to one family.
 FAMILY_RATE_MODIFIERS = (OnTime, Driven, SetBy)
 
 
@@ -666,8 +666,8 @@ def resolve_family_rates(declared, run_rates):
                 if not is_implemented(m, FAMILY_RATE_MODIFIERS, "genomes.family"):
                     raise ValueError(
                         f"{label} carries {describe(m)}, which a family's own rate does not take. It "
-                        f"takes changing_at, scaled_by and set_by. varying_among('families', …) spreads "
-                        f"a rate across many families, so it belongs on the run's {key}.")
+                        f"takes changing_at, scaled_by and set_by. varying_among('families', …) varies "
+                        f"a rate among many families, so it belongs on the run's {key}.")
             rate.check_one_base(label)
             if rate.modifiers:
                 driven.setdefault(key, {})[i] = rate
@@ -1855,8 +1855,8 @@ def family(name=None, *, duplication=None, transfer=None, loss=None, origin=None
 
     ``B`` is lost ten times more slowly in a lineage that carries ``A``, and no other family's rate
     changes. Reading a family's presence during the run makes the run joint, so it needs
-    ``joint=True``. ``varying_among`` is refused on a family's own rate, because it spreads a rate
-    across many families.
+    ``joint=True``. ``varying_among`` is refused on a family's own rate, because it varies a rate
+    among many families.
 
     Origination takes no per-family value: it is the rate at which families are *created*, so when it
     is read this family does not exist yet to have one.
