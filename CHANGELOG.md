@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-09-10
+
 ### Added
 
 - The duplication, transfer and loss rates of a family declared with `family()` now accept
