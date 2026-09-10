@@ -1,9 +1,16 @@
-"""Gene presence as a conditioning driver — is this family in this lineage, right now?
+"""Gene presence as a **conditioning** driver — was this family in this lineage at time t?
 
 A driver answers one question: *what state was lineage L in at time t?* Traits answer it
 from their own event log. A **gene family** can answer it too — present or absent — and that is the
 other direction of the same relation: a trait can already make a genome rate faster, and this is what
 lets a genome make a trait's rate faster.
+
+**This module is the conditioned half only** — a family whose history is already finished, replayed
+into a later run. The same question asked of a run still growing is spelled ``"genomes:<family>"``
+and lives elsewhere: `zombi2.joint` for a family driving another *level*, and
+`zombi2.genomes.family.resolve_live_drivers` for a family driving the **same genome run**, which is
+``simulate_genomes_family(..., joint=True)``. One question, two execution orders (SPEC §2); pass a
+`presence` object and the run is conditioned, write the name and it is joint.
 
 The trajectory is read off the family's **gene tree**. Each `GeneNode` records the species branch it
 lived on and when it ended, and its parent records when it began, so a gene is an interval on a branch
