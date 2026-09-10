@@ -190,7 +190,7 @@ Exactly one action runs per call. `TREE` is a tree file, or `-` for stdin.
 
 `--prune` and `--clades` need each tip's fate, so they read the fates a ZOMBI2 complete tree carries
 (the run's `species_fates.tsv`, found beside the tree); an ultrametric tree counts as all-extant, and
-a plain non-ultrametric tree with no fates is refused: there is no flag to hand fates in from
+a plain non-ultrametric tree with no fates is refused: there is no flag to pass fates in from
 elsewhere yet, so a foreign non-ultrametric tree cannot be pruned. Every other action ignores fates
 and loads any tree.
 

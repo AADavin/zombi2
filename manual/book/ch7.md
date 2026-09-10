@@ -139,6 +139,6 @@ An unnamed trait run writes to `out/traits/` and replaces whatever an earlier un
 
 Every rate flag takes a rate in its written form, `--switch` as much as `--rate`, so the expression above is the same text the Python API takes. `--switch` also takes the keyword's other two shapes: the `{'a->b': rate}` dict and the `k × k` matrix.
 
-Two keywords have no flag. `correlation=` grows several traits in one call, and the command line grows one trait per run. `regimes=` takes a discrete result object, the painting, handed to the call. Both stay in the Python API.
+Two keywords have no flag. `correlation=` grows several traits in one call, and the command line grows one trait per run. `regimes=` takes a discrete result object, the painting, used as input to the call. Both stay in the Python API.
 
-The trait evolves on the **complete** tree, extinct lineages included, so `species_complete.nwk` is the file to hand it. An external tree goes in with `--from` (a Newick file, or another run's directory); if it is not ultrametric you must declare each tip's fate with `--tip-fates`, a TSV of `tip<TAB>extant|extinct|unsampled`, because ZOMBI2 will not guess which early-ending tips are extinct.
+The trait evolves on the **complete** tree, extinct lineages included, so `species_complete.nwk` is the file to use. An external tree goes in with `--from` (a Newick file, or another run's directory); if it is not ultrametric you must declare each tip's fate with `--tip-fates`, a TSV of `tip<TAB>extant|extinct|unsampled`, because ZOMBI2 will not guess which early-ending tips are extinct.

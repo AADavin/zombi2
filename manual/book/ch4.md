@@ -17,7 +17,7 @@ The karyotype itself evolves: four events change the **number** of chromosomes (
 
 ## The chromosome network
 
-Chromosomes are tracked. A chromosome gets a new id at every event that hands it on or reshapes it: a speciation, a fission, a fusion. Each of those edges is recorded. So the run leaves behind not just the chromosomes at the tips but the *genealogy* that connects them: the **chromosome network**. It is the middle of three genealogies that nest, the species tree containing the chromosome network, which contains the gene trees:
+Chromosomes are tracked. A chromosome gets a new id at every event that passes it on or reshapes it: a speciation, a fission, a fusion. Each of those edges is recorded. So the run leaves behind not just the chromosomes at the tips but the *genealogy* that connects them: the **chromosome network**. It is the middle of three genealogies that nest, the species tree containing the chromosome network, which contains the gene trees:
 
 ```
 species tree  ⊃  chromosome network  ⊃  gene trees

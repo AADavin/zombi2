@@ -248,7 +248,7 @@ def key_innovation(out):
     not feel it that leaves it on about 9% of the tips (eight seeds, 0-36%). Here it reaches 83%,
     because the lineages that carry it split faster than the ones that shed it. Nothing selects for
     the gene directly — what selects for it is the tree it is shaping, which is what makes this
-    joint rather than a genome run on a tree handed to it."""
+    joint rather than a genome run on a tree used as input."""
     r = joint.simulate(species.birth_death(birth=PerLineage(0.7).scaled_by("genomes:toxin", {"present": 5.0, "absent": 1.0}), death=0.15, n_extant=70), genomes_spec(origination=0.15, loss=0.3, families=[family("toxin")],
                             initial_families=5), seed=3)
     ct = r.complete_tree
@@ -323,7 +323,7 @@ def mobile_element_joint(out):
 
 
 def cave_genomes(out):
-    """A trait and a genome driving **each other**, on a tree the run is handed.
+    """A trait and a genome driving **each other**, on a tree used as input.
 
     Two statements point opposite ways. A lineage in the cave loses genes five times as fast, so the
     habitat drives the genome. And a lineage that has lost its eye gene turns to the cave twenty-five
@@ -332,7 +332,7 @@ def cave_genomes(out):
     depends on the habitat.
 
     This is the first joint model whose tree is an **input**. The two that drive speciation produce
-    the tree; here it is handed over like any other input, and what comes back is two levels' results
+    the tree; here it is used as input like any other, and what comes back is two levels' results
     from one run.
 
     Twenty-one of the fifty tips end up underground, and their genomes are half the size: twenty-seven
@@ -444,7 +444,7 @@ def genome_and_sequence(out):
     Neither can be simulated first. To evolve the sequences you need to know which copies exist and
     when. To know which copies exist you need the loss rate, which reads the sequences.
 
-    The tree is the only thing handed to the run. The gene trees are not: they come out of the genome
+    The tree is the only input to the run. The gene trees are not: they come out of the genome
     participant, which is what makes this different from every conditioned run at this level.
 
     Two panels, the same ramp on both. **Species Tree - nt composition**: the species tree
@@ -1663,7 +1663,7 @@ history = {lab[i]: segs for i, segs in g.presence("IS1").history(ct).items()}
 # a driven `transfer` says how often a lineage DONATES, so the bars count transfers given"""
 
 
-_C_CAVE = """### a trait and a genome driving EACH OTHER, on a tree the run is handed
+_C_CAVE = """### a trait and a genome driving EACH OTHER, on a tree used as input
 from zombi2 import genomes, joint, traits
 from zombi2.genomes import family
 from zombi2.params import PerCopy, PerLineage
@@ -1779,7 +1779,7 @@ from zombi2 import joint, traits
 from zombi2.params import Curve, PerLineage, PerSite
 from zombi2.sequences import composition, gene, lg
 
-# the genome run is handed over, and carries the tree its gene trees sit on:
+# the genome run goes in as input, and carries the tree its gene trees sit on:
 # a sequence lives on a gene tree, which lives on the species tree
 r = joint.simulate(
     traits.discrete(name="habitat", states=["cold", "hot"], start="cold",
@@ -1801,7 +1801,7 @@ from zombi2.genomes import family, genome
 from zombi2.params import Curve, PerCopy
 from zombi2.sequences import composition, gene, hky85
 
-# BOTH levels are participants, so both come out. The tree is the one thing handed
+# BOTH levels are participants, so both come out. The tree is the one input
 # over — the gene trees are not, because the genome participant produces them.
 r = joint.simulate(
     genome(duplication=0.15, origination=0.05, initial_families=25,
