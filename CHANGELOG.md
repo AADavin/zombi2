@@ -11,9 +11,9 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
-- A family declared with `family()` can give its own duplication, transfer or loss rate a
-  `changing_at`, `scaled_by` or `set_by`. One family's rate can then depend on another family's
-  presence (with `joint=True`), on a trait, or on time.
+- The duplication, transfer and loss rates of a family declared with `family()` now accept
+  `changing_at`, `scaled_by` and `set_by`. One family's rate can then depend on another family's
+  presence (with `joint=True`), on a trait, or on time. (#422)
 
 ## [0.44.1] - 2026-08-26
 
