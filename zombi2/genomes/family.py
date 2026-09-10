@@ -59,7 +59,8 @@ if TYPE_CHECKING:  # a streamed run returns a StreamedRun (built by the per-fami
 #: ``set_by`` are implemented on all four rates (on ``transfer`` the driven lineage is the donor),
 #: and a per-family draw on all but ``origination``. The ordered engine declares the same four
 #: modifiers as this one, the nucleotide engine only ``changing_at`` and ``scaled_by``. The gates
-#: say so per rate.
+#: say so per rate. A declared family's own rate takes the three verbs and no per-family draw
+#: (`FAMILY_RATE_MODIFIERS`).
 IMPLEMENTED_MODIFIERS = (OnTime, Driven, SetBy, (DRAWN, "families"))
 
 
@@ -628,6 +629,12 @@ def resolve_families(families, tree):
     return declared, module_map, {i: pair for (i, _f), pair in zip(with_origin, resolved)}
 
 
+#: What a declared family's **own** rate takes (SPEC §5): a schedule, a driver that scales it, and a
+#: driver that replaces its base. The per-family draw is the one modifier the run's rates take that this
+#: does not, because it varies a rate among many families and this rate belongs to one family.
+FAMILY_RATE_MODIFIERS = (OnTime, Driven, SetBy)
+
+
 def resolve_family_rates(declared, run_rates):
     """The per-copy rate each declared family sets for **itself**, by event and family index.
 
@@ -636,29 +643,37 @@ def resolve_family_rates(declared, run_rates):
     rate's own units, with no multiplier from the run applied (SPEC §5's argument for ``set_by``,
     read one level down).
 
-    Two things are refused for now, and both come back at the joint step. A family's rate must be
-    `PerCopy`, because the run's own rate for these three events is what it is summed beside. And it
-    must carry no verb: the value here is read once, before the run starts, while a verb makes it a
-    function of the context.
+    Returns two tables of the same shape, ``{event: {family index: …}}``. A plain rate goes in the
+    first as a number, read once here. A rate carrying ``changing_at``, ``scaled_by`` or ``set_by``
+    goes in the second as the `Rate` itself, because its value depends on the time and on the lineage
+    reading it, so the engine reads it on each lineage at each event. Either way a family's rate must
+    be `PerCopy`, because the run's own rate for these three events is what it is summed beside.
     """
-    out: dict[str, dict[int, float]] = {}
+    fixed: dict[str, dict[int, float]] = {}
+    driven: dict[str, dict[int, object]] = {}
     for i, f in enumerate(declared):
         for key, spec in f.written().items():
+            label = f"family {f.name!r}'s {key}"
             rate = as_rate(spec, default_scope=PerCopy, label=f"{f.name}'s {key}")
             if rate.scope is not PerCopy:
                 raise ValueError(
                     f"family {f.name!r} writes a {rate.scope.__name__} {key} rate, but a family's own "
                     f"rate is per copy — it is summed beside the run's rate for the same event, and "
                     f"that is counted per copy. Write PerCopy(...), or a bare number.")
+            for m in rate.modifiers:
+                if isinstance(m, Driven):
+                    check_not_a_kernel(m.mapping, label=label)
+                if not is_implemented(m, FAMILY_RATE_MODIFIERS, "genomes.family"):
+                    raise ValueError(
+                        f"{label} carries {describe(m)}, which a family's own rate does not take. It "
+                        f"takes changing_at, scaled_by and set_by. varying_among('families', …) varies "
+                        f"a rate among many families, so it belongs on the run's {key}.")
+            rate.check_one_base(label)
             if rate.modifiers:
-                raise ValueError(
-                    f"family {f.name!r}'s {key} carries {describe(rate.modifiers[0])}, which a "
-                    f"family's own rate does not take yet: it is read once before the run starts, and "
-                    f"a verb makes it a function of the context. Write a plain number here, and put "
-                    f"the verb on the run's {key} to move every family together.")
-            rate.check_one_base(f"family {f.name!r}'s {key}")
-            out.setdefault(key, {})[i] = rate.effective(copies=1, lineages=1, time=0.0)
-    return out
+                driven.setdefault(key, {})[i] = rate
+            else:
+                fixed.setdefault(key, {})[i] = rate.effective(copies=1, lineages=1, time=0.0)
+    return fixed, driven
 
 
 #: the live gene-content driver reading a lineage's whole gene count, as `zombi2.joint` spells it
@@ -872,6 +887,11 @@ class _FamilyCounts:
         driver reads. Exact rather than a scan, because `removed` drops a family's key when its last
         copy goes, so presence is the key being there."""
         return family in self._counts[k]
+
+    def count(self, k: int, family: int) -> int:
+        """How many copies of this family lineage ``k`` holds right now; 0 when none, without adding a
+        key, since a `Counter` answers a missing key with 0."""
+        return self._counts[k][family]
 
     def added(self, k: int, family: int) -> None:
         self._counts[k][family] += 1
@@ -1143,11 +1163,13 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     family_names = [f.name for f in declared]
     # what each family sets for itself; empty unless some family writes a rate, and then the engine
     # takes the path that sums those beside the run's (see `_family_weights`)
-    fam_own = resolve_family_rates(declared, {"duplication": dup, "transfer": tra, "loss": los})
-    any_written = bool(fam_own)
+    # (a rate carrying a verb is kept apart, in `fam_driven`, and read per lineage — see `own_sums`)
+    fam_own, fam_driven = resolve_family_rates(
+        declared, {"duplication": dup, "transfer": tra, "loss": los})
+    any_written = bool(fam_own) or bool(fam_driven)
     if any_written:
         for key, rate in (("duplication", dup), ("transfer", tra), ("loss", los)):
-            if key not in fam_own:
+            if key not in fam_own and key not in fam_driven:
                 continue
             assert rate.scope is not None        # `as_rate` filled the level's default above
             if rate.scope is not PerCopy:
@@ -1174,7 +1196,12 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # and the loop stays byte-identical to an undriven run.
     dup_mods, los_mods = _driven_mods(dup), _driven_mods(los)
     org_mods, tra_mods = _driven_mods(org), _driven_mods(tra)
-    all_mods = (*dup_mods, *los_mods, *org_mods, *tra_mods)
+    # A family's own rate reads its drivers through the same checks as the run's rates: a family it
+    # names must be declared, a live name needs joint=True, and a finished driver becomes a trajectory
+    # the loop steps at. Appended last, so a run with no such rate resolves its drivers as before.
+    fam_rate_mods = [m for table in fam_driven.values() for rate in table.values()
+                     for m in _driven_mods(rate)]
+    all_mods = (*dup_mods, *los_mods, *org_mods, *tra_mods, *fam_rate_mods)
     # Two kinds of driver, told apart by what the driver *is* (SPEC §5). A finished one — a file, a
     # grown result — was produced before this run started, and the run is conditioned. A **live**
     # name is gene content this run is itself producing, and the run is joint: there is no order to
@@ -1289,10 +1316,30 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     #: and then every expression below is the one it always was (see `_family_weights`).
     fam_fixed: "dict[str, dict[int, float]] | None" = (
         {key: {} for key in fam_by} if any_written else None)
-    #: that table for one event, or ``None`` — what a copy pick reads, against the per-lineage *sums*
-    #: of the same table that `own_sums` reads. Two different shapes of the same information: a rate
-    #: per family here, and per lineage the total over its live copies there.
-    own_rates = (lambda key: fam_fixed[key]) if fam_fixed is not None else (lambda key: None)
+    #: per event, the families whose own rate carries a verb: minted id → that `Rate`. Such a family
+    #: holds 0.0 in `fam_fixed` and in `fam_mult`, and its rate is read on a lineage when it is needed.
+    fam_driven_ids: dict[str, dict[int, object]] = {key: {} for key in fam_by}
+    any_family_driven = bool(fam_driven)
+
+    def family_rate_on(rate, k: int) -> float:
+        """A driven family rate read on lineage ``k`` at the current time: one copy's rate."""
+        if any_driven:
+            return rate.effective(copies=1, lineages=1, time=t, drivers=drivers[k])
+        return rate.effective(copies=1, lineages=1, time=t)
+
+    def own_rates(key: str, k: int):
+        """The rate each family set for itself on this event, as lineage ``k`` reads it, or ``None``:
+        what a copy pick reads, against the per-lineage *sums* that `own_sums` reads. Two shapes of the
+        same information: a rate per family here, and per lineage the total over its live copies there.
+        A driven family's rate differs between lineages, so for a driven family present on ``k``
+        the value read on ``k`` replaces the 0.0 the table holds for it."""
+        if fam_fixed is None:
+            return None
+        table = fam_driven_ids[key]
+        if not table:
+            return fam_fixed[key]
+        return collections.ChainMap({f: family_rate_on(rate, k) for f, rate in table.items()
+                                     if counts.holds(k, f)}, fam_fixed[key])
 
     def new_family(declared_at: "int | None" = None) -> int:
         """Mint a family id. ``declared_at`` is its index in ``declared`` for a named family, which is
@@ -1313,6 +1360,15 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     assert fam_fixed is not None     # a written rate is exactly when it was built
                     fam_mult[key][f] = 0.0
                     fam_fixed[key][f] = own
+                    continue
+                driven_rate = None if declared_at is None else fam_driven.get(key, {}).get(declared_at)
+                if driven_rate is not None:
+                    # the same, except the number depends on the lineage and the time, so it is read
+                    # where it is used (`own_sums`, `own_rates`) rather than stored here
+                    assert fam_fixed is not None
+                    fam_mult[key][f] = 0.0
+                    fam_fixed[key][f] = 0.0
+                    fam_driven_ids[key][f] = driven_rate
                     continue
                 fam_mult[key][f] = math.prod(values_at_birth(mods, rng, shared))
                 if fam_fixed is not None:
@@ -1465,6 +1521,20 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                         "loss": los.effective(copies=1, lineages=1, time=t),
                         "transfer": tra.effective(copies=1, lineages=1, time=t) if can_xfer else 0.0}
                 own_sums = (lambda key: fw[key + _FIXED]) if fam_fixed is not None else (lambda key: None)
+                if any_family_driven:
+                    # A family whose own rate carries a verb has a different rate on each lineage, so its
+                    # share is summed here at each event (its copies on lineage k times its rate read on
+                    # k) and added to the fixed families' sums, which `_FamilyWeights` carries.
+                    fixed_sums = own_sums
+                    with_driven = {
+                        key: [total + sum(counts.count(k, f) * family_rate_on(rate, k)
+                                          for f, rate in fam_driven_ids[key].items()
+                                          if counts.holds(k, f))
+                              for k, total in enumerate(fw[key + _FIXED])]
+                        for key in fam_driven}
+
+                    def own_sums(key, _fixed=fixed_sums, _driven=with_driven):
+                        return _driven[key] if key in _driven else _fixed(key)
 
                 def unit_at(key, k, _rates={"duplication": dup, "loss": los, "transfer": tra}):
                     """The run's unit rate as lineage ``k`` reads it. Identical to ``unit[key]`` unless
@@ -1505,6 +1575,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 tra.effective(**(host_ctx if tra_per_lineage else ctx)) if can_xfer else 0.0)
             horizon = min(next_species, next_plant, dup.next_change(t), los.next_change(t),
                           org.next_change(t), tra.next_change(t))
+            if any_family_driven:  # a family's own changing_at moves its rate too, so step there
+                horizon = min(horizon, min(rate.next_change(t) for table in fam_driven.values()
+                                           for rate in table.values()))
             if any_driven:  # a driven rate also changes when the driver switches mid-branch — step there
                 driver_next = min((trajs[key].next_change(alive[k], t) for key in trajs
                                    for k in range(k_alive)), default=math.inf)
@@ -1520,7 +1593,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     if w_dup is not None:  # weighted lineage, then a copy within it
                         k = weighted_index(rng, w_dup, r_dup)
                         j = (_pick_copy_by_family(rng, gen[k], fam_mult["duplication"],
-                                                  own_rates("duplication"), unit_at("duplication", k))
+                                                  own_rates("duplication", k),
+                                                  unit_at("duplication", k))
                              if any_family else int(rng.integers(len(gen[k]))))
                     elif dup_per_lineage:  # every occupied genome equally likely, then a copy in it
                         k = _pick_host(rng, gen, n_hosts)
@@ -1538,7 +1612,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     if w_los is not None:
                         k = weighted_index(rng, w_los, r_los)
                         j = (_pick_copy_by_family(rng, gen[k], fam_mult["loss"],
-                                                  own_rates("loss"), unit_at("loss", k))
+                                                  own_rates("loss", k), unit_at("loss", k))
                              if any_family else int(rng.integers(len(gen[k]))))
                     elif los_per_lineage:
                         k = _pick_host(rng, gen, n_hosts)
@@ -1565,7 +1639,8 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                             # zero-weight lineage has no copies to donate, so take the heaviest instead
                             kd = max(range(k_alive), key=lambda k: w_tra[k])
                         jd = (_pick_copy_by_family(rng, gen[kd], fam_mult["transfer"],
-                                                   own_rates("transfer"), unit_at("transfer", kd))
+                                                   own_rates("transfer", kd),
+                                                   unit_at("transfer", kd))
                               if any_family else int(rng.integers(len(gen[kd]))))
                     elif tra_per_lineage:  # every occupied genome donates equally often
                         kd = _pick_host(rng, gen, n_hosts)
@@ -1768,6 +1843,20 @@ def family(name=None, *, duplication=None, transfer=None, loss=None, origin=None
     ``result.has_family(node, "IS1")``. ``duplication`` / ``transfer`` / ``loss`` are that family's
     own rates, and what is left out falls back to the run's. ``origin=(lineage, time)`` plants the
     family there instead of at the origin, and ``module=`` puts it in a named group.
+
+    A family's own rate takes the same three verbs as the run's (``changing_at``, ``scaled_by`` and
+    ``set_by``) and is then read on each lineage at each event. This is how one family's rate
+    depends on another family::
+
+        families=[family("A"),
+                  family("B", loss=PerCopy(0.3).scaled_by("genomes:A",
+                                                          {"present": 0.1, "absent": 1.0}))],
+        joint=True
+
+    ``B`` is lost ten times more slowly in a lineage that carries ``A``, and no other family's rate
+    changes. Reading a family's presence during the run makes the run joint, so it needs
+    ``joint=True``. ``varying_among`` is refused on a family's own rate, because it varies a rate
+    among many families.
 
     Origination takes no per-family value: it is the rate at which families are *created*, so when it
     is read this family does not exist yet to have one.
