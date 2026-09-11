@@ -49,12 +49,12 @@ from __future__ import annotations
 import collections
 import math
 import pathlib
-from typing import Sequence, cast
+from typing import Any, Sequence, cast
 from dataclasses import dataclass, field
 from functools import cached_property
 
 
-from ..params.conditioned import check_mapping_fires, resolve_driver
+from ..params.conditioned import check_mapping_fires, names_a_live_level, resolve_driver
 from ..rng import stream
 from ..params.parameter import Extent, as_extent
 from ..params.mapping import check_not_a_kernel
@@ -66,7 +66,8 @@ from ..params.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv, rearrangement_events_tsv
 from ..params.retired import check_no_retired_keywords
-from .family import resolve_families, resolve_max_family_size
+from .family import (live_target, resolve_families, resolve_family_rates, resolve_live_drivers,
+                     resolve_max_family_size)
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
                         resolve_transfer_to)
@@ -76,6 +77,7 @@ from .._runtime.progress import progress_bar
 from .events import (_COLS, Event, GeneEdge, _branches, _name, event_counts, event_rows,
                      events_from_edges, gene_label)
 from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
+from .links import Link, links_of, links_tsv
 from .profiles import Profiles, profiles_from_genomes
 
 #: The rate grammar this engine supports (SPEC §5) — read by the gate below and by the CLI's help, so
@@ -271,6 +273,10 @@ class OrderedGenomesResult:
     #: of its branch: the root branch is real simulated time, so ``genomes[root]`` is this genome plus
     #: whatever happened along the stem.
     initial_genome: tuple[Chromosome, ...] = ()
+    #: The links this run read from its own gene content, one `Link` per modifier reading
+    #: ``"genomes:…"`` on a rate, an extent or a family's own rate, which ``write`` puts in
+    #: ``links.tsv``. Empty when the run read none.
+    links: "tuple[Link, ...]" = ()
 
     def __repr__(self) -> str:
         return (f"OrderedGenomesResult({len(self.complete_tree.extant_leaves())} extant genomes, "
@@ -383,11 +389,11 @@ class OrderedGenomesResult:
     #: cannot drift: they did, and `initial_sequence` and `species_tree` were writable from
     #: Python and unnameable on the command line.
     OUTPUTS = ("events", "profiles", "gene_order", "initial_genome",
-               "chromosome_events", "gene_trees", "species_tree", "summary")
+               "chromosome_events", "gene_trees", "species_tree", "summary", "links")
 
     def write(self, directory, outputs=("events", "profiles", "gene_order", "initial_genome",
                                         "gene_trees", "chromosome_events", "species_tree",
-                                        "summary"), *,
+                                        "summary", "links"), *,
               flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
@@ -414,6 +420,8 @@ class OrderedGenomesResult:
 
         The gene trees are two files per family, so they get a subdirectory rather than burying the
         tables above; ``flat=True`` writes everything into ``directory`` instead.
+        - ``"links"`` → ``links.tsv``, the links the run read from its own gene content, one row per
+          link (see `zombi2.genomes.links`); the header alone when there are none.
         """
         # An unknown token used to write nothing and exit clean — silent data loss you discover
         # three pipeline steps later, when the next tool has no input. The other levels have always
@@ -449,6 +457,8 @@ class OrderedGenomesResult:
                 self.complete_tree.to_newick() + "\n", encoding="utf-8")
         if "summary" in outputs:
             write_summary(d / "genome_summary.json", self.summary())
+        if "links" in outputs:
+            (d / "links.tsv").write_text(links_tsv(self.links), encoding="utf-8")
 
     def summary(self) -> dict:
         """What this run produced, as a plain dict — the payload of ``genome_summary.json``.
@@ -616,6 +626,17 @@ def _genome_size(genome) -> int:
     return sum(len(c.genes) for c in genome)
 
 
+def _live_value(target, genome, counts):
+    """What a live gene-content driver reads on one lineage right now: its gene count for
+    ``"genomes:count"`` (``target`` None), ``"present"`` / ``"absent"`` for a family's id, or the share
+    of a module's families (a tuple of ids) that ``counts``, the lineage's copies per family, holds."""
+    if target is None:
+        return _genome_size(genome)
+    if isinstance(target, tuple):
+        return sum(1 for f in target if counts[f]) / len(target)
+    return "present" if counts[target] else "absent"
+
+
 def _pick_gene(rng, gen, total_copies) -> tuple[int, int, int]:
     """A uniform global gene pick → ``(lineage k, chromosome index ci in gen[k], position j)``.
     Realises per-copy scope across the whole pool: every gene, in any chromosome of any lineage, is
@@ -760,7 +781,7 @@ def _run_over_cap(genome, chrom, start, m, cap) -> bool:
     return False
 
 
-def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ext_ctx, w=None, hosts=None):
+def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ext_ctx, w=None, hosts=None, own=None):
     """``(lineage, chromosome index, start, run size)`` for one gene-level event, or ``None`` when
     there is nothing to act on.
 
@@ -778,7 +799,22 @@ def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ext_ctx, w=None, hosts=
 
     The two weighted paths are mutually exclusive: the engine refuses a per-family draw and a driven
     rate in one run, because combining them would weight by the product of a lineage factor and a segment
-    factor, which is a model neither of them is on its own."""
+    factor, which is a model neither of them is on its own.
+
+    - **a family's own rate** (``own`` given, ``(per-lineage sums, per-lineage rate tables)``) — the
+      lineage by the summed rates of its genes, then the run by `_pick_run_by_family()` over the
+      lineage's own table of per-gene rates, so the weight reaches the segment, as a draw's does."""
+    if own is not None:
+        sums, tables = own
+        total = sum(sums)
+        if total <= 0.0:
+            return None
+        k = weighted_index(rng, sums, total)
+        picked = _pick_run_by_family(rng, gen[k], tables[k], ext, ext_ctx(k))
+        if picked is None:
+            return None
+        ci, j, m = picked
+        return k, ci, j, m
     if w is not None:
         total = sum(w)
         if total <= 0.0:
@@ -1243,6 +1279,20 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     its inversion rate. An extent's modifier is read at the instant an event fires, so it changes how
     much a run takes and never how often one starts, and it adds no Gillespie breakpoint.
 
+    **Joint runs (gene content drives a rate).** With ``joint=True`` a rate or an extent can read the
+    gene content the run is building: ``"genomes:<family>"`` (whether a declared family is there),
+    ``"genomes:count"`` (how many genes the lineage has) or ``"genomes:module:<group>"`` (the share of
+    a module's families it carries), read on each lineage as the run goes. The factor belongs to the
+    lineage, so it composes with extents as a trait's does (SPEC §6).
+
+    **A family's own rate.** ``families=[family("B", loss=0.8)]`` gives one family its own
+    ``duplication``, ``transfer`` or ``loss``, fixed or read from a driver, as at the family
+    resolution. It applies to the segment, as a per-family draw does (SPEC §6): every gene carries its
+    family's rate or the run's, an event's total is their sum, and a run of genes is chosen by the mean
+    rate of the genes it covers. With extents longer than one gene, a family's own rate decides where
+    events start, not which genes they take: a family whose rate is 0 can still be removed by a
+    segment that starts on a neighbour.
+
     a per-family draw and a driven rate cannot be set in the same run: one weights lineages by a driver and
     the other weights the segment by what it covers.
     """
@@ -1383,20 +1433,25 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # declaration means
     declared, module_map, planted_named = resolve_families(families, tree)
     family_names = [f.name for f in declared]
-    if any(f.written() for f in declared):
-        raise ValueError(
-            "a family writing its own rate is implemented at the family resolution and not yet here. "
-            "This engine carries a segment's extent as well as its rate, and what a per-family extent "
-            "means is not decided. Declare the family without rates, or run at "
-            "resolution='family'.")
+    # A family's own duplication, transfer or loss, read by the family resolution's resolver. Here it
+    # applies to the segment, as a per-family draw does (SPEC §6): every gene carries its family's rate
+    # or the run's, and the extent stays the run's.
+    fam_own, fam_driven_rates = resolve_family_rates(
+        declared, {"duplication": dup, "transfer": tra, "loss": los})
+    own_keys = sorted(set(fam_own) | set(fam_driven_rates))
+    any_written = bool(own_keys)
+    for key in own_keys:
+        run_scope = _rates[key].scope
+        assert run_scope is not None             # as_rate fills the level's default where none was written
+        if run_scope is not PerCopy:
+            raise ValueError(
+                f"a family writes its own {key}, but the run's {key} is "
+                f"{run_scope.__name__}. The two are summed over the same genes, so both are "
+                f"counted per copy: write PerCopy for the run's {key}, or drop the family's.")
     if any(f.transfer_to is not None for f in declared):
         raise ValueError(
             "a family with its own transfer_to is implemented at the family resolution and not yet "
             "here. Declare the family without it, or run at resolution='family'.")
-    if joint:
-        raise ValueError(
-            "joint=True — a rate reading the genome's own live content — is implemented at the "
-            "family resolution and not yet here. Run at resolution='family' for it.")
 
     # The growth guard, as at the family resolution: duplication compounds, so a run whose rate sits
     # above its loss rate — or a family that drew a high a per-family draw factor — multiplies without bound
@@ -1413,27 +1468,49 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
               for label, r in _rates.items()}
     ext_driven = {label: [m for m in e.modifiers if isinstance(m, Driven)]
                   for label, e in _extents.items()}
+    # A **live** driver names gene content this run is building ("genomes:<family>", "genomes:count",
+    # "genomes:module:<group>"), which makes the run joint. It is read off the genomes as the loop goes
+    # rather than resolved into a trajectory, and its names are checked by the family resolution's own
+    # resolver, so the two engines accept and refuse the same spellings.
+    # a family's own rate reads its drivers as a run rate does, live or finished
+    fam_rate_driven = [m for table in fam_driven_rates.values() for rate in table.values()
+                       for m in rate.modifiers if isinstance(m, Driven)]
+    live_rate_mods = [m for mods in (*driven.values(), fam_rate_driven) for m in mods
+                      if names_a_live_level(m.driver)]
+    live_ext_mods = [m for mods in ext_driven.values() for m in mods if names_a_live_level(m.driver)]
+    if isinstance(transfer_to, Driven) and names_a_live_level(transfer_to.driver):
+        raise ValueError(
+            "a transfer_to that reads gene content during the run is implemented at the family "
+            "resolution and not yet here. Run at resolution='family' for it.")
+    resolve_live_drivers([*live_rate_mods, *live_ext_mods], set(family_names), joint=joint,
+                         modules={name: len(members) for name, members in (module_map or {}).items()})
     by_key: dict = {}                   # driver key → its Driven (deduped: one driver resolves once)
-    for mods in (*driven.values(), *ext_driven.values()):
+    for mods in (*driven.values(), *ext_driven.values(), fam_rate_driven):
         for m in mods:
-            by_key.setdefault(m.key, m)
+            if not names_a_live_level(m.driver):
+                by_key.setdefault(m.key, m)
     resolved: dict = {}
     if by_key:
         resolved = {key: resolve_driver(m.driver, tree, step=m.step, level="genomes.ordered")
                     for key, m in by_key.items()}
         # a mapping whose states never occur leaves every lineage on the default factor, so the run
         # would secretly be the undriven model — refuse it here, naming the driver
-        for mods in (*driven.values(), *ext_driven.values()):
+        for mods in (*driven.values(), *ext_driven.values(), fam_rate_driven):
             for m in mods:
+                if names_a_live_level(m.driver):
+                    continue                    # checked above, and read live rather than resolved
                 src = m.driver if isinstance(m.driver, str) else f"<{type(m.driver).__name__}>"
                 check_mapping_fires(m.mapping, resolved[m.key].states(), driver_label=src)
     # Only a driver on a **rate** makes the loop per-lineage and adds a Gillespie breakpoint. A driver
     # on an **extent** is read at the instant an event fires — it changes how much that event takes,
     # never how often one happens — so it deliberately stays out of `trajs`: no per-lineage rate
     # weights, no extra horizon steps. (SPEC §6.)
-    _rate_keys = {m.key for mods in driven.values() for m in mods}
+    _rate_keys = {m.key for mods in (*driven.values(), fam_rate_driven) for m in mods}
     trajs = {key: traj for key, traj in resolved.items() if key in _rate_keys}
-    any_driven = bool(trajs)
+    # a live driver is a name by construction (names_a_live_level only admits strings)
+    live_rate_keys = list(dict.fromkeys(cast(str, m.driver) for m in live_rate_mods))
+    live_ext_keys = list(dict.fromkeys(cast(str, m.driver) for m in live_ext_mods))
+    any_driven = bool(trajs) or bool(live_rate_keys)
     any_ext_driven = any(ext_driven.values())
     # The transfer_to slot is prepared **after** `trajs` is fixed, for the same reason: a driven
     # transfer_to is a weight, not a rate, so its trajectory must not join `trajs` and start adding
@@ -1522,11 +1599,19 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         events.append(GeneEdge(t, "origination", root.id, fam, chrom.genes[-1].id))
         event_positions.append(EventPosition(t, "origination", root.id, chrom.id,
                                              len(chrom.genes) - 1, 1, family=fam))
+    # a family's own rate by the id the family is given: fixed ones as numbers, driven ones as the Rate
+    fam_fixed_by_id: dict[str, dict[int, float]] = {key: {} for key in own_keys}
+    fam_driven_by_id: dict[str, dict[int, Rate]] = {key: {} for key in own_keys}
     named: dict[str, int] = {}  # a minted id per declared name, dealt round-robin after the anonymous ones
     named_plants: list[tuple[float, int, int]] = []
     for j, name in enumerate(family_names):
         fam = new_family()
         named[name] = fam
+        for key in own_keys:
+            if j in fam_own.get(key, {}):
+                fam_fixed_by_id[key][fam] = fam_own[key][j]
+            elif j in fam_driven_rates.get(key, {}):
+                fam_driven_by_id[key][fam] = fam_driven_rates[key][j]
         if j in planted_named:
             # given an `origin`, so it arrives there rather than at the tree's origin — the same
             # event, at a point chosen instead of drawn
@@ -1549,12 +1634,16 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # a family given an `origin` is not in the root genome — it arrives later, in the loop
     total_copies = initial_families + len(family_names) - len(named_plants)
     total_chromosomes = n_initial_chrom
+    # each live driver paired with what it reads, resolved once: the names and the family ids are fixed
+    live_rate_reads = [(src, live_target(src, named, module_map or {})) for src in live_rate_keys]
+    live_ext_reads = [(src, live_target(src, named, module_map or {})) for src in live_ext_keys]
+    live_reads_any = bool(live_rate_reads or live_ext_reads)
 
     # eleven bare numbers on their default scopes — no modifier on any rate, none on any extent,
     # no per-lineage budget — is the common run, and it needs none of the loop's context machinery:
     # each total is scope(base) exactly, resolved here once. A rate whose base is None carries a
     # set_by, which is a modifier, so `plain` is False and its 0.0 is never read.
-    plain = (not any(r.modifiers for r in _rates.values()) and not any_per_lineage
+    plain = (not any_written and not any(r.modifiers for r in _rates.values()) and not any_per_lineage
              and not any(e.has_modifiers for e in (dup_ext, los_ext, tra_ext, inv_ext, trp_ext,
                                                    trl_ext)))
     dup_base, los_base, tra_base = dup.base or 0.0, los.base or 0.0, tra.base or 0.0
@@ -1588,6 +1677,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             # is inf), and nothing below reads a context or a weight.
             w = no_weights
             fw = None
+            own_pick: dict = {}
             r_dup = dup_base * n
             r_los = los_base * n
             r_tra = tra_base * n if can_xfer else 0.0
@@ -1619,8 +1709,14 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             # one-stage lineage draw a per-lineage rate takes. A per-family draw and a Driven
             # cannot both be set, so `w` and `fw` never coexist.
             w = {}
+            if live_reads_any:  # copies per family on every lineage, as they stand at this instant
+                live_counts = [collections.Counter(g.family for chrom in gen[k] for g in chrom.genes)
+                               for k in range(k_alive)]
             if any_driven:
-                drivers = [{key: trajs[key].value(alive[k], t) for key in trajs} for k in range(k_alive)]
+                drivers = [{**{key: trajs[key].value(alive[k], t) for key in trajs},
+                            **{src: _live_value(target, gen[k], live_counts[k])
+                               for src, target in live_rate_reads}}
+                           for k in range(k_alive)]
                 for label, rate in _rates.items():
                     if driven[label]:
                         w[label] = [rate.effective(copies=_genome_size(gen[k]), lineages=1,
@@ -1665,6 +1761,41 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                            live=bool(n))
                 r_trl = _r("translocation", trl.effective(**_gc("translocation")) if n else 0.0,
                            live=bool(n))
+            own_pick = {}
+            if any_written:
+                # A family's own rate (SPEC §6): every gene carries a rate, its family's own when the
+                # family writes one and the run's otherwise, and an event's total is their sum. The
+                # acting lineage is drawn by its genes' summed rates and the segment by the mean rate of
+                # the genes it covers, through the path the per-family draws take.
+                own_counts = (live_counts if live_reads_any else
+                              [collections.Counter(g.family for chrom in gen[k] for g in chrom.genes)
+                               for k in range(k_alive)])
+                for key in own_keys:
+                    if key == "transfer" and not can_xfer:
+                        continue
+                    rate, fixed_k, driven_k = _rates[key], fam_fixed_by_id[key], fam_driven_by_id[key]
+                    sums, tables = [], []
+                    for k in range(k_alive):
+                        dk: dict[str, Any] = {"drivers": drivers[k]} if any_driven else {}
+                        unit = rate.effective(copies=1, lineages=1, chromosomes=1, time=t, **dk)
+                        table: dict[int, float] = {}
+                        for fam in own_counts[k]:
+                            if fam in fixed_k:
+                                table[fam] = fixed_k[fam]
+                            elif fam in driven_k:
+                                table[fam] = driven_k[fam].effective(copies=1, lineages=1, chromosomes=1,
+                                                                     time=t, **dk)
+                            else:
+                                table[fam] = unit * (fam_mult[key][fam] if any_family else 1.0)
+                        tables.append(table)
+                        sums.append(sum(own_counts[k][fam] * table[fam] for fam in table))
+                    own_pick[key] = (sums, tables)
+                if "duplication" in own_pick:
+                    r_dup = sum(own_pick["duplication"][0])
+                if "loss" in own_pick:
+                    r_los = sum(own_pick["loss"][0])
+                if "transfer" in own_pick:
+                    r_tra = sum(own_pick["transfer"][0])
             r_org = _r("origination", org.effective(**ctx))                 # per lineage
             r_fis = _r("fission", fis.effective(**ctx) if c else 0.0, live=bool(c))  # per chromosome
             r_fus = _r("fusion", fus.effective(**ctx) if c else 0.0, live=bool(c))
@@ -1674,6 +1805,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                           dup.next_change(t), los.next_change(t), org.next_change(t),
                           tra.next_change(t), inv.next_change(t), trp.next_change(t), trl.next_change(t),
                           fis.next_change(t), fus.next_change(t), cor.next_change(t), clo.next_change(t))
+            if fam_driven_rates:  # a family's own changing_at moves its rate too, so step there
+                horizon = min([horizon] + [r.next_change(t) for table in fam_driven_rates.values()
+                                           for r in table.values()])
             if any_driven:  # a driven rate also changes when its driver switches mid-branch — step there
                 horizon = min(horizon, min((trajs[key].next_change(alive[k], t) for key in trajs
                                             for k in range(k_alive)), default=math.inf))
@@ -1698,7 +1832,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 if not any_ext_driven:
                     return {**ctx, "time": t}
                 return {**ctx, "time": t,
-                        "drivers": {key: resolved[key].value(alive[k], t) for key in resolved}}
+                        "drivers": {**{key: resolved[key].value(alive[k], t) for key in resolved},
+                                    **{src: _live_value(target, gen[k], live_counts[k])
+                                       for src, target in live_ext_reads}}}
         total = (r_dup + r_los + r_org + r_tra + r_inv + r_trp + r_trl
                  + r_fis + r_fus + r_cor + r_clo)
 
@@ -1719,7 +1855,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 if r < r_dup:                            # every gene-level event acts on an extent
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "duplication", dup_ext,
                                              _ext_ctx, w.get("duplication"),
-                                             gene_hosts if per_lineage["duplication"] else None)
+                                             gene_hosts if per_lineage["duplication"] else None,
+                                             own=own_pick.get("duplication"))
                     if picked is not None:
                         k, ci, j, m = picked
                         if not _run_over_cap(gen[k], gen[k][ci], j, m, cap):
@@ -1728,7 +1865,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 elif r < b_los:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "loss", los_ext,
                                              _ext_ctx, w.get("loss"),
-                                             gene_hosts if per_lineage["loss"] else None)
+                                             gene_hosts if per_lineage["loss"] else None,
+                                             own=own_pick.get("loss"))
                     if picked is not None:
                         k, ci, j, m = picked
                         total_copies -= _lose_at(gen[k][ci], j, m, tree.nodes[alive[k]], t, events,
@@ -1744,7 +1882,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 elif r < b_tra:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "transfer", tra_ext,
                                              _ext_ctx, w.get("transfer"),
-                                             gene_hosts if per_lineage["transfer"] else None)
+                                             gene_hosts if per_lineage["transfer"] else None,
+                                             own=own_pick.get("transfer"))
                     if picked is not None:                # driven: the weighted lineage is the DONOR
                         kd, cdi, jd, m = picked
                         total_copies += _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events,
@@ -1863,8 +2002,10 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
     bar.close()
+    links = links_of({**_rates, **_extents}, transfer_to, declared, fam_driven_rates, {},
+                     module_map or {})
     return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
-                                named, module_map, event_positions, initial_genome)
+                                named, module_map, event_positions, initial_genome, links)
 
 
 __all__ = ["simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",

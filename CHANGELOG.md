@@ -11,6 +11,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
+- Ordered genomes take joint runs: with `joint=True` a rate or an extent can read
+  `"genomes:<family>"`, `"genomes:count"` or `"genomes:module:<group>"`. A declared family can
+  give its own duplication, transfer or loss rate, which applies to the segment an event covers, as
+  a per-family draw does. The run writes `links.tsv`, as a family run does.
 - A family genome run writes `links.tsv`, one row per link it read from its own gene content:
   `family` · `target` · `driver` · `modifier` · `mapping`. `result.links` holds the same rows,
   `genomes.read_run()` reads them back, and a run with no link writes the header alone. (#429)
