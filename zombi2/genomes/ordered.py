@@ -69,8 +69,9 @@ from ..params.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv, rearrangement_events_tsv
 from ..params.retired import check_no_retired_keywords
-from .family import (_LiveGeneContent, live_target, resolve_families, resolve_family_rates,
-                     resolve_family_transfer_to, resolve_live_drivers, resolve_max_family_size)
+from .family import (_FamilyCounts, _LiveGeneContent, live_target, resolve_families,
+                     resolve_family_rates, resolve_family_transfer_to, resolve_live_drivers,
+                     resolve_max_family_size)
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
                         recipient_index_all, resolve_transfer_to)
@@ -640,20 +641,62 @@ def _live_value(target, genome, counts):
     return "present" if counts[target] else "absent"
 
 
+#: Tests set this to check the running counts against a fresh count of every genome before each step
+#: of the loop and once after it. Off in a real run, where it would cost the walk the counts replace.
+_CHECK_COUNTS = False
+
+
+def _families(genome) -> collections.Counter:
+    """How many genes of each family a genome holds, read gene by gene across its chromosomes."""
+    return collections.Counter(g.family for chrom in genome for g in chrom.genes)
+
+
+class _GeneCounts(_FamilyCounts):
+    """The family resolution's running counts (`_FamilyCounts`) for ordered genomes: how many genes of
+    each family every living lineage holds, kept beside ``gen``.
+
+    The engine changes a row wherever it adds or removes genes: a duplication, a loss, an origination,
+    a transfer's arrival and the residents it replaces, and a chromosome loss. At a speciation the
+    daughters copy their parent's row. Rearrangements, fissions, fusions and a new empty chromosome
+    move no gene in or out, so they leave the rows alone. The family-size cap and every rule that
+    reads gene content then look a family up instead of walking a genome."""
+
+    def __init__(self, gen) -> None:
+        self._counts = [_families(genome) for genome in gen]
+
+    def entered(self, genome) -> None:
+        self._counts.append(_families(genome))
+
+    def of(self, k: int) -> collections.Counter:
+        """Lineage ``k``'s genes per family, to read. A family with no gene has no key."""
+        return self._counts[k]
+
+    def added_all(self, k: int, families) -> None:
+        for family in families:
+            self.added(k, family)
+
+    def removed_all(self, k: int, families) -> None:
+        for family in families:
+            self.removed(k, family)
+
+
+def _check_counts(gen, counts) -> None:
+    """Raise when a running count differs from a fresh count of its genome (see `_CHECK_COUNTS`)."""
+    fresh = [_families(genome) for genome in gen]
+    if fresh != counts._counts:
+        k = next(k for k in range(max(len(fresh), len(counts._counts)))
+                 if k >= len(fresh) or k >= len(counts._counts) or fresh[k] != counts._counts[k])
+        raise AssertionError(f"running counts differ from the genomes at lineage index {k}")
+
+
 class _LiveOrderedContent(_LiveGeneContent):
     """The family resolution's `_LiveGeneContent` for ordered genomes, where a genome is a list of
-    chromosomes and the engine keeps no copy counts. A recipient rule reads it only when a transfer
-    fires, so each read counts the families of the lineage it asks about, from the genome as it is
-    then. ``gen`` and ``pos`` are the engine's own, changed in place as lineages enter and leave."""
-
-    def __init__(self, family: "int | tuple[int, ...] | None", gen, pos) -> None:
-        super().__init__(family, gen, pos, None)
+    chromosomes. A recipient rule reads it when a transfer fires, from the running counts as they are
+    then. ``gen``, ``pos`` and ``counts`` are the engine's own, changed in place as the run goes."""
 
     def value(self, node_id: int, time: float) -> object:
-        genome = self._gen[self._pos[node_id]]
-        counts = (collections.Counter() if self._family is None else
-                  collections.Counter(g.family for chrom in genome for g in chrom.genes))
-        return _live_value(self._family, genome, counts)
+        k = self._pos[node_id]
+        return _live_value(self._family, self._gen[k], self._counts.of(k))
 
 
 def _pick_gene(rng, gen, total_copies) -> tuple[int, int, int]:
@@ -773,8 +816,17 @@ def _pick_run_by_family(rng, genome, mult, ext, ctx=None) -> tuple[int, int, int
     return ci, s, (m if chrom.topology == "circular" else min(m, n - s))
 
 
-def _run_over_cap(genome, chrom, start, m, cap) -> bool:
-    """Whether copying the run ``[start, start+m)`` would take any family it covers past ``cap``.
+def _run_families(chrom, start, m) -> list[int]:
+    """The family of each gene in the run ``[start, start+m)``, in order. The run may wrap position 0
+    on a circular chromosome. Read before the event changes the chromosome, so the running counts
+    can be moved by exactly what the event took or copied."""
+    n = len(chrom.genes)
+    return [chrom.genes[(start + i) % n].family for i in range(m)]
+
+
+def _run_over_cap(held, families, cap) -> bool:
+    """Whether copying a run that carries ``families`` would take any of them past ``cap``, where
+    ``held`` is the lineage's genes per family (its `_GeneCounts` row).
 
     The segmental answer to the per-genome family quota. At the family resolution the unit is one
     gene, so the question is simply "is this family already full?"; here a run may carry several
@@ -785,19 +837,14 @@ def _run_over_cap(genome, chrom, start, m, cap) -> bool:
     would be a different process — it would quietly reshape the extent distribution, making runs
     shorter precisely where the genome is crowded. Refusing outright is Poisson thinning on a
     condition that reads only the current state, so what is kept is a clean process; a clipped run
-    would not be."""
+    would not be.
+
+    ``held`` is a count kept as the run goes rather than a walk over the genome, which this used to
+    be, on every duplication and every arriving transfer. The count is exact, so the cap binds
+    where it bound before."""
     if cap is None:
         return False
-    n = len(chrom.genes)
-    carried: dict[int, int] = {}
-    for i in range(m):
-        f = chrom.genes[(start + i) % n].family
-        carried[f] = carried.get(f, 0) + 1
-    for f, k in carried.items():
-        have = sum(1 for c in genome for g in c.genes if g.family == f)
-        if have + k > cap:
-            return True
-    return False
+    return any(held[f] + k > cap for f, k in collections.Counter(families).items())
 
 
 def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ext_ctx, w=None, hosts=None, own=None):
@@ -897,9 +944,10 @@ def _oriented(segment, flip):
 
 # --- the mutators (position-, chromosome-, and extent-aware; each records to its log) ----------------
 
-def _originate(genome, node, t, events, positions, new_gene, new_family, rng, family=None) -> None:
+def _originate(genome, node, t, events, positions, new_gene, new_family, rng, family=None) -> int:
     """A new gene family arises: mint a single founding gene (a family is born once — no extent) on
     a uniformly-chosen chromosome at a uniformly-chosen position (strand ``+1``), and record it.
+    Returns the family's id, so the caller can count its gene.
 
     ``family`` names a family whose id was minted earlier — the one case being a family ``origins=``
     places at a chosen point, whose id is fixed before the run walks the tree. The event is the same
@@ -911,6 +959,7 @@ def _originate(genome, node, t, events, positions, new_gene, new_family, rng, fa
     _live(chrom).insert(at, g)
     events.append(GeneEdge(t, "origination", node.id, fam, g.id))
     positions.append(EventPosition(t, "origination", node.id, chrom.id, at, 1, family=fam))
+    return fam
 
 
 def _duplicate(chrom, j, m, node, t, events, positions, new_gene) -> int:
@@ -1003,7 +1052,7 @@ def _translocate(genome, ci, i, m, node, t, rearrangements, rng, inversion_proba
     rearrangements.append(Translocation(t, node.id, source.id, dest.id, i, m, pos, flipped))
 
 
-def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, new_gene,
+def _do_transfer(rng, tree, alive, gen, counts, kd, cdi, jd, m, t, events, positions, new_gene,
                  transfer_to, replacement, self_transfer, depth, cap=None,
                  to_traj=None, groups=None, fam_choice=None) -> int:
     """The segment ``[jd, jd+m)`` on the donor's chromosome ``cdi`` transfers to a contemporaneous
@@ -1068,7 +1117,8 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, ne
     rgenome = gen[kr]
     jd = _anchor(gen[kd][cdi], jd, m)
     segment = gen[kd][cdi].genes[jd:jd + m]
-    if _run_over_cap(rgenome, gen[kd][cdi], jd, m, cap):   # the recipient is full: same thinning
+    carried = [g.family for g in segment]
+    if _run_over_cap(counts.of(kr), carried, cap):      # the recipient is full: same thinning
         return 0
     conts = [new_gene(g.family, g.strand) for g in segment]
     xfers = [new_gene(g.family, g.strand) for g in segment]
@@ -1088,12 +1138,14 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, ne
                 ci, p = residents[int(rng.integers(len(residents)))]
                 victim = rgenome[ci].genes[p]
                 del rgenome[ci].genes[p]
+                counts.removed(kr, victim.family)
                 displaced[x.id] = victim.id
                 positions.append(EventPosition(t, "loss", recipient, rgenome[ci].id, p, 1))
                 delta -= 1
     rchrom = rgenome[int(rng.integers(len(rgenome)))]   # arrive as a block on a random recipient chromosome
     pos = int(rng.integers(len(rchrom.genes) + 1))
     rchrom.genes[pos:pos] = xfers
+    counts.added_all(kr, carried)                       # the donor keeps its families: continuations
     positions.append(EventPosition(t, "transfer_recipient", recipient, rchrom.id, pos, m,
                                    donor=donor, recipient=recipient))
     # A gene's three edges are recorded together — the resident it displaced dies *of* this transfer,
@@ -1703,13 +1755,13 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     plant_i = 0
     initial_genome = tuple(Chromosome(c.id, c.topology, list(c.genes)) for c in initial_chroms)
     enter(alive, gen, pos, root.id, initial_chroms)
+    counts = _GeneCounts(gen)       # genes per family on every living lineage, changed with the genomes
     # a family given an `origin` is not in the root genome — it arrives later, in the loop
     total_copies = initial_families + len(family_names) - len(named_plants)
     total_chromosomes = n_initial_chrom
     # each live driver paired with what it reads, resolved once: the names and the family ids are fixed
     live_rate_reads = [(src, live_target(src, named, module_map or {})) for src in live_rate_keys]
     live_ext_reads = [(src, live_target(src, named, module_map or {})) for src in live_ext_keys]
-    live_reads_any = bool(live_rate_reads or live_ext_reads)
 
     # Recipient rules that read live gene content get their reader now, when the family ids and the
     # genomes exist. A family's own rule is keyed by the id the family was given, which is what each
@@ -1717,7 +1769,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     def with_reader(choice):
         rule, groups_c, traj_c = choice
         if isinstance(rule, Driven) and names_a_live_level(rule.driver):
-            traj_c = _LiveOrderedContent(live_target(rule.driver, named, module_map or {}), gen, pos)
+            traj_c = _LiveOrderedContent(live_target(rule.driver, named, module_map or {}), gen, pos,
+                                         counts)
         return rule, groups_c, traj_c
 
     transfer_to, group_of, to_traj = with_reader((transfer_to, group_of, to_traj))
@@ -1745,6 +1798,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     bar = progress_bar(len(schedule), "genomes", unit="branch", enabled=progress)
     si = 0
     while si < len(schedule):
+        if _CHECK_COUNTS:
+            _check_counts(gen, counts)
         bar.to(si)
         n = total_copies
         k_alive = len(alive)
@@ -1793,12 +1848,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             # one-stage lineage draw a per-lineage rate takes. A per-family draw and a Driven
             # cannot both be set, so `w` and `fw` never coexist.
             w = {}
-            if live_reads_any:  # copies per family on every lineage, as they stand at this instant
-                live_counts = [collections.Counter(g.family for chrom in gen[k] for g in chrom.genes)
-                               for k in range(k_alive)]
             if any_driven:
                 drivers = [{**{key: trajs[key].value(alive[k], t) for key in trajs},
-                            **{src: _live_value(target, gen[k], live_counts[k])
+                            **{src: _live_value(target, gen[k], counts.of(k))
                                for src, target in live_rate_reads}}
                            for k in range(k_alive)]
                 for label, rate in _rates.items():
@@ -1851,19 +1903,17 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 # family writes one and the run's otherwise, and an event's total is their sum. The
                 # acting lineage is drawn by its genes' summed rates and the segment by the mean rate of
                 # the genes it covers, through the path the per-family draws take.
-                own_counts = (live_counts if live_reads_any else
-                              [collections.Counter(g.family for chrom in gen[k] for g in chrom.genes)
-                               for k in range(k_alive)])
                 for key in own_keys:
                     if key == "transfer" and not can_xfer:
                         continue
                     rate, fixed_k, driven_k = _rates[key], fam_fixed_by_id[key], fam_driven_by_id[key]
                     sums, tables = [], []
                     for k in range(k_alive):
+                        held = counts.of(k)
                         dk: dict[str, Any] = {"drivers": drivers[k]} if any_driven else {}
                         unit = rate.effective(copies=1, lineages=1, chromosomes=1, time=t, **dk)
                         table: dict[int, float] = {}
-                        for fam in own_counts[k]:
+                        for fam in held:
                             if fam in fixed_k:
                                 table[fam] = fixed_k[fam]
                             elif fam in driven_k:
@@ -1872,7 +1922,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                             else:
                                 table[fam] = unit * (fam_mult[key][fam] if any_family else 1.0)
                         tables.append(table)
-                        sums.append(sum(own_counts[k][fam] * table[fam] for fam in table))
+                        sums.append(sum(held[fam] * table[fam] for fam in table))
                     own_pick[key] = (sums, tables)
                 if "duplication" in own_pick:
                     r_dup = sum(own_pick["duplication"][0])
@@ -1917,7 +1967,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     return {**ctx, "time": t}
                 return {**ctx, "time": t,
                         "drivers": {**{key: resolved[key].value(alive[k], t) for key in resolved},
-                                    **{src: _live_value(target, gen[k], live_counts[k])
+                                    **{src: _live_value(target, gen[k], counts.of(k))
                                        for src, target in live_ext_reads}}}
         total = (r_dup + r_los + r_org + r_tra + r_inv + r_trp + r_trl
                  + r_fis + r_fus + r_cor + r_clo)
@@ -1943,9 +1993,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                              own=own_pick.get("duplication"))
                     if picked is not None:
                         k, ci, j, m = picked
-                        if not _run_over_cap(gen[k], gen[k][ci], j, m, cap):
+                        copied = _run_families(gen[k][ci], j, m)
+                        if not _run_over_cap(counts.of(k), copied, cap):
                             total_copies += _duplicate(gen[k][ci], j, m, tree.nodes[alive[k]], t,
                                                        events, event_positions, new_gene)
+                            counts.added_all(k, copied)
                 elif r < b_los:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "loss", los_ext,
                                              _ext_ctx, w.get("loss"),
@@ -1953,15 +2005,17 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                              own=own_pick.get("loss"))
                     if picked is not None:
                         k, ci, j, m = picked
-                        total_copies -= _lose_at(gen[k][ci], j, m, tree.nodes[alive[k]], t, events,
-                                                 event_positions)
+                        taken = _run_families(gen[k][ci], j, m)
+                        if _lose_at(gen[k][ci], j, m, tree.nodes[alive[k]], t, events, event_positions):
+                            total_copies -= m
+                            counts.removed_all(k, taken)
                 elif r < b_org:
                     # origination is per lineage: a uniform lineage, or one drawn by its own rate
                     # when that rate is driven (the same weights the total was summed with)
                     k = (weighted_index(rng, w["origination"], r_org) if "origination" in w
                          else int(rng.integers(k_alive)))
-                    _originate(gen[k], tree.nodes[alive[k]], t, events, event_positions, new_gene,
-                               new_family, rng)
+                    counts.added(k, _originate(gen[k], tree.nodes[alive[k]], t, events, event_positions,
+                                               new_gene, new_family, rng))
                     total_copies += 1
                 elif r < b_tra:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "transfer", tra_ext,
@@ -1970,7 +2024,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                              own=own_pick.get("transfer"))
                     if picked is not None:                # driven: the weighted lineage is the DONOR
                         kd, cdi, jd, m = picked
-                        total_copies += _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events,
+                        total_copies += _do_transfer(rng, tree, alive, gen, counts, kd, cdi, jd, m, t, events,
                                                      event_positions, new_gene, transfer_to,
                                                      replacement, self_transfer, depth, cap,
                                                      to_traj, group_of, fam_choice)
@@ -2025,8 +2079,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     picked = _pick_chromosome(rng, gen, c, w.get("chromosome_loss"))
                     if picked is not None:
                         k, ci = picked
+                        taken = [g.family for g in gen[k][ci].genes]
                         dc, dg = _chromosome_lose(gen[k], ci, tree.nodes[alive[k]], t, events,
                                                   event_positions, chromosome_events)
+                        if dc:
+                            counts.removed_all(k, taken)
                         total_chromosomes += dc
                         total_copies += dg
                 continue
@@ -2039,6 +2096,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 genomes[i] = tuple(Chromosome(c.id, c.topology, tuple(c.genes)) for c in g)  # freeze
                 total_copies -= sum(len(c.genes) for c in g)
                 total_chromosomes -= len(g)
+                inherited = counts.retired(pos[i])  # what the daughters below inherit, if any
                 retire(alive, gen, pos, pos[i])
                 node = tree.nodes[i]
                 if node.children:  # a speciation: re-mint every chromosome and gene id
@@ -2067,6 +2125,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     for c in node.children:
                         cg = child_genomes[c]
                         enter(alive, gen, pos, c, cg)
+                        counts.entered_like(inherited)   # a re-id of the parent: same families
                         total_copies += sum(len(ch.genes) for ch in cg)
                         total_chromosomes += len(cg)
                 si += 1
@@ -2080,12 +2139,15 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 _, lineage, fam = plants[plant_i]
                 _originate(gen[pos[lineage]], tree.nodes[lineage], t, events, event_positions,
                            new_gene, new_family, rng, family=fam)
+                counts.added(pos[lineage], fam)
                 total_copies += 1
                 plant_i += 1
         else:
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
     bar.close()
+    if _CHECK_COUNTS:
+        _check_counts(gen, counts)
     links = links_of({**_rates, **_extents}, transfer_to, declared, fam_driven_rates, fam_transfer_to,
                      module_map or {})
     return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
