@@ -779,6 +779,21 @@ def resolve_live_drivers(mods, declared_names, *, joint: bool, choice_mods=(),
     return keys
 
 
+def live_target(src: str, named, modules) -> "int | tuple[int, ...] | None":
+    """What a live gene-content driver name reads, as family ids: ``None`` for the whole gene count,
+    a declared family's id, or the ids of a declared module's families. ``named`` is
+    ``{family name: id}`` and ``modules`` ``{module name: family names}``. `resolve_live_drivers` has
+    already refused a name that could mean both a module and a family. The family and ordered engines
+    both read their live drivers through this, so they cannot resolve a name differently."""
+    if src == LIVE_COUNT:
+        return None
+    rest = src.split(":", 1)[1]
+    module = rest[len("module:"):] if src.startswith(LIVE_MODULE) else None
+    if module is not None and module in modules and rest not in named:
+        return tuple(named[name] for name in modules[module])
+    return named[rest]
+
+
 def resolve_max_family_size(max_family_size) -> int | None:
     """Validate the per-genome family cap — **a plain count of copies in one genome**, or ``None``
     for no cap.
@@ -1528,23 +1543,11 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
 
     any_driven = bool(trajs) or bool(live_keys)
 
-    def live_target(src: str) -> "int | tuple[int, ...] | None":
-        """What a live driver name reads: ``None`` for the whole gene count, a family's id, or the
-        ids of a module's families. `resolve_live_drivers` has already refused a name that could mean
-        both a module and a family."""
-        if src == LIVE_COUNT:
-            return None
-        rest = src.split(":", 1)[1]
-        module = rest[len("module:"):] if src.startswith(LIVE_MODULE) else None
-        if module is not None and module in (module_map or {}) and rest not in named:
-            return tuple(named[name] for name in module_map[module])
-        return named[rest]
-
     # Each live driver paired with what it reads, resolved once here: `live_keys` and `named` are both
     # fixed for the whole run, so the read below is a lookup rather than the same name taken apart
     # again on every one of the millions of reads a joint run makes.
     live_reads: list[tuple[str, int | tuple[int, ...] | None]] = [
-        (src, live_target(src)) for src in live_keys]
+        (src, live_target(src, named, module_map or {})) for src in live_keys]
 
     def live_value(fid: "int | tuple[int, ...] | None", k: int):
         """What a live driver reads on lineage ``k`` **right now** — the joint half of the driver
@@ -1574,7 +1577,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # genomes and the copy counts all exist. A family's own rule is keyed by the id the family was
     # given, because that id is what a copy carries when it is picked to move.
     def live_reader(rule):
-        return _LiveGeneContent(live_target(rule.driver), gen, pos, counts)
+        return _LiveGeneContent(live_target(rule.driver, named, module_map or {}), gen, pos, counts)
 
     if isinstance(transfer_to, Driven) and names_a_live_level(transfer_to.driver):
         to_traj = live_reader(transfer_to)

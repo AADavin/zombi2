@@ -371,7 +371,9 @@ whole genome, so they compose with any extent unchanged. `varying_among('familie
 segment has several — so a content-attached modifier must weight the **segment, by what it covers**,
 never the position the event started from. Weighting the start applies a family's own rate to its
 *neighbours*, and the neighbourhood is reshuffled by every rearrangement, so the parameter would not
-even mean a fixed thing over a run.
+even mean a fixed thing over a run. A declared family's own rate attaches to the contents the same
+way: every gene carries its family's rate, or the run's, and a segment is chosen by the mean rate of
+the genes it covers.
 
 A resolution that does not support an extent, or a modifier on one, **raises** — the §5 rule, unchanged.
 
