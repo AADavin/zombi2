@@ -12,7 +12,7 @@ import pytest
 
 from zombi2.genomes import family, simulate_genomes_ordered
 from zombi2.genomes.links import Link
-from zombi2.params import Extent, Fixed, LogNormal, PerCopy, PerLineage, Recipients
+from zombi2.params import Extent, Fixed, LogNormal, PerCopy, PerLineage
 from zombi2.params.conditioned import resolve_driver
 from zombi2.species import simulate_species_tree
 
@@ -92,12 +92,6 @@ def test_an_extent_reads_a_family(tree, clade):
     assert sizes["absent"] and sizes["present"]
     assert set(sizes["absent"]) == {1}
     assert 3 in sizes["present"]
-
-
-def test_a_transfer_to_reading_gene_content_is_refused_here(tree):
-    with pytest.raises(ValueError, match="transfer_to that reads gene content"):
-        _run(tree, joint=True, transfer=0.2, families=[family("A")],
-             transfer_to=Recipients().weighted_by("genomes:A", {"present": 2.0, "absent": 1.0}))
 
 
 def test_reading_gene_content_needs_joint(tree):

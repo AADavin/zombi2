@@ -373,7 +373,10 @@ never the position the event started from. Weighting the start applies a family'
 *neighbours*, and the neighbourhood is reshuffled by every rearrangement, so the parameter would not
 even mean a fixed thing over a run. A declared family's own rate attaches to the contents the same
 way: every gene carries its family's rate, or the run's, and a segment is chosen by the mean rate of
-the genes it covers.
+the genes it covers. A declared family's own `transfer_to` attaches to the contents too, but a choice
+picks where the whole segment goes, so no mean applies: a lineage can receive the segment only where
+every rule among its genes allows. The rules' weights multiply, each rule counted once, before they are
+normalised, so a weight of 0 in any of them excludes that lineage.
 
 A resolution that does not support an extent, or a modifier on one, **raises** — the §5 rule, unchanged.
 
