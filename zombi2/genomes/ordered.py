@@ -1389,6 +1389,10 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             "This engine carries a segment's extent as well as its rate, and what a per-family extent "
             "means is not decided. Declare the family without rates, or run at "
             "resolution='family'.")
+    if any(f.transfer_to is not None for f in declared):
+        raise ValueError(
+            "a family with its own transfer_to is implemented at the family resolution and not yet "
+            "here. Declare the family without it, or run at resolution='family'.")
     if joint:
         raise ValueError(
             "joint=True — a rate reading the genome's own live content — is implemented at the "
