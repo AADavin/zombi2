@@ -33,6 +33,7 @@ from zombi2.genomes import (
     simulate_genomes_family,
 )
 from zombi2.genomes.ordered import (
+    _GeneCounts,
     _do_transfer,
     _duplicate,
     _extent,
@@ -1230,7 +1231,7 @@ def test_a_dropped_transfer_leaves_the_donor_chromosome_untouched():
     # both lineages painted "A", and the only pair the kernel weighs is (A, B): nobody can receive
     blocked = Clades({"A": 0, "B": 1}, Between({("A", "B"): 1.0}, default=0.0))
     events, positions = [], []
-    delta = _do_transfer(np.random.default_rng(0), None, [0, 1], gen, 0, 0, 4, 4, 1.0,
+    delta = _do_transfer(np.random.default_rng(0), None, [0, 1], gen, _GeneCounts(gen), 0, 0, 4, 4, 1.0,
                          events, positions, None, blocked, False, False, 1.0, None,
                          None, {0: "A", 1: "A"})
     assert delta == 0
