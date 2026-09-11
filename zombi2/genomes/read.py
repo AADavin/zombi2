@@ -14,6 +14,7 @@ import os
 from ..tree import Tree, read_newick
 from .events import edges_from_tsv, gene_from_label
 from .family import FamilyGenomesResult, GeneCopy
+from .links import Link, links_from_tsv
 
 #: Where a genomes run's files sit inside a run directory: the grouped layout first, then ``--flat``.
 _LAYOUTS = ("genomes", "")
@@ -111,8 +112,13 @@ def read_run(directory) -> FamilyGenomesResult:
             rows = [line.rstrip("\n").split("\t") for line in f if line.strip()]
         initial = tuple(GeneCopy(gene_from_label(copy), int(family))
                         for family, copy in rows if family != "family")
+    links: tuple[Link, ...] = ()
+    links_path = os.path.join(handoff, "links.tsv")
+    if os.path.exists(links_path):
+        with open(links_path, encoding="utf-8") as f:
+            links = links_from_tsv(f.read())
     return FamilyGenomesResult(complete_tree=tree, node_genomes=_genomes(handoff, tree), edges=edges,
-                               seed=seed, initial_genome=initial)
+                               seed=seed, initial_genome=initial, links=links)
 
 
 __all__ = ["read_run"]

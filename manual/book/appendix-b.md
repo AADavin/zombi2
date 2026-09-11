@@ -130,6 +130,7 @@ depends on time or diversity, this is its value at the start of the branch.
 | `initial_genome.tsv` | the genome the run **started** with, at the start of the root branch: `family` · `copy` |
 | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | each family's true genealogy, in `genomes/gene_trees/` |
 | `genome_summary.json` | events by kind, families born, surviving and died out, genes per genome, `empty_genomes`, whether the family-size cap bound, the seed |
+| `links.tsv` | the links the run read from its own gene content: `family` · `target` · `driver` · `modifier` · `mapping`, one row per link |
 | `species_complete.nwk` | the tree the run evolved along, without which the directory cannot be read |
 | `species/species_fates.tsv` | each tip's fate, in the format the species level writes. Only when the tree came from `--from` |
 | `names.tsv` | `node` · `name`, mapping ZOMBI2's `n<id>` back to the labels you supplied. Only when the tree came from `--from` with its own tip labels |
@@ -139,7 +140,7 @@ From Python: `.genomes` · `.node_genomes` (the genomes), `.family_counts(node)`
 `.has_family(node, name)` (a node's genome as `family → copies`, and whether a named family has a
 copy there), `.gene_trees[f].origination` (when a family was founded, where its gene tree's root
 branch begins), the driver views `.presence(name)` · `.completion(name)`, and `.gene_trees` ·
-`.profiles` · `.initial_genome` · `.events` · `.seed`, the same objects the files hold before
+`.profiles` · `.initial_genome` · `.links` · `.events` · `.seed`, the same objects the files hold before
 `.write()` puts them on disk.
 
 **`genomes.tsv`**: `copy` is the identifier the event log uses, so a gene can be traced back to the
@@ -151,6 +152,16 @@ sits at the *end* of its branch.
 **`gene_tree_fam<f>_*.nwk`**: leaves are `n<species>_g<copy>`; internal nodes are labelled
 `<event>_n<species>` (`duplication_n45`, `transfer_n45`), naming the event that ended that gene and
 the branch it was on. A family with no surviving copy writes no `_extant` file.
+
+**`links.tsv`** lists every modifier that reads gene content the run is building
+(`"genomes:<family>"`, `"genomes:module:<group>"`, `"genomes:count"`). `family` is the declared
+family whose parameter it is, or `run` for the run's own; `target` is that parameter (`loss`,
+`transfer_to`, …); `modifier` is `scaled_by`, `set_by` or `weighted_by`. `mapping` is `state=value`
+pairs joined by `;`, or `donor>receiver=weight` pairs for a `Between`, with `default=` when the
+default is not 1. A function read on a module is written at each completion level, `k/n=value`;
+any other function is written by its name. A driver read from a trait or a file is not listed. A
+run with no link writes the header alone, so a method that looks for links between gene families
+can always be compared against the file.
 
 **`species_complete.nwk`**. Every other file here is indexed by its node labels, so the directory is
 not readable, by anyone or by `genomes.read_run()`, without it. `result.write()` writes it by
@@ -566,7 +577,8 @@ continuous trait, which has no map, and for a threshold trait, whose liability c
 
 Neither adds a format. A **conditioned** run writes the driven level's own files and one extra record,
 `conditioned_on`, naming what it depended on (above), so the pairing is kept on disk; a **joint** run
-writes **both** levels, each in its own format.
+writes **both** levels, each in its own format. A family genome run that reads its own gene content
+lists those links in `links.tsv` (above).
 
 The `zombi2 tools` commands write their own files, the homology matrix and the reconciliation/scoring
 outputs, catalogued in Appendix D.
