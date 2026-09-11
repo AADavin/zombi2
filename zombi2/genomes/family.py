@@ -147,7 +147,8 @@ class FamilyGenomesResult:
         ``[0, 1]``: the fraction of the module's families a lineage carries.
 
         Read it with a `Curve`, the way any continuous driver is read; a threshold goes there rather
-        than here (``lambda f: 8.0 if f > 0.8 else 1.0``)."""
+        than here (``lambda f: 8.0 if f > 0.8 else 1.0``). A joint run reads the same number while
+        it runs, as ``"genomes:module:<name>"``."""
         from .presence import ModuleCompletion
         if name not in self.modules:
             raise KeyError(f"no module {name!r}; declared modules are {sorted(self.modules)}")
@@ -679,6 +680,9 @@ def resolve_family_rates(declared, run_rates):
 #: the live gene-content driver reading a lineage's whole gene count, as `zombi2.joint` spells it
 LIVE_COUNT = "genomes:count"
 
+#: the start of the live driver reading how complete a declared module is: ``"genomes:module:<group>"``
+LIVE_MODULE = "genomes:module:"
+
 #: A joint genome run's ceiling on live copies. A rate that reads the genome's own content can feed
 #: itself — more copies raise the rate, which makes more copies — so a run that looks calm on paper
 #: can have no realistic end. It RAISES rather than stopping early, for the reason the species engine
@@ -686,47 +690,69 @@ LIVE_COUNT = "genomes:count"
 MAX_LIVE_COPIES = 2_000_000
 
 
-def resolve_live_drivers(mods, declared_names, *, joint: bool, choice_mods=()) -> list[str]:
+def resolve_live_drivers(mods, declared_names, *, joint: bool, choice_mods=(),
+                         modules=None) -> list[str]:
     """Validate the **live** drivers a run reads, and return the keys of those its rates read.
 
-    A live driver names gene content growing in this same run — ``"genomes:count"`` for a lineage's
-    whole gene count, ``"genomes:<name>"`` for whether a declared family is there. That makes the run
-    joint (SPEC §2): the driver cannot be finished first, because it is what the run is producing.
-    A live name for **another** level (``"trait"``, ``"traits:<name>"``, ``"sequences:<name>"``) is a
-    cross-level joint run, which is `zombi2.joint.simulate`'s job, so it is refused here by name.
+    A live driver names gene content growing in this same run: ``"genomes:count"`` for a lineage's
+    whole gene count, ``"genomes:<name>"`` for whether a declared family is there, and
+    ``"genomes:module:<group>"`` for how complete a declared module is, as the share of its families
+    the lineage carries (0 to 1). That makes the run joint (SPEC §2): the driver cannot be finished
+    first, because it is what the run is producing. A live name for **another** level (``"trait"``,
+    ``"traits:<name>"``, ``"sequences:<name>"``) is a cross-level joint run, which is
+    `zombi2.joint.simulate`'s job, so it is refused here by name.
 
     ``mods`` are the rates' driven modifiers; ``choice_mods`` are the ``transfer_to`` weightings that
     read live gene content, the run's or a declared family's own. Both are checked the same way, and
     either one makes the run joint. Only the rates' keys come back: a ``transfer_to`` weight is read
     when a transfer fires and moves no rate, so it must not make the loop read rates per lineage.
+    ``modules`` is ``{module name: number of families in it}``.
 
     ``joint`` is the run's own declaration, and it is checked both ways. Asking for a joint run with
     nothing reading a live driver is as much a mistake as reading one without saying so.
     """
+    modules = modules or {}
+
     def checked(m, verb: str) -> str:
         src = m.driver
         if not (src == LIVE_COUNT or src.startswith("genomes:")):
             raise ValueError(
                 f"{verb}({src!r}, ...) names a level growing beside the run — the joint spelling "
                 f"of a driver (SPEC §5) — and this function simulates genomes alone: the live names "
-                f'it reads are its own gene content, "genomes:count" or "genomes:<family>". A '
+                f'it reads are its own gene content, "genomes:count", "genomes:<family>" or '
+                f'"genomes:module:<group>". A '
                 f"genome and another level driving each other are simulated together — "
                 f"joint.simulate(genomes.genome(...), traits.discrete(...) or sequences.gene(...), "
                 f"tree=...). To read a level grown EARLIER, pass its result or the file it wrote, "
                 f"which is conditioning.")
-        states: set = {0}
-        if src != LIVE_COUNT:
-            name = src.split(":", 1)[1]
-            if name not in declared_names:
+        states: set
+        if src == LIVE_COUNT:
+            states, exhaustive = {0}, False
+        else:
+            rest = src.split(":", 1)[1]
+            module = rest[len("module:"):] if src.startswith(LIVE_MODULE) else None
+            if module is not None and module in modules:
+                if rest in declared_names:
+                    raise ValueError(
+                        f'{verb}("{src}", ...) could read module {module!r} or the family named '
+                        f"{rest!r}, and this run declares both. Rename the family.")
+                n = modules[module]
+                states, exhaustive = {j / n for j in range(n + 1)}, False
+            elif rest in declared_names:
+                states, exhaustive = {"present", "absent"}, True
+            elif module is not None:
                 raise ValueError(
-                    f'{verb}("{src}", ...) reads family {name!r}, which this run does not declare '
-                    f"— add families=[…, family({name!r})]. Declared: {sorted(declared_names)}.")
-            states = {"present", "absent"}
+                    f'{verb}("{src}", ...) reads module {module!r}, which this run does not declare '
+                    f"— give its families module={module!r}. Declared modules: {sorted(modules)}.")
+            else:
+                raise ValueError(
+                    f'{verb}("{src}", ...) reads family {rest!r}, which this run does not declare '
+                    f"— add families=[…, family({rest!r})]. Declared: {sorted(declared_names)}.")
         label = f"the driver {src!r}"
         if isinstance(m.mapping, Between):     # a transfer_to weight over (donor, recipient) states
             check_kernel_fires(m.mapping, states, driver_label=label)
         else:
-            check_mapping_fires(m.mapping, states, driver_label=label, exhaustive=src != LIVE_COUNT)
+            check_mapping_fires(m.mapping, states, driver_label=label, exhaustive=exhaustive)
         return src
 
     keys = [checked(m, "scaled_by") for m in mods]
@@ -935,23 +961,30 @@ class _LiveGeneContent:
 
     `recipient_index` weighs each candidate by ``to_traj.value(node, t)``, and for a finished driver
     that is a `DriverTrajectory` built before the run. A ``transfer_to`` weighted by
-    ``"genomes:<family>"`` or ``"genomes:count"`` asks the same question of this run's own genomes,
-    so this answers it from the live copy counts: ``"present"`` or ``"absent"`` for a family, the
-    number of copies for the count. It holds the engine's own genome list, lineage index and counts,
-    which the engine changes in place, so each read sees the genomes as they are when the transfer
-    fires."""
+    ``"genomes:<family>"``, ``"genomes:module:<group>"`` or ``"genomes:count"`` asks the same question
+    of this run's own genomes, so this answers it from the live copy counts: ``"present"`` or
+    ``"absent"`` for a family, the share of its families for a module, and the number of copies for
+    the count. It holds the engine's own genome list, lineage index and counts, which the engine
+    changes in place, so each read sees the genomes as they are when the transfer fires."""
 
-    def __init__(self, family: int | None, gen, pos, counts) -> None:
+    def __init__(self, family: "int | tuple[int, ...] | None", gen, pos, counts) -> None:
         self._family, self._gen, self._pos, self._counts = family, gen, pos, counts
 
     def value(self, node_id: int, time: float) -> object:
         k = self._pos[node_id]
         if self._family is None:
             return len(self._gen[k])
+        if isinstance(self._family, tuple):
+            return sum(self._counts.holds(k, f) for f in self._family) / len(self._family)
         return "present" if self._counts.holds(k, self._family) else "absent"
 
     def states(self) -> set:
-        return {0} if self._family is None else {"present", "absent"}
+        if self._family is None:
+            return {0}
+        if isinstance(self._family, tuple):
+            n = len(self._family)
+            return {j / n for j in range(n + 1)}
+        return {"present", "absent"}
 
 
 def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
@@ -1262,8 +1295,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # stays out of `live_keys`, because it moves no rate (see `prepare_transfer_to`).
     live_choices = [r for r in (transfer_to, *fam_transfer_to.values())
                     if isinstance(r, Driven) and names_a_live_level(r.driver)]
-    live_keys = resolve_live_drivers(live_mods, set(family_names), joint=joint,
-                                     choice_mods=live_choices)
+    live_keys = resolve_live_drivers(
+        live_mods, set(family_names), joint=joint, choice_mods=live_choices,
+        modules={name: len(members) for name, members in (module_map or {}).items()})
     # driver key → its Driven (deduped, so a driver shared across rates resolves once);
     # the modifier rather than the driver itself, because the driver's step rides on the modifier
     by_key: dict[object, "Driven"] = {}
@@ -1486,24 +1520,38 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
 
     any_driven = bool(trajs) or bool(live_keys)
 
-    # Each live driver paired with the family it reads, resolved once here: `live_keys` and `named`
-    # are both fixed for the whole run, so the read below is a lookup rather than the same name
-    # taken apart again on every one of the millions of reads a joint run makes. `None` is the
-    # whole-count driver, which names no family.
-    live_reads: list[tuple[str, int | None]] = [
-        (src, None if src == LIVE_COUNT else named[src.split(":", 1)[1]]) for src in live_keys]
+    def live_target(src: str) -> "int | tuple[int, ...] | None":
+        """What a live driver name reads: ``None`` for the whole gene count, a family's id, or the
+        ids of a module's families. `resolve_live_drivers` has already refused a name that could mean
+        both a module and a family."""
+        if src == LIVE_COUNT:
+            return None
+        rest = src.split(":", 1)[1]
+        module = rest[len("module:"):] if src.startswith(LIVE_MODULE) else None
+        if module is not None and module in (module_map or {}) and rest not in named:
+            return tuple(named[name] for name in module_map[module])
+        return named[rest]
 
-    def live_value(fid: int | None, k: int):
+    # Each live driver paired with what it reads, resolved once here: `live_keys` and `named` are both
+    # fixed for the whole run, so the read below is a lookup rather than the same name taken apart
+    # again on every one of the millions of reads a joint run makes.
+    live_reads: list[tuple[str, int | tuple[int, ...] | None]] = [
+        (src, live_target(src)) for src in live_keys]
+
+    def live_value(fid: "int | tuple[int, ...] | None", k: int):
         """What a live driver reads on lineage ``k`` **right now** — the joint half of the driver
         mechanism (SPEC §2). A finished driver answers from a trajectory built before the run; this
-        one answers from the genome the run is building. ``fid`` is the family the driver names, or
-        None for the driver reading the whole gene count.
+        one answers from the genome the run is building. ``fid`` is the family the driver names, the
+        ids of a module's families, or None for the driver reading the whole gene count. A module
+        reads as the share of its families that lineage ``k`` carries.
 
         It needs no horizon breakpoint, and that is what makes the race exact rather than thinned:
         gene content changes only when a genome event fires, and an event ends the current step, so
         every rate is already constant between two events."""
         if fid is None:
             return len(gen[k])
+        if isinstance(fid, tuple):
+            return sum(counts.holds(k, f) for f in fid) / len(fid)
         return "present" if counts.holds(k, fid) else "absent"
     # the per-family weight sums, carried across events rather than rebuilt each time (see the class).
     # The families that wrote their own rate ride in the same structure under a suffixed key, because
@@ -1518,9 +1566,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # genomes and the copy counts all exist. A family's own rule is keyed by the id the family was
     # given, because that id is what a copy carries when it is picked to move.
     def live_reader(rule):
-        src = rule.driver
-        return _LiveGeneContent(None if src == LIVE_COUNT else named[src.split(":", 1)[1]],
-                                gen, pos, counts)
+        return _LiveGeneContent(live_target(rule.driver), gen, pos, counts)
 
     if isinstance(transfer_to, Driven) and names_a_live_level(transfer_to.driver):
         to_traj = live_reader(transfer_to)
@@ -1935,7 +1981,8 @@ def family(name=None, *, duplication=None, transfer=None, loss=None, transfer_to
     The name is the handle everything else reads it by — ``result.presence("IS1")``,
     ``result.has_family(node, "IS1")``. ``duplication`` / ``transfer`` / ``loss`` are that family's
     own rates, and what is left out falls back to the run's. ``origin=(lineage, time)`` plants the
-    family there instead of at the origin, and ``module=`` puts it in a named group.
+    family there instead of at the origin, and ``module=`` puts it in a named group, whose
+    completeness a joint run can read as ``"genomes:module:<group>"``.
 
     A family's own rate takes the same three verbs as the run's (``changing_at``, ``scaled_by`` and
     ``set_by``) and is then read on each lineage at each event. This is how one family's rate

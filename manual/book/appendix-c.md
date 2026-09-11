@@ -42,6 +42,7 @@ In a joint run, a driver is named, and the name says which level it comes from:
 | `"traits:<name>"`, discrete | that trait's current state | a table over the states |
 | `"traits:<name>"`, continuous | that trait's current value | a curve, or a `Scalar` |
 | `"genomes:<family>"` | whether that family is there | a table over `present` / `absent`, or for `transfer_to` a `Between` over them |
+| `"genomes:module:<group>"` | how complete that module is: the share of its families the lineage carries, from 0 to 1 | a curve, or a `Scalar` |
 | `"genomes:count"` | how many genes the lineage has | a curve, or a `Scalar` |
 | `"sequences:<name>"` | how much of that gene is a given set of letters | a curve, or a `Scalar` |
 
