@@ -11,7 +11,7 @@ The tables of Chapter 8, in one place: every connection, every driver, every tar
 | **2** | a trait | an ordered or nucleotide genome | eleven rates at the ordered resolution, thirteen at the nucleotide one, and the extents besides | [Co9](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_inversions--> | — |
 | **3** | a trait | a sequence | habitat sets the substitution rate | [Co10](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_substitution--> | [Jo2](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:trait_and_sequence--> |
 | **4** | a trait | a trait | one character sets another's `rate` or `switch` | [Co11–Co12](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:driven--><!--gallery:trait_drives_trait--> | [Jo4](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:trait_loop--> |
-| **5** | a gene family | a gene family | a mobile element makes transfer likelier for the rest of the genome, or one family's loss rate depends on whether the lineage carries another family | [Co13](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:mobile_element--> | [Jo6](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:mobile_element_joint--> |
+| **5** | a gene family | a gene family | a mobile element makes transfer likelier for the rest of the genome, one family's loss rate depends on whether the lineage carries another family, or one family's copies are transferred more often into lineages that carry another family | [Co13](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:mobile_element--> | [Jo6](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:mobile_element_joint--> |
 | **6** | a gene family | a sequence | lose the repair gene and evolve faster | [Co14](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:repair_gene--> | — |
 | **7** | a gene family | a trait | carry the toxin family and turn pathogenic | [Co15](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:gene_drives_trait--> | [Jo5](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:cave_genomes--> |
 | **8** | an ordered or nucleotide genome | a sequence | as **6**, with coordinates in the genome run | [Co16](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:operon_substitution--> | — |
@@ -41,7 +41,7 @@ In a joint run, a driver is named, and the name says which level it comes from:
 |---|---|---|
 | `"traits:<name>"`, discrete | that trait's current state | a table over the states |
 | `"traits:<name>"`, continuous | that trait's current value | a curve, or a `Scalar` |
-| `"genomes:<family>"` | whether that family is there | a table over `present` / `absent` |
+| `"genomes:<family>"` | whether that family is there | a table over `present` / `absent`, or for `transfer_to` a `Between` over them |
 | `"genomes:count"` | how many genes the lineage has | a curve, or a `Scalar` |
 | `"sequences:<name>"` | how much of that gene is a given set of letters | a curve, or a `Scalar` |
 
@@ -51,6 +51,7 @@ In a joint run, a driver is named, and the name says which level it comes from:
 |---|---|---|---|
 | `duplication`, `transfer`, `loss`, `origination` | how often | genomes, every resolution | [Co1](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:genome_reduction--> |
 | a declared family's own `duplication`, `transfer`, `loss` | how often | genomes, family resolution; Python only | — |
+| a declared family's own `transfer_to` | a choice | genomes, family resolution; Python only | — |
 | `inversion`, `transposition`, `translocation`, `fission`, `fusion`, `chromosome_origination`, `chromosome_loss` | how often | genomes, ordered and nucleotide | [Co9](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_inversions--> |
 | `substitution` | how often | sequences | [Co10](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_substitution--> |
 | `rate` (continuous), `switch` (discrete) | how often | traits | [Co11–Co12](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:driven--><!--gallery:trait_drives_trait--> |

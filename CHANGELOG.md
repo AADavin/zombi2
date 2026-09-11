@@ -9,6 +9,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- `family()` accepts `transfer_to`, a recipient rule for that family's copies alone, in any form the
+  run's `transfer_to` takes. In a joint run a `transfer_to`, the run's or a family's, can be weighted
+  by whether each candidate lineage carries a declared family, as
+  `Recipients().weighted_by("genomes:A", {"present": 20.0, "absent": 1.0})`. (#427)
+
 ## [0.45.0] - 2026-09-10
 
 ### Added

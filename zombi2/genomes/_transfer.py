@@ -19,6 +19,11 @@ All four rules work at **every** resolution — family, ordered and nucleotide. 
 `resolve_transfer_to()` and `prepare_transfer_to()` are for: it is validated and prepared here,
 once, so the three engines cannot drift apart in what they accept or in what they say when they
 refuse.
+
+The family resolution reads two things the others do not. In a ``joint=True`` run a weight can read
+gene content the run is building (``"genomes:<family>"``, ``"genomes:count"``); the family engine
+reads it off its own genomes when the transfer fires, so `prepare_transfer_to()` never sees it. And
+a declared family can carry its own rule, which the family engine uses for that family's copies.
 """
 
 from __future__ import annotations
