@@ -48,6 +48,7 @@ from .._runtime.progress import progress_bar
 from .._runtime.summary import _stats, write_summary
 from .events import Event, GeneEdge, event_counts, events_from_edges, events_tsv, gene_label
 from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
+from .links import Link, links_of, links_tsv
 from .profiles import Profiles, profiles_from_genomes
 
 if TYPE_CHECKING:  # a streamed run returns a StreamedRun (built by the per-family engine); type-only
@@ -104,6 +105,9 @@ class FamilyGenomesResult:
     #: and arriving transfers, so realised rates fall below the declared ones, and `summary()` is
     #: where a reader finds out that happened to them.
     max_family_size: int | None = None
+    #: The links this run read from its own gene content, one `Link` per modifier reading
+    #: ``"genomes:…"``, which ``write`` puts in ``links.tsv``. Empty when the run read none.
+    links: "tuple[Link, ...]" = ()
 
     def __repr__(self) -> str:
         # "0 nodes" beside a real tip count reads as a broken run; a reopened run that did not write
@@ -287,10 +291,10 @@ class FamilyGenomesResult:
     #: cannot drift: they did, and `initial_sequence` and `species_tree` were writable from
     #: Python and unnameable on the command line.
     OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees",
-               "species_tree", "summary")
+               "species_tree", "summary", "links")
 
     def write(self, directory, outputs=("events", "profiles", "genomes", "initial_genome",
-                                        "gene_trees", "species_tree", "summary"), *,
+                                        "gene_trees", "species_tree", "summary", "links"), *,
               flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
@@ -310,6 +314,8 @@ class FamilyGenomesResult:
           tree is compared against is the species tree it grew inside. A run written from Python
           used to leave it out entirely, so the quickstart handed back gene trees with nothing to
           compare them to and said nothing about it.
+        - ``"links"`` → ``links.tsv``, the links the run read from its own gene content, one row per
+          link (see `zombi2.genomes.links`); the header alone when there are none.
         The gene trees are two files per family, so they get a subdirectory rather than burying the
         tables above; ``flat=True`` writes everything into ``directory`` instead.
         """
@@ -339,6 +345,8 @@ class FamilyGenomesResult:
                                                     encoding="utf-8")
         if "summary" in outputs:
             write_summary(d / "genome_summary.json", self.summary())
+        if "links" in outputs:
+            (d / "links.tsv").write_text(links_tsv(self.links), encoding="utf-8")
 
     def _genomes_tsv(self) -> str:
         """Every node's gene content, one row per copy, in the order the genome holds them. The
@@ -1843,8 +1851,10 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
     bar.close()
+    links = links_of({"duplication": dup, "transfer": tra, "loss": los, "origination": org},
+                     transfer_to, declared, fam_driven, fam_transfer_to, module_map or {})
     return FamilyGenomesResult(tree, genomes, events, seed, named, module_map, initial_genome,
-                               cap)
+                               cap, links)
 
 
 # --- process spec: a genome bundled but UNEXECUTED, for a joint model to grow with the tree --------
