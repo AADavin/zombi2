@@ -251,6 +251,7 @@ trees are built from.
 | `initial_genome.tsv` | the genome the run **started** with: `chromosome` · `topology` · `position` · `strand` · `family` · `copy` |
 | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | as at the family resolution, since position is orthogonal to genealogy |
 | `genome_summary.json` | events as biology rather than rows, families born/surviving/died out, genes and chromosomes per genome, rearrangements and chromosome events by kind |
+| `links.tsv` | as at the family resolution; `target` can also name an extent, such as `loss_extent` |
 | `species_complete.nwk` | as at the family resolution |
 | `names.tsv` | as at the family resolution |
 | `conditioned_on` | as at the family resolution, and written when a rate or `transfer_to` was conditioned |
@@ -259,7 +260,7 @@ From Python: `.genomes` · `.node_genomes` (as at the family resolution, but eac
 **`Chromosome`** objects, each an `id`, a `topology`, and an ordered list of **`Gene`** objects with
 `id`, `family` and `strand`), `.gene_order(node)` (one node's layout gene by gene, as
 `(chromosome, position, strand, family, gene id)`), and `.rearrangements` · `.chromosome_events` ·
-`.gene_trees` · `.profiles` in memory.
+`.gene_trees` · `.profiles` · `.links` in memory.
 
 **`genome_events.tsv`**. The family resolution's five columns plus five more: `time` · `kind` ·
 `family` · `parents` · `children` · `chromosome` · `start` · `length` · `dest_chromosome` ·
