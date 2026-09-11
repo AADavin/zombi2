@@ -685,6 +685,21 @@ def resolve_family_rates(declared, run_rates):
     return fixed, driven
 
 
+def resolve_family_transfer_to(declared) -> dict[int, object]:
+    """Each declared family's own recipient rule, ``{family index: rule}``, checked by the resolver
+    the run's ``transfer_to`` goes through, so a family's rule takes every form the run's does. A
+    family that writes none is absent and keeps the run's rule. The family and ordered engines both
+    read their families' rules through this, so they accept and refuse the same ones."""
+    rules: dict[int, object] = {}
+    for i, spec in enumerate(declared):
+        if spec.transfer_to is not None:
+            try:
+                rules[i] = resolve_transfer_to(spec.transfer_to)
+            except ValueError as err:
+                raise ValueError(f"family {spec.name!r}'s transfer_to: {err}") from None
+    return rules
+
+
 #: the live gene-content driver reading a lineage's whole gene count, as `zombi2.joint` spells it
 LIVE_COUNT = "genomes:count"
 
@@ -1258,13 +1273,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     declared, module_map, planted_named = resolve_families(families, tree)
     family_names = [f.name for f in declared]
     # a family's own recipient rule, checked by the same resolver as the run's transfer_to
-    fam_transfer_to = {}
-    for i, spec in enumerate(declared):
-        if spec.transfer_to is not None:
-            try:
-                fam_transfer_to[i] = resolve_transfer_to(spec.transfer_to)
-            except ValueError as err:
-                raise ValueError(f"family {spec.name!r}'s transfer_to: {err}") from None
+    fam_transfer_to = resolve_family_transfer_to(declared)
     # what each family sets for itself; empty unless some family writes a rate, and then the engine
     # takes the path that sums those beside the run's (see `_family_weights`)
     # (a rate carrying a verb is kept apart, in `fam_driven`, and read per lineage — see `own_sums`)

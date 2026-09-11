@@ -52,7 +52,7 @@ In a joint run, a driver is named, and the name says which level it comes from:
 |---|---|---|---|
 | `duplication`, `transfer`, `loss`, `origination` | how often | genomes, every resolution | [Co1](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:genome_reduction--> |
 | a declared family's own `duplication`, `transfer`, `loss` | how often | genomes, family and ordered resolutions; Python only | — |
-| a declared family's own `transfer_to` | a choice | genomes, family resolution; Python only | — |
+| a declared family's own `transfer_to` | a choice | genomes, family and ordered resolutions; Python only | — |
 | `inversion`, `transposition`, `translocation`, `fission`, `fusion`, `chromosome_origination`, `chromosome_loss` | how often | genomes, ordered and nucleotide | [Co9](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_inversions--> |
 | `substitution` | how often | sequences | [Co10](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:climate_substitution--> |
 | `rate` (continuous), `switch` (discrete) | how often | traits | [Co11–Co12](https://aadavin.github.io/zombi2/gallery.html#conditioning)<!--gallery:driven--><!--gallery:trait_drives_trait--> |
