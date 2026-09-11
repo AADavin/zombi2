@@ -13,7 +13,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 - Ordered genomes take a declared family's own `transfer_to`, and a `transfer_to` that reads gene
   content in a joint run. A transferred segment goes only where every rule among its genes allows:
-  the rules' weights multiply, and a weight of 0 in any of them excludes that lineage.
+  the rules' weights multiply, and a weight of 0 in any of them excludes that lineage. (#432)
 - Ordered genomes take joint runs: with `joint=True` a rate or an extent can read
   `"genomes:<family>"`, `"genomes:count"` or `"genomes:module:<group>"`. A declared family can
   give its own duplication, transfer or loss rate, which applies to the segment an event covers, as
