@@ -11,6 +11,9 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
+- A family genome run writes `links.tsv`, one row per link it read from its own gene content:
+  `family` · `target` · `driver` · `modifier` · `mapping`. `result.links` holds the same rows,
+  `genomes.read_run()` reads them back, and a run with no link writes the header alone. (#429)
 - In a joint run, a rate or a `transfer_to` can read how complete a module is while the run grows,
   as `"genomes:module:<group>"`. Its value is the share of the group's families the lineage
   carries, from 0 to 1, and the group is the one named by `family(..., module=)`. (#428)
