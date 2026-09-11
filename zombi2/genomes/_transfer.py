@@ -20,10 +20,12 @@ All four rules work at **every** resolution — family, ordered and nucleotide. 
 once, so the three engines cannot drift apart in what they accept or in what they say when they
 refuse.
 
-The family resolution reads two things the others do not. In a ``joint=True`` run a weight can read
-gene content the run is building (``"genomes:<family>"``, ``"genomes:count"``); the family engine
-reads it off its own genomes when the transfer fires, so `prepare_transfer_to()` never sees it. And
-a declared family can carry its own rule, which the family engine uses for that family's copies.
+The family and ordered resolutions read two things the nucleotide resolution does not. In a
+``joint=True`` run a weight can read gene content the run is building (``"genomes:<family>"``,
+``"genomes:module:<group>"``, ``"genomes:count"``); each engine reads it off its own genomes when the
+transfer fires, so `prepare_transfer_to()` never sees it. And a declared family can carry its own
+rule, which the engine uses for that family's genes. An ordered segment can carry genes of several
+rules, and `recipient_index_all()` picks a recipient every one of them allows.
 """
 
 from __future__ import annotations
@@ -279,15 +281,45 @@ def recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_tra
     rejected event changes nothing (see `_do_transfer()`)."""
     if transfer_to == "uniform":
         return cand[int(rng.integers(len(cand)))]
+    weights = recipient_weights(tree, alive, cand, donor, t, transfer_to, depth, to_traj, groups)
+    total = sum(weights)
+    if total <= 0.0:
+        return None
+    return cand[_weighted_index(rng, weights, total)]
+
+
+def recipient_index_all(rng, tree, alive, cand, donor, t, rules, depth):
+    """Pick a recipient lineage index that **every** rule in ``rules`` allows, or ``None`` when none
+    does. ``rules`` holds ``(transfer_to, groups, to_traj)`` triples, each rule once.
+
+    A segment of an ordered genome can carry genes whose families have different recipient rules, and
+    it arrives whole (SPEC §6). Each rule's weights are multiplied, candidate by candidate, and then
+    normalised, so a weight of 0 in any rule means that lineage cannot receive the segment. A single
+    rule is `recipient_index()` exactly, draws included."""
+    if len(rules) == 1:
+        transfer_to, groups, to_traj = rules[0]
+        return recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_traj, groups)
+    weights = [1.0] * len(cand)
+    for transfer_to, groups, to_traj in rules:
+        weights = [w * x for w, x in zip(weights, recipient_weights(tree, alive, cand, donor, t,
+                                                                    transfer_to, depth, to_traj,
+                                                                    groups))]
+    total = sum(weights)
+    if total <= 0.0:
+        return None
+    return cand[_weighted_index(rng, weights, total)]
+
+
+def recipient_weights(tree, alive, cand, donor, t, transfer_to, depth, to_traj=None, groups=None):
+    """Each candidate's weight under one ``transfer_to`` rule, in the order of ``cand``, before they
+    are normalised. `recipient_index()` draws from them; a weight of 0 means "cannot receive"."""
+    if transfer_to == "uniform":
+        return [1.0] * len(cand)
     if isinstance(transfer_to, Clades):
         # topological, donor-conditioned: candidate k's weight is the kernel on (donor's clade, k's
         # clade), read from the precomputed membership map. A weight of 0 means "cannot receive".
         g_d = groups[donor]
-        weights = [transfer_to.between.weight(g_d, groups[alive[k]]) for k in cand]
-        total = sum(weights)
-        if total <= 0.0:
-            return None
-        return cand[_weighted_index(rng, weights, total)]
+        return [transfer_to.between.weight(g_d, groups[alive[k]]) for k in cand]
     if isinstance(transfer_to, Driven):
         # who receives: candidate k's weight is the mapping of the driver on lineage k right now,
         # normalised over the candidates. A weight of 0 means "cannot receive". A Between mapping is
@@ -295,14 +327,8 @@ def recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_tra
         # transfer between guilds exactly as Clades does between clades.
         if isinstance(transfer_to.mapping, Between):
             g_d = to_traj.value(donor, t)
-            weights = [transfer_to.mapping.weight(g_d, to_traj.value(alive[k], t)) for k in cand]
-        else:
-            weights = [transfer_to.mapping.multiplier(to_traj.value(alive[k], t), time=t)
-                       for k in cand]
-        total = sum(weights)
-        if total <= 0.0:
-            return None
-        return cand[_weighted_index(rng, weights, total)]
+            return [transfer_to.mapping.weight(g_d, to_traj.value(alive[k], t)) for k in cand]
+        return [transfer_to.mapping.multiplier(to_traj.value(alive[k], t), time=t) for k in cand]
     # Distance: patristic distance d(donor, x) = 2·(t − t_mrca); scale-free in the tree depth. Mark
     # the donor's ancestor end-times once, then climb each candidate to its first marked ancestor.
     anc = {}
@@ -321,8 +347,7 @@ def recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_tra
             q = tree.nodes[q].parent
         dists.append(2.0 * (t - anc[q]))
     dmin = min(dists)
-    weights = [math.exp(-transfer_to.decay * (d - dmin) / depth) for d in dists]  # dmin: softmax-stable
-    return cand[_weighted_index(rng, weights, sum(weights))]
+    return [math.exp(-transfer_to.decay * (d - dmin) / depth) for d in dists]  # dmin: softmax-stable
 
 
 def mean_root_to_tip(tree) -> float:

@@ -41,7 +41,9 @@ an event fires, so it changes how much that event takes and never how often one 
 ``transfer_to`` — who receives — is the third place a driver can sit, and the one that is **not** a
 rate: there the mapping's numbers are weights normalised across the candidate recipients, so they
 redistribute the same transfers rather than change how many happen (SPEC §5, a weight). Its
-four rules and the kernel that reads them are the family core's, shared through ``_transfer``.
+four rules and the kernel that reads them are the family core's, shared through ``_transfer``. A
+declared family can carry its own rule, and a transferred segment goes only where every rule among
+its genes allows (SPEC §6).
 """
 
 from __future__ import annotations
@@ -58,6 +60,7 @@ from ..params.conditioned import check_mapping_fires, names_a_live_level, resolv
 from ..rng import stream
 from ..params.parameter import Extent, as_extent
 from ..params.mapping import check_not_a_kernel
+from ..params.choice import Distance
 from ..params.driver import OnTime
 from ..params.evaluate import DRAWN, cell_name, describe, is_implemented, values_at_birth
 from ..params.connection import Driven, SetBy
@@ -66,11 +69,11 @@ from ..params.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
 from .chromosomes import ChromosomeEvent, chromosome_events_tsv, rearrangement_events_tsv
 from ..params.retired import check_no_retired_keywords
-from .family import (live_target, resolve_families, resolve_family_rates, resolve_live_drivers,
-                     resolve_max_family_size)
+from .family import (_LiveGeneContent, live_target, resolve_families, resolve_family_rates,
+                     resolve_family_transfer_to, resolve_live_drivers, resolve_max_family_size)
 from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
-                        resolve_transfer_to)
+                        recipient_index_all, resolve_transfer_to)
 from .._runtime.outputs import fresh_dirs, grouped_dir
 from .._runtime.summary import _stats, write_summary
 from .._runtime.progress import progress_bar
@@ -637,6 +640,22 @@ def _live_value(target, genome, counts):
     return "present" if counts[target] else "absent"
 
 
+class _LiveOrderedContent(_LiveGeneContent):
+    """The family resolution's `_LiveGeneContent` for ordered genomes, where a genome is a list of
+    chromosomes and the engine keeps no copy counts. A recipient rule reads it only when a transfer
+    fires, so each read counts the families of the lineage it asks about, from the genome as it is
+    then. ``gen`` and ``pos`` are the engine's own, changed in place as lineages enter and leave."""
+
+    def __init__(self, family: "int | tuple[int, ...] | None", gen, pos) -> None:
+        super().__init__(family, gen, pos, None)
+
+    def value(self, node_id: int, time: float) -> object:
+        genome = self._gen[self._pos[node_id]]
+        counts = (collections.Counter() if self._family is None else
+                  collections.Counter(g.family for chrom in genome for g in chrom.genes))
+        return _live_value(self._family, genome, counts)
+
+
 def _pick_gene(rng, gen, total_copies) -> tuple[int, int, int]:
     """A uniform global gene pick → ``(lineage k, chromosome index ci in gen[k], position j)``.
     Realises per-copy scope across the whole pool: every gene, in any chromosome of any lineage, is
@@ -986,7 +1005,7 @@ def _translocate(genome, ci, i, m, node, t, rearrangements, rng, inversion_proba
 
 def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, new_gene,
                  transfer_to, replacement, self_transfer, depth, cap=None,
-                 to_traj=None, groups=None) -> int:
+                 to_traj=None, groups=None, fam_choice=None) -> int:
     """The segment ``[jd, jd+m)`` on the donor's chromosome ``cdi`` transfers to a contemporaneous
     recipient chosen by ``transfer_to``: each gene ends → a continuation on the donor branch and a
     transferred copy on the recipient (a horizontal gene-tree edge). The run may wrap position 0 on a
@@ -1005,9 +1024,31 @@ def _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events, positions, ne
     position the run writes out, so a drop after it would leave the donor changed by an event that did
     not happen — the one thing the thinning argument says cannot occur. The pick consumes the rng and
     the anchoring does not, so drawing it first leaves the draw order, and every existing run,
-    untouched."""
+    untouched.
+
+    **A family's own rule.** ``fam_choice`` is ``{family id: (rule, groups, trajectory)}`` for the
+    families that carry their own ``transfer_to``. Every gene the segment covers carries its family's
+    rule or the run's, and the segment arrives whole, so a lineage can receive it only where every one
+    of those rules allows: their weights multiply, each rule once (see `recipient_index_all`). A
+    segment whose genes all carry one rule is picked by that rule alone, as before."""
     donor = alive[kd]
-    if transfer_to == "uniform":
+    rules = None
+    if fam_choice:
+        genes, size = gen[kd][cdi].genes, len(gen[kd][cdi].genes)
+        run_rule = (transfer_to, groups, to_traj)
+        # read before `_anchor`, so a segment that wraps a ring is read across position 0
+        covered = (fam_choice.get(genes[(jd + i) % size].family, run_rule) for i in range(m))
+        rules = list({id(rule[0]): rule for rule in covered}.values())   # each rule once
+        if len(rules) == 1:
+            (transfer_to, groups, to_traj), rules = rules[0], None
+    if rules is not None:
+        cand = [k for k in range(len(alive)) if self_transfer or k != kd]
+        if not cand:
+            return 0
+        kr = recipient_index_all(rng, tree, alive, cand, donor, t, rules, depth)
+        if kr is None:                                 # no lineage every rule allows — no-op (see above)
+            return 0
+    elif transfer_to == "uniform":
         # O(1) uniform recipient — the same single draw as recipient_index's
         # cand[rng.integers(len(cand))] over every alive lineage but the donor; the donor-skip is a
         # +1 index shift, so no O(alive) candidate list is built per transfer (see family._do_transfer).
@@ -1279,11 +1320,13 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     its inversion rate. An extent's modifier is read at the instant an event fires, so it changes how
     much a run takes and never how often one starts, and it adds no Gillespie breakpoint.
 
-    **Joint runs (gene content drives a rate).** With ``joint=True`` a rate or an extent can read the
-    gene content the run is building: ``"genomes:<family>"`` (whether a declared family is there),
-    ``"genomes:count"`` (how many genes the lineage has) or ``"genomes:module:<group>"`` (the share of
-    a module's families it carries), read on each lineage as the run goes. The factor belongs to the
-    lineage, so it composes with extents as a trait's does (SPEC §6).
+    **Joint runs (gene content drives a rate).** With ``joint=True`` a rate, an extent or
+    ``transfer_to`` can read the gene content the run is building: ``"genomes:<family>"`` (whether a
+    declared family is there), ``"genomes:count"`` (how many genes the lineage has) or
+    ``"genomes:module:<group>"`` (the share of a module's families it carries), read on each lineage
+    as the run goes. On a rate or an extent the factor belongs to the lineage, so it composes with
+    extents as a trait's does (SPEC §6). On ``transfer_to`` each candidate is weighted by its own
+    genome when the transfer fires.
 
     **A family's own rate.** ``families=[family("B", loss=0.8)]`` gives one family its own
     ``duplication``, ``transfer`` or ``loss``, fixed or read from a driver, as at the family
@@ -1292,6 +1335,15 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     rate of the genes it covers. With extents longer than one gene, a family's own rate decides where
     events start, not which genes they take: a family whose rate is 0 can still be removed by a
     segment that starts on a neighbour.
+
+    **A family's own transfer_to.** ``family("B", transfer_to=Recipients().weighted_by("genomes:A",
+    {"present": 20.0, "absent": 1.0}))`` gives one family its own recipient rule, in any form the
+    run's ``transfer_to`` takes, as at the family resolution. A transferred segment arrives whole, and
+    every gene it covers carries its family's rule or the run's. A lineage can receive the segment
+    only where every one of those rules allows: their weights multiply, each rule once, before they
+    are normalised. With the run's rule uniform, a segment carrying ``B`` keeps ``B``'s preference
+    exactly, unless it also carries a family with a rule of its own. A weight of 0 in any rule
+    excludes that lineage, and when no lineage is left the transfer does not happen.
 
     a per-family draw and a driven rate cannot be set in the same run: one weights lineages by a driver and
     the other weights the segment by what it covers.
@@ -1448,10 +1500,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 f"a family writes its own {key}, but the run's {key} is "
                 f"{run_scope.__name__}. The two are summed over the same genes, so both are "
                 f"counted per copy: write PerCopy for the run's {key}, or drop the family's.")
-    if any(f.transfer_to is not None for f in declared):
-        raise ValueError(
-            "a family with its own transfer_to is implemented at the family resolution and not yet "
-            "here. Declare the family without it, or run at resolution='family'.")
+    # a family's own recipient rule, checked by the same resolver as the run's transfer_to
+    fam_transfer_to = resolve_family_transfer_to(declared)
 
     # The growth guard, as at the family resolution: duplication compounds, so a run whose rate sits
     # above its loss rate — or a family that drew a high a per-family draw factor — multiplies without bound
@@ -1478,11 +1528,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     live_rate_mods = [m for mods in (*driven.values(), fam_rate_driven) for m in mods
                       if names_a_live_level(m.driver)]
     live_ext_mods = [m for mods in ext_driven.values() for m in mods if names_a_live_level(m.driver)]
-    if isinstance(transfer_to, Driven) and names_a_live_level(transfer_to.driver):
-        raise ValueError(
-            "a transfer_to that reads gene content during the run is implemented at the family "
-            "resolution and not yet here. Run at resolution='family' for it.")
+    # A recipient rule reading live gene content is read when a transfer fires. It is checked with the
+    # rates' live drivers and makes the run joint too, but it moves no rate (see `prepare_transfer_to`).
+    live_choices = [r for r in (transfer_to, *fam_transfer_to.values())
+                    if isinstance(r, Driven) and names_a_live_level(r.driver)]
     resolve_live_drivers([*live_rate_mods, *live_ext_mods], set(family_names), joint=joint,
+                         choice_mods=live_choices,
                          modules={name: len(members) for name, members in (module_map or {}).items()})
     by_key: dict = {}                   # driver key → its Driven (deduped: one driver resolves once)
     for mods in (*driven.values(), *ext_driven.values(), fam_rate_driven):
@@ -1516,7 +1567,28 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # transfer_to is a weight, not a rate, so its trajectory must not join `trajs` and start adding
     # horizon breakpoints. `resolved` doubles as the driver cache, so a trait that drives both a rate
     # and who receives is loaded once and read from one trajectory.
-    group_of, to_traj = prepare_transfer_to(tree, transfer_to, resolved, level="genomes.ordered")
+    def prepare_choice(rule):
+        """``(groups, trajectory)`` for a recipient rule. A rule reading live gene content has nothing
+        to prepare here: its reader is built once the family ids and the genomes exist (below)."""
+        if isinstance(rule, Driven) and names_a_live_level(rule.driver):
+            return None, None
+        return prepare_transfer_to(tree, rule, resolved, level="genomes.ordered")
+
+    group_of, to_traj = prepare_choice(transfer_to)
+    # A family's rule that equals the run's rule, or an earlier family's, is replaced by that rule, so
+    # a segment carrying both counts it once (see `_do_transfer`). A name or a `Distance` is the same
+    # rule when it is equal; any other rule only when it is the same object, as elsewhere in the
+    # grammar one object read twice is one reading.
+    choices: list[tuple] = [(transfer_to, group_of, to_traj)]
+    fam_choice_prepared: dict[int, tuple] = {}
+    for i, rule in fam_transfer_to.items():
+        same = next((c for c in choices if c[0] is rule
+                     or (isinstance(rule, (str, Distance)) and type(c[0]) is type(rule) and c[0] == rule)),
+                    None)
+        if same is None:
+            same = (rule, *prepare_choice(rule))
+            choices.append(same)
+        fam_choice_prepared[i] = same
 
     rng, seed = stream("genomes", seed)     # own stream, and a drawn seed if none was given
     copy_counter = 0
@@ -1638,6 +1710,18 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     live_rate_reads = [(src, live_target(src, named, module_map or {})) for src in live_rate_keys]
     live_ext_reads = [(src, live_target(src, named, module_map or {})) for src in live_ext_keys]
     live_reads_any = bool(live_rate_reads or live_ext_reads)
+
+    # Recipient rules that read live gene content get their reader now, when the family ids and the
+    # genomes exist. A family's own rule is keyed by the id the family was given, which is what each
+    # of its genes carries.
+    def with_reader(choice):
+        rule, groups_c, traj_c = choice
+        if isinstance(rule, Driven) and names_a_live_level(rule.driver):
+            traj_c = _LiveOrderedContent(live_target(rule.driver, named, module_map or {}), gen, pos)
+        return rule, groups_c, traj_c
+
+    transfer_to, group_of, to_traj = with_reader((transfer_to, group_of, to_traj))
+    fam_choice = {named[declared[i].name]: with_reader(c) for i, c in fam_choice_prepared.items()}
 
     # eleven bare numbers on their default scopes — no modifier on any rate, none on any extent,
     # no per-lineage budget — is the common run, and it needs none of the loop's context machinery:
@@ -1889,7 +1973,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                         total_copies += _do_transfer(rng, tree, alive, gen, kd, cdi, jd, m, t, events,
                                                      event_positions, new_gene, transfer_to,
                                                      replacement, self_transfer, depth, cap,
-                                                     to_traj, group_of)
+                                                     to_traj, group_of, fam_choice)
                 elif r < b_inv:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "inversion", inv_ext,
                                              _ext_ctx, w.get("inversion"),
@@ -2002,7 +2086,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
     bar.close()
-    links = links_of({**_rates, **_extents}, transfer_to, declared, fam_driven_rates, {},
+    links = links_of({**_rates, **_extents}, transfer_to, declared, fam_driven_rates, fam_transfer_to,
                      module_map or {})
     return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
                                 named, module_map, event_positions, initial_genome, links)
