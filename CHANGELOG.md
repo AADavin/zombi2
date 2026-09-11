@@ -13,7 +13,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 - In a joint run, a rate or a `transfer_to` can read how complete a module is while the run grows,
   as `"genomes:module:<group>"`. Its value is the share of the group's families the lineage
-  carries, from 0 to 1, and the group is the one named by `family(..., module=)`.
+  carries, from 0 to 1, and the group is the one named by `family(..., module=)`. (#428)
 - `family()` accepts `transfer_to`, a recipient rule for that family's copies alone, in any form the
   run's `transfer_to` takes. In a joint run a `transfer_to`, the run's or a family's, can be weighted
   by whether each candidate lineage carries a declared family, as
