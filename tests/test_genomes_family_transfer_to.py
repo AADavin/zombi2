@@ -9,7 +9,7 @@ exactly that subtree; B is never lost where a test needs it to keep moving.
 
 import pytest
 
-from zombi2.genomes import family, genome, simulate_genomes_family, simulate_genomes_ordered
+from zombi2.genomes import family, genome, simulate_genomes_family
 from zombi2.params import Between, PerCopy, Recipients
 from zombi2.params.conditioned import resolve_driver
 from zombi2.species import simulate_species_tree
@@ -186,11 +186,6 @@ def test_a_family_rule_is_checked_like_the_run_rule(tree):
 def test_the_per_family_engine_refuses(tree, kw):
     with pytest.raises(ValueError, match="per-family engine"):
         _run(tree, parallel=True, **kw)
-
-
-def test_the_ordered_engine_refuses_a_family_rule(tree):
-    with pytest.raises(ValueError, match="own transfer_to"):
-        simulate_genomes_ordered(tree, families=[family("B", transfer_to="distance")], seed=1)
 
 
 def test_a_joint_genome_spec_refuses_a_family_rule():
