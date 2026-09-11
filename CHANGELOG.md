@@ -33,7 +33,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 - Ordered genome runs keep a running count of each lineage's genes per family. The family-size cap,
   and every rate, extent or `transfer_to` that reads gene content, look a family up there instead
-  of reading whole genomes, which makes those runs faster. The output is unchanged.
+  of reading whole genomes, which makes those runs faster. The output is unchanged. (#434)
 
 ## [0.45.0] - 2026-09-10
 
