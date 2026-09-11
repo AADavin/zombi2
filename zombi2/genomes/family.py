@@ -30,7 +30,7 @@ from typing import ClassVar, TYPE_CHECKING
 
 
 from ..params.conditioned import check_mapping_fires, names_a_live_level, resolve_driver
-from ..params.mapping import check_not_a_kernel
+from ..params.mapping import Between, check_kernel_fires, check_not_a_kernel
 from ..rng import resolve_seed, stream
 from ..params.driver import OnTime
 from ..params.evaluate import DRAWN, describe, is_implemented, matches_declared, values_at_birth
@@ -686,8 +686,8 @@ LIVE_COUNT = "genomes:count"
 MAX_LIVE_COPIES = 2_000_000
 
 
-def resolve_live_drivers(mods, declared_names, *, joint: bool) -> list[str]:
-    """Validate the **live** drivers a run's rates read, and return their keys.
+def resolve_live_drivers(mods, declared_names, *, joint: bool, choice_mods=()) -> list[str]:
+    """Validate the **live** drivers a run reads, and return the keys of those its rates read.
 
     A live driver names gene content growing in this same run — ``"genomes:count"`` for a lineage's
     whole gene count, ``"genomes:<name>"`` for whether a declared family is there. That makes the run
@@ -695,43 +695,53 @@ def resolve_live_drivers(mods, declared_names, *, joint: bool) -> list[str]:
     A live name for **another** level (``"trait"``, ``"traits:<name>"``, ``"sequences:<name>"``) is a
     cross-level joint run, which is `zombi2.joint.simulate`'s job, so it is refused here by name.
 
+    ``mods`` are the rates' driven modifiers; ``choice_mods`` are the ``transfer_to`` weightings that
+    read live gene content, the run's or a declared family's own. Both are checked the same way, and
+    either one makes the run joint. Only the rates' keys come back: a ``transfer_to`` weight is read
+    when a transfer fires and moves no rate, so it must not make the loop read rates per lineage.
+
     ``joint`` is the run's own declaration, and it is checked both ways. Asking for a joint run with
     nothing reading a live driver is as much a mistake as reading one without saying so.
     """
-    keys = []
-    for m in mods:
+    def checked(m, verb: str) -> str:
         src = m.driver
         if not (src == LIVE_COUNT or src.startswith("genomes:")):
             raise ValueError(
-                f"scaled_by({src!r}, ...) names a level growing beside the run — the joint spelling "
+                f"{verb}({src!r}, ...) names a level growing beside the run — the joint spelling "
                 f"of a driver (SPEC §5) — and this function simulates genomes alone: the live names "
                 f'it reads are its own gene content, "genomes:count" or "genomes:<family>". A '
                 f"genome and another level driving each other are simulated together — "
                 f"joint.simulate(genomes.genome(...), traits.discrete(...) or sequences.gene(...), "
                 f"tree=...). To read a level grown EARLIER, pass its result or the file it wrote, "
                 f"which is conditioning.")
-        if src == LIVE_COUNT:
-            check_mapping_fires(m.mapping, {0}, driver_label=f"the driver {src!r}")
-        else:
+        states: set = {0}
+        if src != LIVE_COUNT:
             name = src.split(":", 1)[1]
             if name not in declared_names:
                 raise ValueError(
-                    f'scaled_by("{src}", ...) reads family {name!r}, which this run does not declare '
+                    f'{verb}("{src}", ...) reads family {name!r}, which this run does not declare '
                     f"— add families=[…, family({name!r})]. Declared: {sorted(declared_names)}.")
-            check_mapping_fires(m.mapping, {"present", "absent"},
-                                driver_label=f"the driver {src!r}", exhaustive=True)
-        keys.append(src)
-    if keys and not joint:
+            states = {"present", "absent"}
+        label = f"the driver {src!r}"
+        if isinstance(m.mapping, Between):     # a transfer_to weight over (donor, recipient) states
+            check_kernel_fires(m.mapping, states, driver_label=label)
+        else:
+            check_mapping_fires(m.mapping, states, driver_label=label, exhaustive=src != LIVE_COUNT)
+        return src
+
+    keys = [checked(m, "scaled_by") for m in mods]
+    read = keys + [checked(m, "weighted_by") for m in choice_mods]
+    if read and not joint:
         raise ValueError(
-            f"a rate reads {sorted(set(keys))}, which is gene content this same run is producing, so "
-            f"the run is joint — neither the driver nor what it drives can be finished first. Say so "
-            f"with joint=True. To read gene content grown by an EARLIER run instead, pass that run's "
-            f"presence(...) rather than a name, which is conditioning.")
-    if joint and not keys:
+            f"a rate or transfer_to reads {sorted(set(read))}, which is gene content this same run is "
+            f"producing, so the run is joint — neither the driver nor what it drives can be finished "
+            f"first. Say so with joint=True. To read gene content grown by an EARLIER run instead, pass "
+            f"that run's presence(...) rather than a name, which is conditioning.")
+    if joint and not read:
         raise ValueError(
             "joint=True says two things in this run drive each other, but no rate reads live gene "
-            'content. Give a rate a scaled_by("genomes:<family>", …) or scaled_by("genomes:count", …), '
-            "or drop joint=True.")
+            'content, and no transfer_to does. Give a rate a scaled_by("genomes:<family>", …), a '
+            'transfer_to a Recipients().weighted_by("genomes:<family>", …), or drop joint=True.')
     return keys
 
 
@@ -919,6 +929,31 @@ class _FamilyCounts:
         return counts
 
 
+class _LiveGeneContent:
+    """Gene content read off the genomes the run is building, in the shape a recipient rule reads a
+    driver: ``value(lineage, time)``, where the lineage is a species node id.
+
+    `recipient_index` weighs each candidate by ``to_traj.value(node, t)``, and for a finished driver
+    that is a `DriverTrajectory` built before the run. A ``transfer_to`` weighted by
+    ``"genomes:<family>"`` or ``"genomes:count"`` asks the same question of this run's own genomes,
+    so this answers it from the live copy counts: ``"present"`` or ``"absent"`` for a family, the
+    number of copies for the count. It holds the engine's own genome list, lineage index and counts,
+    which the engine changes in place, so each read sees the genomes as they are when the transfer
+    fires."""
+
+    def __init__(self, family: int | None, gen, pos, counts) -> None:
+        self._family, self._gen, self._pos, self._counts = family, gen, pos, counts
+
+    def value(self, node_id: int, time: float) -> object:
+        k = self._pos[node_id]
+        if self._family is None:
+            return len(self._gen[k])
+        return "present" if self._counts.holds(k, self._family) else "absent"
+
+    def states(self) -> set:
+        return {0} if self._family is None else {"present", "absent"}
+
+
 def _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events, new_copy,
                  transfer_to, replacement, self_transfer, depth, to_traj=None, cap=None,
                  groups=None) -> tuple[int, int | None]:
@@ -1062,6 +1097,11 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     candidate weighs 0 the transfer does not happen (see `_do_transfer()`). The two driven arguments are
     independent and may be used together or apart.
 
+    In a ``joint=True`` run the driver can also be gene content the run is building:
+    ``Recipients().weighted_by("genomes:A", {"present": 20.0, "absent": 1.0})`` weighs each candidate
+    by whether it carries ``A`` when the transfer fires. A declared family can give its own
+    ``transfer_to`` (see `family()`), which is used for its copies instead of the run's.
+
     ``parallel`` opts into a **separate** engine that evolves the families concurrently, one per worker
     process — the families are independent (a transfer roams a copy across lineages but never mixes two
     families), so it enumerates every family's origination first and then evolves each on its own. It is
@@ -1161,6 +1201,14 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # every named family, from the one list that declares them
     declared, module_map, planted_named = resolve_families(families, tree)
     family_names = [f.name for f in declared]
+    # a family's own recipient rule, checked by the same resolver as the run's transfer_to
+    fam_transfer_to = {}
+    for i, spec in enumerate(declared):
+        if spec.transfer_to is not None:
+            try:
+                fam_transfer_to[i] = resolve_transfer_to(spec.transfer_to)
+            except ValueError as err:
+                raise ValueError(f"family {spec.name!r}'s transfer_to: {err}") from None
     # what each family sets for itself; empty unless some family writes a rate, and then the engine
     # takes the path that sums those beside the run's (see `_family_weights`)
     # (a rate carrying a verb is kept apart, in `fam_driven`, and read per lineage — see `own_sums`)
@@ -1209,7 +1257,13 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # trajectory; the second is read off the live genome as the loop goes.
     live_mods = [m for m in all_mods if names_a_live_level(m.driver)]
     file_mods = [m for m in all_mods if not names_a_live_level(m.driver)]
-    live_keys = resolve_live_drivers(live_mods, set(family_names), joint=joint)
+    # A transfer_to weighted by live gene content is read when a transfer fires, off the genomes the
+    # run is building. It is checked with the rates' live drivers and makes the run joint too, but it
+    # stays out of `live_keys`, because it moves no rate (see `prepare_transfer_to`).
+    live_choices = [r for r in (transfer_to, *fam_transfer_to.values())
+                    if isinstance(r, Driven) and names_a_live_level(r.driver)]
+    live_keys = resolve_live_drivers(live_mods, set(family_names), joint=joint,
+                                     choice_mods=live_choices)
     # driver key → its Driven (deduped, so a driver shared across rates resolves once);
     # the modifier rather than the driver itself, because the driver's step rides on the modifier
     by_key: dict[object, "Driven"] = {}
@@ -1231,7 +1285,16 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     # adding horizon breakpoints (see prepare_transfer_to). `resolved` is passed along as the driver
     # cache, so a driver shared between a rate and transfer_to is loaded once.
     trajs = dict(resolved)
-    group_of, to_traj = prepare_transfer_to(tree, transfer_to, resolved, level="genomes.family")
+
+    def prepare_choice(rule):
+        """``(groups, trajectory)`` for a recipient rule. A rule reading live gene content has nothing
+        to prepare here: its reader is built once the family ids and the genomes exist (below)."""
+        if isinstance(rule, Driven) and names_a_live_level(rule.driver):
+            return None, None
+        return prepare_transfer_to(tree, rule, resolved, level="genomes.family")
+
+    group_of, to_traj = prepare_choice(transfer_to)
+    fam_choice_prepared = {i: (rule, *prepare_choice(rule)) for i, rule in fam_transfer_to.items()}
 
     # Parallel is a *separate* engine (opt-in): families are independent, so it evolves them one per
     # process (SPEC-style — serial by default). `stream_to` takes the same engine one step further —
@@ -1247,14 +1310,14 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             "outputs applies to a streamed run (stream_to=DIR), which writes the files itself; for an "
             "in-memory run choose them when you call result.write(outputs=...).")
     seed = resolve_seed(seed)     # drawn if none was given, so either engine below records it
-    if (parallel or stream_to is not None) and live_keys:
+    if (parallel or stream_to is not None) and (live_keys or live_choices):
         # The one thing that engine's whole design rests on: a family's history depends on no other
         # family, so each can be evolved alone. A rate reading the genome's own content is exactly
         # that dependence, so this is a refusal rather than a fallback.
         raise ValueError(
             "a joint genome run cannot use the per-family engine (parallel= / stream_to=), which "
             "evolves each family in its own process because families do not affect each other. A "
-            "rate reading live gene content is that effect. Drop parallel / stream_to.")
+            "rate or transfer_to reading live gene content is that effect. Drop parallel / stream_to.")
     if (parallel or stream_to is not None) and planted_named:
         # Pass 1 of that engine enumerates every family's origination up front, seeding the declared
         # ones at the root; a family that arrives partway down is not in that enumeration, and
@@ -1272,6 +1335,11 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             "a family writing its own rate cannot run on the per-family engine (parallel= / "
             "stream_to=), which builds one set of rates for the whole run and evolves each family "
             "against it. Drop parallel / stream_to, or give every family the run's rate.")
+    if (parallel or stream_to is not None) and fam_transfer_to:
+        raise ValueError(
+            "a family with its own transfer_to cannot run on the per-family engine (parallel= / "
+            "stream_to=), which builds one recipient rule for the whole run and evolves each family "
+            "against it. Drop parallel / stream_to, or give every family the run's transfer_to.")
     if parallel or stream_to is not None:
         from ._perfamily import run_parallel_family
         result = run_parallel_family(
@@ -1445,6 +1513,22 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         _tables.update({key + _FIXED: m for key, m in fam_fixed.items()})
     weights = _FamilyWeights(_tables, gen) if any_family else None
     counts = _FamilyCounts(gen)      # the family cap's question, answered without walking a genome
+
+    # Recipient rules that read live gene content get their reader now, when the family ids, the
+    # genomes and the copy counts all exist. A family's own rule is keyed by the id the family was
+    # given, because that id is what a copy carries when it is picked to move.
+    def live_reader(rule):
+        src = rule.driver
+        return _LiveGeneContent(None if src == LIVE_COUNT else named[src.split(":", 1)[1]],
+                                gen, pos, counts)
+
+    if isinstance(transfer_to, Driven) and names_a_live_level(transfer_to.driver):
+        to_traj = live_reader(transfer_to)
+    fam_choice: dict[int, tuple] = {}
+    for i, (rule, groups_i, traj_i) in fam_choice_prepared.items():
+        if isinstance(rule, Driven) and names_a_live_level(rule.driver):
+            traj_i = live_reader(rule)
+        fam_choice[named[declared[i].name]] = (rule, groups_i, traj_i)
 
     # four bare numbers — the per-copy trio and a per-lineage origination, no modifier on any rate,
     # no family writing its own — is the common run, and it needs none of the loop's context
@@ -1647,9 +1731,14 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                         jd = int(rng.integers(len(gen[kd])))
                     else:
                         kd, jd = _pick_copy(rng, gen, n)
+                    choice, choice_groups, choice_traj = transfer_to, group_of, to_traj
+                    if fam_choice:  # the moving copy's family may have a recipient rule of its own
+                        own_choice = fam_choice.get(gen[kd][jd].family)
+                        if own_choice is not None:
+                            choice, choice_groups, choice_traj = own_choice
                     delta, kr = _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events,
-                                             new_copy, transfer_to, replacement, self_transfer,
-                                             depth, to_traj, cap, group_of)
+                                             new_copy, choice, replacement, self_transfer,
+                                             depth, choice_traj, cap, choice_groups)
                     total_copies += delta
                     if weights is not None and kr is not None:
                         weights.touched(kr)   # only the recipient's composition changed (see there)
@@ -1787,9 +1876,10 @@ def genome(*, duplication=0.0, loss=0.0, origination=0.0, transfer=0.0,
         if not isinstance(spec, GeneFamily):
             raise TypeError(
                 f"families takes gene-family declarations — families=[family('toxin')] — got {spec!r}.")
-        if spec.written() or spec.origin is not None:
+        if spec.written() or spec.origin is not None or spec.transfer_to is not None:
             raise ValueError(
-                f"family {spec.name!r} sets rates or an origin, which a joint genome does not read: "
+                f"family {spec.name!r} sets rates, a transfer_to or an origin, which a joint genome does "
+                f"not read: "
                 f"the tree is being simulated with it, so every family runs at this spec's rates. "
                 f"Declare it by name alone — family({spec.name!r}).")
     fams = tuple(f.name for f in declared)
@@ -1820,6 +1910,9 @@ class GeneFamily:
     origin: object = None
     #: the named group this family belongs to, read back by ``result.completion(...)``
     module: "str | None" = None
+    #: who receives this family's transfers, in any form the run's ``transfer_to`` takes; ``None`` for
+    #: the run's own rule
+    transfer_to: object = None
 
     #: the three events a family may set for itself. Origination is not one of them: it is the rate at
     #: which families are *created*, so when it is read this family does not exist to have a rate.
@@ -1830,8 +1923,8 @@ class GeneFamily:
         return {k: getattr(self, k) for k in self.KEYS if getattr(self, k) is not None}
 
 
-def family(name=None, *, duplication=None, transfer=None, loss=None, origin=None,
-           module=None) -> GeneFamily:
+def family(name=None, *, duplication=None, transfer=None, loss=None, transfer_to=None,
+           origin=None, module=None) -> GeneFamily:
     """Declare **one gene family** by name, optionally with rates of its own (`GeneFamily`)::
 
         simulate_genomes_family(tree, initial_families=100, duplication=0.2, loss=0.25, seed=1,
@@ -1858,6 +1951,18 @@ def family(name=None, *, duplication=None, transfer=None, loss=None, origin=None
     ``joint=True``. ``varying_among`` is refused on a family's own rate, because it varies a rate
     among many families.
 
+    ``transfer_to`` says who receives this family's transfers, in any form the run's ``transfer_to``
+    takes, and every other family keeps the run's. Weighted by another family's presence during the
+    run, it makes this family's copies arrive more often in lineages that carry the other family::
+
+        families=[family("A"),
+                  family("B", transfer_to=Recipients().weighted_by("genomes:A",
+                                                                   {"present": 20.0, "absent": 1.0}))],
+        joint=True
+
+    When ``B`` is transferred, a lineage that carries ``A`` weighs 20 and a lineage without it weighs
+    1. The weights decide which lineage receives a transfer, not how often ``B`` is transferred.
+
     Origination takes no per-family value: it is the rate at which families are *created*, so when it
     is read this family does not exist yet to have one.
     """
@@ -1871,7 +1976,7 @@ def family(name=None, *, duplication=None, transfer=None, loss=None, origin=None
     # normalising here keeps `resolve_origins` the one place a lineage and a time are checked
     if origin is not None and not isinstance(origin, (tuple, list)):
         origin = (origin, None)
-    return GeneFamily(name, duplication, transfer, loss, origin, module)
+    return GeneFamily(name, duplication, transfer, loss, origin, module, transfer_to)
 
 
 __all__ = ["simulate_genomes_family", "FamilyGenomesResult", "GeneCopy", "FamilyGenome", "genome",
