@@ -531,10 +531,11 @@ def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events
 #: the outputs a streamed run can produce and their top-level filenames — the same names the in-memory
 #: ``FamilyGenomesResult.write`` uses. Gene trees are the exception: one Newick pair per family under a
 #: ``gene_trees/`` subdirectory, so a million families do not land as two million files in the run root.
-_STREAM_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees", "species_tree")
+_STREAM_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees", "species_tree",
+                   "links")
 _STREAM_FILENAMES = {"events": "genome_events.tsv", "profiles": "profiles.tsv",
                      "genomes": "genomes.tsv", "initial_genome": "initial_genome.tsv",
-                     "species_tree": "species_complete.nwk"}
+                     "species_tree": "species_complete.nwk", "links": "links.tsv"}
 _DEFAULT_STREAM_OUTPUTS = _STREAM_OUTPUTS
 
 #: families per streamed chunk — **fixed**, independent of the worker count, so a chunk is a contiguous
@@ -718,6 +719,12 @@ def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_fam
     if "species_tree" in outputs:
         with open(os.path.join(out_dir, "species_complete.nwk"), "w", encoding="utf-8") as f:
             f.write(tree.to_newick() + "\n")
+    # This engine refuses every run that reads its own gene content, so a streamed run has no link.
+    # Its table is the header alone, written so the directory holds the same files `.write` gives.
+    if "links" in outputs:
+        from .links import links_tsv
+        with open(os.path.join(out_dir, "links.tsv"), "w", encoding="utf-8") as f:
+            f.write(links_tsv(()))
 
     chunks = [per_family[i:i + _STREAM_CHUNK] for i in range(0, n_families, _STREAM_CHUNK)]
     tasks = list(enumerate(chunks))
