@@ -6,8 +6,9 @@ other direction of the same relation: a trait can already make a genome rate fas
 lets a genome make a trait's rate faster.
 
 **This module is the conditioned half only** — a family whose history is already finished, replayed
-into a later run. The same question asked of a run still growing is spelled ``"genomes:<family>"``
-and lives elsewhere: `zombi2.joint` for a family driving another *level*, and
+into a later run. The same question asked of a run still growing is spelled ``"genomes:<family>"``,
+and a module's completion ``"genomes:module:<group>"``. Both live elsewhere: `zombi2.joint` for a
+family driving another *level*, and
 `zombi2.genomes.family.resolve_live_drivers` for a family driving the **same genome run**, which is
 ``simulate_genomes_family(..., joint=True)``. One question, two execution orders (SPEC §2); pass a
 `presence` object and the run is conditioned, write the name and it is joint.
