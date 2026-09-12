@@ -236,7 +236,8 @@ def test_a_lineage_the_engine_did_not_mark_reads_what_it_read_before(tree, check
 
 def test_the_check_catches_an_unmarked_lineage(tree, checked_rows, monkeypatch):
     """With the marking removed the rows go stale, and the check says so — so it is not vacuous."""
-    monkeypatch.setattr(ordered._LineageRows, "touched", lambda self, k: None)
+    monkeypatch.setattr(ordered._LineageRows, "touched",
+                        lambda self, k, genome: self._count(k, genome))   # counts kept, row unmarked
     with pytest.raises(AssertionError, match="differs from a fresh one"):
         _run(tree, origination=0.3, loss=PerCopy(0.5).scaled_by("genomes:A", HALF_WITH),
              joint=True, families=[family("A")])

@@ -107,17 +107,29 @@ class WeightedIndex:
         """One candidate drawn in proportion to its weight, walking down from the root. Takes the
         same single ``rng.random()`` draw `weighted_index` takes, so the two are interchangeable in
         the random stream."""
-        r = float(rng.random()) * self._tree[1]
+        return self.find(float(rng.random()) * self._tree[1])[0]
+
+    def find(self, j: float) -> tuple[int, float]:
+        """Where the cumulative position ``j``, in ``[0, total)``, falls: the candidate it lands in
+        and what is left of ``j`` inside it — the same answer a left-to-right walk of the weights
+        gives, which is what lets it stand in for one.
+
+        With the weights as **counts** this is a uniform element of the pool they count: draw
+        ``j`` uniformly below the total and this says which candidate holds the ``j``-th element and
+        which of its own it is. Counts are whole numbers, so the arithmetic is exact and the element
+        is the one the walk would have reached.
+        """
         tree, cap = self._tree, self._cap
         i = 1
         while i < cap:
             i *= 2
             left = tree[i]
-            if r >= left:
-                r -= left
+            if j >= left:
+                j -= left
                 i += 1
         k = i - cap
-        return k if k < self._n else self._n - 1   # the r == total guard, as `weighted_index` has
+        # the j == total guard, as `weighted_index` has: the last candidate takes it
+        return (k, j) if k < self._n else (self._n - 1, j)
 
     def _double(self) -> None:
         """Twice the room, the leaves carried over and the tree above them laid again."""

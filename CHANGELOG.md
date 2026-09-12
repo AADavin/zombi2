@@ -20,6 +20,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   15% faster, and the saving grows with the tree. A draw lands on the lineage it landed on before; the
   total is the same sum added in a different order, so a few event times can differ in their last
   digit.
+- An ordered genome run finds the lineage a uniform gene or chromosome pick landed on from the
+  living lineages' counts, rather than by walking the lineages. This is the pick a run with no
+  weighted rate makes at every event: a plain run of 800 extant genomes is about twice as fast, and
+  its cost per event no longer grows with the tree. The output is unchanged.
 
 ## [0.46.0] - 2026-09-12
 
