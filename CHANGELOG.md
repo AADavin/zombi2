@@ -35,6 +35,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   changes with time. A family's rate is remembered by the driver values it reads, and only the rates
   that follow a schedule are asked when they next change. A run with 200 declared families, each with
   its own duplication, transfer and loss, is about twice as fast. The output is unchanged.
+- A joint ordered run brings a lineage's rates up to date from what an event changed — the families
+  whose copy number moved, and the families whose own rate reads a driver that moved — instead of
+  going back over every declared family the lineage carries. A run with 200 declared families, each
+  with its own duplication, transfer and loss, is about 4 times faster. The sums are now taken by
+  subtracting and adding what changed, so event times can differ in their last digit.
 
 ## [0.46.0] - 2026-09-12
 
