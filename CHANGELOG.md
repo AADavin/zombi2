@@ -15,6 +15,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   each event class, its per-family draws and its summed own rates — and rebuilds only the lineages an
   event changed, instead of every lineage at every step. A run of 100 extant genomes with 20 declared
   families is about 12 times faster, and the saving grows with the tree. The output is unchanged.
+- A genome run keeps the living lineages' weights in a tree, so a step reads their total and an event
+  draws the acting lineage without walking every lineage. A driven run of 800 extant genomes is about
+  15% faster, and the saving grows with the tree. A draw lands on the lineage it landed on before; the
+  total is the same sum added in a different order, so a few event times can differ in their last
+  digit.
 
 ## [0.46.0] - 2026-09-12
 
