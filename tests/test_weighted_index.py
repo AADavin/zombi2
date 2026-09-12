@@ -82,3 +82,31 @@ def test_it_grows_past_its_first_capacity():
     w = _of(range(1, 130))
     assert len(w) == 129 and w.total == pytest.approx(129 * 130 / 2)
     assert list(w) == [float(i) for i in range(1, 130)]
+
+
+# --- the same tree read as counts: which lineage holds the j-th element ---------------------------
+# A uniform pick over the whole gene or chromosome pool used to walk the lineages subtracting each
+# one's count. `find` answers the same question from the tree, and counts are whole numbers, so it
+# reaches the element the walk reached.
+
+def _walk(counts, j):
+    """The walk `find` replaces: the lineage the j-th element falls in, and its offset inside it."""
+    for k, c in enumerate(counts):
+        if j < c:
+            return k, j
+        j -= c
+    raise AssertionError("j is past the end")
+
+
+@pytest.mark.parametrize("counts", [
+    [5], [0, 3, 0, 7], [1, 1, 1, 1, 1], [12, 0, 0, 40, 3, 9, 1], list(range(1, 30)),
+], ids=["one", "with empty ones", "all equal", "mixed", "many"])
+def test_find_reaches_the_element_the_walk_reached(counts):
+    w = _of(counts)
+    for j in range(sum(counts)):
+        assert w.find(float(j)) == _walk(counts, j)
+
+
+def test_find_on_a_pool_of_one_lineage_is_the_offset_itself():
+    w = _of([9])
+    assert [w.find(float(j)) for j in range(9)] == [(0, float(j)) for j in range(9)]
