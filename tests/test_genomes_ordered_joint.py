@@ -10,6 +10,7 @@ import collections
 
 import pytest
 
+import zombi2.genomes.ordered as ordered
 from zombi2.genomes import family, simulate_genomes_ordered
 from zombi2.genomes.links import Link
 from zombi2.params import Extent, Fixed, LogNormal, PerCopy, PerLineage
@@ -161,6 +162,38 @@ def test_a_family_rate_sits_beside_a_per_family_draw(tree, clade):
 def test_a_family_rate_needs_a_per_copy_run_rate(tree):
     with pytest.raises(ValueError, match="counted per copy"):
         _run(tree, loss=PerLineage(0.5), families=[family("B", loss=1.0)])
+
+
+# --- the shortcut the engine takes when it sums a family's own rates ------------------------------
+# Every gene carries a rate, and a lineage's total is their sum. The engine adds up only the families
+# that write their own rate, and takes every other gene at the run's rate, which is the lineage's
+# whole weight less what those families hold. `_CHECK_OWN_SUMS` compares that against adding the
+# families up one by one, which is the same number.
+
+@pytest.fixture
+def checked_sums(monkeypatch):
+    monkeypatch.setattr(ordered, "_CHECK_OWN_SUMS", True)
+
+
+@pytest.mark.parametrize("kw", [
+    dict(loss=0.4, families=[family("B", loss=0.9)]),
+    dict(loss=0.4, transfer=0.3, families=[family("B", duplication=0.7, loss=0.0),
+                                           family("C", transfer=0.8)]),
+    dict(loss=0.4, joint=True, families=[family("A"), family("B", loss=PerCopy(0.9).scaled_by(
+        "genomes:A", ONLY_WITHOUT))]),
+    dict(duplication=PerCopy(0.2).varying_among("families", LogNormal(0.0, 0.5)), loss=0.4,
+         families=[family("B", loss=0.9), family("C", duplication=0.1)]),
+], ids=["one own rate", "three own rates", "own rate reads a family", "own rate beside a draw"])
+def test_the_summed_own_rates_match_the_family_by_family_sum(tree, checked_sums, kw):
+    g = _run(tree, **{"origination": 0.2, **kw})
+    assert sum(1 for e in g.edges if e.kind in ("duplication", "loss", "transfer")) > 10
+
+
+def test_the_check_catches_a_wrong_sum(tree, checked_sums, monkeypatch):
+    """A lineage weighed one gene too heavy is caught, so the comparison is not vacuous."""
+    monkeypatch.setattr(ordered, "_genome_size", lambda genome: 1 + sum(len(c.genes) for c in genome))
+    with pytest.raises(AssertionError, match="own-rate sum"):
+        _run(tree, loss=0.5, families=[family("B", loss=0.2)])
 
 
 # --- links.tsv -----------------------------------------------------------------------------------

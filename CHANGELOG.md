@@ -34,6 +34,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 - Ordered genome runs keep a running count of each lineage's genes per family. The family-size cap,
   and every rate, extent or `transfer_to` that reads gene content, look a family up there instead
   of reading whole genomes, which makes those runs faster. The output is unchanged. (#434)
+- A declared family's own duplication, transfer or loss at the ordered resolution is summed over the
+  families that write one, rather than over every family a lineage carries, which makes those runs
+  faster. A run produces the same events; a few event times can differ in their last digit, because
+  the same sum is now taken in a different order.
 
 ## [0.45.0] - 2026-09-10
 
