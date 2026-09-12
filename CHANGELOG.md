@@ -37,7 +37,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 - A declared family's own duplication, transfer or loss at the ordered resolution is summed over the
   families that write one, rather than over every family a lineage carries, which makes those runs
   faster. A run produces the same events; a few event times can differ in their last digit, because
-  the same sum is now taken in a different order.
+  the same sum is now taken in a different order. (#435)
 
 ## [0.45.0] - 2026-09-10
 
