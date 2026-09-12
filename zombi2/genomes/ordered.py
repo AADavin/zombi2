@@ -689,6 +689,108 @@ def _check_counts(gen, counts) -> None:
         raise AssertionError(f"running counts differ from the genomes at lineage index {k}")
 
 
+#: Tests set this to rebuild every lineage's row from scratch at every step and check it against the
+#: row the engine kept (see `_LineageRows`). Off in a real run, where it would cost the rebuild the
+#: rows are there to avoid.
+_CHECK_ROWS = False
+
+
+class _LineageRows:
+    """What a step reads **per living lineage**, kept beside ``gen`` and rebuilt one lineage at a time.
+
+    A run whose rates are driven reads every living lineage on its own: its driver values, its rate
+    for each event class, its per-family draws summed over its genes, and its summed own rates. Every
+    step used to build all of that for every lineage, so a step cost the living lineages times the
+    declared families, and a run's cost grew with the square of the tree — a joint run of 100 extant
+    genomes paid 50 times per event what a plain one pays, and twice that again at 200.
+
+    An event changes the gene content of one lineage, two when a transfer arrives, so no other row
+    can differ from the step before: the engine marks the ones it changed with `touched` and rebuilds
+    those alone. Time is the other thing a row reads, and it reads it only through schedules, whose
+    every breakpoint is already an instant the loop stops at — so crossing one marks every row
+    (`touched_all`) and nothing else has to.
+
+    The rows hold the same numbers the rebuild-everything step produced, so a run is byte-for-byte
+    what it was."""
+
+    def __init__(self, w_labels, fam_keys, own_keys) -> None:
+        self.drivers: list = []                      # each lineage's driver values, by driver name
+        self.w: dict[str, list] = {label: [] for label in w_labels}       # its driven rate, per class
+        self.fw: dict[str, list] = {key: [] for key in fam_keys}          # its per-family draws, summed
+        self.own_sums: dict[str, list] = {key: [] for key in own_keys}    # its summed own rates
+        self.own_units: dict[str, list] = {key: [] for key in own_keys}   # the run's rate on its genes
+        self.own_owned: dict[str, list] = {key: [] for key in own_keys}   # the own rates it carries
+        self._named = ([("drivers", self.drivers)]
+                       + [(f"w:{key}", row) for key, row in self.w.items()]
+                       + [(f"fw:{key}", row) for key, row in self.fw.items()]
+                       + [(f"own sum:{key}", row) for key, row in self.own_sums.items()]
+                       + [(f"own unit:{key}", row) for key, row in self.own_units.items()]
+                       + [(f"own rates:{key}", row) for key, row in self.own_owned.items()])
+        self._rows = [row for _, row in self._named]
+        self._stale: set[int] = set()
+        self._all = False
+
+    def __len__(self) -> int:
+        return len(self.drivers)
+
+    def entered(self) -> None:
+        """A lineage enters the alive set: a slot on every row, stale until the step builds it."""
+        for row in self._rows:
+            row.append(None)
+        self._stale.add(len(self.drivers) - 1)
+
+    def retired(self, k: int) -> None:
+        """Retire lineage ``k``, mirroring `_live.retire`'s swap-remove: the last lineage moves into
+        slot ``k``, and it brings its own staleness with it."""
+        last = len(self.drivers) - 1
+        for row in self._rows:
+            row[k] = row[last]
+            row.pop()
+        moved_stale = last in self._stale
+        self._stale.discard(last)
+        self._stale.discard(k)
+        if moved_stale and k != last:
+            self._stale.add(k)
+
+    def touched(self, k: int) -> None:
+        """Lineage ``k``'s gene content changed, so its row has to be built again."""
+        self._stale.add(k)
+
+    def touched_all(self) -> None:
+        """Time moved past a breakpoint, so every row has to be built again. A flag rather than every
+        index, because a run stops at a breakpoint far more often than it reads the rows."""
+        self._all = True
+
+    def take_stale(self):
+        """The rows to build now. They count as current the moment they are handed over, so a caller
+        that takes them must build every one."""
+        if self._all:
+            self._all = False
+            self._stale = set()
+            return range(len(self.drivers))
+        stale, self._stale = self._stale, set()
+        return stale
+
+    def snapshot(self) -> tuple[list[list], set[int]]:
+        """Every row as it stands, and the lineages already marked, for `_CHECK_ROWS` to compare a
+        full rebuild against."""
+        marked = set(range(len(self.drivers))) if self._all else set(self._stale)
+        return [list(row) for row in self._rows], marked
+
+    def check_against(self, before: tuple[list[list], set[int]]) -> None:
+        """Raise when a row the engine **kept** differs from the one a full rebuild just produced —
+        which is the claim the rows rest on: a lineage the engine did not mark reads what it read
+        before. A lineage it did mark is skipped (a marked row is meant to change), and so is a slot
+        that had never been built."""
+        rows, marked = before
+        for (name, row), old in zip(self._named, rows):
+            for k, (now, then) in enumerate(zip(row, old)):
+                if k not in marked and then is not None and now != then:
+                    raise AssertionError(
+                        f"the kept {name} row differs from a fresh one at lineage index {k}: "
+                        f"{then!r} was kept, {now!r} is what the lineage now reads")
+
+
 class _LiveOrderedContent(_LiveGeneContent):
     """The family resolution's `_LiveGeneContent` for ordered genomes, where a genome is a list of
     chromosomes. A recipient rule reads it when a transfer fires, from the running counts as they are
@@ -1096,13 +1198,18 @@ def _translocate(genome, ci, i, m, node, t, rearrangements, rng, inversion_proba
 
 def _do_transfer(rng, tree, alive, gen, counts, kd, cdi, jd, m, t, events, positions, new_gene,
                  transfer_to, replacement, self_transfer, depth, cap=None,
-                 to_traj=None, groups=None, fam_choice=None) -> int:
+                 to_traj=None, groups=None, fam_choice=None) -> tuple[int, int | None]:
     """The segment ``[jd, jd+m)`` on the donor's chromosome ``cdi`` transfers to a contemporaneous
     recipient chosen by ``transfer_to``: each gene ends → a continuation on the donor branch and a
     transferred copy on the recipient (a horizontal gene-tree edge). The run may wrap position 0 on a
     circular donor chromosome. The transferred copies arrive as a block at a random position on a
-    uniformly-chosen recipient chromosome (strands travel with them). Returns the change in total gene
-    count: ``+m`` additive, minus one per homologous copy displaced under ``replacement``.
+    uniformly-chosen recipient chromosome (strands travel with them).
+
+    Returns the change in total gene count — ``+m`` additive, minus one per homologous copy displaced
+    under ``replacement`` — and the **recipient's index**, which is the one lineage whose gene content
+    this changed, so the caller can mark its row (`_LineageRows`). The donor's is not changed: the
+    segment it sends is replaced in place by continuations of the same families. A transfer that
+    no-ops returns ``(0, None)``.
 
     **No eligible recipient ⇒ nothing happens.** Under a `Clades` kernel or a driven ``transfer_to``
     a candidate at weight 0 cannot receive, and at some instants that is every candidate. The event is
@@ -1135,33 +1242,33 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, cdi, jd, m, t, events, posit
     if rules is not None:
         cand = [k for k in range(len(alive)) if self_transfer or k != kd]
         if not cand:
-            return 0
+            return 0, None
         kr = recipient_index_all(rng, tree, alive, cand, donor, t, rules, depth)
         if kr is None:                                 # no lineage every rule allows — no-op (see above)
-            return 0
+            return 0, None
     elif transfer_to == "uniform":
         # O(1) uniform recipient — the same single draw as recipient_index's
         # cand[rng.integers(len(cand))] over every alive lineage but the donor; the donor-skip is a
         # +1 index shift, so no O(alive) candidate list is built per transfer (see family._do_transfer).
         npool = len(alive) if self_transfer else len(alive) - 1
         if npool <= 0:
-            return 0
+            return 0, None
         i = int(rng.integers(npool))
         kr = i if (self_transfer or i < kd) else i + 1
     else:  # the weighted rules (Distance / Clades / Driven) weigh every candidate — O(alive)
         cand = [k for k in range(len(alive)) if self_transfer or k != kd]
         if not cand:                                   # the uniform branch's npool guard, restated
-            return 0
+            return 0, None
         kr = recipient_index(rng, tree, alive, cand, donor, t, transfer_to, depth, to_traj, groups)
         if kr is None:                                 # every candidate weighs 0 — no-op (see above)
-            return 0
+            return 0, None
     recipient = alive[kr]
     rgenome = gen[kr]
     jd = _anchor(gen[kd][cdi], jd, m)
     segment = gen[kd][cdi].genes[jd:jd + m]
     carried = [g.family for g in segment]
     if _run_over_cap(counts.of(kr), carried, cap):      # the recipient is full: same thinning
-        return 0
+        return 0, None
     conts = [new_gene(g.family, g.strand) for g in segment]
     xfers = [new_gene(g.family, g.strand) for g in segment]
     gen[kd][cdi].genes[jd:jd + m] = conts               # continuations replace the segment on the donor
@@ -1203,7 +1310,7 @@ def _do_transfer(rng, tree, alive, gen, counts, kd, cdi, jd, m, t, events, posit
                             replaced=replaced))
         events.append(GeneEdge(t, "transfer", recipient, old.family, xf.id, parent=old.id,
                             recipient=recipient, donor=donor, replaced=replaced))
-    return delta
+    return delta, kr
 
 
 # --- the chromosome events: they change chromosome number (the network dynamics) ------------------
@@ -1798,6 +1905,21 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     initial_genome = tuple(Chromosome(c.id, c.topology, list(c.genes)) for c in initial_chroms)
     enter(alive, gen, pos, root.id, initial_chroms)
     counts = _GeneCounts(gen)       # genes per family on every living lineage, changed with the genomes
+    # What a step reads per lineage, kept across steps so a step rebuilds only the lineages an event
+    # changed (`_LineageRows`). A run with no driven rate, no per-family draw and no own rate reads
+    # nothing per lineage, and then the rows are there only to count the living lineages.
+    driven_rates = {label: rate for label, rate in _rates.items() if driven[label]}
+    any_rows = any_driven or any_family or any_written
+    rows = _LineageRows(driven_rates if any_driven else (),
+                        fam_mult if any_family else (), own_keys if any_written else ())
+    for _ in gen:
+        rows.entered()
+    # one entry per event class whose families write their own rate, reading the rows as they stand:
+    # the lineage's summed rates to draw it by, and `table(k)` for the rate of each of its genes
+    own_pick = {key: (rows.own_sums[key],
+                      _own_table(rows.own_units[key], rows.own_owned[key],
+                                 fam_mult[key] if any_family else None))
+                for key in (own_keys if any_written else ())}
     # a family given an `origin` is not in the root genome — it arrives later, in the loop
     total_copies = initial_families + len(family_names) - len(named_plants)
     total_chromosomes = n_initial_chrom
@@ -1858,7 +1980,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             # is inf), and nothing below reads a context or a weight.
             w = no_weights
             fw = None
-            own_pick: dict = {}
+            own_pick = {}
             r_dup = dup_base * n
             r_los = los_base * n
             r_tra = tra_base * n if can_xfer else 0.0
@@ -1882,24 +2004,82 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 gene_ctx = {**ctx, "lineages": len(gene_hosts)}
             else:
                 gene_hosts, gene_ctx = None, ctx
-            # A driven rate differs from lineage to lineage, so it is summed **over the living
-            # lineages**, each read with its own driver value, its own gene count and its own
-            # chromosome count — and the weights are kept, because the affected lineage must then
-            # be drawn with them too. The gene count sits inside the weight, which is what makes a
-            # driven per-copy rate a two-stage pick (a lineage, then a gene in it) rather than the
-            # one-stage lineage draw a per-lineage rate takes. A per-family draw and a Driven
-            # cannot both be set, so `w` and `fw` never coexist.
-            w = {}
-            if any_driven:
-                drivers = [{**{key: trajs[key].value(alive[k], t) for key in trajs},
-                            **{src: _live_value(target, gen[k], counts.of(k))
-                               for src, target in live_rate_reads}}
-                           for k in range(k_alive)]
-                for label, rate in _rates.items():
-                    if driven[label]:
-                        w[label] = [rate.effective(copies=_genome_size(gen[k]), lineages=1,
-                                                   chromosomes=len(gen[k]), time=t, drivers=drivers[k])
-                                    for k in range(k_alive)]
+            # Every number below reads one lineage on its own, so the step rebuilds the rows of the
+            # lineages an event changed and reads the rest as they stand (`_LineageRows`).
+            if any_rows:
+                if _CHECK_ROWS:
+                    kept = rows.snapshot()   # the rows, and which of them are already marked
+                    rows.touched_all()
+                for k in rows.take_stale():
+                    genome = gen[k]
+                    if any_driven:
+                        # A driven rate differs from lineage to lineage, so it is summed **over the
+                        # living lineages**, each read with its own driver value, its own gene count
+                        # and its own chromosome count — and the weights are kept, because the
+                        # affected lineage must then be drawn with them too. The gene count sits
+                        # inside the weight, which is what makes a driven per-copy rate a two-stage
+                        # pick (a lineage, then a gene in it) rather than the one-stage lineage draw
+                        # a per-lineage rate takes. A per-family draw and a Driven cannot both be
+                        # set, so `w` and `fw` never coexist.
+                        values = {**{key: trajs[key].value(alive[k], t) for key in trajs},
+                                  **{src: _live_value(target, genome, counts.of(k))
+                                     for src, target in live_rate_reads}}
+                        rows.drivers[k] = values
+                        size, n_chrom = _genome_size(genome), len(genome)
+                        for label, rate in driven_rates.items():
+                            rows.w[label][k] = rate.effective(copies=size, lineages=1,
+                                                              chromosomes=n_chrom, time=t,
+                                                              drivers=values)
+                    if any_family:
+                        # A per-copy rate pools over genes, so with per-family weights the total is
+                        # the unit rate times those weights summed over the live genes — and the run
+                        # must then be drawn with the same weights, or the rate would say one thing
+                        # and the picking another. Summed per lineage, so the lineage pick can reuse
+                        # them. On a circular chromosome ``Σ_s mean_w(s, m)`` is exactly this sum for
+                        # every run size, which is why no per-size term appears here (SPEC §6).
+                        for key, mult in fam_mult.items():
+                            rows.fw[key][k] = sum(mult[g.family] for chrom in genome
+                                                  for g in chrom.genes)
+                    if any_written:
+                        # A family's own rate (SPEC §6): every gene carries a rate, its family's own
+                        # when the family writes one and the run's otherwise, and an event's total is
+                        # their sum. The acting lineage is drawn by its genes' summed rates and the
+                        # segment by the mean rate of the genes it covers, through the path the
+                        # per-family draws take.
+                        #
+                        # The sum runs over the families that write their own rate, which are declared
+                        # and so few. Every other gene carries the run's rate, so their share is the
+                        # lineage's whole weight — its gene count, or its summed per-family draws —
+                        # less what the writing families hold.
+                        held = counts.of(k)
+                        dk: dict[str, Any] = {"drivers": rows.drivers[k]} if any_driven else {}
+                        for key in own_keys:
+                            own_mult = fam_mult[key] if any_family else None
+                            unit = _rates[key].effective(copies=1, lineages=1, chromosomes=1,
+                                                         time=t, **dk)
+                            own_rates = {fam: value for fam, value in fam_fixed_by_id[key].items()
+                                         if held[fam]}
+                            for fam, own_rate in fam_driven_by_id[key].items():
+                                if held[fam]:
+                                    own_rates[fam] = own_rate.effective(copies=1, lineages=1,
+                                                                        chromosomes=1, time=t, **dk)
+                            # the lineage's whole weight for this event: its summed per-family draws
+                            # where the run has them, its gene count otherwise (`fw` is built exactly
+                            # when they are)
+                            run_share = float(rows.fw[key][k] if any_family
+                                              else _genome_size(genome))
+                            written = 0.0
+                            for fam, value in own_rates.items():
+                                run_share -= held[fam] * (own_mult[fam] if own_mult is not None
+                                                          else 1.0)
+                                written += held[fam] * value
+                            rows.own_sums[key][k] = unit * run_share + written
+                            rows.own_units[key][k] = unit
+                            rows.own_owned[key][k] = own_rates
+                if _CHECK_ROWS:
+                    rows.check_against(kept)
+            w = rows.w
+            fw = rows.fw if any_family else None
 
             def _r(label, pooled, live=True):
                 """The total for one event class: summed per-lineage when driven, pooled when not."""
@@ -1907,16 +2087,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     return 0.0
                 return sum(w[label]) if label in w else pooled
 
-            # A per-copy rate pools over genes, so with per-family weights the total is the unit rate
-            # times those weights summed over the live genes — and the run must then be drawn with the
-            # same weights, or the rate would say one thing and the picking another. Summed per lineage,
-            # so the lineage pick can reuse them. On a circular chromosome ``Σ_s mean_w(s, m)`` is exactly
-            # this sum for every run size, which is why no per-size term appears here (SPEC §6).
-            fw = None
-            if any_family:
-                fw = {key: [sum(mult[g.family] for chrom in gen[k] for g in chrom.genes)
-                            for k in range(k_alive)]
-                      for key, mult in fam_mult.items()}
+            if fw is not None:   # the run draws per family: the same test as `any_family`
                 one = {"copies": 1, "lineages": 1, "chromosomes": 1, "time": t}
                 r_dup = dup.effective(**one) * sum(fw["duplication"]) if n else 0.0
                 r_los = los.effective(**one) * sum(fw["loss"]) if n else 0.0
@@ -1939,55 +2110,17 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                            live=bool(n))
                 r_trl = _r("translocation", trl.effective(**_gc("translocation")) if n else 0.0,
                            live=bool(n))
-            own_pick = {}
             if any_written:
-                # A family's own rate (SPEC §6): every gene carries a rate, its family's own when the
-                # family writes one and the run's otherwise, and an event's total is their sum. The
-                # acting lineage is drawn by its genes' summed rates and the segment by the mean rate of
-                # the genes it covers, through the path the per-family draws take.
-                #
-                # The sum runs over the families that write their own rate, which are declared and so
-                # few. Every other gene carries the run's rate, so their share is the lineage's whole
-                # weight — its gene count, or its summed per-family draws — less what the writing
-                # families hold. A step then costs the living lineages times those few families,
-                # rather than times every family a lineage carries.
-                sizes = [] if any_family else [_genome_size(gen[k]) for k in range(k_alive)]
-                for key in own_keys:
-                    if key == "transfer" and not can_xfer:
-                        continue
-                    rate, fixed_k, driven_k = _rates[key], fam_fixed_by_id[key], fam_driven_by_id[key]
-                    mult = fam_mult[key] if any_family else None
-                    # the lineage's whole weight for this event: its summed per-family draws where the
-                    # run has them, its gene count otherwise (`fw` is built exactly when they are)
-                    drawn = fw[key] if any_family and fw is not None else None
-                    sums, units, owned = [], [], []
-                    for k in range(k_alive):
-                        held = counts.of(k)
-                        dk: dict[str, Any] = {"drivers": drivers[k]} if any_driven else {}
-                        unit = rate.effective(copies=1, lineages=1, chromosomes=1, time=t, **dk)
-                        own_rates = {fam: value for fam, value in fixed_k.items() if held[fam]}
-                        for fam, own_rate in driven_k.items():
-                            if held[fam]:
-                                own_rates[fam] = own_rate.effective(copies=1, lineages=1,
-                                                                    chromosomes=1, time=t, **dk)
-                        run_share = float(drawn[k] if drawn is not None else sizes[k])
-                        written = 0.0
-                        for fam, value in own_rates.items():
-                            run_share -= held[fam] * (mult[fam] if mult is not None else 1.0)
-                            written += held[fam] * value
-                        sums.append(unit * run_share + written)
-                        units.append(unit)
-                        owned.append(own_rates)
-                    own_pick[key] = (sums, _own_table(units, owned, mult))
-                    if _CHECK_OWN_SUMS:
-                        _check_own_sums(sums, [counts.of(k) for k in range(k_alive)],
-                                        own_pick[key][1])
+                if _CHECK_OWN_SUMS:
+                    held_now = [counts.of(k) for k in range(k_alive)]
+                    for key in own_keys:
+                        _check_own_sums(own_pick[key][0], held_now, own_pick[key][1])
                 if "duplication" in own_pick:
                     r_dup = sum(own_pick["duplication"][0])
                 if "loss" in own_pick:
                     r_los = sum(own_pick["loss"][0])
                 if "transfer" in own_pick:
-                    r_tra = sum(own_pick["transfer"][0])
+                    r_tra = sum(own_pick["transfer"][0]) if can_xfer else 0.0
             r_org = _r("origination", org.effective(**ctx))                 # per lineage
             r_fis = _r("fission", fis.effective(**ctx) if c else 0.0, live=bool(c))  # per chromosome
             r_fus = _r("fusion", fus.effective(**ctx) if c else 0.0, live=bool(c))
@@ -2056,6 +2189,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                             total_copies += _duplicate(gen[k][ci], j, m, tree.nodes[alive[k]], t,
                                                        events, event_positions, new_gene)
                             counts.added_all(k, copied)
+                            rows.touched(k)
                 elif r < b_los:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "loss", los_ext,
                                              _ext_ctx, w.get("loss"),
@@ -2067,6 +2201,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                         if _lose_at(gen[k][ci], j, m, tree.nodes[alive[k]], t, events, event_positions):
                             total_copies -= m
                             counts.removed_all(k, taken)
+                            rows.touched(k)
                 elif r < b_org:
                     # origination is per lineage: a uniform lineage, or one drawn by its own rate
                     # when that rate is driven (the same weights the total was summed with)
@@ -2075,6 +2210,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     counts.added(k, _originate(gen[k], tree.nodes[alive[k]], t, events, event_positions,
                                                new_gene, new_family, rng))
                     total_copies += 1
+                    rows.touched(k)
                 elif r < b_tra:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "transfer", tra_ext,
                                              _ext_ctx, w.get("transfer"),
@@ -2082,10 +2218,13 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                              own=own_pick.get("transfer"))
                     if picked is not None:                # driven: the weighted lineage is the DONOR
                         kd, cdi, jd, m = picked
-                        total_copies += _do_transfer(rng, tree, alive, gen, counts, kd, cdi, jd, m, t, events,
-                                                     event_positions, new_gene, transfer_to,
-                                                     replacement, self_transfer, depth, cap,
-                                                     to_traj, group_of, fam_choice)
+                        delta, kr = _do_transfer(rng, tree, alive, gen, counts, kd, cdi, jd, m, t,
+                                                 events, event_positions, new_gene, transfer_to,
+                                                 replacement, self_transfer, depth, cap,
+                                                 to_traj, group_of, fam_choice)
+                        total_copies += delta
+                        if kr is not None:   # the recipient's gene content changed, the donor's did not
+                            rows.touched(kr)
                 elif r < b_inv:
                     picked = _pick_event_run(rng, gen, n, fw, fam_mult, "inversion", inv_ext,
                                              _ext_ctx, w.get("inversion"),
@@ -2117,6 +2256,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                           new_chromosome, rng)
                         total_chromosomes += dc
                         total_copies += dg
+                        if dc or dg:
+                            rows.touched(k)
                 elif r < b_fus:
                     picked = _pick_chromosome(rng, gen, c, w.get("fusion"))
                     if picked is not None:
@@ -2125,6 +2266,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                          new_chromosome, rng)
                         total_chromosomes += dc
                         total_copies += dg
+                        if dc or dg:
+                            rows.touched(k)
                 elif r < b_cor:
                     # chromosome origination is per lineage, uniform or driven, exactly as origination
                     k = (weighted_index(rng, w["chromosome_origination"], r_cor)
@@ -2133,6 +2276,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                                    new_chromosome)
                     total_chromosomes += dc
                     total_copies += dg
+                    if dc or dg:
+                        rows.touched(k)
                 else:
                     picked = _pick_chromosome(rng, gen, c, w.get("chromosome_loss"))
                     if picked is not None:
@@ -2144,10 +2289,13 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                             counts.removed_all(k, taken)
                         total_chromosomes += dc
                         total_copies += dg
+                        if dc or dg:
+                            rows.touched(k)
                 continue
 
         if horizon == next_species:  # advance to the tree's next event(s); process the whole tie-batch
             t = next_species
+            rows.touched_all()           # time moved to a breakpoint: every row is read afresh
             while si < len(schedule) and schedule[si][0] == t:
                 i = schedule[si][1]
                 g = gen[pos[i]]
@@ -2155,6 +2303,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 total_copies -= sum(len(c.genes) for c in g)
                 total_chromosomes -= len(g)
                 inherited = counts.retired(pos[i])  # what the daughters below inherit, if any
+                rows.retired(pos[i])
                 retire(alive, gen, pos, pos[i])
                 node = tree.nodes[i]
                 if node.children:  # a speciation: re-mint every chromosome and gene id
@@ -2184,6 +2333,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                         cg = child_genomes[c]
                         enter(alive, gen, pos, c, cg)
                         counts.entered_like(inherited)   # a re-id of the parent: same families
+                        rows.entered()
                         total_copies += sum(len(ch.genes) for ch in cg)
                         total_chromosomes += len(cg)
                 si += 1
@@ -2193,6 +2343,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             # checked against that branch's own life), and a tie with the tree's schedule falls to
             # the branch above, so the daughters have entered by the time this runs.
             t = horizon
+            rows.touched_all()
             while plant_i < len(plants) and plants[plant_i][0] == t:
                 _, lineage, fam = plants[plant_i]
                 _originate(gen[pos[lineage]], tree.nodes[lineage], t, events, event_positions,
@@ -2202,6 +2353,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 plant_i += 1
         else:
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
+            rows.touched_all()
 
     bar.close()
     if _CHECK_COUNTS:
