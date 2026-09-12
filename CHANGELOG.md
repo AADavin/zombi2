@@ -9,6 +9,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- A joint run on a tree passed with `tree=` reads a declared family's own duplication, transfer and
+  loss, beside a discrete trait or a gene's sequence, and those rates can read the other level: one
+  family can be lost faster where a trait is on, and another where it is off. A joint run that grows
+  the tree still reads only a family's name, and its message now says so instead of giving the
+  growing tree as the reason when the tree was passed in. Reported by Alyssa Henderson in #437.
+
 ### Changed
 
 - A joint ordered genome run keeps what each living lineage reads — its driver values, its rate for

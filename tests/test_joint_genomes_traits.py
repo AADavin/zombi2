@@ -143,3 +143,162 @@ def test_a_genome_rate_takes_only_what_this_engine_threads():
                            loss=PerCopy(0.1).varying_among("families", LogNormal(0.0, 0.5))
                                             .scaled_by("trait", {"a": 2.0, "b": 1.0})),
             traits.discrete(states=["a", "b"], switch=0.2), tree=tree, seed=1)
+
+
+# --- a declared family's own rates (issue #437) ---------------------------------------------------
+# On a given tree the genome is a target as well as a driver, so a declared family can carry its own
+# duplication, transfer and loss, and those rates can read the trait. The checks use factors of 0, so
+# each is exact, and each first requires the event it is about to have happened.
+
+def _state_at(r, tree, lineage, time):
+    """The trait state on ``lineage`` at ``time``, read back from the run's own trait history."""
+    at = tree.nodes[lineage].birth_time
+    state = None
+    for state, duration in r.trait.history[lineage]:
+        if time < at + duration:
+            return state
+        at += duration
+    return state
+
+
+def test_the_run_in_issue_437_is_accepted():
+    """Alyssa Henderson's run, as she wrote it: a family whose loss reads the trait, on a tree passed
+    in. It used to be refused with a message about the tree being simulated."""
+    tree = species.simulate_species_tree(birth=1.0, n_extant=30, seed=1).complete_tree
+    r = joint.simulate(
+        genomes.genome(
+            initial_families=10, duplication=0.05, origination=0.0,
+            loss=PerCopy(0.30),
+            families=[family("A", loss=PerCopy(0.30).scaled_by(
+                "trait", {"on": 6.0, "off": 1.0}))]),
+        traits.discrete(states=["off", "on"], start="off",
+                        switch={"off->on": 0.1, "on->off": 0.1}),
+        tree=tree, seed=1)
+    assert "A" in r.genome.family_names
+
+
+def test_two_families_are_lost_in_opposite_states():
+    """The benchmark the issue asks for: one family lost only where the trait is on, another only where
+    it is off."""
+    tree = _tree(40, seed=3)
+    r = joint.simulate(
+        genomes.genome(duplication=0.4, origination=0.0, initial_families=10, loss=PerCopy(0.2),
+                       families=[family("on_only", loss=PerCopy(0.6).scaled_by(
+                                     "trait", {"on": 1.0, "off": 0.0})),
+                                 family("off_only", loss=PerCopy(0.6).scaled_by(
+                                     "trait", {"on": 0.0, "off": 1.0}))]),
+        traits.discrete(states=["off", "on"], start="off", switch={"off->on": 0.4, "on->off": 0.4}),
+        tree=tree, seed=4)
+    ids = r.genome.family_names
+    for name, allowed in (("on_only", "on"), ("off_only", "off")):
+        losses = [e for e in r.genome.edges if e.kind == "loss" and e.family == ids[name]]
+        assert losses, f"{name} was never lost"
+        assert {_state_at(r, tree, e.lineage, e.time) for e in losses} == {allowed}
+
+
+def test_a_family_whose_own_rates_are_zero_never_duplicates_or_leaves():
+    r = joint.simulate(
+        genomes.genome(duplication=0.3, transfer=0.3, loss=0.05, initial_families=15,
+                       families=[family("still", duplication=0.0, transfer=0.0), family("eye")]),
+        traits.discrete(states=["a", "b"],
+                        switch={"a->b": PerLineage(0.2).scaled_by("genomes:eye",
+                                                                  {"present": 1.0, "absent": 3.0}),
+                                "b->a": 0.2}),
+        tree=_tree(25), seed=6)
+    still = r.genome.family_names["still"]
+    kinds = collections.Counter(e.kind for e in r.genome.edges)
+    assert kinds["duplication"] and kinds["transfer"]
+    assert not [e for e in r.genome.edges if e.kind in ("duplication", "transfer") and e.family == still]
+
+
+def test_a_family_rate_can_read_another_family():
+    """B is never lost where A is present, and A is never lost, so B is never lost at all."""
+    r = joint.simulate(
+        genomes.genome(loss=0.3, initial_families=10,
+                       families=[family("A", loss=0.0),
+                                 family("B", loss=PerCopy(0.8).scaled_by(
+                                     "genomes:A", {"present": 0.0, "absent": 1.0}))]),
+        traits.discrete(states=["a", "b"],
+                        switch={"a->b": PerLineage(0.1).scaled_by("genomes:A",
+                                                                  {"present": 1.0, "absent": 2.0}),
+                                "b->a": 0.1}),
+        tree=_tree(20), seed=2)
+    b = r.genome.family_names["B"]
+    assert [e for e in r.genome.edges if e.kind == "loss"]
+    assert not [e for e in r.genome.edges if e.kind == "loss" and e.family == b]
+
+
+def test_a_family_rate_on_a_schedule_stops_where_the_schedule_does():
+    """The race has to stop at a family's own breakpoint: stepping over it would lose this family
+    after 0.5 at the rate it had before."""
+    r = joint.simulate(
+        genomes.genome(duplication=0.5, loss=0.05, initial_families=8,
+                       families=[family("early", loss=PerCopy(5.0).changing_at({0.0: 1.0, 0.5: 0.0})
+                                                  .scaled_by("trait", {"a": 1.0, "b": 1.0}))]),
+        traits.discrete(states=["a", "b"], switch=0.3),
+        tree=_tree(25), seed=3)
+    early = r.genome.family_names["early"]
+    losses = [e.time for e in r.genome.edges if e.kind == "loss" and e.family == early]
+    assert losses and max(losses) < 0.5
+
+
+def test_family_rates_keep_a_seed_reproducible():
+    run = lambda: joint.simulate(
+        genomes.genome(duplication=0.2, loss=PerCopy(0.2), initial_families=10,
+                       families=[family("A", loss=PerCopy(0.5).scaled_by("trait", {"on": 4.0, "off": 1.0}),
+                                        duplication=0.1)]),
+        traits.discrete(states=["off", "on"], switch={"off->on": 0.2, "on->off": 0.2}),
+        tree=_tree(20), seed=8)
+    a, b = run(), run()
+    assert [(e.time, e.kind, e.family) for e in a.genome.edges] == \
+           [(e.time, e.kind, e.family) for e in b.genome.edges]
+
+
+def test_genome_accepts_a_family_with_rates():
+    """Whether a family's rates are read is decided by the run, which knows whether the tree is given."""
+    spec = genomes.genome(families=[family("A", loss=0.3)])
+    assert spec.family_names == ("A",)
+
+
+def test_a_family_origin_or_transfer_to_is_refused_on_a_given_tree():
+    from zombi2.params import Recipients
+
+    tree = _tree(10)
+    trait = traits.discrete(states=["a", "b"], switch=0.2)
+    for declared, what in ((family("A", loss=PerCopy(0.2).scaled_by("trait", {"a": 2.0, "b": 1.0}),
+                                   origin=(tree.root, None)), "an origin"),
+                           (family("A", loss=PerCopy(0.2).scaled_by("trait", {"a": 2.0, "b": 1.0}),
+                                   transfer_to=Recipients().weighted_by("genomes:A",
+                                                                        {"present": 2.0, "absent": 1.0})),
+                            "a transfer_to")):
+        with pytest.raises(ValueError, match=f"sets {what}, which a joint run does not read"):
+            joint.simulate(genomes.genome(loss=0.1, families=[declared]), trait, tree=tree, seed=1)
+
+
+def test_a_growing_tree_still_reads_only_a_family_name():
+    with pytest.raises(ValueError, match="does not read: the gene content drives speciation"):
+        joint.simulate(
+            species.birth_death(birth=PerLineage(1.0).scaled_by("genomes:A", {"present": 2.0, "absent": 1.0}),
+                                n_extant=10),
+            genomes.genome(loss=0.1, families=[family("A", loss=0.3)]), seed=1)
+
+
+def test_a_family_rate_reading_an_undeclared_family_is_refused():
+    with pytest.raises(ValueError, match="family 'A''s loss reads 'genomes:Z'"):
+        joint.simulate(
+            genomes.genome(loss=0.1, families=[family("A", loss=PerCopy(0.2).scaled_by(
+                "genomes:Z", {"present": 2.0, "absent": 1.0}))]),
+            traits.discrete(states=["a", "b"],
+                            switch={"a->b": PerLineage(0.1).scaled_by("genomes:A",
+                                                                      {"present": 1.0, "absent": 2.0}),
+                                    "b->a": 0.1}),
+            tree=_tree(10), seed=1)
+
+
+def test_a_family_rate_needs_a_per_copy_run_rate():
+    with pytest.raises(ValueError, match="counted per copy"):
+        joint.simulate(
+            genomes.genome(loss=PerLineage(0.1),
+                           families=[family("A", loss=PerCopy(0.2).scaled_by("trait", {"a": 2.0, "b": 1.0}))]),
+            traits.discrete(states=["a", "b"], switch=0.2),
+            tree=_tree(10), seed=1)

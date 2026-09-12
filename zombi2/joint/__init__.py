@@ -317,6 +317,8 @@ def _simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None,
     else:
         if not isinstance(genome, FamilyGenome):
             raise TypeError("genome= must be genomes.genome(...) — a family-genome process spec.")
+        from ..genomes.family import check_joint_families
+        check_joint_families(genome.families, tree_given=False)
         if genome.transfer:
             raise ValueError(
                 "transfer is not available while the tree is being simulated: a transfer needs the "
@@ -447,6 +449,24 @@ def _on_a_given_tree(kinds, *, tree, seed) -> JointResult:
         for m in r.modifiers:
             if isinstance(m, Driven) and m.driver in trait_keys:
                 reads_trait = True
+    # a declared family's own rate is a genome rate too, so reading the trait there joins the levels;
+    # what else it may read is what this engine threads per lineage: the gene count and the presence of
+    # a declared family
+    for fam in genome.families:
+        for label, rate in fam.written().items():
+            for m in as_rate(rate, default_scope=PerLineage).modifiers:
+                if not isinstance(m, Driven):
+                    continue
+                if m.driver in trait_keys:
+                    reads_trait = True
+                elif not (m.driver == _GENOME_COUNT
+                          or (isinstance(m.driver, str) and m.driver.startswith("genomes:")
+                              and m.driver.split(":", 1)[1] in genome.family_names)):
+                    reads = " or ".join(f'"{key}"' for key in sorted(trait_keys))
+                    raise ValueError(
+                        f"family {fam.name!r}'s {label} reads {m.driver!r}. On a tree passed to a joint "
+                        f"run, a family's own rate reads the trait ({reads}), \"genomes:count\", or a "
+                        f"declared family, \"genomes:<name>\".")
     from ..traits.discrete import _switch_specs
     for spec in _switch_specs(trait.switch):
         if not isinstance(spec, (int, float)):
@@ -538,6 +558,18 @@ def _genomes_and_sequences(kinds, *, tree, genomes, seed, record=False) -> Joint
                     f'run: scaled_by("{gene_name}", Curve(f), step=0.05).')
             connections.append(m)
             lookup.add(m.key)
+    # a declared family's own rate is a genome rate too: it reads the gene on the same terms
+    for fam in genome.families:
+        for label, rate in fam.written().items():
+            for m in as_rate(rate, default_scope=PerCopy).modifiers:
+                if not isinstance(m, Driven):
+                    continue
+                if m.driver != gene_name:
+                    raise ValueError(
+                        f"family {fam.name!r}'s {label} reads {m.driver!r}. Here a genome rate reads the "
+                        f'gene in this same run: scaled_by("{gene_name}", Curve(f), step=0.05).')
+                connections.append(m)
+                lookup.add(m.key)
     if not connections:
         raise ValueError(
             "neither level reads the other, so this is two independent runs wearing one call. Give "
