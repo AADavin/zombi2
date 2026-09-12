@@ -30,6 +30,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   chance it had before — on a linear chromosome with segments longer than one gene, the chances near
   its ends differ slightly. A run with a family's own loss rate on genomes of 2400 genes is about 6
   times faster. The same seed gives a different run than it did before this change.
+- A joint ordered run with many declared families no longer recomputes every declared family's rate
+  on a lineage each time the lineage changes, nor asks every family's rate at every step whether it
+  changes with time. A family's rate is remembered by the driver values it reads, and only the rates
+  that follow a schedule are asked when they next change. A run with 200 declared families, each with
+  its own duplication, transfer and loss, is about twice as fast. The output is unchanged.
 
 ## [0.46.0] - 2026-09-12
 
