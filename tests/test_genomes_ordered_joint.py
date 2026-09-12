@@ -200,9 +200,10 @@ def test_the_check_catches_a_wrong_sum(tree, checked_sums, monkeypatch):
 
 
 # --- the rows the engine keeps between steps -----------------------------------------------------
-# A step reads each living lineage on its own, and rebuilds only the lineages the step before
-# changed. `_CHECK_ROWS` rebuilds every row at every step and compares the ones the engine kept
-# against it: a lineage the engine did not mark has to read exactly what it read before.
+# A step reads each living lineage on its own. It builds a lineage that has just entered whole, and
+# brings one it built before up to date from what changed in it — the families whose copy number
+# moved, and the families whose own rate reads a driver that moved. `_CHECK_ROWS` builds every row
+# whole after each step and compares it with what the engine kept: the two have to agree.
 
 @pytest.fixture
 def checked_rows(monkeypatch):
@@ -227,11 +228,66 @@ def checked_rows(monkeypatch):
     dict(loss=PerCopy(0.4).changing_at({0.0: 1.0, 0.3: 4.0}), joint=True,
          families=[family("A"), family("B", loss=PerCopy(0.9).scaled_by("genomes:A",
                                                                         ONLY_WITHOUT))]),
+    dict(joint=True, transfer=0.3, replacement=True, loss=0.2, max_family_size=4,
+         families=[family(f"p{i}", module=f"q{i // 3}", duplication=PerCopy(0.6), transfer=PerCopy(0.5),
+                          loss=PerCopy(0.4).scaled_by(f"genomes:module:q{i // 3}",
+                                                      lambda f: 0.3 if f == 1.0 else 1.0))
+                   for i in range(9)]
+                  + [family("reader", loss=PerCopy(0.5).scaled_by("genomes:p0", HALF_WITH)),
+                     family("counter", transfer=PerCopy(0.3).scaled_by(
+                         "genomes:count", lambda c: 1.0 if c < 20 else 0.4))]),
 ], ids=["a run rate reads a family", "an own rate reads a family", "a module, with replacement",
-        "chromosome events", "a per-family draw", "a rate on a schedule"])
-def test_a_lineage_the_engine_did_not_mark_reads_what_it_read_before(tree, checked_rows, kw):
+        "chromosome events", "a per-family draw", "a rate on a schedule", "PANDORA-like"])
+def test_every_row_the_engine_keeps_matches_a_whole_build(tree, checked_rows, kw):
     g = _run(tree, **{"origination": 0.3, **kw})
     assert sum(1 for e in g.edges if e.kind in ("duplication", "loss", "transfer")) > 10
+
+
+def test_the_check_catches_a_family_change_the_row_missed(tree, checked_rows, monkeypatch):
+    """With the record of what changed thrown away, a row brought up to date misses the families an
+    event moved, and the check says so — so bringing a row up to date is checked, not only building
+    one whole."""
+    monkeypatch.setattr(ordered._GeneCounts, "take_changed", lambda self, k: {})
+    with pytest.raises(AssertionError, match="differs from a fresh one"):
+        _run(tree, origination=0.3, loss=0.4, joint=True,
+             families=[family("A", module="m"),
+                       family("B", module="m", loss=PerCopy(0.9).scaled_by(
+                           "genomes:module:m", lambda f: 0.5 if f == 1.0 else 1.0))])
+
+
+def test_a_seed_gives_the_same_run_in_another_process():
+    """A row brought up to date adds what changed in an order the run fixes. Were that order a set's
+    of driver names, it would follow Python's hash seed, and the same seed would give a different run
+    in another process — so three processes with three hash seeds have to agree."""
+    import hashlib
+    import os
+    import pathlib
+    import subprocess
+    import sys
+    import textwrap
+
+    code = textwrap.dedent("""
+        import hashlib
+        from zombi2.genomes import family, simulate_genomes_ordered
+        from zombi2.params import PerCopy
+        from zombi2.species import simulate_species_tree
+        tree = simulate_species_tree(birth=1.0, death=0.2, n_extant=20, seed=3).complete_tree
+        fams = [family(f"f{i}", module=f"m{i // 4}", duplication=PerCopy(0.3), transfer=PerCopy(0.4),
+                       loss=PerCopy(0.3).scaled_by(f"genomes:module:m{i // 4}",
+                                                   lambda f: 0.5 if f == 1.0 else 1.0))
+                for i in range(12)]
+        g = simulate_genomes_ordered(tree, origination=1.0, duplication=0.1, loss=0.2, transfer=0.2,
+                                     initial_families=40, families=fams, joint=True, seed=9)
+        print(hashlib.sha256(repr([(e.time, e.kind, e.family) for e in g.edges]).encode()).hexdigest())
+    """)
+    root = pathlib.Path(__file__).resolve().parents[1]
+    digests = set()
+    for hash_seed in ("1", "2", "3"):
+        env = {**os.environ, "PYTHONHASHSEED": hash_seed, "PYTHONPATH": str(root)}
+        done = subprocess.run([sys.executable, "-c", code], env=env, cwd=root, capture_output=True,
+                              text=True, check=True)
+        digests.add(done.stdout.strip())
+    assert len(digests) == 1 and hashlib.sha256(b"").hexdigest() not in digests
 
 
 def test_the_check_catches_an_unmarked_lineage(tree, checked_rows, monkeypatch):
