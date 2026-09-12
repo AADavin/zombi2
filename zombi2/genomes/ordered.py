@@ -727,6 +727,7 @@ class _LineageRows:
         self.drivers: list = []                      # each lineage's driver values, by driver name
         self.own_units: dict[str, list] = {key: [] for key in own_keys}   # the run's rate on its genes
         self.own_owned: dict[str, list] = {key: [] for key in own_keys}   # the own rates it carries
+        self.own_largest: dict[str, list] = {key: [] for key in own_keys} # the largest rate a gene has
         # A weight a step totals and an event draws by is kept in a tree rather than a list, so
         # neither costs the living lineages (`WeightedIndex`).
         self.w = {label: WeightedIndex() for label in w_labels}           # its driven rate, per class
@@ -740,10 +741,12 @@ class _LineageRows:
         self._named = ([("drivers", self.drivers)]
                        + [(f"own unit:{key}", row) for key, row in self.own_units.items()]
                        + [(f"own rates:{key}", row) for key, row in self.own_owned.items()]
+                       + [(f"own largest:{key}", row) for key, row in self.own_largest.items()]
                        + [(f"w:{key}", row) for key, row in self.w.items()]
                        + [(f"fw:{key}", row) for key, row in self.fw.items()]
                        + [(f"own sum:{key}", row) for key, row in self.own_sums.items()])
-        self._rows = [self.drivers, *self.own_units.values(), *self.own_owned.values()]
+        self._rows = [self.drivers, *self.own_units.values(), *self.own_owned.values(),
+                      *self.own_largest.values()]
         self._weights = [*self.w.values(), *self.fw.values(), *self.own_sums.values(),
                          self.genes, self.chromosomes]
         self._stale: set[int] = set()
@@ -840,14 +843,32 @@ class _LiveOrderedContent(_LiveGeneContent):
 _CHECK_OWN_SUMS = False
 
 
+class _FamilyWeights(dict):
+    """Each family's drawn weight for one event class, keyed by family, and the largest drawn so far
+    (``largest``) — the bound `_gene_by_rate` keeps or turns down a gene against. Families only
+    arrive, so the largest only grows, and it is kept as they are written rather than looked for."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.largest = 0.0
+
+    def __setitem__(self, family: int, weight: float) -> None:
+        super().__setitem__(family, weight)
+        if weight > self.largest:
+            self.largest = weight
+
+
 class _OwnRates(dict):
     """One lineage's rate per gene, keyed by family: a family's own rate where it writes one, the
     run's rate on every other gene. The run's families are filled in as the genes are read, so a pick
-    touches only the families that lineage carries."""
+    touches only the families that lineage carries. ``largest`` bounds every rate in it, which is what
+    lets a gene be drawn by rejection (`_gene_by_rate`); 0 says nothing is known and the genome is
+    scored instead."""
 
-    def __init__(self, own, unit: float, mult) -> None:
+    def __init__(self, own, unit: float, mult, largest: float = 0.0) -> None:
         super().__init__(own)
         self._unit, self._mult = unit, mult
+        self.largest = largest
 
     def __missing__(self, family: int) -> float:
         value = self._unit * (self._mult[family] if self._mult is not None else 1.0)
@@ -855,11 +876,11 @@ class _OwnRates(dict):
         return value
 
 
-def _own_table(units, owned, mult):
+def _own_table(units, owned, mult, largest):
     """``table(k)`` → lineage ``k``'s rate per gene (an `_OwnRates`), built when an event picks that
     lineage rather than for every lineage at every step."""
     def table(k: int) -> _OwnRates:
-        return _OwnRates(owned[k], units[k], mult)
+        return _OwnRates(owned[k], units[k], mult, largest[k])
     return table
 
 
@@ -953,26 +974,78 @@ def _run_means(chrom, mult, m) -> list[float]:
     return out
 
 
-def _pick_run_by_family(rng, genome, mult, ext, ctx=None) -> tuple[int, int, int] | None:
+#: How many genes a rejection draw may try before scoring the genome is the cheaper way: one try per
+#: ``_GENES_PER_TRY`` genes, and at least ``_MIN_TRIES``. One try reads one gene and costs about what
+#: scoring 5 to 18 genes costs (measured on genomes of 500 and 3000 genes, on one and three
+#: chromosomes), so the limit stops before rejection could cost more than the scan it stands in for.
+_GENES_PER_TRY = 16
+_MIN_TRIES = 8
+
+
+def _pick_run_by_family(rng, genome, weights, ext, ctx=None) -> tuple[int, int, int] | None:
     """A run drawn with the per-family weight on the **segment**, not on its starting gene (SPEC §6).
 
     Returns ``(chromosome index, start, run size)``, or ``None`` when the genome has no genes to act
-    on. The size is drawn first, then the start in proportion to the run's **mean** weight: a run of
-    heavily-weighted genes is favoured, a mixed one sits in between, an ordinary one is unweighted.
-    Weighting the *starting* gene instead — the obvious implementation — would apply a family's own
-    rate to its **neighbours**, and the neighbourhood is reshuffled by every rearrangement, so the
-    parameter would not even name a fixed thing over a run.
+    on. The chance of a start is the **mean** weight of the run it opens: a run of heavily-weighted
+    genes is favoured, a mixed one sits in between, an ordinary one is unweighted. Weighting the
+    *starting* gene instead would apply a family's own rate to its **neighbours**, and the
+    neighbourhood is reshuffled by every rearrangement, so the parameter would not even name a fixed
+    thing over a run.
 
-    Drawing the size before the start is **exact on a circular chromosome**: there ``Σ_s mean_w(s, m)``
-    equals ``Σ_g w_g`` for every ``m``, so the total rate carries no per-size term and the two draws
-    factorise cleanly. On a **linear** chromosome the run is clamped by its start, so that identity
-    holds only approximately — the same edge effect, from the same cause, that clamping already gives
-    a linear run.
+    It is drawn **without scoring every start**. A start's chance is the summed weight of the genes
+    its run covers, and a gene is covered by the ``m`` runs of size ``m`` that start on it or up to
+    ``m - 1`` genes before it. So drawing one gene in proportion to its weight, and then one of the
+    runs covering it uniformly, gives every start exactly its share on a circular chromosome, where
+    every gene has ``m`` such runs. On a linear chromosome the genes within ``m`` of an end have fewer,
+    and the two draws differ because of them: not at all at the default size of one gene, and by 0.65%
+    of the probability for runs of 10 genes on a chromosome of 3000.
 
-    With uniform weights every mean is 1, the start pick is uniform and the size distribution is
-    untouched, so a run that sets no per-family weight is byte-identical to one taking the plain path.
+    The gene is drawn by rejection (`_gene_by_rate`), which reads a few genes rather than all of them.
+    Where the weights are so uneven that it runs out of tries, `_pick_run_by_scan` scores the genome
+    instead. Both draws are exact, so which one an event took changes nothing about the process —
+    only which random numbers it used.
     """
-    sums = [sum(mult[g.family] for g in c.genes) for c in genome]
+    size = _genome_size(genome)
+    if not size:
+        return None
+    largest = getattr(weights, "largest", 0.0)
+    gene = (_gene_by_rate(rng, genome, size, weights, largest,
+                          max(_MIN_TRIES, size // _GENES_PER_TRY)) if largest > 0.0 else None)
+    if gene is None:
+        return _pick_run_by_scan(rng, genome, weights, ext, ctx)
+    ci, j = gene
+    chrom = genome[ci]
+    n = len(chrom.genes)
+    m = min(max(1, int(ext.sample(rng, **(ctx or {})))), n)
+    if chrom.topology == "circular":
+        return ci, (j - int(rng.integers(m))) % n, m
+    first = max(0, j - m + 1)                 # the earliest start whose run still reaches gene j
+    start = first + int(rng.integers(j - first + 1))
+    return ci, start, min(m, n - start)
+
+
+def _gene_by_rate(rng, genome, size, weights, largest, tries) -> tuple[int, int] | None:
+    """One gene of ``genome`` drawn in proportion to its weight, as ``(chromosome index, position)``,
+    or ``None`` when all ``tries`` draws were turned down.
+
+    Rejection: a gene is drawn uniformly and kept with probability its weight over ``largest``, the
+    largest weight a gene of this genome can carry; otherwise another is drawn. A kept gene has
+    exactly the chance its weight gives it, however many were turned down before it. On average it
+    takes ``largest`` over the genome's mean weight draws: one when every gene weighs the same, seven
+    when a tenth of the genes weigh 20 times the rest."""
+    for _ in range(tries):
+        ci, j = _gene_in(genome, int(rng.integers(size)))
+        if float(rng.random()) * largest < weights[genome[ci].genes[j].family]:
+            return ci, j
+    return None
+
+
+def _pick_run_by_scan(rng, genome, weights, ext, ctx=None) -> tuple[int, int, int] | None:
+    """The draw `_pick_run_by_family` makes, made by scoring every start: the chromosome by its summed
+    weight, then the size, then the start by the mean weight of its run (`_run_means`). It reads
+    every gene, so it is taken only where rejection ran out of tries, or where a table says nothing
+    about its largest weight."""
+    sums = [sum(weights[g.family] for g in c.genes) for c in genome]
     total = sum(sums)
     if total <= 0.0:
         return None
@@ -980,7 +1053,7 @@ def _pick_run_by_family(rng, genome, mult, ext, ctx=None) -> tuple[int, int, int
     chrom = genome[ci]
     n = len(chrom.genes)
     m = min(max(1, int(ext.sample(rng, **(ctx or {})))), n)
-    means = _run_means(chrom, mult, m)
+    means = _run_means(chrom, weights, m)
     s = weighted_index(rng, means, sum(means))
     return ci, s, (m if chrom.topology == "circular" else min(m, n - s))
 
@@ -1837,7 +1910,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
               "transposition": tuple(m for m, _ in trp.carried_modifiers(unit="families")),
               "translocation": tuple(m for m, _ in trl.carried_modifiers(unit="families"))}
     any_family = any(fam_by.values())
-    fam_mult: dict[str, dict[int, float]] = {key: {} for key in fam_by}
+    fam_mult: dict[str, _FamilyWeights] = {key: _FamilyWeights() for key in fam_by}
 
     # Which gene-level rates are a fixed per-lineage budget rather than a per-gene risk. Read once:
     # it decides both how the total is counted and how the acting lineage is picked, and those two
@@ -1952,7 +2025,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # the lineage's summed rates to draw it by, and `table(k)` for the rate of each of its genes
     own_pick = {key: (rows.own_sums[key],
                       _own_table(rows.own_units[key], rows.own_owned[key],
-                                 fam_mult[key] if any_family else None))
+                                 fam_mult[key] if any_family else None, rows.own_largest[key]))
                 for key in (own_keys if any_written else ())}
     # a family given an `origin` is not in the root genome — it arrives later, in the loop
     total_copies = initial_families + len(family_names) - len(named_plants)
@@ -2110,6 +2183,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                             rows.own_sums[key].set(k, unit * run_share + written)
                             rows.own_units[key][k] = unit
                             rows.own_owned[key][k] = own_rates
+                            # every gene carries its family's own rate or the run's rate times its
+                            # family's draw, so the larger of those bounds all of them
+                            rows.own_largest[key][k] = max(
+                                unit * (own_mult.largest if own_mult is not None else 1.0),
+                                max(own_rates.values(), default=0.0))
                 if _CHECK_ROWS:
                     rows.check_against(kept)
             w = rows.w
