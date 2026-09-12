@@ -11,7 +11,7 @@ home, shared by the family core, the ordered engine and the nucleotide one.
 from __future__ import annotations
 
 # re-exported: the three genome engines import it from here, and it is plumbing, not genome code
-from .._runtime.draw import weighted_index  # noqa: F401
+from .._runtime.draw import WeightedIndex, weighted_index  # noqa: F401
 
 import functools
 import gc
