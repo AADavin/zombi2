@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-09-12
+
 ### Added
 
 - Ordered genomes take a declared family's own `transfer_to`, and a `transfer_to` that reads gene
