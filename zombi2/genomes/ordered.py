@@ -699,6 +699,47 @@ class _LiveOrderedContent(_LiveGeneContent):
         return _live_value(self._family, self._gen[k], self._counts.of(k))
 
 
+#: Tests set this to check a lineage's summed own rates against adding them up family by family.
+#: Off in a real run, where it would cost the walk over every family the sum is there to avoid.
+_CHECK_OWN_SUMS = False
+
+
+class _OwnRates(dict):
+    """One lineage's rate per gene, keyed by family: a family's own rate where it writes one, the
+    run's rate on every other gene. The run's families are filled in as the genes are read, so a pick
+    touches only the families that lineage carries."""
+
+    def __init__(self, own, unit: float, mult) -> None:
+        super().__init__(own)
+        self._unit, self._mult = unit, mult
+
+    def __missing__(self, family: int) -> float:
+        value = self._unit * (self._mult[family] if self._mult is not None else 1.0)
+        self[family] = value
+        return value
+
+
+def _own_table(units, owned, mult):
+    """``table(k)`` → lineage ``k``'s rate per gene (an `_OwnRates`), built when an event picks that
+    lineage rather than for every lineage at every step."""
+    def table(k: int) -> _OwnRates:
+        return _OwnRates(owned[k], units[k], mult)
+    return table
+
+
+def _check_own_sums(sums, held, table) -> None:
+    """Raise when a lineage's summed own rates differ from adding them up family by family, which is
+    what the engine does in the long way (see `_CHECK_OWN_SUMS`). The two are the same number
+    algebraically, so they are compared to a tolerance rather than exactly."""
+    for k, row in enumerate(held):
+        rates = table(k)
+        direct = sum(row[family] * rates[family] for family in row)
+        if abs(direct - sums[k]) > 1e-9 * max(1.0, abs(direct)):
+            raise AssertionError(
+                f"the own-rate sum differs from the family-by-family sum at lineage index {k}: "
+                f"{sums[k]} against {direct}")
+
+
 def _pick_gene(rng, gen, total_copies) -> tuple[int, int, int]:
     """A uniform global gene pick → ``(lineage k, chromosome index ci in gen[k], position j)``.
     Realises per-copy scope across the whole pool: every gene, in any chromosome of any lineage, is
@@ -867,16 +908,17 @@ def _pick_event_run(rng, gen, n, fw, fam_mult, key, ext, ext_ctx, w=None, hosts=
     rate in one run, because combining them would weight by the product of a lineage factor and a segment
     factor, which is a model neither of them is on its own.
 
-    - **a family's own rate** (``own`` given, ``(per-lineage sums, per-lineage rate tables)``) — the
-      lineage by the summed rates of its genes, then the run by `_pick_run_by_family()` over the
-      lineage's own table of per-gene rates, so the weight reaches the segment, as a draw's does."""
+    - **a family's own rate** (``own`` given, ``(per-lineage sums, a table per lineage)``) — the
+      lineage by the summed rates of its genes, then the run by `_pick_run_by_family()` over that
+      lineage's rate per gene, so the weight reaches the segment, as a draw's does. The table is asked
+      for the drawn lineage alone (see `_own_table`)."""
     if own is not None:
-        sums, tables = own
+        sums, table = own
         total = sum(sums)
         if total <= 0.0:
             return None
         k = weighted_index(rng, sums, total)
-        picked = _pick_run_by_family(rng, gen[k], tables[k], ext, ext_ctx(k))
+        picked = _pick_run_by_family(rng, gen[k], table(k), ext, ext_ctx(k))
         if picked is None:
             return None
         ci, j, m = picked
@@ -1903,27 +1945,43 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 # family writes one and the run's otherwise, and an event's total is their sum. The
                 # acting lineage is drawn by its genes' summed rates and the segment by the mean rate of
                 # the genes it covers, through the path the per-family draws take.
+                #
+                # The sum runs over the families that write their own rate, which are declared and so
+                # few. Every other gene carries the run's rate, so their share is the lineage's whole
+                # weight — its gene count, or its summed per-family draws — less what the writing
+                # families hold. A step then costs the living lineages times those few families,
+                # rather than times every family a lineage carries.
+                sizes = [] if any_family else [_genome_size(gen[k]) for k in range(k_alive)]
                 for key in own_keys:
                     if key == "transfer" and not can_xfer:
                         continue
                     rate, fixed_k, driven_k = _rates[key], fam_fixed_by_id[key], fam_driven_by_id[key]
-                    sums, tables = [], []
+                    mult = fam_mult[key] if any_family else None
+                    # the lineage's whole weight for this event: its summed per-family draws where the
+                    # run has them, its gene count otherwise (`fw` is built exactly when they are)
+                    drawn = fw[key] if any_family and fw is not None else None
+                    sums, units, owned = [], [], []
                     for k in range(k_alive):
                         held = counts.of(k)
                         dk: dict[str, Any] = {"drivers": drivers[k]} if any_driven else {}
                         unit = rate.effective(copies=1, lineages=1, chromosomes=1, time=t, **dk)
-                        table: dict[int, float] = {}
-                        for fam in held:
-                            if fam in fixed_k:
-                                table[fam] = fixed_k[fam]
-                            elif fam in driven_k:
-                                table[fam] = driven_k[fam].effective(copies=1, lineages=1, chromosomes=1,
-                                                                     time=t, **dk)
-                            else:
-                                table[fam] = unit * (fam_mult[key][fam] if any_family else 1.0)
-                        tables.append(table)
-                        sums.append(sum(held[fam] * table[fam] for fam in table))
-                    own_pick[key] = (sums, tables)
+                        own_rates = {fam: value for fam, value in fixed_k.items() if held[fam]}
+                        for fam, own_rate in driven_k.items():
+                            if held[fam]:
+                                own_rates[fam] = own_rate.effective(copies=1, lineages=1,
+                                                                    chromosomes=1, time=t, **dk)
+                        run_share = float(drawn[k] if drawn is not None else sizes[k])
+                        written = 0.0
+                        for fam, value in own_rates.items():
+                            run_share -= held[fam] * (mult[fam] if mult is not None else 1.0)
+                            written += held[fam] * value
+                        sums.append(unit * run_share + written)
+                        units.append(unit)
+                        owned.append(own_rates)
+                    own_pick[key] = (sums, _own_table(units, owned, mult))
+                    if _CHECK_OWN_SUMS:
+                        _check_own_sums(sums, [counts.of(k) for k in range(k_alive)],
+                                        own_pick[key][1])
                 if "duplication" in own_pick:
                     r_dup = sum(own_pick["duplication"][0])
                 if "loss" in own_pick:
