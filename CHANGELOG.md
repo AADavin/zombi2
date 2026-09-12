@@ -9,6 +9,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- A joint ordered genome run keeps what each living lineage reads — its driver values, its rate for
+  each event class, its per-family draws and its summed own rates — and rebuilds only the lineages an
+  event changed, instead of every lineage at every step. A run of 100 extant genomes with 20 declared
+  families is about 12 times faster, and the saving grows with the tree. The output is unchanged.
+
 ## [0.46.0] - 2026-09-12
 
 ### Added

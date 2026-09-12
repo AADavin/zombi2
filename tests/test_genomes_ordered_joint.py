@@ -18,6 +18,9 @@ from zombi2.params.conditioned import resolve_driver
 from zombi2.species import simulate_species_tree
 
 ONLY_WITHOUT = {"present": 0.0, "absent": 1.0}
+#: a factor that leaves the rate positive either way, so the number a lineage reads moves with its
+#: genome rather than sitting at zero
+HALF_WITH = {"present": 0.5, "absent": 1.0}
 
 
 @pytest.fixture(scope="module")
@@ -194,6 +197,49 @@ def test_the_check_catches_a_wrong_sum(tree, checked_sums, monkeypatch):
     monkeypatch.setattr(ordered, "_genome_size", lambda genome: 1 + sum(len(c.genes) for c in genome))
     with pytest.raises(AssertionError, match="own-rate sum"):
         _run(tree, loss=0.5, families=[family("B", loss=0.2)])
+
+
+# --- the rows the engine keeps between steps -----------------------------------------------------
+# A step reads each living lineage on its own, and rebuilds only the lineages the step before
+# changed. `_CHECK_ROWS` rebuilds every row at every step and compares the ones the engine kept
+# against it: a lineage the engine did not mark has to read exactly what it read before.
+
+@pytest.fixture
+def checked_rows(monkeypatch):
+    monkeypatch.setattr(ordered, "_CHECK_ROWS", True)
+
+
+@pytest.mark.parametrize("kw", [
+    dict(joint=True, loss=PerCopy(0.5).scaled_by("genomes:A", HALF_WITH),
+         families=[family("A")]),
+    dict(joint=True, loss=0.4, families=[family("A"), family("B", loss=PerCopy(0.9).scaled_by(
+        "genomes:A", ONLY_WITHOUT))]),
+    dict(joint=True, transfer=0.4, replacement=True, loss=0.2,
+         families=[family("A", module="m"), family("B", module="m"),
+                   family("C", module="m", loss=PerCopy(0.5).scaled_by("genomes:module:m",
+                                                                       _guarded))]),
+    dict(joint=True, loss=0.3, chromosomes=3, fission=0.1, fusion=0.1,
+         chromosome_origination=0.05, chromosome_loss=0.05, translocation=0.05,
+         families=[family("A"), family("B", loss=PerCopy(0.4).scaled_by("genomes:A",
+                                                                        ONLY_WITHOUT))]),
+    dict(loss=0.4, duplication=PerCopy(0.2).varying_among("families", LogNormal(0.0, 0.5)),
+         families=[family("B", loss=0.9)]),
+    dict(loss=PerCopy(0.4).changing_at({0.0: 1.0, 0.3: 4.0}), joint=True,
+         families=[family("A"), family("B", loss=PerCopy(0.9).scaled_by("genomes:A",
+                                                                        ONLY_WITHOUT))]),
+], ids=["a run rate reads a family", "an own rate reads a family", "a module, with replacement",
+        "chromosome events", "a per-family draw", "a rate on a schedule"])
+def test_a_lineage_the_engine_did_not_mark_reads_what_it_read_before(tree, checked_rows, kw):
+    g = _run(tree, **{"origination": 0.3, **kw})
+    assert sum(1 for e in g.edges if e.kind in ("duplication", "loss", "transfer")) > 10
+
+
+def test_the_check_catches_an_unmarked_lineage(tree, checked_rows, monkeypatch):
+    """With the marking removed the rows go stale, and the check says so — so it is not vacuous."""
+    monkeypatch.setattr(ordered._LineageRows, "touched", lambda self, k: None)
+    with pytest.raises(AssertionError, match="differs from a fresh one"):
+        _run(tree, origination=0.3, loss=PerCopy(0.5).scaled_by("genomes:A", HALF_WITH),
+             joint=True, families=[family("A")])
 
 
 # --- links.tsv -----------------------------------------------------------------------------------
