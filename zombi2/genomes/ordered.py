@@ -843,6 +843,57 @@ class _LiveOrderedContent(_LiveGeneContent):
 _CHECK_OWN_SUMS = False
 
 
+#: How many sets of driver values one rate remembers before it stops adding more. A family's own rate
+#: read on a module meets at most one value more than the module has families, and one read on a
+#: presence meets two, so a run stays far below this. The limit is for a driver with many values — a
+#: gene count, a continuous trait — where what is remembered would otherwise only grow.
+_REMEMBERED = 4096
+
+
+class _GeneRate:
+    """A rate as one gene of a lineage carries it — `Rate.effective` with one copy, one lineage and one
+    chromosome — remembered by the driver values it reads.
+
+    A lineage's row holds the rate of every declared family it carries, and every event that changed
+    the lineage computed all of them again: with 200 declared families, half of a run. Such a rate
+    depends only on the values of the drivers its modifiers name, and an event changes one of those
+    at most — one module's completion, one family's presence — so nearly every rate a row asks for
+    was computed before from the same values. This returns that number: the result of the same call
+    with the same arguments, not an estimate of it.
+
+    A rate is remembered only where that holds: every modifier on it reads a driver, and none of them
+    changes with time. Any other rate is computed at every call, as it was."""
+
+    __slots__ = ("rate", "_reads", "_known")
+
+    def __init__(self, rate: Rate) -> None:
+        self.rate = rate
+        remembered = (bool(rate.modifiers) and all(isinstance(m, Driven) for m in rate.modifiers)
+                      and not math.isfinite(rate.next_change(-math.inf)))
+        # every modifier is a `Driven` once `remembered` holds; the filter only says so to mypy
+        self._reads = (tuple(m.key for m in rate.modifiers if isinstance(m, Driven))
+                       if remembered else None)
+        self._known: dict = {}
+
+    def value(self, time: float, context: dict) -> float:
+        """The rate one gene carries now. ``context`` is what the row passes to `Rate.effective`:
+        ``{"drivers": the lineage's driver values}``, or empty when the run reads no driver."""
+        if self._reads is None:
+            return self.rate.effective(copies=1, lineages=1, chromosomes=1, time=time, **context)
+        drivers = context.get("drivers") or {}
+        seen = tuple(drivers.get(key) for key in self._reads)
+        try:
+            return self._known[seen]
+        except KeyError:
+            pass
+        except TypeError:           # a driver value that cannot be a key: compute, remember nothing
+            return self.rate.effective(copies=1, lineages=1, chromosomes=1, time=time, **context)
+        value = self.rate.effective(copies=1, lineages=1, chromosomes=1, time=time, **context)
+        if len(self._known) < _REMEMBERED:
+            self._known[seen] = value
+        return value
+
+
 class _FamilyWeights(dict):
     """Each family's drawn weight for one event class, keyed by family, and the largest drawn so far
     (``largest``) — the bound `_gene_by_rate` keeps or turns down a gene against. Families only
@@ -1971,7 +2022,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                                              len(chrom.genes) - 1, 1, family=fam))
     # a family's own rate by the id the family is given: fixed ones as numbers, driven ones as the Rate
     fam_fixed_by_id: dict[str, dict[int, float]] = {key: {} for key in own_keys}
-    fam_driven_by_id: dict[str, dict[int, Rate]] = {key: {} for key in own_keys}
+    fam_driven_by_id: dict[str, dict[int, _GeneRate]] = {key: {} for key in own_keys}
     named: dict[str, int] = {}  # a minted id per declared name, dealt round-robin after the anonymous ones
     named_plants: list[tuple[float, int, int]] = []
     for j, name in enumerate(family_names):
@@ -1981,7 +2032,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             if j in fam_own.get(key, {}):
                 fam_fixed_by_id[key][fam] = fam_own[key][j]
             elif j in fam_driven_rates.get(key, {}):
-                fam_driven_by_id[key][fam] = fam_driven_rates[key][j]
+                fam_driven_by_id[key][fam] = _GeneRate(fam_driven_rates[key][j])
         if j in planted_named:
             # given an `origin`, so it arrives there rather than at the tree's origin — the same
             # event, at a point chosen instead of drawn
@@ -2017,16 +2068,23 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # moving a single number a row holds, so a speciation marks the daughters that enter and leaves
     # every other lineage's row alone. That is the difference between a step at a speciation costing
     # the living lineages and costing two.
-    time_varying = bool(trajs) or math.isfinite(
-        min([r.next_change(-math.inf) for r in _rates.values()]
-            + [r.next_change(-math.inf) for table in fam_driven_rates.values()
-               for r in table.values()], default=math.inf))
+    # The rates that change on their own at some instant: a schedule on the rate, or on an entry of a
+    # driver's mapping. `next_change` names the first change strictly after an instant, so a rate with
+    # none after -inf has none at all. The loop sets its horizon from these alone, instead of asking
+    # every rate at every step — with 200 declared families that was 211 questions a step, each
+    # answered "never".
+    timed_rates = [r for r in (dup, los, org, tra, inv, trp, trl, fis, fus, cor, clo,
+                               *(fr for table in fam_driven_rates.values() for fr in table.values()))
+                   if math.isfinite(r.next_change(-math.inf))]
+    time_varying = bool(trajs) or bool(timed_rates)
     # one entry per event class whose families write their own rate, reading the rows as they stand:
     # the lineage's summed rates to draw it by, and `table(k)` for the rate of each of its genes
     own_pick = {key: (rows.own_sums[key],
                       _own_table(rows.own_units[key], rows.own_owned[key],
                                  fam_mult[key] if any_family else None, rows.own_largest[key]))
                 for key in (own_keys if any_written else ())}
+    # the run's own rate for each of those event classes, as the genes without an own rate carry it
+    run_gene_rates = {key: _GeneRate(_rates[key]) for key in (own_keys if any_written else ())}
     # a family given an `origin` is not in the root genome — it arrives later, in the loop
     total_copies = initial_families + len(family_names) - len(named_plants)
     total_chromosomes = n_initial_chrom
@@ -2162,14 +2220,12 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                         dk: dict[str, Any] = {"drivers": rows.drivers[k]} if any_driven else {}
                         for key in own_keys:
                             own_mult = fam_mult[key] if any_family else None
-                            unit = _rates[key].effective(copies=1, lineages=1, chromosomes=1,
-                                                         time=t, **dk)
+                            unit = run_gene_rates[key].value(t, dk)
                             own_rates = {fam: value for fam, value in fam_fixed_by_id[key].items()
                                          if held[fam]}
                             for fam, own_rate in fam_driven_by_id[key].items():
                                 if held[fam]:
-                                    own_rates[fam] = own_rate.effective(copies=1, lineages=1,
-                                                                        chromosomes=1, time=t, **dk)
+                                    own_rates[fam] = own_rate.value(t, dk)
                             # the lineage's whole weight for this event: its summed per-family draws
                             # where the run has them, its gene count otherwise (`fw` is built exactly
                             # when they are)
@@ -2238,13 +2294,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             r_fus = _r("fusion", fus.effective(**ctx) if c else 0.0, live=bool(c))
             r_cor = _r("chromosome_origination", cor.effective(**ctx))      # per lineage (de-novo replicon)
             r_clo = _r("chromosome_loss", clo.effective(**ctx) if c else 0.0, live=bool(c))
-            horizon = min(next_species, next_plant,
-                          dup.next_change(t), los.next_change(t), org.next_change(t),
-                          tra.next_change(t), inv.next_change(t), trp.next_change(t), trl.next_change(t),
-                          fis.next_change(t), fus.next_change(t), cor.next_change(t), clo.next_change(t))
-            if fam_driven_rates:  # a family's own changing_at moves its rate too, so step there
-                horizon = min([horizon] + [r.next_change(t) for table in fam_driven_rates.values()
-                                           for r in table.values()])
+            # the next instant a rate changes on its own, asked only of the rates that ever do — a
+            # family's own schedule among them (`timed_rates`)
+            horizon = min(next_species, next_plant)
+            for timed in timed_rates:
+                horizon = min(horizon, timed.next_change(t))
             if any_driven:  # a driven rate also changes when its driver switches mid-branch — step there
                 horizon = min(horizon, min((trajs[key].next_change(alive[k], t) for key in trajs
                                             for k in range(k_alive)), default=math.inf))

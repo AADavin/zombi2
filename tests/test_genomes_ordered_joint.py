@@ -243,6 +243,68 @@ def test_the_check_catches_an_unmarked_lineage(tree, checked_rows, monkeypatch):
              joint=True, families=[family("A")])
 
 
+# --- a family's rate, remembered by the driver values it reads -----------------------------------
+# A row asks for the rate of every declared family a lineage carries each time the lineage changes.
+# `_GeneRate` hands back a number it computed before from the same driver values. That is only right
+# where the rate depends on nothing else, so these check it against `Rate.effective` directly.
+
+def _effective(rate, time, context):
+    return rate.effective(copies=1, lineages=1, chromosomes=1, time=time, **context)
+
+
+def test_a_rate_read_on_a_module_gives_the_computed_number_at_every_completion():
+    rate = PerCopy(0.4).scaled_by("genomes:module:m", lambda f: 1.0 if f < 1.0 else 0.25)
+    gene_rate = ordered._GeneRate(rate)
+    for completion in [0.0, 0.25, 0.5, 1.0, 0.5, 0.0, 1.0]:     # the repeats are answered from memory
+        context = {"drivers": {"genomes:module:m": completion}}
+        assert gene_rate.value(0.3, context) == _effective(rate, 0.3, context)
+    assert len(gene_rate._known) == 4
+
+
+def test_a_rate_on_a_schedule_is_computed_every_time():
+    """Its number moves with time while its drivers stand still, so remembering it by the drivers
+    would be wrong. It is not remembered, and it follows its schedule."""
+    rate = PerCopy(0.4).changing_at({0.0: 1.0, 1.0: 3.0}).scaled_by("genomes:A", HALF_WITH)
+    gene_rate = ordered._GeneRate(rate)
+    context = {"drivers": {"genomes:A": "present"}}
+    assert gene_rate.value(0.5, context) == pytest.approx(0.2)
+    assert gene_rate.value(1.5, context) == pytest.approx(0.6)
+    assert gene_rate._known == {}
+
+
+def test_a_rate_reading_two_drivers_is_remembered_by_both():
+    rate = (PerCopy(0.4).scaled_by("genomes:A", HALF_WITH)
+            .scaled_by("genomes:module:m", lambda f: 2.0 if f == 1.0 else 1.0))
+    gene_rate = ordered._GeneRate(rate)
+    for a in ("present", "absent"):
+        for f in (0.5, 1.0):
+            context = {"drivers": {"genomes:A": a, "genomes:module:m": f}}
+            assert gene_rate.value(0.0, context) == _effective(rate, 0.0, context)
+    assert len(gene_rate._known) == 4
+
+
+def test_what_is_remembered_stops_growing_at_the_limit(monkeypatch):
+    """A gene count takes many values, so past the limit a rate is computed rather than stored."""
+    monkeypatch.setattr(ordered, "_REMEMBERED", 3)
+    rate = PerCopy(0.2).scaled_by("genomes:count", lambda c: 1.0 / (1.0 + c))
+    gene_rate = ordered._GeneRate(rate)
+    for count in range(10):
+        context = {"drivers": {"genomes:count": count}}
+        assert gene_rate.value(0.0, context) == _effective(rate, 0.0, context)
+    assert len(gene_rate._known) == 3
+
+
+def test_a_timed_family_rate_still_moves_the_horizon(tree):
+    """Only rates that change on their own are asked when they next change. A family's own schedule
+    is one of those, so a loss rate that only turns on at t = 0.5 still produces no loss before it."""
+    g = _run(tree, loss=0.0, origination=0.3, joint=True,
+             families=[family("A"), family("B", loss=PerCopy(3.0).changing_at({0.0: 0.0, 0.5: 1.0})
+                                              .scaled_by("genomes:A", HALF_WITH))])
+    b = g.family_names["B"]
+    losses = [e.time for e in g.edges if e.kind == "loss" and e.family == b]
+    assert losses and min(losses) >= 0.5
+
+
 # --- links.tsv -----------------------------------------------------------------------------------
 
 def test_the_links_of_an_ordered_run(tree):
