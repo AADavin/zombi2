@@ -9,6 +9,38 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- A joint ordered genome run keeps what each living lineage reads — its driver values, its rate for
+  each event class, its per-family draws and its summed own rates — and rebuilds only the lineages an
+  event changed, instead of every lineage at every step. A run of 100 extant genomes with 20 declared
+  families is about 12 times faster, and the saving grows with the tree. The output is unchanged. (#438)
+- A genome run keeps the living lineages' weights in a tree, so a step reads their total and an event
+  draws the acting lineage without walking every lineage. A driven run of 800 extant genomes is about
+  15% faster, and the saving grows with the tree. A draw lands on the lineage it landed on before; the
+  total is the same sum added in a different order, so a few event times can differ in their last
+  digit. (#438)
+- An ordered genome run finds the lineage a uniform gene or chromosome pick landed on from the
+  living lineages' counts, rather than by walking the lineages. This is the pick a run with no
+  weighted rate makes at every event: a plain run of 800 extant genomes is about twice as fast, and
+  its cost per event no longer grows with the tree. The output is unchanged. (#438)
+- An ordered genome run no longer reads every gene of a genome to choose the segment an event takes
+  when a declared family has its own rate or the rate varies among families. It draws one gene in
+  proportion to its rate, then one of the segments that cover that gene, which gives each segment the
+  chance it had before — on a linear chromosome with segments longer than one gene, the chances near
+  its ends differ slightly. A run with a family's own loss rate on genomes of 2400 genes is about 6
+  times faster. The same seed gives a different run than it did before this change. (#438)
+- A joint ordered run with many declared families no longer recomputes every declared family's rate
+  on a lineage each time the lineage changes, nor asks every family's rate at every step whether it
+  changes with time. A family's rate is remembered by the driver values it reads, and only the rates
+  that follow a schedule are asked when they next change. A run with 200 declared families, each with
+  its own duplication, transfer and loss, is about twice as fast. The output is unchanged. (#438)
+- A joint ordered run brings a lineage's rates up to date from what an event changed — the families
+  whose copy number moved, and the families whose own rate reads a driver that moved — instead of
+  going back over every declared family the lineage carries. A run with 200 declared families, each
+  with its own duplication, transfer and loss, is about 4 times faster. The sums are now taken by
+  subtracting and adding what changed, so event times can differ in their last digit. (#438)
+
 ## [0.46.0] - 2026-09-12
 
 ### Added

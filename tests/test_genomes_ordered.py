@@ -1231,10 +1231,10 @@ def test_a_dropped_transfer_leaves_the_donor_chromosome_untouched():
     # both lineages painted "A", and the only pair the kernel weighs is (A, B): nobody can receive
     blocked = Clades({"A": 0, "B": 1}, Between({("A", "B"): 1.0}, default=0.0))
     events, positions = [], []
-    delta = _do_transfer(np.random.default_rng(0), None, [0, 1], gen, _GeneCounts(gen), 0, 0, 4, 4, 1.0,
-                         events, positions, None, blocked, False, False, 1.0, None,
-                         None, {0: "A", 1: "A"})
-    assert delta == 0
+    delta, recipient = _do_transfer(np.random.default_rng(0), None, [0, 1], gen, _GeneCounts(gen), 0, 0,
+                                    4, 4, 1.0, events, positions, None, blocked, False, False, 1.0,
+                                    None, None, {0: "A", 1: "A"})
+    assert (delta, recipient) == (0, None)   # nothing moved, and no lineage's row to rebuild
     assert not events and not positions
     assert [list(c.genes) for c in gen[0]] == before, "a dropped transfer rotated the donor"
 

@@ -188,3 +188,134 @@ def test_the_cap_is_on_by_default(tree):
     assert sig.parameters["max_family_size"].default == 10
     assert inspect.signature(genomes.simulate_genomes_family).parameters[
         "max_family_size"].default == 10
+
+
+# --- drawing the run without scoring every start (issue #436) --------------------------------------
+# The engine draws a gene in proportion to its weight, by rejection, and then one of the runs covering
+# it. That has to give every start the chance the scan gives it: its run's mean weight, within the
+# chromosome's share of the genome's weight. These compare the draw against those chances, computed
+# exactly from `_run_means`, over many draws with fixed seeds.
+
+from zombi2.genomes import ordered as _ordered
+
+
+class _Size:
+    """An extent that is always ``m`` genes, so the start is the only thing drawn by weight."""
+
+    def __init__(self, m):
+        self.m = m
+
+    def sample(self, rng, **_):
+        return self.m
+
+
+def _genome(topology="circular"):
+    return [_chrom([0, 1, 2, 3, 4, 5, 6], topology),
+            Chromosome(1, topology, [Gene(10 + i, f, 1) for i, f in enumerate([7, 8, 9, 2, 5])])]
+
+
+def _weights():
+    w = _ordered._FamilyWeights()
+    for family, weight in {0: 1.0, 1: 0.2, 2: 6.0, 3: 1.0, 4: 0.5, 5: 3.0, 6: 1.0,
+                           7: 0.2, 8: 1.0, 9: 0.1}.items():
+        w[family] = weight
+    return w
+
+
+def _exact(genome, weights, m):
+    """The chance of each ``(chromosome, start)``, as the scan computes it."""
+    sums = [sum(weights[g.family] for g in c.genes) for c in genome]
+    out = {}
+    for ci, chrom in enumerate(genome):
+        means = _run_means(chrom, weights, min(m, len(chrom.genes)))
+        for s, mean in enumerate(means):
+            out[(ci, s)] = sums[ci] / sum(sums) * mean / sum(means)
+    return out
+
+
+def _drawn(genome, weights, m, n=60000, seed=0):
+    rng = np.random.default_rng(seed)
+    hits = collections.Counter()
+    for _ in range(n):
+        ci, s, _size = _ordered._pick_run_by_family(rng, genome, weights, _Size(m))
+        hits[(ci, s)] += 1
+    return {key: count / n for key, count in hits.items()}
+
+
+def _distance(a, b):
+    """Total variation: the share of the probability that sits somewhere else."""
+    return 0.5 * sum(abs(a.get(key, 0.0) - b.get(key, 0.0)) for key in set(a) | set(b))
+
+
+@pytest.mark.parametrize("m", [1, 2, 3, 5])
+def test_every_start_gets_the_chance_the_scan_gives_it_on_a_circle(m):
+    genome, weights = _genome(), _weights()
+    assert _distance(_drawn(genome, weights, m), _exact(genome, weights, m)) < 0.02
+
+
+def test_every_start_gets_the_chance_the_scan_gives_it_on_a_line_at_one_gene():
+    """On a linear chromosome the two draws agree exactly at the default run of one gene."""
+    genome, weights = _genome("linear"), _weights()
+    assert _distance(_drawn(genome, weights, 1), _exact(genome, weights, 1)) < 0.02
+
+
+def test_a_wrong_offset_would_be_caught():
+    """The comparison is not vacuous: drawing the start on the gene itself, ignoring the runs that
+    begin before it, is far from the scan once runs are longer than one gene."""
+    genome, weights = _genome(), _weights()
+    rng = np.random.default_rng(1)
+    hits = collections.Counter()
+    for _ in range(20000):
+        ci, j = _ordered._gene_by_rate(rng, genome, 12, weights, weights.largest, 10**6)
+        hits[(ci, j)] += 1
+    wrong = {key: count / 20000 for key, count in hits.items()}
+    assert _distance(wrong, _exact(genome, weights, 3)) > 0.1
+
+
+def test_a_gene_is_kept_in_proportion_to_its_weight():
+    genome, weights = _genome(), _weights()
+    rng = np.random.default_rng(2)
+    hits = collections.Counter()
+    for _ in range(60000):
+        ci, j = _ordered._gene_by_rate(rng, genome, 12, weights, weights.largest, 10**6)
+        hits[genome[ci].genes[j].id] += 1
+    total = sum(weights[g.family] for c in genome for g in c.genes)
+    for c in genome:
+        for g in c.genes:
+            assert hits[g.id] / 60000 == pytest.approx(weights[g.family] / total, abs=0.01)
+
+
+def test_out_of_tries_the_genome_is_scored_and_the_chances_hold(monkeypatch):
+    """With no tries at all every event falls to the scan, and the chances are still the scan's."""
+    monkeypatch.setattr(_ordered, "_MIN_TRIES", 0)
+    monkeypatch.setattr(_ordered, "_GENES_PER_TRY", 10**9)
+    scanned = []
+    real = _ordered._pick_run_by_scan
+    monkeypatch.setattr(_ordered, "_pick_run_by_scan",
+                        lambda *a, **k: scanned.append(1) or real(*a, **k))
+    genome, weights = _genome(), _weights()
+    assert _distance(_drawn(genome, weights, 3, n=20000), _exact(genome, weights, 3)) < 0.03
+    assert len(scanned) == 20000
+
+
+def test_a_table_that_does_not_know_its_largest_weight_is_scored():
+    """A plain mapping carries no bound, and a bound is what rejection needs, so it is scanned."""
+    genome = _genome()
+    plain = dict(_weights())
+    assert _distance(_drawn(genome, plain, 2, n=20000), _exact(genome, plain, 2)) < 0.03
+
+
+def test_the_largest_weight_is_kept_as_families_arrive():
+    w = _ordered._FamilyWeights()
+    for family, weight in [(0, 0.5), (1, 2.5), (2, 1.0)]:
+        w[family] = weight
+    assert w.largest == 2.5
+
+
+def test_a_genome_whose_genes_all_weigh_nothing_has_no_run():
+    zero = _ordered._FamilyWeights()
+    for f in range(10):
+        zero[f] = 0.0
+    zero[99] = 1.0                           # a family this genome does not hold
+    rng = np.random.default_rng(0)
+    assert _ordered._pick_run_by_family(rng, _genome(), zero, _Size(2)) is None
