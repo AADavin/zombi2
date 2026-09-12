@@ -24,6 +24,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   living lineages' counts, rather than by walking the lineages. This is the pick a run with no
   weighted rate makes at every event: a plain run of 800 extant genomes is about twice as fast, and
   its cost per event no longer grows with the tree. The output is unchanged.
+- An ordered genome run no longer reads every gene of a genome to choose the segment an event takes
+  when a declared family has its own rate or the rate varies among families. It draws one gene in
+  proportion to its rate, then one of the segments that cover that gene, which gives each segment the
+  chance it had before — on a linear chromosome with segments longer than one gene, the chances near
+  its ends differ slightly. A run with a family's own loss rate on genomes of 2400 genes is about 6
+  times faster. The same seed gives a different run than it did before this change.
 
 ## [0.46.0] - 2026-09-12
 
