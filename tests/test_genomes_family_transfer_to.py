@@ -188,6 +188,22 @@ def test_the_per_family_engine_refuses(tree, kw):
         _run(tree, parallel=True, **kw)
 
 
-def test_a_joint_genome_spec_refuses_a_family_rule():
+def test_a_joint_run_refuses_a_family_rule():
+    """A joint run does not read a family's own transfer_to, on a growing tree or on a given one, and
+    says so when the run starts. `genome()` builds the spec before it is known which of the two it
+    will join, so it cannot say it there (issue #437)."""
+    from zombi2 import joint, species, traits
+    from zombi2.params import PerLineage
+
+    spec = genome(loss=0.1, families=[family("B", transfer_to="distance")])
     with pytest.raises(ValueError, match="transfer_to"):
-        genome(families=[family("B", transfer_to="distance")])
+        joint.simulate(species.birth_death(birth=PerLineage(1.0).scaled_by(
+                           "genomes:B", {"present": 2.0, "absent": 1.0}), n_extant=10),
+                       spec, seed=1)
+    tree = species.simulate_species_tree(birth=1.0, n_extant=10, seed=1).complete_tree
+    with pytest.raises(ValueError, match="sets a transfer_to, which a joint run does not read"):
+        joint.simulate(spec,
+                       traits.discrete(states=["a", "b"], switch={
+                           "a->b": PerLineage(0.1).scaled_by("genomes:B", {"present": 1.0, "absent": 2.0}),
+                           "b->a": 0.1}),
+                       tree=tree, seed=1)

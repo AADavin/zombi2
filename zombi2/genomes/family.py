@@ -700,6 +700,113 @@ def resolve_family_transfer_to(declared) -> dict[int, object]:
     return rules
 
 
+def check_joint_families(families, *, tree_given: bool) -> None:
+    """Refuse, by name, what a joint run does not read from a family's declaration.
+
+    `genomes.genome()` builds the spec before `joint.simulate` is called, so it cannot know whether the
+    tree will be grown or given. The run knows, and asks here.
+
+    A run that **grows** the tree reads a family's name alone: its gene content drives speciation, and
+    every family runs at the genome spec's rates. A run on a **given** tree also reads a family's own
+    duplication, transfer and loss (`_FamilyOwnRates`), but still not where the family starts or who
+    receives its transfers: its families start at the root and transfer to any living lineage."""
+    for spec in families:
+        if not tree_given:
+            if spec.written() or spec.origin is not None or spec.transfer_to is not None:
+                raise ValueError(
+                    f"family {spec.name!r} sets rates, a transfer_to or an origin, which a joint run "
+                    f"that grows the tree does not read: the gene content drives speciation, and every "
+                    f"family runs at the genome spec's rates. Declare it by name alone — "
+                    f"family({spec.name!r}). A joint run on a tree passed with tree= reads a family's "
+                    f"own duplication, transfer and loss.")
+        elif spec.origin is not None or spec.transfer_to is not None:
+            what = " and ".join(word for word, value in (("an origin", spec.origin),
+                                                          ("a transfer_to", spec.transfer_to))
+                                if value is not None)
+            raise ValueError(
+                f"family {spec.name!r} sets {what}, which a joint run does not read: its families start "
+                f"at the root and transfer to any living lineage. It reads a family's own duplication, "
+                f"transfer and loss. simulate_genomes_family reads both, with the other level grown "
+                f"first and passed as a driver.")
+
+
+class _WithDefault(dict):
+    """A table that answers ``default`` for a key it does not hold, without storing the key."""
+
+    def __init__(self, entries, default: float) -> None:
+        super().__init__(entries)
+        self._default = default
+
+    def __missing__(self, key) -> float:
+        return self._default
+
+
+class _FamilyOwnRates:
+    """The declared families' own duplication, transfer and loss, for the joint engines that race a
+    genome beside another level on a given tree (`zombi2.joint._genomes_traits`,
+    `zombi2.joint._genomes_sequences`).
+
+    The rule is `simulate_genomes_family`'s (SPEC §6): every copy carries a rate — its family's own
+    where the family writes one, the run's otherwise — and an event's rate on a lineage is their sum.
+    Those engines race one rate per lineage and then pick a copy inside it, so this gives both from the
+    same numbers: the lineage's rate (`on_lineage`) and the copy (`pick`). A family's own rate is read
+    with that lineage's drivers, so it can read the other level of the run.
+
+    Where no family the lineage holds writes the event, both are what the engines did before: the
+    run's rate on the lineage, and a uniform copy drawn with the same single random number. A run that
+    declares no own rate is therefore unchanged."""
+
+    def __init__(self, declared, named, run_rates) -> None:
+        fixed, driven = resolve_family_rates(declared, run_rates)
+        for key in sorted(set(fixed) | set(driven)):
+            rate = run_rates[key]
+            if rate.scope is not PerCopy:
+                raise ValueError(
+                    f"a family writes its own {key}, but the run's {key} is {rate.scope.__name__}. "
+                    f"The two are summed over the same copies, so both are counted per copy — write "
+                    f"PerCopy for the run's {key}, or drop the family's.")
+        ids = [named[spec.name] for spec in declared]
+        self._fixed = {key: {ids[i]: value for i, value in table.items()} for key, table in fixed.items()}
+        self._driven = {key: {ids[i]: rate for i, rate in table.items()} for key, table in driven.items()}
+        self._run = run_rates
+
+    def next_change(self, time: float) -> float:
+        """The next instant a family's own rate changes on its own — a schedule on it, or in a driver's
+        mapping — so the engine's race stops there rather than stepping over it."""
+        return min((rate.next_change(time) for table in self._driven.values() for rate in table.values()),
+                   default=math.inf)
+
+    def _held(self, key: str, counts, k: int, time: float, drivers) -> dict:
+        """The own rate for ``key`` of each family lineage ``k`` holds, among those that write one."""
+        own = {fam: value for fam, value in self._fixed.get(key, {}).items() if counts.holds(k, fam)}
+        for fam, rate in self._driven.get(key, {}).items():
+            if counts.holds(k, fam):
+                own[fam] = rate.effective(copies=1, lineages=1, time=time, drivers=drivers)
+        return own
+
+    def on_lineage(self, key: str, genome, counts, k: int, time: float, drivers) -> float:
+        """The rate of event ``key`` on lineage ``k``: the run's rate on the copies whose family writes
+        none, plus each writing family's own rate times its copies."""
+        rate = self._run[key]
+        own = self._held(key, counts, k, time, drivers) if key in self._fixed or key in self._driven else {}
+        if not own:
+            return rate.effective(copies=len(genome), lineages=1, time=time, drivers=drivers)
+        unit = rate.effective(copies=1, lineages=1, time=time, drivers=drivers)
+        covered = sum(counts.count(k, fam) for fam in own)
+        written = sum(counts.count(k, fam) * value for fam, value in own.items())
+        return unit * (len(genome) - covered) + written
+
+    def pick(self, rng, key: str, genome, counts, k: int, time: float, drivers) -> int:
+        """The copy event ``key`` acts on in lineage ``k``, drawn in proportion to the rate it carries
+        (`_pick_copy_by_family`)."""
+        own = self._held(key, counts, k, time, drivers) if key in self._fixed or key in self._driven else {}
+        if not own:
+            return int(rng.integers(len(genome)))
+        unit = self._run[key].effective(copies=1, lineages=1, time=time, drivers=drivers)
+        return _pick_copy_by_family(rng, genome, _WithDefault({fam: 0.0 for fam in own}, 1.0),
+                                    _WithDefault(own, 0.0), unit)
+
+
 #: the live gene-content driver reading a lineage's whole gene count, as `zombi2.joint` spells it
 LIVE_COUNT = "genomes:count"
 
@@ -1874,23 +1981,33 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
 @dataclass(frozen=True)
 class FamilyGenome:
     """A family-genome **process** — its D/T/L/O parameters bundled but not yet run (the genome
-    twin of `DiscreteTrait`). ``simulate_genomes_family(tree, ...)`` runs
-    this on a *fixed* tree; a **joint** model (``joint.simulate(species.birth_death(...),
-    genomes.genome(...))``)
-    grows the genome *with* the tree whose speciation its gene content drives. Duplication, loss, and
-    origination (each a ``scope(base) × modifiers`` rate, ``changing_at`` allowed) plus ``initial_families``
-    and named ``family_names`` (the handle a ``scaled_by("genomes:<name>", …)`` reads). Transfer is not
-    available in a joint run: a growing tree's contemporaneous set is still forming as events fire."""
+    twin of `DiscreteTrait`), for a **joint** run to simulate beside another level.
+
+    ``families`` are the `family()` declarations, in order, and `family_names` are their names: the
+    handle a ``scaled_by("genomes:<name>", …)`` reads. What a joint run reads from a declaration
+    depends on whether the run is given its tree (`check_joint_families`):
+
+    - a run that **grows** the tree (``joint.simulate(species.birth_death(...), genomes.genome(...))``)
+      reads a family's name alone. The gene content drives speciation there, every family runs at this
+      spec's rates, and transfer is not available, because a growing tree's contemporaneous set is
+      still forming as events fire.
+    - a run on a **given** tree (``tree=``, beside a trait or a gene's sequence) also reads a family's
+      own duplication, transfer and loss, as `simulate_genomes_family` does (`_FamilyOwnRates`)."""
 
     duplication: object
     loss: object
     origination: object
     initial_families: int
-    family_names: tuple
+    families: tuple
     #: Transfer is available only where the run is handed its tree: a growing tree's contemporaneous
     #: set is still forming as events fire, so there is no "who else is alive now" to draw from.
     transfer: object = 0.0
     max_family_size: "int | None" = 10
+
+    @property
+    def family_names(self) -> tuple:
+        """The declared families' names, in the order they were declared."""
+        return tuple(f.name for f in self.families)
 
     def _resolve(self):
         """Coerce and validate the three rates for the joint engine — ``(duplication, loss,
@@ -1933,8 +2050,10 @@ def genome(*, duplication=0.0, loss=0.0, origination=0.0, transfer=0.0,
                        genomes.genome(origination=0.2, loss=0.1, families=[family("toxin")]))
 
     Duplication / loss / origination, and ``families=[family("toxin")]`` for the declarations a
-    ``scaled_by("genomes:toxin", …)`` reads. A joint run takes no transfer, and a family's own rates
-    are not read here — this level's rates apply to the whole genome.
+    ``scaled_by("genomes:toxin", …)`` reads. A run that grows the tree takes no transfer and reads only
+    a family's name. A run on a tree passed with ``tree=`` takes transfer and reads a family's own
+    duplication, transfer and loss too. Which of the two a spec ends up in is not known here, so the
+    run checks it (`check_joint_families`).
 
     It is ``genome`` and not ``family`` because it describes a genome. `family()` describes **one gene
     family**, which is what the word means everywhere else in ZOMBI2."""
@@ -1944,18 +2063,12 @@ def genome(*, duplication=0.0, loss=0.0, origination=0.0, transfer=0.0,
         if not isinstance(spec, GeneFamily):
             raise TypeError(
                 f"families takes gene-family declarations — families=[family('toxin')] — got {spec!r}.")
-        if spec.written() or spec.origin is not None or spec.transfer_to is not None:
-            raise ValueError(
-                f"family {spec.name!r} sets rates, a transfer_to or an origin, which a joint genome does "
-                f"not read: "
-                f"the tree is being simulated with it, so every family runs at this spec's rates. "
-                f"Declare it by name alone — family({spec.name!r}).")
     fams = tuple(f.name for f in declared)
     if isinstance(initial_families, bool) or not isinstance(initial_families, int) or initial_families < 0:
         raise ValueError(f"initial_families must be a non-negative integer, got {initial_families!r}")
     if len(set(fams)) != len(fams):
         raise ValueError(f"family names must be unique, got {list(fams)}")
-    return FamilyGenome(duplication, loss, origination, initial_families, fams,
+    return FamilyGenome(duplication, loss, origination, initial_families, tuple(declared),
                         transfer, resolve_max_family_size(max_family_size))
 
 
