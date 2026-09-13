@@ -638,11 +638,17 @@ def _events_tsv(events, event_positions, names=None) -> str:
 
 # --- a run written to disk as it goes (stream_to=) ------------------------------------------------
 
+#: How many records a streamed run holds before it writes them. Writing each step's few records on
+#: their own spent more time building rows than the run spent simulating. Any batch of whole steps
+#: gives the same rows, the whole log included, and this one is a few megabytes.
+_FLUSH_RECORDS = 50_000
+
 #: How many rows of the event log one group of families may hold when a streamed run builds its gene
-#: trees at the end, and how many groups it may split the log into. The cap keeps the files open at
-#: once within a default open-file limit; past it a group simply holds more rows.
-_GENE_TREE_GROUP_ROWS = 500_000
-_GENE_TREE_MAX_GROUPS = 128
+#: trees at the end: a group is parsed whole, so this is what that step holds in memory. And how many
+#: group files are open at once, within a default open-file limit; past that the log is read again
+#: for the next files.
+_GENE_TREE_GROUP_ROWS = 100_000
+_GENE_TREE_OPEN_FILES = 128
 
 
 class _OrderedStream:
@@ -650,13 +656,14 @@ class _OrderedStream:
 
     The engine appends to the same four lists an in-memory run keeps — `edges`, `positions`,
     `rearrangements` and `chromosome_events` — and `flush` turns what they hold into rows and empties
-    them, once per step. So a step's records reach the disk before the next step starts, and the lists
-    never hold more than one step.
+    them, whenever they hold `_FLUSH_RECORDS` records (`flush_if_full`) and at the end.
 
     A row names each copy with the branch it lived on, and a copy a row ends was often born many steps
     before. So the stream keeps the branch of every living copy and chromosome, and forgets one when it
     ends: a copy when an event ends it, a chromosome when an edge ends it, and every copy and
-    chromosome of a tip when the tip's branch ends.
+    chromosome of a tip when the tip's branch ends. A tip's are forgotten at the next `flush`, after
+    its rows are written: some may have been born in the records not yet written, and forgetting them
+    before those were written would leave them kept for good.
 
     `branch_ended` writes a node's ``gene_order.tsv`` rows when its branch ends, so that file lists the
     nodes in the order their branches end. For an extant tip it also keeps what ``profiles.tsv`` and
@@ -678,6 +685,8 @@ class _OrderedStream:
         self.chromosome_events: list[ChromosomeEvent] = []
         self._copy_branch: dict[int, int] = {}
         self._chromosome_branch: dict[int, int] = {}
+        self._ended_copies: list[int] = []        # a tip's, forgotten at the next flush
+        self._ended_chromosomes: list[int] = []
         self._tally = EventTally(tree.nodes[tree.root].birth_time)
         self._rearranged: collections.Counter = collections.Counter()
         self._chromosome_kinds: collections.Counter = collections.Counter()
@@ -710,8 +719,13 @@ class _OrderedStream:
         f.write(header + "\n")
         return f
 
+    def flush_if_full(self) -> None:
+        """`flush`, once the buffers hold `_FLUSH_RECORDS` records."""
+        if len(self.edges) + len(self.rearrangements) + len(self.chromosome_events) >= _FLUSH_RECORDS:
+            self.flush()
+
     def flush(self) -> None:
-        """Write what the last step recorded, and empty the buffers."""
+        """Write what the buffers hold, and empty them."""
         edges = self.edges
         if edges:
             births = {e.copy: e.lineage for e in edges}
@@ -732,6 +746,9 @@ class _OrderedStream:
                     self._copy_branch.pop(ended, None)
             edges.clear()
         self.positions.clear()
+        for copy in self._ended_copies:
+            self._copy_branch.pop(copy, None)
+        self._ended_copies.clear()
         if self.rearrangements:
             if self._rearrangement_file is not None:
                 self._rearrangement_file.writelines(
@@ -753,6 +770,9 @@ class _OrderedStream:
                 for parent in chromosome_event.parents:
                     self._chromosome_branch.pop(parent, None)
             self.chromosome_events.clear()
+        for chromosome in self._ended_chromosomes:
+            self._chromosome_branch.pop(chromosome, None)
+        self._ended_chromosomes.clear()
 
     def branch_ended(self, node_id: int, genome) -> None:
         """Node ``node_id``'s branch has ended with ``genome``: write its gene order, and for a tip keep
@@ -763,10 +783,8 @@ class _OrderedStream:
                 row + "\n" for row in _gene_order_rows(_name(self.names, node_id), genome))
         if self.tree.nodes[node_id].children:
             return
-        for chrom in genome:
-            self._chromosome_branch.pop(chrom.id, None)
-            for g in chrom.genes:
-                self._copy_branch.pop(g.id, None)
+        self._ended_chromosomes.extend(chrom.id for chrom in genome)
+        self._ended_copies.extend(g.id for chrom in genome for g in chrom.genes)
         if node_id not in self._extant:
             return
         held = collections.Counter(g.family for chrom in genome for g in chrom.genes)
@@ -832,30 +850,36 @@ def _write_gene_trees_from_log(events_path, n_rows: int, directory, scratch, tre
 
     Every row of a family goes to the group ``family % groups``, so each group is a whole log for the
     families in it, and building a group's trees gives each family the tree the whole log would. The
-    groups are written under ``scratch`` and removed as they are used."""
-    groups = min(_GENE_TREE_MAX_GROUPS, max(1, -(-n_rows // _GENE_TREE_GROUP_ROWS)))
+    log is read once for every `_GENE_TREE_OPEN_FILES` groups, which are written under ``scratch``,
+    built, and removed before the next are written. A group holds about `_GENE_TREE_GROUP_ROWS` rows,
+    and never less than its largest family."""
+    groups = max(1, -(-n_rows // _GENE_TREE_GROUP_ROWS))
     if groups == 1:
         edges = edges_from_tsv(pathlib.Path(events_path).read_text(encoding="utf-8"))
         write_gene_trees(gene_trees_from_edges(edges, tree), directory, names)
         return
     parts = pathlib.Path(scratch) / "_gene_tree_groups"
     parts.mkdir(exist_ok=True)
-    with open(events_path, encoding="utf-8") as log:
-        header = log.readline()
-        files = [open(parts / f"{i}.tsv", "w", encoding="utf-8") for i in range(groups)]
-        try:
-            for f in files:
-                f.write(header)
-            for line in log:
-                files[int(line.split("\t", 3)[2]) % groups].write(line)   # the family column
-        finally:
-            for f in files:
-                f.close()
-    for i in range(groups):
-        part = parts / f"{i}.tsv"
-        edges = edges_from_tsv(part.read_text(encoding="utf-8"))
-        write_gene_trees(gene_trees_from_edges(edges, tree), directory, names)
-        part.unlink()
+    for first in range(0, groups, _GENE_TREE_OPEN_FILES):
+        these = range(first, min(first + _GENE_TREE_OPEN_FILES, groups))
+        with open(events_path, encoding="utf-8") as log:
+            header = log.readline()
+            files = {i: open(parts / f"{i}.tsv", "w", encoding="utf-8") for i in these}
+            try:
+                for f in files.values():
+                    f.write(header)
+                for line in log:
+                    group_file = files.get(int(line.split("\t", 3)[2]) % groups)   # the family column
+                    if group_file is not None:
+                        group_file.write(line)
+            finally:
+                for f in files.values():
+                    f.close()
+        for i in these:
+            part = parts / f"{i}.tsv"
+            edges = edges_from_tsv(part.read_text(encoding="utf-8"))
+            write_gene_trees(gene_trees_from_edges(edges, tree), directory, names)
+            part.unlink()
     parts.rmdir()
 
 
@@ -2333,7 +2357,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     pos: dict[int, int] = {}
     genomes: dict[int, tuple[Chromosome, ...]] = {}
     # A streamed run writes these four as it goes and keeps none of them (`_OrderedStream`): the engine
-    # appends to the stream's own lists, and the stream empties them once per step.
+    # appends to the stream's own lists, and the stream writes and empties them in batches.
     to_disk = _OrderedStream(stream_to, outputs, tree) if stream_to is not None else None
     events: list[GeneEdge] = to_disk.edges if to_disk is not None else []
     event_positions: list[EventPosition] = to_disk.positions if to_disk is not None else []
@@ -2620,7 +2644,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     si = 0
     while si < len(schedule):
         if to_disk is not None:
-            to_disk.flush()              # what the last step recorded, on disk before this one starts
+            to_disk.flush_if_full()      # between steps, so a batch always holds whole events
         if _CHECK_COUNTS:
             _check_counts(gen, counts, rows)
         bar.to(si)
