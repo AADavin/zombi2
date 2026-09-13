@@ -279,9 +279,11 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
     _add_flat_arg(g)
     _add_parallel_arg(g)
     g.add_argument("--stream", action="store_true",
-                   help="[family] write each family to disk as it finishes rather than hold the "
-                        "run in memory; gene trees stay under gene_trees/ even with --flat. A "
-                        "separate engine, like --parallel: same seed, a different (valid) run")
+                   help="[family, ordered] write the run to disk as it goes rather than hold it in "
+                        "memory; gene trees stay under gene_trees/ even with --flat. At the family "
+                        "resolution it is a separate engine, like --parallel: same seed, a different "
+                        "(valid) run. At the ordered resolution the run is unchanged, and "
+                        "gene_order.tsv lists each node's rows when its branch ends")
     _add_quiet_arg(g)
     _add_force_arg(g)
 
@@ -506,12 +508,14 @@ def run(args, parser):
                          f"{', '.join(stray)} (the gene-family core has no chromosomes or positions, "
                          f"so an event acts on one copy and there is no run of genes to size)")
     else:
-        for flag, given in (("--parallel", args.parallel is not None), ("--stream", args.stream)):
-            if given:
-                parser.error(f"{flag} applies to --resolution family only, where gene families are "
-                             f"independent and evolve one per worker; the {args.resolution} resolution "
-                             f"couples families by position (inversions, translocations), so it has no "
-                             f"per-family engine")
+        if args.parallel is not None:
+            parser.error(f"--parallel applies to --resolution family only, where gene families are "
+                         f"independent and evolve one per worker; the {args.resolution} resolution "
+                         f"couples families by position (inversions, translocations), so it has no "
+                         f"per-family engine")
+        if args.stream and args.resolution == "nucleotide":
+            parser.error("--stream applies to --resolution family or ordered; the nucleotide "
+                         "resolution keeps its run in memory")
     if args.resolution != "nucleotide":
         if stray := _stray(args, _NUCLEOTIDE_ONLY):
             parser.error(f"these options need --resolution nucleotide: {', '.join(stray)} "
@@ -588,16 +592,19 @@ def run(args, parser):
     clear_stale_downstream(args, "genomes")   # --force: drop the now-stale downstream (run succeeded)
     os.makedirs(args.run, exist_ok=True)
     out = level_dir(args.run, "genomes", args.flat)
-    streaming = args.stream and args.resolution == "family"
+    streaming = args.stream and args.resolution in ("family", "ordered")
 
     t0 = time.perf_counter()
     if args.resolution == "ordered":
         # None passes straight through: the engine's own default is one gene, so an unset flag runs
         # exactly as it did before these reached the command line
         extents = {f"{k}_extent": getattr(args, f"{k}_extent") for k in _SEGMENT_EXTENTS}
+        # streamed, the engine writes `out` itself as the run goes, and a StreamedRun comes back
+        to_disk = (dict(stream_to=out, outputs=tuple(args.write) if args.write else None)
+                   if streaming else {})
         result = simulate_genomes_ordered(
             tree, replacement=args.replacement, initial_families=args.initial_families,
-            progress=not args.quiet, **extents, **structured, **family_knobs, **common)
+            progress=not args.quiet, **to_disk, **extents, **structured, **family_knobs, **common)
     elif args.resolution == "nucleotide":
         # the flags default to None so `ordered` can mean "one gene" and `nucleotide` "50 bp" from
         # one flag; here None is filled with the 50 this command has always used
@@ -666,7 +673,7 @@ def run(args, parser):
 
     if streaming:                               # a StreamedRun carries counts, not the run in memory
         summary = (f"{result.n_families} gene families, {result.n_events} events, streamed to disk "
-                   f"(family)")
+                   f"({args.resolution})")
     elif args.resolution == "nucleotide":       # no phyletic profiles here: the unit is a base pair
         extant = list(result.complete_tree.extant_leaves())
         bp = sum(result.node_genomes[s].length for s in extant)

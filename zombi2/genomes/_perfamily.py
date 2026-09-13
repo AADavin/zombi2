@@ -535,7 +535,10 @@ _STREAM_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_tree
                    "links")
 _STREAM_FILENAMES = {"events": "genome_events.tsv", "profiles": "profiles.tsv",
                      "genomes": "genomes.tsv", "initial_genome": "initial_genome.tsv",
-                     "species_tree": "species_complete.nwk", "links": "links.tsv"}
+                     "species_tree": "species_complete.nwk", "links": "links.tsv",
+                     # the files only an ordered run writes (`zombi2.genomes.ordered`)
+                     "gene_order": "gene_order.tsv", "chromosome_events": "chromosome_events.tsv",
+                     "summary": "genome_summary.json"}
 _DEFAULT_STREAM_OUTPUTS = _STREAM_OUTPUTS
 
 #: families per streamed chunk — **fixed**, independent of the worker count, so a chunk is a contiguous
@@ -546,10 +549,12 @@ _STREAM_CHUNK = 256
 
 @dataclass(frozen=True)
 class StreamedRun:
-    """A genome run written **straight to disk**, family by family — what ``stream_to=`` returns, for a
-    scale where a whole `FamilyGenomesResult` would not fit in memory. Thin by design:
-    the outputs *are* the files and the disk is the handoff (the sequences level reads them back), so
-    this carries where they are and how big the run was, not the run itself."""
+    """A genome run written **straight to disk** — what ``stream_to=`` returns, for a scale where a
+    whole result would not fit in memory. At the family resolution the files are written family by
+    family; at the ordered resolution they are written as the run goes. Thin by design: the outputs
+    *are* the files and the disk is the handoff (the sequences level reads them back), so this carries
+    where they are and how big the run was, not the run itself. ``n_events`` counts gene-tree edges,
+    and ``n_families`` the families the run began."""
 
     directory: str
     seed: "int | None"

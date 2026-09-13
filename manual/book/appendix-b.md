@@ -68,8 +68,9 @@ Each level directory also holds that command's log (`species.log`, `genomes.log`
 `traits.log`) with the version, the command line and every resolved parameter, rates in their written
 form. Beside it, a summary of what came out: `species_summary.json`, `genome_summary.json`,
 `sequences_summary.json`, `trait_summary.json`, written at every level, and at all three genome
-resolutions, except by `zombi2 genomes --stream`, which writes each family straight to disk and never
-holds the whole run to summarise. A streamed run also keeps its own `species_complete.nwk` beside its
+resolutions, except by a streamed family run (`zombi2 genomes --stream` at the family resolution),
+which writes each family straight to disk and never holds the whole run to summarise. A streamed
+ordered run writes it. A streamed run also keeps its own `species_complete.nwk` beside its
 tables. It still reads the tree from `species/`, as any genomes run does; the copy is so that the
 `genomes/` directory stands alone as the handoff a later level or another tool reads.
 
@@ -166,7 +167,7 @@ can always be compared against the file.
 **`species_complete.nwk`**. Every other file here is indexed by its node labels, so the directory is
 not readable, by anyone or by `genomes.read_run()`, without it. `result.write()` writes it by
 default, so a directory written from Python stands alone; `zombi2 genomes` leaves it out, except
-under `--stream`, which is family-only, because a run already keeps one copy at
+under `--stream`, because a run already keeps one copy at
 `species/species_complete.nwk`, shared by every level. Its token in `outputs=` and `--write` is
 `species_tree`, not the file's name.
 
@@ -260,7 +261,9 @@ From Python: `.genomes` · `.node_genomes` (as at the family resolution, but eac
 **`Chromosome`** objects, each an `id`, a `topology`, and an ordered list of **`Gene`** objects with
 `id`, `family` and `strand`), `.gene_order(node)` (one node's layout gene by gene, as
 `(chromosome, position, strand, family, gene id)`), and `.rearrangements` · `.chromosome_events` ·
-`.gene_trees` · `.profiles` · `.links` in memory.
+`.gene_trees` · `.profiles` · `.links` in memory. A run streamed to disk (`stream_to=DIR`, or
+`--stream`) writes the same files and gives back a `StreamedRun` instead: the directory, the seed, how
+many families and gene-tree edges the run made, and the outputs written.
 
 **`genome_events.tsv`**. The family resolution's five columns plus five more: `time` · `kind` ·
 `family` · `parents` · `children` · `chromosome` · `start` · `length` · `dest_chromosome` ·
@@ -287,7 +290,8 @@ repeating the same arc.
 
 **`gene_order.tsv`**. `topology` is `circular` or `linear`, written beside every gene: it decides
 where a segmental event stops and which chromosomes may fuse. A chromosome with no genes has no rows
-here, and so no topology.
+here, and so no topology. A streamed run lists each node's rows when that node's branch ends, so the
+nodes are in the order their branches end rather than in node order.
 
 **`chromosome_events.tsv`**. Chromosomes are named `n<species>_c<id>`, on the same pattern as gene
 copies. Kinds are `initial` (a replicon the run starts with, at time 0), `speciation`, `fission`,
