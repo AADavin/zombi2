@@ -83,13 +83,28 @@ def _branches(chromosome_events, tree) -> dict[int, int]:
     child order (which is the order the engines mint them in), so that is where the tree is needed."""
     where: dict[int, int] = {}
     for e in chromosome_events:
-        if e.kind == "speciation":
-            for daughter, child in zip(tree.nodes[e.lineage].children or (), e.children):
-                where[child] = daughter
-        else:
-            for child in e.children:
-                where[child] = e.lineage
+        where.update(chromosome_child_branches(e, tree))
     return where
+
+
+def chromosome_child_branches(e, tree):
+    """Each chromosome edge ``e`` begins, paired with the branch it lives on (see `_branches`)."""
+    if e.kind == "speciation":
+        return zip(e.children, tree.nodes[e.lineage].children or ())
+    return ((child, e.lineage) for child in e.children)
+
+
+#: the header line of ``chromosome_events.tsv``
+CHROMOSOME_EVENTS_HEADER = "\t".join(_COLS)
+
+
+def chromosome_event_rows(chromosome_events, where, names=None) -> list[str]:
+    """The rows of ``chromosome_events.tsv`` without the header. ``where`` is ``{chromosome id: the
+    branch it lived on}`` for every chromosome the rows name."""
+    def cell(ids) -> str:
+        return _PACK.join(chromosome_label(where[c], c, names) for c in ids)
+
+    return [f"{e.time}\t{e.kind}\t{cell(e.parents)}\t{cell(e.children)}" for e in chromosome_events]
 
 
 def chromosome_events_tsv(chromosome_events: list[ChromosomeEvent], tree, names=None) -> str:
@@ -100,13 +115,8 @@ def chromosome_events_tsv(chromosome_events: list[ChromosomeEvent], tree, names=
     ``tree`` is the species tree the run happened in, needed only to put a speciation's children on
     the daughters they were minted for; ``names`` is its ``labels()`` map, so a chromosome on a
     lineage that died is written ``e<id>`` like everywhere else."""
-    where = _branches(chromosome_events, tree)
-
-    def cell(ids) -> str:
-        return _PACK.join(chromosome_label(where[c], c, names) for c in ids)
-
-    rows = [f"{e.time}\t{e.kind}\t{cell(e.parents)}\t{cell(e.children)}" for e in chromosome_events]
-    return "\n".join(["\t".join(_COLS), *rows]) + "\n"
+    rows = chromosome_event_rows(chromosome_events, _branches(chromosome_events, tree), names)
+    return "\n".join([CHROMOSOME_EVENTS_HEADER, *rows]) + "\n"
 
 
 #: ``rearrangement_events.tsv``. A rearrangement acts on a **segment**, and a segment is not an entity
@@ -117,6 +127,8 @@ def chromosome_events_tsv(chromosome_events: list[ChromosomeEvent], tree, names=
 #: record has one, and ``flipped`` only by the two that move a block, which may land inverted.
 REARRANGEMENT_COLS = ("time", "kind", "lineage", "chromosome", "start", "length",
                       "dest_chromosome", "dest_position", "flipped", "cuts")
+#: the header line of ``rearrangement_events.tsv``
+REARRANGEMENT_HEADER = "\t".join(REARRANGEMENT_COLS)
 #: How a list of ancestral breakpoints is written into one cell: ``source:position``, semicolon
 #: separated, empty where a record has none. The nucleotide resolution fills it — the partition has
 #: to tell an indel breakpoint from an ordinary one, and these coordinates are the only ones in the
@@ -164,13 +176,18 @@ def rearrangement_events_tsv(rearrangements, names=None) -> str:
     Empty cells where a kind has no such field; the columns are the same for every row, which is the
     point of the file existing. These rows used to sit in the genealogy table with its nine columns
     blank, which made that table mostly empty and this record hard to read out of it."""
+    return "\n".join([REARRANGEMENT_HEADER, *rearrangement_event_rows(rearrangements, names)]) + "\n"
+
+
+def rearrangement_event_rows(rearrangements, names=None) -> list[str]:
+    """The rows of ``rearrangement_events.tsv`` without the header, one per record, in order."""
     rows = []
     for r in rearrangements:
         kind, *rest = _rearrangement_cells(r)
         rows.append("\t".join([str(r.time), kind, _name(names, r.lineage),
                                *("" if c is None else str(c) for c in rest),
                                cuts_cell(getattr(r, "cuts", ()))]))
-    return "\n".join(["\t".join(REARRANGEMENT_COLS), *rows]) + "\n"
+    return rows
 
 
 __all__ = ["ChromosomeEvent", "chromosome_events_tsv", "chromosome_label",

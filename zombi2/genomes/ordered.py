@@ -48,6 +48,7 @@ its genes allows (SPEC §6).
 
 from __future__ import annotations
 
+import array
 import collections
 import math
 import pathlib
@@ -67,7 +68,9 @@ from ..params.connection import Driven, SetBy
 from ..params.parameter import Rate, as_rate
 from ..params.scope import PerChromosome, PerCopy, PerLineage
 from ..tree import Tree, as_tree
-from .chromosomes import ChromosomeEvent, chromosome_events_tsv, rearrangement_events_tsv
+from .chromosomes import (CHROMOSOME_EVENTS_HEADER, REARRANGEMENT_HEADER, ChromosomeEvent,
+                          chromosome_child_branches, chromosome_event_rows, chromosome_events_tsv,
+                          rearrangement_event_rows, rearrangement_events_tsv)
 from ..params.retired import check_no_retired_keywords
 from .family import (_FamilyCounts, _LiveGeneContent, live_target, resolve_families,
                      resolve_family_rates, resolve_family_transfer_to, resolve_live_drivers,
@@ -78,11 +81,12 @@ from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
 from .._runtime.outputs import fresh_dirs, grouped_dir
 from .._runtime.summary import _stats, write_summary
 from .._runtime.progress import progress_bar
-from .events import (_COLS, Event, GeneEdge, _branches, _name, event_counts, event_rows,
-                     events_from_edges, gene_label)
+from .events import (_COLS, Event, EventTally, GeneEdge, _branches, _name, edges_from_tsv,
+                     event_counts, event_rows, events_from_edges, gene_label)
 from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
 from .links import Link, links_of, links_tsv
-from .profiles import Profiles, profiles_from_genomes
+from .profiles import Profiles, profiles_from_genomes, profiles_header, profiles_row
+from ._perfamily import StreamedRun
 
 #: The rate grammar this engine supports (SPEC §5) — read by the gate below and by the CLI's help, so
 #: a modifier is never advertised without being implemented. The same four the family core takes,
@@ -479,39 +483,21 @@ class OrderedGenomesResult:
         them."""
         t0 = self.complete_tree.nodes[self.complete_tree.root].birth_time
         extant = list(self.complete_tree.extant_leaves())
-        born = {e.family for e in self.edges}
-        surviving = {g.family for i in extant for c in self.node_genomes.get(i, ()) for g in c.genes}
-        genes_per_genome = [sum(len(c.genes) for c in self.node_genomes.get(i, ())) for i in extant]
-        chrom_per_genome = [len(self.node_genomes.get(i, ())) for i in extant]
-        rearrangements = collections.Counter(type(r).__name__.lower() for r in self.rearrangements)
-        chromosome = collections.Counter(e.kind for e in self.chromosome_events)
-        return {
-            "level": "genomes",
-            "seed": self.seed,
-            "resolution": "ordered",
-            "events": event_counts(self.edges, t0),
-            "families": {"born": len(born), "surviving": len(surviving),
-                         "died_out": len(born) - len(surviving),
-                         "named": len(self.family_names)},
-            "extant_genomes": len(extant),
-            "empty_genomes": sum(1 for i in extant
-                                 if not any(c.genes for c in self.node_genomes.get(i, ()))),
-            "genes_per_genome": _stats(genes_per_genome),
-            "chromosomes_per_genome": _stats(chrom_per_genome),
-            # this resolution's own two records: what moved genes without changing their ancestry,
-            # and what happened to the replicons carrying them
-            "rearrangements": {k: rearrangements.get(k, 0)
-                               for k in ("inversion", "transposition", "translocation")},
-            "chromosome_events": dict(sorted(chromosome.items())),
-        }
+        return _ordered_summary(
+            seed=self.seed, events=event_counts(self.edges, t0),
+            born=len({e.family for e in self.edges}),
+            surviving=len({g.family for i in extant for c in self.node_genomes.get(i, ())
+                           for g in c.genes}),
+            named=len(self.family_names), extant=len(extant),
+            empty=sum(1 for i in extant if not any(c.genes for c in self.node_genomes.get(i, ()))),
+            genes_per_genome=[sum(len(c.genes) for c in self.node_genomes.get(i, ())) for i in extant],
+            chromosomes_per_genome=[len(self.node_genomes.get(i, ())) for i in extant],
+            rearrangements=collections.Counter(type(r).__name__.lower() for r in self.rearrangements),
+            chromosome_events=collections.Counter(e.kind for e in self.chromosome_events))
 
     def _initial_genome_tsv(self) -> str:
-        """The layout the run started with — ``gene_order.tsv``'s columns without ``lineage``, which
-        is the whole point: it belongs to the start of the root branch, not to a node."""
-        cols = ("chromosome", "topology", "position", "strand", "family", "copy")
-        rows = [f"{chrom.id}\t{chrom.topology}\t{pos}\t{g.strand}\t{g.family}\t{gene_label(g.id)}"
-                for chrom in self.initial_genome for pos, g in enumerate(chrom.genes)]
-        return "\n".join(["\t".join(cols), *rows]) + "\n"
+        """The layout the run started with (`_initial_genome_tsv`)."""
+        return _initial_genome_tsv(self.initial_genome)
 
     def _gene_order_tsv(self, names=None) -> str:
         """Every node's gene arrangement, with each chromosome's **topology** beside its id.
@@ -526,14 +512,54 @@ class OrderedGenomesResult:
 
         A chromosome carrying no genes has no rows here and so no topology, as it has no position or
         strand either: this is the gene arrangement, and an empty replicon has none."""
-        cols = ("lineage", "chromosome", "topology", "position", "strand", "family", "copy")
         rows: list[str] = []
         for s in sorted(self.node_genomes):
-            topology = {c.id: c.topology for c in self.node_genomes[s]}
-            rows.extend(f"{_name(names, s)}\t{ch}\t{topology.get(ch, '')}\t{p}\t{st}\t{fam}\t"
-                        f"{gene_label(gid)}"
-                        for (ch, p, st, fam, gid) in self.gene_order(s))
-        return "\n".join(["\t".join(cols), *rows]) + "\n"
+            rows.extend(_gene_order_rows(_name(names, s), self.node_genomes[s]))
+        return "\n".join(["\t".join(_GENE_ORDER_COLS), *rows]) + "\n"
+
+
+#: the columns of ``gene_order.tsv``
+_GENE_ORDER_COLS = ("lineage", "chromosome", "topology", "position", "strand", "family", "copy")
+
+
+def _gene_order_rows(name: str, genome) -> list[str]:
+    """One node's rows of ``gene_order.tsv``: ``name`` is the node as the files write it, ``genome``
+    its chromosomes, read chromosome by chromosome and left to right within each."""
+    return [f"{name}\t{chrom.id}\t{chrom.topology}\t{p}\t{g.strand}\t{g.family}\t{gene_label(g.id)}"
+            for chrom in genome for p, g in enumerate(chrom.genes)]
+
+
+def _initial_genome_tsv(initial_genome) -> str:
+    """The layout the run started with — ``gene_order.tsv``'s columns without ``lineage``, which is
+    the whole point: it belongs to the start of the root branch, not to a node."""
+    cols = ("chromosome", "topology", "position", "strand", "family", "copy")
+    rows = [f"{chrom.id}\t{chrom.topology}\t{pos}\t{g.strand}\t{g.family}\t{gene_label(g.id)}"
+            for chrom in initial_genome for pos, g in enumerate(chrom.genes)]
+    return "\n".join(["\t".join(cols), *rows]) + "\n"
+
+
+def _ordered_summary(*, seed, events, born, surviving, named, extant, empty, genes_per_genome,
+                     chromosomes_per_genome, rearrangements, chromosome_events) -> dict:
+    """The payload of ``genome_summary.json``, from the numbers it reports. One function, so a run
+    kept in memory (`OrderedGenomesResult.summary`) and a streamed run (`_OrderedStream`) cannot report
+    them differently. ``rearrangements`` and ``chromosome_events`` count records by kind."""
+    return {
+        "level": "genomes",
+        "seed": seed,
+        "resolution": "ordered",
+        "events": events,
+        "families": {"born": born, "surviving": surviving, "died_out": born - surviving,
+                     "named": named},
+        "extant_genomes": extant,
+        "empty_genomes": empty,
+        "genes_per_genome": _stats(genes_per_genome),
+        "chromosomes_per_genome": _stats(chromosomes_per_genome),
+        # this resolution's own two records: what moved genes without changing their ancestry, and
+        # what happened to the replicons carrying them
+        "rearrangements": {k: rearrangements.get(k, 0)
+                           for k in ("inversion", "transposition", "translocation")},
+        "chromosome_events": dict(sorted(chromosome_events.items())),
+    }
 
 
 #: ``genome_events.tsv`` here: the shared genealogy columns (`_COLS` — one row per event, its
@@ -565,7 +591,7 @@ def _position_key(kind, lineage, family):
     return (kind, lineage, family if kind == "origination" else None)
 
 
-def _coordinates(events, event_positions) -> list[str]:
+def _coordinates(events, event_positions, branches=None) -> list[str]:
     """The coordinate cells of every written row, in `event_rows()`'s order — the two are zipped into
     one table, so this walks the same `events_from_edges()` the genealogy writer does.
 
@@ -576,11 +602,13 @@ def _coordinates(events, event_positions) -> list[str]:
 
     A copy displaced by a replacing transfer has no row of its own (it is that transfer's second
     parent), so its position is not written: it is named by id, and a replay that tracks ids removes
-    it without needing to be told where it sat."""
+    it without needing to be told where it sat.
+
+    ``branches`` is as in `event_rows`: read off ``events`` when it is not given."""
     where: dict = {}
     for p in event_positions:
         where.setdefault((p.time, *_position_key(p.kind, p.lineage, p.family)), p)
-    branch = _branches(events)
+    branch = _branches(events) if branches is None else branches
     out = []
     for time, kind, family, parents, children in (
             (e.time, e.kind, e.family, e.parents, e.children) for e in events_from_edges(events)):
@@ -606,6 +634,229 @@ def _events_tsv(events, event_positions, names=None) -> str:
     return "\n".join(["\t".join(_EVENT_COLS),
                       *[f"{r}\t{c}" for r, c in zip(rows, _coordinates(events, event_positions))]]
                      ) + "\n"
+
+
+# --- a run written to disk as it goes (stream_to=) ------------------------------------------------
+
+#: How many rows of the event log one group of families may hold when a streamed run builds its gene
+#: trees at the end, and how many groups it may split the log into. The cap keeps the files open at
+#: once within a default open-file limit; past it a group simply holds more rows.
+_GENE_TREE_GROUP_ROWS = 500_000
+_GENE_TREE_MAX_GROUPS = 128
+
+
+class _OrderedStream:
+    """Where a streamed ordered run records what it does: its files, written as the run goes.
+
+    The engine appends to the same four lists an in-memory run keeps — `edges`, `positions`,
+    `rearrangements` and `chromosome_events` — and `flush` turns what they hold into rows and empties
+    them, once per step. So a step's records reach the disk before the next step starts, and the lists
+    never hold more than one step.
+
+    A row names each copy with the branch it lived on, and a copy a row ends was often born many steps
+    before. So the stream keeps the branch of every living copy and chromosome, and forgets one when it
+    ends: a copy when an event ends it, a chromosome when an edge ends it, and every copy and
+    chromosome of a tip when the tip's branch ends.
+
+    `branch_ended` writes a node's ``gene_order.tsv`` rows when its branch ends, so that file lists the
+    nodes in the order their branches end. For an extant tip it also keeps what ``profiles.tsv`` and
+    the summary need: which families the tip holds, and how many copies of each. `close` writes the
+    remaining files and builds the gene trees from the event log (`_write_gene_trees_from_log`)."""
+
+    def __init__(self, directory, outputs, tree) -> None:
+        self.directory = pathlib.Path(directory)
+        self.directory.mkdir(parents=True, exist_ok=True)
+        # the gene trees are one file pair per family, so a previous run's must not survive beside these
+        fresh_dirs(self.directory, ("gene_trees",), flat=False)
+        self.outputs = tuple(outputs)
+        self.tree, self.names = tree, tree.labels()
+        self._extant = set(tree.extant_leaves())
+        # the buffers the engine appends to, emptied by `flush`
+        self.edges: list[GeneEdge] = []
+        self.positions: list[EventPosition] = []
+        self.rearrangements: list = []
+        self.chromosome_events: list[ChromosomeEvent] = []
+        self._copy_branch: dict[int, int] = {}
+        self._chromosome_branch: dict[int, int] = {}
+        self._tally = EventTally(tree.nodes[tree.root].birth_time)
+        self._rearranged: collections.Counter = collections.Counter()
+        self._chromosome_kinds: collections.Counter = collections.Counter()
+        self.n_edges = 0
+        self._n_rows = 0
+        self._born = 0
+        self._tips: dict[int, tuple] = {}       # extant tip -> (families, copies), for profiles.tsv
+        self._surviving: set[int] = set()
+        self._genes_per_genome: list[int] = []
+        self._chromosomes_per_genome: list[int] = []
+        self._empty = 0
+        want = set(self.outputs)
+        # the gene trees are built from the event log, so it is written when either is asked for, and
+        # removed at the end when only the gene trees were
+        self._events_path = self.directory / ("genome_events.tsv" if "events" in want
+                                              else "_genome_events_for_gene_trees.tsv")
+        self._events = (self._open(self._events_path, "\t".join(_EVENT_COLS))
+                        if want & {"events", "gene_trees"} else None)
+        self._rearrangement_file = (self._open(self.directory / "rearrangement_events.tsv",
+                                               REARRANGEMENT_HEADER) if "events" in want else None)
+        self._chromosome_file = (self._open(self.directory / "chromosome_events.tsv",
+                                            CHROMOSOME_EVENTS_HEADER)
+                                 if "chromosome_events" in want else None)
+        self._gene_order = (self._open(self.directory / "gene_order.tsv", "\t".join(_GENE_ORDER_COLS))
+                            if "gene_order" in want else None)
+
+    @staticmethod
+    def _open(path, header: str):
+        f = open(path, "w", encoding="utf-8")
+        f.write(header + "\n")
+        return f
+
+    def flush(self) -> None:
+        """Write what the last step recorded, and empty the buffers."""
+        edges = self.edges
+        if edges:
+            births = {e.copy: e.lineage for e in edges}
+            branch = collections.ChainMap(births, self._copy_branch)
+            if self._events is not None:
+                rows = event_rows(edges, self.names, branch)
+                cells = _coordinates(edges, self.positions, branch)
+                self._events.writelines(f"{row}\t{cell}\n" for row, cell in zip(rows, cells))
+                self._n_rows += len(rows)
+            self._tally.add(edges)
+            self.n_edges += len(edges)
+            self._copy_branch.update(births)
+            for e in edges:
+                if e.kind == "origination":
+                    self._born += 1             # every family begins with exactly one origination
+                ended = e.parent if e.parent is not None else (e.copy if e.kind == "loss" else None)
+                if ended is not None:
+                    self._copy_branch.pop(ended, None)
+            edges.clear()
+        self.positions.clear()
+        if self.rearrangements:
+            if self._rearrangement_file is not None:
+                self._rearrangement_file.writelines(
+                    row + "\n" for row in rearrangement_event_rows(self.rearrangements, self.names))
+            self._rearranged.update(type(r).__name__.lower() for r in self.rearrangements)
+            self.rearrangements.clear()
+        if self.chromosome_events:
+            born = {child: lineage for chromosome_event in self.chromosome_events
+                    for child, lineage in chromosome_child_branches(chromosome_event, self.tree)}
+            where = collections.ChainMap(born, self._chromosome_branch)
+            if self._chromosome_file is not None:
+                self._chromosome_file.writelines(
+                    row + "\n" for row in chromosome_event_rows(self.chromosome_events, where,
+                                                                 self.names))
+            self._chromosome_kinds.update(chromosome_event.kind
+                                          for chromosome_event in self.chromosome_events)
+            self._chromosome_branch.update(born)
+            for chromosome_event in self.chromosome_events:
+                for parent in chromosome_event.parents:
+                    self._chromosome_branch.pop(parent, None)
+            self.chromosome_events.clear()
+
+    def branch_ended(self, node_id: int, genome) -> None:
+        """Node ``node_id``'s branch has ended with ``genome``: write its gene order, and for a tip keep
+        what the profiles and the summary need and forget its copies and chromosomes, which end here
+        without a row. A speciation's own rows end those of an internal node."""
+        if self._gene_order is not None:
+            self._gene_order.writelines(
+                row + "\n" for row in _gene_order_rows(_name(self.names, node_id), genome))
+        if self.tree.nodes[node_id].children:
+            return
+        for chrom in genome:
+            self._chromosome_branch.pop(chrom.id, None)
+            for g in chrom.genes:
+                self._copy_branch.pop(g.id, None)
+        if node_id not in self._extant:
+            return
+        held = collections.Counter(g.family for chrom in genome for g in chrom.genes)
+        self._surviving.update(held)
+        self._genes_per_genome.append(sum(held.values()))
+        self._chromosomes_per_genome.append(len(genome))
+        self._empty += not any(chrom.genes for chrom in genome)
+        if "profiles" in self.outputs:
+            families = sorted(held)
+            self._tips[node_id] = (array.array("q", families),
+                                   array.array("q", (held[f] for f in families)))
+
+    def close(self, *, seed, links, initial_genome, named: int) -> StreamedRun:
+        """Write what is left, build the gene trees, and hand back the run's `StreamedRun`."""
+        self.flush()
+        for f in (self._events, self._rearrangement_file, self._chromosome_file, self._gene_order):
+            if f is not None:
+                f.close()
+        d, want = self.directory, set(self.outputs)
+        if "gene_trees" in want:
+            _write_gene_trees_from_log(self._events_path, self._n_rows, d / "gene_trees", d,
+                                       self.tree, self.names)
+            if "events" not in want:
+                self._events_path.unlink()
+        if "profiles" in want:
+            self._write_profiles(d / "profiles.tsv")
+        if "initial_genome" in want:
+            (d / "initial_genome.tsv").write_text(_initial_genome_tsv(initial_genome), encoding="utf-8")
+        if "species_tree" in want:
+            (d / "species_complete.nwk").write_text(self.tree.to_newick() + "\n", encoding="utf-8")
+        if "summary" in want:
+            write_summary(d / "genome_summary.json", _ordered_summary(
+                seed=seed, events=self._tally.counts(), born=self._born,
+                surviving=len(self._surviving), named=named, extant=len(self._extant),
+                empty=self._empty, genes_per_genome=self._genes_per_genome,
+                chromosomes_per_genome=self._chromosomes_per_genome,
+                rearrangements=self._rearranged, chromosome_events=self._chromosome_kinds))
+        if "links" in want:
+            (d / "links.tsv").write_text(links_tsv(links), encoding="utf-8")
+        return StreamedRun(str(d), seed, self._born, self.n_edges, self.outputs)
+
+    def _write_profiles(self, path) -> None:
+        """``profiles.tsv`` from the extant tips' family counts: one row per family present at a tip, in
+        family order, and one column per extant species, in node order."""
+        species = sorted(self._extant)
+        by_family: dict[int, list] = collections.defaultdict(list)
+        for column, s in enumerate(species):
+            families, copies = self._tips.pop(s, ((), ()))
+            for family, n in zip(families, copies):
+                by_family[family].append((column, n))
+        with open(path, "w", encoding="utf-8") as out:
+            out.write(profiles_header(species) + "\n")
+            for family in sorted(by_family):
+                values = [0] * len(species)
+                for column, n in by_family.pop(family):
+                    values[column] = n
+                out.write(profiles_row(family, values) + "\n")
+
+
+def _write_gene_trees_from_log(events_path, n_rows: int, directory, scratch, tree, names) -> None:
+    """Build every family's gene tree from a written event log and write it into ``directory``,
+    holding one group of families in memory at a time.
+
+    Every row of a family goes to the group ``family % groups``, so each group is a whole log for the
+    families in it, and building a group's trees gives each family the tree the whole log would. The
+    groups are written under ``scratch`` and removed as they are used."""
+    groups = min(_GENE_TREE_MAX_GROUPS, max(1, -(-n_rows // _GENE_TREE_GROUP_ROWS)))
+    if groups == 1:
+        edges = edges_from_tsv(pathlib.Path(events_path).read_text(encoding="utf-8"))
+        write_gene_trees(gene_trees_from_edges(edges, tree), directory, names)
+        return
+    parts = pathlib.Path(scratch) / "_gene_tree_groups"
+    parts.mkdir(exist_ok=True)
+    with open(events_path, encoding="utf-8") as log:
+        header = log.readline()
+        files = [open(parts / f"{i}.tsv", "w", encoding="utf-8") for i in range(groups)]
+        try:
+            for f in files:
+                f.write(header)
+            for line in log:
+                files[int(line.split("\t", 3)[2]) % groups].write(line)   # the family column
+        finally:
+            for f in files:
+                f.close()
+    for i in range(groups):
+        part = parts / f"{i}.tsv"
+        edges = edges_from_tsv(part.read_text(encoding="utf-8"))
+        write_gene_trees(gene_trees_from_edges(edges, tree), directory, names)
+        part.unlink()
+    parts.rmdir()
 
 
 # --- picking, over the chromosome-nested state ----------------------------------------------------
@@ -1654,8 +1905,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              translocation_extent=None, inversion_probability=0.0,
                              transfer_to="uniform", replacement=False, self_transfer=False,
                              initial_families=100, families=None, joint=False,
-                             max_family_size=10, seed=None,
-                             progress=False, **retired) -> OrderedGenomesResult:
+                             max_family_size=10, seed=None, stream_to=None, outputs=None,
+                             progress=False, **retired) -> "OrderedGenomesResult | StreamedRun":
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
     species tree, by the D/T/L/O core plus segmental rearrangements and the chromosome events.
 
@@ -1761,8 +2012,26 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
 
     a per-family draw and a driven rate cannot be set in the same run: one weights lineages by a driver and
     the other weights the segment by what it covers.
+
+    **Streaming to disk.** ``stream_to=DIR`` writes the run's files as the run goes and keeps none of
+    its record in memory, for a run whose record would not fit. The run is the same run: the same seed
+    gives the same events, and the files hold what ``result.write(DIR)`` writes for it. Two things
+    differ. ``gene_order.tsv`` lists each node's rows when its branch ends rather than in node order,
+    and a `StreamedRun` comes back instead of an `OrderedGenomesResult`. The gene trees are built at the
+    end from the event log, one group of families at a time. ``outputs=`` picks the files, as
+    ``write()`` takes them, and without ``stream_to`` it is an error. The genomes still alive are kept,
+    as the run needs them, so at the end every extant genome is in memory at once.
     """
     tree = as_tree(tree, level="genomes")
+    if outputs is not None and stream_to is None:
+        raise ValueError(
+            "outputs applies to a streamed run (stream_to=DIR), which writes the files itself; for an "
+            "in-memory run choose them when you call result.write(outputs=...).")
+    if stream_to is not None:
+        outputs = tuple(OrderedGenomesResult.OUTPUTS if outputs is None else outputs)
+        if unknown := [o for o in outputs if o not in OrderedGenomesResult.OUTPUTS]:
+            raise ValueError(f"unknown stream outputs {unknown}; choose from "
+                             f"{list(OrderedGenomesResult.OUTPUTS)}")
     labels = _topologies(chromosomes, topology)
     n_initial_chrom = chromosomes
     # this slice implements each event's default scope and the four verbs IMPLEMENTED_MODIFIERS
@@ -2063,10 +2332,15 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     gen: list[list[Chromosome]] = []
     pos: dict[int, int] = {}
     genomes: dict[int, tuple[Chromosome, ...]] = {}
-    events: list[GeneEdge] = []
-    event_positions: list[EventPosition] = []
-    rearrangements: list[Inversion | Transposition | Translocation] = []
-    chromosome_events: list[ChromosomeEvent] = []
+    # A streamed run writes these four as it goes and keeps none of them (`_OrderedStream`): the engine
+    # appends to the stream's own lists, and the stream empties them once per step.
+    to_disk = _OrderedStream(stream_to, outputs, tree) if stream_to is not None else None
+    events: list[GeneEdge] = to_disk.edges if to_disk is not None else []
+    event_positions: list[EventPosition] = to_disk.positions if to_disk is not None else []
+    rearrangements: list[Inversion | Transposition | Translocation] = (
+        to_disk.rearrangements if to_disk is not None else [])
+    chromosome_events: list[ChromosomeEvent] = (
+        to_disk.chromosome_events if to_disk is not None else [])
 
     initial_chroms = []
     for label in labels:  # lay down the initial karyotype; each initial chromosome is a network root
@@ -2345,6 +2619,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     bar = progress_bar(len(schedule), "genomes", unit="branch", enabled=progress)
     si = 0
     while si < len(schedule):
+        if to_disk is not None:
+            to_disk.flush()              # what the last step recorded, on disk before this one starts
         if _CHECK_COUNTS:
             _check_counts(gen, counts, rows)
         bar.to(si)
@@ -2621,7 +2897,10 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             while si < len(schedule) and schedule[si][0] == t:
                 i = schedule[si][1]
                 g = gen[pos[i]]
-                genomes[i] = tuple(Chromosome(c.id, c.topology, tuple(c.genes)) for c in g)  # freeze
+                if to_disk is None:
+                    genomes[i] = tuple(Chromosome(c.id, c.topology, tuple(c.genes)) for c in g)  # freeze
+                else:
+                    to_disk.branch_ended(i, g)     # written now, and not kept
                 total_copies -= sum(len(c.genes) for c in g)
                 total_chromosomes -= len(g)
                 inherited = counts.retired(pos[i])  # what the daughters below inherit, if any
@@ -2684,6 +2963,8 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         _check_counts(gen, counts, rows)
     links = links_of({**_rates, **_extents}, transfer_to, declared, fam_driven_rates, fam_transfer_to,
                      module_map or {})
+    if to_disk is not None:
+        return to_disk.close(seed=seed, links=links, initial_genome=initial_genome, named=len(named))
     return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
                                 named, module_map, event_positions, initial_genome, links)
 
