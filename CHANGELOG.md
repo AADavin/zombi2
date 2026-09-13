@@ -15,13 +15,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   `zombi2 genomes --resolution ordered --stream`, and then keeps none of its record in memory. The run
   is the same run: for a seed, the files hold what writing the run kept in memory gives, except that
   `gene_order.tsv` lists each node's rows when its branch ends. The gene trees are built at the end,
-  one group of families at a time. A `StreamedRun` comes back, as from a streamed family run.
+  one group of families at a time. A `StreamedRun` comes back, as from a streamed family run. (#440)
 
 ### Fixed
 
 - `read_run` reads an ordered run's directory. It read `initial_genome.tsv` as the two columns a family
   run writes, and failed on the six an ordered run writes, so a Python pipeline from an ordered genome
-  run to `simulate_sequences` stopped there.
+  run to `simulate_sequences` stopped there. (#440)
 
 ## [0.47.0] - 2026-09-13
 
