@@ -108,10 +108,12 @@ def read_run(directory) -> FamilyGenomesResult:
     initial: tuple[GeneCopy, ...] = ()
     initial_path = os.path.join(handoff, "initial_genome.tsv")
     if os.path.exists(initial_path):
+        # read by column name: a family run writes `family copy`, and an ordered run writes the same two
+        # among its layout columns (`chromosome topology position strand family copy`)
         with open(initial_path, encoding="utf-8") as f:
-            rows = [line.rstrip("\n").split("\t") for line in f if line.strip()]
-        initial = tuple(GeneCopy(gene_from_label(copy), int(family))
-                        for family, copy in rows if family != "family")
+            header, *rows = [line.rstrip("\n").split("\t") for line in f if line.strip()]
+        at_family, at_copy = header.index("family"), header.index("copy")
+        initial = tuple(GeneCopy(gene_from_label(row[at_copy]), int(row[at_family])) for row in rows)
     links: tuple[Link, ...] = ()
     links_path = os.path.join(handoff, "links.tsv")
     if os.path.exists(links_path):

@@ -195,6 +195,40 @@ def _branches(events: list[GeneEdge]) -> dict[int, int]:
     return {e.copy: e.lineage for e in events}
 
 
+class EventTally:
+    """`event_counts`, taken one batch of edges at a time, for a run that writes its events as it goes
+    and keeps none of them.
+
+    A batch has to hold every edge of each event in it. The engines record them that way: the two edges
+    of a duplication, a transfer or a speciation are appended in the same step, so the edges one step
+    recorded are always whole events."""
+
+    def __init__(self, origin_time: float) -> None:
+        self._origin_time = origin_time
+        self._with_parent: collections.Counter = collections.Counter()
+        self._singles: collections.Counter = collections.Counter()
+        self._initial = 0
+
+    def add(self, edges) -> None:
+        per_kind: dict[str, set] = collections.defaultdict(set)
+        for e in edges:
+            if e.parent is None:              # origination and loss: one row apiece already
+                self._singles[e.kind] += 1
+            else:
+                per_kind[e.kind].add(e.parent)   # two rows, one parent, one event
+            if e.kind == "origination" and e.time <= self._origin_time:
+                self._initial += 1
+        for kind, parents in per_kind.items():
+            self._with_parent[kind] += len(parents)
+
+    def counts(self) -> dict[str, int]:
+        counts = dict(self._with_parent)
+        counts.update(self._singles)
+        return {"initial": self._initial,
+                "origination": counts.get("origination", 0) - self._initial,
+                **{k: counts.get(k, 0) for k in ("duplication", "transfer", "loss", "speciation")}}
+
+
 def event_counts(edges: list[GeneEdge], origin_time: float) -> dict[str, int]:
     """``{kind: how many events}`` — one number per *event*, which is what a row of
     ``genome_events.tsv`` is, and what every resolution's ``genome_summary.json`` reports.
@@ -217,19 +251,9 @@ def event_counts(edges: list[GeneEdge], origin_time: float) -> dict[str, int]:
     One function because all three resolutions must agree here by construction. Only the family
     resolution used to report any of it, which left the two resolutions with the *larger* undercount
     (64% at ordered, measured) with no corrected figure to consult."""
-    per_kind: dict[str, set] = collections.defaultdict(set)
-    singles: collections.Counter = collections.Counter()
-    for e in edges:
-        if e.parent is None:                  # origination and loss: one row apiece already
-            singles[e.kind] += 1
-        else:
-            per_kind[e.kind].add(e.parent)    # two rows, one parent, one event
-    counts = {k: len(v) for k, v in sorted(per_kind.items())}
-    counts.update(sorted(singles.items()))
-    initial = sum(1 for e in edges if e.kind == "origination" and e.time <= origin_time)
-    return {"initial": initial,
-            "origination": counts.get("origination", 0) - initial,
-            **{k: counts.get(k, 0) for k in ("duplication", "transfer", "loss", "speciation")}}
+    tally = EventTally(origin_time)
+    tally.add(edges)
+    return tally.counts()
 
 
 def events_from_edges(edges: list[GeneEdge]) -> list[Event]:
@@ -278,15 +302,20 @@ def events_from_edges(edges: list[GeneEdge]) -> list[Event]:
             for time, kind, family, parents, children in rows.values()]
 
 
-def event_rows(events: list[GeneEdge], names: dict[int, str] | None = None) -> list[str]:
+def event_rows(events: list[GeneEdge], names: dict[int, str] | None = None,
+               branches=None) -> list[str]:
     """The event rows **without** the header — one tab-joined line per event. The one row format, so a
     streamed per-worker shard and `events_tsv()` cannot drift; the shard writes only rows and the
     finalize prepends `EVENTS_HEADER` once.
 
     ``names`` is the run's node names (`Tree.labels()`) — needed because a lineage that went
     extinct is written ``e<id>``, and an event log names *every* branch, the dead ones included.
-    Omitting it names them all ``n<id>``, which is right only where no dead branch can appear."""
-    where = _branches(events)
+    Omitting it names them all ``n<id>``, which is right only where no dead branch can appear.
+
+    ``branches`` is ``{copy id: the branch it lived on}`` for every copy the rows name, read off
+    ``events`` when it is not given. A run that writes its events as it goes passes its own: a copy an
+    event ends was often born many steps before, in rows already written."""
+    where = _branches(events) if branches is None else branches
 
     def cell(copies: tuple[int, ...]) -> str:
         return _PACK.join(_copy_cell(_name(names, where[c]), c) for c in copies)
