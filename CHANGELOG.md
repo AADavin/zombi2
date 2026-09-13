@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-09-13
+
 ### Added
 
 - An ordered genome run can be written to disk as it goes, with `stream_to=DIR` in Python or
