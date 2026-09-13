@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-09-13
+
 ### Added
 
 - A joint run on a tree passed with `tree=` reads a declared family's own duplication, transfer and
