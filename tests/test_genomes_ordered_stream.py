@@ -70,8 +70,14 @@ CASE_NAMES = ["plain", "segments, replacement and rearrangements",
               "joint, own rates, a driven transfer_to and a placed family", "a rate on a schedule"]
 
 
+@pytest.mark.parametrize("flush_records", [1, 7, None], ids=["every step", "every few", "default"])
 @pytest.mark.parametrize("case", CASE_NAMES)
-def test_a_streamed_run_writes_what_the_run_in_memory_writes(tree, tmp_path, case):
+def test_a_streamed_run_writes_what_the_run_in_memory_writes(tree, tmp_path, monkeypatch, case,
+                                                              flush_records):
+    """For every batch size: records written one step at a time, a few steps at a time, and in the
+    default batch, which holds the whole of a run this small."""
+    if flush_records is not None:
+        monkeypatch.setattr(ordered, "_FLUSH_RECORDS", flush_records)
     kw = _cases(tree)[case]
     kept = simulate_genomes_ordered(tree, seed=7, **kw)
     kept.write(tmp_path / "written")
@@ -123,6 +129,39 @@ def test_gene_trees_built_in_many_groups_are_the_same_trees(tree, tmp_path, monk
     simulate_genomes_ordered(tree, seed=5, stream_to=tmp_path / "streamed",
                              outputs=("gene_trees", "events"), **kw)
     _assert_same_files(tmp_path / "written", tmp_path / "streamed")
+
+
+def test_gene_trees_built_over_several_passes_of_the_log_are_the_same_trees(tree, tmp_path,
+                                                                             monkeypatch):
+    """With three group files open at a time, the log is read once per three groups."""
+    monkeypatch.setattr(ordered, "_GENE_TREE_GROUP_ROWS", 40)
+    monkeypatch.setattr(ordered, "_GENE_TREE_OPEN_FILES", 3)
+    kw = _cases(tree)["segments, replacement and rearrangements"]
+    kept = simulate_genomes_ordered(tree, seed=6, **kw)
+    kept.write(tmp_path / "written", outputs=("gene_trees",))
+    simulate_genomes_ordered(tree, seed=6, stream_to=tmp_path / "streamed", outputs=("gene_trees",),
+                             **kw)
+    _assert_same_files(tmp_path / "written", tmp_path / "streamed")
+
+
+@pytest.mark.parametrize("flush_records", [1, 7, 10**9])
+@pytest.mark.parametrize("case", CASE_NAMES)
+def test_every_copy_and_chromosome_is_forgotten_by_the_end(tree, tmp_path, monkeypatch, case,
+                                                           flush_records):
+    """Every copy and chromosome ends, by an event or at a tip, so the branches kept for the rows are
+    empty once the run is written. One left over, for any batch size, is one kept for good."""
+    monkeypatch.setattr(ordered, "_FLUSH_RECORDS", flush_records)
+    left = {}
+    real_close = ordered._OrderedStream.close
+
+    def close(self, **kw):
+        handle = real_close(self, **kw)
+        left["copies"], left["chromosomes"] = len(self._copy_branch), len(self._chromosome_branch)
+        return handle
+
+    monkeypatch.setattr(ordered._OrderedStream, "close", close)
+    simulate_genomes_ordered(tree, seed=8, stream_to=tmp_path, outputs=("summary",), **_cases(tree)[case])
+    assert left == {"copies": 0, "chromosomes": 0}
 
 
 def test_a_second_run_into_the_same_directory_leaves_nothing_of_the_first(tree, tmp_path):
