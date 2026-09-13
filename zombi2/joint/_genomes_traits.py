@@ -10,7 +10,7 @@ from __future__ import annotations
 
 
 from .._runtime.grown import Grown
-from ..genomes import FamilyGenome, GeneEdge, GeneFamily
+from ..genomes import FamilyGenome, GeneEdge
 from ..genomes.family import _duplicate, _lose_at, _originate
 from ..params.connection import Driven
 from ..params.driver import OnTime
@@ -40,7 +40,8 @@ def grow(rng, tree, genome: FamilyGenome, trait: DiscreteTrait, trait_keys,
 
     Returns a `~zombi2._runtime.grown.Grown`.
     """
-    from ..genomes.family import (_FamilyCounts, _do_transfer, GeneCopy, resolve_families)
+    from ..genomes.family import (_FamilyCounts, _FamilyOwnRates, _do_transfer, GeneCopy,
+                                  check_joint_families, resolve_families)
     from ..genomes._live import enter, retire, weighted_index
     from ..genomes._transfer import mean_root_to_tip
     from ..traits.discrete import _driven_entries, _driven_q
@@ -85,8 +86,8 @@ def grow(rng, tree, genome: FamilyGenome, trait: DiscreteTrait, trait_keys,
                     f"{label} carries {describe(m)}, which this engine does not thread. On a joint "
                     f"run over a given tree a genome rate takes changing_at and scaled_by — the "
                     f"verb that reads the trait simulated beside it.")
-    declared, _modules, planted = resolve_families(
-        [GeneFamily(n) for n in genome.family_names], tree)
+    check_joint_families(genome.families, tree_given=True)
+    declared, _modules, planted = resolve_families(genome.families, tree)
 
     counter = {"copy": 0, "family": 0}
 
@@ -121,6 +122,8 @@ def grow(rng, tree, genome: FamilyGenome, trait: DiscreteTrait, trait_keys,
         c = new_copy(fid)
         gen[0].append(c)
         events.append(GeneEdge(t, "origination", root.id, fid, c.id))
+    # a declared family's own duplication, transfer and loss, read on each lineage with its drivers
+    own = _FamilyOwnRates(declared, named, {"duplication": dup, "transfer": tra, "loss": los})
     total_copies = len(gen[0])
     initial_genome = tuple(gen[0])
     counts = _FamilyCounts(gen)
@@ -144,14 +147,12 @@ def grow(rng, tree, genome: FamilyGenome, trait: DiscreteTrait, trait_keys,
                 d[key] = states[st[k]]
             drivers.append(d)
         can_xfer = total_copies > 0 and n_alive >= 2
-        w_dup = [dup.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
-                 for k in range(n_alive)]
-        w_los = [los.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
-                 for k in range(n_alive)]
+        w_dup = [own.on_lineage("duplication", gen[k], counts, k, t, drivers[k]) for k in range(n_alive)]
+        w_los = [own.on_lineage("loss", gen[k], counts, k, t, drivers[k]) for k in range(n_alive)]
         w_org = [org.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
                  for k in range(n_alive)]
-        w_tra = ([tra.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
-                  for k in range(n_alive)] if can_xfer else [0.0] * n_alive)
+        w_tra = ([own.on_lineage("transfer", gen[k], counts, k, t, drivers[k]) for k in range(n_alive)]
+                 if can_xfer else [0.0] * n_alive)
         # the trait's generator is rebuilt per lineage, because its entries read that lineage's genome
         qs = [_driven_q(entries, k_states, drivers[k], t) for k in range(n_alive)]
         w_sw = [float(-qs[k][st[k], st[k]]) for k in range(n_alive)]
@@ -159,7 +160,7 @@ def grow(rng, tree, genome: FamilyGenome, trait: DiscreteTrait, trait_keys,
         total = r_dup + r_los + r_org + r_tra + r_sw
 
         horizon = min(schedule[si][0], dup.next_change(t), los.next_change(t),
-                      org.next_change(t), tra.next_change(t))
+                      org.next_change(t), tra.next_change(t), own.next_change(t))
         if total > 0.0:
             t_ev = t + float(rng.exponential(1.0 / total))
             if t_ev < horizon:
@@ -167,14 +168,14 @@ def grow(rng, tree, genome: FamilyGenome, trait: DiscreteTrait, trait_keys,
                 r = float(rng.random()) * total
                 if r < r_dup:
                     k = weighted_index(rng, w_dup, r_dup)
-                    j = int(rng.integers(len(gen[k])))
+                    j = own.pick(rng, "duplication", gen[k], counts, k, t, drivers[k])
                     fam = gen[k][j].family
                     if not counts.at_cap(k, fam, genome.max_family_size):
                         _duplicate(gen[k], j, tree.nodes[alive[k]], t, events, new_copy)
                         counts.added(k, fam); total_copies += 1
                 elif r < r_dup + r_los:
                     k = weighted_index(rng, w_los, r_los)
-                    j = int(rng.integers(len(gen[k])))
+                    j = own.pick(rng, "loss", gen[k], counts, k, t, drivers[k])
                     counts.removed(k, gen[k][j].family)
                     _lose_at(gen[k], j, tree.nodes[alive[k]], t, events)
                     total_copies -= 1
@@ -184,7 +185,7 @@ def grow(rng, tree, genome: FamilyGenome, trait: DiscreteTrait, trait_keys,
                     counts.added(k, gen[k][-1].family); total_copies += 1
                 elif r < r_dup + r_los + r_org + r_tra:
                     kd = weighted_index(rng, w_tra, r_tra)
-                    jd = int(rng.integers(len(gen[kd])))
+                    jd = own.pick(rng, "transfer", gen[kd], counts, kd, t, drivers[kd])
                     delta, _kr = _do_transfer(rng, tree, alive, gen, counts, kd, jd, t, events,
                                               new_copy, "uniform", False, False, depth, None,
                                               genome.max_family_size, None)

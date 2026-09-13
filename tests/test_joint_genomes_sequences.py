@@ -220,3 +220,55 @@ def test_letters_outside_the_alphabet_are_refused():
         joint.simulate(
             _spec(loss=PerCopy(0.2).scaled_by("sequences:hisA", Curve(lambda x: 1.0), step=0.05)),
             _gene(offers=composition("KR", absent=0.5)), tree=ct, seed=1)
+
+
+# --- a declared family's own rates (issue #437) ---------------------------------------------------
+# The rule beside a trait holds beside a gene too: on a given tree a declared family carries its own
+# duplication, transfer and loss, and that rate can read the gene. The checks use factors of 0, so
+# each is exact, and each first requires that the run lost genes at all.
+
+def test_a_family_whose_own_loss_is_zero_is_never_lost():
+    ct = _tree()
+    r = joint.simulate(
+        genome_spec(duplication=0.15, origination=0.0, initial_families=6,
+                    loss=PerCopy(0.15).scaled_by("sequences:hisA", Curve(lambda gc: 1.0), step=0.05),
+                    families=[family("hisA"), family("kept", loss=0.0)]),
+        gene(name="hisA", model=_EVEN, length=100, offers=composition("GC", absent=0.35)),
+        tree=ct, seed=3)
+    kept = r.genome.family_names["kept"]
+    assert [e for e in r.genome.edges if e.kind == "loss"]
+    assert not [e for e in r.genome.edges if e.kind == "loss" and e.family == kept]
+
+
+def test_a_family_rate_can_be_the_one_that_reads_the_gene():
+    """Only this family's loss reads hisA, so that rate alone makes the run joint, and its factor of 0
+    keeps the family."""
+    ct = _tree()
+    r = joint.simulate(
+        genome_spec(duplication=0.2, loss=0.2, origination=0.0, initial_families=5,
+                    families=[family("hisA"),
+                              family("guarded", loss=PerCopy(0.9).scaled_by(
+                                  "sequences:hisA", Curve(lambda gc: 0.0), step=0.05))]),
+        gene(name="hisA", model=_EVEN, length=100, offers=composition("GC", absent=0.35)),
+        tree=ct, seed=2)
+    guarded = r.genome.family_names["guarded"]
+    assert [e for e in r.genome.edges if e.kind == "loss"]
+    assert not [e for e in r.genome.edges if e.kind == "loss" and e.family == guarded]
+
+
+def test_a_family_rate_reading_something_else_is_refused():
+    ct = _tree(8)
+    with pytest.raises(ValueError, match="family 'A''s loss reads 'trait'"):
+        joint.simulate(
+            _spec(loss=PerCopy(0.2).scaled_by("sequences:hisA", Curve(lambda x: 1.0), step=0.05),
+                  families=[family("hisA"), family("A", loss=PerCopy(0.2).scaled_by("trait", {"a": 1.0}))]),
+            _gene(offers=composition("GC", absent=0.5)), tree=ct, seed=1)
+
+
+def test_a_family_origin_is_refused_here_too():
+    ct = _tree(8)
+    with pytest.raises(ValueError, match="sets an origin, which a joint run does not read"):
+        joint.simulate(
+            _spec(loss=PerCopy(0.2).scaled_by("sequences:hisA", Curve(lambda x: 1.0), step=0.05),
+                  families=[family("hisA"), family("A", origin=(ct.root, None))]),
+            _gene(offers=composition("GC", absent=0.5)), tree=ct, seed=1)
