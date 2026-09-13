@@ -50,9 +50,18 @@ class Profiles:
         """The matrix as TSV — a ``family`` column then one column per extant species (``n<id>``),
         one row per family. ``presence=True`` writes 0/1 instead of copy counts."""
         m = self.presence if presence else self.matrix
-        header = "family\t" + "\t".join(node_label(s) for s in self.species)
-        rows = [f"{f}\t" + "\t".join(str(v) for v in m[i]) for i, f in enumerate(self.families)]
-        return "\n".join([header, *rows]) + "\n"
+        rows = [profiles_row(f, m[i]) for i, f in enumerate(self.families)]
+        return "\n".join([profiles_header(self.species), *rows]) + "\n"
+
+
+def profiles_header(species) -> str:
+    """The header line of ``profiles.tsv``: ``family``, then one column per extant species."""
+    return "family\t" + "\t".join(node_label(s) for s in species)
+
+
+def profiles_row(family: int, values) -> str:
+    """One family's line of ``profiles.tsv``: its id, then its copies in each species, in column order."""
+    return f"{family}\t" + "\t".join(str(v) for v in values)
 
 
 def profiles_from_genomes(genomes: dict, extant_ids) -> Profiles:

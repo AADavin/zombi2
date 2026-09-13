@@ -2121,6 +2121,36 @@ def test_stream_logs_only_the_outputs_asked_for(tmp_path, tree_file):
     assert "gene_trees" not in write_line and not (out / "gene_trees").exists()
 
 
+def test_an_ordered_run_streams_and_logs_what_it_wrote(tmp_path, tree_file, capsys):
+    # --stream at the ordered resolution writes the same files an in-memory ordered run writes, as it
+    # goes (issue #436), and the summary line and the log say so
+    out = tmp_path / "s"
+    assert main(["genomes", str(out), "--from", str(tree_file), "--resolution", "ordered",
+                 "--duplication", "0.2", "--transfer", "0.1", "--loss", "0.25", "--origination", "0.5",
+                 "--inversion", "0.1", "--initial-families", "10", "--seed", "1", "--stream", "--flat",
+                 "--quiet"]) == 0
+    assert "streamed to disk (ordered)" in capsys.readouterr().out
+    log = (out / "genomes.log").read_text(encoding="utf-8")
+    write_line = next(ln for ln in log.splitlines() if ln.startswith("write\t"))
+    for name in ("events", "gene_order", "chromosome_events", "summary", "gene_trees"):
+        assert name in write_line
+    for f in ("genome_events.tsv", "rearrangement_events.tsv", "gene_order.tsv", "genome_summary.json"):
+        assert (out / f).exists(), f
+    assert (out / "gene_trees").is_dir()
+
+
+def test_stream_is_refused_at_the_nucleotide_resolution_and_parallel_beyond_family(tmp_path, tree_file,
+                                                                                   capsys):
+    with pytest.raises(SystemExit):
+        main(["genomes", str(tmp_path / "n"), "--from", str(tree_file), "--resolution", "nucleotide",
+              "--stream", "--quiet"])
+    assert "--stream applies to --resolution family or ordered" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        main(["genomes", str(tmp_path / "o"), "--from", str(tree_file), "--resolution", "ordered",
+              "--parallel", "2", "--quiet"])
+    assert "--parallel applies to --resolution family only" in capsys.readouterr().err
+
+
 def test_a_run_that_samples_none_of_its_survivors_is_refused(tmp_path, capsys):
     # sampling can observe none of the survivors, and the run then has no present at all. It used to
     # return normally: `zombi2 species` wrote no species_extant.nwk and exited 0, and `zombi2 genomes`
