@@ -9,6 +9,14 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- A family or ordered genome run writes `family_multipliers.tsv`, with one row per family and the
+  multiplier each rate drew for it. A run whose rates do not vary among families writes the header
+  alone. In Python the same numbers are `.family_multipliers`, and `read_run` reads them back. Runs
+  with `parallel=` or `stream_to=` write the file too. An ordered run adds `inversion`,
+  `transposition` and `translocation` columns.
+
 ## [0.48.0] - 2026-09-13
 
 ### Added
