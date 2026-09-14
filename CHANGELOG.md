@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.48.1] - 2026-09-14
+
 ### Added
 
 - A family or ordered genome run writes `family_multipliers.tsv`, with one row per family and the
