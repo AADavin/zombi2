@@ -49,6 +49,7 @@ from .._runtime.summary import _stats, write_summary
 from .events import Event, GeneEdge, event_counts, events_from_edges, events_tsv, gene_label
 from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
 from .links import Link, links_of, links_tsv
+from .multipliers import FAMILY_TARGETS, multipliers_of, multipliers_tsv
 from .profiles import Profiles, profiles_from_genomes
 
 if TYPE_CHECKING:  # a streamed run returns a StreamedRun (built by the per-family engine); type-only
@@ -108,6 +109,11 @@ class FamilyGenomesResult:
     #: The links this run read from its own gene content, one `Link` per modifier reading
     #: ``"genomes:…"``, which ``write`` puts in ``links.tsv``. Empty when the run read none.
     links: "tuple[Link, ...]" = ()
+    #: Each family's drawn rate multipliers, ``{family: {target: multiplier}}``, which ``write`` puts
+    #: in ``family_multipliers.tsv``: the number a rate written with ``varying_among("families", …)``
+    #: multiplies that family's rate by. ``None`` where the family's own rate replaces the run's.
+    #: Empty when no rate varies among families.
+    family_multipliers: "dict[int, dict[str, float | None]]" = field(default_factory=dict)
 
     def __repr__(self) -> str:
         # "0 nodes" beside a real tip count reads as a broken run; a reopened run that did not write
@@ -291,10 +297,11 @@ class FamilyGenomesResult:
     #: cannot drift: they did, and `initial_sequence` and `species_tree` were writable from
     #: Python and unnameable on the command line.
     OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees",
-               "species_tree", "summary", "links")
+               "species_tree", "summary", "links", "family_multipliers")
 
     def write(self, directory, outputs=("events", "profiles", "genomes", "initial_genome",
-                                        "gene_trees", "species_tree", "summary", "links"), *,
+                                        "gene_trees", "species_tree", "summary", "links",
+                                        "family_multipliers"), *,
               flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
@@ -316,6 +323,9 @@ class FamilyGenomesResult:
           compare them to and said nothing about it.
         - ``"links"`` → ``links.tsv``, the links the run read from its own gene content, one row per
           link (see `zombi2.genomes.links`); the header alone when there are none.
+        - ``"family_multipliers"`` → ``family_multipliers.tsv``, each family's drawn rate
+          multipliers, one row per family (see `zombi2.genomes.multipliers`); the header alone when no
+          rate varies among families.
         The gene trees are two files per family, so they get a subdirectory rather than burying the
         tables above; ``flat=True`` writes everything into ``directory`` instead.
         """
@@ -347,6 +357,9 @@ class FamilyGenomesResult:
             write_summary(d / "genome_summary.json", self.summary())
         if "links" in outputs:
             (d / "links.tsv").write_text(links_tsv(self.links), encoding="utf-8")
+        if "family_multipliers" in outputs:
+            (d / "family_multipliers.tsv").write_text(
+                multipliers_tsv(self.family_multipliers, FAMILY_TARGETS), encoding="utf-8")
 
     def _genomes_tsv(self) -> str:
         """Every node's gene content, one row per copy, in the order the genome holds them. The
@@ -1560,6 +1573,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     #: per event, the families whose own rate carries a verb: minted id → that `Rate`. Such a family
     #: holds 0.0 in `fam_fixed` and in `fam_mult`, and its rate is read on a lineage when it is needed.
     fam_driven_ids: dict[str, dict[int, object]] = {key: {} for key in fam_by}
+    #: per event, the families whose own rate, fixed or driven, replaces the run's: no draw reaches
+    #: them there, so `family_multipliers` holds no number for them
+    own_cells: dict[str, set[int]] = {key: set() for key in fam_by}
     any_family_driven = bool(fam_driven)
 
     def family_rate_on(rate, k: int) -> float:
@@ -1601,6 +1617,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     assert fam_fixed is not None     # a written rate is exactly when it was built
                     fam_mult[key][f] = 0.0
                     fam_fixed[key][f] = own
+                    own_cells[key].add(f)
                     continue
                 driven_rate = None if declared_at is None else fam_driven.get(key, {}).get(declared_at)
                 if driven_rate is not None:
@@ -1610,6 +1627,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     fam_mult[key][f] = 0.0
                     fam_fixed[key][f] = 0.0
                     fam_driven_ids[key][f] = driven_rate
+                    own_cells[key].add(f)
                     continue
                 fam_mult[key][f] = math.prod(values_at_birth(mods, rng, shared))
                 if fam_fixed is not None:
@@ -1972,8 +1990,10 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     bar.close()
     links = links_of({"duplication": dup, "transfer": tra, "loss": los, "origination": org},
                      transfer_to, declared, fam_driven, fam_transfer_to, module_map or {})
+    multipliers = (multipliers_of(fam_mult, FAMILY_TARGETS, own_cells)
+                   if any(fam_by.values()) else {})
     return FamilyGenomesResult(tree, genomes, events, seed, named, module_map, initial_genome,
-                               cap, links)
+                               cap, links, multipliers)
 
 
 # --- process spec: a genome bundled but UNEXECUTED, for a joint model to grow with the tree --------

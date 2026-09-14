@@ -259,7 +259,8 @@ def _family_mults(rng, fam_by):
 
 def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
     """Evolve **one** gene family from a given origination point down the whole tree, and return its
-    ``(events, node_genomes)`` — the compact event log and this family's copies at every node it reaches.
+    ``(events, node_genomes, multipliers)`` — the compact event log, this family's copies at every node
+    it reaches, and the rate multipliers it drew (``{target: multiplier}``, 1.0 where a rate draws none).
 
     This is the per-family primitive the parallel engine is built on. The family resolution's D/T/L process is a
     superposition of independent per-family processes (no event ever spans two families), so a family
@@ -430,7 +431,7 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
         else:
             t = horizon                                     # a skyline or transfer-window breakpoint
 
-    return events, node_genomes
+    return events, node_genomes, mult
 
 
 def _evolve_one(family, lineage, birth_time, seedseq):
@@ -444,8 +445,8 @@ def _evolve_one(family, lineage, birth_time, seedseq):
 def _evolve_family(task):
     """Collect-mode worker: evolve one family and hand its log back for the in-memory merge."""
     fid, birth_lineage, birth_time, seedseq = task
-    events, node_genomes = _evolve_one(fid, birth_lineage, birth_time, seedseq)
-    return fid, events, node_genomes
+    events, node_genomes, multipliers = _evolve_one(fid, birth_lineage, birth_time, seedseq)
+    return fid, events, node_genomes, multipliers
 
 
 def _pick_in(rng, gen, total, weights, weight_total):
@@ -532,10 +533,11 @@ def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events
 #: ``FamilyGenomesResult.write`` uses. Gene trees are the exception: one Newick pair per family under a
 #: ``gene_trees/`` subdirectory, so a million families do not land as two million files in the run root.
 _STREAM_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees", "species_tree",
-                   "links")
+                   "links", "family_multipliers")
 _STREAM_FILENAMES = {"events": "genome_events.tsv", "profiles": "profiles.tsv",
                      "genomes": "genomes.tsv", "initial_genome": "initial_genome.tsv",
                      "species_tree": "species_complete.nwk", "links": "links.tsv",
+                     "family_multipliers": "family_multipliers.tsv",
                      # the files only an ordered run writes (`zombi2.genomes.ordered`)
                      "gene_order": "gene_order.tsv", "chromosome_events": "chromosome_events.tsv",
                      "summary": "genome_summary.json"}
@@ -576,20 +578,26 @@ def _stream_chunk(task):
     for each row output (events / genomes / profiles) and one Newick pair per family for the gene trees.
     Nothing run-sized is held; the parent concatenates the shards afterwards. Returns
     ``(chunk_index, n_families, n_events)``."""
+    from .multipliers import FAMILY_TARGETS, multipliers_row
+
     chunk_index, family_list = task
     tree, s = _CTX.tree, _STREAM
     out_dir, outputs, extant_ids, shard_dir = s["out_dir"], s["outputs"], s["extant_ids"], s["shard_dir"]
     want = {name: name in outputs for name in ("events", "genomes", "profiles", "gene_trees")}
+    # a run whose rates do not vary among families has no multiplier to write: its table is the header
+    want["family_multipliers"] = "family_multipliers" in outputs and any(_CTX.fam_by.values())
     trees_dir = os.path.join(out_dir, "gene_trees")
 
     files = {name: open(os.path.join(shard_dir, f"{name}_{chunk_index}.tsv"), "w", encoding="utf-8")
-             for name in ("events", "genomes", "profiles") if want[name]}
+             for name in ("events", "genomes", "profiles", "family_multipliers") if want[name]}
     names = tree.labels()   # e<id> for a lineage that died; once per chunk, not once per family
     n_events = 0
     try:
         for (fid, lineage, birth_time, seedseq) in family_list:
-            events, node_genomes = _evolve_one(fid, lineage, birth_time, seedseq)
+            events, node_genomes, multipliers = _evolve_one(fid, lineage, birth_time, seedseq)
             n_events += len(events)
+            if want["family_multipliers"]:
+                files["family_multipliers"].write(multipliers_row(fid, multipliers, FAMILY_TARGETS) + "\n")
             if want["events"]:
                 f = files["events"]
                 for row in event_rows(events, names):
@@ -629,6 +637,7 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
     both just concatenate — no id rewrite, no run-sized bottleneck beyond the (serial) in-memory merge
     the streaming path exists to avoid."""
     from .family import GeneCopy, FamilyGenomesResult
+    from .multipliers import FAMILY_TARGETS
 
     reason = _unsupported_reason(dup, tra, los, org, transfer_to)
     if reason is not None:
@@ -686,12 +695,16 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
     # node snapshots stitch together with no rewrite. Every node appears, empty where no family reached it.
     events: list[GeneEdge] = []
     genomes: dict[int, list] = {i: [] for i in tree.nodes}
-    for _fid, fam_events, node_genomes in results:
+    for _fid, fam_events, node_genomes, _multipliers in results:
         events.extend(fam_events)
         for node_id, copies in node_genomes.items():
             genomes[node_id].extend(copies)
     events.sort(key=lambda e: e.time)                      # a chronological log, like the serial one
     genomes_final = {i: tuple(g) for i, g in genomes.items()}
+    # each family's drawn multipliers, kept when some rate varies among families, as the serial engine does
+    multipliers = ({fid: {target: float(m[target]) for target in FAMILY_TARGETS}
+                    for fid, _e, _g, m in sorted(results, key=lambda r: r[0])}
+                   if any(ctx.fam_by.values()) else {})
 
     # the genome the run started with: every initial and named family's founding gene (its base id),
     # before the stem — the snapshot the serial engine takes as `initial_genome`.
@@ -699,7 +712,8 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
     initial_genome = tuple(GeneCopy(_copy_base(fid), fid) for fid in range(n_seeded))
     return FamilyGenomesResult(tree, genomes_final, events, seed, named, dict(modules or {}),
                                initial_genome,
-                               ctx.cap if hasattr(ctx, 'cap') else None)
+                               ctx.cap if hasattr(ctx, 'cap') else None,
+                               family_multipliers=multipliers)
 
 
 def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_families, family_names,
@@ -757,8 +771,11 @@ def _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_
     """Stitch the per-chunk shards into the run's files — the header once, then every shard in chunk
     order (pure I/O, never a run-sized allocation) — write ``initial_genome.tsv`` from the seeded
     families' base ids, and drop the shard directory."""
+    from .multipliers import FAMILY_TARGETS, multipliers_header
+
     headers = {"events": EVENTS_HEADER,
                "genomes": "lineage\tfamily\tcopy",
+               "family_multipliers": multipliers_header(FAMILY_TARGETS),
                # extant tips only, so every column is n<id>: a profile never names a dead lineage
                "profiles": "family\t" + "\t".join(node_label(s) for s in extant_ids)}
     for name, header in headers.items():

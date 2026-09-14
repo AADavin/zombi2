@@ -85,6 +85,7 @@ from .events import (_COLS, Event, EventTally, GeneEdge, _branches, _name, edges
                      event_counts, event_rows, events_from_edges, gene_label)
 from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
 from .links import Link, links_of, links_tsv
+from .multipliers import ORDERED_TARGETS, multipliers_of, multipliers_tsv
 from .profiles import Profiles, profiles_from_genomes, profiles_header, profiles_row
 from ._perfamily import StreamedRun
 
@@ -285,6 +286,10 @@ class OrderedGenomesResult:
     #: ``"genomes:…"`` on a rate, an extent or a family's own rate, which ``write`` puts in
     #: ``links.tsv``. Empty when the run read none.
     links: "tuple[Link, ...]" = ()
+    #: Each family's drawn rate multipliers, ``{family: {target: multiplier}}``, as at the family
+    #: resolution, with a column for each rearrangement too; ``write`` puts them in
+    #: ``family_multipliers.tsv``. Empty when no rate varies among families.
+    family_multipliers: "dict[int, dict[str, float | None]]" = field(default_factory=dict)
 
     def __repr__(self) -> str:
         return (f"OrderedGenomesResult({len(self.complete_tree.extant_leaves())} extant genomes, "
@@ -397,11 +402,12 @@ class OrderedGenomesResult:
     #: cannot drift: they did, and `initial_sequence` and `species_tree` were writable from
     #: Python and unnameable on the command line.
     OUTPUTS = ("events", "profiles", "gene_order", "initial_genome",
-               "chromosome_events", "gene_trees", "species_tree", "summary", "links")
+               "chromosome_events", "gene_trees", "species_tree", "summary", "links",
+               "family_multipliers")
 
     def write(self, directory, outputs=("events", "profiles", "gene_order", "initial_genome",
                                         "gene_trees", "chromosome_events", "species_tree",
-                                        "summary", "links"), *,
+                                        "summary", "links", "family_multipliers"), *,
               flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
@@ -430,6 +436,9 @@ class OrderedGenomesResult:
         tables above; ``flat=True`` writes everything into ``directory`` instead.
         - ``"links"`` → ``links.tsv``, the links the run read from its own gene content, one row per
           link (see `zombi2.genomes.links`); the header alone when there are none.
+        - ``"family_multipliers"`` → ``family_multipliers.tsv``, each family's drawn rate
+          multipliers, one row per family (see `zombi2.genomes.multipliers`); the header alone when no
+          rate varies among families.
         """
         # An unknown token used to write nothing and exit clean — silent data loss you discover
         # three pipeline steps later, when the next tool has no input. The other levels have always
@@ -467,6 +476,9 @@ class OrderedGenomesResult:
             write_summary(d / "genome_summary.json", self.summary())
         if "links" in outputs:
             (d / "links.tsv").write_text(links_tsv(self.links), encoding="utf-8")
+        if "family_multipliers" in outputs:
+            (d / "family_multipliers.tsv").write_text(
+                multipliers_tsv(self.family_multipliers, ORDERED_TARGETS), encoding="utf-8")
 
     def summary(self) -> dict:
         """What this run produced, as a plain dict — the payload of ``genome_summary.json``.
@@ -797,7 +809,7 @@ class _OrderedStream:
             self._tips[node_id] = (array.array("q", families),
                                    array.array("q", (held[f] for f in families)))
 
-    def close(self, *, seed, links, initial_genome, named: int) -> StreamedRun:
+    def close(self, *, seed, links, initial_genome, named: int, family_multipliers) -> StreamedRun:
         """Write what is left, build the gene trees, and hand back the run's `StreamedRun`."""
         self.flush()
         for f in (self._events, self._rearrangement_file, self._chromosome_file, self._gene_order):
@@ -824,6 +836,9 @@ class _OrderedStream:
                 rearrangements=self._rearranged, chromosome_events=self._chromosome_kinds))
         if "links" in want:
             (d / "links.tsv").write_text(links_tsv(links), encoding="utf-8")
+        if "family_multipliers" in want:
+            (d / "family_multipliers.tsv").write_text(
+                multipliers_tsv(family_multipliers, ORDERED_TARGETS), encoding="utf-8")
         return StreamedRun(str(d), seed, self._born, self.n_edges, self.outputs)
 
     def _write_profiles(self, path) -> None:
@@ -2987,10 +3002,15 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         _check_counts(gen, counts, rows)
     links = links_of({**_rates, **_extents}, transfer_to, declared, fam_driven_rates, fam_transfer_to,
                      module_map or {})
+    # a declared family's own rate, fixed or driven, replaces the run's, so no draw reaches it there
+    own = {key: set(fam_fixed_by_id[key]) | set(fam_driven_by_id[key]) for key in own_keys}
+    multipliers = multipliers_of(fam_mult, ORDERED_TARGETS, own) if any_family else {}
     if to_disk is not None:
-        return to_disk.close(seed=seed, links=links, initial_genome=initial_genome, named=len(named))
+        return to_disk.close(seed=seed, links=links, initial_genome=initial_genome, named=len(named),
+                             family_multipliers=multipliers)
     return OrderedGenomesResult(tree, genomes, events, rearrangements, chromosome_events, seed,
-                                named, module_map, event_positions, initial_genome, links)
+                                named, module_map, event_positions, initial_genome, links,
+                                multipliers)
 
 
 __all__ = ["simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",
