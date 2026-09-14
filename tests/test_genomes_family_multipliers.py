@@ -143,7 +143,9 @@ def test_an_ordered_run_has_a_column_for_each_rearrangement(tree, tmp_path):
     run.write(tmp_path / "written")
     simulate_genomes_ordered(tree, **kw, stream_to=tmp_path / "streamed")
     written = (tmp_path / "written" / "family_multipliers.tsv").read_bytes()
-    assert written.startswith(_header(ORDERED_TARGETS).encode())
+    # read as text for the header: Windows writes each line ending as \r\n
+    assert (tmp_path / "written" / "family_multipliers.tsv").read_text(encoding="utf-8").startswith(
+        _header(ORDERED_TARGETS))
     assert (tmp_path / "streamed" / "family_multipliers.tsv").read_bytes() == written
 
 
