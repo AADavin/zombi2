@@ -80,6 +80,7 @@ _GLOSS = {
     "initial_genome.tsv": "the genome present at t=0, that the initial families started from",
     "genome_events.tsv": "every duplication / transfer / loss / origination, per gene copy",
     "links.tsv": "the links the run read from its own gene content (family, target, driver, modifier, mapping); only the header when there are none",
+    "family_multipliers.tsv": "each family's rate multipliers, one row per family (family, then one column per rate); only the header when no rate varies among families",
     "gene_trees": "gene trees, one per family — complete (all copies) and extant (survivors), Newick",
     # genomes/ (ordered resolution adds gene order and chromosome-level events)
     "gene_order.tsv": "the gene arrangement of every genome (lineage, chromosome, topology, position, strand, family, copy)",
