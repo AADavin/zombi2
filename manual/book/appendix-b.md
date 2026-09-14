@@ -132,6 +132,7 @@ depends on time or diversity, this is its value at the start of the branch.
 | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | each family's true genealogy, in `genomes/gene_trees/` |
 | `genome_summary.json` | events by kind, families born, surviving and died out, genes per genome, `empty_genomes`, whether the family-size cap bound, the seed |
 | `links.tsv` | the links the run read from its own gene content: `family` · `target` · `driver` · `modifier` · `mapping`, one row per link |
+| `family_multipliers.tsv` | each family's rate multipliers: `family` · `duplication` · `transfer` · `loss`, one row per family |
 | `species_complete.nwk` | the tree the run evolved along, without which the directory cannot be read |
 | `species/species_fates.tsv` | each tip's fate, in the format the species level writes. Only when the tree came from `--from` |
 | `names.tsv` | `node` · `name`, mapping ZOMBI2's `n<id>` back to the labels you supplied. Only when the tree came from `--from` with its own tip labels |
@@ -141,7 +142,7 @@ From Python: `.genomes` · `.node_genomes` (the genomes), `.family_counts(node)`
 `.has_family(node, name)` (a node's genome as `family → copies`, and whether a named family has a
 copy there), `.gene_trees[f].origination` (when a family was founded, where its gene tree's root
 branch begins), the driver views `.presence(name)` · `.completion(name)`, and `.gene_trees` ·
-`.profiles` · `.initial_genome` · `.links` · `.events` · `.seed`, the same objects the files hold before
+`.profiles` · `.initial_genome` · `.links` · `.family_multipliers` · `.events` · `.seed`, the same objects the files hold before
 `.write()` puts them on disk.
 
 **`genomes.tsv`**: `copy` is the identifier the event log uses, so a gene can be traced back to the
@@ -163,6 +164,15 @@ default is not 1. A function read on a module is written at each completion leve
 any other function is written by its name. A driver read from a trait or a file is not listed. A
 run with no link writes the header alone, so a method that looks for links between gene families
 can always be compared against the file.
+
+**`family_multipliers.tsv`** holds each family's multipliers. A rate written with
+`varying_among("families", …)` draws one value for each family when the family is born. The family
+keeps that value for its whole life. The multiplier is that value divided by the law's mean, so
+multipliers have an expected value of 1. The family's duplication rate is then the run's duplication
+rate times the family's `duplication` multiplier. In a run where some rate varies among families, a
+rate that does not vary gives a multiplier of 1.0. When a declared family sets its own value for a
+rate, its cell for that rate is empty, because that value replaces the run's rate. A run whose rates
+do not vary among families writes the header alone.
 
 **`species_complete.nwk`**. Every other file here is indexed by its node labels, so the directory is
 not readable, by anyone or by `genomes.read_run()`, without it. `result.write()` writes it by
@@ -253,6 +263,7 @@ trees are built from.
 | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | as at the family resolution, since position is orthogonal to genealogy |
 | `genome_summary.json` | events as biology rather than rows, families born/surviving/died out, genes and chromosomes per genome, rearrangements and chromosome events by kind |
 | `links.tsv` | as at the family resolution; `target` can also name an extent, such as `loss_extent` |
+| `family_multipliers.tsv` | as at the family resolution, with an `inversion`, a `transposition` and a `translocation` column |
 | `species_complete.nwk` | as at the family resolution |
 | `names.tsv` | as at the family resolution |
 | `conditioned_on` | as at the family resolution, and written when a rate or `transfer_to` was conditioned |
@@ -261,7 +272,7 @@ From Python: `.genomes` · `.node_genomes` (as at the family resolution, but eac
 **`Chromosome`** objects, each an `id`, a `topology`, and an ordered list of **`Gene`** objects with
 `id`, `family` and `strand`), `.gene_order(node)` (one node's layout gene by gene, as
 `(chromosome, position, strand, family, gene id)`), and `.rearrangements` · `.chromosome_events` ·
-`.gene_trees` · `.profiles` · `.links` in memory. A run streamed to disk (`stream_to=DIR`, or
+`.gene_trees` · `.profiles` · `.links` · `.family_multipliers` in memory. A run streamed to disk (`stream_to=DIR`, or
 `--stream`) writes the same files and gives back a `StreamedRun` instead: the directory, the seed, how
 many families and gene-tree edges the run made, and the outputs written.
 
