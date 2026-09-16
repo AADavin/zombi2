@@ -1,12 +1,12 @@
 """A substitution rate drawn among families (issue #443).
 
-``substitution = PerSite(1.0).varying_among('families', law)`` draws one factor per gene family,
-before any site evolves, and the family keeps it for the whole of its life. The clock rides lineages
+``substitution = PerSite(1.0).varying_among('families', law)`` draws one multiplier per gene
+family, before any site evolves, and the family keeps that value for its whole life. The clock rides lineages
 and this rides families, so the two are separate axes and multiply::
 
-    branch = substitution · Δt · lineage clock · family factor
+    branch = substitution · Δt · lineage clock · family multiplier
 
-The run keeps the factors on its result and writes them in ``family_multipliers.tsv``, the table the
+The run keeps the multipliers on its result and writes them in ``family_multipliers.tsv``, the one
 genomes level writes its event-rate multipliers in. A run whose rate does not vary among families
 writes the header alone, and takes no draw at all.
 """
@@ -21,7 +21,7 @@ from zombi2.genomes import family, simulate_genomes_family, simulate_genomes_nuc
 from zombi2.genomes.multipliers import SEQUENCE_TARGETS, multipliers_from_tsv
 from zombi2.params import Drift, LogNormal, PerSite
 from zombi2.sequences import jc69
-from zombi2.sequences.multipliers import family_factors
+from zombi2.sequences.multipliers import family_multipliers as draw_multipliers
 from zombi2.species import simulate_species_tree
 
 HEADER = "family\tsubstitution\n"
@@ -61,7 +61,7 @@ def test_a_rate_that_does_not_vary_among_families_takes_no_draw():
     """The randomness a run consumes is what says whether a feature is really absent: a rate
     carrying no per-family modifier must leave the generator exactly where it found it."""
     untouched, used = np.random.default_rng(0), np.random.default_rng(0)
-    assert family_factors((), range(50), used) == {}
+    assert draw_multipliers((), range(50), used) == {}
     assert untouched.random() == used.random()
 
 
@@ -76,18 +76,18 @@ def test_every_family_has_a_row(genomes):
     assert len(drawn) == len(run.family_multipliers)          # one independent draw apiece
 
 
-def test_the_factor_multiplies_every_branch_of_that_family_alone(genomes):
-    """The phylogram is the tree the sequences were drawn along, so it is where the factor has to
+def test_the_multiplier_scales_every_branch_of_that_family_alone(genomes):
+    """The phylogram is the tree the sequences were drawn along, so it is where the multiplier has to
     show: each family's branches are the strict-clock run's, times the one number the table holds."""
     strict = sequences.simulate_sequences(genomes, model=jc69(), length=40, substitution=0.05, seed=3)
     varied = sequences.simulate_sequences(genomes, model=jc69(), length=40, seed=3,
                                           substitution=_varying())
-    for fam, factor in varied.family_multipliers.items():
+    for fam, row in varied.family_multipliers.items():
         one = np.asarray(_lengths(strict.phylograms[fam]["complete"]))
         many = np.asarray(_lengths(varied.phylograms[fam]["complete"]))
         # a Newick branch length is written to about seven significant digits, so this tolerance is
         # the file format's; the arithmetic underneath is one multiplication
-        assert np.allclose(many, one * factor["substitution"], rtol=1e-5)
+        assert np.allclose(many, one * row["substitution"], rtol=1e-5)
 
 
 def test_the_clock_and_the_family_draw_compose(genomes):
@@ -99,30 +99,30 @@ def test_the_clock_and_the_family_draw_compose(genomes):
     a = sequences.simulate_sequences(genomes, model=jc69(), length=40, substitution=clock, seed=4)
     b = sequences.simulate_sequences(genomes, model=jc69(), length=40, substitution=both, seed=4)
     assert b.family_multipliers and a.family_multipliers == {}
-    for fam, factor in b.family_multipliers.items():
+    for fam, row in b.family_multipliers.items():
         one = np.asarray(_lengths(a.phylograms[fam]["complete"]))
         many = np.asarray(_lengths(b.phylograms[fam]["complete"]))
-        assert np.allclose(many, one * factor["substitution"], rtol=1e-5)
+        assert np.allclose(many, one * row["substitution"], rtol=1e-5)
 
 
 def test_the_species_phylogram_stays_on_the_run_s_own_rate(genomes):
     """The species phylogram is the clock made visible, and the clock is what every family shares.
-    A per-family factor belongs to one family, so it must not reach that tree."""
+    A per-family multiplier belongs to one family, so it must not reach that tree."""
     strict = sequences.simulate_sequences(genomes, model=jc69(), length=40, substitution=0.05, seed=3)
     varied = sequences.simulate_sequences(genomes, model=jc69(), length=40, seed=3,
                                           substitution=_varying())
     assert varied.species_phylogram == strict.species_phylogram
 
 
-def test_a_family_with_a_larger_factor_diverges_further(genomes):
-    """The factor is a rate, so it shows in the alignments too: a family drawn fast is a family whose
+def test_a_family_with_a_larger_multiplier_diverges_further(genomes):
+    """The multiplier scales a rate, so it shows in the alignments too: a family drawn fast is one whose
     tips are less alike."""
     run = sequences.simulate_sequences(genomes, model=jc69(), length=400, seed=5,
                                        substitution=_varying(base=0.1, sigma=1.0))
     families = [f for f, aln in run.alignments.items() if len(aln) > 1]
-    factor = [run.family_multipliers[f]["substitution"] for f in families]
+    mult = [run.family_multipliers[f]["substitution"] for f in families]
     identity = [sequences.mean_pairwise_identity({f: run.alignments[f]}) for f in families]
-    assert np.corrcoef(_ranks(factor), _ranks(identity))[0, 1] < -0.5
+    assert np.corrcoef(_ranks(mult), _ranks(identity))[0, 1] < -0.5
 
 
 def test_a_restricted_run_draws_for_the_families_it_evolves():
@@ -183,8 +183,8 @@ def test_an_inherited_value_among_families_is_still_refused(genomes):
             substitution=PerSite(0.05).varying_among("families", Drift(LogNormal(0.0, 0.5))))
 
 
-def test_the_factor_reaches_the_indel_rates_too(genomes, monkeypatch):
-    """Indel rates are relative to substitution, so a family's own factor reaches them through the
+def test_the_multiplier_reaches_the_indel_rates_too(genomes, monkeypatch):
+    """Indel rates are relative to substitution, so a family's own multiplier reaches them through the
     same base: a family drawn fast substitutes fast and gains and loses sites fast. One speed for the
     family, not two. Read off the base each family's indel history was drawn at, because the counts
     themselves are Poisson and one family's draw says nothing."""

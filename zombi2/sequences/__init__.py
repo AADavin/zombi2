@@ -29,9 +29,9 @@ carry a ``scaled_by(trait, {...})``, which reads a **trait grown first** and let
 set how fast its sequences evolve; a clock and a driver compose (modifiers multiply), and a driver that
 switches mid-branch is **integrated** across the switch rather than sampled once for the branch
 (`clock`). It may carry a **draw among families** as well —
-``substitution = PerSite(1.0).varying_among('families', LogNormal(0.0, 0.8))`` — one factor per
-family, drawn at the start and kept for the whole of that family's life, so a ribosomal protein and a
-phage tail gene run at different speeds down the same branch. The clock rides lineages and this rides
+``substitution = PerSite(1.0).varying_among('families', LogNormal(0.0, 0.8))`` — one multiplier
+per family, drawn at the start and kept for that family's whole life, so a ribosomal protein gene and
+a phage tail gene run at different speeds down the same branch. The clock rides lineages and this rides
 families, so the two are separate axes and multiply (`multipliers`). Any other modifier — ``Markov``
 hops, a draw among families on a **nucleotide** run, whose units are blocks — raises.
 
@@ -84,7 +84,7 @@ from .clock import Clock, resolve_clock
 from .evolution import evolve_gene_tree
 from .indels import draw_indel_history
 from .lineage_models import Models
-from .multipliers import family_factors
+from .multipliers import family_multipliers
 from .substitution_models import (BASES, SubstitutionModel, _with_frequencies, dayhoff, decode,
                                   encode, gtr, hky85, jc69, jtt, k80, lg, poisson, wag)
 
@@ -98,7 +98,7 @@ _COMPLEMENT = str.maketrans("ACGT", "TGCA")
 #: and by the CLI's help, so a modifier is never advertised without being implemented. On the
 #: substitution rate these are the two lineage clocks — a draw among lineages the uncorrelated
 #: ("relaxed") clock, an inherited value the autocorrelated clock (the rate drifts parent→child down
-#: the species tree) — a draw among **families**, one factor per family for the whole of its life,
+#: the species tree) — a draw among **families**, one multiplier per family for its whole life,
 #: and ``scaled_by``, the conditioned driver a trait grown first supplies (SPEC §3:
 #: Traits→Sequences can be conditioned). The three compose: modifiers multiply. The family draw is
 #: refused on a **nucleotide** run, whose units are blocks rather than families (`simulate_sequences`).
@@ -141,8 +141,8 @@ class SequencesResult:
       root lineage's origination. Not in ``genomes``, because it belongs to no node: the root branch is
       real simulated time, so the root *node*'s genome is this one plus whatever happened along the
       stem. It stands to ``genomes`` as ``founding`` stands to ``ancestral``.
-    - ``family_multipliers`` — ``{family: {"substitution": factor}}``: the speed each family ran at,
-      relative to the run's rate, when the substitution rate varies among families. Empty otherwise.
+    - ``family_multipliers`` — ``{family: {"substitution": multiplier}}``: the speed each family ran
+      at, relative to the run's rate, when the substitution rate varies among families. Empty otherwise.
     - ``seed`` — the run's seed.
     - ``unit`` — what the integer key of ``alignments`` / ``ancestral`` / ``founding`` / ``phylograms``
       **names**: ``"family"`` (a gene family id) on a family or ordered run, ``"block"`` (an index
@@ -184,7 +184,7 @@ class SequencesResult:
     #: ``record=True``: this is the one level whose log is bigger than its output, so it is the one
     #: level that does not record by default. See `zombi2.sequences._record`.
     events: list = field(default_factory=list)
-    #: ``{family: {"substitution": factor}}`` — the number each family's substitution rate was
+    #: ``{family: {"substitution": multiplier}}`` — the number each family's substitution rate was
     #: multiplied by, written in ``family_multipliers.tsv``: the number a rate written with
     #: ``varying_among("families", …)`` drew for it (`zombi2.sequences.multipliers`). The shape the
     #: genomes level writes its event-rate multipliers in, so the two read back the same way. Empty
@@ -1912,16 +1912,16 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     fam_mods = tuple(m for m, _ in rate.carried_modifiers(unit='families'))
     drivers = driven_mods(rate)
     # A nucleotide run's units are **blocks** — every gene and every stretch of spacer between them —
-    # so there is no family here to draw a factor for, and drawing one per block would give the
+    # so there is no family here to draw a multiplier for, and drawing one per block would give the
     # spacer a gene family's speed. The genome level's nucleotide engine declares no per-family draw
-    # for the same reason. Refused rather than run, because a factor applied to the wrong unit is a
+    # for the same reason. Refused rather than run, because a number applied to the wrong unit is a
     # run that is quietly not the model that was asked for (SPEC §5).
     if fam_mods and nucleotide:
         raise ValueError(
             "substitution carries a draw among families, and this run came from a nucleotide "
             "genome, whose units are blocks: a gene, or a stretch of spacer between two genes. A "
-            "factor drawn per block would give the spacer a gene family's speed, so there is no "
-            "family here to draw a factor for. Vary the rate among lineages instead — "
+            "multiplier drawn per block would give the spacer a gene family's speed, so there is "
+            "no family here to draw one for. Vary the rate among lineages instead — "
             "varying_among('lineages', ...) — or run the sequences on a family or ordered genome "
             "run, where a family is a unit.")
     # This level is the one that does NOT take a third-party modifier, so the gate is a plain
@@ -1940,7 +1940,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             "varying_among('lineages', Drift(LogNormal(0.0, 0.3))) (autocorrelated), and "
             "several of one kind compose — and any number of scaled_by drivers, which multiply. "
             "It also takes a draw among families — varying_among('families', LogNormal(0.0, 0.8)) — "
-            "one factor per family for the whole of its life, which multiplies the clock. "
+            "one multiplier per family for its whole life, which multiplies the clock. "
             "set_by is not read here (a replaced base has nowhere to go: this level draws its clock "
             "among lineages rather than evaluating a rate), and neither is the Markov clock nor a "
             "modifier of your own: this "
@@ -2027,9 +2027,9 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     phylograms: dict[int, dict[str, str | None]] = {}
     events: list = []                      # empty unless record=True; see `_record`
     seed = resolve_seed(seed)      # drawn if none was given, so either engine below records it
-    # {family: factor} when the rate varies among families, empty otherwise. Drawn inside each
+    # {family: multiplier} when the rate varies among families, empty otherwise. Drawn inside each
     # engine, from that engine's own generator, and read again at the end to write the table.
-    factors: dict[int, float] = {}
+    drawn: dict[int, float] = {}
     if not parallel:
         # Serial reference engine — the default, left exactly as it was. One shared generator draws the
         # clock, then each family is walked in turn. `parallel` selects a *separate* engine (decision A),
@@ -2038,7 +2038,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         clock = resolve_clock(clocks, driven, species_tree, gene_trees, rng)
         # After the clock and from the same generator, so a run with a clock and no family draw is
         # bit-identical to one from before the family draw existed — it takes no draw at all.
-        factors = family_factors(fam_mods, gene_trees, rng)
+        drawn = family_multipliers(fam_mods, gene_trees, rng)
         # One transition-CDF cache per model, shared across every block that model evolves. Branch lengths
         # recur across blocks (a block passing straight through a species branch reuses its length), so a
         # run-wide cache builds a few hundred matrices where a per-block cache rebuilt tens of thousands.
@@ -2060,8 +2060,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             gt = gene_trees[family]
             if per_block is None:
                 f_parts, f_rate = parts, rate_base
-                if factors:             # a draw among families: this family's own speed
-                    f_rate = rate_base * factors[family]
+                if drawn:               # a draw among families: this family's own speed
+                    f_rate = rate_base * drawn[family]
             else:                       # a nucleotide block: its own length, and spacer runs faster
                 f_len, f_model, speed = per_block[family]
                 f_parts, f_rate = ((f_model, f_len),), rate_base * speed
@@ -2122,20 +2122,20 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         workers = guard_pool_workers(resolve_workers(parallel))
         spawned = seed_sequence("sequences", seed)[0].spawn(1 + len(gene_trees))
         # Both shared draws come off the reserved stream, here in the parent: the clock is one
-        # number per species branch and the factors one per family, and neither may depend on which
-        # worker picked up which family, or the run would stop being worker-count invariant.
+        # number per species branch and the multipliers one per family, and neither may depend on
+        # which worker took which family, or the run would stop being worker-count invariant.
         shared = np.random.default_rng(spawned[0])
         clock = resolve_clock(clocks, driven, species_tree, gene_trees, shared)
-        factors = family_factors(fam_mods, gene_trees, shared)
+        drawn = family_multipliers(fam_mods, gene_trees, shared)
         alignments, ancestral, founding, phylograms = evolve_families(
             gene_trees, per_block, model, intergene_model, length, rate_base, clock,
             founding_seed if nucleotide else None, spawned[1:], workers, progress, names,
-            sink=None if sink is None else sink.family, partitions=parts, factors=factors)
+            sink=None if sink is None else sink.family, partitions=parts, multipliers=drawn)
 
     events.sort(key=lambda e: e.time)      # one log, in time order, as every other level writes one
     # One column, `substitution`: it is the level's only rate, and the only one a family can draw a
-    # factor for. Empty when the rate does not vary among families, and then the table is a header.
-    multipliers = multipliers_of({"substitution": factors}, SEQUENCE_TARGETS)
+    # multiplier for. Empty when the rate does not vary among families, and the table is a header.
+    multipliers = multipliers_of({"substitution": drawn}, SEQUENCE_TARGETS)
     sp_scaled = _scaled_species_tree(species_tree, rate_base, clock)   # the clock made visible
     sp_extant = prune(sp_scaled, keep="extant")
     species_phylogram = {"complete": sp_scaled.to_newick(),

@@ -72,7 +72,7 @@ def draw_indel_history(root, length: int, *, insertion: float, deletion: float,
     ``sites`` is how long the sequence is when the branch begins. So ``deletion=0.05`` reads "five
     deletions for every hundred substitutions a site expects", the clock applies to indels for free
     (a lineage that evolves fast gains and loses sites fast), and the number means the same thing on
-    a tree of any height — which a per-unit-time rate does not. A **family** factor
+    a tree of any height — which a per-unit-time rate does not. A **family** multiplier
     (`zombi2.sequences.multipliers`) reaches them the same way, through the same ``rate_base``: a
     family drawn fast substitutes fast and gains and loses sites fast, which is one speed for the
     family and not two.
