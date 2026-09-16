@@ -22,7 +22,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   `lineage_multipliers.tsv`, one row per branch and one column per rate, and `.lineage_multipliers`
   holds them in Python. A `parallel=` run draws them before its workers start, so a run gives the
   same multipliers for any worker count; `stream_to=` writes the file too. The ordered and
-  nucleotide resolutions refuse the draw, and the message names the resolution that reads it. (#PR)
+  nucleotide resolutions refuse the draw, and the message names the resolution that reads it. (#447)
 
 ## [0.49.0] - 2026-09-16
 
