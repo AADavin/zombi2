@@ -2077,8 +2077,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # declares: changing_at (skyline), scaled_by (a conditioned/joint driver, per lineage), set_by (a
     # driver that replaces the base) and a per-family draw —
     # the last with the weight on the SEGMENT rather than on its starting gene (SPEC §6, and
-    # _pick_run_by_family). A clade-drift modifier is a later slice, so reject it
-    # rather than silently mis-scale (see the family engine for the reasoning).
+    # _pick_run_by_family). A draw among lineages is a later slice: it would go in the same
+    # per-lineage row a driver and a per-family draw already use, so reject it rather than silently
+    # mis-scale (see the family engine, which does implement it).
     _rates: dict[str, Rate] = {}
     for label, spec, want in (("duplication", duplication, PerCopy), ("transfer", transfer, PerCopy),
                               ("loss", loss, PerCopy), ("origination", origination, PerLineage),
@@ -2123,8 +2124,10 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                     f"{label} carries {describe(m)}, which the ordered genome engine does not "
                     f"support. It takes changing_at (skyline), scaled_by (a conditioned or joint "
                     f"driver), set_by (a driver that replaces the base) and varying_among('families', "
-                    f"…) (per-family heterogeneity, weighted on the segment an event covers). Clade "
-                    f"drift is not implemented yet."
+                    f"…) (per-family heterogeneity, weighted on the segment an event covers). "
+                    f"varying_among('lineages', …) draws one multiplier per species branch, and "
+                    f"only the family resolution reads it: simulate_genomes_family, or "
+                    f"--resolution family."
                 )
         _rates[label] = rate
     # the eleven rates keep short names in the Gillespie loop below; the dict is what the driver

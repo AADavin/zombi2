@@ -9,6 +9,21 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- The genome rates can vary among lineages at the family resolution.
+  `duplication=PerCopy(0.1).varying_among('lineages', LogNormal(0.0, 0.4))` draws one multiplier for
+  each branch of the species tree, before the run starts. That multiplier scales the rate of every
+  family on the branch. `varying_among('lineages', Drift(...))` is the inherited form, where a
+  daughter branch starts from its parent's multiplier and takes one step from it. Both forms work on
+  duplication, transfer, loss and origination. On transfer the multiplier belongs to the donor, and
+  `transfer_to` still chooses the recipient. Several rates can share one multiplier by sharing one
+  `Random('lineages', ...)`, so a fast branch is fast at all of them. The multipliers are written in
+  `lineage_multipliers.tsv`, one row per branch and one column per rate, and `.lineage_multipliers`
+  holds them in Python. A `parallel=` run draws them before its workers start, so a run gives the
+  same multipliers for any worker count; `stream_to=` writes the file too. The ordered and
+  nucleotide resolutions refuse the draw, and the message names the resolution that reads it. (#PR)
+
 ## [0.49.0] - 2026-09-16
 
 ### Added

@@ -157,7 +157,8 @@ below can do it and the rest refuse. This is what each accepts today:
 | Level | The verbs it accepts |
 |---|---|
 | Species | `changing_at` · `scaled_by(TotalDiversity(...))` · `varying_among('lineages', Drift(...))` · `varying_among('lineages', ...)` |
-| Genomes, family and ordered | `changing_at` · `scaled_by` · `set_by` · `varying_among('families', ...)` |
+| Genomes, family | `changing_at` · `scaled_by` · `set_by` · `varying_among('families', ...)` · `varying_among('lineages', ...)` · `varying_among('lineages', Drift(...))` |
+| Genomes, ordered | `changing_at` · `scaled_by` · `set_by` · `varying_among('families', ...)` |
 | Genomes, nucleotide | `changing_at` · `scaled_by` |
 | Sequences | `varying_among('lineages', ...)` · `varying_among('lineages', Drift(...))` · `varying_among('families', ...)` · `scaled_by` |
 | Traits, continuous `rate` | `changing_at` · `varying_among('lineages', Drift(...))` · `scaled_by(TotalDiversity(...))` · `scaled_by` · `set_by` |
@@ -170,10 +171,10 @@ law: `Drift(...)` is the value inherited from the parent, a bare distribution th
 
 `zombi2 <command> -h` lists a level's modifiers under "Modifiers this level takes", in these same
 words: the help is built from the level's own declaration, and a test checks this table against that
-same declaration, so neither can drift from it. Two commands each span two rows of the table:
-`zombi2 genomes`, whose nucleotide resolution reads fewer verbs than the other two, and `zombi2
-traits`, whose `--switch` reads fewer than `--rate`. For those the help lists the larger row
-and gives the smaller in the note beneath it.
+same declaration, so neither can drift from it. Two commands span more than one row of the table.
+`zombi2 genomes` has three resolutions, each accepting different verbs. `zombi2 traits` accepts
+fewer verbs on `--switch` than on `--rate`. For those the help lists the longest row and gives the
+others in the note beneath the list.
 
 A modifier missing from a row is one that level does not read **yet**. It is not a claim that the
 combination would be meaningless; each engine gains a modifier when its own code learns to read it, and

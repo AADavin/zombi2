@@ -106,6 +106,8 @@ _GLOSS = {
     "names.tsv": "your tree's tip labels, mapped to ZOMBI2's n<id> node ids",
     # written by genomes and by sequences alike — each for the rates it drew among families
     "family_multipliers.tsv": "each family's rate multipliers, one row per family (family, then one column per rate); only the header when no rate varies among families",
+    # written by the family genome engine, for the rates it drew among lineages
+    "lineage_multipliers.tsv": "each species branch's rate multipliers, one row per branch (lineage, then one column per rate); only the header when no rate varies among lineages",
     # written by genomes / sequences / traits alike, when a rate or transfer_to was conditioned
     "conditioned_on": "the levels this run read as a driver, one per line",
 }

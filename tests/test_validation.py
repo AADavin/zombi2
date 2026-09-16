@@ -1484,17 +1484,13 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
     # and also has a "| Species |" row
     text = appendix.read_text(encoding="utf-8").split("### Which level accepts which", 1)[-1]
 
-    # One row covers two engines — "Genomes, family and ordered" — and only family's tuple was ever
-    # checked against it, so the row was free to be false for ordered, and for a while it was: it
-    # listed Driven while the ordered engine refused it. Assert the two agree, and the shared row
-    # cannot lie again about either.
-    assert set(ORDERED) == set(GENOMES), (
-        f"appendix A lists family and ordered under one row, but they wire "
-        f"{sorted(cell_name(m) for m in GENOMES)} and {sorted(cell_name(m) for m in ORDERED)} — "
-        f"either bring them back into line or split the row")
-
+    # The two engines had one row between them — "Genomes, family and ordered" — and only family's
+    # tuple was ever checked against it, so the row was free to be false for ordered, and for a while
+    # it was: it listed Driven while the ordered engine refused it. They have a row each now, and
+    # each row is checked, which is what the shared one could not be.
     for row, wired in (("Species", SPECIES),
-                       ("Genomes, family and ordered", GENOMES),
+                       ("Genomes, family", GENOMES),
+                       ("Genomes, ordered", ORDERED),
                        ("Genomes, nucleotide", NUCLEOTIDE),
                        ("Sequences", SEQUENCES),
                        ("Traits, continuous `rate`", TRAITS),

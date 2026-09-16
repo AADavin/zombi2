@@ -11,7 +11,7 @@ import pytest
 
 from zombi2.params.scope import Global, PerCopy, PerLineage
 
-from zombi2.params import Clade, Drift, Fixed, LogNormal, Random, TotalDiversity
+from zombi2.params import Clade, Fixed, LogNormal, Random, TotalDiversity
 from zombi2.species import simulate_species_tree
 from zombi2.genomes import family, simulate_genomes_family
 from zombi2.tree import Node, Tree
@@ -207,9 +207,6 @@ def test_time_skyline_modifier_is_supported():
 
 def test_unsupported_modifiers_are_rejected_not_silently_dropped():
     sp = _tree(seed=1)
-    # clade drift would need per-lineage threading the walk doesn't do → reject, don't no-op
-    with pytest.raises(ValueError, match="does not support"):
-        simulate_genomes_family(sp, duplication=PerCopy(0.5).varying_among('lineages', Drift(LogNormal(0.0, 0.8))), initial_families=3, seed=1)
     # TotalDiversity reads a `diversity` context the genome walk doesn't supply → reject, don't crash raw
     with pytest.raises(ValueError, match="does not support"):
         simulate_genomes_family(sp, loss=PerCopy(0.25).scaled_by(TotalDiversity(cap=100)), initial_families=3, seed=1)
