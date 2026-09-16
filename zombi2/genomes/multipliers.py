@@ -101,6 +101,13 @@ def multipliers_from_tsv(text: str) -> dict[int, dict[str, "float | None"]]:
 #: lineage does, so it can carry a per-lineage one.
 LINEAGE_TARGETS = ("duplication", "transfer", "loss", "origination")
 
+#: the same at the ordered resolution, which counts the rearrangements and the chromosome events too.
+#: Wider than `ORDERED_TARGETS`, its per-family counterpart, because a multiplier per branch scales
+#: whatever the event acts on, while a per-family one has to reach the genes a segment covers and so
+#: cannot apply to an event on a whole replicon.
+ORDERED_LINEAGE_TARGETS = (*LINEAGE_TARGETS, "inversion", "transposition", "translocation",
+                           "fission", "fusion", "chromosome_origination", "chromosome_loss")
+
 
 def _preorder(tree) -> list[int]:
     """Species-tree node ids, parent before child — the order an inherited multiplier descends."""
@@ -212,9 +219,10 @@ def lineage_multipliers_from_tsv(text: str, labels=None) -> "dict[int | str, dic
     lines = [line for line in text.splitlines() if line.strip()]
     header = lines[0].split("\t") if lines else []
     targets = tuple(header[1:])
-    if not header or header[0] != "lineage" or targets != LINEAGE_TARGETS:
-        raise ValueError("lineage_multipliers.tsv must start with the header "
-                         + repr(lineage_multipliers_header()))
+    known = (LINEAGE_TARGETS, ORDERED_LINEAGE_TARGETS)
+    if not header or header[0] != "lineage" or targets not in known:
+        raise ValueError("lineage_multipliers.tsv must start with one of the headers "
+                         + ", ".join(repr(lineage_multipliers_header(t)) for t in known))
     by_label = {label: i for i, label in (labels or {}).items()}
     out: dict[int | str, dict[str, float]] = {}
     for line in lines[1:]:

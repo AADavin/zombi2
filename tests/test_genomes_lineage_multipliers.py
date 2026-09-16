@@ -11,9 +11,9 @@ import collections
 import pytest
 
 from zombi2.genomes import read_run, simulate_genomes_family, simulate_genomes_ordered
-from zombi2.genomes.multipliers import (LINEAGE_TARGETS, lineage_multipliers_from_tsv,
-                                        lineage_multipliers_header)
-from zombi2.params import Drift, LogNormal, PerCopy, PerLineage, Random
+from zombi2.genomes.multipliers import (LINEAGE_TARGETS, ORDERED_LINEAGE_TARGETS,
+                                        lineage_multipliers_from_tsv, lineage_multipliers_header)
+from zombi2.params import Drift, LogNormal, PerChromosome, PerCopy, PerLineage, Random
 from zombi2.species import simulate_species_tree
 
 
@@ -176,13 +176,75 @@ def test_a_table_with_another_header_is_refused():
         lineage_multipliers_from_tsv("family\tduplication\n0\t1.0\n")
 
 
-def test_the_ordered_engine_says_it_does_not_take_the_draw_yet(tree):
-    """The ordered resolution reads its rates through one row per lineage that a per-family draw
-    cannot share, so the draw is refused there rather than silently ignored."""
-    with pytest.raises(ValueError, match="does not support"):
-        simulate_genomes_ordered(
-            tree, duplication=PerCopy(0.2).varying_among("lineages", LogNormal(0.0, 0.5)),
-            initial_genome=5, seed=2)
+def test_the_ordered_engine_draws_for_every_rate_it_has(tree):
+    """The ordered resolution counts rearrangements and chromosome events too, and a multiplier per
+    branch scales whatever the event acts on, so every one of its rates takes the draw."""
+    run = simulate_genomes_ordered(
+        tree,
+        duplication=PerCopy(0.2).varying_among("lineages", LogNormal(0.0, 0.5)),
+        inversion=PerCopy(0.1).varying_among("lineages", LogNormal(0.0, 0.5)),
+        fission=PerChromosome(0.05).varying_among("lineages", LogNormal(0.0, 0.5)),
+        chromosomes=2, loss=0.1, initial_families=8, seed=2)
+    assert set(run.lineage_multipliers) == set(tree.nodes)
+    assert set(next(iter(run.lineage_multipliers.values()))) == set(ORDERED_LINEAGE_TARGETS)
+    for target in ("duplication", "inversion", "fission"):
+        assert len({row[target] for row in run.lineage_multipliers.values()}) > 1
+    # a rate carrying no draw reads 1.0 on every branch, as at the family resolution
+    assert {row["loss"] for row in run.lineage_multipliers.values()} == {1.0}
+
+
+def test_an_ordered_run_writes_the_wider_table(tree, tmp_path):
+    run = simulate_genomes_ordered(
+        tree, duplication=PerCopy(0.2).varying_among("lineages", LogNormal(0.0, 0.5)),
+        loss=0.1, initial_families=8, seed=2)
+    run.write(tmp_path)
+    text = (tmp_path / "lineage_multipliers.tsv").read_text(encoding="utf-8")
+    assert text.splitlines()[0] == lineage_multipliers_header(ORDERED_LINEAGE_TARGETS)
+    assert lineage_multipliers_from_tsv(text, tree.labels()) == run.lineage_multipliers
+
+
+def test_an_ordered_run_that_does_not_vary_writes_the_header_alone(tree, tmp_path):
+    run = simulate_genomes_ordered(tree, duplication=0.2, loss=0.1, initial_families=8, seed=2)
+    assert run.lineage_multipliers == {}
+    run.write(tmp_path)
+    assert ((tmp_path / "lineage_multipliers.tsv").read_text(encoding="utf-8")
+            == lineage_multipliers_header(ORDERED_LINEAGE_TARGETS) + "\n")
+
+
+def test_a_flat_draw_beside_a_family_draw_changes_nothing(tree):
+    """The two draws compose, and the ordered engine keeps the product in one weight per lineage.
+    A per-lineage draw with no spread multiplies every branch by exactly 1.0 and consumes no
+    randomness, so the run through the combined path has to be the run without it, to the last bit —
+    which is what pins that weight against the one the per-family draw alone builds."""
+    kw = dict(loss=0.15, transfer=0.05, inversion=0.1, initial_families=8, seed=11,
+              max_family_size=None)
+    fam = PerCopy(0.3).varying_among("families", LogNormal(0.0, 0.6))
+    flat = (PerCopy(0.3).varying_among("families", LogNormal(0.0, 0.6))
+            .varying_among("lineages", LogNormal(0.0, 0.0)))
+    a = simulate_genomes_ordered(tree, duplication=fam, **kw)
+    b = simulate_genomes_ordered(tree, duplication=flat, **kw)
+    assert [(e.time, e.kind, e.family, e.parents, e.children) for e in a.events] == \
+           [(e.time, e.kind, e.family, e.parents, e.children) for e in b.events]
+    assert {v for row in b.lineage_multipliers.values() for v in row.values()} == {1.0}
+
+
+def test_an_ordered_run_can_carry_a_draw_on_every_axis_at_once(tree):
+    """A driver, a per-family draw and a per-lineage draw: the first two are refused together, the
+    other pairs run, and the engine's own row checks hold for each."""
+    from zombi2.params import Clade
+
+    clade = Clade({"fast": ["n3"]})
+    both_draws = simulate_genomes_ordered(
+        tree, duplication=(PerCopy(0.2).varying_among("lineages", LogNormal(0.0, 0.5))
+                           .varying_among("families", LogNormal(0.0, 0.5))),
+        loss=0.1, initial_families=8, seed=2)
+    assert both_draws.lineage_multipliers and both_draws.family_multipliers
+
+    driven = simulate_genomes_ordered(
+        tree, loss=(PerCopy(0.15).scaled_by(clade, {"fast": 3.0, "rest": 1.0})
+                    .varying_among("lineages", LogNormal(0.0, 0.5))),
+        duplication=0.1, initial_families=8, seed=2)
+    assert driven.lineage_multipliers
 
 
 def test_a_rate_cannot_be_both_drawn_and_inherited_among_lineages(tree):
@@ -239,3 +301,39 @@ def test_a_family_rate_refuses_the_draw_and_says_where_it_goes(tree):
             families=[declare("fast",
                               loss=PerCopy(0.4).varying_among("lineages", LogNormal(0.0, 0.5)))],
             seed=2)
+
+
+def test_an_ordered_branch_with_a_larger_multiplier_gets_more_inversions():
+    """The same check the family resolution gets, on a rearrangement: inversion is PerLineage, so a
+    branch expects ``base × multiplier × length`` inversions whatever its genome holds."""
+    tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=16, seed=5).complete_tree
+    length = {i: nd.end_time - nd.birth_time for i, nd in tree.nodes.items()}
+    base, reps = 0.5, 60
+    got: collections.Counter = collections.Counter()
+    want: dict = collections.defaultdict(float)
+    for rep in range(reps):
+        run = simulate_genomes_ordered(
+            tree, duplication=0.0, loss=0.0, transfer=0.0, origination=0.0,
+            inversion=PerLineage(base).varying_among("lineages", LogNormal(0.0, 0.8)),
+            initial_families=2, max_family_size=None, seed=1000 + rep)
+        got += collections.Counter(x.lineage for x in run.rearrangements
+                                   if type(x).__name__ == "Inversion")
+        for i, row in run.lineage_multipliers.items():
+            want[i] += base * row["inversion"] * length[i]
+    rows = sorted(((want[i], got[i]) for i in tree.nodes if want[i] > 20), key=lambda p: p[0])
+    assert len(rows) >= 8
+    half = len(rows) // 2
+    for part in (rows[:half], rows[half:]):
+        expected = sum(w for w, _ in part)
+        counted = sum(g for _, g in part)
+        assert abs(counted - expected) < 4.0 * expected ** 0.5, (expected, counted)
+
+
+def test_a_streamed_ordered_run_writes_the_table(tree, tmp_path):
+    kw = dict(duplication=PerCopy(0.2).varying_among("lineages", LogNormal(0.0, 0.5)),
+              loss=0.1, initial_families=8, seed=3)
+    simulate_genomes_ordered(tree, stream_to=tmp_path / "streamed", **kw)
+    in_memory = simulate_genomes_ordered(tree, **kw)
+    in_memory.write(tmp_path / "memory")
+    assert ((tmp_path / "streamed" / "lineage_multipliers.tsv").read_text(encoding="utf-8")
+            == (tmp_path / "memory" / "lineage_multipliers.tsv").read_text(encoding="utf-8"))
