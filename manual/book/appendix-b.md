@@ -133,6 +133,7 @@ depends on time or diversity, this is its value at the start of the branch.
 | `genome_summary.json` | events by kind, families born, surviving and died out, genes per genome, `empty_genomes`, whether the family-size cap bound, the seed |
 | `links.tsv` | the links the run read from its own gene content: `family` · `target` · `driver` · `modifier` · `mapping`, one row per link |
 | `family_multipliers.tsv` | each family's rate multipliers: `family` · `duplication` · `transfer` · `loss`, one row per family |
+| `lineage_multipliers.tsv` | each species branch's rate multipliers: `lineage` · `duplication` · `transfer` · `loss` · `origination`, one row per branch |
 | `species_complete.nwk` | the tree the run evolved along, without which the directory cannot be read |
 | `species/species_fates.tsv` | each tip's fate, in the format the species level writes. Only when the tree came from `--from` |
 | `names.tsv` | `node` · `name`, mapping ZOMBI2's `n<id>` back to the labels you supplied. Only when the tree came from `--from` with its own tip labels |
@@ -142,7 +143,8 @@ From Python: `.genomes` · `.node_genomes` (the genomes), `.family_counts(node)`
 `.has_family(node, name)` (a node's genome as `family → copies`, and whether a named family has a
 copy there), `.gene_trees[f].origination` (when a family was founded, where its gene tree's root
 branch begins), the driver views `.presence(name)` · `.completion(name)`, and `.gene_trees` ·
-`.profiles` · `.initial_genome` · `.links` · `.family_multipliers` · `.events` · `.seed`, the same objects the files hold before
+`.profiles` · `.initial_genome` · `.links` · `.family_multipliers` · `.lineage_multipliers` ·
+`.events` · `.seed`, the same objects the files hold before
 `.write()` puts them on disk.
 
 **`genomes.tsv`**: `copy` is the identifier the event log uses, so a gene can be traced back to the
@@ -173,6 +175,18 @@ rate times the family's `duplication` multiplier. In a run where some rate varie
 rate that does not vary gives a multiplier of 1.0. When a declared family sets its own value for a
 rate, its cell for that rate is empty, because that value replaces the run's rate. A run whose rates
 do not vary among families writes the header alone.
+
+**`lineage_multipliers.tsv`** holds each species branch's multipliers. A rate written with
+`varying_among('lineages', …)` draws one multiplier for each branch of the species tree, before the
+run starts. That multiplier scales the rate of every family on the branch, so one branch speeds up
+or slows down a whole genome. A family multiplier varies the rate among families instead: one
+family's multiplier applies on every branch. A rate can carry both draws. A family's rate on a
+branch is then the run's rate times the branch's multiplier times the family's multiplier. Every
+branch has a row, extinct ones included. The `lineage` column holds the branch's label, the name
+that `genomes.tsv` and the species tree use. A rate that does not vary among lineages is 1.0 on
+every branch. A run whose rates do not vary among lineages writes the header alone. On `transfer`
+the multiplier belongs to the **donor**: it scales how often that branch donates, and `transfer_to`
+still chooses the recipient. Only the family resolution writes this file.
 
 **`species_complete.nwk`**. Every other file here is indexed by its node labels, so the directory is
 not readable, by anyone or by `genomes.read_run()`, without it. `result.write()` writes it by

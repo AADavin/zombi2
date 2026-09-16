@@ -33,7 +33,8 @@ from ..params.conditioned import check_mapping_fires, names_a_live_level, resolv
 from ..params.mapping import Between, check_kernel_fires, check_not_a_kernel
 from ..rng import resolve_seed, stream
 from ..params.driver import OnTime
-from ..params.evaluate import DRAWN, describe, is_implemented, matches_declared, values_at_birth
+from ..params.evaluate import (DRAWN, INHERITED, check_one_memory, describe, is_implemented,
+                               matches_declared, values_at_birth)
 from ..params.connection import Driven, SetBy
 from ..params.parameter import Rate, as_rate
 from ..params.retired import check_no_retired_keywords
@@ -49,7 +50,8 @@ from .._runtime.summary import _stats, write_summary
 from .events import Event, GeneEdge, event_counts, events_from_edges, events_tsv, gene_label
 from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
 from .links import Link, links_of, links_tsv
-from .multipliers import FAMILY_TARGETS, multipliers_of, multipliers_tsv
+from .multipliers import (FAMILY_TARGETS, draw_lineage_multipliers, lineage_multipliers_of,
+                          lineage_multipliers_tsv, multipliers_of, multipliers_tsv)
 from .profiles import Profiles, profiles_from_genomes
 
 if TYPE_CHECKING:  # a streamed run returns a StreamedRun (built by the per-family engine); type-only
@@ -59,11 +61,12 @@ if TYPE_CHECKING:  # a streamed run returns a StreamedRun (built by the per-fami
 #: help, so a modifier is never advertised without being implemented. ``duplication`` / ``transfer``
 #: / ``loss`` also take a ``PerLineage`` scope override; ``changing_at``, ``scaled_by`` and
 #: ``set_by`` are implemented on all four rates (on ``transfer`` the driven lineage is the donor),
-#: and a per-family draw on all but ``origination``. The ordered engine declares the same four
-#: modifiers as this one, the nucleotide engine only ``changing_at`` and ``scaled_by``. The gates
-#: say so per rate. A declared family's own rate takes the three verbs and no per-family draw
-#: (`FAMILY_RATE_MODIFIERS`).
-IMPLEMENTED_MODIFIERS = (OnTime, Driven, SetBy, (DRAWN, "families"))
+#: and a per-family draw on all but ``origination``. A per-lineage draw — drawn or inherited — is
+#: implemented on all four. The ordered engine declares the four verbs and the per-family draw, the
+#: nucleotide engine only ``changing_at`` and ``scaled_by``. The gates say so per rate. A declared
+#: family's own rate takes the three verbs and no draw of either kind (`FAMILY_RATE_MODIFIERS`).
+IMPLEMENTED_MODIFIERS = (OnTime, Driven, SetBy, (DRAWN, "families"), (DRAWN, "lineages"),
+                         (INHERITED, "lineages"))
 
 
 @dataclass(frozen=True)
@@ -114,6 +117,12 @@ class FamilyGenomesResult:
     #: multiplies that family's rate by. ``None`` where the family's own rate replaces the run's.
     #: Empty when no rate varies among families.
     family_multipliers: "dict[int, dict[str, float | None]]" = field(default_factory=dict)
+    #: Each species branch's drawn rate multipliers, ``{node: {target: multiplier}}``, which
+    #: ``write`` puts in ``lineage_multipliers.tsv``: the number a rate written with
+    #: ``varying_among("lineages", …)`` multiplies that branch's rate by, for every family passing
+    #: through it. Keyed by node id, as ``node_genomes`` is. Empty when no rate varies among
+    #: lineages.
+    lineage_multipliers: "dict[int, dict[str, float]]" = field(default_factory=dict)
 
     def __repr__(self) -> str:
         # "0 nodes" beside a real tip count reads as a broken run; a reopened run that did not write
@@ -297,11 +306,11 @@ class FamilyGenomesResult:
     #: cannot drift: they did, and `initial_sequence` and `species_tree` were writable from
     #: Python and unnameable on the command line.
     OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees",
-               "species_tree", "summary", "links", "family_multipliers")
+               "species_tree", "summary", "links", "family_multipliers", "lineage_multipliers")
 
     def write(self, directory, outputs=("events", "profiles", "genomes", "initial_genome",
                                         "gene_trees", "species_tree", "summary", "links",
-                                        "family_multipliers"), *,
+                                        "family_multipliers", "lineage_multipliers"), *,
               flat: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
@@ -326,6 +335,8 @@ class FamilyGenomesResult:
         - ``"family_multipliers"`` → ``family_multipliers.tsv``, each family's drawn rate
           multipliers, one row per family (see `zombi2.genomes.multipliers`); the header alone when no
           rate varies among families.
+        - ``"lineage_multipliers"`` → ``lineage_multipliers.tsv``, each species branch's drawn rate
+          multipliers, one row per branch; the header alone when no rate varies among lineages.
         The gene trees are two files per family, so they get a subdirectory rather than burying the
         tables above; ``flat=True`` writes everything into ``directory`` instead.
         """
@@ -360,6 +371,10 @@ class FamilyGenomesResult:
         if "family_multipliers" in outputs:
             (d / "family_multipliers.tsv").write_text(
                 multipliers_tsv(self.family_multipliers, FAMILY_TARGETS), encoding="utf-8")
+        if "lineage_multipliers" in outputs:
+            (d / "lineage_multipliers.tsv").write_text(
+                lineage_multipliers_tsv(self.lineage_multipliers, self.complete_tree.labels()),
+                encoding="utf-8")
 
     def _genomes_tsv(self) -> str:
         """Every node's gene content, one row per copy, in the order the genome holds them. The
@@ -441,7 +456,7 @@ def _pick_copy_by_family(rng, genome, mult: dict[int, float], fixed=None, unit: 
 _FIXED = "$fixed"
 
 
-def _family_weights(unit: float, sums, fixed) -> list[float]:
+def _family_weights(unit: float, sums, fixed, lineage=None) -> list[float]:
     """One event's rate on every lineage: the run's unit rate times the multipliers of the families
     using it, **plus** the families that set a rate of their own.
 
@@ -452,8 +467,17 @@ def _family_weights(unit: float, sums, fixed) -> list[float]:
     is why a written rate is never stored as a multiple of the run's: the encoding would need a
     division, and it would break the moment the run's rate is 0 or carries a verb of its own.
 
-    ``fixed`` is ``None`` when no family in the run writes a rate, and then this is the expression it
-    always was — the same floats in the same order, so such a run is unchanged to the last bit."""
+    ``lineage`` is each lineage's per-lineage multiplier, and it multiplies the **run's** rate only,
+    for the same reason: it was written on the run's rate, so a family that replaced that rate with
+    one of its own has nothing for it to scale.
+
+    ``fixed`` is ``None`` when no family in the run writes a rate, and ``lineage`` is ``None`` when no
+    rate varies among lineages; with both absent this is the expression it always was — the same
+    floats in the same order, so such a run is unchanged to the last bit."""
+    if lineage is not None:
+        if fixed is None:
+            return [unit * x * s for x, s in zip(lineage, sums)]
+        return [unit * x * s + f for x, s, f in zip(lineage, sums, fixed)]
     if fixed is None:
         return [unit * s for s in sums]
     return [unit * s + f for s, f in zip(sums, fixed)]
@@ -513,9 +537,16 @@ class _FamilyWeights:
             arr.pop()
 
 
-def _driven_weights(rate, gen, k_alive: int, t: float, drivers, fam_sums, own=None) -> list[float]:
-    """One rate's per-lineage weights under a driver — and, when the run also carries a per-family
-    draw, the family multipliers folded in.
+def _lineage_weights(rate, gen, k_alive: int, t: float, drivers, fam_sums, own=None,
+                     lineage=None) -> list[float]:
+    """One rate's weight on every lineage — and, when the run also carries a per-family draw, the
+    family multipliers folded in.
+
+    A rate is read lineage by lineage when something makes it differ between lineages, and two things
+    do: a **driver**, whose value is the one on that branch, and a **per-lineage draw**, whose factor
+    was drawn for that branch. They are independent and compose, so this one function takes both.
+    ``drivers`` is ``None`` for a rate that carries no driver, and ``lineage`` — each lineage's drawn
+    factor, in ``alive`` order — is ``None`` for one that carries no draw.
 
     ``lineages=1`` reads one lineage's own share, so a PerLineage rate contributes its base and a
     PerCopy one its base times that lineage's copies. An empty genome is zeroed explicitly: under
@@ -523,18 +554,31 @@ def _driven_weights(rate, gen, k_alive: int, t: float, drivers, fam_sums, own=No
     it is what stops a lineage with no victim taking a share.
 
     With ``fam_sums`` — that rate's per-lineage sums of the family multipliers over the live copies —
-    the two weights **multiply**: the driver's factor belongs to the lineage and the multipliers to
+    the two weights **multiply**: the lineage's factor belongs to the branch and the multipliers to
     its contents, so the lineage's total is the unit rate read on this lineage times those sums.
     ``copies=1`` because the sums already count the copies (a family carrying no draw weighs 1).
 
     ``own`` is the per-lineage sum over the families that wrote a rate of their own, and it is
-    **added** rather than multiplied. The driver scales the run's rate; a family that states its own
-    rate has no run rate in it to scale, which is the same reading `_family_weights()` gives."""
+    **added** rather than multiplied. A driver and a per-lineage draw both scale the run's rate; a
+    family that states its own rate has no run rate in it to scale, which is the same reading
+    `_family_weights()` gives."""
+    # one of the two is the reason this rate is read lineage by lineage at all
+    assert drivers is not None or lineage is not None
+    # the reader is chosen once per call rather than per lineage, so a driven run pays one extra
+    # function call per lineage and not a dict built inside the loop that runs millions of times
+    if drivers is None:
+        def read(k: int, copies: int) -> float:
+            return rate.effective(copies=copies, lineages=1, time=t, carried_factor=lineage[k])
+    elif lineage is None:
+        def read(k: int, copies: int) -> float:
+            return rate.effective(copies=copies, lineages=1, time=t, drivers=drivers[k])
+    else:
+        def read(k: int, copies: int) -> float:
+            return rate.effective(copies=copies, lineages=1, time=t, drivers=drivers[k],
+                                  carried_factor=lineage[k])
     if fam_sums is None:
-        return [rate.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
-                if gen[k] else 0.0 for k in range(k_alive)]
-    return [rate.effective(copies=1, lineages=1, time=t, drivers=drivers[k]) * fam_sums[k]
-            + (own[k] if own is not None else 0.0)
+        return [read(k, len(gen[k])) if gen[k] else 0.0 for k in range(k_alive)]
+    return [read(k, 1) * fam_sums[k] + (own[k] if own is not None else 0.0)
             if gen[k] else 0.0 for k in range(k_alive)]
 
 
@@ -688,8 +732,9 @@ def resolve_family_rates(declared, run_rates):
                 if not is_implemented(m, FAMILY_RATE_MODIFIERS, "genomes.family"):
                     raise ValueError(
                         f"{label} carries {describe(m)}, which a family's own rate does not take. It "
-                        f"takes changing_at, scaled_by and set_by. varying_among('families', …) varies "
-                        f"a rate among many families, so it belongs on the run's {key}.")
+                        f"takes changing_at, scaled_by and set_by. A varying_among draw varies the "
+                        f"run's rate, among families or among lineages, so it belongs on the run's "
+                        f"{key}; this family's rate replaces that rate rather than scaling it.")
             rate.check_one_base(label)
             if rate.modifiers:
                 driven.setdefault(key, {})[i] = rate
@@ -1251,8 +1296,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     when it is read the family does not exist yet to have one.
 
     A written rate **is** that family's rate, in the rate's own units. The run's rate does not reach
-    it, and neither does a ``varying_among('families', …)`` draw meant to vary the run's rate among
-    families (SPEC §5's argument for ``set_by``, one level down). Two things are refused for now: a
+    it, and neither does a ``varying_among`` draw meant to vary the run's rate — not the per-family
+    one, and not the per-lineage one either, so a family that writes its own loss keeps that loss on
+    a branch every other family loses fast on (SPEC §5's argument for ``set_by``, one level down). Two things are refused for now: a
     family's rate carrying a verb of its own, and a family's rate beside a *driven* run rate; both
     arrive with the joint step. So does the per-family engine — ``parallel=`` and ``stream_to=``
     build one set of rates for the whole run, so they refuse a family that writes its own.
@@ -1353,12 +1399,18 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             raise ValueError(
                 f"{label} carries {describe(m)}, which the family genome engine does not "
                 f"support. It takes changing_at (skyline), scaled_by (a conditioned or joint driver), "
-                f"set_by (a driver that replaces the base) and varying_among('families', …) "
-                f"(per-family heterogeneity). Clade drift is not implemented yet."
+                f"set_by (a driver that replaces the base), varying_among('families', …) "
+                f"(per-family heterogeneity) and varying_among('lineages', …) (one multiplier per "
+                f"species branch, drawn or inherited)."
             )
     for label, rate in (("duplication", dup), ("transfer", tra), ("loss", los),
                         ("origination", org)):
         rate.check_one_base(label)
+        # SPEC §5: one memory structure per axis. A bare distribution has no memory and a Drift has
+        # a continuous one, so a rate carrying both asks for a branch's factor to be independent of
+        # its parent's and inherited from it at once — there is no model there to implement.
+        check_one_memory(tuple(m for m, _ in rate.carried_modifiers(unit="lineages")),
+                         label=label, unit="lineages")
     # A per-family draw under a per-lineage scope is refused because what it should MEAN is a
     # modelling decision nobody has taken, not because it is hard. Under PerCopy a family's
     # multiplier scales each copy's own rate, so a genome full of fast families turns over faster —
@@ -1526,6 +1578,13 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             "a family with its own transfer_to cannot run on the per-family engine (parallel= / "
             "stream_to=), which builds one recipient rule for the whole run and evolves each family "
             "against it. Drop parallel / stream_to, or give every family the run's transfer_to.")
+    # What each rate carries among lineages: a factor per species branch, shared by every family
+    # passing through it — the other axis from the per-family draws (`zombi2.genomes.multipliers`).
+    # Read here, above the split, because both engines need it; each draws its own numbers.
+    lin_by = {"duplication": tuple(m for m, _ in dup.carried_modifiers(unit="lineages")),
+              "transfer": tuple(m for m, _ in tra.carried_modifiers(unit="lineages")),
+              "loss": tuple(m for m, _ in los.carried_modifiers(unit="lineages")),
+              "origination": tuple(m for m, _ in org.carried_modifiers(unit="lineages"))}
     if parallel or stream_to is not None:
         from ._perfamily import run_parallel_family
         result = run_parallel_family(
@@ -1536,11 +1595,20 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             progress=progress, stream_to=stream_to, outputs=outputs,
             trajs=trajs, to_traj=to_traj, group_of=group_of,
             driven={"duplication": bool(dup_mods), "transfer": bool(tra_mods),
-                    "loss": bool(los_mods), "origination": bool(org_mods)})
+                    "loss": bool(los_mods), "origination": bool(org_mods)},
+            lin_by=lin_by)
         if result is not None:
             return result
 
     rng, seed = stream("genomes", seed)     # the genomes level's own stream
+
+    # The per-lineage multipliers this engine draws: one per species branch, drawn before any family
+    # is minted, because they come from the tree, which exists before the run does. A run carrying
+    # none draws nothing, so it is bit-identical to one from before this existed. On transfer the
+    # branch is the DONOR's, as a driven transfer's is.
+    lin_mult = draw_lineage_multipliers(lin_by, tree, rng)
+    any_lineage = bool(lin_mult)
+
     copy_counter = 0
     family_counter = 0
 
@@ -1772,19 +1840,24 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 host_ctx = {"copies": n, "lineages": n_hosts, "time": t}
             else:
                 n_hosts, host_ctx = 0, ctx
-            # a driven rate is per-lineage: sum its effective rate over the living lineages (each
-            # read with its own copy count and its branch's driver value), keeping the weights for
-            # the affected-lineage pick — the species_tree._grow shape. An undriven rate stays
-            # pooled (one .effective, uniform pick), so a run with no driver is byte-identical to
-            # before. For transfer the affected lineage is the donor, so a driven transfer weights
-            # who donates. A run carrying BOTH a driver and a per-family draw multiplies the two —
-            # the driver's factor is the lineage's, the multipliers are its contents' — which is
-            # what `_driven_weights` does with `fam_sums`.
+            # A rate is per-lineage when something makes it differ between lineages, and two things
+            # do: a driver, whose value is the one on that branch, and a per-lineage draw, whose
+            # factor was drawn for that branch. Either way its effective rate is summed over the
+            # living lineages (each read with its own copy count) and the weights are kept for the
+            # affected-lineage pick — the species_tree._grow shape. A rate with neither stays pooled
+            # (one .effective, uniform pick), so a run carrying neither is byte-identical to before.
+            # For transfer the affected lineage is the donor, so both weight who donates. A run
+            # carrying a per-family draw as well multiplies the two — the branch's factor is the
+            # lineage's, the multipliers are its contents' — which is what `_lineage_weights` does
+            # with `fam_sums`.
             fw = None
             if any_driven:  # each lineage's driver values, read before the weights that multiply them in
                 drivers = [{**{key: trajs[key].value(alive[k], t) for key in trajs},
                             **{src: live_value(fid, k) for src, fid in live_reads}}
                            for k in range(k_alive)]
+            if any_lineage:  # each lineage's drawn factor, in `alive` order, for the same weights
+                lin_at = {key: [lin_mult[key][alive[k]] for k in range(k_alive)]
+                          for key in lin_by if lin_by[key]}
             if any_family:
                 # A per-copy rate pools over copies, so with per-family multipliers the total is the
                 # unit rate times the sum of those multipliers over the live copies — and the copy has
@@ -1813,34 +1886,55 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
 
                 def unit_at(key, k, _rates={"duplication": dup, "loss": los, "transfer": tra}):
                     """The run's unit rate as lineage ``k`` reads it. Identical to ``unit[key]`` unless
-                    the rate is driven, and then it is the number `_driven_weights` used for that
-                    lineage — which the copy pick has to use too, or the totals and the pick disagree
-                    about how a written family rate compares with the run's."""
+                    the rate is driven or varies among lineages, and then it is the number
+                    `_lineage_weights` used for that lineage — which the copy pick has to use too, or
+                    the totals and the pick disagree about how a written family rate compares with
+                    the run's."""
+                    factor = lin_at[key][k] if lin_by[key] else 1.0
                     if not any_driven:
-                        return unit[key]
-                    return _rates[key].effective(copies=1, lineages=1, time=t, drivers=drivers[k])
-                w_dup = _family_weights(unit["duplication"], fw["duplication"], own_sums("duplication"))
-                w_los = _family_weights(unit["loss"], fw["loss"], own_sums("loss"))
+                        return unit[key] * factor
+                    return _rates[key].effective(copies=1, lineages=1, time=t, drivers=drivers[k],
+                                                 carried_factor=factor)
+                w_dup = _family_weights(unit["duplication"], fw["duplication"],
+                                        own_sums("duplication"),
+                                        lin_at["duplication"] if lin_by["duplication"] else None)
+                w_los = _family_weights(unit["loss"], fw["loss"], own_sums("loss"),
+                                        lin_at["loss"] if lin_by["loss"] else None)
                 if can_xfer:
-                    w_tra = _family_weights(unit["transfer"], fw["transfer"], own_sums("transfer"))
-            if any_driven:
-                if dup_mods:
-                    w_dup = _driven_weights(dup, gen, k_alive, t, drivers,
-                                            fw["duplication"] if fw is not None else None,
-                                            own_sums("duplication") if fw is not None else None)
-                if los_mods:
-                    w_los = _driven_weights(los, gen, k_alive, t, drivers,
-                                            fw["loss"] if fw is not None else None,
-                                            own_sums("loss") if fw is not None else None)
-                if org_mods:
-                    # origination can never carry a per-family draw (refused above: when it is read
-                    # there is no family yet), so it needs no fam_sums branch
+                    w_tra = _family_weights(unit["transfer"], fw["transfer"], own_sums("transfer"),
+                                            lin_at["transfer"] if lin_by["transfer"] else None)
+            if any_driven or any_lineage:
+                # each rate reads the driver values only if it is driven and the drawn factors only
+                # if it carries a draw, so a rate with one of the two is unchanged by the other
+                def weigh(key, rate, mods):
+                    return _lineage_weights(
+                        rate, gen, k_alive, t, drivers if mods else None,
+                        fw[key] if fw is not None else None,
+                        own_sums(key) if fw is not None else None,
+                        lin_at[key] if lin_by[key] else None)
+                if dup_mods or lin_by["duplication"]:
+                    w_dup = weigh("duplication", dup, dup_mods)
+                if los_mods or lin_by["loss"]:
+                    w_los = weigh("loss", los, los_mods)
+                # Origination is written out rather than taken through `_lineage_weights`, which
+                # zeroes an empty genome: that is right for an event that consumes a copy and wrong
+                # here, because a lineage holding nothing can still gain a family. It needs no
+                # fam_sums branch either — origination can carry no per-family draw (refused above:
+                # when it is read there is no family yet to have drawn one).
+                if org_mods and lin_by["origination"]:
+                    w_org = [org.effective(copies=len(gen[k]), lineages=1, time=t,
+                                           drivers=drivers[k],
+                                           carried_factor=lin_at["origination"][k])
+                             for k in range(k_alive)]
+                elif org_mods:
                     w_org = [org.effective(copies=len(gen[k]), lineages=1, time=t, drivers=drivers[k])
                              for k in range(k_alive)]
-                if tra_mods and can_xfer:
-                    w_tra = _driven_weights(tra, gen, k_alive, t, drivers,
-                                            fw["transfer"] if fw is not None else None,
-                                            own_sums("transfer") if fw is not None else None)
+                elif lin_by["origination"]:
+                    w_org = [org.effective(copies=len(gen[k]), lineages=1, time=t,
+                                           carried_factor=lin_at["origination"][k])
+                             for k in range(k_alive)]
+                if (tra_mods or lin_by["transfer"]) and can_xfer:
+                    w_tra = weigh("transfer", tra, tra_mods)
             r_dup = sum(w_dup) if w_dup is not None else (
                 dup.effective(**(host_ctx if dup_per_lineage else ctx)) if n else 0.0)
             r_los = sum(w_los) if w_los is not None else (
@@ -1992,8 +2086,10 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                      transfer_to, declared, fam_driven, fam_transfer_to, module_map or {})
     multipliers = (multipliers_of(fam_mult, FAMILY_TARGETS, own_cells)
                    if any(fam_by.values()) else {})
+    per_lineage_multipliers = (lineage_multipliers_of(lin_mult, tree.labels())
+                               if any_lineage else {})
     return FamilyGenomesResult(tree, genomes, events, seed, named, module_map, initial_genome,
-                               cap, links, multipliers)
+                               cap, links, multipliers, per_lineage_multipliers)
 
 
 # --- process spec: a genome bundled but UNEXECUTED, for a joint model to grow with the tree --------

@@ -91,10 +91,10 @@ class TestACellNobodyBuiltRefusesByName:
         """One class covers a whole row, so "carries a Random" would be true and useless — the
         question is always *among what*. The cell is named by the expression that writes it, so the
         refusal and the list of what the level does take are in one vocabulary."""
-        with pytest.raises(ValueError, match=re.escape("varying_among('lineages', ...)")):
+        with pytest.raises(ValueError, match=re.escape("varying_among('copies', ...)")):
             genomes.simulate_genomes_family(
                 simulate_species_tree(birth=1.0, death=0.2, n_extant=6, seed=1).complete_tree,
-                loss=PerCopy(0.2).varying_among("lineages", LogNormal(0.0, 0.5)),
+                loss=PerCopy(0.2).varying_among("copies", LogNormal(0.0, 0.5)),
                 initial_families=3, seed=1)
 
     def test_a_unit_that_is_not_a_unit_lists_the_units(self):
