@@ -10,12 +10,13 @@ public.
 from __future__ import annotations
 
 import os
+from typing import cast
 
 from ..tree import Tree, read_newick
 from .events import edges_from_tsv, gene_from_label
 from .family import FamilyGenomesResult, GeneCopy
 from .links import Link, links_from_tsv
-from .multipliers import multipliers_from_tsv
+from .multipliers import lineage_multipliers_from_tsv, multipliers_from_tsv
 
 #: Where a genomes run's files sit inside a run directory: the grouped layout first, then ``--flat``.
 _LAYOUTS = ("genomes", "")
@@ -125,9 +126,20 @@ def read_run(directory) -> FamilyGenomesResult:
     if os.path.exists(multipliers_path):
         with open(multipliers_path, encoding="utf-8") as f:
             multipliers = multipliers_from_tsv(f.read())
+    # the other axis: a multiplier per species branch. Keyed back to node ids through the tree's own
+    # labels, which the file writes and this directory ships, so the table lines up with the rest of
+    # the result rather than carrying names nothing else here uses.
+    per_lineage: dict[int, dict[str, float]] = {}
+    lineage_path = os.path.join(handoff, "lineage_multipliers.tsv")
+    if os.path.exists(lineage_path):
+        with open(lineage_path, encoding="utf-8") as f:
+            # node ids, because the labels are given — the `int | str` in the reader's own type is
+            # the other call, which reads a table found without the tree it was written beside
+            per_lineage = cast("dict[int, dict[str, float]]",
+                               lineage_multipliers_from_tsv(f.read(), tree.labels()))
     return FamilyGenomesResult(complete_tree=tree, node_genomes=_genomes(handoff, tree), edges=edges,
                                seed=seed, initial_genome=initial, links=links,
-                               family_multipliers=multipliers)
+                               family_multipliers=multipliers, lineage_multipliers=per_lineage)
 
 
 __all__ = ["read_run"]
