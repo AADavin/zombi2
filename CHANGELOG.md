@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-09-16
+
 ### Added
 
 - The substitution rate can vary among gene families:
