@@ -18,7 +18,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   `substitution × Δt × lineage clock × family factor`. The factors are written in the sequence run's
   own `family_multipliers.tsv`, with a `substitution` column, and are `.family_multipliers` in
   Python; runs with `parallel=` or `stream_to=` write the file too. A nucleotide sequence run refuses
-  the draw, because its units are blocks rather than families. (#PR)
+  the draw, because its units are blocks rather than families. (#444)
 
 ## [0.48.1] - 2026-09-14
 
