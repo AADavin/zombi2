@@ -12,13 +12,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 ### Added
 
 - The substitution rate can vary among gene families:
-  `substitution=PerSite(1.0).varying_among('families', LogNormal(0.0, 0.8))` draws one factor per
-  family before any site evolves, and the family keeps it for the whole of its life. It multiplies
-  the lineage clock rather than replacing it, so a branch of a gene tree is worth
-  `substitution × Δt × lineage clock × family factor`. The factors are written in the sequence run's
-  own `family_multipliers.tsv`, with a `substitution` column, and are `.family_multipliers` in
-  Python; runs with `parallel=` or `stream_to=` write the file too. A nucleotide sequence run refuses
-  the draw, because its units are blocks rather than families. (#444)
+  `substitution=PerSite(1.0).varying_among('families', LogNormal(0.0, 0.8))` draws one multiplier per
+  family before any site evolves, and the family keeps that value for its whole life. It multiplies
+  the lineage clock rather than replacing it, so a branch of a gene tree is
+  `substitution × Δt × lineage clock × family multiplier` substitutions per site. The multipliers are
+  written in the sequence run's own `family_multipliers.tsv`, with a `substitution` column, and are
+  `.family_multipliers` in Python; runs with `parallel=` or `stream_to=` write the file too. A
+  nucleotide sequence run refuses the draw, because it evolves blocks rather than gene families. (#444)
 
 ## [0.48.1] - 2026-09-14
 

@@ -55,10 +55,11 @@ RATES_HELP = _rates_help(
          "or another: \"PerSite(1.0).scaled_by('out/traits/trait_events.tsv', {'cave': 0.5, "
          "'surface': 1.0})\". A clock and a driver compose; a driver that switches mid-branch is "
          "integrated across the switch, not sampled once for the branch. "
-         "varying_among('families', ...) is the other axis: one factor per gene family, drawn "
-         "before any site evolves and kept for the whole of its life, so families differ from each "
-         "other as lineages do. The two multiply, and the factors are written in "
-         "family_multipliers.tsv. A nucleotide run refuses this draw: its units are blocks.")
+         "varying_among('families', ...) varies the rate the other way: one multiplier per gene "
+         "family, drawn before any site evolves and kept for that family's whole life. A clock and "
+         "a per-family multiplier compose, and the multipliers are written in "
+         "family_multipliers.tsv. A nucleotide run refuses this draw, because it evolves blocks "
+         "rather than gene families.")
 
 # the menu, by alphabet: the no-argument protein models are empirical (their exchangeabilities and
 # frequencies come from the published matrices), so each is just its constructor.
@@ -378,7 +379,7 @@ def run(args, parser):
             # not a clock: SPEC §7 reserves that word for the by-lineage modifier. It is a second
             # factor on a second axis, so it is appended the way a driver is — and it has to be
             # said, or a run where every family has its own speed would report as a strict one.
-            varied.append(f"one factor per family, {m.dist!r}")
+            varied.append(f"one multiplier per family, {m.dist!r}")
         elif isinstance(m, Driven):
             # a driver is a second factor, not a second clock — appended rather than replacing, or a
             # driven relaxed run would report itself as one or the other and never as both

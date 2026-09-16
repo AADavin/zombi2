@@ -471,11 +471,11 @@ genome), `.founding` · `.phylograms` · `.species_phylogram` · `.family_multip
 views `.gc()` · `.composition(letters)`.
 
 **`family_multipliers.tsv`** is the same table the genome run writes, with the one rate this level
-draws among families. A substitution rate written with `varying_among("families", …)` draws a factor
-for each family before any site evolves, and the family evolves at the run's rate times that factor
-for the whole of its life. The factors have an expected value of 1, because the law's own mean is
-divided out. A run whose substitution rate does not vary among families writes the header alone, and
-a **nucleotide** run refuses the draw, because its units are blocks rather than families.
+draws among families. A substitution rate written with `varying_among("families", …)` draws one
+multiplier for each family before any site evolves. The family then evolves at the run's rate times
+that multiplier, for its whole life. The multipliers have an expected value of 1, because the law's
+own mean is divided out. A run whose substitution rate does not vary among families writes the header
+alone. A **nucleotide** run refuses the draw, because it evolves blocks rather than gene families.
 
 **`phylogram_fam<f>_*.nwk`**: with rate variation across sites the branch length is the **mean** over sites, which is
 what the rate classes are normalised to. Under a per-clade model set (`Models`) the lengths still mean
