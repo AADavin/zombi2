@@ -1484,13 +1484,13 @@ def test_the_manual_modifier_table_matches_what_the_engines_wire():
     # and also has a "| Species |" row
     text = appendix.read_text(encoding="utf-8").split("### Which level accepts which", 1)[-1]
 
-    # The two engines had one row between them — "Genomes, family and ordered" — and only family's
-    # tuple was ever checked against it, so the row was free to be false for ordered, and for a while
-    # it was: it listed Driven while the ordered engine refused it. They have a row each now, and
-    # each row is checked, which is what the shared one could not be.
+    # The two engines share a row — "Genomes, family and ordered" — and only family's tuple was ever
+    # checked against it, so the row was free to be false for ordered, and for a while it was: it
+    # listed Driven while the ordered engine refused it. Both are checked against it now, so the
+    # shared row cannot lie about either.
     for row, wired in (("Species", SPECIES),
-                       ("Genomes, family", GENOMES),
-                       ("Genomes, ordered", ORDERED),
+                       ("Genomes, family and ordered", GENOMES),
+                       ("Genomes, family and ordered", ORDERED),
                        ("Genomes, nucleotide", NUCLEOTIDE),
                        ("Sequences", SEQUENCES),
                        ("Traits, continuous `rate`", TRAITS),

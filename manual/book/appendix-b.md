@@ -186,7 +186,10 @@ branch has a row, extinct ones included. The `lineage` column holds the branch's
 that `genomes.tsv` and the species tree use. A rate that does not vary among lineages is 1.0 on
 every branch. A run whose rates do not vary among lineages writes the header alone. On `transfer`
 the multiplier belongs to the **donor**: it scales how often that branch donates, and `transfer_to`
-still chooses the recipient. Only the family resolution writes this file.
+still chooses the recipient. An ordered run writes the same file, with a column for each
+rearrangement and each chromosome event as well. A branch's multiplier scales whatever the event
+acts on. A family's multiplier applies to the genes a segment covers, so it is on the per-gene
+events only, and never on an event that acts on a whole replicon.
 
 **`species_complete.nwk`**. Every other file here is indexed by its node labels, so the directory is
 not readable, by anyone or by `genomes.read_run()`, without it. `result.write()` writes it by
@@ -278,6 +281,7 @@ trees are built from.
 | `genome_summary.json` | events as biology rather than rows, families born/surviving/died out, genes and chromosomes per genome, rearrangements and chromosome events by kind |
 | `links.tsv` | as at the family resolution; `target` can also name an extent, such as `loss_extent` |
 | `family_multipliers.tsv` | as at the family resolution, with an `inversion`, a `transposition` and a `translocation` column |
+| `lineage_multipliers.tsv` | as at the family resolution, with a column for each rearrangement and each chromosome event too |
 | `species_complete.nwk` | as at the family resolution |
 | `names.tsv` | as at the family resolution |
 | `conditioned_on` | as at the family resolution, and written when a rate or `transfer_to` was conditioned |
@@ -286,7 +290,7 @@ From Python: `.genomes` · `.node_genomes` (as at the family resolution, but eac
 **`Chromosome`** objects, each an `id`, a `topology`, and an ordered list of **`Gene`** objects with
 `id`, `family` and `strand`), `.gene_order(node)` (one node's layout gene by gene, as
 `(chromosome, position, strand, family, gene id)`), and `.rearrangements` · `.chromosome_events` ·
-`.gene_trees` · `.profiles` · `.links` · `.family_multipliers` in memory. A run streamed to disk (`stream_to=DIR`, or
+`.gene_trees` · `.profiles` · `.links` · `.family_multipliers` · `.lineage_multipliers` in memory. A run streamed to disk (`stream_to=DIR`, or
 `--stream`) writes the same files and gives back a `StreamedRun` instead: the directory, the seed, how
 many families and gene-tree edges the run made, and the outputs written.
 

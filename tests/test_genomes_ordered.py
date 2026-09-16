@@ -304,13 +304,23 @@ def test_a_skyline_is_accepted():
 
 @pytest.mark.parametrize("law", [LogNormal(0.0, 0.5), Drift(LogNormal(0.0, 0.5))],
                          ids=["drawn", "inherited"])
-def test_unsupported_modifier_is_rejected(law):
+def test_a_draw_among_lineages_is_accepted(law):
+    """Both laws, on a rearrangement: the per-lineage multiplier reaches every rate here, not only
+    the four the family resolution has."""
+    sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
+    r = simulate_genomes_ordered(sp, inversion=PerCopy(0.3).varying_among('lineages', law),
+                                 initial_families=6, seed=1)
+    assert len({row["inversion"] for row in r.lineage_multipliers.values()}) > 1
+
+
+@pytest.mark.parametrize("unit", ["copies", "chromosomes", "sites"])
+def test_unsupported_modifier_is_rejected(unit):
     """The gate had no test at all. A modifier the engine cannot read must raise — one that returns
     1.0 because nothing looks at it is a run quietly not the model asked for (SPEC §5) — and the
     message must name what this engine *does* take, so the reader knows where to go next."""
     sp = simulate_species_tree(birth=1.0, death=0.3, n_extant=6, seed=1)
     with pytest.raises(ValueError, match="ordered genome engine does not support"):
-        simulate_genomes_ordered(sp, inversion=PerCopy(0.3).varying_among('lineages', law),
+        simulate_genomes_ordered(sp, inversion=PerCopy(0.3).varying_among(unit, LogNormal(0.0, 0.5)),
                                  initial_families=6, seed=1)
 
 
@@ -337,16 +347,19 @@ def test_unsupported_modifier_on_an_extent_is_rejected():
                                  initial_families=6, seed=1)
 
 
-def test_the_extent_declaration_is_the_rate_declaration_minus_the_per_family_draw():
-    """The one difference between the two lists is a modelling fact, not an accident: a per-family
-    draw attaches to the contents, and an extent is drawn before the run's genes are known."""
+def test_the_extent_declaration_is_the_rate_declaration_minus_three():
+    """Two of the three differences are modelling facts; the third is a piece nobody has built, and
+    it is listed here rather than left to be discovered."""
     from zombi2.genomes.ordered import IMPLEMENTED_EXTENT_MODIFIERS, IMPLEMENTED_MODIFIERS
     from zombi2.params.connection import SetBy
-    from zombi2.params.evaluate import DRAWN
-    # both differences are modelling facts. A per-family draw attaches to the contents, and an extent
-    # is drawn before the run's genes are known; set_by replaces a base, and an extent has none.
+    from zombi2.params.evaluate import DRAWN, INHERITED
+    # A per-family draw attaches to the contents, and an extent is drawn before the run's genes are
+    # known; set_by replaces a base, and an extent has none. A draw among lineages has no such
+    # reason: an extent is sampled on the acting lineage, so the branch is known when it is read.
+    # Carrying one would mean threading a drawn factor through Extent.sample, which is its own
+    # change — and the size an event covers would then need its own column in the table.
     assert set(IMPLEMENTED_MODIFIERS) - set(IMPLEMENTED_EXTENT_MODIFIERS) \
-        == {(DRAWN, "families"), SetBy}
+        == {(DRAWN, "families"), SetBy, (DRAWN, "lineages"), (INHERITED, "lineages")}
 
 
 def test_a_scope_the_ordered_engine_cannot_honour_is_rejected():
