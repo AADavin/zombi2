@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-09-16
+
 ### Added
 
 - The genome rates can vary among lineages.
