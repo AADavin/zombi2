@@ -78,7 +78,7 @@ def _unsupported_reason(dup, tra, los, org, transfer_to) -> str | None:
 # --- Pass 1: enumerate every family and where it originates (serial, cheap) ------------------------
 
 def _enumerate_families(tree, org, initial_families, families_named, placed, rng, trajs=None,
-                        driven=False):
+                        driven=False, lineage_factor=None):
     """``[(family_id, birth_lineage, birth_time), …]`` for every family, and ``{name: family_id}``.
 
     Initial and named families originate at the origin, then the ones ``origins=`` ``placed`` at a
@@ -86,7 +86,9 @@ def _enumerate_families(tree, org, initial_families, families_named, placed, rng
     schedule — a mini-Gillespie with only origination live, which is exact because origination reads
     only the number of living lineages and the time (and, when ``driven``, the driver on each of them
     — still no genome content, so the split is unaffected; the rate is then summed per lineage and
-    the birth lineage drawn with the same weights).
+    the birth lineage drawn with the same weights). ``lineage_factor`` is origination's drawn factor
+    per species branch, when the rate carries one, and it makes the walk per-lineage the same way a
+    driver does: a branch that originates fast is likelier to be the one a family is born on.
 
     A placed family is one entry in this list like any other, which is the whole of what this engine
     needs to know about `resolve_origins`: Pass 2 already evolves a family from *any* origination
@@ -117,10 +119,20 @@ def _enumerate_families(tree, org, initial_families, families_named, placed, rng
     while si < len(schedule):
         k_alive = len(alive)
         weights = None
-        if driven:
+        if driven and lineage_factor is not None:
+            weights = [org.effective(copies=0, lineages=1, time=t,
+                                     drivers={key: trajs[key].value(alive[k], t) for key in trajs},
+                                     carried_factor=lineage_factor[alive[k]])
+                       for k in range(k_alive)]
+        elif driven:
             weights = [org.effective(copies=0, lineages=1, time=t,
                                      drivers={key: trajs[key].value(alive[k], t) for key in trajs})
                        for k in range(k_alive)]
+        elif lineage_factor is not None:
+            weights = [org.effective(copies=0, lineages=1, time=t,
+                                     carried_factor=lineage_factor[alive[k]])
+                       for k in range(k_alive)]
+        if weights is not None:
             rate = sum(weights)
         else:
             rate = org.effective(copies=0, lineages=k_alive, time=t)
@@ -203,11 +215,19 @@ class FamilyContext:
     #: which of duplication / transfer / loss carry a Driven — the per-lineage path is taken only
     #: for those, so an unconditioned run keeps the pooled arithmetic exactly as it was
     driven: dict
+    #: ``{target: {node: factor}}`` — each rate's drawn multiplier per species branch, drawn once in
+    #: the parent (which is what keeps the run worker-count invariant) and shipped to every worker
+    #: with the rest of the context. Plain floats, so it pickles like the trajectories. ``{}`` unless
+    #: some rate varies among lineages, and then a rate carrying none reads 1.0 everywhere.
+    lin_mult: dict
+    #: which of duplication / transfer / loss vary among lineages — the same role ``driven`` plays,
+    #: for the other reason a rate is read lineage by lineage
+    varying: dict
 
 
 def prepare_family_context(tree, *, dup, tra, los, transfer_to, replacement, self_transfer,
                            cap, trajs=None, to_traj=None, group_of=None,
-                           driven=None) -> FamilyContext:
+                           driven=None, lin_mult=None, varying=None) -> FamilyContext:
     """Precompute the per-run `FamilyContext` — the schedule and rate metadata every family
     reuses — so `simulate_one_family()` can evolve any family from any origination point without
     recomputing it. ``dup`` / ``tra`` / ``los`` are resolved `Rate`s (per
@@ -229,7 +249,9 @@ def prepare_family_context(tree, *, dup, tra, los, transfer_to, replacement, sel
         death_times=[t for t, _ in deaths], death_nodes=[i for _, i in deaths],
         cross2=_cross2_times(tree),
         trajs=trajs or {}, to_traj=to_traj, group_of=group_of,
-        driven=driven or {"duplication": False, "transfer": False, "loss": False})
+        driven=driven or {"duplication": False, "transfer": False, "loss": False},
+        lin_mult=lin_mult or {},
+        varying=varying or {"duplication": False, "transfer": False, "loss": False})
 
 
 # The shared context and stream config, shipped once per worker by the initializer (never re-pickled per
@@ -284,9 +306,34 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
     cross2 = ctx.cross2
     trajs, to_traj, group_of, driven = ctx.trajs, ctx.to_traj, ctx.group_of, ctx.driven
     any_driven = bool(trajs)
+    # The other reason a rate is read lineage by lineage: a factor drawn for each species branch,
+    # shared by every family passing through it. Drawn in the parent and shipped in `ctx`, so every
+    # family reads the same branch factors whatever the worker count.
+    lin_mult, varying = ctx.lin_mult, ctx.varying
+    any_lineage = bool(lin_mult)
 
     mult = _family_mults(rng, fam_by)
     m_dup, m_tra, m_los = mult["duplication"], mult["transfer"], mult["loss"]
+
+    def weigh(key, rate, family_mult, values, t):
+        """One rate on every lineage the family occupies, times the family's own multiplier.
+
+        Three shapes rather than one context built per lineage, because this runs once per rate per
+        event: a driven rate reads the branch's driver, a rate varying among lineages reads the
+        branch's drawn factor, and a rate doing both reads both. The driven-only shape is the
+        expression it always was, so a conditioned run is unchanged to the last bit. ``alive`` and
+        ``gen`` are the loop's own arrays, mutated in place, so they are read rather than passed."""
+        table = lin_mult[key] if varying[key] else None
+        if table is None:                          # driven only — why `weigh` was called at all
+            return [rate.effective(copies=len(gen[k]), lineages=1, time=t, drivers=values[k])
+                    * family_mult for k in range(len(alive))]
+        if not driven[key]:
+            return [rate.effective(copies=len(gen[k]), lineages=1, time=t,
+                                   carried_factor=table[alive[k]])
+                    * family_mult for k in range(len(alive))]
+        return [rate.effective(copies=len(gen[k]), lineages=1, time=t, drivers=values[k],
+                               carried_factor=table[alive[k]])
+                * family_mult for k in range(len(alive))]
 
     events: list[GeneEdge] = []
     node_genomes: dict[int, list] = {}
@@ -348,18 +395,15 @@ def simulate_one_family(ctx, *, family, lineage, time, rng, copy_id_base=0):
         # would say one thing and the picking another. The undriven rates stay pooled, so a run with
         # no conditioning does exactly the arithmetic it did before.
         w_dup = w_los = w_tra = None
-        if any_driven and alive:
-            values = [{key: trajs[key].value(alive[k], t) for key in trajs}
-                      for k in range(len(alive))]
-            if driven["duplication"]:
-                w_dup = [dup.effective(copies=len(gen[k]), lineages=1, time=t, drivers=values[k])
-                         * m_dup for k in range(len(alive))]
-            if driven["loss"]:
-                w_los = [los.effective(copies=len(gen[k]), lineages=1, time=t, drivers=values[k])
-                         * m_los for k in range(len(alive))]
-            if driven["transfer"] and can_xfer:
-                w_tra = [tra.effective(copies=len(gen[k]), lineages=1, time=t, drivers=values[k])
-                         * m_tra for k in range(len(alive))]
+        if (any_driven or any_lineage) and alive:
+            values = ([{key: trajs[key].value(alive[k], t) for key in trajs}
+                       for k in range(len(alive))] if any_driven else None)
+            if driven["duplication"] or varying["duplication"]:
+                w_dup = weigh("duplication", dup, m_dup, values, t)
+            if driven["loss"] or varying["loss"]:
+                w_los = weigh("loss", los, m_los, values, t)
+            if (driven["transfer"] or varying["transfer"]) and can_xfer:
+                w_tra = weigh("transfer", tra, m_tra, values, t)
         r_dup = (sum(w_dup) if w_dup is not None else
                  dup.effective(copies=total, lineages=1, time=t) * m_dup if total else 0.0)
         r_los = (sum(w_los) if w_los is not None else
@@ -533,11 +577,12 @@ def _family_transfer(rng, tree, contemp, alive, gen, pos, heap, total, t, events
 #: ``FamilyGenomesResult.write`` uses. Gene trees are the exception: one Newick pair per family under a
 #: ``gene_trees/`` subdirectory, so a million families do not land as two million files in the run root.
 _STREAM_OUTPUTS = ("events", "profiles", "genomes", "initial_genome", "gene_trees", "species_tree",
-                   "links", "family_multipliers")
+                   "links", "family_multipliers", "lineage_multipliers")
 _STREAM_FILENAMES = {"events": "genome_events.tsv", "profiles": "profiles.tsv",
                      "genomes": "genomes.tsv", "initial_genome": "initial_genome.tsv",
                      "species_tree": "species_complete.nwk", "links": "links.tsv",
                      "family_multipliers": "family_multipliers.tsv",
+                     "lineage_multipliers": "lineage_multipliers.tsv",
                      # the files only an ordered run writes (`zombi2.genomes.ordered`)
                      "gene_order": "gene_order.tsv", "chromosome_events": "chromosome_events.tsv",
                      "summary": "genome_summary.json"}
@@ -625,7 +670,7 @@ def _stream_chunk(task):
 def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, self_transfer,
                         initial_families, family_names, modules, cap, seed, parallel,
                         progress, placed=(), stream_to=None, outputs=None,
-                        trajs=None, to_traj=None, group_of=None, driven=None):
+                        trajs=None, to_traj=None, group_of=None, driven=None, lin_by=None):
     """Run the per-family engine. Returns a `FamilyGenomesResult` (the in-memory
     merge), or a `StreamedRun` when ``stream_to`` is a directory — each family written straight
     to disk, for a scale a whole result would not hold. It can still return ``None`` (a loud fallback to the serial
@@ -637,7 +682,7 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
     both just concatenate — no id rewrite, no run-sized bottleneck beyond the (serial) in-memory merge
     the streaming path exists to avoid."""
     from .family import GeneCopy, FamilyGenomesResult
-    from .multipliers import FAMILY_TARGETS
+    from .multipliers import FAMILY_TARGETS, draw_lineage_multipliers, lineage_multipliers_of
 
     reason = _unsupported_reason(dup, tra, los, org, transfer_to)
     if reason is not None:
@@ -656,17 +701,31 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
 
     workers = guard_pool_workers(resolve_workers(parallel))
     driven = driven or {}
+    lin_by = lin_by or {}
+    varying = {key: bool(lin_by.get(key)) for key in ("duplication", "transfer", "loss")}
+
+    # Pass 0: the per-lineage multipliers, drawn in the parent from a stream of their own, before
+    # the families are enumerated — origination may carry one, and the enumeration needs it. Drawing
+    # here is what keeps the run worker-count invariant, exactly as the sequences level draws its
+    # clock in the parent. A run whose rates do not vary among lineages spawns nothing, so its
+    # family streams are the ones it always had.
+    root_ss = seed_sequence("genomes", seed)[0]
+    lin_mult: dict = {}
+    if any(lin_by.values()):
+        lin_mult = draw_lineage_multipliers(lin_by, tree, np.random.default_rng(root_ss.spawn(1)[0]))
+
     ctx = prepare_family_context(
         tree, dup=dup, tra=tra, los=los, transfer_to=transfer_to, replacement=replacement,
         self_transfer=self_transfer, cap=cap,
-        trajs=trajs, to_traj=to_traj, group_of=group_of, driven=driven)
+        trajs=trajs, to_traj=to_traj, group_of=group_of, driven=driven,
+        lin_mult=lin_mult, varying=varying)
 
     # Pass 1: who originates, and where. One reserved stream for it; one per family after.
-    root_ss = seed_sequence("genomes", seed)[0]
     families_meta, named = _enumerate_families(
         tree, org, initial_families, family_names, placed,
         np.random.default_rng(root_ss.spawn(1)[0]),
-        trajs=trajs, driven=driven.get("origination", False))
+        trajs=trajs, driven=driven.get("origination", False),
+        lineage_factor=lin_mult["origination"] if lin_by.get("origination") else None)
     n_families = len(families_meta)
     family_seeds = root_ss.spawn(n_families) if n_families else []
     per_family = [(fid, lin, bt, family_seeds[k]) for k, (fid, lin, bt) in enumerate(families_meta)]
@@ -713,7 +772,9 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
     return FamilyGenomesResult(tree, genomes_final, events, seed, named, dict(modules or {}),
                                initial_genome,
                                ctx.cap if hasattr(ctx, 'cap') else None,
-                               family_multipliers=multipliers)
+                               family_multipliers=multipliers,
+                               lineage_multipliers=(lineage_multipliers_of(lin_mult, tree.labels())
+                                                    if lin_mult else {}))
 
 
 def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_families, family_names,
@@ -744,6 +805,15 @@ def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_fam
         from .links import links_tsv
         with open(os.path.join(out_dir, "links.tsv"), "w", encoding="utf-8") as f:
             f.write(links_tsv(()))
+    # The per-lineage multipliers belong to the run rather than to any family — they were drawn in
+    # the parent, before the families were enumerated — so they are written here, whole, rather than
+    # stitched from per-chunk shards the way the per-family table is.
+    if "lineage_multipliers" in outputs:
+        from .multipliers import lineage_multipliers_of, lineage_multipliers_tsv
+        labels = tree.labels()
+        table = lineage_multipliers_of(ctx.lin_mult, labels) if ctx.lin_mult else {}
+        with open(os.path.join(out_dir, "lineage_multipliers.tsv"), "w", encoding="utf-8") as f:
+            f.write(lineage_multipliers_tsv(table, labels))
 
     chunks = [per_family[i:i + _STREAM_CHUNK] for i in range(0, n_families, _STREAM_CHUNK)]
     tasks = list(enumerate(chunks))
