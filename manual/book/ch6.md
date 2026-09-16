@@ -130,6 +130,30 @@ Appendix A spells out how each one is written.
 
 And whichever you use, **the clock belongs to the species tree, not to the gene trees**: ZOMBI2 draws one rate per species branch, and every gene passing through that branch evolves at it, so a fast species is fast in all of its genes at once.
 
+### Gene families can differ in rate
+
+A clock says which lineages are fast. It says nothing about which gene families are. Under a clock alone, every family in a species evolves at that species' single rate, so a ribosomal protein gene and a phage tail gene evolve at the same rate down the same branch.
+
+`varying_among('families', ...)` varies the rate among families instead. It draws one multiplier per gene family before any site evolves, and the family keeps that value for its whole life:
+
+```python
+from zombi2.params import LogNormal, PerSite
+
+sequences.simulate_sequences(my_genomes, model=lg(), length=300,
+                             substitution=PerSite(1.0).varying_among('families',
+                                                                     LogNormal(0.0, 0.8)))
+```
+
+A clock and a family multiplier are two modifiers, so they compose. A gene tree branch is then this many substitutions per site:
+
+$$\text{substitution} \times \Delta t \times \text{lineage clock} \times \text{family multiplier}$$
+
+Without the second modifier, how long a family's gene tree is and how many species it reaches cannot vary independently: a family in many species always has a long gene tree. Real families are not like that. A slow family can be in many species and still have a short gene tree, and a fast family can be in few species and still have a long one.
+
+The multipliers are recorded in `family_multipliers.tsv`, one row per family, and in Python they are in `.family_multipliers`. Appendix B describes that file, which is the same table a genome run writes for its own rates. A method that fits a substitution rate per family can then be scored against each family's recorded multiplier.
+
+A **nucleotide** run refuses a per-family multiplier, because it evolves blocks rather than gene families: a block is one gene, or one stretch of spacer between two genes. In a nucleotide run, vary the rate among lineages instead, or start from a family or ordered run.
+
 ### Setting the rate, or letting the divergence set it
 
 `substitution` is the number people most often get wrong, because the right value depends on the height of the tree it runs down, so no default can suit every tree. On a tree 20 time units tall the default `1.0` puts **20** substitutions on every site from origin to tip. Those are twenty *events*, not twenty visible differences: a site has four states, so it soon lands back on bases it already held, and past about one substitution per site two sequences are as different as two random ones. The history is not missing; it has been overwritten. Read the rate off backwards instead, from the divergence you want:

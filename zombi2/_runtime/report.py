@@ -80,7 +80,6 @@ _GLOSS = {
     "initial_genome.tsv": "the genome present at t=0, that the initial families started from",
     "genome_events.tsv": "every duplication / transfer / loss / origination, per gene copy",
     "links.tsv": "the links the run read from its own gene content (family, target, driver, modifier, mapping); only the header when there are none",
-    "family_multipliers.tsv": "each family's rate multipliers, one row per family (family, then one column per rate); only the header when no rate varies among families",
     "gene_trees": "gene trees, one per family — complete (all copies) and extant (survivors), Newick",
     # genomes/ (ordered resolution adds gene order and chromosome-level events)
     "gene_order.tsv": "the gene arrangement of every genome (lineage, chromosome, topology, position, strand, family, copy)",
@@ -105,6 +104,8 @@ _GLOSS = {
     "trait_events.tsv": "each discrete state change along a branch (time, lineage, from→to)",
     # written by genomes / traits when the input tree came from elsewhere and carries its own labels
     "names.tsv": "your tree's tip labels, mapped to ZOMBI2's n<id> node ids",
+    # written by genomes and by sequences alike — each for the rates it drew among families
+    "family_multipliers.tsv": "each family's rate multipliers, one row per family (family, then one column per rate); only the header when no rate varies among families",
     # written by genomes / sequences / traits alike, when a rate or transfer_to was conditioned
     "conditioned_on": "the levels this run read as a driver, one per line",
 }
