@@ -54,7 +54,11 @@ RATES_HELP = _rates_help(
          "reads a trait grown first — the trait_events.tsv a 'zombi2 traits' run wrote, in this run "
          "or another: \"PerSite(1.0).scaled_by('out/traits/trait_events.tsv', {'cave': 0.5, "
          "'surface': 1.0})\". A clock and a driver compose; a driver that switches mid-branch is "
-         "integrated across the switch, not sampled once for the branch.")
+         "integrated across the switch, not sampled once for the branch. "
+         "varying_among('families', ...) is the other axis: one factor per gene family, drawn "
+         "before any site evolves and kept for the whole of its life, so families differ from each "
+         "other as lineages do. The two multiply, and the factors are written in "
+         "family_multipliers.tsv. A nucleotide run refuses this draw: its units are blocks.")
 
 # the menu, by alphabet: the no-argument protein models are empirical (their exchangeabilities and
 # frequencies come from the published matrices), so each is just its constructor.
@@ -125,8 +129,9 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("substitution rate & clock", "see RATES below")
     g.add_argument("--substitution", type=_rate, default=None, metavar="RATE",
                    help="substitutions per site per unit time (default 1.0, a strict clock); "
-                        "varying_among('lineages', ...) relaxes it, and scaled_by reads a trait "
-                        "grown first")
+                        "varying_among('lineages', ...) relaxes it, varying_among('families', ...) "
+                        "gives each gene family its own speed, and scaled_by reads a trait grown "
+                        "first")
     g.add_argument("--divergence", type=float, default=None, metavar="D",
                    help="solve for the rate instead, so a site accrues D substitutions from root to "
                         "tip. Composes with --substitution: give the clock's shape on a scope with "
@@ -134,14 +139,14 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                         "this sets its scale")
 
     g = p.add_argument_group("outputs")
-    # The last two of `_WRITE_OUTPUTS` exist only for a nucleotide handoff, which is the only run
+    # `genomes` and `initial_genome` exist only for a nucleotide handoff, which is the only run
     # with coordinates to lay a genome out in; asking for one otherwise writes nothing rather than
     # failing.
     g.add_argument("--write", nargs="+", choices=_WRITE_OUTPUTS, default=None, metavar="PART",
                    help="which outputs to write. default: alignments, phylograms, "
-                        "species_phylogram, summary, and — on a nucleotide run — genomes (one "
-                        "assembled FASTA per node, the big one) and initial_genome. also: "
-                        "ancestral, founding")
+                        "species_phylogram, summary, family_multipliers, and — on a nucleotide run "
+                        "— genomes (one assembled FASTA per node, the big one) and initial_genome. "
+                        "also: ancestral, founding")
     _add_flat_arg(g)
     _add_parallel_arg(g)
     g.add_argument("--stream", action="store_true",
@@ -360,6 +365,7 @@ def run(args, parser):
     # and every relaxed run would quietly report — and summarise — as a strict one.
     clocks = []
     driven = []
+    varied = []
     for m in _mods:
         if m.reads == (DRAWN, "lineages"):
             # the distribution describes itself, which is the point of writing it out: there is no
@@ -368,12 +374,19 @@ def run(args, parser):
         elif m.reads == (INHERITED, "lineages"):
             clocks.append(f"discrete-bin clock, {m.bins} bins, step {m.dist!r}" if m.bins
                           else f"autocorrelated clock, step {m.dist!r}")
+        elif m.reads == (DRAWN, "families"):
+            # not a clock: SPEC §7 reserves that word for the by-lineage modifier. It is a second
+            # factor on a second axis, so it is appended the way a driver is — and it has to be
+            # said, or a run where every family has its own speed would report as a strict one.
+            varied.append(f"one factor per family, {m.dist!r}")
         elif isinstance(m, Driven):
             # a driver is a second factor, not a second clock — appended rather than replacing, or a
             # driven relaxed run would report itself as one or the other and never as both
             driven.append(os.path.basename(m.driver) if isinstance(m.driver, str)
                           else type(m.driver).__name__)
     clock = " + ".join(clocks) if clocks else "strict clock"
+    if varied:
+        clock += f", {', '.join(varied)}"
     if driven:
         clock += f", driven by {', '.join(driven)}"
     # What the run actually produced, not what was asked for: the rate is per unit time, so whether

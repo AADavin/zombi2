@@ -28,7 +28,12 @@ parent→child down the species tree so close relatives run at similar rates (``
 carry a ``scaled_by(trait, {...})``, which reads a **trait grown first** and lets a lineage's state
 set how fast its sequences evolve; a clock and a driver compose (modifiers multiply), and a driver that
 switches mid-branch is **integrated** across the switch rather than sampled once for the branch
-(`clock`). Any other modifier — ``Markov`` hops, a draw among families — raises.
+(`clock`). It may carry a **draw among families** as well —
+``substitution = PerSite(1.0).varying_among('families', LogNormal(0.0, 0.8))`` — one factor per
+family, drawn at the start and kept for the whole of that family's life, so a ribosomal protein and a
+phage tail gene run at different speeds down the same branch. The clock rides lineages and this rides
+families, so the two are separate axes and multiply (`multipliers`). Any other modifier — ``Markov``
+hops, a draw among families on a **nucleotide** run, whose units are blocks — raises.
 
 Rate variation **across sites** is not a modifier and does not go in ``substitution``: it belongs to
 the model, where the field puts it. ``model=hky85(2.0).across_sites(gamma_shape=0.5, invariant=0.1)``
@@ -63,6 +68,7 @@ import numpy as np
 from ..genomes import FamilyGenomesResult
 from ..genomes.events import gene_label
 from ..genomes.gene_trees import GeneNode, GeneTree
+from ..genomes.multipliers import SEQUENCE_TARGETS, multipliers_of, multipliers_tsv
 from ..params.conditioned import check_mapping_fires, driven_mods, names_a_live_level, resolve_driver
 from ..rng import resolve_seed, seed_sequence, stream
 from ..params.mapping import Between
@@ -78,11 +84,12 @@ from .clock import Clock, resolve_clock
 from .evolution import evolve_gene_tree
 from .indels import draw_indel_history
 from .lineage_models import Models
+from .multipliers import family_factors
 from .substitution_models import (BASES, SubstitutionModel, _with_frequencies, dayhoff, decode,
                                   encode, gtr, hky85, jc69, jtt, k80, lg, poisson, wag)
 
 _WRITE_OUTPUTS = ("summary", "alignments", "ancestral", "founding", "phylograms", "species_phylogram",
-                  "genomes", "initial_genome", "events")
+                  "genomes", "initial_genome", "events", "family_multipliers")
 
 #: complement of each base, for reading a block laid down on the reverse strand
 _COMPLEMENT = str.maketrans("ACGT", "TGCA")
@@ -91,9 +98,11 @@ _COMPLEMENT = str.maketrans("ACGT", "TGCA")
 #: and by the CLI's help, so a modifier is never advertised without being implemented. On the
 #: substitution rate these are the two lineage clocks — a draw among lineages the uncorrelated
 #: ("relaxed") clock, an inherited value the autocorrelated clock (the rate drifts parent→child down
-#: the species tree) — and ``scaled_by``, the conditioned driver a trait grown first supplies (SPEC §3:
-#: Traits→Sequences can be conditioned). A clock and a driver compose: modifiers multiply.
-IMPLEMENTED_MODIFIERS = ((DRAWN, "lineages"), (INHERITED, "lineages"), Driven)
+#: the species tree) — a draw among **families**, one factor per family for the whole of its life,
+#: and ``scaled_by``, the conditioned driver a trait grown first supplies (SPEC §3:
+#: Traits→Sequences can be conditioned). The three compose: modifiers multiply. The family draw is
+#: refused on a **nucleotide** run, whose units are blocks rather than families (`simulate_sequences`).
+IMPLEMENTED_MODIFIERS = ((DRAWN, "lineages"), (INHERITED, "lineages"), (DRAWN, "families"), Driven)
 
 
 @dataclass
@@ -132,6 +141,8 @@ class SequencesResult:
       root lineage's origination. Not in ``genomes``, because it belongs to no node: the root branch is
       real simulated time, so the root *node*'s genome is this one plus whatever happened along the
       stem. It stands to ``genomes`` as ``founding`` stands to ``ancestral``.
+    - ``family_multipliers`` — ``{family: {"substitution": factor}}``: the speed each family ran at,
+      relative to the run's rate, when the substitution rate varies among families. Empty otherwise.
     - ``seed`` — the run's seed.
     - ``unit`` — what the integer key of ``alignments`` / ``ancestral`` / ``founding`` / ``phylograms``
       **names**: ``"family"`` (a gene family id) on a family or ordered run, ``"block"`` (an index
@@ -173,6 +184,12 @@ class SequencesResult:
     #: ``record=True``: this is the one level whose log is bigger than its output, so it is the one
     #: level that does not record by default. See `zombi2.sequences._record`.
     events: list = field(default_factory=list)
+    #: ``{family: {"substitution": factor}}`` — the number each family's substitution rate was
+    #: multiplied by, written in ``family_multipliers.tsv``: the number a rate written with
+    #: ``varying_among("families", …)`` drew for it (`zombi2.sequences.multipliers`). The shape the
+    #: genomes level writes its event-rate multipliers in, so the two read back the same way. Empty
+    #: when the rate does not vary among families.
+    family_multipliers: "dict[int, dict[str, float | None]]" = field(default_factory=dict)
     #: Per host block, which inserted runs sit inside it and which record carries which — the plan
     #: `alignments` splices by. Kept because it is the *plan*, not the rows: the rows are the
     #: alignment over again, and a whole-genome run cannot afford a second copy of that.
@@ -303,7 +320,8 @@ class SequencesResult:
         }
 
     def write(self, directory, outputs=("alignments", "phylograms", "species_phylogram", "genomes",
-                                        "initial_genome", "summary"), *, flat: bool = False) -> None:
+                                        "initial_genome", "summary", "family_multipliers"), *,
+              flat: bool = False) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed). ``<u>`` below is
         ``fam<family>`` on a family or ordered run and ``block<index>`` on a nucleotide one — the
         integer keys mean different things, so the files say which (see `unit`):
@@ -322,6 +340,9 @@ class SequencesResult:
           is written otherwise. The big one: a real genome times every node in the tree.
         - ``"initial_genome"`` → ``genome_initial.fasta``, in ``genomes/`` with the rest: it is a
           whole-genome FASTA like they are, and it belongs beside them.
+        - ``"family_multipliers"`` → ``family_multipliers.tsv``: the speed each family ran at, one
+          row per family. Only the header when the rate does not vary among families, and the same
+          format the genomes level writes its event-rate multipliers in.
 
         Everything that is one file per family or per node gets a subdirectory, or the two trees and
         the one founding FASTA would be lost among thousands; ``flat=True`` writes everything into
@@ -358,6 +379,9 @@ class SequencesResult:
                 (into / f"phylogram_{u}{fam}_complete.nwk").write_text(complete + "\n", encoding="utf-8")
                 if ph["extant"] is not None:
                     (into / f"phylogram_{u}{fam}_extant.nwk").write_text(ph["extant"] + "\n", encoding="utf-8")
+        if "family_multipliers" in outputs:
+            (d / "family_multipliers.tsv").write_text(
+                multipliers_tsv(self.family_multipliers, SEQUENCE_TARGETS), encoding="utf-8")
         if "summary" in outputs:
             # The written summary describes the run *as written*, which is not quite what `summary()`
             # describes. Ancestral sequences are reconstructed in memory either way but only land on
@@ -987,10 +1011,17 @@ class _Sink:
                 (into / f"phylogram_{u}_extant.nwk").write_text(phylo["extant"] + "\n",
                                                                 encoding="utf-8")
 
-    def finish(self, species_phylogram: dict) -> None:
-        """The run-sized outputs, once every family has gone by."""
+    def finish(self, species_phylogram: dict, family_multipliers: dict) -> None:
+        """The run-sized outputs, once every family has gone by.
+
+        ``family_multipliers`` is drawn before the first family evolves rather than accumulated as
+        they go by, so it is written here whole. The genomes level streams a row per family because
+        its families are minted as its run proceeds; here they all exist from the start."""
         if self._founding is not None:
             self._founding.close()
+        if "family_multipliers" in self.outputs:
+            (self.dir / "family_multipliers.tsv").write_text(
+                multipliers_tsv(family_multipliers, SEQUENCE_TARGETS), encoding="utf-8")
         if "species_phylogram" in self.outputs:
             (self.dir / "clock_species_tree_complete.nwk").write_text(
                 species_phylogram["complete"] + "\n", encoding="utf-8")
@@ -1002,7 +1033,8 @@ class _Sink:
 #: what a streamed run writes when ``outputs`` is not given — the same set `SequencesResult.write`
 #: defaults to, minus the two a family run never has anyway (a genome is a nucleotide-run output, and
 #: nucleotide runs cannot stream: assembling a genome needs every block at once).
-_DEFAULT_STREAM_OUTPUTS = ("alignments", "phylograms", "species_phylogram", "summary")
+_DEFAULT_STREAM_OUTPUTS = ("alignments", "phylograms", "species_phylogram", "summary",
+                           "family_multipliers")
 
 
 def _resolve_partitions(model, partitions,
@@ -1877,7 +1909,21 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     # so a clock and a driver compose — one says which lineages were dealt a fast tempo, the other
     # what their state makes of it — and the gate below rejects only what the level cannot honour.
     clocks = tuple(m for m, _ in rate.carried_modifiers(unit='lineages'))
+    fam_mods = tuple(m for m, _ in rate.carried_modifiers(unit='families'))
     drivers = driven_mods(rate)
+    # A nucleotide run's units are **blocks** — every gene and every stretch of spacer between them —
+    # so there is no family here to draw a factor for, and drawing one per block would give the
+    # spacer a gene family's speed. The genome level's nucleotide engine declares no per-family draw
+    # for the same reason. Refused rather than run, because a factor applied to the wrong unit is a
+    # run that is quietly not the model that was asked for (SPEC §5).
+    if fam_mods and nucleotide:
+        raise ValueError(
+            "substitution carries a draw among families, and this run came from a nucleotide "
+            "genome, whose units are blocks: a gene, or a stretch of spacer between two genes. A "
+            "factor drawn per block would give the spacer a gene family's speed, so there is no "
+            "family here to draw a factor for. Vary the rate among lineages instead — "
+            "varying_among('lineages', ...) — or run the sequences on a family or ordered genome "
+            "run, where a family is a unit.")
     # This level is the one that does NOT take a third-party modifier, so the gate is a plain
     # isinstance rather than `is_implemented`. Every other engine evaluates its rate through
     # `Rate.effective`, which multiplies in whatever `factor()` returns; this one reads its two kinds
@@ -1893,9 +1939,11 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             "takes a lineage clock — varying_among('lineages', LogNormal(0.0, 0.3)) (uncorrelated) or "
             "varying_among('lineages', Drift(LogNormal(0.0, 0.3))) (autocorrelated), and "
             "several of one kind compose — and any number of scaled_by drivers, which multiply. "
+            "It also takes a draw among families — varying_among('families', LogNormal(0.0, 0.8)) — "
+            "one factor per family for the whole of its life, which multiplies the clock. "
             "set_by is not read here (a replaced base has nowhere to go: this level draws its clock "
-            "among lineages rather than evaluating a rate), and neither is the Markov clock, a draw "
-            "among families, or a modifier of your own: this "
+            "among lineages rather than evaluating a rate), and neither is the Markov clock nor a "
+            "modifier of your own: this "
             "level reads its modifiers directly rather than through the rate, so one it did not ship "
             "could not be honoured. Rate variation across sites is not a modifier "
             "at all — it belongs to the model: model=hky85(...).across_sites(gamma_shape=0.5), or "
@@ -1979,12 +2027,18 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     phylograms: dict[int, dict[str, str | None]] = {}
     events: list = []                      # empty unless record=True; see `_record`
     seed = resolve_seed(seed)      # drawn if none was given, so either engine below records it
+    # {family: factor} when the rate varies among families, empty otherwise. Drawn inside each
+    # engine, from that engine's own generator, and read again at the end to write the table.
+    factors: dict[int, float] = {}
     if not parallel:
         # Serial reference engine — the default, left exactly as it was. One shared generator draws the
         # clock, then each family is walked in turn. `parallel` selects a *separate* engine (decision A),
         # so turning it on gives a different-but-valid realisation for a seed; this path never changes.
         rng, _ = stream("sequences", seed)
         clock = resolve_clock(clocks, driven, species_tree, gene_trees, rng)
+        # After the clock and from the same generator, so a run with a clock and no family draw is
+        # bit-identical to one from before the family draw existed — it takes no draw at all.
+        factors = family_factors(fam_mods, gene_trees, rng)
         # One transition-CDF cache per model, shared across every block that model evolves. Branch lengths
         # recur across blocks (a block passing straight through a species branch reuses its length), so a
         # run-wide cache builds a few hundred matrices where a per-block cache rebuilt tens of thousands.
@@ -2006,6 +2060,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
             gt = gene_trees[family]
             if per_block is None:
                 f_parts, f_rate = parts, rate_base
+                if factors:             # a draw among families: this family's own speed
+                    f_rate = rate_base * factors[family]
             else:                       # a nucleotide block: its own length, and spacer runs faster
                 f_len, f_model, speed = per_block[family]
                 f_parts, f_rate = ((f_model, f_len),), rate_base * speed
@@ -2065,14 +2121,21 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         from ._pergenetree import evolve_families
         workers = guard_pool_workers(resolve_workers(parallel))
         spawned = seed_sequence("sequences", seed)[0].spawn(1 + len(gene_trees))
-        clock = resolve_clock(clocks, driven, species_tree, gene_trees,
-                              np.random.default_rng(spawned[0]))
+        # Both shared draws come off the reserved stream, here in the parent: the clock is one
+        # number per species branch and the factors one per family, and neither may depend on which
+        # worker picked up which family, or the run would stop being worker-count invariant.
+        shared = np.random.default_rng(spawned[0])
+        clock = resolve_clock(clocks, driven, species_tree, gene_trees, shared)
+        factors = family_factors(fam_mods, gene_trees, shared)
         alignments, ancestral, founding, phylograms = evolve_families(
             gene_trees, per_block, model, intergene_model, length, rate_base, clock,
             founding_seed if nucleotide else None, spawned[1:], workers, progress, names,
-            sink=None if sink is None else sink.family, partitions=parts)
+            sink=None if sink is None else sink.family, partitions=parts, factors=factors)
 
     events.sort(key=lambda e: e.time)      # one log, in time order, as every other level writes one
+    # One column, `substitution`: it is the level's only rate, and the only one a family can draw a
+    # factor for. Empty when the rate does not vary among families, and then the table is a header.
+    multipliers = multipliers_of({"substitution": factors}, SEQUENCE_TARGETS)
     sp_scaled = _scaled_species_tree(species_tree, rate_base, clock)   # the clock made visible
     sp_extant = prune(sp_scaled, keep="extant")
     species_phylogram = {"complete": sp_scaled.to_newick(),
@@ -2120,7 +2183,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                 for piece in (founding[block][lo:hi],))
 
     if sink is not None:
-        sink.finish(species_phylogram)
+        sink.finish(species_phylogram, multipliers)
         handle = StreamedSequences(str(stream_to), seed, sink.n_families, sink.n_sequences,
                                    sink.outputs, sink.identity, sink.sites, sink.n_ancestral)
         if "summary" in sink.outputs:
@@ -2141,9 +2204,12 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                            tuple(names[i] for i in sorted(species_tree.extant_leaves())),
                            () if families is None else tuple(families),
                            events,
-                           insertion_plan,
-                           alignments._raw if isinstance(alignments, _SplicedAlignments) else alignments,
-                           ancestral._raw if isinstance(ancestral, _SplicedAlignments) else ancestral)
+                           multipliers,
+                           _insertions=insertion_plan,
+                           _raw_rows=(alignments._raw if isinstance(alignments, _SplicedAlignments)
+                                      else alignments),
+                           _raw_ancestral=(ancestral._raw if isinstance(ancestral, _SplicedAlignments)
+                                           else ancestral))
 
 
 __all__ = ["simulate_sequences", "SequencesResult", "StreamedSequences",

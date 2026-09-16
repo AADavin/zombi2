@@ -461,13 +461,21 @@ internal nodes with the ancestral sequences.
 | `sequences_founding.fasta` | one record `fam<f>` per family, the sequence it originated with. Only when you name its token, `founding` |
 | `genome_<lineage>.fasta` | one file per node of the complete tree, one record `<lineage>_chr<c>` per chromosome, in `genomes/`. Nucleotide genome runs only |
 | `genome_initial.fasta` | the genome the run **started** with, as sequence. Nucleotide runs only |
+| `family_multipliers.tsv` | each family's substitution multiplier: `family` · `substitution`, one row per family |
 | `sequences_summary.json` | `unit` (`family` or `block`), families with sequences, how many, sites min/max, `mean_pairwise_identity`, assembled genomes, the seed |
 | `conditioned_on` | the levels this run depended on as a driver. Only when the substitution rate was conditioned |
 
 From Python: `.alignments` · `.ancestral` (the sequences), `.genomes` · `.node_genomes` ·
 `.initial_genome` (the assembled genomes, present only when the run came from a **nucleotide**
-genome), `.founding` · `.phylograms` · `.species_phylogram`, and the driver views `.gc()` ·
-`.composition(letters)`.
+genome), `.founding` · `.phylograms` · `.species_phylogram` · `.family_multipliers`, and the driver
+views `.gc()` · `.composition(letters)`.
+
+**`family_multipliers.tsv`** is the same table the genome run writes, with the one rate this level
+draws among families. A substitution rate written with `varying_among("families", …)` draws a factor
+for each family before any site evolves, and the family evolves at the run's rate times that factor
+for the whole of its life. The factors have an expected value of 1, because the law's own mean is
+divided out. A run whose substitution rate does not vary among families writes the header alone, and
+a **nucleotide** run refuses the draw, because its units are blocks rather than families.
 
 **`phylogram_fam<f>_*.nwk`**: with rate variation across sites the branch length is the **mean** over sites, which is
 what the rate classes are normalised to. Under a per-clade model set (`Models`) the lengths still mean

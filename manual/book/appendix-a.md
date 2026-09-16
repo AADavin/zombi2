@@ -159,7 +159,7 @@ below can do it and the rest refuse. This is what each accepts today:
 | Species | `changing_at` · `scaled_by(TotalDiversity(...))` · `varying_among('lineages', Drift(...))` · `varying_among('lineages', ...)` |
 | Genomes, family and ordered | `changing_at` · `scaled_by` · `set_by` · `varying_among('families', ...)` |
 | Genomes, nucleotide | `changing_at` · `scaled_by` |
-| Sequences | `varying_among('lineages', ...)` · `varying_among('lineages', Drift(...))` · `scaled_by` |
+| Sequences | `varying_among('lineages', ...)` · `varying_among('lineages', Drift(...))` · `varying_among('families', ...)` · `scaled_by` |
 | Traits, continuous `rate` | `changing_at` · `varying_among('lineages', Drift(...))` · `scaled_by(TotalDiversity(...))` · `scaled_by` · `set_by` |
 | Traits, discrete `switch` | `scaled_by` |
 | Joint, `birth` / `death` | `changing_at` · `scaled_by(TotalDiversity(...))` · `scaled_by` |

@@ -58,7 +58,8 @@ the chromosome network; and founding a nucleotide run from a real annotation (`g
 
 What ships is in the Sequences chapter — the reversible menu (JC69 through GTR, the empirical
 protein matrices), `reversible()` over any alphabet, +I/+G site rates, per-site frequency
-profiles, per-clade models, partitions, indels, and the drawn, inherited and driven clocks.
+profiles, per-clade models, partitions, indels, the drawn, inherited and driven clocks, and a
+substitution rate drawn among gene families.
 
 | Feature | What it adds | Status |
 | --- | --- | --- |
