@@ -165,5 +165,7 @@ def test_family_multipliers_is_an_output_that_can_be_left_out(tree, tmp_path):
 
 
 def test_a_table_with_another_header_is_refused():
-    with pytest.raises(ValueError, match="family_multipliers.tsv must start with the header"):
+    # the sequences level writes this table too, with its own column, so the message lists every
+    # header the reader knows (issue #443)
+    with pytest.raises(ValueError, match="must start with one of the headers"):
         multipliers_from_tsv("family\tloss\n0\t1.0\n")

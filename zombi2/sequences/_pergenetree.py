@@ -67,7 +67,7 @@ def _evolve_one(task):
 
 def evolve_families(gene_trees, per_block, model, intergene_model, length, rate_base, clock,
                     founding_seed, family_seeds, workers, progress, names, sink=None,
-                    partitions=None):
+                    partitions=None, multipliers=None):
     """Evolve every family concurrently and assemble the four output maps.
 
     ``family_seeds[i]`` is the spawned RNG stream for the *i*-th family in sorted order, so the family
@@ -80,6 +80,10 @@ def evolve_families(gene_trees, per_block, model, intergene_model, length, rate_
     genes and spacer are its only two models (``per_block`` maps each block to one of them), so there
     the task carries the model's index and the block's own length, rate multiplier and founding seed.
 
+    ``multipliers`` is ``{family: multiplier}`` when the rate varies among families
+    (`zombi2.sequences.multipliers`), and ``None`` or empty otherwise. It is drawn in the parent, so
+    a family's speed rides in its own task and does not depend on which worker took it.
+
     ``sink``, when given, is handed each family the moment its result arrives and the four maps are
     left empty: that is the streamed run, where nothing family-sized is kept. Results come back in
     family order either way, so streaming writes the same bytes the in-memory path would."""
@@ -91,6 +95,8 @@ def evolve_families(gene_trees, per_block, model, intergene_model, length, rate_
         if per_block is None:
             # the partitions say which models and how many sites; there is no index to give
             midx, f_len, f_rate, seed_states = None, None, rate_base, None
+            if multipliers:              # a draw among families: this family's own speed
+                f_rate = rate_base * multipliers[family]
         else:                            # a nucleotide block: its own length, model and speed
             f_len, f_model, speed = per_block[family]
             midx = 0 if f_model is model else 1
