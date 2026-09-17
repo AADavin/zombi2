@@ -16,7 +16,7 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   re-runs the script, and the copy inside the worker used to repeat the whole simulation before dying
   at the pool it tried to open — so on a run big enough to be worth parallelising it looked like a
   hang rather than an error. The call now refuses on its first line and names the missing guard. A
-  serial run inside your own pool of worker processes is untouched. (#NNN)
+  serial run inside your own pool of worker processes is untouched. (#449)
 
 ## [0.50.0] - 2026-09-16
 
