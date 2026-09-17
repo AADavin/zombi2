@@ -77,6 +77,38 @@ def _in_a_worker() -> bool:
     return multiprocessing.current_process().name != "MainProcess"
 
 
+def _reentry_error(what: str) -> RuntimeError:
+    """The one wording for "a worker is running the caller's top level again", raised from both
+    places that can see it happen: on entry to a `simulate_*` call (`refuse_worker_reentry()`) and at
+    the pool that call would open (`guard_pool_workers()`)."""
+    return RuntimeError(
+        f"{what} started worker processes and one of them has re-run your program from the top, "
+        f"so the call is not under `if __name__ == \"__main__\":`. Add the guard.")
+
+
+def refuse_worker_reentry(parallel, *, what: str = "parallel=") -> None:
+    """Refuse, on entry, a parallel call that is itself running inside a worker process.
+
+    The failure this exists for is the unguarded script: a ``simulate_*(parallel=...)`` call at the
+    top level, with no ``if __name__ == "__main__":``. Every worker re-imports the script and runs
+    that call again, so each one repeats the whole simulation — and only dies at the end of it, when
+    it opens a pool of its own and multiprocessing refuses. The parent waits for all of them, so a
+    run big enough to be worth parallelising looks like a hang rather than the error
+    `pool_errors()` would give it. Refusing here kills the re-run on its first line instead.
+
+    The test is the process **name**, not `multiprocessing.parent_process()`: the parent object is
+    installed in ``BaseProcess._bootstrap``, which runs *after* the main module is re-imported, so it
+    is still ``None`` throughout the re-run — the one moment that matters. The name is set before the
+    re-import, in ``spawn.prepare``.
+
+    Only a call that would open a pool is refused. A **serial** ZOMBI2 run inside someone's own
+    worker pool — one replicate per process, the ordinary way to run many small simulations — is a
+    legitimate thing to do, and stays one."""
+    if not _in_a_worker() or resolve_workers(parallel) <= 1:
+        return
+    raise _reentry_error(what)
+
+
 def guard_pool_workers(workers: int, *, what: str = "--parallel") -> int:
     """Return ``workers`` unchanged, unless a process pool would crash at startup here (see
     `_pool_would_fail_to_start()`) — then fall back to ``1`` (single-process), warning once. This is
@@ -92,9 +124,7 @@ def guard_pool_workers(workers: int, *, what: str = "--parallel") -> int:
         # repeated the whole simulation and the run "succeeded", having done N× the work and printed
         # N copies of its output. Refusing kills the child, and the parent turns the resulting
         # BrokenProcessPool into `pool_errors`'s message, which names the guard.
-        raise RuntimeError(
-            f"{what} started worker processes and one of them has re-run your program from the top, "
-            f"so the call is not under `if __name__ == \"__main__\":`. Add the guard.")
+        raise _reentry_error(what)
     # Genuinely no importable `__main__`: a notebook, `python -c`, a heredoc. Nothing is wrong with
     # the caller's code — there is simply no file for a worker to import — so run single-process.
     print(f"note: {what} needs worker processes, but this looks like an interactive session, a "

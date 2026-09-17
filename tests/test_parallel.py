@@ -362,3 +362,59 @@ def test_a_streamed_rerun_clears_the_gene_trees_of_the_last_one(tmp_path):
 
     assert many > few, "the second run must write fewer trees for this to prove anything"
     assert few <= 2 * 5, f"{few} gene trees for 5 families — the first run's are still there"
+
+
+def test_refuse_worker_reentry_only_fires_on_a_pooled_call_in_a_worker(monkeypatch):
+    """The entry check that turns an unguarded script into an immediate error. It must fire on
+    exactly one thing — a call that would open a pool, running inside a worker — because a *serial*
+    ZOMBI2 run inside someone's own worker pool (one replicate per process) is a legitimate use."""
+    from zombi2._runtime import parallel as par
+
+    monkeypatch.setattr(par, "_in_a_worker", lambda: False)         # the program the user started
+    for p in (False, None, 1, 2, True):
+        par.refuse_worker_reentry(p)                                # nothing is refused there
+
+    monkeypatch.setattr(par, "_in_a_worker", lambda: True)          # inside a worker process
+    for p in (False, None, 1):                                      # serial or inline: no pool, fine
+        par.refuse_worker_reentry(p)
+    for p in (2, True):
+        with pytest.raises(RuntimeError, match='if __name__ == "__main__"'):
+            par.refuse_worker_reentry(p)
+
+
+def test_an_unguarded_script_fails_at_once_instead_of_repeating_the_run(tmp_path):
+    """`parallel=` at the top level of a script, with no ``if __name__ == "__main__":``. Every worker
+    re-imports the script and runs the call again; before the entry check each copy repeated the
+    whole simulation and only died at its own pool, which on a large run looks like a hang. The
+    worker must now fail on its first line of simulation, and both processes must name the guard."""
+    import subprocess
+    import sys
+
+    script = tmp_path / "unguarded.py"
+    script.write_text(
+        "from zombi2.species import simulate_species_tree\n"
+        "from zombi2.genomes import simulate_genomes_family\n"
+        "tree = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)\n"
+        "print('TOP LEVEL RAN', flush=True)\n"
+        "r = simulate_genomes_family(tree, duplication=0.3, loss=0.3, initial_families=10,\n"
+        "                            seed=5, parallel=2)\n"
+        "print('FINISHED', flush=True)\n")
+
+    done = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, timeout=300,
+                          cwd=str(tmp_path))
+    assert done.returncode != 0, "an unguarded parallel script must fail, not finish"
+    assert "TOP LEVEL RAN" in done.stdout                        # the parent got as far as the call
+    assert "FINISHED" not in done.stdout
+    assert 'if __name__ == "__main__"' in done.stderr            # the worker says why it died
+    # and it died on the call's first line, not at the pool it would have opened after repeating
+    # the whole simulation — which is the difference between an error and an apparent hang.
+    assert "refuse_worker_reentry" in done.stderr
+
+
+def test_sequences_refuses_the_same_reentry(genome_run, monkeypatch):
+    """The sequences level takes ``parallel=`` too, so it takes the same entry check."""
+    from zombi2._runtime import parallel as par
+
+    monkeypatch.setattr(par, "_in_a_worker", lambda: True)
+    with pytest.raises(RuntimeError, match='if __name__ == "__main__"'):
+        simulate_sequences(genome_run, model=jc69(), length=50, seed=1, parallel=2)
