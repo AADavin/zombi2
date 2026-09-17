@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.50.1] - 2026-09-17
+
 ### Fixed
 
 - A script whose `simulate_genomes_family(..., parallel=...)` or `simulate_sequences(..., parallel=...)`
