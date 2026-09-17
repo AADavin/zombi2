@@ -9,6 +9,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+
+- A script whose `simulate_genomes_family(..., parallel=...)` or `simulate_sequences(..., parallel=...)`
+  call sits at the top level, with no `if __name__ == "__main__":`, now fails at once. Every worker
+  re-runs the script, and the copy inside the worker used to repeat the whole simulation before dying
+  at the pool it tried to open — so on a run big enough to be worth parallelising it looked like a
+  hang rather than an error. The call now refuses on its first line and names the missing guard. A
+  serial run inside your own pool of worker processes is untouched. (#NNN)
+
 ## [0.50.0] - 2026-09-16
 
 ### Added

@@ -1687,7 +1687,12 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     ``parallel``. A **nucleotide** run cannot stream: it puts whole genomes back together, and that
     needs every block's sequence at once, which is the opposite of keeping nothing.
     """
+    from .._runtime.parallel import refuse_worker_reentry
     from ..genomes import NucleotideGenomesResult, OrderedGenomesResult, StreamedRun, read_run
+
+    # First line of the call, before any work: a worker re-importing an unguarded script would
+    # otherwise repeat the whole run before dying at its own pool. See `refuse_worker_reentry`.
+    refuse_worker_reentry(parallel)
 
     # A written run is a genome run too. `zombi2 sequences --from DIR` has always reopened one; from
     # Python the same handoff was a dead end, which mattered most for `stream_to=` — the feature
