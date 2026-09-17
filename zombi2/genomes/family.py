@@ -29,6 +29,7 @@ from functools import cached_property
 from typing import ClassVar, TYPE_CHECKING
 
 
+from .._runtime.parallel import refuse_worker_reentry
 from ..params.conditioned import check_mapping_fires, names_a_live_level, resolve_driver
 from ..params.mapping import Between, check_kernel_fires, check_not_a_kernel
 from ..rng import resolve_seed, stream
@@ -1359,6 +1360,9 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     ``genome_summary.json``); the default is all six. It is the per-family engine, and
     ``outputs`` without ``stream_to`` is an error.
     """
+    # First line of the call, before any work: a worker re-importing an unguarded script would
+    # otherwise repeat the whole run before dying at its own pool. See `refuse_worker_reentry`.
+    refuse_worker_reentry(parallel)
     tree = as_tree(tree, level="genomes")
     dup = as_rate(duplication, default_scope=PerCopy)
     tra = as_rate(transfer, default_scope=PerCopy)
