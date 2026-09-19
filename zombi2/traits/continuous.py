@@ -18,7 +18,8 @@ from ..params.parameter import as_rate
 from ..params.scope import PerLineage
 from ..tree import Tree, as_tree
 
-from ._shared import _correlation_matrix, _driven_mods, _preorder, _resolve_drivers, _symmetric_sqrt
+from ._shared import (_correlation_matrix, _driven_mods, _ou_transition, _preorder, _resolve_drivers,
+                      _symmetric_sqrt)
 from .result import Change, TraitsResult
 
 IMPLEMENTED_MODIFIERS = (OnTime, (INHERITED, "lineages"), OnTotalDiversity, Driven, SetBy)  #: the cells a continuous rate takes
@@ -270,6 +271,36 @@ def _simulate_regimes(tree, start, rate, reverts_to, pull, regimes, at_speciatio
 
 
 
+def _drift_matrix(pull: dict, traits: list) -> np.ndarray:
+    """The full drift matrix ``P`` from ``{(row, column): entry}``. The entry at ``(y, x)`` is how
+    strongly x's distance from its optimum moves y: ``dy = −Σ_x P_yx·(x − θ_x)dt + …``, so a
+    negative entry pushes y **up** while x sits above its optimum. An entry left out is zero. Each
+    trait's own entry, ``(x, x)``, is its pull toward its own optimum, the number the dict
+    ``{trait: strength}`` gives.
+
+    This is minus the selection matrix ``A`` of ``coevolve`` (Ringen et al. 2026), and of the
+    general OU in mvMORPH, which write the drift as ``+A·x``."""
+    idx = {t: j for j, t in enumerate(traits)}
+    P = np.zeros((len(traits), len(traits)))
+    for key, value in pull.items():
+        if not (isinstance(key, tuple) and len(key) == 2):
+            raise ValueError(
+                f"a drift matrix is keyed by (trait, trait) pairs throughout, and got the key {key!r}. "
+                f"Write a trait's own pull as ({key!r}, {key!r}).")
+        if key[0] not in idx or key[1] not in idx:
+            raise ValueError(f"pull key {key!r} names a trait not in {traits}")
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError(f"pull[{key!r}] must be a finite number, got {value!r}")
+        P[idx[key[0]], idx[key[1]]] = float(value)
+    for t in traits:
+        if P[idx[t], idx[t]] <= 0.0:
+            raise ValueError(
+                f"pull[({t!r}, {t!r})], the pull of {t!r} toward its own optimum, must be positive; "
+                f"got {P[idx[t], idx[t]]!r}. A trait with no pull of its own has no optimum to "
+                f"revert to.")
+    return P
+
+
 def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_speciation, seed,
                          progress=False) -> TraitsResult:
     """Correlated continuous traits in **one call** (the joint rule inside a level). ``start`` and
@@ -285,11 +316,13 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
         ``Cov_ij = Σ_ij·(1 − e^{−(α_i+α_j)·dt}) / (α_i + α_j)``
 
     which is closed-form, needs no matrix exponential, and reduces to the univariate OU law on the
-    diagonal. What it **excludes** is a full drift matrix ``A`` — one trait's deviation pulling
-    another, the off-diagonal terms of mvMORPH's general OU — because that is a different model, not
-    a parameterisation of this one: it needs ``e^{−A·dt}`` and a Lyapunov solve for the covariance,
-    and it raises questions (a non-symmetric or defective ``A``) that a diagonal drift never poses.
-    A ``pull`` given as a matrix is refused by name rather than quietly read as its diagonal.
+    diagonal.
+
+    A ``pull`` keyed by **pairs** of traits is the full drift matrix ``P`` (`_drift_matrix`): one
+    trait's distance from its optimum moves another, one way or both. The transition is then
+    ``mean = θ + e^{−P·dt}(x − θ)`` with covariance ``∫₀^dt e^{−Ps} Σ e^{−Pᵀs} ds``, both from one
+    block exponential (`_ou_transition`), exact for any ``P``. A pair-keyed matrix with no cross term
+    takes the diagonal path above, so it gives the same numbers as the dict it amounts to.
 
     ``at_speciation`` adds the jump at each split, and the jump is drawn under the **same**
     ``correlation`` overlay the diffusion uses (``MVN(0, D_v R D_v)`` with ``v`` the per-trait jump
@@ -308,22 +341,30 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
     if len(traits) < 2:
         raise ValueError("correlated traits need ≥ 2 traits; one trait is a plain simulate_continuous call")
     is_ou = reverts_to is not None or pull is not None
+    P = None                                # the full drift matrix, when a trait pulls another
     if is_ou:
         if isinstance(pull, (list, tuple, np.ndarray)) and len(pull) > 0 \
                 and isinstance(pull[0], (list, tuple, np.ndarray)):
-            # the honest rejection: not "you spelled it wrong" but "this is a different model".
+            # a bare matrix leans on the order of `start`'s keys, which nothing else here does
             raise ValueError(
-                "pull is a full drift matrix (one trait's deviation pulling another), which is not "
-                "implemented yet — give pull as one number (the strength shared across traits) or a "
-                "dict {trait: strength}, which is the diagonal-drift multivariate OU this engine has."
-            )
+                "give a full drift matrix as a dict keyed by (trait, trait) pairs, e.g. "
+                "pull={('x', 'x'): 1.0, ('y', 'y'): 2.0, ('y', 'x'): -0.8}, not as a nested list, "
+                "whose rows would have to follow the order of start's keys.")
         if reverts_to is None or pull is None:
             raise ValueError(
                 "Ornstein–Uhlenbeck needs both reverts_to (the optimum) and pull (the strength); "
                 "give both, or neither for Brownian motion."
             )
         theta_vec = _per_trait(reverts_to, traits, "reverts_to")
-        alpha_vec = _per_trait(pull, traits, "pull", positive=True)
+        if isinstance(pull, dict) and any(isinstance(key, tuple) for key in pull):
+            P = _drift_matrix(pull, traits)
+            if np.count_nonzero(P - np.diag(np.diag(P))) == 0:
+                # no cross term: the diagonal engine below, so a matrix that happens to be diagonal
+                # gives the same numbers as the dict {trait: strength} it amounts to
+                pull = {t: float(P[j, j]) for j, t in enumerate(traits)}
+                P = None
+        if P is None:
+            alpha_vec = _per_trait(pull, traits, "pull", positive=True)
     jump_var = None if at_speciation is None else \
         _per_trait(at_speciation, traits, "at_speciation", nonnegative=True)
 
@@ -361,8 +402,9 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
     # a shared α scales Σ by one number, so its square root is the scaled Σ-root and the one eigh
     # above serves every branch; a per-trait α mixes the traits differently in each entry of the
     # covariance, so that case builds its own root per branch length.
-    shared_alpha = float(alpha_vec[0]) if is_ou and bool(np.all(alpha_vec == alpha_vec[0])) else None
-    if is_ou:
+    shared_alpha = (float(alpha_vec[0]) if is_ou and P is None and bool(np.all(alpha_vec == alpha_vec[0]))
+                    else None)
+    if is_ou and P is None:
         alpha_sum = np.add.outer(alpha_vec, alpha_vec)         # (α_i + α_j), the OU covariance divisor
     start_vec = np.array([float(start[t]) for t in traits])
     k = len(traits)
@@ -391,6 +433,10 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
             vec = x + (math.sqrt(dt) * (sigma @ rng.standard_normal(k)) if dt > 0.0 else 0.0)
         elif dt <= 0.0:
             vec = x
+        elif P is not None:
+            # a trait pulls another: the exact multivariate OU transition, from one block exponential
+            decay, cov = _ou_transition(P, Sigma, dt)
+            vec = theta_vec + decay @ (x - theta_vec) + _symmetric_sqrt(cov) @ rng.standard_normal(k)
         else:
             mean = theta_vec + (x - theta_vec) * np.exp(-alpha_vec * dt)
             if shared_alpha is not None:
@@ -420,8 +466,9 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     value shared, or a dict of one per trait — and it is **multivariate Ornstein–Uhlenbeck in its
     diagonal-drift restriction**: each trait reverts to its own optimum at its own strength, the
     correlation stays in the diffusion, and the branch covariance is
-    ``Σ_ij·(1 − e^{−(α_i+α_j)·dt})/(α_i + α_j)``. One trait's deviation pulling *another* — a full
-    drift matrix — is a different model and is refused by name, not read as a diagonal. A correlated
+    ``Σ_ij·(1 − e^{−(α_i+α_j)·dt})/(α_i + α_j)``. Give ``pull`` keyed by pairs of traits,
+    ``{("y", "x"): …}``, and it is the **full drift matrix**: x's distance from its optimum moves y,
+    exactly, one way or both (a negative entry pushes y up while x is above its optimum). A correlated
     run takes bare per-trait rates. Its log is **widened** rather than absent: a value is a per-trait
     vector, so ``trait_events.tsv`` gets one ``from``/``to`` column pair per trait.
 
