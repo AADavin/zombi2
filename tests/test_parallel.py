@@ -391,7 +391,11 @@ def test_an_unguarded_script_fails_at_once_instead_of_repeating_the_run(tmp_path
     import sys
 
     script = tmp_path / "unguarded.py"
+    # Force `spawn`: under `fork` (the Linux default before Python 3.14) a worker never re-imports
+    # the script, so there is no re-run to refuse and the script rightly finishes.
     script.write_text(
+        "import multiprocessing\n"
+        "multiprocessing.set_start_method('spawn', force=True)\n"
         "from zombi2.species import simulate_species_tree\n"
         "from zombi2.genomes import simulate_genomes_family\n"
         "tree = simulate_species_tree(birth=1.0, death=0.3, n_extant=8, seed=1)\n"
