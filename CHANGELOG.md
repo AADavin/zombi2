@@ -9,6 +9,15 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- A continuous trait's optimum can follow another continuous trait.
+  `simulate_continuous(tree, pull=2.0, reverts_to=set_by(x, lambda v: 1.0 + 0.8 * v, step=0.01))`
+  reads the optimum off `x`, a trait grown first on the same tree, as a result or its written
+  `trait_values.tsv`. The engine reads `x` in stretches of at most `step` and solves OU exactly
+  within each one. A modified σ² still works alongside it. A discrete trait keeps setting the
+  optimum through `regimes=`. (#451)
+
 ## [0.50.1] - 2026-09-17
 
 ### Fixed
