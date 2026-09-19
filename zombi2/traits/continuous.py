@@ -12,7 +12,7 @@ import numpy as np
 from ..params.mapping import check_not_a_kernel
 from ..rng import stream
 from ..params.driver import OnTime, OnTotalDiversity
-from ..params.evaluate import (DRAWN, INHERITED, check_one_memory, describe, is_implemented, values_at_birth, values_at_split)
+from ..params.evaluate import (DRAWN, INHERITED, Modifier, check_one_memory, describe, is_implemented, values_at_birth, values_at_split)
 from ..params.connection import Driven, SetBy
 from ..params.parameter import as_rate
 from ..params.scope import PerLineage
@@ -404,6 +404,43 @@ def _simulate_correlated(tree, start, rate, reverts_to, pull, correlation, at_sp
 
 
 
+def _driven_optimum(reverts_to):
+    """Check a ``reverts_to`` written with ``set_by(driver, curve)`` and return the function that
+    turns the driver's value into the optimum θ.
+
+    The optimum is a value, not a factor, so it can be zero or negative. The mapping classes check
+    that a factor is non-negative, so the curve is called directly here, and only its finiteness is
+    checked. A dict (a discrete driver) is refused: a `Table` refuses a negative number when
+    ``set_by`` builds it, and ``regimes=`` already sets the optimum from a discrete trait."""
+    from ..params.mapping import Curve
+
+    if not isinstance(reverts_to, SetBy):
+        raise ValueError(
+            f"reverts_to takes a number, or set_by(driver, curve) to read the optimum off a "
+            f"continuous trait; got {describe(reverts_to)}. scaled_by does not fit an optimum: an "
+            f"optimum is a value, not a factor.")
+    if not isinstance(reverts_to.mapping, Curve):
+        raise ValueError(
+            "reverts_to=set_by(driver, mapping) takes a callable, value -> optimum, for a continuous "
+            "driver. To set the optimum from a discrete trait, use regimes= with "
+            "reverts_to={state: optimum}.")
+    if reverts_to.mapping.bound is not None:
+        raise ValueError(
+            "a Curve bound caps a factor; an optimum has no cap. Clip the value inside the callable "
+            "instead.")
+    fn = reverts_to.mapping.fn
+
+    def theta_of(value) -> float:
+        theta = fn(float(value))
+        if isinstance(theta, bool) or not isinstance(theta, (int, float)) or not math.isfinite(theta):
+            raise ValueError(
+                f"the optimum curve returned {theta!r} for driver value {value!r}; an optimum must "
+                f"be a finite number")
+        return float(theta)
+
+    return theta_of
+
+
 def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None,
                         correlation=None, at_speciation=None, regimes=None, seed=None,
                         progress=False) -> TraitsResult:
@@ -470,9 +507,23 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
     painted by `simulate_discrete()` on this same tree) and a per-regime ``reverts_to={regime: θ}``,
     and the value follows OU toward whichever regime's optimum a branch is in; it takes
     ``at_speciation`` too, one jump variance shared across regimes, and it takes a bare σ² — a
-    modified variance-rate with ``regimes`` is not implemented yet. Deterministic given ``seed``.
+    modified variance-rate with ``regimes`` is not implemented yet.
+
+    ``reverts_to=set_by(x, curve)`` reads the optimum off **another continuous trait** ``x``, grown
+    first on this same tree and handed over as its result or its written ``trait_values.tsv``. The
+    curve turns x's value into θ, e.g. ``set_by(x, lambda v: 1.0 + 0.8 * v, step=0.01)``, and θ may be
+    any finite number. Along a branch x is read in stretches of at most ``step`` time units, and
+    within a stretch OU is exact; halve ``step`` and rerun to check it. x is known only at the nodes,
+    so along a branch it is the straight line between them, without the path's excursions (#454).
+    It takes a modified σ² and ``at_speciation``, but not ``regimes=``, ``correlation=``, or a joint
+    run. Deterministic given ``seed``.
     """
     tree = as_tree(tree, level="traits")
+    if isinstance(reverts_to, Driven) and (regimes is not None or isinstance(start, dict)
+                                           or isinstance(rate, dict) or correlation is not None):
+        raise ValueError(
+            "reverts_to=set_by(...) is not implemented with regimes= or with several correlated "
+            "traits. It sets the optimum of one trait on its own.")
     if regimes is not None:
         if correlation is not None:
             # `regimes` dispatches before the correlated engine and threads no correlation, so a
@@ -530,13 +581,17 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
 
     # OU: reverts_to (θ) + pull (α) turn the diffusion into mean-reversion — both or neither.
     is_ou = reverts_to is not None or pull is not None
+    driven_theta = False
     if is_ou:
         if reverts_to is None or pull is None:
             raise ValueError(
                 "Ornstein–Uhlenbeck needs both reverts_to (the optimum) and pull (the strength); "
                 "give both, or neither for Brownian motion."
             )
-        if isinstance(reverts_to, bool) or not isinstance(reverts_to, (int, float)) \
+        driven_theta = isinstance(reverts_to, Modifier)
+        if driven_theta:
+            theta_of = _driven_optimum(reverts_to)
+        elif isinstance(reverts_to, bool) or not isinstance(reverts_to, (int, float)) \
                 or not math.isfinite(reverts_to):
             raise ValueError(f"reverts_to must be a finite number, got {reverts_to!r}")
         if isinstance(pull, bool) or not isinstance(pull, (int, float)) \
@@ -544,13 +599,18 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
             raise ValueError(
                 f"pull must be a finite positive number (omit it for Brownian motion), got {pull!r}"
             )
-        theta, alpha = float(reverts_to), float(pull)
+        theta = None if driven_theta else float(reverts_to)
+        alpha = float(pull)
 
     # conditioning: a σ² written with scaled_by reads another level, grown first on this same tree. Resolve
     # each driver once into a trajectory (value + next-switch, keyed by the shared node id), from a
     # written trait log or a grown result handed over in memory. Undriven ⇒ empty, and the walk below
     # is exactly the walk it was — no driver, no lookup, no change to the draw order.
     trajs = _resolve_drivers(_driven_mods(r), tree, "traits.continuous")
+    # an optimum read off another trait: resolved by the same machinery, into its own trajectory, so
+    # the branch walk below can step where the optimum changes. The rate's drivers never see it.
+    theta_traj = (next(iter(_resolve_drivers([reverts_to], tree, "traits.continuous").values()))
+                  if driven_theta else None)
 
     jump_sd = _at_speciation_jump_sd(at_speciation)  # on-speciation jump width (0 if not requested)
 
@@ -579,7 +639,23 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
         else:
             inh[i] = values_at_split(drift, inh[node.parent], rng)
         t0, t1 = node.birth_time, node.end_time
+        if theta_traj is not None:
+            # a driven optimum: constant within each stretch of the driver, so OU is exact within
+            # the stretch. Walk the stretches in order, one draw each, as `regimes=` does. The
+            # variance of a stretch is the same pull-weighted integral as a whole branch's.
+            t = t0
+            while t < t1:
+                nxt = min(theta_traj.next_change(i, t), t1)
+                th = theta_of(theta_traj.value(i, t))
+                e = math.exp(-alpha * (nxt - t))
+                var = _accrued_variance(r, t, nxt, inherited=math.prod(inh[i]), ltt=ltt, trajs=trajs,
+                                        node_id=i, pull=alpha)
+                x = th + (x - th) * e + (float(rng.normal(0.0, math.sqrt(var))) if var > 0.0 else 0.0)
+                t = nxt
+            node_values[i] = x
+            continue
         if is_ou:
+            assert theta is not None               # a driven θ took the stretch walk above
             e = math.exp(-alpha * (t1 - t0))       # mean-reversion toward θ over the branch
             mean = theta + (x - theta) * e         # the mean does not read σ², so a modified σ² leaves it
             # …and the variance is the pull-weighted integral, which for a bare σ² is exactly the
@@ -641,6 +717,10 @@ class ContinuousTrait:
                                       or not isinstance(self.pull, (int, float))
                                       or not math.isfinite(self.pull) or self.pull <= 0):
             raise ValueError(f"pull must be a positive finite number (α > 0), got {self.pull!r}")
+        if isinstance(self.reverts_to, Modifier):
+            raise ValueError(
+                "reverts_to=set_by(...) is not implemented in a joint run. Grow the tree first, then "
+                "use simulate_continuous(tree, reverts_to=set_by(...), ...).")
         if self.reverts_to is not None and (isinstance(self.reverts_to, bool)
                                             or not isinstance(self.reverts_to, (int, float))
                                             or not math.isfinite(self.reverts_to)):
