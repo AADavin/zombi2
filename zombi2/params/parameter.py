@@ -76,12 +76,12 @@ class Rate:
     # --- the verbs (SPEC §5): each returns a NEW rate, so they chain and nothing is mutated -------
 
     def scaled_by(self, driver: object, mapping: object = None, *,
-                  step: float | None = None) -> "Rate":
+                  step: float | None = None, path: bool = True) -> "Rate":
         """Multiply this rate by a factor read from ``driver`` — see `verbs.scaled_by`."""
-        return self._and(verbs.scaled_by(driver, mapping, step=step))
+        return self._and(verbs.scaled_by(driver, mapping, step=step, path=path))
 
     def set_by(self, driver: object, mapping: object = None, *,
-               step: float | None = None) -> "Rate":
+               step: float | None = None, path: bool = True) -> "Rate":
         """Replace this rate's base with a number read from ``driver`` — see `verbs.set_by`.
 
         Written first, on a scope with no number in front of it, because everything to its left is
@@ -94,7 +94,7 @@ class Rate:
                 f"number, any factors — is a base it would silently discard. Write it first, on the "
                 f"bare scope: {self._scope_name()}().set_by(driver, mapping).scaled_by(...). "
                 f"Got {self!r}.")
-        m = verbs.set_by(driver, mapping, step=step)
+        m = verbs.set_by(driver, mapping, step=step, path=path)
         # `set_by(Time(), ...)` builds an `OnTime`, whose schedule holds the rates themselves; that
         # is a base of 1.0 times those factors, which is the same run and needs no new machinery.
         base = None if getattr(m, "replaces_base", False) else 1.0
@@ -112,7 +112,7 @@ class Rate:
         return self._and(verbs.changing_at(schedule))
 
     def weighted_by(self, driver: object, mapping: object = None, *,
-                    step: float | None = None) -> "Rate":
+                    step: float | None = None, path: bool = True) -> "Rate":
         """Refused. Weights are compared against each other and normalised across candidates, which
         only a **choice** does — ``transfer_to`` is the only one."""
         raise RateCompositionError(
@@ -302,9 +302,9 @@ class Extent:
     # --- the verbs (SPEC §5) ---------------------------------------------------------------------
 
     def scaled_by(self, driver: object, mapping: object = None, *,
-                  step: float | None = None) -> "Extent":
+                  step: float | None = None, path: bool = True) -> "Extent":
         """Multiply the size by a factor read from ``driver`` — see `verbs.scaled_by`."""
-        return self._and(verbs.scaled_by(driver, mapping, step=step))
+        return self._and(verbs.scaled_by(driver, mapping, step=step, path=path))
 
     def changing_at(self, schedule: object) -> "Extent":
         """Let the size change in time, on a schedule of factors — see `verbs.changing_at`."""
@@ -332,7 +332,7 @@ class Extent:
             "Extent(500).scaled_by(driver, {...}).")
 
     def set_by(self, driver: object, mapping: object = None, *,
-               step: float | None = None) -> "Extent":
+               step: float | None = None, path: bool = True) -> "Extent":
         """Refused. An extent's base is a *distribution* over sizes, so one scalar cannot replace
         it — the replacement would fix every event to the same size, which is not what any of the
         sizes here mean."""

@@ -1513,7 +1513,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         by_key.setdefault(m.key, m)
     resolved = {}
     if by_key:
-        resolved = {key: resolve_driver(m.driver, tree, step=m.step, level="genomes.family")
+        resolved = {key: resolve_driver(m.driver, tree, step=m.step, path=m.path, level="genomes.family")
                     for key, m in by_key.items()}
         # a mapping whose states never occur in the driver leaves every lineage at the default factor,
         # so the rate is never driven and the run is secretly the undriven model — refuse it here,

@@ -50,11 +50,12 @@ RATES_HELP = _rates_help(
 
 # the write vocabularies, mirroring TraitsResult.write. The event log IS the driver file now
 # (a driven run replays it against the tree), so there is no separate driver output.
-_CONTINUOUS_OUTPUTS = ("values", "events", "tree", "summary")
+_CONTINUOUS_OUTPUTS = ("values", "events", "tree", "summary", "path")
 _DISCRETE_OUTPUTS = ("values", "events", "tree", "summary")
+_ALL_OUTPUTS = ("values", "events", "tree", "summary", "path")
 
 # what each kind writes when --write is not given
-_CONTINUOUS_DEFAULT = ("values", "tree", "summary")
+_CONTINUOUS_DEFAULT = ("values", "tree", "summary", "path")
 _DISCRETE_DEFAULT = ("values", "events", "tree", "summary")
 
 # kind-specific knobs — (attribute, default) pairs — rejected under the other kind
@@ -110,10 +111,12 @@ def _add_traits_args(p: argparse.ArgumentParser) -> None:
                         "continuous, hop probability when discrete")
 
     g = p.add_argument_group("outputs")
-    g.add_argument("--write", nargs="+", choices=_DISCRETE_OUTPUTS, default=None, metavar="PART",
+    g.add_argument("--write", nargs="+", choices=_ALL_OUTPUTS, default=None, metavar="PART",
                    help="which outputs to write: values (every node), events (the root state "
                         "then every switch — what a conditioned run reads), tree (annotated "
-                        "Newick), summary. Default: all but events, and events too when discrete")
+                        "Newick), summary, path (a continuous trait within each branch — "
+                        "what a conditioned run reads for it). Default: all but events and "
+                        "path, plus events when discrete and path when continuous")
     _add_flat_arg(g)
     _add_quiet_arg(g)
     _add_force_arg(g)
@@ -216,6 +219,10 @@ def run(args, parser):
     os.makedirs(args.run, exist_ok=True)
     out = level_dir(args.run, _traits_slot(args, parser), args.flat)
     outputs = args.write or (_DISCRETE_DEFAULT if discrete else _CONTINUOUS_DEFAULT)
+    if discrete and "path" in outputs:
+        parser.error("--write path is for a continuous trait: it is the trait's value within each "
+                     "branch, and a discrete trait's within-branch history is already exact in "
+                     "trait_events.tsv.")
     result.write(out, outputs=outputs)
     if names:  # an external tree: map ZOMBI2's n<id> back to the user's labels (join on the node col)
         rows = ["node\tname"] + [f"{node_label(i)}\t{lbl}" for i, lbl in sorted(names.items())]

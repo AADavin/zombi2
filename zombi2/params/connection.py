@@ -125,7 +125,8 @@ def _schedule(mapping: object, verb: str) -> dict:
         f"to integrate the rate rather than read it at a point.")
 
 
-def scaled_by(driver: object, mapping: object = None, *, step: float | None = None) -> Modifier:
+def scaled_by(driver: object, mapping: object = None, *, step: float | None = None,
+              path: bool = True) -> Modifier:
     """Multiply the parameter's base by a factor read from ``driver``.
 
     The factor is dimensionless, and almost every parameter takes one::
@@ -139,6 +140,11 @@ def scaled_by(driver: object, mapping: object = None, *, step: float | None = No
 
     ``step`` is the resolution a **continuous** driver is read at, in the tree's own time units. A
     categorical driver switches at moments the engine can step to exactly and ignores it.
+
+    ``path`` says what a **continuous** driver is between its nodes. The default reads its real
+    path, drawn between the two node values; ``path=False`` reads the straight line between them
+    instead, which is that path's mean with the excursions dropped and is biased under a non-linear
+    mapping (SPEC §5, issue #454).
     """
     _refuse_time(driver, "scaled_by")
     _refuse_a_factor(driver, "scaled_by")
@@ -158,10 +164,11 @@ def scaled_by(driver: object, mapping: object = None, *, step: float | None = No
         raise ValueError(
             "scaled_by(driver, mapping) needs a mapping: a dict for a categorical driver, a "
             "callable for a numerical one.")
-    return Driven(driver, mapping, step, verb=SCALED_BY)
+    return Driven(driver, mapping, step, path=path, verb=SCALED_BY)
 
 
-def set_by(driver: object, mapping: object = None, *, step: float | None = None) -> Modifier:
+def set_by(driver: object, mapping: object = None, *, step: float | None = None,
+           path: bool = True) -> Modifier:
     """Replace the parameter's base with a number read from ``driver``, in the parameter's own
     units::
 
@@ -187,10 +194,11 @@ def set_by(driver: object, mapping: object = None, *, step: float | None = None)
         raise ValueError(
             "set_by(driver, mapping) needs a mapping: a dict for a categorical driver, a callable "
             "for a numerical one. Its numbers are the rate itself, not factors.")
-    return SetBy(driver, mapping, step, verb=SET_BY)
+    return SetBy(driver, mapping, step, path=path, verb=SET_BY)
 
 
-def weighted_by(driver: object, mapping: object = None, *, step: float | None = None) -> Driven:
+def weighted_by(driver: object, mapping: object = None, *, step: float | None = None,
+                path: bool = True) -> Driven:
     """Weight the candidates of a **choice** — an argument that decides *who*, not how fast.
 
     ``transfer_to``, the recipient of a horizontal transfer, is the only choice today. A choice has
@@ -214,7 +222,7 @@ def weighted_by(driver: object, mapping: object = None, *, step: float | None = 
         raise ValueError(
             "weighted_by(driver, mapping) needs a mapping: a dict of per-candidate weights, a "
             "callable, or a Between kernel to weight the (donor, recipient) pair.")
-    return Driven(driver, mapping, step, verb=WEIGHTED_BY)
+    return Driven(driver, mapping, step, path=path, verb=WEIGHTED_BY)
 
 
 def varying_among(among: object = None, law: object = None, **retired: object) -> Modifier:
@@ -333,7 +341,7 @@ class Driven(Modifier):
     verb: str = SCALED_BY
 
     def __init__(self, driver: object, mapping: object, step: float | None = None, *,
-                 verb: str | None = None) -> None:
+                 path: bool = True, verb: str | None = None) -> None:
         from .mapping import as_mapping
 
         if isinstance(driver, str):
@@ -348,11 +356,17 @@ class Driven(Modifier):
                 raise ValueError(
                     f"step is the resolution a CONTINUOUS driver is read at, in the tree's own "
                     f"time units, so it must be finite and positive; got {step!r}.")
-        # the step is part of the key: the same driver read at two resolutions is two trajectories, and
-        # keying on the driver alone would silently resolve it once and share the first one
-        self.key: object = base if step is None else (base, step)
+        path = bool(path)
+        # the step and the path are part of the key: the same driver read at two resolutions, or one
+        # read along its path and one along the line, are two trajectories, and keying on the driver
+        # alone would silently resolve it once and share the first one
+        self.key: object = base if (step is None and path) else (base, step, path)
         self.driver = driver
         self.step = step
+        #: Whether a CONTINUOUS driver is read along its drawn path (the default) or along the
+        #: straight line between its node values. A categorical driver ignores it: its stretches are
+        #: exact, so there is nothing between them to read.
+        self.path = path
         self.mapping = as_mapping(mapping)
         if verb is not None:
             self.verb = verb
@@ -386,11 +400,15 @@ class Driven(Modifier):
         without, reparsed as one without, and compared equal to one without — so a run's log said
         something the run had not done, and every round-trip check agreed."""
         step = f", step={self.step!r}" if self.step is not None else ""
-        return f"{self.verb}({_driver_form(self.driver)}, {self.mapping!r}{step})"
+        # `path` is written only when it is off, for the same reason `step` is written whenever it
+        # is set: the written form has to record the model, and the default is the model unless
+        # something says otherwise.
+        path = "" if self.path else ", path=False"
+        return f"{self.verb}({_driver_form(self.driver)}, {self.mapping!r}{step}{path})"
 
     def __eq__(self, other: object) -> bool:
-        # By the **driver**, not by `key`. `key` is a runtime lookup handle: it is `(path, step)`
-        # for a file and `id()` for a driver that is an object — so comparing keys made two rates
+        # By the **driver**, not by `key`. `key` is a runtime lookup handle: it is
+        # `(filename, step, path)` for a file and `id()` for a driver that is an object — so comparing keys made two rates
         # reading the same `Clade` unequal, and a clade is the one driver written from literals
         # precisely so that it round-trips. Two equal clades describe one partition of one tree, and
         # nothing is drawn, so there is no sense in which they could be two different drivers. (That
@@ -400,14 +418,15 @@ class Driven(Modifier):
         # read at different resolutions are different models, and dropping it here would have made
         # them equal.
         return (isinstance(other, Driven) and other.driver == self.driver
-                and other.mapping == self.mapping and other.step == self.step)
+                and other.mapping == self.mapping and other.step == self.step
+                and other.path == self.path)
 
     def __hash__(self) -> int:
         # by the driver alone: a mapping is a dict or a callable and need not be hashable, so this is
         # coarser than __eq__ rather than inconsistent with it, which is all a hash owes. A driver
         # that is itself unhashable falls back to the class, keeping a Rate carrying one hashable.
         try:
-            return hash((Driven, self.driver, self.step))
+            return hash((Driven, self.driver, self.step, self.path))
         except TypeError:
             return hash(Driven)
 

@@ -50,17 +50,17 @@ class Choice:
     weights: tuple[Driven, ...] = ()
 
     def weighted_by(self, driver: object, mapping: object = None, *,
-                    step: float | None = None) -> "Choice":
+                    step: float | None = None, path: bool = True) -> "Choice":
         """Weight the candidates by ``driver`` — see `verbs.weighted_by`.
 
         Weights **multiply and are then normalised across the candidates**, so chaining two is
         meaningful: prefer close relatives *and* run a highway between two distant clades. Whether a
         given engine reads more than one is that level's declaration.
         """
-        return Choice(self.weights + (verbs.weighted_by(driver, mapping, step=step),))
+        return Choice(self.weights + (verbs.weighted_by(driver, mapping, step=step, path=path),))
 
     def scaled_by(self, driver: object, mapping: object = None, *,
-                  step: float | None = None) -> "Choice":
+                  step: float | None = None, path: bool = True) -> "Choice":
         """Refused. A choice has no base to scale."""
         from .parameter import RateCompositionError
         raise RateCompositionError(
@@ -69,7 +69,7 @@ class Choice:
             "the same mapping, read as a weight.")
 
     def set_by(self, driver: object, mapping: object = None, *,
-               step: float | None = None) -> "Choice":
+               step: float | None = None, path: bool = True) -> "Choice":
         """Refused. A choice has no base to replace."""
         from .parameter import RateCompositionError
         raise RateCompositionError(
