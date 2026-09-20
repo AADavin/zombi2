@@ -252,17 +252,24 @@ transfer_to = Recipients().weighted_by(habitat, {"competent": 3.0, "normal": 1.0
 The genome level's `transfer_to`, the "who receives" of a horizontal transfer, is the only such
 argument today. A choice is written from its own entry point, `Recipients()`, and never carries a
 base, because there is no rate to have one. A weight of 0 means "cannot receive"; when every candidate weighs 0 the event
-does not fire at all. A rate, an extent, a choice and a **model** are the four kinds of **target** —
-the four things a driver can be attached to — and they are not the same as the three questions this section opens with:
+does not fire at all. A rate, an extent, a choice, a **model** and a **value** are the five kinds of
+**target** — the five things a driver can be attached to — and they are not the same as the three
+questions this section opens with:
 *where* an event starts is drawn by the engine and takes no modifier, and a choice picks the lineage
 that receives, not the segment.
 
 The first three take a **factor**: the driver supplies a number and the target is multiplied by it. A
-model takes none. A substitution model is an object rather than a quantity, so a driver on one
-*selects* it instead of scaling it, and it is written with `set_by` — the verb that replaces a base
+model and a value take none. A substitution model is an object rather than a quantity, so a driver on one
+*selects* it instead of scaling it, and it is written with `set_by` — the modifier that replaces a base
 rather than multiplying one — `set_by(clade, {"endo": hky85(frequencies=...), "rest": hky85()})`.
 Every branch shares one alphabet, so what varies along the tree is the process over the states, never
 the states themselves.
+
+A value is a position rather than a quantity — the Traits level's OU optimum, `reverts_to` — so a
+driver on one *supplies* it, with the same `set_by`: `reverts_to=set_by(x, lambda v: 1.0 + 0.8 * v)`
+reads the optimum off a continuous trait `x` grown first on the same tree. A factor on a value would
+be meaningless, since a factor on an optimum of 0 leaves it at 0 whatever the driver says. Where the
+driver is discrete, an optimum per painted state is `regimes=` (§4), not a modifier.
 
 A weight may read **both** ends: a **kernel** over `(donor group, recipient group)` pairs
 (`Between({...})`) steers transfer *between* groups rather than only *into* one. The groups come from
@@ -333,9 +340,10 @@ Sequences, and variable-rates BM at Traits. Three rules for the next one:
   carries one or the other on a unit, never both. Several of the *same* kind compose and multiply, as
   any modifiers do. A discrete-memory mechanism would be named for the mechanism (`Markov`); none is
   implemented.
-- **A verb multiplies one rate**, except `set_by`, which replaces its base. A process on the
-  *value* rather than the rate — the OU trait's `reverts_to` / `pull` — is a function argument, not a
-  modifier.
+- **A modifier multiplies one rate**, except `set_by`, which replaces its base. `set_by` also
+  supplies a **value** rather than a rate: the OU trait's optimum, `reverts_to`, is read off a
+  continuous driver. The OU trait's `pull` stays a function argument, and so does every other
+  process on a value.
 
 ---
 
@@ -400,7 +408,8 @@ Left column is correct; right column is a fossil to purge.
 | link — what joins a driver to its target: a verb (`scaled_by` / `set_by` / `weighted_by`) carrying a mapping | connection (for the arrow alone); wire, wiring |
 | the hierarchy — the lives-on order of the levels (§1) | "lives-on connections"; substrate |
 | driver — the value a driven parameter reads, per lineage, as the run walks the tree (its first argument): grown by another level, or read off the tree itself (a clade) | source (for that argument); signal |
-| target — what a factor is attached to: a rate, an **extent**, or a **choice** | "a target is a rate"; target (for the driven level — say *the driven level*) |
+| target — what a driver is attached to: a rate, an **extent**, a **choice**, a **model**, or a **value** (the first three take a factor) | "a target is a rate"; target (for the driven level — say *the driven level*) |
+| value — the target that is a position rather than a quantity (`reverts_to`), supplied by `set_by` | "a value is a rate"; setpoint |
 | choice — the target that decides who receives (`transfer_to`) | "which one"; slot |
 | mapping — `Table` / `Curve` / `Scalar` / `Between` | response (the coevolve word) |
 | weight — a `transfer_to` number, normalised across candidates | multiplier (there); a base in front of `Recipients()` (there) |
