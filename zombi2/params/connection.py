@@ -309,7 +309,8 @@ class Driven(Modifier):
     *how often* an event fires (a rate, e.g. ``loss``), *how much* it takes (an extent, e.g.
     ``loss_extent``, at the ordered and nucleotide resolutions), and a **choice** of who receives it
     (``transfer_to``, a weight per candidate rather than a multiplier). It always maps a value to a
-    number; it never drives a *value*, such as an OU optimum.
+    number. One value takes a ``set_by`` too: a continuous trait's OU optimum, ``reverts_to``, which
+    the trait engine reads itself because an optimum may be negative and a factor may not.
 
     Like a carried modifier, a ``Driven`` reads
     a value the **engine** threads per lineage — here a ``drivers`` mapping ``{key: value}`` — and
