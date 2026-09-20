@@ -1997,7 +1997,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         by_key: dict = {}
         for m in drivers:
             by_key.setdefault(m.key, m)
-        trajs = {key: resolve_driver(m.driver, species_tree, step=m.step, level="sequences")
+        trajs = {key: resolve_driver(m.driver, species_tree, step=m.step, path=m.path, level="sequences")
                  for key, m in by_key.items()}
         for m in drivers:
             label = m.driver if isinstance(m.driver, str) else f"<{type(m.driver).__name__}>"

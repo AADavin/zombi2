@@ -138,7 +138,7 @@ def _resolve_drivers(mods: list, tree: Tree, level: str) -> dict:
     by_key: dict = {}
     for m in mods:
         by_key.setdefault(m.key, m)
-    trajs = {key: resolve_driver(m.driver, tree, step=m.step, level=level)
+    trajs = {key: resolve_driver(m.driver, tree, step=m.step, path=m.path, level=level)
              for key, m in by_key.items()}
     for m in mods:
         label = m.driver if isinstance(m.driver, str) else f"<{type(m.driver).__name__}>"

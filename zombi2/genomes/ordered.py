@@ -2306,7 +2306,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 by_key.setdefault(m.key, m)
     resolved: dict = {}
     if by_key:
-        resolved = {key: resolve_driver(m.driver, tree, step=m.step, level="genomes.ordered")
+        resolved = {key: resolve_driver(m.driver, tree, step=m.step, path=m.path, level="genomes.ordered")
                     for key, m in by_key.items()}
         # a mapping whose states never occur leaves every lineage on the default factor, so the run
         # would secretly be the undriven model — refuse it here, naming the driver

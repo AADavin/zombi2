@@ -11,6 +11,17 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
+- A continuous driver is read along its real path, not the straight line between its node values.
+  The path is drawn after the trait is simulated, conditioned on both node values, from its own
+  random stream — so a seed gives the same node values it always gave. It is exact for Brownian
+  motion and Ornstein-Uhlenbeck, and stays exact under a `changing_at` schedule, a `Drift` among
+  lineages and a diversity-dependent sigma squared. A trait grown with `regimes=` or a driven
+  optimum keeps the line, as does a correlated trait. Write `path=False` on the link to ask for the
+  line, and the written form records it. (#454)
+- A continuous trait writes `trait_path.tsv` by default: its path within each branch, `node` ·
+  `time` · `trait` · `variance`. A driver read from a file now gives the same answer as the same
+  driver held in memory; a directory without the file falls back to the line and says so.
+  `write(dir, step=...)` chooses the resolution. (#454)
 - Continuous traits can steer each other. Give `pull` keyed by pairs of traits,
   `pull={("x", "x"): 1.0, ("y", "y"): 2.0, ("y", "x"): -0.8}`, and x's distance from its optimum
   moves y. The effect can run both ways. The run is exact: each branch is one draw from the
@@ -22,6 +33,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
   `trait_values.tsv`. The engine reads `x` in stretches of at most `step` and solves OU exactly
   within each one. A modified σ² still works alongside it. A discrete trait keeps setting the
   optimum through `regimes=`. (#451)
+
+### Fixed
+
+- A continuous driver grown with `at_speciation` started each branch from the parent's node value
+  instead of the value after the jump at the split, which pulled the whole within-branch reading
+  toward the parent. The branch now starts where the engine started it. The root branch likewise
+  starts from the trait at t=0 rather than from its own end value. (#454)
 
 ## [0.50.1] - 2026-09-17
 

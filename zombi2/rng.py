@@ -33,6 +33,7 @@ _LEVEL_KEYS: dict[str, int | None] = {
     "sequences": 2,
     "traits": 3,
     "joint": 4,  # species grown with its driver (a trait or gene content) — one engine, so one stream
+    "trait_paths": 5,  # a continuous trait's within-branch path, drawn after the run by whoever reads it
 }
 
 
@@ -79,4 +80,22 @@ def stream(level: str, seed: int | None) -> tuple[np.random.Generator, int]:
     return np.random.default_rng(seq), seed
 
 
-__all__ = ["stream", "seed_sequence", "resolve_seed", "draw_seed"]
+def branch_stream(level: str, seed: int, node_id: int) -> np.random.Generator:
+    """The generator for one **branch** of ``level``'s stream — keyed by the branch, not by the order
+    the branches are asked for.
+
+    A continuous trait's within-branch path is drawn after the run, by whoever reads the trait as a
+    driver (`zombi2.params.conditioned`). Drawing it from one walking generator would make a branch's
+    path depend on how many branches came before it, so a second reader, a different traversal, or a
+    driver resolved first would all change it. A sub-stream per branch removes all three: the same
+    run and the same branch give the same path, whoever asks and whenever.
+
+    ``seed`` is the run's resolved seed; ``node_id`` is the branch."""
+    if level not in _LEVEL_KEYS:
+        raise KeyError(f"unknown level {level!r}; levels are {sorted(_LEVEL_KEYS)}")
+    key = _LEVEL_KEYS[level]
+    spawn_key = (int(node_id),) if key is None else (key, int(node_id))
+    return np.random.default_rng(np.random.SeedSequence(seed, spawn_key=spawn_key))
+
+
+__all__ = ["stream", "seed_sequence", "resolve_seed", "draw_seed", "branch_stream"]

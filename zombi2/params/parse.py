@@ -162,6 +162,14 @@ def _node(node: ast.AST, text: str):
                 raise _fail("'**' unpacking is not allowed in a rate", text)
             if kw.arg in RETIRED_KEYWORDS:
                 raise _fail(keyword_message(kw.arg), text)
+            if isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, bool):
+                # A bare True / False is not a rate — `_node` says so, and should keep saying so —
+                # but it IS a keyword: `scaled_by(..., path=False)` is how a driven rate records
+                # that it reads the straight line rather than the driver's path. Allowed here, where
+                # the keyword is, rather than in `_node`, so `PerLineage(True)` still reads as the
+                # mistake it is.
+                kwargs[kw.arg] = kw.value.value
+                continue
             kwargs[kw.arg] = _node(kw.value, text)
         return _call(fn, args, kwargs, text)
 
