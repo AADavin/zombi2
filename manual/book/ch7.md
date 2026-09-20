@@ -91,6 +91,20 @@ traits.simulate_continuous(tree,
     at_speciation=0.5, seed=1)
 ```
 
+The traits can also steer each other. Give `pull` as a full matrix, keyed by pairs of traits, and one trait's distance from its optimum moves the other:
+
+```python
+traits.simulate_continuous(tree,
+    start={"size": 0.0, "limb": 0.0},
+    rate={"size": 1.0, "limb": 0.8},
+    reverts_to={"size": 3.0, "limb": -1.0},
+    pull={("size", "size"): 1.5, ("limb", "limb"): 0.4,
+          ("limb", "size"): -0.6},            # size above its optimum pushes limb up
+    seed=1)
+```
+
+The entry at `("limb", "size")` is the effect of size on limb. A negative entry pushes limb up while size sits above its optimum, a positive one pushes it down, and an entry left out is zero. Each trait's own entry is its pull toward its own optimum, and it must be positive. The effect can run both ways: add `("size", "limb")` and limb steers size too. The run is exact, with no step to tune. The matrix is minus the selection matrix of `coevolve` [@ringen2026coevolve], which writes the drift with the opposite sign.
+
 ## Literature
 
 Trait models arrive under a thicket of names, and a reader who wants "an OU model" or "a threshold model" should be able to find it. The names live here, in one table, each beside the example that shows it; the example carries the run that made it, so the table does not spell the call out a second time. It organises nothing else in the chapter.

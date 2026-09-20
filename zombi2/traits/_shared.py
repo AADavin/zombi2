@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 
 import numpy as np
 
@@ -26,6 +27,55 @@ def _symmetric_sqrt(matrix: np.ndarray) -> np.ndarray:
     eigendecomposition; tiny negative eigenvalues from round-off are clipped to zero."""
     w, V = np.linalg.eigh((matrix + matrix.T) / 2.0)
     return (V * np.sqrt(np.clip(w, 0.0, None))) @ V.T
+
+
+
+def _expm(M: np.ndarray) -> np.ndarray:
+    """The matrix exponential ``e^M``, in numpy alone (ZOMBI2 does not depend on scipy).
+
+    Scaling and squaring with a [6/6] Padé approximant (Moler & Van Loan 2003, "method 3"): halve
+    ``M`` until its norm is at most 0.5, where the approximant is accurate to double precision, then
+    square the result back up as many times. It needs no eigendecomposition, so a drift matrix with
+    complex or repeated eigenvalues is no special case."""
+    M = np.asarray(M, dtype=float)
+    norm = float(np.linalg.norm(M, np.inf))
+    s = max(0, int(math.ceil(math.log2(norm / 0.5)))) if norm > 0.5 else 0
+    A = M / (2.0 ** s)
+    q = 6
+    c = 1.0
+    X = np.eye(len(A))
+    N = np.eye(len(A))
+    D = np.eye(len(A))
+    for k in range(1, q + 1):
+        c = c * (q - k + 1) / (k * (2 * q - k + 1))
+        X = A @ X
+        N = N + c * X
+        D = D + (-1) ** k * c * X
+    E = np.linalg.solve(D, N)
+    for _ in range(s):
+        E = E @ E
+    return E
+
+
+
+def _ou_transition(P: np.ndarray, Sigma: np.ndarray, dt: float) -> tuple[np.ndarray, np.ndarray]:
+    """The exact branch transition of a multivariate OU ``dx = −P(x − θ)dt + Σ^{1/2}dW``: the decay
+    ``e^{−P·dt}``, which takes the start's distance from θ to the mean's, and the covariance
+    ``∫₀^dt e^{−Ps} Σ e^{−Pᵀs} ds`` accrued over the branch.
+
+    Both come from one exponential of a block matrix (Van Loan 1978): the exponential of
+    ``[[P, Σ], [0, −Pᵀ]]·dt`` holds ``e^{−Pᵀdt}`` in its lower-right block, whose transpose is the
+    decay, and the decay times that block's upper-right one is the covariance. That needs no Lyapunov
+    solve, so it holds for any ``P`` — one whose traits never settle, or settle while circling."""
+    k = len(P)
+    C = np.zeros((2 * k, 2 * k))
+    C[:k, :k] = P
+    C[:k, k:] = Sigma
+    C[k:, k:] = -P.T
+    E = _expm(C * dt)
+    decay = E[k:, k:].T                     # e^{−P·dt}
+    cov = decay @ E[:k, k:]
+    return decay, (cov + cov.T) / 2.0      # symmetric in exact arithmetic; drop the round-off
 
 
 
