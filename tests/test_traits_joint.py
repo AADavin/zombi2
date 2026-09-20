@@ -167,6 +167,7 @@ def test_a_driver_naming_no_trait_in_the_run_is_refused():
 
 
 def test_a_continuous_trait_in_a_cycle_says_it_is_not_built():
-    with pytest.raises(TypeError, match="continuous trait in a cycle"):
+    # and points at the one continuous cycle that is built: a full drift matrix
+    with pytest.raises(TypeError, match=r"(?s)pull as a full.*not built"):
         traits.simulate_traits(_tree(10), [traits.discrete(name="a", states=["x", "y"], switch=0.1),
                                            "not a spec"], joint=True, seed=1)
