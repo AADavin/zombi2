@@ -68,10 +68,9 @@ liability; the crossings are un-timed, so it carries no event log or map.
 Also built: correlated traits (the ``correlation=`` overlay), jumps at speciation
 (``at_speciation=``, in either engine, and under ``correlation=`` drawn through the same overlay),
 and multi-optimum OU (``regimes=``, which takes the jumps too). ``reverts_to`` / ``pull`` also
-apply to a correlated set, as **multivariate OU restricted to a diagonal drift** — each trait
-reverts to its own optimum at its own strength, and the correlation rides in the diffusion rather
-than in the reversion; a full drift matrix, where one trait's deviation pulls another, is refused
-by name. SSE is **not** a trait model — it is trait↔species *joint*, Chapter 8 (Dependent runs),
+apply to a correlated set, as **multivariate OU** — each trait reverts to its own optimum at its
+own strength, and the correlation rides in the diffusion. A ``pull`` keyed by pairs of traits is
+the full drift matrix, where one trait's distance from its optimum moves another, one way or both. SSE is **not** a trait model — it is trait↔species *joint*, Chapter 8 (Dependent runs),
 `zombi2.joint`, which grows the trait with the tree: `discrete` for BiSSE and MuSSE, `continuous`
 for QuaSSE. A diffusing driver moves at every instant, so that one run slices.
 """

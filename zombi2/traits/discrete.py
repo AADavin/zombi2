@@ -621,8 +621,10 @@ def simulate_traits(tree, traits, *, joint=False, seed=None, progress=False):
         if not isinstance(spec, DiscreteTrait):
             raise TypeError(
                 f"simulate_traits takes discrete trait specs — traits.discrete(name='size', "
-                f"states=[...], switch=...) — and got {spec!r}. A continuous trait in a cycle needs "
-                f"its diffusion held still over short stretches, which is not built.")
+                f"states=[...], switch=...) — and got {spec!r}. Continuous traits that steer each "
+                f"other through their optima are one simulate_continuous call with pull as a full "
+                f"matrix, pull={{('y', 'x'): ...}}. Other feedback with a continuous trait needs its "
+                f"diffusion held still over short stretches, which is not built (#456).")
         if not spec.name:
             raise ValueError(
                 "each trait needs a name here, because a rate reads the other one by it: "

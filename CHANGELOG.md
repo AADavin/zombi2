@@ -11,6 +11,11 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
+- Continuous traits can steer each other. Give `pull` keyed by pairs of traits,
+  `pull={("x", "x"): 1.0, ("y", "y"): 2.0, ("y", "x"): -0.8}`, and x's distance from its optimum
+  moves y. The effect can run both ways. The run is exact: each branch is one draw from the
+  multivariate OU transition, computed in numpy with no new dependency. The matrix is minus the
+  selection matrix of `coevolve` (Ringen et al. 2026). (#452)
 - A continuous trait's optimum can follow another continuous trait.
   `simulate_continuous(tree, pull=2.0, reverts_to=set_by(x, lambda v: 1.0 + 0.8 * v, step=0.01))`
   reads the optimum off `x`, a trait grown first on the same tree, as a result or its written

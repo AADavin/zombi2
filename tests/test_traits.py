@@ -910,18 +910,112 @@ def test_multivariate_ou_with_a_per_trait_pull():
     assert abs(float(np.corrcoef(va, vb)[0, 1]) - rho) > 0.02
 
 
-def test_multivariate_ou_rejects_a_drift_matrix():
-    # a full drift matrix — one trait's deviation pulling another — is a different model, not this
-    # one written differently, so it is named and refused rather than quietly read as its diagonal.
+def test_drift_matrix_as_a_nested_list_is_refused():
+    # a bare matrix would lean on the order of start's keys; the pair-keyed dict names every entry.
     tree = _corr_tree()
-    with pytest.raises(ValueError, match="full drift matrix"):
+    with pytest.raises(ValueError, match=r"\(trait, trait\) pairs"):
         simulate_continuous(tree, start={"a": 0.0, "b": 0.0}, rate={"a": 1.0, "b": 1.0},
                             correlation={("a", "b"): 0.5}, reverts_to={"a": 0.0, "b": 0.0},
                             pull=[[1.0, 0.2], [0.0, 0.5]], seed=1)
-    with pytest.raises(ValueError, match="not implemented yet"):
-        simulate_continuous(tree, start={"a": 0.0, "b": 0.0}, rate={"a": 1.0, "b": 1.0},
-                            correlation={("a", "b"): 0.5}, reverts_to={"a": 0.0, "b": 0.0},
-                            pull=[[1.0, 0.2], [0.0, 0.5]], seed=1)
+
+
+# --- a full drift matrix: one trait's distance from its optimum pulls another ---------------------
+
+_XY = dict(start={"x": 0.0, "y": 0.0}, rate={"x": 1.0, "y": 0.5}, reverts_to={"x": 1.0, "y": -1.0})
+
+
+def test_expm_is_exact_where_the_answer_is_known():
+    from zombi2.traits._shared import _expm
+    t = 2.3                                            # a rotation: complex eigenvalues
+    rotation = np.array([[math.cos(t), -math.sin(t)], [math.sin(t), math.cos(t)]])
+    assert np.allclose(_expm(np.array([[0.0, -t], [t, 0.0]])), rotation, rtol=0, atol=1e-13)
+    a = 0.7                                            # a repeated eigenvalue with one eigenvector
+    assert np.allclose(_expm(np.array([[a, 1.0], [0.0, a]])),
+                       math.exp(a) * np.array([[1.0, 1.0], [0.0, 1.0]]), rtol=1e-13, atol=0)
+    M = np.random.default_rng(0).normal(size=(3, 3)) * 12.0   # large norm: many squarings
+    w, V = np.linalg.eig(M)
+    assert np.allclose(_expm(M), (V @ np.diag(np.exp(w)) @ np.linalg.inv(V)).real, rtol=1e-10)
+
+
+def test_ou_transition_matches_its_integral_and_its_equilibrium():
+    # the covariance is the integral of e^{−Ps} Σ e^{−Pᵀs} over the branch, checked by summing it on
+    # a fine grid; at long times it must solve the equilibrium equation P·V + V·Pᵀ = Σ.
+    from zombi2.traits._shared import _expm, _ou_transition
+    P = np.array([[1.0, 0.6], [-0.9, 2.0]])
+    Sigma = np.array([[1.0, 0.3], [0.3, 0.5]])
+    dt, n = 1.7, 4000
+    decay, cov = _ou_transition(P, Sigma, dt)
+    h = dt / n
+    grid = sum(_expm(-P * (j + 0.5) * h) @ Sigma @ _expm(-P * (j + 0.5) * h).T for j in range(n)) * h
+    assert np.allclose(cov, grid, atol=1e-7)
+    assert np.allclose(decay, _expm(-P * dt), atol=1e-13)
+    _, settled = _ou_transition(P, Sigma, 60.0)
+    assert np.allclose(P @ settled + settled @ P.T, Sigma, atol=1e-12)
+
+
+def test_a_diagonal_drift_matrix_is_the_diagonal_engine():
+    # pair keys with no cross term are the {trait: strength} dict written longhand: same bytes.
+    tree = _corr_tree()
+    longhand = simulate_continuous(tree, **_XY, pull={("x", "x"): 1.5, ("y", "y"): 0.5},
+                                   correlation={("x", "y"): 0.4}, seed=3)
+    shorthand = simulate_continuous(tree, **_XY, pull={"x": 1.5, "y": 0.5},
+                                    correlation={("x", "y"): 0.4}, seed=3)
+    assert longhand.node_values == shorthand.node_values
+
+
+def test_drift_matrix_cross_term_direction():
+    # a negative (y, x) entry pushes y UP while x sits above its optimum; zero leaves y alone.
+    from zombi2.traits._shared import _ou_transition
+    theta = np.array([0.0, 0.0])
+    start = np.array([5.0, 0.0])                   # x far above its optimum, y on its own
+    for entry, sign in ((-0.8, 1.0), (0.8, -1.0)):
+        P = np.array([[1.0, 0.0], [entry, 1.0]])
+        decay, _ = _ou_transition(P, np.eye(2), 0.5)
+        assert sign * float((theta + decay @ (start - theta))[1]) > 0.5
+
+
+def test_drift_matrix_run_has_the_exact_law():
+    # the root branch has nothing before it: across many seeds, its end vector's mean and covariance
+    # match the transition, which the two tests above pin independently.
+    from zombi2.traits._shared import _ou_transition
+    tree = _corr_tree()
+    P = {("x", "x"): 1.2, ("y", "y"): 0.8, ("y", "x"): -0.9, ("x", "y"): 0.4}
+    root = tree.root
+    ends = np.array([[r.node_values[root]["x"], r.node_values[root]["y"]] for r in (
+        simulate_continuous(tree, **_XY, pull=P, correlation={("x", "y"): 0.3}, seed=s)
+        for s in range(3000))])
+    dt = tree.nodes[root].end_time - tree.nodes[root].birth_time
+    Pm = np.array([[1.2, 0.4], [-0.9, 0.8]])
+    sd = np.sqrt([1.0, 0.5])
+    Sigma = np.outer(sd, sd) * np.array([[1.0, 0.3], [0.3, 1.0]])
+    decay, cov = _ou_transition(Pm, Sigma, dt)
+    theta = np.array([1.0, -1.0])
+    mean = theta + decay @ (np.zeros(2) - theta)
+    se = np.sqrt(np.diag(cov) / len(ends))
+    assert np.all(np.abs(ends.mean(axis=0) - mean) < 4 * se)
+    assert np.allclose(np.cov(ends.T), cov, rtol=0.12, atol=0.01)
+
+
+def test_drift_matrix_is_deterministic_and_takes_jumps():
+    tree = _corr_tree()
+    P = {("x", "x"): 1.0, ("y", "y"): 1.0, ("y", "x"): -0.5}
+    a = simulate_continuous(tree, **_XY, pull=P, at_speciation=0.2, seed=9)
+    b = simulate_continuous(tree, **_XY, pull=P, at_speciation=0.2, seed=9)
+    assert a.node_values == b.node_values
+    assert any(e.kind == "on_speciation" for e in a.events)
+
+
+def test_drift_matrix_refusals():
+    tree = _corr_tree()
+    with pytest.raises(ValueError, match="names a trait not in"):
+        simulate_continuous(tree, **_XY, pull={("x", "x"): 1.0, ("y", "y"): 1.0, ("y", "z"): 1.0}, seed=1)
+    with pytest.raises(ValueError, match="pairs throughout"):
+        simulate_continuous(tree, **_XY, pull={("x", "x"): 1.0, "y": 1.0, ("y", "x"): 1.0}, seed=1)
+    with pytest.raises(ValueError, match="must be positive"):
+        simulate_continuous(tree, **_XY, pull={("x", "x"): 1.0, ("y", "x"): 1.0}, seed=1)
+    with pytest.raises(ValueError, match="finite number"):
+        simulate_continuous(tree, **_XY, pull={("x", "x"): 1.0, ("y", "y"): 1.0, ("y", "x"): math.inf},
+                            seed=1)
 
 
 def test_correlated_jumps_at_speciation_add_the_jump_covariance():
