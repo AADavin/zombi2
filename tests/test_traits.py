@@ -1315,6 +1315,101 @@ def test_regimes_validation():
         simulate_continuous(tree, rate=1.0, pull=2.0, reverts_to={"a": 0.0, "b": 1.0}, regimes=other, seed=1)
 
 
+
+# --- a driven optimum: reverts_to=set_by(x, curve), the optimum read off a continuous trait -----
+
+def test_driven_optimum_constant_driver_equals_plain_ou():
+    # a driver with no diffusion is the same number on every lineage, and a step as long as the tree
+    # gives each branch one stretch. Then the driven optimum is one fixed θ and one OU draw per
+    # branch — byte-identical to plain OU toward that θ.
+    from zombi2.params.connection import set_by
+    tree = _corr_tree()
+    flat = simulate_continuous(tree, start=1.5, rate=0.0, seed=1)
+    got = simulate_continuous(tree, rate=1.0, pull=2.0, seed=7,
+                              reverts_to=set_by(flat, lambda v: 2.0 * v, step=1e6))
+    plain = simulate_continuous(tree, rate=1.0, pull=2.0, reverts_to=3.0, seed=7)
+    assert got.node_values == plain.node_values
+
+
+def test_driven_optimum_stretches_keep_the_ou_law():
+    # the same constant θ, but each branch cut into many stretches: one draw per stretch instead of
+    # one per branch, so the bytes differ, while the law at the end of the branch must not. A
+    # root branch has nothing before it, so across many seeds its end value's mean and variance match
+    # the closed form.
+    from zombi2.params.connection import set_by
+    tree = _corr_tree()
+    flat = simulate_continuous(tree, start=1.0, rate=0.0, seed=1)
+    theta, alpha, sigma2, x0 = -2.0, 1.5, 0.8, 1.0
+    root = tree.root
+    dt = tree.nodes[root].end_time - tree.nodes[root].birth_time
+    ends = np.array([
+        simulate_continuous(tree, start=x0, rate=sigma2, pull=alpha, seed=s,
+                            reverts_to=set_by(flat, lambda v: theta * v, step=dt / 7)).node_values[root]
+        for s in range(4000)])
+    e = math.exp(-alpha * dt)
+    mean, var = theta + (x0 - theta) * e, sigma2 / (2 * alpha) * (1 - e * e)
+    assert abs(ends.mean() - mean) < 4 * math.sqrt(var / len(ends))
+    assert abs(ends.var() / var - 1.0) < 0.1
+
+
+def test_driven_optimum_tracks_its_driver():
+    # a strong pull and almost no noise: Y sits on its optimum, lagging behind X by about
+    # slope/α. Ten times the pull, about a tenth of the lag.
+    from zombi2.params.connection import set_by
+    tree = _tree(seed=1, n_extant=30).complete_tree
+    x = simulate_continuous(tree, rate=1.0, seed=1)
+
+    def worst_gap(alpha):
+        y = simulate_continuous(tree, rate=1e-8, pull=alpha, seed=2,
+                                reverts_to=set_by(x, lambda v: 2.0 + 3.0 * v, step=0.05 / alpha))
+        return max(abs(y.node_values[i] - (2.0 + 3.0 * x.node_values[i])) for i in x.node_values)
+
+    assert worst_gap(2000.0) < worst_gap(200.0) / 5
+
+
+def test_driven_optimum_reads_a_written_driver_and_a_modified_rate(tmp_path):
+    # the written value table is the same driver as the result in memory, up to the six significant
+    # figures the table keeps; and a σ² that changes through time still composes with the driven
+    # optimum.
+    from zombi2.params.connection import set_by
+    tree = _tree(seed=2, n_extant=15).complete_tree
+    x = simulate_continuous(tree, rate=1.0, seed=1)
+    x.write(tmp_path, outputs=("values",))
+    rate = PerLineage(1.0).changing_at({0: 1.0, 1.0: 0.2})
+    curve = (lambda v: 1.0 - v)
+    in_memory = simulate_continuous(tree, rate=rate, pull=1.0, seed=3,
+                                    reverts_to=set_by(x, curve, step=0.1))
+    from_file = simulate_continuous(tree, rate=rate, pull=1.0, seed=3,
+                                    reverts_to=set_by(str(tmp_path / "trait_values.tsv"), curve, step=0.1))
+    assert from_file.node_values == pytest.approx(in_memory.node_values, rel=1e-4, abs=1e-5)
+
+
+def test_driven_optimum_refusals():
+    from zombi2.params import Curve
+    from zombi2.params.connection import scaled_by, set_by
+    from zombi2.traits import ContinuousTrait
+    tree = _corr_tree()
+    x = simulate_continuous(tree, rate=1.0, seed=1)
+    habitat = simulate_discrete(tree, states=["a", "b"], switch=0.5, seed=1)
+    with pytest.raises(ValueError, match="use regimes="):
+        simulate_continuous(tree, pull=1.0, reverts_to=set_by(habitat, {"a": 1.0, "b": 2.0}), seed=1)
+    with pytest.raises(ValueError, match="not a factor"):
+        simulate_continuous(tree, pull=1.0, reverts_to=scaled_by(x, lambda v: 1.0 + v), seed=1)
+    with pytest.raises(ValueError, match="no cap"):
+        simulate_continuous(tree, pull=1.0, reverts_to=set_by(x, Curve(lambda v: v, bound=3.0)), seed=1)
+    with pytest.raises(ValueError, match="finite number"):
+        simulate_continuous(tree, pull=1.0, reverts_to=set_by(x, lambda v: math.nan), seed=1)
+    with pytest.raises(ValueError, match="needs both"):
+        simulate_continuous(tree, reverts_to=set_by(x, lambda v: v), seed=1)
+    with pytest.raises(ValueError, match="with regimes= or with several"):
+        simulate_continuous(tree, pull=1.0, reverts_to=set_by(x, lambda v: v), regimes=habitat, seed=1)
+    with pytest.raises(ValueError, match="with regimes= or with several"):
+        simulate_continuous(tree, start={"p": 0.0, "q": 0.0}, rate={"p": 1.0, "q": 1.0}, pull=1.0,
+                            reverts_to=set_by(x, lambda v: v), seed=1)
+    with pytest.raises(ValueError, match="joint run"):
+        ContinuousTrait(reverts_to=set_by(x, lambda v: v), pull=1.0)
+
+
 def test_write_trait_tree(tmp_path):
     # the "tree" output is a Newick with every node annotated [&trait=…] (a trait tree carrying the
     # exact ancestral values) — for continuous (float), discrete (label), and correlated (per-trait).
