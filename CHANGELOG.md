@@ -9,6 +9,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- `origin=` and `origins=` are described plainly: a family **starts** on that lineage at that
+  time, instead of at the origin of the run. The metaphor is gone from the docstrings and from
+  the message `origins` raises when it is given something other than a list of pairs. (#450)
+
 ## [0.51.0] - 2026-09-21
 
 ### Added
