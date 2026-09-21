@@ -1120,10 +1120,14 @@ def test_an_extent_cannot_carry_a_per_family_draw():
 # --- a CONTINUOUS trait as the driver (approximate: each branch cut into constant sub-steps) --------
 
 def test_continuous_driver_trajectory_interpolates():
-    """`driver_from_continuous_result` cuts each branch into stretches of at most ``step`` time units
-    whose value is the trait linearly interpolated from the parent's value to the node's, sampled at
-    each stretch's midpoint — so `value()` returns exactly that, and `next_change()` steps within a
-    branch."""
+    """With ``path=False``, `driver_from_continuous_result` cuts each branch into stretches of at
+    most ``step`` time units whose value is the trait linearly interpolated from the parent's value
+    to the node's, sampled at each stretch's midpoint — so `value()` returns exactly that, and
+    `next_change()` steps within a branch.
+
+    ``path=False`` is asked for because the line is what this test is about. The default reads the
+    trait's real path between the two node values instead (#454), which is the same grid with
+    different values on it — checked at the end, and in ``tests/test_driver_real_path.py``."""
     import math
 
     from zombi2.params.conditioned import driver_from_continuous_result
@@ -1133,7 +1137,7 @@ def test_continuous_driver_trajectory_interpolates():
     node = next(n for n in ct.nodes.values() if n.parent is not None and n.end_time > n.birth_time)
     dt = node.end_time - node.birth_time
     step = dt / 10                                       # ten stretches on *this* branch
-    traj = driver_from_continuous_result(met, step=step)
+    traj = driver_from_continuous_result(met, step=step, path=False)
 
     start_v, end_v = met.node_values[node.parent], met.node_values[node.id]
     n = max(1, math.ceil(dt / step))
@@ -1142,6 +1146,10 @@ def test_continuous_driver_trajectory_interpolates():
         assert traj.value(node.id, node.birth_time + k * dt / n) == pytest.approx(expected)
     nxt = traj.next_change(node.id, node.birth_time)     # a within-branch breakpoint, not inf
     assert node.birth_time < nxt <= node.end_time
+
+    drawn = driver_from_continuous_result(met, step=step)          # the default: the real path
+    assert drawn._starts[node.id] == traj._starts[node.id]         # the same grid…
+    assert drawn._states[node.id] != traj._states[node.id]         # …carrying the path, not the line
 
 
 def test_the_continuous_driver_step_is_a_duration_not_a_count_of_pieces():
@@ -1182,10 +1190,14 @@ def test_a_continuous_trait_is_conditioned_on_from_its_values_file(tmp_path):
     A continuous trait has no switches, so its event log holds only the ``initial`` row. Replaying
     that log gave a driver frozen at the root value on every lineage — accepted without complaint, so
     a run that looked conditioned was the undriven model with one constant factor. The event log now
-    refuses and names the value table, and the value table reproduces the in-memory driver exactly."""
+    refuses and names the value table, and the value table reproduces the in-memory driver exactly.
+
+    Exactly, because ``trait_path.tsv`` goes with it: the value table alone says where the trait was
+    at each node, and the path file says what it did in between (#454). Both readers take the
+    default step, so both read the same path."""
     ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=20, seed=5).complete_tree
     bm = traits.simulate_continuous(ct, start=0.0, rate=1.0, seed=6)
-    bm.write(tmp_path, outputs=("values", "events"))
+    bm.write(tmp_path, outputs=("values", "events", "path"))
     curve = (lambda x: 1.0 + max(0.0, x))
 
     with pytest.raises(ValueError, match="CONTINUOUS trait's event log"):

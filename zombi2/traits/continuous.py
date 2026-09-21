@@ -20,6 +20,7 @@ from ..tree import Tree, as_tree
 
 from ._shared import (_correlation_matrix, _driven_mods, _ou_transition, _preorder, _resolve_drivers,
                       _symmetric_sqrt)
+from .path import BridgeLaw
 from .result import Change, TraitsResult
 
 IMPLEMENTED_MODIFIERS = (OnTime, (INHERITED, "lineages"), OnTotalDiversity, Driven, SetBy)  #: the cells a continuous rate takes
@@ -715,7 +716,16 @@ def simulate_continuous(tree, *, start=0.0, rate=1.0, reverts_to=None, pull=None
         std = math.sqrt(var) if var > 0.0 else 0.0
         node_values[i] = mean + (float(rng.normal(0.0, std)) if std > 0.0 else 0.0)
 
-    return TraitsResult(tree, cast("dict[int, object]", node_values), events, seed)
+    # The recipe for redrawing the path within a branch, for a reader that needs the trait between
+    # the nodes (`zombi2.traits.path`). Built from what the walk above already used, and built
+    # AFTER it: nothing is drawn here, so the draw order and every node value are untouched. A
+    # driven optimum is left out — θ is piecewise constant along the branch there, and the two-point
+    # bridge does not hold over the whole branch — and such a reader keeps the straight line.
+    law = None if driven_theta else BridgeLaw(
+        rate=r, pull=(alpha if is_ou else 0.0), theta=(theta if is_ou and theta is not None else 0.0),
+        inherited={i: math.prod(v) for i, v in inh.items()},
+        ltt=ltt, trajs=trajs)
+    return TraitsResult(tree, cast("dict[int, object]", node_values), events, seed, path_law=law)
 
 
 # --- discrete traits: a state switching along the tree (Mk) ------------------------------------

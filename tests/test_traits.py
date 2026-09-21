@@ -1360,28 +1360,35 @@ def test_driven_optimum_tracks_its_driver():
     x = simulate_continuous(tree, rate=1.0, seed=1)
 
     def worst_gap(alpha):
+        # read along the straight LINE (path=False): the lag of a pulled trait behind a moving
+        # optimum is slope/α, and that law needs an optimum with a slope. X's real path has none —
+        # a diffusion is nowhere differentiable, so its increments over a stretch of length h are
+        # of size √h and the lag scales as 1/√(αh) instead. The line is the smoothed optimum this
+        # ratio is about.
         y = simulate_continuous(tree, rate=1e-8, pull=alpha, seed=2,
-                                reverts_to=set_by(x, lambda v: 2.0 + 3.0 * v, step=0.05 / alpha))
+                                reverts_to=set_by(x, lambda v: 2.0 + 3.0 * v,
+                                                  step=0.05 / alpha, path=False))
         return max(abs(y.node_values[i] - (2.0 + 3.0 * x.node_values[i])) for i in x.node_values)
 
     assert worst_gap(2000.0) < worst_gap(200.0) / 5
 
 
 def test_driven_optimum_reads_a_written_driver_and_a_modified_rate(tmp_path):
-    # the written value table is the same driver as the result in memory, up to the six significant
-    # figures the table keeps; and a σ² that changes through time still composes with the driven
-    # optimum.
+    # the written driver is the same driver as the result in memory — exactly, since #454: the run
+    # writes its within-branch path beside the value table and the file reader reads it back, so
+    # the two agree point for point at the step the path was written at. And a σ² that changes
+    # through time still composes with the driven optimum.
     from zombi2.params.connection import set_by
     tree = _tree(seed=2, n_extant=15).complete_tree
     x = simulate_continuous(tree, rate=1.0, seed=1)
-    x.write(tmp_path, outputs=("values",))
+    x.write(tmp_path, step=0.1)          # values + the path, at the step both readers below use
     rate = PerLineage(1.0).changing_at({0: 1.0, 1.0: 0.2})
     curve = (lambda v: 1.0 - v)
     in_memory = simulate_continuous(tree, rate=rate, pull=1.0, seed=3,
                                     reverts_to=set_by(x, curve, step=0.1))
     from_file = simulate_continuous(tree, rate=rate, pull=1.0, seed=3,
                                     reverts_to=set_by(str(tmp_path / "trait_values.tsv"), curve, step=0.1))
-    assert from_file.node_values == pytest.approx(in_memory.node_values, rel=1e-4, abs=1e-5)
+    assert from_file.node_values == pytest.approx(in_memory.node_values, rel=1e-9, abs=1e-12)
 
 
 def test_driven_optimum_refusals():
