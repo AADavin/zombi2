@@ -42,7 +42,7 @@ The **Ornstein–Uhlenbeck** process is Brownian motion with a rubber band: `rev
 
 Two more arguments sit alongside `rate`. `regimes=` paints a multi-optimum OU, where clades pull toward different optima ([Tr6](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:regimes-->): a discrete run supplies the painting, and `reverts_to` becomes a dict keyed by its states, as in `regimes=habitat, reverts_to={"cave": -1.0, "surface": 3.0}`. And `at_speciation=` adds a jump *at* each split rather than along the branches, so change concentrates at branching ([Tr7](https://aadavin.github.io/zombi2/gallery.html#traits)<!--gallery:jumps-->). The value is the jump's variance: `at_speciation=0.5` draws each jump from a normal with variance 0.5, standard deviation about 0.7. None of these is a separate model with its own function and its own parameters, which is why they combine: a trait that bursts early *and* reverts to an optimum is one rate with one verb and two arguments.
 
-The optimum can also follow another continuous trait, grown first on the same tree. `reverts_to=set_by(group_size, lambda v: 1.0 + 0.8 * v, step=0.01)` makes a larger group keep pulling the trait upward. The function turns the other trait's value into the optimum, and the optimum can be any number, negative included. ZOMBI2 knows the other trait only at the nodes, so along a branch it draws that trait's path between them and reads it in stretches of at most `step`. Halve `step` and rerun to check the result does not move. Write `path=False` to read the straight line between the two node values instead, which is the path's average rather than a path. The effect runs one way: the other trait steers this one, and this one does not steer it back.
+The optimum can also follow another continuous trait, grown first on the same tree. `reverts_to=set_by(group_size, lambda v: 1.0 + 0.8 * v, step=0.01)` makes a larger group keep pulling the trait upward. The function turns the other trait's value into the optimum, and the optimum can be any number, negative included. ZOMBI2 knows the other trait only at the nodes, so along a branch it draws that trait's path between them and reads it in stretches of at most `step`. Halving `step` halves the error and also changes the numbers for a given seed, so convergence is checked across seeds rather than by rerunning one; Chapter 8 gives the recipe. Write `path=False` to read the straight line between the two node values instead, which is the path's average rather than a path. The effect runs one way: the other trait steers this one, and this one does not steer it back.
 
 `regimes=` is the one argument that asks you to give things up, and it refuses loudly rather than ignoring what you passed: with it the σ² is a plain number (not a modified rate), the jump variance is one number shared across regimes, and the run is one trait (no `correlation=`).
 
@@ -106,6 +106,45 @@ traits.simulate_continuous(tree,
 ```
 
 The entry at `("limb", "size")` is the effect of size on limb. A negative entry pushes limb up while size sits above its optimum, a positive one pushes it down, and an entry left out is zero. Each trait's own entry is its pull toward its own optimum, and it must be positive. The effect can run both ways: add `("size", "limb")` and limb steers size too. The run is exact, with no step to tune. The matrix is minus the selection matrix of `coevolve` [@ringen2026coevolve], which writes the drift with the opposite sign.
+
+## Feedback with no exact solution
+
+The drift matrix above is exact because each optimum is a *straight line* in the other trait. Bend that line, or make one of the two traits discrete, and the exact solution goes. `simulate_traits` runs those two models instead. It takes a list of trait specs, each with a `name`, and `joint=True`, because neither trait can be simulated before the other.
+
+A **curved optimum** is the first. Each trait's optimum is a curve of the other's value, written with `set_by` on `reverts_to` ([Jo5](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:curved_optimum-->):
+
+```python
+import math
+from zombi2.params.connection import set_by
+
+traits.simulate_traits(tree, [
+    traits.continuous(name="brain", start=0.0, rate=0.1, pull=1.0,
+        reverts_to=set_by("traits:group", lambda v: 2.0 * math.tanh(v), step=0.01)),
+    traits.continuous(name="group", start=0.0, rate=0.1, pull=0.5,
+        reverts_to=set_by("traits:brain", lambda v: 1.5 * math.tanh(0.7 * v), step=0.01)),
+    ], joint=True, seed=1)
+```
+
+A bigger group pulls the brain upward, a bigger brain pulls the group upward, and the `tanh` flattens both effects at the extremes, so the pair settles instead of running away. A trait reads the other by `"traits:<name>"`, the same spelling a joint run uses everywhere else.
+
+A **continuous trait with a discrete one** is the second. The discrete trait paints the continuous trait's optimum, and the continuous trait's value sets how fast the discrete trait switches ([Jo6](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:regime_feedback-->):
+
+```python
+from zombi2.params import Scalar
+
+traits.simulate_traits(tree, [
+    traits.discrete(name="habitat", states=["surface", "cave"], start="surface",
+        switch=PerLineage(0.6).scaled_by("traits:size", Scalar(0.4), step=0.02)),
+    traits.continuous(name="size", start=0.0, rate=0.4, pull=1.0,
+        regimes="traits:habitat", reverts_to={"surface": 0.0, "cave": 2.0}),
+    ], joint=True, seed=1)
+```
+
+A painted optimum is `regimes=`, exactly as it is when the discrete trait was grown first (Chapter 8). The only new thing is that the driver is *named*, because it does not exist yet. `reverts_to` then gives one optimum per state, and it needs one for every state the painting trait has.
+
+Each run returns one `TraitsResult` per name, the same object a single-trait run returns. Both models hold every driver still over slices of at most `step`, so both are approximate, and `step` is written on the connection rather than on the call. Chapter 8 says what that costs and how to check it.
+
+Two refusals are worth knowing. Traits that set each other's `rate` — one trait changing how fast the other wanders — are **not built**. And a pair of straight-line optima is refused rather than run here, because it has an exact answer: the message names the `simulate_continuous` call to write, drift matrix and optima included.
 
 ## Literature
 

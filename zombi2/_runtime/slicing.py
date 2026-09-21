@@ -41,7 +41,9 @@ def step_of(mods, *, what: str, how: str) -> float:
             f"of time that driver is held fixed across. There is no interval where this rate holds "
             f"still on its own, and so nothing exact to draw against; the run slices instead. Write "
             f"it on the connection, {how}, and pick it so the driver moves little within one slice. "
-            f"Then halve it, rerun the same seed, and see whether the answer moves.")
+            f"To check the one you picked, halve it and rerun a SET of seeds: halving the step "
+            f"changes how many draws the run takes, so one seed gives a different run rather than "
+            f"the same answer refined. Compare a summary's shift against its seed-to-seed spread.")
     if len(steps) > 1:
         raise ValueError(
             f"{what} reads one live driver at two resolutions, step={sorted(steps)}. One walk "
