@@ -1413,8 +1413,10 @@ def test_driven_optimum_refusals():
     with pytest.raises(ValueError, match="with regimes= or with several"):
         simulate_continuous(tree, start={"p": 0.0, "q": 0.0}, rate={"p": 1.0, "q": 1.0}, pull=1.0,
                             reverts_to=set_by(x, lambda v: v), seed=1)
-    with pytest.raises(ValueError, match="joint run"):
-        ContinuousTrait(reverts_to=set_by(x, lambda v: v), pull=1.0)
+    # the spec stays a bundle: it carries a driven optimum without judging it, and each runner
+    # declares what it takes — `joint.simulate` refuses one (no trait beside a growing tree to
+    # read), `traits.simulate_traits` takes one. Both refusals live in tests/test_traits_stepped.py.
+    assert ContinuousTrait(reverts_to=set_by(x, lambda v: v), pull=1.0).pull == 1.0
 
 
 def test_write_trait_tree(tmp_path):

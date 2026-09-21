@@ -11,6 +11,16 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ### Added
 
+- Two traits can feed back into each other with no exact solution. `simulate_traits` now takes
+  `traits.continuous(...)` specs beside `traits.discrete(...)` ones, and runs two models. In the
+  first, two continuous traits each set the other's optimum through a curve,
+  `reverts_to=set_by("traits:<name>", f, step=0.01)`. In the second, a discrete trait paints a
+  continuous trait's optimum through `regimes="traits:<name>"` with `reverts_to={state: theta}`,
+  while the discrete trait's switch rate reads the continuous one. Both hold every driver still
+  over slices of at most `step` and are first order in it: halving `step` halves the error, and it
+  also changes the numbers for a given seed, so convergence is checked across seeds. Two traits
+  that set each other's sigma squared are refused as not built. A pair of straight-line optima is
+  refused too, naming the exact `simulate_continuous` call to write instead. (#456)
 - A continuous driver is read along its real path, not the straight line between its node values.
   The path is drawn after the trait is simulated, conditioned on both node values, from its own
   random stream — so a seed gives the same node values it always gave. It is exact for Brownian

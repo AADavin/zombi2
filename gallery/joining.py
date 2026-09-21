@@ -21,6 +21,7 @@ from helpers import Example
 import phylustrator as ph
 from zombi2 import species
 from zombi2.params import Curve, PerCopy, PerLineage, Recipients, Scalar
+from zombi2.params.connection import set_by
 from zombi2 import joint, traits
 from zombi2.genomes import family, genome as genomes_spec
 from zombi2.genomes import simulate_genomes_family
@@ -176,7 +177,14 @@ def quasse(out):
     the Gillespie step, so the rate is constant in between. A diffusion moves at every instant. The
     run holds each lineage's size fixed across a step of 0.05 and releases it at the boundary, where
     the exact transition law applies — so the trait is exact and only its grip on speciation is
-    approximated. Halve the step, rerun the same seed, and see whether the answer moves.
+    approximated.
+
+    The error is first order in the step: halve the step and it halves. Halving the step also
+    changes the numbers for a given seed, because it changes how many draws the run takes, so
+    rerunning one seed at two steps compares two samples rather than one answer twice. Check
+    convergence across seeds instead: run a set of seeds at the step, at half it and at a quarter of
+    it, and compare the shift in the summary you report against its seed-to-seed standard error
+    (Chapter 8).
     """
     r = joint.simulate(
         species.birth_death(
@@ -200,7 +208,7 @@ def quasse(out):
                        loc=(0.091, 0.787, 0.147, 0.12), keep_axes=True,
                        panel=(0.041, 0.047, 0.016, 0.019))
     diag = h.joint_header(out.replace(".png", "_diag.png"), [
-        (("traits", "body size", [("gradient", "viridis", ("small", "large"))]),
+        (("traits", "body size", [("gradient", "coolwarm", ("small", "large"))]),
          ("species", "speciation rate", [("word", None, "a lineage splits")]),
          "the larger the body, the faster the lineage splits"),
     ], mark=("species", "traits"))
@@ -724,6 +732,127 @@ def trait_loop(out):
     # no colour key under either row label: the diagram's boxes carry both palettes
     h.composite_under_diagram(out, diag, [(pngs[0], "Species Tree - Habitat"),
                                           (pngs[1], "Species Tree - Body Size")],
+                              diagram_frac=0.72)
+
+
+def curved_optimum(out):
+    """Two continuous traits, each one's optimum a **curve** of the other — the feedback that has
+    no exact solution.
+
+    Brain size reverts to an optimum set by group size, and group size to one set by brain size.
+    Both curves are `tanh`, so each effect is strong near the middle and flattens at the ends.
+
+    That bend is the whole point. Straight lines here would be one multivariate Ornstein-Uhlenbeck
+    with a full drift matrix, solved exactly in one draw per branch — and `simulate_traits` refuses
+    a straight pair rather than approximating it, naming the exact call to write. A curve has no
+    such solution, so the run **slices**: each trait's optimum is read at the start of a step of
+    0.01 and held across it, and within the step the diffusion is exact.
+
+    At the start both traits sit at 0, where each curve is steepest. The two slopes multiply to
+    2.1, so the middle does not hold: any small excursion feeds itself and the pair runs away until
+    the `tanh` flattens and it settles. The tree splits into a high clade and a low one, and the two
+    panels agree on which is which — the tip correlation is +0.94, which neither trait produces on
+    its own.
+    """
+    ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
+    r = traits.simulate_traits(ct, [
+        traits.continuous(name="brain", start=0.0, rate=0.1, pull=1.0,
+                          reverts_to=set_by("traits:group", lambda v: 2.0 * math.tanh(v),
+                                            step=0.01)),
+        traits.continuous(name="group", start=0.0, rate=0.1, pull=0.5,
+                          reverts_to=set_by("traits:brain", lambda v: 1.5 * math.tanh(0.7 * v),
+                                            step=0.01))],
+        joint=True, seed=13)
+
+    lab = ct.labels()
+    style = _panel_style()
+    pngs = []
+    for k, name in enumerate(("brain", "group")):
+        vals = {lab[i]: r[name].node_values[i] for i in ct.nodes}
+        # a DIVERGING scale centred on 0, where both traits started: white reads "has not run away
+        # yet" and the two saturated ends read the two clades the feedback built. On a plain
+        # min-to-max ramp the split would be a gradient rather than two sides.
+        reach = max(abs(v) for v in vals.values())
+        png = out.replace(".png", f"_t{k}.png")
+        (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
+         + ph.trees.color_branches(vals, cmap="coolwarm", limits=(-reach, reach))
+         + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(png)
+        pngs.append(png)
+    diag = h.joint_header(out.replace(".png", "_diag.png"), [
+        (("traits", "group size", [("gradient", "coolwarm", ("small", "large"))]),
+         ("traits", "brain optimum", [("gradient", "coolwarm", ("small", "large"))]),
+         "a bigger group pulls the brain up, flattening at the ends"),
+        (("traits", "brain size", [("gradient", "coolwarm", ("small", "large"))]),
+         ("traits", "group optimum", [("gradient", "coolwarm", ("small", "large"))]),
+         "a bigger brain pulls the group up, the same way"),
+    ], mark=("traits", "traits"))
+    h.composite_under_diagram(out, diag, [(pngs[0], "Species Tree - Brain Size"),
+                                          (pngs[1], "Species Tree - Group Size")],
+                              diagram_frac=0.72)
+
+
+def regime_feedback(out):
+    """A **continuous** trait and a **discrete** one, each driving the other.
+
+    The habitat paints the body size's optimum — 0 on the surface, 2 in the cave — and the body
+    size sets how readily a lineage goes underground. Neither can be grown first, so one run does
+    both.
+
+    The painted optimum is written `regimes="traits:habitat"`, the same argument that paints an
+    optimum from a habitat grown *earlier* (Chapter 8). The only new thing is that the driver is
+    **named**, because it does not exist yet.
+
+    The two directions are not approximated alike. The habitat switches at moments the run can land
+    on exactly, so the optimum switches exactly where the habitat does and the size's diffusion is
+    exact between two switches. What is held still is the other direction: the size the switch rate
+    reads is the size at the start of a step of 0.02.
+
+    Nineteen of the forty tips end underground, and they average a body size of +2.1 against +0.2
+    on the surface. The loop is what makes that gap: the cave pulls size up, and size is what takes
+    a lineage into the cave.
+    """
+    ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
+    r = traits.simulate_traits(ct, [
+        traits.discrete(name="habitat", states=["surface", "cave"], start="surface",
+                        switch={"surface->cave": PerLineage(0.15).scaled_by(
+                                    "traits:size", Scalar(0.8), step=0.02),
+                                "cave->surface": 0.15}),
+        traits.continuous(name="size", start=0.0, rate=0.4, pull=1.0,
+                          regimes="traits:habitat",
+                          reverts_to={"surface": 0.0, "cave": 2.0})],
+        joint=True, seed=15)
+
+    lab = ct.labels()
+    style = _panel_style()
+    hab_png = out.replace(".png", "_t0.png")
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
+     + ph.trees.color_history(_state_history(ct, r["habitat"]), palette=_CAVE)
+     + ph.trees.branch_events(_switch_events(ct, r["habitat"]), styles=_switch_styles(_CAVE),
+                              size=6.0, legend=False)
+     + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(hab_png)
+    vals = {lab[i]: r["size"].node_values[i] for i in ct.nodes}
+    # A DIVERGING scale centred between the two optima, 0 on the surface and 2 in the cave, so blue
+    # reads "sitting at the surface optimum" and red "sitting at the cave optimum" — the model's own
+    # two attractors rather than an arbitrary min and max. It also has to be a scale that does not
+    # collide with the habitat palette above: that one is green and purple, and viridis runs purple
+    # to green, so the same two colours would mean "surface" in one panel and "large" in the other.
+    mid = 1.0
+    reach = max(abs(v - mid) for v in vals.values())
+    size_png = out.replace(".png", "_t1.png")
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False, style=style)
+     + ph.trees.color_branches(vals, cmap="coolwarm", limits=(mid - reach, mid + reach))
+     + ph.trees.time_axis("time", tick_size=20, label_size=26, bold=False)).save(size_png)
+    diag = h.joint_header(out.replace(".png", "_diag.png"), [
+        (("traits", "habitat", [("swatch", _CAVE["surface"], "surface"),
+                                ("swatch", _CAVE["cave"], "cave")]),
+         ("traits", "size optimum", [("gradient", "coolwarm", ("small", "large"))]),
+         "the cave sets the optimum to 2, the surface to 0"),
+        (("traits", "body size", [("gradient", "coolwarm", ("small", "large"))]),
+         ("traits", "habitat switch", _switch_key(_CAVE, ["cave", "surface"])),
+         "the larger it is, the readier it turns cave"),
+    ], mark=("traits", "traits"))
+    h.composite_under_diagram(out, diag, [(hab_png, "Species Tree - Habitat"),
+                                          (size_png, "Species Tree - Body Size")],
                               diagram_frac=0.72)
 
 
@@ -1748,6 +1877,93 @@ for name, palette in (("habitat", {"surface": "#2E8B6F", "cave": "#4A4A6A"}),
 # the loop shows in the alignment: cave lineages are far likelier to be large"""
 
 
+_C_CURVED_OPTIMUM = '''\
+### two continuous traits, each one's OPTIMUM a curve of the other — no exact solution
+import math
+from zombi2 import traits
+from zombi2.params.connection import set_by
+from zombi2.species import simulate_species_tree
+
+ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
+
+# `joint=True`, and each optimum is read off the OTHER trait by name. A straight line here
+# would be one multivariate OU with a full drift matrix, solved exactly — and simulate_traits
+# refuses a straight pair rather than approximating it, naming the exact call to write.
+# A curve has no such solution, so the run slices: the optimum is read at the start of each
+# step of 0.01 and held across it, and within the step the diffusion is exact.
+r = traits.simulate_traits(ct, [
+    traits.continuous(name="brain", start=0.0, rate=0.1, pull=1.0,
+        reverts_to=set_by("traits:group", lambda v: 2.0 * math.tanh(v), step=0.01)),
+    traits.continuous(name="group", start=0.0, rate=0.1, pull=0.5,
+        reverts_to=set_by("traits:brain", lambda v: 1.5 * math.tanh(0.7 * v), step=0.01))],
+    joint=True, seed=13)
+
+r["brain"], r["group"]     # one ordinary TraitsResult each, keyed by name
+
+# The step is written on the CONNECTION, never on the call. It is first order: halve it and the
+# error halves — and the numbers move too, because a finer step takes more draws. So convergence
+# is checked ACROSS SEEDS: run a set of seeds at step, step/2 and step/4, and compare the shift
+# in the summary you report against its seed-to-seed standard error.
+
+### plot  —  the same tree painted by each trait, one above the other
+import phylustrator as ph
+
+lab = ct.labels()
+for name in ("brain", "group"):
+    vals = {lab[i]: r[name].node_values[i] for i in ct.nodes}
+    reach = max(abs(v) for v in vals.values())       # centre the diverging scale on the start
+    (ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False)
+     + ph.trees.color_branches(vals, cmap="coolwarm", limits=(-reach, reach))
+     + ph.trees.time_axis("time", bold=False)).save(f"{name}.png")
+# white = has not run away yet; the two saturated ends are the clades the feedback built'''
+
+
+_C_REGIME_FEEDBACK = '''\
+### a CONTINUOUS trait and a DISCRETE one, each driving the other
+from zombi2 import traits
+from zombi2.params import PerLineage, Scalar
+from zombi2.species import simulate_species_tree
+
+ct = simulate_species_tree(birth=1.0, n_extant=40, seed=4).complete_tree
+
+# the habitat paints the size's optimum with `regimes=`, the same argument that paints one from
+# a habitat grown EARLIER — the only new thing is that the driver is NAMED, because it does not
+# exist yet. Size then sets how readily a lineage turns cave, and that reading is the one held
+# still: the size the switch rate reads is the size at the start of each step of 0.02.
+r = traits.simulate_traits(ct, [
+    traits.discrete(name="habitat", states=["surface", "cave"], start="surface",
+                    switch={"surface->cave": PerLineage(0.15).scaled_by(
+                                "traits:size", Scalar(0.8), step=0.02),
+                            "cave->surface": 0.15}),
+    traits.continuous(name="size", start=0.0, rate=0.4, pull=1.0,
+                      regimes="traits:habitat",
+                      reverts_to={"surface": 0.0, "cave": 2.0})],
+    joint=True, seed=15)
+
+# the optimum switches exactly where the habitat does, so the diffusion is exact between two
+# switches; only the switch rate's reading of size is approximated
+
+### plot  —  the habitat as painted states, the size as a ramp
+import phylustrator as ph
+
+lab = ct.labels()
+palette = {"surface": "#2E8B6F", "cave": "#4A4A6A"}
+history = {lab[i]: segs for i, segs in r["habitat"].history.items()}
+switches = [{"kind": f"to {c.to_state}", "node": lab[c.lineage], "x": c.time}
+            for c in r["habitat"].events if c.kind != "initial"]
+(ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False)
+ + ph.trees.color_history(history, palette=palette)
+ + ph.trees.branch_events(switches, legend=False,
+                          styles={f"to {s}": ("triangle_right", c) for s, c in palette.items()})
+ + ph.trees.time_axis("time", bold=False)).save("habitat.png")
+vals = {lab[i]: r["size"].node_values[i] for i in ct.nodes}
+reach = max(abs(v - 1.0) for v in vals.values())   # centre between the two optima, 0 and 2
+(ph.trees.plot(ph.trees.loads(ct.to_newick()), skeleton=False)
+ + ph.trees.color_branches(vals, cmap="coolwarm", limits=(1.0 - reach, 1.0 + reach))
+ + ph.trees.time_axis("time", bold=False)).save("size.png")
+# the cave tips average +2.1 against +0.2 on the surface — the loop, not the painting alone'''
+
+
 _C_SEQ_LOOP = """### two genes, each one's rate depending on the other's composition — the SEQUENCE level joined to itself
 from zombi2.genomes import family, simulate_genomes_family
 from zombi2.params import Curve, PerSite
@@ -1837,6 +2053,17 @@ JOINING = [
             "Body size decides how readily a lineage goes underground, and underground decides how "
             "readily it grows. One run, and exact: the pair is a Markov chain over their states.",
             "trait ↔ trait", trait_loop, code=_C_TRAIT_LOOP),
+    Example("curved_optimum", "Two optima, each a curve of the other",
+            "A bigger group pulls the brain up and a bigger brain pulls the group up, both "
+            "flattening at the ends. The middle does not hold, so the tree splits in two and the "
+            "panels agree on which half is which. Straight lines would be exact, and are refused "
+            "here; a curve is not, so the run <b>slices</b>.",
+            "trait ↔ trait", curved_optimum, code=_C_CURVED_OPTIMUM),
+    Example("regime_feedback", "A painted optimum that paints back",
+            "The cave sets body size's optimum to 2, and body size sets how readily a lineage "
+            "turns cave. Cave tips average +2.1 against +0.2 on the surface. The optimum switches "
+            "<b>exactly</b> where the habitat does; only the switch rate's reading is held still.",
+            "trait ↔ trait", regime_feedback, code=_C_REGIME_FEEDBACK),
     Example("cave_genomes", "A trait and a genome, each other's driver",
             "The cave costs genes, and losing the eye commits a lineage to the cave. Neither can be "
             "simulated first, and the tree is an <b>input</b> here rather than an output.",
