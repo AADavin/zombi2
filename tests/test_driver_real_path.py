@@ -345,3 +345,51 @@ def test_path_false_round_trips_through_the_written_form():
     assert "path=" not in repr(d)
     assert parse_rate(repr(d)) == d
     assert d != r
+
+
+# --- reading a written path at another step --------------------------------------------------------
+
+def test_refining_inside_a_written_gap_gives_a_path_not_scatter():
+    """Several asked-for times inside ONE written gap must be drawn as a path: each conditioned on
+    the value drawn just before it, not on the gap's two ends alone.
+
+    Conditioned on the ends alone they are independent draws, and independent draws at neighbouring
+    times scatter instead of wandering. The two cases are far apart and each has a closed form. For
+    a Brownian bridge over a gap of variance 1 with both ends 0, ``Var(X_t) = t(1−t)`` and
+    ``Var(X_t − X_s) = (t−s)(1−(t−s))``: at s=0.4, t=0.5 that is 0.25 and 0.09. Drawn
+    independently, the difference would carry 0.24 + 0.25 = 0.49 instead."""
+    from zombi2.traits.path import WrittenPath
+
+    written = WrittenPath({0: [(0.0, 0.0, 0.0), (1.0, 0.0, 1.0)]})
+    drawn = np.array([[v for v, _ in written.sample(0, 0.0, 1.0, 0.0, 0.0, [0.4, 0.5],
+                                                    np.random.default_rng(s))]
+                      for s in range(20000)])
+    assert drawn[:, 1].var() == pytest.approx(0.25, rel=0.05), drawn[:, 1].var()
+    gap = (drawn[:, 1] - drawn[:, 0]).var()
+    assert gap == pytest.approx(0.09, rel=0.08), gap        # a path…
+    assert gap < 0.2                                         # …and nowhere near 0.49
+
+
+def test_a_reader_finer_than_the_written_path_is_warned(tmp_path):
+    """Reading a written driver at a step finer than the one it was written at gives values nobody
+    else can reproduce from the same model — the points between the written ones are drawn here,
+    keyed to the file, so the same driver read in memory at this step differs. It is a valid path,
+    so this warns and names the fix rather than refusing.
+
+    At the written step there is nothing to draw and nothing to warn about."""
+    ct = simulate_species_tree(birth=1.0, death=0.2, n_extant=12, seed=5).complete_tree
+    x = traits.simulate_continuous(ct, start=0.0, rate=1.0, seed=6)
+    x.write(tmp_path, step=0.2)
+    values_file = str(tmp_path / "trait_values.tsv")
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")                       # the written step: no warning at all
+        at_written = load_driver(values_file, ct, step=0.2)
+
+    with pytest.warns(RuntimeWarning, match="finer than the step its path was written at"):
+        load_driver(values_file, ct, step=0.02)
+
+    in_memory = driver_from_continuous_result(x, step=0.2)   # and at the written step they agree
+    for i in in_memory._starts:
+        for a, b in zip(in_memory._states[i], at_written._states[i]):
+            assert a == pytest.approx(b, abs=1e-12)

@@ -21,7 +21,9 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 - A continuous trait writes `trait_path.tsv` by default: its path within each branch, `node` ·
   `time` · `trait` · `variance`. A driver read from a file now gives the same answer as the same
   driver held in memory; a directory without the file falls back to the line and says so.
-  `write(dir, step=...)` chooses the resolution. (#454)
+  `write(dir, step=...)` chooses the resolution. Reading a written path at a **finer** step than it
+  was written at warns: the points between the written ones are drawn on the spot, so they are a
+  valid path but not the one the same driver gives in memory. (#454)
 - Continuous traits can steer each other. Give `pull` keyed by pairs of traits,
   `pull={("x", "x"): 1.0, ("y", "y"): 2.0, ("y", "x"): -0.8}`, and x's distance from its optimum
   moves y. The effect can run both ways. The run is exact: each branch is one draw from the
