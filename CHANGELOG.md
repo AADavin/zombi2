@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-09-21
+
 ### Added
 
 - Two traits can feed back into each other with no exact solution. `simulate_traits` now takes
