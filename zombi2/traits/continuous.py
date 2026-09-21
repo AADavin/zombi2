@@ -745,22 +745,32 @@ class ContinuousTrait:
     Gillespie step has nothing to hold still. The run therefore **slices**: the driver is held fixed
     across a step of ``step`` and released at each boundary, which the driven rate declares —
     ``scaled_by("trait", Curve(f), step=0.05)``. That is an approximation, and the only one in a
-    joint run: everything else races exactly. Halve ``step``, rerun the same seed, and see whether
-    the answer moves.
+    joint run: everything else races exactly. To check the ``step`` you picked, halve it and rerun a
+    **set** of seeds: halving it changes how many draws the run takes, so one seed gives a different
+    run rather than the same answer refined (Chapter 8).
 
     The fields are `simulate_continuous`'s: ``start`` (the value at t=0), ``rate`` (the variance-rate
     σ², per lineage, a bare number or a ``changing_at`` skyline), ``reverts_to`` + ``pull``
-    (Ornstein–Uhlenbeck; give both or neither), ``at_speciation`` (the variance of a jump at each
+    (Ornstein–Uhlenbeck; give both or neither), ``regimes`` (the name of a discrete trait painting
+    the optimum, with ``reverts_to={state: θ}``), ``at_speciation`` (the variance of a jump at each
     split) and ``name`` (what a rate calls it, ``"traits:<name>"``; a run holding one trait also
     answers to ``"trait"``).
+
+    **The spec is a bundle, not a run**, so what it may carry is decided by the runner it is handed
+    to rather than here. ``reverts_to=set_by(...)`` and ``regimes=`` are refused by
+    `zombi2.joint.simulate`, where the tree is still growing and the driver does not exist yet, and
+    taken by `zombi2.traits.several.simulate_traits`, where the two traits grow together on a tree
+    that is already there. `~zombi2.traits.discrete.DiscreteTrait` declares what it takes the same
+    way.
     """
 
     start: float = 0.0
     rate: object = 1.0
-    reverts_to: float | None = None
+    reverts_to: object = None
     pull: float | None = None
     at_speciation: object = None
     name: str | None = None
+    regimes: object = None
 
     def __post_init__(self) -> None:
         if isinstance(self.start, bool) or not isinstance(self.start, (int, float)) \
@@ -774,13 +784,26 @@ class ContinuousTrait:
                                       or not isinstance(self.pull, (int, float))
                                       or not math.isfinite(self.pull) or self.pull <= 0):
             raise ValueError(f"pull must be a positive finite number (α > 0), got {self.pull!r}")
-        if isinstance(self.reverts_to, Modifier):
-            raise ValueError(
-                "reverts_to=set_by(...) is not implemented in a joint run. Grow the tree first, then "
-                "use simulate_continuous(tree, reverts_to=set_by(...), ...).")
-        if self.reverts_to is not None and (isinstance(self.reverts_to, bool)
-                                            or not isinstance(self.reverts_to, (int, float))
-                                            or not math.isfinite(self.reverts_to)):
+        if self.regimes is not None:
+            if not isinstance(self.regimes, str) or not self.regimes.strip():
+                raise ValueError(
+                    f"regimes names the discrete trait that paints the optimum — "
+                    f'regimes="traits:habitat" — and got {self.regimes!r}. A finished discrete '
+                    f"result belongs to simulate_continuous(tree, regimes=that_result, ...), which "
+                    f"is conditioning.")
+            if not isinstance(self.reverts_to, dict):
+                raise ValueError(
+                    "with regimes, reverts_to is a dict {regime_state: optimum θ}, one per state of "
+                    f"the trait that paints them; got {self.reverts_to!r}.")
+            for state, theta in self.reverts_to.items():
+                if isinstance(theta, bool) or not isinstance(theta, (int, float)) \
+                        or not math.isfinite(theta):
+                    raise ValueError(f"reverts_to[{state!r}] must be a finite number (θ), got "
+                                     f"{theta!r}")
+        elif self.reverts_to is not None and not isinstance(self.reverts_to, Modifier) \
+                and (isinstance(self.reverts_to, bool)
+                     or not isinstance(self.reverts_to, (int, float))
+                     or not math.isfinite(self.reverts_to)):
             raise ValueError(f"reverts_to must be a finite number (θ), got {self.reverts_to!r}")
         _at_speciation_jump_sd(self.at_speciation)      # validates, discarded until the run
         if self.name is not None and (not isinstance(self.name, str) or not self.name.strip()):
@@ -811,7 +834,7 @@ class ContinuousTrait:
 
 
 def continuous(*, start=0.0, rate=1.0, reverts_to=None, pull=None, at_speciation=None,
-               name=None) -> ContinuousTrait:
+               name=None, regimes=None) -> ContinuousTrait:
     """A continuous trait **process** for a joint run — the diffusing twin of `discrete`.
 
     Bundles the arguments `simulate_continuous` takes and runs none of them, because the tree it
@@ -828,5 +851,10 @@ def continuous(*, start=0.0, rate=1.0, reverts_to=None, pull=None, at_speciation
     across; see `ContinuousTrait` for what that costs. To evolve a continuous trait on a tree you
     already have — including one driven by another level — call
     `simulate_continuous(tree, ...)` instead.
+
+    The same spec is what `zombi2.traits.several.simulate_traits` takes for a trait that feeds back
+    into another trait on a tree that already exists: ``reverts_to=set_by("traits:<name>", f,
+    step=...)`` for an optimum read off another continuous trait, or ``regimes="traits:<name>"``
+    with ``reverts_to={state: θ}`` for one painted by a discrete trait.
     """
-    return ContinuousTrait(start, rate, reverts_to, pull, at_speciation, name)
+    return ContinuousTrait(start, rate, reverts_to, pull, at_speciation, name, regimes)
