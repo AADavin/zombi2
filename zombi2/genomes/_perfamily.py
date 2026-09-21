@@ -104,8 +104,8 @@ def _enumerate_families(tree, org, initial_families, families_named, placed, rng
     for name in families_named:
         named[name] = fid
         families.append((fid, tree.root, t0)); fid += 1
-    for plant_time, lineage in placed:
-        families.append((fid, lineage, plant_time)); fid += 1
+    for start_time, lineage in placed:
+        families.append((fid, lineage, start_time)); fid += 1
 
     # the origination-only Gillespie: the live-lineage set follows the tree schedule exactly as the
     # global loop's does; when origination fires, a fresh family is born on a uniform living lineage.

@@ -87,7 +87,7 @@ def grow(rng, tree, genome: FamilyGenome, trait: DiscreteTrait, trait_keys,
                     f"run over a given tree a genome rate takes changing_at and scaled_by — the "
                     f"verb that reads the trait simulated beside it.")
     check_joint_families(genome.families, tree_given=True)
-    declared, _modules, planted = resolve_families(genome.families, tree)
+    declared, _modules, started = resolve_families(genome.families, tree)
 
     counter = {"copy": 0, "family": 0}
 
