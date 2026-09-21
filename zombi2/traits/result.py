@@ -13,15 +13,20 @@ from .._runtime.summary import _stats, write_summary
 from ..genomes.events import _name
 from ..tree import Node, Tree
 
-_WRITE_OUTPUTS = ("values", "events", "tree", "summary")  # write vocabulary; "events" = the trait event log
+#: The write vocabulary. ``"events"`` is the trait event log; ``"path"`` is the within-branch path
+#: of a continuous trait (``trait_path.tsv``), which only a continuous single trait has.
+_WRITE_OUTPUTS = ("values", "events", "tree", "summary", "path")
 
 #: What `TraitsResult.write` writes when it is not told which — the same set ``zombi2 traits`` writes,
 #: so a trait written from Python and one written by the command leave the same directory. It depends
-#: on the kind because the event log does: a CONTINUOUS trait's log is refused as a driver (a diffusion
-#: cannot be rebuilt from events, so replaying it would freeze every lineage at the root value), so it
-#: stays writable by name rather than written by default. Every other kind — discrete, threshold — gets
-#: the whole vocabulary, exactly as ``--kind discrete`` does on the command line.
-_DEFAULT_OUTPUTS = {"continuous": ("values", "tree", "summary")}
+#: on the kind, because two of the files do. A CONTINUOUS trait's event log is refused as a driver (a
+#: diffusion cannot be rebuilt from events, so replaying it would freeze every lineage at the root
+#: value), so it stays writable by name rather than written by default; its within-branch path is the
+#: file that carries what the log cannot, so that one IS written by default. A discrete or threshold
+#: trait has the log and no path.
+_DEFAULT_OUTPUTS = {"continuous": ("values", "tree", "summary", "path"),
+                    "discrete": ("values", "events", "tree", "summary"),
+                    "threshold": ("values", "events", "tree", "summary")}
 
 @dataclass(frozen=True)
 class Change:
@@ -64,6 +69,14 @@ class TraitsResult:
     events: list[Change] = field(default_factory=list)
     seed: int | None = None
     kind: str = "continuous"
+
+    #: How to redraw this trait's path **within** a branch, for a reader that needs the trait
+    #: between the nodes (`zombi2.traits.path.BridgeLaw`). ``None`` where no bridge law is
+    #: available — every kind but a single continuous trait, and a continuous one grown with
+    #: ``regimes=`` or a driven optimum — and such a reader then takes the straight line between the
+    #: node values. It is a recipe, not a path: nothing is drawn while the trait is simulated, so a
+    #: run's ``node_values`` are the same numbers whether or not anything later reads the path.
+    path_law: object | None = None
 
     def __repr__(self) -> str:
         return (f"TraitsResult(a {self.kind} trait over {len(self.values)} extant tips, "
@@ -166,7 +179,7 @@ class TraitsResult:
                 cast(float, self.node_values[self.complete_tree.root]))
         return out
 
-    def write(self, directory, outputs=None) -> None:
+    def write(self, directory, outputs=None, *, step: float | None = None) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed); the default is the set
         ``zombi2 traits`` writes for this kind, so the command and the API leave the same directory
         (`_DEFAULT_OUTPUTS`). ``"values"`` →
@@ -178,13 +191,24 @@ class TraitsResult:
         row at t=0 giving the initial state, then every switch in time order; ``"summary"`` →
         ``trait_summary.json``, what came out, as JSON (`summary`); ``"tree"`` →
         ``trait_tree.nwk``, the complete tree as Newick with **every** node annotated ``[&trait=…]``
-        (a *trait tree*, carrying the exact ancestral values; opens in FigTree / iTOL).
+        (a *trait tree*, carrying the exact ancestral values; opens in FigTree / iTOL); ``"path"`` →
+        ``trait_path.tsv``, a continuous trait's path **within** each branch (``node · time · trait ·
+        variance``).
+
+        ``step`` is the resolution ``trait_path.tsv`` is written at, in the tree's own time units —
+        the same argument, and the same meaning, a reader's ``step`` has. ``None`` takes the reader's
+        default, 1% of the tree's height, so a written run and a run driven in memory agree out of
+        the box. A finer step writes a finer path and a bigger file.
 
         ``trait_events.tsv`` is also the **driver file**: a genome / sequence run drives a rate
         with ``scaled_by("trait_events.tsv", …)``, replaying it against the shared tree. A
         **discrete** trait's log reconstructs its state on every lineage exactly (that is what the
         ``initial`` row and the switch times are for); a continuous trait's diffusion cannot be rebuilt
-        from events, so it carries only the ``initial`` row and any on-speciation jumps."""
+        from events, so it carries only the ``initial`` row and any on-speciation jumps. A
+        **continuous** trait's driver file is instead ``trait_values.tsv``, and ``trait_path.tsv``
+        beside it is what makes a file-driven run read the same path an in-memory one does — so both
+        are written by default, and a directory missing the path file falls back to the straight line
+        between node values (`zombi2.params.conditioned`)."""
         if outputs is None:
             outputs = _DEFAULT_OUTPUTS.get(self.kind, _WRITE_OUTPUTS)
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
@@ -207,6 +231,10 @@ class TraitsResult:
         if "tree" in outputs:
             (d / "trait_tree.nwk").write_text(
                 _trait_newick(self.complete_tree, self.node_values) + "\n", encoding="utf-8")
+        if "path" in outputs:
+            text = _path_tsv(self, names, step=step)
+            if text is not None:
+                (d / "trait_path.tsv").write_text(text, encoding="utf-8")
 
 
 
@@ -283,6 +311,41 @@ def _values_tsv(values: dict[int, object], names: dict | None = None,
         rows.append(f"{_name(names, i)}\t{kind(i)}\t{_fmt(values[i])}")
     return "\n".join(rows) + "\n"
 
+
+
+def _path_tsv(result, names: dict | None = None, *, step: float | None = None) -> str | None:
+    """A continuous trait's within-branch path as ``node<TAB>time<TAB>trait<TAB>variance``, one row
+    per point, sorted by node id then time. ``None`` — no file — when the result has no such path:
+    a discrete or threshold trait, or a correlated one, which is refused as a driver anyway.
+
+    Each branch contributes its left endpoint, then one point per stretch midpoint, then its node
+    value. Both ends are in the file so a branch stands on its own — in particular the left endpoint
+    is the POST-jump value where ``at_speciation`` put a jump at the split, which is not the parent's
+    node value.
+
+    ``variance`` is what the trait accrued since the point before it on that branch (zero on the
+    first). A reader wanting a resolution other than the written one derives its values from the two
+    written points around each time it needs, and that number is what the derivation is conditioned
+    on (`zombi2.traits.path.WrittenPath`).
+
+    ``time`` and ``trait`` are written at **full float precision** (``repr``), not the ``%.6g`` the
+    values table uses. A driven run steps its Gillespie at these times and reads these values, so a
+    rounded file would make the file-driven run disagree with the in-memory one — which is the one
+    thing this file exists to prevent."""
+    from ..params.conditioned import branch_starts, path_points
+
+    if result.kind != "continuous" or not result.node_values:
+        return None
+    if isinstance(next(iter(result.node_values.values())), dict):
+        return None                                   # correlated: no single path, and no driver
+    points = path_points(result.complete_tree, result.node_values, step,
+                         law=result.path_law, seed=result.seed,
+                         starts=branch_starts(result))
+    rows = ["node\ttime\ttrait\tvariance"]
+    for i in sorted(points):
+        for t, v, var in points[i]:
+            rows.append(f"{_name(names, i)}\t{t!r}\t{v!r}\t{var!r}")
+    return "\n".join(rows) + "\n"
 
 
 def _events_tsv(changes: list[Change], names: dict | None = None) -> str:

@@ -2629,7 +2629,7 @@ def simulate_genomes_nucleotide(tree, *, inversion=0.0, inversion_extent=50.0, t
             by_key.setdefault(m.key, m)
     resolved = {}
     if by_key:
-        resolved = {key: resolve_driver(m.driver, tree, step=m.step, level="genomes.nucleotide")
+        resolved = {key: resolve_driver(m.driver, tree, step=m.step, path=m.path, level="genomes.nucleotide")
                     for key, m in by_key.items()}
         # a mapping whose states never occur leaves every lineage on the default factor, so the run
         # would secretly be the undriven model — refuse it here, naming the driver

@@ -47,7 +47,7 @@ out/sequences/alignments/   fam<f>.fasta
 out/sequences/ancestral/    sequences_ancestral_fam<f>.fasta             (the ancestral token)
 out/sequences/phylograms/   phylogram_fam<f>_*.nwk
 out/sequences/genomes/      genome_<lineage>.fasta · genome_initial.fasta  (nucleotide runs)
-out/traits/                 trait_values.tsv · trait_tree.nwk · trait_events.tsv
+out/traits/                 trait_values.tsv · trait_tree.nwk · trait_events.tsv · trait_path.tsv
 out/traits/<name>/          the same files, when --name was given
 out/<level>/conditioned_on  the driver record                            (conditioned runs)
 ```
@@ -550,7 +550,7 @@ output is one file: `joint_summary.json`, at the run root beside the run report.
 | File | What it holds |
 |---|---|
 | `species/species_complete.nwk` · `…_extant.nwk` · `species_events.tsv` · `species_fates.tsv` · `species_summary.json` | the grown tree, complete, so the extinct lineages whose fate the driver decided are kept |
-| `traits/trait_values.tsv` · `trait_events.tsv` · `trait_tree.nwk` · `trait_summary.json` | as the traits level writes them, when the trait was the driver |
+| `traits/trait_values.tsv` · `trait_events.tsv` · `trait_path.tsv` · `trait_tree.nwk` · `trait_summary.json` | as the traits level writes them, when the trait was the driver |
 | `genomes/genome_events.tsv` · `profiles.tsv` · `genomes.tsv` · `initial_genome.tsv` · `gene_trees/` · `genome_summary.json` · `species_complete.nwk` | as the genomes level writes them, when the genome was the driver |
 | `joint_summary.json` | both levels' summaries in one file, at the **run root**, the one file that is the joint run's own |
 | `species/joint.log` | the resolved parameters, as every command writes |
@@ -576,14 +576,15 @@ together.
 |---|---|
 | `trait_values.tsv` | the value at every node: `node` · `kind` · one column per trait, headed by the trait's name (`trait` when unnamed, side by side in a correlated run); `kind` is the tip's fate (`extant` / `extinct` / `unsampled`) or `ancestor` |
 | `trait_events.tsv` | the trait's whole history: an `initial` row giving the state at t=0, then every switch |
+| `trait_path.tsv` | a continuous trait between the nodes: `node` · `time` · `trait` · `variance`, one row per point along each branch |
 | `trait_tree.nwk` | the tree with every node annotated `[&trait=…]`, for FigTree or iTOL |
 | `trait_summary.json` | `tips` · `nodes` · `events`, then `states` · `most_common_share` for a discrete trait, or `values` (min/mean/max) · `value_at_root_node` for a continuous one |
 | `names.tsv` | as at the genome level. Only when the tree came from `--from` with its own tip labels |
 | `conditioned_on` | the levels this run depends on as a driver, in the trait's own directory. Only when `--rate` or `--switch` was conditioned |
 
-`zombi2 traits` writes the values, the events, the tree and the summary; the Python
-`TraitsResult.write` default matches the kind: a continuous run writes the values, the tree and the
-summary, having no switches to log, and a discrete run writes everything, events included.
+`zombi2 traits` and the Python `TraitsResult.write` write the same set, and it matches the kind:
+a continuous run writes the values, the path, the tree and the summary, having no switches to log,
+and a discrete run writes the values, the events, the tree and the summary, having no path.
 
 From Python: `.values` · `.node_values` (the values), `.values_by_id` (`.values` keyed by the bare
 integer node id, `5` for tip `n5`, for joining against `.node_values`), and `.history`.
@@ -598,6 +599,21 @@ diffusion cannot be rebuilt from events), and that holds for a multi-optimum (`r
 **correlated** multi-trait one alike. A correlated run **widens** the table instead of repeating a row
 per trait, giving `from:<trait>` · `to:<trait>`, one pair apiece, exactly as `trait_values.tsv`
 widens, because a correlated jump moves every trait at once and is one event.
+
+**`trait_path.tsv`**: `node` · `time` · `trait` · `variance`, one row per point, sorted by node id
+then time. A continuous trait is recorded only at the nodes, and this is what it did in between: its
+path along each branch, drawn conditioned on the value at each end. Each branch contributes its left
+endpoint, then one point per stretch of at most `step`, then its node value, so a branch stands on its
+own — in particular the left endpoint is the value *after* an `at_speciation` jump, which is not the
+parent's node value. `variance` is what the trait accrued since the point before it, which is what lets
+a reader wanting another resolution derive its values from the two written points around each time it
+needs, rather than draw a different path. Times and values are full precision, since a driven run steps
+its Gillespie at these times and reads these values. **This is the second half of the driver file**: a
+continuous trait drives a rate with `scaled_by("trait_values.tsv", …)`, which reads this file beside it;
+without it the driver falls back to the straight line between node values and says so. Written by
+`write(dir, step=…)` at a resolution you choose, or at 1% of the tree's height by default — the same
+default a reader takes. A discrete or threshold trait has no path file, and neither does a correlated
+run, which cannot be a driver.
 
 **`trait_summary.json`**: what came out, not what was asked for. The root node sits at the end of the
 stem, so `value_at_root_node` is not the value the run started from.

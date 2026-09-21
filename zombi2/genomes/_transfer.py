@@ -251,7 +251,8 @@ def prepare_transfer_to(tree, transfer_to, resolved=None, *, level=None):
             resolved = {}
         if transfer_to.key not in resolved:
             resolved[transfer_to.key] = resolve_driver(transfer_to.driver, tree,
-                                                       step=transfer_to.step, level=level)
+                                                       step=transfer_to.step,
+                                                       path=transfer_to.path, level=level)
         to_traj = resolved[transfer_to.key]
         label = transfer_to.driver if isinstance(transfer_to.driver, str) \
             else f"<{type(transfer_to.driver).__name__}>"
