@@ -16,8 +16,9 @@ That is the approximation, and it is the same one a diffusing trait driving spec
 (`zombi2.joint`): a composition moves with every substitution, so there is no interval over which
 either rate holds still and nothing exact to draw against. Inside a slice the rate is constant, so
 the transition matrix is the ordinary one; what is approximated is that the rate a copy evolves at
-belongs to the top of its slice rather than to each instant. Halve ``step``, rerun the same seed, and
-see whether the answer moves.
+belongs to the top of its slice rather than to each instant. To check the ``step`` you picked, halve
+it and rerun a **set** of seeds: halving it changes how many draws the run takes, so one seed gives a
+different run rather than the same answer refined (Chapter 8).
 
 A composition is read **per species lineage**, pooled over whatever copies of that family the
 lineage carries — the same statistic `zombi2.sequences._composition.Composition` computes off a

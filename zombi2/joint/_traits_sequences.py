@@ -20,8 +20,9 @@ by segment.
 
 The one approximation is step 1 — the composition a lineage's trait rate reads belongs to the top of
 the slice rather than to each instant. That is the same slicing a diffusing trait driving speciation
-makes, and the same check applies: halve ``step``, rerun the same seed, and see whether the answer
-moves.
+makes, and the same check applies: halve ``step`` and rerun a **set** of seeds, because halving it
+changes how many draws the run takes, so one seed gives a different run rather than the same answer
+refined (Chapter 8).
 """
 
 from __future__ import annotations

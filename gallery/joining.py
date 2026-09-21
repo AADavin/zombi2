@@ -1759,7 +1759,8 @@ ct, lab = r.complete_tree, r.complete_tree.labels()
 (ph.trees.plot(ph.trees.loads(ct.to_newick()))
  + ph.trees.color_branches({lab[i]: r.trait.node_values[i] for i in ct.nodes}, cmap="viridis")
  + ph.trees.time_axis("time")).save("quasse.png")
-# the check the manual asks for: halve step, rerun the same seed, see whether it moves"""
+# the check the manual asks for: halve step, rerun a SET of seeds, and compare the shift in
+# what you report against its seed-to-seed spread"""
 
 
 _C_MOBILE_JOINT = """### a gene family drives the rest of its OWN genome — one run, the level joined to itself

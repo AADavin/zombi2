@@ -745,8 +745,9 @@ class ContinuousTrait:
     Gillespie step has nothing to hold still. The run therefore **slices**: the driver is held fixed
     across a step of ``step`` and released at each boundary, which the driven rate declares —
     ``scaled_by("trait", Curve(f), step=0.05)``. That is an approximation, and the only one in a
-    joint run: everything else races exactly. Halve ``step``, rerun the same seed, and see whether
-    the answer moves.
+    joint run: everything else races exactly. To check the ``step`` you picked, halve it and rerun a
+    **set** of seeds: halving it changes how many draws the run takes, so one seed gives a different
+    run rather than the same answer refined (Chapter 8).
 
     The fields are `simulate_continuous`'s: ``start`` (the value at t=0), ``rate`` (the variance-rate
     σ², per lineage, a bare number or a ``changing_at`` skyline), ``reverts_to`` + ``pull``
