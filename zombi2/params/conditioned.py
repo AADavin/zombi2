@@ -227,6 +227,23 @@ def _load_path_file(values_file: pathlib.Path):
     return WrittenPath(points), starts, zlib.crc32(text.encode("utf-8"))
 
 
+def _written_spacing(law) -> float | None:
+    """The step a written path was written at — the **median** gap between its points, or ``None``
+    when it has too few to say.
+
+    The median rather than the smallest gap: every branch's last gap is short, because a branch of
+    length ``L`` divides into ``ceil(L / step)` stretches that rarely come out even, and a branch
+    shorter than the step is one gap of its own length. Those short gaps say nothing about the step
+    that was asked for, and the smallest of them would call almost any reading 'finer'."""
+    gaps: list[float] = []
+    for pts in law.points.values():
+        gaps.extend(b[0] - a[0] for a, b in zip(pts, pts[1:]) if b[0] > a[0])
+    if not gaps:
+        return None
+    gaps.sort()
+    return gaps[len(gaps) // 2]
+
+
 def _load_values_driver(path, rows, tree, step) -> DriverTrajectory:
     """A continuous trait's ``trait_values.tsv`` → a `DriverTrajectory`, read at ``step``.
 
@@ -266,6 +283,19 @@ def _load_values_driver(path, rows, tree, step) -> DriverTrajectory:
             f"smaller step does not remove the bias. Re-write the driver with a current ZOMBI2 "
             f"(a continuous trait writes trait_path.tsv by default) to read its real path.",
             RuntimeWarning, stacklevel=3)
+    else:
+        written = _written_spacing(law)
+        asked = float(step) if step is not None else default_step(tree)
+        if written is not None and asked < written * (1.0 - 1e-9):
+            warnings.warn(
+                f"this driver is read at step={asked!r}, finer than the step its path was written "
+                f"at (about {written!r}). The written points are kept, and the values between them "
+                f"are drawn here to fill the gaps — so this reading is a valid path, but it is NOT "
+                f"the one the same driver gives in memory at this step, and a second process "
+                f"reading the same files gets the same values only because they are keyed to the "
+                f"file. To have every reader agree, write the driver at this step: "
+                f"result.write(dir, step={asked!r}).",
+                RuntimeWarning, stacklevel=3)
     return DriverTrajectory(interpolated_segments(tree, values, step, law=law,
                                                   seed=path_seed,
                                                   starts=starts))

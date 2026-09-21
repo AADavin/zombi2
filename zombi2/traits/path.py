@@ -159,6 +159,7 @@ class WrittenPath:
         if not pts:
             return [(float(b), 0.0) for _ in times]
         times_w = [t for t, _, _ in pts]
+        held_t, held_x = None, 0.0        # the last value drawn inside the gap being refined
         for t in times:
             k = bisect.bisect_right(times_w, t)
             if k == 0:                                   # before the first written point
@@ -170,16 +171,26 @@ class WrittenPath:
             p, x_p, _ = pts[k - 1]
             q, x_q, v_gap = pts[k]
             span = q - p
+            # Several asked-for times can fall in ONE written gap, when the reader's step is finer
+            # than the step the path was written at. Each must be conditioned on the value drawn
+            # just before it as well as on the gap's right end, exactly as `BridgeLaw.sample` walks
+            # a branch. Conditioning each of them on the gap's two ends alone would draw them
+            # independently, and independent draws at neighbouring times are not a path: they
+            # scatter instead of wandering.
+            if held_t is not None and p < held_t < t:
+                p, x_p = held_t, held_x
+                span = q - p
             f = 0.0 if span <= 0.0 else (t - p) / span
+            v_span = v_gap if span <= 0.0 or q - pts[k - 1][0] <= 0.0 else \
+                v_gap * span / (q - pts[k - 1][0])       # the gap's variance, its share of the span
             mean = x_p + f * (x_q - x_p)
-            var = v_gap * f * (1.0 - f)
+            var = v_span * f * (1.0 - f)
             if var > 0.0:
                 x = mean + float(rng.normal(0.0, math.sqrt(var)))
             else:
                 x = mean
-            out.append((x, v_gap * f))
-            prev_t = t
-        del prev_t
+            out.append((x, v_span * f))
+            held_t, held_x = t, x
         return out
 
     def variance(self, node_id: int, p: float, q: float) -> float:
