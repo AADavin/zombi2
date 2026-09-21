@@ -84,7 +84,7 @@ The connections of a joint run are written with the same verbs and mappings as e
 
 A family whose presence drives must be declared in the genome spec, with `families=[family("toxin")]`. On a tree passed with `tree=`, a declared family can also have its own duplication, transfer and loss, and these rates can read the other level of the run: with `family("A", loss=PerCopy(0.3).scaled_by("trait", {"on": 6.0, "off": 1.0}))`, A is lost six times faster where the trait is on. A run that simulates the tree reads only the family's name. A gene whose composition drives a rate must declare it with `offers=composition("KR", absent=0.02)`: which letters are counted, and the value used on lineages that carry no copy. A gene that drives a rate usually also declares `start=`, a second substitution model whose stationary frequencies are used only to found the gene. The gene starts with that composition and then evolves under its own model, so its composition moves toward its own equilibrium. Without `start=` a gene is founded at its equilibrium, its composition barely changes, and the rate that depends on it stays constant ([Jo2](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:trait_and_sequence-->).
 
-A joint run is written from the specs of the levels it simulates, for example `joint.simulate(species.birth_death(...), traits.discrete(...))`. If the species spec is present, the tree is simulated, and the stop condition (`n_extant=`, `total_time=`) is written on that spec; if it is not, the tree is passed with `tree=` and the run ends where the tree ends. The result is a `JointResult` that carries both simulated levels, the same result objects the ordinary functions return, and both levels write their usual files. When the two joined parts belong to the same level, the run stays on that level's own function, with `joint=True`: `simulate_traits`, `simulate_genomes_family` or `simulate_sequences`. The flag is checked both ways: asking for it without a live driver is an error, and depending on a live driver without it is an error. One more restriction: a transfer needs the set of lineages alive at an instant, which is unknown while the tree is still being simulated, so a genome run that grows the tree refuses transfer. The gallery presents every joint model in full, with its code ([Jo1](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:genome_and_sequence--> to [Jo12](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:quasse-->).
+A joint run is written from the specs of the levels it simulates, for example `joint.simulate(species.birth_death(...), traits.discrete(...))`. If the species spec is present, the tree is simulated, and the stop condition (`n_extant=`, `total_time=`) is written on that spec; if it is not, the tree is passed with `tree=` and the run ends where the tree ends. The result is a `JointResult` that carries both simulated levels, the same result objects the ordinary functions return, and both levels write their usual files. When the two joined parts belong to the same level, the run stays on that level's own function, with `joint=True`: `simulate_traits`, `simulate_genomes_family` or `simulate_sequences`. The flag is checked both ways: asking for it without a live driver is an error, and depending on a live driver without it is an error. One more restriction: a transfer needs the set of lineages alive at an instant, which is unknown while the tree is still being simulated, so a genome run that grows the tree refuses transfer. The gallery presents every joint model in full, with its code ([Jo1](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:genome_and_sequence--> to [Jo14](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:quasse-->).
 
 ### Exact or sliced
 
@@ -98,13 +98,23 @@ Two kinds of driver change between events: a continuous trait diffuses at every 
 | gene content drives speciation | simulated | events, exact |
 | a diffusing trait drives speciation | simulated | slices of `step` |
 | a trait and a genome | input | events, exact |
-| two traits, each driving the other | input | events, exact |
+| two discrete traits, each driving the other | input | events, exact |
+| a continuous trait and another trait, each driving the other | input | slices; the driver is taken at the start of the slice |
 | a trait and a gene's sequence | input | slices; the composition is taken at the start of the slice |
 | a genome and a gene's sequence | input | slices; the composition is held within a slice |
 | a gene family drives its own genome | input | events, exact |
 | two genes, each depending on the other | input | slices; both compositions held within a slice |
 
-`step` is written on the link, because the right size depends on how the value is taken: a steep curve needs a finer step than a flat one. In a joint run it has no default, and leaving it out is an error, because the timescale belongs to a model that does not exist yet. The practical check is to halve `step`, rerun, and confirm that the numbers you report move by less than their seed-to-seed spread ([Jo12](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:quasse-->).
+`step` is written on the link, because the right size depends on how the value is taken: a steep curve needs a finer step than a flat one. In a joint run it has no default, and leaving it out is an error, because the timescale belongs to a model that does not exist yet.
+
+A sliced run is **first order** in `step`: halve `step` and the error halves. Halving `step` also **changes the numbers** for a given seed, because it changes how many draws the run takes. The two runs are samples from two nearby laws, not one answer computed twice, so comparing them tells you nothing. Check convergence **across seeds** instead ([Jo14](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:quasse-->):
+
+1. pick a summary the model is about — the mean value at the tips, the variance at the tips, the correlation between two traits at the tips, the fraction of tips in a given state;
+2. run a set of seeds, say fifty, at `step`, then the same seeds at `step / 2`, then at `step / 4`;
+3. for each step, take the mean of that summary over the seeds, and its standard error over the seeds;
+4. compare the shift between consecutive steps against that standard error. When the shift is smaller, the step is fine enough to report; when it is larger and still falling by about half each time, halve again.
+
+The third step is what makes this a test rather than an impression. A single seed at two steps differs by the Monte Carlo spread whatever the step is, and that spread is usually far larger than the error you are trying to see.
 
 ### On the command line
 
@@ -128,9 +138,9 @@ The state-dependent diversification models are usually known by their acronyms. 
 
 | What it does | From the literature | Gallery |
 |-------------------|--------------------------------|---|
-| a binary trait drives speciation (and extinction) | BiSSE [@maddison2007bisse] | [Jo8](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:bisse--> |
-| a multi-state trait drives speciation | MuSSE [@fitzjohn2012diversitree] | [Jo10](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:musse--> |
-| a trait drives speciation **and** jumps at the split | ClaSSE [@goldberg2012classe] | [Jo11](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:classe--> |
-| a **continuous** trait drives speciation | QuaSSE [@fitzjohn2010quasse] | [Jo12](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:quasse--> |
+| a binary trait drives speciation (and extinction) | BiSSE [@maddison2007bisse] | [Jo10](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:bisse--> |
+| a multi-state trait drives speciation | MuSSE [@fitzjohn2012diversitree] | [Jo12](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:musse--> |
+| a trait drives speciation **and** jumps at the split | ClaSSE [@goldberg2012classe] | [Jo13](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:classe--> |
+| a **continuous** trait drives speciation | QuaSSE [@fitzjohn2010quasse] | [Jo14](https://aadavin.github.io/zombi2/gallery.html#joining)<!--gallery:quasse--> |
 
 <!-- --8<-- [end:joint] -->

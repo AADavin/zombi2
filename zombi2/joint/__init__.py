@@ -51,7 +51,7 @@ from .._runtime.summary import write_summary
 from ..params.mapping import check_not_a_kernel
 from ..rng import stream
 from ..params.driver import OnTime, OnTotalDiversity
-from ..params.evaluate import DRAWN, INHERITED, describe, is_implemented
+from ..params.evaluate import DRAWN, INHERITED, Modifier, describe, is_implemented
 from ..params.connection import Driven
 from ..genomes import FamilyGenomesResult, FamilyGenome
 from ..species import SpeciesResult
@@ -310,6 +310,21 @@ def _simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None,
                 f"driver(s) {bad}. (A filename driver is conditioning, not a joint run.)"
             )
         if isinstance(trait, ContinuousTrait):
+            # what this runner takes, declared here rather than in the spec: the spec is a bundle,
+            # and a driven optimum is a capability the runner has or has not. Here the tree is
+            # still growing, so a driver named beside it does not exist yet to be read.
+            if isinstance(trait.reverts_to, Modifier):
+                raise ValueError(
+                    "reverts_to=set_by(...) is not implemented in a joint run that grows the tree. "
+                    "Grow the tree first, then use simulate_continuous(tree, "
+                    "reverts_to=set_by(...), ...) to read an optimum off a trait already grown on "
+                    "it, or traits.simulate_traits(tree, [...], joint=True) to grow the two traits "
+                    "together.")
+            if trait.regimes is not None:
+                raise ValueError(
+                    "regimes= is not implemented in a joint run that grows the tree: the trait "
+                    "that would paint the regimes is not in this run. Grow the tree first, then "
+                    "use traits.simulate_traits(tree, [...], joint=True).")
             step = step_of([m for r in (birth_rate, death_rate) for m in r.modifiers
                             if isinstance(m, Driven) and m.driver in trait_keys],
                            what="birth and death",

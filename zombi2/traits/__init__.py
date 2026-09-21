@@ -79,7 +79,8 @@ from __future__ import annotations
 
 from .continuous import ContinuousTrait, continuous, simulate_continuous
 from .continuous import IMPLEMENTED_MODIFIERS  # noqa: F401  (re-exported for the CLI, not in __all__)
-from .discrete import DiscreteTrait, discrete, simulate_discrete, simulate_traits
+from .discrete import DiscreteTrait, discrete, simulate_discrete
+from .several import simulate_traits
 from .result import Change, TraitsResult
 
 __all__ = ["simulate_continuous", "simulate_discrete", "simulate_traits", "TraitsResult",
