@@ -2247,7 +2247,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     check_no_retired_keywords(retired, where="simulate_genomes_ordered")
     # the family resolution's own resolver, so the two engines cannot disagree about what a
     # declaration means
-    declared, module_map, planted_named = resolve_families(families, tree)
+    declared, module_map, started_named = resolve_families(families, tree)
     family_names = [f.name for f in declared]
     # A family's own duplication, transfer or loss, read by the family resolution's resolver. Here it
     # applies to the segment, as a per-family draw does (SPEC §6): every gene carries its family's rate
@@ -2456,7 +2456,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     fam_fixed_by_id: dict[str, dict[int, float]] = {key: {} for key in own_keys}
     fam_driven_by_id: dict[str, dict[int, _GeneRate]] = {key: {} for key in own_keys}
     named: dict[str, int] = {}  # a minted id per declared name, dealt round-robin after the anonymous ones
-    named_plants: list[tuple[float, int, int]] = []
+    named_starts: list[tuple[float, int, int]] = []
     for j, name in enumerate(family_names):
         fam = new_family()
         named[name] = fam
@@ -2465,11 +2465,11 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                 fam_fixed_by_id[key][fam] = fam_own[key][j]
             elif j in fam_driven_rates.get(key, {}):
                 fam_driven_by_id[key][fam] = _GeneRate(fam_driven_rates[key][j])
-        if j in planted_named:
+        if j in started_named:
             # given an `origin`, so it arrives there rather than at the tree's origin — the same
             # event, at a point chosen instead of drawn
-            t_p, lineage = planted_named[j]
-            named_plants.append((t_p, lineage, fam))
+            t_p, lineage = started_named[j]
+            named_starts.append((t_p, lineage, fam))
             continue
         chrom = initial_chroms[(initial_families + j) % n_initial_chrom]
         _live(chrom).append(new_gene(fam, +1))
@@ -2479,9 +2479,9 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # the run's starting genome: a deep snapshot, so the live genome's events never reach it
     # the ids of the families `origins=` places: minted here, straight after the initial and named
     # ones and in the order they were written, so the same origins name the same families at either
-    # resolution. Each is planted at its own time, in the loop below.
-    plants = sorted(named_plants)
-    plant_i = 0
+    # resolution. Each starts at its own time, in the loop below.
+    starts = sorted(named_starts)
+    start_i = 0
     initial_genome = tuple(Chromosome(c.id, c.topology, list(c.genes)) for c in initial_chroms)
     enter(alive, gen, pos, root.id, initial_chroms)
     counts = _GeneCounts(gen)       # genes per family on every living lineage, changed with the genomes
@@ -2529,7 +2529,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # the run's own rate for each of those event classes, as the genes without an own rate carry it
     run_gene_rates = {key: _GeneRate(_rates[key]) for key in (own_keys if any_written else ())}
     # a family given an `origin` is not in the root genome — it arrives later, in the loop
-    total_copies = initial_families + len(family_names) - len(named_plants)
+    total_copies = initial_families + len(family_names) - len(named_starts)
     total_chromosomes = n_initial_chrom
     # each live driver paired with what it reads, resolved once: the names and the family ids are fixed
     live_rate_reads = [(src, live_target(src, named, module_map or {})) for src in live_rate_keys]
@@ -2791,7 +2791,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
         next_species = schedule[si][0]
         # a family placed by `origins=` originates at a fixed instant, so it joins the horizon like
         # any other breakpoint: the waiting time can never step over it
-        next_plant = plants[plant_i][0] if plant_i < len(plants) else math.inf
+        next_start = starts[start_i][0] if start_i < len(starts) else math.inf
         if plain:
             # no modifier on any rate or extent: each total is scope(base) exactly — a gene rate
             # times the live genes, a chromosome rate times the standing chromosomes, the two
@@ -2811,7 +2811,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             r_fus = fus_base * c
             r_cor = cor_base * k_alive
             r_clo = clo_base * c
-            horizon = min(next_species, next_plant)
+            horizon = min(next_species, next_start)
         else:
             ctx = {"copies": n, "lineages": k_alive, "chromosomes": total_chromosomes, "time": t}
             # A gene-level event counted PER LINEAGE is counted per lineage that HOLDS a gene: an
@@ -2887,7 +2887,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             r_clo = _r("chromosome_loss", clo.effective(**ctx) if c else 0.0, live=bool(c))
             # the next instant a rate changes on its own, asked only of the rates that ever do — a
             # family's own schedule among them (`timed_rates`)
-            horizon = min(next_species, next_plant)
+            horizon = min(next_species, next_start)
             for timed in timed_rates:
                 horizon = min(horizon, timed.next_change(t))
             if any_driven:  # a driven rate also changes when its driver switches mid-branch — step there
@@ -3098,7 +3098,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                         total_copies += sum(len(ch.genes) for ch in cg)
                         total_chromosomes += len(cg)
                 si += 1
-        elif plant_i < len(plants) and horizon == next_plant:
+        elif start_i < len(starts) and horizon == next_start:
             # a placed family arrives — the ordinary origination event, at a time and on a lineage
             # that were chosen rather than drawn. The lineage is live by construction (its time was
             # checked against that branch's own life), and a tie with the tree's schedule falls to
@@ -3106,14 +3106,14 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
             t = horizon
             if time_varying:
                 rows.touched_all()
-            while plant_i < len(plants) and plants[plant_i][0] == t:
-                _, lineage, fam = plants[plant_i]
+            while start_i < len(starts) and starts[start_i][0] == t:
+                _, lineage, fam = starts[start_i]
                 _originate(gen[pos[lineage]], tree.nodes[lineage], t, events, event_positions,
                            new_gene, new_family, rng, family=fam)
                 counts.added(pos[lineage], fam)
                 rows.touched(pos[lineage], gen[pos[lineage]])
                 total_copies += 1
-                plant_i += 1
+                start_i += 1
         else:
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
             rows.touched_all()

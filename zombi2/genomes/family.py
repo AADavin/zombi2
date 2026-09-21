@@ -669,7 +669,7 @@ def resolve_families(families, tree):
     by ``family_names=``, ``origins=`` and ``modules=``; one declaration says all of them, and only
     it can carry rates.
 
-    Returns ``(declared, module_map, planted)`` — the `GeneFamily` list in the order their ids are
+    Returns ``(declared, module_map, started)`` — the `GeneFamily` list in the order their ids are
     minted, the ``{module: (family name, …)}`` grouping `resolve_modules` builds, and the
     ``{index into declared: (time, lineage)}`` of the families given an ``origin``.
     """
@@ -690,7 +690,7 @@ def resolve_families(families, tree):
             groups.setdefault(f.module, []).append(f.name)
     module_map = resolve_modules(groups or None, names)
 
-    # a declared family may be planted at a chosen point instead of starting at the origin
+    # a declared family may start at a chosen point instead of at the origin
     with_origin = [(i, f) for i, f in enumerate(declared) if f.origin is not None]
     resolved = resolve_origins([f.origin for _i, f in with_origin], tree) if with_origin else []
     return declared, module_map, {i: pair for (i, _f), pair in zip(with_origin, resolved)}
@@ -1029,7 +1029,7 @@ def resolve_origins(origins, tree) -> list[tuple[float, int]]:
     It **adds to** the run rather than replacing part of it: whatever ``initial_families`` and
     ``origination`` produce is produced as well, so ``origins`` alone (with both of those at 0) is a
     tree carrying exactly the families you placed, and ``origins`` beside them is an ordinary genome
-    with one family planted where you want it. Nothing is switched off behind your back.
+    with one family started where you want it. Nothing is switched off behind your back.
 
     A lineage is written as the tree writes it — ``n5``, or ``e5`` for one that went extinct — or as
     the bare node id. The time is the run's own clock (the origin at 0, as ``changing_at`` and
@@ -1043,7 +1043,7 @@ def resolve_origins(origins, tree) -> list[tuple[float, int]]:
     if (isinstance(origins, tuple) and len(origins) == 2
             and not isinstance(origins[0], (list, tuple))):
         raise ValueError(f"origins takes a list of (lineage, time) pairs — write "
-                         f"origins=[{origins!r}] to plant the one family.")
+                         f"origins=[{origins!r}] to start the one family there.")
     names = tree.labels()
     out: list[tuple[float, int]] = []
     for item in origins:
@@ -1308,7 +1308,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     time ``0.4`` — the same event the ``origination`` rate produces, at a point you choose rather
     than one that is drawn. It **adds to** the run: whatever ``initial_families`` and ``origination``
     give you is still there, so ``origins`` with both of those at 0 is a tree carrying exactly the
-    families you placed, and ``origins`` beside them is an ordinary genome with one family planted
+    families you placed, and ``origins`` beside them is an ordinary genome with one family started
     where you want it. The time is the run's own clock and must fall inside that lineage's life
     (``None`` puts it at the branch's start); a placed family is an ordinary family from that instant
     on, so it duplicates, transfers and is lost like any other, and gets its gene tree the same way.
@@ -1446,7 +1446,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         raise ValueError(f"initial_families must be a non-negative integer, got {initial_families!r}")
     check_no_retired_keywords(retired, where="simulate_genomes_family")
     # every named family, from the one list that declares them
-    declared, module_map, planted_named = resolve_families(families, tree)
+    declared, module_map, started_named = resolve_families(families, tree)
     family_names = [f.name for f in declared]
     # a family's own recipient rule, checked by the same resolver as the run's transfer_to
     fam_transfer_to = resolve_family_transfer_to(declared)
@@ -1560,7 +1560,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             "a joint genome run cannot use the per-family engine (parallel= / stream_to=), which "
             "evolves each family in its own process because families do not affect each other. A "
             "rate or transfer_to reading live gene content is that effect. Drop parallel / stream_to.")
-    if (parallel or stream_to is not None) and planted_named:
+    if (parallel or stream_to is not None) and started_named:
         # Pass 1 of that engine enumerates every family's origination up front, seeding the declared
         # ones at the root; a family that arrives partway down is not in that enumeration, and
         # threading it through would renumber the families the serial engine mints. Stated rather
@@ -1728,22 +1728,22 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     for _ in range(initial_families):  # lay down the origin's genome as originations at t = root.birth_time
         _originate(gen[0], root, t, events, new_copy, new_family)
     named: dict[str, int] = {}  # a minted id per declared name (so GeneCopy.family stays an int)
-    named_plants: list[tuple[float, int, int]] = []
+    named_starts: list[tuple[float, int, int]] = []
     for i, spec in enumerate(declared):
         fid = new_family(i)
         named[spec.name] = fid
-        if i in planted_named:
-            # a declared family given an `origin` is planted there rather than seeded at the origin,
+        if i in started_named:
+            # a declared family given an `origin` starts there rather than being seeded at the origin,
             # which is what `origins=` does for an anonymous one — the same event, with a name on it
-            t_p, lineage = planted_named[i]
-            named_plants.append((t_p, lineage, fid))
+            t_p, lineage = started_named[i]
+            named_starts.append((t_p, lineage, fid))
             continue
         c = new_copy(fid)
         gen[0].append(c)
         events.append(GeneEdge(t, "origination", root.id, fid, c.id))
-    # A planted family is not seeded into a genome: it arrives at its own time, in the loop below.
-    plants = sorted(named_plants)
-    plant_i = 0                                                              # walked in time order
+    # Such a family is not seeded into a genome: it arrives at its own time, in the loop below.
+    starts = sorted(named_starts)
+    start_i = 0                                                              # walked in time order
     total_copies = len(gen[0])
     initial_genome = tuple(gen[0])   # the run's starting genome: a snapshot before the stem runs
 
@@ -1821,7 +1821,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         next_species = schedule[si][0]  # the tree's own next event: who is alive changes only here
         # a family placed by `origins=` originates at a fixed instant, so it joins the horizon like
         # any other breakpoint: the waiting time can never step over it
-        next_plant = plants[plant_i][0] if plant_i < len(plants) else math.inf
+        next_start = starts[start_i][0] if start_i < len(starts) else math.inf
         w_dup = w_los = w_org = w_tra = None
         if plain:
             # no modifier on any rate: each total is scope(base) exactly — the per-copy trio times
@@ -1831,7 +1831,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             r_los = los_base * n
             r_org = org_base * k_alive
             r_tra = tra_base * n if can_xfer else 0.0
-            horizon = min(next_species, next_plant)
+            horizon = min(next_species, next_start)
         else:
             ctx = {"copies": n, "lineages": k_alive, "time": t}
             # A copy-consuming event counted *per lineage* is counted per lineage that HOLDS a copy:
@@ -1946,7 +1946,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             r_org = sum(w_org) if w_org is not None else org.effective(**ctx)
             r_tra = sum(w_tra) if w_tra is not None else (
                 tra.effective(**(host_ctx if tra_per_lineage else ctx)) if can_xfer else 0.0)
-            horizon = min(next_species, next_plant, dup.next_change(t), los.next_change(t),
+            horizon = min(next_species, next_start, dup.next_change(t), los.next_change(t),
                           org.next_change(t), tra.next_change(t))
             if any_family_driven:  # a family's own changing_at moves its rate too, so step there
                 horizon = min(horizon, min(rate.next_change(t) for table in fam_driven.values()
@@ -2066,13 +2066,13 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                     for pair in zip(*per_daughter):
                         events.extend(pair)
                 si += 1
-        elif plant_i < len(plants) and horizon == next_plant:
+        elif start_i < len(starts) and horizon == next_start:
             # a placed family arrives. The lineage is live by construction (its time was checked
             # against that branch's own life), and a tie with the tree's schedule falls to the
             # branch above: the daughters have entered by the time this runs.
             t = horizon
-            while plant_i < len(plants) and plants[plant_i][0] == t:
-                _, lineage, fam = plants[plant_i]
+            while start_i < len(starts) and starts[start_i][0] == t:
+                _, lineage, fam = starts[start_i]
                 k = pos[lineage]
                 c = new_copy(fam)
                 gen[k].append(c)
@@ -2081,7 +2081,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                 total_copies += 1
                 if weights is not None:
                     weights.touched(k)
-                plant_i += 1
+                start_i += 1
         else:
             t = horizon  # a skyline breakpoint: advance and re-evaluate the (now changed) rate
 
@@ -2207,7 +2207,7 @@ class GeneFamily:
     duplication: object = None
     transfer: object = None
     loss: object = None
-    #: ``(lineage, time)`` — where and when this family is planted, instead of at the origin
+    #: ``(lineage, time)`` — where and when this family starts, instead of at the origin of the run
     origin: object = None
     #: the named group this family belongs to, read back by ``result.completion(...)``
     module: "str | None" = None
@@ -2235,8 +2235,8 @@ def family(name=None, *, duplication=None, transfer=None, loss=None, transfer_to
 
     The name is the handle everything else reads it by — ``result.presence("IS1")``,
     ``result.has_family(node, "IS1")``. ``duplication`` / ``transfer`` / ``loss`` are that family's
-    own rates, and what is left out falls back to the run's. ``origin=(lineage, time)`` plants the
-    family there instead of at the origin, and ``module=`` puts it in a named group, whose
+    own rates, and what is left out falls back to the run's. ``origin=(lineage, time)`` starts the
+    family on that lineage at that time, instead of at the origin of the run, and ``module=`` puts it in a named group, whose
     completeness a joint run can read as ``"genomes:module:<group>"``.
 
     A family's own rate takes the same three verbs as the run's (``changing_at``, ``scaled_by`` and

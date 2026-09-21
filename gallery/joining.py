@@ -279,7 +279,7 @@ def key_innovation(out):
 def mobile_element_joint(out):
     """A gene family driving the rest of its OWN genome, in one run — the level joined to itself.
 
-    An insertion sequence is planted on one branch. Where it is present the whole genome donates
+    An insertion sequence starts on one branch. Where it is present the whole genome donates
     genes thirty times as often, and the element also moves itself, so it jumps into lineages that
     never inherited it and makes them donors too. That is the loop: the element decides the transfer
     rate, and the transfer rate is how the element spreads.
@@ -1774,7 +1774,7 @@ ct = simulate_species_tree(birth=1.0, n_extant=30, seed=4).complete_tree
 # "genomes:IS1" — not a finished run, because the element is what this run is producing.
 g = simulate_genomes_family(
     ct, initial_families=25, duplication=0.05, loss=0.12, seed=7, joint=True, max_family_size=8,
-    # the element moves itself, and is planted on one branch rather than at the origin
+    # the element moves itself, and starts on one branch rather than at the origin
     families=[family("IS1", origin=(11, None), transfer=PerCopy(0.30), loss=0.08)],
     # ...and where it is present, the whole genome donates 30x as often
     transfer=PerCopy(0.025).scaled_by("genomes:IS1", {"present": 30.0, "absent": 1.0}))
