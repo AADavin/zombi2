@@ -9,7 +9,7 @@ dynamic = ["version"]
 description = "Simulating the evolution of species trees, genomes, sequences and traits"
 readme = "README.md"
 requires-python = ">=3.10"
-authors = [{ name = "Adrián A. Davin" }]
+authors = [{ name = "Adrián A. Davín" }]
 keywords = ["phylogenetics", "simulation", "gene families", "birth-death", "evolution"]
 # The clean core is pure Python. numpy does the arithmetic; tqdm draws the progress bar the
 # commands show while they work, and is optional at runtime — zombi2._runtime.progress falls back to a
