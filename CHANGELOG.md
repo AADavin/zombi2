@@ -9,6 +9,12 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- `CITATION.cff` at the repository root, so GitHub shows how to cite ZOMBI2 and Zenodo builds the
+  archived record's metadata from it rather than from the repository name. A release now rewrites
+  its `version` and `date-released` alongside the other version strings. (#461)
+
 ### Changed
 
 - `origin=` and `origins=` are described plainly: a family **starts** on that lineage at that
