@@ -100,7 +100,7 @@ if [[ "$BUMP" == "patch" ]] && grep -q '^### Removed' <<<"$UNRELEASED"; then
 fi
 
 echo "ZOMBI2 release  $CURRENT -> $VERSION   (tag $TAG, $DATE)"
-echo "  · set __version__ in zombi2/__init__.py, and the version both web pages show"
+echo "  · set __version__ in zombi2/__init__.py, the version both web pages show, and CITATION.cff"
 echo "  · roll CHANGELOG [Unreleased] -> [$VERSION] - $DATE"
 echo "  · commit + tag $TAG + push origin main $TAG"
 echo "  · gh release create $TAG   <-- PUBLISHES to PyPI"
@@ -142,6 +142,23 @@ for path, pattern, repl in (
     p.write_text(new)
 PY
 
+# --- 1c. the version Zenodo reads --------------------------------------------------------------
+# CITATION.cff is what Zenodo builds the archived record's metadata from, so its `version` and
+# `date-released` describe the release being cut. Left to a human they go stale silently, and the
+# DOI that a paper or a grant cites then carries the wrong version.
+"$PY" - "$VERSION" "$DATE" <<'PY'
+import re, sys, pathlib
+v, d = sys.argv[1], sys.argv[2]
+p = pathlib.Path("CITATION.cff")
+s = p.read_text()
+for pattern, repl in ((r'^version: .*$', f'version: {v}'),
+                      (r'^date-released: .*$', f'date-released: {d}')):
+    s, n = re.subn(pattern, repl, s, count=1, flags=re.M)
+    if not n:
+        raise SystemExit(f"release: could not find {pattern!r} in CITATION.cff")
+p.write_text(s)
+PY
+
 # --- 2. roll the CHANGELOG, and extract this version's notes --------------------------------------
 NOTES="$("$PY" - "$VERSION" "$DATE" <<'PY'
 import sys, pathlib
@@ -169,7 +186,7 @@ PY
 [[ -n "$NOTES" ]] || die "the [Unreleased] section is empty — nothing to release"
 
 # --- 3. commit, tag, push ------------------------------------------------------------------------
-git add zombi2/__init__.py CHANGELOG.md web/index.html web/gallery.html
+git add zombi2/__init__.py CHANGELOG.md CITATION.cff web/index.html web/gallery.html
 git commit -m "release: bump version to $VERSION"
 git tag -a "$TAG" -m "$TAG"
 git push origin main "$TAG"
