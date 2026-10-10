@@ -6,6 +6,7 @@
 [![PyPI](https://img.shields.io/pypi/v/zombi2)](https://pypi.org/project/zombi2/)
 [![Docs](https://img.shields.io/badge/docs-mkdocs--material-blue)](https://aadavin.github.io/zombi2/docs/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23168059.svg)](https://doi.org/10.5281/zenodo.23168059)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 
 **Simulating the evolution of species, genomes, sequences and traits.**
@@ -155,8 +156,16 @@ each, with the code that produced it: [species trees](https://aadavin.github.io/
 
 ## Citation
 
-A dedicated ZOMBI2 paper is in preparation. Until then, cite the original
-[ZOMBI](https://github.com/AADavin/Zombi).
+Cite the software by its DOI, which covers every version:
+
+> Davín, A. A. (2026). ZOMBI2. Zenodo. https://doi.org/10.5281/zenodo.23168059
+
+To pin the version you used, take that release's own DOI from the
+[Zenodo record](https://doi.org/10.5281/zenodo.23168059). GitHub's "Cite this repository" button
+reads [`CITATION.cff`](CITATION.cff) and gives the same metadata in BibTeX or APA.
+
+A ZOMBI2 paper is in preparation; this section will name it once it is out. For ZOMBI 1, cite
+[Davín et al. (2020)](https://doi.org/10.1093/bioinformatics/btz710).
 
 ## License
 
