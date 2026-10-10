@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.51.2] - 2026-10-09
+
 ### Changed
 
 - The README's Citation section names ZOMBI2's own DOI, which every release is archived under,
