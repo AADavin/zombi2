@@ -150,6 +150,7 @@ nav:
       - "format": tools/format.md
       - "tree": tools/tree.md
       - "treedist": tools/treedist.md
+      - "bundle": tools/bundle.md
   # One page per level, so the reference reads the way the library is laid out and the left column
   # is an index of the packages. The overview page carries the entry-point table.
   - API reference:

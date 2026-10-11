@@ -142,7 +142,8 @@ class JointResult:
             out["genome"] = self.genome.summary()
         return out
 
-    def write(self, directory, outputs=_WRITE_OUTPUTS, *, flat: bool = False) -> None:
+    def write(self, directory, outputs=_WRITE_OUTPUTS, *, flat: bool = False,
+              bundle: bool = False) -> None:
         """Write both levels to ``directory`` (created if needed), each exactly as its own command
         writes it: ``"species"`` → the `SpeciesResult` files (``species_complete.nwk`` /
         ``species_extant.nwk`` / ``species_events.tsv`` / ``species_fates.tsv`` /
@@ -155,8 +156,8 @@ class JointResult:
         The tokens are the two **levels**, not their files, because each is written with that level's
         own default — which is what makes a joint run's directory the two runs it stands in for. Pick
         files *within* a level through the level itself: ``result.species.write(d, outputs=…)``,
-        ``result.trait.write(d, outputs=…)``. ``flat`` is passed to the driver level, the only one of
-        the two with a many-files-per-run output.
+        ``result.trait.write(d, outputs=…)``. ``flat`` and ``bundle`` are passed to the driver level,
+        the only one of the two with a many-files-per-run output.
 
         Both levels land in the one directory named here; ``zombi2 joint`` groups them under
         ``species/`` and ``traits/`` / ``genomes/`` instead, and writes the same files."""
@@ -175,9 +176,9 @@ class JointResult:
             if self.trait is not None:
                 self.trait.write(d)
             if self.genome is not None:
-                self.genome.write(d, flat=flat)
+                self.genome.write(d, flat=flat, bundle=bundle)
             if self.sequences is not None:
-                self.sequences.write(d, flat=flat)
+                self.sequences.write(d, flat=flat, bundle=bundle)
 
 
 def _simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None,
