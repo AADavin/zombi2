@@ -136,7 +136,7 @@ def gene_tree_rows(gene_trees: dict[int, "GeneTree"], names: "dict[int, str] | N
 
 def write_gene_tree_table(gene_trees: dict[int, "GeneTree"], path,
                           names: "dict[int, str] | None" = None) -> None:
-    """Write ``gene_trees.tsv``, the bundled form of `write_gene_trees`: one row per family, with
+    """Write ``gene_trees.tsv``, the compact form of `write_gene_trees`: one row per family, with
     the family id, the complete tree and the extant tree, empty when no copy survived."""
     with open(path, "w", encoding="utf-8") as f:
         f.write(tree_table_header() + "\n")

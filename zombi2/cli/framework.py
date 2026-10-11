@@ -183,13 +183,24 @@ def _add_flat_arg(g) -> None:
                    help="write every file straight into DIR, not grouped by level")
 
 
-def _add_bundle_arg(g) -> None:
-    """Add ``--bundle`` (one file per run for each per-family output) to an ``outputs`` group."""
-    g.add_argument("--bundle", action="store_true",
+def _add_compact_arg(g) -> None:
+    """Add ``--compact`` (one file per run for each per-family output) to an ``outputs`` group."""
+    g.add_argument("--compact", action="store_true",
                    help="write each per-family output as one file: gene trees as gene_trees.tsv, "
                         "alignments as alignments.fasta, ancestral sequences as ancestral.fasta, "
                         "phylograms as phylograms.tsv. For a cluster that limits how many files "
                         "you keep")
+    # its name in 0.52.0, kept for one release: hidden from the help, and it says what replaced it
+    g.add_argument("--bundle", action=_DeprecatedBundle, nargs=0, dest="compact",
+                   default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+
+
+class _DeprecatedBundle(argparse.Action):
+    """``--bundle``, which 0.52.0 called ``--compact``: sets it, and warns."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        warn("--bundle is deprecated and will be removed in the next release; use --compact")
+        namespace.compact = True
 
 
 def default_outputs(result) -> tuple[str, ...]:

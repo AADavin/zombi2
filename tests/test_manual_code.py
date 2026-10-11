@@ -361,12 +361,15 @@ def test_every_flag_the_manual_names_in_prose_exists():
     declared: set[str] = set()
     for argv in (["species"], ["genomes"], ["sequences"], ["traits"], ["joint"],
                  ["tools"], ["tools", "tree"], ["tools", "treedist"], ["tools", "format"],
-                 ["tools", "bundle"], ["tools", "unbundle"]):
+                 ["tools", "compact"], ["tools", "expand"]):
         buf = _io.StringIO()
         with _c.suppress(SystemExit), _c.redirect_stdout(buf), _c.redirect_stderr(buf):
             cli_main.main([*argv, "--help"])
         declared |= set(re.findall(r"(--[a-z][a-z0-9-]+)", buf.getvalue()))
     assert "--n-extant" in declared, "the help scrape found nothing; this test would pass vacuously"
+    # deprecated, so kept out of the help, and still named by the manual's note on what replaced it.
+    # Drop it here when the alias goes, and the manual's note has to go with it.
+    declared.add("--bundle")
 
     missing = []
     for chapter in _chapters():

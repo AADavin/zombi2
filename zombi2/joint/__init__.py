@@ -47,6 +47,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
+from .._runtime.outputs import compact_or_bundle
 from .._runtime.summary import write_summary
 from ..params.mapping import check_not_a_kernel
 from ..rng import stream
@@ -143,7 +144,7 @@ class JointResult:
         return out
 
     def write(self, directory, outputs=_WRITE_OUTPUTS, *, flat: bool = False,
-              bundle: bool = False) -> None:
+              compact: bool = False, bundle: "bool | None" = None) -> None:
         """Write both levels to ``directory`` (created if needed), each exactly as its own command
         writes it: ``"species"`` → the `SpeciesResult` files (``species_complete.nwk`` /
         ``species_extant.nwk`` / ``species_events.tsv`` / ``species_fates.tsv`` /
@@ -156,11 +157,12 @@ class JointResult:
         The tokens are the two **levels**, not their files, because each is written with that level's
         own default — which is what makes a joint run's directory the two runs it stands in for. Pick
         files *within* a level through the level itself: ``result.species.write(d, outputs=…)``,
-        ``result.trait.write(d, outputs=…)``. ``flat`` and ``bundle`` are passed to the driver level,
-        the only one of the two with a many-files-per-run output.
+        ``result.trait.write(d, outputs=…)``. ``flat`` and ``compact`` are passed to the driver
+        level, the only one of the two with a many-files-per-run output.
 
         Both levels land in the one directory named here; ``zombi2 joint`` groups them under
         ``species/`` and ``traits/`` / ``genomes/`` instead, and writes the same files."""
+        compact = compact_or_bundle(compact, bundle, "write")   # its 0.52.0 name
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
         if unknown:
             raise ValueError(f"unknown write outputs {unknown}; choose from {list(_WRITE_OUTPUTS)}")
@@ -176,9 +178,9 @@ class JointResult:
             if self.trait is not None:
                 self.trait.write(d)
             if self.genome is not None:
-                self.genome.write(d, flat=flat, bundle=bundle)
+                self.genome.write(d, flat=flat, compact=compact)
             if self.sequences is not None:
-                self.sequences.write(d, flat=flat, bundle=bundle)
+                self.sequences.write(d, flat=flat, compact=compact)
 
 
 def _simulate_joint(*, birth, death=0.0, trait=None, genome=None, n_extant=None,

@@ -9,6 +9,18 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- The bundled output is now called compact: `--compact`, `compact=True`, `zombi2 tools compact` and
+  `zombi2 tools expand`, in `zombi2.tools.compact`. The name says what the layout is, fewer files
+  with the same data. The files it writes are unchanged. (#465)
+
+### Deprecated
+
+- `--bundle`, `bundle=True`, `zombi2 tools bundle`, `zombi2 tools unbundle`,
+  `zombi2.tools.bundle.bundle_run` and `zombi2.tools.bundle.unbundle_run` still work, with a warning
+  naming the replacement. The next release will remove them. (#465)
+
 ## [0.52.0] - 2026-10-10
 
 ### Added

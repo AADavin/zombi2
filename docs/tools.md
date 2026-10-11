@@ -6,4 +6,4 @@
 - [`format`](tools/format.md) — analysis-ready files from a genomes run
 - [`tree`](tools/tree.md) — one transform on a Newick tree
 - [`treedist`](tools/treedist.md) — distance between two trees
-- [`bundle` and `unbundle`](tools/bundle.md) — one file per run, or one per family
+- [`compact` and `expand`](tools/compact.md) — compact files or per-family files
