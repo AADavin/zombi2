@@ -9,6 +9,8 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+## [0.52.1] - 2026-10-11
+
 ### Changed
 
 - The bundled output is now called compact: `--compact`, `compact=True`, `zombi2 tools compact` and
