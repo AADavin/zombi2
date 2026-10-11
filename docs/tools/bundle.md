@@ -1,0 +1,4 @@
+<!-- Single source: this page IS the `bundle` and `unbundle` section of the manual's Appendix D,
+     included verbatim so the book and the site never drift. Correct the appendix; both update. The
+     section starts below the appendix's own `## bundle` heading, so the page heading is the nav title. -->
+--8<-- "manual/book/appendix-d.md:bundle"

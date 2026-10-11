@@ -24,6 +24,7 @@ from __future__ import annotations
 import collections
 from dataclasses import dataclass, field
 
+from .._runtime.outputs import tree_table_header, tree_table_row
 from .events import gene_label, node_label
 
 
@@ -122,6 +123,25 @@ def write_gene_trees(gene_trees: dict[int, "GeneTree"], directory,
         extant = gt.to_newick("extant", names=names)
         if extant is not None:
             (d / f"gene_tree_fam{fam}_extant.nwk").write_text(extant + "\n", encoding="utf-8")
+
+
+def gene_tree_rows(gene_trees: dict[int, "GeneTree"], names: "dict[int, str] | None" = None):
+    """Each family's row of ``gene_trees.tsv``, in family order: what `write_gene_trees` writes as a
+    file pair. A family with no nodes at all has no row, as it has no files."""
+    for fam, gt in sorted(gene_trees.items()):
+        complete = gt.to_newick("complete", names=names)
+        if complete is not None:
+            yield tree_table_row(fam, complete, gt.to_newick("extant", names=names))
+
+
+def write_gene_tree_table(gene_trees: dict[int, "GeneTree"], path,
+                          names: "dict[int, str] | None" = None) -> None:
+    """Write ``gene_trees.tsv``, the bundled form of `write_gene_trees`: one row per family, with
+    the family id, the complete tree and the extant tree, empty when no copy survived."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(tree_table_header() + "\n")
+        for row in gene_tree_rows(gene_trees, names):
+            f.write(row + "\n")
 
 
 def gene_trees_from_edges(events: list, tree) -> dict[int, GeneTree]:

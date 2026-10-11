@@ -36,6 +36,7 @@ out/genomes/                initial_sequence.fasta                            (n
 out/genomes/                names.tsv                                    (--from with own labels)
 out/genomes/markers.tsv     the marker table, one file for the run: Appendix D  (via zombi2 tools format)
 out/genomes/gene_trees/     gene_tree_fam<f>_complete.nwk · …_extant.nwk
+out/genomes/                gene_trees.tsv, in place of gene_trees/          (--bundle)
 out/genomes/gff/            genome_<lineage>.gff · genome_initial.gff         (nucleotide)
 out/genomes/bed/            genome_<lineage>.bed · genome_initial.bed         (nucleotide)
 out/genomes/homology/       homology_fam<f>.tsv                          (via zombi2 tools format)
@@ -46,6 +47,7 @@ out/sequences/              sequences_founding.fasta                     (the fo
 out/sequences/alignments/   fam<f>.fasta
 out/sequences/ancestral/    sequences_ancestral_fam<f>.fasta             (the ancestral token)
 out/sequences/phylograms/   phylogram_fam<f>_*.nwk
+out/sequences/              alignments.fasta · ancestral.fasta · phylograms.tsv  (--bundle)
 out/sequences/genomes/      genome_<lineage>.fasta · genome_initial.fasta  (nucleotide runs)
 out/traits/                 trait_values.tsv · trait_tree.nwk · trait_events.tsv · trait_path.tsv
 out/traits/<name>/          the same files, when --name was given
@@ -78,6 +80,13 @@ tables. It still reads the tree from `species/`, as any genomes run does; the co
 not write at all: `run.zombi2` and `conditioned_on`. Both are built from a grouped run's level
 directories, which a flat run does not have.
 
+`--bundle` writes each per-family output as one bundled file: `gene_trees.tsv`, `alignments.fasta`,
+`ancestral.fasta` and `phylograms.tsv` replace `gene_trees/`, `alignments/`, `ancestral/` and
+`phylograms/`. This reduces the file count on clusters, which often limit how many files a user
+stores. `--bundle` is off by default; from Python it is `result.write("out/", bundle=True)`.
+`zombi2 tools bundle` and `zombi2 tools unbundle` convert a written run from one layout to the other
+(Appendix D).
+
 The grouping above is the CLI's. **A Python run has no level directories**: `result.write("out/")`
 fills the directory you name with that result's files, the per-family and per-node directories
 included, so it is not `--flat`, which flattens those too. The same run written from Python and
@@ -87,8 +96,9 @@ written by the CLI alone. To group a Python run, name the level directory yourse
 
 Every directory a run fills with one file per family or per node (`gene_trees/`, `gff/` and `bed/` at
 the genome level, `alignments/`, `ancestral/`, `phylograms/` and `genomes/` at the sequence level) is
-**emptied before that run fills it**, so its contents describe one run and nothing else. Two
-exceptions: a `--flat` run empties nothing, and the `homology/` and `recphylo/` directories that
+**emptied before that run fills it**, so its contents describe one run and nothing else. That step
+also removes a bundled file left by an earlier run, such as `gene_trees.tsv`. So a level directory
+never holds both layouts. Two exceptions: a `--flat` run empties nothing, and the `homology/` and `recphylo/` directories that
 `zombi2 tools format` writes are left as they are.
 
 ## Species trees: `simulate_species_tree`
@@ -130,6 +140,7 @@ depends on time or diversity, this is its value at the start of the branch.
 | `genomes.tsv` | every node's gene content, ancestors included: `lineage` · `family` · `copy`, one row per gene copy |
 | `initial_genome.tsv` | the genome the run **started** with, at the start of the root branch: `family` · `copy` |
 | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | each family's true genealogy, in `genomes/gene_trees/` |
+| `gene_trees.tsv` | every family's complete and extant gene trees, one row per family, in place of `gene_trees/`. Only with `--bundle` |
 | `genome_summary.json` | events by kind, families born, surviving and died out, genes per genome, `empty_genomes`, whether the family-size cap bound, the seed |
 | `links.tsv` | the links the run read from its own gene content: `family` · `target` · `driver` · `modifier` · `mapping`, one row per link |
 | `family_multipliers.tsv` | each family's rate multipliers: `family` · `duplication` · `transfer` · `loss`, one row per family |
@@ -156,6 +167,10 @@ sits at the *end* of its branch.
 **`gene_tree_fam<f>_*.nwk`**: leaves are `n<species>_g<copy>`; internal nodes are labelled
 `<event>_n<species>` (`duplication_n45`, `transfer_n45`), naming the event that ended that gene and
 the branch it was on. A family with no surviving copy writes no `_extant` file.
+
+**`gene_trees.tsv`**: `family` · `complete` · `extant`, tab-separated, one row per family in family
+order. Each cell holds the tree that the matching per-family file holds. The `extant` cell is empty
+when no copy survived.
 
 **`links.tsv`** lists every modifier that reads gene content the run is building
 (`"genomes:<family>"`, `"genomes:module:<group>"`, `"genomes:count"`). `family` is the declared
@@ -278,6 +293,7 @@ trees are built from.
 | `chromosome_events.tsv` | chromosome-network edges: `time` · `kind` · `parents` · `children` |
 | `initial_genome.tsv` | the genome the run **started** with: `chromosome` · `topology` · `position` · `strand` · `family` · `copy` |
 | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | as at the family resolution, since position is orthogonal to genealogy |
+| `gene_trees.tsv` | as at the family resolution. Only with `--bundle` |
 | `genome_summary.json` | events as biology rather than rows, families born/surviving/died out, genes and chromosomes per genome, rearrangements and chromosome events by kind |
 | `links.tsv` | as at the family resolution; `target` can also name an extent, such as `loss_extent` |
 | `family_multipliers.tsv` | as at the family resolution, with an `inversion`, a `transposition` and a `translocation` column |
@@ -345,6 +361,7 @@ From `zombi2 genomes --resolution nucleotide` or `result.write(dir, outputs=[...
 | `initial_sequence.fasta` | the initial DNA the run was given (`--fasta`), one `>source<n>` record per replicon. Only when a FASTA was supplied |
 | `genome_summary.json` | what came out, counted three separate ways |
 | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | one tree per declared gene (else per recovered root-block), in `gene_trees/` |
+| `gene_trees.tsv` | as at the family resolution. Only with `--bundle` |
 | `gff/genome_<lineage>.gff` | each node's **genes** in its own coordinates, plus `genome_initial.gff` |
 | `bed/genome_<lineage>.bed` | each node's **blocks**, spacer included, each named by the ancestral interval it descends from |
 | `species_complete.nwk` | as at the family resolution |
@@ -476,6 +493,9 @@ internal nodes with the ancestral sequences.
 | `phylogram_fam<f>_complete.nwk` · `…_extant.nwk` | the gene tree each family's sequences were drawn along, in substitutions per site, in `phylograms/` |
 | `clock_species_tree_complete.nwk` · `…_extant.nwk` | the species tree with its branches in substitutions per site, the molecular clock made visible |
 | `sequences_ancestral_fam<f>.fasta` | the nodes the alignment leaves out, one file per family in `ancestral/`. Only when you name its token, `ancestral` |
+| `alignments.fasta` | every family's alignment in one FASTA file, in place of `alignments/`. Only with `--bundle` |
+| `phylograms.tsv` | every family's complete and extant phylograms, one row per family, in place of `phylograms/`. Only with `--bundle` |
+| `ancestral.fasta` | every family's ancestral sequences in one FASTA file, in place of `ancestral/`. Only with `--bundle` and the `ancestral` token |
 | `sequences_founding.fasta` | one record `fam<f>` per family, the sequence it originated with. Only when you name its token, `founding` |
 | `genome_<lineage>.fasta` | one file per node of the complete tree, one record `<lineage>_chr<c>` per chromosome, in `genomes/`. Nucleotide genome runs only |
 | `genome_initial.fasta` | the genome the run **started** with, as sequence. Nucleotide runs only |
@@ -508,6 +528,14 @@ is `species_phylogram`, not the file's name.
 
 **`sequences_ancestral_fam<f>.fasta`**: internal nodes, and the tips where a copy was lost or its
 species died.
+
+**`alignments.fasta`** and **`ancestral.fasta`**: the records of every family, one family after
+another. Each header is the sequence name, a space and the family tag: `>n12_g1200 fam4`. The name is
+unchanged, so it still matches the gene tree's tip label. Most FASTA readers keep the family as a
+description. Sequence lines wrap at 70 columns, as in the per-family files.
+
+**`phylograms.tsv`**: the same columns as `gene_trees.tsv`. On a nucleotide run, a column `block`
+replaces `family`.
 
 **`genome_<lineage>.fasta`**: the assembled genome, its blocks concatenated in physical order, for
 every node, extant, extinct and ancestral alike. A family or ordered run has gene families, not
