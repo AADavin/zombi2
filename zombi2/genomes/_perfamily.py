@@ -56,8 +56,8 @@ from ..rng import seed_sequence
 from ._live import enter, retire, weighted_index
 from ._transfer import mean_root_to_tip, recipient_index
 from .events import EVENTS_HEADER, GeneEdge, event_rows, gene_label, node_label
-from .._runtime.outputs import fresh_dirs
-from .gene_trees import gene_trees_from_edges, write_gene_trees
+from .._runtime.outputs import BUNDLED, fresh_dirs, tree_table_header
+from .gene_trees import gene_tree_rows, gene_trees_from_edges, write_gene_trees
 
 
 def _unsupported_reason(dup, tra, los, org, transfer_to) -> str | None:
@@ -629,12 +629,16 @@ def _stream_chunk(task):
     tree, s = _CTX.tree, _STREAM
     out_dir, outputs, extant_ids, shard_dir = s["out_dir"], s["outputs"], s["extant_ids"], s["shard_dir"]
     want = {name: name in outputs for name in ("events", "genomes", "profiles", "gene_trees")}
+    bundle = s["bundle"]                    # gene trees to a shard of table rows, not file pairs
     # a run whose rates do not vary among families has no multiplier to write: its table is the header
     want["family_multipliers"] = "family_multipliers" in outputs and any(_CTX.fam_by.values())
     trees_dir = os.path.join(out_dir, "gene_trees")
 
     files = {name: open(os.path.join(shard_dir, f"{name}_{chunk_index}.tsv"), "w", encoding="utf-8")
              for name in ("events", "genomes", "profiles", "family_multipliers") if want[name]}
+    if want["gene_trees"] and bundle:
+        files["gene_trees"] = open(os.path.join(shard_dir, f"gene_trees_{chunk_index}.tsv"), "w",
+                                   encoding="utf-8")
     names = tree.labels()   # e<id> for a lineage that died; once per chunk, not once per family
     n_events = 0
     try:
@@ -657,7 +661,10 @@ def _stream_chunk(task):
                 counts = [len(node_genomes.get(sp, ())) for sp in extant_ids]
                 if any(counts):                             # a family absent from every extant tip: no row
                     files["profiles"].write(f"{fid}\t" + "\t".join(map(str, counts)) + "\n")
-            if want["gene_trees"]:
+            if want["gene_trees"] and bundle:
+                for row in gene_tree_rows(gene_trees_from_edges(events, tree), names):
+                    files["gene_trees"].write(row + "\n")
+            elif want["gene_trees"]:
                 write_gene_trees(gene_trees_from_edges(events, tree), trees_dir, names)
     finally:
         for f in files.values():
@@ -669,7 +676,7 @@ def _stream_chunk(task):
 
 def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, self_transfer,
                         initial_families, family_names, modules, cap, seed, parallel,
-                        progress, placed=(), stream_to=None, outputs=None,
+                        progress, placed=(), stream_to=None, outputs=None, bundle=False,
                         trajs=None, to_traj=None, group_of=None, driven=None, lin_by=None):
     """Run the per-family engine. Returns a `FamilyGenomesResult` (the in-memory
     merge), or a `StreamedRun` when ``stream_to`` is a directory — each family written straight
@@ -732,7 +739,7 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
 
     if stream_to is not None:
         return _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_families,
-                              family_names, str(stream_to), outputs, progress)
+                              family_names, str(stream_to), outputs, progress, bundle)
 
     # In-memory: evolve each family, then merge. Inline for a small run (the pool's spawn + IPC would
     # cost more than it saves); one process per family otherwise. Same streams either way.
@@ -778,7 +785,7 @@ def run_parallel_family(tree, *, dup, tra, los, org, transfer_to, replacement, s
 
 
 def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_families, family_names,
-                   out_dir, outputs, progress):
+                   out_dir, outputs, progress, bundle=False):
     """The streaming half of `run_parallel_family()`: fixed contiguous chunks written to
     per-chunk shards, concatenated in chunk order (so the files are byte-identical for any worker
     count), then the shards removed. Returns a `StreamedRun`."""
@@ -791,7 +798,7 @@ def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_fam
     os.makedirs(shard_dir, exist_ok=True)
     extant_ids = sorted(tree.extant_leaves())
     stream_cfg = {"out_dir": out_dir, "outputs": set(outputs), "extant_ids": extant_ids,
-                  "shard_dir": shard_dir}
+                  "shard_dir": shard_dir, "bundle": bundle}
     # The tree the run evolved along, beside its outputs — every one of them is indexed by this
     # tree's node labels, so without it the directory is not a dataset anyone (or `read_run`) can
     # reopen. The in-memory `.write` learned this first; a streamed run needs it more, being the one
@@ -833,14 +840,17 @@ def _run_streaming(tree, ctx, per_family, n_families, workers, seed, initial_fam
             total_events += nev; bar.update()
     bar.close()
 
-    _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_families, family_names)
+    _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_families, family_names,
+                     bundle)
     return StreamedRun(out_dir, seed, n_families, total_events, tuple(outputs))
 
 
-def _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_families, family_names):
+def _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_families, family_names,
+                     bundle=False):
     """Stitch the per-chunk shards into the run's files — the header once, then every shard in chunk
     order (pure I/O, never a run-sized allocation) — write ``initial_genome.tsv`` from the seeded
-    families' base ids, and drop the shard directory."""
+    families' base ids, and drop the shard directory. Under ``bundle`` the gene trees are one of
+    those files, ``gene_trees.tsv``, stitched the same way."""
     from .multipliers import FAMILY_TARGETS, multipliers_header
 
     headers = {"events": EVENTS_HEADER,
@@ -848,9 +858,13 @@ def _finalize_stream(out_dir, shard_dir, outputs, extant_ids, n_chunks, initial_
                "family_multipliers": multipliers_header(FAMILY_TARGETS),
                # extant tips only, so every column is n<id>: a profile never names a dead lineage
                "profiles": "family\t" + "\t".join(node_label(s) for s in extant_ids)}
+    filenames = dict(_STREAM_FILENAMES)
+    if bundle:
+        headers["gene_trees"] = tree_table_header()
+        filenames["gene_trees"] = BUNDLED["gene_trees"]
     for name, header in headers.items():
         if name in outputs:
-            with open(os.path.join(out_dir, _STREAM_FILENAMES[name]), "w", encoding="utf-8") as out:
+            with open(os.path.join(out_dir, filenames[name]), "w", encoding="utf-8") as out:
                 out.write(header + "\n")
                 for ci in range(n_chunks):
                     shard = os.path.join(shard_dir, f"{name}_{ci}.tsv")

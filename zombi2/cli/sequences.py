@@ -36,7 +36,7 @@ from zombi2.sequences.substitution_models import (
     dayhoff, gtr, hky85, jc69, jtt, k80, lg, poisson, wag,
 )
 from zombi2.tree import read_newick
-from zombi2.cli.framework import (_add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
+from zombi2.cli.framework import (_add_bundle_arg, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg, _add_from_arg,
                                   _add_params_arg, _add_run_arg, _rate, _rates_help, _write_params_log,
                                   conditioned_levels, default_outputs, signpost, level_dir, print_wrote,
                                   parallel_from_args,
@@ -149,6 +149,7 @@ def _add_sequence_args(p: argparse.ArgumentParser) -> None:
                         "— genomes (one assembled FASTA per node, the big one) and initial_genome. "
                         "also: ancestral, founding")
     _add_flat_arg(g)
+    _add_bundle_arg(g)
     _add_parallel_arg(g)
     g.add_argument("--stream", action="store_true",
                    help="[family/ordered] write each family's sequences straight to disk instead of "
@@ -332,7 +333,7 @@ def run(args, parser):
                                 stream_to=out if streaming else None,
                                 outputs=(tuple(args.write) if args.write else None)
                                 if streaming else None,
-                                flat=args.flat,
+                                flat=args.flat, bundle=args.bundle and streaming,
                                 progress=not args.quiet, **extra)
     # the many-files-per-run outputs get a directory apiece (unless --flat): alignments and
     # phylograms are one file per family — per *block* on a nucleotide run, where a real genome has
@@ -347,7 +348,7 @@ def run(args, parser):
         n_families, n_seqs = result.n_families, result.n_sequences
     else:
         wanted = tuple(args.write) if args.write else default_outputs(result)
-        result.write(out, outputs=wanted, flat=args.flat)
+        result.write(out, outputs=wanted, flat=args.flat, bundle=args.bundle)
         n_families = sum(1 for aln in result.alignments.values() if aln)
         n_seqs = sum(len(aln) for aln in result.alignments.values())
     # the clock is read off the rate itself: a value varying among lineages is the relaxed clock.

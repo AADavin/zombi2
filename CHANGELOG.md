@@ -9,6 +9,13 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- `--bundle` (`bundle=True` from Python) writes gene trees, alignments, ancestral sequences and
+  phylograms as one file each, instead of per-family files. It is for clusters that limit how many
+  files a user stores. `zombi2 tools bundle` and `zombi2 tools unbundle` convert a written run from
+  one layout to the other. (#464)
+
 ## [0.51.2] - 2026-10-09
 
 ### Changed
