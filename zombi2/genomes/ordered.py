@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import array
 import collections
+import heapq
 import math
 import pathlib
 from typing import Any, Sequence, cast
@@ -79,12 +80,13 @@ from .family import (_FamilyCounts, _LiveGeneContent, live_target, resolve_famil
 from ._live import WeightedIndex, enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
                         recipient_index_all, resolve_transfer_to)
-from .._runtime.outputs import fresh_dirs, grouped_dir
+from .._runtime.outputs import BUNDLED, fresh_dirs, grouped_dir, tree_table_header
 from .._runtime.summary import _stats, write_summary
 from .._runtime.progress import progress_bar
 from .events import (_COLS, Event, EventTally, GeneEdge, _branches, _name, edges_from_tsv,
                      event_counts, event_rows, events_from_edges, gene_label)
-from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
+from .gene_trees import (GeneTree, gene_tree_rows, gene_trees_from_edges, write_gene_tree_table,
+                         write_gene_trees)
 from .links import Link, links_of, links_tsv
 from .multipliers import (ORDERED_LINEAGE_TARGETS, ORDERED_TARGETS, draw_lineage_multipliers,
                           lineage_multipliers_of, lineage_multipliers_tsv, multipliers_of,
@@ -424,7 +426,7 @@ class OrderedGenomesResult:
                                         "gene_trees", "chromosome_events", "species_tree",
                                         "summary", "links", "family_multipliers",
                                         "lineage_multipliers"), *,
-              flat: bool = False) -> None:
+              flat: bool = False, bundle: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → **two** tables, because a run does two different things to a genome.
@@ -449,7 +451,8 @@ class OrderedGenomesResult:
           orthogonal to it.
 
         The gene trees are two files per family, so they get a subdirectory rather than burying the
-        tables above; ``flat=True`` writes everything into ``directory`` instead.
+        tables above; ``flat=True`` writes everything into ``directory`` instead. ``bundle=True``
+        writes them as one file, ``gene_trees.tsv``, one row per family.
         - ``"links"`` → ``links.tsv``, the links the run read from its own gene content, one row per
           link (see `zombi2.genomes.links`); the header alone when there are none.
         - ``"family_multipliers"`` → ``family_multipliers.tsv``, each family's drawn rate
@@ -483,8 +486,10 @@ class OrderedGenomesResult:
                 chromosome_events_tsv(self.chromosome_events, self.complete_tree, names),
                 encoding="utf-8")
         if "gene_trees" in outputs:
-            write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat),
-                             self.complete_tree.labels())
+            if bundle:
+                write_gene_tree_table(self.gene_trees, d / BUNDLED["gene_trees"], names)
+            else:
+                write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat), names)
         if "species_tree" in outputs:            # the tree everything here is indexed by: without
             (d / "species_complete.nwk").write_text(   # it a directory of gene trees is not a dataset
                 self.complete_tree.to_newick() + "\n", encoding="utf-8")
@@ -702,12 +707,12 @@ class _OrderedStream:
     the summary need: which families the tip holds, and how many copies of each. `close` writes the
     remaining files and builds the gene trees from the event log (`_write_gene_trees_from_log`)."""
 
-    def __init__(self, directory, outputs, tree) -> None:
+    def __init__(self, directory, outputs, tree, bundle: bool = False) -> None:
         self.directory = pathlib.Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
         # the gene trees are one file pair per family, so a previous run's must not survive beside these
         fresh_dirs(self.directory, ("gene_trees",), flat=False)
-        self.outputs = tuple(outputs)
+        self.outputs, self.bundle = tuple(outputs), bundle
         self.tree, self.names = tree, tree.labels()
         self._extant = set(tree.extant_leaves())
         # the buffers the engine appends to, emptied by `flush`
@@ -838,8 +843,9 @@ class _OrderedStream:
                 f.close()
         d, want = self.directory, set(self.outputs)
         if "gene_trees" in want:
-            _write_gene_trees_from_log(self._events_path, self._n_rows, d / "gene_trees", d,
-                                       self.tree, self.names)
+            _write_gene_trees_from_log(self._events_path, self._n_rows,
+                                       d / (BUNDLED["gene_trees"] if self.bundle else "gene_trees"),
+                                       d, self.tree, self.names, bundle=self.bundle)
             if "events" not in want:
                 self._events_path.unlink()
         if "profiles" in want:
@@ -884,22 +890,32 @@ class _OrderedStream:
                 out.write(profiles_row(family, values) + "\n")
 
 
-def _write_gene_trees_from_log(events_path, n_rows: int, directory, scratch, tree, names) -> None:
+def _write_gene_trees_from_log(events_path, n_rows: int, directory, scratch, tree, names, *,
+                               bundle: bool = False) -> None:
     """Build every family's gene tree from a written event log and write it into ``directory``,
-    holding one group of families in memory at a time.
+    holding one group of families in memory at a time. Under ``bundle``, ``directory`` is the path
+    of ``gene_trees.tsv`` instead.
 
     Every row of a family goes to the group ``family % groups``, so each group is a whole log for the
     families in it, and building a group's trees gives each family the tree the whole log would. The
     log is read once for every `_GENE_TREE_OPEN_FILES` groups, which are written under ``scratch``,
     built, and removed before the next are written. A group holds about `_GENE_TREE_GROUP_ROWS` rows,
-    and never less than its largest family."""
+    and never less than its largest family.
+
+    A group holds every ``groups``-th family, so the bundled rows come out of the groups unsorted.
+    Each group's rows go to a scratch file, sorted, and the files are merged by family at the end:
+    the table is in family order, as ``write(bundle=True)`` writes it."""
     groups = max(1, -(-n_rows // _GENE_TREE_GROUP_ROWS))
     if groups == 1:
         edges = edges_from_tsv(pathlib.Path(events_path).read_text(encoding="utf-8"))
-        write_gene_trees(gene_trees_from_edges(edges, tree), directory, names)
+        if bundle:
+            write_gene_tree_table(gene_trees_from_edges(edges, tree), directory, names)
+        else:
+            write_gene_trees(gene_trees_from_edges(edges, tree), directory, names)
         return
     parts = pathlib.Path(scratch) / "_gene_tree_groups"
     parts.mkdir(exist_ok=True)
+    rows = []                                   # under bundle, each group's sorted rows, as a file
     for first in range(0, groups, _GENE_TREE_OPEN_FILES):
         these = range(first, min(first + _GENE_TREE_OPEN_FILES, groups))
         with open(events_path, encoding="utf-8") as log:
@@ -918,8 +934,26 @@ def _write_gene_trees_from_log(events_path, n_rows: int, directory, scratch, tre
         for i in these:
             part = parts / f"{i}.tsv"
             edges = edges_from_tsv(part.read_text(encoding="utf-8"))
-            write_gene_trees(gene_trees_from_edges(edges, tree), directory, names)
+            if bundle:
+                (parts / f"{i}.rows").write_text(
+                    "".join(row + "\n" for row in
+                            gene_tree_rows(gene_trees_from_edges(edges, tree), names)),
+                    encoding="utf-8")
+                rows.append(parts / f"{i}.rows")
+            else:
+                write_gene_trees(gene_trees_from_edges(edges, tree), directory, names)
             part.unlink()
+    if bundle:
+        handles = [open(r, encoding="utf-8") for r in rows]
+        try:
+            with open(directory, "w", encoding="utf-8") as out:
+                out.write(tree_table_header() + "\n")
+                out.writelines(heapq.merge(*handles, key=lambda line: int(line.split("\t", 1)[0])))
+        finally:
+            for h in handles:
+                h.close()
+        for r in rows:
+            r.unlink()
     parts.rmdir()
 
 
@@ -1980,7 +2014,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
                              transfer_to="uniform", replacement=False, self_transfer=False,
                              initial_families=100, families=None, joint=False,
                              max_family_size=10, seed=None, stream_to=None, outputs=None,
-                             progress=False, **retired) -> "OrderedGenomesResult | StreamedRun":
+                             bundle=False, progress=False, **retired) -> "OrderedGenomesResult | StreamedRun":
     """Evolve ordered genomes — genes with a position and an orientation, on chromosomes — along a
     species tree, by the D/T/L/O core plus segmental rearrangements and the chromosome events.
 
@@ -2093,14 +2127,20 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     differ. ``gene_order.tsv`` lists each node's rows when its branch ends rather than in node order,
     and a `StreamedRun` comes back instead of an `OrderedGenomesResult`. The gene trees are built at the
     end from the event log, one group of families at a time. ``outputs=`` picks the files, as
-    ``write()`` takes them, and without ``stream_to`` it is an error. The genomes still alive are kept,
-    as the run needs them, so at the end every extant genome is in memory at once.
+    ``write()`` takes them, and without ``stream_to`` it is an error. ``bundle=True`` writes the gene
+    trees as one ``gene_trees.tsv``, as ``write(bundle=True)`` does, and is an error without
+    ``stream_to`` too. The genomes still alive are kept, as the run needs them, so at the end every
+    extant genome is in memory at once.
     """
     tree = as_tree(tree, level="genomes")
     if outputs is not None and stream_to is None:
         raise ValueError(
             "outputs applies to a streamed run (stream_to=DIR), which writes the files itself; for an "
             "in-memory run choose them when you call result.write(outputs=...).")
+    if bundle and stream_to is None:
+        raise ValueError(
+            "bundle applies to a streamed run (stream_to=DIR), which writes the files itself; for an "
+            "in-memory run pass it when you call result.write(bundle=True).")
     if stream_to is not None:
         outputs = tuple(OrderedGenomesResult.OUTPUTS if outputs is None else outputs)
         if unknown := [o for o in outputs if o not in OrderedGenomesResult.OUTPUTS]:
@@ -2427,7 +2467,7 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     genomes: dict[int, tuple[Chromosome, ...]] = {}
     # A streamed run writes these four as it goes and keeps none of them (`_OrderedStream`): the engine
     # appends to the stream's own lists, and the stream writes and empties them in batches.
-    to_disk = _OrderedStream(stream_to, outputs, tree) if stream_to is not None else None
+    to_disk = _OrderedStream(stream_to, outputs, tree, bundle) if stream_to is not None else None
     events: list[GeneEdge] = to_disk.edges if to_disk is not None else []
     event_positions: list[EventPosition] = to_disk.positions if to_disk is not None else []
     rearrangements: list[Inversion | Transposition | Translocation] = (

@@ -193,6 +193,8 @@ This is why a phylogram's root carries a branch length: it is the stem in substi
 
 This is the level where a run's memory goes. Every family's alignment and every ancestral sequence are held at once, so what you can run is bounded by families × copies × sites rather than by time. `stream_to` writes each family's files the moment it is finished and keeps nothing, returning a light handle with a path instead of a `SequencesResult` holding everything. On the command line it is `--stream`.
 
+`--bundle` writes the alignments, ancestral sequences and phylograms as one file each, instead of per-family files. From Python, pass `bundle=True` to `.write()`, or to `simulate_sequences` together with `stream_to`. See Appendix B.
+
 Memory then stops growing with the sequences: raise the sites fivefold and an in-memory run doubles while a streamed one barely moves. What is left is the genome run being read, which is the remaining cost. It is a memory choice and not a modelling one: the same seed writes the same files either way, so a streamed run and an in-memory one are the same dataset. `outputs=` picks which files, exactly as `.write` takes them, and it composes with `parallel`. A **nucleotide** run cannot stream: it puts whole genomes back together, which needs every block's sequence at once.
 
 ## Running on a nucleotide genome

@@ -8,12 +8,21 @@ they sit beside is buried under them.
 Every ``Result.write`` groups them the same way, so a run written from Python has the layout the
 manual describes and the one a ``zombi2`` command produces. ``flat=True`` is the escape hatch, for a
 tool that wants one directory and nothing else; it is what ``--flat`` passes through.
+
+``bundle=True`` (``--bundle``) is the other way out, for a run with thousands of families on a
+cluster that counts files: each per-family directory becomes one file (`BUNDLED`). A pair of trees
+becomes a row of a table, and a family's FASTA records join one FASTA, each header naming its
+family after a space. ``zombi2 tools bundle`` and ``unbundle`` convert a written run either way.
 """
 
 from __future__ import annotations
 
 import pathlib
 import shutil
+
+#: Every per-family directory that has a bundled form, and the one file it becomes under ``bundle``.
+BUNDLED = {"gene_trees": "gene_trees.tsv", "phylograms": "phylograms.tsv",
+           "alignments": "alignments.fasta", "ancestral": "ancestral.fasta"}
 
 
 def grouped_dir(base: pathlib.Path, name: str, flat: bool) -> pathlib.Path:
@@ -49,10 +58,15 @@ def fresh_dirs(base: pathlib.Path, names, flat: bool) -> None:
     once when a streamed run opens its sink) rather than from `grouped_dir`, because the same
     directory is legitimately filled by more than one pass and clearing on each would leave only the
     last. Under ``flat`` this does nothing: there the caller shares one directory with every other
-    output and every other level, so nothing in it can safely be called "ours" to remove."""
+    output and every other level, so nothing in it can safely be called "ours" to remove.
+
+    A directory's bundled file (`BUNDLED`) goes too: a ``gene_trees.tsv`` left by a bundled run
+    beside the ``gene_trees/`` of an unbundled one is the same two-runs-in-one-place mistake."""
     if flat:
         return
     for name in names:
+        if name in BUNDLED and (base / BUNDLED[name]).is_file():
+            (base / BUNDLED[name]).unlink()
         d = base / name
         if not d.is_dir():
             continue
@@ -60,4 +74,29 @@ def fresh_dirs(base: pathlib.Path, names, flat: bool) -> None:
             shutil.rmtree(stale) if stale.is_dir() else stale.unlink()
 
 
-__all__ = ["grouped_dir", "fresh_dirs"]
+def tree_table_header(key: str = "family") -> str:
+    """The header of a bundled pair of trees: ``gene_trees.tsv`` or ``phylograms.tsv``. ``key`` is
+    what the first column counts, ``family``, or ``block`` for a nucleotide run's phylograms."""
+    return f"{key}\tcomplete\textant"
+
+
+def tree_table_row(key: int, complete: str, extant: "str | None") -> str:
+    """One family's row: its id, its complete tree, and its extant tree, empty when no copy
+    survived. A Newick string holds no tab, so the row needs no quoting."""
+    return f"{key}\t{complete}\t{extant or ''}"
+
+
+def append_fasta(handle, records: dict, tag: str, width: int = 70) -> None:
+    """Append ``{name: sequence}`` to an open bundled FASTA, each header ``>name tag``.
+
+    The name stays the gene tree's tip label, so a family pulled out of the file still matches its
+    tree. The tag (``fam4``, or ``block4`` on a nucleotide run) is the per-family file the records
+    came from, after a space, where FASTA readers keep a description. Lines wrap at ``width``, as
+    in the per-family files, so converting between the two layouts changes no sequence line."""
+    for name, seq in records.items():
+        handle.write(f">{name} {tag}\n")
+        handle.writelines(f"{seq[i:i + width]}\n" for i in range(0, len(seq), width))
+
+
+__all__ = ["BUNDLED", "grouped_dir", "fresh_dirs", "tree_table_header", "tree_table_row",
+           "append_fasta"]

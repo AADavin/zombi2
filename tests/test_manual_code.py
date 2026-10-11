@@ -360,7 +360,8 @@ def test_every_flag_the_manual_names_in_prose_exists():
 
     declared: set[str] = set()
     for argv in (["species"], ["genomes"], ["sequences"], ["traits"], ["joint"],
-                 ["tools"], ["tools", "tree"], ["tools", "treedist"], ["tools", "format"]):
+                 ["tools"], ["tools", "tree"], ["tools", "treedist"], ["tools", "format"],
+                 ["tools", "bundle"], ["tools", "unbundle"]):
         buf = _io.StringIO()
         with _c.suppress(SystemExit), _c.redirect_stdout(buf), _c.redirect_stderr(buf):
             cli_main.main([*argv, "--help"])
