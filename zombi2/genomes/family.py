@@ -45,7 +45,7 @@ from ._live import enter, retire, weighted_index, without_cyclic_gc
 from ._transfer import (mean_root_to_tip, prepare_transfer_to, recipient_index,
                         resolve_transfer_to)
 
-from .._runtime.outputs import BUNDLED, fresh_dirs, grouped_dir
+from .._runtime.outputs import COMPACT_FILES, compact_or_bundle, fresh_dirs, grouped_dir
 from .._runtime.progress import progress_bar
 from .._runtime.summary import _stats, write_summary
 from .events import Event, GeneEdge, event_counts, events_from_edges, events_tsv, gene_label
@@ -313,7 +313,8 @@ class FamilyGenomesResult:
     def write(self, directory, outputs=("events", "profiles", "genomes", "initial_genome",
                                         "gene_trees", "species_tree", "summary", "links",
                                         "family_multipliers", "lineage_multipliers"), *,
-              flat: bool = False, bundle: bool = False) -> None:
+              flat: bool = False, compact: bool = False,
+              bundle: "bool | None" = None) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → ``genome_events.tsv``, the event log (the source of truth).
@@ -340,10 +341,11 @@ class FamilyGenomesResult:
         - ``"lineage_multipliers"`` → ``lineage_multipliers.tsv``, each species branch's drawn rate
           multipliers, one row per branch; the header alone when no rate varies among lineages.
         The gene trees are two files per family, so they get a subdirectory rather than burying the
-        tables above; ``flat=True`` writes everything into ``directory`` instead. ``bundle=True``
+        tables above; ``flat=True`` writes everything into ``directory`` instead. ``compact=True``
         writes them as one file, ``gene_trees.tsv``, one row per family: a run of thousands of
         families is then a handful of files, which is what a cluster that limits file counts needs.
         """
+        compact = compact_or_bundle(compact, bundle, "write")   # its 0.52.0 name
         # An unknown token used to write nothing and exit clean — silent data loss you discover
         # three pipeline steps later, when the next tool has no input. The other levels have always
         # raised; these two did not.
@@ -364,8 +366,8 @@ class FamilyGenomesResult:
         if "initial_genome" in outputs:
             (d / "initial_genome.tsv").write_text(self._initial_genome_tsv(), encoding="utf-8")
         if "gene_trees" in outputs:
-            if bundle:
-                write_gene_tree_table(self.gene_trees, d / BUNDLED["gene_trees"], names)
+            if compact:
+                write_gene_tree_table(self.gene_trees, d / COMPACT_FILES["gene_trees"], names)
             else:
                 write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat), names)
         if "species_tree" in outputs:
@@ -1269,7 +1271,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
                             transfer_to="uniform", replacement=False, self_transfer=False,
                             initial_families=100, families=None, max_family_size=10, joint=False,
                             seed=None, parallel=False, stream_to=None, outputs=None,
-                            bundle=False, progress=False,
+                            compact=False, bundle=None, progress=False,
                             **retired) -> "FamilyGenomesResult | StreamedRun":
     """Evolve a multiset of gene families along a species tree by duplication, transfer, loss, and
     origination.
@@ -1365,12 +1367,13 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
     back instead of a ``FamilyGenomesResult``. ``outputs=`` picks which files, as
     `FamilyGenomesResult.write()` takes them minus ``summary`` (a streamed run writes no
     ``genome_summary.json``); the default is all six. It is the per-family engine, and
-    ``outputs`` without ``stream_to`` is an error. ``bundle=True`` writes the gene trees as one
-    ``gene_trees.tsv``, as ``write(bundle=True)`` does; without ``stream_to`` it is an error too.
+    ``outputs`` without ``stream_to`` is an error. ``compact=True`` writes the gene trees as one
+    ``gene_trees.tsv``, as ``write(compact=True)`` does; without ``stream_to`` it is an error too.
     """
     # First line of the call, before any work: a worker re-importing an unguarded script would
     # otherwise repeat the whole run before dying at its own pool. See `refuse_worker_reentry`.
     refuse_worker_reentry(parallel)
+    compact = compact_or_bundle(compact, bundle, "simulate_genomes_family")   # its 0.52.0 name
     tree = as_tree(tree, level="genomes")
     dup = as_rate(duplication, default_scope=PerCopy)
     tra = as_rate(transfer, default_scope=PerCopy)
@@ -1559,10 +1562,10 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
         raise ValueError(
             "outputs applies to a streamed run (stream_to=DIR), which writes the files itself; for an "
             "in-memory run choose them when you call result.write(outputs=...).")
-    if bundle and stream_to is None:
+    if compact and stream_to is None:
         raise ValueError(
-            "bundle applies to a streamed run (stream_to=DIR), which writes the files itself; for an "
-            "in-memory run pass it when you call result.write(bundle=True).")
+            "compact applies to a streamed run (stream_to=DIR), which writes the files itself; for "
+            "an in-memory run pass it when you call result.write(compact=True).")
     seed = resolve_seed(seed)     # drawn if none was given, so either engine below records it
     if (parallel or stream_to is not None) and (live_keys or live_choices):
         # The one thing that engine's whole design rests on: a family's history depends on no other
@@ -1608,7 +1611,7 @@ def simulate_genomes_family(tree, *, duplication=0.0, transfer=0.0, loss=0.0, or
             replacement=replacement, self_transfer=self_transfer, initial_families=initial_families,
             family_names=family_names, placed=[], modules=module_map, cap=cap,
             seed=seed, parallel=parallel,
-            progress=progress, stream_to=stream_to, outputs=outputs, bundle=bundle,
+            progress=progress, stream_to=stream_to, outputs=outputs, compact=compact,
             trajs=trajs, to_traj=to_traj, group_of=group_of,
             driven={"duplication": bool(dup_mods), "transfer": bool(tra_mods),
                     "loss": bool(los_mods), "origination": bool(org_mods)},

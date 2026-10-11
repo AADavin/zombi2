@@ -37,7 +37,7 @@ _RECORD_SUFFIXES = (".log", "_summary.json")
 #: Plumbing, not model — dropped from both the parameters line and the reproduce command: how the run
 #: was driven or laid out (never what was simulated), or handled elsewhere (``seed`` is appended,
 #: ``source`` becomes ``--from``). The ``.log`` keeps the complete set regardless.
-_PLUMBING = frozenset({"command", "run", "seed", "params", "flat", "bundle", "force", "quiet",
+_PLUMBING = frozenset({"command", "run", "seed", "params", "flat", "compact", "force", "quiet",
                        "write", "parallel", "stream", "source"})
 
 #: Additionally hidden from the *display* only — inputs shown on the "computed on" line (``tip_fates``,
@@ -81,7 +81,7 @@ _GLOSS = {
     "genome_events.tsv": "every duplication / transfer / loss / origination, per gene copy",
     "links.tsv": "the links the run read from its own gene content (family, target, driver, modifier, mapping); only the header when there are none",
     "gene_trees": "gene trees, one per family — complete (all copies) and extant (survivors), Newick",
-    "gene_trees.tsv": "the gene trees bundled, one row per family (family, complete, extant), Newick",
+    "gene_trees.tsv": "every gene tree in one table, a row per family (family, complete, extant)",
     # genomes/ (ordered resolution adds gene order and chromosome-level events)
     "gene_order.tsv": "the gene arrangement of every genome (lineage, chromosome, topology, position, strand, family, copy)",
     "chromosome_events.tsv": "the chromosome network's edges — initial / origination / speciation / fission / fusion / loss (time, kind, parents, children)",
@@ -100,7 +100,7 @@ _GLOSS = {
     "ancestral": "one FASTA per family of the sequences at its internal nodes",
     "ancestral.fasta": "every family's ancestral sequences in one FASTA, each header naming its family",
     "phylograms": "gene trees with branch lengths in substitutions/site, one per family",
-    "phylograms.tsv": "the phylograms bundled, one row per family (family, complete, extant), Newick",
+    "phylograms.tsv": "every phylogram in one table, a row per family (family, complete, extant)",
     "sequences_founding.fasta": "the sequence each family (or block) originated with, before its stem — one record apiece",
     "genomes": "one assembled genome FASTA per node of the complete tree, plus the initial genome when it was written",
     # traits/

@@ -4,8 +4,8 @@ Where the level commands *simulate*, the tools *read back* what a run wrote. Eac
 sub-subcommand (``zombi2 tools <tool>``); ``format`` turns a genomes run into analysis-ready files,
 all derived from the gene trees and all exact rather than inferred: the homology matrix
 (`zombi2.tools.homology`), the marker table (`zombi2.tools.markers`) and recPhyloXML
-(`zombi2.tools.recphylo`). ``bundle`` and ``unbundle`` convert a written run between one file per
-family and one file per run (`zombi2.tools.bundle`).
+(`zombi2.tools.recphylo`). ``compact`` and ``expand`` convert a written run between one file per
+family and one file per run (`zombi2.tools.compact`).
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from zombi2.genomes.events import edges_from_tsv
 from zombi2.genomes.gene_trees import gene_trees_from_edges
 from zombi2.genomes.nucleotide import read_nucleotide_genomes
 from zombi2.tree import read_newick
-from zombi2.tools.bundle import bundle_run, unbundle_run
+from zombi2.tools.compact import compact_run, expand_run
 from zombi2.tools.homology import write_homology
 from zombi2.tools.markers import write_markers
 from zombi2.tools.recphylo import write_recphylo
@@ -56,8 +56,8 @@ _TOOLS_DESCRIPTION = (
     "  tree                 transform, measure or list one Newick tree (prune, round, stem,\n"
     "                       rescale, RED, gamma, clades)\n"
     "  treedist             distance between two Newick trees (RF, branch-score)\n"
-    "  bundle               convert a run's per-family files into bundled files\n"
-    "  unbundle             convert bundled files back into per-family files\n"
+    "  compact              convert a run's per-family files into compact files\n"
+    "  expand               convert compact files back into per-family files\n"
 )
 
 
@@ -139,44 +139,53 @@ def _add_tools_args(p: argparse.ArgumentParser) -> None:
     _add_tools_treedist_args(tdp)
 
     bp = tsub.add_parser(
-        "bundle",
-        prog="zombi2 tools bundle",
-        help="convert a run's per-family files into bundled files",
+        "compact",
+        prog="zombi2 tools compact",
+        help="convert a run's per-family files into compact files",
         description=(
-            "Write each per-family output of a finished run as one file, the layout --bundle "
+            "Write each per-family output of a finished run as one file, the layout --compact "
             "writes: gene_trees.tsv, phylograms.tsv, alignments.fasta and ancestral.fasta. The "
             "conversion is exact, and checked by reading back what was written. The per-family "
             "files stay unless --remove."
         ),
-        usage="zombi2 tools bundle DIR [--remove]",
+        usage="zombi2 tools compact DIR [--remove]",
         formatter_class=ZombiHelpFormatter,
         epilog=_examples(
-            "  # bundle a run, then remove the per-family files",
-            "  zombi2 tools bundle out/ --remove",
+            "  # compact a run, then remove the per-family files",
+            "  zombi2 tools compact out/ --remove",
         ),
     )
-    _add_tools_bundle_args(bp, "the per-family files, once the bundled file is checked")
+    _add_tools_compact_args(bp, "the per-family files, once the compact file is checked")
 
     up = tsub.add_parser(
-        "unbundle",
-        prog="zombi2 tools unbundle",
-        help="convert bundled files back into per-family files",
+        "expand",
+        prog="zombi2 tools expand",
+        help="convert compact files back into per-family files",
         description=(
-            "Write each bundled output of a finished run back as one file per family, the layout a "
-            "run writes without --bundle. The conversion is exact, and checked by reading back what "
-            "was written. The bundled files stay unless --remove."
+            "Write each compact output of a finished run back as one file per family, the layout "
+            "a run writes without --compact. The conversion is exact, and checked by reading back "
+            "what was written. The compact files stay unless --remove."
         ),
-        usage="zombi2 tools unbundle DIR [--flat] [--remove]",
+        usage="zombi2 tools expand DIR [--flat] [--remove]",
         formatter_class=ZombiHelpFormatter,
         epilog=_examples(
             "  # per-family files again, for a program that reads one file per family",
-            "  zombi2 tools unbundle out/",
+            "  zombi2 tools expand out/",
         ),
     )
-    _add_tools_bundle_args(up, "the bundled files, once the per-family files are checked")
+    _add_tools_compact_args(up, "the compact files, once the per-family files are checked")
     up.add_argument("--flat", action="store_true",
-                    help="write the per-family files into the directory that holds the bundled "
+                    help="write the per-family files into the directory that holds the compact "
                          "file, as a --flat run does, not into a directory per output")
+
+    # the names these two had in 0.52.0, kept for one release: left out of the tool list above, and
+    # each says which name replaced it when it runs (`_DEPRECATED_TOOLS`)
+    for old, new in _DEPRECATED_TOOLS.items():
+        dp = tsub.add_parser(old, prog=f"zombi2 tools {old}", formatter_class=ZombiHelpFormatter,
+                             description=f"Deprecated: use 'zombi2 tools {new}', which this runs.")
+        _add_tools_compact_args(dp, f"what 'zombi2 tools {new} --remove' removes")
+        if new == "expand":
+            dp.add_argument("--flat", action="store_true", help="as for 'zombi2 tools expand'")
 
 
 def _add_tools_tree_args(p: argparse.ArgumentParser) -> None:
@@ -227,7 +236,7 @@ def _add_tools_treedist_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("-o", "--output", metavar="FILE", help="write here instead of stdout")
 
 
-def _add_tools_bundle_args(p: argparse.ArgumentParser, removes: str) -> None:
+def _add_tools_compact_args(p: argparse.ArgumentParser, removes: str) -> None:
     _add_run_arg(p)
     p.add_argument("--remove", action="store_true", help=f"remove {removes}")
 
@@ -549,19 +558,28 @@ def _run_treedist(args, parser: argparse.ArgumentParser) -> int:
     return 0
 
 
-def _run_bundle(args, parser: argparse.ArgumentParser) -> int:
-    """``zombi2 tools bundle`` and ``unbundle`` — convert a run between its two layouts."""
-    bundling = args.tools_command == "bundle"
+#: the tools' names in 0.52.0, each with the name that replaced it
+_DEPRECATED_TOOLS = {"bundle": "compact", "unbundle": "expand"}
+
+
+def _run_compact(args, parser: argparse.ArgumentParser) -> int:
+    """``zombi2 tools compact`` and ``expand`` — convert a run between its two layouts."""
+    if args.tools_command in _DEPRECATED_TOOLS:
+        new = _DEPRECATED_TOOLS[args.tools_command]
+        warn(f"'zombi2 tools {args.tools_command}' is deprecated and will be removed in the next "
+             f"release; use 'zombi2 tools {new}'")
+        args.tools_command = new
+    compacting = args.tools_command == "compact"
     try:
-        done = (bundle_run(args.run, remove=args.remove) if bundling
-                else unbundle_run(args.run, flat=args.flat, remove=args.remove))
+        done = (compact_run(args.run, remove=args.remove) if compacting
+                else expand_run(args.run, flat=args.flat, remove=args.remove))
     except (ValueError, FileNotFoundError) as e:
         parser.error(str(e))
     if not done:
         warn(f"nothing to {args.tools_command} in {args.run}: no "
-             f"{'per-family' if bundling else 'bundled'} output found")
+             f"{'per-family' if compacting else 'compact'} output found")
     for c in done:
-        source = f"{c.files} files" if bundling else "1 file"
+        source = f"{c.files} files" if compacting else "1 file"
         noun = {"family": ("family", "families"), "block": ("block", "blocks")}[c.unit][c.units != 1]
         print(f"wrote {c.units} {noun} from {source} in {c.wrote}"
               f"{', and removed what it came from' if c.removed else ''}")
@@ -570,7 +588,8 @@ def _run_bundle(args, parser: argparse.ArgumentParser) -> int:
 
 #: tool name -> handler; dispatch mirrors the level commands' ``_RUN``.
 _TOOLS_RUN = {"format": _run_format, "tree": _run_tree, "treedist": _run_treedist,
-              "bundle": _run_bundle, "unbundle": _run_bundle}
+              "compact": _run_compact, "expand": _run_compact,
+              "bundle": _run_compact, "unbundle": _run_compact}
 
 
 def run(args, parser: argparse.ArgumentParser) -> int:

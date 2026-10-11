@@ -23,7 +23,7 @@ import argparse
 import os
 import time
 
-from zombi2.cli.framework import (resolve_seed, _add_bundle_arg, _add_flat_arg, _add_params_arg, _add_quiet_arg, _add_run_arg,
+from zombi2.cli.framework import (resolve_seed, _add_compact_arg, _add_flat_arg, _add_params_arg, _add_quiet_arg, _add_run_arg,
                                   _rate, _rates_help, _write_params_log, default_outputs, signpost,
                                   level_dir, print_wrote)
 from zombi2.cli.traits import _DISCRETE_DEFAULT as TRAITS_DEFAULT
@@ -111,7 +111,7 @@ def _add_joint_args(p: argparse.ArgumentParser) -> None:
 
     g = p.add_argument_group("outputs")
     _add_flat_arg(g)
-    _add_bundle_arg(g)
+    _add_compact_arg(g)
     _add_quiet_arg(g)
 
 
@@ -184,7 +184,7 @@ def run(args, parser):
     else:
         driver_dir = level_dir(args.run, "genomes", args.flat)
         result.genome.write(driver_dir, outputs=default_outputs(result.genome), flat=args.flat,
-                            bundle=args.bundle)
+                            compact=args.compact)
         detail = "gene content driving speciation"
 
     n_extant = len(result.species.complete_tree.extant_leaves())

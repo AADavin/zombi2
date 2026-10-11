@@ -5,7 +5,7 @@
 `zombi2 tools` reads a finished run and derives a new view of it. Each tool is a sub-subcommand,
 `zombi2 tools <tool>`. `format` reads a whole genomes run and writes its derived files beside the run;
 `tree` and `treedist` read one or two Newick files and write to stdout, or to a file with `-o`.
-`bundle` and `unbundle` convert a written run from the per-family layout to the bundled layout, or
+`compact` and `expand` convert a written run from the per-family layout to the compact layout, or
 back.
 
 <!-- --8<-- [end:intro] -->
@@ -287,12 +287,12 @@ zombi2 tools treedist out/genomes/gene_trees/gene_tree_fam72_extant.nwk \
 
 <!-- --8<-- [end:treedist] -->
 
-## `bundle` and `unbundle`: bundled files or per-family files
+## `compact` and `expand`: compact files or per-family files
 
-<!-- --8<-- [start:bundle] -->
+<!-- --8<-- [start:compact] -->
 
-`zombi2 tools bundle DIR` converts a run's per-family files to the bundled layout that `--bundle`
-writes (Appendix B). `zombi2 tools unbundle DIR` converts the bundled files back to per-family files.
+`zombi2 tools compact DIR` converts a run's per-family files to the compact layout that `--compact`
+writes (Appendix B). `zombi2 tools expand DIR` converts the compact files back to per-family files.
 Neither simulates anything again.
 
 `DIR` is a run directory, or a level directory such as `out/genomes/`. Both tools look in `DIR`,
@@ -303,22 +303,26 @@ the other layout. Each tool reads back the files it wrote and compares them with
 they differ, it removes what it wrote and stops with an error. The source files stay unless you pass
 `--remove`, which removes them after that check.
 
-`unbundle --flat` writes the per-family files beside the bundled file, as a `--flat` run does.
-`bundle` also finds the per-family files of a `--flat` run, with no extra flag.
+`expand --flat` writes the per-family files beside the compact file, as a `--flat` run does.
+`compact` also finds the per-family files of a `--flat` run, with no extra flag.
 
-An output can be present in both layouts, for example after `unbundle` without `--remove`. If the two
+An output can be present in both layouts, for example after `expand` without `--remove`. If the two
 hold the same data, the tools accept that output. If they differ, the tools stop with an error,
 because nothing in the files says which layout belongs to the run.
 
-From Python, the tools are `zombi2.tools.bundle.bundle_run(directory, remove=False)` and
-`unbundle_run(directory, flat=False, remove=False)`.
+From Python, the tools are `zombi2.tools.compact.compact_run(directory, remove=False)` and
+`expand_run(directory, flat=False, remove=False)`.
 
 ```bash
-# bundle a run, then remove the per-family files
-zombi2 tools bundle out/ --remove
+# compact a run, then remove the per-family files
+zombi2 tools compact out/ --remove
 
 # per-family files again, for a program that reads one file per family
-zombi2 tools unbundle out/
+zombi2 tools expand out/
 ```
 
-<!-- --8<-- [end:bundle] -->
+The old names `--bundle`, `bundle=True`, `zombi2 tools bundle`, `zombi2 tools unbundle`,
+`zombi2.tools.bundle.bundle_run` and `zombi2.tools.bundle.unbundle_run` still work in 0.52.1. Each
+prints a warning naming its replacement. The next release will remove them.
+
+<!-- --8<-- [end:compact] -->
