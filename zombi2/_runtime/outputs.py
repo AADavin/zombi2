@@ -9,19 +9,20 @@ Every ``Result.write`` groups them the same way, so a run written from Python ha
 manual describes and the one a ``zombi2`` command produces. ``flat=True`` is the escape hatch, for a
 tool that wants one directory and nothing else; it is what ``--flat`` passes through.
 
-``bundle=True`` (``--bundle``) is the other way out, for a run with thousands of families on a
-cluster that counts files: each per-family directory becomes one file (`BUNDLED`). A pair of trees
-becomes a row of a table, and a family's FASTA records join one FASTA, each header naming its
-family after a space. ``zombi2 tools bundle`` and ``unbundle`` convert a written run either way.
+``compact=True`` (``--compact``) is the other way out, for a run with thousands of families on a
+cluster that counts files: each per-family directory becomes one file (`COMPACT_FILES`). A pair of
+trees becomes a row of a table, and a family's FASTA records join one FASTA, each header naming its
+family after a space. ``zombi2 tools compact`` and ``expand`` convert a written run either way.
 """
 
 from __future__ import annotations
 
 import pathlib
 import shutil
+import warnings
 
-#: Every per-family directory that has a bundled form, and the one file it becomes under ``bundle``.
-BUNDLED = {"gene_trees": "gene_trees.tsv", "phylograms": "phylograms.tsv",
+#: Every per-family directory that has a compact form, and the one file it becomes.
+COMPACT_FILES = {"gene_trees": "gene_trees.tsv", "phylograms": "phylograms.tsv",
            "alignments": "alignments.fasta", "ancestral": "ancestral.fasta"}
 
 
@@ -60,13 +61,13 @@ def fresh_dirs(base: pathlib.Path, names, flat: bool) -> None:
     last. Under ``flat`` this does nothing: there the caller shares one directory with every other
     output and every other level, so nothing in it can safely be called "ours" to remove.
 
-    A directory's bundled file (`BUNDLED`) goes too: a ``gene_trees.tsv`` left by a bundled run
-    beside the ``gene_trees/`` of an unbundled one is the same two-runs-in-one-place mistake."""
+    A directory's compact file (`COMPACT_FILES`) goes too: a ``gene_trees.tsv`` left by a compact
+    run beside the ``gene_trees/`` of a per-family one is the same two-runs-in-one-place mistake."""
     if flat:
         return
     for name in names:
-        if name in BUNDLED and (base / BUNDLED[name]).is_file():
-            (base / BUNDLED[name]).unlink()
+        if name in COMPACT_FILES and (base / COMPACT_FILES[name]).is_file():
+            (base / COMPACT_FILES[name]).unlink()
         d = base / name
         if not d.is_dir():
             continue
@@ -74,8 +75,18 @@ def fresh_dirs(base: pathlib.Path, names, flat: bool) -> None:
             shutil.rmtree(stale) if stale.is_dir() else stale.unlink()
 
 
+def compact_or_bundle(compact: bool, bundle: "bool | None", where: str) -> bool:
+    """``compact``, or ``bundle``, the name it had in 0.52.0. The old name still works for one
+    release, with a warning that names the new one."""
+    if bundle is None:
+        return compact
+    warnings.warn(f"{where}(bundle=...) is deprecated and will be removed in the next release; "
+                  f"use compact=... instead", FutureWarning, stacklevel=3)
+    return compact or bool(bundle)
+
+
 def tree_table_header(key: str = "family") -> str:
-    """The header of a bundled pair of trees: ``gene_trees.tsv`` or ``phylograms.tsv``. ``key`` is
+    """The header of a compact pair of trees: ``gene_trees.tsv`` or ``phylograms.tsv``. ``key`` is
     what the first column counts, ``family``, or ``block`` for a nucleotide run's phylograms."""
     return f"{key}\tcomplete\textant"
 
@@ -87,7 +98,7 @@ def tree_table_row(key: int, complete: str, extant: "str | None") -> str:
 
 
 def append_fasta(handle, records: dict, tag: str, width: int = 70) -> None:
-    """Append ``{name: sequence}`` to an open bundled FASTA, each header ``>name tag``.
+    """Append ``{name: sequence}`` to an open compact FASTA, each header ``>name tag``.
 
     The name stays the gene tree's tip label, so a family pulled out of the file still matches its
     tree. The tag (``fam4``, or ``block4`` on a nucleotide run) is the per-family file the records
@@ -98,5 +109,5 @@ def append_fasta(handle, records: dict, tag: str, width: int = 70) -> None:
         handle.writelines(f"{seq[i:i + width]}\n" for i in range(0, len(seq), width))
 
 
-__all__ = ["BUNDLED", "grouped_dir", "fresh_dirs", "tree_table_header", "tree_table_row",
-           "append_fasta"]
+__all__ = ["COMPACT_FILES", "compact_or_bundle", "grouped_dir", "fresh_dirs", "tree_table_header",
+           "tree_table_row", "append_fasta"]

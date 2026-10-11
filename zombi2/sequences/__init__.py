@@ -77,8 +77,8 @@ from ..params.connection import Driven
 from ..params.parameter import Rate, as_rate
 from ..params.scope import PerSite
 from ..tree import Node, Tree, prune
-from .._runtime.outputs import (BUNDLED, append_fasta, fresh_dirs, grouped_dir, tree_table_header,
-                               tree_table_row)
+from .._runtime.outputs import (COMPACT_FILES, append_fasta, compact_or_bundle, fresh_dirs,
+                               grouped_dir, tree_table_header, tree_table_row)
 from .._runtime.progress import progress_bar
 from .._runtime.summary import write_summary
 from .clock import Clock, resolve_clock
@@ -322,7 +322,8 @@ class SequencesResult:
 
     def write(self, directory, outputs=("alignments", "phylograms", "species_phylogram", "genomes",
                                         "initial_genome", "summary", "family_multipliers"), *,
-              flat: bool = False, bundle: bool = False) -> None:
+              flat: bool = False, compact: bool = False,
+              bundle: "bool | None" = None) -> None:
         """Write chosen ``outputs`` to ``directory`` (created if needed). ``<u>`` below is
         ``fam<family>`` on a family or ordered run and ``block<index>`` on a nucleotide one — the
         integer keys mean different things, so the files say which (see `unit`):
@@ -350,10 +351,11 @@ class SequencesResult:
         ``directory`` instead. Nothing is created for an output this run has none of, so a family run
         leaves no empty ``genomes/`` behind.
 
-        ``bundle=True`` writes each per-family output as one file instead: ``alignments.fasta`` and
+        ``compact=True`` writes each per-family output as one file instead: ``alignments.fasta`` and
         ``ancestral.fasta``, with every header ``>name <u>``, and ``phylograms.tsv``, one row per
         family with its complete and extant trees. The genomes stay one file per node.
         """
+        compact = compact_or_bundle(compact, bundle, "write")   # its 0.52.0 name
         unknown = [o for o in outputs if o not in _WRITE_OUTPUTS]
         if unknown:
             raise ValueError(f"unknown write outputs {unknown}; choose from {list(_WRITE_OUTPUTS)}")
@@ -367,8 +369,8 @@ class SequencesResult:
                                        ("ancestral", self.ancestral, "sequences_ancestral_{}.fasta")):
             if token not in outputs or not any(by_family.values()):
                 continue
-            if bundle:
-                with open(d / BUNDLED[token], "w", encoding="utf-8") as f:
+            if compact:
+                with open(d / COMPACT_FILES[token], "w", encoding="utf-8") as f:
                     for fam, records in by_family.items():
                         append_fasta(f, records, f"{u}{fam}")
                 continue
@@ -379,8 +381,8 @@ class SequencesResult:
         if "founding" in outputs and self.founding:
             _write_fasta(d / "sequences_founding.fasta",
                          {f"{u}{fam}": seq for fam, seq in sorted(self.founding.items())})
-        if "phylograms" in outputs and self.phylograms and bundle:
-            with open(d / BUNDLED["phylograms"], "w", encoding="utf-8") as f:
+        if "phylograms" in outputs and self.phylograms and compact:
+            with open(d / COMPACT_FILES["phylograms"], "w", encoding="utf-8") as f:
                 f.write(tree_table_header(self.unit) + "\n")
                 for fam, ph in self.phylograms.items():
                     assert ph["complete"] is not None   # only the extant member can be absent
@@ -962,11 +964,11 @@ class _Sink:
     Same files, same names and same contents as `SequencesResult.write` — it has to be, or a streamed
     run would be a different dataset from an in-memory one at the same seed. The founding sequences
     are the one output that is not per family: they share a single FASTA, so the handle stays open and
-    each family appends a record, which keeps this flat in memory too. Under ``bundle`` every
+    each family appends a record, which keeps this flat in memory too. Under ``compact`` every
     per-family output is a single file in the same way, one handle each."""
 
     def __init__(self, directory, outputs: tuple, unit: str, flat: bool,
-                 bundle: bool = False) -> None:
+                 compact: bool = False) -> None:
         self.dir = pathlib.Path(directory)
         self.dir.mkdir(parents=True, exist_ok=True)
         self.outputs, self.unit, self.flat = outputs, unit, flat
@@ -977,10 +979,10 @@ class _Sink:
         self.n_families = self.n_sequences = 0
         self._founding = (open(self.dir / "sequences_founding.fasta", "w", encoding="utf-8")
                           if "founding" in outputs else None)
-        # the bundled files, opened on the first family that has something for them: an output this
+        # the compact files, opened on the first family that has something for them: an output this
         # run has none of writes no file, as the in-memory write leaves none
-        self.bundle = bundle
-        self._bundled: dict = {}
+        self.compact = compact
+        self._compact_files: dict = {}
         # Mean pairwise identity, accumulated family by family as each one is written. The CLI
         # reports it and warns when a run has saturated, which is the single most useful thing it
         # says about a sequence run — and computing it the in-memory way would need every alignment
@@ -994,14 +996,14 @@ class _Sink:
     def _into(self, name: str) -> pathlib.Path:
         return grouped_dir(self.dir, name, self.flat)
 
-    def _bundle(self, name: str):
-        """The open bundled file for ``name``, opened (and its header written) on first use."""
-        if name not in self._bundled:
-            handle = open(self.dir / BUNDLED[name], "w", encoding="utf-8")
+    def _compact_file(self, name: str):
+        """The open compact file for ``name``, opened (and its header written) on first use."""
+        if name not in self._compact_files:
+            handle = open(self.dir / COMPACT_FILES[name], "w", encoding="utf-8")
             if name == "phylograms":
                 handle.write(tree_table_header(self.unit) + "\n")
-            self._bundled[name] = handle
-        return self._bundled[name]
+            self._compact_files[name] = handle
+        return self._compact_files[name]
 
     @property
     def identity(self) -> "float | None":
@@ -1024,11 +1026,11 @@ class _Sink:
         if self.sites is None and aln:
             self.sites = len(next(iter(aln.values())))
         self._count_pairs(aln)
-        if self.bundle:
+        if self.compact:
             if "alignments" in self.outputs and aln:
-                append_fasta(self._bundle("alignments"), aln, u)
+                append_fasta(self._compact_file("alignments"), aln, u)
             if "ancestral" in self.outputs and anc:
-                append_fasta(self._bundle("ancestral"), anc, u)
+                append_fasta(self._compact_file("ancestral"), anc, u)
         else:
             if "alignments" in self.outputs and aln:
                 _write_fasta(self._into("alignments") / f"{u}.fasta", aln)
@@ -1038,8 +1040,8 @@ class _Sink:
             self._founding.write(f">{u}\n")
             for i in range(0, len(fnd), 70):
                 self._founding.write(fnd[i:i + 70] + "\n")
-        if "phylograms" in self.outputs and self.bundle:
-            self._bundle("phylograms").write(
+        if "phylograms" in self.outputs and self.compact:
+            self._compact_file("phylograms").write(
                 tree_table_row(fam, phylo["complete"], phylo["extant"]) + "\n")
         elif "phylograms" in self.outputs:
             into = self._into("phylograms")
@@ -1057,7 +1059,7 @@ class _Sink:
         its families are minted as its run proceeds; here they all exist from the start."""
         if self._founding is not None:
             self._founding.close()
-        for handle in self._bundled.values():
+        for handle in self._compact_files.values():
             handle.close()
         if "family_multipliers" in self.outputs:
             (self.dir / "family_multipliers.tsv").write_text(
@@ -1318,7 +1320,7 @@ def composition(letters: str, *, absent: float) -> OfferedComposition:
 
 @dataclass(frozen=True)
 class GeneSpec:
-    """One named gene of a joint sequence run — its parameters bundled but not yet evolved.
+    """One named gene of a joint sequence run — its parameters compact but not yet evolved.
 
     Built by `gene`. ``name`` is the family the genome run declared, and is also how another gene's
     rate names this one: ``"sequences:<name>"``."""
@@ -1566,7 +1568,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                        intergene_model: SubstitutionModel | None = None, intergene_speed=3.0,
                        insertion=0.0, deletion=0.0, insertion_extent=3.0, deletion_extent=3.0,
                        substitution=None, divergence=None, seed=None, parallel=False,
-                       stream_to=None, outputs=None, flat: bool = False, bundle: bool = False,
+                       stream_to=None, outputs=None, flat: bool = False, compact: bool = False,
+                       bundle: "bool | None" = None,
                        genes=None,
                        joint: bool = False, record: bool = False,
                        progress=False) -> "SequencesResult | StreamedSequences":
@@ -1724,8 +1727,8 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     actually goes — every alignment and every ancestral sequence live at once — so it is the dial for
     a run whose result would not fit. The files are the same ones ``.write(DIR)`` would leave, so a
     streamed run and an in-memory one at the same seed are the same dataset; ``outputs`` picks which,
-    exactly as ``.write`` does, and ``flat`` and ``bundle`` are passed through the same way; ``bundle``
-    without ``stream_to`` is an error, as the in-memory run takes it at ``.write``. It composes with
+    exactly as ``.write`` does, and ``flat`` and ``compact`` are passed through the same way;
+    ``compact`` without ``stream_to`` is an error, as the in-memory run takes it at ``.write``. It composes with
     ``parallel``. A **nucleotide** run cannot stream: it puts whole genomes back together, and that
     needs every block's sequence at once, which is the opposite of keeping nothing.
     """
@@ -1735,6 +1738,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
     # First line of the call, before any work: a worker re-importing an unguarded script would
     # otherwise repeat the whole run before dying at its own pool. See `refuse_worker_reentry`.
     refuse_worker_reentry(parallel)
+    compact = compact_or_bundle(compact, bundle, "simulate_sequences")   # its 0.52.0 name
 
     # A written run is a genome run too. `zombi2 sequences --from DIR` has always reopened one; from
     # Python the same handoff was a dead end, which mattered most for `stream_to=` — the feature
@@ -1754,7 +1758,7 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
                                   ("outputs", outputs))
                    if v is not None]
         offered += [n for n, v in (("insertion", insertion), ("deletion", deletion),
-                                   ("parallel", parallel), ("bundle", bundle)) if v]
+                                   ("parallel", parallel), ("compact", compact)) if v]
         if offered:
             raise ValueError(
                 f"a joint sequence run is written gene by gene, so {', '.join(sorted(offered))} "
@@ -2067,11 +2071,11 @@ def simulate_sequences(genomes, *, model: SubstitutionModel | None = None,
         unknown = [o for o in chosen if o not in _WRITE_OUTPUTS]
         if unknown:
             raise ValueError(f"unknown stream outputs {unknown}; choose from {list(_WRITE_OUTPUTS)}")
-        sink = _Sink(stream_to, chosen, "family", flat, bundle)
-    elif bundle:
+        sink = _Sink(stream_to, chosen, "family", flat, compact)
+    elif compact:
         raise ValueError(
-            "bundle applies to a streamed run (stream_to=DIR), which writes the files itself; for an "
-            "in-memory run pass it when you call result.write(bundle=True).")
+            "compact applies to a streamed run (stream_to=DIR), which writes the files itself; for "
+            "an in-memory run pass it when you call result.write(compact=True).")
     alignments: dict[int, dict[str, str]] = {}
     ancestral: dict[int, dict[str, str]] = {}
     founding: dict[int, str] = {}
