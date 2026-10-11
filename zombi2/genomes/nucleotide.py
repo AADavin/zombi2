@@ -113,14 +113,15 @@ from ._transfer import (Distance, mean_root_to_tip, prepare_transfer_to, recipie
 from .chromosomes import (REARRANGEMENT_COLS, ChromosomeEvent, chromosome_events_tsv,
                           chromosome_from_label, chromosome_label, cuts_cell, cuts_from_cell,
                           rearrangement_events_tsv)
-from .._runtime.outputs import fresh_dirs, grouped_dir
+from .._runtime.outputs import BUNDLED, fresh_dirs, grouped_dir
 from .._runtime.summary import _stats, write_summary
 from .._runtime.progress import progress_bar
 from .events import (GeneEdge, _copy_cell, _name, event_counts, events_tsv, gene_from_label,
                      gene_label,
                      node_from_label, node_label)
 from .family import resolve_modules
-from .gene_trees import GeneTree, gene_trees_from_edges, write_gene_trees
+from .gene_trees import (GeneTree, gene_trees_from_edges, write_gene_tree_table,
+                         write_gene_trees)
 from .gff import read_fasta, read_gff
 
 #: The rate grammar this engine supports (SPEC §5) — the skyline and a driven ``scaled_by``, and
@@ -1282,7 +1283,7 @@ class NucleotideGenomesResult:
     def write(self, directory, outputs=("events", "genes", "blocks", "initial_genome",
                                         "initial_sequence", "gene_trees", "chromosome_events",
                                         "gff", "bed", "species_tree", "summary"), *,
-              flat: bool = False) -> None:
+              flat: bool = False, bundle: bool = False) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
 
         - ``"events"`` → **three** tables, because a nucleotide run records three different things.
@@ -1324,7 +1325,8 @@ class NucleotideGenomesResult:
 
         ``gene_trees``, ``gff`` and ``bed`` are one file per family or per node — thousands, on a real
         genome times a real tree — so each gets a subdirectory rather than burying the tables above;
-        ``flat=True`` writes everything into ``directory`` instead.
+        ``flat=True`` writes everything into ``directory`` instead. ``bundle=True`` writes the gene
+        trees as one file, ``gene_trees.tsv``, one row per family; ``gff`` and ``bed`` stay per node.
         """
         # An unknown token used to write nothing and exit clean — silent data loss you discover
         # three pipeline steps later, when the next tool has no input. The other levels have always
@@ -1362,7 +1364,10 @@ class NucleotideGenomesResult:
                 chromosome_events_tsv(self.chromosome_events, self.complete_tree, names),
                 encoding="utf-8")
         if "gene_trees" in outputs:
-            write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat), names)
+            if bundle:
+                write_gene_tree_table(self.gene_trees, d / BUNDLED["gene_trees"], names)
+            else:
+                write_gene_trees(self.gene_trees, grouped_dir(d, "gene_trees", flat), names)
         if "species_tree" in outputs:            # the tree everything here is indexed by: without
             (d / "species_complete.nwk").write_text(   # it a directory of gene trees is not a dataset
                 self.complete_tree.to_newick() + "\n", encoding="utf-8")

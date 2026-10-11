@@ -183,6 +183,15 @@ def _add_flat_arg(g) -> None:
                    help="write every file straight into DIR, not grouped by level")
 
 
+def _add_bundle_arg(g) -> None:
+    """Add ``--bundle`` (one file per run for each per-family output) to an ``outputs`` group."""
+    g.add_argument("--bundle", action="store_true",
+                   help="write each per-family output as one file: gene trees as gene_trees.tsv, "
+                        "alignments as alignments.fasta, ancestral sequences as ancestral.fasta, "
+                        "phylograms as phylograms.tsv. For a cluster that limits how many files "
+                        "you keep")
+
+
 def default_outputs(result) -> tuple[str, ...]:
     """What a result writes when ``--write`` is not given — read off its own ``write()`` signature.
 

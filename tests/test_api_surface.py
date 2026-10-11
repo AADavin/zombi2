@@ -134,8 +134,8 @@ def test_the_node_label_pair_round_trips():
 
 #: Flags that say how a run is *driven or written*, not what is simulated: the CLI's own business.
 #: A Python caller passes objects and calls `.write()`, so these have nothing to correspond to.
-_PLUMBING = {"help", "params", "seed", "from", "write", "flat", "quiet", "force", "parallel",
-             "stream", "version", "resolution", "kind", "name", "out", "tol", "o"}
+_PLUMBING = {"help", "params", "seed", "from", "write", "flat", "bundle", "quiet", "force",
+             "parallel", "stream", "version", "resolution", "kind", "name", "out", "tol", "o"}
 
 #: Flags whose Python route is a **constructor** rather than a keyword on the entry point. A
 #: substitution model's physical parameters belong to the model (`hky85(kappa=…)`), and a joint run's

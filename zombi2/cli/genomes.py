@@ -31,7 +31,7 @@ from zombi2.params.parse import parse_rate
 from zombi2.params.scope import Global, PerLineage
 from zombi2.tree import node_label, read_newick
 from zombi2._runtime.report import write_run_report
-from zombi2.cli.framework import (resolve_seed, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
+from zombi2.cli.framework import (resolve_seed, _add_bundle_arg, _add_flat_arg, _add_force_arg, _add_quiet_arg, _add_parallel_arg,
                                   _add_from_arg, _add_params_arg, _add_run_arg, _rate, _rates_help,
                                   _read_tip_fates, _write_params_log, check_stale_downstream,
                                   clear_stale_downstream, conditioned_levels, default_outputs,
@@ -279,10 +279,12 @@ def _add_genomes_args(p: argparse.ArgumentParser) -> None:
                         "writes it). "
                         + "; ".join(f"{res}: {', '.join(outs)}" for res, outs in _OUTPUTS.items()))
     _add_flat_arg(g)
+    _add_bundle_arg(g)
     _add_parallel_arg(g)
     g.add_argument("--stream", action="store_true",
                    help="[family, ordered] write the run to disk as it goes rather than hold it in "
-                        "memory; gene trees stay under gene_trees/ even with --flat. At the family "
+                        "memory; gene trees stay under gene_trees/ even with --flat, and go to "
+                        "gene_trees.tsv with --bundle. At the family "
                         "resolution it is a separate engine, like --parallel: same seed, a different "
                         "(valid) run. At the ordered resolution the run is unchanged, and "
                         "gene_order.tsv lists each node's rows when its branch ends")
@@ -602,8 +604,8 @@ def run(args, parser):
         # exactly as it did before these reached the command line
         extents = {f"{k}_extent": getattr(args, f"{k}_extent") for k in _SEGMENT_EXTENTS}
         # streamed, the engine writes `out` itself as the run goes, and a StreamedRun comes back
-        to_disk = (dict(stream_to=out, outputs=tuple(args.write) if args.write else None)
-                   if streaming else {})
+        to_disk = (dict(stream_to=out, outputs=tuple(args.write) if args.write else None,
+                        bundle=args.bundle) if streaming else {})
         result = simulate_genomes_ordered(
             tree, replacement=args.replacement, initial_families=args.initial_families,
             progress=not args.quiet, **to_disk, **extents, **structured, **family_knobs, **common)
@@ -627,7 +629,8 @@ def run(args, parser):
         result = simulate_genomes_family(
             tree, replacement=args.replacement, initial_families=args.initial_families,
             parallel=parallel_from_args(args, parser), stream_to=out,
-            outputs=tuple(args.write) if args.write else None, progress=not args.quiet,
+            outputs=tuple(args.write) if args.write else None, bundle=args.bundle,
+            progress=not args.quiet,
             **family_knobs, **common)
     else:
         result = simulate_genomes_family(
@@ -652,7 +655,7 @@ def run(args, parser):
         # every level, and a second under genomes/ would be two files for one fact.
         wanted = tuple(args.write) if args.write else tuple(
             o for o in default_outputs(result) if o != "species_tree")
-        result.write(out, outputs=wanted, flat=args.flat)
+        result.write(out, outputs=wanted, flat=args.flat, bundle=args.bundle)
     # The events index against the tree canonicalised to n<id> labels, so the run needs that exact
     # tree to be replayable. A run grown here already has it — `zombi2 species` wrote the identical
     # file — so only a run reading its tree from elsewhere (--from) needs a copy, and it goes where
