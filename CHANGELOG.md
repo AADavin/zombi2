@@ -9,6 +9,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Fixed
+
+- `prune()`, the trait engines, `zombi2 tools recphylo` and `zombi2 tools markers` walk a tree by its structure, not by its node ids. A hand-labelled Newick whose internal labels do not number a child above its parent used to raise a `KeyError`. ZOMBI2's own trees are walked in the same order as before, so seeded runs are unchanged. (#467)
+
 ## [0.52.1] - 2026-10-11
 
 ### Changed

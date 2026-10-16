@@ -48,7 +48,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..genomes.gene_trees import GeneNode, GeneTree
-from ..tree import Tree, prune
+from ..tree import Tree, preorder, prune
 
 #: how a family enters the visible tree: it really began there, or it arrived from a lineage nobody
 #: can see. The second is invisible in the reconciliation itself — the arrival looks like an
@@ -85,12 +85,13 @@ def visible_branches(tree: Tree) -> tuple[set[int], dict[int, int]]:
         return set(), {}
     kept = set(et.nodes)
     surviving: dict[int, bool] = {}
-    for i in sorted(tree.nodes, reverse=True):        # children have higher ids than their parent
+    children_first = list(reversed(preorder(tree)))    # by structure, not by id (issue #467)
+    for i in children_first:
         nd = tree.nodes[i]
         surviving[i] = (nd.fate == "extant" if not nd.children
                         else any(surviving[c] for c in nd.children))
     image: dict[int, int] = {}
-    for i in sorted(tree.nodes, reverse=True):        # children first, so a chain resolves in one pass
+    for i in children_first:                           # children first, so a chain resolves in one pass
         if not surviving[i]:
             continue
         if i in kept:

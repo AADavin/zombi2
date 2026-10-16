@@ -8,17 +8,17 @@ import numpy as np
 
 from .._runtime.progress import track
 from ..params.connection import Driven
-from ..tree import Tree
+from ..tree import Tree, preorder
 
 
 def _preorder(tree: Tree, progress: bool = False):
-    """Node ids in an order that visits every node **after its parent** (a valid preorder). The
-    forward engine always gives a child a higher id than its parent, so ascending id order suffices
-    — the same monotonic-id fact ``genomes.prune`` relies on in reverse. No recursion needed.
+    """Node ids in an order that visits every node **after its parent** (a valid preorder):
+    `zombi2.tree.preorder`, which is ascending id order on the engine's own trees and a walk of the
+    structure on a tree whose labels do not follow the parents (issue #467).
 
     Every trait engine walks the tree exactly this way, so ``progress`` is handled here once rather
     than around each of their loops."""
-    return track(sorted(tree.nodes), "traits", unit="node", enabled=progress)
+    return track(preorder(tree), "traits", unit="node", enabled=progress)
 
 
 
