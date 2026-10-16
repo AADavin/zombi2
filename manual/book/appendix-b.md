@@ -286,7 +286,7 @@ trees are built from.
 
 | File | What it holds |
 |---|---|
-| `genome_events.tsv` | the gene genealogy, with the place each event happened |
+| `genome_events.tsv` | the gene genealogy, with the place each event happened and an `event` id shared by every row of one event |
 | `rearrangement_events.tsv` | every inversion, transposition and translocation |
 | `profiles.tsv` | family × extant-species copy counts |
 | `gene_order.tsv` | signed gene order of every node, ancestors included: `lineage` · `chromosome` · `topology` · `position` · `strand` · `family` · `copy` |
@@ -299,6 +299,7 @@ trees are built from.
 | `family_multipliers.tsv` | as at the family resolution, with an `inversion`, a `transposition` and a `translocation` column |
 | `lineage_multipliers.tsv` | as at the family resolution, with a column for each rearrangement and each chromosome event too |
 | `groups.tsv` | every gene copy minted into a copy of a declared group: `group` · `unit` · `family` · `gene`; the header alone when no group was declared |
+| `shared_transfers.tsv` | one row per transfer event: `event` · `time` · `donor` · `recipient` · `families` (`;`-joined, by name for a declared family); the `event` is the id `genome_events.tsv` carries on each of that event's rows |
 | `species_complete.nwk` | as at the family resolution |
 | `names.tsv` | as at the family resolution |
 | `conditioned_on` | as at the family resolution, and written when a rate or `transfer_to` was conditioned |

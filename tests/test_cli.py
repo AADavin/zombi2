@@ -298,7 +298,7 @@ def test_genomes_ordered_events_carry_where_each_one_happened(tmp_path, tree_fil
     rows = (out / "genome_events.tsv").read_text(encoding="utf-8").splitlines()
     cols = rows[0].split("\t")
     assert cols == ["time", "kind", "family", "parents", "children",
-                    "chromosome", "start", "length", "dest_chromosome", "dest_position"]
+                    "chromosome", "start", "length", "dest_chromosome", "dest_position", "event"]
     at = {c: i for i, c in enumerate(cols)}               # by name: a new column cannot shift these
     body = [r.split("\t") for r in rows[1:]]
     assert {r[at["kind"]] for r in body} >= {"origination", "duplication", "loss"}
