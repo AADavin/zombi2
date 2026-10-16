@@ -34,6 +34,7 @@ import collections
 import pathlib
 
 from ..genomes.gene_trees import GeneTree
+from ..tree import preorder
 
 #: the columns, in order — the header and the row builder read from the one list
 _COLS = ("family", "genomes", "copies", "single_copy", "universal",
@@ -64,7 +65,7 @@ def _species_clades(tree, keep: set[int]) -> set[frozenset]:
     against. Restricting the clades is the same thing as pruning the tree to those tips, without
     building one."""
     below: dict[int, frozenset] = {}
-    for i in sorted(tree.nodes, reverse=True):      # children have higher ids than their parent
+    for i in reversed(preorder(tree)):              # children first, by structure (issue #467)
         node = tree.nodes[i]
         below[i] = (frozenset({i} & keep) if not node.children
                     else frozenset().union(*(below[c] for c in node.children)))
