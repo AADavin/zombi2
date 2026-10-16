@@ -9,6 +9,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- Ordered genomes take `groups=[group("operon1", ["A", "B", "C"])]`: declared families that travel as one segment. The group is laid out whole in the initial genome; a duplication, a loss or a transfer that starts on any of its genes takes all of them, with the group counted as one gene of the extent; no rearrangement run, insertion or fission cut falls between its genes. The run writes `groups.tsv`, naming every gene copy of every copy of the group. Rates stay per copy; `replacement=True` is refused with groups. (#468)
+
 ## [0.52.1] - 2026-10-11
 
 ### Changed

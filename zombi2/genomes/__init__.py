@@ -30,10 +30,12 @@ from .ordered import (
     Chromosome,
     EventPosition,
     Gene,
+    GeneGroup,
     Inversion,
     OrderedGenomesResult,
     Translocation,
     Transposition,
+    group,
     simulate_genomes_ordered,
 )
 from .nucleotide import NucleotideGenome, NucleotideGenomesResult, simulate_genomes_nucleotide
@@ -45,5 +47,6 @@ __all__ = ["simulate_genomes_family", "read_run", "FamilyGenomesResult", "GeneEd
            "Profiles", "GeneTree", "GeneNode", "FamilyGenome", "genome", "GeneFamily", "family",
            "simulate_genomes_ordered", "OrderedGenomesResult", "Gene", "Chromosome",
            "ChromosomeEvent", "Inversion", "Transposition", "Translocation", "EventPosition",
+           "GeneGroup", "group",
            "simulate_genomes_nucleotide", "NucleotideGenomesResult", "NucleotideGenome",
            "StreamedRun"]

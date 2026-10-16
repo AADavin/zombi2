@@ -111,7 +111,8 @@ def test_shared_params_are_a_subset_of_the_ordered_signature():
         "chromosomes", "topology", "inversion", "transposition", "translocation",
         "fission", "fusion", "chromosome_origination", "chromosome_loss", "inversion_probability",
         "duplication_extent", "loss_extent", "transfer_extent",
-        "inversion_extent", "transposition_extent", "translocation_extent"}
+        "inversion_extent", "transposition_extent", "translocation_extent",
+        "groups"}                                            # families that travel together (#468)
 
 
 # --- the shared gene genealogy still holds -------------------------------------------------------
