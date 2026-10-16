@@ -71,11 +71,16 @@ All three are counted **per copy**: every gene is a potential start, so a bigger
 Segments give neighbouring genes a shared history by chance: two genes are co-transferred when one run happens to cover both, and the next rearrangement whose run ends between them separates them. An operon or a cassette is not a matter of chance. A **group** declares that a set of families forms one segment:
 
 ```python
+from zombi2.genomes import family, group, simulate_genomes_ordered
+from zombi2.species import simulate_species_tree
+
+tree = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=1).complete_tree
 result = simulate_genomes_ordered(
     tree, initial_families=200, duplication=0.1, transfer=0.4, loss=0.4,
     inversion=0.1, transposition=0.1, seed=1,
     families=[family("A"), family("B"), family("C")],
     groups=[group("operon1", ["A", "B", "C"])])
+result.write("out/operon")      # groups.tsv beside the usual files
 ```
 
 Every member is a declared family, a family belongs to at most one group, and a group starts in the initial genome, its genes consecutive and in the order written. Three rules then hold for the whole run:
