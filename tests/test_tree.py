@@ -351,3 +351,41 @@ def test_pruning_keeps_the_complete_tree_s_clade_order():
         tips = lambda nwk: re.findall(r"[(,]([ne]\d+):", nwk)          # noqa: E731
         survivors = [t for t in tips(result.complete_tree.to_newick()) if t.startswith("n")]
         assert survivors == tips(result.extant_tree.to_newick()), f"seed {seed}"
+
+
+# ── preorder: ids are not an order (#467) ───────────────────────────────────────────────
+#: a hand-labelled tree in ZOMBI2's own ``n<id>`` spelling, with the root numbered above its
+#: children and a split numbered below its tips — the labelling a user writes by hand
+_UPSIDE_DOWN = "((n7:1.0,n8:1.0)n1:1.0,n2:2.0)n9:0.5;"
+
+
+def test_preorder_visits_every_node_after_its_parent_whatever_the_ids_say():
+    t, _ = T.read_newick(_UPSIDE_DOWN)
+    order = T.preorder(t)
+    assert sorted(order) == sorted(t.nodes)
+    seen = set()
+    for i in order:
+        p = t.nodes[i].parent
+        assert p is None or p in seen
+        seen.add(i)
+
+
+def test_preorder_is_ascending_id_order_on_the_engine_s_own_tree():
+    # every seeded run that walked the tree by id must draw its numbers in the same order as before
+    t = species.simulate_species_tree(birth=1.0, death=0.3, n_extant=40, seed=7).complete_tree
+    assert T.preorder(t) == sorted(t.nodes)
+
+
+def test_prune_works_on_a_hand_labelled_tree_whose_ids_do_not_follow_the_parents():
+    t, _ = T.read_newick(_UPSIDE_DOWN)
+    assert T.prune(t).to_newick() == _UPSIDE_DOWN       # every tip is extant: nothing to drop
+    kept = T.prune(t, tips={7, 2})                      # drop n8: n1 is suppressed, its edge merges
+    assert kept.to_newick() == "(n7:2.0,n2:2.0)n9:0.5;"
+
+
+def test_traits_run_on_a_hand_labelled_tree_whose_ids_do_not_follow_the_parents():
+    from zombi2 import traits
+    t, _ = T.read_newick(_UPSIDE_DOWN)
+    r = traits.simulate_discrete(t, states=["x", "y"], switch=0.5, seed=3)
+    assert set(r.history) == set(t.nodes)               # every node, the upside-down ids included
+    assert set(r.values) == {"n7", "n8", "n2"}

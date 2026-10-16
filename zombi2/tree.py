@@ -177,6 +177,27 @@ class Tree:
         return f"({','.join(emit(c) for c in root.children)}){name[self.root]}:{num(stem)};"
 
 
+def preorder(tree: Tree) -> list[int]:
+    """Every node id, each one **after its parent**: the order a walk down the tree needs, and
+    reversed, the order a walk up it needs (children before parents).
+
+    Ids are not an order. ZOMBI2's own engine numbers a child above its parent, but a tree read
+    from a user's Newick keeps the user's ``n<id>`` labels, in whatever order they wrote them, and
+    a loop over ``sorted(tree.nodes)`` then reaches a child before its parent (issue #467). This
+    walk reads the structure instead. It visits the smallest id whose parent is already visited,
+    so on a tree whose ids do follow the parents it is exactly ascending id order: every seeded run
+    that walked the tree by id draws its random numbers in the same order as before."""
+    import heapq
+    out: list[int] = []
+    ready = [tree.root]
+    while ready:
+        i = heapq.heappop(ready)
+        out.append(i)
+        for c in tree.nodes[i].children:
+            heapq.heappush(ready, c)
+    return out
+
+
 def prune(tree: Tree, keep: str = "extant", *, tips: "set[int] | None" = None) -> Tree | None:
     """Prune the complete tree to a kept set (matching ``prune(tree, keep=...)`` in the codebase):
     drop the pruned subtrees and suppress the unifurcations they leave behind, giving a dated,
@@ -202,7 +223,8 @@ def prune(tree: Tree, keep: str = "extant", *, tips: "set[int] | None" = None) -
     def _keep_leaf(i: int) -> bool:
         return nodes[i].fate == "extant" if tips is None else i in tips
     surviving: dict[int, bool] = {}
-    for i in sorted(nodes, reverse=True):  # children have higher ids → processed before parents
+    for i in reversed(preorder(tree)):      # children before parents, whatever the ids say
+
         nd = nodes[i]
         surviving[i] = _keep_leaf(i) if not nd.children else any(surviving[c] for c in nd.children)
     if not any(surviving.values()):
