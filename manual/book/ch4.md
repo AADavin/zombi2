@@ -66,6 +66,31 @@ Three more events reshape the order without creating or destroying genes:
 
 All three are counted **per copy**: every gene is a potential start, so a bigger genome rearranges more often; each also takes `PerLineage`, a fixed budget independent of genome size (Appendix A). A moved segment, transposed or translocated, lands **inverted** with probability `inversion_probability` (default `0`, so it keeps its orientation).
 
+## Genes that travel together
+
+Segments give neighbouring genes a shared history by chance: two genes are co-transferred when one run happens to cover both, and the next rearrangement whose run ends between them separates them. An operon or a cassette is not a matter of chance. A **group** declares that a set of families forms one segment:
+
+```python
+from zombi2.genomes import family, group, simulate_genomes_ordered
+from zombi2.species import simulate_species_tree
+
+tree = simulate_species_tree(birth=1.0, death=0.3, n_extant=10, seed=1).complete_tree
+result = simulate_genomes_ordered(
+    tree, initial_families=200, duplication=0.1, transfer=0.4, loss=0.4,
+    inversion=0.1, transposition=0.1, seed=1,
+    families=[family("A"), family("B"), family("C")],
+    groups=[group("operon1", ["A", "B", "C"])])
+result.write("out/operon")      # groups.tsv beside the usual files
+```
+
+Every member is a declared family, a family belongs to at most one group, and a group starts in the initial genome, its genes consecutive and in the order written. Three rules then hold for the whole run:
+
+- **It moves as one segment.** A duplication, a loss or a transfer whose run starts on any of its genes takes all of them, and the extent counts the group as one gene: an extent of 1 takes the group alone, an extent of 3 takes the group and two more genes. A run that ends inside the group takes the whole group. A transfer therefore carries the operon to the recipient as one block, and a duplication copies it whole.
+- **No breakpoint falls inside it.** A rearrangement's run never ends between two of its genes, so an inversion flips the group whole and a transposition moves it whole. Nothing is inserted between its genes either, and a fission cuts beside it, never through it.
+- **The rates stay per copy.** A group of three genes is hit three times as often as one gene, and each hit moves the three.
+
+A copy of a group in a genome is a **unit**. `groups.tsv` lists every gene copy that was ever minted into a unit, with the unit's number, so a reader can tell the genes that travelled together from genes that merely sit next to each other; `genome_events.tsv` writes one row per family as always, at the same time and coordinates, and `gene_order.tsv` shows the members adjacent on every node. Groups are declared from Python, as families are. `replacement=True` is refused in a run with groups: a displaced resident would take one gene out of a unit, and what should happen instead is not decided.
+
 ## On the command line
 
 The ordered resolution is `--resolution ordered`. It adds two sets of flags to the Chapter 3 events, each still a plain number: the chromosome flags, `--chromosomes N` and `--topology` taking `circular` (the default), `linear`, or a comma-separated list of one per chromosome; and the **extent** flags, `--inversion-extent`, `--duplication-extent` and the rest, each the mean number of genes an event takes. Leave an extent out and every event takes a single gene, which for an inversion means flipping one gene's strand and shuffling nothing:

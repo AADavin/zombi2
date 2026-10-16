@@ -9,6 +9,10 @@ which moves the entries below from `[Unreleased]` into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- Ordered genomes take `groups=[group("operon1", ["A", "B", "C"])]`: declared families that travel as one segment. The group is laid out whole in the initial genome; a duplication, a loss or a transfer that starts on any of its genes takes all of them, with the group counted as one gene of the extent; no rearrangement run, insertion or fission cut falls between its genes. The run writes `groups.tsv`, naming every gene copy of every copy of the group. Rates stay per copy; `replacement=True` is refused with groups. (#468)
+
 ### Fixed
 
 - `prune()`, the trait engines, `zombi2 tools recphylo` and `zombi2 tools markers` walk a tree by its structure, not by its node ids. A hand-labelled Newick whose internal labels do not number a child above its parent used to raise a `KeyError`. ZOMBI2's own trees are walked in the same order as before, so seeded runs are unchanged. (#467)

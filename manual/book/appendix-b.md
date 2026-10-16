@@ -298,6 +298,7 @@ trees are built from.
 | `links.tsv` | as at the family resolution; `target` can also name an extent, such as `loss_extent` |
 | `family_multipliers.tsv` | as at the family resolution, with an `inversion`, a `transposition` and a `translocation` column |
 | `lineage_multipliers.tsv` | as at the family resolution, with a column for each rearrangement and each chromosome event too |
+| `groups.tsv` | every gene copy minted into a copy of a declared group: `group` · `unit` · `family` · `gene`; the header alone when no group was declared |
 | `species_complete.nwk` | as at the family resolution |
 | `names.tsv` | as at the family resolution |
 | `conditioned_on` | as at the family resolution, and written when a rate or `transfer_to` was conditioned |
