@@ -195,8 +195,9 @@ _PLAIN_DIGEST = "e6898c5426235a5bdf1d64e2ca8298b1769aea4db7444525e3b8787d6ca4b6a
 #: and a decoy whose transfers prefer genomes that carry A but never travel with it
 def _bench(_tree=None, **more):
     from zombi2.params import Recipients
-    # its own tree: thirty tips with no extinction, so the pack is transferred often enough to count
-    tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=30, seed=1).complete_tree
+    # its own tree: eighty tips, no extinction, no stem, so the pack is transferred often enough to count
+    from zombi2.tree import with_stem
+    tree = with_stem(simulate_species_tree(birth=1.0, death=0.0, n_extant=80, seed=1).complete_tree, 0.0)
     return simulate_genomes_ordered(
         tree, initial_families=300, seed=11, joint=True, duplication=0.1, transfer=0.4, loss=0.4,
         inversion=0.1, transposition=0.1,

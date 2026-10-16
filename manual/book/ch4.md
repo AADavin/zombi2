@@ -105,8 +105,11 @@ Two things a co-transfer method must not call come from what the rest of the lev
 from zombi2.genomes import family, group, simulate_genomes_ordered
 from zombi2.params import Recipients
 from zombi2.species import simulate_species_tree
+from zombi2.tree import with_stem
 
-tree = simulate_species_tree(birth=1.0, death=0.0, n_extant=30, seed=1).complete_tree
+# start at the first split: on the stem one lineage is alive, so nothing can be transferred
+# there and a family can only be lost, which at loss=0.4 happens about one time in three
+tree = with_stem(simulate_species_tree(birth=1.0, death=0.0, n_extant=30, seed=1).complete_tree, 0.0)
 result = simulate_genomes_ordered(
     tree, initial_families=500, seed=1, joint=True,
     duplication=0.1, transfer=0.4, loss=0.4, inversion=0.1, transposition=0.1,
