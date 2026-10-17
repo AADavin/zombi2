@@ -89,7 +89,7 @@ Every member is a declared family, a family belongs to at most one group, and a 
 - **No breakpoint falls inside it.** A rearrangement's run never ends between two of its genes, so an inversion flips the group whole and a transposition moves it whole. Nothing is inserted between its genes either, and a fission cuts beside it, never through it.
 - **The rates stay per copy.** A group of three genes is hit three times as often as one gene, and each hit moves the three.
 
-A copy of a group in a genome is a **unit**. `groups.tsv` lists every gene copy that was ever minted into a unit, with the unit's number, so a reader can tell the genes that travelled together from genes that merely sit next to each other; `genome_events.tsv` writes one row per family as always, at the same time and coordinates, and `gene_order.tsv` shows the members adjacent on every node. Groups are declared from Python, as families are. `replacement=True` is refused in a run with groups: a displaced resident would take one gene out of a unit, and what should happen instead is not decided.
+A copy of a group in a genome is a **unit**. `groups.tsv` lists every gene copy that was ever minted into a unit, by family id, with the unit's number, so a reader can tell the genes that travelled together from genes that merely sit next to each other; `genome_events.tsv` writes one row per family as always, at the same time and coordinates, and `gene_order.tsv` shows the members adjacent on every node. Groups are declared from Python, as families are. `replacement=True` is refused in a run with groups: a displaced resident would take one gene out of a unit, and what should happen instead is not decided.
 
 ### Groups that travel only sometimes
 
@@ -121,7 +121,7 @@ result = simulate_genomes_ordered(
 result.write("out/co-transfer")
 ```
 
-`shared_transfers.tsv` is the truth such a benchmark reads: one row per transfer event, with the families it carried. About six in ten of the events that touch `A`, `B` or `C` carry all three; the decoy's rows carry `D` alone, which is what makes it a decoy. Each row's `event` is the id that `genome_events.tsv` carries on every row of that event, so the per-family events join to the shared ones by id, never by matching coordinates or times.
+The truth such a benchmark reads is the `event` column of `genome_events.tsv`: every row of one event carries the same id, so the families a transfer carried are the rows with its id. About six in ten of the events that touch `A`, `B` or `C` carry all three; the decoy's events carry `D` alone, which is what makes it a decoy. The tables write families by id, and `genome_summary.json` maps each declared name to its id under `families.names`.
 
 ## On the command line
 

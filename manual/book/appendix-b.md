@@ -294,12 +294,11 @@ trees are built from.
 | `initial_genome.tsv` | the genome the run **started** with: `chromosome` · `topology` · `position` · `strand` · `family` · `copy` |
 | `gene_tree_fam<f>_complete.nwk` · `…_extant.nwk` | as at the family resolution, since position is orthogonal to genealogy |
 | `gene_trees.tsv` | as at the family resolution. Only with `--compact` |
-| `genome_summary.json` | events as biology rather than rows, families born/surviving/died out, genes and chromosomes per genome, rearrangements and chromosome events by kind |
+| `genome_summary.json` | events as biology rather than rows, families born/surviving/died out, the declared names mapped to their ids, genes and chromosomes per genome, rearrangements and chromosome events by kind |
 | `links.tsv` | as at the family resolution; `target` can also name an extent, such as `loss_extent` |
 | `family_multipliers.tsv` | as at the family resolution, with an `inversion`, a `transposition` and a `translocation` column |
 | `lineage_multipliers.tsv` | as at the family resolution, with a column for each rearrangement and each chromosome event too |
 | `groups.tsv` | every gene copy minted into a copy of a declared group: `group` · `unit` · `family` · `gene`; the header alone when no group was declared |
-| `shared_transfers.tsv` | one row per transfer event: `event` · `time` · `donor` · `recipient` · `families` (`;`-joined, by name for a declared family); the `event` is the id `genome_events.tsv` carries on each of that event's rows |
 | `species_complete.nwk` | as at the family resolution |
 | `names.tsv` | as at the family resolution |
 | `conditioned_on` | as at the family resolution, and written when a rate or `transfer_to` was conditioned |

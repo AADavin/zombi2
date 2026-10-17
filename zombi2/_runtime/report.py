@@ -81,7 +81,6 @@ _GLOSS = {
     "genome_events.tsv": "every duplication / transfer / loss / origination, per gene copy",
     "links.tsv": "the links the run read from its own gene content (family, target, driver, modifier, mapping); only the header when there are none",
     "groups.tsv": "every gene copy minted into a copy of a declared group (group, unit, family, gene), so a reader can tell which copies travelled together; only the header when no group was declared",
-    "shared_transfers.tsv": "one row per transfer event (event, time, donor, recipient, families), the event id being the one genome_events.tsv carries on that event's rows",
     "gene_trees": "gene trees, one per family — complete (all copies) and extant (survivors), Newick",
     "gene_trees.tsv": "every gene tree in one table, a row per family (family, complete, extant)",
     # genomes/ (ordered resolution adds gene order and chromosome-level events)

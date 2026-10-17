@@ -111,7 +111,8 @@ def test_groups_tsv_names_every_copy_by_group_unit_family_and_gene(tree, tmp_pat
     r.write(tmp_path)
     lines = (tmp_path / "groups.tsv").read_text().splitlines()
     assert lines[0] == "group\tunit\tfamily\tgene"
-    assert [ln.split("\t")[:3] for ln in lines[1:4]] == [["operon1", "0", n] for n in "ABC"]
+    assert [ln.split("\t")[:3] for ln in lines[1:4]] == \
+        [["operon1", "0", str(r.family_names[n])] for n in "ABC"]      # ids, as every table
     assert len(lines) - 1 == len(r.grouped_genes)
     # a streamed run writes the same table
     simulate_genomes_ordered(tree, seed=1, stream_to=tmp_path / "stream", **_RUN)
@@ -207,39 +208,49 @@ def _bench(_tree=None, **more):
         groups=[group("pack", ["A", "B", "C"], together=0.6, adjacent=False)], **more)
 
 
-def _shared(path):
-    return [ln.split("\t") for ln in path.read_text().splitlines()[1:]]
+def _shared(path, names):
+    """The transfer events of a written run, from ``genome_events.tsv`` alone: ``{event id: the
+    families it carried, by name}``, which is what the ``event`` column is for."""
+    lines = path.read_text().splitlines()
+    header = lines[0].split("\t")
+    at = {c: i for i, c in enumerate(header)}
+    by_name = {str(fid): name for name, fid in names.items()}
+    out: dict = {}
+    for ln in lines[1:]:
+        c = ln.split("\t")
+        if c[at["kind"]].startswith("transfer"):
+            out.setdefault(c[at["event"]], set()).add(by_name.get(c[at["family"]], c[at["family"]]))
+    return out
 
 
-def test_shared_transfers_lists_every_transfer_event_with_the_families_it_carried(tree, tmp_path):
+def test_the_event_column_groups_the_rows_of_one_event(tree, tmp_path):
     r = _bench(tree)
     r.write(tmp_path)
-    rows = _shared(tmp_path / "shared_transfers.tsv")
-    assert (tmp_path / "shared_transfers.tsv").read_text().splitlines()[0] == \
-        "event\ttime\tdonor\trecipient\tfamilies"
-    transfers = [e for e in r.events if e.kind.startswith("transfer")]
-    assert sum(len(row[4].split(";")) for row in rows) == len(transfers)
-    # the event id is the one genome_events.tsv carries on each of the event's rows
     ev = (tmp_path / "genome_events.tsv").read_text().splitlines()
     header = ev[0].split("\t")
     assert header[-1] == "event"
-    by_id = {}
-    for ln in ev[1:]:
-        c = ln.split("\t")
-        by_id.setdefault(c[-1], []).append(c)
-    for event, time, donor, recipient, families in rows:
-        own = by_id[event]
-        assert {c[header.index("kind")] for c in own} <= {"transfer_additive", "transfer_replacing"}
-        assert len(own) == len(families.split(";"))
-        assert {c[header.index("time")] for c in own} == {time}
+    at = {c: i for i, c in enumerate(header)}
+    rows = [ln.split("\t") for ln in ev[1:]]
+    by_id: dict = {}
+    for c in rows:
+        by_id.setdefault(c[at["event"]], []).append(c)
+    # the rows of one id share a time and a kind, and ids rise down the file
+    for own in by_id.values():
+        assert len({c[at["time"]] for c in own}) == 1
+        assert len({c[at["kind"]] for c in own}) == 1
+    assert [int(i) for i in by_id] == sorted(int(i) for i in by_id)
+    # as many transfer rows as transfer events in Python, and the name map is in the summary
+    transfers = sum(len(own) for own in by_id.values() if own[0][at["kind"]].startswith("transfer"))
+    assert transfers == sum(1 for e in r.events if e.kind.startswith("transfer"))
+    assert r.summary()["families"]["names"] == {n: r.family_names[n] for n in "ABCDH"}
 
 
 def test_together_is_the_share_of_a_member_s_transfers_that_carry_the_pack(tree, tmp_path):
     r = _bench(tree)
     r.write(tmp_path)
-    rows = _shared(tmp_path / "shared_transfers.tsv")
+    rows = _shared(tmp_path / "genome_events.tsv", r.family_names)
     pack = {"A", "B", "C"}
-    touching = [set(row[4].split(";")) for row in rows if pack & set(row[4].split(";"))]
+    touching = [f for f in rows.values() if pack & f]
     # the pack travelled: every member the donor still held went along, so two of three where the
     # third had been lost on that branch
     shared = [f for f in touching if len(f & pack) > 1]
@@ -248,7 +259,7 @@ def test_together_is_the_share_of_a_member_s_transfers_that_carry_the_pack(tree,
     assert any(len(f & pack) == 1 for f in touching)        # and sometimes one member went alone
     # the decoy co-occurs with A and never shares an event with it
     assert not any("D" in f and "A" in f for f in touching)
-    assert all(len(f) == 1 for f in (set(row[4].split(";")) for row in rows) if "D" in f)
+    assert all(len(f) == 1 for f in rows.values() if "D" in f)
 
 
 def test_a_group_at_together_zero_and_not_adjacent_is_no_group_at_all(tree):
@@ -292,7 +303,7 @@ def test_fates_family_lets_members_drift_apart_and_fates_group_does_not(tree):
 def test_the_streamed_benchmark_writes_the_same_tables(tree, tmp_path):
     _bench(tree).write(tmp_path / "mem")
     _bench(tree, stream_to=tmp_path / "stream")
-    for f in ("shared_transfers.tsv", "genome_events.tsv", "groups.tsv"):
+    for f in ("genome_events.tsv", "groups.tsv", "genome_summary.json"):
         assert (tmp_path / "mem" / f).read_text() == (tmp_path / "stream" / f).read_text()
 
 

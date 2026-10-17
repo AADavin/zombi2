@@ -428,12 +428,12 @@ class OrderedGenomesResult:
     #: Python and unnameable on the command line.
     OUTPUTS = ("events", "profiles", "gene_order", "initial_genome",
                "chromosome_events", "gene_trees", "species_tree", "summary", "links",
-               "family_multipliers", "lineage_multipliers", "groups", "shared_transfers")
+               "family_multipliers", "lineage_multipliers", "groups")
 
     def write(self, directory, outputs=("events", "profiles", "gene_order", "initial_genome",
                                         "gene_trees", "chromosome_events", "species_tree",
                                         "summary", "links", "family_multipliers",
-                                        "lineage_multipliers", "groups", "shared_transfers"), *,
+                                        "lineage_multipliers", "groups"), *,
               flat: bool = False, compact: bool = False,
               bundle: "bool | None" = None) -> None:
         """Materialise chosen ``outputs`` to ``directory`` (created if needed):
@@ -470,10 +470,6 @@ class OrderedGenomesResult:
         - ``"groups"`` → ``groups.tsv``, every gene copy minted into a copy of a declared group:
           ``group`` · ``unit`` · ``family`` · ``gene`` (see `group`); the header alone when no group
           was declared.
-        - ``"shared_transfers"`` → ``shared_transfers.tsv``, one row per transfer event: ``event`` ·
-          ``time`` · ``donor`` · ``recipient`` · ``families``, the event id being the one
-          ``genome_events.tsv`` carries on each of that event's rows, so whether two families
-          shared a transfer is read, never reconstructed from coordinates (#471).
         """
         compact = compact_or_bundle(compact, bundle, "write")   # its 0.52.0 name
         # An unknown token used to write nothing and exit clean — silent data loss you discover
@@ -521,13 +517,8 @@ class OrderedGenomesResult:
             (d / "lineage_multipliers.tsv").write_text(
                 lineage_multipliers_tsv(self.lineage_multipliers, self.complete_tree.labels(),
                                         ORDERED_LINEAGE_TARGETS), encoding="utf-8")
-        if "groups" in outputs or "shared_transfers" in outputs:
-            by_id = {fid: name for name, fid in self.family_names.items()}
         if "groups" in outputs:
-            (d / "groups.tsv").write_text(groups_tsv(self.grouped_genes, by_id), encoding="utf-8")
-        if "shared_transfers" in outputs:
-            (d / "shared_transfers.tsv").write_text(
-                _shared_transfers_tsv(self.edges, names, by_id), encoding="utf-8")
+            (d / "groups.tsv").write_text(groups_tsv(self.grouped_genes), encoding="utf-8")
 
     def summary(self) -> dict:
         """What this run produced, as a plain dict — the payload of ``genome_summary.json``.
@@ -549,7 +540,7 @@ class OrderedGenomesResult:
             born=len({e.family for e in self.edges}),
             surviving=len({g.family for i in extant for c in self.node_genomes.get(i, ())
                            for g in c.genes}),
-            named=len(self.family_names), extant=len(extant),
+            named=len(self.family_names), family_names=self.family_names, extant=len(extant),
             empty=sum(1 for i in extant if not any(c.genes for c in self.node_genomes.get(i, ()))),
             genes_per_genome=[sum(len(c.genes) for c in self.node_genomes.get(i, ())) for i in extant],
             chromosomes_per_genome=[len(self.node_genomes.get(i, ())) for i in extant],
@@ -600,7 +591,8 @@ def _initial_genome_tsv(initial_genome) -> str:
 
 
 def _ordered_summary(*, seed, events, born, surviving, named, extant, empty, genes_per_genome,
-                     chromosomes_per_genome, rearrangements, chromosome_events) -> dict:
+                     chromosomes_per_genome, rearrangements, chromosome_events,
+                     family_names=None) -> dict:
     """The payload of ``genome_summary.json``, from the numbers it reports. One function, so a run
     kept in memory (`OrderedGenomesResult.summary`) and a streamed run (`_OrderedStream`) cannot report
     them differently. ``rearrangements`` and ``chromosome_events`` count records by kind."""
@@ -609,8 +601,9 @@ def _ordered_summary(*, seed, events, born, surviving, named, extant, empty, gen
         "seed": seed,
         "resolution": "ordered",
         "events": events,
+        # ``names`` is the join from a declared family's name to the id every table writes
         "families": {"born": born, "surviving": surviving, "died_out": born - surviving,
-                     "named": named},
+                     "named": named, "names": dict(sorted((family_names or {}).items()))},
         "extant_genomes": extant,
         "empty_genomes": empty,
         "genes_per_genome": _stats(genes_per_genome),
@@ -644,10 +637,6 @@ def _ordered_summary(*, seed, events, born, surviving, named, extant, empty, gen
 #: interleaved here, with the nine genealogy columns blank, are now ``rearrangement_events.tsv``.)
 _EVENT_COLS = _COLS + ("chromosome", "start", "length", "dest_chromosome", "dest_position", "event")
 
-#: the columns of ``shared_transfers.tsv``: one row per transfer event, the families it carried
-SHARED_TRANSFERS_HEADER = "event\ttime\tdonor\trecipient\tfamilies"
-
-
 class _EventIds:
     """One id per **event** for the written rows (#471). The genealogy table has one row per family
     an event touched, so a segmental event is several rows; they are consecutive and share a time, a
@@ -676,31 +665,6 @@ def _event_ids(events, branch, ids: _EventIds) -> list[int]:
             b = branch[e.children[0]] if e.children else branch.get(e.parents[0]) if e.parents else None
         out.append(ids.of((e.time, e.kind, b)))
     return out
-
-
-def _shared_transfer_rows(events, ids, branch, names, family_names=None) -> list[str]:
-    """``shared_transfers.tsv`` rows for the transfer events among ``events``: the event id, its
-    time, the donor and recipient branches, and the families it carried, ``;``-joined, by name for
-    a declared family and by id otherwise (#471)."""
-    fam = family_names or {}
-    rows: list[str] = []
-    current: list | None = None
-    for e, i in zip(events, ids):
-        if not e.kind.startswith("transfer"):
-            continue
-        if current is not None and current[0] == i:
-            current[4].append(str(fam.get(e.family, e.family)))
-            continue
-        if current is not None:
-            rows.append("\t".join([str(current[0]), repr(current[1]), current[2], current[3],
-                                   ";".join(current[4])]))
-        donor, recipient = branch[e.children[0]], branch[e.children[1]]
-        current = [i, e.time, _name(names, donor), _name(names, recipient),
-                   [str(fam.get(e.family, e.family))]]
-    if current is not None:
-        rows.append("\t".join([str(current[0]), repr(current[1]), current[2], current[3],
-                               ";".join(current[4])]))
-    return rows
 
 
 def _position_key(kind, lineage, family):
@@ -754,15 +718,6 @@ def _events_tsv(events, event_positions, names=None) -> str:
     return "\n".join(["\t".join(_EVENT_COLS),
                       *[f"{r}\t{c}\t{i}" for r, c, i in
                         zip(rows, _coordinates(events, event_positions), ids)]]) + "\n"
-
-
-def _shared_transfers_tsv(events, names=None, family_names=None) -> str:
-    """``shared_transfers.tsv`` for a run held in memory, with the same ids `_events_tsv` writes."""
-    evs = events_from_edges(events)
-    branch = _branches(events)
-    ids = _event_ids(evs, branch, _EventIds())
-    return "\n".join([SHARED_TRANSFERS_HEADER,
-                      *_shared_transfer_rows(evs, ids, branch, names, family_names)]) + "\n"
 
 
 # --- a run written to disk as it goes (stream_to=) ------------------------------------------------
@@ -842,9 +797,6 @@ class _OrderedStream:
         self._gene_order = (self._open(self.directory / "gene_order.tsv", "\t".join(_GENE_ORDER_COLS))
                             if "gene_order" in want else None)
         self._ids = _EventIds()                  # one id per event, across the batches
-        self._shared = (self._open(self.directory / "shared_transfers.tsv", SHARED_TRANSFERS_HEADER)
-                        if "shared_transfers" in want else None)
-        self.family_names: dict[int, str] = {}    # set by the engine once the named families exist
 
     @staticmethod
     def _open(path, header: str):
@@ -863,19 +815,13 @@ class _OrderedStream:
         if edges:
             births = {e.copy: e.lineage for e in edges}
             branch = collections.ChainMap(births, self._copy_branch)
-            if self._events is not None or self._shared is not None:
-                evs = events_from_edges(edges)
-                ids = _event_ids(evs, branch, self._ids)
             if self._events is not None:
                 rows = event_rows(edges, self.names, branch)
                 cells = _coordinates(edges, self.positions, branch)
+                ids = _event_ids(events_from_edges(edges), branch, self._ids)
                 self._events.writelines(f"{row}\t{cell}\t{i}\n"
                                         for row, cell, i in zip(rows, cells, ids))
                 self._n_rows += len(rows)
-            if self._shared is not None:
-                self._shared.writelines(
-                    row + "\n" for row in _shared_transfer_rows(evs, ids, branch, self.names,
-                                                                 self.family_names))
             self._tally.add(edges)
             self.n_edges += len(edges)
             self._copy_branch.update(births)
@@ -942,8 +888,7 @@ class _OrderedStream:
               lineage_multipliers, groups=None, grouped_genes=(), family_names=None) -> StreamedRun:
         """Write what is left, build the gene trees, and hand back the run's `StreamedRun`."""
         self.flush()
-        for f in (self._events, self._rearrangement_file, self._chromosome_file, self._gene_order,
-                  self._shared):
+        for f in (self._events, self._rearrangement_file, self._chromosome_file, self._gene_order):
             if f is not None:
                 f.close()
         d, want = self.directory, set(self.outputs)
@@ -963,6 +908,7 @@ class _OrderedStream:
             write_summary(d / "genome_summary.json", _ordered_summary(
                 seed=seed, events=self._tally.counts(), born=self._born,
                 surviving=len(self._surviving), named=named, extant=len(self._extant),
+                family_names={name: fid for fid, name in (family_names or {}).items()},
                 empty=self._empty, genes_per_genome=self._genes_per_genome,
                 chromosomes_per_genome=self._chromosomes_per_genome,
                 rearrangements=self._rearranged, chromosome_events=self._chromosome_kinds))
@@ -976,7 +922,7 @@ class _OrderedStream:
                 lineage_multipliers_tsv(lineage_multipliers, self.tree.labels(),
                                         ORDERED_LINEAGE_TARGETS), encoding="utf-8")
         if "groups" in want:
-            (d / "groups.tsv").write_text(groups_tsv(grouped_genes, family_names), encoding="utf-8")
+            (d / "groups.tsv").write_text(groups_tsv(grouped_genes), encoding="utf-8")
         return StreamedRun(str(d), seed, self._born, self.n_edges, self.outputs)
 
     def _write_profiles(self, path) -> None:
@@ -1828,9 +1774,9 @@ def group(name=None, members=None, *, together=1.0, adjacent=True, fates="family
       copy of a member is placed beside the group, not inside it, and is not a member. ``"group"``:
       the whole group, and a copy of it is a new unit.
 
-    Every transfer event of the run is one row of ``shared_transfers.tsv``, with the families it
-    carried and an event id that ``genome_events.tsv`` repeats on each family's row, so whether two
-    families shared an event is read from the table and never reconstructed from coordinates.
+    Every row of ``genome_events.tsv`` carries an ``event`` id, the same on every family's row of
+    one event, so whether two families shared a transfer is read off the table by that id and
+    never reconstructed from coordinates.
     """
     if name is None or not isinstance(name, str) or not name.strip():
         raise ValueError("group() declares one group of families and needs its name: "
@@ -1892,11 +1838,10 @@ def resolve_groups(groups, declared, started_named) -> dict[str, GeneGroup]:
 GROUPS_HEADER = "group\tunit\tfamily\tgene"
 
 
-def groups_tsv(rows, family_names: dict[int, str] | None = None) -> str:
-    """``groups.tsv`` from ``(group, unit, family id, gene id)`` rows; the family is written by name."""
-    names = family_names or {}
-    return "\n".join([GROUPS_HEADER,
-                      *(f"{g}\t{u}\t{names.get(f, f)}\t{c}" for g, u, f, c in rows)]) + "\n"
+def groups_tsv(rows) -> str:
+    """``groups.tsv`` from ``(group, unit, family id, gene id)`` rows. The family is its id, as in
+    every other table; ``genome_summary.json`` maps the declared names to the ids."""
+    return "\n".join([GROUPS_HEADER, *(f"{g}\t{u}\t{f}\t{c}" for g, u, f, c in rows)]) + "\n"
 
 
 class _Units:
@@ -2997,8 +2942,6 @@ def simulate_genomes_ordered(tree, *, duplication=0.0, transfer=0.0, loss=0.0, o
     # which group a family travels with, by the family's id, and each group's member ids (#471)
     group_of_family: dict[int, GeneGroup] = {named[m]: g for g in group_map.values() for m in g.members}
     member_ids = {g.name: tuple(named[m] for m in g.members) for g in group_map.values()}
-    if to_disk is not None:
-        to_disk.family_names = {fid: name for name, fid in named.items()}
     # the run's starting genome: a deep snapshot, so the live genome's events never reach it
     # the ids of the families `origins=` places: minted here, straight after the initial and named
     # ones and in the order they were written, so the same origins name the same families at either
